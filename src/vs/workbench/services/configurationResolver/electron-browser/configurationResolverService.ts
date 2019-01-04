@@ -132,7 +132,7 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 	 * Please note: this method does not substitute the input or command variables (so the configuration is not modified).
 	 * The returned dictionary can be passed to "resolvePlatform" for the actual substitution.
 	 * See #6569.
-	 * @param configuration
+	 *
 	 * @param variableToCommandMap Aliases for commands
 	 */
 	private async resolveWithInputAndCommands(folder: IWorkspaceFolder, configuration: any, variableToCommandMap: IStringDictionary<string>, section: string): Promise<IStringDictionary<string>> {

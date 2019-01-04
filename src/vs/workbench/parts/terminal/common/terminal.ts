@@ -376,17 +376,13 @@ export interface ITerminalInstance {
 	/**
 	 * The title of the terminal. This is either title or the process currently running or an
 	 * explicit name given to the terminal instance through the extension API.
-	 *
-	 * @readonly
 	 */
-	title: string;
+	readonly title: string;
 
 	/**
 	 * The focus state of the terminal before exiting.
-	 *
-	 * @readonly
 	 */
-	hadFocusOnExit: boolean;
+	readonly hadFocusOnExit: boolean;
 
 	/**
 	 * False when the title is set by an API or the user. We check this to make sure we

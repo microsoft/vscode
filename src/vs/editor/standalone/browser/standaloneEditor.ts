@@ -178,8 +178,8 @@ export function setModelMarkers(model: ITextModel, owner: string, markers: IMark
 
 /**
  * Get markers for owner and/or resource
- * @returns {IMarker[]} list of markers
- * @param filter
+ *
+ * @returns list of markers
  */
 export function getModelMarkers(filter: { owner?: string, resource?: URI, take?: number }): IMarker[] {
 	return StaticServices.markerService.get().read(filter);

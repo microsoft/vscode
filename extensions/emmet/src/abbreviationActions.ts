@@ -535,9 +535,7 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 
 /**
  * Expands abbreviations as detailed in expandAbbrList in the editor
- * @param editor
- * @param expandAbbrList
- * @param insertSameSnippet
+ *
  * @returns false if no snippet can be inserted.
  */
 function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: ExpandAbbreviationInput[], insertSameSnippet: boolean): Thenable<boolean> {

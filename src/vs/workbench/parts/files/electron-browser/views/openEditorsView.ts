@@ -518,7 +518,7 @@ class OpenEditorsDelegate implements IListVirtualDelegate<OpenEditor | IEditorGr
 /**
  * Check if the item being dragged is one of the supported types that can be dropped on an
  * open editor or editor group. Fixes https://github.com/Microsoft/vscode/issues/52344.
- * @param e
+ *
  * @returns true if dropping is supported.
  */
 function dropOnEditorSupported(e: DragEvent): boolean {

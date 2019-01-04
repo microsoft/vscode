@@ -318,7 +318,6 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 	/**
 	 * Parse the extensions.json file for given workspace and return the recommendations
-	 * @param workspace
 	 */
 	private resolveWorkspaceExtensionConfig(workspace: IWorkspace): Promise<IExtensionsConfigContent | null> {
 		if (!workspace.configuration) {
@@ -331,7 +330,6 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 	/**
 	 * Parse the extensions.json files for given workspace folder and return the recommendations
-	 * @param workspaceFolder
 	 */
 	private resolveWorkspaceFolderExtensionConfig(workspaceFolder: IWorkspaceFolder): Promise<IExtensionsConfigContent | null> {
 		const extensionsJsonUri = workspaceFolder.toResource(paths.join('.vscode', 'extensions.json'));
@@ -343,7 +341,6 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 	/**
 	 * Validate the extensions.json file contents using regex and querying the gallery
-	 * @param contents
 	 */
 	private async validateExtensions(contents: IExtensionsConfigContent[]): Promise<{ invalidExtensions: string[], message: string }> {
 		const extensionsContent: IExtensionsConfigContent = {
@@ -579,7 +576,6 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	/**
 	 * Prompt the user to either install the recommended extension for the file type in the current editor model
 	 * or prompt to search the marketplace if it has extensions that can support the file type
-	 * @param model
 	 */
 	private promptFiletypeBasedRecommendations(model: ITextModel): void {
 		let hasSuggestion = false;
