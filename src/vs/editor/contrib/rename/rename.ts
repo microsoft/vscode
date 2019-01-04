@@ -30,7 +30,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 
 class RenameSkeleton {
 
-	private _providers: RenameProvider[];
+	private readonly _providers: RenameProvider[];
 
 	constructor(
 		private readonly model: ITextModel,
@@ -102,11 +102,11 @@ class RenameController implements IEditorContribution {
 		return editor.getContribution<RenameController>(RenameController.ID);
 	}
 
-	private _renameInputField: RenameInputField;
-	private _renameInputVisible: IContextKey<boolean>;
+	private readonly _renameInputField: RenameInputField;
+	private readonly _renameInputVisible: IContextKey<boolean>;
 
 	constructor(
-		private editor: ICodeEditor,
+		private readonly editor: ICodeEditor,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 		@IProgressService private readonly _progressService: IProgressService,
