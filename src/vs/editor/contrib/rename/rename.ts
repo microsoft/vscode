@@ -67,16 +67,15 @@ class RenameSkeleton {
 		return res;
 	}
 
-	async provideRenameEdits(newName: string, i: number = 0, rejects: string[] = [], token: CancellationToken): Promise<WorkspaceEdit & Rejection> {
-
-		if (i >= this._providers.length) {
+	async provideRenameEdits(newName: string, i: number, rejects: string[], token: CancellationToken): Promise<WorkspaceEdit & Rejection> {
+		const provider = this._providers[i];
+		if (!provider) {
 			return {
 				edits: [],
 				rejectReason: rejects.join('\n')
 			};
 		}
 
-		const provider = this._providers[i];
 		const result = await provider.provideRenameEdits(this.model, this.position, newName, token);
 		if (!result) {
 			return this.provideRenameEdits(newName, i + 1, rejects.concat(nls.localize('no result', "No result.")), token);
@@ -88,7 +87,7 @@ class RenameSkeleton {
 }
 
 export async function rename(model: ITextModel, position: Position, newName: string): Promise<WorkspaceEdit & Rejection> {
-	return new RenameSkeleton(model, position).provideRenameEdits(newName, undefined, undefined, CancellationToken.None);
+	return new RenameSkeleton(model, position).provideRenameEdits(newName, 0, [], CancellationToken.None);
 }
 
 // ---  register actions and commands
