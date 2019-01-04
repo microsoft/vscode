@@ -1028,7 +1028,7 @@
           "type": "number",
           "scope": "resource",
           "description": "%config.autofetchPeriod%",
-          "default": 3
+          "default": 180
         },
         "git.branchValidationRegex": {
           "type": "string",
