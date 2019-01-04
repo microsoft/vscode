@@ -18,7 +18,7 @@ import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { KeybindingsEditorModel, IKeybindingItemEntry, IListEntry, KEYBINDING_ENTRY_TEMPLATE_ID, KEYBINDING_HEADER_TEMPLATE_ID } from 'vs/workbench/services/preferences/common/keybindingsEditorModel';
+import { KeybindingsEditorModel, IKeybindingItemEntry, IListEntry, KEYBINDING_ENTRY_TEMPLATE_ID } from 'vs/workbench/services/preferences/common/keybindingsEditorModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService, IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { DefineKeybindingWidget, KeybindingsSearchWidget, KeybindingsSearchOptions } from 'vs/workbench/parts/preferences/browser/keybindingWidgets';
@@ -111,13 +111,10 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.createOverlayContainer(keybindingsEditorElement);
 		this.createHeader(keybindingsEditorElement);
 		this.createBody(keybindingsEditorElement);
-
-		const focusTracker = this._register(DOM.trackFocus(parent));
-		this._register(focusTracker.onDidFocus(() => this.keybindingsEditorContextKey.set(true)));
-		this._register(focusTracker.onDidBlur(() => this.keybindingsEditorContextKey.reset()));
 	}
 
 	setInput(input: KeybindingsEditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
+		this.keybindingsEditorContextKey.set(true);
 		return super.setInput(input, options, token)
 			.then(() => this.render(options && options.preserveFocus, token));
 	}
@@ -136,7 +133,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.overlayContainer.style.height = dimension.height + 'px';
 		this.defineKeybindingWidget.layout(this.dimension);
 
-		this.layoutKebindingsList();
+		this.layoutKeybindingsList();
 	}
 
 	focus(): void {
@@ -391,13 +388,25 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 
 	private createBody(parent: HTMLElement): void {
 		const bodyContainer = DOM.append(parent, $('.keybindings-body'));
+		this.createListHeader(bodyContainer);
 		this.createList(bodyContainer);
+	}
+
+	private createListHeader(parent: HTMLElement): void {
+		const keybindingsListHeader = DOM.append(parent, $('.keybindings-list-header'));
+		keybindingsListHeader.style.height = '30px';
+		keybindingsListHeader.style.lineHeight = '30px';
+		DOM.append(keybindingsListHeader,
+			$('.header.actions'),
+			$('.header.command', null, localize('command', "Command")),
+			$('.header.keybinding', null, localize('keybinding', "Keybinding")),
+			$('.header.source', null, localize('source', "Source")),
+			$('.header.when', null, localize('when', "When")));
 	}
 
 	private createList(parent: HTMLElement): void {
 		this.keybindingsListContainer = DOM.append(parent, $('.keybindings-list-container'));
-
-		this.keybindingsList = this._register(this.instantiationService.createInstance(WorkbenchList, this.keybindingsListContainer, new Delegate(), [new KeybindingHeaderRenderer(), new KeybindingItemRenderer(this, this.keybindingsService)],
+		this.keybindingsList = this._register(this.instantiationService.createInstance(WorkbenchList, this.keybindingsListContainer, new Delegate(), [new KeybindingItemRenderer(this, this.keybindingsService)],
 			{ identityProvider: { getId: e => e.id }, ariaLabel: localize('keybindingsLabel', "Keybindings"), setRowLineHeight: false })) as WorkbenchList<IListEntry>;
 		this._register(this.keybindingsList.onContextMenu(e => this.onContextMenu(e)));
 		this._register(this.keybindingsList.onFocusChange(e => this.onFocusChange(e)));
@@ -465,9 +474,9 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 				this.latestEmptyFilters.push(filter);
 			}
 			const currentSelectedIndex = this.keybindingsList.getSelection()[0];
-			this.listEntries = [{ id: 'keybinding-header-entry', templateId: KEYBINDING_HEADER_TEMPLATE_ID }, ...keybindingsEntries];
+			this.listEntries = keybindingsEntries;
 			this.keybindingsList.splice(0, this.keybindingsList.length, this.listEntries);
-			this.layoutKebindingsList();
+			this.layoutKeybindingsList();
 
 			if (reset) {
 				this.keybindingsList.setSelection([]);
@@ -497,8 +506,8 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		}
 	}
 
-	private layoutKebindingsList(): void {
-		const listHeight = this.dimension.height - (DOM.getDomNodePagePosition(this.headerContainer).height + 12 /*padding*/);
+	private layoutKeybindingsList(): void {
+		const listHeight = this.dimension.height - (DOM.getDomNodePagePosition(this.headerContainer).height + 12 /*padding*/ + 30 /*list header*/);
 		this.keybindingsListContainer.style.height = `${listHeight}px`;
 		this.keybindingsList.layout(listHeight);
 	}
@@ -577,10 +586,6 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.keybindingFocusContextKey.reset();
 		const element = e.elements[0];
 		if (!element) {
-			return;
-		}
-		if (element.templateId === KEYBINDING_HEADER_TEMPLATE_ID) {
-			this.keybindingsList.focusNext();
 			return;
 		}
 		if (element.templateId === KEYBINDING_ENTRY_TEMPLATE_ID) {
@@ -691,9 +696,6 @@ class Delegate implements IListVirtualDelegate<IListEntry> {
 				return 40;
 			}
 		}
-		if (element.templateId === KEYBINDING_HEADER_TEMPLATE_ID) {
-			return 30;
-		}
 		return 24;
 	}
 
@@ -709,30 +711,6 @@ interface KeybindingItemTemplate {
 	keybinding: KeybindingColumn;
 	source: SourceColumn;
 	when: WhenColumn;
-}
-
-class KeybindingHeaderRenderer implements IListRenderer<IListEntry, any> {
-
-	get templateId(): string { return KEYBINDING_HEADER_TEMPLATE_ID; }
-
-	constructor() { }
-
-	renderTemplate(container: HTMLElement): any {
-		DOM.addClass(container, 'keybindings-list-header');
-		DOM.append(container,
-			$('.header.actions'),
-			$('.header.command', null, localize('command', "Command")),
-			$('.header.keybinding', null, localize('keybinding', "Keybinding")),
-			$('.header.source', null, localize('source', "Source")),
-			$('.header.when', null, localize('when', "When")));
-		return {};
-	}
-
-	renderElement(entry: IListEntry, index: number, template: any): void {
-	}
-
-	disposeTemplate(template: any): void {
-	}
 }
 
 class KeybindingItemRenderer implements IListRenderer<IKeybindingItemEntry, KeybindingItemTemplate> {
