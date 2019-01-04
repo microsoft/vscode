@@ -109,7 +109,7 @@ export class MarkersWorkbenchService extends Disposable implements IMarkersWorkb
 		return codeActions.map(codeAction => new Action(
 			codeAction.command ? codeAction.command.id : codeAction.title,
 			codeAction.title,
-			void 0,
+			undefined,
 			true,
 			() => {
 				return this.openFileAtMarker(marker)
@@ -149,7 +149,7 @@ export class MarkersWorkbenchService extends Disposable implements IMarkersWorkb
 				pinned: false,
 				revealIfVisible: true
 			},
-		}, ACTIVE_GROUP).then(() => void 0);
+		}, ACTIVE_GROUP).then(() => undefined);
 	}
 
 	private getFixes(marker: Marker): Promise<CodeAction[]> {

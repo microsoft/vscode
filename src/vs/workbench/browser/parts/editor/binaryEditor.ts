@@ -78,7 +78,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 
 				// Check for cancellation
 				if (token.isCancellationRequested) {
-					return void 0;
+					return undefined;
 				}
 
 				// Assert Model instance
@@ -97,7 +97,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 					meta => this.handleMetadataChanged(meta)
 				);
 
-				return void 0;
+				return undefined;
 			});
 		});
 	}

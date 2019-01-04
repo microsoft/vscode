@@ -254,8 +254,7 @@ class PieceTreeSearchCache {
 
 		if (hasInvalidVal) {
 			let newArr: CacheEntry[] = [];
-			for (let i = 0; i < tmp.length; i++) {
-				const entry = tmp[i];
+			for (const entry of tmp) {
 				if (entry !== null) {
 					newArr.push(entry);
 				}

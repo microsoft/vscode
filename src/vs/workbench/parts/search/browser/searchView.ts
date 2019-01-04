@@ -599,7 +599,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	}
 
 	private clearMessage(): HTMLElement {
-		this.searchWithoutFolderMessageElement = void 0;
+		this.searchWithoutFolderMessageElement = undefined;
 
 		dom.clearNode(this.messagesElement);
 		dom.show(this.messagesElement);
@@ -733,7 +733,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			this.tree.setFocus([next]);
 			this.tree.setSelection([next]);
 			this.tree.reveal(next);
-			this.selectCurrentMatchEmitter.fire();
+			this.selectCurrentMatchEmitter.fire(undefined);
 		}
 	}
 
@@ -774,7 +774,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			this.tree.setFocus([prev]);
 			this.tree.setSelection([prev]);
 			this.tree.reveal(prev);
-			this.selectCurrentMatchEmitter.fire();
+			this.selectCurrentMatchEmitter.fire(undefined);
 		}
 	}
 
@@ -1630,7 +1630,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			}
 			return range;
 		}
-		return void 0;
+		return undefined;
 	}
 
 	private onUntitledDidChangeDirty(resource: URI): void {

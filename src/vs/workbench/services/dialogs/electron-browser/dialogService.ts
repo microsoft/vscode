@@ -100,8 +100,8 @@ export class DialogService implements IDialogService {
 			message,
 			buttons,
 			type: (severity === Severity.Info) ? 'question' : (severity === Severity.Error) ? 'error' : (severity === Severity.Warning) ? 'warning' : 'none',
-			cancelId: dialogOptions ? dialogOptions.cancelId : void 0,
-			detail: dialogOptions ? dialogOptions.detail : void 0
+			cancelId: dialogOptions ? dialogOptions.cancelId : undefined,
+			detail: dialogOptions ? dialogOptions.detail : undefined
 		});
 
 		return this.windowService.showMessageBox(options).then(result => buttonIndexMap[result.button]);
@@ -174,7 +174,7 @@ export class FileDialogService implements IFileDialogService {
 			candidate = this.historyService.getLastActiveWorkspaceRoot(schemeFilter);
 		}
 
-		return candidate && resources.dirname(candidate) || void 0;
+		return candidate && resources.dirname(candidate) || undefined;
 	}
 
 	public defaultFolderPath(schemeFilter: string): URI | undefined {
@@ -188,7 +188,7 @@ export class FileDialogService implements IFileDialogService {
 			candidate = this.historyService.getLastActiveFile(schemeFilter);
 		}
 
-		return candidate && resources.dirname(candidate) || void 0;
+		return candidate && resources.dirname(candidate) || undefined;
 	}
 
 	public defaultWorkspacePath(schemeFilter: string): URI | undefined {
@@ -197,7 +197,7 @@ export class FileDialogService implements IFileDialogService {
 		if (schemeFilter === Schemas.file && this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 			const configuration = this.contextService.getWorkspace().configuration;
 			if (configuration && !isUntitledWorkspace(configuration.fsPath, this.environmentService)) {
-				return resources.dirname(configuration) || void 0;
+				return resources.dirname(configuration) || undefined;
 			}
 		}
 
@@ -266,7 +266,7 @@ export class FileDialogService implements IFileDialogService {
 			if (result) {
 				return URI.file(result);
 			}
-			return void 0;
+			return undefined;
 		});
 	}
 
@@ -293,7 +293,7 @@ export class FileDialogService implements IFileDialogService {
 		if (options.canSelectMany) {
 			newOptions.properties!.push('multiSelections');
 		}
-		return this.windowService.showOpenDialog(newOptions).then(result => result ? result.map(URI.file) : void 0);
+		return this.windowService.showOpenDialog(newOptions).then(result => result ? result.map(URI.file) : undefined);
 	}
 }
 

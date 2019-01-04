@@ -48,7 +48,7 @@ export class ExtHostDecorations implements ExtHostDecorationsShape {
 			const { handle, uri, id } = request;
 			if (!this._provider.has(handle)) {
 				// might have been unregistered in the meantime
-				return void 0;
+				return undefined;
 			}
 			const { provider, extensionId } = this._provider.get(handle);
 			return Promise.resolve(provider.provideDecoration(URI.revive(uri), token)).then(data => {

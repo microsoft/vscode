@@ -195,7 +195,7 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 		}
 
 		const metadata = this.collectMetadata(resultGroups);
-		return <IFilterResult>{
+		return {
 			allGroups: this.settingsGroups,
 			filteredGroups: filteredGroup ? [filteredGroup] : [],
 			matches,

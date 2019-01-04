@@ -40,11 +40,11 @@ suite('WorkspacesMainService', () => {
 	}
 
 	function createWorkspace(folders: string[], names?: string[]) {
-		return service.createWorkspace(folders.map((folder, index) => ({ uri: URI.file(folder), name: names ? names[index] : void 0 } as IWorkspaceFolderCreationData)));
+		return service.createWorkspace(folders.map((folder, index) => ({ uri: URI.file(folder), name: names ? names[index] : undefined } as IWorkspaceFolderCreationData)));
 	}
 
 	function createWorkspaceSync(folders: string[], names?: string[]) {
-		return service.createWorkspaceSync(folders.map((folder, index) => ({ uri: URI.file(folder), name: names ? names[index] : void 0 } as IWorkspaceFolderCreationData)));
+		return service.createWorkspaceSync(folders.map((folder, index) => ({ uri: URI.file(folder), name: names ? names[index] : undefined } as IWorkspaceFolderCreationData)));
 	}
 
 	const environmentService = new TestEnvironmentService(parseArgs(process.argv), process.execPath);

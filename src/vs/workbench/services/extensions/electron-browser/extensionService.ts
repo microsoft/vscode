@@ -32,7 +32,7 @@ import { ExtensionHostProcessManager } from 'vs/workbench/services/extensions/el
 import { CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 const hasOwnProperty = Object.hasOwnProperty;
-const NO_OP_VOID_PROMISE = Promise.resolve<void>(void 0);
+const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
 const DYNAMIC_EXTENSION_POINTS = false;
 
 schema.properties.engines.properties.vscode.default = `^${pkg.version}`;
@@ -431,7 +431,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 		perf.mark('extensionHostReady');
 		this._installedExtensionsReady.open();
-		this._onDidRegisterExtensions.fire(void 0);
+		this._onDidRegisterExtensions.fire(undefined);
 		this._onDidChangeExtensionsStatus.fire(availableExtensions.map(e => e.identifier));
 	}
 

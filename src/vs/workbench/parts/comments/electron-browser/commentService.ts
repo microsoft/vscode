@@ -135,7 +135,7 @@ export class CommentService extends Disposable implements ICommentService {
 			return commentProvider.editComment(resource, comment, text, CancellationToken.None);
 		}
 
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	deleteComment(owner: string, resource: URI, comment: Comment): Promise<boolean> {

@@ -292,7 +292,7 @@ function createBufferedEvent<T>(source: Event<T>): Event<T> {
 		}
 		isDeliveringMessages = true;
 		while (hasListeners && bufferedMessages.length > 0) {
-			emitter.fire(bufferedMessages.shift());
+			emitter.fire(bufferedMessages.shift()!);
 		}
 		isDeliveringMessages = false;
 	};

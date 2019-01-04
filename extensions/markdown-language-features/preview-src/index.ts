@@ -12,7 +12,7 @@ import throttle = require('lodash.throttle');
 
 declare var acquireVsCodeApi: any;
 
-var scrollDisabled = true;
+let scrollDisabled = true;
 const marker = new ActiveLineMarker();
 const settings = getSettings();
 

@@ -304,7 +304,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.sortByPrecedenceAction = new Action('keybindings.editor.sortByPrecedence', sortByPrecedenceActionKeybinding ? localize('sortByPrecedeneLabelWithKeybinding', "{0} ({1})", sortByPrecedenceActionLabel, sortByPrecedenceActionKeybinding.getLabel()) : sortByPrecedenceActionLabel, 'sort-by-precedence');
 		this.sortByPrecedenceAction.checked = false;
 		this._register(this.sortByPrecedenceAction.onDidChange(e => {
-			if (e.checked !== void 0) {
+			if (e.checked !== undefined) {
 				this.renderKeybindingsEntries(false);
 			}
 		}));
@@ -314,7 +314,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.recordKeysAction = new Action(KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, recordKeysActionKeybinding ? localize('recordKeysLabelWithKeybinding', "{0} ({1})", recordKeysActionLabel, recordKeysActionKeybinding.getLabel()) : recordKeysActionLabel, 'record-keys');
 		this.recordKeysAction.checked = false;
 		this._register(this.recordKeysAction.onDidChange(e => {
-			if (e.checked !== void 0) {
+			if (e.checked !== undefined) {
 				DOM.toggleClass(recordingBadge, 'disabled', !e.checked);
 				if (e.checked) {
 					this.searchWidget.inputBox.setPlaceHolder(keybindingsSearchPlaceholder);
@@ -426,7 +426,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			return this.input.resolve()
 				.then((keybindingsModel: KeybindingsEditorModel) => {
 					if (token.isCancellationRequested) {
-						return void 0;
+						return undefined;
 					}
 
 					this.keybindingsEditorModel = keybindingsModel;
@@ -440,7 +440,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 				})
 				.then(() => {
 					if (token.isCancellationRequested) {
-						return void 0;
+						return undefined;
 					}
 
 					this.renderKeybindingsEntries(false, preserveFocus);

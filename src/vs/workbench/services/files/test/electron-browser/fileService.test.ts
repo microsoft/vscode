@@ -69,7 +69,7 @@ suite('FileService', () => {
 
 		fs.writeFileSync(resource.fsPath, ''); // create file
 
-		return service.createFile(resource, contents).then(void 0, error => {
+		return service.createFile(resource, contents).then(undefined, error => {
 			assert.ok(error);
 		});
 	});
@@ -284,7 +284,7 @@ suite('FileService', () => {
 		});
 
 		return service.resolveFile(uri.file(path.join(testDir, 'index.html'))).then(source => {
-			return service.moveFile(uri.file(testDir), uri.file(path.join(testDir, 'binary.txt'))).then(void 0, (e: Error) => {
+			return service.moveFile(uri.file(testDir), uri.file(path.join(testDir, 'binary.txt'))).then(undefined, (e: Error) => {
 				assert.ok(e);
 
 				assert.ok(!event);
@@ -300,7 +300,7 @@ suite('FileService', () => {
 		});
 
 		return service.resolveFile(uri.file(path.join(testDir, 'index.html'))).then(source => {
-			return service.moveFile(source.resource, uri.file(path.join(testDir, 'binary.txt'))).then(void 0, (e: FileOperationError) => {
+			return service.moveFile(source.resource, uri.file(path.join(testDir, 'binary.txt'))).then(undefined, (e: FileOperationError) => {
 				assert.equal(e.fileOperationResult, FileOperationResult.FILE_MOVE_CONFLICT);
 
 				assert.ok(!event);
@@ -710,7 +710,7 @@ suite('FileService', () => {
 	test('resolveContent - FILE_IS_BINARY', function () {
 		const resource = uri.file(path.join(testDir, 'binary.txt'));
 
-		return service.resolveContent(resource, { acceptTextOnly: true }).then(void 0, (e: FileOperationError) => {
+		return service.resolveContent(resource, { acceptTextOnly: true }).then(undefined, (e: FileOperationError) => {
 			assert.equal(e.fileOperationResult, FileOperationResult.FILE_IS_BINARY);
 
 			return service.resolveContent(uri.file(path.join(testDir, 'small.txt')), { acceptTextOnly: true }).then(r => {
@@ -722,7 +722,7 @@ suite('FileService', () => {
 	test('resolveContent - FILE_IS_DIRECTORY', function () {
 		const resource = uri.file(path.join(testDir, 'deep'));
 
-		return service.resolveContent(resource).then(void 0, (e: FileOperationError) => {
+		return service.resolveContent(resource).then(undefined, (e: FileOperationError) => {
 			assert.equal(e.fileOperationResult, FileOperationResult.FILE_IS_DIRECTORY);
 		});
 	});
@@ -730,7 +730,7 @@ suite('FileService', () => {
 	test('resolveContent - FILE_NOT_FOUND', function () {
 		const resource = uri.file(path.join(testDir, '404.html'));
 
-		return service.resolveContent(resource).then(void 0, (e: FileOperationError) => {
+		return service.resolveContent(resource).then(undefined, (e: FileOperationError) => {
 			assert.equal(e.fileOperationResult, FileOperationResult.FILE_NOT_FOUND);
 		});
 	});
@@ -739,7 +739,7 @@ suite('FileService', () => {
 		const resource = uri.file(path.join(testDir, 'index.html'));
 
 		return service.resolveContent(resource).then(c => {
-			return service.resolveContent(resource, { etag: c.etag }).then(void 0, (e: FileOperationError) => {
+			return service.resolveContent(resource, { etag: c.etag }).then(undefined, (e: FileOperationError) => {
 				assert.equal(e.fileOperationResult, FileOperationResult.FILE_NOT_MODIFIED_SINCE);
 			});
 		});
@@ -751,7 +751,7 @@ suite('FileService', () => {
 		return service.resolveContent(resource).then(c => {
 			fs.writeFileSync(resource.fsPath, 'Updates Incoming!');
 
-			return service.updateContent(resource, c.value, { etag: c.etag, mtime: c.mtime - 1000 }).then(void 0, (e: FileOperationError) => {
+			return service.updateContent(resource, c.value, { etag: c.etag, mtime: c.mtime - 1000 }).then(undefined, (e: FileOperationError) => {
 				assert.equal(e.fileOperationResult, FileOperationResult.FILE_MODIFIED_SINCE);
 			});
 		});

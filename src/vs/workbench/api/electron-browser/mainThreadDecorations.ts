@@ -58,7 +58,7 @@ class DecorationRequestsQueue {
 			// reset
 			this._requests = [];
 			this._resolver = [];
-			this._timer = void 0;
+			this._timer = undefined;
 		}, 0);
 	}
 }

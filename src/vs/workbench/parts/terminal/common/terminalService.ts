@@ -46,8 +46,8 @@ export abstract class TerminalService implements ITerminalService {
 	public get onInstancesChanged(): Event<void> { return this._onInstancesChanged.event; }
 	protected readonly _onInstanceTitleChanged = new Emitter<ITerminalInstance>();
 	public get onInstanceTitleChanged(): Event<ITerminalInstance> { return this._onInstanceTitleChanged.event; }
-	protected readonly _onActiveInstanceChanged = new Emitter<ITerminalInstance>();
-	public get onActiveInstanceChanged(): Event<ITerminalInstance> { return this._onActiveInstanceChanged.event; }
+	protected readonly _onActiveInstanceChanged = new Emitter<ITerminalInstance | undefined>();
+	public get onActiveInstanceChanged(): Event<ITerminalInstance | undefined> { return this._onActiveInstanceChanged.event; }
 	protected readonly _onTabDisposed = new Emitter<ITerminalTab>();
 	public get onTabDisposed(): Event<ITerminalTab> { return this._onTabDisposed.event; }
 
@@ -290,8 +290,7 @@ export abstract class TerminalService implements ITerminalService {
 	}
 
 	private _getTabForInstance(instance: ITerminalInstance): ITerminalTab | null {
-		for (let i = 0; i < this._terminalTabs.length; i++) {
-			const tab = this._terminalTabs[i];
+		for (const tab of this._terminalTabs) {
 			if (tab.terminalInstances.indexOf(instance) !== -1) {
 				return tab;
 			}
@@ -310,13 +309,13 @@ export abstract class TerminalService implements ITerminalService {
 					setTimeout(() => {
 						const instance = this.getActiveInstance();
 						if (instance) {
-							instance.focusWhenReady(true).then(() => complete(void 0));
+							instance.focusWhenReady(true).then(() => complete(undefined));
 						} else {
-							complete(void 0);
+							complete(undefined);
 						}
 					}, 0);
 				} else {
-					complete(void 0);
+					complete(undefined);
 				}
 			} else {
 				if (focus) {
@@ -325,13 +324,13 @@ export abstract class TerminalService implements ITerminalService {
 					setTimeout(() => {
 						const instance = this.getActiveInstance();
 						if (instance) {
-							instance.focusWhenReady(true).then(() => complete(void 0));
+							instance.focusWhenReady(true).then(() => complete(undefined));
 						} else {
-							complete(void 0);
+							complete(undefined);
 						}
 					}, 0);
 				} else {
-					complete(void 0);
+					complete(undefined);
 				}
 			}
 			return undefined;

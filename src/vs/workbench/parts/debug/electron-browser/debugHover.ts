@@ -232,7 +232,7 @@ export class DebugHoverWidget implements IContentWidget {
 				this.valueContainer.focus();
 			}
 
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		this.valueContainer.hidden = true;

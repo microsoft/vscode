@@ -46,7 +46,7 @@ export class CommentsDataSource implements IDataSource {
 	}
 
 	public getParent(tree: ITree, element: any): Promise<void> {
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	public shouldAutoexpand(tree: ITree, element: any): boolean {

@@ -156,7 +156,7 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 			let content = this.getValue();
 			this.placeholderText.style.visibility = content ? 'hidden' : 'visible';
 			if (preexistingContent.trim() === content.trim()) { return; }
-			this._onInputDidChange.fire();
+			this._onInputDidChange.fire(undefined);
 			preexistingContent = content;
 		}));
 
@@ -281,7 +281,7 @@ function getSuggestEnabledInputOptions(ariaLabel?: string): IEditorOptions {
 		roundedSelection: false,
 		renderIndentGuides: false,
 		cursorWidth: 1,
-		fontFamily: ' -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif',
+		fontFamily: ' -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif',
 		ariaLabel: ariaLabel || '',
 
 		snippetSuggestions: 'none',

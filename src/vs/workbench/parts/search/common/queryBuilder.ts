@@ -150,10 +150,10 @@ export class QueryBuilder {
 			folderResources.map(uri => this.getFolderQueryForRoot(uri, options, excludePattern)))
 			.filter(query => !!query) as IFolderQuery[];
 
-		const useRipgrep = !folderResources || folderResources.every(folder => {
-			const folderConfig = this.configurationService.getValue<ISearchConfiguration>({ resource: folder });
-			return !folderConfig.search.useLegacySearch;
-		});
+		// const useRipgrep = !folderResources || folderResources.every(folder => {
+		// 	const folderConfig = this.configurationService.getValue<ISearchConfiguration>({ resource: folder });
+		// 	return !folderConfig.search.useLegacySearch;
+		// });
 
 		const queryProps: ICommonQueryProps<uri> = {
 			_reason: options._reason,
@@ -164,7 +164,7 @@ export class QueryBuilder {
 			excludePattern: excludePattern.pattern,
 			includePattern,
 			maxResults: options.maxResults,
-			useRipgrep
+			useRipgrep: true
 		};
 
 		// Filter extraFileResources against global include/exclude patterns - they are already expected to not belong to a workspace

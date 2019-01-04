@@ -153,7 +153,7 @@ export class FoldingModel {
 		if (collapsedRanges.length > 0) {
 			return collapsedRanges;
 		}
-		return void 0;
+		return undefined;
 	}
 
 	/**

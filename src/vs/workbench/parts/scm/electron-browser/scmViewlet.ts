@@ -317,7 +317,7 @@ class MainPanel extends ViewletPanel {
 
 		const repository = e.element;
 		const contextKeyService = this.contextKeyService.createScoped();
-		const scmProviderKey = contextKeyService.createKey<string | undefined>('scmProvider', void 0);
+		const scmProviderKey = contextKeyService.createKey<string | undefined>('scmProvider', undefined);
 		scmProviderKey.set(repository.provider.contextValue);
 
 		const menu = this.menuService.createMenu(MenuId.SCMSourceControl, contextKeyService);

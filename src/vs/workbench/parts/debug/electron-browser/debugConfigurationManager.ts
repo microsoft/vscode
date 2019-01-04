@@ -450,7 +450,7 @@ export class ConfigurationManager implements IConfigurationManager {
 			thenables.push(this.extensionService.activateByEvent(`${activationEvent}:${debugType}`));
 		}
 		return Promise.all(thenables).then(_ => {
-			return void 0;
+			return undefined;
 		});
 	}
 

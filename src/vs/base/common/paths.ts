@@ -77,7 +77,7 @@ export function normalize(path: null, toOSPath?: boolean): null;
 export function normalize(path: string, toOSPath?: boolean): string;
 export function normalize(path: string | null | undefined, toOSPath?: boolean): string | null | undefined {
 
-	if (path === null || path === void 0) {
+	if (path === null || path === undefined) {
 		return path;
 	}
 

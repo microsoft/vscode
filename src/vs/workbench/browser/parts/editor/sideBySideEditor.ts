@@ -169,7 +169,7 @@ export class SideBySideEditor extends BaseEditor {
 		return Promise.all([
 			this.detailsEditor.setInput(newInput.details, null, token),
 			this.masterEditor.setInput(newInput.master, options, token)]
-		).then(() => void 0);
+		).then(() => undefined);
 	}
 
 	private setNewInput(newInput: SideBySideEditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
@@ -198,7 +198,7 @@ export class SideBySideEditor extends BaseEditor {
 			Event.map(master.onDidSizeConstraintsChange, () => undefined)
 		);
 
-		this.onDidCreateEditors.fire();
+		this.onDidCreateEditors.fire(undefined);
 
 		return Promise.all([this.detailsEditor.setInput(detailsInput, null, token), this.masterEditor.setInput(masterInput, options, token)]).then(() => this.focus());
 	}

@@ -38,7 +38,7 @@ export class TextResourceConfigurationService extends Disposable implements ITex
 	}
 
 	private _getValue<T>(resource: URI, position: IPosition | null, section: string | undefined): T {
-		const language = resource ? this.getLanguage(resource, position) : void 0;
+		const language = resource ? this.getLanguage(resource, position) : undefined;
 		if (typeof section === 'undefined') {
 			return this.configurationService.getValue<T>({ resource, overrideIdentifier: language });
 		}

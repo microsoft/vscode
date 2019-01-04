@@ -58,7 +58,7 @@ export function getIdAndVersion(id: string): [string, string | undefined] {
 	if (matches && matches[1]) {
 		return [adoptToGalleryExtensionId(matches[1]), matches[2]];
 	}
-	return [adoptToGalleryExtensionId(id), void 0];
+	return [adoptToGalleryExtensionId(id), undefined];
 }
 
 

@@ -46,7 +46,7 @@ export class QuickOpenItemAccessorClass implements IItemAccessor<QuickOpenEntry>
 	getItemPath(entry: QuickOpenEntry): string {
 		const resource = entry.getResource();
 
-		return resource ? resource.fsPath : void 0;
+		return resource ? resource.fsPath : undefined;
 	}
 }
 

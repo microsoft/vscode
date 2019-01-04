@@ -198,7 +198,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	//#endregion
 
 	public readonly isSimpleWidget: boolean;
-	private readonly _telemetryData: object | null;
+	private readonly _telemetryData?: object;
 
 	private readonly _domElement: HTMLElement;
 	private readonly _id: number;
@@ -245,7 +245,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._decorationTypeKeysToIds = {};
 		this._decorationTypeSubtypes = {};
 		this.isSimpleWidget = codeEditorWidgetOptions.isSimpleWidget || false;
-		this._telemetryData = codeEditorWidgetOptions.telemetryData || null;
+		this._telemetryData = codeEditorWidgetOptions.telemetryData;
 
 		options = options || {};
 		this._configuration = this._register(this._createConfiguration(options));
@@ -930,7 +930,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		const action = this.getAction(handlerId);
 		if (action) {
-			Promise.resolve(action.run()).then(void 0, onUnexpectedError);
+			Promise.resolve(action.run()).then(undefined, onUnexpectedError);
 			return;
 		}
 
@@ -951,7 +951,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			payload = payload || {};
 			payload.source = source;
 			this._instantiationService.invokeFunction((accessor) => {
-				Promise.resolve(command.runEditorCommand(accessor, this, payload)).then(void 0, onUnexpectedError);
+				Promise.resolve(command.runEditorCommand(accessor, this, payload)).then(undefined, onUnexpectedError);
 			});
 			return true;
 		}
@@ -1328,7 +1328,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}));
 
 		listenersToRemove.push(cursor.onDidAttemptReadOnlyEdit(() => {
-			this._onDidAttemptReadOnlyEdit.fire(void 0);
+			this._onDidAttemptReadOnlyEdit.fire(undefined);
 		}));
 
 		listenersToRemove.push(cursor.onDidChange((e: CursorStateChangedEvent) => {
@@ -1507,7 +1507,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	/* __GDPR__FRAGMENT__
 		"EditorTelemetryData" : {}
 	*/
-	public getTelemetryData(): { [key: string]: any; } | null {
+	public getTelemetryData(): { [key: string]: any; } | undefined {
 		return this._telemetryData;
 	}
 
@@ -1767,11 +1767,11 @@ class CodeEditorWidgetFocusTracker extends Disposable {
 
 		this._register(this._domFocusTracker.onDidFocus(() => {
 			this._hasFocus = true;
-			this._onChange.fire(void 0);
+			this._onChange.fire(undefined);
 		}));
 		this._register(this._domFocusTracker.onDidBlur(() => {
 			this._hasFocus = false;
-			this._onChange.fire(void 0);
+			this._onChange.fire(undefined);
 		}));
 	}
 

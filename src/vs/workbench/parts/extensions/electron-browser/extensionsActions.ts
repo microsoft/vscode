@@ -1173,7 +1173,7 @@ export class UpdateAllAction extends Action {
 	}
 
 	private install(extension: IExtension): Promise<void> {
-		return this.extensionsWorkbenchService.install(extension).then(void 0, err => {
+		return this.extensionsWorkbenchService.install(extension).then(undefined, err => {
 			if (!extension.gallery) {
 				return this.notificationService.error(err);
 			}
@@ -1342,7 +1342,7 @@ export class ShowEnabledExtensionsAction extends Action {
 		label: string,
 		@IViewletService private viewletService: IViewletService
 	) {
-		super(id, label, void 0, true);
+		super(id, label, undefined, true);
 	}
 
 	run(): Promise<void> {
@@ -1365,7 +1365,7 @@ export class ShowInstalledExtensionsAction extends Action {
 		label: string,
 		@IViewletService private viewletService: IViewletService
 	) {
-		super(id, label, void 0, true);
+		super(id, label, undefined, true);
 	}
 
 	run(): Promise<void> {
@@ -1447,7 +1447,7 @@ export class ShowBuiltInExtensionsAction extends Action {
 		label: string,
 		@IViewletService private viewletService: IViewletService
 	) {
-		super(id, label, void 0, true);
+		super(id, label, undefined, true);
 	}
 
 	run(): Promise<void> {
@@ -1470,7 +1470,7 @@ export class ShowOutdatedExtensionsAction extends Action {
 		label: string,
 		@IViewletService private viewletService: IViewletService
 	) {
-		super(id, label, void 0, true);
+		super(id, label, undefined, true);
 	}
 
 	run(): Promise<void> {
@@ -1493,7 +1493,7 @@ export class ShowPopularExtensionsAction extends Action {
 		label: string,
 		@IViewletService private viewletService: IViewletService
 	) {
-		super(id, label, void 0, true);
+		super(id, label, undefined, true);
 	}
 
 	run(): Promise<void> {
@@ -1516,7 +1516,7 @@ export class ShowRecommendedExtensionsAction extends Action {
 		label: string,
 		@IViewletService private viewletService: IViewletService
 	) {
-		super(id, label, void 0, true);
+		super(id, label, undefined, true);
 	}
 
 	run(): Promise<void> {
@@ -1564,7 +1564,7 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 					let model = new PagedModel(pager);
 					for (let i = 0; i < pager.total; i++) {
 						installPromises.push(model.resolve(i, CancellationToken.None).then(e => {
-							return this.extensionWorkbenchService.install(e).then(void 0, err => {
+							return this.extensionWorkbenchService.install(e).then(undefined, err => {
 								console.error(err);
 								return promptDownloadManually(e.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", e.identifier.id), err, this.instantiationService, this.notificationService, this.openerService);
 							});
@@ -1591,7 +1591,7 @@ export class InstallRecommendedExtensionAction extends Action {
 		@IOpenerService private openerService: IOpenerService,
 		@IExtensionsWorkbenchService private extensionWorkbenchService: IExtensionsWorkbenchService
 	) {
-		super(InstallRecommendedExtensionAction.ID, InstallRecommendedExtensionAction.LABEL, void 0, false);
+		super(InstallRecommendedExtensionAction.ID, InstallRecommendedExtensionAction.LABEL, undefined, false);
 		this.extensionId = extensionId;
 	}
 
@@ -1688,7 +1688,7 @@ export class ShowRecommendedKeymapExtensionsAction extends Action {
 		label: string,
 		@IViewletService private viewletService: IViewletService
 	) {
-		super(id, label, void 0, true);
+		super(id, label, undefined, true);
 	}
 
 	run(): Promise<void> {
@@ -1711,7 +1711,7 @@ export class ShowLanguageExtensionsAction extends Action {
 		label: string,
 		@IViewletService private viewletService: IViewletService
 	) {
-		super(id, label, void 0, true);
+		super(id, label, undefined, true);
 	}
 
 	run(): Promise<void> {
@@ -1734,7 +1734,7 @@ export class ShowAzureExtensionsAction extends Action {
 		label: string,
 		@IViewletService private viewletService: IViewletService
 	) {
-		super(id, label, void 0, true);
+		super(id, label, undefined, true);
 	}
 
 	run(): Promise<void> {
@@ -1759,7 +1759,7 @@ export class ChangeSortAction extends Action {
 		private sortBy: string,
 		@IViewletService private viewletService: IViewletService
 	) {
-		super(id, label, void 0, true);
+		super(id, label, undefined, true);
 
 		if (sortBy === undefined) {
 			throw new Error('bad arguments');
@@ -1798,7 +1798,7 @@ export class ChangeGroupAction extends Action {
 		private groupBy: string,
 		@IViewletService private viewletService: IViewletService
 	) {
-		super(id, label, void 0, true);
+		super(id, label, undefined, true);
 
 		if (groupBy === undefined) {
 			throw new Error('bad arguments');
@@ -2551,7 +2551,7 @@ export class OpenExtensionsFolderAction extends Action {
 		@IFileService private fileService: IFileService,
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
-		super(id, label, void 0, true);
+		super(id, label, undefined, true);
 	}
 
 	run(): Promise<void> {

@@ -39,7 +39,7 @@ suite('Hash', () => {
 	test('object', () => {
 		assert.equal(hash({}), hash({}));
 		assert.equal(hash({ 'foo': 'bar' }), hash({ 'foo': 'bar' }));
-		assert.equal(hash({ 'foo': 'bar', 'foo2': void 0 }), hash({ 'foo2': void 0, 'foo': 'bar' }));
+		assert.equal(hash({ 'foo': 'bar', 'foo2': undefined }), hash({ 'foo2': undefined, 'foo': 'bar' }));
 		assert.notEqual(hash({ 'foo': 'bar' }), hash({ 'foo': 'bar2' }));
 		assert.notEqual(hash({}), hash([]));
 	});

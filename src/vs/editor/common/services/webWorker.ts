@@ -69,13 +69,13 @@ class MonacoWebWorkerImpl<T> extends EditorWorkerClient implements MonacoWebWork
 				return proxy.loadForeignModule(this._foreignModuleId, this._foreignModuleCreateData).then((foreignMethods) => {
 					this._foreignModuleCreateData = null;
 
-					let proxyMethodRequest = (method: string, args: any[]): Promise<any> => {
+					const proxyMethodRequest = (method: string, args: any[]): Promise<any> => {
 						return proxy.fmr(method, args);
 					};
 
-					let createProxyMethod = (method: string, proxyMethodRequest: (method: string, args: any[]) => Promise<any>): Function => {
+					const createProxyMethod = (method: string, proxyMethodRequest: (method: string, args: any[]) => Promise<any>): () => Promise<any> => {
 						return function () {
-							let args = Array.prototype.slice.call(arguments, 0);
+							const args = Array.prototype.slice.call(arguments, 0);
 							return proxyMethodRequest(method, args);
 						};
 					};

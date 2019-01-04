@@ -48,13 +48,13 @@ export class RowCache implements Lifecycle.IDisposable {
 	}
 
 	public alloc(templateId: string): IRow {
-		var result = this.cache(templateId).pop();
+		let result = this.cache(templateId).pop();
 
 		if (!result) {
-			var content = document.createElement('div');
+			let content = document.createElement('div');
 			content.className = 'content';
 
-			var row = document.createElement('div');
+			let row = document.createElement('div');
 			row.appendChild(content);
 
 			let templateData: any = null;
@@ -195,7 +195,7 @@ export class ViewItem implements IViewItem {
 			return;
 		}
 
-		var classes = ['monaco-tree-row'];
+		let classes = ['monaco-tree-row'];
 		classes.push.apply(classes, Object.keys(this._styles));
 
 		if (this.model.hasChildren()) {
@@ -240,7 +240,7 @@ export class ViewItem implements IViewItem {
 			(<HTMLElement>this.row.element.firstElementChild).style.paddingLeft = this.context.options.twistiePixels + 'px';
 		}
 
-		var uri = this.context.dnd.getDragURI(this.context.tree, this.model.getElement());
+		let uri = this.context.dnd.getDragURI(this.context.tree, this.model.getElement());
 
 		if (uri !== this.uri) {
 			if (this.unbindDragStart) {
@@ -362,7 +362,7 @@ class RootViewItem extends ViewItem {
 			return;
 		}
 
-		var classes = ['monaco-tree-wrapper'];
+		let classes = ['monaco-tree-wrapper'];
 		classes.push.apply(classes, Object.keys(this._styles));
 
 		if (this.model.hasChildren()) {
@@ -544,7 +544,7 @@ export class TreeView extends HeightMap {
 			this.rowsContainer.className += ' show-twisties';
 		}
 
-		var focusTracker = DOM.trackFocus(this.domNode);
+		let focusTracker = DOM.trackFocus(this.domNode);
 		this.viewListeners.push(focusTracker.onDidFocus(() => this.onFocus()));
 		this.viewListeners.push(focusTracker.onDidBlur(() => this.onBlur()));
 		this.viewListeners.push(focusTracker);
@@ -572,7 +572,7 @@ export class TreeView extends HeightMap {
 				event.stopPropagation();
 				event.preventDefault();
 
-				var result = { translationY: event.translationY, translationX: event.translationX };
+				let result = { translationY: event.translationY, translationX: event.translationX };
 
 				if (lastEvent) {
 					result.translationY += lastEvent.translationY;
@@ -694,12 +694,12 @@ export class TreeView extends HeightMap {
 	}
 
 	private render(scrollTop: number, viewHeight: number, scrollLeft: number, viewWidth: number, scrollWidth: number): void {
-		var i: number;
-		var stop: number;
+		let i: number;
+		let stop: number;
 
-		var renderTop = scrollTop;
-		var renderBottom = scrollTop + viewHeight;
-		var thisRenderBottom = this.lastRenderTop + this.lastRenderHeight;
+		let renderTop = scrollTop;
+		let renderBottom = scrollTop + viewHeight;
+		let thisRenderBottom = this.lastRenderTop + this.lastRenderHeight;
 
 		// when view scrolls down, start rendering from the renderBottom
 		for (i = this.indexAfter(renderBottom) - 1, stop = this.indexAt(Math.max(thisRenderBottom, renderTop)); i >= stop; i--) {
@@ -721,7 +721,7 @@ export class TreeView extends HeightMap {
 			this.removeItemFromDOM(<ViewItem>this.itemAtIndex(i));
 		}
 
-		var topItem = this.itemAtIndex(this.indexAt(renderTop));
+		let topItem = this.itemAtIndex(this.indexAt(renderTop));
 
 		if (topItem) {
 			this.rowsContainer.style.top = (topItem.top - renderTop) + 'px';
@@ -793,15 +793,15 @@ export class TreeView extends HeightMap {
 	}
 
 	public focusNextPage(eventPayload?: any): void {
-		var lastPageIndex = this.indexAt(this.scrollTop + this.viewHeight);
+		let lastPageIndex = this.indexAt(this.scrollTop + this.viewHeight);
 		lastPageIndex = lastPageIndex === 0 ? 0 : lastPageIndex - 1;
-		var lastPageElement = this.itemAtIndex(lastPageIndex).model.getElement();
-		var currentlyFocusedElement = this.model.getFocus();
+		let lastPageElement = this.itemAtIndex(lastPageIndex).model.getElement();
+		let currentlyFocusedElement = this.model.getFocus();
 
 		if (currentlyFocusedElement !== lastPageElement) {
 			this.model.setFocus(lastPageElement, eventPayload);
 		} else {
-			var previousScrollTop = this.scrollTop;
+			let previousScrollTop = this.scrollTop;
 			this.scrollTop += this.viewHeight;
 
 			if (this.scrollTop !== previousScrollTop) {
@@ -815,7 +815,7 @@ export class TreeView extends HeightMap {
 	}
 
 	public focusPreviousPage(eventPayload?: any): void {
-		var firstPageIndex: number;
+		let firstPageIndex: number;
 
 		if (this.scrollTop === 0) {
 			firstPageIndex = this.indexAt(this.scrollTop);
@@ -823,13 +823,13 @@ export class TreeView extends HeightMap {
 			firstPageIndex = this.indexAfter(this.scrollTop - 1);
 		}
 
-		var firstPageElement = this.itemAtIndex(firstPageIndex).model.getElement();
-		var currentlyFocusedElement = this.model.getFocus();
+		let firstPageElement = this.itemAtIndex(firstPageIndex).model.getElement();
+		let currentlyFocusedElement = this.model.getFocus();
 
 		if (currentlyFocusedElement !== firstPageElement) {
 			this.model.setFocus(firstPageElement, eventPayload);
 		} else {
-			var previousScrollTop = this.scrollTop;
+			let previousScrollTop = this.scrollTop;
 			this.scrollTop -= this.viewHeight;
 
 			if (this.scrollTop !== previousScrollTop) {
@@ -893,7 +893,7 @@ export class TreeView extends HeightMap {
 	// Events
 
 	private onClearingInput(e: Model.IInputEvent): void {
-		var item = <Model.Item>e.item;
+		let item = <Model.Item>e.item;
 		if (item) {
 			this.onRemoveItems(new MappedIterator(item.getNavigator(), item => item && item.id));
 			this.onRowsChanged();
@@ -906,8 +906,8 @@ export class TreeView extends HeightMap {
 	}
 
 	private onItemChildrenRefreshing(e: Model.IItemChildrenRefreshEvent): void {
-		var item = <Model.Item>e.item;
-		var viewItem = this.items[item.id];
+		let item = <Model.Item>e.item;
+		let viewItem = this.items[item.id];
 
 		if (viewItem && this.context.options.showLoading) {
 			viewItem.loadingTimer = setTimeout(() => {
@@ -917,9 +917,9 @@ export class TreeView extends HeightMap {
 		}
 
 		if (!e.isNested) {
-			var childrenIds: string[] = [];
-			var navigator = item.getNavigator();
-			var childItem: Model.Item;
+			let childrenIds: string[] = [];
+			let navigator = item.getNavigator();
+			let childItem: Model.Item;
 
 			while (childItem = navigator.next()) {
 				childrenIds.push(childItem.id);
@@ -930,8 +930,8 @@ export class TreeView extends HeightMap {
 	}
 
 	private onItemChildrenRefreshed(e: Model.IItemChildrenRefreshEvent): void {
-		var item = <Model.Item>e.item;
-		var viewItem = this.items[item.id];
+		let item = <Model.Item>e.item;
+		let viewItem = this.items[item.id];
 
 		if (viewItem) {
 			if (viewItem.loadingTimer) {
@@ -943,10 +943,10 @@ export class TreeView extends HeightMap {
 		}
 
 		if (!e.isNested) {
-			var previousChildrenIds = this.refreshingPreviousChildrenIds[item.id];
-			var afterModelItems: Model.Item[] = [];
-			var navigator = item.getNavigator();
-			var childItem: Model.Item;
+			let previousChildrenIds = this.refreshingPreviousChildrenIds[item.id];
+			let afterModelItems: Model.Item[] = [];
+			let navigator = item.getNavigator();
+			let childItem: Model.Item;
 
 			while (childItem = navigator.next()) {
 				afterModelItems.push(childItem);
@@ -976,7 +976,7 @@ export class TreeView extends HeightMap {
 				// of the elements has changed
 				doToInsertItemsAlreadyExist = diff.some(d => {
 					if (d.modifiedLength > 0) {
-						for (var i = d.modifiedStart, len = d.modifiedStart + d.modifiedLength; i < len; i++) {
+						for (let i = d.modifiedStart, len = d.modifiedStart + d.modifiedLength; i < len; i++) {
 							if (this.items.hasOwnProperty(afterModelItems[i].id)) {
 								return true;
 							}
@@ -1025,20 +1025,20 @@ export class TreeView extends HeightMap {
 	}
 
 	private onItemExpanding(e: Model.IItemExpandEvent): void {
-		var viewItem = this.items[e.item.id];
+		let viewItem = this.items[e.item.id];
 		if (viewItem) {
 			viewItem.expanded = true;
 		}
 	}
 
 	private onItemExpanded(e: Model.IItemExpandEvent): void {
-		var item = <Model.Item>e.item;
-		var viewItem = this.items[item.id];
+		let item = <Model.Item>e.item;
+		let viewItem = this.items[item.id];
 		if (viewItem) {
 			viewItem.expanded = true;
 
-			var height = this.onInsertItems(item.getNavigator(), item.id);
-			var scrollTop = this.scrollTop;
+			let height = this.onInsertItems(item.getNavigator(), item.id);
+			let scrollTop = this.scrollTop;
 
 			if (viewItem.top + viewItem.height <= this.scrollTop) {
 				scrollTop += height;
@@ -1049,8 +1049,8 @@ export class TreeView extends HeightMap {
 	}
 
 	private onItemCollapsing(e: Model.IItemCollapseEvent): void {
-		var item = <Model.Item>e.item;
-		var viewItem = this.items[item.id];
+		let item = <Model.Item>e.item;
+		let viewItem = this.items[item.id];
 		if (viewItem) {
 			viewItem.expanded = false;
 			this.onRemoveItems(new MappedIterator(item.getNavigator(), item => item && item.id));
@@ -1075,7 +1075,7 @@ export class TreeView extends HeightMap {
 
 	public getRelativeTop(item: Model.Item): number {
 		if (item && item.isVisible()) {
-			var viewItem = this.items[item.id];
+			let viewItem = this.items[item.id];
 			if (viewItem) {
 				return (viewItem.top - this.scrollTop) / (this.viewHeight - viewItem.height);
 			}
@@ -1084,20 +1084,20 @@ export class TreeView extends HeightMap {
 	}
 
 	private onItemReveal(e: Model.IItemRevealEvent): void {
-		var item = <Model.Item>e.item;
-		var relativeTop = <number>e.relativeTop;
-		var viewItem = this.items[item.id];
+		let item = <Model.Item>e.item;
+		let relativeTop = <number>e.relativeTop;
+		let viewItem = this.items[item.id];
 		if (viewItem) {
 			if (relativeTop !== null) {
 				relativeTop = relativeTop < 0 ? 0 : relativeTop;
 				relativeTop = relativeTop > 1 ? 1 : relativeTop;
 
 				// y = mx + b
-				var m = viewItem.height - this.viewHeight;
+				let m = viewItem.height - this.viewHeight;
 				this.scrollTop = m * relativeTop + viewItem.top;
 			} else {
-				var viewItemBottom = viewItem.top + viewItem.height;
-				var wrapperBottom = this.scrollTop + this.viewHeight;
+				let viewItemBottom = viewItem.top + viewItem.height;
+				let wrapperBottom = this.scrollTop + this.viewHeight;
 
 				if (viewItem.top < this.scrollTop) {
 					this.scrollTop = viewItem.top;
@@ -1109,9 +1109,9 @@ export class TreeView extends HeightMap {
 	}
 
 	private onItemAddTrait(e: Model.IItemTraitEvent): void {
-		var item = <Model.Item>e.item;
-		var trait = <string>e.trait;
-		var viewItem = this.items[item.id];
+		let item = <Model.Item>e.item;
+		let trait = <string>e.trait;
+		let viewItem = this.items[item.id];
 		if (viewItem) {
 			viewItem.addClass(trait);
 		}
@@ -1129,9 +1129,9 @@ export class TreeView extends HeightMap {
 	}
 
 	private onItemRemoveTrait(e: Model.IItemTraitEvent): void {
-		var item = <Model.Item>e.item;
-		var trait = <string>e.trait;
-		var viewItem = this.items[item.id];
+		let item = <Model.Item>e.item;
+		let trait = <string>e.trait;
+		let viewItem = this.items[item.id];
 		if (viewItem) {
 			viewItem.removeClass(trait);
 		}
@@ -1198,8 +1198,8 @@ export class TreeView extends HeightMap {
 			return;
 		}
 
-		var event = new Mouse.StandardMouseEvent(e);
-		var item = this.getItemAround(event.target);
+		let event = new Mouse.StandardMouseEvent(e);
+		let item = this.getItemAround(event.target);
 
 		if (!item) {
 			return;
@@ -1222,8 +1222,8 @@ export class TreeView extends HeightMap {
 			return;
 		}
 
-		var event = new Mouse.StandardMouseEvent(e);
-		var item = this.getItemAround(event.target);
+		let event = new Mouse.StandardMouseEvent(e);
+		let item = this.getItemAround(event.target);
 
 		if (!item) {
 			return;
@@ -1242,13 +1242,13 @@ export class TreeView extends HeightMap {
 			return;
 		}
 
-		var event = new Mouse.StandardMouseEvent(e);
+		let event = new Mouse.StandardMouseEvent(e);
 
 		if (event.ctrlKey && Platform.isNative && Platform.isMacintosh) {
 			return;
 		}
 
-		var item = this.getItemAround(event.target);
+		let item = this.getItemAround(event.target);
 
 		if (!item) {
 			return;
@@ -1266,13 +1266,13 @@ export class TreeView extends HeightMap {
 			return;
 		}
 
-		var event = new Mouse.StandardMouseEvent(e);
+		let event = new Mouse.StandardMouseEvent(e);
 
 		if (event.ctrlKey && Platform.isNative && Platform.isMacintosh) {
 			return;
 		}
 
-		var item = this.getItemAround(event.target);
+		let item = this.getItemAround(event.target);
 
 		if (!item) {
 			return;
@@ -1282,7 +1282,7 @@ export class TreeView extends HeightMap {
 	}
 
 	private onTap(e: Touch.GestureEvent): void {
-		var item = this.getItemAround(<HTMLElement>e.initialTarget);
+		let item = this.getItemAround(<HTMLElement>e.initialTarget);
 
 		if (!item) {
 			return;
@@ -1301,31 +1301,31 @@ export class TreeView extends HeightMap {
 	private onContextMenu(keyboardEvent: KeyboardEvent): void;
 	private onContextMenu(mouseEvent: MouseEvent): void;
 	private onContextMenu(event: KeyboardEvent | MouseEvent): void {
-		var resultEvent: _.ContextMenuEvent;
-		var element: any;
+		let resultEvent: _.ContextMenuEvent;
+		let element: any;
 
 		if (event instanceof KeyboardEvent || this.didJustPressContextMenuKey) {
 			this.didJustPressContextMenuKey = false;
 
-			var keyboardEvent = new Keyboard.StandardKeyboardEvent(<KeyboardEvent>event);
+			let keyboardEvent = new Keyboard.StandardKeyboardEvent(<KeyboardEvent>event);
 			element = this.model.getFocus();
 
-			var position: DOM.IDomNodePagePosition;
+			let position: DOM.IDomNodePagePosition;
 
 			if (!element) {
 				element = this.model.getInput();
 				position = DOM.getDomNodePagePosition(this.inputItem.element);
 			} else {
-				var id = this.context.dataSource.getId(this.context.tree, element);
-				var viewItem = this.items[id];
+				let id = this.context.dataSource.getId(this.context.tree, element);
+				let viewItem = this.items[id];
 				position = DOM.getDomNodePagePosition(viewItem.element);
 			}
 
 			resultEvent = new _.KeyboardContextMenuEvent(position.left + position.width, position.top, keyboardEvent);
 
 		} else {
-			var mouseEvent = new Mouse.StandardMouseEvent(<MouseEvent>event);
-			var item = this.getItemAround(mouseEvent.target);
+			let mouseEvent = new Mouse.StandardMouseEvent(<MouseEvent>event);
+			let item = this.getItemAround(mouseEvent.target);
 
 			if (!item) {
 				return;
@@ -1339,7 +1339,7 @@ export class TreeView extends HeightMap {
 	}
 
 	private onKeyDown(e: KeyboardEvent): void {
-		var event = new Keyboard.StandardKeyboardEvent(e);
+		let event = new Keyboard.StandardKeyboardEvent(e);
 
 		this.didJustPressContextMenuKey = event.keyCode === KeyCode.ContextMenu || (event.shiftKey && event.keyCode === KeyCode.F10);
 
@@ -1369,9 +1369,9 @@ export class TreeView extends HeightMap {
 			return;
 		}
 
-		var element = item.model.getElement();
-		var selection = this.model.getSelection();
-		var elements: any[];
+		let element = item.model.getElement();
+		let selection = this.model.getSelection();
+		let elements: any[];
 
 		if (selection.indexOf(element) > -1) {
 			elements = selection;
@@ -1405,7 +1405,7 @@ export class TreeView extends HeightMap {
 	}
 
 	private setupDragAndDropScrollInterval(): void {
-		var viewTop = DOM.getTopLeftOffset(this.wrapper).top;
+		let viewTop = DOM.getTopLeftOffset(this.wrapper).top;
 
 		if (!this.dragAndDropScrollInterval) {
 			this.dragAndDropScrollInterval = window.setInterval(() => {
@@ -1413,9 +1413,9 @@ export class TreeView extends HeightMap {
 					return;
 				}
 
-				var diff = this.dragAndDropMouseY - viewTop;
-				var scrollDiff = 0;
-				var upperLimit = this.viewHeight - 35;
+				let diff = this.dragAndDropMouseY - viewTop;
+				let scrollDiff = 0;
+				let upperLimit = this.viewHeight - 35;
 
 				if (diff < 35) {
 					scrollDiff = Math.max(-14, 0.2 * (diff - 35));
@@ -1452,9 +1452,9 @@ export class TreeView extends HeightMap {
 	}
 
 	private onDragOver(e: DragEvent): boolean {
-		var event = new Mouse.DragMouseEvent(e);
+		let event = new Mouse.DragMouseEvent(e);
 
-		var viewItem = this.getItemAround(event.target);
+		let viewItem = this.getItemAround(event.target);
 
 		if (!viewItem || (event.posx === 0 && event.posy === 0 && event.browserEvent.type === DOM.EventType.DRAG_LEAVE)) {
 			// dragging outside of tree
@@ -1495,9 +1495,9 @@ export class TreeView extends HeightMap {
 
 		this.currentDragAndDropData.update(event);
 
-		var element: any;
-		var item: Model.Item = viewItem.model;
-		var reaction: _.IDragOverReaction;
+		let element: any;
+		let item: Model.Item = viewItem.model;
+		let reaction: _.IDragOverReaction;
 
 		// check the bubble up behavior
 		do {
@@ -1516,7 +1516,7 @@ export class TreeView extends HeightMap {
 			return false;
 		}
 
-		var canDrop = reaction && reaction.accept;
+		let canDrop = reaction && reaction.accept;
 
 		if (canDrop) {
 			this.currentDropElement = item.getElement();
@@ -1529,7 +1529,7 @@ export class TreeView extends HeightMap {
 		// item is the model item where drop() should be called
 
 		// can be null
-		var currentDropTarget = item.id === this.inputItem.id ? this.inputItem : this.items[item.id];
+		let currentDropTarget = item.id === this.inputItem.id ? this.inputItem : this.items[item.id];
 
 		if (this.shouldInvalidateDropReaction || this.currentDropTarget !== currentDropTarget || !reactionEquals(this.currentDropElementReaction, reaction)) {
 			this.shouldInvalidateDropReaction = false;
@@ -1552,8 +1552,8 @@ export class TreeView extends HeightMap {
 				}
 
 				if (reaction.bubble === _.DragOverBubble.BUBBLE_DOWN) {
-					var nav = item.getNavigator();
-					var child: Model.Item;
+					let nav = item.getNavigator();
+					let child: Model.Item;
 					while (child = nav.next()) {
 						viewItem = this.items[child.id];
 						if (viewItem) {
@@ -1579,7 +1579,7 @@ export class TreeView extends HeightMap {
 
 	private onDrop(e: DragEvent): void {
 		if (this.currentDropElement) {
-			var event = new Mouse.DragMouseEvent(e);
+			let event = new Mouse.DragMouseEvent(e);
 			event.preventDefault();
 			this.currentDragAndDropData.update(event);
 			this.context.dnd.drop(this.context.tree, this.currentDragAndDropData, this.currentDropElement, event);
@@ -1630,7 +1630,7 @@ export class TreeView extends HeightMap {
 		}
 
 		// Circumvent IE11 breaking change in e.pointerType & TypeScript's stale definitions
-		var pointerType = event.pointerType;
+		let pointerType = event.pointerType;
 		if (pointerType === ((<any>event).MSPOINTER_TYPE_MOUSE || 'mouse')) {
 			this.lastPointerType = 'mouse';
 			return;
@@ -1658,8 +1658,8 @@ export class TreeView extends HeightMap {
 	// DOM changes
 
 	private insertItemInDOM(item: ViewItem): void {
-		var elementAfter: HTMLElement | null = null;
-		var itemAfter = <ViewItem>this.itemAfter(item);
+		let elementAfter: HTMLElement | null = null;
+		let itemAfter = <ViewItem>this.itemAfter(item);
 
 		if (itemAfter && itemAfter.element) {
 			elementAfter = itemAfter.element;
@@ -1683,7 +1683,7 @@ export class TreeView extends HeightMap {
 	}
 
 	private getItemAround(element: HTMLElement): ViewItem {
-		var candidate: ViewItem = this.inputItem;
+		let candidate: ViewItem = this.inputItem;
 		do {
 			if ((<any>element)[TreeView.BINDING]) {
 				candidate = (<any>element)[TreeView.BINDING];

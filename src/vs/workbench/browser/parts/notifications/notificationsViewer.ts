@@ -104,7 +104,7 @@ export class NotificationsListDelegate implements IListVirtualDelegate<INotifica
 			return NotificationRenderer.TEMPLATE_ID;
 		}
 
-		return void 0;
+		return undefined;
 	}
 }
 
@@ -143,8 +143,7 @@ class NotificationMessageRenderer {
 		// Message has links
 		else {
 			let index = 0;
-			for (let i = 0; i < message.links.length; i++) {
-				const link = message.links[i];
+			for (const link of message.links) {
 
 				const textBefore = message.value.substring(index, link.offset);
 				if (textBefore) {
@@ -501,7 +500,7 @@ export class NotificationTemplateRenderer {
 	private getKeybindingLabel(action: IAction): string {
 		const keybinding = this.keybindingService.lookupKeybinding(action.id);
 
-		return keybinding ? keybinding.getLabel() : void 0;
+		return keybinding ? keybinding.getLabel() : undefined;
 	}
 
 	dispose(): void {

@@ -353,7 +353,7 @@ export class ExplorerView extends ViewletPanel {
 	refresh(item?: ExplorerItem): Promise<void> {
 		if (!this.tree || !this.isBodyVisible()) {
 			this.shouldRefresh = true;
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 		const toRefresh = item || this.tree.getInput();
 
@@ -370,7 +370,7 @@ export class ExplorerView extends ViewletPanel {
 	private setTreeInput(): Promise<void> {
 		if (!this.isBodyVisible()) {
 			this.shouldRefresh = true;
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		const initialInputSetup = !this.tree.getInput();
@@ -418,7 +418,7 @@ export class ExplorerView extends ViewletPanel {
 
 	private onSelectItem(fileStat: ExplorerItem, reveal = this.autoReveal): Promise<void> {
 		if (!fileStat || !this.isBodyVisible()) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		// Expand all stats in the parent chain

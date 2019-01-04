@@ -76,7 +76,7 @@
             assignLabel: false
         },
         formatting: [],
-        git: [ joaomoreno ],
+        git: [],
         grammar: [],
         hot-exit: [],
         html: [],

@@ -147,7 +147,7 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 			if (rules.hasContent) {
 				return rules.className;
 			}
-			return void 0;
+			return undefined;
 		};
 		const createInlineCSSRules = (type: ModelDecorationCSSRuleType) => {
 			const rules = new DecorationCSSRules(type, providerArgs, themeService);

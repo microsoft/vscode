@@ -77,7 +77,7 @@ suite('Search Actions', () => {
 		const testObject: ReplaceAction = instantiationService.createInstance(ReplaceAction, tree, target, null);
 
 		const actual = testObject.getElementToFocusAfterRemoved(tree, target);
-		assert.equal(void 0, actual);
+		assert.equal(undefined, actual);
 	});
 
 	test('get next element to focus after removing a file match when it has next sibling', function () {
@@ -114,7 +114,7 @@ suite('Search Actions', () => {
 		const testObject: ReplaceAction = instantiationService.createInstance(ReplaceAction, tree, target, null);
 
 		const actual = testObject.getElementToFocusAfterRemoved(tree, target);
-		assert.equal(void 0, actual);
+		assert.equal(undefined, actual);
 	});
 
 	function aFileMatch(): FileMatch {

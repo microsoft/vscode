@@ -68,7 +68,7 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 			ProfileExtHostStatusbarItem.instance.hide();
 		}
 
-		this._onDidChangeState.fire(void 0);
+		this._onDidChangeState.fire(undefined);
 	}
 
 	public startProfiling(): Promise<any> {
@@ -119,7 +119,7 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 
 	private _setLastProfile(profile: IExtensionHostProfile) {
 		this._profile = profile;
-		this._onDidChangeLastProfile.fire(void 0);
+		this._onDidChangeLastProfile.fire(undefined);
 	}
 
 	getUnresponsiveProfile(extensionId: CanonicalExtensionIdentifier): IExtensionHostProfile | undefined {

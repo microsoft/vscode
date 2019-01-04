@@ -118,8 +118,7 @@ class CommentingRangeDecorator {
 		}
 
 		let commentingRangeDecorations: CommentingRangeDecoration[] = [];
-		for (let i = 0; i < commentInfos.length; i++) {
-			let info = commentInfos[i];
+		for (const info of commentInfos) {
 			info.commentingRanges.forEach(range => {
 				commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, range, info.reply, this.decorationOptions));
 			});
@@ -656,7 +655,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 export function getOuterEditor(accessor: ServicesAccessor): ICodeEditor {
-	let editor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
+	const editor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
 	if (editor instanceof EmbeddedCodeEditorWidget) {
 		return editor.getParentEditor();
 	}
@@ -664,13 +663,12 @@ export function getOuterEditor(accessor: ServicesAccessor): ICodeEditor {
 }
 
 function closeReviewPanel(accessor: ServicesAccessor, args: any) {
-	var outerEditor = getOuterEditor(accessor);
+	const outerEditor = getOuterEditor(accessor);
 	if (!outerEditor) {
 		return;
 	}
 
-	let controller = ReviewController.get(outerEditor);
-
+	const controller = ReviewController.get(outerEditor);
 	if (!controller) {
 		return;
 	}

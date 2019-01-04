@@ -262,7 +262,7 @@ suite('Workbench editor groups', () => {
 		assert.equal(index, 0);
 		assert.equal(group.count, 0);
 		assert.equal(group.getEditors(true).length, 0);
-		assert.equal(group.activeEditor, void 0);
+		assert.equal(group.activeEditor, undefined);
 		assert.equal(events.closed[0].editor, input1);
 		assert.equal(events.closed[0].index, 0);
 		assert.equal(events.closed[0].replaced, false);
@@ -285,7 +285,7 @@ suite('Workbench editor groups', () => {
 		group.closeEditor(input2);
 		assert.equal(group.count, 0);
 		assert.equal(group.getEditors(true).length, 0);
-		assert.equal(group.activeEditor, void 0);
+		assert.equal(group.activeEditor, undefined);
 		assert.equal(events.closed[1].editor, input2);
 		assert.equal(events.closed[1].index, 0);
 		assert.equal(events.closed[1].replaced, false);
@@ -294,7 +294,7 @@ suite('Workbench editor groups', () => {
 		assert.ok(typeof index !== 'number');
 		assert.equal(group.count, 0);
 		assert.equal(group.getEditors(true).length, 0);
-		assert.equal(group.activeEditor, void 0);
+		assert.equal(group.activeEditor, undefined);
 		assert.equal(events.closed[1].editor, input2);
 
 		// Nonactive && Pinned => gets active because its first editor
@@ -315,7 +315,7 @@ suite('Workbench editor groups', () => {
 		group.closeEditor(input3);
 		assert.equal(group.count, 0);
 		assert.equal(group.getEditors(true).length, 0);
-		assert.equal(group.activeEditor, void 0);
+		assert.equal(group.activeEditor, undefined);
 		assert.equal(events.closed[2].editor, input3);
 
 		assert.equal(events.opened[2], input3);
@@ -324,7 +324,7 @@ suite('Workbench editor groups', () => {
 		group.closeEditor(input3);
 		assert.equal(group.count, 0);
 		assert.equal(group.getEditors(true).length, 0);
-		assert.equal(group.activeEditor, void 0);
+		assert.equal(group.activeEditor, undefined);
 		assert.equal(events.closed[2].editor, input3);
 
 		// Nonactive && Preview => gets active because its first editor
@@ -345,7 +345,7 @@ suite('Workbench editor groups', () => {
 		group.closeEditor(input4);
 		assert.equal(group.count, 0);
 		assert.equal(group.getEditors(true).length, 0);
-		assert.equal(group.activeEditor, void 0);
+		assert.equal(group.activeEditor, undefined);
 		assert.equal(events.closed[3].editor, input4);
 	});
 
@@ -420,7 +420,7 @@ suite('Workbench editor groups', () => {
 		inst.stub(IConfigurationService, config);
 		config.setUserConfiguration('workbench', { editor: { openPositioning: 'left' } });
 
-		const group: EditorGroup = inst.createInstance(EditorGroup, void 0);
+		const group: EditorGroup = inst.createInstance(EditorGroup, undefined);
 
 		const events = groupListener(group);
 
@@ -1122,7 +1122,7 @@ suite('Workbench editor groups', () => {
 
 		const input1Resource = URI.file('/hello/world.txt');
 		const input1ResourceUpper = URI.file('/hello/WORLD.txt');
-		const input1 = input(void 0, false, input1Resource);
+		const input1 = input(undefined, false, input1Resource);
 		group1.openEditor(input1);
 
 		assert.ok(group1.contains(input1Resource));
@@ -1141,7 +1141,7 @@ suite('Workbench editor groups', () => {
 		assert.equal(group2.getEditor(input1Resource), input1);
 
 		const input1ResourceClone = URI.file('/hello/world.txt');
-		const input1Clone = input(void 0, false, input1ResourceClone);
+		const input1Clone = input(undefined, false, input1ResourceClone);
 		group1.openEditor(input1Clone);
 
 		assert.ok(group1.contains(input1Resource));

@@ -72,8 +72,7 @@ export class SelectionClipboard extends Disposable implements IEditorContributio
 				selections.sort(Range.compareRangesUsingStarts);
 
 				let resultLength = 0;
-				for (let i = 0; i < selections.length; i++) {
-					let sel = selections[i];
+				for (const sel of selections) {
 					if (sel.isEmpty()) {
 						// Only write if all cursors have selection
 						return;
@@ -88,8 +87,7 @@ export class SelectionClipboard extends Disposable implements IEditorContributio
 				}
 
 				let result: string[] = [];
-				for (let i = 0; i < selections.length; i++) {
-					let sel = selections[i];
+				for (const sel of selections) {
 					result.push(model.getValueInRange(sel, EndOfLinePreference.TextDefined));
 				}
 

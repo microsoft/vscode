@@ -28,6 +28,6 @@ export class MenubarService implements IMenubarService {
 			this._menubar.updateMenu(menus, windowId);
 		}
 
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 }

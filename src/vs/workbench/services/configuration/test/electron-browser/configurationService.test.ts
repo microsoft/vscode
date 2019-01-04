@@ -104,7 +104,7 @@ suite('WorkspaceContextService - Folder', () => {
 		if (parentResource) {
 			return pfs.del(parentResource, os.tmpdir());
 		}
-		return void 0;
+		return undefined;
 	});
 
 	test('getWorkspace()', () => {
@@ -177,7 +177,7 @@ suite('WorkspaceContextService - Workspace', () => {
 		if (parentResource) {
 			return pfs.del(parentResource, os.tmpdir());
 		}
-		return void 0;
+		return undefined;
 	});
 
 	test('workspace folders', () => {
@@ -436,7 +436,7 @@ suite('WorkspaceService - Initialization', () => {
 		if (parentResource) {
 			return pfs.del(parentResource, os.tmpdir());
 		}
-		return void 0;
+		return undefined;
 	});
 
 	test('initialize a folder workspace from an empty workspace with no configuration changes', () => {
@@ -691,7 +691,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		if (parentResource) {
 			return pfs.del(parentResource, os.tmpdir());
 		}
-		return void 0;
+		return undefined;
 	});
 
 	test('defaults', () => {
@@ -798,17 +798,17 @@ suite('WorkspaceConfigurationService - Folder', () => {
 
 	test('inspect', () => {
 		let actual = testObject.inspect('something.missing');
-		assert.equal(actual.default, void 0);
-		assert.equal(actual.user, void 0);
-		assert.equal(actual.workspace, void 0);
-		assert.equal(actual.workspaceFolder, void 0);
-		assert.equal(actual.value, void 0);
+		assert.equal(actual.default, undefined);
+		assert.equal(actual.user, undefined);
+		assert.equal(actual.workspace, undefined);
+		assert.equal(actual.workspaceFolder, undefined);
+		assert.equal(actual.value, undefined);
 
 		actual = testObject.inspect('configurationService.folder.testSetting');
 		assert.equal(actual.default, 'isSet');
-		assert.equal(actual.user, void 0);
-		assert.equal(actual.workspace, void 0);
-		assert.equal(actual.workspaceFolder, void 0);
+		assert.equal(actual.user, undefined);
+		assert.equal(actual.workspace, undefined);
+		assert.equal(actual.workspaceFolder, undefined);
 		assert.equal(actual.value, 'isSet');
 
 		fs.writeFileSync(globalSettingsFile, '{ "configurationService.folder.testSetting": "userValue" }');
@@ -817,8 +817,8 @@ suite('WorkspaceConfigurationService - Folder', () => {
 				actual = testObject.inspect('configurationService.folder.testSetting');
 				assert.equal(actual.default, 'isSet');
 				assert.equal(actual.user, 'userValue');
-				assert.equal(actual.workspace, void 0);
-				assert.equal(actual.workspaceFolder, void 0);
+				assert.equal(actual.workspace, undefined);
+				assert.equal(actual.workspaceFolder, undefined);
 				assert.equal(actual.value, 'userValue');
 
 				fs.writeFileSync(path.join(workspaceDir, '.vscode', 'settings.json'), '{ "configurationService.folder.testSetting": "workspaceValue" }');
@@ -829,7 +829,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 						assert.equal(actual.default, 'isSet');
 						assert.equal(actual.user, 'userValue');
 						assert.equal(actual.workspace, 'workspaceValue');
-						assert.equal(actual.workspaceFolder, void 0);
+						assert.equal(actual.workspaceFolder, undefined);
 						assert.equal(actual.value, 'workspaceValue');
 					});
 			});
@@ -972,7 +972,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 		if (parentResource) {
 			return pfs.del(parentResource, os.tmpdir());
 		}
-		return void 0;
+		return undefined;
 	});
 
 	test('application settings are not read from workspace', () => {
@@ -1050,17 +1050,17 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 
 	test('inspect', () => {
 		let actual = testObject.inspect('something.missing');
-		assert.equal(actual.default, void 0);
-		assert.equal(actual.user, void 0);
-		assert.equal(actual.workspace, void 0);
-		assert.equal(actual.workspaceFolder, void 0);
-		assert.equal(actual.value, void 0);
+		assert.equal(actual.default, undefined);
+		assert.equal(actual.user, undefined);
+		assert.equal(actual.workspace, undefined);
+		assert.equal(actual.workspaceFolder, undefined);
+		assert.equal(actual.value, undefined);
 
 		actual = testObject.inspect('configurationService.workspace.testResourceSetting');
 		assert.equal(actual.default, 'isSet');
-		assert.equal(actual.user, void 0);
-		assert.equal(actual.workspace, void 0);
-		assert.equal(actual.workspaceFolder, void 0);
+		assert.equal(actual.user, undefined);
+		assert.equal(actual.workspace, undefined);
+		assert.equal(actual.workspaceFolder, undefined);
 		assert.equal(actual.value, 'isSet');
 
 		fs.writeFileSync(environmentService.appSettingsPath, '{ "configurationService.workspace.testResourceSetting": "userValue" }');
@@ -1069,8 +1069,8 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 				actual = testObject.inspect('configurationService.workspace.testResourceSetting');
 				assert.equal(actual.default, 'isSet');
 				assert.equal(actual.user, 'userValue');
-				assert.equal(actual.workspace, void 0);
-				assert.equal(actual.workspaceFolder, void 0);
+				assert.equal(actual.workspace, undefined);
+				assert.equal(actual.workspaceFolder, undefined);
 				assert.equal(actual.value, 'userValue');
 
 				return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, { key: 'settings', value: { 'configurationService.workspace.testResourceSetting': 'workspaceValue' } }, true)
@@ -1080,7 +1080,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 						assert.equal(actual.default, 'isSet');
 						assert.equal(actual.user, 'userValue');
 						assert.equal(actual.workspace, 'workspaceValue');
-						assert.equal(actual.workspaceFolder, void 0);
+						assert.equal(actual.workspaceFolder, undefined);
 						assert.equal(actual.value, 'workspaceValue');
 
 						fs.writeFileSync(workspaceContextService.getWorkspace().folders[0].toResource('.vscode/settings.json').fsPath, '{ "configurationService.workspace.testResourceSetting": "workspaceFolderValue" }');
@@ -1225,7 +1225,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 			.then(() => testObject.reloadConfiguration())
 			.then(() => {
 				const actual = testObject.inspect('tasks.version');
-				assert.equal(actual.workspace, void 0);
+				assert.equal(actual.workspace, undefined);
 			});
 	});
 });

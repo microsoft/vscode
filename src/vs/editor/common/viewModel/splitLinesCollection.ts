@@ -286,9 +286,9 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		// END TODO@Martin: Please stop calling this method on each model change!
 
 		let newDecorations: IModelDeltaDecoration[] = [];
-		for (let i = 0; i < newRanges.length; i++) {
+		for (const newRange of newRanges) {
 			newDecorations.push({
-				range: newRanges[i],
+				range: newRange,
 				options: ModelDecorationOptions.EMPTY
 			});
 		}
@@ -403,8 +403,8 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		let hiddenAreas = this.getHiddenAreas();
 		let isInHiddenArea = false;
 		let testPosition = new Position(fromLineNumber, 1);
-		for (let i = 0; i < hiddenAreas.length; i++) {
-			if (hiddenAreas[i].containsPosition(testPosition)) {
+		for (const hiddenArea of hiddenAreas) {
+			if (hiddenArea.containsPosition(testPosition)) {
 				isInHiddenArea = true;
 				break;
 			}

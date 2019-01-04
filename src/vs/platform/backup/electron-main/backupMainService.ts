@@ -386,8 +386,7 @@ export class BackupMainService implements IBackupMainService {
 		try {
 			const backupSchemas = await readdir(backupPath);
 
-			for (let i = 0; i < backupSchemas.length; i++) {
-				const backupSchema = backupSchemas[i];
+			for (const backupSchema of backupSchemas) {
 				try {
 					const backupSchemaChildren = await readdir(path.join(backupPath, backupSchema));
 					if (backupSchemaChildren.length > 0) {

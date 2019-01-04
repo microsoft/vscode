@@ -259,7 +259,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	 */
 	private fetchWorkspaceRecommendations(): Promise<void> {
 
-		if (!this.isEnabled) { return Promise.resolve(void 0); }
+		if (!this.isEnabled) { return Promise.resolve(undefined); }
 
 		return this.fetchExtensionRecommendationContents()
 			.then(result => this.validateExtensions(result.map(({ contents }) => contents))
@@ -426,7 +426,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			const recommendations = filteredRecs.filter(({ extensionId }) => local.every(local => !areSameExtensions({ id: extensionId }, { id: getGalleryExtensionIdFromLocal(local) })));
 
 			if (!recommendations.length) {
-				return Promise.resolve(void 0);
+				return Promise.resolve(undefined);
 			}
 
 			return new Promise<void>(c => {
@@ -447,7 +447,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 							installAllAction.run();
 							installAllAction.dispose();
 
-							c(void 0);
+							c(undefined);
 						}
 					}, {
 						label: localize('showRecommendations', "Show Recommendations"),
@@ -463,7 +463,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 							showAction.run();
 							showAction.dispose();
 
-							c(void 0);
+							c(undefined);
 						}
 					}, {
 						label: choiceNever,
@@ -477,7 +477,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 							this.telemetryService.publicLog('extensionWorkspaceRecommendations:popup', { userReaction: 'neverShowAgain' });
 							this.storageService.store(storageKey, true, StorageScope.WORKSPACE);
 
-							c(void 0);
+							c(undefined);
 						}
 					}],
 					{
@@ -490,7 +490,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 							*/
 							this.telemetryService.publicLog('extensionWorkspaceRecommendations:popup', { userReaction: 'cancelled' });
 
-							c(void 0);
+							c(undefined);
 						}
 					}
 				);
@@ -854,7 +854,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 			fetchPromise = new Promise((c, e) => {
 				setTimeout(() => {
-					Promise.all([this.fetchExecutableRecommendations(), this.fetchDynamicWorkspaceRecommendations()]).then(() => c(void 0));
+					Promise.all([this.fetchExecutableRecommendations(), this.fetchDynamicWorkspaceRecommendations()]).then(() => c(undefined));
 				}, calledDuringStartup ? 10000 : 0);
 			});
 
@@ -949,7 +949,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			|| !this.fileService.canHandleResource(this.contextService.getWorkspace().folders[0].uri)
 			|| this._dynamicWorkspaceRecommendations.length
 			|| !this._extensionsRecommendationsUrl) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		const storageKey = 'extensionsAssistant/dynamicWorkspaceRecommendations';

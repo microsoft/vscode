@@ -510,14 +510,14 @@ export abstract class CommonTask {
 	}
 
 	public matches(key: string | KeyedTaskIdentifier, compareId: boolean = false): boolean {
-		if (key === void 0) {
+		if (key === undefined) {
 			return false;
 		}
 		if (Types.isString(key)) {
 			return key === this._label || key === this.configurationProperties.identifier || (compareId && key === this._id);
 		}
 		let identifier = this.getDefinition(true);
-		return identifier !== void 0 && identifier._key === key._key;
+		return identifier !== undefined && identifier._key === key._key;
 	}
 
 	public getQualifiedLabel(): string {
@@ -538,7 +538,7 @@ export abstract class CommonTask {
 	}
 
 	public addTaskLoadMessages(messages: string[] | undefined) {
-		if (this._taskLoadMessages === void 0) {
+		if (this._taskLoadMessages === undefined) {
 			this._taskLoadMessages = [];
 		}
 		if (messages) {
@@ -585,11 +585,11 @@ export class CustomTask extends CommonTask {
 	}
 
 	public getDefinition(useSource: boolean = false): KeyedTaskIdentifier {
-		if (useSource && this._source.customizes !== void 0) {
+		if (useSource && this._source.customizes !== undefined) {
 			return this._source.customizes;
 		} else {
 			let type: string;
-			if (this.command !== void 0) {
+			if (this.command !== undefined) {
 				type = this.command.runtime === RuntimeType.Shell ? 'shell' : 'process';
 			} else {
 				type = '$composite';
@@ -812,9 +812,9 @@ export class TaskSorter {
 		let bw = b.getWorkspaceFolder();
 		if (aw && bw) {
 			let ai = this._order.get(aw.uri.toString());
-			ai = ai === void 0 ? 0 : ai + 1;
+			ai = ai === undefined ? 0 : ai + 1;
 			let bi = this._order.get(bw.uri.toString());
-			bi = bi === void 0 ? 0 : bi + 1;
+			bi = bi === undefined ? 0 : bi + 1;
 			if (ai === bi) {
 				return a._label.localeCompare(b._label);
 			} else {

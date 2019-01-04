@@ -182,7 +182,7 @@ export class DebugSession implements IDebugSession {
 			config.__sessionId = this.getId();
 
 			return this.raw.launchOrAttach(config).then(result => {
-				return void 0;
+				return undefined;
 			});
 		}
 		return Promise.reject(new Error('no debug adapter'));
@@ -195,11 +195,11 @@ export class DebugSession implements IDebugSession {
 		if (this.raw) {
 			if (this.raw.capabilities.supportsTerminateRequest && this._configuration.resolved.request === 'launch') {
 				return this.raw.terminate(restart).then(response => {
-					return void 0;
+					return undefined;
 				});
 			}
 			return this.raw.disconnect(restart).then(response => {
-				return void 0;
+				return undefined;
 			});
 		}
 		return Promise.reject(new Error('no debug adapter'));
@@ -211,7 +211,7 @@ export class DebugSession implements IDebugSession {
 	disconnect(restart = false): Promise<void> {
 		if (this.raw) {
 			return this.raw.disconnect(restart).then(response => {
-				return void 0;
+				return undefined;
 			});
 		}
 		return Promise.reject(new Error('no debug adapter'));
@@ -294,7 +294,7 @@ export class DebugSession implements IDebugSession {
 			if (this.raw.readyForBreakpoints) {
 				return this.raw.setExceptionBreakpoints({ filters: exbpts.map(exb => exb.filter) }).then(() => undefined);
 			}
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 		return Promise.reject(new Error('no debug adapter'));
 	}
@@ -583,7 +583,7 @@ export class DebugSession implements IDebugSession {
 			aria.status(nls.localize('debuggingStarted', "Debugging started."));
 			const sendConfigurationDone = () => {
 				if (this.raw && this.raw.capabilities.supportsConfigurationDoneRequest) {
-					return this.raw.configurationDone().then(void 0, e => {
+					return this.raw.configurationDone().then(undefined, e => {
 						// Disconnect the debug session on configuration done error #10596
 						if (this.raw) {
 							this.raw.disconnect();
@@ -653,7 +653,7 @@ export class DebugSession implements IDebugSession {
 		this.rawListeners.push(this.raw.onDidTerminateDebugee(event => {
 			aria.status(nls.localize('debuggingStopped', "Debugging stopped."));
 			if (event.body && event.body.restart) {
-				this.debugService.restartSession(this, event.body.restart).then(void 0, onUnexpectedError);
+				this.debugService.restartSession(this, event.body.restart).then(undefined, onUnexpectedError);
 			} else {
 				this.raw.disconnect();
 			}

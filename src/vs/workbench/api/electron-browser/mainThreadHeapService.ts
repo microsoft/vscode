@@ -61,7 +61,7 @@ export class HeapService implements IHeapService {
 
 		return import('gc-signals').then(({ GCSignal, consumeSignals }) => {
 
-			if (this._consumeHandle === void 0) {
+			if (this._consumeHandle === undefined) {
 				// ensure that there is one consumer of signals
 				this._consumeHandle = setInterval(() => {
 					const ids = consumeSignals();

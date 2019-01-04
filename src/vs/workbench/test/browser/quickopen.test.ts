@@ -71,7 +71,7 @@ suite('QuickOpen', () => {
 	});
 
 	test('QuickOpen Action', () => {
-		let defaultAction = new QuickOpenAction('id', 'label', (void 0)!, new TestQuickOpenService((prefix: string) => assert(!prefix)));
+		let defaultAction = new QuickOpenAction('id', 'label', (undefined)!, new TestQuickOpenService((prefix: string) => assert(!prefix)));
 		let prefixAction = new QuickOpenAction('id', 'label', ',', new TestQuickOpenService((prefix: string) => assert(!!prefix)));
 
 		defaultAction.run();

@@ -167,7 +167,7 @@ export class CommentsPanel extends Panel {
 		const range = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].range : element.range;
 
 		const activeEditor = this.editorService.activeEditor;
-		let currentActiveResource = activeEditor ? activeEditor.getResource() : void 0;
+		let currentActiveResource = activeEditor ? activeEditor.getResource() : undefined;
 		if (currentActiveResource && currentActiveResource.toString() === element.resource.toString()) {
 			const threadToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].threadId : element.threadId;
 			const commentToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].comment.commentId : element.comment.commentId;
@@ -202,7 +202,7 @@ export class CommentsPanel extends Panel {
 					}
 				} else {
 					let activeEditor = this.editorService.activeEditor;
-					let currentActiveResource = activeEditor ? activeEditor.getResource() : void 0;
+					let currentActiveResource = activeEditor ? activeEditor.getResource() : undefined;
 					if (currentActiveResource && currentActiveResource.toString() === element.resource.toString()) {
 						const control = this.editorService.activeTextEditorWidget;
 						if (threadToReveal && isCodeEditor(control)) {

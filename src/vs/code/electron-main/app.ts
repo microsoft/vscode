@@ -474,7 +474,7 @@ export class CodeApplication extends Disposable {
 		this.lifecycleService.onWillShutdown(e => e.join(storageMainService.close()));
 
 		// Initialize storage service
-		return storageMainService.initialize().then(void 0, error => {
+		return storageMainService.initialize().then(undefined, error => {
 			errors.onUnexpectedError(error);
 			this.logService.error(error);
 		}).then(() => {

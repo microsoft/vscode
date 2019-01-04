@@ -71,7 +71,7 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 		}
 
 		function parseConfigurationTarget(arg: boolean | ExtHostConfigurationTarget): ConfigurationTarget {
-			if (arg === void 0 || arg === null) {
+			if (arg === undefined || arg === null) {
 				return null;
 			}
 			if (typeof arg === 'boolean') {
@@ -95,9 +95,9 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 				if (typeof result === 'undefined') {
 					result = defaultValue;
 				} else {
-					let clonedConfig = void 0;
+					let clonedConfig = undefined;
 					const cloneOnWriteProxy = (target: any, accessor: string): any => {
-						let clonedTarget = void 0;
+						let clonedTarget = undefined;
 						const cloneTarget = () => {
 							clonedConfig = clonedConfig ? clonedConfig : deepClone(config);
 							clonedTarget = clonedTarget ? clonedTarget : lookUp(clonedConfig, accessor);
@@ -143,7 +143,7 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 			update: (key: string, value: any, arg: ExtHostConfigurationTarget | boolean) => {
 				key = section ? `${section}.${key}` : key;
 				const target = parseConfigurationTarget(arg);
-				if (value !== void 0) {
+				if (value !== undefined) {
 					return this._proxy.$updateConfigurationOption(target, key, value, resource);
 				} else {
 					return this._proxy.$removeConfigurationOption(target, key, resource);
@@ -192,7 +192,7 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 		const scope = OVERRIDE_PROPERTY_PATTERN.test(key) ? ConfigurationScope.RESOURCE : this._configurationScopes[key];
 		const extensionIdText = extensionId ? `[${extensionId.value}] ` : '';
 		if (ConfigurationScope.RESOURCE === scope) {
-			if (resource === void 0) {
+			if (resource === undefined) {
 				console.warn(`${extensionIdText}Accessing a resource scoped configuration without providing a resource is not expected. To get the effective value for '${key}', provide the URI of a resource or 'null' for any resource.`);
 			}
 			return;

@@ -166,7 +166,7 @@ class Root implements ITreeItem {
 	handle = '0';
 	parentHandle = null;
 	collapsibleState = TreeItemCollapsibleState.Expanded;
-	children = void 0;
+	children = undefined;
 }
 
 const noDataProviderMessage = localize('no-dataprovider', "There is no data provider registered that can provide view data.");
@@ -461,7 +461,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 				this.elementsToRefresh.push(...elements);
 			}
 		}
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	expand(itemOrItems: ITreeItem | ITreeItem[]): Promise<void> {
@@ -469,7 +469,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 			itemOrItems = Array.isArray(itemOrItems) ? itemOrItems : [itemOrItems];
 			return this.tree.expandAll(itemOrItems);
 		}
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	setSelection(items: ITreeItem[]): void {
@@ -517,7 +517,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 					}
 				});
 		}
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	private updateContentAreas(): void {
@@ -657,13 +657,13 @@ class TreeRenderer implements IRenderer {
 
 	renderElement(tree: ITree, node: ITreeItem, templateId: string, templateData: ITreeExplorerTemplateData): void {
 		const resource = node.resourceUri ? URI.revive(node.resourceUri) : null;
-		const treeItemLabel: ITreeItemLabel = node.label ? node.label : resource ? { label: basename(resource.path) } : void 0;
-		const description = isString(node.description) ? node.description : resource && node.description === true ? this.labelService.getUriLabel(dirname(resource), { relative: true }) : void 0;
-		const label = treeItemLabel ? treeItemLabel.label : void 0;
-		const matches = treeItemLabel && treeItemLabel.highlights ? treeItemLabel.highlights.map(([start, end]) => ({ start, end })) : void 0;
+		const treeItemLabel: ITreeItemLabel = node.label ? node.label : resource ? { label: basename(resource.path) } : undefined;
+		const description = isString(node.description) ? node.description : resource && node.description === true ? this.labelService.getUriLabel(dirname(resource), { relative: true }) : undefined;
+		const label = treeItemLabel ? treeItemLabel.label : undefined;
+		const matches = treeItemLabel && treeItemLabel.highlights ? treeItemLabel.highlights.map(([start, end]) => ({ start, end })) : undefined;
 		const icon = this.themeService.getTheme().type === LIGHT ? node.icon : node.iconDark;
 		const iconUrl = icon ? URI.revive(icon) : null;
-		const title = node.tooltip ? node.tooltip : resource ? void 0 : label;
+		const title = node.tooltip ? node.tooltip : resource ? undefined : label;
 
 		// reset
 		templateData.actionBar.clear();

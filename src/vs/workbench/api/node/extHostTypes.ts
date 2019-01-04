@@ -32,9 +32,9 @@ export class Disposable {
 		});
 	}
 
-	private _callOnDispose?: Function;
+	private _callOnDispose?: () => any;
 
-	constructor(callOnDispose: Function) {
+	constructor(callOnDispose: () => any) {
 		this._callOnDispose = callOnDispose;
 	}
 
@@ -1466,7 +1466,7 @@ export class ProcessExecution implements vscode.ProcessExecution {
 			throw illegalArgument('process');
 		}
 		this._process = process;
-		if (varg1 !== void 0) {
+		if (varg1 !== undefined) {
 			if (Array.isArray(varg1)) {
 				this._args = varg1;
 				this._options = varg2;
@@ -1474,7 +1474,7 @@ export class ProcessExecution implements vscode.ProcessExecution {
 				this._options = varg1;
 			}
 		}
-		if (this._args === void 0) {
+		if (this._args === undefined) {
 			this._args = [];
 		}
 	}
@@ -1513,7 +1513,7 @@ export class ProcessExecution implements vscode.ProcessExecution {
 	public computeId(): string {
 		const hash = crypto.createHash('md5');
 		hash.update('process');
-		if (this._process !== void 0) {
+		if (this._process !== undefined) {
 			hash.update(this._process);
 		}
 		if (this._args && this._args.length > 0) {
@@ -1595,10 +1595,10 @@ export class ShellExecution implements vscode.ShellExecution {
 	public computeId(): string {
 		const hash = crypto.createHash('md5');
 		hash.update('shell');
-		if (this._commandLine !== void 0) {
+		if (this._commandLine !== undefined) {
 			hash.update(this._commandLine);
 		}
-		if (this._command !== void 0) {
+		if (this._command !== undefined) {
 			hash.update(typeof this._command === 'string' ? this._command : this._command.value);
 		}
 		if (this._args && this._args.length > 0) {
@@ -1688,7 +1688,7 @@ export class Task implements vscode.Task {
 	}
 
 	private clear(): void {
-		if (this.__id === void 0) {
+		if (this.__id === undefined) {
 			return;
 		}
 		this.__id = undefined;
@@ -1720,7 +1720,7 @@ export class Task implements vscode.Task {
 	}
 
 	set definition(value: vscode.TaskDefinition) {
-		if (value === void 0 || value === null) {
+		if (value === undefined || value === null) {
 			throw illegalArgument('Kind can\'t be undefined or null');
 		}
 		this.clear();

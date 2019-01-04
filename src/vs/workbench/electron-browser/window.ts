@@ -307,7 +307,7 @@ export class ElectronWindow extends Themable {
 
 		// Dispose old
 		this.touchBarDisposables = dispose(this.touchBarDisposables);
-		this.touchBarMenu = void 0;
+		this.touchBarMenu = undefined;
 
 		// Create new (delayed)
 		this.touchBarUpdater = new RunOnceScheduler(() => this.doUpdateTouchbarMenu(), 300);
@@ -325,13 +325,12 @@ export class ElectronWindow extends Themable {
 		const actions: Array<MenuItemAction | Separator> = [];
 
 		// Fill actions into groups respecting order
-		fillInActionBarActions(this.touchBarMenu, void 0, actions);
+		fillInActionBarActions(this.touchBarMenu, undefined, actions);
 
 		// Convert into command action multi array
 		const items: ICommandAction[][] = [];
 		let group: ICommandAction[] = [];
-		for (let i = 0; i < actions.length; i++) {
-			const action = actions[i];
+		for (const action of actions) {
 
 			// Command
 			if (action instanceof MenuItemAction) {

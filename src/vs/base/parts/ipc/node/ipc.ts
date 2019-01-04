@@ -309,7 +309,7 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
 					id, data: {
 						message: err.message,
 						name: err.name,
-						stack: err.stack ? (err.stack.split ? err.stack.split('\n') : err.stack) : void 0
+						stack: err.stack ? (err.stack.split ? err.stack.split('\n') : err.stack) : undefined
 					}, type: ResponseType.PromiseError
 				});
 			} else {

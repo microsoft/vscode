@@ -606,7 +606,7 @@ export class DebugService implements IDebugService {
 
 								this.launchOrAttachToSession(session, shouldFocus).then(() => {
 									this._onDidNewSession.fire(session);
-									c(void 0);
+									c(undefined);
 								}, err => e(err));
 							});
 						});
@@ -660,7 +660,7 @@ export class DebugService implements IDebugService {
 				return actions[choice].run();
 			}
 
-			return void 0;
+			return undefined;
 		});
 	}
 
@@ -727,7 +727,7 @@ export class DebugService implements IDebugService {
 				if (task.configurationProperties.isBackground) {
 					return new Promise((c, e) => once(e => e.kind === TaskEventKind.Inactive && e.taskId === task._id, this.taskService.onDidStateChange)(() => {
 						taskStarted = true;
-						c(void 0);
+						c(undefined);
 					}));
 				}
 
@@ -912,7 +912,7 @@ export class DebugService implements IDebugService {
 		if (session) {
 			return send(session);
 		}
-		return Promise.all(this.model.getSessions().map(s => send(s))).then(() => void 0);
+		return Promise.all(this.model.getSessions().map(s => send(s))).then(() => undefined);
 	}
 
 	private onFileChanges(fileChangesEvent: FileChangesEvent): void {

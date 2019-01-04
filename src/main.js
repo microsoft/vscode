@@ -414,7 +414,7 @@ function rimraf(location) {
 		}
 	}, err => {
 		if (err.code === 'ENOENT') {
-			return void 0;
+			return undefined;
 		}
 		throw err;
 	});

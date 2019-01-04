@@ -319,7 +319,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		let workspaceId: string | undefined;
 		switch (state) {
 			case WorkbenchState.EMPTY:
-				workspaceId = void 0;
+				workspaceId = undefined;
 				break;
 			case WorkbenchState.FOLDER:
 				workspaceId = crypto.createHash('sha1').update(workspace.folders[0].uri.scheme === Schemas.file ? workspace.folders[0].uri.fsPath : workspace.folders[0].uri.toString()).digest('hex');
@@ -687,7 +687,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 				*/
 				this.telemetryService.publicLog('workspace.azure', tags);
 			}
-		}).then(void 0, onUnexpectedError);
+		}).then(undefined, onUnexpectedError);
 	}
 
 	private reportCloudStats(): void {
@@ -712,6 +712,6 @@ export class WorkspaceStats implements IWorkbenchContribution {
 					}
 				*/
 				this.telemetryService.publicLog('resolveProxy.stats', { type });
-			}).then(void 0, onUnexpectedError);
+			}).then(undefined, onUnexpectedError);
 	}
 }

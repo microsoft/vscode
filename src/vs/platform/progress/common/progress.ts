@@ -130,7 +130,7 @@ export class LongRunningOperation {
 		this.currentOperationDisposables.push(
 			toDisposable(() => clearTimeout(this.currentProgressTimeout)),
 			toDisposable(() => newOperationToken.cancel()),
-			toDisposable(() => this.currentProgressRunner ? this.currentProgressRunner.done() : void 0)
+			toDisposable(() => this.currentProgressRunner ? this.currentProgressRunner.done() : undefined)
 		);
 
 		return {

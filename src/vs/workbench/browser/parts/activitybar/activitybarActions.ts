@@ -187,7 +187,7 @@ export class PlaceHolderViewletActivityAction extends ViewletActivityAction {
 export class PlaceHolderToggleCompositePinnedAction extends ToggleCompositePinnedAction {
 
 	constructor(id: string, compositeBar: ICompositeBar) {
-		super({ id, name: id, cssClass: void 0 }, compositeBar);
+		super({ id, name: id, cssClass: undefined }, compositeBar);
 	}
 
 	setActivity(activity: IActivity): void {

@@ -123,7 +123,7 @@ export class PreferencesEditor extends BaseEditor {
 
 		const editorsContainer = DOM.append(parent, DOM.$('.preferences-editors-container'));
 		this.sideBySidePreferencesWidget = this._register(this.instantiationService.createInstance(SideBySidePreferencesWidget, editorsContainer));
-		this._onDidCreateWidget.fire();
+		this._onDidCreateWidget.fire(undefined);
 		this._register(this.sideBySidePreferencesWidget.onFocus(() => this.lastFocusedWidget = this.sideBySidePreferencesWidget));
 		this._register(this.sideBySidePreferencesWidget.onDidSettingsTargetChange(target => this.switchSettings(target)));
 
@@ -210,7 +210,7 @@ export class PreferencesEditor extends BaseEditor {
 	private updateInput(newInput: PreferencesEditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
 		return this.sideBySidePreferencesWidget.setInput(<DefaultPreferencesEditorInput>newInput.details, <EditorInput>newInput.master, options, token).then(({ defaultPreferencesRenderer, editablePreferencesRenderer }) => {
 			if (token.isCancellationRequested) {
-				return void 0;
+				return undefined;
 			}
 
 			this.preferencesRenderers.defaultPreferencesRenderer = defaultPreferencesRenderer;
@@ -523,7 +523,7 @@ class PreferencesRenderersController extends Disposable {
 		if (!query) {
 			// Don't open the other settings targets when query is empty
 			this._onDidFilterResultsCountChange.fire({ target, count: 0 });
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		return this.getPreferencesEditorModel(target).then(model => {
@@ -937,7 +937,7 @@ class SideBySidePreferencesWidget extends Widget {
 		return editor.setInput(input, options, token)
 			.then(() => {
 				if (token.isCancellationRequested) {
-					return void 0;
+					return undefined;
 				}
 
 				return (<CodeEditorWidget>editor.getControl()).getContribution<ISettingsEditorContribution>(editorContributionId).updatePreferencesRenderer(associatedPreferencesModelUri);
@@ -1046,14 +1046,14 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 			.then(() => this.input.resolve()
 				.then(editorModel => {
 					if (token.isCancellationRequested) {
-						return void 0;
+						return undefined;
 					}
 
 					return editorModel.load();
 				})
 				.then(editorModel => {
 					if (token.isCancellationRequested) {
-						return void 0;
+						return undefined;
 					}
 
 					this.getControl().setModel((<ResourceEditorModel>editorModel).textEditorModel);

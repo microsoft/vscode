@@ -128,10 +128,8 @@ export default class RenameInputField implements IContentWidget, IDisposable {
 		this._inputField.setAttribute('selectionEnd', selectionEnd.toString());
 		this._inputField.size = Math.max((where.endColumn - where.startColumn) * 1.1, 20);
 
-		let disposeOnDone: IDisposable[] = [],
-			always: Function;
-
-		always = () => {
+		const disposeOnDone: IDisposable[] = [];
+		const always = () => {
 			dispose(disposeOnDone);
 			this._hide();
 		};

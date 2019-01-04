@@ -155,7 +155,7 @@ export class NotificationsCenter extends Themable {
 	private getKeybindingLabel(action: IAction): string {
 		const keybinding = this.keybindingService.lookupKeybinding(action.id);
 
-		return keybinding ? keybinding.getLabel() : void 0;
+		return keybinding ? keybinding.getLabel() : undefined;
 	}
 
 	private onDidNotificationChange(e: INotificationChangeEvent): void {

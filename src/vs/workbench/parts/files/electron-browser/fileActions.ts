@@ -328,7 +328,7 @@ class BaseDeleteFileAction extends BaseErrorReportingAction {
 			return confirmDeletePromise.then(confirmation => {
 
 				// Check for confirmation checkbox
-				let updateConfirmSettingsPromise: Promise<void> = Promise.resolve(void 0);
+				let updateConfirmSettingsPromise: Promise<void> = Promise.resolve(undefined);
 				if (confirmation.confirmed && confirmation.checkboxChecked === true) {
 					updateConfirmSettingsPromise = this.configurationService.updateValue(BaseDeleteFileAction.CONFIRM_DELETE_SETTING_KEY, false, ConfigurationTarget.USER);
 				}
@@ -373,7 +373,7 @@ class BaseDeleteFileAction extends BaseErrorReportingAction {
 									return this.run();
 								}
 
-								return Promise.resolve(void 0);
+								return Promise.resolve(undefined);
 							});
 						});
 
@@ -491,7 +491,7 @@ export class AddFilesAction extends BaseErrorReportingAction {
 
 				return overwritePromise.then(res => {
 					if (!res.confirmed) {
-						return void 0;
+						return undefined;
 					}
 
 					// Run add in sequence
@@ -527,7 +527,7 @@ export class AddFilesAction extends BaseErrorReportingAction {
 			});
 		}
 
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -595,7 +595,7 @@ class PasteFileAction extends BaseErrorReportingAction {
 					return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true, preserveFocus: true } });
 				}
 
-				return void 0;
+				return undefined;
 			});
 		}, error => {
 			this.onError(new Error(nls.localize('fileDeleted', "File to paste was deleted or moved meanwhile")));
@@ -704,7 +704,7 @@ export class GlobalCompareResourcesAction extends Action {
 
 	public run(): Promise<any> {
 		const activeInput = this.editorService.activeEditor;
-		const activeResource = activeInput ? activeInput.getResource() : void 0;
+		const activeResource = activeInput ? activeInput.getResource() : undefined;
 		if (activeResource) {
 
 			// Compare with next editor that opens
@@ -720,11 +720,11 @@ export class GlobalCompareResourcesAction extends Action {
 						override: this.editorService.openEditor({
 							leftResource: activeResource,
 							rightResource: resource
-						}).then(() => void 0)
+						}).then(() => undefined)
 					};
 				}
 
-				return void 0;
+				return undefined;
 			});
 
 			// Bring up quick open

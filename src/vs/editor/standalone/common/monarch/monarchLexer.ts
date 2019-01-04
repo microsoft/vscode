@@ -838,8 +838,7 @@ function findBracket(lexer: monarchCommon.ILexer, matched: string) {
 	matched = monarchCommon.fixCase(lexer, matched);
 
 	let brackets = lexer.brackets;
-	for (let i = 0; i < brackets.length; i++) {
-		let bracket = brackets[i];
+	for (const bracket of brackets) {
 		if (bracket.open === matched) {
 			return { token: bracket.token, bracketType: monarchCommon.MonarchBracket.Open };
 		}

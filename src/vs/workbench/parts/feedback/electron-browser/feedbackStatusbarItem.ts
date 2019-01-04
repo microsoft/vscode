@@ -144,7 +144,7 @@ export class FeedbackStatusbarItem extends Themable implements IStatusbarItem {
 		// Dispose
 		else {
 			dispose(this.dropdown);
-			this.dropdown = void 0;
+			this.dropdown = undefined;
 			clearNode(this.container);
 		}
 

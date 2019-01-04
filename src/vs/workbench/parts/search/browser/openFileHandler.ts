@@ -175,8 +175,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 			const results: QuickOpenEntry[] = [];
 
 			if (!token.isCancellationRequested) {
-				for (let i = 0; i < complete.results.length; i++) {
-					const fileMatch = complete.results[i];
+				for (const fileMatch of complete.results) {
 
 					const label = paths.basename(fileMatch.resource.fsPath);
 					const description = this.labelService.getUriLabel(resources.dirname(fileMatch.resource), { relative: true });
@@ -193,7 +192,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 		if (paths.isAbsolute(query.original)) {
 			const resource = URI.file(query.original);
 
-			return this.fileService.resolveFile(resource).then(stat => stat.isDirectory ? void 0 : resource, error => void 0);
+			return this.fileService.resolveFile(resource).then(stat => stat.isDirectory ? undefined : resource, error => undefined);
 		}
 
 		return Promise.resolve(null);
@@ -320,11 +319,11 @@ export class CacheState {
 
 	dispose(): void {
 		if (this.promise) {
-			this.promise.then(void 0, () => { })
+			this.promise.then(undefined, () => { })
 				.then(() => {
 					this.loadingPhase = LoadingPhase.Disposed;
 					return this.doDispose(this._cacheKey);
-				}).then(void 0, err => {
+				}).then(undefined, err => {
 					errors.onUnexpectedError(err);
 				});
 		} else {

@@ -63,7 +63,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		this.ptyProcessReady = new Promise<void>(c => {
 			this.onProcessReady(() => {
 				this._logService.debug(`Terminal process ready (shellProcessId: ${this.shellProcessId})`);
-				c(void 0);
+				c(undefined);
 			});
 		});
 	}

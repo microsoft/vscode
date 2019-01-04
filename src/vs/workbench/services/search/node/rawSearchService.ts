@@ -318,8 +318,7 @@ export class SearchService implements IRawSearchService {
 			// Pattern match on results
 			const results: IRawFileMatch[] = [];
 			const normalizedSearchValueLowercase = strings.stripWildcards(searchValue).toLowerCase();
-			for (let i = 0; i < cachedEntries.length; i++) {
-				const entry = cachedEntries[i];
+			for (const entry of cachedEntries) {
 
 				// Check if this entry is a match for the search value
 				if (!strings.fuzzyContains(entry.relativePath, normalizedSearchValueLowercase)) {
