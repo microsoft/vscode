@@ -541,6 +541,7 @@
 		"./vs/workbench/common/editor/binaryEditorModel.ts",
 		"./vs/workbench/common/editor/dataUriEditorInput.ts",
 		"./vs/workbench/common/editor/diffEditorModel.ts",
+		"./vs/workbench/common/editor/editorGroup.ts",
 		"./vs/workbench/common/extensionHostProtocol.ts",
 		"./vs/workbench/common/memento.ts",
 		"./vs/workbench/common/notifications.ts",

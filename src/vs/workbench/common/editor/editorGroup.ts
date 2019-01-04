@@ -296,13 +296,13 @@ export class EditorGroup extends Disposable {
 		}));
 	}
 
-	private replaceEditor(toReplace: EditorInput, replaceWidth: EditorInput, replaceIndex: number, openNext = true): void {
+	private replaceEditor(toReplace: EditorInput, replaceWith: EditorInput, replaceIndex: number, openNext = true): void {
 		const event = this.doCloseEditor(toReplace, openNext, true); // optimization to prevent multiple setActive() in one call
 
 		// We want to first add the new editor into our model before emitting the close event because
 		// firing the close event can trigger a dispose on the same editor that is now being added.
 		// This can lead into opening a disposed editor which is not what we want.
-		this.splice(replaceIndex, false, replaceWidth);
+		this.splice(replaceIndex, false, replaceWith);
 
 		if (event) {
 			this._onDidEditorClose.fire(event);
@@ -513,7 +513,7 @@ export class EditorGroup extends Disposable {
 			}
 
 			// Replace
-			else {
+			else if (del && editor) {
 				this.mru.splice(indexInMRU, 1, editor); // replace MRU at location
 				this.updateResourceMap(editor, false /* add */); // add new to resource map
 				this.updateResourceMap(editorToDeleteOrReplace, true /* delete */); // remove replaced from resource map
@@ -527,17 +527,24 @@ export class EditorGroup extends Disposable {
 
 			// It is possible to have the same resource opened twice (once as normal input and once as diff input)
 			// So we need to do ref counting on the resource to provide the correct picture
-			let counter = this.mapResourceToEditorCount.get(resource) || 0;
+			const counter = this.mapResourceToEditorCount.get(resource) || 0;
+
+			// Add
 			let newCounter: number;
-			if (remove) {
-				if (counter > 1) {
-					newCounter = counter - 1;
-				}
-			} else {
+			if (!remove) {
 				newCounter = counter + 1;
 			}
 
-			this.mapResourceToEditorCount.set(resource, newCounter);
+			// Delete
+			else {
+				newCounter = counter - 1;
+			}
+
+			if (newCounter > 0) {
+				this.mapResourceToEditorCount.set(resource, newCounter);
+			} else {
+				this.mapResourceToEditorCount.delete(resource);
+			}
 		}
 	}
 
