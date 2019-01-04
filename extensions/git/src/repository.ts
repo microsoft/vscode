@@ -948,7 +948,6 @@ export class Repository implements Disposable {
 		const fetchOnPull = config.get<boolean>('fetchOnPull');
 		const autoStash = config.get<boolean>('autoStash');
 
-
 		await this.run(Operation.Pull, async () => {
 			const doStash = autoStash && this.trackedCount > 0;
 
@@ -957,9 +956,9 @@ export class Repository implements Disposable {
 			}
 
 			if (fetchOnPull) {
-				await this.run(Operation.Pull, () => this.repository.pull(rebase));
+				await this.repository.pull(rebase);
 			} else {
-				await this.run(Operation.Pull, () => this.repository.pull(rebase, remote, branch));
+				await this.repository.pull(rebase, remote, branch);
 			}
 
 			if (doStash) {
