@@ -235,7 +235,12 @@ export class KeybindingsEditorModel extends EditorModel {
 
 	private static getCommandLabel(menuCommand: ICommandAction, editorActionLabel: string): string {
 		if (menuCommand) {
-			return typeof menuCommand.title === 'string' ? menuCommand.title : menuCommand.title.value;
+			let category;
+			if (menuCommand.category) {
+				category = typeof menuCommand.category === 'string' ? menuCommand.category : menuCommand.category.value;
+			}
+			const title = typeof menuCommand.title === 'string' ? menuCommand.title : menuCommand.title.value;
+			return category ? `${category}: ${title}` : title;
 		}
 
 		if (editorActionLabel) {
