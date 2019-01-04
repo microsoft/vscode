@@ -6,14 +6,14 @@
 import * as nls from 'vs/nls';
 import { illegalArgument, onUnexpectedError } from 'vs/base/common/errors';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction, EditorCommand, registerEditorCommand, registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import RenameInputField from './renameInputField';
+import { RenameInputField, CONTEXT_RENAME_INPUT_VISIBLE } from './renameInputField';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { WorkspaceEdit, RenameProviderRegistry, RenameProvider, RenameLocation, Rejection } from 'vs/editor/common/modes';
 import { Position, IPosition } from 'vs/editor/common/core/position';
@@ -92,8 +92,6 @@ export async function rename(model: ITextModel, position: Position, newName: str
 
 // ---  register actions and commands
 
-const CONTEXT_RENAME_INPUT_VISIBLE = new RawContextKey<boolean>('renameInputVisible', false);
-
 class RenameController implements IEditorContribution {
 
 	private static readonly ID = 'editor.contrib.renameController';
@@ -103,8 +101,6 @@ class RenameController implements IEditorContribution {
 	}
 
 	private readonly _renameInputField: RenameInputField;
-	private readonly _renameInputVisible: IContextKey<boolean>;
-
 	constructor(
 		private readonly editor: ICodeEditor,
 		@INotificationService private readonly _notificationService: INotificationService,
@@ -113,8 +109,7 @@ class RenameController implements IEditorContribution {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
 	) {
-		this._renameInputField = new RenameInputField(editor, themeService);
-		this._renameInputVisible = CONTEXT_RENAME_INPUT_VISIBLE.bindTo(contextKeyService);
+		this._renameInputField = new RenameInputField(editor, themeService, contextKeyService);
 	}
 
 	dispose(): void {
@@ -166,9 +161,7 @@ class RenameController implements IEditorContribution {
 			selectionEnd = Math.min(loc.range.endColumn, selection.endColumn) - loc.range.startColumn;
 		}
 
-		this._renameInputVisible.set(true);
 		return this._renameInputField.getInput(loc.range, loc.text, selectionStart, selectionEnd).then(newNameOrFocusFlag => {
-			this._renameInputVisible.reset();
 
 			if (typeof newNameOrFocusFlag === 'boolean') {
 				if (newNameOrFocusFlag) {
@@ -211,9 +204,6 @@ class RenameController implements IEditorContribution {
 			this._progressService.showWhile(renameOperation, 250);
 			return renameOperation;
 
-		}, err => {
-			this._renameInputVisible.reset();
-			return Promise.reject(err);
 		});
 	}
 
