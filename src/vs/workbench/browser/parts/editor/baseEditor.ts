@@ -40,10 +40,10 @@ export abstract class BaseEditor extends Panel implements IEditor {
 
 	readonly onDidSizeConstraintsChange: Event<{ width: number; height: number; }> = Event.None;
 
-	protected _input: EditorInput;
-	protected _options: EditorOptions;
+	protected _input: EditorInput | null;
+	protected _options: EditorOptions | null;
 
-	private _group: IEditorGroup;
+	private _group?: IEditorGroup;
 
 	constructor(
 		id: string,
@@ -54,15 +54,15 @@ export abstract class BaseEditor extends Panel implements IEditor {
 		super(id, telemetryService, themeService, storageService);
 	}
 
-	get input(): EditorInput {
+	get input(): EditorInput | null {
 		return this._input;
 	}
 
-	get options(): EditorOptions {
+	get options(): EditorOptions | null {
 		return this._options;
 	}
 
-	get group(): IEditorGroup {
+	get group(): IEditorGroup | undefined {
 		return this._group;
 	}
 
@@ -129,7 +129,7 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	 * @param visible the state of visibility of this editor
 	 * @param group the editor group this editor is in.
 	 */
-	protected setEditorVisible(visible: boolean, group: IEditorGroup): void {
+	protected setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
 		this._group = group;
 	}
 
@@ -211,9 +211,9 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 		}
 	}
 
-	loadEditorState(group: IEditorGroup, resource: URI): T;
-	loadEditorState(group: IEditorGroup, editor: EditorInput): T;
-	loadEditorState(group: IEditorGroup, resourceOrEditor: URI | EditorInput): T {
+	loadEditorState(group: IEditorGroup, resource: URI): T | undefined;
+	loadEditorState(group: IEditorGroup, editor: EditorInput): T | undefined;
+	loadEditorState(group: IEditorGroup, resourceOrEditor: URI | EditorInput): T | undefined {
 		const resource = this.doGetResource(resourceOrEditor);
 		if (!resource || !group) {
 			return undefined; // we are not in a good state to load any state for a resource
@@ -247,7 +247,7 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 		}
 	}
 
-	private doGetResource(resourceOrEditor: URI | EditorInput): URI {
+	private doGetResource(resourceOrEditor: URI | EditorInput): URI | null {
 		if (resourceOrEditor instanceof EditorInput) {
 			return resourceOrEditor.getResource();
 		}
