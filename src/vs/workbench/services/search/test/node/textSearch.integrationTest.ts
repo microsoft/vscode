@@ -78,7 +78,7 @@ suite('Search-integration', function () {
 	this.timeout(1000 * 60); // increase timeout for this suite
 
 	test('Text: GameOfLife', () => {
-		const config = <ITextQuery>{
+		const config: ITextQuery = {
 			type: QueryType.Text,
 			folderQueries: ROOT_FOLDER_QUERY,
 			contentPattern: { pattern: 'GameOfLife' },
@@ -88,7 +88,7 @@ suite('Search-integration', function () {
 	});
 
 	test('Text: GameOfLife (RegExp)', () => {
-		const config = <ITextQuery>{
+		const config: ITextQuery = {
 			type: QueryType.Text,
 			folderQueries: ROOT_FOLDER_QUERY,
 			contentPattern: { pattern: 'Game.?fL\\w?fe', isRegExp: true }
@@ -98,7 +98,7 @@ suite('Search-integration', function () {
 	});
 
 	test('Text: GameOfLife (PCRE2 RegExp)', () => {
-		const config = <ITextQuery>{
+		const config: ITextQuery = {
 			type: QueryType.Text,
 			folderQueries: ROOT_FOLDER_QUERY,
 			usePCRE2: true,
@@ -109,7 +109,7 @@ suite('Search-integration', function () {
 	});
 
 	test('Text: GameOfLife (RegExp to EOL)', () => {
-		const config = <ITextQuery>{
+		const config: ITextQuery = {
 			type: QueryType.Text,
 			folderQueries: ROOT_FOLDER_QUERY,
 			contentPattern: { pattern: 'GameOfLife.*', isRegExp: true }
@@ -119,7 +119,7 @@ suite('Search-integration', function () {
 	});
 
 	test('Text: GameOfLife (Word Match, Case Sensitive)', () => {
-		const config = <ITextQuery>{
+		const config: ITextQuery = {
 			type: QueryType.Text,
 			folderQueries: ROOT_FOLDER_QUERY,
 			contentPattern: { pattern: 'GameOfLife', isWordMatch: true, isCaseSensitive: true }
@@ -129,7 +129,7 @@ suite('Search-integration', function () {
 	});
 
 	test('Text: GameOfLife (Word Match, Spaces)', () => {
-		const config = <ITextQuery>{
+		const config: ITextQuery = {
 			type: QueryType.Text,
 			folderQueries: ROOT_FOLDER_QUERY,
 			contentPattern: { pattern: ' GameOfLife ', isWordMatch: true }
@@ -139,7 +139,7 @@ suite('Search-integration', function () {
 	});
 
 	test('Text: GameOfLife (Word Match, Punctuation and Spaces)', () => {
-		const config = <ITextQuery>{
+		const config: ITextQuery = {
 			type: QueryType.Text,
 			folderQueries: ROOT_FOLDER_QUERY,
 			contentPattern: { pattern: ', as =', isWordMatch: true }
@@ -149,7 +149,7 @@ suite('Search-integration', function () {
 	});
 
 	test('Text: Helvetica (UTF 16)', () => {
-		const config = <ITextQuery>{
+		const config: ITextQuery = {
 			type: QueryType.Text,
 			folderQueries: ROOT_FOLDER_QUERY,
 			contentPattern: { pattern: 'Helvetica' }
@@ -159,7 +159,7 @@ suite('Search-integration', function () {
 	});
 
 	test('Text: e', () => {
-		const config = <ITextQuery>{
+		const config: ITextQuery = {
 			type: QueryType.Text,
 			folderQueries: ROOT_FOLDER_QUERY,
 			contentPattern: { pattern: 'e' }
@@ -233,7 +233,7 @@ suite('Search-integration', function () {
 
 	test('Text: a (capped)', () => {
 		const maxResults = 520;
-		const config = <ITextQuery>{
+		const config: ITextQuery = {
 			type: QueryType.Text,
 			folderQueries: ROOT_FOLDER_QUERY,
 			contentPattern: { pattern: 'a' },
@@ -247,7 +247,7 @@ suite('Search-integration', function () {
 	});
 
 	test('Text: a (no results)', () => {
-		const config = <ITextQuery>{
+		const config: ITextQuery = {
 			type: QueryType.Text,
 			folderQueries: ROOT_FOLDER_QUERY,
 			contentPattern: { pattern: 'ahsogehtdas' }
@@ -257,7 +257,7 @@ suite('Search-integration', function () {
 	});
 
 	test('Text: -size', () => {
-		const config = <ITextQuery>{
+		const config: ITextQuery = {
 			type: QueryType.Text,
 			folderQueries: ROOT_FOLDER_QUERY,
 			contentPattern: { pattern: '-size' }
@@ -312,7 +312,7 @@ suite('Search-integration', function () {
 	});
 
 	test('Text: 语', () => {
-		const config = <ITextQuery>{
+		const config: ITextQuery = {
 			type: QueryType.Text,
 			folderQueries: ROOT_FOLDER_QUERY,
 			contentPattern: { pattern: '语' }
@@ -330,7 +330,7 @@ suite('Search-integration', function () {
 	});
 
 	test('Multiple matches on line: h\\d,', () => {
-		const config = <ITextQuery>{
+		const config: ITextQuery = {
 			type: QueryType.Text,
 			folderQueries: ROOT_FOLDER_QUERY,
 			contentPattern: { pattern: 'h\\d,', isRegExp: true }
@@ -345,7 +345,7 @@ suite('Search-integration', function () {
 	});
 
 	test('Search with context matches', () => {
-		const config = <ITextQuery>{
+		const config: ITextQuery = {
 			type: QueryType.Text,
 			folderQueries: ROOT_FOLDER_QUERY,
 			contentPattern: { pattern: 'compiler.typeCheck();' },
@@ -367,7 +367,7 @@ suite('Search-integration', function () {
 
 	suite('error messages', () => {
 		test('invalid encoding', () => {
-			const config = <ITextQuery>{
+			const config: ITextQuery = {
 				type: QueryType.Text,
 				folderQueries: [
 					{
@@ -388,7 +388,7 @@ suite('Search-integration', function () {
 		});
 
 		test('invalid regex', () => {
-			const config = <ITextQuery>{
+			const config: ITextQuery = {
 				type: QueryType.Text,
 				folderQueries: ROOT_FOLDER_QUERY,
 				contentPattern: { pattern: ')', isRegExp: true },
@@ -404,7 +404,7 @@ suite('Search-integration', function () {
 		});
 
 		test('invalid glob', () => {
-			const config = <ITextQuery>{
+			const config: ITextQuery = {
 				type: QueryType.Text,
 				folderQueries: ROOT_FOLDER_QUERY,
 				contentPattern: { pattern: 'foo' },
@@ -423,7 +423,7 @@ suite('Search-integration', function () {
 		});
 
 		test('invalid literal', () => {
-			const config = <ITextQuery>{
+			const config: ITextQuery = {
 				type: QueryType.Text,
 				folderQueries: ROOT_FOLDER_QUERY,
 				contentPattern: { pattern: 'foo\nbar', isRegExp: true }

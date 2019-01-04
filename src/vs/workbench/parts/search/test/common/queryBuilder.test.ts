@@ -52,7 +52,7 @@ suite('QueryBuilder', () => {
 	test('simple text pattern', () => {
 		assertEqualTextQueries(
 			queryBuilder.text(PATTERN_INFO),
-			<ITextQuery>{
+			{
 				folderQueries: [],
 				contentPattern: PATTERN_INFO,
 				type: QueryType.Text
@@ -65,7 +65,7 @@ suite('QueryBuilder', () => {
 				PATTERN_INFO,
 				[ROOT_1_URI]
 			),
-			<ITextQuery>{
+			{
 				contentPattern: PATTERN_INFO,
 				folderQueries: [{ folder: ROOT_1_URI }],
 				type: QueryType.Text
@@ -88,7 +88,7 @@ suite('QueryBuilder', () => {
 				PATTERN_INFO,
 				[ROOT_1_URI]
 			),
-			<ITextQuery>{
+			{
 				contentPattern: PATTERN_INFO,
 				folderQueries: [{
 					folder: ROOT_1_URI,
@@ -110,7 +110,7 @@ suite('QueryBuilder', () => {
 				[ROOT_1_URI],
 				{ includePattern: './bar' }
 			),
-			<ITextQuery>{
+			{
 				contentPattern: PATTERN_INFO,
 				folderQueries: [{
 					folder: ROOT_1_URI,
@@ -128,7 +128,7 @@ suite('QueryBuilder', () => {
 				[ROOT_1_URI],
 				{ includePattern: '.\\bar' }
 			),
-			<ITextQuery>{
+			{
 				contentPattern: PATTERN_INFO,
 				folderQueries: [{
 					folder: ROOT_1_URI,
@@ -158,7 +158,7 @@ suite('QueryBuilder', () => {
 				[ROOT_1_URI],
 				{ includePattern: './foo' }
 			),
-			<ITextQuery>{
+			{
 				contentPattern: PATTERN_INFO,
 				folderQueries: [{
 					folder: ROOT_1_URI,
@@ -201,7 +201,7 @@ suite('QueryBuilder', () => {
 				PATTERN_INFO,
 				[ROOT_1_URI, ROOT_2_URI, ROOT_3_URI]
 			),
-			<ITextQuery>{
+			{
 				contentPattern: PATTERN_INFO,
 				folderQueries: [
 					{ folder: ROOT_1_URI, excludePattern: patternsToIExpression('foo/**/*.js') },
@@ -219,7 +219,7 @@ suite('QueryBuilder', () => {
 				[ROOT_1_URI, ROOT_2_URI, ROOT_3_URI],
 				{ includePattern: './root2/src' }
 			),
-			<ITextQuery>{
+			{
 				contentPattern: PATTERN_INFO,
 				folderQueries: [
 					{
@@ -245,7 +245,7 @@ suite('QueryBuilder', () => {
 				[ROOT_1_URI],
 				{ excludePattern: 'foo' }
 			),
-			<ITextQuery>{
+			{
 				contentPattern: PATTERN_INFO,
 				folderQueries: [{
 					folder: ROOT_1_URI
@@ -262,7 +262,7 @@ suite('QueryBuilder', () => {
 				undefined,
 				{ filePattern: ` ${content} ` }
 			),
-			<IFileQuery>{
+			{
 				folderQueries: [],
 				filePattern: content,
 				type: QueryType.File
@@ -276,7 +276,7 @@ suite('QueryBuilder', () => {
 				[ROOT_1_URI],
 				{ excludePattern: './bar' }
 			),
-			<ITextQuery>{
+			{
 				contentPattern: PATTERN_INFO,
 				folderQueries: [{
 					folder: ROOT_1_URI,
@@ -291,7 +291,7 @@ suite('QueryBuilder', () => {
 				[ROOT_1_URI],
 				{ excludePattern: './bar/**/*.ts' }
 			),
-			<ITextQuery>{
+			{
 				contentPattern: PATTERN_INFO,
 				folderQueries: [{
 					folder: ROOT_1_URI,
@@ -306,7 +306,7 @@ suite('QueryBuilder', () => {
 				[ROOT_1_URI],
 				{ excludePattern: '.\\bar\\**\\*.ts' }
 			),
-			<ITextQuery>{
+			{
 				contentPattern: PATTERN_INFO,
 				folderQueries: [{
 					folder: ROOT_1_URI,
@@ -323,7 +323,7 @@ suite('QueryBuilder', () => {
 				[ROOT_1_URI],
 				{ extraFileResources: [getUri('/foo/bar.js')] }
 			),
-			<ITextQuery>{
+			{
 				contentPattern: PATTERN_INFO,
 				folderQueries: [{
 					folder: ROOT_1_URI
@@ -341,7 +341,7 @@ suite('QueryBuilder', () => {
 					excludePattern: '*.js'
 				}
 			),
-			<ITextQuery>{
+			{
 				contentPattern: PATTERN_INFO,
 				folderQueries: [{
 					folder: ROOT_1_URI
@@ -359,7 +359,7 @@ suite('QueryBuilder', () => {
 					includePattern: '*.txt'
 				}
 			),
-			<ITextQuery>{
+			{
 				contentPattern: PATTERN_INFO,
 				folderQueries: [{
 					folder: ROOT_1_URI
@@ -374,7 +374,7 @@ suite('QueryBuilder', () => {
 			function testSimpleIncludes(includePattern: string, expectedPatterns: string[]): void {
 				assert.deepEqual(
 					queryBuilder.parseSearchPaths(includePattern),
-					<ISearchPathsResult>{
+					{
 						pattern: patternsToIExpression(...expectedPatterns)
 					},
 					includePattern);
@@ -405,26 +405,26 @@ suite('QueryBuilder', () => {
 			const cases: [string, ISearchPathsResult][] = [
 				[
 					fixPath('/foo/bar'),
-					<ISearchPathsResult>{
+					{
 						searchPaths: [{ searchPath: getUri('/foo/bar') }]
 					}
 				],
 				[
 					fixPath('/foo/bar') + ',' + 'a',
-					<ISearchPathsResult>{
+					{
 						searchPaths: [{ searchPath: getUri('/foo/bar') }],
 						pattern: patternsToIExpression(...globalGlob('a'))
 					}
 				],
 				[
 					fixPath('/foo/bar') + ',' + fixPath('/1/2'),
-					<ISearchPathsResult>{
+					{
 						searchPaths: [{ searchPath: getUri('/foo/bar') }, { searchPath: getUri('/1/2') }]
 					}
 				],
 				[
 					fixPath('/foo/bar') + ',' + fixPath('/foo/../foo/bar/fooar/..'),
-					<ISearchPathsResult>{
+					{
 						searchPaths: [{
 							searchPath: getUri('/foo/bar')
 						}]
@@ -432,7 +432,7 @@ suite('QueryBuilder', () => {
 				],
 				[
 					fixPath('/foo/bar/**/*.ts'),
-					<ISearchPathsResult>{
+					{
 						searchPaths: [{
 							searchPath: getUri('/foo/bar'),
 							pattern: patternsToIExpression('**/*.ts', '**/*.ts/**')
@@ -441,7 +441,7 @@ suite('QueryBuilder', () => {
 				],
 				[
 					fixPath('/foo/bar/*a/b/c'),
-					<ISearchPathsResult>{
+					{
 						searchPaths: [{
 							searchPath: getUri('/foo/bar'),
 							pattern: patternsToIExpression('*a/b/c', '*a/b/c/**')
@@ -450,7 +450,7 @@ suite('QueryBuilder', () => {
 				],
 				[
 					fixPath('/*a/b/c'),
-					<ISearchPathsResult>{
+					{
 						searchPaths: [{
 							searchPath: getUri('/'),
 							pattern: patternsToIExpression('*a/b/c', '*a/b/c/**')
@@ -459,7 +459,7 @@ suite('QueryBuilder', () => {
 				],
 				[
 					fixPath('/foo/{b,c}ar'),
-					<ISearchPathsResult>{
+					{
 						searchPaths: [{
 							searchPath: getUri('/foo'),
 							pattern: patternsToIExpression('{b,c}ar', '{b,c}ar/**')
@@ -475,20 +475,20 @@ suite('QueryBuilder', () => {
 			const cases: [string, ISearchPathsResult][] = [
 				[
 					'~/foo/bar',
-					<ISearchPathsResult>{
+					{
 						searchPaths: [{ searchPath: getUri(userHome, '/foo/bar') }]
 					}
 				],
 				[
 					'~/foo/bar, a',
-					<ISearchPathsResult>{
+					{
 						searchPaths: [{ searchPath: getUri(userHome, '/foo/bar') }],
 						pattern: patternsToIExpression(...globalGlob('a'))
 					}
 				],
 				[
 					fixPath('/foo/~/bar'),
-					<ISearchPathsResult>{
+					{
 						searchPaths: [{ searchPath: getUri('/foo/~/bar') }]
 					}
 				],
@@ -500,7 +500,7 @@ suite('QueryBuilder', () => {
 			const cases: [string, ISearchPathsResult][] = [
 				[
 					'./a',
-					<ISearchPathsResult>{
+					{
 						searchPaths: [{
 							searchPath: ROOT_1_URI,
 							pattern: patternsToIExpression('a', 'a/**')
@@ -509,7 +509,7 @@ suite('QueryBuilder', () => {
 				],
 				[
 					'./a/',
-					<ISearchPathsResult>{
+					{
 						searchPaths: [{
 							searchPath: ROOT_1_URI,
 							pattern: patternsToIExpression('a', 'a/**')
@@ -518,7 +518,7 @@ suite('QueryBuilder', () => {
 				],
 				[
 					'./a/*b/c',
-					<ISearchPathsResult>{
+					{
 						searchPaths: [{
 							searchPath: ROOT_1_URI,
 							pattern: patternsToIExpression('a/*b/c', 'a/*b/c/**')
@@ -527,7 +527,7 @@ suite('QueryBuilder', () => {
 				],
 				[
 					'./a/*b/c, ' + fixPath('/project/foo'),
-					<ISearchPathsResult>{
+					{
 						searchPaths: [
 							{
 								searchPath: ROOT_1_URI,
@@ -540,7 +540,7 @@ suite('QueryBuilder', () => {
 				],
 				[
 					'./a/b/,./c/d',
-					<ISearchPathsResult>{
+					{
 						searchPaths: [{
 							searchPath: ROOT_1_URI,
 							pattern: patternsToIExpression('a/b', 'a/b/**', 'c/d', 'c/d/**')
@@ -550,7 +550,7 @@ suite('QueryBuilder', () => {
 				// TODO @ rob
 				// [
 				// 	'../',
-				// 	<ISearchPathsResult>{
+				// 	{
 				// 		searchPaths: [{
 				// 			searchPath: getUri('foo/')
 				// 		}]
@@ -568,7 +568,7 @@ suite('QueryBuilder', () => {
 			const cases: [string, ISearchPathsResult][] = [
 				[
 					'./root1',
-					<ISearchPathsResult>{
+					{
 						searchPaths: [{
 							searchPath: getUri(ROOT_1)
 						}]
@@ -576,7 +576,7 @@ suite('QueryBuilder', () => {
 				],
 				[
 					'./root2',
-					<ISearchPathsResult>{
+					{
 						searchPaths: [{
 							searchPath: getUri(ROOT_2),
 						}]
@@ -584,7 +584,7 @@ suite('QueryBuilder', () => {
 				],
 				[
 					'./root1/a/**/b, ./root2/**/*.txt',
-					<ISearchPathsResult>{
+					{
 						searchPaths: [
 							{
 								searchPath: ROOT_1_URI,
@@ -609,7 +609,7 @@ suite('QueryBuilder', () => {
 			const cases: [string, ISearchPathsResult][] = [
 				[
 					'./foldername',
-					<ISearchPathsResult>{
+					{
 						searchPaths: [{
 							searchPath: ROOT_1_URI
 						}]
@@ -617,7 +617,7 @@ suite('QueryBuilder', () => {
 				],
 				[
 					'./foldername/foo',
-					<ISearchPathsResult>{
+					{
 						searchPaths: [{
 							searchPath: ROOT_1_URI,
 							pattern: patternsToIExpression('foo', 'foo/**')
@@ -637,19 +637,19 @@ suite('QueryBuilder', () => {
 			const cases: [string, ISearchPathsResult][] = [
 				[
 					'',
-					<ISearchPathsResult>{
+					{
 						searchPaths: undefined
 					}
 				],
 				[
 					'./',
-					<ISearchPathsResult>{
+					{
 						searchPaths: undefined
 					}
 				],
 				[
 					'./root1',
-					<ISearchPathsResult>{
+					{
 						searchPaths: [{
 							searchPath: getUri(ROOT_1)
 						}]
@@ -657,7 +657,7 @@ suite('QueryBuilder', () => {
 				],
 				[
 					'./root1,./',
-					<ISearchPathsResult>{
+					{
 						searchPaths: [{
 							searchPath: getUri(ROOT_1)
 						}]
@@ -665,7 +665,7 @@ suite('QueryBuilder', () => {
 				],
 				[
 					'./rootB',
-					<ISearchPathsResult>{
+					{
 						searchPaths: [
 							{
 								searchPath: getUri(ROOT_2),
@@ -677,7 +677,7 @@ suite('QueryBuilder', () => {
 				],
 				[
 					'./rootB/a/**/b, ./rootB/b/**/*.txt',
-					<ISearchPathsResult>{
+					{
 						searchPaths: [
 							{
 								searchPath: getUri(ROOT_2),
@@ -691,7 +691,7 @@ suite('QueryBuilder', () => {
 				],
 				[
 					'./root1/**/foo/, bar/',
-					<ISearchPathsResult>{
+					{
 						pattern: patternsToIExpression('**/bar', '**/bar/**'),
 						searchPaths: [
 							{
