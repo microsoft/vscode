@@ -105,9 +105,6 @@ export class SettingsEditor2 extends BaseEditor {
 	private remoteSearchThrottle: ThrottledDelayer<void>;
 	private searchInProgress: CancellationTokenSource;
 
-	private delayRefreshOnLayout: Delayer<void>;
-	private lastLayedoutWidth: number;
-
 	private settingFastUpdateDelayer: Delayer<void>;
 	private settingSlowUpdateDelayer: Delayer<void>;
 	private pendingSettingUpdate: { key: string, value: any };
@@ -146,7 +143,6 @@ export class SettingsEditor2 extends BaseEditor {
 		this.localSearchDelayer = new Delayer(300);
 		this.remoteSearchThrottle = new ThrottledDelayer(200);
 		this.viewState = { settingsTarget: ConfigurationTarget.USER };
-		this.delayRefreshOnLayout = new Delayer(100);
 
 		this.settingFastUpdateDelayer = new Delayer<void>(SettingsEditor2.SETTING_UPDATE_FAST_DEBOUNCE);
 		this.settingSlowUpdateDelayer = new Delayer<void>(SettingsEditor2.SETTING_UPDATE_SLOW_DEBOUNCE);
@@ -281,16 +277,6 @@ export class SettingsEditor2 extends BaseEditor {
 
 		DOM.toggleClass(this.rootElement, 'mid-width', dimension.width < 1000 && dimension.width >= 600);
 		DOM.toggleClass(this.rootElement, 'narrow-width', dimension.width < 600);
-
-		// #56185
-		if (dimension.width !== this.lastLayedoutWidth) {
-			this.lastLayedoutWidth = dimension.width;
-			this.delayRefreshOnLayout.trigger(() => {
-				this.renderTree(undefined, true).then(() => {
-					// this.settingsTree.reveal(firstEl, firstElTop);
-				});
-			});
-		}
 	}
 
 	focus(): void {
