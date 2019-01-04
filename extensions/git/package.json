@@ -1214,6 +1214,12 @@
           "default": false,
           "description": "%config.fetchOnPull%"
         },
+        "git.autoStash": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": false,
+          "description": "%config.autoStash%"
+        },
         "git.allowForcePush": {
           "type": "boolean",
           "default": false,
