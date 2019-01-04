@@ -241,8 +241,8 @@ export function createESMSourcesAndResources2(options: IOptions2): void {
 		function toggleComments(fileContents: string): string {
 			let lines = fileContents.split(/\r\n|\r|\n/);
 			let mode = 0;
-			for (const line of lines) {
-
+			for (let i = 0; i < lines.length; i++) {
+				const line = lines[i];
 				if (mode === 0) {
 					if (/\/\/ ESM-comment-begin/.test(line)) {
 						mode = 1;
