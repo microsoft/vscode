@@ -100,20 +100,28 @@ class RenameController implements IEditorContribution {
 		return editor.getContribution<RenameController>(RenameController.ID);
 	}
 
-	private readonly _renameInputField: RenameInputField;
+	private _renameInputField?: RenameInputField;
+
 	constructor(
 		private readonly editor: ICodeEditor,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 		@IProgressService private readonly _progressService: IProgressService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IThemeService themeService: IThemeService,
-	) {
-		this._renameInputField = new RenameInputField(editor, themeService, contextKeyService);
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IThemeService private readonly _themeService: IThemeService,
+	) { }
+
+	private get renameInputField(): RenameInputField {
+		if (!this._renameInputField) {
+			this._renameInputField = new RenameInputField(this.editor, this._themeService, this._contextKeyService);
+		}
+		return this._renameInputField;
 	}
 
 	dispose(): void {
-		this._renameInputField.dispose();
+		if (this._renameInputField) {
+			this._renameInputField.dispose();
+		}
 	}
 
 	getId(): string {
@@ -161,7 +169,7 @@ class RenameController implements IEditorContribution {
 			selectionEnd = Math.min(loc.range.endColumn, selection.endColumn) - loc.range.startColumn;
 		}
 
-		return this._renameInputField.getInput(loc.range, loc.text, selectionStart, selectionEnd).then(newNameOrFocusFlag => {
+		return this.renameInputField.getInput(loc.range, loc.text, selectionStart, selectionEnd).then(newNameOrFocusFlag => {
 
 			if (typeof newNameOrFocusFlag === 'boolean') {
 				if (newNameOrFocusFlag) {
@@ -208,11 +216,15 @@ class RenameController implements IEditorContribution {
 	}
 
 	public acceptRenameInput(): void {
-		this._renameInputField.acceptInput();
+		if (this._renameInputField) {
+			this._renameInputField.acceptInput();
+		}
 	}
 
 	public cancelRenameInput(): void {
-		this._renameInputField.cancelInput(true);
+		if (this._renameInputField) {
+			this._renameInputField.cancelInput(true);
+		}
 	}
 }
 
