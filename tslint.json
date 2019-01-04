@@ -3,11 +3,22 @@
 		"build/lib/tslint"
 	],
 	"rules": {
-		"no-string-throw": true,
-		"no-unused-expression": true,
+		"no-construct": true,
+		"no-duplicate-super": true,
+		"no-duplicate-switch-case": true,
 		"no-duplicate-variable": true,
+		"no-eval": true,
+		"no-sparse-arrays": true,
+		"no-string-throw": true,
+		"no-unbound-method": [
+			true,
+			"ignore-static"
+		],
+		"no-unsafe-finally": true,
+		"no-unused-expression": true,
 		"curly": true,
 		"class-name": true,
+		"label-position": true,
 		"semicolon": [
 			true,
 			"always"

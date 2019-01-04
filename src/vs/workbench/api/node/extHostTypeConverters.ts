@@ -1008,8 +1008,6 @@ export namespace LogLevel {
 				return _MainLogLevel.Error;
 			case types.LogLevel.Critical:
 				return _MainLogLevel.Critical;
-			case types.LogLevel.Critical:
-				return _MainLogLevel.Critical;
 			case types.LogLevel.Off:
 				return _MainLogLevel.Off;
 		}
@@ -1029,8 +1027,6 @@ export namespace LogLevel {
 				return types.LogLevel.Warning;
 			case _MainLogLevel.Error:
 				return types.LogLevel.Error;
-			case _MainLogLevel.Critical:
-				return types.LogLevel.Critical;
 			case _MainLogLevel.Critical:
 				return types.LogLevel.Critical;
 			case _MainLogLevel.Off:
