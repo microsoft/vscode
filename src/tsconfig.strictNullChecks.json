@@ -765,6 +765,7 @@
 		"./vs/workbench/services/hash/common/hashService.ts",
 		"./vs/workbench/services/hash/node/hashService.ts",
 		"./vs/workbench/services/history/common/history.ts",
+		"./vs/workbench/services/history/electron-browser/history.ts",
 		"./vs/workbench/services/issue/common/issue.ts",
 		"./vs/workbench/services/issue/electron-browser/workbenchIssueService.ts",
 		"./vs/workbench/services/jsonschemas/common/jsonValidationExtensionPoint.ts",

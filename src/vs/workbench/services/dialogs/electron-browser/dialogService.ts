@@ -164,10 +164,8 @@ export class FileDialogService implements IFileDialogService {
 	) { }
 
 	public defaultFilePath(schemeFilter: string): URI | undefined {
-		let candidate: URI;
-
 		// Check for last active file first...
-		candidate = this.historyService.getLastActiveFile(schemeFilter);
+		let candidate = this.historyService.getLastActiveFile(schemeFilter);
 
 		// ...then for last active file root
 		if (!candidate) {
@@ -178,10 +176,8 @@ export class FileDialogService implements IFileDialogService {
 	}
 
 	public defaultFolderPath(schemeFilter: string): URI | undefined {
-		let candidate: URI;
-
 		// Check for last active file root first...
-		candidate = this.historyService.getLastActiveWorkspaceRoot(schemeFilter);
+		let candidate = this.historyService.getLastActiveWorkspaceRoot(schemeFilter);
 
 		// ...then for last active file
 		if (!candidate) {

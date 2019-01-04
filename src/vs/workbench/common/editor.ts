@@ -510,6 +510,8 @@ export interface IEncodingSupport {
  */
 export interface IFileEditorInput extends IEditorInput, IEncodingSupport {
 
+	getResource(): URI;
+
 	/**
 	 * Sets the preferred encodingt to use for this input.
 	 */
