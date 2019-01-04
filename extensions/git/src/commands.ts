@@ -179,31 +179,6 @@ function createCheckoutItems(repository: Repository): CheckoutItem[] {
 	return [...heads, ...tags, ...remoteHeads];
 }
 
-async function getBranchNameFromUser(): Promise<string> {
-	const config = workspace.getConfiguration('git');
-	const branchWhitespaceChar = config.get<string>('branchWhitespaceChar')!;
-	const branchValidationRegex = config.get<string>('branchValidationRegex')!;
-	const sanitize = (name: string) => name ?
-		name.trim().replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$|\[|\]$/g, branchWhitespaceChar)
-		: name;
-
-	const result = await window.showInputBox({
-		placeHolder: localize('branch name', "Branch name"),
-		prompt: localize('provide branch name', "Please provide a branch name"),
-		ignoreFocusOut: true,
-		validateInput: (name: string) => {
-			const validateName = new RegExp(branchValidationRegex);
-			if (validateName.test(sanitize(name))) {
-				return null;
-			}
-
-			return localize('branch name format invalid', "Branch name needs to match regex: {0}", branchValidationRegex);
-		}
-	});
-
-	return sanitize(result || '');
-}
-
 enum PushType {
 	Push,
 	PushTo,
@@ -1448,18 +1423,62 @@ export class CommandCenter {
 
 		const picks = [createBranch, ...createCheckoutItems(repository)];
 		const placeHolder = localize('select a ref to checkout', 'Select a ref to checkout');
-		const choice = await window.showQuickPick(picks, { placeHolder });
+
+		const quickpick = window.createQuickPick();
+		quickpick.items = picks;
+		quickpick.placeholder = placeHolder;
+		quickpick.show();
+
+		const choice = await new Promise<QuickPickItem | undefined>(c => quickpick.onDidAccept(() => c(quickpick.activeItems[0])));
+		quickpick.hide();
 
 		if (!choice) {
 			return false;
 		}
 
-		await choice.run(repository);
+		if (choice === createBranch) {
+			await this._branch(repository, quickpick.value);
+		} else {
+			await (choice as CheckoutItem).run(repository);
+		}
+
 		return true;
 	}
 
 	@command('git.branch', { repository: true })
 	async branch(repository: Repository): Promise<void> {
+		await this._branch(repository);
+	}
+
+	private async _branch(repository: Repository, defaultName?: string): Promise<void> {
+		const config = workspace.getConfiguration('git');
+		const branchWhitespaceChar = config.get<string>('branchWhitespaceChar')!;
+		const branchValidationRegex = config.get<string>('branchValidationRegex')!;
+		const sanitize = (name: string) => name ?
+			name.trim().replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$|\[|\]$/g, branchWhitespaceChar)
+			: name;
+
+		const rawBranchName = await window.showInputBox({
+			value: defaultName,
+			placeHolder: localize('branch name', "Branch name"),
+			prompt: localize('provide branch name', "Please provide a branch name"),
+			ignoreFocusOut: true,
+			validateInput: (name: string) => {
+				const validateName = new RegExp(branchValidationRegex);
+				if (validateName.test(sanitize(name))) {
+					return null;
+				}
+
+				return localize('branch name format invalid', "Branch name needs to match regex: {0}", branchValidationRegex);
+			}
+		});
+
+		const branchName = sanitize(rawBranchName || '');
+
+		if (!branchName) {
+			return;
+		}
+
 		const picks = [new HEADItem(repository), ...createCheckoutItems(repository)];
 		const placeHolder = localize('select a ref to create a new branch from', 'Select a ref to create a new branch from');
 		const target = await window.showQuickPick(picks, { placeHolder });
@@ -1468,13 +1487,7 @@ export class CommandCenter {
 			return;
 		}
 
-		const name = await getBranchNameFromUser();
-
-		if (!name) {
-			return;
-		}
-
-		await repository.branch(name, true, target.label);
+		await repository.branch(branchName, true, target.label);
 	}
 
 	@command('git.deleteBranch', { repository: true })
