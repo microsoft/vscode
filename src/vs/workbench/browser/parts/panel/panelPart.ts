@@ -70,7 +70,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ILifecycleService private lifecycleService: ILifecycleService
+		@ILifecycleService private readonly lifecycleService: ILifecycleService
 	) {
 		super(
 			notificationService,

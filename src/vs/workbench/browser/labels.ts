@@ -87,12 +87,12 @@ export class ResourceLabels extends Disposable {
 
 	constructor(
 		container: IResourceLabelsContainer,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IExtensionService private extensionService: IExtensionService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IModelService private modelService: IModelService,
-		@IDecorationsService private decorationsService: IDecorationsService,
-		@IThemeService private themeService: IThemeService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IModelService private readonly modelService: IModelService,
+		@IDecorationsService private readonly decorationsService: IDecorationsService,
+		@IThemeService private readonly themeService: IThemeService
 	) {
 		super();
 
@@ -235,12 +235,12 @@ class ResourceLabelWidget extends IconLabel {
 	constructor(
 		container: HTMLElement,
 		options: IIconLabelCreationOptions,
-		@IModeService private modeService: IModeService,
-		@IModelService private modelService: IModelService,
-		@IDecorationsService private decorationsService: IDecorationsService,
-		@ILabelService private labelService: ILabelService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IModeService private readonly modeService: IModeService,
+		@IModelService private readonly modelService: IModelService,
+		@IDecorationsService private readonly decorationsService: IDecorationsService,
+		@ILabelService private readonly labelService: ILabelService,
+		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
 	) {
 		super(container, options);
 	}

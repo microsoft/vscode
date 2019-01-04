@@ -576,8 +576,8 @@ export class SettingNewExtensionsRenderer implements ITreeRenderer<SettingsTreeN
 	templateId = SETTINGS_NEW_EXTENSIONS_TEMPLATE_ID;
 
 	constructor(
-		@IThemeService private _themeService: IThemeService,
-		@ICommandService private _commandService: ICommandService,
+		@IThemeService private readonly _themeService: IThemeService,
+		@ICommandService private readonly _commandService: ICommandService,
 	) {
 	}
 
@@ -1385,7 +1385,7 @@ class CopySettingIdAction extends Action {
 	static readonly LABEL = localize('copySettingIdLabel', "Copy Setting ID");
 
 	constructor(
-		@IClipboardService private clipboardService: IClipboardService
+		@IClipboardService private readonly clipboardService: IClipboardService
 	) {
 		super(CopySettingIdAction.ID, CopySettingIdAction.LABEL);
 	}
@@ -1404,7 +1404,7 @@ class CopySettingAsJSONAction extends Action {
 	static readonly LABEL = localize('copySettingAsJSONLabel', "Copy Setting as JSON");
 
 	constructor(
-		@IClipboardService private clipboardService: IClipboardService
+		@IClipboardService private readonly clipboardService: IClipboardService
 	) {
 		super(CopySettingAsJSONAction.ID, CopySettingAsJSONAction.LABEL);
 	}

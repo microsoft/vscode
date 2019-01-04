@@ -69,13 +69,13 @@ export class WalkThroughPart extends BaseEditor {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IModelService modelService: IModelService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IOpenerService private openerService: IOpenerService,
-		@IKeybindingService private keybindingService: IKeybindingService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IStorageService storageService: IStorageService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@INotificationService private notificationService: INotificationService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@INotificationService private readonly notificationService: INotificationService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
 		super(WalkThroughPart.ID, telemetryService, themeService, storageService);

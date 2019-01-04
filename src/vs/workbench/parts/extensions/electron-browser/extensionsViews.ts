@@ -74,16 +74,16 @@ export class ExtensionsListView extends ViewletPanel {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
-		@IThemeService private themeService: IThemeService,
-		@IExtensionService private extensionService: IExtensionService,
+		@IThemeService private readonly themeService: IThemeService,
+		@IExtensionService private readonly extensionService: IExtensionService,
 		@IExtensionsWorkbenchService protected extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IEditorService private editorService: IEditorService,
+		@IEditorService private readonly editorService: IEditorService,
 		@IExtensionTipsService protected tipsService: IExtensionTipsService,
-		@IModeService private modeService: IModeService,
-		@ITelemetryService private telemetryService: ITelemetryService,
+		@IModeService private readonly modeService: IModeService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
-		@IExperimentService private experimentService: IExperimentService
+		@IExperimentService private readonly experimentService: IExperimentService
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: options.title }, keybindingService, contextMenuService, configurationService);
 	}

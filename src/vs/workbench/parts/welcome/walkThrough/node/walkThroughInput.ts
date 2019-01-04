@@ -57,8 +57,8 @@ export class WalkThroughInput extends EditorInput {
 
 	constructor(
 		private options: WalkThroughInputOptions,
-		@ITextModelService private textModelResolverService: ITextModelService,
-		@IHashService private hashService: IHashService
+		@ITextModelService private readonly textModelResolverService: ITextModelService,
+		@IHashService private readonly hashService: IHashService
 	) {
 		super();
 	}

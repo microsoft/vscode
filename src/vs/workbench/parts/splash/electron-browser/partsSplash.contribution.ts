@@ -35,7 +35,7 @@ class PartsSplash {
 		@IStorageService private readonly _storageService: IStorageService,
 		@IEnvironmentService private readonly _envService: IEnvironmentService,
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@IBroadcastService private broadcastService: IBroadcastService
+		@IBroadcastService private readonly broadcastService: IBroadcastService
 	) {
 		lifecycleService.when(LifecyclePhase.Restored).then(_ => this._removePartsSplash());
 		Event.debounce(Event.any<any>(

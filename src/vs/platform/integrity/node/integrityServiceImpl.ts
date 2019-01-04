@@ -60,9 +60,9 @@ export class IntegrityServiceImpl implements IIntegrityService {
 	private _isPurePromise: Promise<IntegrityTestResult>;
 
 	constructor(
-		@INotificationService private notificationService: INotificationService,
+		@INotificationService private readonly notificationService: INotificationService,
 		@IStorageService storageService: IStorageService,
-		@ILifecycleService private lifecycleService: ILifecycleService
+		@ILifecycleService private readonly lifecycleService: ILifecycleService
 	) {
 		this._storage = new IntegrityStorage(storageService);
 

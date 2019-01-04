@@ -17,9 +17,9 @@ export class BackupRestorer implements IWorkbenchContribution {
 	private static readonly UNTITLED_REGEX = /Untitled-\d+/;
 
 	constructor(
-		@IEditorService private editorService: IEditorService,
-		@IBackupFileService private backupFileService: IBackupFileService,
-		@ILifecycleService private lifecycleService: ILifecycleService
+		@IEditorService private readonly editorService: IEditorService,
+		@IBackupFileService private readonly backupFileService: IBackupFileService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService
 	) {
 		this.restoreBackups();
 	}

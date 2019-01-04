@@ -38,8 +38,8 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 	private ignoreDecorationsChangedEvent: boolean;
 
 	constructor(
-		@IModelService private modelService: IModelService,
-		@IDebugService private debugService: IDebugService,
+		@IModelService private readonly modelService: IModelService,
+		@IDebugService private readonly debugService: IDebugService,
 	) {
 		this.modelDataMap = new Map<string, IDebugEditorModelData>();
 		this.toDispose = [];

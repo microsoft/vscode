@@ -116,12 +116,12 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 	private icons: HTMLElement[];
 
 	constructor(
-		@IPanelService private panelService: IPanelService,
-		@IMarkerService private markerService: IMarkerService,
-		@ITaskService private taskService: ITaskService,
-		@IPartService private partService: IPartService,
+		@IPanelService private readonly panelService: IPanelService,
+		@IMarkerService private readonly markerService: IMarkerService,
+		@ITaskService private readonly taskService: ITaskService,
+		@IPartService private readonly partService: IPartService,
 		@IThemeService themeService: IThemeService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
 	) {
 		super(themeService);
 
@@ -288,7 +288,7 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 class TaskStatusBarItem extends Themable implements IStatusbarItem {
 
 	constructor(
-		@ITaskService private taskService: ITaskService,
+		@ITaskService private readonly taskService: ITaskService,
 		@IThemeService themeService: IThemeService,
 	) {
 		super(themeService);
@@ -465,26 +465,26 @@ class TaskService extends Disposable implements ITaskService {
 	private readonly _onDidStateChange: Emitter<TaskEvent>;
 
 	constructor(
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IMarkerService private markerService: IMarkerService,
-		@IOutputService private outputService: IOutputService,
-		@IEditorService private editorService: IEditorService,
-		@IFileService private fileService: IFileService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@ITextFileService private textFileService: ITextFileService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IMarkerService private readonly markerService: IMarkerService,
+		@IOutputService private readonly outputService: IOutputService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IFileService private readonly fileService: IFileService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ITextFileService private readonly textFileService: ITextFileService,
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@IModelService private modelService: IModelService,
-		@IExtensionService private extensionService: IExtensionService,
-		@IQuickInputService private quickInputService: IQuickInputService,
-		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService,
-		@ITerminalService private terminalService: ITerminalService,
-		@IStorageService private storageService: IStorageService,
-		@IProgressService2 private progressService: IProgressService2,
-		@IOpenerService private openerService: IOpenerService,
+		@IModelService private readonly modelService: IModelService,
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IConfigurationResolverService private readonly configurationResolverService: IConfigurationResolverService,
+		@ITerminalService private readonly terminalService: ITerminalService,
+		@IStorageService private readonly storageService: IStorageService,
+		@IProgressService2 private readonly progressService: IProgressService2,
+		@IOpenerService private readonly openerService: IOpenerService,
 		@IWindowService private readonly _windowService: IWindowService,
-		@IDialogService private dialogService: IDialogService,
-		@INotificationService private notificationService: INotificationService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@INotificationService private readonly notificationService: INotificationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();

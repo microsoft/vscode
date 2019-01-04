@@ -87,9 +87,9 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 	private storage: IStorage;
 
 	constructor(
-		@ILogService private logService: ILogService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@ILogService private readonly logService: ILogService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super();
 

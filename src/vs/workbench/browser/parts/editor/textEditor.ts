@@ -53,7 +53,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 		@ITextFileService private readonly _textFileService: ITextFileService,
 		@IEditorService protected editorService: IEditorService,
 		@IEditorGroupsService protected editorGroupService: IEditorGroupsService,
-		@IWindowService private windowService: IWindowService
+		@IWindowService private readonly windowService: IWindowService
 	) {
 		super(id, telemetryService, themeService, storageService);
 

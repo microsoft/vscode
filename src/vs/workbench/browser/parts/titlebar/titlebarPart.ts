@@ -63,16 +63,16 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	constructor(
 		id: string,
-		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IWindowService private windowService: IWindowService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IWindowsService private windowsService: IWindowsService,
-		@IEditorService private editorService: IEditorService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IInstantiationService private instantiationService: IInstantiationService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IWindowService private readonly windowService: IWindowService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWindowsService private readonly windowsService: IWindowsService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
-		@ILabelService private labelService: ILabelService,
+		@ILabelService private readonly labelService: ILabelService,
 		@IStorageService storageService: IStorageService
 	) {
 		super(id, { hasTitle: false }, themeService, storageService);

@@ -84,19 +84,19 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 
 	constructor(
 		options: IExplorerViewOptions,
-		@INotificationService private notificationService: INotificationService,
+		@INotificationService private readonly notificationService: INotificationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IProgressService private progressService: IProgressService,
-		@IEditorService private editorService: IEditorService,
-		@IFileService private fileService: IFileService,
-		@IPartService private partService: IPartService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IProgressService private readonly progressService: IProgressService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IFileService private readonly fileService: IFileService,
+		@IPartService private readonly partService: IPartService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IDecorationsService decorationService: IDecorationsService,
-		@ILabelService private labelService: ILabelService
+		@ILabelService private readonly labelService: ILabelService
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService);
 

@@ -440,7 +440,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 
 	constructor(
 		private editor: ICodeEditor,
-		@ITelemetryService private telemetryService: ITelemetryService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,

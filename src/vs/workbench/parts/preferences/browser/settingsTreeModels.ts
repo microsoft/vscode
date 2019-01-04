@@ -230,7 +230,7 @@ export class SettingsTreeModel {
 
 	constructor(
 		protected _viewState: ISettingsEditorViewState,
-		@IConfigurationService private _configurationService: IConfigurationService
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) { }
 
 	get root(): SettingsTreeGroupElement {

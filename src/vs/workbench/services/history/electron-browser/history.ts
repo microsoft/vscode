@@ -129,16 +129,16 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private canNavigateForwardContextKey: IContextKey<boolean>;
 
 	constructor(
-		@IEditorService private editorService: EditorServiceImpl,
-		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IStorageService private storageService: IStorageService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IFileService private fileService: IFileService,
-		@IWindowsService private windowService: IWindowsService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IPartService private partService: IPartService,
-		@IContextKeyService private contextKeyService: IContextKeyService
+		@IEditorService private readonly editorService: EditorServiceImpl,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IStorageService private readonly storageService: IStorageService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IFileService private readonly fileService: IFileService,
+		@IWindowsService private readonly windowService: IWindowsService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IPartService private readonly partService: IPartService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
 

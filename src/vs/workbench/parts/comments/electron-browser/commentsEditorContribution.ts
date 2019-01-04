@@ -166,15 +166,15 @@ export class ReviewController implements IEditorContribution {
 	constructor(
 		editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IThemeService private themeService: IThemeService,
-		@ICommentService private commentService: ICommentService,
-		@INotificationService private notificationService: INotificationService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IModeService private modeService: IModeService,
-		@IModelService private modelService: IModelService,
-		@ICodeEditorService private codeEditorService: ICodeEditorService,
-		@IOpenerService private openerService: IOpenerService,
-		@IDialogService private dialogService: IDialogService
+		@IThemeService private readonly themeService: IThemeService,
+		@ICommentService private readonly commentService: ICommentService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IModeService private readonly modeService: IModeService,
+		@IModelService private readonly modelService: IModelService,
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IDialogService private readonly dialogService: IDialogService
 	) {
 		this.editor = editor;
 		this.globalToDispose = [];

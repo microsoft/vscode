@@ -22,7 +22,7 @@ export class LinkDetector {
 	];
 
 	constructor(
-		@IEditorService private editorService: IEditorService
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		// noop
 	}

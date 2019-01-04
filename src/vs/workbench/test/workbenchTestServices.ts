@@ -1421,7 +1421,7 @@ export class TestTextResourcePropertiesService implements ITextResourcePropertie
 	_serviceBrand: any;
 
 	constructor(
-		@IConfigurationService private configurationService: IConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 	}
 

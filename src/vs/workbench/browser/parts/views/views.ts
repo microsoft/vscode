@@ -84,7 +84,7 @@ class ViewDescriptorCollection extends Disposable implements IViewDescriptorColl
 
 	constructor(
 		container: ViewContainer,
-		@IContextKeyService private contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
 		const onRelevantViewsRegistered = filterViewEvent(container, ViewsRegistry.onViewsRegistered);
@@ -516,8 +516,8 @@ export class ViewsService extends Disposable implements IViewsService {
 	private readonly activeViewContextKeys: Map<string, IContextKey<boolean>>;
 
 	constructor(
-		@IViewletService private viewletService: IViewletService,
-		@IContextKeyService private contextKeyService: IContextKeyService
+		@IViewletService private readonly viewletService: IViewletService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
 

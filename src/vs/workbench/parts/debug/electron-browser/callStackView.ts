@@ -52,15 +52,15 @@ export class CallStackView extends ViewletPanel {
 	constructor(
 		private options: IViewletViewOptions,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IDebugService private debugService: IDebugService,
+		@IDebugService private readonly debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IEditorService private editorService: IEditorService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IMenuService menuService: IMenuService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IThemeService private themeService: IThemeService,
-		@IListService private listService: IListService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IThemeService private readonly themeService: IThemeService,
+		@IListService private readonly listService: IListService
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('callstackSection', "Call Stack Section") }, keybindingService, contextMenuService, configurationService);
 		this.callStackItemType = CONTEXT_CALLSTACK_ITEM_TYPE.bindTo(contextKeyService);
@@ -419,7 +419,7 @@ class ThreadsRenderer implements ITreeRenderer<IThread, void, IThreadTemplateDat
 class StackFramesRenderer implements ITreeRenderer<IStackFrame, void, IStackFrameTemplateData> {
 	static readonly ID = 'stackFrame';
 
-	constructor(@ILabelService private labelService: ILabelService) { }
+	constructor(@ILabelService private readonly labelService: ILabelService) { }
 
 	get templateId(): string {
 		return StackFramesRenderer.ID;

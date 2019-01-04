@@ -17,10 +17,10 @@ import { Range } from 'vs/editor/common/core/range';
 export class WalkThroughContentProvider implements ITextModelContentProvider, IWorkbenchContribution {
 
 	constructor(
-		@ITextModelService private textModelResolverService: ITextModelService,
-		@ITextFileService private textFileService: ITextFileService,
-		@IModeService private modeService: IModeService,
-		@IModelService private modelService: IModelService,
+		@ITextModelService private readonly textModelResolverService: ITextModelService,
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@IModeService private readonly modeService: IModeService,
+		@IModelService private readonly modelService: IModelService,
 	) {
 		this.textModelResolverService.registerTextModelContentProvider(Schemas.walkThrough, this);
 	}
@@ -52,10 +52,10 @@ export class WalkThroughContentProvider implements ITextModelContentProvider, IW
 export class WalkThroughSnippetContentProvider implements ITextModelContentProvider, IWorkbenchContribution {
 
 	constructor(
-		@ITextModelService private textModelResolverService: ITextModelService,
-		@ITextFileService private textFileService: ITextFileService,
-		@IModeService private modeService: IModeService,
-		@IModelService private modelService: IModelService,
+		@ITextModelService private readonly textModelResolverService: ITextModelService,
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@IModeService private readonly modeService: IModeService,
+		@IModelService private readonly modelService: IModelService,
 	) {
 		this.textModelResolverService.registerTextModelContentProvider(Schemas.walkThroughSnippet, this);
 	}

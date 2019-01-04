@@ -42,18 +42,18 @@ export class TextFileEditor extends BaseTextEditor {
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IFileService private fileService: IFileService,
-		@IViewletService private viewletService: IViewletService,
+		@IFileService private readonly fileService: IFileService,
+		@IViewletService private readonly viewletService: IViewletService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IStorageService storageService: IStorageService,
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@IEditorService editorService: IEditorService,
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@ITextFileService textFileService: ITextFileService,
-		@IWindowsService private windowsService: IWindowsService,
-		@IPreferencesService private preferencesService: IPreferencesService,
+		@IWindowsService private readonly windowsService: IWindowsService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IWindowService windowService: IWindowService
 	) {
 		super(TextFileEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService, windowService);

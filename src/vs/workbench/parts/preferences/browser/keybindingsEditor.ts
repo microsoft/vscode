@@ -83,16 +83,16 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
-		@IKeybindingService private keybindingsService: IKeybindingService,
-		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IKeybindingEditingService private keybindingEditingService: IKeybindingEditingService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
-		@INotificationService private notificationService: INotificationService,
-		@IClipboardService private clipboardService: IClipboardService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IEditorService private editorService: IEditorService,
+		@IKeybindingService private readonly keybindingsService: IKeybindingService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IKeybindingEditingService private readonly keybindingEditingService: IKeybindingEditingService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IClipboardService private readonly clipboardService: IClipboardService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IEditorService private readonly editorService: IEditorService,
 		@IStorageService storageService: IStorageService,
-		@IPreferencesService private preferencesService: IPreferencesService
+		@IPreferencesService private readonly preferencesService: IPreferencesService
 	) {
 		super(KeybindingsEditor.ID, telemetryService, themeService, storageService);
 		this.delayedFiltering = new Delayer<void>(300);

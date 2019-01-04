@@ -43,8 +43,8 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 		private preferredEncoding: string,
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
-		@IBackupFileService private backupFileService: IBackupFileService,
-		@ITextResourceConfigurationService private configurationService: ITextResourceConfigurationService
+		@IBackupFileService private readonly backupFileService: IBackupFileService,
+		@ITextResourceConfigurationService private readonly configurationService: ITextResourceConfigurationService
 	) {
 		super(modelService, modeService);
 

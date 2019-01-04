@@ -212,8 +212,8 @@ export class ExcludeSettingWidget extends Disposable {
 
 	constructor(
 		private container: HTMLElement,
-		@IThemeService private themeService: IThemeService,
-		@IContextViewService private contextViewService: IContextViewService
+		@IThemeService private readonly themeService: IThemeService,
+		@IContextViewService private readonly contextViewService: IContextViewService
 	) {
 		super();
 

@@ -118,14 +118,14 @@ export class ExperimentService extends Disposable implements IExperimentService 
 
 	onExperimentEnabled: Event<IExperiment> = this._onExperimentEnabled.event;
 	constructor(
-		@IStorageService private storageService: IStorageService,
-		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
-		@ITextFileService private textFileService: ITextFileService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IRequestService private requestService: IRequestService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IStorageService private readonly storageService: IStorageService,
+		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IRequestService private readonly requestService: IRequestService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 

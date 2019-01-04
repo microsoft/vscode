@@ -43,8 +43,8 @@ export class EditorControl extends Disposable {
 	constructor(
 		private parent: HTMLElement,
 		private groupView: IEditorGroupView,
-		@IPartService private partService: IPartService,
-		@IInstantiationService private instantiationService: IInstantiationService,
+		@IPartService private readonly partService: IPartService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IProgressService progressService: IProgressService
 	) {
 		super();

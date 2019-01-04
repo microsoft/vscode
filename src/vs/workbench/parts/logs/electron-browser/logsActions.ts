@@ -17,8 +17,8 @@ export class OpenLogsFolderAction extends Action {
 	static LABEL = nls.localize('openLogsFolder', "Open Logs Folder");
 
 	constructor(id: string, label: string,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IWindowsService private windowsService: IWindowsService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IWindowsService private readonly windowsService: IWindowsService,
 	) {
 		super(id, label);
 	}
@@ -34,8 +34,8 @@ export class SetLogLevelAction extends Action {
 	static LABEL = nls.localize('setLogLevel', "Set Log Level...");
 
 	constructor(id: string, label: string,
-		@IQuickInputService private quickInputService: IQuickInputService,
-		@ILogService private logService: ILogService
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super(id, label);
 	}

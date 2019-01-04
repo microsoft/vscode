@@ -77,7 +77,7 @@ export class KeybindingsEditorModel extends EditorModel {
 
 	constructor(
 		os: OperatingSystem,
-		@IKeybindingService private keybindingsService: IKeybindingService
+		@IKeybindingService private readonly keybindingsService: IKeybindingService
 	) {
 		super();
 		this.modifierLabels = {

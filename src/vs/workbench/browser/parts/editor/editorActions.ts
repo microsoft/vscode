@@ -182,7 +182,7 @@ export class JoinTwoGroupsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IEditorGroupsService private editorGroupService: IEditorGroupsService
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
 	) {
 		super(id, label);
 	}
@@ -217,7 +217,7 @@ export class JoinAllGroupsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IEditorGroupsService private editorGroupService: IEditorGroupsService
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
 	) {
 		super(id, label);
 	}
@@ -237,7 +237,7 @@ export class NavigateBetweenGroupsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IEditorGroupsService private editorGroupService: IEditorGroupsService
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
 	) {
 		super(id, label);
 	}
@@ -258,7 +258,7 @@ export class FocusActiveGroupAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IEditorGroupsService private editorGroupService: IEditorGroupsService
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
 	) {
 		super(id, label);
 	}
@@ -276,7 +276,7 @@ export abstract class BaseFocusGroupAction extends Action {
 		id: string,
 		label: string,
 		private scope: IFindGroupScope,
-		@IEditorGroupsService private editorGroupService: IEditorGroupsService
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
 	) {
 		super(id, label);
 	}
@@ -409,8 +409,8 @@ export class OpenToSideFromQuickOpenAction extends Action {
 	static readonly OPEN_TO_SIDE_LABEL = nls.localize('openToSide', "Open to the Side");
 
 	constructor(
-		@IEditorService private editorService: IEditorService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IEditorService private readonly editorService: IEditorService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(OpenToSideFromQuickOpenAction.OPEN_TO_SIDE_ID, OpenToSideFromQuickOpenAction.OPEN_TO_SIDE_LABEL);
 
@@ -467,7 +467,7 @@ export class CloseEditorAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@ICommandService private commandService: ICommandService
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super(id, label, 'close-editor-action');
 	}
@@ -485,7 +485,7 @@ export class CloseOneEditorAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IEditorGroupsService private editorGroupService: IEditorGroupsService
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
 	) {
 		super(id, label, 'close-editor-action');
 	}
@@ -530,7 +530,7 @@ export class RevertAndCloseEditorAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IEditorService private editorService: IEditorService
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		super(id, label);
 	}
@@ -563,8 +563,8 @@ export class CloseLeftEditorsInGroupAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IEditorService private editorService: IEditorService,
-		@IEditorGroupsService private editorGroupService: IEditorGroupsService
+		@IEditorService private readonly editorService: IEditorService,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
 	) {
 		super(id, label);
 	}
@@ -695,7 +695,7 @@ export class CloseEditorsInOtherGroupsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 	) {
 		super(id, label);
 	}
@@ -720,8 +720,8 @@ export class CloseEditorInAllGroupsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
-		@IEditorService private editorService: IEditorService
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		super(id, label);
 	}
@@ -852,7 +852,7 @@ export class MinimizeOtherGroupsAction extends Action {
 	static readonly ID = 'workbench.action.minimizeOtherEditors';
 	static readonly LABEL = nls.localize('minimizeOtherEditorGroups', "Maximize Editor Group");
 
-	constructor(id: string, label: string, @IEditorGroupsService private editorGroupService: IEditorGroupsService) {
+	constructor(id: string, label: string, @IEditorGroupsService private readonly editorGroupService: IEditorGroupsService) {
 		super(id, label);
 	}
 
@@ -868,7 +868,7 @@ export class ResetGroupSizesAction extends Action {
 	static readonly ID = 'workbench.action.evenEditorWidths';
 	static readonly LABEL = nls.localize('evenEditorGroups', "Reset Editor Group Sizes");
 
-	constructor(id: string, label: string, @IEditorGroupsService private editorGroupService: IEditorGroupsService) {
+	constructor(id: string, label: string, @IEditorGroupsService private readonly editorGroupService: IEditorGroupsService) {
 		super(id, label);
 	}
 
@@ -887,9 +887,9 @@ export class MaximizeGroupAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IEditorService private editorService: IEditorService,
-		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
-		@IPartService private partService: IPartService
+		@IEditorService private readonly editorService: IEditorService,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
+		@IPartService private readonly partService: IPartService
 	) {
 		super(id, label);
 	}
@@ -1098,7 +1098,7 @@ export class NavigateForwardAction extends Action {
 	static readonly ID = 'workbench.action.navigateForward';
 	static readonly LABEL = nls.localize('navigateNext', "Go Forward");
 
-	constructor(id: string, label: string, @IHistoryService private historyService: IHistoryService) {
+	constructor(id: string, label: string, @IHistoryService private readonly historyService: IHistoryService) {
 		super(id, label);
 	}
 
@@ -1114,7 +1114,7 @@ export class NavigateBackwardsAction extends Action {
 	static readonly ID = 'workbench.action.navigateBack';
 	static readonly LABEL = nls.localize('navigatePrevious', "Go Back");
 
-	constructor(id: string, label: string, @IHistoryService private historyService: IHistoryService) {
+	constructor(id: string, label: string, @IHistoryService private readonly historyService: IHistoryService) {
 		super(id, label);
 	}
 
@@ -1130,7 +1130,7 @@ export class NavigateToLastEditLocationAction extends Action {
 	static readonly ID = 'workbench.action.navigateToLastEditLocation';
 	static readonly LABEL = nls.localize('navigateToLastEditLocation', "Go to Last Edit Location");
 
-	constructor(id: string, label: string, @IHistoryService private historyService: IHistoryService) {
+	constructor(id: string, label: string, @IHistoryService private readonly historyService: IHistoryService) {
 		super(id, label);
 	}
 
@@ -1146,7 +1146,7 @@ export class NavigateLastAction extends Action {
 	static readonly ID = 'workbench.action.navigateLast';
 	static readonly LABEL = nls.localize('navigateLast', "Go Last");
 
-	constructor(id: string, label: string, @IHistoryService private historyService: IHistoryService) {
+	constructor(id: string, label: string, @IHistoryService private readonly historyService: IHistoryService) {
 		super(id, label);
 	}
 
@@ -1165,7 +1165,7 @@ export class ReopenClosedEditorAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IHistoryService private historyService: IHistoryService
+		@IHistoryService private readonly historyService: IHistoryService
 	) {
 		super(id, label);
 	}
@@ -1185,8 +1185,8 @@ export class ClearRecentFilesAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWindowsService private windowsService: IWindowsService,
-		@IHistoryService private historyService: IHistoryService
+		@IWindowsService private readonly windowsService: IWindowsService,
+		@IHistoryService private readonly historyService: IHistoryService
 	) {
 		super(id, label);
 	}
@@ -1232,8 +1232,8 @@ export class BaseQuickOpenEditorInGroupAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IKeybindingService private keybindingService: IKeybindingService
+		@IQuickOpenService private readonly quickOpenService: IQuickOpenService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
 		super(id, label);
 	}
@@ -1287,8 +1287,8 @@ export class OpenPreviousEditorFromHistoryAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IKeybindingService private keybindingService: IKeybindingService
+		@IQuickOpenService private readonly quickOpenService: IQuickOpenService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
 		super(id, label);
 	}
@@ -1307,7 +1307,7 @@ export class OpenNextRecentlyUsedEditorAction extends Action {
 	static readonly ID = 'workbench.action.openNextRecentlyUsedEditor';
 	static readonly LABEL = nls.localize('openNextRecentlyUsedEditor', "Open Next Recently Used Editor");
 
-	constructor(id: string, label: string, @IHistoryService private historyService: IHistoryService) {
+	constructor(id: string, label: string, @IHistoryService private readonly historyService: IHistoryService) {
 		super(id, label);
 	}
 
@@ -1323,7 +1323,7 @@ export class OpenPreviousRecentlyUsedEditorAction extends Action {
 	static readonly ID = 'workbench.action.openPreviousRecentlyUsedEditor';
 	static readonly LABEL = nls.localize('openPreviousRecentlyUsedEditor', "Open Previous Recently Used Editor");
 
-	constructor(id: string, label: string, @IHistoryService private historyService: IHistoryService) {
+	constructor(id: string, label: string, @IHistoryService private readonly historyService: IHistoryService) {
 		super(id, label);
 	}
 
@@ -1342,7 +1342,7 @@ export class ClearEditorHistoryAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IHistoryService private historyService: IHistoryService
+		@IHistoryService private readonly historyService: IHistoryService
 	) {
 		super(id, label);
 	}

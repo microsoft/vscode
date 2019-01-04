@@ -82,9 +82,9 @@ export class LabelService implements ILabelService {
 	private readonly _onDidRegisterFormatter = new Emitter<RegisterFormatterEvent>();
 
 	constructor(
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IWindowService private windowService: IWindowService
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IWindowService private readonly windowService: IWindowService
 	) { }
 
 	get onDidRegisterFormatter(): Event<RegisterFormatterEvent> {

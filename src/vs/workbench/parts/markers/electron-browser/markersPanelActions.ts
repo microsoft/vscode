@@ -53,7 +53,7 @@ export class ShowProblemsPanelAction extends Action {
 	public static readonly LABEL = Messages.MARKERS_PANEL_SHOW_LABEL;
 
 	constructor(id: string, label: string,
-		@IPanelService private panelService: IPanelService
+		@IPanelService private readonly panelService: IPanelService
 	) {
 		super(id, label);
 	}
@@ -129,10 +129,10 @@ export class MarkersFilterActionItem extends BaseActionItem {
 	constructor(
 		readonly action: MarkersFilterAction,
 		private filterController: IMarkerFilterController,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IContextViewService private contextViewService: IContextViewService,
-		@IThemeService private themeService: IThemeService,
-		@ITelemetryService private telemetryService: ITelemetryService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextViewService private readonly contextViewService: IContextViewService,
+		@IThemeService private readonly themeService: IThemeService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super(null, action);
@@ -300,7 +300,7 @@ export class QuickFixAction extends Action {
 	constructor(
 		readonly marker: Marker,
 		@IModelService modelService: IModelService,
-		@IMarkersWorkbenchService private markerWorkbenchService: IMarkersWorkbenchService,
+		@IMarkersWorkbenchService private readonly markerWorkbenchService: IMarkersWorkbenchService,
 	) {
 		super(QuickFixAction.ID, Messages.MARKERS_PANEL_ACTION_TOOLTIP_QUICKFIX, 'markers-panel-action-quickfix', false);
 		if (modelService.getModel(this.marker.resource)) {
@@ -330,8 +330,8 @@ export class QuickFixAction extends Action {
 export class QuickFixActionItem extends ActionItem {
 
 	constructor(action: QuickFixAction,
-		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IMarkersWorkbenchService private markerWorkbenchService: IMarkersWorkbenchService
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IMarkersWorkbenchService private readonly markerWorkbenchService: IMarkersWorkbenchService
 	) {
 		super(null, action, { icon: true, label: false });
 	}

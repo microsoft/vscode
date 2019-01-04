@@ -182,7 +182,7 @@ export class FileMatch extends Disposable {
 	private _modelDecorations: string[] = [];
 
 	constructor(private _query: IPatternInfo, private _previewOptions: ITextSearchPreviewOptions, private _maxResults: number, private _parent: BaseFolderMatch, private rawMatch: IFileMatch,
-		@IModelService private modelService: IModelService, @IReplaceService private replaceService: IReplaceService
+		@IModelService private readonly modelService: IModelService, @IReplaceService private readonly replaceService: IReplaceService
 	) {
 		super();
 		this._resource = this.rawMatch.resource;
@@ -402,8 +402,8 @@ export class BaseFolderMatch extends Disposable {
 	private _replacingAll: boolean = false;
 
 	constructor(protected _resource: URI | null, private _id: string, private _index: number, private _query: ITextQuery, private _parent: SearchResult, private _searchModel: SearchModel,
-		@IReplaceService private replaceService: IReplaceService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IReplaceService private readonly replaceService: IReplaceService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 		this._fileMatches = new ResourceMap<FileMatch>();
@@ -624,9 +624,9 @@ export class SearchResult extends Disposable {
 
 	constructor(
 		private _searchModel: SearchModel,
-		@IReplaceService private replaceService: IReplaceService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IInstantiationService private instantiationService: IInstantiationService,
+		@IReplaceService private readonly replaceService: IReplaceService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IModelService private readonly modelService: IModelService,
 	) {
 		super();
@@ -851,9 +851,9 @@ export class SearchModel extends Disposable {
 	private currentCancelTokenSource: CancellationTokenSource;
 
 	constructor(
-		@ISearchService private searchService: ISearchService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@ISearchService private readonly searchService: ISearchService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 		this._searchResult = this.instantiationService.createInstance(SearchResult, this);
@@ -1012,7 +1012,7 @@ export class SearchWorkbenchService implements ISearchWorkbenchService {
 	_serviceBrand: any;
 	private _searchModel: SearchModel;
 
-	constructor(@IInstantiationService private instantiationService: IInstantiationService) {
+	constructor(@IInstantiationService private readonly instantiationService: IInstantiationService) {
 	}
 
 	get searchModel(): SearchModel {

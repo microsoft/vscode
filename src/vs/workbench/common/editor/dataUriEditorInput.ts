@@ -25,7 +25,7 @@ export class DataUriEditorInput extends EditorInput {
 		name: string,
 		description: string,
 		resource: URI,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 

@@ -39,8 +39,8 @@ export class DialogService implements IDialogService {
 	_serviceBrand: any;
 
 	constructor(
-		@IWindowService private windowService: IWindowService,
-		@ILogService private logService: ILogService
+		@IWindowService private readonly windowService: IWindowService,
+		@ILogService private readonly logService: ILogService
 	) { }
 
 	confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
@@ -157,10 +157,10 @@ export class FileDialogService implements IFileDialogService {
 	_serviceBrand: any;
 
 	constructor(
-		@IWindowService private windowService: IWindowService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IHistoryService private historyService: IHistoryService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IWindowService private readonly windowService: IWindowService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IHistoryService private readonly historyService: IHistoryService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) { }
 
 	public defaultFilePath(schemeFilter: string): URI | undefined {

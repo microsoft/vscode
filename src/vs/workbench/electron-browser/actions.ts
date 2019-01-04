@@ -51,7 +51,7 @@ export class CloseCurrentWindowAction extends Action {
 	static readonly ID = 'workbench.action.closeWindow';
 	static readonly LABEL = nls.localize('closeWindow', "Close Window");
 
-	constructor(id: string, label: string, @IWindowService private windowService: IWindowService) {
+	constructor(id: string, label: string, @IWindowService private readonly windowService: IWindowService) {
 		super(id, label);
 	}
 
@@ -70,9 +70,9 @@ export class CloseWorkspaceAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@INotificationService private notificationService: INotificationService,
-		@IWindowService private windowService: IWindowService
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IWindowService private readonly windowService: IWindowService
 	) {
 		super(id, label);
 	}
@@ -96,7 +96,7 @@ export class NewWindowAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWindowsService private windowsService: IWindowsService
+		@IWindowsService private readonly windowsService: IWindowsService
 	) {
 		super(id, label);
 	}
@@ -111,7 +111,7 @@ export class ToggleFullScreenAction extends Action {
 	static readonly ID = 'workbench.action.toggleFullScreen';
 	static LABEL = nls.localize('toggleFullScreen', "Toggle Full Screen");
 
-	constructor(id: string, label: string, @IWindowService private windowService: IWindowService) {
+	constructor(id: string, label: string, @IWindowService private readonly windowService: IWindowService) {
 		super(id, label);
 	}
 
@@ -130,7 +130,7 @@ export class ToggleMenuBarAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(id, label);
 	}
@@ -159,7 +159,7 @@ export class ToggleDevToolsAction extends Action {
 	static readonly ID = 'workbench.action.toggleDevTools';
 	static LABEL = nls.localize('toggleDevTools', "Toggle Developer Tools");
 
-	constructor(id: string, label: string, @IWindowService private windowsService: IWindowService) {
+	constructor(id: string, label: string, @IWindowService private readonly windowsService: IWindowService) {
 		super(id, label);
 	}
 
@@ -174,7 +174,7 @@ export abstract class BaseZoomAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService
+		@IWorkspaceConfigurationService private readonly configurationService: IWorkspaceConfigurationService
 	) {
 		super(id, label);
 	}
@@ -263,7 +263,7 @@ export class ReloadWindowAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWindowService private windowService: IWindowService
+		@IWindowService private readonly windowService: IWindowService
 	) {
 		super(id, label);
 	}
@@ -281,7 +281,7 @@ export class ReloadWindowWithExtensionsDisabledAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWindowService private windowService: IWindowService
+		@IWindowService private readonly windowService: IWindowService
 	) {
 		super(id, label);
 	}
@@ -552,7 +552,7 @@ export class OpenIssueReporterAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchIssueService private issueService: IWorkbenchIssueService
+		@IWorkbenchIssueService private readonly issueService: IWorkbenchIssueService
 	) {
 		super(id, label);
 	}
@@ -570,7 +570,7 @@ export class OpenProcessExplorer extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchIssueService private issueService: IWorkbenchIssueService
+		@IWorkbenchIssueService private readonly issueService: IWorkbenchIssueService
 	) {
 		super(id, label);
 	}
@@ -588,7 +588,7 @@ export class ReportPerformanceIssueUsingReporterAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchIssueService private issueService: IWorkbenchIssueService
+		@IWorkbenchIssueService private readonly issueService: IWorkbenchIssueService
 	) {
 		super(id, label);
 	}
@@ -690,7 +690,7 @@ export class ToggleSharedProcessAction extends Action {
 	static readonly ID = 'workbench.action.toggleSharedProcess';
 	static LABEL = nls.localize('toggleSharedProcess', "Toggle Shared Process");
 
-	constructor(id: string, label: string, @IWindowsService private windowsService: IWindowsService) {
+	constructor(id: string, label: string, @IWindowsService private readonly windowsService: IWindowsService) {
 		super(id, label);
 	}
 
@@ -1032,7 +1032,7 @@ export class NewWindowTab extends Action {
 	constructor(
 		_id: string,
 		_label: string,
-		@IWindowsService private windowsService: IWindowsService
+		@IWindowsService private readonly windowsService: IWindowsService
 	) {
 		super(NewWindowTab.ID, NewWindowTab.LABEL);
 	}
@@ -1050,7 +1050,7 @@ export class ShowPreviousWindowTab extends Action {
 	constructor(
 		_id: string,
 		_label: string,
-		@IWindowsService private windowsService: IWindowsService
+		@IWindowsService private readonly windowsService: IWindowsService
 	) {
 		super(ShowPreviousWindowTab.ID, ShowPreviousWindowTab.LABEL);
 	}
@@ -1068,7 +1068,7 @@ export class ShowNextWindowTab extends Action {
 	constructor(
 		_id: string,
 		_label: string,
-		@IWindowsService private windowsService: IWindowsService
+		@IWindowsService private readonly windowsService: IWindowsService
 	) {
 		super(ShowNextWindowTab.ID, ShowNextWindowTab.LABEL);
 	}
@@ -1086,7 +1086,7 @@ export class MoveWindowTabToNewWindow extends Action {
 	constructor(
 		_id: string,
 		_label: string,
-		@IWindowsService private windowsService: IWindowsService
+		@IWindowsService private readonly windowsService: IWindowsService
 	) {
 		super(MoveWindowTabToNewWindow.ID, MoveWindowTabToNewWindow.LABEL);
 	}
@@ -1104,7 +1104,7 @@ export class MergeAllWindowTabs extends Action {
 	constructor(
 		_id: string,
 		_label: string,
-		@IWindowsService private windowsService: IWindowsService
+		@IWindowsService private readonly windowsService: IWindowsService
 	) {
 		super(MergeAllWindowTabs.ID, MergeAllWindowTabs.LABEL);
 	}
@@ -1122,7 +1122,7 @@ export class ToggleWindowTabsBar extends Action {
 	constructor(
 		_id: string,
 		_label: string,
-		@IWindowsService private windowsService: IWindowsService
+		@IWindowsService private readonly windowsService: IWindowsService
 	) {
 		super(ToggleWindowTabsBar.ID, ToggleWindowTabsBar.LABEL);
 	}
@@ -1236,7 +1236,7 @@ export class ShowAboutDialogAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWindowsService private windowsService: IWindowsService
+		@IWindowsService private readonly windowsService: IWindowsService
 	) {
 		super(id, label);
 	}
@@ -1254,8 +1254,8 @@ export class InspectContextKeysAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IWindowService private windowService: IWindowService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IWindowService private readonly windowService: IWindowService,
 	) {
 		super(id, label);
 	}
@@ -1313,7 +1313,7 @@ export class ToggleScreencastModeAction extends Action {
 
 	static disposable: IDisposable | undefined;
 
-	constructor(id: string, label: string, @IKeybindingService private keybindingService: IKeybindingService) {
+	constructor(id: string, label: string, @IKeybindingService private readonly keybindingService: IKeybindingService) {
 		super(id, label);
 	}
 

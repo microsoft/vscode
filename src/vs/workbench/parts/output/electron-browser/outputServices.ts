@@ -433,17 +433,17 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 	private _outputPanel: OutputPanel;
 
 	constructor(
-		@IStorageService private storageService: IStorageService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IPanelService private panelService: IPanelService,
+		@IStorageService private readonly storageService: IStorageService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IPanelService private readonly panelService: IPanelService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IWindowService windowService: IWindowService,
-		@ILogService private logService: ILogService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
+		@ILogService private readonly logService: ILogService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
 		this.activeChannelIdInStorage = this.storageService.get(OUTPUT_ACTIVE_CHANNEL_KEY, StorageScope.WORKSPACE, null);
@@ -645,8 +645,8 @@ export class LogContentProvider {
 	private channels: Map<string, OutputChannel> = new Map<string, OutputChannel>();
 
 	constructor(
-		@IOutputService private outputService: IOutputService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IOutputService private readonly outputService: IOutputService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 	}
 
@@ -696,8 +696,8 @@ class BufferredOutputChannel extends Disposable implements OutputChannel {
 
 	constructor(
 		protected readonly outputChannelIdentifier: IOutputChannelDescriptor,
-		@IModelService private modelService: IModelService,
-		@IModeService private modeService: IModeService
+		@IModelService private readonly modelService: IModelService,
+		@IModeService private readonly modeService: IModeService
 	) {
 		super();
 

@@ -118,7 +118,7 @@ export class BackupFileService implements IBackupFileService {
 
 	constructor(
 		backupWorkspacePath: string,
-		@IFileService private fileService: IFileService
+		@IFileService private readonly fileService: IFileService
 	) {
 		this.isShuttingDown = false;
 		this.ioOperationQueues = new ResourceQueue();

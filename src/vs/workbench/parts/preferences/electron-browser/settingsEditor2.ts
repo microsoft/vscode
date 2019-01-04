@@ -126,17 +126,17 @@ export class SettingsEditor2 extends BaseEditor {
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IConfigurationService private configurationService: IConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IThemeService themeService: IThemeService,
-		@IPreferencesService private preferencesService: IPreferencesService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IPreferencesSearchService private preferencesSearchService: IPreferencesSearchService,
-		@ILogService private logService: ILogService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IPreferencesSearchService private readonly preferencesSearchService: IPreferencesSearchService,
+		@ILogService private readonly logService: ILogService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IStorageService private storageService: IStorageService,
-		@INotificationService private notificationService: INotificationService,
+		@IStorageService private readonly storageService: IStorageService,
+		@INotificationService private readonly notificationService: INotificationService,
 		@IEditorGroupsService protected editorGroupService: IEditorGroupsService,
-		@IKeybindingService private keybindingService: IKeybindingService
+		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
 		super(SettingsEditor2.ID, telemetryService, themeService, storageService);
 		this.delayedFilterLogging = new Delayer<void>(1000);

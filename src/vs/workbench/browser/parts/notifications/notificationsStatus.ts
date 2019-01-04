@@ -16,7 +16,7 @@ export class NotificationsStatus extends Disposable {
 
 	constructor(
 		private model: INotificationsModel,
-		@IStatusbarService private statusbarService: IStatusbarService
+		@IStatusbarService private readonly statusbarService: IStatusbarService
 	) {
 		super();
 

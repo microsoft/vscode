@@ -16,7 +16,7 @@ export class StorageDataCleaner extends Disposable {
 	private static NON_EMPTY_WORKSPACE_ID_LENGTH = 128 / 4;
 
 	constructor(
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
 		super();
 

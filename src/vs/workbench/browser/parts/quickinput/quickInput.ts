@@ -794,14 +794,14 @@ export class QuickInputService extends Component implements IQuickInputService {
 	private controller: QuickInput;
 
 	constructor(
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IPartService private partService: IPartService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
-		@IKeybindingService private keybindingService: IKeybindingService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IPartService private readonly partService: IPartService,
+		@IQuickOpenService private readonly quickOpenService: IQuickOpenService,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService
 	) {
@@ -1412,7 +1412,7 @@ export class BackAction extends Action {
 	public static readonly ID = 'workbench.action.quickInputBack';
 	public static readonly LABEL = localize('back', "Back");
 
-	constructor(id: string, label: string, @IQuickInputService private quickInputService: IQuickInputService) {
+	constructor(id: string, label: string, @IQuickInputService private readonly quickInputService: IQuickInputService) {
 		super(id, label);
 	}
 

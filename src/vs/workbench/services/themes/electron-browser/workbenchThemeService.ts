@@ -91,12 +91,12 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	constructor(
 		container: HTMLElement,
 		@IExtensionService extensionService: IExtensionService,
-		@IStorageService private storageService: IStorageService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IWindowService private windowService: IWindowService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IStorageService private readonly storageService: IStorageService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IWindowService private readonly windowService: IWindowService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
 
 		this.container = container;
@@ -493,7 +493,7 @@ colorThemeSchema.register();
 fileIconThemeSchema.register();
 
 class ConfigurationWriter {
-	constructor(@IConfigurationService private configurationService: IConfigurationService) {
+	constructor(@IConfigurationService private readonly configurationService: IConfigurationService) {
 	}
 
 	public writeConfiguration(key: string, value: any, settingsTarget: ConfigurationTarget): Promise<void> {

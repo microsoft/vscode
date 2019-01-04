@@ -60,18 +60,18 @@ export class OpenEditorsView extends ViewletPanel {
 
 	constructor(
 		options: IViewletViewOptions,
-		@IInstantiationService private instantiationService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@ITextFileService private textFileService: ITextFileService,
-		@IEditorService private editorService: IEditorService,
-		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IThemeService private themeService: IThemeService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IMenuService private menuService: IMenuService
+		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IThemeService private readonly themeService: IThemeService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IMenuService private readonly menuService: IMenuService
 	) {
 		super({
 			...(options as IViewletPanelOptions),

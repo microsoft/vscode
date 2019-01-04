@@ -92,8 +92,8 @@ export class FocusNextInputAction extends Action {
 	static readonly ID = 'search.focus.nextInputBox';
 
 	constructor(id: string, label: string,
-		@IViewletService private viewletService: IViewletService,
-		@IPanelService private panelService: IPanelService
+		@IViewletService private readonly viewletService: IViewletService,
+		@IPanelService private readonly panelService: IPanelService
 	) {
 		super(id, label);
 	}
@@ -110,8 +110,8 @@ export class FocusPreviousInputAction extends Action {
 	static readonly ID = 'search.focus.previousInputBox';
 
 	constructor(id: string, label: string,
-		@IViewletService private viewletService: IViewletService,
-		@IPanelService private panelService: IPanelService
+		@IViewletService private readonly viewletService: IViewletService,
+		@IPanelService private readonly panelService: IPanelService
 	) {
 		super(id, label);
 	}
@@ -161,7 +161,7 @@ export class OpenSearchViewletAction extends FindOrReplaceInFilesAction {
 	constructor(id: string, label: string,
 		@IViewletService viewletService: IViewletService,
 		@IPanelService panelService: IPanelService,
-		@IEditorGroupsService private editorGroupService: IEditorGroupsService
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
 	) {
 		super(id, label, viewletService, panelService, /*expandSearchReplaceWidget=*/false);
 	}
@@ -200,8 +200,8 @@ export class ReplaceInFilesAction extends FindOrReplaceInFilesAction {
 export class CloseReplaceAction extends Action {
 
 	constructor(id: string, label: string,
-		@IViewletService private viewletService: IViewletService,
-		@IPanelService private panelService: IPanelService
+		@IViewletService private readonly viewletService: IViewletService,
+		@IPanelService private readonly panelService: IPanelService
 	) {
 		super(id, label);
 	}
@@ -222,8 +222,8 @@ export class RefreshAction extends Action {
 	private searchView: SearchView;
 
 	constructor(id: string, label: string,
-		@IViewletService private viewletService: IViewletService,
-		@IPanelService private panelService: IPanelService
+		@IViewletService private readonly viewletService: IViewletService,
+		@IPanelService private readonly panelService: IPanelService
 	) {
 		super(id, label, 'search-action refresh');
 		this.searchView = getSearchView(this.viewletService, this.panelService);
@@ -252,8 +252,8 @@ export class CollapseDeepestExpandedLevelAction extends Action {
 	static LABEL: string = nls.localize('CollapseDeepestExpandedLevelAction.label', "Collapse All");
 
 	constructor(id: string, label: string,
-		@IViewletService private viewletService: IViewletService,
-		@IPanelService private panelService: IPanelService
+		@IViewletService private readonly viewletService: IViewletService,
+		@IPanelService private readonly panelService: IPanelService
 	) {
 		super(id, label, 'search-action collapse');
 		this.update();
@@ -309,8 +309,8 @@ export class ClearSearchResultsAction extends Action {
 	static LABEL: string = nls.localize('ClearSearchResultsAction.label', "Clear Search Results");
 
 	constructor(id: string, label: string,
-		@IViewletService private viewletService: IViewletService,
-		@IPanelService private panelService: IPanelService
+		@IViewletService private readonly viewletService: IViewletService,
+		@IPanelService private readonly panelService: IPanelService
 	) {
 		super(id, label, 'search-action clear-search-results');
 		this.update();
@@ -336,8 +336,8 @@ export class CancelSearchAction extends Action {
 	static LABEL: string = nls.localize('CancelSearchAction.label', "Cancel Search");
 
 	constructor(id: string, label: string,
-		@IViewletService private viewletService: IViewletService,
-		@IPanelService private panelService: IPanelService
+		@IViewletService private readonly viewletService: IViewletService,
+		@IPanelService private readonly panelService: IPanelService
 	) {
 		super(id, label, 'search-action cancel-search');
 		this.update();
@@ -363,8 +363,8 @@ export class FocusNextSearchResultAction extends Action {
 	static readonly LABEL = nls.localize('FocusNextSearchResult.label', "Focus Next Search Result");
 
 	constructor(id: string, label: string,
-		@IViewletService private viewletService: IViewletService,
-		@IPanelService private panelService: IPanelService
+		@IViewletService private readonly viewletService: IViewletService,
+		@IPanelService private readonly panelService: IPanelService
 	) {
 		super(id, label);
 	}
@@ -381,8 +381,8 @@ export class FocusPreviousSearchResultAction extends Action {
 	static readonly LABEL = nls.localize('FocusPreviousSearchResult.label', "Focus Previous Search Result");
 
 	constructor(id: string, label: string,
-		@IViewletService private viewletService: IViewletService,
-		@IPanelService private panelService: IPanelService
+		@IViewletService private readonly viewletService: IViewletService,
+		@IPanelService private readonly panelService: IPanelService
 	) {
 		super(id, label);
 	}
@@ -557,10 +557,10 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 	static readonly LABEL = nls.localize('match.replace.label', "Replace");
 
 	constructor(private viewer: WorkbenchObjectTree<RenderableMatch>, private element: Match, private viewlet: SearchView,
-		@IReplaceService private replaceService: IReplaceService,
+		@IReplaceService private readonly replaceService: IReplaceService,
 		@IKeybindingService keyBindingService: IKeybindingService,
-		@IEditorService private editorService: IEditorService,
-		@IConfigurationService private configurationService: IConfigurationService) {
+		@IEditorService private readonly editorService: IEditorService,
+		@IConfigurationService private readonly configurationService: IConfigurationService) {
 		super(Constants.ReplaceActionId, appendKeyBindingLabel(ReplaceAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceActionId), keyBindingService), 'action-replace');
 	}
 

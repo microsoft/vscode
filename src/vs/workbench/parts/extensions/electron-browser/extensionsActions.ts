@@ -139,10 +139,10 @@ export class InstallAction extends Action {
 	set extension(extension: IExtension) { this._extension = extension; this.update(); }
 
 	constructor(
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@INotificationService private notificationService: INotificationService,
-		@IOpenerService private openerService: IOpenerService
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		super(`extensions.install`, InstallAction.INSTALL_LABEL, InstallAction.Class, false);
 
@@ -217,7 +217,7 @@ export class UninstallAction extends Action {
 	set extension(extension: IExtension) { this._extension = extension; this.update(); }
 
 	constructor(
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
 		super('extensions.uninstall', UninstallAction.UninstallLabel, UninstallAction.UninstallClass, false);
 
@@ -368,10 +368,10 @@ export class UpdateAction extends Action {
 	set extension(extension: IExtension) { this._extension = extension; this.update(); }
 
 	constructor(
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@INotificationService private notificationService: INotificationService,
-		@IOpenerService private openerService: IOpenerService
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		super(`extensions.update`, '', UpdateAction.DisabledClass, false);
 		this.disposables.push(this.extensionsWorkbenchService.onChange(extension => this.update(extension)));
@@ -510,7 +510,7 @@ export class DropDownMenuActionItem extends ExtensionActionItem {
 
 	constructor(action: DropDownAction,
 		tabOnlyOnFocus: boolean,
-		@IContextMenuService private contextMenuService: IContextMenuService
+		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) {
 		super(null, action, { icon: true, label: true, tabOnlyOnFocus });
 	}
@@ -559,7 +559,7 @@ export class ManageExtensionAction extends DropDownAction {
 	constructor(
 		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IExtensionService private extensionService: IExtensionService
+		@IExtensionService private readonly extensionService: IExtensionService
 	) {
 
 		super(ManageExtensionAction.ID, '', '', true, true, instantiationService);
@@ -619,12 +619,12 @@ export class InstallAnotherVersionAction extends Action {
 	static LABEL = localize('install another version', "Install Another Version...");
 
 	constructor(readonly extension: IExtension,
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
-		@IQuickInputService private quickInputService: IQuickInputService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@INotificationService private notificationService: INotificationService,
-		@IOpenerService private openerService: IOpenerService
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		super(InstallAnotherVersionAction.ID, InstallAnotherVersionAction.LABEL);
 		this.enabled = this.extension && !!this.extension.gallery;
@@ -740,8 +740,8 @@ export class EnableForWorkspaceAction extends Action implements IExtensionAction
 	private disposables: IDisposable[] = [];
 
 	constructor(readonly extension: IExtension,
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService
 	) {
 		super(EnableForWorkspaceAction.ID, EnableForWorkspaceAction.LABEL);
 		this.disposables.push(extensionsWorkbenchService.onChange(e => this.update(e)));
@@ -777,12 +777,12 @@ export class InstallInRemoteServerAction extends Action implements IExtensionAct
 
 	constructor(readonly extension: IExtension, readonly runningExtensions: IExtensionDescription[],
 		@IExtensionsWorkbenchService extensionWorkbenchService: IExtensionsWorkbenchService,
-		@IExtensionManagementServerService private extensionManagementServerService: IExtensionManagementServerService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IStorageService private storageService: IStorageService,
-		@ILabelService private labelService: ILabelService,
-		@IDialogService private dialogService: IDialogService,
-		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
+		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IStorageService private readonly storageService: IStorageService,
+		@ILabelService private readonly labelService: ILabelService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
 		super(InstallInRemoteServerAction.ID, InstallInRemoteServerAction.LABEL);
@@ -846,10 +846,10 @@ export class EnableGloballyAction extends Action implements IExtensionAction {
 	private disposables: IDisposable[] = [];
 
 	constructor(readonly extension: IExtension,
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
-		@IExtensionManagementServerService private extensionManagementServerService: IExtensionManagementServerService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService,
+		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(EnableGloballyAction.ID, EnableGloballyAction.LABEL);
 		this.disposables.push(extensionsWorkbenchService.onChange(e => this.update(e)));
@@ -892,9 +892,9 @@ export class DisableForWorkspaceAction extends Action implements IExtensionActio
 	private disposables: IDisposable[] = [];
 
 	constructor(readonly extension: IExtension, readonly runningExtensions: IExtensionDescription[],
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService
 	) {
 		super(DisableForWorkspaceAction.ID, DisableForWorkspaceAction.LABEL);
 		this.disposables.push(extensionsWorkbenchService.onChange(e => this.update(e)));
@@ -929,8 +929,8 @@ export class DisableGloballyAction extends Action implements IExtensionAction {
 	private disposables: IDisposable[] = [];
 
 	constructor(readonly extension: IExtension, readonly runningExtensions: IExtensionDescription[],
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService
 	) {
 		super(DisableGloballyAction.ID, DisableGloballyAction.LABEL);
 		this.disposables.push(extensionsWorkbenchService.onChange(e => this.update(e)));
@@ -1044,9 +1044,9 @@ export class CheckForUpdatesAction extends Action {
 	constructor(
 		id = CheckForUpdatesAction.ID,
 		label = CheckForUpdatesAction.LABEL,
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IViewletService private viewletService: IViewletService,
-		@INotificationService private notificationService: INotificationService
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IViewletService private readonly viewletService: IViewletService,
+		@INotificationService private readonly notificationService: INotificationService
 	) {
 		super(id, label, '', true);
 	}
@@ -1095,7 +1095,7 @@ export class ToggleAutoUpdateAction extends Action {
 		id: string,
 		label: string,
 		private autoUpdateValue: boolean,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(id, label, '', true);
 		this.updateEnablement();
@@ -1149,10 +1149,10 @@ export class UpdateAllAction extends Action {
 	constructor(
 		id = UpdateAllAction.ID,
 		label = UpdateAllAction.LABEL,
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@INotificationService private notificationService: INotificationService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IOpenerService private openerService: IOpenerService
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		super(id, label, '', false);
 
@@ -1203,12 +1203,12 @@ export class ReloadAction extends Action {
 	private throttler: Throttler;
 
 	constructor(
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IWindowService private windowService: IWindowService,
-		@IExtensionService private extensionService: IExtensionService,
-		@IExtensionManagementServerService private extensionManagementServerService: IExtensionManagementServerService,
-		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IWindowService private readonly windowService: IWindowService,
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
+		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super('extensions.reload', localize('reloadAction', "Reload"), ReloadAction.DisabledClass, false);
 		this.throttler = new Throttler();
@@ -1340,7 +1340,7 @@ export class ShowEnabledExtensionsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IViewletService private viewletService: IViewletService
+		@IViewletService private readonly viewletService: IViewletService
 	) {
 		super(id, label, undefined, true);
 	}
@@ -1363,7 +1363,7 @@ export class ShowInstalledExtensionsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IViewletService private viewletService: IViewletService
+		@IViewletService private readonly viewletService: IViewletService
 	) {
 		super(id, label, undefined, true);
 	}
@@ -1386,7 +1386,7 @@ export class ShowDisabledExtensionsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IViewletService private viewletService: IViewletService
+		@IViewletService private readonly viewletService: IViewletService
 	) {
 		super(id, label, 'null', true);
 	}
@@ -1412,7 +1412,7 @@ export class ClearExtensionsInputAction extends Action {
 		id: string,
 		label: string,
 		onSearchChange: Event<string>,
-		@IViewletService private viewletService: IViewletService
+		@IViewletService private readonly viewletService: IViewletService
 	) {
 		super(id, label, 'clear-extensions', true);
 		this.enabled = false;
@@ -1445,7 +1445,7 @@ export class ShowBuiltInExtensionsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IViewletService private viewletService: IViewletService
+		@IViewletService private readonly viewletService: IViewletService
 	) {
 		super(id, label, undefined, true);
 	}
@@ -1468,7 +1468,7 @@ export class ShowOutdatedExtensionsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IViewletService private viewletService: IViewletService
+		@IViewletService private readonly viewletService: IViewletService
 	) {
 		super(id, label, undefined, true);
 	}
@@ -1491,7 +1491,7 @@ export class ShowPopularExtensionsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IViewletService private viewletService: IViewletService
+		@IViewletService private readonly viewletService: IViewletService
 	) {
 		super(id, label, undefined, true);
 	}
@@ -1514,7 +1514,7 @@ export class ShowRecommendedExtensionsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IViewletService private viewletService: IViewletService
+		@IViewletService private readonly viewletService: IViewletService
 	) {
 		super(id, label, undefined, true);
 	}
@@ -1542,11 +1542,11 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 		id: string = InstallWorkspaceRecommendedExtensionsAction.ID,
 		label: string = InstallWorkspaceRecommendedExtensionsAction.LABEL,
 		recommendations: IExtensionRecommendation[],
-		@IViewletService private viewletService: IViewletService,
-		@INotificationService private notificationService: INotificationService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IOpenerService private openerService: IOpenerService,
-		@IExtensionsWorkbenchService private extensionWorkbenchService: IExtensionsWorkbenchService
+		@IViewletService private readonly viewletService: IViewletService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IExtensionsWorkbenchService private readonly extensionWorkbenchService: IExtensionsWorkbenchService
 	) {
 		super(id, label, 'extension-action');
 		this.recommendations = recommendations;
@@ -1585,11 +1585,11 @@ export class InstallRecommendedExtensionAction extends Action {
 
 	constructor(
 		extensionId: string,
-		@IViewletService private viewletService: IViewletService,
-		@INotificationService private notificationService: INotificationService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IOpenerService private openerService: IOpenerService,
-		@IExtensionsWorkbenchService private extensionWorkbenchService: IExtensionsWorkbenchService
+		@IViewletService private readonly viewletService: IViewletService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IExtensionsWorkbenchService private readonly extensionWorkbenchService: IExtensionsWorkbenchService
 	) {
 		super(InstallRecommendedExtensionAction.ID, InstallRecommendedExtensionAction.LABEL, undefined, false);
 		this.extensionId = extensionId;
@@ -1627,7 +1627,7 @@ export class IgnoreExtensionRecommendationAction extends Action {
 	extension: IExtension;
 
 	constructor(
-		@IExtensionTipsService private extensionsTipsService: IExtensionTipsService,
+		@IExtensionTipsService private readonly extensionsTipsService: IExtensionTipsService,
 	) {
 		super(IgnoreExtensionRecommendationAction.ID, 'Ignore Recommendation');
 
@@ -1657,7 +1657,7 @@ export class UndoIgnoreExtensionRecommendationAction extends Action {
 	extension: IExtension;
 
 	constructor(
-		@IExtensionTipsService private extensionsTipsService: IExtensionTipsService,
+		@IExtensionTipsService private readonly extensionsTipsService: IExtensionTipsService,
 	) {
 		super(UndoIgnoreExtensionRecommendationAction.ID, 'Undo');
 
@@ -1686,7 +1686,7 @@ export class ShowRecommendedKeymapExtensionsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IViewletService private viewletService: IViewletService
+		@IViewletService private readonly viewletService: IViewletService
 	) {
 		super(id, label, undefined, true);
 	}
@@ -1709,7 +1709,7 @@ export class ShowLanguageExtensionsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IViewletService private viewletService: IViewletService
+		@IViewletService private readonly viewletService: IViewletService
 	) {
 		super(id, label, undefined, true);
 	}
@@ -1732,7 +1732,7 @@ export class ShowAzureExtensionsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IViewletService private viewletService: IViewletService
+		@IViewletService private readonly viewletService: IViewletService
 	) {
 		super(id, label, undefined, true);
 	}
@@ -1757,7 +1757,7 @@ export class ChangeSortAction extends Action {
 		label: string,
 		onSearchChange: Event<string>,
 		private sortBy: string,
-		@IViewletService private viewletService: IViewletService
+		@IViewletService private readonly viewletService: IViewletService
 	) {
 		super(id, label, undefined, true);
 
@@ -1796,7 +1796,7 @@ export class ChangeGroupAction extends Action {
 		label: string,
 		onSearchChange: Event<string>,
 		private groupBy: string,
-		@IViewletService private viewletService: IViewletService
+		@IViewletService private readonly viewletService: IViewletService
 	) {
 		super(id, label, undefined, true);
 
@@ -1942,10 +1942,10 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 		id: string,
 		label: string,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
-		@IFileService private fileService: IFileService,
+		@IFileService private readonly fileService: IFileService,
 		@IEditorService protected editorService: IEditorService,
-		@IJSONEditingService private jsonEditingService: IJSONEditingService,
-		@ITextModelService private textModelResolverService: ITextModelService
+		@IJSONEditingService private readonly jsonEditingService: IJSONEditingService,
+		@ITextModelService private readonly textModelResolverService: ITextModelService
 	) {
 		super(id, label);
 	}
@@ -2154,7 +2154,7 @@ export class ConfigureWorkspaceFolderRecommendedExtensionsAction extends Abstrac
 		@IEditorService editorService: IEditorService,
 		@IJSONEditingService jsonEditingService: IJSONEditingService,
 		@ITextModelService textModelResolverService: ITextModelService,
-		@ICommandService private commandService: ICommandService
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super(id, label, contextService, fileService, editorService, jsonEditingService, textModelResolverService);
 		this.contextService.onDidChangeWorkspaceFolders(() => this.update(), this, this.disposables);
@@ -2199,8 +2199,8 @@ export class AddToWorkspaceFolderRecommendationsAction extends AbstractConfigure
 		@IEditorService editorService: IEditorService,
 		@IJSONEditingService jsonEditingService: IJSONEditingService,
 		@ITextModelService textModelResolverService: ITextModelService,
-		@ICommandService private commandService: ICommandService,
-		@INotificationService private notificationService: INotificationService
+		@ICommandService private readonly commandService: ICommandService,
+		@INotificationService private readonly notificationService: INotificationService
 	) {
 		super(id, label, contextService, fileService, editorService, jsonEditingService, textModelResolverService);
 	}
@@ -2282,7 +2282,7 @@ export class AddToWorkspaceRecommendationsAction extends AbstractConfigureRecomm
 		@IEditorService editorService: IEditorService,
 		@IJSONEditingService jsonEditingService: IJSONEditingService,
 		@ITextModelService textModelResolverService: ITextModelService,
-		@INotificationService private notificationService: INotificationService
+		@INotificationService private readonly notificationService: INotificationService
 	) {
 		super(id, label, contextService, fileService, editorService, jsonEditingService, textModelResolverService);
 	}
@@ -2376,10 +2376,10 @@ export class DisabledStatusLabelAction extends Action {
 
 	constructor(
 		private runningExtensions: IExtensionDescription[],
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IExtensionManagementServerService private extensionManagementServerService: IExtensionManagementServerService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@ILabelService private labelService: ILabelService
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ILabelService private readonly labelService: ILabelService
 	) {
 		super('extensions.install', localize('disabled', "Disabled"), `${DisabledStatusLabelAction.Class} hide`, false);
 		this.disposables.push(this.extensionsWorkbenchService.onChange((extension) => this.update(extension)));
@@ -2421,8 +2421,8 @@ export class DisableAllAction extends Action {
 
 	constructor(
 		id: string = DisableAllAction.ID, label: string = DisableAllAction.LABEL,
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService
 	) {
 		super(id, label);
 		this.update();
@@ -2452,8 +2452,8 @@ export class DisableAllWorkpsaceAction extends Action {
 
 	constructor(
 		id: string = DisableAllWorkpsaceAction.ID, label: string = DisableAllWorkpsaceAction.LABEL,
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
 		super(id, label);
 		this.update();
@@ -2484,8 +2484,8 @@ export class EnableAllAction extends Action {
 
 	constructor(
 		id: string = EnableAllAction.ID, label: string = EnableAllAction.LABEL,
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService
 	) {
 		super(id, label);
 		this.update();
@@ -2515,9 +2515,9 @@ export class EnableAllWorkpsaceAction extends Action {
 
 	constructor(
 		id: string = EnableAllWorkpsaceAction.ID, label: string = EnableAllWorkpsaceAction.LABEL,
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService
 	) {
 		super(id, label);
 		this.update();
@@ -2547,9 +2547,9 @@ export class OpenExtensionsFolderAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWindowsService private windowsService: IWindowsService,
-		@IFileService private fileService: IFileService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IWindowsService private readonly windowsService: IWindowsService,
+		@IFileService private readonly fileService: IFileService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
 		super(id, label, undefined, true);
 	}
@@ -2578,9 +2578,9 @@ export class InstallVSIXAction extends Action {
 	constructor(
 		id = InstallVSIXAction.ID,
 		label = InstallVSIXAction.LABEL,
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@INotificationService private notificationService: INotificationService,
-		@IWindowService private windowService: IWindowService
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IWindowService private readonly windowService: IWindowService
 	) {
 		super(id, label, 'extension-action install-vsix', true);
 	}
@@ -2618,11 +2618,11 @@ export class ReinstallAction extends Action {
 
 	constructor(
 		id: string = ReinstallAction.ID, label: string = ReinstallAction.LABEL,
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IQuickInputService private quickInputService: IQuickInputService,
-		@INotificationService private notificationService: INotificationService,
-		@IWindowService private windowService: IWindowService,
-		@IViewletService private viewletService: IViewletService
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IWindowService private readonly windowService: IWindowService,
+		@IViewletService private readonly viewletService: IViewletService
 	) {
 		super(id, label);
 	}
@@ -2680,12 +2680,12 @@ export class InstallSpecificVersionOfExtensionAction extends Action {
 
 	constructor(
 		id: string = InstallSpecificVersionOfExtensionAction.ID, label: string = InstallSpecificVersionOfExtensionAction.LABEL,
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
-		@IQuickInputService private quickInputService: IQuickInputService,
-		@INotificationService private notificationService: INotificationService,
-		@IWindowService private windowService: IWindowService,
-		@IViewletService private viewletService: IViewletService
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IWindowService private readonly windowService: IWindowService,
+		@IViewletService private readonly viewletService: IViewletService
 	) {
 		super(id, label);
 	}

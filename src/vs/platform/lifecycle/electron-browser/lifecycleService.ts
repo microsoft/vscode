@@ -42,10 +42,10 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 	private shutdownReason: ShutdownReason;
 
 	constructor(
-		@INotificationService private notificationService: INotificationService,
-		@IWindowService private windowService: IWindowService,
-		@IStorageService private storageService: IStorageService,
-		@ILogService private logService: ILogService
+		@INotificationService private readonly notificationService: INotificationService,
+		@IWindowService private readonly windowService: IWindowService,
+		@IStorageService private readonly storageService: IStorageService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 

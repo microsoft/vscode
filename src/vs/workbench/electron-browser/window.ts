@@ -64,22 +64,22 @@ export class ElectronWindow extends Themable {
 	private pendingFoldersToAdd: URI[];
 
 	constructor(
-		@IEditorService private editorService: EditorServiceImpl,
-		@IWindowsService private windowsService: IWindowsService,
-		@IWindowService private windowService: IWindowService,
-		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
-		@ITitleService private titleService: ITitleService,
+		@IEditorService private readonly editorService: EditorServiceImpl,
+		@IWindowsService private readonly windowsService: IWindowsService,
+		@IWindowService private readonly windowService: IWindowService,
+		@IWorkspaceConfigurationService private readonly configurationService: IWorkspaceConfigurationService,
+		@ITitleService private readonly titleService: ITitleService,
 		@IWorkbenchThemeService protected themeService: IWorkbenchThemeService,
-		@INotificationService private notificationService: INotificationService,
-		@ICommandService private commandService: ICommandService,
-		@IKeybindingService private keybindingService: IKeybindingService,
-		@IContextMenuService private contextMenuService: IContextMenuService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
-		@IFileService private fileService: IFileService,
-		@IMenuService private menuService: IMenuService,
-		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IIntegrityService private integrityService: IIntegrityService
+		@INotificationService private readonly notificationService: INotificationService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
+		@IFileService private readonly fileService: IFileService,
+		@IMenuService private readonly menuService: IMenuService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IIntegrityService private readonly integrityService: IIntegrityService
 	) {
 		super(themeService);
 

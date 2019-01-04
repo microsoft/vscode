@@ -12,7 +12,7 @@ import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 export class LogsDataCleaner extends Disposable {
 
 	constructor(
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
 		super();
 

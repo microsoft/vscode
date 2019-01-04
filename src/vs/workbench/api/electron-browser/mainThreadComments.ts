@@ -79,11 +79,11 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IEditorService private _editorService: IEditorService,
-		@ICommentService private _commentService: ICommentService,
-		@IPanelService private _panelService: IPanelService,
-		@ITelemetryService private _telemetryService: ITelemetryService,
-		@IConfigurationService private _configurationService: IConfigurationService
+		@IEditorService private readonly _editorService: IEditorService,
+		@ICommentService private readonly _commentService: ICommentService,
+		@IPanelService private readonly _panelService: IPanelService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();
 		this._disposables = [];

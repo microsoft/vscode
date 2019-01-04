@@ -62,11 +62,11 @@ export class FeedbackDropdown extends Dropdown {
 	constructor(
 		container: HTMLElement,
 		private options: IFeedbackDropdownOptions,
-		@ICommandService private commandService: ICommandService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IIntegrityService private integrityService: IIntegrityService,
-		@IThemeService private themeService: IThemeService,
-		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService
+		@ICommandService private readonly commandService: ICommandService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IIntegrityService private readonly integrityService: IIntegrityService,
+		@IThemeService private readonly themeService: IThemeService,
+		@IWorkspaceConfigurationService private readonly configurationService: IWorkspaceConfigurationService
 	) {
 		super(container, {
 			contextViewProvider: options.contextViewProvider,

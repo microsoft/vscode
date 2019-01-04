@@ -14,8 +14,8 @@ export class MenubarService implements IMenubarService {
 	private _menubar: Menubar;
 
 	constructor(
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@ILogService private logService: ILogService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ILogService private readonly logService: ILogService
 	) {
 		// Install Menu
 		this._menubar = this.instantiationService.createInstance(Menubar);

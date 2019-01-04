@@ -25,7 +25,7 @@ export default class RenameInputField implements IContentWidget, IDisposable {
 	// Editor.IContentWidget.allowEditorOverflow
 	public allowEditorOverflow: boolean = true;
 
-	constructor(editor: ICodeEditor, @IThemeService private themeService: IThemeService) {
+	constructor(editor: ICodeEditor, @IThemeService private readonly themeService: IThemeService) {
 		this._editor = editor;
 		this._editor.addContentWidget(this);
 

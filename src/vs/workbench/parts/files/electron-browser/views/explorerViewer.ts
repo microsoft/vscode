@@ -57,10 +57,10 @@ import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemAc
 
 export class FileDataSource implements IDataSource {
 	constructor(
-		@IProgressService private progressService: IProgressService,
-		@INotificationService private notificationService: INotificationService,
-		@IFileService private fileService: IFileService,
-		@IPartService private partService: IPartService
+		@IProgressService private readonly progressService: IProgressService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IFileService private readonly fileService: IFileService,
+		@IPartService private readonly partService: IPartService
 	) { }
 
 	public getId(tree: ITree, stat: ExplorerItem | Model): string {
@@ -196,10 +196,10 @@ export class FileRenderer implements IRenderer {
 	constructor(
 		private state: FileViewletState,
 		private labels: ResourceLabels,
-		@IContextViewService private contextViewService: IContextViewService,
-		@IThemeService private themeService: IThemeService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IContextViewService private readonly contextViewService: IContextViewService,
+		@IThemeService private readonly themeService: IThemeService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
 	) {
 		this.config = this.configurationService.getValue<IFilesConfiguration>();
 		this.configListener = this.configurationService.onDidChangeConfiguration(e => {
@@ -396,12 +396,12 @@ export class FileController extends WorkbenchTreeController implements IDisposab
 	private previousSelectionRangeStop: ExplorerItem;
 
 	constructor(
-		@IEditorService private editorService: IEditorService,
-		@IContextMenuService private contextMenuService: IContextMenuService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IMenuService private menuService: IMenuService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IClipboardService private clipboardService: IClipboardService,
+		@IClipboardService private readonly clipboardService: IClipboardService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */ }, configurationService);
@@ -579,8 +579,8 @@ export class FileSorter implements ISorter {
 	private sortOrder: SortOrder;
 
 	constructor(
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
 	) {
 		this.toDispose = [];
 
@@ -698,8 +698,8 @@ export class FileFilter implements IFilter {
 	private workspaceFolderChangeListener: IDisposable;
 
 	constructor(
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		this.hiddenExpressionPerRoot = new Map<string, CachedParsedExpression>();
 
@@ -761,15 +761,15 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 	private dropEnabled: boolean;
 
 	constructor(
-		@INotificationService private notificationService: INotificationService,
-		@IDialogService private dialogService: IDialogService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IFileService private fileService: IFileService,
-		@IConfigurationService private configurationService: IConfigurationService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IFileService private readonly fileService: IFileService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ITextFileService private textFileService: ITextFileService,
-		@IWindowService private windowService: IWindowService,
-		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@IWindowService private readonly windowService: IWindowService,
+		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService
 	) {
 		super(stat => this.statToResource(stat), instantiationService);
 

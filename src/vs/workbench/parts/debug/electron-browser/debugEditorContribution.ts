@@ -72,16 +72,16 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 	constructor(
 		private editor: ICodeEditor,
-		@IDebugService private debugService: IDebugService,
-		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IInstantiationService private instantiationService: IInstantiationService,
+		@IDebugService private readonly debugService: IDebugService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ICommandService private commandService: ICommandService,
-		@ICodeEditorService private codeEditorService: ICodeEditorService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IKeybindingService private keybindingService: IKeybindingService,
-		@IDialogService private dialogService: IDialogService,
+		@ICommandService private readonly commandService: ICommandService,
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IDialogService private readonly dialogService: IDialogService,
 	) {
 		this.breakpointHintDecoration = [];
 		this.hoverWidget = this.instantiationService.createInstance(DebugHoverWidget, this.editor);

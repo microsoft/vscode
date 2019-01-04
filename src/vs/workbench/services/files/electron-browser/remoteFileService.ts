@@ -90,8 +90,8 @@ class WorkspaceWatchLogic extends Disposable {
 
 	constructor(
 		private _fileService: RemoteFileService,
-		@IConfigurationService private _configurationService: IConfigurationService,
-		@IWorkspaceContextService private _contextService: IWorkspaceContextService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 	) {
 		super();
 

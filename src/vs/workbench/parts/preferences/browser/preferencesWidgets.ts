@@ -299,8 +299,8 @@ export class FolderSettingsActionItem extends BaseActionItem {
 
 	constructor(
 		action: IAction,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IContextMenuService private contextMenuService: IContextMenuService
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) {
 		super(null, action);
 		const workspace = this.contextService.getWorkspace();
@@ -472,8 +472,8 @@ export class SettingsTargetsWidget extends Widget {
 
 	constructor(
 		parent: HTMLElement,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 		this.create(parent);
@@ -588,9 +588,9 @@ export class SearchWidget extends Widget {
 	readonly onFocus: Event<void> = this._onFocus.event;
 
 	constructor(parent: HTMLElement, protected options: SearchOptions,
-		@IContextViewService private contextViewService: IContextViewService,
+		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
-		@IThemeService private themeService: IThemeService
+		@IThemeService private readonly themeService: IThemeService
 	) {
 		super();
 		this.create(parent);

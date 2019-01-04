@@ -42,13 +42,13 @@ export class VariablesView extends ViewletPanel {
 	constructor(
 		options: IViewletViewOptions,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IDebugService private debugService: IDebugService,
+		@IDebugService private readonly debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IListService private listService: IListService,
-		@IThemeService private themeService: IThemeService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IListService private readonly listService: IListService,
+		@IThemeService private readonly themeService: IThemeService
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('variablesSection', "Variables Section") }, keybindingService, contextMenuService, configurationService);
 

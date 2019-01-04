@@ -58,13 +58,13 @@ export class DebugHoverWidget implements IContentWidget {
 
 	constructor(
 		private editor: ICodeEditor,
-		@IDebugService private debugService: IDebugService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IThemeService private themeService: IThemeService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IListService private listService: IListService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IKeybindingService private keybindingService: IKeybindingService
+		@IDebugService private readonly debugService: IDebugService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IThemeService private readonly themeService: IThemeService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IListService private readonly listService: IListService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
 		this.toDispose = [];
 

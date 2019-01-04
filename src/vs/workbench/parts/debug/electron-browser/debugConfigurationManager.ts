@@ -56,15 +56,15 @@ export class ConfigurationManager implements IConfigurationManager {
 	private debugConfigurationTypeContext: IContextKey<string>;
 
 	constructor(
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IEditorService private editorService: IEditorService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IQuickInputService private quickInputService: IQuickInputService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@ICommandService private commandService: ICommandService,
-		@IStorageService private storageService: IStorageService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IStorageService private readonly storageService: IStorageService,
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@IExtensionService private extensionService: IExtensionService,
+		@IExtensionService private readonly extensionService: IExtensionService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		this.configProviders = [];
@@ -469,7 +469,7 @@ class Launch implements ILaunch {
 	constructor(
 		private configurationManager: ConfigurationManager,
 		public workspace: IWorkspaceFolder,
-		@IFileService private fileService: IFileService,
+		@IFileService private readonly fileService: IFileService,
 		@IEditorService protected editorService: IEditorService,
 		@IConfigurationService protected configurationService: IConfigurationService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
@@ -622,7 +622,7 @@ class UserLaunch extends Launch implements ILaunch {
 		@IFileService fileService: IFileService,
 		@IEditorService editorService: IEditorService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IPreferencesService private preferencesService: IPreferencesService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService
 	) {
 		super(configurationManager, undefined, fileService, editorService, configurationService, contextService);

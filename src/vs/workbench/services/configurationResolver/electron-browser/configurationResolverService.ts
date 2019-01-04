@@ -30,10 +30,10 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 		envVariables: platform.IProcessEnvironment,
 		@IEditorService editorService: IEditorService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@ICommandService private commandService: ICommandService,
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
-		@IQuickInputService private quickInputService: IQuickInputService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService
 	) {
 		super({
 			getFolderUri: (folderName: string): uri => {

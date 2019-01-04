@@ -64,8 +64,8 @@ export class CompositeBar extends Widget implements ICompositeBar {
 	constructor(
 		items: ICompositeBarItem[],
 		private options: ICompositeBarOptions,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IContextMenuService private contextMenuService: IContextMenuService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) {
 		super();
 

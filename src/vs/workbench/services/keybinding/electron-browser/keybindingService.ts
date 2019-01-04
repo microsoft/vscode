@@ -276,7 +276,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IStatusbarService statusBarService: IStatusbarService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IWindowService private windowService: IWindowService
+		@IWindowService private readonly windowService: IWindowService
 	) {
 		super(contextKeyService, commandService, telemetryService, notificationService, statusBarService);
 

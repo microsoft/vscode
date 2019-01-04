@@ -59,14 +59,14 @@ export class ActivitybarPart extends Part {
 
 	constructor(
 		id: string,
-		@IViewletService private viewletService: IViewletService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IPartService private partService: IPartService,
+		@IViewletService private readonly viewletService: IViewletService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IPartService private readonly partService: IPartService,
 		@IThemeService themeService: IThemeService,
-		@IStorageService private storageService: IStorageService,
-		@IExtensionService private extensionService: IExtensionService,
-		@IViewsService private viewsService: IViewsService,
-		@IContextKeyService private contextKeyService: IContextKeyService
+		@IStorageService private readonly storageService: IStorageService,
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IViewsService private readonly viewsService: IViewsService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super(id, { hasTitle: false }, themeService, storageService);
 

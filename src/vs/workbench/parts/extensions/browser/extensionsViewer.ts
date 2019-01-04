@@ -63,7 +63,7 @@ export class Renderer implements IRenderer {
 	private static readonly EXTENSION_TEMPLATE_ID = 'extension-template';
 	private static readonly UNKNOWN_EXTENSION_TEMPLATE_ID = 'unknown-extension-template';
 
-	constructor(@IInstantiationService private instantiationService: IInstantiationService) {
+	constructor(@IInstantiationService private readonly instantiationService: IInstantiationService) {
 	}
 
 	public getHeight(tree: ITree, element: IExtensionData): number {
@@ -163,7 +163,7 @@ export class Renderer implements IRenderer {
 export class Controller extends WorkbenchTreeController {
 
 	constructor(
-		@IExtensionsWorkbenchService private extensionsWorkdbenchService: IExtensionsWorkbenchService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkdbenchService: IExtensionsWorkbenchService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super({}, configurationService);
@@ -201,7 +201,7 @@ class OpenExtensionAction extends Action {
 
 	private _extensionData: IExtensionData;
 
-	constructor(@IExtensionsWorkbenchService private extensionsWorkdbenchService: IExtensionsWorkbenchService) {
+	constructor(@IExtensionsWorkbenchService private readonly extensionsWorkdbenchService: IExtensionsWorkbenchService) {
 		super('extensions.action.openExtension', '');
 	}
 

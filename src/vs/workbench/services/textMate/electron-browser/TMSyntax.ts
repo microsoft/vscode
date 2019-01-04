@@ -433,7 +433,7 @@ class TMTokenization implements ITokenizationSupport {
 	private readonly _initialState: StackElement;
 	private _tokenizationWarningAlreadyShown: boolean;
 
-	constructor(scopeRegistry: TMScopeRegistry, languageId: LanguageId, grammar: IGrammar, initialState: StackElement, containsEmbeddedLanguages: boolean, @INotificationService private notificationService: INotificationService) {
+	constructor(scopeRegistry: TMScopeRegistry, languageId: LanguageId, grammar: IGrammar, initialState: StackElement, containsEmbeddedLanguages: boolean, @INotificationService private readonly notificationService: INotificationService) {
 		this._scopeRegistry = scopeRegistry;
 		this._languageId = languageId;
 		this._grammar = grammar;

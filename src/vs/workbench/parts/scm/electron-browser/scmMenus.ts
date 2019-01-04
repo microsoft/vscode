@@ -51,8 +51,8 @@ export class SCMMenus implements IDisposable {
 	constructor(
 		provider: ISCMProvider | undefined,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IMenuService private menuService: IMenuService,
-		@IContextMenuService private contextMenuService: IContextMenuService
+		@IMenuService private readonly menuService: IMenuService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) {
 		this.contextKeyService = contextKeyService.createScoped();
 		const scmProviderKey = this.contextKeyService.createKey<string | undefined>('scmProvider', undefined);

@@ -36,7 +36,7 @@ abstract class AbstractUpdateService2 implements IUpdateService {
 	}
 
 	constructor(
-		@ILifecycleService private lifecycleService: ILifecycleService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@ILogService protected logService: ILogService,
 	) {
@@ -145,7 +145,7 @@ export class SnapUpdateService extends AbstractUpdateService2 {
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@ILogService logService: ILogService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super(lifecycleService, environmentService, logService);
 

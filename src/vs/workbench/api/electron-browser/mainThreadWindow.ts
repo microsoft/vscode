@@ -17,7 +17,7 @@ export class MainThreadWindow implements MainThreadWindowShape {
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IWindowService private windowService: IWindowService
+		@IWindowService private readonly windowService: IWindowService
 	) {
 		this.proxy = extHostContext.getProxy(ExtHostContext.ExtHostWindow);
 

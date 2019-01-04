@@ -287,12 +287,12 @@ export class EditorStatus implements IStatusbarItem {
 	private screenReaderNotification: INotificationHandle;
 
 	constructor(
-		@IEditorService private editorService: IEditorService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IModeService private modeService: IModeService,
-		@ITextFileService private textFileService: ITextFileService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IQuickOpenService private readonly quickOpenService: IQuickOpenService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService,
+		@IModeService private readonly modeService: IModeService,
+		@ITextFileService private readonly textFileService: ITextFileService,
 		@IWorkspaceConfigurationService private readonly configurationService: IWorkspaceConfigurationService,
 		@INotificationService private readonly notificationService: INotificationService
 	) {
@@ -816,7 +816,7 @@ export class ShowLanguageExtensionsAction extends Action {
 
 	constructor(
 		private fileExtension: string,
-		@ICommandService private commandService: ICommandService,
+		@ICommandService private readonly commandService: ICommandService,
 		@IExtensionGalleryService galleryService: IExtensionGalleryService
 	) {
 		super(ShowLanguageExtensionsAction.ID, nls.localize('showLanguageExtensions', "Search Marketplace Extensions for '{0}'...", fileExtension));
@@ -837,14 +837,14 @@ export class ChangeModeAction extends Action {
 	constructor(
 		actionId: string,
 		actionLabel: string,
-		@IModeService private modeService: IModeService,
-		@IModelService private modelService: IModelService,
-		@IEditorService private editorService: IEditorService,
-		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
-		@IQuickInputService private quickInputService: IQuickInputService,
-		@IPreferencesService private preferencesService: IPreferencesService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
+		@IModeService private readonly modeService: IModeService,
+		@IModelService private readonly modelService: IModelService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IWorkspaceConfigurationService private readonly configurationService: IWorkspaceConfigurationService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService
 	) {
 		super(actionId, actionLabel);
 	}
@@ -1050,8 +1050,8 @@ class ChangeIndentationAction extends Action {
 	constructor(
 		actionId: string,
 		actionLabel: string,
-		@IEditorService private editorService: IEditorService,
-		@IQuickInputService private quickInputService: IQuickInputService
+		@IEditorService private readonly editorService: IEditorService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService
 	) {
 		super(actionId, actionLabel);
 	}
@@ -1100,8 +1100,8 @@ export class ChangeEOLAction extends Action {
 	constructor(
 		actionId: string,
 		actionLabel: string,
-		@IEditorService private editorService: IEditorService,
-		@IQuickInputService private quickInputService: IQuickInputService
+		@IEditorService private readonly editorService: IEditorService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService
 	) {
 		super(actionId, actionLabel);
 	}
@@ -1145,10 +1145,10 @@ export class ChangeEncodingAction extends Action {
 	constructor(
 		actionId: string,
 		actionLabel: string,
-		@IEditorService private editorService: IEditorService,
-		@IQuickInputService private quickInputService: IQuickInputService,
-		@ITextResourceConfigurationService private textResourceConfigurationService: ITextResourceConfigurationService,
-		@IFileService private fileService: IFileService
+		@IEditorService private readonly editorService: IEditorService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@ITextResourceConfigurationService private readonly textResourceConfigurationService: ITextResourceConfigurationService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		super(actionId, actionLabel);
 	}

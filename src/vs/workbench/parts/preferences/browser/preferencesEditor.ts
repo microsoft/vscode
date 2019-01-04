@@ -88,13 +88,13 @@ export class PreferencesEditor extends BaseEditor {
 	readonly onDidSizeConstraintsChange: Event<{ width: number; height: number; }> = this._onDidCreateWidget.event;
 
 	constructor(
-		@IPreferencesService private preferencesService: IPreferencesService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IEditorService private editorService: IEditorService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IInstantiationService private instantiationService: IInstantiationService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
-		@IProgressService private progressService: IProgressService,
+		@IProgressService private readonly progressService: IProgressService,
 		@IStorageService storageService: IStorageService
 	) {
 		super(PreferencesEditor.ID, telemetryService, themeService, storageService);
@@ -378,11 +378,11 @@ class PreferencesRenderersController extends Disposable {
 	readonly onDidFilterResultsCountChange: Event<IPreferencesCount> = this._onDidFilterResultsCountChange.event;
 
 	constructor(
-		@IPreferencesSearchService private preferencesSearchService: IPreferencesSearchService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IPreferencesService private preferencesService: IPreferencesService,
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
-		@ILogService private logService: ILogService
+		@IPreferencesSearchService private readonly preferencesSearchService: IPreferencesSearchService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 	}
@@ -790,10 +790,10 @@ class SideBySidePreferencesWidget extends Widget {
 
 	constructor(
 		parentElement: HTMLElement,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IThemeService private themeService: IThemeService,
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
-		@IPreferencesService private preferencesService: IPreferencesService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IThemeService private readonly themeService: IThemeService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
 	) {
 		super();
 
