@@ -141,7 +141,9 @@ class RenameController implements IEditorContribution {
 
 		let loc: RenameLocation & Rejection | null | undefined;
 		try {
-			loc = await skeleton.resolveRenameLocation(token);
+			const resolveLocationOperation = skeleton.resolveRenameLocation(token);
+			this._progressService.showWhile(resolveLocationOperation, 250);
+			loc = await resolveLocationOperation;
 		} catch (e) {
 			MessageController.get(this.editor).showMessage(e || nls.localize('resolveRenameLocationFailed', "An unknown error occurred while resolving rename location"), position);
 			return undefined;
