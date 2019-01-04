@@ -30,32 +30,34 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 
 class RenameSkeleton {
 
-	private _provider: RenameProvider[];
+	private _providers: RenameProvider[];
 
 	constructor(
-		readonly model: ITextModel,
-		readonly position: Position
+		private readonly model: ITextModel,
+		private readonly position: Position
 	) {
-		this._provider = RenameProviderRegistry.ordered(model);
+		this._providers = RenameProviderRegistry.ordered(model);
 	}
 
 	hasProvider() {
-		return this._provider.length > 0;
+		return this._providers.length > 0;
 	}
 
 	async resolveRenameLocation(token: CancellationToken): Promise<RenameLocation & Rejection | null | undefined> {
+		const firstProvider = this._providers[0];
+		if (!firstProvider) {
+			return undefined;
+		}
 
-		let [provider] = this._provider;
 		let res: RenameLocation & Rejection | null | undefined;
-
-		if (provider.resolveRenameLocation) {
-			res = await provider.resolveRenameLocation(this.model, this.position, token);
+		if (firstProvider.resolveRenameLocation) {
+			res = await firstProvider.resolveRenameLocation(this.model, this.position, token);
 		}
 
 		if (!res) {
-			let word = this.model.getWordAtPosition(this.position);
+			const word = this.model.getWordAtPosition(this.position);
 			if (word) {
-				res = {
+				return {
 					range: new Range(this.position.lineNumber, word.startColumn, this.position.lineNumber, word.endColumn),
 					text: word.word
 				};
@@ -67,15 +69,15 @@ class RenameSkeleton {
 
 	async provideRenameEdits(newName: string, i: number = 0, rejects: string[] = [], token: CancellationToken): Promise<WorkspaceEdit & Rejection> {
 
-		if (i >= this._provider.length) {
+		if (i >= this._providers.length) {
 			return {
 				edits: [],
 				rejectReason: rejects.join('\n')
 			};
 		}
 
-		let provider = this._provider[i];
-		let result = await provider.provideRenameEdits(this.model, this.position, newName, token);
+		const provider = this._providers[i];
+		const result = await provider.provideRenameEdits(this.model, this.position, newName, token);
 		if (!result) {
 			return this.provideRenameEdits(newName, i + 1, rejects.concat(nls.localize('no result', "No result.")), token);
 		} else if (result.rejectReason) {
