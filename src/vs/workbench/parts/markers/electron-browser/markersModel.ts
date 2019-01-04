@@ -86,7 +86,7 @@ export class Marker {
 		return JSON.stringify({
 			...this.marker,
 			resource: this.marker.resource.path,
-			relatedInformation: this.relatedInformation.length ? this.relatedInformation.map(r => ({ ...r.raw, resource: r.raw.resource.path })) : void 0
+			relatedInformation: this.relatedInformation.length ? this.relatedInformation.map(r => ({ ...r.raw, resource: r.raw.resource.path })) : undefined
 		}, null, '\t');
 	}
 }

@@ -604,7 +604,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 }
 
 function warnOnError(promise: Promise<any>): void {
-	promise.then(void 0, (err) => {
+	promise.then(undefined, (err) => {
 		console.warn(err);
 	});
 }

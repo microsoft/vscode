@@ -52,8 +52,7 @@ export class BenchmarkSuite {
 	run() {
 		console.log(`|${this.name}\t|line buffer\t|piece table\t|edcore\t`);
 		console.log('|---|---|---|---|');
-		for (let i = 0; i < this.benchmarks.length; i++) {
-			let benchmark = this.benchmarks[i];
+		for (const benchmark of this.benchmarks) {
 			let columns: string[] = [benchmark.name];
 			[new PieceTreeTextBufferBuilder()].forEach((builder: ITextBufferBuilder) => {
 				let timeDiffTotal = 0.0;

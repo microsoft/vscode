@@ -172,7 +172,7 @@ export class ReleaseNotesManager {
 	private onDidClickLink(uri: URI) {
 		addGAParameters(this._telemetryService, this._environmentService, uri, 'ReleaseNotes')
 			.then(updated => this._openerService.open(updated))
-			.then(void 0, onUnexpectedError);
+			.then(undefined, onUnexpectedError);
 	}
 
 	private async renderBody(text: string) {

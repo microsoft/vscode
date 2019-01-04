@@ -374,6 +374,10 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		const item = this.items[index];
 		const renderer = this.renderers.get(item.templateId);
 
+		if (!item.row) {
+			return;
+		}
+
 		if (renderer.disposeElement) {
 			renderer.disposeElement(item.element, index, item.row!.templateData);
 		}
@@ -478,9 +482,9 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 					return;
 				}
 
-				var diff = this.dragAndDropMouseY - viewTop;
-				var scrollDiff = 0;
-				var upperLimit = this.renderHeight - 35;
+				let diff = this.dragAndDropMouseY - viewTop;
+				let scrollDiff = 0;
+				let upperLimit = this.renderHeight - 35;
 
 				if (diff < 35) {
 					scrollDiff = Math.max(-14, 0.2 * (diff - 35));

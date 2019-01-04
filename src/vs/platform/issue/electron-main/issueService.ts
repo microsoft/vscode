@@ -189,7 +189,7 @@ export class IssueService implements IIssueService {
 					const environment = parseArgs(process.argv);
 					const config = objects.assign(environment, windowConfiguration);
 					for (let key in config) {
-						if (config[key] === void 0 || config[key] === null || config[key] === '') {
+						if (config[key] === undefined || config[key] === null || config[key] === '') {
 							delete config[key]; // only send over properties that have a true value
 						}
 					}
@@ -323,7 +323,7 @@ export class IssueService implements IIssueService {
 		const environment = parseArgs(process.argv);
 		const config = objects.assign(environment, windowConfiguration);
 		for (let key in config) {
-			if (config[key] === void 0 || config[key] === null || config[key] === '') {
+			if (config[key] === undefined || config[key] === null || config[key] === '') {
 				delete config[key]; // only send over properties that have a true value
 			}
 		}

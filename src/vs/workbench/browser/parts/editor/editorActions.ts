@@ -473,7 +473,7 @@ export class CloseEditorAction extends Action {
 	}
 
 	run(context?: IEditorCommandsContext): Promise<any> {
-		return this.commandService.executeCommand(CLOSE_EDITOR_COMMAND_ID, void 0, context);
+		return this.commandService.executeCommand(CLOSE_EDITOR_COMMAND_ID, undefined, context);
 	}
 }
 
@@ -624,7 +624,7 @@ export abstract class BaseCloseAllAction extends Action {
 		// Otherwise ask for combined confirmation
 		return this.textFileService.confirmSave().then(confirm => {
 			if (confirm === ConfirmResult.CANCEL) {
-				return void 0;
+				return undefined;
 			}
 
 			let saveOrRevertPromise: Promise<boolean>;
@@ -639,7 +639,7 @@ export abstract class BaseCloseAllAction extends Action {
 					return this.doCloseAll();
 				}
 
-				return void 0;
+				return undefined;
 			});
 		});
 	}
@@ -677,7 +677,7 @@ export class CloseAllEditorGroupsAction extends BaseCloseAllAction {
 		@ITextFileService textFileService: ITextFileService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
-		super(id, label, void 0, textFileService, editorGroupService);
+		super(id, label, undefined, textFileService, editorGroupService);
 	}
 
 	protected doCloseAll(): Promise<any> {
@@ -787,7 +787,7 @@ export class BaseMoveGroupAction extends Action {
 			}
 		}
 
-		return void 0;
+		return undefined;
 	}
 }
 
@@ -964,7 +964,7 @@ export class OpenNextEditor extends BaseNavigateEditorAction {
 			return { editor: previousGroupEditors[0], groupId: nextGroup.id };
 		}
 
-		return void 0;
+		return undefined;
 	}
 }
 
@@ -999,7 +999,7 @@ export class OpenPreviousEditor extends BaseNavigateEditorAction {
 			return { editor: previousGroupEditors[previousGroupEditors.length - 1], groupId: previousGroup.id };
 		}
 
-		return void 0;
+		return undefined;
 	}
 }
 

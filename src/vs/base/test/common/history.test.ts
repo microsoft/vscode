@@ -118,7 +118,7 @@ suite('History Navigator', () => {
 		historyNavigator.first();
 		if (historyNavigator.current()) {
 			do {
-				result.push(historyNavigator.current());
+				result.push(historyNavigator.current()!);
 			} while (historyNavigator.next());
 		}
 		return result;

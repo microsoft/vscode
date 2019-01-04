@@ -92,12 +92,12 @@ export class GlobalMouseMoveMonitor<R> extends Disposable {
 		this.onStopCallback = onStopCallback;
 
 		let windowChain = IframeUtils.getSameOriginWindowChain();
-		for (let i = 0; i < windowChain.length; i++) {
-			this.hooks.push(dom.addDisposableThrottledListener(windowChain[i].window.document, 'mousemove',
+		for (const element of windowChain) {
+			this.hooks.push(dom.addDisposableThrottledListener(element.window.document, 'mousemove',
 				(data: R) => this.mouseMoveCallback!(data),
 				(lastEvent: R, currentEvent) => this.mouseMoveEventMerger!(lastEvent, currentEvent as MouseEvent)
 			));
-			this.hooks.push(dom.addDisposableListener(windowChain[i].window.document, 'mouseup', (e: MouseEvent) => this.stopMonitoring(true)));
+			this.hooks.push(dom.addDisposableListener(element.window.document, 'mouseup', (e: MouseEvent) => this.stopMonitoring(true)));
 		}
 
 		if (IframeUtils.hasDifferentOriginAncestor()) {

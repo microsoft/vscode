@@ -356,7 +356,7 @@ class StorageManager extends Disposable {
 					delete this.storage[key];
 				}
 			}
-			this._set(key, value.length ? newValue : void 0, scope);
+			this._set(key, value.length ? newValue : undefined, scope);
 		}
 	}
 

@@ -135,14 +135,14 @@ suite('Storage Library', () => {
 		changes.clear();
 
 		// Delete is accepted
-		change.set('foo', void 0);
+		change.set('foo', undefined);
 		database.fireDidChangeItemsExternal({ items: change });
 		ok(changes.has('foo'));
-		equal(storage.get('foo', null), null);
+		equal(storage.get('foo', null!), null);
 		changes.clear();
 
 		// Nothing happens if changing to same value
-		change.set('foo', void 0);
+		change.set('foo', undefined);
 		database.fireDidChangeItemsExternal({ items: change });
 		equal(changes.size, 0);
 
@@ -263,7 +263,7 @@ suite('SQLite Storage Library', () => {
 	}
 
 	async function testDBBasics(path, logError?: (error) => void) {
-		let options: ISQLiteStorageDatabaseOptions;
+		let options!: ISQLiteStorageDatabaseOptions;
 		if (logError) {
 			options = {
 				logging: {

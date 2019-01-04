@@ -189,14 +189,14 @@ export function getResource(filename: string, matcher: ProblemMatcher): URI {
 	} else if ((kind === FileLocationKind.Relative) && matcher.filePrefix) {
 		fullPath = Paths.join(matcher.filePrefix, filename);
 	}
-	if (fullPath === void 0) {
+	if (fullPath === undefined) {
 		throw new Error('FileLocationKind is not actionable. Does the matcher have a filePrefix? This should never happen.');
 	}
 	fullPath = fullPath.replace(/\\/g, '/');
 	if (fullPath[0] !== '/') {
 		fullPath = '/' + fullPath;
 	}
-	if (matcher.uriProvider !== void 0) {
+	if (matcher.uriProvider !== undefined) {
 		return matcher.uriProvider(fullPath);
 	} else {
 		return URI.file(fullPath);
@@ -272,7 +272,7 @@ abstract class AbstractLineMatcher implements ILineMatcher {
 		const patternAtProperty = pattern[property];
 		if (Types.isUndefined(data[property]) && !Types.isUndefined(patternAtProperty) && patternAtProperty < matches.length) {
 			let value = matches[patternAtProperty];
-			if (value !== void 0) {
+			if (value !== undefined) {
 				if (trim) {
 					value = Strings.trim(value)!;
 				}
@@ -293,10 +293,10 @@ abstract class AbstractLineMatcher implements ILineMatcher {
 					endColumn: location.endCharacter,
 					message: data.message
 				};
-				if (data.code !== void 0) {
+				if (data.code !== undefined) {
 					marker.code = data.code;
 				}
-				if (this.matcher.source !== void 0) {
+				if (this.matcher.source !== undefined) {
 					marker.source = this.matcher.source;
 				}
 				return {
@@ -400,7 +400,7 @@ class SingleLineMatcher extends AbstractLineMatcher {
 	public handle(lines: string[], start: number = 0): HandleResult {
 		Assert.ok(lines.length - start === 1);
 		let data: ProblemData = Object.create(null);
-		if (this.pattern.kind !== void 0) {
+		if (this.pattern.kind !== undefined) {
 			data.kind = this.pattern.kind;
 		}
 		let matches = this.pattern.regexp.exec(lines[start]);
@@ -884,7 +884,7 @@ export class ProblemPatternParser extends Parser {
 
 	private doCreateSingleProblemPattern(value: Config.CheckedProblemPattern, setDefaults: boolean): ProblemPattern {
 		const regexp = this.createRegularExpression(value.regexp);
-		if (regexp === void 0) {
+		if (regexp === undefined) {
 			throw new Error('Invalid regular expression');
 		}
 		let result: ProblemPattern = { regexp };
@@ -1367,23 +1367,23 @@ export class ProblemMatcherParser extends Parser {
 				let base = ProblemMatcherRegistry.get(variableName.substring(1));
 				if (base) {
 					result = Objects.deepClone(base);
-					if (description.owner !== void 0 && owner !== void 0) {
+					if (description.owner !== undefined && owner !== undefined) {
 						result.owner = owner;
 					}
-					if (description.source !== void 0 && source !== void 0) {
+					if (description.source !== undefined && source !== undefined) {
 						result.source = source;
 					}
-					if (description.fileLocation !== void 0 && fileLocation !== void 0) {
+					if (description.fileLocation !== undefined && fileLocation !== undefined) {
 						result.fileLocation = fileLocation;
 						result.filePrefix = filePrefix;
 					}
-					if (description.pattern !== void 0 && pattern !== void 0 && pattern !== null) {
+					if (description.pattern !== undefined && pattern !== undefined && pattern !== null) {
 						result.pattern = pattern;
 					}
-					if (description.severity !== void 0 && severity !== void 0) {
+					if (description.severity !== undefined && severity !== undefined) {
 						result.severity = severity;
 					}
-					if (description.applyTo !== void 0 && applyTo !== void 0) {
+					if (description.applyTo !== undefined && applyTo !== undefined) {
 						result.applyTo = applyTo;
 					}
 				}

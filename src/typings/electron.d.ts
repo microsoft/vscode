@@ -86,7 +86,7 @@ declare namespace Electron {
 		webviewTag: WebviewTag;
 	}
 
-	interface AllElectron extends MainInterface, RendererInterface { }
+  interface AllElectron extends MainInterface, RendererInterface {}
 
 	const app: App;
 	const autoUpdater: AutoUpdater;

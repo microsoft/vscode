@@ -216,7 +216,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 
 	get orientation(): GroupOrientation {
 		if (!this.gridWidget) {
-			return void 0; // we have not been created yet
+			return undefined; // we have not been created yet
 		}
 
 		return this.gridWidget.orientation === Orientation.VERTICAL ? GroupOrientation.VERTICAL : GroupOrientation.HORIZONTAL;
@@ -758,7 +758,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	private resetPreferredSize(): void {
 
 		// Reset (will be computed upon next access)
-		this._preferredSize = void 0;
+		this._preferredSize = undefined;
 
 		// Event
 		this._onDidPreferredSizeChange.fire();
@@ -857,7 +857,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 
 		this.groupViews.forEach(group => group.dispose());
 		this.groupViews.clear();
-		this._activeGroup = void 0;
+		this._activeGroup = undefined;
 		this.mostRecentActiveGroups = [];
 	}
 
@@ -920,7 +920,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 			this._onDidSizeConstraintsChange.input = gridWidget.onDidChange;
 		}
 
-		this.onDidSetGridWidget.fire();
+		this.onDidSetGridWidget.fire(undefined);
 	}
 
 	private updateContainer(): void {

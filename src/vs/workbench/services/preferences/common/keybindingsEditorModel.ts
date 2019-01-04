@@ -88,7 +88,7 @@ export class KeybindingsEditorModel extends EditorModel {
 		};
 	}
 
-	public fetch(searchValue: string, sortByPrecedence: boolean = false): IKeybindingItemEntry[] {
+	fetch(searchValue: string, sortByPrecedence: boolean = false): IKeybindingItemEntry[] {
 		let keybindingItems = sortByPrecedence ? this._keybindingItemsSortedByPrecedence : this._keybindingItems;
 
 		if (/@source:\s*(user|default)/i.test(searchValue)) {
@@ -130,7 +130,7 @@ export class KeybindingsEditorModel extends EditorModel {
 		const words = searchValue.split(' ');
 		const keybindingWords = this.splitKeybindingWords(words);
 		for (const keybindingItem of keybindingItems) {
-			let keybindingMatches = new KeybindingItemMatches(this.modifierLabels, keybindingItem, searchValue, words, keybindingWords, completeMatch);
+			const keybindingMatches = new KeybindingItemMatches(this.modifierLabels, keybindingItem, searchValue, words, keybindingWords, completeMatch);
 			if (keybindingMatches.commandIdMatches
 				|| keybindingMatches.commandLabelMatches
 				|| keybindingMatches.commandDefaultLabelMatches
@@ -161,7 +161,7 @@ export class KeybindingsEditorModel extends EditorModel {
 		return result;
 	}
 
-	public resolve(editorActionsLabels: { [id: string]: string; }): Promise<EditorModel> {
+	resolve(editorActionsLabels: { [id: string]: string; }): Promise<EditorModel> {
 		const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 
 		this._keybindingItemsSortedByPrecedence = [];
@@ -248,12 +248,12 @@ export class KeybindingsEditorModel extends EditorModel {
 
 class KeybindingItemMatches {
 
-	public readonly commandIdMatches: IMatch[] | null = null;
-	public readonly commandLabelMatches: IMatch[] | null = null;
-	public readonly commandDefaultLabelMatches: IMatch[] | null = null;
-	public readonly sourceMatches: IMatch[] | null = null;
-	public readonly whenMatches: IMatch[] | null = null;
-	public readonly keybindingMatches: KeybindingMatches | null = null;
+	readonly commandIdMatches: IMatch[] | null = null;
+	readonly commandLabelMatches: IMatch[] | null = null;
+	readonly commandDefaultLabelMatches: IMatch[] | null = null;
+	readonly sourceMatches: IMatch[] | null = null;
+	readonly whenMatches: IMatch[] | null = null;
+	readonly keybindingMatches: KeybindingMatches | null = null;
 
 	constructor(private modifierLabels: ModifierLabels, keybindingItem: IKeybindingItem, searchValue: string, words: string[], keybindingWords: string[], completeMatch: boolean) {
 		if (!completeMatch) {
@@ -305,11 +305,11 @@ class KeybindingItemMatches {
 			};
 		}
 
-		let firstPartMatch: KeybindingMatch = {};
+		const firstPartMatch: KeybindingMatch = {};
 		let chordPartMatch: KeybindingMatch = {};
 
 		const matchedWords: number[] = [];
-		let firstPartMatchedWords: number[] = [];
+		const firstPartMatchedWords: number[] = [];
 		let chordPartMatchedWords: number[] = [];
 		let matchFirstPart = true;
 		for (let index = 0; index < words.length; index++) {
@@ -530,7 +530,7 @@ class KeybindingItemMatches {
 	}
 
 	private createCompleteMatch(part: ResolvedKeybindingPart): KeybindingMatch {
-		let match: KeybindingMatch = {};
+		const match: KeybindingMatch = {};
 		if (part) {
 			match.keyCode = true;
 			if (part.metaKey) {

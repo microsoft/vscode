@@ -54,7 +54,7 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		const dataProvider = this._dataProviders.get(treeViewId);
 		if (viewer && dataProvider) {
 			const itemsToRefresh = dataProvider.getItemsToRefresh(itemsToRefreshByHandle);
-			return viewer.refresh(itemsToRefresh.length ? itemsToRefresh : void 0);
+			return viewer.refresh(itemsToRefresh.length ? itemsToRefresh : undefined);
 		}
 		return null;
 	}
@@ -139,7 +139,7 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 	}
 
 	getChildren(treeItem?: ITreeItem): Promise<ITreeItem[]> {
-		return Promise.resolve(this._proxy.$getChildren(this.treeViewId, treeItem ? treeItem.handle : void 0)
+		return Promise.resolve(this._proxy.$getChildren(this.treeViewId, treeItem ? treeItem.handle : undefined)
 			.then(
 				children => this.postGetChildren(children),
 				err => {

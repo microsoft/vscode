@@ -46,11 +46,11 @@ import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
-let $ = DOM.$;
+const $ = DOM.$;
 
 export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor {
 
-	public static readonly ID: string = 'workbench.editor.keybindings';
+	static readonly ID: string = 'workbench.editor.keybindings';
 
 	private keybindingsEditorModel: KeybindingsEditorModel;
 
@@ -304,7 +304,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.sortByPrecedenceAction = new Action('keybindings.editor.sortByPrecedence', sortByPrecedenceActionKeybinding ? localize('sortByPrecedeneLabelWithKeybinding', "{0} ({1})", sortByPrecedenceActionLabel, sortByPrecedenceActionKeybinding.getLabel()) : sortByPrecedenceActionLabel, 'sort-by-precedence');
 		this.sortByPrecedenceAction.checked = false;
 		this._register(this.sortByPrecedenceAction.onDidChange(e => {
-			if (e.checked !== void 0) {
+			if (e.checked !== undefined) {
 				this.renderKeybindingsEntries(false);
 			}
 		}));
@@ -314,7 +314,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.recordKeysAction = new Action(KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, recordKeysActionKeybinding ? localize('recordKeysLabelWithKeybinding', "{0} ({1})", recordKeysActionLabel, recordKeysActionKeybinding.getLabel()) : recordKeysActionLabel, 'record-keys');
 		this.recordKeysAction.checked = false;
 		this._register(this.recordKeysAction.onDidChange(e => {
-			if (e.checked !== void 0) {
+			if (e.checked !== undefined) {
 				DOM.toggleClass(recordingBadge, 'disabled', !e.checked);
 				if (e.checked) {
 					this.searchWidget.inputBox.setPlaceHolder(keybindingsSearchPlaceholder);
@@ -372,7 +372,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		fileElement.tabIndex = 0;
 		this._register(DOM.addDisposableListener(fileElement, DOM.EventType.CLICK, () => this.preferencesService.openGlobalKeybindingSettings(true)));
 		this._register(DOM.addDisposableListener(fileElement, DOM.EventType.KEY_UP, e => {
-			let keyboardEvent = new StandardKeyboardEvent(e);
+			const keyboardEvent = new StandardKeyboardEvent(e);
 			switch (keyboardEvent.keyCode) {
 				case KeyCode.Enter:
 					this.preferencesService.openGlobalKeybindingSettings(true);
@@ -426,7 +426,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			return this.input.resolve()
 				.then((keybindingsModel: KeybindingsEditorModel) => {
 					if (token.isCancellationRequested) {
-						return void 0;
+						return undefined;
 					}
 
 					this.keybindingsEditorModel = keybindingsModel;
@@ -440,7 +440,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 				})
 				.then(() => {
 					if (token.isCancellationRequested) {
-						return void 0;
+						return undefined;
 					}
 
 					this.renderKeybindingsEntries(false, preserveFocus);
@@ -644,7 +644,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 
 	private reportFilteringUsed(filter: string): void {
 		if (filter) {
-			let data = {
+			const data = {
 				filter,
 				emptyFilters: this.getLatestEmptyFiltersForTelemetry()
 			};
@@ -835,7 +835,7 @@ class ActionsColumn extends Column {
 		};
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this.actionBar = dispose(this.actionBar);
 	}
 }

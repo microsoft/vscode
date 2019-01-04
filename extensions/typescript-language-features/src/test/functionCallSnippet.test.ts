@@ -107,4 +107,14 @@ suite('typescript function call snippets', () => {
 			).snippet.value,
 			'methoda(${1:x})$0');
 	});
+
+	test('Should escape snippet syntax in method name', async () => {
+		assert.strictEqual(
+			snippetForFunctionCall(
+				{ label: '$abc', },
+				[]
+			).snippet.value,
+			'\\$abc()$0');
+	});
+
 });

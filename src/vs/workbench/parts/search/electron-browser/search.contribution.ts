@@ -20,7 +20,7 @@ import { getSelectionSearchString } from 'vs/editor/contrib/find/findController'
 import { ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding } from 'vs/editor/contrib/find/findModel';
 import * as nls from 'vs/nls';
 import { ICommandAction, MenuId, MenuRegistry, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -340,34 +340,39 @@ const FocusSearchListCommand: ICommandAction = {
 };
 MenuRegistry.addCommand(FocusSearchListCommand);
 
-const FIND_IN_FOLDER_ID = 'filesExplorer.findInFolder';
-CommandsRegistry.registerCommand({
-	id: FIND_IN_FOLDER_ID,
-	handler: (accessor, resource?: URI) => {
-		const listService = accessor.get(IListService);
-		const viewletService = accessor.get(IViewletService);
-		const panelService = accessor.get(IPanelService);
-		const fileService = accessor.get(IFileService);
-		const resources = getMultiSelectedResources(resource, listService, accessor.get(IEditorService));
+const searchInFolderCommand: ICommandHandler = (accessor, resource?: URI) => {
+	const listService = accessor.get(IListService);
+	const viewletService = accessor.get(IViewletService);
+	const panelService = accessor.get(IPanelService);
+	const fileService = accessor.get(IFileService);
+	const resources = getMultiSelectedResources(resource, listService, accessor.get(IEditorService));
 
-		return openSearchView(viewletService, panelService, true).then(searchView => {
-			if (resources && resources.length) {
-				return fileService.resolveFiles(resources.map(resource => ({ resource }))).then(results => {
-					const folders: URI[] = [];
+	return openSearchView(viewletService, panelService, true).then(searchView => {
+		if (resources && resources.length) {
+			return fileService.resolveFiles(resources.map(resource => ({ resource }))).then(results => {
+				const folders: URI[] = [];
 
-					results.forEach(result => {
-						if (result.success) {
-							folders.push(result.stat.isDirectory ? result.stat.resource : dirname(result.stat.resource));
-						}
-					});
-
-					searchView.searchInFolders(distinct(folders, folder => folder.toString()), (from, to) => relative(from, to));
+				results.forEach(result => {
+					if (result.success) {
+						folders.push(result.stat.isDirectory ? result.stat.resource : dirname(result.stat.resource));
+					}
 				});
-			}
 
-			return void 0;
-		});
-	}
+				searchView.searchInFolders(distinct(folders, folder => folder.toString()), (from, to) => relative(from, to));
+			});
+		}
+
+		return undefined;
+	});
+};
+
+const FIND_IN_FOLDER_ID = 'filesExplorer.findInFolder';
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: FIND_IN_FOLDER_ID,
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ContextKeyExpr.and(ExplorerFolderContext, ResourceContextKey.Scheme.isEqualTo(Schemas.file)), // todo@remote
+	primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_F,
+	handler: searchInFolderCommand
 });
 
 CommandsRegistry.registerCommand({
@@ -428,11 +433,11 @@ class ShowAllSymbolsAction extends Action {
 		this.enabled = !!this.quickOpenService;
 	}
 
-	public run(context?: any): Promise<void> {
+	run(context?: any): Promise<void> {
 
 		let prefix = ShowAllSymbolsAction.ALL_SYMBOLS_PREFIX;
-		let inputSelection: { start: number; end: number; } = void 0;
-		let editor = this.editorService.getFocusedCodeEditor();
+		let inputSelection: { start: number; end: number; } = undefined;
+		const editor = this.editorService.getFocusedCodeEditor();
 		const word = editor && getSelectionSearchString(editor);
 		if (word) {
 			prefix = prefix + word;
@@ -441,7 +446,7 @@ class ShowAllSymbolsAction extends Action {
 
 		this.quickOpenService.show(prefix, { inputSelection });
 
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -688,7 +693,7 @@ configurationRegistry.registerConfiguration({
 });
 
 registerLanguageCommand('_executeWorkspaceSymbolProvider', function (accessor, args: { query: string; }) {
-	let { query } = args;
+	const { query } = args;
 	if (typeof query !== 'string') {
 		throw illegalArgument();
 	}

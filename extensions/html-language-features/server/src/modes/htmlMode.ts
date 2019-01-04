@@ -78,7 +78,7 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace:
 }
 
 function merge(src: any, dst: any): any {
-	for (var key in src) {
+	for (const key in src) {
 		if (src.hasOwnProperty(key)) {
 			dst[key] = src[key];
 		}

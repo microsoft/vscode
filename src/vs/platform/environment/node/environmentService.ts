@@ -180,7 +180,7 @@ export class EnvironmentService implements IEnvironmentService {
 			}
 			return URI.file(path.normalize(s));
 		}
-		return void 0;
+		return undefined;
 	}
 
 	@memoize
@@ -222,7 +222,6 @@ export class EnvironmentService implements IEnvironmentService {
 
 	get logExtensionHostCommunication(): boolean { return !!this._args.logExtensionHostCommunication; }
 
-	get performance(): boolean { return !!this._args.performance; }
 	get status(): boolean { return !!this._args.status; }
 
 	@memoize

@@ -179,7 +179,7 @@ var AMDLoader;
         };
         Utilities.forEachProperty = function (obj, callback) {
             if (obj) {
-                var key = void 0;
+                var key = undefined;
                 for (key in obj) {
                     if (obj.hasOwnProperty(key)) {
                         callback(key, obj[key]);
@@ -327,8 +327,8 @@ var AMDLoader;
             return options;
         };
         ConfigurationOptionsUtil.mergeConfigurationOptions = function (overwrite, base) {
-            if (overwrite === void 0) { overwrite = null; }
-            if (base === void 0) { base = null; }
+            if (overwrite === undefined) { overwrite = null; }
+            if (base === undefined) { base = null; }
             var result = AMDLoader.Utilities.recursiveClone(base || {});
             // Merge known properties and overwrite the unknown ones
             AMDLoader.Utilities.forEachProperty(overwrite, function (key, value) {
@@ -1067,7 +1067,7 @@ var AMDLoader;
     AMDLoader.PluginDependency = PluginDependency;
     var ModuleManager = (function () {
         function ModuleManager(env, scriptLoader, defineFunc, requireFunc, loaderAvailableTimestamp) {
-            if (loaderAvailableTimestamp === void 0) { loaderAvailableTimestamp = 0; }
+            if (loaderAvailableTimestamp === undefined) { loaderAvailableTimestamp = 0; }
             this._env = env;
             this._scriptLoader = scriptLoader;
             this._loaderAvailableTimestamp = loaderAvailableTimestamp;
@@ -1186,7 +1186,7 @@ var AMDLoader;
          */
         ModuleManager.prototype.defineModule = function (strModuleId, dependencies, callback, errorback, stack, moduleIdResolver) {
             var _this = this;
-            if (moduleIdResolver === void 0) { moduleIdResolver = new ModuleIdResolver(strModuleId); }
+            if (moduleIdResolver === undefined) { moduleIdResolver = new ModuleIdResolver(strModuleId); }
             var moduleId = this._moduleIdProvider.getModuleId(strModuleId);
             if (this._modules2[moduleId]) {
                 if (!this._config.isDuplicateMessageIgnoredFor(strModuleId)) {
@@ -1245,7 +1245,7 @@ var AMDLoader;
          * @return The exports of module 'id'
          */
         ModuleManager.prototype.synchronousRequire = function (_strModuleId, moduleIdResolver) {
-            if (moduleIdResolver === void 0) { moduleIdResolver = new ModuleIdResolver(_strModuleId); }
+            if (moduleIdResolver === undefined) { moduleIdResolver = new ModuleIdResolver(_strModuleId); }
             var dependency = this._normalizeDependency(_strModuleId, moduleIdResolver);
             var m = this._modules2[dependency.id];
             if (!m) {
@@ -1637,7 +1637,7 @@ var AMDLoader;
         jQuery: true
     };
     var _requireFunc_config = function (params, shouldOverwrite) {
-        if (shouldOverwrite === void 0) { shouldOverwrite = false; }
+        if (shouldOverwrite === undefined) { shouldOverwrite = false; }
         moduleManager.configure(params, shouldOverwrite);
     };
     var RequireFunc = function () {

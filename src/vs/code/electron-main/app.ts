@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, ipcMain as ipc, systemPreferences, shell, Event, contentTracing, protocol } from 'electron';
+import { app, ipcMain as ipc, systemPreferences, shell, Event, contentTracing, protocol, powerMonitor } from 'electron';
 import { IProcessEnvironment, isWindows, isMacintosh } from 'vs/base/common/platform';
 import { WindowsManager } from 'vs/code/electron-main/windows';
 import { IWindowsService, OpenContext, ActiveWindowManager } from 'vs/platform/windows/common/windows';
@@ -63,7 +63,7 @@ import { MenubarChannel } from 'vs/platform/menubar/node/menubarIpc';
 import { hasArgs } from 'vs/platform/environment/node/argv';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { registerContextMenuListener } from 'vs/base/parts/contextmenu/electron-main/contextmenu';
-import { THEME_STORAGE_KEY, THEME_BG_STORAGE_KEY } from 'vs/code/electron-main/theme';
+import { storeBackgroundColor } from 'vs/code/electron-main/theme';
 import { nativeSep, join } from 'vs/base/common/paths';
 import { homedir } from 'os';
 import { localize } from 'vs/nls';
@@ -75,6 +75,11 @@ import { IStorageMainService, StorageMainService } from 'vs/platform/storage/nod
 import { GlobalStorageDatabaseChannel } from 'vs/platform/storage/node/storageIpc';
 import { generateUuid } from 'vs/base/common/uuid';
 import { startsWith } from 'vs/base/common/strings';
+import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainService';
+import { IBackupMainService } from 'vs/platform/backup/common/backup';
+import { HistoryMainService } from 'vs/platform/history/electron-main/historyMainService';
+import { URLService } from 'vs/platform/url/common/urlService';
+import { WorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 
 export class CodeApplication extends Disposable {
 
@@ -95,8 +100,7 @@ export class CodeApplication extends Disposable {
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IConfigurationService private configurationService: ConfigurationService,
-		@IStateService private stateService: IStateService,
-		@IHistoryMainService private historyMainService: IHistoryMainService,
+		@IStateService private stateService: IStateService
 	) {
 		super();
 
@@ -256,6 +260,12 @@ export class CodeApplication extends Disposable {
 		ipc.on('vscode:openDevTools', (event: Event) => event.sender.openDevTools());
 
 		ipc.on('vscode:reloadWindow', (event: Event) => event.sender.reload());
+
+		powerMonitor.on('resume', () => { // After waking up from sleep
+			if (this.windowsMainService) {
+				this.windowsMainService.sendToAll('vscode:osResume', undefined);
+			}
+		});
 	}
 
 	private onUnexpectedError(err: Error): void {
@@ -283,10 +293,7 @@ export class CodeApplication extends Disposable {
 
 		// Theme changes
 		if (event === 'vscode:changeColorTheme' && typeof payload === 'string') {
-			let data = JSON.parse(payload);
-
-			this.stateService.setItem(THEME_STORAGE_KEY, data.baseTheme);
-			this.stateService.setItem(THEME_BG_STORAGE_KEY, data.background);
+			storeBackgroundColor(this.stateService, JSON.parse(payload));
 		}
 	}
 
@@ -434,6 +441,10 @@ export class CodeApplication extends Disposable {
 		services.set(IIssueService, new SyncDescriptor(IssueService, [machineId, this.userEnv]));
 		services.set(IMenubarService, new SyncDescriptor(MenubarService));
 		services.set(IStorageMainService, new SyncDescriptor(StorageMainService));
+		services.set(IBackupMainService, new SyncDescriptor(BackupMainService));
+		services.set(IHistoryMainService, new SyncDescriptor(HistoryMainService));
+		services.set(IURLService, new SyncDescriptor(URLService));
+		services.set(IWorkspacesMainService, new SyncDescriptor(WorkspacesMainService));
 
 		// Telemetry
 		if (!this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
@@ -450,7 +461,10 @@ export class CodeApplication extends Disposable {
 
 		const appInstantiationService = this.instantiationService.createChild(services);
 
-		return appInstantiationService.invokeFunction(accessor => this.initStorageService(accessor)).then(() => appInstantiationService);
+		return appInstantiationService.invokeFunction(accessor => Promise.all([
+			this.initStorageService(accessor),
+			this.initBackupService(accessor)
+		])).then(() => appInstantiationService);
 	}
 
 	private initStorageService(accessor: ServicesAccessor): Promise<void> {
@@ -460,7 +474,7 @@ export class CodeApplication extends Disposable {
 		this.lifecycleService.onWillShutdown(e => e.join(storageMainService.close()));
 
 		// Initialize storage service
-		return storageMainService.initialize().then(void 0, error => {
+		return storageMainService.initialize().then(undefined, error => {
 			errors.onUnexpectedError(error);
 			this.logService.error(error);
 		}).then(() => {
@@ -488,6 +502,12 @@ export class CodeApplication extends Disposable {
 			storageMainService.store(telemetryLastSessionDate, lastSessionDate);
 			storageMainService.store(telemetryCurrentSessionDate, currentSessionDate);
 		});
+	}
+
+	private initBackupService(accessor: ServicesAccessor): Promise<void> {
+		const backupMainService = accessor.get(IBackupMainService) as BackupMainService;
+
+		return backupMainService.initialize();
 	}
 
 	private openFirstWindow(accessor: ServicesAccessor): ICodeWindow[] {
@@ -595,6 +615,7 @@ export class CodeApplication extends Disposable {
 
 	private afterWindowOpen(accessor: ServicesAccessor): void {
 		const windowsMainService = accessor.get(IWindowsMainService);
+		const historyMainService = accessor.get(IHistoryMainService);
 
 		let windowsMutex: Mutex | null = null;
 		if (isWindows) {
@@ -642,8 +663,8 @@ export class CodeApplication extends Disposable {
 		});
 
 		// Jump List
-		this.historyMainService.updateWindowsJumpList();
-		this.historyMainService.onRecentlyOpenedChange(() => this.historyMainService.updateWindowsJumpList());
+		historyMainService.updateWindowsJumpList();
+		historyMainService.onRecentlyOpenedChange(() => historyMainService.updateWindowsJumpList());
 
 		// Start shared process after a while
 		const sharedProcessSpawn = this._register(new RunOnceScheduler(() => getShellEnvironment().then(userEnv => this.sharedProcess.spawn(userEnv)), 3000));
@@ -653,6 +674,8 @@ export class CodeApplication extends Disposable {
 	private handleRemoteAuthorities(): void {
 		const connectionPool: Map<string, ActiveConnection> = new Map<string, ActiveConnection>();
 
+		const isBuilt = this.environmentService.isBuilt;
+
 		class ActiveConnection {
 			private _authority: string;
 			private _client: Promise<Client<RemoteAgentConnectionContext>>;
@@ -660,7 +683,7 @@ export class CodeApplication extends Disposable {
 
 			constructor(authority: string, host: string, port: number) {
 				this._authority = authority;
-				this._client = connectRemoteAgentManagement(authority, host, port, `main`);
+				this._client = connectRemoteAgentManagement(authority, host, port, `main`, isBuilt);
 				this._disposeRunner = new RunOnceScheduler(() => this._dispose(), 5000);
 			}
 

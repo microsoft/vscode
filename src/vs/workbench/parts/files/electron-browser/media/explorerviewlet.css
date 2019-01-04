@@ -106,8 +106,8 @@
 	line-height: normal;
 }
 
-.monaco-workbench.linux .explorer-viewlet .explorer-item .monaco-inputbox,
-.monaco-workbench.mac .explorer-viewlet .explorer-item .monaco-inputbox {
+.linux > .monaco-workbench .explorer-viewlet .explorer-item .monaco-inputbox,
+.mac > .monaco-workbench .explorer-viewlet .explorer-item .monaco-inputbox {
 	height: 22px;
 }
 
@@ -115,8 +115,8 @@
 	padding: 1px 2px;
 }
 
-.monaco-workbench.linux .explorer-viewlet .explorer-item .monaco-inputbox > .wrapper > .input,
-.monaco-workbench.mac .explorer-viewlet .explorer-item .monaco-inputbox > .wrapper > .input {
+.linux > .monaco-workbench .explorer-viewlet .explorer-item .monaco-inputbox > .wrapper > .input,
+.mac > .monaco-workbench .explorer-viewlet .explorer-item .monaco-inputbox > .wrapper > .input {
 	padding: 0;
 	height: 20px;
 }

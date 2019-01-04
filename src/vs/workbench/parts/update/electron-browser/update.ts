@@ -27,7 +27,6 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ReleaseNotesManager } from './releaseNotesEditor';
 import { isWindows } from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { HappyHolidaysAction } from 'vs/workbench/parts/holidays/electron-browser/holidays.contribution';
 
 let releaseNotesManager: ReleaseNotesManager | undefined = undefined;
 
@@ -75,7 +74,7 @@ export abstract class AbstractShowReleaseNotesAction extends Action {
 		this.enabled = false;
 
 		return showReleaseNotes(this.instantiationService, this.version)
-			.then(void 0, () => {
+			.then(undefined, () => {
 				const action = this.instantiationService.createInstance(OpenLatestReleaseNotesInBrowserAction);
 				return action.run().then(() => false);
 			});
@@ -491,11 +490,6 @@ export class UpdateContribution implements IGlobalActivity {
 		if (updateAction) {
 			result.push(new Separator(), updateAction);
 		}
-
-		result.push(
-			new Separator(),
-			this.instantiationService.createInstance(HappyHolidaysAction, HappyHolidaysAction.ID, HappyHolidaysAction.LABEL)
-		);
 
 		return result;
 	}

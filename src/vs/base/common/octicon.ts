@@ -30,7 +30,7 @@ function doParseOcticons(text: string, firstOcticonIndex: number): IParsedOctico
 		if (chars) {
 			textWithoutOcticons += chars;
 
-			for (let i = 0; i < chars.length; i++) {
+			for (const _ of chars) {
 				octiconOffsets.push(octiconsOffset); // make sure to fill in octicon offsets
 			}
 		}
@@ -115,10 +115,10 @@ export function matchesFuzzyOcticonAware(query: string, target: IParsedOcticons,
 
 	// Map matches back to offsets with octicons and trimming
 	if (matches) {
-		for (let i = 0; i < matches.length; i++) {
-			const octiconOffset = octiconOffsets[matches[i].start + leadingWhitespaceOffset] /* octicon offsets at index */ + leadingWhitespaceOffset /* overall leading whitespace offset */;
-			matches[i].start += octiconOffset;
-			matches[i].end += octiconOffset;
+		for (const match of matches) {
+			const octiconOffset = octiconOffsets[match.start + leadingWhitespaceOffset] /* octicon offsets at index */ + leadingWhitespaceOffset /* overall leading whitespace offset */;
+			match.start += octiconOffset;
+			match.end += octiconOffset;
 		}
 	}
 

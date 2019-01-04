@@ -211,7 +211,7 @@ class TriggerRenameFileAction extends BaseFileAction {
 			});
 		});
 
-		return void 0;
+		return undefined;
 	}
 }
 
@@ -254,7 +254,7 @@ export abstract class BaseRenameAction extends BaseFileAction {
 		}
 
 		// Call function and Emit Event through viewer
-		const promise = this.runAction(name).then(void 0, (error: any) => {
+		const promise = this.runAction(name).then(undefined, (error: any) => {
 			this.onError(error);
 		});
 
@@ -520,7 +520,7 @@ class CreateFolderAction extends BaseCreateAction {
 
 	public runAction(fileName: string): Promise<any> {
 		const resource = this.element.parent.resource;
-		return this.fileService.createFolder(resources.joinPath(resource, fileName)).then(void 0, (error) => {
+		return this.fileService.createFolder(resources.joinPath(resource, fileName)).then(undefined, (error) => {
 			this.onErrorWithRetry(error, () => this.runAction(fileName));
 		});
 	}
@@ -644,7 +644,7 @@ class BaseDeleteFileAction extends BaseFileAction {
 			return confirmDeletePromise.then(confirmation => {
 
 				// Check for confirmation checkbox
-				let updateConfirmSettingsPromise: Promise<void> = Promise.resolve(void 0);
+				let updateConfirmSettingsPromise: Promise<void> = Promise.resolve(undefined);
 				if (confirmation.confirmed && confirmation.checkboxChecked === true) {
 					updateConfirmSettingsPromise = this.configurationService.updateValue(BaseDeleteFileAction.CONFIRM_DELETE_SETTING_KEY, false, ConfigurationTarget.USER);
 				}
@@ -696,7 +696,7 @@ class BaseDeleteFileAction extends BaseFileAction {
 								return this.run();
 							}
 
-							return Promise.resolve(void 0);
+							return Promise.resolve(undefined);
 						});
 					});
 
@@ -823,7 +823,7 @@ export class AddFilesAction extends BaseFileAction {
 
 					return overwritePromise.then(res => {
 						if (!res.confirmed) {
-							return void 0;
+							return undefined;
 						}
 
 						// Run add in sequence
@@ -859,7 +859,7 @@ export class AddFilesAction extends BaseFileAction {
 				});
 			}
 
-			return void 0;
+			return undefined;
 		});
 
 		return addPromise.then(() => {
@@ -962,7 +962,7 @@ class PasteFileAction extends BaseFileAction {
 					return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
 				}
 
-				return void 0;
+				return undefined;
 			}, error => this.onError(error)).then(() => {
 				this.tree.domFocus();
 			});
@@ -1007,7 +1007,7 @@ export class DuplicateFileAction extends BaseFileAction {
 				return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
 			}
 
-			return void 0;
+			return undefined;
 		}, error => this.onError(error));
 
 		return result;
@@ -1115,7 +1115,7 @@ export class GlobalCompareResourcesAction extends Action {
 
 	public run(): Promise<any> {
 		const activeInput = this.editorService.activeEditor;
-		const activeResource = activeInput ? activeInput.getResource() : void 0;
+		const activeResource = activeInput ? activeInput.getResource() : undefined;
 		if (activeResource) {
 
 			// Compare with next editor that opens
@@ -1131,11 +1131,11 @@ export class GlobalCompareResourcesAction extends Action {
 						override: this.editorService.openEditor({
 							leftResource: activeResource,
 							rightResource: resource
-						}).then(() => void 0)
+						}).then(() => undefined)
 					};
 				}
 
-				return void 0;
+				return undefined;
 			});
 
 			// Bring up quick open

@@ -71,7 +71,7 @@ export function debounce<T>(delay: number, reducer?: IDebouceReducer<T>, initial
 
 		return function (this: any, ...args: any[]) {
 			if (!this[resultKey]) {
-				this[resultKey] = initialValueProvider ? initialValueProvider() : void 0;
+				this[resultKey] = initialValueProvider ? initialValueProvider() : undefined;
 			}
 
 			clearTimeout(this[timerKey]);
@@ -83,7 +83,7 @@ export function debounce<T>(delay: number, reducer?: IDebouceReducer<T>, initial
 
 			this[timerKey] = setTimeout(() => {
 				fn.apply(this, args);
-				this[resultKey] = initialValueProvider ? initialValueProvider() : void 0;
+				this[resultKey] = initialValueProvider ? initialValueProvider() : undefined;
 			}, delay);
 		};
 	});

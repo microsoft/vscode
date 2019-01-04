@@ -132,7 +132,7 @@ export class IconLabel extends Disposable {
 		this.domNode.title = options && options.title ? options.title : '';
 
 		if (this.labelNode instanceof HighlightedLabel) {
-			this.labelNode.set(label || '', options ? options.matches : void 0, options && options.title ? options.title : void 0, options && options.labelEscapeNewLines);
+			this.labelNode.set(label || '', options ? options.matches : undefined, options && options.title ? options.title : undefined, options && options.labelEscapeNewLines);
 		} else {
 			this.labelNode.textContent = label || '';
 		}
@@ -143,7 +143,7 @@ export class IconLabel extends Disposable {
 			}
 
 			if (this.descriptionNode instanceof HighlightedLabel) {
-				this.descriptionNode.set(description || '', options ? options.descriptionMatches : void 0);
+				this.descriptionNode.set(description || '', options ? options.descriptionMatches : undefined);
 				if (options && options.descriptionTitle) {
 					this.descriptionNode.element.title = options.descriptionTitle;
 				} else {

@@ -148,7 +148,7 @@ export class ProgressService2 implements IProgressService2 {
 							onDidCancel();
 						}
 
-						return Promise.resolve(void 0);
+						return Promise.resolve(undefined);
 					}
 				};
 				toDispose.push(cancelAction);

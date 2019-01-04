@@ -408,7 +408,7 @@ export function isExcludeSetting(setting: ISetting): boolean {
 
 function settingTypeEnumRenderable(_type: string | string[]) {
 	const enumRenderableSettingTypes = ['string', 'boolean', 'null', 'integer', 'number'];
-	let type = isArray(_type) ? _type : [_type];
+	const type = isArray(_type) ? _type : [_type];
 	return type.every(type => enumRenderableSettingTypes.indexOf(type) > -1);
 }
 

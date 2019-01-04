@@ -393,7 +393,7 @@ export interface IDebugModel extends ITreeElement {
 	getWatchExpressions(): ReadonlyArray<IExpression & IEvaluate>;
 
 	onDidChangeBreakpoints: Event<IBreakpointsChangeEvent>;
-	onDidChangeCallStack: Event<void>;
+	onDidChangeCallStack: Event<IThread | undefined>;
 	onDidChangeWatchExpressions: Event<IExpression>;
 }
 

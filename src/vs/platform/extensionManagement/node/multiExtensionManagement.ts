@@ -101,7 +101,7 @@ export class MultiExtensionManagementService extends Disposable implements IExte
 					if (manifest) {
 						const servers = manifest && isUIExtension(manifest, this.configurationService) ? [this.extensionManagementServerService.localExtensionManagementServer] : syncExtensions ? this.servers : [this.extensionManagementServerService.remoteExtensionManagementServer!];
 						return Promise.all(servers.map(server => server.extensionManagementService.installFromGallery(gallery)))
-							.then(() => void 0);
+							.then(() => undefined);
 					} else {
 						this.logService.info('Manifest was not found. Hence installing only in local server');
 						return this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.installFromGallery(gallery);

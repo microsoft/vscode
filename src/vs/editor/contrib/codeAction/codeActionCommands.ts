@@ -21,7 +21,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IProgressService } from 'vs/platform/progress/common/progress';
-import { CodeActionModel, CodeActionsComputeEvent, SUPPORTED_CODE_ACTIONS } from './codeActionModel';
+import { CodeActionModel, SUPPORTED_CODE_ACTIONS, CodeActionsState, CodeActionsTriggeredState } from './codeActionModel';
 import { CodeActionAutoApply, CodeActionFilter, CodeActionKind } from './codeActionTrigger';
 import { CodeActionContextMenu } from './codeActionWidget';
 import { LightBulbWidget } from './lightBulbWidget';
@@ -69,7 +69,7 @@ export class QuickFixController implements IEditorContribution {
 		this._disposables.push(
 			this._codeActionContextMenu.onDidExecuteCodeAction(_ => this._model.trigger({ type: 'auto', filter: {} })),
 			this._lightBulbWidget.onClick(this._handleLightBulbSelect, this),
-			this._model.onDidChangeFixes(e => this._onCodeActionsEvent(e)),
+			this._model.onDidChangeState(e => this._onDidChangeCodeActionsState(e)),
 			this._keybindingService.onDidUpdateKeybindings(this._updateLightBulbTitle, this)
 		);
 	}
@@ -79,47 +79,40 @@ export class QuickFixController implements IEditorContribution {
 		dispose(this._disposables);
 	}
 
-	private _onCodeActionsEvent(e: CodeActionsComputeEvent): void {
+	private _onDidChangeCodeActionsState(newState: CodeActionsState): void {
 		if (this._activeRequest) {
 			this._activeRequest.cancel();
 			this._activeRequest = undefined;
 		}
 
-		const actions = e && e.actions;
-		if (actions) {
-			this._activeRequest = e.actions;
-		}
+		if (newState.type === CodeActionsTriggeredState.type) {
+			this._activeRequest = newState.actions;
 
-		if (actions && e.trigger.filter && e.trigger.filter.kind) {
-			// Triggered for specific scope
-			// Apply if we only have one action or requested autoApply, otherwise show menu
-			actions.then(fixes => {
-				if (fixes.length > 0 && e.trigger.autoApply === CodeActionAutoApply.First || (e.trigger.autoApply === CodeActionAutoApply.IfSingle && fixes.length === 1)) {
-					this._onApplyCodeAction(fixes[0]);
-				} else {
-					this._codeActionContextMenu.show(actions, e.position);
-				}
-			}).catch(onUnexpectedError);
-			return;
-		}
-
-		if (e && e.trigger.type === 'manual') {
-			if (actions) {
-				this._codeActionContextMenu.show(actions, e.position);
-				return;
-			}
-		} else if (actions) {
-			// auto magically triggered
-			// * update an existing list of code actions
-			// * manage light bulb
-			if (this._codeActionContextMenu.isVisible) {
-				this._codeActionContextMenu.show(actions, e.position);
+			if (newState.trigger.filter && newState.trigger.filter.kind) {
+				// Triggered for specific scope
+				// Apply if we only have one action or requested autoApply, otherwise show menu
+				newState.actions.then(fixes => {
+					if (fixes.length > 0 && newState.trigger.autoApply === CodeActionAutoApply.First || (newState.trigger.autoApply === CodeActionAutoApply.IfSingle && fixes.length === 1)) {
+						this._onApplyCodeAction(fixes[0]);
+					} else {
+						this._codeActionContextMenu.show(newState.actions, newState.position);
+					}
+				}).catch(onUnexpectedError);
+			} else if (newState.trigger.type === 'manual') {
+				this._codeActionContextMenu.show(newState.actions, newState.position);
 			} else {
-				this._lightBulbWidget.model = e;
+				// auto magically triggered
+				// * update an existing list of code actions
+				// * manage light bulb
+				if (this._codeActionContextMenu.isVisible) {
+					this._codeActionContextMenu.show(newState.actions, newState.position);
+				} else {
+					this._lightBulbWidget.state = newState;
+				}
 			}
-			return;
+		} else {
+			this._lightBulbWidget.hide();
 		}
-		this._lightBulbWidget.hide();
 	}
 
 	public getId(): string {
@@ -127,8 +120,8 @@ export class QuickFixController implements IEditorContribution {
 	}
 
 	private _handleLightBulbSelect(coords: { x: number, y: number }): void {
-		if (this._lightBulbWidget.model && this._lightBulbWidget.model.actions) {
-			this._codeActionContextMenu.show(this._lightBulbWidget.model.actions, coords);
+		if (this._lightBulbWidget.state.type === CodeActionsTriggeredState.type) {
+			this._codeActionContextMenu.show(this._lightBulbWidget.state.actions, coords);
 		}
 	}
 

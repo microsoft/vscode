@@ -262,7 +262,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 	}
 
 	dispose(): void {
-		this.modelResolve = void 0;
+		this.modelResolve = undefined;
 
 		super.dispose();
 	}

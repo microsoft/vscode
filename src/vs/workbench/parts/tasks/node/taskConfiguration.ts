@@ -133,7 +133,7 @@ export interface TaskIdentifier {
 export namespace TaskIdentifier {
 	export function is(value: any): value is TaskIdentifier {
 		let candidate: TaskIdentifier = value;
-		return candidate !== void 0 && Types.isString(value.type);
+		return candidate !== undefined && Types.isString(value.type);
 	}
 }
 
@@ -449,12 +449,12 @@ export interface BaseTaskRunnerConfiguration {
 	tasks?: Array<CustomTask | ConfiguringTask>;
 
 	/**
-	 * Problem matcher declarations
+	 * Problem matcher declarations.
 	 */
 	declares?: ProblemMatcherConfig.NamedProblemMatcher[];
 
 	/**
-	 * Optional user input varaibles.
+	 * Optional user input variables.
 	 */
 	inputs?: ConfiguredInput[];
 }
@@ -505,14 +505,14 @@ Object.freeze(EMPTY_ARRAY);
 
 function assignProperty<T, K extends keyof T>(target: T, source: Partial<T>, key: K) {
 	const sourceAtKey = source[key];
-	if (sourceAtKey !== void 0) {
+	if (sourceAtKey !== undefined) {
 		target[key] = sourceAtKey!;
 	}
 }
 
 function fillProperty<T, K extends keyof T>(target: T, source: Partial<T>, key: K) {
 	const sourceAtKey = source[key];
-	if (target[key] === void 0 && sourceAtKey !== void 0) {
+	if (target[key] === undefined && sourceAtKey !== undefined) {
 		target[key] = sourceAtKey!;
 	}
 }
@@ -533,13 +533,13 @@ interface MetaData<T, U> {
 
 
 function _isEmpty<T>(this: void, value: T, properties: MetaData<T, any>[] | undefined): boolean {
-	if (value === void 0 || value === null || properties === void 0) {
+	if (value === undefined || value === null || properties === undefined) {
 		return true;
 	}
 	for (let meta of properties) {
 		let property = value[meta.property];
-		if (property !== void 0 && property !== null) {
-			if (meta.type !== void 0 && !meta.type.isEmpty(property)) {
+		if (property !== undefined && property !== null) {
+			if (meta.type !== undefined && !meta.type.isEmpty(property)) {
 				return false;
 			} else if (!Array.isArray(property) || property.length > 0) {
 				return false;
@@ -559,12 +559,12 @@ function _assignProperties<T>(this: void, target: T, source: T, properties: Meta
 	for (let meta of properties) {
 		let property = meta.property;
 		let value: any;
-		if (meta.type !== void 0) {
+		if (meta.type !== undefined) {
 			value = meta.type.assignProperties(target[property], source[property]);
 		} else {
 			value = source[property];
 		}
-		if (value !== void 0 && value !== null) {
+		if (value !== undefined && value !== null) {
 			target[property] = value;
 		}
 	}
@@ -583,10 +583,10 @@ function _fillProperties<T>(this: void, target: T, source: T, properties: MetaDa
 		let value: any;
 		if (meta.type) {
 			value = meta.type.fillProperties(target[property], source[property]);
-		} else if (target[property] === void 0) {
+		} else if (target[property] === undefined) {
 			value = source[property];
 		}
-		if (value !== void 0 && value !== null) {
+		if (value !== undefined && value !== null) {
 			target[property] = value;
 		}
 	}
@@ -597,8 +597,8 @@ function _fillDefaults<T>(this: void, target: T, defaults: T, properties: MetaDa
 	if (target && Object.isFrozen(target)) {
 		return target;
 	}
-	if (target === void 0 || target === null) {
-		if (defaults !== void 0 && defaults !== null) {
+	if (target === undefined || target === null) {
+		if (defaults !== undefined && defaults !== null) {
 			return Objects.deepClone(defaults);
 		} else {
 			return undefined;
@@ -606,7 +606,7 @@ function _fillDefaults<T>(this: void, target: T, defaults: T, properties: MetaDa
 	}
 	for (let meta of properties) {
 		let property = meta.property;
-		if (target[property] !== void 0) {
+		if (target[property] !== undefined) {
 			continue;
 		}
 		let value: any;
@@ -616,7 +616,7 @@ function _fillDefaults<T>(this: void, target: T, defaults: T, properties: MetaDa
 			value = defaults[property];
 		}
 
-		if (value !== void 0 && value !== null) {
+		if (value !== undefined && value !== null) {
 			target[property] = value;
 		}
 	}
@@ -624,7 +624,7 @@ function _fillDefaults<T>(this: void, target: T, defaults: T, properties: MetaDa
 }
 
 function _freeze<T>(this: void, target: T, properties: MetaData<T, any>[]): Readonly<T> | undefined {
-	if (target === void 0 || target === null) {
+	if (target === undefined || target === null) {
 		return undefined;
 	}
 	if (Object.isFrozen(target)) {
@@ -692,13 +692,13 @@ namespace ShellConfiguration {
 			return undefined;
 		}
 		let result: ShellConfiguration = {};
-		if (config.executable !== void 0) {
+		if (config.executable !== undefined) {
 			result.executable = config.executable;
 		}
-		if (config.args !== void 0) {
+		if (config.args !== undefined) {
 			result.args = config.args.slice();
 		}
-		if (config.quoting !== void 0) {
+		if (config.quoting !== undefined) {
 			result.quoting = Objects.deepClone(config.quoting);
 		}
 
@@ -736,14 +736,14 @@ namespace CommandOptions {
 
 	export function from(this: void, options: CommandOptionsConfig, context: ParseContext): Tasks.CommandOptions | undefined {
 		let result: Tasks.CommandOptions = {};
-		if (options.cwd !== void 0) {
+		if (options.cwd !== undefined) {
 			if (Types.isString(options.cwd)) {
 				result.cwd = options.cwd;
 			} else {
 				context.taskLoadIssues.push(nls.localize('ConfigurationParser.invalidCWD', 'Warning: options.cwd must be of type string. Ignoring value {0}\n', options.cwd));
 			}
 		}
-		if (options.env !== void 0) {
+		if (options.env !== undefined) {
 			result.env = Objects.deepClone(options.env);
 		}
 		result.shell = ShellConfiguration.from(options.shell, context);
@@ -755,21 +755,21 @@ namespace CommandOptions {
 	}
 
 	export function assignProperties(target: Tasks.CommandOptions | undefined, source: Tasks.CommandOptions | undefined): Tasks.CommandOptions | undefined {
-		if ((source === void 0) || isEmpty(source)) {
+		if ((source === undefined) || isEmpty(source)) {
 			return target;
 		}
-		if ((target === void 0) || isEmpty(target)) {
+		if ((target === undefined) || isEmpty(target)) {
 			return source;
 		}
 		assignProperty(target, source, 'cwd');
-		if (target.env === void 0) {
+		if (target.env === undefined) {
 			target.env = source.env;
-		} else if (source.env !== void 0) {
+		} else if (source.env !== undefined) {
 			let env: { [key: string]: string; } = Object.create(null);
-			if (target.env !== void 0) {
+			if (target.env !== undefined) {
 				Object.keys(target.env).forEach(key => env[key] = target.env![key]);
 			}
-			if (source.env !== void 0) {
+			if (source.env !== undefined) {
 				Object.keys(source.env).forEach(key => env[key] = source.env![key]);
 			}
 			target.env = env;
@@ -868,7 +868,7 @@ namespace CommandConfiguration {
 
 	namespace ShellString {
 		export function from(this: void, value: CommandString | undefined): Tasks.CommandString | undefined {
-			if (value === void 0 || value === null) {
+			if (value === undefined || value === null) {
 				return undefined;
 			}
 			if (Types.isString(value)) {
@@ -933,7 +933,7 @@ namespace CommandConfiguration {
 		let isShellConfiguration = ShellConfiguration.is(config.isShellCommand);
 		if (Types.isBoolean(config.isShellCommand) || isShellConfiguration) {
 			runtime = Tasks.RuntimeType.Shell;
-		} else if (config.isShellCommand !== void 0) {
+		} else if (config.isShellCommand !== undefined) {
 			runtime = !!config.isShellCommand ? Tasks.RuntimeType.Shell : Tasks.RuntimeType.Process;
 		}
 
@@ -943,11 +943,11 @@ namespace CommandConfiguration {
 			presentation: PresentationOptions.from(config, context)!
 		};
 
-		if (config.args !== void 0) {
+		if (config.args !== undefined) {
 			result.args = [];
 			for (let arg of config.args) {
 				let converted = ShellString.from(arg);
-				if (converted !== void 0) {
+				if (converted !== undefined) {
 					result.args.push(converted);
 				} else {
 					context.taskLoadIssues.push(
@@ -959,9 +959,9 @@ namespace CommandConfiguration {
 				}
 			}
 		}
-		if (config.options !== void 0) {
+		if (config.options !== undefined) {
 			result.options = CommandOptions.from(config.options, context);
-			if (result.options && result.options.shell === void 0 && isShellConfiguration) {
+			if (result.options && result.options.shell === undefined && isShellConfiguration) {
 				result.options.shell = ShellConfiguration.from(config.isShellCommand as ShellConfiguration, context);
 				if (context.engine !== Tasks.ExecutionEngine.Terminal) {
 					context.taskLoadIssues.push(nls.localize('ConfigurationParser.noShell', 'Warning: shell configuration is only supported when executing tasks in the terminal.'));
@@ -998,8 +998,8 @@ namespace CommandConfiguration {
 		assignProperty(target, source, 'runtime');
 		assignProperty(target, source, 'taskSelector');
 		assignProperty(target, source, 'suppressTaskName');
-		if (source.args !== void 0) {
-			if (target.args === void 0 || overwriteArgs) {
+		if (source.args !== undefined) {
+			if (target.args === undefined || overwriteArgs) {
 				target.args = source.args;
 			} else {
 				target.args = target.args.concat(source.args);
@@ -1023,13 +1023,13 @@ namespace CommandConfiguration {
 			runtime: undefined,
 			presentation: undefined
 		};
-		if (target.name === void 0) {
+		if (target.name === undefined) {
 			fillProperty(target, source, 'name');
 			fillProperty(target, source, 'taskSelector');
 			fillProperty(target, source, 'suppressTaskName');
 			let args: Tasks.CommandString[] = source.args ? source.args.slice() : [];
 			if (!target.suppressTaskName && taskName) {
-				if (target.taskSelector !== void 0) {
+				if (target.taskSelector !== undefined) {
 					args.push(target.taskSelector + taskName);
 				} else {
 					args.push(taskName);
@@ -1052,17 +1052,17 @@ namespace CommandConfiguration {
 		if (!value || Object.isFrozen(value)) {
 			return;
 		}
-		if (value.name !== void 0 && value.runtime === void 0) {
+		if (value.name !== undefined && value.runtime === undefined) {
 			value.runtime = Tasks.RuntimeType.Process;
 		}
 		value.presentation = PresentationOptions.fillDefaults(value.presentation!, context)!;
 		if (!isEmpty(value)) {
 			value.options = CommandOptions.fillDefaults(value.options, context);
 		}
-		if (value.args === void 0) {
+		if (value.args === undefined) {
 			value.args = EMPTY_ARRAY;
 		}
-		if (value.suppressTaskName === void 0) {
+		if (value.suppressTaskName === undefined) {
 			value.suppressTaskName = false;
 		}
 	}
@@ -1093,7 +1093,7 @@ namespace ProblemMatcherConverter {
 
 	export function from(this: void, config: ProblemMatcherConfig.ProblemMatcherType | undefined, context: ParseContext): ProblemMatcher[] {
 		let result: ProblemMatcher[] = [];
-		if (config === void 0) {
+		if (config === undefined) {
 			return result;
 		}
 		let kind = getProblemMatcherKind(config);
@@ -1166,7 +1166,7 @@ const source: Partial<Tasks.TaskSource> = {
 
 namespace GroupKind {
 	export function from(this: void, external: string | GroupKind | undefined): [string, Tasks.GroupType] | undefined {
-		if (external === void 0) {
+		if (external === undefined) {
 			return undefined;
 		}
 		if (Types.isString(external)) {
@@ -1221,13 +1221,13 @@ namespace ConfigurationProperties {
 		if (Types.isString(external.identifier)) {
 			result.identifier = external.identifier;
 		}
-		if (external.isBackground !== void 0) {
+		if (external.isBackground !== undefined) {
 			result.isBackground = !!external.isBackground;
 		}
-		if (external.promptOnClose !== void 0) {
+		if (external.promptOnClose !== undefined) {
 			result.promptOnClose = !!external.promptOnClose;
 		}
-		if (external.group !== void 0) {
+		if (external.group !== undefined) {
 			if (Types.isString(external.group) && Tasks.TaskGroup.is(external.group)) {
 				result.group = external.group;
 				result.groupType = Tasks.GroupType.user;
@@ -1239,7 +1239,7 @@ namespace ConfigurationProperties {
 				}
 			}
 		}
-		if (external.dependsOn !== void 0) {
+		if (external.dependsOn !== undefined) {
 			if (Types.isArray(external.dependsOn)) {
 				result.dependsOn = external.dependsOn.reduce((dependencies: Tasks.TaskDependency[], item): Tasks.TaskDependency[] => {
 					const dependency = TaskDependency.from(item, context);
@@ -1253,10 +1253,10 @@ namespace ConfigurationProperties {
 				result.dependsOn = dependsOnValue ? [dependsOnValue] : undefined;
 			}
 		}
-		if (includeCommandOptions && (external.presentation !== void 0 || (external as LegacyCommandProperties).terminal !== void 0)) {
+		if (includeCommandOptions && (external.presentation !== undefined || (external as LegacyCommandProperties).terminal !== undefined)) {
 			result.presentation = CommandConfiguration.PresentationOptions.from(external, context);
 		}
-		if (includeCommandOptions && (external.options !== void 0)) {
+		if (includeCommandOptions && (external.options !== undefined)) {
 			result.options = CommandOptions.from(external.options, context);
 		}
 		if (external.problemMatcher) {
@@ -1316,7 +1316,7 @@ namespace ConfiguringTask {
 				identifier = external as Tasks.TaskIdentifier;
 			}
 		}
-		if (identifier === void 0) {
+		if (identifier === undefined) {
 			context.problemReporter.error(nls.localize(
 				'ConfigurationParser.missingType',
 				'Error: the task configuration \'{0}\' is missing the required property \'type\'. The task configuration will be ignored.', JSON.stringify(external, undefined, 0)
@@ -1324,7 +1324,7 @@ namespace ConfiguringTask {
 			return undefined;
 		}
 		let taskIdentifier: Tasks.KeyedTaskIdentifier | undefined = TaskDefinition.createTaskIdentifier(identifier, context.problemReporter);
-		if (taskIdentifier === void 0) {
+		if (taskIdentifier === undefined) {
 			context.problemReporter.error(nls.localize(
 				'ConfigurationParser.incorrectType',
 				'Error: the task configuration \'{0}\' is using an unknown type. The task configuration will be ignored.', JSON.stringify(external, undefined, 0)
@@ -1379,7 +1379,7 @@ namespace CustomTask {
 			return undefined;
 		}
 		let type = external.type;
-		if (type === void 0 || type === null) {
+		if (type === undefined || type === null) {
 			type = Tasks.CUSTOMIZED_TASK_TYPE;
 		}
 		if (type !== Tasks.CUSTOMIZED_TASK_TYPE && type !== 'shell' && type !== 'process') {
@@ -1415,10 +1415,10 @@ namespace CustomTask {
 		let supportLegacy: boolean = true; //context.schemaVersion === Tasks.JsonSchemaVersion.V2_0_0;
 		if (supportLegacy) {
 			let legacy: LegacyTaskProperties = external as LegacyTaskProperties;
-			if (result.configurationProperties.isBackground === void 0 && legacy.isWatching !== void 0) {
+			if (result.configurationProperties.isBackground === undefined && legacy.isWatching !== undefined) {
 				result.configurationProperties.isBackground = !!legacy.isWatching;
 			}
-			if (result.configurationProperties.group === void 0) {
+			if (result.configurationProperties.group === undefined) {
 				if (legacy.isBuildCommand === true) {
 					result.configurationProperties.group = Tasks.TaskGroup.Build;
 				} else if (legacy.isTestCommand === true) {
@@ -1430,7 +1430,7 @@ namespace CustomTask {
 		if (command) {
 			result.command = command;
 		}
-		if (external.command !== void 0) {
+		if (external.command !== undefined) {
 			// if the task has its own command then we suppress the
 			// task name by default.
 			command.suppressTaskName = true;
@@ -1441,31 +1441,31 @@ namespace CustomTask {
 	export function fillGlobals(task: Tasks.CustomTask, globals: Globals): void {
 		// We only merge a command from a global definition if there is no dependsOn
 		// or there is a dependsOn and a defined command.
-		if (CommandConfiguration.hasCommand(task.command) || task.configurationProperties.dependsOn === void 0) {
+		if (CommandConfiguration.hasCommand(task.command) || task.configurationProperties.dependsOn === undefined) {
 			task.command = CommandConfiguration.fillGlobals(task.command, globals.command, task.configurationProperties.name);
 		}
-		if (task.configurationProperties.problemMatchers === void 0 && globals.problemMatcher !== void 0) {
+		if (task.configurationProperties.problemMatchers === undefined && globals.problemMatcher !== undefined) {
 			task.configurationProperties.problemMatchers = Objects.deepClone(globals.problemMatcher);
 			task.hasDefinedMatchers = true;
 		}
 		// promptOnClose is inferred from isBackground if available
-		if (task.configurationProperties.promptOnClose === void 0 && task.configurationProperties.isBackground === void 0 && globals.promptOnClose !== void 0) {
+		if (task.configurationProperties.promptOnClose === undefined && task.configurationProperties.isBackground === undefined && globals.promptOnClose !== undefined) {
 			task.configurationProperties.promptOnClose = globals.promptOnClose;
 		}
 	}
 
 	export function fillDefaults(task: Tasks.CustomTask, context: ParseContext): void {
 		CommandConfiguration.fillDefaults(task.command, context);
-		if (task.configurationProperties.promptOnClose === void 0) {
-			task.configurationProperties.promptOnClose = task.configurationProperties.isBackground !== void 0 ? !task.configurationProperties.isBackground : true;
+		if (task.configurationProperties.promptOnClose === undefined) {
+			task.configurationProperties.promptOnClose = task.configurationProperties.isBackground !== undefined ? !task.configurationProperties.isBackground : true;
 		}
-		if (task.configurationProperties.isBackground === void 0) {
+		if (task.configurationProperties.isBackground === undefined) {
 			task.configurationProperties.isBackground = false;
 		}
-		if (task.configurationProperties.problemMatchers === void 0) {
+		if (task.configurationProperties.problemMatchers === undefined) {
 			task.configurationProperties.problemMatchers = EMPTY_ARRAY;
 		}
-		if (task.configurationProperties.group !== void 0 && task.configurationProperties.groupType === void 0) {
+		if (task.configurationProperties.group !== undefined && task.configurationProperties.groupType === undefined) {
 			task.configurationProperties.groupType = Tasks.GroupType.user;
 		}
 	}
@@ -1526,7 +1526,7 @@ namespace TaskParser {
 	function isCustomTask(value: CustomTask | ConfiguringTask): value is CustomTask {
 		let type = value.type;
 		let customize = (value as any).customize;
-		return customize === void 0 && (type === void 0 || type === null || type === Tasks.CUSTOMIZED_TASK_TYPE || type === 'shell' || type === 'process');
+		return customize === undefined && (type === undefined || type === null || type === Tasks.CUSTOMIZED_TASK_TYPE || type === 'shell' || type === 'process');
 	}
 
 	export function from(this: void, externals: Array<CustomTask | ConfiguringTask> | undefined, globals: Globals, context: ParseContext): TaskParseResult {
@@ -1546,7 +1546,7 @@ namespace TaskParser {
 					CustomTask.fillGlobals(customTask, globals);
 					CustomTask.fillDefaults(customTask, context);
 					if (schema2_0_0) {
-						if ((customTask.command === void 0 || customTask.command.name === void 0) && (customTask.configurationProperties.dependsOn === void 0 || customTask.configurationProperties.dependsOn.length === 0)) {
+						if ((customTask.command === undefined || customTask.command.name === undefined) && (customTask.configurationProperties.dependsOn === undefined || customTask.configurationProperties.dependsOn.length === 0)) {
 							context.problemReporter.error(nls.localize(
 								'taskConfiguration.noCommandOrDependsOn', 'Error: the task \'{0}\' neither specifies a command nor a dependsOn property. The task will be ignored. Its definition is:\n{1}',
 								customTask.configurationProperties.name, JSON.stringify(external, undefined, 4)
@@ -1554,7 +1554,7 @@ namespace TaskParser {
 							continue;
 						}
 					} else {
-						if (customTask.command === void 0 || customTask.command.name === void 0) {
+						if (customTask.command === undefined || customTask.command.name === undefined) {
 							context.problemReporter.warn(nls.localize(
 								'taskConfiguration.noCommand', 'Error: the task \'{0}\' doesn\'t define a command. The task will be ignored. Its definition is:\n{1}',
 								customTask.configurationProperties.name, JSON.stringify(external, undefined, 4)
@@ -1599,10 +1599,10 @@ namespace TaskParser {
 	}
 
 	export function assignTasks(target: Tasks.CustomTask[], source: Tasks.CustomTask[]): Tasks.CustomTask[] {
-		if (source === void 0 || source.length === 0) {
+		if (source === undefined || source.length === 0) {
 			return target;
 		}
-		if (target === void 0 || target.length === 0) {
+		if (target === undefined || target.length === 0) {
 			return source;
 		}
 
@@ -1661,10 +1661,10 @@ namespace Globals {
 
 	export function fromBase(this: void, config: BaseTaskRunnerConfiguration, context: ParseContext): Globals {
 		let result: Globals = {};
-		if (config.suppressTaskName !== void 0) {
+		if (config.suppressTaskName !== undefined) {
 			result.suppressTaskName = !!config.suppressTaskName;
 		}
-		if (config.promptOnClose !== void 0) {
+		if (config.promptOnClose !== undefined) {
 			result.promptOnClose = !!config.promptOnClose;
 		}
 		if (config.problemMatcher) {
@@ -1674,7 +1674,7 @@ namespace Globals {
 	}
 
 	export function isEmpty(value: Globals): boolean {
-		return !value || value.command === void 0 && value.promptOnClose === void 0 && value.suppressTaskName === void 0;
+		return !value || value.command === undefined && value.promptOnClose === undefined && value.suppressTaskName === undefined;
 	}
 
 	export function assignProperties(target: Globals, source: Globals): Globals {
@@ -1694,10 +1694,10 @@ namespace Globals {
 			return;
 		}
 		CommandConfiguration.fillDefaults(value.command, context);
-		if (value.suppressTaskName === void 0) {
+		if (value.suppressTaskName === undefined) {
 			value.suppressTaskName = false;
 		}
-		if (value.promptOnClose === void 0) {
+		if (value.promptOnClose === undefined) {
 			value.promptOnClose = true;
 		}
 	}
@@ -1793,7 +1793,7 @@ class UUIDMap {
 	public getUUID(identifier: string): string {
 		let lastValue = this.last ? this.last[identifier] : undefined;
 		let result: string | undefined = undefined;
-		if (lastValue !== void 0) {
+		if (lastValue !== undefined) {
 			if (Array.isArray(lastValue)) {
 				result = lastValue.shift();
 				if (lastValue.length === 0) {
@@ -1804,11 +1804,11 @@ class UUIDMap {
 				delete this.last![identifier];
 			}
 		}
-		if (result === void 0) {
+		if (result === undefined) {
 			result = UUID.generateUuid();
 		}
 		let currentValue = this.current[identifier];
-		if (currentValue === void 0) {
+		if (currentValue === undefined) {
 			this.current[identifier] = result;
 		} else {
 			if (Array.isArray(currentValue)) {

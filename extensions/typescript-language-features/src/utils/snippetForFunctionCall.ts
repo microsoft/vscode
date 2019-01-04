@@ -16,7 +16,8 @@ export function snippetForFunctionCall(
 	}
 
 	const parameterListParts = getParameterListParts(displayParts);
-	const snippet = new vscode.SnippetString(`${item.insertText || item.label}(`);
+	const snippet = new vscode.SnippetString();
+	snippet.appendText(`${item.insertText || item.label}(`);
 	appendJoinedPlaceholders(snippet, parameterListParts.parts, ', ');
 	if (parameterListParts.hasOptionalParameters) {
 		snippet.appendTabstop();

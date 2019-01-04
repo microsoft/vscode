@@ -155,7 +155,7 @@ export function sanitizeRanges(rangeData: IFoldingRangeData[], limit: number): F
 	});
 	let collector = new RangesCollector(limit);
 
-	let top: IFoldingRangeData | undefined = void 0;
+	let top: IFoldingRangeData | undefined = undefined;
 	let previous: IFoldingRangeData[] = [];
 	for (let entry of sorted) {
 		if (!top) {

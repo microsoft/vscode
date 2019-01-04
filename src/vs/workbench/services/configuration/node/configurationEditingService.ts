@@ -441,8 +441,7 @@ export class ConfigurationEditingService {
 		// Check for standalone workspace configurations
 		if (config.key) {
 			const standaloneConfigurationKeys = Object.keys(WORKSPACE_STANDALONE_CONFIGURATIONS);
-			for (let i = 0; i < standaloneConfigurationKeys.length; i++) {
-				const key = standaloneConfigurationKeys[i];
+			for (const key of standaloneConfigurationKeys) {
 				const resource = this.getConfigurationFileResource(target, WORKSPACE_STANDALONE_CONFIGURATIONS[key], overrides.resource);
 
 				// Check for prefix

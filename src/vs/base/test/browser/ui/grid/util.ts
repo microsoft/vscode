@@ -9,20 +9,20 @@ import { IView, GridNode, isGridBranchNode, } from 'vs/base/browser/ui/grid/grid
 
 export class TestView implements IView {
 
-	private _onDidChange = new Emitter<{ width: number; height: number; }>();
+	private _onDidChange = new Emitter<{ width: number; height: number; } | undefined>();
 	readonly onDidChange = this._onDidChange.event;
 
 	get minimumWidth(): number { return this._minimumWidth; }
-	set minimumWidth(size: number) { this._minimumWidth = size; this._onDidChange.fire(); }
+	set minimumWidth(size: number) { this._minimumWidth = size; this._onDidChange.fire(undefined); }
 
 	get maximumWidth(): number { return this._maximumWidth; }
-	set maximumWidth(size: number) { this._maximumWidth = size; this._onDidChange.fire(); }
+	set maximumWidth(size: number) { this._maximumWidth = size; this._onDidChange.fire(undefined); }
 
 	get minimumHeight(): number { return this._minimumHeight; }
-	set minimumHeight(size: number) { this._minimumHeight = size; this._onDidChange.fire(); }
+	set minimumHeight(size: number) { this._minimumHeight = size; this._onDidChange.fire(undefined); }
 
 	get maximumHeight(): number { return this._maximumHeight; }
-	set maximumHeight(size: number) { this._maximumHeight = size; this._onDidChange.fire(); }
+	set maximumHeight(size: number) { this._maximumHeight = size; this._onDidChange.fire(undefined); }
 
 	private _element: HTMLElement = document.createElement('div');
 	get element(): HTMLElement { this._onDidGetElement.fire(); return this._element; }

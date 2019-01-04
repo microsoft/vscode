@@ -85,7 +85,7 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 	public static promptForPermission(taskService: ITaskService, storageService: IStorageService, notificationService: INotificationService,
 		workspaceTaskResult: Map<string, WorkspaceFolderTaskResult>) {
 		const isFolderAutomaticAllowed = storageService.getBoolean(ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE, StorageScope.WORKSPACE, undefined);
-		if (isFolderAutomaticAllowed !== void 0) {
+		if (isFolderAutomaticAllowed !== undefined) {
 			return;
 		}
 
@@ -145,7 +145,7 @@ export class AllowAutomaticTaskRunning extends Action {
 
 	public run(event?: any): Promise<any> {
 		this.storageService.store(ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE, true, StorageScope.WORKSPACE);
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -163,6 +163,6 @@ export class DisallowAutomaticTaskRunning extends Action {
 
 	public run(event?: any): Promise<any> {
 		this.storageService.store(ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE, false, StorageScope.WORKSPACE);
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 }

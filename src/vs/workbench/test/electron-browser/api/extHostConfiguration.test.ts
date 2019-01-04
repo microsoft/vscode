@@ -23,7 +23,7 @@ suite('ExtHostConfiguration', function () {
 		lastArgs: [ConfigurationTarget, string, any];
 		$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any): Promise<void> {
 			this.lastArgs = [target, key, value];
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 	}
 

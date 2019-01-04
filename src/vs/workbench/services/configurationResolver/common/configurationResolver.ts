@@ -39,15 +39,26 @@ export interface IConfigurationResolverService {
 	resolveWithInteraction(folder: IWorkspaceFolder, config: any, section?: string, variables?: IStringDictionary<string>): Promise<Map<string, string>>;
 }
 
-export const enum ConfiguredInputType {
-	PromptString,
-	PickString
-}
-
-export interface ConfiguredInput {
+export interface PromptStringInputInfo {
 	id: string;
+	type: 'promptString';
 	description: string;
 	default?: string;
-	type: ConfiguredInputType;
-	options?: string[];
 }
+
+export interface PickStringInputInfo {
+	id: string;
+	type: 'pickString';
+	description: string;
+	options: string[];
+	default?: string;
+}
+
+export interface CommandInputInfo {
+	id: string;
+	type: 'command';
+	command: string;
+	args?: any;
+}
+
+export type ConfiguredInput = PromptStringInputInfo | PickStringInputInfo | CommandInputInfo;

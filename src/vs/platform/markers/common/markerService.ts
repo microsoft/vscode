@@ -336,7 +336,7 @@ export class MarkerService implements IMarkerService {
 	}
 
 	private static _accept(marker: IMarker, severities?: number): boolean {
-		return severities === void 0 || (severities & marker.severity) === marker.severity;
+		return severities === undefined || (severities & marker.severity) === marker.severity;
 	}
 
 	// --- event debounce logic
@@ -349,7 +349,7 @@ export class MarkerService implements IMarkerService {
 			last = [];
 		}
 		for (const uri of event) {
-			if (MarkerService._dedupeMap[uri.toString()] === void 0) {
+			if (MarkerService._dedupeMap[uri.toString()] === undefined) {
 				MarkerService._dedupeMap[uri.toString()] = true;
 				last.push(uri);
 			}

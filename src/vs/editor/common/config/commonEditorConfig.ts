@@ -432,7 +432,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.fastScrollSensitivity': {
 			'type': 'number',
 			'default': EDITOR_DEFAULTS.viewInfo.scrollbar.fastScrollSensitivity,
-			'markdownDescription': nls.localize('fastScrollSensitivity', "Scrolling speed mulitiplier when pressing `Alt`")
+			'markdownDescription': nls.localize('fastScrollSensitivity', "Scrolling speed mulitiplier when pressing `Alt`.")
 		},
 		'editor.multiCursorModifier': {
 			'type': 'string',
@@ -657,7 +657,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.selectionHighlight': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.selectionHighlight,
-			'description': nls.localize('selectionHighlight', "Controls whether the editor should highlight matches similar to the selection")
+			'description': nls.localize('selectionHighlight', "Controls whether the editor should highlight matches similar to the selection.")
 		},
 		'editor.occurrencesHighlight': {
 			'type': 'boolean',
@@ -752,12 +752,12 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.codeLens': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.codeLens,
-			'description': nls.localize('codeLens', "Controls whether the editor shows CodeLens")
+			'description': nls.localize('codeLens', "Controls whether the editor shows CodeLens.")
 		},
 		'editor.folding': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.folding,
-			'description': nls.localize('folding', "Controls whether the editor has code folding enabled")
+			'description': nls.localize('folding', "Controls whether the editor has code folding enabled.")
 		},
 		'editor.foldingStrategy': {
 			'type': 'string',

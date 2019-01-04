@@ -125,7 +125,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 	}
 
 	private getFileEventsExcludes(root?: URI): glob.IExpression {
-		const scope = root ? { resource: root } : void 0;
+		const scope = root ? { resource: root } : undefined;
 		const configuration = this.configurationService.getValue<IFilesConfiguration>(scope);
 
 		return (configuration && configuration.files && configuration.files.exclude) || Object.create(null);
@@ -255,7 +255,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		// Handle closed or untitled file (convince explorer to not reopen any file when getting visible)
 		const activeInput = this.editorService.activeEditor;
 		if (!activeInput || toResource(activeInput, { supportSideBySide: true, filter: Schemas.untitled })) {
-			this.viewState[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE] = void 0;
+			this.viewState[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE] = undefined;
 			clearFocus = true;
 		}
 
@@ -640,9 +640,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 
 			// Check added: Refresh if added file/folder is not part of resolved root and parent is part of it
 			const ignoredPaths: { [resource: string]: boolean } = <{ [resource: string]: boolean }>{};
-			for (let i = 0; i < added.length; i++) {
-				const change = added[i];
-
+			for (const change of added) {
 				// Find parent
 				const parent = resources.dirname(change.resource);
 
@@ -669,9 +667,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		if (deleted.length) {
 
 			// Check deleted: Refresh if deleted file/folder part of resolved root
-			for (let j = 0; j < deleted.length; j++) {
-				const del = deleted[j];
-
+			for (const del of deleted) {
 				if (this.model.findClosest(del.resource)) {
 					return true;
 				}
@@ -683,9 +679,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			const updated = e.getUpdated();
 
 			// Check updated: Refresh if updated file/folder part of resolved root
-			for (let j = 0; j < updated.length; j++) {
-				const upd = updated[j];
-
+			for (const upd of updated) {
 				if (this.model.findClosest(upd.resource)) {
 					return true;
 				}
@@ -738,7 +732,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 	 */
 	public refresh(): Promise<void> {
 		if (!this.explorerViewer || this.explorerViewer.getHighlight()) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		// Focus
@@ -761,7 +755,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 				return this.select(resourceToFocus, true);
 			}
 
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		});
 	}
 
@@ -927,18 +921,18 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 
 		// Require valid path
 		if (!resource) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		// If path already selected, just reveal and return
 		const selection = this.hasSingleSelection(resource);
 		if (selection) {
-			return reveal ? this.reveal(selection, 0.5) : Promise.resolve(void 0);
+			return reveal ? this.reveal(selection, 0.5) : Promise.resolve(undefined);
 		}
 
 		// First try to get the stat object from the input to avoid a roundtrip
 		if (!this.isCreated) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		const fileStat = this.model.findClosest(resource);
@@ -973,7 +967,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 
 	private doSelect(fileStat: ExplorerItem, reveal: boolean): Promise<void> {
 		if (!fileStat) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		// Special case: we are asked to reveal and select an element that is not visible
@@ -981,7 +975,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		if (!this.filter.isVisible(this.tree, fileStat)) {
 			fileStat = fileStat.parent;
 			if (!fileStat) {
-				return Promise.resolve(void 0);
+				return Promise.resolve(undefined);
 			}
 		}
 
@@ -990,7 +984,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		if (reveal) {
 			revealPromise = this.reveal(fileStat, 0.5);
 		} else {
-			revealPromise = Promise.resolve(void 0);
+			revealPromise = Promise.resolve(undefined);
 		}
 
 		return revealPromise.then(() => {
@@ -1004,7 +998,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 
 	private reveal(element: any, relativeTop?: number): Promise<void> {
 		if (!this.tree) {
-			return Promise.resolve(void 0); // return early if viewlet has not yet been created
+			return Promise.resolve(undefined); // return early if viewlet has not yet been created
 		}
 		return this.tree.reveal(element, relativeTop);
 	}

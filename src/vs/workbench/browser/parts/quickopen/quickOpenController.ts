@@ -155,9 +155,9 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	}
 
 	show(prefix?: string, options?: IShowOptions): Promise<void> {
-		let quickNavigateConfiguration = options ? options.quickNavigateConfiguration : void 0;
-		let inputSelection = options ? options.inputSelection : void 0;
-		let autoFocus = options ? options.autoFocus : void 0;
+		let quickNavigateConfiguration = options ? options.quickNavigateConfiguration : undefined;
+		let inputSelection = options ? options.inputSelection : undefined;
+		let autoFocus = options ? options.autoFocus : undefined;
 
 		const promiseCompletedOnHide = new Promise<void>(c => {
 			this.promisesToCompleteOnHide.push(c);
@@ -490,8 +490,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		// Remove results already showing by checking for a "resource" property
 		const mapEntryToResource = this.mapEntriesToResource(quickOpenModel);
 		const additionalHandlerResults: QuickOpenEntry[] = [];
-		for (let i = 0; i < handlerResults.length; i++) {
-			const result = handlerResults[i];
+		for (const result of handlerResults) {
 			const resource = result.getResource();
 
 			if (!result.mergeWithEditorHistory() || !resource || !mapEntryToResource[resource.toString()]) {
@@ -529,7 +528,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 				const model = new QuickOpenModel([new PlaceholderQuickOpenEntry(placeHolderLabel)], this.actionProvider);
 				this.showModel(model, resolvedHandler.getAutoFocus(value, { model, quickNavigateConfiguration: this.quickOpenWidget.getQuickNavigateConfiguration() }), resolvedHandler.getAriaLabel());
 
-				return Promise.resolve(void 0);
+				return Promise.resolve(undefined);
 			}
 
 			// Support extra class from handler
@@ -709,7 +708,7 @@ class EditorHistoryItemAccessorClass extends QuickOpenItemAccessorClass {
 	}
 
 	getItemDescription(entry: QuickOpenEntry): string {
-		return this.allowMatchOnDescription ? entry.getDescription() : void 0;
+		return this.allowMatchOnDescription ? entry.getDescription() : undefined;
 	}
 }
 
@@ -808,7 +807,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 }
 
 function resourceForEditorHistory(input: EditorInput, fileService: IFileService): URI {
-	const resource = input ? input.getResource() : void 0;
+	const resource = input ? input.getResource() : undefined;
 
 	// For the editor history we only prefer resources that are either untitled or
 	// can be handled by the file service which indicates they are editable resources.
@@ -816,7 +815,7 @@ function resourceForEditorHistory(input: EditorInput, fileService: IFileService)
 		return resource;
 	}
 
-	return void 0;
+	return undefined;
 }
 
 export class RemoveFromEditorHistoryAction extends Action {

@@ -120,7 +120,7 @@ export class TextFileEditor extends BaseTextEditor {
 
 				// Check for cancellation
 				if (token.isCancellationRequested) {
-					return void 0;
+					return undefined;
 				}
 
 				// There is a special case where the text editor has to handle binary file editor input: if a binary file

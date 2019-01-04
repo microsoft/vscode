@@ -219,7 +219,7 @@ export class Expression extends ExpressionContainer implements IExpression {
 			this.available = false;
 			this.reference = 0;
 
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		this.session = session;
@@ -427,7 +427,7 @@ export class Thread implements IThread {
 	 */
 	fetchCallStack(levels = 20): Promise<void> {
 		if (!this.stopped) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		const start = this.callStack.length;
@@ -644,6 +644,13 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 		return data ? data.endColumn : undefined;
 	}
 
+	setSessionData(sessionId: string, data: DebugProtocol.Breakpoint): void {
+		super.setSessionData(sessionId, data);
+		if (!this._adapterData) {
+			this._adapterData = this.adapterData;
+		}
+	}
+
 	toJSON(): any {
 		const result = super.toJSON();
 		result.uri = this.uri;
@@ -737,7 +744,7 @@ export class DebugModel implements IDebugModel {
 	private schedulers = new Map<string, RunOnceScheduler>();
 	private breakpointsSessionId: string;
 	private readonly _onDidChangeBreakpoints: Emitter<IBreakpointsChangeEvent>;
-	private readonly _onDidChangeCallStack: Emitter<void>;
+	private readonly _onDidChangeCallStack: Emitter<IThread | undefined>;
 	private readonly _onDidChangeWatchExpressions: Emitter<IExpression>;
 
 	constructor(
@@ -751,7 +758,7 @@ export class DebugModel implements IDebugModel {
 		this.sessions = [];
 		this.toDispose = [];
 		this._onDidChangeBreakpoints = new Emitter<IBreakpointsChangeEvent>();
-		this._onDidChangeCallStack = new Emitter<void>();
+		this._onDidChangeCallStack = new Emitter<IThread | undefined>();
 		this._onDidChangeWatchExpressions = new Emitter<IExpression>();
 	}
 
@@ -779,14 +786,14 @@ export class DebugModel implements IDebugModel {
 			return true;
 		});
 		this.sessions.push(session);
-		this._onDidChangeCallStack.fire();
+		this._onDidChangeCallStack.fire(undefined);
 	}
 
 	get onDidChangeBreakpoints(): Event<IBreakpointsChangeEvent> {
 		return this._onDidChangeBreakpoints.event;
 	}
 
-	get onDidChangeCallStack(): Event<void> {
+	get onDidChangeCallStack(): Event<IThread | undefined> {
 		return this._onDidChangeCallStack.event;
 	}
 
@@ -798,7 +805,7 @@ export class DebugModel implements IDebugModel {
 		let session = this.sessions.filter(p => p.getId() === data.sessionId).pop();
 		if (session) {
 			session.rawUpdate(data);
-			this._onDidChangeCallStack.fire();
+			this._onDidChangeCallStack.fire(undefined);
 		}
 	}
 
@@ -809,7 +816,7 @@ export class DebugModel implements IDebugModel {
 
 		if (session) {
 			session.clearThreads(removeThreads, reference);
-			this._onDidChangeCallStack.fire();
+			this._onDidChangeCallStack.fire(undefined);
 		}
 	}
 
@@ -819,12 +826,12 @@ export class DebugModel implements IDebugModel {
 			return thread.fetchCallStack(1).then(() => {
 				if (!this.schedulers.has(thread.getId())) {
 					this.schedulers.set(thread.getId(), new RunOnceScheduler(() => {
-						thread.fetchCallStack(19).then(() => this._onDidChangeCallStack.fire());
+						thread.fetchCallStack(19).then(() => this._onDidChangeCallStack.fire(thread));
 					}, 420));
 				}
 
 				this.schedulers.get(thread.getId()).schedule();
-				this._onDidChangeCallStack.fire();
+				this._onDidChangeCallStack.fire(thread);
 			});
 		}
 
@@ -874,7 +881,7 @@ export class DebugModel implements IDebugModel {
 				const ebp = this.exceptionBreakpoints.filter(ebp => ebp.filter === d.filter).pop();
 				return new ExceptionBreakpoint(d.filter, d.label, ebp ? ebp.enabled : d.default);
 			});
-			this._onDidChangeBreakpoints.fire();
+			this._onDidChangeBreakpoints.fire(undefined);
 		}
 	}
 
@@ -884,7 +891,7 @@ export class DebugModel implements IDebugModel {
 
 	setBreakpointsActivated(activated: boolean): void {
 		this.breakpointsActivated = activated;
-		this._onDidChangeBreakpoints.fire();
+		this._onDidChangeBreakpoints.fire(undefined);
 	}
 
 	addBreakpoints(uri: uri, rawData: IBreakpointData[], fireEvent = true): IBreakpoint[] {
@@ -1045,7 +1052,7 @@ export class DebugModel implements IDebugModel {
 
 	removeWatchExpressions(id: string | null = null): void {
 		this.watchExpressions = id ? this.watchExpressions.filter(we => we.getId() !== id) : [];
-		this._onDidChangeWatchExpressions.fire();
+		this._onDidChangeWatchExpressions.fire(undefined);
 	}
 
 	moveWatchExpression(id: string, position: number): void {
@@ -1053,7 +1060,7 @@ export class DebugModel implements IDebugModel {
 		this.watchExpressions = this.watchExpressions.filter(we => we.getId() !== id);
 		this.watchExpressions = this.watchExpressions.slice(0, position).concat(we, this.watchExpressions.slice(position));
 
-		this._onDidChangeWatchExpressions.fire();
+		this._onDidChangeWatchExpressions.fire(undefined);
 	}
 
 	sourceIsNotAvailable(uri: uri): void {
@@ -1063,7 +1070,7 @@ export class DebugModel implements IDebugModel {
 				source.available = false;
 			}
 		});
-		this._onDidChangeCallStack.fire();
+		this._onDidChangeCallStack.fire(undefined);
 	}
 
 	dispose(): void {

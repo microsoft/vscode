@@ -59,7 +59,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	addEntry(entry: IStatusbarEntry, alignment: StatusbarAlignment, priority: number = 0): IDisposable {
 
 		// Render entry in status bar
-		const el = this.doCreateStatusItem(alignment, priority, entry.showBeak ? 'has-beak' : void 0);
+		const el = this.doCreateStatusItem(alignment, priority, entry.showBeak ? 'has-beak' : undefined);
 		const item = this.instantiationService.createInstance(StatusBarEntryItem, entry);
 		const toDispose = item.render(el);
 
@@ -67,8 +67,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		const container = this.statusItemsContainer;
 		const neighbours = this.getEntries(alignment);
 		let inserted = false;
-		for (let i = 0; i < neighbours.length; i++) {
-			const neighbour = neighbours[i];
+		for (const neighbour of neighbours) {
 			const nPriority = Number(neighbour.getAttribute(StatusbarPart.PRIORITY_PROP));
 			if (
 				alignment === StatusbarAlignment.LEFT && nPriority < priority ||

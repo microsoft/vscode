@@ -33,7 +33,7 @@ class ShowEmmetCommandsAction extends EditorAction {
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const quickOpenService = accessor.get(IQuickOpenService);
 		quickOpenService.show(EMMET_COMMANDS_PREFIX);
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 }
 

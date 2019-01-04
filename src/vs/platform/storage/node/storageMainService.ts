@@ -109,7 +109,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 		const loggedStorageErrors = new Set<string>();
 
 		return {
-			logTrace: (this.logService.getLevel() === LogLevel.Trace) ? msg => this.logService.trace(msg) : void 0,
+			logTrace: (this.logService.getLevel() === LogLevel.Trace) ? msg => this.logService.trace(msg) : undefined,
 			logError: error => {
 				this.logService.error(error);
 

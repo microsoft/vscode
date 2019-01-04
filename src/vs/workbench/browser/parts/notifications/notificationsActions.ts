@@ -171,7 +171,7 @@ export class NotificationActionRunner extends ActionRunner {
 		this.telemetryService.publicLog('workbenchActionExecuted', { id: action.id, from: 'message' });
 
 		// Run and make sure to notify on any error again
-		super.runAction(action, context).then(void 0, error => this.notificationService.error(error));
+		super.runAction(action, context).then(undefined, error => this.notificationService.error(error));
 
 		return Promise.resolve();
 	}

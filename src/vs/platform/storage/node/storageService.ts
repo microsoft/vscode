@@ -45,7 +45,7 @@ export class StorageService extends Disposable implements IStorageService {
 				}, 0);
 			}
 
-			this.bufferedWorkspaceStorageErrors = void 0;
+			this.bufferedWorkspaceStorageErrors = undefined;
 		}
 
 		return this._onWorkspaceStorageError.event;
@@ -77,7 +77,7 @@ export class StorageService extends Disposable implements IStorageService {
 		return Promise.all([
 			this.initializeGlobalStorage(),
 			this.initializeWorkspaceStorage(payload)
-		]).then(() => void 0);
+		]).then(() => undefined);
 	}
 
 	private initializeGlobalStorage(): Promise<void> {
@@ -100,14 +100,14 @@ export class StorageService extends Disposable implements IStorageService {
 
 			// Create workspace storage and initalize
 			mark('willInitWorkspaceStorage');
-			return this.createWorkspaceStorage(useInMemoryStorage ? SQLiteStorageDatabase.IN_MEMORY_PATH : join(result.path, StorageService.WORKSPACE_STORAGE_NAME), result.wasCreated ? StorageHint.STORAGE_DOES_NOT_EXIST : void 0).init().then(() => {
+			return this.createWorkspaceStorage(useInMemoryStorage ? SQLiteStorageDatabase.IN_MEMORY_PATH : join(result.path, StorageService.WORKSPACE_STORAGE_NAME), result.wasCreated ? StorageHint.STORAGE_DOES_NOT_EXIST : undefined).init().then(() => {
 				mark('didInitWorkspaceStorage');
 			}, error => {
 				mark('didInitWorkspaceStorage');
 
 				return Promise.reject(error);
 			});
-		}).then(void 0, error => {
+		}).then(undefined, error => {
 			onUnexpectedError(error);
 
 			// Upon error, fallback to in-memory storage
@@ -119,7 +119,7 @@ export class StorageService extends Disposable implements IStorageService {
 
 		// Logger for workspace storage
 		const workspaceLoggingOptions: ISQLiteStorageDatabaseLoggingOptions = {
-			logTrace: (this.logService.getLevel() === LogLevel.Trace) ? msg => this.logService.trace(msg) : void 0,
+			logTrace: (this.logService.getLevel() === LogLevel.Trace) ? msg => this.logService.trace(msg) : undefined,
 			logError: error => {
 				this.logService.error(error);
 
@@ -168,7 +168,7 @@ export class StorageService extends Disposable implements IStorageService {
 	}
 
 	private ensureWorkspaceStorageFolderMeta(payload: IWorkspaceInitializationPayload): void {
-		let meta: object | undefined = void 0;
+		let meta: object | undefined = undefined;
 		if (isSingleFolderWorkspaceInitializationPayload(payload)) {
 			meta = { folder: payload.folder.toString() };
 		} else if (isWorkspaceIdentifier(payload)) {
@@ -179,11 +179,11 @@ export class StorageService extends Disposable implements IStorageService {
 			const workspaceStorageMetaPath = join(this.getWorkspaceStorageFolderPath(payload), StorageService.WORKSPACE_META_NAME);
 			exists(workspaceStorageMetaPath).then(exists => {
 				if (exists) {
-					return void 0; // already existing
+					return undefined; // already existing
 				}
 
-				return writeFile(workspaceStorageMetaPath, JSON.stringify(meta, void 0, 2));
-			}).then(void 0, error => onUnexpectedError(error));
+				return writeFile(workspaceStorageMetaPath, JSON.stringify(meta, undefined, 2));
+			}).then(undefined, error => onUnexpectedError(error));
 		}
 	}
 

@@ -549,7 +549,7 @@ export class MarkersViewState extends Disposable {
 		});
 		this.bulkUpdate = false;
 		if (changed) {
-			this._onDidChangeViewState.fire();
+			this._onDidChangeViewState.fire(undefined);
 		}
 	}
 

@@ -639,8 +639,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 			};
 		}
 
-		for (let i = 0; i < visibleRanges.length; i++) {
-			let visibleRange = visibleRanges[i];
+		for (const visibleRange of visibleRanges) {
 			if (visibleRange.left < boxStartX) {
 				boxStartX = visibleRange.left;
 			}

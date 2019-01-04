@@ -19,12 +19,12 @@ class MyPart extends Part {
 
 	createTitleArea(parent: HTMLElement): HTMLElement {
 		assert.strictEqual(parent, this.expectedParent);
-		return super.createTitleArea(parent);
+		return super.createTitleArea(parent)!;
 	}
 
 	createContentArea(parent: HTMLElement): HTMLElement {
 		assert.strictEqual(parent, this.expectedParent);
-		return super.createContentArea(parent);
+		return super.createContentArea(parent)!;
 	}
 
 	getMemento(scope: StorageScope) {
@@ -68,7 +68,7 @@ class MyPart3 extends Part {
 	}
 
 	createTitleArea(parent: HTMLElement): HTMLElement {
-		return null;
+		return null!;
 	}
 
 	createContentArea(parent: HTMLElement): HTMLElement {
@@ -97,7 +97,7 @@ suite('Workbench parts', () => {
 
 	test('Creation', () => {
 		let b = document.createElement('div');
-		document.getElementById(fixtureId).appendChild(b);
+		document.getElementById(fixtureId)!.appendChild(b);
 		hide(b);
 
 		let part = new MyPart(b);
@@ -134,7 +134,7 @@ suite('Workbench parts', () => {
 
 	test('Part Layout with Title and Content', function () {
 		let b = document.createElement('div');
-		document.getElementById(fixtureId).appendChild(b);
+		document.getElementById(fixtureId)!.appendChild(b);
 		hide(b);
 
 		let part = new MyPart2();
@@ -146,7 +146,7 @@ suite('Workbench parts', () => {
 
 	test('Part Layout with Content only', function () {
 		let b = document.createElement('div');
-		document.getElementById(fixtureId).appendChild(b);
+		document.getElementById(fixtureId)!.appendChild(b);
 		hide(b);
 
 		let part = new MyPart3();

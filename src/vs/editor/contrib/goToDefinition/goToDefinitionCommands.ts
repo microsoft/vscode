@@ -59,7 +59,7 @@ export class DefinitionAction extends EditorAction {
 		const model = editor.getModel();
 		const pos = editor.getPosition();
 
-		const definitionPromise = this._getTargetLocationForPosition(model, pos, CancellationToken.None).then(references => {
+		const definitionPromise = this._getTargetLocationForPosition(model, pos, CancellationToken.None).then(async references => {
 
 			if (model.isDisposed() || editor.getModel() !== model) {
 				// new model, no more model
@@ -70,8 +70,7 @@ export class DefinitionAction extends EditorAction {
 			// * find reference at the current pos
 			let idxOfCurrent = -1;
 			const result: DefinitionLink[] = [];
-			for (let i = 0; i < references.length; i++) {
-				let reference = references[i];
+			for (const reference of references) {
 				if (!reference || !reference.range) {
 					continue;
 				}
@@ -98,11 +97,11 @@ export class DefinitionAction extends EditorAction {
 			} else if (result.length === 1 && idxOfCurrent !== -1) {
 				// only the position at which we are -> adjust selection
 				let [current] = result;
-				this._openReference(editor, editorService, current, false);
+				return this._openReference(editor, editorService, current, false).then(() => undefined);
 
 			} else {
 				// handle multile results
-				this._onResult(editorService, editor, new ReferencesModel(result));
+				return this._onResult(editorService, editor, new ReferencesModel(result));
 			}
 
 		}, (err) => {
@@ -128,7 +127,7 @@ export class DefinitionAction extends EditorAction {
 		return model.references.length > 1 && nls.localize('meta.title', " – {0} definitions", model.references.length);
 	}
 
-	private _onResult(editorService: ICodeEditorService, editor: ICodeEditor, model: ReferencesModel) {
+	private async _onResult(editorService: ICodeEditorService, editor: ICodeEditor, model: ReferencesModel): Promise<void> {
 
 		const msg = model.getAriaMessage();
 		alert(msg);
@@ -136,14 +135,13 @@ export class DefinitionAction extends EditorAction {
 		if (this._configuration.openInPeek) {
 			this._openInPeek(editorService, editor, model);
 		} else {
-			let next = model.nearestReference(editor.getModel().uri, editor.getPosition());
-			this._openReference(editor, editorService, next, this._configuration.openToSide).then(editor => {
-				if (editor && model.references.length > 1) {
-					this._openInPeek(editorService, editor, model);
-				} else {
-					model.dispose();
-				}
-			});
+			const next = model.nearestReference(editor.getModel().uri, editor.getPosition());
+			const targetEditor = await this._openReference(editor, editorService, next, this._configuration.openToSide);
+			if (targetEditor && model.references.length > 1) {
+				this._openInPeek(editorService, targetEditor, model);
+			} else {
+				model.dispose();
+			}
 		}
 	}
 
@@ -233,7 +231,7 @@ export class PeekDefinitionAction extends DefinitionAction {
 	static readonly id = 'editor.action.peekDefinition';
 
 	constructor() {
-		super(new DefinitionActionConfig(void 0, true, false), {
+		super(new DefinitionActionConfig(undefined, true, false), {
 			id: PeekDefinitionAction.id,
 			label: nls.localize('actions.previewDecl.label', "Peek Definition"),
 			alias: 'Peek Definition',
@@ -305,7 +303,7 @@ export class GoToDeclarationAction extends DeclarationAction {
 
 export class PeekDeclarationAction extends DeclarationAction {
 	constructor() {
-		super(new DefinitionActionConfig(void 0, true, false), {
+		super(new DefinitionActionConfig(undefined, true, false), {
 			id: 'editor.action.peekDeclaration',
 			label: nls.localize('actions.peekDecl.label', "Peek Declaration"),
 			alias: 'Peek Declaration',

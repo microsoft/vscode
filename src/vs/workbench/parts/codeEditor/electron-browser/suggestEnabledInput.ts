@@ -156,7 +156,7 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 			let content = this.getValue();
 			this.placeholderText.style.visibility = content ? 'hidden' : 'visible';
 			if (preexistingContent.trim() === content.trim()) { return; }
-			this._onInputDidChange.fire();
+			this._onInputDidChange.fire(undefined);
 			preexistingContent = content;
 		}));
 
