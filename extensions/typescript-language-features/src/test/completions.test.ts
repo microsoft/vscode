@@ -35,6 +35,23 @@ suite('TypeScript Completions', () => {
 			));
 	});
 
+	test('Should treat period as commit character for var completions', async () => {
+		await wait(100);
+
+		await createTestEditor(testDocumentUri,
+			`const abcdef = 123;`,
+			`ab$0;`
+		);
+
+		const document = await typeCommitCharacter(testDocumentUri, '.', _disposables);
+		assert.strictEqual(
+			document.getText(),
+			joinLines(
+				`const abcdef = 123;`,
+				`abcdef.;`
+			));
+	});
+
 	test('Should insert backets when completing dot properties with spaces in name', async () => {
 		await wait(100);
 
@@ -110,6 +127,15 @@ async function acceptFirstSuggestion(uri: vscode.Uri, _disposables: vscode.Dispo
 	return await didChangeDocument;
 }
 
+async function typeCommitCharacter(uri: vscode.Uri, character: string, _disposables: vscode.Disposable[]) {
+	const didChangeDocument = onChangedDocument(uri, _disposables);
+	const didSuggest = onDidSuggest(_disposables);
+	await vscode.commands.executeCommand('editor.action.triggerSuggest');
+	await didSuggest;
+	await vscode.commands.executeCommand('type', {text: character});
+	return await didChangeDocument;
+}
+
 function onChangedDocument(documentUri: vscode.Uri, disposables: vscode.Disposable[]) {
 	return new Promise<vscode.TextDocument>(resolve => vscode.workspace.onDidChangeTextDocument(e => {
 		if (e.document.uri.toString() === documentUri.toString()) {
@@ -142,7 +168,7 @@ function onDidSuggest(disposables: vscode.Disposable[]) {
 				}];
 			}
 			async resolveCompletionItem(item: vscode.CompletionItem) {
-				await vscode.commands.executeCommand('selectNextSuggestion')
+				await vscode.commands.executeCommand('selectNextSuggestion');
 				resolve();
 				return item;
 			}
