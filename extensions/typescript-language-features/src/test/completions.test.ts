@@ -52,6 +52,32 @@ suite('TypeScript Completions', () => {
 				'x.a'
 			));
 	});
+
+	test('Accepting a string completion should replace the entire string. #53962', async () => {
+		await wait(100);
+
+		await createTestEditor(testDocumentUri,
+			'interface TFunction {',
+			`  (_: 'abc.abc2', __ ?: {}): string;`,
+			`  (_: 'abc.abc', __?: {}): string;`,
+			`}`,
+			'const f: TFunction = (() => { }) as any;',
+			`f('abc.abc$0')`
+		);
+
+		const document = await acceptFirstSuggestion(testDocumentUri, _disposables);
+		assert.strictEqual(
+			document.getText(),
+			joinLines(
+				'interface TFunction {',
+				`  (_: 'abc.abc2', __ ?: {}): string;`,
+				`  (_: 'abc.abc', __?: {}): string;`,
+				`}`,
+				'const f: TFunction = (() => { }) as any;',
+				`f('abc.abc')`
+			));
+	});
+
 });
 
 const joinLines = (...args: string[]) => args.join('\n');
