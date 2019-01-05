@@ -69,6 +69,23 @@ suite('TypeScript Completions', () => {
 			));
 	});
 
+	test('Should allow period commit characters for backet completions', async () => {
+		await wait(100);
+
+		await createTestEditor(testDocumentUri,
+			'const x = { "hello world2": 1 };',
+			'x.$0'
+		);
+
+		const document = await typeCommitCharacter(testDocumentUri, '.', _disposables);
+		assert.strictEqual(
+			document.getText(),
+			joinLines(
+				'const x = { "hello world2": 1 };',
+				'x["hello world2"].'
+			));
+	});
+
 	test('Should not prioritize bracket accessor completions. #63100', async () => {
 		await wait(100);
 
@@ -132,7 +149,7 @@ async function typeCommitCharacter(uri: vscode.Uri, character: string, _disposab
 	const didSuggest = onDidSuggest(_disposables);
 	await vscode.commands.executeCommand('editor.action.triggerSuggest');
 	await didSuggest;
-	await vscode.commands.executeCommand('type', {text: character});
+	await vscode.commands.executeCommand('type', { text: character });
 	return await didChangeDocument;
 }
 
@@ -162,7 +179,10 @@ function onDidSuggest(disposables: vscode.Disposable[]) {
 				// Return a fake item that will come first
 				const range = new vscode.Range(new vscode.Position(position.line, 0), position);
 				return [{
-					label: doc.getText(range),
+					label: '🦄',
+					insertText: doc.getText(range),
+					filterText: doc.getText(range),
+					preselect: true,
 					sortText: '\0',
 					range: range
 				}];
