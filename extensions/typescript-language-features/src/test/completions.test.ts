@@ -13,14 +13,16 @@ const testDocumentUri = vscode.Uri.parse('untitled:test.ts');
 suite('TypeScript Completions', () => {
 	const _disposables: vscode.Disposable[] = [];
 
+	setup(() => {
+		return wait(100);
+	});
+
 	teardown(() => {
 		disposeAll(_disposables);
 		return vscode.commands.executeCommand('workbench.action.closeAllEditors');
 	});
 
 	test('Basic var completion', async () => {
-		await wait(100);
-
 		await createTestEditor(testDocumentUri,
 			`const abcdef = 123;`,
 			`ab$0;`
@@ -36,8 +38,6 @@ suite('TypeScript Completions', () => {
 	});
 
 	test('Should treat period as commit character for var completions', async () => {
-		await wait(100);
-
 		await createTestEditor(testDocumentUri,
 			`const abcdef = 123;`,
 			`ab$0;`
@@ -53,8 +53,6 @@ suite('TypeScript Completions', () => {
 	});
 
 	test('Should insert backets when completing dot properties with spaces in name', async () => {
-		await wait(100);
-
 		await createTestEditor(testDocumentUri,
 			'const x = { "hello world": 1 };',
 			'x.$0'
@@ -70,8 +68,6 @@ suite('TypeScript Completions', () => {
 	});
 
 	test('Should allow period commit characters for backet completions', async () => {
-		await wait(100);
-
 		await createTestEditor(testDocumentUri,
 			'const x = { "hello world2": 1 };',
 			'x.$0'
@@ -87,8 +83,6 @@ suite('TypeScript Completions', () => {
 	});
 
 	test('Should not prioritize bracket accessor completions. #63100', async () => {
-		await wait(100);
-
 		// 'a' should be first entry in completion list
 		await createTestEditor(testDocumentUri,
 			'const x = { "z-z": 1, a: 1 };',
@@ -105,8 +99,6 @@ suite('TypeScript Completions', () => {
 	});
 
 	test('Accepting a string completion should replace the entire string. #53962', async () => {
-		await wait(100);
-
 		await createTestEditor(testDocumentUri,
 			'interface TFunction {',
 			`  (_: 'abc.abc2', __ ?: {}): string;`,
