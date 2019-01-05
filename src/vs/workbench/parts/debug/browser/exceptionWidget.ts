@@ -80,22 +80,8 @@ export class ExceptionWidget extends ZoneWidget {
 		if (this.exceptionInfo.details && this.exceptionInfo.details.stackTrace) {
 			let stackTrace = $('.stack-trace');
 			const linkDetector = this.instantiationService.createInstance(LinkDetector);
-
-			const stackTraceContainer = document.createElement('span');
-
-			// Detect links one line at a time so we don't go over the detector's character limit
-			const lines = this.exceptionInfo.details.stackTrace.split('\n');
-			lines.forEach((line, index) => {
-				let linkedLine = linkDetector.handleLinks(line + '\n');
-				if (typeof linkedLine === 'string') {
-					const span = document.createElement('span');
-					span.textContent = linkedLine;
-					linkedLine = span;
-				}
-				stackTraceContainer.appendChild(linkedLine);
-			});
-
-			stackTrace.appendChild(stackTraceContainer);
+			const linkedStackTrace = linkDetector.handleLinks(this.exceptionInfo.details.stackTrace);
+			stackTrace.appendChild(linkedStackTrace);
 			dom.append(container, stackTrace);
 		}
 	}

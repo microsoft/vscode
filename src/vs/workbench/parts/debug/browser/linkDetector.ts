@@ -32,77 +32,92 @@ export class LinkDetector {
 	 * Matches and handles absolute file links in the string provided.
 	 * Returns <span/> element that wraps the processed string, where matched links are replaced by <a/> and unmatched parts are surrounded by <span/> elements.
 	 * 'onclick' event is attached to all anchored links that opens them in the editor.
-	 * If no links were detected, returns the original string.
+	 * If no links were detected, returns the original string wrapped in a <span>.
 	 */
-	handleLinks(text: string): HTMLElement | string {
-		let unalteredPostfix = '';
-		if (text.length > LinkDetector.MAX_LENGTH) {
-			// For performance, only handle the first MAX_LENGTH characters (without cutting off in the middle of a line)
-			const cutoffIndex = text.lastIndexOf('\n', LinkDetector.MAX_LENGTH) + 1;
-			unalteredPostfix = text.substr(cutoffIndex);
-			text = text.substr(0, cutoffIndex);
+	handleLinks(text: string): HTMLElement {
+		const container = document.createElement('span');
+
+		// Handle the text one line at a time
+		const lines = text.split('\n');
+
+		if (text.charAt(text.length - 1) === '\n') {
+			// Remove the last element ('') that split added
+			lines.pop();
 		}
 
-		let linkContainer: HTMLElement | undefined;
-		for (let pattern of LinkDetector.FILE_LOCATION_PATTERNS) {
-			pattern.lastIndex = 0; // the holy grail of software development
-			let lastMatchIndex = 0;
+		for (let i = 0; i < lines.length; i++) {
+			let line = lines[i];
 
-			let match = pattern.exec(text);
-			while (match !== null) {
-				let resource: uri | null = isAbsolute(match[1]) ? uri.file(match[1]) : null;
+			// Re-introduce the newline for every line except the last (unless the last line originally ended with a newline)
+			if (i < lines.length - 1 || text.charAt(text.length - 1) === '\n') {
+				line += '\n';
+			}
 
-				if (!resource) {
-					match = pattern.exec(text);
-					continue;
-				}
-				if (!linkContainer) {
-					linkContainer = document.createElement('span');
-				}
+			// Don't handle links for lines that are too long
+			if (line.length > LinkDetector.MAX_LENGTH) {
+				let span = document.createElement('span');
+				span.textContent = line;
+				container.appendChild(span);
+				continue;
+			}
 
-				let textBeforeLink = text.substring(lastMatchIndex, match.index);
-				if (textBeforeLink) {
-					let span = document.createElement('span');
-					span.textContent = textBeforeLink;
-					linkContainer.appendChild(span);
-				}
+			const lineContainer = document.createElement('span');
 
-				const link = document.createElement('a');
-				link.textContent = text.substr(match.index, match[0].length);
-				link.title = isMacintosh ? nls.localize('fileLinkMac', "Click to follow (Cmd + click opens to the side)") : nls.localize('fileLink', "Click to follow (Ctrl + click opens to the side)");
-				linkContainer.appendChild(link);
-				const line = Number(match[3]);
-				const column = match[4] ? Number(match[4]) : undefined;
-				link.onclick = (e) => this.onLinkClick(new StandardMouseEvent(e), resource!, line, column);
+			for (let pattern of LinkDetector.FILE_LOCATION_PATTERNS) {
+				// Reset the state of the pattern
+				pattern = new RegExp(pattern);
+				let lastMatchIndex = 0;
 
-				lastMatchIndex = pattern.lastIndex;
-				const currentMatch = match;
-				match = pattern.exec(text);
+				let match = pattern.exec(line);
 
-				// Append last string part if no more link matches
-				if (!match) {
-					let textAfterLink = text.substr(currentMatch.index + currentMatch[0].length);
-					if (textAfterLink) {
-						let span = document.createElement('span');
-						span.textContent = textAfterLink;
-						linkContainer.appendChild(span);
+				while (match !== null) {
+					let resource: uri | null = isAbsolute(match[1]) ? uri.file(match[1]) : null;
+
+					if (!resource) {
+						match = pattern.exec(line);
+						continue;
+					}
+
+					let textBeforeLink = line.substring(lastMatchIndex, match.index);
+					if (textBeforeLink) {
+						// textBeforeLink may have matches for other patterns, so we run handleLinks on it before adding it.
+						lineContainer.appendChild(this.handleLinks(textBeforeLink));
+					}
+
+					const link = document.createElement('a');
+					link.textContent = line.substr(match.index, match[0].length);
+					link.title = isMacintosh ? nls.localize('fileLinkMac', "Click to follow (Cmd + click opens to the side)") : nls.localize('fileLink', "Click to follow (Ctrl + click opens to the side)");
+					lineContainer.appendChild(link);
+					const lineNumber = Number(match[3]);
+					const columnNumber = match[4] ? Number(match[4]) : undefined;
+					link.onclick = (e) => this.onLinkClick(new StandardMouseEvent(e), resource!, lineNumber, columnNumber);
+
+					lastMatchIndex = pattern.lastIndex;
+					const currentMatch = match;
+					match = pattern.exec(line);
+
+					// Append last string part if no more link matches
+					if (!match) {
+						let textAfterLink = line.substr(currentMatch.index + currentMatch[0].length);
+						if (textAfterLink) {
+							// textAfterLink may have matches for other patterns, so we run handleLinks on it before adding it.
+							lineContainer.appendChild(this.handleLinks(textAfterLink));
+						}
 					}
 				}
 			}
-		}
 
-		// append the text that went over the MAX_LENGTH limit
-		if (unalteredPostfix) {
-			if (linkContainer) {
+			if (!lineContainer.hasChildNodes()) {
+				// We didn't find a match for any of the patterns. Add the unmodified line.
 				let span = document.createElement('span');
-				span.textContent = unalteredPostfix;
-				linkContainer.appendChild(span);
-			} else {
-				text += unalteredPostfix;
+				span.textContent = line;
+				lineContainer.appendChild(span);
 			}
+
+			container.appendChild(lineContainer);
 		}
 
-		return linkContainer || text;
+		return container;
 	}
 
 	private onLinkClick(event: IMouseEvent, resource: uri, line: number, column: number = 0): void {
