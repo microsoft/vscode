@@ -78,7 +78,7 @@ export class LinkDetector {
 						continue;
 					}
 
-					let textBeforeLink = line.substring(lastMatchIndex, match.index);
+					const textBeforeLink = line.substring(lastMatchIndex, match.index);
 					if (textBeforeLink) {
 						// textBeforeLink may have matches for other patterns, so we run handleLinks on it before adding it.
 						lineContainer.appendChild(this.handleLinks(textBeforeLink));
@@ -98,12 +98,17 @@ export class LinkDetector {
 
 					// Append last string part if no more link matches
 					if (!match) {
-						let textAfterLink = line.substr(currentMatch.index + currentMatch[0].length);
+						const textAfterLink = line.substr(currentMatch.index + currentMatch[0].length);
 						if (textAfterLink) {
 							// textAfterLink may have matches for other patterns, so we run handleLinks on it before adding it.
 							lineContainer.appendChild(this.handleLinks(textAfterLink));
 						}
 					}
+				}
+
+				// If we found any matches for this pattern, don't check any more patterns
+				if (lineContainer.hasChildNodes()) {
+					break;
 				}
 			}
 
