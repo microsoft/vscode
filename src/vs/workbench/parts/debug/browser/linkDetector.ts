@@ -19,8 +19,7 @@ export class LinkDetector {
 		// group 3: line number, matched by (:(\d+))
 		// group 4: column number, matched by ((?::(\d+))?)
 		// eg: at Context.<anonymous> (c:\Users\someone\Desktop\mocha-runner\test\test.js:26:11)
-		/(?![\(])(?:file:\/\/)?((?:([a-zA-Z]+:)|[^\(\)<>\'\"\[\]:\s]+)(?:[\\/][^\(\)<>\'\"\[\]:]*)?\.[a-zA-Z]+[0-9]*):(\d+)(?::(\d+))?/g,
-		/module/ig,
+		/(?![\(])(?:file:\/\/)?((?:([a-zA-Z]+:)|[^\(\)<>\'\"\[\]:\s]+)(?:[\\/][^\(\)<>\'\"\[\]:]*)?\.[a-zA-Z]+[0-9]*):(\d+)(?::(\d+))?/g
 	];
 
 	constructor(
@@ -79,7 +78,7 @@ export class LinkDetector {
 						continue;
 					}
 
-					const textBeforeLink = line.substring(lastMatchIndex, match.index);
+					let textBeforeLink = line.substring(lastMatchIndex, match.index);
 					if (textBeforeLink) {
 						// textBeforeLink may have matches for other patterns, so we run handleLinks on it before adding it.
 						lineContainer.appendChild(this.handleLinks(textBeforeLink));
@@ -99,17 +98,12 @@ export class LinkDetector {
 
 					// Append last string part if no more link matches
 					if (!match) {
-						const textAfterLink = line.substr(currentMatch.index + currentMatch[0].length);
+						let textAfterLink = line.substr(currentMatch.index + currentMatch[0].length);
 						if (textAfterLink) {
 							// textAfterLink may have matches for other patterns, so we run handleLinks on it before adding it.
 							lineContainer.appendChild(this.handleLinks(textAfterLink));
 						}
 					}
-				}
-
-				// If we found a match, don't check any more patterns
-				if (lineContainer.hasChildNodes()) {
-					break;
 				}
 			}
 
