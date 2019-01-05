@@ -130,8 +130,8 @@ export abstract class AbstractExpressionsRenderer
 
 	constructor(
 		@IDebugService protected debugService: IDebugService,
-		@IContextViewService private contextViewService: IContextViewService,
-		@IThemeService private themeService: IThemeService
+		@IContextViewService private readonly contextViewService: IContextViewService,
+		@IThemeService private readonly themeService: IThemeService
 	) {
 		super(debugService.getViewModel().onDidSelectExpression);
 	}

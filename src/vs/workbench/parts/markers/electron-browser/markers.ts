@@ -49,12 +49,12 @@ export class MarkersWorkbenchService extends Disposable implements IMarkersWorkb
 	private readonly codeActions: Map<string, Map<string, CodeAction[]>> = new Map<string, Map<string, CodeAction[]>>();
 
 	constructor(
-		@IMarkerService private markerService: IMarkerService,
+		@IMarkerService private readonly markerService: IMarkerService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IBulkEditService private bulkEditService: IBulkEditService,
-		@ICommandService private commandService: ICommandService,
-		@IEditorService private editorService: IEditorService,
-		@IModelService private modelService: IModelService
+		@IBulkEditService private readonly bulkEditService: IBulkEditService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IModelService private readonly modelService: IModelService
 	) {
 		super();
 		this.markersModel = this._register(instantiationService.createInstance(MarkersModel, this.readMarkers()));
@@ -170,8 +170,8 @@ export class MarkersWorkbenchService extends Disposable implements IMarkersWorkb
 export class ActivityUpdater extends Disposable implements IWorkbenchContribution {
 
 	constructor(
-		@IActivityService private activityService: IActivityService,
-		@IMarkersWorkbenchService private markersWorkbenchService: IMarkersWorkbenchService
+		@IActivityService private readonly activityService: IActivityService,
+		@IMarkersWorkbenchService private readonly markersWorkbenchService: IMarkersWorkbenchService
 	) {
 		super();
 		this._register(this.markersWorkbenchService.markersModel.onDidChange(() => this.updateBadge()));

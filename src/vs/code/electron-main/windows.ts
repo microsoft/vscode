@@ -156,16 +156,16 @@ export class WindowsManager implements IWindowsMainService {
 
 	constructor(
 		private readonly machineId: string,
-		@ILogService private logService: ILogService,
-		@IStateService private stateService: IStateService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IBackupMainService private backupMainService: IBackupMainService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IHistoryMainService private historyMainService: IHistoryMainService,
-		@IWorkspacesMainService private workspacesMainService: IWorkspacesMainService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@ILogService private readonly logService: ILogService,
+		@IStateService private readonly stateService: IStateService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IBackupMainService private readonly backupMainService: IBackupMainService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IHistoryMainService private readonly historyMainService: IHistoryMainService,
+		@IWorkspacesMainService private readonly workspacesMainService: IWorkspacesMainService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		this.windowsState = this.getWindowsState();
 		if (!Array.isArray(this.windowsState.openedWindows)) {

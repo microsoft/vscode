@@ -36,15 +36,15 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 	private activeOutOfWorkspaceWatchers: ResourceMap<URI>;
 
 	constructor(
-		@IEditorService private editorService: IEditorService,
-		@ITextFileService private textFileService: ITextFileService,
-		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
-		@IFileService private fileService: IFileService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IWindowService private windowService: IWindowService
+		@IEditorService private readonly editorService: IEditorService,
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
+		@IFileService private readonly fileService: IFileService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IWindowService private readonly windowService: IWindowService
 	) {
 		super();
 

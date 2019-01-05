@@ -105,9 +105,6 @@ export class SettingsEditor2 extends BaseEditor {
 	private remoteSearchThrottle: ThrottledDelayer<void>;
 	private searchInProgress: CancellationTokenSource;
 
-	private delayRefreshOnLayout: Delayer<void>;
-	private lastLayedoutWidth: number;
-
 	private settingFastUpdateDelayer: Delayer<void>;
 	private settingSlowUpdateDelayer: Delayer<void>;
 	private pendingSettingUpdate: { key: string, value: any };
@@ -129,24 +126,23 @@ export class SettingsEditor2 extends BaseEditor {
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IConfigurationService private configurationService: IConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IThemeService themeService: IThemeService,
-		@IPreferencesService private preferencesService: IPreferencesService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IPreferencesSearchService private preferencesSearchService: IPreferencesSearchService,
-		@ILogService private logService: ILogService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IPreferencesSearchService private readonly preferencesSearchService: IPreferencesSearchService,
+		@ILogService private readonly logService: ILogService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IStorageService private storageService: IStorageService,
-		@INotificationService private notificationService: INotificationService,
+		@IStorageService private readonly storageService: IStorageService,
+		@INotificationService private readonly notificationService: INotificationService,
 		@IEditorGroupsService protected editorGroupService: IEditorGroupsService,
-		@IKeybindingService private keybindingService: IKeybindingService
+		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
 		super(SettingsEditor2.ID, telemetryService, themeService, storageService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
 		this.localSearchDelayer = new Delayer(300);
 		this.remoteSearchThrottle = new ThrottledDelayer(200);
 		this.viewState = { settingsTarget: ConfigurationTarget.USER };
-		this.delayRefreshOnLayout = new Delayer(100);
 
 		this.settingFastUpdateDelayer = new Delayer<void>(SettingsEditor2.SETTING_UPDATE_FAST_DEBOUNCE);
 		this.settingSlowUpdateDelayer = new Delayer<void>(SettingsEditor2.SETTING_UPDATE_SLOW_DEBOUNCE);
@@ -281,16 +277,6 @@ export class SettingsEditor2 extends BaseEditor {
 
 		DOM.toggleClass(this.rootElement, 'mid-width', dimension.width < 1000 && dimension.width >= 600);
 		DOM.toggleClass(this.rootElement, 'narrow-width', dimension.width < 600);
-
-		// #56185
-		if (dimension.width !== this.lastLayedoutWidth) {
-			this.lastLayedoutWidth = dimension.width;
-			this.delayRefreshOnLayout.trigger(() => {
-				this.renderTree(undefined, true).then(() => {
-					// this.settingsTree.reveal(firstEl, firstElTop);
-				});
-			});
-		}
 	}
 
 	focus(): void {
@@ -420,7 +406,7 @@ export class SettingsEditor2 extends BaseEditor {
 			let sourceTop = this.settingsTree.getRelativeTop(evt.source);
 			if (sourceTop < 0) {
 				// e.g. clicked a searched element, now the search has been cleared
-				sourceTop = .5;
+				sourceTop = 0.5;
 			}
 
 			this.settingsTree.reveal(elements[0], sourceTop);

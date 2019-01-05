@@ -101,8 +101,8 @@ export class EditorGroup extends Disposable {
 
 	constructor(
 		labelOrSerializedGroup: ISerializedEditorGroup,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 

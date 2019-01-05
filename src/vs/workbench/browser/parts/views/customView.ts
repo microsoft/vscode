@@ -51,7 +51,7 @@ export class CustomTreeViewPanel extends ViewletPanel {
 
 	constructor(
 		options: IViewletViewOptions,
-		@INotificationService private notificationService: INotificationService,
+		@INotificationService private readonly notificationService: INotificationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -117,8 +117,8 @@ class TitleMenus implements IDisposable {
 
 	constructor(
 		id: string,
-		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IMenuService private menuService: IMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IMenuService private readonly menuService: IMenuService,
 	) {
 		if (this.titleDisposable) {
 			this.titleDisposable.dispose();
@@ -211,12 +211,12 @@ export class CustomTreeView extends Disposable implements ITreeView {
 	constructor(
 		private id: string,
 		private container: ViewContainer,
-		@IExtensionService private extensionService: IExtensionService,
-		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@ICommandService private commandService: ICommandService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IProgressService2 private progressService: IProgressService2
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IProgressService2 private readonly progressService: IProgressService2
 	) {
 		super();
 		this.root = new Root();
@@ -556,7 +556,7 @@ class TreeDataSource implements IDataSource {
 	constructor(
 		private treeView: ITreeView,
 		private container: ViewContainer,
-		@IProgressService2 private progressService: IProgressService2
+		@IProgressService2 private readonly progressService: IProgressService2
 	) {
 	}
 
@@ -626,9 +626,9 @@ class TreeRenderer implements IRenderer {
 		private menus: TreeMenus,
 		private labels: ResourceLabels,
 		private actionItemProvider: IActionItemProvider,
-		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@ILabelService private labelService: ILabelService
+		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ILabelService private readonly labelService: ILabelService
 	) {
 	}
 
@@ -763,7 +763,7 @@ class TreeController extends WorkbenchTreeController {
 	constructor(
 		private treeViewId: string,
 		private menus: TreeMenus,
-		@IContextMenuService private contextMenuService: IContextMenuService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
@@ -838,9 +838,9 @@ class TreeMenus extends Disposable implements IDisposable {
 
 	constructor(
 		private id: string,
-		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IMenuService private menuService: IMenuService,
-		@IContextMenuService private contextMenuService: IContextMenuService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IMenuService private readonly menuService: IMenuService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) {
 		super();
 	}

@@ -50,7 +50,6 @@ export interface IViewContainersRegistry {
 	/**
 	 * Returns the view container with given id.
 	 *
-	 * @param id
 	 * @returns the view container with given id.
 	 */
 	get(id: string): ViewContainer;

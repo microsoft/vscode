@@ -52,7 +52,7 @@
         editor-symbols: [],
         editor-textbuffer: [],
         editor-wrapping: [],
-        emmet: [ ramya-rao-a ],
+        emmet: [ octref, ramya-rao-a ],
         error-list: [],
         explorer-custom: [],
         extension-host: [],

@@ -356,8 +356,8 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IPreferencesService private preferencesService: IPreferencesService,
-		@IWorkspaceContextService private workpsaceContextService: IWorkspaceContextService
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
+		@IWorkspaceContextService private readonly workpsaceContextService: IWorkspaceContextService
 	) {
 		super();
 		MenuRegistry.appendMenuItem(MenuId.EditorTitle, {

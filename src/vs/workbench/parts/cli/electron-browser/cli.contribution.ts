@@ -45,9 +45,9 @@ class InstallAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@INotificationService private notificationService: INotificationService,
-		@IDialogService private dialogService: IDialogService,
-		@ILogService private logService: ILogService
+		@INotificationService private readonly notificationService: INotificationService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super(id, label);
 	}
@@ -126,9 +126,9 @@ class UninstallAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@INotificationService private notificationService: INotificationService,
-		@ILogService private logService: ILogService,
-		@IDialogService private dialogService: IDialogService
+		@INotificationService private readonly notificationService: INotificationService,
+		@ILogService private readonly logService: ILogService,
+		@IDialogService private readonly dialogService: IDialogService
 	) {
 		super(id, label);
 	}

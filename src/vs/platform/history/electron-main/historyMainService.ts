@@ -48,10 +48,10 @@ export class HistoryMainService implements IHistoryMainService {
 	private macOSRecentDocumentsUpdater: RunOnceScheduler;
 
 	constructor(
-		@IStateService private stateService: IStateService,
-		@ILogService private logService: ILogService,
-		@IWorkspacesMainService private workspacesMainService: IWorkspacesMainService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IStateService private readonly stateService: IStateService,
+		@ILogService private readonly logService: ILogService,
+		@IWorkspacesMainService private readonly workspacesMainService: IWorkspacesMainService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
 		this.macOSRecentDocumentsUpdater = new RunOnceScheduler(() => this.updateMacOSRecentDocuments(), 800);
 

@@ -34,8 +34,8 @@ class SymbolEntry extends EditorQuickOpenEntry {
 		private provider: IWorkspaceSymbolProvider,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorService editorService: IEditorService,
-		@ILabelService private labelService: ILabelService,
-		@IOpenerService private openerService: IOpenerService
+		@ILabelService private readonly labelService: ILabelService,
+		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		super(editorService);
 	}
@@ -141,7 +141,7 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 	private delayer: ThrottledDelayer<QuickOpenEntry[]>;
 	private options: IOpenSymbolOptions;
 
-	constructor(@IInstantiationService private instantiationService: IInstantiationService) {
+	constructor(@IInstantiationService private readonly instantiationService: IInstantiationService) {
 		super();
 
 		this.delayer = new ThrottledDelayer<QuickOpenEntry[]>(OpenSymbolHandler.TYPING_SEARCH_DELAY);

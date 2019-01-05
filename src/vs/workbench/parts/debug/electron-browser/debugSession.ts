@@ -54,13 +54,13 @@ export class DebugSession implements IDebugSession {
 		private _configuration: { resolved: IConfig, unresolved: IConfig },
 		public root: IWorkspaceFolder,
 		private model: DebugModel,
-		@IDebugService private debugService: IDebugService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IOutputService private outputService: IOutputService,
-		@IWindowService private windowService: IWindowService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IViewletService private viewletService: IViewletService,
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService
+		@IDebugService private readonly debugService: IDebugService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IOutputService private readonly outputService: IOutputService,
+		@IWindowService private readonly windowService: IWindowService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IViewletService private readonly viewletService: IViewletService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
 	) {
 		this.id = generateUuid();
 		this.repl = new ReplModel(this);

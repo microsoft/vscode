@@ -477,8 +477,6 @@ export interface CodeActionContext {
 
 	/**
 	 * An array of diagnostics.
-	 *
-	 * @readonly
 	 */
 	readonly markers: IMarkerData[];
 

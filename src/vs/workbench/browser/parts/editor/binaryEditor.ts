@@ -37,7 +37,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 	get onDidOpenInPlace(): Event<void> { return this._onDidOpenInPlace.event; }
 
 	private callbacks: IOpenCallbacks;
-	private metadata: string;
+	private metadata: string | null;
 	private binaryContainer: HTMLElement;
 	private scrollbar: DomScrollableElement;
 	private resourceViewerContext: ResourceViewerContext;
@@ -55,7 +55,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		this.callbacks = callbacks;
 	}
 
-	getTitle(): string {
+	getTitle() {
 		return this.input ? this.input.getName() : nls.localize('binaryEditor', "Binary Viewer");
 	}
 
@@ -110,13 +110,13 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		});
 	}
 
-	private handleMetadataChanged(meta: string): void {
+	private handleMetadataChanged(meta: string | null): void {
 		this.metadata = meta;
 
 		this._onMetadataChanged.fire();
 	}
 
-	getMetadata(): string {
+	getMetadata() {
 		return this.metadata;
 	}
 

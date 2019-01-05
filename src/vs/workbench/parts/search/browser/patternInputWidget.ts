@@ -46,7 +46,7 @@ export class PatternInputWidget extends Widget {
 
 	constructor(parent: HTMLElement, private contextViewProvider: IContextViewProvider, options: IOptions = Object.create(null),
 		@IThemeService protected themeService: IThemeService,
-		@IContextKeyService private contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
 		this.width = options.width || 100;

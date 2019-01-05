@@ -211,9 +211,6 @@ export function sortedDiff<T>(before: ReadonlyArray<T>, after: ReadonlyArray<T>,
 /**
  * Takes two *sorted* arrays and computes their delta (removed, added elements).
  * Finishes in `Math.min(before.length, after.length)` steps.
- * @param before
- * @param after
- * @param compare
  */
 export function delta<T>(before: ReadonlyArray<T>, after: ReadonlyArray<T>, compare: (a: T, b: T) => number): { removed: T[], added: T[] } {
 	const splices = sortedDiff(before, after, compare);
@@ -330,15 +327,14 @@ export function move(array: any[], from: number, to: number): void {
 }
 
 /**
- * @returns {{false}} if the provided object is an array
- * 	and not empty.
+ * @returns false if the provided object is an array and not empty.
  */
 export function isFalsyOrEmpty(obj: any): boolean {
 	return !Array.isArray(obj) || obj.length === 0;
 }
 
 /**
- * @returns {{true}} if the provided object is an array and has at least one element.
+ * @returns True if the provided object is an array and has at least one element.
  */
 export function isNonEmptyArray<T>(obj: ReadonlyArray<T> | undefined | null): obj is Array<T> {
 	return Array.isArray(obj) && obj.length > 0;
@@ -488,7 +484,6 @@ export function arrayInsert<T>(target: T[], insertIndex: number, insertArr: T[])
 
 /**
  * Uses Fisher-Yates shuffle to shuffle the given array
- * @param array
  */
 export function shuffle<T>(array: T[], _seed?: number): void {
 	let rand: () => number;

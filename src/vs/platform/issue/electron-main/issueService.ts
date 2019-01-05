@@ -28,11 +28,11 @@ export class IssueService implements IIssueService {
 	constructor(
 		private machineId: string,
 		private userEnv: IProcessEnvironment,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@ILaunchService private launchService: ILaunchService,
-		@ILogService private logService: ILogService,
-		@IDiagnosticsService private diagnosticsService: IDiagnosticsService,
-		@IWindowsService private windowsService: IWindowsService
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@ILaunchService private readonly launchService: ILaunchService,
+		@ILogService private readonly logService: ILogService,
+		@IDiagnosticsService private readonly diagnosticsService: IDiagnosticsService,
+		@IWindowsService private readonly windowsService: IWindowsService
 	) {
 		this.registerListeners();
 	}

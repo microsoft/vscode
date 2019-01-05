@@ -11,11 +11,13 @@ import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
 import { normalize } from 'vs/base/common/paths';
 import { isWindows, OS } from 'vs/base/common/platform';
+import { repeat } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ICommandHandler } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
@@ -28,7 +30,6 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { repeat } from 'vs/base/common/strings';
 
 export function isSearchViewFocused(viewletService: IViewletService, panelService: IPanelService): boolean {
 	const searchView = getSearchView(viewletService, panelService);
@@ -91,8 +92,8 @@ export class FocusNextInputAction extends Action {
 	static readonly ID = 'search.focus.nextInputBox';
 
 	constructor(id: string, label: string,
-		@IViewletService private viewletService: IViewletService,
-		@IPanelService private panelService: IPanelService
+		@IViewletService private readonly viewletService: IViewletService,
+		@IPanelService private readonly panelService: IPanelService
 	) {
 		super(id, label);
 	}
@@ -109,8 +110,8 @@ export class FocusPreviousInputAction extends Action {
 	static readonly ID = 'search.focus.previousInputBox';
 
 	constructor(id: string, label: string,
-		@IViewletService private viewletService: IViewletService,
-		@IPanelService private panelService: IPanelService
+		@IViewletService private readonly viewletService: IViewletService,
+		@IPanelService private readonly panelService: IPanelService
 	) {
 		super(id, label);
 	}
@@ -160,7 +161,7 @@ export class OpenSearchViewletAction extends FindOrReplaceInFilesAction {
 	constructor(id: string, label: string,
 		@IViewletService viewletService: IViewletService,
 		@IPanelService panelService: IPanelService,
-		@IEditorGroupsService private editorGroupService: IEditorGroupsService
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
 	) {
 		super(id, label, viewletService, panelService, /*expandSearchReplaceWidget=*/false);
 	}
@@ -199,8 +200,8 @@ export class ReplaceInFilesAction extends FindOrReplaceInFilesAction {
 export class CloseReplaceAction extends Action {
 
 	constructor(id: string, label: string,
-		@IViewletService private viewletService: IViewletService,
-		@IPanelService private panelService: IPanelService
+		@IViewletService private readonly viewletService: IViewletService,
+		@IPanelService private readonly panelService: IPanelService
 	) {
 		super(id, label);
 	}
@@ -221,8 +222,8 @@ export class RefreshAction extends Action {
 	private searchView: SearchView;
 
 	constructor(id: string, label: string,
-		@IViewletService private viewletService: IViewletService,
-		@IPanelService private panelService: IPanelService
+		@IViewletService private readonly viewletService: IViewletService,
+		@IPanelService private readonly panelService: IPanelService
 	) {
 		super(id, label, 'search-action refresh');
 		this.searchView = getSearchView(this.viewletService, this.panelService);
@@ -251,8 +252,8 @@ export class CollapseDeepestExpandedLevelAction extends Action {
 	static LABEL: string = nls.localize('CollapseDeepestExpandedLevelAction.label', "Collapse All");
 
 	constructor(id: string, label: string,
-		@IViewletService private viewletService: IViewletService,
-		@IPanelService private panelService: IPanelService
+		@IViewletService private readonly viewletService: IViewletService,
+		@IPanelService private readonly panelService: IPanelService
 	) {
 		super(id, label, 'search-action collapse');
 		this.update();
@@ -308,8 +309,8 @@ export class ClearSearchResultsAction extends Action {
 	static LABEL: string = nls.localize('ClearSearchResultsAction.label', "Clear Search Results");
 
 	constructor(id: string, label: string,
-		@IViewletService private viewletService: IViewletService,
-		@IPanelService private panelService: IPanelService
+		@IViewletService private readonly viewletService: IViewletService,
+		@IPanelService private readonly panelService: IPanelService
 	) {
 		super(id, label, 'search-action clear-search-results');
 		this.update();
@@ -335,8 +336,8 @@ export class CancelSearchAction extends Action {
 	static LABEL: string = nls.localize('CancelSearchAction.label', "Cancel Search");
 
 	constructor(id: string, label: string,
-		@IViewletService private viewletService: IViewletService,
-		@IPanelService private panelService: IPanelService
+		@IViewletService private readonly viewletService: IViewletService,
+		@IPanelService private readonly panelService: IPanelService
 	) {
 		super(id, label, 'search-action cancel-search');
 		this.update();
@@ -362,8 +363,8 @@ export class FocusNextSearchResultAction extends Action {
 	static readonly LABEL = nls.localize('FocusNextSearchResult.label', "Focus Next Search Result");
 
 	constructor(id: string, label: string,
-		@IViewletService private viewletService: IViewletService,
-		@IPanelService private panelService: IPanelService
+		@IViewletService private readonly viewletService: IViewletService,
+		@IPanelService private readonly panelService: IPanelService
 	) {
 		super(id, label);
 	}
@@ -380,8 +381,8 @@ export class FocusPreviousSearchResultAction extends Action {
 	static readonly LABEL = nls.localize('FocusPreviousSearchResult.label', "Focus Previous Search Result");
 
 	constructor(id: string, label: string,
-		@IViewletService private viewletService: IViewletService,
-		@IPanelService private panelService: IPanelService
+		@IViewletService private readonly viewletService: IViewletService,
+		@IPanelService private readonly panelService: IPanelService
 	) {
 		super(id, label);
 	}
@@ -469,7 +470,7 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 
 		if (nextFocusElement) {
 			this.viewer.reveal(nextFocusElement);
-			this.viewer.setFocus([nextFocusElement]);
+			this.viewer.setFocus([nextFocusElement], getKeyboardEventForEditorOpen());
 		}
 
 		let elementToRefresh: FolderMatch | FileMatch | SearchResult;
@@ -521,7 +522,7 @@ export class ReplaceAllAction extends AbstractSearchAndReplaceAction {
 		const nextFocusElement = this.getElementToFocusAfterRemoved(tree, this.fileMatch);
 		return this.fileMatch.parent().replace(this.fileMatch).then(() => {
 			if (nextFocusElement) {
-				tree.setFocus([nextFocusElement]);
+				tree.setFocus([nextFocusElement], getKeyboardEventForEditorOpen());
 			}
 
 			tree.domFocus();
@@ -544,7 +545,7 @@ export class ReplaceAllInFolderAction extends AbstractSearchAndReplaceAction {
 		const nextFocusElement = this.getElementToFocusAfterRemoved(this.viewer, this.folderMatch);
 		return this.folderMatch.replaceAll().then(() => {
 			if (nextFocusElement) {
-				this.viewer.setFocus([nextFocusElement]);
+				this.viewer.setFocus([nextFocusElement], getKeyboardEventForEditorOpen());
 			}
 			this.viewer.domFocus();
 		});
@@ -556,10 +557,10 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 	static readonly LABEL = nls.localize('match.replace.label', "Replace");
 
 	constructor(private viewer: WorkbenchObjectTree<RenderableMatch>, private element: Match, private viewlet: SearchView,
-		@IReplaceService private replaceService: IReplaceService,
+		@IReplaceService private readonly replaceService: IReplaceService,
 		@IKeybindingService keyBindingService: IKeybindingService,
-		@IEditorService private editorService: IEditorService,
-		@IConfigurationService private configurationService: IConfigurationService) {
+		@IEditorService private readonly editorService: IEditorService,
+		@IConfigurationService private readonly configurationService: IConfigurationService) {
 		super(Constants.ReplaceActionId, appendKeyBindingLabel(ReplaceAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceActionId), keyBindingService), 'action-replace');
 	}
 
@@ -569,7 +570,7 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 		return this.element.parent().replace(this.element).then(() => {
 			const elementToFocus = this.getElementToFocusAfterReplace();
 			if (elementToFocus) {
-				this.viewer.setFocus([elementToFocus]);
+				this.viewer.setFocus([elementToFocus], getKeyboardEventForEditorOpen());
 			}
 
 			return this.getElementToShowReplacePreview(elementToFocus);
@@ -762,3 +763,13 @@ export const focusSearchListCommand: ICommandHandler = accessor => {
 		searchView.moveFocusToResults();
 	});
 };
+
+export function getKeyboardEventForEditorOpen(options: IEditorOptions = {}): KeyboardEvent {
+	const fakeKeyboardEvent = new KeyboardEvent('keydown');
+	if (options.preserveFocus) {
+		// fake double click
+		(<any>fakeKeyboardEvent).detail = 2;
+	}
+
+	return fakeKeyboardEvent;
+}

@@ -50,8 +50,8 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 	private mapResourceToPendingModelLoaders: ResourceMap<Promise<ITextFileEditorModel>>;
 
 	constructor(
-		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 

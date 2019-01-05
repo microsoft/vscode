@@ -19,7 +19,7 @@ export class ToggleSidebarVisibilityAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IPartService private partService: IPartService
+		@IPartService private readonly partService: IPartService
 	) {
 		super(id, label);
 

@@ -647,18 +647,43 @@ export class Repository implements Disposable {
 			};
 		}
 
+		let lineNumber = 0;
 		let start = 0, end;
 		let match: RegExpExecArray | null;
 		const regex = /\r?\n/g;
 
 		while ((match = regex.exec(text)) && position > match.index) {
 			start = match.index + match[0].length;
+			lineNumber++;
 		}
 
 		end = match ? match.index : text.length;
 
 		const line = text.substring(start, end);
-		const threshold = Math.max(config.get<number>('inputValidationLength') || 72, 0) || 72;
+
+		let threshold = config.get<number>('inputValidationLength', 50);
+
+		if (lineNumber === 0) {
+			const inputValidationSubjectLength = config.get<number | null>('inputValidationSubjectLength', null);
+
+			if (inputValidationSubjectLength !== null) {
+				threshold = inputValidationSubjectLength;
+			}
+		}
+
+
+
+
+
+
+
+
+
+
+		// const subjectThreshold =
+
+
+		// 	Math.max(config.get<number>('inputValidationLength') || 50, config.get<number>('subjectValidationLength') || 50, 0) || 50;
 
 		if (line.length <= threshold) {
 			if (setting !== 'always') {
@@ -922,14 +947,7 @@ export class Repository implements Disposable {
 			branch = `${head.upstream.name}`;
 		}
 
-		const config = workspace.getConfiguration('git', Uri.file(this.root));
-		const fetchOnPull = config.get<boolean>('fetchOnPull');
-
-		if (fetchOnPull) {
-			await this.run(Operation.Pull, () => this.repository.pull(true));
-		} else {
-			await this.run(Operation.Pull, () => this.repository.pull(true, remote, branch));
-		}
+		return this.pullFrom(true, remote, branch);
 	}
 
 	@throttle
@@ -942,25 +960,22 @@ export class Repository implements Disposable {
 			branch = `${head.upstream.name}`;
 		}
 
-		const config = workspace.getConfiguration('git', Uri.file(this.root));
-		const fetchOnPull = config.get<boolean>('fetchOnPull');
-
-		if (fetchOnPull) {
-			await this.run(Operation.Pull, () => this.repository.pull(false));
-		} else {
-			await this.run(Operation.Pull, () => this.repository.pull(false, remote, branch));
-		}
+		return this.pullFrom(false, remote, branch);
 	}
 
 	async pullFrom(rebase?: boolean, remote?: string, branch?: string): Promise<void> {
-		const config = workspace.getConfiguration('git', Uri.file(this.root));
-		const fetchOnPull = config.get<boolean>('fetchOnPull');
+		await this.run(Operation.Pull, async () => {
+			await this.maybeAutoStash(async () => {
+				const config = workspace.getConfiguration('git', Uri.file(this.root));
+				const fetchOnPull = config.get<boolean>('fetchOnPull');
 
-		if (fetchOnPull) {
-			await this.run(Operation.Pull, () => this.repository.pull(rebase));
-		} else {
-			await this.run(Operation.Pull, () => this.repository.pull(rebase, remote, branch));
-		}
+				if (fetchOnPull) {
+					await this.repository.pull(rebase);
+				} else {
+					await this.repository.pull(rebase, remote, branch);
+				}
+			});
+		});
 	}
 
 	@throttle
@@ -1006,26 +1021,28 @@ export class Repository implements Disposable {
 		}
 
 		await this.run(Operation.Sync, async () => {
-			const config = workspace.getConfiguration('git', Uri.file(this.root));
-			const fetchOnPull = config.get<boolean>('fetchOnPull');
+			await this.maybeAutoStash(async () => {
+				const config = workspace.getConfiguration('git', Uri.file(this.root));
+				const fetchOnPull = config.get<boolean>('fetchOnPull');
 
-			if (fetchOnPull) {
-				await this.repository.pull(rebase);
-			} else {
-				await this.repository.pull(rebase, remoteName, pullBranch);
-			}
+				if (fetchOnPull) {
+					await this.repository.pull(rebase);
+				} else {
+					await this.repository.pull(rebase, remoteName, pullBranch);
+				}
 
-			const remote = this.remotes.find(r => r.name === remoteName);
+				const remote = this.remotes.find(r => r.name === remoteName);
 
-			if (remote && remote.isReadOnly) {
-				return;
-			}
+				if (remote && remote.isReadOnly) {
+					return;
+				}
 
-			const shouldPush = this.HEAD && (typeof this.HEAD.ahead === 'number' ? this.HEAD.ahead > 0 : true);
+				const shouldPush = this.HEAD && (typeof this.HEAD.ahead === 'number' ? this.HEAD.ahead > 0 : true);
 
-			if (shouldPush) {
-				await this.repository.push(remoteName, pushBranch);
-			}
+				if (shouldPush) {
+					await this.repository.push(remoteName, pushBranch);
+				}
+			});
 		});
 	}
 
@@ -1380,6 +1397,22 @@ export class Repository implements Disposable {
 		} catch (err) {
 			return undefined;
 		}
+	}
+
+	private async maybeAutoStash<T>(runOperation: () => Promise<T>): Promise<T> {
+		const config = workspace.getConfiguration('git', Uri.file(this.root));
+		const shouldAutoStash = config.get<boolean>('autoStash')
+			&& this.workingTreeGroup.resourceStates.some(r => r.type !== Status.UNTRACKED && r.type !== Status.IGNORED);
+
+		if (!shouldAutoStash) {
+			return await runOperation();
+		}
+
+		await this.repository.createStash(undefined, true);
+		const result = await runOperation();
+		await this.repository.popStash();
+
+		return result;
 	}
 
 	private onFSChange(_uri: Uri): void {

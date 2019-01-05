@@ -223,8 +223,8 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			previouslyActivatedExtensionIds.push(value);
 		});
 
-		for (let i = 0; i < this._extensionHostProcessManagers.length; i++) {
-			this._extensionHostProcessManagers[i].dispose();
+		for (const manager of this._extensionHostProcessManagers) {
+			manager.dispose();
 		}
 		this._extensionHostProcessManagers = [];
 		this._extensionHostActiveExtensions = new Map<string, CanonicalExtensionIdentifier>();

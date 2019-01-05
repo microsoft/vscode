@@ -38,9 +38,9 @@ export class StatusBarColorProvider extends Themable implements IWorkbenchContri
 
 	constructor(
 		@IThemeService themeService: IThemeService,
-		@IDebugService private debugService: IDebugService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IPartService private partService: IPartService
+		@IDebugService private readonly debugService: IDebugService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IPartService private readonly partService: IPartService
 	) {
 		super(themeService);
 

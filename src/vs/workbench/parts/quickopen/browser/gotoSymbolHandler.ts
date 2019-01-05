@@ -372,7 +372,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 	private pendingOutlineRequest: CancellationTokenSource;
 
 	constructor(
-		@IEditorService private editorService: IEditorService
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		super();
 

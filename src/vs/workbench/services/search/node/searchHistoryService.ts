@@ -17,7 +17,7 @@ export class SearchHistoryService implements ISearchHistoryService {
 	readonly onDidClearHistory: Event<void> = this._onDidClearHistory.event;
 
 	constructor(
-		@IStorageService private storageService: IStorageService
+		@IStorageService private readonly storageService: IStorageService
 	) { }
 
 	clearHistory(): void {

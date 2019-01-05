@@ -129,12 +129,12 @@ export class SearchWidget extends Widget {
 	constructor(
 		container: HTMLElement,
 		options: ISearchWidgetOptions,
-		@IContextViewService private contextViewService: IContextViewService,
-		@IThemeService private themeService: IThemeService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IKeybindingService private keyBindingService: IKeybindingService,
-		@IClipboardService private clipboardServce: IClipboardService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IContextViewService private readonly contextViewService: IContextViewService,
+		@IThemeService private readonly themeService: IThemeService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IKeybindingService private readonly keyBindingService: IKeybindingService,
+		@IClipboardService private readonly clipboardServce: IClipboardService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 		this.replaceActive = Constants.ReplaceActiveKey.bindTo(this.contextKeyService);

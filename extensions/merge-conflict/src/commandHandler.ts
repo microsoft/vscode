@@ -282,11 +282,11 @@ export default class CommandHandler implements vscode.Disposable {
 			throw new Error(`Unsupported direction ${direction}`);
 		}
 
-		for (let i = 0; i < conflicts.length; i++) {
-			if (predicate(conflicts[i]) && !conflicts[i].range.contains(selection)) {
+		for (const conflict of conflicts) {
+			if (predicate(conflict) && !conflict.range.contains(selection)) {
 				return {
 					canNavigate: true,
-					conflict: conflicts[i]
+					conflict: conflict
 				};
 			}
 		}

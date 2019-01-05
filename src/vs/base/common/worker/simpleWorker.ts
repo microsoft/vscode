@@ -234,8 +234,8 @@ export class SimpleWorkerClient<T> extends Disposable {
 			lazyProxyReject = reject;
 			this._onModuleLoaded.then((availableMethods: string[]) => {
 				let proxy = <T>{};
-				for (let i = 0; i < availableMethods.length; i++) {
-					(proxy as any)[availableMethods[i]] = createProxyMethod(availableMethods[i], proxyMethodRequest);
+				for (const methodName of availableMethods) {
+					(proxy as any)[methodName] = createProxyMethod(methodName, proxyMethodRequest);
 				}
 				resolve(proxy);
 			}, (e) => {

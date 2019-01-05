@@ -78,8 +78,8 @@ export class FolderMatchRenderer extends Disposable implements ITreeRenderer<Fol
 		private searchModel: SearchModel,
 		private searchView: SearchView,
 		private labels: ResourceLabels,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IThemeService private themeService: IThemeService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IThemeService private readonly themeService: IThemeService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService
 	) {
 		super();
@@ -141,8 +141,8 @@ export class FileMatchRenderer extends Disposable implements ITreeRenderer<FileM
 		private searchModel: SearchModel,
 		private searchView: SearchView,
 		private labels: ResourceLabels,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IThemeService private themeService: IThemeService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IThemeService private readonly themeService: IThemeService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService
 	) {
 		super();
@@ -193,9 +193,9 @@ export class MatchRenderer extends Disposable implements ITreeRenderer<Match, vo
 	constructor(
 		private searchModel: SearchModel,
 		private searchView: SearchView,
-		@IInstantiationService private instantiationService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
-		@IConfigurationService private configurationService: IConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 	}
@@ -280,7 +280,7 @@ export class SearchAccessibilityProvider implements IAccessibilityProvider<Rende
 
 	constructor(
 		private searchModel: SearchModel,
-		@ILabelService private labelService: ILabelService
+		@ILabelService private readonly labelService: ILabelService
 	) {
 	}
 

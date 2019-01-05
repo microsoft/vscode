@@ -294,8 +294,8 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._commentsElement.setAttribute('role', 'presentation');
 
 		this._commentElements = [];
-		for (let i = 0; i < this._commentThread.comments.length; i++) {
-			const newCommentNode = this.createNewCommentNode(this._commentThread.comments[i]);
+		for (const comment of this._commentThread.comments) {
+			const newCommentNode = this.createNewCommentNode(comment);
 
 			this._commentElements.push(newCommentNode);
 			this._commentsElement.appendChild(newCommentNode.domNode);

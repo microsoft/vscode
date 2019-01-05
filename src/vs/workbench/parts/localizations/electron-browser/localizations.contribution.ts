@@ -36,16 +36,16 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(ConfigureLocaleAction,
 
 export class LocalizationWorkbenchContribution extends Disposable implements IWorkbenchContribution {
 	constructor(
-		@ILocalizationsService private localizationService: ILocalizationsService,
-		@INotificationService private notificationService: INotificationService,
-		@IJSONEditingService private jsonEditingService: IJSONEditingService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IWindowsService private windowsService: IWindowsService,
-		@IStorageService private storageService: IStorageService,
-		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
-		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
-		@IViewletService private viewletService: IViewletService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@ILocalizationsService private readonly localizationService: ILocalizationsService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IJSONEditingService private readonly jsonEditingService: IJSONEditingService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IWindowsService private readonly windowsService: IWindowsService,
+		@IStorageService private readonly storageService: IStorageService,
+		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
+		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
+		@IViewletService private readonly viewletService: IViewletService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super();
 		this.updateLocaleDefintionSchema();

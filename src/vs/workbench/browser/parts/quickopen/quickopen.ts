@@ -43,9 +43,9 @@ export class BaseQuickOpenNavigateAction extends Action {
 		label: string,
 		private next: boolean,
 		private quickNavigate: boolean,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IQuickInputService private quickInputService: IQuickInputService,
-		@IKeybindingService private keybindingService: IKeybindingService
+		@IQuickOpenService private readonly quickOpenService: IQuickOpenService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
 		super(id, label);
 	}

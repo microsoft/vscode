@@ -818,12 +818,12 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		};
 	}
 
-	public restoreViewState(s: editorCommon.ICodeEditorViewState | null): void {
+	public restoreViewState(s: editorCommon.IEditorViewState | null): void {
 		if (!this._modelData || !this._modelData.hasRealView) {
 			return;
 		}
-		if (s && s.cursorState && s.viewState) {
-			let codeEditorState = <editorCommon.ICodeEditorViewState>s;
+		const codeEditorState = s as editorCommon.ICodeEditorViewState | null;
+		if (codeEditorState && codeEditorState.cursorState && codeEditorState.viewState) {
 			let cursorState = <any>codeEditorState.cursorState;
 			if (Array.isArray(cursorState)) {
 				this._modelData.cursor.restoreState(<editorCommon.ICursorState[]>cursorState);
@@ -832,7 +832,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				this._modelData.cursor.restoreState([<editorCommon.ICursorState>cursorState]);
 			}
 
-			let contributionsState = s.contributionsState || {};
+			let contributionsState = codeEditorState.contributionsState || {};
 			let keys = Object.keys(this._contributions);
 			for (let i = 0, len = keys.length; i < len; i++) {
 				let id = keys[i];
@@ -842,7 +842,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				}
 			}
 
-			const reducedState = this._modelData.viewModel.reduceRestoreState(s.viewState);
+			const reducedState = this._modelData.viewModel.reduceRestoreState(codeEditorState.viewState);
 			const linesViewportData = this._modelData.viewModel.viewLayout.getLinesViewportDataAtScrollTop(reducedState.scrollTop);
 			const startPosition = this._modelData.viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(linesViewportData.startLineNumber, 1));
 			const endPosition = this._modelData.viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(linesViewportData.endLineNumber, 1));

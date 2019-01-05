@@ -62,8 +62,8 @@ function _cloneAndChange(obj: any, changer: (orig: any) => any, seen: Set<any>):
 
 	if (isArray(obj)) {
 		const r1: any[] = [];
-		for (let i1 = 0; i1 < obj.length; i1++) {
-			r1.push(_cloneAndChange(obj[i1], changer, seen));
+		for (const e of obj) {
+			r1.push(_cloneAndChange(e, changer, seen));
 		}
 		return r1;
 	}
@@ -177,8 +177,8 @@ export function equals(one: any, other: any): boolean {
 
 function arrayToHash(array: string[]): { [name: string]: true } {
 	const result: any = {};
-	for (let i = 0; i < array.length; ++i) {
-		result[array[i]] = true;
+	for (const e of array) {
+		result[e] = true;
 	}
 	return result;
 }

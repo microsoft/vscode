@@ -33,11 +33,11 @@ export class SelectColorThemeAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IQuickInputService private quickInputService: IQuickInputService,
-		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
-		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
-		@IViewletService private viewletService: IViewletService,
-		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
+		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
+		@IViewletService private readonly viewletService: IViewletService,
+		@IWorkspaceConfigurationService private readonly configurationService: IWorkspaceConfigurationService
 	) {
 		super(id, label);
 	}
@@ -94,11 +94,11 @@ class SelectIconThemeAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IQuickInputService private quickInputService: IQuickInputService,
-		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
-		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
-		@IViewletService private viewletService: IViewletService,
-		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
+		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
+		@IViewletService private readonly viewletService: IViewletService,
+		@IWorkspaceConfigurationService private readonly configurationService: IWorkspaceConfigurationService
 
 	) {
 		super(id, label);
@@ -187,8 +187,8 @@ class GenerateColorThemeAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
-		@IEditorService private editorService: IEditorService,
+		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super(id, label);
 	}

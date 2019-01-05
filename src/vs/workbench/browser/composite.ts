@@ -256,9 +256,9 @@ export abstract class CompositeRegistry<T extends Composite> extends Disposable 
 	}
 
 	private compositeById(id: string): CompositeDescriptor<T> | null {
-		for (let i = 0; i < this.composites.length; i++) {
-			if (this.composites[i].id === id) {
-				return this.composites[i];
+		for (const composite of this.composites) {
+			if (composite.id === id) {
+				return composite;
 			}
 		}
 

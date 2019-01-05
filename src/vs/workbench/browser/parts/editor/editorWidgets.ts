@@ -34,7 +34,7 @@ export class FloatingClickWidget extends Widget implements IOverlayWidget {
 		private label: string,
 		keyBindingAction: string,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IThemeService private themeService: IThemeService
+		@IThemeService private readonly themeService: IThemeService
 	) {
 		super();
 
@@ -106,9 +106,9 @@ export class OpenWorkspaceButtonContribution extends Disposable implements IEdit
 
 	constructor(
 		private editor: ICodeEditor,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IWindowService private windowService: IWindowService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IWindowService private readonly windowService: IWindowService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
 	) {
 		super();
 

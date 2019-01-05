@@ -32,11 +32,11 @@ export class Debugger implements IDebugger {
 	private mergedExtensionDescriptions: IExtensionDescription[];
 
 	constructor(private configurationManager: IConfigurationManager, private debuggerContribution: IDebuggerContribution, public extensionDescription: IExtensionDescription,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@ITextResourcePropertiesService private resourcePropertiesService: ITextResourcePropertiesService,
-		@ICommandService private commandService: ICommandService,
-		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService,
-		@ITelemetryService private telemetryService: ITelemetryService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ITextResourcePropertiesService private readonly resourcePropertiesService: ITextResourcePropertiesService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IConfigurationResolverService private readonly configurationResolverService: IConfigurationResolverService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		this.mergedExtensionDescriptions = [extensionDescription];
 	}

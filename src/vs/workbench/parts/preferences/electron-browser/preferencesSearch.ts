@@ -34,11 +34,11 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 	private _installedExtensions: Promise<ILocalExtension[]>;
 
 	constructor(
-		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
-		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService
+		@IWorkspaceConfigurationService private readonly configurationService: IWorkspaceConfigurationService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
+		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService
 	) {
 		super();
 
@@ -166,9 +166,9 @@ class RemoteSearchProvider implements ISearchProvider {
 	private _remoteSearchP: Promise<IFilterMetadata>;
 
 	constructor(private options: IRemoteSearchProviderOptions, private installedExtensions: Promise<ILocalExtension[]>,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IRequestService private requestService: IRequestService,
-		@ILogService private logService: ILogService
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IRequestService private readonly requestService: IRequestService,
+		@ILogService private readonly logService: ILogService
 	) {
 		this._remoteSearchP = this.options.filter ?
 			Promise.resolve(this.getSettingsForFilter(this.options.filter)) :

@@ -103,7 +103,6 @@ export class TOCRenderer implements ITreeRenderer<SettingsTreeGroupElement, neve
 		const count = element.count;
 		const label = element.label;
 
-		DOM.toggleClass(template.labelElement, 'no-results', count === 0);
 		template.labelElement.textContent = label;
 
 		if (count) {

@@ -456,11 +456,11 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 
 			this.doOpen(path).then(resolve, error => {
 
-				// TODO@Ben check if this is still happening. This error code should only arise if
-				// another process is locking the same DB we want to open at that time. This typically
-				// never happens because a DB connection is limited per window. However, in the event
-				// of a window reload, it may be possible that the previous connection was not properly
-				// closed while the new connection is already established.
+				// This error code should only arise if another process is locking the same DB we
+				// want to open at that time. This typically never happens because a DB connection
+				// is limited per window. However, in the event of a window reload, it may be possible
+				// that the previous connection was not properly closed while the new connection is
+				// already established.
 				if (error.code === 'SQLITE_BUSY') {
 					return this.handleSQLiteBusy(path).then(resolve, fallbackToInMemoryDatabase);
 				}

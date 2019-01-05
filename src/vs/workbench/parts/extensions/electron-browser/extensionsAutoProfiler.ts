@@ -28,7 +28,7 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 	private readonly _blame = new Set<string>();
 
 	constructor(
-		@IExtensionService private _extensionService: IExtensionService,
+		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IExtensionHostProfileService private readonly _extensionProfileService: IExtensionHostProfileService,
 		@IExtensionsWorkbenchService private readonly _anotherExtensionService: IExtensionsWorkbenchService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,

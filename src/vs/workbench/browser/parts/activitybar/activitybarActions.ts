@@ -36,9 +36,9 @@ export class ViewletActivityAction extends ActivityAction {
 
 	constructor(
 		activity: IActivity,
-		@IViewletService private viewletService: IViewletService,
-		@IPartService private partService: IPartService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@IViewletService private readonly viewletService: IViewletService,
+		@IPartService private readonly partService: IPartService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super(activity);
 	}
@@ -84,8 +84,8 @@ export class ToggleViewletAction extends Action {
 
 	constructor(
 		private _viewlet: ViewletDescriptor,
-		@IPartService private partService: IPartService,
-		@IViewletService private viewletService: IViewletService
+		@IPartService private readonly partService: IPartService,
+		@IViewletService private readonly viewletService: IViewletService
 	) {
 		super(_viewlet.id, _viewlet.name);
 	}
@@ -200,8 +200,8 @@ class SwitchSideBarViewAction extends Action {
 	constructor(
 		id: string,
 		name: string,
-		@IViewletService private viewletService: IViewletService,
-		@IActivityService private activityService: IActivityService
+		@IViewletService private readonly viewletService: IViewletService,
+		@IActivityService private readonly activityService: IActivityService
 	) {
 		super(id, name);
 	}

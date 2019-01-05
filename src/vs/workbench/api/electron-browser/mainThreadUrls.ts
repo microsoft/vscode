@@ -36,8 +36,8 @@ export class MainThreadUrls implements MainThreadUrlsShape {
 
 	constructor(
 		context: IExtHostContext,
-		@IURLService private urlService: IURLService,
-		@IExtensionUrlHandler private inactiveExtensionUrlHandler: IExtensionUrlHandler
+		@IURLService private readonly urlService: IURLService,
+		@IExtensionUrlHandler private readonly inactiveExtensionUrlHandler: IExtensionUrlHandler
 	) {
 		this.proxy = context.getProxy(ExtHostContext.ExtHostUrls);
 	}

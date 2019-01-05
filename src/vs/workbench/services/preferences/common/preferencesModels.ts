@@ -1144,7 +1144,7 @@ export class DefaultKeybindingsEditorModel implements IKeybindingsEditorModel<an
 	private _content: string;
 
 	constructor(private _uri: URI,
-		@IKeybindingService private keybindingService: IKeybindingService) {
+		@IKeybindingService private readonly keybindingService: IKeybindingService) {
 	}
 
 	get uri(): URI {

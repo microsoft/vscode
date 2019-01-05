@@ -356,7 +356,7 @@ export class BreadcrumbsControl {
 			},
 			getAnchor: () => {
 				let maxInnerWidth = window.innerWidth - 8 /*a little less the full widget*/;
-				let maxHeight = Math.min(window.innerHeight * .7, 300);
+				let maxHeight = Math.min(window.innerHeight * 0.7, 300);
 
 				let pickerWidth = Math.min(maxInnerWidth, Math.max(240, maxInnerWidth / 4.17));
 				let pickerArrowSize = 8;
@@ -379,7 +379,7 @@ export class BreadcrumbsControl {
 						pickerArrowOffset = maxPickerArrowOffset;
 					}
 				} else {
-					pickerArrowOffset = (data.left + (data.width * .3)) - x;
+					pickerArrowOffset = (data.left + (data.width * 0.3)) - x;
 				}
 				picker.setInput(element, maxHeight, pickerWidth, pickerArrowSize, Math.max(0, pickerArrowOffset));
 				return { x, y };

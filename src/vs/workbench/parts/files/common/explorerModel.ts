@@ -22,7 +22,7 @@ export class Model {
 	private _roots: ExplorerItem[];
 	private _listener: IDisposable;
 
-	constructor(@IWorkspaceContextService private contextService: IWorkspaceContextService) {
+	constructor(@IWorkspaceContextService private readonly contextService: IWorkspaceContextService) {
 		const setRoots = () => this._roots = this.contextService.getWorkspace().folders
 			.map(folder => new ExplorerItem(folder.uri, undefined, false, false, true, folder.name));
 		this._listener = this.contextService.onDidChangeWorkspaceFolders(() => setRoots());

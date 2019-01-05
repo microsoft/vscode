@@ -17,7 +17,6 @@ function isRemoteOperation(operation: Operation): boolean {
 
 export class AutoFetcher {
 
-	private static readonly Period = 3 * 60 * 1000 /* three minutes */;
 	private static DidInformUser = 'autofetch.didInformUser';
 
 	private _onDidChange = new EventEmitter<boolean>();
@@ -111,8 +110,10 @@ export class AutoFetcher {
 				return;
 			}
 
-			const timeout = new Promise(c => setTimeout(c, AutoFetcher.Period));
+			const period = workspace.getConfiguration('git').get<number>('autofetchPeriod', 180) * 1000;
+			const timeout = new Promise(c => setTimeout(c, period));
 			const whenDisabled = eventToPromise(filterEvent(this.onDidChange, enabled => !enabled));
+
 			await Promise.race([timeout, whenDisabled]);
 		}
 	}

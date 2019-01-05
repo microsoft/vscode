@@ -18,12 +18,12 @@ export interface TriggerContext {
 	readonly triggerCharacter?: string;
 }
 
-const DefaultState = new class { readonly state = 'default'; };
-const PendingState = new class { readonly state = 'pending'; };
+const DefaultState = new class { readonly type = 'default'; };
+const PendingState = new class { readonly type = 'pending'; };
 
 class ActiveState {
-	static readonly state = 'active';
-	readonly state = ActiveState.state;
+	static readonly type = 'active';
+	readonly type = ActiveState.type;
 	constructor(
 		readonly hints: modes.SignatureHelp
 	) { }
@@ -97,12 +97,12 @@ export class ParameterHintsModel extends Disposable {
 			() => this.doTrigger({
 				triggerKind: context.triggerKind,
 				triggerCharacter: context.triggerCharacter,
-				isRetrigger: this.state.state === ActiveState.state || this.state.state === PendingState.state,
+				isRetrigger: this.state.type === ActiveState.type || this.state.type === PendingState.type,
 			}, triggerId), delay).then(undefined, onUnexpectedError);
 	}
 
 	public next(): void {
-		if (this.state.state !== ActiveState.state) {
+		if (this.state.type !== ActiveState.type) {
 			return;
 		}
 
@@ -121,7 +121,7 @@ export class ParameterHintsModel extends Disposable {
 	}
 
 	public previous(): void {
-		if (this.state.state !== ActiveState.state) {
+		if (this.state.type !== ActiveState.type) {
 			return;
 		}
 
@@ -140,7 +140,7 @@ export class ParameterHintsModel extends Disposable {
 	}
 
 	private updateActiveSignature(activeSignature: number) {
-		if (this.state.state !== ActiveState.state) {
+		if (this.state.type !== ActiveState.type) {
 			return;
 		}
 
@@ -185,7 +185,9 @@ export class ParameterHintsModel extends Disposable {
 	}
 
 	private get isTriggered(): boolean {
-		return this.state.state === ActiveState.state || this.state.state === PendingState.state || this.throttledDelayer.isTriggered();
+		return this.state.type === ActiveState.type
+			|| this.state.type === PendingState.type
+			|| this.throttledDelayer.isTriggered();
 	}
 
 	private onModelChanged(): void {

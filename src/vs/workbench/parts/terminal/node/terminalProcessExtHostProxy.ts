@@ -35,7 +35,7 @@ export class TerminalProcessExtHostProxy implements ITerminalChildProcess, ITerm
 		activeWorkspaceRootUri: URI,
 		cols: number,
 		rows: number,
-		@ITerminalService private _terminalService: ITerminalService,
+		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IExtensionService private readonly _extensionService: IExtensionService
 	) {
 		this._extensionService.whenInstalledExtensionsRegistered().then(() => {

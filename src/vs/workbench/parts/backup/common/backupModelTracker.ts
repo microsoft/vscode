@@ -21,10 +21,10 @@ export class BackupModelTracker extends Disposable implements IWorkbenchContribu
 	private configuredAutoSaveAfterDelay: boolean;
 
 	constructor(
-		@IBackupFileService private backupFileService: IBackupFileService,
-		@ITextFileService private textFileService: ITextFileService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IBackupFileService private readonly backupFileService: IBackupFileService,
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 

@@ -27,9 +27,9 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
 	get onDidContextMenu(): Event<void> { return this._onDidContextMenu.event; }
 
 	constructor(
-		@INotificationService private notificationService: INotificationService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IKeybindingService private keybindingService: IKeybindingService
+		@INotificationService private readonly notificationService: INotificationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
 		super();
 	}
