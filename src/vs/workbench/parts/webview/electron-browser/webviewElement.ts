@@ -288,6 +288,10 @@ export class WebviewElement extends Disposable {
 		}));
 		this._register(addDisposableListener(this._webview, 'dom-ready', () => {
 			this.layout();
+
+			// Workaround for https://github.com/electron/electron/issues/14474
+			this._webview.blur();
+			this._webview.focus();
 		}));
 		this._register(addDisposableListener(this._webview, 'crashed', () => {
 			console.error('embedded page crashed');
