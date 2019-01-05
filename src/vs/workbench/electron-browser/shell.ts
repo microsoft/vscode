@@ -82,7 +82,7 @@ import { LocalizationsChannelClient } from 'vs/platform/localizations/node/local
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 import { WorkbenchIssueService } from 'vs/workbench/services/issue/electron-browser/workbenchIssueService';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 import { NotificationService } from 'vs/workbench/services/notification/common/notificationService';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { DialogService } from 'vs/workbench/services/dialogs/electron-browser/dialogService';
@@ -217,25 +217,6 @@ export class WorkbenchShell extends Disposable {
 				if (!this.environmentService.extensionTestsPath) {
 					this.logStorageTelemetry();
 				}
-
-				// TODO@Ben remove me after a while
-				if (!this.storageService.getBoolean('exploration.electron3.prompted', StorageScope.GLOBAL)) {
-					this.notificationService.prompt(Severity.Info, 'This exploration build has been updated to now use Electron 4. Please switch back to our Insiders build. It has been updated to use Electron 3.', [
-						{
-							label: 'Download Insiders',
-							run: () => {
-								window.open('https://code.visualstudio.com/insiders');
-							}
-						},
-						{
-							label: 'Don\'t show again',
-							run: () => {
-								this.storageService.store('exploration.electron3.prompted', true, StorageScope.GLOBAL);
-							}
-						}
-					]);
-				}
-
 			}, error => handleStartupError(this.logService, error));
 
 			return workbench;
