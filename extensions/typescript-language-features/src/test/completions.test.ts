@@ -10,15 +10,36 @@ import { disposeAll } from '../utils/dispose';
 
 const testDocumentUri = vscode.Uri.parse('untitled:test.ts');
 
+const configOverrides: { readonly [key: string]: any } = Object.freeze({
+	'editor.suggestSelection': 'first',
+	'typescript.suggest.completeFunctionCalls': false,
+});
+
 suite('TypeScript Completions', () => {
 	const _disposables: vscode.Disposable[] = [];
+	let oldConfig: { [key: string]: any } = {};
 
-	setup(() => {
-		return wait(100);
+	setup(async () => {
+		await wait(100);
+
+		// save off config and update overrides
+		oldConfig = {};
+		const config = vscode.workspace.getConfiguration(undefined, testDocumentUri);
+		for (const configKey of Object.keys(configOverrides)) {
+			oldConfig[configKey] = config.get(configKey);
+			await new Promise((resolve, reject) => config.update(configKey, configOverrides[configKey], vscode.ConfigurationTarget.Global).then(() => resolve(), reject));
+		}
 	});
 
-	teardown(() => {
+	teardown(async () => {
 		disposeAll(_disposables);
+
+		// Restore config
+		const config = vscode.workspace.getConfiguration(undefined, testDocumentUri);
+		for (const configKey of Object.keys(oldConfig)) {
+			await new Promise((resolve, reject) => config.update(configKey, oldConfig[configKey], vscode.ConfigurationTarget.Global).then(() => resolve(), reject));
+		}
+
 		return vscode.commands.executeCommand('workbench.action.closeAllEditors');
 	});
 
@@ -49,6 +70,21 @@ suite('TypeScript Completions', () => {
 			joinLines(
 				`const abcdef = 123;`,
 				`abcdef.;`
+			));
+	});
+
+	test('Should treat paren as commit character for function completions', async () => {
+		await createTestEditor(testDocumentUri,
+			`function abcdef() {};`,
+			`ab$0;`
+		);
+
+		const document = await typeCommitCharacter(testDocumentUri, '(', _disposables);
+		assert.strictEqual(
+			document.getText(),
+			joinLines(
+				`function abcdef() {};`,
+				`abcdef();`
 			));
 	});
 
