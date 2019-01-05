@@ -162,6 +162,20 @@ suite('TypeScript Completions', () => {
 			));
 	});
 
+	test('Accepting a member completion should result in valid code. #58597', async () => {
+		await createTestEditor(testDocumentUri,
+			`const abc = 123;`,
+			`ab$0c`
+		);
+
+		const document = await acceptFirstSuggestion(testDocumentUri, _disposables);
+		assert.strictEqual(
+			document.getText(),
+			joinLines(
+				`const abc = 123;`,
+				`abc`
+			));
+	});
 });
 
 const joinLines = (...args: string[]) => args.join('\n');
