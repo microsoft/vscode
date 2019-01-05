@@ -103,19 +103,24 @@ suite('TypeScript Completions', () => {
 			));
 	});
 
-	test('Should allow period commit characters for backet completions', async () => {
-		await createTestEditor(testDocumentUri,
-			'const x = { "hello world2": 1 };',
-			'x.$0'
-		);
-
-		const document = await typeCommitCharacter(testDocumentUri, '.', _disposables);
-		assert.strictEqual(
-			document.getText(),
-			joinLines(
+	test('Should allow commit characters for backet completions', async () => {
+		for (const { char, insert } of [
+			{ char: '.', insert: '.' },
+			{ char: '(', insert: '()' },
+		]) {
+			await createTestEditor(testDocumentUri,
 				'const x = { "hello world2": 1 };',
-				'x["hello world2"].'
-			));
+				'x.$0'
+			);
+
+			const document = await typeCommitCharacter(testDocumentUri, char, _disposables);
+			assert.strictEqual(
+				document.getText(),
+				joinLines(
+					'const x = { "hello world2": 1 };',
+					`x["hello world2"]${insert}`
+				));
+		}
 	});
 
 	test('Should not prioritize bracket accessor completions. #63100', async () => {
@@ -197,7 +202,7 @@ async function createTestEditor(uri: vscode.Uri, ...lines: string[]) {
 		throw new Error('no active editor');
 	}
 
-	await activeEditor.insertSnippet(new vscode.SnippetString(joinLines(...lines)));
+	await activeEditor.insertSnippet(new vscode.SnippetString(joinLines(...lines)), new vscode.Range(0, 0, 1000, 0));
 }
 
 function onDidSuggest(disposables: vscode.Disposable[]) {
