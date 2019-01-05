@@ -11,11 +11,28 @@ import { disposeAll } from '../utils/dispose';
 const testDocumentUri = vscode.Uri.parse('untitled:test.ts');
 
 suite('TypeScript Completions', () => {
-	const _disposables: vscode.Disposable[] = []
+	const _disposables: vscode.Disposable[] = [];
 
 	teardown(() => {
 		disposeAll(_disposables);
 		return vscode.commands.executeCommand('workbench.action.closeAllEditors');
+	});
+
+	test('Basic var completion', async () => {
+		await wait(100);
+
+		await createTestEditor(testDocumentUri,
+			`const abcdef = 123;`,
+			`ab$0;`
+		);
+
+		const document = await acceptFirstSuggestion(testDocumentUri, _disposables);
+		assert.strictEqual(
+			document.getText(),
+			joinLines(
+				`const abcdef = 123;`,
+				`abcdef;`
+			));
 	});
 
 	test('Should insert backets when completing dot properties with spaces in name', async () => {
