@@ -135,15 +135,21 @@ export class ColorThemeData implements IColorTheme {
 	}
 
 	public ensureLoaded(fileService: IFileService): Promise<void> {
-		if (!this.isLoaded) {
-			if (this.location) {
-				return _loadColorTheme(fileService, this.location, this.themeTokenColors, this.colorMap).then(_ => {
-					this.isLoaded = true;
-					this.sanitizeTokenColors();
-				});
-			}
+		return !this.isLoaded ? this.load(fileService) : Promise.resolve(undefined);
+	}
+
+	public reload(fileService: IFileService): Promise<void> {
+		return this.load(fileService);
+	}
+
+	private load(fileService: IFileService): Promise<void> {
+		if (!this.location) {
+			return Promise.resolve(undefined);
 		}
-		return Promise.resolve(undefined);
+		return _loadColorTheme(fileService, this.location, this.themeTokenColors, this.colorMap).then(_ => {
+			this.isLoaded = true;
+			this.sanitizeTokenColors();
+		});
 	}
 
 	/**
