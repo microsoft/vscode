@@ -72,12 +72,12 @@ export class KeybindingDispatcher {
 
 	public set(keybinding: KeyCode, callback: IKeyBindingCallback) {
 		this._arr.push({
-			keybinding: createKeybinding(keybinding, platform.OS),
+			keybinding: createKeybinding(keybinding, platform.OS)!,
 			callback: callback
 		});
 	}
 
-	public dispatch(keybinding: SimpleKeybinding): IKeyBindingCallback {
+	public dispatch(keybinding: SimpleKeybinding): IKeyBindingCallback | null {
 		// Loop from the last to the first to handle overwrites
 		for (let i = this._arr.length - 1; i >= 0; i--) {
 			let item = this._arr[i];
@@ -225,7 +225,7 @@ export class DefaultController implements _.IController {
 			return false;
 		}
 
-		const twistieWidth = parseInt(twistieStyle.width) + parseInt(twistieStyle.paddingRight);
+		const twistieWidth = parseInt(twistieStyle.width!) + parseInt(twistieStyle.paddingRight!);
 		return event.browserEvent.offsetX <= twistieWidth;
 	}
 
@@ -430,7 +430,7 @@ export class DefaultController implements _.IController {
 
 export class DefaultDragAndDrop implements _.IDragAndDrop {
 
-	public getDragURI(tree: _.ITree, element: any): string {
+	public getDragURI(tree: _.ITree, element: any): string | null {
 		return null;
 	}
 
@@ -438,7 +438,7 @@ export class DefaultDragAndDrop implements _.IDragAndDrop {
 		return;
 	}
 
-	public onDragOver(tree: _.ITree, data: _.IDragAndDropData, targetElement: any, originalEvent: mouse.DragMouseEvent): _.IDragOverReaction {
+	public onDragOver(tree: _.ITree, data: _.IDragAndDropData, targetElement: any, originalEvent: mouse.DragMouseEvent): _.IDragOverReaction | null {
 		return null;
 	}
 
@@ -463,7 +463,7 @@ export class DefaultSorter implements _.ISorter {
 
 export class DefaultAccessibilityProvider implements _.IAccessibilityProvider {
 
-	getAriaLabel(tree: _.ITree, element: any): string {
+	getAriaLabel(tree: _.ITree, element: any): string | null {
 		return null;
 	}
 }
