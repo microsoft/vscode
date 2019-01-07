@@ -736,13 +736,10 @@ class SignatureHelpAdapter {
 	) { }
 
 	provideSignatureHelp(resource: URI, position: IPosition, context: modes.SignatureHelpContext, token: CancellationToken): Promise<modes.SignatureHelp> {
-
 		const doc = this._documents.getDocumentData(resource).document;
 		const pos = typeConvert.Position.to(position);
-
-		// TODO: For `activeSignatureHelp`, we may need to save off the object returned from provideSignatureHelp and try to
-		// revive the same object from `context.activeSignatureHelp`
 		const vscodeContext = this.reviveContext(context);
+
 		return asPromise(() => this._provider.provideSignatureHelp(doc, pos, token, vscodeContext)).then(value => {
 			if (value) {
 				const id = this._heap.keep(value);
