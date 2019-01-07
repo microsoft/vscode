@@ -9,6 +9,7 @@ import * as platform from 'vs/base/common/platform';
 import * as dom from 'vs/base/browser/dom';
 import * as paths from 'vs/base/common/paths';
 import * as os from 'os';
+import * as path from 'path';
 import { Event, Emitter } from 'vs/base/common/event';
 import { debounce } from 'vs/base/common/decorators';
 import { WindowsShellHelper } from 'vs/workbench/parts/terminal/node/windowsShellHelper';
@@ -676,32 +677,43 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 	}
 
-	public preparePathForTerminalAsync(path: string): Promise<string> {
+	public preparePathForTerminalAsync(originalPath: string): Promise<string> {
 		return new Promise<string>(c => {
-			const hasSpace = path.indexOf(' ') !== -1;
+			const exe = this.shellLaunchConfig.executable;
+			if (!exe) {
+				c(originalPath);
+				return;
+			}
+
+			const hasSpace = originalPath.indexOf(' ') !== -1;
+
+			const pathBasename = path.basename(exe, '.exe');
+			const isPowerShell = pathBasename === 'pwsh' ||
+				this.title === 'pwsh' ||
+				pathBasename === 'powershell' ||
+				this.title === 'powershell';
+
+			if (hasSpace && isPowerShell) {
+				c(`& '${originalPath.replace('\'', '\'\'')}'`);
+				return;
+			}
+
 			if (platform.isWindows) {
-				const exe = this.shellLaunchConfig.executable;
-				if (!exe) {
-					c(path);
-					return;
-				}
 				// 17063 is the build number where wsl path was introduced.
 				// Update Windows uriPath to be executed in WSL.
 				if (((exe.indexOf('wsl') !== -1) || ((exe.indexOf('bash.exe') !== -1) && (exe.indexOf('git') === -1))) && (TerminalInstance.getWindowsBuildNumber() >= 17063)) {
-					execFile('bash.exe', ['-c', 'echo $(wslpath ' + this._escapeNonWindowsPath(path) + ')'], {}, (error, stdout, stderr) => {
+					execFile('bash.exe', ['-c', 'echo $(wslpath ' + this._escapeNonWindowsPath(originalPath) + ')'], {}, (error, stdout, stderr) => {
 						c(this._escapeNonWindowsPath(stdout.trim()));
 					});
 					return;
-				} else if (hasSpace && (exe.indexOf('powershell') !== -1)) {
-					c('& \'' + path + '\'');
 				} else if (hasSpace) {
-					c('"' + path + '"');
+					c('"' + originalPath + '"');
 				} else {
-					c(path);
+					c(originalPath);
 				}
 				return;
 			}
-			c(this._escapeNonWindowsPath(path));
+			c(this._escapeNonWindowsPath(originalPath));
 		});
 	}
 
