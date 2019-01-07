@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isNonEmptyArray } from 'vs/base/common/arrays';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { escape } from 'vs/base/common/strings';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as network from 'vs/base/common/network';
 import { basename } from 'vs/base/common/paths';
@@ -28,6 +27,7 @@ import { overviewRulerError, overviewRulerInfo, overviewRulerWarning } from 'vs/
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IMarker, IMarkerService, MarkerSeverity, MarkerTag } from 'vs/platform/markers/common/markers';
 import { ThemeColor, themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { localize } from 'vs/nls';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -192,33 +192,36 @@ class ModelMarkerHandler {
 		let { message, source, relatedInformation, code } = marker;
 
 		if (typeof message === 'string') {
+			message = message.trim();
 
-			hoverMessage = new MarkdownString();
-			// Disable markdown renderer sanitize to allow html
-			// Hence, escape all input strings
-			hoverMessage.sanitize = false;
-
-			hoverMessage.appendMarkdown(`<div>`);
-			hoverMessage.appendMarkdown(`<span style='font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback"; white-space: pre-wrap;'>${escape(message.trim())}</span>`);
 			if (source) {
-				hoverMessage.appendMarkdown(`<span style='opacity: 0.6; padding-left:6px;'>${escape(source)}</span>`);
-				if (code) {
-					hoverMessage.appendMarkdown(`<span style='opacity: 0.6; padding-left:2px;'>(${escape(code)})</span>`);
+				if (/\n/g.test(message)) {
+					if (code) {
+						message = localize('diagAndSourceAndCodeMultiline', "[{0}]\n{1} [{2}]", source, message, code);
+					} else {
+						message = localize('diagAndSourceMultiline', "[{0}]\n{1}", source, message);
+					}
+				} else {
+					if (code) {
+						message = localize('diagAndSourceAndCode', "[{0}] {1} [{2}]", source, message, code);
+					} else {
+						message = localize('diagAndSource', "[{0}] {1}", source, message);
+					}
 				}
-			} else if (code) {
-				hoverMessage.appendMarkdown(`<span style='opacity: 0.6; padding-left:6px;'>(${escape(code)})</span>`);
 			}
-			hoverMessage.appendMarkdown(`</div>`);
 
-			if (isNonEmptyArray(relatedInformation)) {
-				hoverMessage.appendMarkdown(`<ul>`);
-				for (const { message, resource, startLineNumber, startColumn } of relatedInformation) {
-					hoverMessage.appendMarkdown(`<li>`);
-					hoverMessage.appendMarkdown(`<a href='#' data-href='${resource.toString(false)}#${startLineNumber},${startColumn}'>${escape(basename(resource.path))}(${startLineNumber}, ${startColumn})</a>`);
-					hoverMessage.appendMarkdown(`<span>: ${escape(message)}</span>`);
-					hoverMessage.appendMarkdown(`</li>`);
+			hoverMessage = new MarkdownString().appendCodeblock('_', message);
+
+			if (!isFalsyOrEmpty(relatedInformation)) {
+				hoverMessage.appendMarkdown('\n');
+				for (const { message, resource, startLineNumber, startColumn } of relatedInformation!) {
+					hoverMessage.appendMarkdown(
+						`* [${basename(resource.path)}(${startLineNumber}, ${startColumn})](${resource.toString(false)}#${startLineNumber},${startColumn}): `
+					);
+					hoverMessage.appendText(`${message}`);
+					hoverMessage.appendMarkdown('\n');
 				}
-				hoverMessage.appendMarkdown(`</ul>`);
+				hoverMessage.appendMarkdown('\n');
 			}
 		}
 
