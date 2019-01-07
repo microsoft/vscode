@@ -110,7 +110,11 @@ export interface RepositoryUIState {
 	readonly onDidChange: Event<void>;
 }
 
-export interface GitLogOptions {
+/**
+ * Log options.
+ */
+export interface LogOptions {
+	/** Max number of log entries to retrieve. If not specified, the default is 32. */
 	readonly maxEntries?: number;
 }
 
@@ -167,7 +171,7 @@ export interface Repository {
 	pull(): Promise<void>;
 	push(remoteName?: string, branchName?: string, setUpstream?: boolean): Promise<void>;
 
-	getLog(options?: GitLogOptions): Promise<Commit[]>;
+	log(options?: LogOptions): Promise<Commit[]>;
 }
 
 export interface API {

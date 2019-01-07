@@ -14,7 +14,7 @@ import * as filetype from 'file-type';
 import { assign, groupBy, denodeify, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent } from './util';
 import { CancellationToken, Uri } from 'vscode';
 import { detectEncoding } from './encoding';
-import { Ref, RefType, Branch, Remote, GitErrorCodes, GitLogOptions, Change, Status } from './api/git';
+import { Ref, RefType, Branch, Remote, GitErrorCodes, LogOptions, Change, Status } from './api/git';
 
 const readfile = denodeify<string, string | null, string>(fs.readFile);
 
@@ -700,33 +700,36 @@ export class Repository {
 		});
 	}
 
-	async getLog(options?: GitLogOptions): Promise<Commit[]> {
-		const args = ['log'];
-		if (options) {
-			if (typeof options.maxEntries === 'number' && options.maxEntries > 0) {
-				args.push('-' + options.maxEntries);
-			}
-		}
-
-		args.push(`--pretty=format:${COMMIT_FORMAT}%x00%x00`);
+	async log(options?: LogOptions): Promise<Commit[]> {
+		const maxEntries = options && typeof options.maxEntries === 'number' && options.maxEntries > 0 ? options.maxEntries : 32;
+		const args = ['log', '-' + maxEntries, `--pretty=format:${COMMIT_FORMAT}%x00%x00`];
 		const gitResult = await this.run(args);
 		if (gitResult.exitCode) {
 			// An empty repo.
 			return [];
 		}
 
-		const entries = gitResult.stdout.split('\x00\x00');
+		const s = gitResult.stdout;
 		const result: Commit[] = [];
-		for (let entry of entries) {
+		let index = 0;
+		while (index < s.length) {
+			let nextIndex = s.indexOf('\x00\x00', index);
+			if (nextIndex === -1) {
+				nextIndex = s.length;
+			}
+
+			let entry = s.substr(index, nextIndex - index);
 			if (entry.startsWith('\n')) {
 				entry = entry.substring(1);
 			}
+
 			const commit = parseGitCommit(entry);
 			if (!commit) {
 				break;
 			}
 
 			result.push(commit);
+			index = nextIndex + 2;
 		}
 
 		return result;
@@ -886,7 +889,10 @@ export class Repository {
 		return result.stdout;
 	}
 
-	async diffWithHEAD(path?: string): Promise<string | Change[]> {
+	diffWithHEAD(): Promise<Change[]>;
+	diffWithHEAD(path: string): Promise<string>;
+	diffWithHEAD(path?: string | undefined): Promise<string | Change[]>;
+	async diffWithHEAD(path?: string | undefined): Promise<string | Change[]> {
 		if (!path) {
 			return await this.diffFiles(false);
 		}
@@ -896,6 +902,9 @@ export class Repository {
 		return result.stdout;
 	}
 
+	diffWith(ref: string): Promise<Change[]>;
+	diffWith(ref: string, path: string): Promise<string>;
+	diffWith(ref: string, path?: string | undefined): Promise<string | Change[]>;
 	async diffWith(ref: string, path?: string): Promise<string | Change[]> {
 		if (!path) {
 			return await this.diffFiles(false, ref);
@@ -906,6 +915,9 @@ export class Repository {
 		return result.stdout;
 	}
 
+	diffIndexWithHEAD(): Promise<Change[]>;
+	diffIndexWithHEAD(path: string): Promise<string>;
+	diffIndexWithHEAD(path?: string | undefined): Promise<string | Change[]>;
 	async diffIndexWithHEAD(path?: string): Promise<string | Change[]> {
 		if (!path) {
 			return await this.diffFiles(true);
@@ -916,6 +928,9 @@ export class Repository {
 		return result.stdout;
 	}
 
+	diffIndexWith(ref: string): Promise<Change[]>;
+	diffIndexWith(ref: string, path: string): Promise<string>;
+	diffIndexWith(ref: string, path?: string | undefined): Promise<string | Change[]>;
 	async diffIndexWith(ref: string, path?: string): Promise<string | Change[]> {
 		if (!path) {
 			return await this.diffFiles(true, ref);
@@ -932,6 +947,9 @@ export class Repository {
 		return result.stdout;
 	}
 
+	diffBetween(ref1: string, ref2: string): Promise<Change[]>;
+	diffBetween(ref1: string, ref2: string, path: string): Promise<string>;
+	diffBetween(ref1: string, ref2: string, path?: string | undefined): Promise<string | Change[]>;
 	async diffBetween(ref1: string, ref2: string, path?: string): Promise<string | Change[]> {
 		const range = `${ref1}...${ref2}`;
 		if (!path) {

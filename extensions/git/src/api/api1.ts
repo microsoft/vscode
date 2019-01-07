@@ -5,7 +5,7 @@
 
 import { Model } from '../model';
 import { Repository as BaseRepository, Resource } from '../repository';
-import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, Ref, Submodule, Commit, Change, RepositoryUIState, Status, GitLogOptions } from './git';
+import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions } from './git';
 import { Event, SourceControlInputBox, Uri, SourceControl } from 'vscode';
 import { mapEvent } from '../util';
 
@@ -111,25 +111,25 @@ export class ApiRepository implements Repository {
 	diffWithHEAD(): Promise<Change[]>;
 	diffWithHEAD(path: string): Promise<string>;
 	diffWithHEAD(path?: string): Promise<string | Change[]> {
-		return path ? this._repository.diffWithHEAD(path) : this._repository.diffWithHEAD();
+		return this._repository.diffWithHEAD(path);
 	}
 
 	diffWith(ref: string): Promise<Change[]>;
 	diffWith(ref: string, path: string): Promise<string>;
 	diffWith(ref: string, path?: string): Promise<string | Change[]> {
-		return path ? this._repository.diffWith(ref, path) : this._repository.diffWith(ref);
+		return this._repository.diffWith(ref, path);
 	}
 
 	diffIndexWithHEAD(): Promise<Change[]>;
 	diffIndexWithHEAD(path: string): Promise<string>;
 	diffIndexWithHEAD(path?: string): Promise<string | Change[]> {
-		return path ? this._repository.diffIndexWithHEAD(path) : this._repository.diffIndexWithHEAD();
+		return this._repository.diffIndexWithHEAD(path);
 	}
 
 	diffIndexWith(ref: string): Promise<Change[]>;
 	diffIndexWith(ref: string, path: string): Promise<string>;
 	diffIndexWith(ref: string, path?: string): Promise<string | Change[]> {
-		return path ? this._repository.diffIndexWith(ref, path) : this._repository.diffIndexWith(ref);
+		return this._repository.diffIndexWith(ref, path);
 	}
 
 	diffBlobs(object1: string, object2: string): Promise<string> {
@@ -139,7 +139,7 @@ export class ApiRepository implements Repository {
 	diffBetween(ref1: string, ref2: string): Promise<Change[]>;
 	diffBetween(ref1: string, ref2: string, path: string): Promise<string>;
 	diffBetween(ref1: string, ref2: string, path?: string): Promise<string | Change[]> {
-		return path ? this._repository.diffBetween(ref1, ref2, path) : this._repository.diffBetween(ref1, ref2);
+		return this._repository.diffBetween(ref1, ref2, path);
 	}
 
 	hashObject(data: string): Promise<string> {
@@ -194,8 +194,8 @@ export class ApiRepository implements Repository {
 		return this._repository.pushTo(remoteName, branchName, setUpstream);
 	}
 
-	getLog(options?: GitLogOptions): Promise<Commit[]> {
-		return this._repository.getLog(options);
+	log(options?: LogOptions): Promise<Commit[]> {
+		return this._repository.log(options);
 	}
 }
 
