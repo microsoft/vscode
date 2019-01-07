@@ -67,9 +67,9 @@ type Task = { (): Promise<void> };
 class Main {
 
 	constructor(
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
-		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
+		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService
 	) { }
 
 	async run(argv: ParsedArgs): Promise<any> {

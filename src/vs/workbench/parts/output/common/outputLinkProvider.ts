@@ -22,8 +22,8 @@ export class OutputLinkProvider {
 	private linkProviderRegistration: IDisposable;
 
 	constructor(
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IModelService private modelService: IModelService
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IModelService private readonly modelService: IModelService
 	) {
 		this.disposeWorkerScheduler = new RunOnceScheduler(() => this.disposeWorker(), OutputLinkProvider.DISPOSE_WORKER_TIME);
 

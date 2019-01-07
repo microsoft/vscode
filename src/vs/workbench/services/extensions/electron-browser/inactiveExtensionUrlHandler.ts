@@ -53,14 +53,14 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 
 	constructor(
 		@IURLService urlService: IURLService,
-		@IExtensionService private extensionService: IExtensionService,
-		@IDialogService private dialogService: IDialogService,
-		@INotificationService private notificationService: INotificationService,
-		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
-		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
-		@IWindowService private windowService: IWindowService,
-		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
-		@IStorageService private storageService: IStorageService
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
+		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService,
+		@IWindowService private readonly windowService: IWindowService,
+		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		const interval = setInterval(() => this.garbageCollect(), THIRTY_SECONDS);
 		const urlToHandleValue = this.storageService.get(URL_TO_HANDLE, StorageScope.WORKSPACE);

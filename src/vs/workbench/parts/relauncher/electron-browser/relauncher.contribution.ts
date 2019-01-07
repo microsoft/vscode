@@ -48,13 +48,13 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private onDidChangeWorkspaceFoldersUnbind: IDisposable;
 
 	constructor(
-		@IWindowsService private windowsService: IWindowsService,
-		@IWindowService private windowService: IWindowService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IEnvironmentService private envService: IEnvironmentService,
-		@IDialogService private dialogService: IDialogService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IExtensionService private extensionService: IExtensionService
+		@IWindowsService private readonly windowsService: IWindowsService,
+		@IWindowService private readonly windowService: IWindowService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IEnvironmentService private readonly envService: IEnvironmentService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IExtensionService private readonly extensionService: IExtensionService
 	) {
 		super();
 

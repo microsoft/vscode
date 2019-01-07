@@ -94,7 +94,7 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 	private viewContainersRegistry: IViewContainersRegistry;
 
 	constructor(
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		this.viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
 		this.handleAndRegisterCustomViews();

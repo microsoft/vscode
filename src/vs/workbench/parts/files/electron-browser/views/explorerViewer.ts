@@ -91,10 +91,10 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, void, IFileTem
 
 	constructor(
 		private labels: ResourceLabels,
-		@IContextViewService private contextViewService: IContextViewService,
-		@IThemeService private themeService: IThemeService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IExplorerService private explorerService: IExplorerService
+		@IContextViewService private readonly contextViewService: IContextViewService,
+		@IThemeService private readonly themeService: IThemeService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IExplorerService private readonly explorerService: IExplorerService
 	) {
 		this.config = this.configurationService.getValue<IFilesConfiguration>();
 		this.configListener = this.configurationService.onDidChangeConfiguration(e => {
@@ -245,9 +245,9 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, void> {
 	private workspaceFolderChangeListener: IDisposable;
 
 	constructor(
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IExplorerService private explorerService: IExplorerService
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IExplorerService private readonly explorerService: IExplorerService
 	) {
 		this.hiddenExpressionPerRoot = new Map<string, CachedParsedExpression>();
 		this.workspaceFolderChangeListener = this.contextService.onDidChangeWorkspaceFolders(() => this.updateConfiguration());
@@ -298,8 +298,8 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, void> {
 export class FileSorter implements ITreeSorter<ExplorerItem> {
 
 	constructor(
-		@IExplorerService private explorerService: IExplorerService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IExplorerService private readonly explorerService: IExplorerService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
 	) { }
 
 	public compare(statA: ExplorerItem, statB: ExplorerItem): number {

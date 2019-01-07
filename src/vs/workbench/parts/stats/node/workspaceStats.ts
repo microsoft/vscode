@@ -207,14 +207,14 @@ export class WorkspaceStats implements IWorkbenchContribution {
 	private static DISABLE_WORKSPACE_PROMPT_KEY = 'workspaces.dontPromptToOpen';
 
 	constructor(
-		@IFileService private fileService: IFileService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IWindowService private windowService: IWindowService,
-		@INotificationService private notificationService: INotificationService,
-		@IQuickInputService private quickInputService: IQuickInputService,
-		@IStorageService private storageService: IStorageService
+		@IFileService private readonly fileService: IFileService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IWindowService private readonly windowService: IWindowService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		this.report();
 	}

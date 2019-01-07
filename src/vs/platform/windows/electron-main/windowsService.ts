@@ -45,12 +45,12 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 
 	constructor(
 		private sharedProcess: ISharedProcess,
-		@IWindowsMainService private windowsMainService: IWindowsMainService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IURLService urlService: IURLService,
-		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IHistoryMainService private historyService: IHistoryMainService,
-		@ILogService private logService: ILogService
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IHistoryMainService private readonly historyService: IHistoryMainService,
+		@ILogService private readonly logService: ILogService
 	) {
 		urlService.registerHandler(this);
 

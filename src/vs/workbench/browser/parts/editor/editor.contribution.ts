@@ -110,7 +110,7 @@ interface ISerializedUntitledEditorInput {
 class UntitledEditorInputFactory implements IEditorInputFactory {
 
 	constructor(
-		@ITextFileService private textFileService: ITextFileService
+		@ITextFileService private readonly textFileService: ITextFileService
 	) { }
 
 	serialize(editorInput: EditorInput): string {
@@ -230,7 +230,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(ChangeEncodingAction, 
 export class QuickOpenActionContributor extends ActionBarContributor {
 	private openToSideActionInstance: OpenToSideFromQuickOpenAction;
 
-	constructor(@IInstantiationService private instantiationService: IInstantiationService) {
+	constructor(@IInstantiationService private readonly instantiationService: IInstantiationService) {
 		super();
 	}
 

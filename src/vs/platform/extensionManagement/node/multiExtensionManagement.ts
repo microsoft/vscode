@@ -30,11 +30,11 @@ export class MultiExtensionManagementService extends Disposable implements IExte
 	private readonly servers: IExtensionManagementServer[];
 
 	constructor(
-		@IExtensionManagementServerService private extensionManagementServerService: IExtensionManagementServerService,
-		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IRemoteAuthorityResolverService private remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@ILogService private logService: ILogService
+		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
+		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 		this.servers = this.extensionManagementServerService.remoteExtensionManagementServer ? [this.extensionManagementServerService.localExtensionManagementServer, this.extensionManagementServerService.remoteExtensionManagementServer] : [this.extensionManagementServerService.localExtensionManagementServer];

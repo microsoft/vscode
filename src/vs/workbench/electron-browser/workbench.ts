@@ -236,14 +236,14 @@ export class Workbench extends Disposable implements IPartService {
 		serviceCollection: ServiceCollection,
 		private lifecycleService: LifecycleService,
 		private mainProcessClient: IPCClient,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IStorageService private storageService: IStorageService,
-		@IConfigurationService private configurationService: WorkspaceService,
-		@IWorkbenchThemeService private themeService: WorkbenchThemeService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IWindowService private windowService: IWindowService,
-		@INotificationService private notificationService: NotificationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IStorageService private readonly storageService: IStorageService,
+		@IConfigurationService private readonly configurationService: WorkspaceService,
+		@IWorkbenchThemeService private readonly themeService: WorkbenchThemeService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IWindowService private readonly windowService: IWindowService,
+		@INotificationService private readonly notificationService: NotificationService
 	) {
 		super();
 

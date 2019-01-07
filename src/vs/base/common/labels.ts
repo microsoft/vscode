@@ -286,11 +286,8 @@ export function template(template: string, values: { [key: string]: string | ISe
 	const segments: ISegment[] = [];
 
 	let inVariable = false;
-	let char: string;
 	let curVal = '';
-	for (let i = 0; i < template.length; i++) {
-		char = template[i];
-
+	for (const char of template) {
 		// Beginning of variable
 		if (char === '$' || (inVariable && char === '{')) {
 			if (curVal) {

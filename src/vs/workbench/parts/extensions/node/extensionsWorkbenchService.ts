@@ -377,21 +377,21 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 	private _extensionAllowedBadgeProviders: string[];
 
 	constructor(
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IEditorService private editorService: IEditorService,
-		@IExtensionManagementService private extensionService: IExtensionManagementService,
-		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@INotificationService private notificationService: INotificationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IExtensionManagementService private readonly extensionService: IExtensionManagementService,
+		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@INotificationService private readonly notificationService: INotificationService,
 		@IURLService urlService: IURLService,
-		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
-		@IWindowService private windowService: IWindowService,
-		@ILogService private logService: ILogService,
-		@IProgressService2 private progressService: IProgressService2,
-		@IExtensionService private runtimeExtensionService: IExtensionService,
-		@IExtensionManagementServerService private extensionManagementServerService: IExtensionManagementServerService,
-		@IStorageService private storageService: IStorageService
+		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService,
+		@IWindowService private readonly windowService: IWindowService,
+		@ILogService private readonly logService: ILogService,
+		@IProgressService2 private readonly progressService: IProgressService2,
+		@IExtensionService private readonly runtimeExtensionService: IExtensionService,
+		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		this.stateProvider = ext => this.getExtensionState(ext);
 

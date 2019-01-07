@@ -28,10 +28,10 @@ export class ConfigureLocaleAction extends Action {
 	].join('\n');
 
 	constructor(id: string, label: string,
-		@IFileService private fileService: IFileService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IEditorService private editorService: IEditorService,
-		@ILabelService private labelService: ILabelService
+		@IFileService private readonly fileService: IFileService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IEditorService private readonly editorService: IEditorService,
+		@ILabelService private readonly labelService: ILabelService
 	) {
 		super(id, label);
 	}

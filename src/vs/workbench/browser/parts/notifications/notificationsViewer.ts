@@ -181,9 +181,9 @@ export class NotificationRenderer implements IListRenderer<INotificationViewItem
 
 	constructor(
 		private actionRunner: IActionRunner,
-		@IThemeService private themeService: IThemeService,
-		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IThemeService private readonly themeService: IThemeService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 	}
 
@@ -292,10 +292,10 @@ export class NotificationTemplateRenderer {
 	constructor(
 		private template: INotificationTemplateData,
 		private actionRunner: IActionRunner,
-		@IOpenerService private openerService: IOpenerService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IThemeService private themeService: IThemeService,
-		@IKeybindingService private keybindingService: IKeybindingService
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IThemeService private readonly themeService: IThemeService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
 		if (!NotificationTemplateRenderer.closeNotificationAction) {
 			NotificationTemplateRenderer.closeNotificationAction = instantiationService.createInstance(ClearNotificationAction, ClearNotificationAction.ID, ClearNotificationAction.LABEL);

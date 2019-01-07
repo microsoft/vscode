@@ -38,11 +38,11 @@ export class CommentsPanel extends Panel {
 	private collapseAllAction: IAction;
 
 	constructor(
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@ICommentService private commentService: ICommentService,
-		@IEditorService private editorService: IEditorService,
-		@ICommandService private commandService: ICommandService,
-		@IOpenerService private openerService: IOpenerService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ICommentService private readonly commentService: ICommentService,
+		@IEditorService private readonly editorService: IEditorService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IOpenerService private readonly openerService: IOpenerService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService

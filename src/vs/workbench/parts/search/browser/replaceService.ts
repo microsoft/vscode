@@ -40,8 +40,8 @@ const toFileResource = (replaceResource: URI): URI => {
 export class ReplacePreviewContentProvider implements ITextModelContentProvider, IWorkbenchContribution {
 
 	constructor(
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@ITextModelService private textModelResolverService: ITextModelService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ITextModelService private readonly textModelResolverService: ITextModelService
 	) {
 		this.textModelResolverService.registerTextModelContentProvider(network.Schemas.internal, this);
 	}
@@ -56,11 +56,11 @@ export class ReplacePreviewContentProvider implements ITextModelContentProvider,
 
 class ReplacePreviewModel extends Disposable {
 	constructor(
-		@IModelService private modelService: IModelService,
-		@IModeService private modeService: IModeService,
-		@ITextModelService private textModelResolverService: ITextModelService,
-		@IReplaceService private replaceService: IReplaceService,
-		@ISearchWorkbenchService private searchWorkbenchService: ISearchWorkbenchService
+		@IModelService private readonly modelService: IModelService,
+		@IModeService private readonly modeService: IModeService,
+		@ITextModelService private readonly textModelResolverService: ITextModelService,
+		@IReplaceService private readonly replaceService: IReplaceService,
+		@ISearchWorkbenchService private readonly searchWorkbenchService: ISearchWorkbenchService
 	) {
 		super();
 	}
@@ -94,10 +94,10 @@ export class ReplaceService implements IReplaceService {
 	_serviceBrand: any;
 
 	constructor(
-		@ITextFileService private textFileService: ITextFileService,
-		@IEditorService private editorService: IEditorService,
-		@ITextModelService private textModelResolverService: ITextModelService,
-		@IBulkEditService private bulkEditorService: IBulkEditService
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@IEditorService private readonly editorService: IEditorService,
+		@ITextModelService private readonly textModelResolverService: ITextModelService,
+		@IBulkEditService private readonly bulkEditorService: IBulkEditService
 	) { }
 
 	replace(match: Match): Promise<any>;

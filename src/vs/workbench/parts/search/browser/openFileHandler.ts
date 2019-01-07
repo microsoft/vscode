@@ -51,9 +51,9 @@ export class FileEntry extends EditorQuickOpenEntry {
 		private description: string,
 		private icon: string,
 		@IEditorService editorService: IEditorService,
-		@IModeService private modeService: IModeService,
-		@IModelService private modelService: IModelService,
-		@IConfigurationService private configurationService: IConfigurationService,
+		@IModeService private readonly modeService: IModeService,
+		@IModelService private readonly modelService: IModelService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService
 	) {
 		super(editorService);
@@ -119,14 +119,14 @@ export class OpenFileHandler extends QuickOpenHandler {
 	private cacheState: CacheState;
 
 	constructor(
-		@IEditorService private editorService: IEditorService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@ISearchService private searchService: ISearchService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IFileService private fileService: IFileService,
-		@ILabelService private labelService: ILabelService
+		@IEditorService private readonly editorService: IEditorService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@ISearchService private readonly searchService: ISearchService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IFileService private readonly fileService: IFileService,
+		@ILabelService private readonly labelService: ILabelService
 	) {
 		super();
 

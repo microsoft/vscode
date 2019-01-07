@@ -51,7 +51,7 @@ export class KeybindingsSearchWidget extends SearchWidget {
 
 	constructor(parent: HTMLElement, options: SearchOptions,
 		@IContextViewService contextViewService: IContextViewService,
-		@IKeybindingService private keybindingService: IKeybindingService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService
 	) {
@@ -165,8 +165,8 @@ export class DefineKeybindingWidget extends Widget {
 
 	constructor(
 		parent: HTMLElement,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IThemeService private themeService: IThemeService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IThemeService private readonly themeService: IThemeService
 	) {
 		super();
 		this.create();

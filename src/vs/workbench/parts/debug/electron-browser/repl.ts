@@ -109,19 +109,19 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	private replElementsChangeListener: IDisposable;
 
 	constructor(
-		@IDebugService private debugService: IDebugService,
+		@IDebugService private readonly debugService: IDebugService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IStorageService private storageService: IStorageService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IStorageService private readonly storageService: IStorageService,
 		@IThemeService protected themeService: IThemeService,
-		@IModelService private modelService: IModelService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
+		@IModelService private readonly modelService: IModelService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
-		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IListService private listService: IListService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@ITextResourcePropertiesService private textResourcePropertiesService: ITextResourcePropertiesService,
-		@IKeybindingService private keybindingService: IKeybindingService
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IListService private readonly listService: IListService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ITextResourcePropertiesService private readonly textResourcePropertiesService: ITextResourcePropertiesService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
 		super(REPL_ID, telemetryService, themeService, storageService);
 
@@ -565,9 +565,9 @@ class ReplSimpleElementsRenderer implements ITreeRenderer<SimpleReplElement, voi
 	static readonly ID = 'simpleReplElement';
 
 	constructor(
-		@IEditorService private editorService: IEditorService,
-		@ILabelService private labelService: ILabelService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IEditorService private readonly editorService: IEditorService,
+		@ILabelService private readonly labelService: ILabelService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) { }
 
 	get templateId(): string {
@@ -848,8 +848,8 @@ class SelectReplAction extends Action {
 	static LABEL = nls.localize('selectRepl', "Select Debug Console");
 
 	constructor(id: string, label: string,
-		@IDebugService private debugService: IDebugService,
-		@IPrivateReplService private replService: IPrivateReplService
+		@IDebugService private readonly debugService: IDebugService,
+		@IPrivateReplService private readonly replService: IPrivateReplService
 	) {
 		super(id, label);
 	}
@@ -872,7 +872,7 @@ export class ClearReplAction extends Action {
 	static LABEL = nls.localize('clearRepl', "Clear Console");
 
 	constructor(id: string, label: string,
-		@IPanelService private panelService: IPanelService
+		@IPanelService private readonly panelService: IPanelService
 	) {
 		super(id, label, 'debug-action clear-repl');
 	}

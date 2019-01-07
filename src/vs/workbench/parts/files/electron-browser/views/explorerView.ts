@@ -64,22 +64,22 @@ export class ExplorerView extends ViewletPanel {
 	constructor(
 		options: IViewletPanelOptions,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IProgressService private progressService: IProgressService,
-		@IEditorService private editorService: IEditorService,
-		@IPartService private partService: IPartService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IProgressService private readonly progressService: IProgressService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IPartService private readonly partService: IPartService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IDecorationsService decorationService: IDecorationsService,
-		@ILabelService private labelService: ILabelService,
-		@IThemeService private themeService: IWorkbenchThemeService,
-		@IListService private listService: IListService,
-		@IMenuService private menuService: IMenuService,
-		@IClipboardService private clipboardService: IClipboardService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IExplorerService private explorerService: IExplorerService
+		@ILabelService private readonly labelService: ILabelService,
+		@IThemeService private readonly themeService: IWorkbenchThemeService,
+		@IListService private readonly listService: IListService,
+		@IMenuService private readonly menuService: IMenuService,
+		@IClipboardService private readonly clipboardService: IClipboardService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IExplorerService private readonly explorerService: IExplorerService
 	) {
 		super({ ...(options as IViewletPanelOptions), id: ExplorerView.ID, ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService);
 

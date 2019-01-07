@@ -192,7 +192,7 @@ export class ExtensionEditor extends BaseEditor {
 		@IPartService private readonly partService: IPartService,
 		@IExtensionTipsService private readonly extensionTipsService: IExtensionTipsService,
 		@IStorageService storageService: IStorageService,
-		@IExtensionService private extensionService: IExtensionService
+		@IExtensionService private readonly extensionService: IExtensionService
 	) {
 		super(ExtensionEditor.ID, telemetryService, themeService, storageService);
 		this.disposables = [];

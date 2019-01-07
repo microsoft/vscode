@@ -81,8 +81,8 @@ class MonacoWebWorkerImpl<T> extends EditorWorkerClient implements MonacoWebWork
 					};
 
 					let foreignProxy = {} as T;
-					for (let i = 0; i < foreignMethods.length; i++) {
-						(<any>foreignProxy)[foreignMethods[i]] = createProxyMethod(foreignMethods[i], proxyMethodRequest);
+					for (const foreignMethod of foreignMethods) {
+						(<any>foreignProxy)[foreignMethod] = createProxyMethod(foreignMethod, proxyMethodRequest);
 					}
 
 					return foreignProxy;

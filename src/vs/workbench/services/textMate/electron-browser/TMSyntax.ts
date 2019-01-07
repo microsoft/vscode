@@ -182,15 +182,15 @@ export class TextMateService extends Disposable implements ITextMateService {
 			this._grammarRegistry = null;
 			this._tokenizersRegistrations = dispose(this._tokenizersRegistrations);
 
-			for (let i = 0; i < extensions.length; i++) {
-				let grammars = extensions[i].value;
-				for (let j = 0; j < grammars.length; j++) {
-					this._handleGrammarExtensionPointUser(extensions[i].description.extensionLocation, grammars[j], extensions[i].collector);
+			for (const extension of extensions) {
+				let grammars = extension.value;
+				for (const grammar of grammars) {
+					this._handleGrammarExtensionPointUser(extension.description.extensionLocation, grammar, extension.collector);
 				}
 			}
 
-			for (let i = 0; i < this._createdModes.length; i++) {
-				this._registerDefinitionIfAvailable(this._createdModes[i]);
+			for (const createMode of this._createdModes) {
+				this._registerDefinitionIfAvailable(createMode);
 			}
 		});
 
@@ -433,7 +433,7 @@ class TMTokenization implements ITokenizationSupport {
 	private readonly _initialState: StackElement;
 	private _tokenizationWarningAlreadyShown: boolean;
 
-	constructor(scopeRegistry: TMScopeRegistry, languageId: LanguageId, grammar: IGrammar, initialState: StackElement, containsEmbeddedLanguages: boolean, @INotificationService private notificationService: INotificationService) {
+	constructor(scopeRegistry: TMScopeRegistry, languageId: LanguageId, grammar: IGrammar, initialState: StackElement, containsEmbeddedLanguages: boolean, @INotificationService private readonly notificationService: INotificationService) {
 		this._scopeRegistry = scopeRegistry;
 		this._languageId = languageId;
 		this._grammar = grammar;

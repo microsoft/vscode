@@ -26,9 +26,9 @@ export class NotificationsList extends Themable {
 	constructor(
 		private container: HTMLElement,
 		private options: IListOptions<INotificationViewItem>,
-		@IInstantiationService private instantiationService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
-		@IContextMenuService private contextMenuService: IContextMenuService
+		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) {
 		super(themeService);
 

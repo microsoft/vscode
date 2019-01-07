@@ -693,8 +693,8 @@ export class DefaultConfigurationExportHelper {
 
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IExtensionService private extensionService: IExtensionService,
-		@ICommandService private commandService: ICommandService) {
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@ICommandService private readonly commandService: ICommandService) {
 		if (environmentService.args['export-default-configuration']) {
 			this.writeConfigModelAndQuit(environmentService.args['export-default-configuration']);
 		}

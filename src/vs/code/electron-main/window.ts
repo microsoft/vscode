@@ -80,13 +80,13 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	constructor(
 		config: IWindowCreationOptions,
-		@ILogService private logService: ILogService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IStateService private stateService: IStateService,
-		@IWorkspacesMainService private workspacesMainService: IWorkspacesMainService,
-		@IBackupMainService private backupMainService: IBackupMainService,
-		@IStorageMainService private storageMainService: IStorageMainService
+		@ILogService private readonly logService: ILogService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IStateService private readonly stateService: IStateService,
+		@IWorkspacesMainService private readonly workspacesMainService: IWorkspacesMainService,
+		@IBackupMainService private readonly backupMainService: IBackupMainService,
+		@IStorageMainService private readonly storageMainService: IStorageMainService
 	) {
 		super();
 

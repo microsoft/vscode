@@ -20,8 +20,8 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IViewsService private viewsService: IViewsService,
-		@INotificationService private notificationService: INotificationService
+		@IViewsService private readonly viewsService: IViewsService,
+		@INotificationService private readonly notificationService: INotificationService
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTreeViews);

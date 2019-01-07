@@ -647,18 +647,43 @@ export class Repository implements Disposable {
 			};
 		}
 
+		let lineNumber = 0;
 		let start = 0, end;
 		let match: RegExpExecArray | null;
 		const regex = /\r?\n/g;
 
 		while ((match = regex.exec(text)) && position > match.index) {
 			start = match.index + match[0].length;
+			lineNumber++;
 		}
 
 		end = match ? match.index : text.length;
 
 		const line = text.substring(start, end);
-		const threshold = Math.max(config.get<number>('inputValidationLength') || 72, 0) || 72;
+
+		let threshold = config.get<number>('inputValidationLength', 50);
+
+		if (lineNumber === 0) {
+			const inputValidationSubjectLength = config.get<number | null>('inputValidationSubjectLength', null);
+
+			if (inputValidationSubjectLength !== null) {
+				threshold = inputValidationSubjectLength;
+			}
+		}
+
+
+
+
+
+
+
+
+
+
+		// const subjectThreshold =
+
+
+		// 	Math.max(config.get<number>('inputValidationLength') || 50, config.get<number>('subjectValidationLength') || 50, 0) || 50;
 
 		if (line.length <= threshold) {
 			if (setting !== 'always') {

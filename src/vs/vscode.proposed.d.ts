@@ -54,9 +54,6 @@ declare module 'vscode' {
 		/**
 		 * Provide selection ranges starting at a given position. The first range must [contain](#Range.contains)
 		 * position and subsequent ranges must contain the previous range.
-		 * @param document
-		 * @param position
-		 * @param token
 		 */
 		provideSelectionRanges(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<SelectionRange[]>;
 	}
@@ -559,34 +556,12 @@ declare module 'vscode' {
 
 	// deprecated
 
-	export interface DebugAdapterTracker {
-		// VS Code -> Debug Adapter
-		startDebugAdapter?(): void;
-		toDebugAdapter?(message: any): void;
-		stopDebugAdapter?(): void;
-
-		// Debug Adapter -> VS Code
-		fromDebugAdapter?(message: any): void;
-		debugAdapterError?(error: Error): void;
-		debugAdapterExit?(code?: number, signal?: string): void;
-	}
-
 	export interface DebugConfigurationProvider {
 		/**
 		 * Deprecated, use DebugAdapterDescriptorFactory.provideDebugAdapter instead.
 		 * @deprecated Use DebugAdapterDescriptorFactory.createDebugAdapterDescriptor instead
 		 */
 		debugAdapterExecutable?(folder: WorkspaceFolder | undefined, token?: CancellationToken): ProviderResult<DebugAdapterExecutable>;
-
-		/**
-		 * Deprecated, use DebugAdapterTrackerFactory.createDebugAdapterTracker instead.
-		 * @deprecated Use DebugAdapterTrackerFactory.createDebugAdapterTracker instead
-		 *
-		 * The optional method 'provideDebugAdapterTracker' is called at the start of a debug session to provide a tracker that gives access to the communication between VS Code and a Debug Adapter.
-		 * @param session The [debug session](#DebugSession) for which the tracker will be used.
-		 * @param token A cancellation token.
-		 */
-		provideDebugAdapterTracker?(session: DebugSession, workspaceFolder: WorkspaceFolder | undefined, config: DebugConfiguration, token?: CancellationToken): ProviderResult<DebugAdapterTracker>;
 	}
 
 	//#endregion

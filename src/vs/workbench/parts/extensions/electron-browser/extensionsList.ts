@@ -53,13 +53,13 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 	constructor(
 		private extensionViewState: IExtensionsViewState,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@INotificationService private notificationService: INotificationService,
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IExtensionService private extensionService: IExtensionService,
-		@IExtensionTipsService private extensionTipsService: IExtensionTipsService,
-		@IThemeService private themeService: IThemeService,
-		@IExtensionManagementServerService private extensionManagementServerService: IExtensionManagementServerService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IExtensionTipsService private readonly extensionTipsService: IExtensionTipsService,
+		@IThemeService private readonly themeService: IThemeService,
+		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService
 	) { }
 
 	get templateId() { return 'extension'; }

@@ -135,9 +135,9 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	constructor(
 		id: string,
 		private restorePreviousState: boolean,
-		@IInstantiationService private instantiationService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
-		@IConfigurationService private configurationService: IConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService
 	) {
 		super(id, { hasTitle: false }, themeService, storageService);

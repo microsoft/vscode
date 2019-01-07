@@ -71,7 +71,7 @@ export class CommentsModelRenderer implements ITreeRenderer {
 
 	constructor(
 		private labels: ResourceLabels,
-		@IOpenerService private openerService: IOpenerService
+		@IOpenerService private readonly openerService: IOpenerService
 	) {
 	}
 

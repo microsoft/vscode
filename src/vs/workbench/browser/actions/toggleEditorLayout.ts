@@ -25,7 +25,7 @@ export class ToggleEditorLayoutAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IEditorGroupsService private editorGroupService: IEditorGroupsService
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
 	) {
 		super(id, label);
 

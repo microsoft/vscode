@@ -74,7 +74,7 @@ export class ToggleTerminalAction extends TogglePanelAction {
 		id: string, label: string,
 		@IPanelService panelService: IPanelService,
 		@IPartService partService: IPartService,
-		@ITerminalService private terminalService: ITerminalService
+		@ITerminalService private readonly terminalService: ITerminalService
 	) {
 		super(id, label, TERMINAL_PANEL_ID, panelService, partService);
 	}
@@ -101,7 +101,7 @@ export class KillTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService
+		@ITerminalService private readonly terminalService: ITerminalService
 	) {
 		super(id, label, 'terminal-action kill');
 	}
@@ -126,7 +126,7 @@ export class QuickKillTerminalAction extends Action {
 	constructor(
 		id: string, label: string,
 		private terminalEntry: TerminalEntry,
-		@IQuickOpenService private quickOpenService: IQuickOpenService
+		@IQuickOpenService private readonly quickOpenService: IQuickOpenService
 	) {
 		super(id, label, 'terminal-action kill');
 	}
@@ -152,7 +152,7 @@ export class CopyTerminalSelectionAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService
+		@ITerminalService private readonly terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
@@ -173,7 +173,7 @@ export class SelectAllTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService
+		@ITerminalService private readonly terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
@@ -297,9 +297,9 @@ export class CreateNewTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService,
-		@ICommandService private commandService: ICommandService,
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService
+		@ITerminalService private readonly terminalService: ITerminalService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
 	) {
 		super(id, label, 'terminal-action new');
 	}
@@ -351,7 +351,7 @@ export class CreateNewInActiveWorkspaceTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService
+		@ITerminalService private readonly terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
@@ -374,8 +374,8 @@ export class SplitTerminalAction extends Action {
 	constructor(
 		id: string, label: string,
 		@ITerminalService private readonly _terminalService: ITerminalService,
-		@ICommandService private commandService: ICommandService,
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService
+		@ICommandService private readonly commandService: ICommandService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
 	) {
 		super(id, label, 'terminal-action split');
 	}
@@ -535,7 +535,7 @@ export class FocusActiveTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService
+		@ITerminalService private readonly terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
@@ -557,7 +557,7 @@ export class FocusNextTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService
+		@ITerminalService private readonly terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
@@ -575,7 +575,7 @@ export class FocusPreviousTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService
+		@ITerminalService private readonly terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
@@ -594,7 +594,7 @@ export class TerminalPasteAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService
+		@ITerminalService private readonly terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
@@ -615,7 +615,7 @@ export class SelectDefaultShellWindowsTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService
+		@ITerminalService private readonly terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
@@ -632,8 +632,8 @@ export class RunSelectedTextInTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ICodeEditorService private codeEditorService: ICodeEditorService,
-		@ITerminalService private terminalService: ITerminalService
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
+		@ITerminalService private readonly terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
@@ -667,9 +667,9 @@ export class RunActiveFileInTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ICodeEditorService private codeEditorService: ICodeEditorService,
-		@ITerminalService private terminalService: ITerminalService,
-		@INotificationService private notificationService: INotificationService
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
+		@ITerminalService private readonly terminalService: ITerminalService,
+		@INotificationService private readonly notificationService: INotificationService
 	) {
 		super(id, label);
 	}
@@ -703,7 +703,7 @@ export class SwitchTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService
+		@ITerminalService private readonly terminalService: ITerminalService
 	) {
 		super(id, label, 'terminal-action switch-terminal');
 	}
@@ -722,7 +722,7 @@ export class SwitchTerminalActionItem extends SelectActionItem {
 
 	constructor(
 		action: IAction,
-		@ITerminalService private terminalService: ITerminalService,
+		@ITerminalService private readonly terminalService: ITerminalService,
 		@IThemeService themeService: IThemeService,
 		@IContextViewService contextViewService: IContextViewService
 	) {
@@ -746,7 +746,7 @@ export class ScrollDownTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService
+		@ITerminalService private readonly terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
@@ -767,7 +767,7 @@ export class ScrollDownPageTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService
+		@ITerminalService private readonly terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
@@ -788,7 +788,7 @@ export class ScrollToBottomTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService
+		@ITerminalService private readonly terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
@@ -809,7 +809,7 @@ export class ScrollUpTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService
+		@ITerminalService private readonly terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
@@ -830,7 +830,7 @@ export class ScrollUpPageTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService
+		@ITerminalService private readonly terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
@@ -851,7 +851,7 @@ export class ScrollToTopTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService
+		@ITerminalService private readonly terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
@@ -872,7 +872,7 @@ export class ClearTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService
+		@ITerminalService private readonly terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
@@ -893,7 +893,7 @@ export class ClearSelectionTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService
+		@ITerminalService private readonly terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
@@ -914,7 +914,7 @@ export class AllowWorkspaceShellTerminalCommand extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService
+		@ITerminalService private readonly terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
@@ -932,7 +932,7 @@ export class DisallowWorkspaceShellTerminalCommand extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService
+		@ITerminalService private readonly terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
@@ -980,7 +980,7 @@ export class FocusTerminalFindWidgetAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService
+		@ITerminalService private readonly terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
@@ -997,7 +997,7 @@ export class HideTerminalFindWidgetAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService
+		@ITerminalService private readonly terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
@@ -1010,7 +1010,7 @@ export class HideTerminalFindWidgetAction extends Action {
 export class QuickOpenActionTermContributor extends ActionBarContributor {
 
 	constructor(
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 	}
@@ -1037,7 +1037,7 @@ export class QuickOpenTermAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IQuickOpenService private quickOpenService: IQuickOpenService
+		@IQuickOpenService private readonly quickOpenService: IQuickOpenService
 	) {
 		super(id, label);
 	}
@@ -1075,7 +1075,7 @@ export class ScrollToPreviousCommandAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService
+		@ITerminalService private readonly terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
@@ -1096,7 +1096,7 @@ export class ScrollToNextCommandAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService
+		@ITerminalService private readonly terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
@@ -1117,7 +1117,7 @@ export class SelectToPreviousCommandAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService
+		@ITerminalService private readonly terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
@@ -1138,7 +1138,7 @@ export class SelectToNextCommandAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService
+		@ITerminalService private readonly terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
@@ -1159,7 +1159,7 @@ export class SelectToPreviousLineAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService
+		@ITerminalService private readonly terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
@@ -1180,7 +1180,7 @@ export class SelectToNextLineAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService
+		@ITerminalService private readonly terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
@@ -1202,7 +1202,7 @@ export class ToggleEscapeSequenceLoggingAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService
+		@ITerminalService private readonly terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
@@ -1219,7 +1219,7 @@ export class ToggleEscapeSequenceLoggingAction extends Action {
 abstract class ToggleFindOptionCommand extends Action {
 	constructor(
 		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService
+		@ITerminalService private readonly terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
@@ -1270,7 +1270,7 @@ export class FindNext extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService
+		@ITerminalService private readonly terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
@@ -1288,7 +1288,7 @@ export class FindPrevious extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService
+		@ITerminalService private readonly terminalService: ITerminalService
 	) {
 		super(id, label);
 	}

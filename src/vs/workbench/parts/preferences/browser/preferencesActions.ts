@@ -24,7 +24,7 @@ export class OpenRawDefaultSettingsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IPreferencesService private preferencesService: IPreferencesService
+		@IPreferencesService private readonly preferencesService: IPreferencesService
 	) {
 		super(id, label);
 	}
@@ -42,7 +42,7 @@ export class OpenSettings2Action extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IPreferencesService private preferencesService: IPreferencesService
+		@IPreferencesService private readonly preferencesService: IPreferencesService
 	) {
 		super(id, label);
 	}
@@ -60,7 +60,7 @@ export class OpenSettingsJsonAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IPreferencesService private preferencesService: IPreferencesService
+		@IPreferencesService private readonly preferencesService: IPreferencesService
 	) {
 		super(id, label);
 	}
@@ -78,7 +78,7 @@ export class OpenGlobalSettingsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IPreferencesService private preferencesService: IPreferencesService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
 	) {
 		super(id, label);
 	}
@@ -96,7 +96,7 @@ export class OpenGlobalKeybindingsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IPreferencesService private preferencesService: IPreferencesService
+		@IPreferencesService private readonly preferencesService: IPreferencesService
 	) {
 		super(id, label);
 	}
@@ -114,7 +114,7 @@ export class OpenGlobalKeybindingsFileAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IPreferencesService private preferencesService: IPreferencesService
+		@IPreferencesService private readonly preferencesService: IPreferencesService
 	) {
 		super(id, label);
 	}
@@ -132,7 +132,7 @@ export class OpenDefaultKeybindingsFileAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IPreferencesService private preferencesService: IPreferencesService
+		@IPreferencesService private readonly preferencesService: IPreferencesService
 	) {
 		super(id, label);
 	}
@@ -152,8 +152,8 @@ export class OpenWorkspaceSettingsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IPreferencesService private preferencesService: IPreferencesService,
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 	) {
 		super(id, label);
 		this.update();
@@ -187,9 +187,9 @@ export class OpenFolderSettingsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
-		@IPreferencesService private preferencesService: IPreferencesService,
-		@ICommandService private commandService: ICommandService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(id, label);
 		this.update();
@@ -226,10 +226,10 @@ export class ConfigureLanguageBasedSettingsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IModelService private modelService: IModelService,
-		@IModeService private modeService: IModeService,
-		@IQuickInputService private quickInputService: IQuickInputService,
-		@IPreferencesService private preferencesService: IPreferencesService
+		@IModelService private readonly modelService: IModelService,
+		@IModeService private readonly modeService: IModeService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService
 	) {
 		super(id, label);
 	}

@@ -2689,8 +2689,8 @@ declare module 'vscode' {
 		 *
 		 * @param document The document in which the command was invoked.
 		 * @param position The position at which the command was invoked.
-		 * @param context
 		 * @param token A cancellation token.
+		 *
 		 * @return An array of locations or a thenable that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined`, `null`, or an empty array.
 		 */
@@ -5330,10 +5330,8 @@ declare module 'vscode' {
 
 		/**
 		 * The currently active task executions or an empty array.
-		 *
-		 * @readonly
 		 */
-		export let taskExecutions: ReadonlyArray<TaskExecution>;
+		export const taskExecutions: ReadonlyArray<TaskExecution>;
 
 		/**
 		 * Fires when a task starts.
@@ -5875,24 +5873,18 @@ declare module 'vscode' {
 
 		/**
 		 * The application name of the editor, like 'VS Code'.
-		 *
-		 * @readonly
 		 */
-		export let appName: string;
+		export const appName: string;
 
 		/**
 		 * The application root folder from which the editor is running.
-		 *
-		 * @readonly
 		 */
-		export let appRoot: string;
+		export const appRoot: string;
 
 		/**
 		 * Represents the preferred user-language, like `de-CH`, `fr`, or `en-US`.
-		 *
-		 * @readonly
 		 */
-		export let language: string;
+		export const language: string;
 
 		/**
 		 * The system clipboard.
@@ -5901,18 +5893,14 @@ declare module 'vscode' {
 
 		/**
 		 * A unique identifier for the computer.
-		 *
-		 * @readonly
 		 */
-		export let machineId: string;
+		export const machineId: string;
 
 		/**
 		 * A unique identifier for the current session.
 		 * Changes each time the editor is started.
-		 *
-		 * @readonly
 		 */
-		export let sessionId: string;
+		export const sessionId: string;
 	}
 
 	/**
@@ -6118,10 +6106,8 @@ declare module 'vscode' {
 
 		/**
 		 * Represents the current window's state.
-		 *
-		 * @readonly
 		 */
-		export let state: WindowState;
+		export const state: WindowState;
 
 		/**
 		 * An [event](#Event) which fires when the focus state of the current window
@@ -7329,26 +7315,20 @@ declare module 'vscode' {
 		 * has been opened.~~
 		 *
 		 * @deprecated Use [`workspaceFolders`](#workspace.workspaceFolders) instead.
-		 *
-		 * @readonly
 		 */
-		export let rootPath: string | undefined;
+		export const rootPath: string | undefined;
 
 		/**
 		 * List of workspace folders or `undefined` when no folder is open.
 		 * *Note* that the first entry corresponds to the value of `rootPath`.
-		 *
-		 * @readonly
 		 */
-		export let workspaceFolders: WorkspaceFolder[] | undefined;
+		export const workspaceFolders: WorkspaceFolder[] | undefined;
 
 		/**
 		 * The name of the workspace. `undefined` when no folder
 		 * has been opened.
-		 *
-		 * @readonly
 		 */
-		export let name: string | undefined;
+		export const name: string | undefined;
 
 		/**
 		 * An event that is emitted when a workspace folder is added or removed.
@@ -7484,10 +7464,8 @@ declare module 'vscode' {
 
 		/**
 		 * All text documents currently known to the system.
-		 *
-		 * @readonly
 		 */
-		export let textDocuments: TextDocument[];
+		export const textDocuments: TextDocument[];
 
 		/**
 		 * Opens a document. Will return early if this document is already open. Otherwise

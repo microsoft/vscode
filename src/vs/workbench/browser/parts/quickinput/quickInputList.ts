@@ -239,7 +239,7 @@ export class QuickInputList {
 	constructor(
 		private parent: HTMLElement,
 		id: string,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		this.id = id;
 		this.container = dom.append(this.parent, $('.quick-input-list'));

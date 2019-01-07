@@ -197,8 +197,7 @@ function guessMimeTypeByFirstline(firstLine: string): string | null {
 	}
 
 	if (firstLine.length > 0) {
-		for (let i = 0; i < registeredAssociations.length; ++i) {
-			const association = registeredAssociations[i];
+		for (const association of registeredAssociations) {
 			if (!association.firstline) {
 				continue;
 			}

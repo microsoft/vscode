@@ -20,8 +20,8 @@ export class OpenUrlAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IURLService private urlService: IURLService,
-		@IQuickInputService private quickInputService: IQuickInputService,
+		@IURLService private readonly urlService: IURLService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
 	) {
 		super(id, label);
 	}

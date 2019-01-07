@@ -42,9 +42,9 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 	constructor(
 		id: string,
-		@IInstantiationService private instantiationService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IStorageService storageService: IStorageService
 	) {
 		super(id, { hasTitle: false }, themeService, storageService);
@@ -227,13 +227,13 @@ class StatusBarEntryItem implements IStatusbarItem {
 
 	constructor(
 		private entry: IStatusbarEntry,
-		@ICommandService private commandService: ICommandService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@INotificationService private notificationService: INotificationService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IEditorService private editorService: IEditorService,
-		@IThemeService private themeService: IThemeService
+		@ICommandService private readonly commandService: ICommandService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IThemeService private readonly themeService: IThemeService
 	) {
 		this.entry = entry;
 
@@ -323,7 +323,7 @@ class StatusBarEntryItem implements IStatusbarItem {
 class ManageExtensionAction extends Action {
 
 	constructor(
-		@ICommandService private commandService: ICommandService
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super('statusbar.manage.extension', nls.localize('manageExtension', "Manage Extension"));
 	}

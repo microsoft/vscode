@@ -87,9 +87,9 @@ class ThemeDocument {
 class Snapper {
 
 	constructor(
-		@IModeService private modeService: IModeService,
-		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
-		@ITextMateService private textMateService: ITextMateService
+		@IModeService private readonly modeService: IModeService,
+		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
+		@ITextMateService private readonly textMateService: ITextMateService
 	) {
 	}
 

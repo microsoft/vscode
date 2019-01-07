@@ -80,10 +80,10 @@ export class DebugQuickOpenHandler extends Quickopen.QuickOpenHandler {
 	private autoFocusIndex: number;
 
 	constructor(
-		@IDebugService private debugService: IDebugService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@ICommandService private commandService: ICommandService,
-		@INotificationService private notificationService: INotificationService
+		@IDebugService private readonly debugService: IDebugService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@ICommandService private readonly commandService: ICommandService,
+		@INotificationService private readonly notificationService: INotificationService
 	) {
 		super();
 	}

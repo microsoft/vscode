@@ -159,9 +159,9 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	protected createComposite(id: string, isActive?: boolean): Composite {
 
 		// Check if composite is already created
-		for (let i = 0; i < this.instantiatedComposites.length; i++) {
-			if (this.instantiatedComposites[i].getId() === id) {
-				return this.instantiatedComposites[i];
+		for (const composite of this.instantiatedComposites) {
+			if (composite.getId() === id) {
+				return composite;
 			}
 		}
 
@@ -478,8 +478,8 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		this.mapProgressServiceToComposite = null;
 		this.mapActionsBindingToComposite = null;
 
-		for (let i = 0; i < this.instantiatedComposites.length; i++) {
-			this.instantiatedComposites[i].dispose();
+		for (const composite of this.instantiatedComposites) {
+			composite.dispose();
 		}
 
 		this.instantiatedComposites = [];

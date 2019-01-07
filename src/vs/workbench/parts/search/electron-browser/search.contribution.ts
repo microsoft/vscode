@@ -427,8 +427,8 @@ class ShowAllSymbolsAction extends Action {
 
 	constructor(
 		actionId: string, actionLabel: string,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@ICodeEditorService private editorService: ICodeEditorService) {
+		@IQuickOpenService private readonly quickOpenService: IQuickOpenService,
+		@ICodeEditorService private readonly editorService: ICodeEditorService) {
 		super(actionId, actionLabel);
 		this.enabled = !!this.quickOpenService;
 	}

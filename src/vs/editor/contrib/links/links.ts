@@ -270,8 +270,8 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		let newDecorations: IModelDeltaDecoration[] = [];
 		if (links) {
 			// Not sure why this is sometimes null
-			for (let i = 0; i < links.length; i++) {
-				newDecorations.push(LinkOccurrence.decoration(links[i], useMetaKey));
+			for (const link of links) {
+				newDecorations.push(LinkOccurrence.decoration(link, useMetaKey));
 			}
 		}
 

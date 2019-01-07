@@ -557,9 +557,9 @@ export class TestEditorGroupsService implements EditorGroupsServiceImpl {
 	}
 
 	getGroup(identifier: number): IEditorGroup {
-		for (let i = 0; i < this.groups.length; i++) {
-			if (this.groups[i].id === identifier) {
-				return this.groups[i];
+		for (const group of this.groups) {
+			if (group.id === identifier) {
+				return group;
 			}
 		}
 
@@ -1421,7 +1421,7 @@ export class TestTextResourcePropertiesService implements ITextResourcePropertie
 	_serviceBrand: any;
 
 	constructor(
-		@IConfigurationService private configurationService: IConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 	}
 

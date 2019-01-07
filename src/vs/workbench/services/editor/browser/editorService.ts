@@ -58,12 +58,12 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	private lastActiveGroupId: GroupIdentifier;
 
 	constructor(
-		@IEditorGroupsService private editorGroupService: EditorGroupsServiceImpl,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@ILabelService private labelService: ILabelService,
-		@IFileService private fileService: IFileService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IEditorGroupsService private readonly editorGroupService: EditorGroupsServiceImpl,
+		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ILabelService private readonly labelService: ILabelService,
+		@IFileService private readonly fileService: IFileService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
@@ -410,8 +410,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 			// Resource editor
 			else {
-				for (let j = 0; j < group.editors.length; j++) {
-					const editorInGroup = group.editors[j];
+				for (const editorInGroup of group.editors) {
 					const resource = toResource(editorInGroup, { supportSideBySide: true });
 					if (!resource) {
 						continue; // need a resource to compare with

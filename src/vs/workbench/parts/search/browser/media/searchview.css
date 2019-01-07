@@ -3,10 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.vs .panel .search-view .monaco-inputbox {
-	border: 1px solid #ddd;
-}
-
 .search-view .search-widgets-container {
 	margin: 0px 9px 0 2px;
 	padding-top: 6px;
@@ -123,31 +119,6 @@
 	padding-bottom: 10px;
 }
 
-.search-view .query-details .search-pattern-info {
-	width: 16px;
-	height: 16px;
-}
-
-.search-view .query-details .search-configure-exclusions {
-	width: 16px;
-	height: 16px;
-}
-
-.monaco-action-bar .action-label.search-configure-exclusions {
-	margin-right: 2px;
-}
-
-.vs-dark .monaco-workbench .search-configure-exclusions,
-.hc-black .monaco-workbench .search-configure-exclusions {
-	background: url('configure-inverse.svg') center center no-repeat;
-	opacity: .7;
-}
-
-.vs .monaco-workbench .search-configure-exclusions {
-	background: url('configure.svg') center center no-repeat;
-	opacity: 0.7;
-}
-
 .search-view .query-details.more h4 {
 	text-overflow: ellipsis;
 	overflow: hidden;
@@ -176,10 +147,6 @@
 	user-select: text;
 }
 
-.search-view > .results > .monaco-list .sub-content {
-	overflow: hidden;
-}
-
 .search-view .foldermatch,
 .search-view .filematch {
 	display: flex;
@@ -198,13 +165,6 @@
 .search-view:not(.wide) .monaco-list .monaco-list-row:hover:not(.highlighted) .filematch .monaco-icon-label,
 .search-view:not(.wide) .monaco-list .monaco-list-row.focused .filematch .monaco-icon-label {
 	flex: 1;
-}
-
-.search-view .foldermatch .directory,
-.search-view .filematch .directory {
-	opacity: 0.7;
-	font-size: 0.9em;
-	margin-left: 0.8em;
 }
 
 .search-view.wide .foldermatch .badge,
@@ -234,10 +194,6 @@
 
 .search-view .linematch .matchLineNum.show {
 	display: block;
-}
-
-.search-view .linematch.changedOrRemoved {
-	font-style: italic;
 }
 
 .search-view.wide .monaco-list .monaco-list-row .foldermatch .actionBarContainer,
@@ -308,10 +264,6 @@
 	background: url('replace-all-inverse.svg') center center no-repeat;
 }
 
-.search-view .label {
-	font-style: italic;
-}
-
 .search-view .monaco-count-badge {
 	margin-right: 12px;
 }
@@ -323,11 +275,6 @@
 .search-view:not(.wide) > .results > .monaco-list .monaco-list-row.focused .foldermatch .monaco-count-badge,
 .search-view:not(.wide) > .results > .monaco-list .monaco-list-row.focused .linematch .monaco-count-badge {
 	display: none;
-}
-
-.search-view .focused .monaco-list-row.selected:not(.highlighted) > .actions .action-remove,
-.vs-dark .monaco-workbench .search-view .focused .monaco-list-row.selected:not(.highlighted) > .actions .action-remove {
-	background: url("action-remove-focus.svg") center center no-repeat;
 }
 
 .monaco-workbench .search-action.refresh {
@@ -364,15 +311,6 @@
 .vs-dark .monaco-workbench .search-action.cancel-search,
 .hc-black .monaco-workbench .search-action.cancel-search {
 	background: url('stop-inverse.svg') center center no-repeat;
-}
-
-.vs .monaco-workbench .search-view .query-details .file-types .controls > .monaco-custom-checkbox.pattern {
-	background: url('pattern.svg') center center no-repeat;
-}
-
-.vs-dark .monaco-workbench .search-view .query-details .file-types .controls > .monaco-custom-checkbox.pattern,
-.hc-black .monaco-workbench .search-view .query-details .file-types .controls > .monaco-custom-checkbox.pattern {
-	background: url('pattern-dark.svg') center center no-repeat;
 }
 
 .vs .monaco-workbench .search-view .query-details .file-types .controls>.monaco-custom-checkbox.useExcludesAndIgnoreFiles {

@@ -24,8 +24,8 @@ export class DebugStatus extends Themable implements IStatusbarItem {
 	private showInStatusBar: string;
 
 	constructor(
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IDebugService private debugService: IDebugService,
+		@IQuickOpenService private readonly quickOpenService: IQuickOpenService,
+		@IDebugService private readonly debugService: IDebugService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {

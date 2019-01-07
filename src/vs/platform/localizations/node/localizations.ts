@@ -42,9 +42,9 @@ export class LocalizationsService extends Disposable implements ILocalizationsSe
 	readonly onDidLanguagesChange: Event<void> = this._onDidLanguagesChange.event;
 
 	constructor(
-		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
+		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@ILogService private logService: ILogService
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 		this.cache = this._register(new LanguagePacksCache(environmentService, logService));
@@ -103,7 +103,7 @@ class LanguagePacksCache extends Disposable {
 
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@ILogService private logService: ILogService
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 		this.languagePacksFilePath = posix.join(environmentService.userDataPath, 'languagepacks.json');

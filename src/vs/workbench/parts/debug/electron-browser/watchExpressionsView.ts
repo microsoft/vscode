@@ -39,13 +39,13 @@ export class WatchExpressionsView extends ViewletPanel {
 	constructor(
 		options: IViewletViewOptions,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IDebugService private debugService: IDebugService,
+		@IDebugService private readonly debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IInstantiationService private instantiationService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IListService private listService: IListService,
-		@IThemeService private themeService: IThemeService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IListService private readonly listService: IListService,
+		@IThemeService private readonly themeService: IThemeService
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('watchExpressionsSection', "Watch Expressions Section") }, keybindingService, contextMenuService, configurationService);
 

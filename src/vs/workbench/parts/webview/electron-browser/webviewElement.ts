@@ -288,6 +288,10 @@ export class WebviewElement extends Disposable {
 		}));
 		this._register(addDisposableListener(this._webview, 'dom-ready', () => {
 			this.layout();
+
+			// Workaround for https://github.com/electron/electron/issues/14474
+			this._webview.blur();
+			this._webview.focus();
 		}));
 		this._register(addDisposableListener(this._webview, 'crashed', () => {
 			console.error('embedded page crashed');
@@ -531,7 +535,6 @@ export class WebviewElement extends Disposable {
 	 * depending on the supplied options.
 	 *
 	 * @param value The string to search for. Empty strings are ignored.
-	 * @param options
 	 */
 	public find(value: string, options?: Electron.FindInPageOptions): void {
 		// Searching with an empty value will throw an exception

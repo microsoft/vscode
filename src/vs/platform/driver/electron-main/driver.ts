@@ -33,7 +33,7 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 	constructor(
 		private windowServer: IPCServer,
 		private options: IDriverOptions,
-		@IWindowsMainService private windowsService: IWindowsMainService
+		@IWindowsMainService private readonly windowsService: IWindowsMainService
 	) { }
 
 	async registerWindowDriver(windowId: number): Promise<IDriverOptions> {
@@ -69,6 +69,10 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 		const window = this.windowsService.getWindowById(windowId);
 		this.reloadingWindowIds.add(windowId);
 		this.windowsService.reload(window);
+	}
+
+	async exitApplication(): Promise<void> {
+		return this.windowsService.quit();
 	}
 
 	async dispatchKeybinding(windowId: number, keybinding: string): Promise<void> {

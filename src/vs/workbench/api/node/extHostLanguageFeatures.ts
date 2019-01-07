@@ -53,10 +53,10 @@ class OutlineAdapter {
 		});
 	}
 
-	private static _asDocumentSymbolTree(resource: URI, info: SymbolInformation[]): modes.DocumentSymbol[] {
+	private static _asDocumentSymbolTree(resource: URI, infos: SymbolInformation[]): modes.DocumentSymbol[] {
 		// first sort by start (and end) and then loop over all elements
 		// and build a tree based on containment.
-		info = info.slice(0).sort((a, b) => {
+		infos = infos.slice(0).sort((a, b) => {
 			let res = a.location.range.start.compareTo(b.location.range.start);
 			if (res === 0) {
 				res = b.location.range.end.compareTo(a.location.range.end);
@@ -65,13 +65,13 @@ class OutlineAdapter {
 		});
 		let res: modes.DocumentSymbol[] = [];
 		let parentStack: modes.DocumentSymbol[] = [];
-		for (let i = 0; i < info.length; i++) {
+		for (const info of infos) {
 			let element = <modes.DocumentSymbol>{
-				name: info[i].name,
-				kind: typeConvert.SymbolKind.from(info[i].kind),
-				containerName: info[i].containerName,
-				range: typeConvert.Range.from(info[i].location.range),
-				selectionRange: typeConvert.Range.from(info[i].location.range),
+				name: info.name,
+				kind: typeConvert.SymbolKind.from(info.kind),
+				containerName: info.containerName,
+				range: typeConvert.Range.from(info.location.range),
+				selectionRange: typeConvert.Range.from(info.location.range),
 				children: []
 			};
 

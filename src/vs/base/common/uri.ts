@@ -546,7 +546,6 @@ function encodeURIComponentMinimal(path: string): string {
 
 /**
  * Compute `fsPath` for the given uri
- * @param uri
  */
 function _makeFsPath(uri: URI): string {
 

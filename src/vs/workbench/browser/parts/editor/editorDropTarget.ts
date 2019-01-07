@@ -440,7 +440,7 @@ export class EditorDropTarget extends Themable {
 		private accessor: IEditorGroupsAccessor,
 		private container: HTMLElement,
 		@IThemeService themeService: IThemeService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super(themeService);
 

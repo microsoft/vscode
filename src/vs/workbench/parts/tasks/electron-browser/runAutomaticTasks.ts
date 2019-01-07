@@ -138,7 +138,7 @@ export class AllowAutomaticTaskRunning extends Action {
 
 	constructor(
 		id: string, label: string,
-		@IStorageService private storageService: IStorageService
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		super(id, label);
 	}
@@ -156,7 +156,7 @@ export class DisallowAutomaticTaskRunning extends Action {
 
 	constructor(
 		id: string, label: string,
-		@IStorageService private storageService: IStorageService
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		super(id, label);
 	}

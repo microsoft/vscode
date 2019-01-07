@@ -59,8 +59,8 @@ export class StorageService extends Disposable implements IStorageService {
 
 	constructor(
 		globalStorageDatabase: IStorageDatabase,
-		@ILogService private logService: ILogService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@ILogService private readonly logService: ILogService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
 		super();
 
@@ -323,8 +323,8 @@ export class LogStorageAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IStorageService private storageService: StorageService,
-		@IWindowService private windowService: IWindowService
+		@IStorageService private readonly storageService: StorageService,
+		@IWindowService private readonly windowService: IWindowService
 	) {
 		super(id, label);
 	}

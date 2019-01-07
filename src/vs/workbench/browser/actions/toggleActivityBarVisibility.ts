@@ -21,8 +21,8 @@ export class ToggleActivityBarVisibilityAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IPartService private partService: IPartService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IPartService private readonly partService: IPartService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(id, label);
 

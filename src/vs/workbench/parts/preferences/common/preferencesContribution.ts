@@ -31,14 +31,14 @@ export class PreferencesContribution implements IWorkbenchContribution {
 	private settingsListener: IDisposable;
 
 	constructor(
-		@IModelService private modelService: IModelService,
-		@ITextModelService private textModelResolverService: ITextModelService,
-		@IPreferencesService private preferencesService: IPreferencesService,
-		@IModeService private modeService: IModeService,
-		@IEditorService private editorService: IEditorService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IWorkspaceContextService private workspaceService: IWorkspaceContextService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IModelService private readonly modelService: IModelService,
+		@ITextModelService private readonly textModelResolverService: ITextModelService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
+		@IModeService private readonly modeService: IModeService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		this.settingsListener = this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(USE_SPLIT_JSON_SETTING)) {
@@ -95,9 +95,9 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		// Multi Folder Workspace Settings File
 		else if (state === WorkbenchState.WORKSPACE) {
 			const folders = this.workspaceService.getWorkspace().folders;
-			for (let i = 0; i < folders.length; i++) {
-				if (isEqual(resource, folders[i].toResource(FOLDER_SETTINGS_PATH))) {
-					return { override: this.preferencesService.openFolderSettings(folders[i].uri, true, options, group) };
+			for (const folder of folders) {
+				if (isEqual(resource, folder.toResource(FOLDER_SETTINGS_PATH))) {
+					return { override: this.preferencesService.openFolderSettings(folder.uri, true, options, group) };
 				}
 			}
 		}

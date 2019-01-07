@@ -212,7 +212,7 @@ export class GlobalNewUntitledFileAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IEditorService private editorService: IEditorService
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		super(id, label);
 	}
@@ -231,11 +231,11 @@ class BaseDeleteFileAction extends BaseErrorReportingAction {
 	constructor(
 		private elements: ExplorerItem[],
 		private useTrash: boolean,
-		@IFileService private fileService: IFileService,
+		@IFileService private readonly fileService: IFileService,
 		@INotificationService notificationService: INotificationService,
-		@IDialogService private dialogService: IDialogService,
-		@ITextFileService private textFileService: ITextFileService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IDialogService private readonly dialogService: IDialogService,
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super('moveFileToTrash', MOVE_FILE_TO_TRASH_LABEL, notificationService);
 
@@ -437,12 +437,12 @@ export class AddFilesAction extends BaseErrorReportingAction {
 	constructor(
 		private element: ExplorerItem,
 		clazz: string,
-		@IFileService private fileService: IFileService,
-		@IEditorService private editorService: IEditorService,
-		@IDialogService private dialogService: IDialogService,
+		@IFileService private readonly fileService: IFileService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IDialogService private readonly dialogService: IDialogService,
 		@INotificationService notificationService: INotificationService,
-		@ITextFileService private textFileService: ITextFileService,
-		@IExplorerService private explorerService: IExplorerService
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@IExplorerService private readonly explorerService: IExplorerService
 	) {
 		super('workbench.files.action.addFile', nls.localize('addFiles', "Add Files"), notificationService);
 
@@ -537,7 +537,7 @@ class CopyFileAction extends BaseErrorReportingAction {
 	constructor(
 		private elements: ExplorerItem[],
 		@INotificationService notificationService: INotificationService,
-		@IClipboardService private clipboardService: IClipboardService
+		@IClipboardService private readonly clipboardService: IClipboardService
 	) {
 		super('filesExplorer.copy', COPY_FILE_LABEL, notificationService);
 	}
@@ -560,8 +560,8 @@ class PasteFileAction extends BaseErrorReportingAction {
 		private element: ExplorerItem,
 		@IFileService private fileService: IFileService,
 		@INotificationService notificationService: INotificationService,
-		@IEditorService private editorService: IEditorService,
-		@IExplorerService private explorerService: IExplorerService
+		@IEditorService private readonly editorService: IEditorService,
+		@IExplorerService private readonly explorerService: IExplorerService
 	) {
 		super(PasteFileAction.ID, PASTE_FILE_LABEL, notificationService);
 
@@ -695,9 +695,9 @@ export class GlobalCompareResourcesAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IEditorService private editorService: IEditorService,
-		@INotificationService private notificationService: INotificationService,
+		@IQuickOpenService private readonly quickOpenService: IQuickOpenService,
+		@IEditorService private readonly editorService: IEditorService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super(id, label);
 	}
@@ -746,7 +746,7 @@ export class ToggleAutoSaveAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(id, label);
 	}
@@ -776,8 +776,8 @@ export abstract class BaseSaveAllAction extends BaseErrorReportingAction {
 	constructor(
 		id: string,
 		label: string,
-		@ITextFileService private textFileService: ITextFileService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService,
 		@ICommandService protected commandService: ICommandService,
 		@INotificationService notificationService: INotificationService,
 	) {
@@ -868,7 +868,7 @@ export class CloseGroupAction extends Action {
 	public static readonly ID = 'workbench.files.action.closeGroup';
 	public static readonly LABEL = nls.localize('closeGroup', "Close Group");
 
-	constructor(id: string, label: string, @ICommandService private commandService: ICommandService) {
+	constructor(id: string, label: string, @ICommandService private readonly commandService: ICommandService) {
 		super(id, label, 'action-close-all-files');
 	}
 
@@ -885,7 +885,7 @@ export class FocusFilesExplorer extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IViewletService private viewletService: IViewletService
+		@IViewletService private readonly viewletService: IViewletService
 	) {
 		super(id, label);
 	}
@@ -903,9 +903,9 @@ export class ShowActiveFileInExplorer extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IEditorService private editorService: IEditorService,
-		@INotificationService private notificationService: INotificationService,
-		@ICommandService private commandService: ICommandService
+		@IEditorService private readonly editorService: IEditorService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super(id, label);
 	}
@@ -930,7 +930,7 @@ export class CollapseExplorerView extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IViewletService private viewletService: IViewletService
+		@IViewletService private readonly viewletService: IViewletService
 	) {
 		super(id, label);
 	}
@@ -953,7 +953,7 @@ export class RefreshExplorerView extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IViewletService private viewletService: IViewletService
+		@IViewletService private readonly viewletService: IViewletService
 	) {
 		super(id, label, 'explorer-action refresh-explorer');
 	}
@@ -976,9 +976,9 @@ export class ShowOpenedFileInNewWindow extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IEditorService private editorService: IEditorService,
-		@IWindowService private windowService: IWindowService,
-		@INotificationService private notificationService: INotificationService
+		@IEditorService private readonly editorService: IEditorService,
+		@IWindowService private readonly windowService: IWindowService,
+		@INotificationService private readonly notificationService: INotificationService
 	) {
 		super(id, label);
 	}
@@ -1072,10 +1072,10 @@ export class CompareWithClipboardAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IEditorService private editorService: IEditorService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@ITextModelService private textModelService: ITextModelService,
-		@IFileService private fileService: IFileService
+		@IEditorService private readonly editorService: IEditorService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ITextModelService private readonly textModelService: ITextModelService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		super(id, label);
 
@@ -1112,9 +1112,9 @@ export class CompareWithClipboardAction extends Action {
 
 class ClipboardContentProvider implements ITextModelContentProvider {
 	constructor(
-		@IClipboardService private clipboardService: IClipboardService,
-		@IModeService private modeService: IModeService,
-		@IModelService private modelService: IModelService
+		@IClipboardService private readonly clipboardService: IClipboardService,
+		@IModeService private readonly modeService: IModeService,
+		@IModelService private readonly modelService: IModelService
 	) { }
 
 	provideTextContent(resource: URI): Promise<ITextModel> {

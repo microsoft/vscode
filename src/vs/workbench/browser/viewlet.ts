@@ -128,8 +128,8 @@ export class ShowViewletAction extends Action {
 		name: string,
 		viewletId: string,
 		@IViewletService protected viewletService: IViewletService,
-		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
-		@IPartService private partService: IPartService
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
+		@IPartService private readonly partService: IPartService
 	) {
 		super(id, name);
 

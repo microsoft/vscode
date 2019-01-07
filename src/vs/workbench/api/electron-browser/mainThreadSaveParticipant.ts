@@ -44,8 +44,8 @@ export interface ISaveParticipantParticipant extends ISaveParticipant {
 class TrimWhitespaceParticipant implements ISaveParticipantParticipant {
 
 	constructor(
-		@IConfigurationService private configurationService: IConfigurationService,
-		@ICodeEditorService private codeEditorService: ICodeEditorService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService
 	) {
 		// Nothing
 	}
@@ -106,8 +106,8 @@ function findEditor(model: ITextModel, codeEditorService: ICodeEditorService): I
 export class FinalNewLineParticipant implements ISaveParticipantParticipant {
 
 	constructor(
-		@IConfigurationService private configurationService: IConfigurationService,
-		@ICodeEditorService private codeEditorService: ICodeEditorService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService
 	) {
 		// Nothing
 	}
@@ -144,8 +144,8 @@ export class FinalNewLineParticipant implements ISaveParticipantParticipant {
 export class TrimFinalNewLinesParticipant implements ISaveParticipantParticipant {
 
 	constructor(
-		@IConfigurationService private configurationService: IConfigurationService,
-		@ICodeEditorService private codeEditorService: ICodeEditorService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService
 	) {
 		// Nothing
 	}

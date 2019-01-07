@@ -576,8 +576,8 @@ export class SettingNewExtensionsRenderer implements ITreeRenderer<SettingsTreeN
 	templateId = SETTINGS_NEW_EXTENSIONS_TEMPLATE_ID;
 
 	constructor(
-		@IThemeService private _themeService: IThemeService,
-		@ICommandService private _commandService: ICommandService,
+		@IThemeService private readonly _themeService: IThemeService,
+		@ICommandService private readonly _commandService: ICommandService,
 	) {
 	}
 
@@ -1318,7 +1318,7 @@ export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 			if (foregroundColor) {
 				// Links appear inside other elements in markdown. CSS opacity acts like a mask. So we have to dynamically compute the description color to avoid
 				// applying an opacity to the link color.
-				const fgWithOpacity = new Color(new RGBA(foregroundColor.rgba.r, foregroundColor.rgba.g, foregroundColor.rgba.b, .9));
+				const fgWithOpacity = new Color(new RGBA(foregroundColor.rgba.r, foregroundColor.rgba.g, foregroundColor.rgba.b, 0.9));
 				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description { color: ${fgWithOpacity}; }`);
 			}
 
@@ -1385,7 +1385,7 @@ class CopySettingIdAction extends Action {
 	static readonly LABEL = localize('copySettingIdLabel', "Copy Setting ID");
 
 	constructor(
-		@IClipboardService private clipboardService: IClipboardService
+		@IClipboardService private readonly clipboardService: IClipboardService
 	) {
 		super(CopySettingIdAction.ID, CopySettingIdAction.LABEL);
 	}
@@ -1404,7 +1404,7 @@ class CopySettingAsJSONAction extends Action {
 	static readonly LABEL = localize('copySettingAsJSONLabel', "Copy Setting as JSON");
 
 	constructor(
-		@IClipboardService private clipboardService: IClipboardService
+		@IClipboardService private readonly clipboardService: IClipboardService
 	) {
 		super(CopySettingAsJSONAction.ID, CopySettingAsJSONAction.LABEL);
 	}

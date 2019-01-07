@@ -244,7 +244,7 @@ class ZoomStatusbarItem extends Themable implements IStatusbarItem {
 	private onSelectScale?: (scale: Scale) => void;
 
 	constructor(
-		@IContextMenuService private contextMenuService: IContextMenuService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IEditorService editorService: IEditorService,
 		@IThemeService themeService: IThemeService
 	) {

@@ -92,18 +92,18 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 	private disposables: IDisposable[] = [];
 
 	constructor(
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IEditorService private editorService: IEditorService,
-		@IConfigurationService private configurationService: IConfigurationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
-		@IMarkersWorkbenchService private markersWorkbenchService: IMarkersWorkbenchService,
+		@IMarkersWorkbenchService private readonly markersWorkbenchService: IMarkersWorkbenchService,
 		@IStorageService storageService: IStorageService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
-		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IMenuService private menuService: IMenuService,
-		@IKeybindingService private keybindingService: IKeybindingService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IMenuService private readonly menuService: IMenuService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) {
 		super(Constants.MARKERS_PANEL_ID, telemetryService, themeService, storageService);
 		this.panelFoucusContextKey = Constants.MarkerPanelFocusContextKey.bindTo(contextKeyService);
