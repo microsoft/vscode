@@ -38,7 +38,7 @@ import { IExperimentService, ExperimentService, ExperimentState, ExperimentActio
 import { IRemoteAgentService } from 'vs/workbench/services/remote/node/remoteAgentService';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import { ExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
-import { CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 
 suite('ExtensionsListView Tests', () => {
@@ -124,11 +124,11 @@ suite('ExtensionsListView Tests', () => {
 		instantiationService.stub(IExtensionService, {
 			getExtensions: () => {
 				return Promise.resolve([
-					{ identifier: new CanonicalExtensionIdentifier(localEnabledTheme.galleryIdentifier.id) },
-					{ identifier: new CanonicalExtensionIdentifier(localEnabledLanguage.galleryIdentifier.id) },
-					{ identifier: new CanonicalExtensionIdentifier(localRandom.galleryIdentifier.id) },
-					{ identifier: new CanonicalExtensionIdentifier(builtInTheme.galleryIdentifier.id) },
-					{ identifier: new CanonicalExtensionIdentifier(builtInBasic.galleryIdentifier.id) }
+					{ identifier: new ExtensionIdentifier(localEnabledTheme.galleryIdentifier.id) },
+					{ identifier: new ExtensionIdentifier(localEnabledLanguage.galleryIdentifier.id) },
+					{ identifier: new ExtensionIdentifier(localRandom.galleryIdentifier.id) },
+					{ identifier: new ExtensionIdentifier(builtInTheme.galleryIdentifier.id) },
+					{ identifier: new ExtensionIdentifier(builtInBasic.galleryIdentifier.id) }
 				]);
 			}
 		});

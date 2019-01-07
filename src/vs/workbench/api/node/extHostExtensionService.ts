@@ -25,7 +25,7 @@ import { connectProxyResolver } from 'vs/workbench/node/proxyResolver';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 import { ResolvedAuthority } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 class ExtensionMemento implements IExtensionMemento {
 
@@ -247,7 +247,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		await allPromises;
 	}
 
-	public isActivated(extensionId: CanonicalExtensionIdentifier): boolean {
+	public isActivated(extensionId: ExtensionIdentifier): boolean {
 		if (this._barrier.isOpen()) {
 			return this._activator.isActivated(extensionId);
 		}
@@ -259,11 +259,11 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		return this._activator.activateByEvent(activationEvent, reason);
 	}
 
-	private _activateById(extensionId: CanonicalExtensionIdentifier, reason: ExtensionActivationReason): Promise<void> {
+	private _activateById(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void> {
 		return this._activator.activateById(extensionId, reason);
 	}
 
-	public activateByIdWithErrors(extensionId: CanonicalExtensionIdentifier, reason: ExtensionActivationReason): Promise<void> {
+	public activateByIdWithErrors(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void> {
 		return this._activateById(extensionId, reason).then(() => {
 			const extension = this._activator.getActivatedExtension(extensionId);
 			if (extension.activationFailed) {
@@ -278,7 +278,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		return this._barrier.wait().then(_ => this._registry);
 	}
 
-	public getExtensionExports(extensionId: CanonicalExtensionIdentifier): IExtensionAPI {
+	public getExtensionExports(extensionId: ExtensionIdentifier): IExtensionAPI {
 		if (this._barrier.isOpen()) {
 			return this._activator.getActivatedExtension(extensionId).exports;
 		} else {
@@ -301,7 +301,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		return this._extensionPathIndex;
 	}
 
-	private _deactivate(extensionId: CanonicalExtensionIdentifier): Promise<void> {
+	private _deactivate(extensionId: ExtensionIdentifier): Promise<void> {
 		let result = Promise.resolve(undefined);
 
 		if (!this._barrier.isOpen()) {
@@ -339,7 +339,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		return result;
 	}
 
-	public addMessage(extensionId: CanonicalExtensionIdentifier, severity: Severity, message: string): void {
+	public addMessage(extensionId: ExtensionIdentifier, severity: Severity, message: string): void {
 		this._mainThreadExtensionsProxy.$addMessage(extensionId, severity, message);
 	}
 
@@ -429,7 +429,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		});
 	}
 
-	private static _callActivate(logService: ILogService, extensionId: CanonicalExtensionIdentifier, extensionModule: IExtensionModule, context: IExtensionContext, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<ActivatedExtension> {
+	private static _callActivate(logService: ILogService, extensionId: ExtensionIdentifier, extensionModule: IExtensionModule, context: IExtensionContext, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<ActivatedExtension> {
 		// Make sure the extension's surface is not undefined
 		extensionModule = extensionModule || {
 			activate: undefined,
@@ -441,7 +441,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		});
 	}
 
-	private static _callActivateOptional(logService: ILogService, extensionId: CanonicalExtensionIdentifier, extensionModule: IExtensionModule, context: IExtensionContext, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<IExtensionAPI> {
+	private static _callActivateOptional(logService: ILogService, extensionId: ExtensionIdentifier, extensionModule: IExtensionModule, context: IExtensionContext, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<IExtensionAPI> {
 		if (typeof extensionModule.activate === 'function') {
 			try {
 				activationTimesBuilder.activateCallStart();
@@ -516,7 +516,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		return Promise.all([fileNamePromise, globPatternPromise]).then(() => { });
 	}
 
-	private async _activateIfFileName(workspace: IWorkspaceData, extensionId: CanonicalExtensionIdentifier, fileName: string): Promise<void> {
+	private async _activateIfFileName(workspace: IWorkspaceData, extensionId: ExtensionIdentifier, fileName: string): Promise<void> {
 
 		// find exact path
 		for (const { uri } of workspace.folders) {
@@ -532,7 +532,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		return undefined;
 	}
 
-	private async _activateIfGlobPatterns(extensionId: CanonicalExtensionIdentifier, globPatterns: string[]): Promise<void> {
+	private async _activateIfGlobPatterns(extensionId: ExtensionIdentifier, globPatterns: string[]): Promise<void> {
 		this._extHostLogService.trace(`extensionHostMain#activateIfGlobPatterns: fileSearch, extension: ${extensionId.value}, entryPoint: workspaceContains`);
 
 		if (globPatterns.length === 0) {
@@ -635,7 +635,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		throw new Error(`Not implemented`);
 	}
 
-	public $startExtensionHost(enabledExtensionIds: CanonicalExtensionIdentifier[]): Promise<void> {
+	public $startExtensionHost(enabledExtensionIds: ExtensionIdentifier[]): Promise<void> {
 		this._registry.keepOnly(enabledExtensionIds);
 		return this._startExtensionHost();
 	}

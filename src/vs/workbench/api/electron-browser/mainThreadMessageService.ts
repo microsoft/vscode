@@ -14,7 +14,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { Event } from 'vs/base/common/event';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { dispose } from 'vs/base/common/lifecycle';
-import { CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 @extHostNamedCustomer(MainContext.MainThreadMessageService)
 export class MainThreadMessageService implements MainThreadMessageServiceShape {
@@ -56,7 +56,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 			}
 
 			class ManageExtensionAction extends Action {
-				constructor(id: CanonicalExtensionIdentifier, label: string, commandService: ICommandService) {
+				constructor(id: ExtensionIdentifier, label: string, commandService: ICommandService) {
 					super(id.value, label, undefined, true, () => {
 						return commandService.executeCommand('_extensions.manage', id.value);
 					});

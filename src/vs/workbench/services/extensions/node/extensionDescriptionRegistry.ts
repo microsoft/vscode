@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export class ExtensionDescriptionRegistry {
 	private _extensionDescriptions: IExtensionDescription[];
@@ -25,13 +25,13 @@ export class ExtensionDescriptionRegistry {
 		for (let i = 0, len = this._extensionDescriptions.length; i < len; i++) {
 			let extensionDescription = this._extensionDescriptions[i];
 
-			if (this._extensionsMap.has(CanonicalExtensionIdentifier.toKey(extensionDescription.identifier))) {
+			if (this._extensionsMap.has(ExtensionIdentifier.toKey(extensionDescription.identifier))) {
 				// No overwriting allowed!
 				console.error('Extension `' + extensionDescription.identifier.value + '` is already registered');
 				continue;
 			}
 
-			this._extensionsMap.set(CanonicalExtensionIdentifier.toKey(extensionDescription.identifier), extensionDescription);
+			this._extensionsMap.set(ExtensionIdentifier.toKey(extensionDescription.identifier), extensionDescription);
 			this._extensionsArr.push(extensionDescription);
 
 			if (Array.isArray(extensionDescription.activationEvents)) {
@@ -40,7 +40,7 @@ export class ExtensionDescriptionRegistry {
 
 					// TODO@joao: there's no easy way to contribute this
 					if (activationEvent === 'onUri') {
-						activationEvent = `onUri:${CanonicalExtensionIdentifier.toKey(extensionDescription.identifier)}`;
+						activationEvent = `onUri:${ExtensionIdentifier.toKey(extensionDescription.identifier)}`;
 					}
 
 					if (!this._activationMap.has(activationEvent)) {
@@ -52,15 +52,15 @@ export class ExtensionDescriptionRegistry {
 		}
 	}
 
-	public keepOnly(extensionIds: CanonicalExtensionIdentifier[]): void {
+	public keepOnly(extensionIds: ExtensionIdentifier[]): void {
 		let toKeep = new Set<string>();
-		extensionIds.forEach(extensionId => toKeep.add(CanonicalExtensionIdentifier.toKey(extensionId)));
-		this._extensionDescriptions = this._extensionDescriptions.filter(extension => toKeep.has(CanonicalExtensionIdentifier.toKey(extension.identifier)));
+		extensionIds.forEach(extensionId => toKeep.add(ExtensionIdentifier.toKey(extensionId)));
+		this._extensionDescriptions = this._extensionDescriptions.filter(extension => toKeep.has(ExtensionIdentifier.toKey(extension.identifier)));
 		this._initialize();
 	}
 
-	public remove(extensionId: CanonicalExtensionIdentifier): void {
-		this._extensionDescriptions = this._extensionDescriptions.filter(extension => !CanonicalExtensionIdentifier.equals(extension.identifier, extensionId));
+	public remove(extensionId: ExtensionIdentifier): void {
+		this._extensionDescriptions = this._extensionDescriptions.filter(extension => !ExtensionIdentifier.equals(extension.identifier, extensionId));
 		this._initialize();
 	}
 
@@ -79,10 +79,10 @@ export class ExtensionDescriptionRegistry {
 		return this._extensionsArr.slice(0);
 	}
 
-	public getExtensionDescription(extensionId: CanonicalExtensionIdentifier | string): IExtensionDescription | null {
-		if (!this._extensionsMap.has(CanonicalExtensionIdentifier.toKey(extensionId))) {
+	public getExtensionDescription(extensionId: ExtensionIdentifier | string): IExtensionDescription | null {
+		if (!this._extensionsMap.has(ExtensionIdentifier.toKey(extensionId))) {
 			return null;
 		}
-		return this._extensionsMap.get(CanonicalExtensionIdentifier.toKey(extensionId));
+		return this._extensionsMap.get(ExtensionIdentifier.toKey(extensionId));
 	}
 }

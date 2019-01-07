@@ -18,7 +18,7 @@ import { ExtensionHostProfiler } from 'vs/workbench/services/extensions/electron
 import { ProxyIdentifier } from 'vs/workbench/services/extensions/node/proxyIdentifier';
 import { IRPCProtocolLogger, RPCProtocol, RequestInitiator, ResponsiveState } from 'vs/workbench/services/extensions/node/rpcProtocol';
 import { ResolvedAuthority } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 // Enable to see detailed message communication between window and extension host
 const LOG_EXTENSION_HOST_COMMUNICATION = false;
@@ -178,7 +178,7 @@ export class ExtensionHostProcessManager extends Disposable {
 		return this._extensionHostProcessProxy.then(proxy => proxy.value.$resolveAuthority(remoteAuthority));
 	}
 
-	public start(enabledExtensionIds: CanonicalExtensionIdentifier[]): Promise<void> {
+	public start(enabledExtensionIds: ExtensionIdentifier[]): Promise<void> {
 		return this._extensionHostProcessProxy.then(proxy => proxy.value.$startExtensionHost(enabledExtensionIds));
 	}
 }

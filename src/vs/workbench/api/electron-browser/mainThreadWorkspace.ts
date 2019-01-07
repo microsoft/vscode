@@ -23,7 +23,7 @@ import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common
 import { ExtHostContext, ExtHostWorkspaceShape, IExtHostContext, MainContext, MainThreadWorkspaceShape } from '../node/extHost.protocol';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 import { TextSearchComplete } from 'vscode';
-import { CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
 export class MainThreadWorkspace implements MainThreadWorkspaceShape {
@@ -246,7 +246,7 @@ CommandsRegistry.registerCommand('_workbench.enterWorkspace', async function (ac
 	if (disableExtensions && disableExtensions.length) {
 		const runningExtensions = await extensionService.getExtensions();
 		// If requested extension to disable is running, then reload window with given workspace
-		if (disableExtensions && runningExtensions.some(runningExtension => disableExtensions.some(id => CanonicalExtensionIdentifier.equals(runningExtension.identifier, id)))) {
+		if (disableExtensions && runningExtensions.some(runningExtension => disableExtensions.some(id => ExtensionIdentifier.equals(runningExtension.identifier, id)))) {
 			return windowService.openWindow([URI.file(workspace.fsPath)], { args: { _: [], 'disable-extension': disableExtensions } });
 		}
 	}

@@ -29,7 +29,7 @@ import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/n
 import { ResponsiveState } from 'vs/workbench/services/extensions/node/rpcProtocol';
 import { CachedExtensionScanner, Logger } from 'vs/workbench/services/extensions/electron-browser/cachedExtensionScanner';
 import { ExtensionHostProcessManager } from 'vs/workbench/services/extensions/electron-browser/extensionHostProcessManager';
-import { CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 const hasOwnProperty = Object.hasOwnProperty;
 const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
@@ -38,15 +38,15 @@ const DYNAMIC_EXTENSION_POINTS = false;
 schema.properties.engines.properties.vscode.default = `^${pkg.version}`;
 
 let productAllowProposedApi: Set<string> = null;
-function allowProposedApiFromProduct(id: CanonicalExtensionIdentifier): boolean {
+function allowProposedApiFromProduct(id: ExtensionIdentifier): boolean {
 	// create set if needed
 	if (productAllowProposedApi === null) {
 		productAllowProposedApi = new Set<string>();
 		if (isNonEmptyArray(product.extensionAllowedProposedApi)) {
-			product.extensionAllowedProposedApi.forEach((id) => productAllowProposedApi.add(CanonicalExtensionIdentifier.toKey(id)));
+			product.extensionAllowedProposedApi.forEach((id) => productAllowProposedApi.add(ExtensionIdentifier.toKey(id)));
 		}
 	}
-	return productAllowProposedApi.has(CanonicalExtensionIdentifier.toKey(id));
+	return productAllowProposedApi.has(ExtensionIdentifier.toKey(id));
 }
 
 export class ExtensionService extends Disposable implements IExtensionService {
@@ -64,8 +64,8 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	private readonly _onDidRegisterExtensions: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidRegisterExtensions = this._onDidRegisterExtensions.event;
 
-	private readonly _onDidChangeExtensionsStatus: Emitter<CanonicalExtensionIdentifier[]> = this._register(new Emitter<CanonicalExtensionIdentifier[]>());
-	public readonly onDidChangeExtensionsStatus: Event<CanonicalExtensionIdentifier[]> = this._onDidChangeExtensionsStatus.event;
+	private readonly _onDidChangeExtensionsStatus: Emitter<ExtensionIdentifier[]> = this._register(new Emitter<ExtensionIdentifier[]>());
+	public readonly onDidChangeExtensionsStatus: Event<ExtensionIdentifier[]> = this._onDidChangeExtensionsStatus.event;
 
 	private readonly _onWillActivateByEvent = this._register(new Emitter<IWillActivateEvent>());
 	public readonly onWillActivateByEvent: Event<IWillActivateEvent> = this._onWillActivateByEvent.event;
@@ -75,7 +75,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 	// --- Members used per extension host process
 	private _extensionHostProcessManagers: ExtensionHostProcessManager[];
-	private _extensionHostActiveExtensions: Map<string, CanonicalExtensionIdentifier>;
+	private _extensionHostActiveExtensions: Map<string, ExtensionIdentifier>;
 	private _extensionHostProcessActivationTimes: Map<string, ActivationTimes>;
 	private _extensionHostExtensionRuntimeErrors: Map<string, Error[]>;
 
@@ -99,7 +99,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		this._extensionScanner = this._instantiationService.createInstance(CachedExtensionScanner);
 
 		this._extensionHostProcessManagers = [];
-		this._extensionHostActiveExtensions = new Map<string, CanonicalExtensionIdentifier>();
+		this._extensionHostActiveExtensions = new Map<string, ExtensionIdentifier>();
 		this._extensionHostProcessActivationTimes = new Map<string, ActivationTimes>();
 		this._extensionHostExtensionRuntimeErrors = new Map<string, Error[]>();
 
@@ -160,7 +160,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	}
 
 	private _canRemoveExtension(extension: IExtensionDescription): boolean {
-		if (this._extensionHostActiveExtensions.has(CanonicalExtensionIdentifier.toKey(extension.identifier))) {
+		if (this._extensionHostActiveExtensions.has(ExtensionIdentifier.toKey(extension.identifier))) {
 			// Extension is running, cannot remove it safely
 			return false;
 		}
@@ -218,7 +218,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	}
 
 	private _stopExtensionHostProcess(): void {
-		let previouslyActivatedExtensionIds: CanonicalExtensionIdentifier[] = [];
+		let previouslyActivatedExtensionIds: ExtensionIdentifier[] = [];
 		this._extensionHostActiveExtensions.forEach((value) => {
 			previouslyActivatedExtensionIds.push(value);
 		});
@@ -227,7 +227,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			manager.dispose();
 		}
 		this._extensionHostProcessManagers = [];
-		this._extensionHostActiveExtensions = new Map<string, CanonicalExtensionIdentifier>();
+		this._extensionHostActiveExtensions = new Map<string, ExtensionIdentifier>();
 		this._extensionHostProcessActivationTimes = new Map<string, ActivationTimes>();
 		this._extensionHostExtensionRuntimeErrors = new Map<string, Error[]>();
 
@@ -359,7 +359,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			const extensions = this._registry.getAllExtensionDescriptions();
 			for (let i = 0, len = extensions.length; i < len; i++) {
 				const extension = extensions[i];
-				const extensionKey = CanonicalExtensionIdentifier.toKey(extension.identifier);
+				const extensionKey = ExtensionIdentifier.toKey(extension.identifier);
 				result[extension.identifier.value] = {
 					messages: this._extensionsMessages.get(extensionKey),
 					activationTimes: this._extensionHostProcessActivationTimes.get(extensionKey),
@@ -450,7 +450,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 				if (enableProposedApiFor.length) {
 					let allProposed = (enableProposedApiFor instanceof Array ? enableProposedApiFor : [enableProposedApiFor]);
 					allProposed.forEach(id => {
-						if (!allExtensions.some(description => CanonicalExtensionIdentifier.equals(description.identifier, id))) {
+						if (!allExtensions.some(description => ExtensionIdentifier.equals(description.identifier, id))) {
 							console.error(notFound(id));
 						}
 					});
@@ -530,7 +530,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	}
 
 	private _handleExtensionPointMessage(msg: IMessage) {
-		const extensionKey = CanonicalExtensionIdentifier.toKey(msg.extensionId);
+		const extensionKey = ExtensionIdentifier.toKey(msg.extensionId);
 
 		if (!this._extensionsMessages.has(extensionKey)) {
 			this._extensionsMessages.set(extensionKey, []);
@@ -607,17 +607,17 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		}
 	}
 
-	public _onWillActivateExtension(extensionId: CanonicalExtensionIdentifier): void {
-		this._extensionHostActiveExtensions.set(CanonicalExtensionIdentifier.toKey(extensionId), extensionId);
+	public _onWillActivateExtension(extensionId: ExtensionIdentifier): void {
+		this._extensionHostActiveExtensions.set(ExtensionIdentifier.toKey(extensionId), extensionId);
 	}
 
-	public _onDidActivateExtension(extensionId: CanonicalExtensionIdentifier, startup: boolean, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationEvent: string): void {
-		this._extensionHostProcessActivationTimes.set(CanonicalExtensionIdentifier.toKey(extensionId), new ActivationTimes(startup, codeLoadingTime, activateCallTime, activateResolvedTime, activationEvent));
+	public _onDidActivateExtension(extensionId: ExtensionIdentifier, startup: boolean, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationEvent: string): void {
+		this._extensionHostProcessActivationTimes.set(ExtensionIdentifier.toKey(extensionId), new ActivationTimes(startup, codeLoadingTime, activateCallTime, activateResolvedTime, activationEvent));
 		this._onDidChangeExtensionsStatus.fire([extensionId]);
 	}
 
-	public _onExtensionRuntimeError(extensionId: CanonicalExtensionIdentifier, err: Error): void {
-		const extensionKey = CanonicalExtensionIdentifier.toKey(extensionId);
+	public _onExtensionRuntimeError(extensionId: ExtensionIdentifier, err: Error): void {
+		const extensionKey = ExtensionIdentifier.toKey(extensionId);
 		if (!this._extensionHostExtensionRuntimeErrors.has(extensionKey)) {
 			this._extensionHostExtensionRuntimeErrors.set(extensionKey, []);
 		}
@@ -625,8 +625,8 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		this._onDidChangeExtensionsStatus.fire([extensionId]);
 	}
 
-	public _addMessage(extensionId: CanonicalExtensionIdentifier, severity: Severity, message: string): void {
-		const extensionKey = CanonicalExtensionIdentifier.toKey(extensionId);
+	public _addMessage(extensionId: ExtensionIdentifier, severity: Severity, message: string): void {
+		const extensionKey = ExtensionIdentifier.toKey(extensionId);
 		if (!this._extensionsMessages.has(extensionKey)) {
 			this._extensionsMessages.set(extensionKey, []);
 		}

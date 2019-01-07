@@ -18,7 +18,7 @@ import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IE
 import { ExtensionsConfigurationInitialContent } from 'vs/workbench/parts/extensions/common/extensionsFileTemplate';
 import { LocalExtensionType, IExtensionEnablementService, IExtensionTipsService, EnablementState, ExtensionsLabel, IExtensionRecommendation, IGalleryExtension, IExtensionsConfigContent, IExtensionManagementServerService, IExtensionGalleryService, INSTALL_ERROR_MALICIOUS, INSTALL_ERROR_INCOMPATIBLE, IGalleryExtensionVersion } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { isUIExtension, CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { isUIExtension, ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ShowViewletAction } from 'vs/workbench/browser/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -2392,7 +2392,7 @@ export class DisabledStatusLabelAction extends Action {
 		}
 		this.class = `${DisabledStatusLabelAction.Class} hide`;
 		this.tooltip = '';
-		if (this.extension && this.extension.local && !this.extension.isMalicious && !this.runningExtensions.some(e => CanonicalExtensionIdentifier.equals(e.identifier, this.extension.identifier.id))) {
+		if (this.extension && this.extension.local && !this.extension.isMalicious && !this.runningExtensions.some(e => ExtensionIdentifier.equals(e.identifier, this.extension.identifier.id))) {
 			if (this.extensionManagementServerService.remoteExtensionManagementServer && !isUIExtension(this.extension.local.manifest, this.configurationService) && this.extension.locals) {
 				const installedInRemoteServer = this.extension.locals.some(local => {
 					const server = this.extensionManagementServerService.getExtensionManagementServer(local.location);
