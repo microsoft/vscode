@@ -102,6 +102,7 @@ export interface IGuessedIndentation {
 }
 
 export function guessIndentation(source: ITextBuffer, defaultTabSize: number, defaultInsertSpaces: boolean): IGuessedIndentation {
+	console.log(`guessIndentation`);
 	// Look at most at the first 10k lines
 	const linesCount = Math.min(source.getLineCount(), 10000);
 
@@ -188,6 +189,12 @@ export function guessIndentation(source: ITextBuffer, defaultTabSize: number, de
 			tabSize = possibleTabSize;
 		}
 	});
+
+	// Let a tabSize of 2 win even if it is not the maximum
+	// (only in case 4 was guessed)
+	if (tabSize === 4 && spacesDiffCount[2] >= spacesDiffCount[4] / 2) {
+		tabSize = 2;
+	}
 
 
 	// console.log('--------------------------');
