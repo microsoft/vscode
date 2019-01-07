@@ -339,7 +339,37 @@ function packageTask(platform, arch, opts) {
 		);
 
 		if (platform === 'win32') {
-			all = es.merge(all, gulp.src(['resources/win32/*.ico', 'resources/win32/code_*.png',], { base: '.' }));
+			all = es.merge(all, gulp.src([
+				'resources/win32/bower.ico',
+				'resources/win32/c.ico',
+				'resources/win32/config.ico',
+				'resources/win32/cpp.ico',
+				'resources/win32/csharp.ico',
+				'resources/win32/css.ico',
+				'resources/win32/default.ico',
+				'resources/win32/go.ico',
+				'resources/win32/html.ico',
+				'resources/win32/jade.ico',
+				'resources/win32/java.ico',
+				'resources/win32/javascript.ico',
+				'resources/win32/json.ico',
+				'resources/win32/less.ico',
+				'resources/win32/markdown.ico',
+				'resources/win32/php.ico',
+				'resources/win32/powershell.ico',
+				'resources/win32/python.ico',
+				'resources/win32/react.ico',
+				'resources/win32/ruby.ico',
+				'resources/win32/sass.ico',
+				'resources/win32/shell.ico',
+				'resources/win32/sql.ico',
+				'resources/win32/typescript.ico',
+				'resources/win32/vue.ico',
+				'resources/win32/xml.ico',
+				'resources/win32/yaml.ico',
+				'resources/win32/code_70x70.png',
+				'resources/win32/code_150x150.png'
+			], { base: '.' }));
 		} else if (platform === 'linux') {
 			all = es.merge(all, gulp.src('resources/linux/code.png', { base: '.' }));
 		} else if (platform === 'darwin') {
