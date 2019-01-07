@@ -745,5 +745,5 @@ export interface IActionProvider {
 	/**
 	 * Returns an action item to render an action.
 	 */
-	getActionItem(tree: ITree, element: any, action: IAction): IActionItem;
+	getActionItem(tree: ITree, element: any, action: IAction): IActionItem | null;
 }
