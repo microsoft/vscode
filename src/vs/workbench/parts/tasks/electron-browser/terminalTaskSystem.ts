@@ -876,7 +876,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 				// Search for any idle terminal used previously by a task of the same terminalGroup
 				// (or, if the task has no terminalGroup, a terminal used by a task without terminalGroup).
 				for (const taskId of this.idleTaskTerminals.keys()) {
-					const idleTerminalId = this.idleTaskTerminals[taskId];
+					const idleTerminalId = this.idleTaskTerminals.get(taskId)!;
 					if (this.terminals[idleTerminalId].terminalGroup === terminalGroup) {
 						terminalId = this.idleTaskTerminals.remove(taskId);
 						break;
