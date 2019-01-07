@@ -1,4 +1,4 @@
-#compdef code
+#compdef @@APPNAME@@
 
 local arguments
 
