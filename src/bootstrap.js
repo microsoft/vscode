@@ -71,7 +71,7 @@ exports.uriFromPath = function (_path) {
 
 	/** @type {string} */
 	let uri;
-	if (pathName.startsWith('//')) {
+	if (process.platform === 'win32' && pathName.startsWith('//')) { // specially handle Windows UNC paths
 		uri = encodeURI('file:' + pathName);
 	} else {
 		uri = encodeURI('file://' + pathName);
