@@ -933,8 +933,8 @@ export class Repository implements Disposable {
 		await this.run(Operation.Fetch, () => this.repository.fetch({ all: true }));
 	}
 
-	async fetch(remote?: string, ref?: string): Promise<void> {
-		await this.run(Operation.Fetch, () => this.repository.fetch({ remote, ref }));
+	async fetch(remote?: string, ref?: string, depth?: number): Promise<void> {
+		await this.run(Operation.Fetch, () => this.repository.fetch({ remote, ref, depth }));
 	}
 
 	@throttle
