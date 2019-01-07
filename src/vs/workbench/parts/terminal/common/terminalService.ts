@@ -271,16 +271,16 @@ export abstract class TerminalService implements ITerminalService {
 		}
 
 		const instance = tab.split(this._terminalFocusContextKey, this.configHelper, shellLaunchConfig);
-		if (instance) {
-			this._initInstanceListeners(instance);
-			this._onInstancesChanged.fire();
-
-			this._terminalTabs.forEach((t, i) => t.setVisible(i === this._activeTabIndex));
-			return instance;
-		} else {
+		if (!instance) {
 			this._showNotEnoughSpaceToast();
 			return null;
 		}
+
+		this._initInstanceListeners(instance);
+		this._onInstancesChanged.fire();
+
+		this._terminalTabs.forEach((t, i) => t.setVisible(i === this._activeTabIndex));
+		return instance;
 	}
 
 	protected _initInstanceListeners(instance: ITerminalInstance): void {
