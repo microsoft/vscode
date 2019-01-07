@@ -13,7 +13,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { DocumentColorProvider, Hover, HoverProviderRegistry, IColor } from 'vs/editor/common/modes';
+import { DocumentColorProvider, Hover as MarkdownHover, HoverProviderRegistry, IColor } from 'vs/editor/common/modes';
 import { getColorPresentations } from 'vs/editor/contrib/colorPicker/color';
 import { ColorDetector } from 'vs/editor/contrib/colorPicker/colorDetector';
 import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/colorPickerModel';
@@ -23,7 +23,10 @@ import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contri
 import { ContentHoverWidget } from 'vs/editor/contrib/hover/hoverWidgets';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { coalesce } from 'vs/base/common/arrays';
+import { coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
+import { IMarker, IMarkerData } from 'vs/platform/markers/common/markers';
+import { basename } from 'vs/base/common/paths';
+import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
 
 const $ = dom.$;
 
@@ -36,7 +39,15 @@ class ColorHover {
 	) { }
 }
 
-type HoverPart = Hover | ColorHover;
+class MarkerHover {
+
+	constructor(
+		public readonly range: IRange,
+		public readonly marker: IMarker,
+	) { }
+}
+
+type HoverPart = MarkdownHover | ColorHover | MarkerHover;
 
 class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 
@@ -44,7 +55,10 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 	private _result: HoverPart[];
 	private _range: Range | null;
 
-	constructor(editor: ICodeEditor) {
+	constructor(
+		editor: ICodeEditor,
+		private _markerDecorationsService: IMarkerDecorationsService
+	) {
 		this._editor = editor;
 		this._range = null;
 	}
@@ -80,6 +94,7 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 			return [];
 		}
 
+		const model = this._editor.getModel();
 		const lineNumber = this._range.startLineNumber;
 
 		if (lineNumber > this._editor.getModel().getLineCount()) {
@@ -88,7 +103,7 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 		}
 
 		const colorDetector = ColorDetector.get(this._editor);
-		const maxColumn = this._editor.getModel().getLineMaxColumn(lineNumber);
+		const maxColumn = model.getLineMaxColumn(lineNumber);
 		const lineDecorations = this._editor.getLineDecorations(lineNumber);
 		let didFindColor = false;
 
@@ -102,6 +117,11 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 			}
 
 			const range = new Range(hoverRange.startLineNumber, startColumn, hoverRange.startLineNumber, endColumn);
+			const marker = this._markerDecorationsService.getMarker(model, d);
+			if (marker) {
+				return new MarkerHover(range, marker);
+			}
+
 			const colorData = colorDetector.getColorData(d.range.getStartPosition());
 
 			if (!didFindColor && colorData) {
@@ -182,13 +202,14 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 	constructor(
 		editor: ICodeEditor,
 		markdownRenderer: MarkdownRenderer,
+		markerDecorationsService: IMarkerDecorationsService,
 		private readonly _themeService: IThemeService
 	) {
 		super(ModesContentHoverWidget.ID, editor);
 
 		this._messages = [];
 		this._lastRange = null;
-		this._computer = new ModesContentComputer(this._editor);
+		this._computer = new ModesContentComputer(this._editor, markerDecorationsService);
 		this._highlightDecorations = [];
 		this._isChangingDecorations = false;
 
@@ -328,16 +349,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			renderColumn = Math.min(renderColumn, msg.range.startColumn);
 			highlightRange = highlightRange ? Range.plusRange(highlightRange, msg.range) : Range.lift(msg.range);
 
-			if (!(msg instanceof ColorHover)) {
-				msg.contents
-					.filter(contents => !isEmptyMarkdownString(contents))
-					.forEach(contents => {
-						const renderedContents = this._markdownRenderer.render(contents);
-						markdownDisposeable = renderedContents;
-						fragment.appendChild($('div.hover-row', undefined, renderedContents.element));
-						isEmptyHoverContent = false;
-					});
-			} else {
+			if (msg instanceof ColorHover) {
 				containColorPicker = true;
 
 				const { red, green, blue, alpha } = msg.color;
@@ -420,6 +432,20 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 
 					this.renderDisposable = combinedDisposable([colorListener, colorChangeListener, widget, markdownDisposeable]);
 				});
+			} else {
+				if (msg instanceof MarkerHover) {
+					isEmptyHoverContent = false;
+					fragment.appendChild($('div.hover-row', undefined, this.renderMarkerHover(msg)));
+				} else {
+					msg.contents
+						.filter(contents => !isEmptyMarkdownString(contents))
+						.forEach(contents => {
+							const renderedContents = this._markdownRenderer.render(contents);
+							markdownDisposeable = renderedContents;
+							fragment.appendChild($('div.hover-row', undefined, renderedContents.element));
+							isEmptyHoverContent = false;
+						});
+				}
 			}
 		});
 
@@ -438,6 +464,36 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		this._isChangingDecorations = false;
 	}
 
+	private renderMarkerHover(markerHover: MarkerHover): HTMLElement {
+		const hoverElement = $('div');
+		const { source, message, code, relatedInformation } = markerHover.marker;
+
+		const messageElement = dom.append(hoverElement, $('span'));
+		messageElement.style.whiteSpace = 'pre-wrap';
+		messageElement.innerText = message.trim();
+		this._editor.applyFontInfo(messageElement);
+
+		if (source || code) {
+			const detailsElement = dom.append(hoverElement, $('span'));
+			detailsElement.style.opacity = '0.6';
+			detailsElement.style.paddingLeft = '6px';
+			detailsElement.innerText = source && code ? `${source}(${code})` : `(${code})`;
+		}
+
+		if (isNonEmptyArray(relatedInformation)) {
+			const listElement = dom.append(hoverElement, $('ul'));
+			for (const { message, resource, startLineNumber, startColumn } of relatedInformation) {
+				const item = dom.append(listElement, $('li'));
+				const a = dom.append(item, $('a'));
+				a.setAttribute('data-href', `${resource.toString(false)}#${startLineNumber},${startColumn}`);
+				a.innerText = `${basename(resource.path)}(${startLineNumber}, ${startColumn})`;
+				const messageElement = dom.append<HTMLAnchorElement>(item, $('span'));
+				messageElement.innerText = `: ${message}`;
+			}
+		}
+		return hoverElement;
+	}
+
 	private static readonly _DECORATION_OPTIONS = ModelDecorationOptions.register({
 		className: 'hoverHighlight'
 	});
@@ -450,10 +506,13 @@ function hoverContentsEquals(first: HoverPart[], second: HoverPart[]): boolean {
 	for (let i = 0; i < first.length; i++) {
 		const firstElement = first[i];
 		const secondElement = second[i];
-		if (firstElement instanceof ColorHover) {
+		if (firstElement instanceof MarkerHover && secondElement instanceof MarkerHover) {
+			return IMarkerData.makeKey(firstElement.marker) === IMarkerData.makeKey(secondElement.marker);
+		}
+		if (firstElement instanceof ColorHover || secondElement instanceof ColorHover) {
 			return false;
 		}
-		if (secondElement instanceof ColorHover) {
+		if (firstElement instanceof MarkerHover || secondElement instanceof MarkerHover) {
 			return false;
 		}
 		if (!markedStringsEquals(firstElement.contents, secondElement.contents)) {
