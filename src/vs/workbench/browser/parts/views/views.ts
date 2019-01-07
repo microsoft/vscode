@@ -357,7 +357,7 @@ export class ContributableViewsModel extends Disposable {
 			} else {
 				this.viewStates.set(viewDescriptor.id, {
 					visible: !viewDescriptor.hideByDefault,
-					collapsed: viewDescriptor.collapsed
+					collapsed: !!viewDescriptor.collapsed
 				});
 			}
 		}
@@ -369,7 +369,7 @@ export class ContributableViewsModel extends Disposable {
 		).reverse();
 
 		const toRemove: { index: number, viewDescriptor: IViewDescriptor }[] = [];
-		const toAdd: { index: number, viewDescriptor: IViewDescriptor, size: number, collapsed: boolean }[] = [];
+		const toAdd: { index: number, viewDescriptor: IViewDescriptor, size?: number, collapsed: boolean }[] = [];
 
 		for (const splice of splices) {
 			const startViewDescriptor = this.viewDescriptors[splice.start];
@@ -436,7 +436,7 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 	}
 
 	private saveViewsStates(): void {
-		const storedViewsStates: { [id: string]: { collapsed: boolean, size: number, order: number } } = {};
+		const storedViewsStates: { [id: string]: { collapsed: boolean, size?: number, order?: number } } = {};
 
 		let hasState = false;
 		for (const viewDescriptor of this.viewDescriptors) {
@@ -459,7 +459,7 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 		for (const viewDescriptor of viewDescriptors) {
 			if (viewDescriptor.canToggleVisibility) {
 				const viewState = this.viewStates.get(viewDescriptor.id);
-				storedViewsVisibilityStates.set(viewDescriptor.id, { id: viewDescriptor.id, isHidden: viewState ? !viewState.visible : undefined });
+				storedViewsVisibilityStates.set(viewDescriptor.id, { id: viewDescriptor.id, isHidden: viewState ? !viewState.visible : false });
 			}
 		}
 		this.storageService.store(this.hiddenViewsStorageId, JSON.stringify(values(storedViewsVisibilityStates)), StorageScope.GLOBAL);

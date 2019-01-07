@@ -229,7 +229,7 @@ export const IViewsService = createDecorator<IViewsService>('viewsService');
 export interface IViewsService {
 	_serviceBrand: any;
 
-	openView(id: string, focus?: boolean): Promise<IView>;
+	openView(id: string, focus?: boolean): Promise<IView | null>;
 
 	getViewDescriptors(container: ViewContainer): IViewDescriptorCollection;
 }
