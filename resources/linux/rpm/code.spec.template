@@ -18,8 +18,8 @@ Visual Studio Code is a new choice of tool that combines the simplicity of a cod
 mkdir -p %{buildroot}/usr/share/@@NAME@@
 mkdir -p %{buildroot}/usr/share/applications
 mkdir -p %{buildroot}/usr/share/pixmaps
-#mkdir -p %{buildroot}/usr/share/bash-completion/completions
-#mkdir -p %{buildroot}/usr/share/zsh/site-functions
+mkdir -p %{buildroot}/usr/share/bash-completion/completions
+mkdir -p %{buildroot}/usr/share/zsh/site-functions
 cp -r usr/share/@@NAME@@/* %{buildroot}/usr/share/@@NAME@@
 cp -r usr/share/applications/@@NAME@@.desktop %{buildroot}/usr/share/applications
 cp -r usr/share/applications/@@NAME@@-url-handler.desktop %{buildroot}/usr/share/applications
