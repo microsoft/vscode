@@ -1028,6 +1028,7 @@
         },
         "git.autofetch": {
           "type": "boolean",
+          "scope": "resource",
           "description": "%config.autofetch%",
           "default": false,
           "tags": [
