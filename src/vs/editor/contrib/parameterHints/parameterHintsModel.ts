@@ -72,11 +72,12 @@ export class ParameterHintsModel extends Disposable {
 	}
 
 	cancel(silent: boolean = false): void {
+		const priorState = this.state;
 		this.state = DefaultState;
 
 		this.throttledDelayer.cancel();
 
-		if (!silent) {
+		if (!silent && priorState.type === ActiveState.type) {
 			this._onChangedHints.fire(undefined);
 		}
 
@@ -98,6 +99,7 @@ export class ParameterHintsModel extends Disposable {
 				triggerKind: context.triggerKind,
 				triggerCharacter: context.triggerCharacter,
 				isRetrigger: this.state.type === ActiveState.type || this.state.type === PendingState.type,
+				activeSignatureHelp: this.state.type === ActiveState.type ? this.state.hints : undefined
 			}, triggerId), delay).then(undefined, onUnexpectedError);
 	}
 

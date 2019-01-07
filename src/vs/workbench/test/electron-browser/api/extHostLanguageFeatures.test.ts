@@ -892,6 +892,7 @@ suite('ExtHostLanguageFeatures', function () {
 			});
 		});
 	});
+
 	test('Parameter Hints, evil provider', function () {
 
 		disposables.push(extHost.registerSignatureHelpProvider(defaultExtension, defaultSelector, new class implements vscode.SignatureHelpProvider {

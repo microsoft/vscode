@@ -731,20 +731,35 @@ class SignatureHelpAdapter {
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.SignatureHelpProvider
+		private readonly _provider: vscode.SignatureHelpProvider,
+		private readonly _heap: ExtHostHeapService,
 	) { }
 
 	provideSignatureHelp(resource: URI, position: IPosition, context: modes.SignatureHelpContext, token: CancellationToken): Promise<modes.SignatureHelp> {
-
 		const doc = this._documents.getDocumentData(resource).document;
 		const pos = typeConvert.Position.to(position);
+		const vscodeContext = this.reviveContext(context);
 
-		return asPromise(() => this._provider.provideSignatureHelp(doc, pos, token, context)).then(value => {
+		return asPromise(() => this._provider.provideSignatureHelp(doc, pos, token, vscodeContext)).then(value => {
 			if (value) {
-				return typeConvert.SignatureHelp.from(value);
+				const id = this._heap.keep(value);
+				return ObjectIdentifier.mixin(typeConvert.SignatureHelp.from(value), id);
 			}
 			return undefined;
 		});
+	}
+
+	private reviveContext(context: modes.SignatureHelpContext): vscode.SignatureHelpContext {
+		let activeSignatureHelp: vscode.SignatureHelp | undefined = undefined;
+		if (context.activeSignatureHelp) {
+			const saved = this._heap.get<vscode.SignatureHelp>(ObjectIdentifier.of(context.activeSignatureHelp));
+			if (saved) {
+				activeSignatureHelp = saved;
+			} else {
+				activeSignatureHelp = typeConvert.SignatureHelp.to(context.activeSignatureHelp);
+			}
+		}
+		return { ...context, activeSignatureHelp };
 	}
 }
 
@@ -1224,7 +1239,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 			? { triggerCharacters: metadataOrTriggerChars, retriggerCharacters: [] }
 			: metadataOrTriggerChars;
 
-		const handle = this._addNewAdapter(new SignatureHelpAdapter(this._documents, provider), extension);
+		const handle = this._addNewAdapter(new SignatureHelpAdapter(this._documents, provider, this._heapService), extension);
 		this._proxy.$registerSignatureHelpProvider(handle, this._transformDocumentSelector(selector), metadata);
 		return this._createDisposable(handle);
 	}
