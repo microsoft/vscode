@@ -41,7 +41,7 @@ import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/wor
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { getMultiSelectedResources } from 'vs/workbench/parts/files/browser/files';
-import { ExplorerFolderContext, ExplorerRootContext } from 'vs/workbench/parts/files/common/files';
+import { ExplorerFolderContext, ExplorerRootContext, FilesExplorerFocusCondition } from 'vs/workbench/parts/files/common/files';
 import { OpenAnythingHandler } from 'vs/workbench/parts/search/browser/openAnythingHandler';
 import { OpenSymbolHandler } from 'vs/workbench/parts/search/browser/openSymbolHandler';
 import { registerContributions as replaceContributions } from 'vs/workbench/parts/search/browser/replaceContributions';
@@ -370,7 +370,7 @@ const FIND_IN_FOLDER_ID = 'filesExplorer.findInFolder';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: FIND_IN_FOLDER_ID,
 	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.and(ExplorerFolderContext, ResourceContextKey.Scheme.isEqualTo(Schemas.file)), // todo@remote
+	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerFolderContext, ResourceContextKey.Scheme.isEqualTo(Schemas.file)), // todo@remote
 	primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_F,
 	handler: searchInFolderCommand
 });
