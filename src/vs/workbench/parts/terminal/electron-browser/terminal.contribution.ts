@@ -240,12 +240,7 @@ configurationRegistry.registerConfiguration({
 			default: false
 		},
 		'terminal.integrated.commandsToSkipShell': {
-			description: nls.localize('terminal.integrated.commandsToSkipShell', "A set of command IDs whose keybindings will not be sent to the shell and instead always be handled by Code. This allows the use of keybindings that would normally be consumed by the shell to act the same as when the terminal is not focused, for example ctrl+p to launch Quick Open."),
-			type: 'array',
-			items: {
-				type: 'string'
-			},
-			default: [
+			description: nls.localize('terminal.integrated.commandsToSkipShell', "A set of command IDs whose keybindings will not be sent to the shell and instead always be handled by Code. This allows the use of keybindings that would normally be consumed by the shell to act the same as when the terminal is not focused, for example ctrl+p to launch Quick Open.\nDefault Skipped Commands: [\n{0}\n]", [
 				TERMINAL_COMMAND_ID.CLEAR_SELECTION,
 				TERMINAL_COMMAND_ID.CLEAR,
 				TERMINAL_COMMAND_ID.COPY_SELECTION,
@@ -349,7 +344,12 @@ configurationRegistry.registerConfiguration({
 				TogglePanelAction.ID,
 				'workbench.action.quickOpenView',
 				'workbench.action.toggleMaximizedPanel'
-			].sort()
+			].sort().map(command => `\t\"${command}\"`).join('\n')),
+			type: 'array',
+			items: {
+				type: 'string'
+			},
+			default: []
 		},
 		'terminal.integrated.env.osx': {
 			markdownDescription: nls.localize('terminal.integrated.env.osx', "Object with environment variables that will be added to the VS Code process to be used by the terminal on macOS. Set to `null` to delete the environment variable."),

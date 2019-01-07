@@ -38,6 +38,14 @@ import { TerminalCommandTracker } from 'vs/workbench/parts/terminal/node/termina
 import { TerminalProcessManager } from './terminalProcessManager';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { execFile, exec } from 'child_process';
+import { TogglePanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
+import { NavigateUpAction, NavigateDownAction, NavigateLeftAction, NavigateRightAction } from 'vs/workbench/electron-browser/actions';
+import { QUICKOPEN_ACTION_ID, QUICKOPEN_FOCUS_SECONDARY_ACTION_ID } from 'vs/workbench/browser/parts/quickopen/quickopen';
+import { OpenNextRecentlyUsedEditorInGroupAction, OpenPreviousRecentlyUsedEditorInGroupAction, FocusActiveGroupAction, FocusFirstGroupAction, FocusLastGroupAction, OpenFirstEditorInGroup, OpenLastEditorInGroup } from 'vs/workbench/browser/parts/editor/editorActions';
+import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/toggleTabFocusMode';
+import { ShowAllCommandsAction } from 'vs/workbench/parts/quickopen/browser/commandsHandler';
+import { TERMINAL_COMMAND_ID } from 'vs/workbench/parts/terminal/common/terminalCommands';
+import * as debugActions from 'vs/workbench/parts/debug/browser/debugActions';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -1021,8 +1029,117 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 	}
 
+	private static readonly _defaultCommandsToSkipShell: string[] = [
+		TERMINAL_COMMAND_ID.CLEAR_SELECTION,
+		TERMINAL_COMMAND_ID.CLEAR,
+		TERMINAL_COMMAND_ID.COPY_SELECTION,
+		TERMINAL_COMMAND_ID.DELETE_TO_LINE_START,
+		TERMINAL_COMMAND_ID.DELETE_WORD_LEFT,
+		TERMINAL_COMMAND_ID.DELETE_WORD_RIGHT,
+		TERMINAL_COMMAND_ID.FIND_WIDGET_FOCUS,
+		TERMINAL_COMMAND_ID.FIND_WIDGET_HIDE,
+		TERMINAL_COMMAND_ID.FIND_NEXT_TERMINAL_FOCUS,
+		TERMINAL_COMMAND_ID.FIND_PREVIOUS_TERMINAL_FOCUS,
+		TERMINAL_COMMAND_ID.TOGGLE_FIND_REGEX_TERMINAL_FOCUS,
+		TERMINAL_COMMAND_ID.TOGGLE_FIND_WHOLE_WORD_TERMINAL_FOCUS,
+		TERMINAL_COMMAND_ID.TOGGLE_FIND_CASE_SENSITIVE_TERMINAL_FOCUS,
+		TERMINAL_COMMAND_ID.FOCUS_NEXT_PANE,
+		TERMINAL_COMMAND_ID.FOCUS_NEXT,
+		TERMINAL_COMMAND_ID.FOCUS_PREVIOUS_PANE,
+		TERMINAL_COMMAND_ID.FOCUS_PREVIOUS,
+		TERMINAL_COMMAND_ID.FOCUS,
+		TERMINAL_COMMAND_ID.KILL,
+		TERMINAL_COMMAND_ID.MOVE_TO_LINE_END,
+		TERMINAL_COMMAND_ID.MOVE_TO_LINE_START,
+		TERMINAL_COMMAND_ID.NEW_IN_ACTIVE_WORKSPACE,
+		TERMINAL_COMMAND_ID.NEW,
+		TERMINAL_COMMAND_ID.PASTE,
+		TERMINAL_COMMAND_ID.RESIZE_PANE_DOWN,
+		TERMINAL_COMMAND_ID.RESIZE_PANE_LEFT,
+		TERMINAL_COMMAND_ID.RESIZE_PANE_RIGHT,
+		TERMINAL_COMMAND_ID.RESIZE_PANE_UP,
+		TERMINAL_COMMAND_ID.RUN_ACTIVE_FILE,
+		TERMINAL_COMMAND_ID.RUN_SELECTED_TEXT,
+		TERMINAL_COMMAND_ID.SCROLL_DOWN_LINE,
+		TERMINAL_COMMAND_ID.SCROLL_DOWN_PAGE,
+		TERMINAL_COMMAND_ID.SCROLL_TO_BOTTOM,
+		TERMINAL_COMMAND_ID.SCROLL_TO_NEXT_COMMAND,
+		TERMINAL_COMMAND_ID.SCROLL_TO_PREVIOUS_COMMAND,
+		TERMINAL_COMMAND_ID.SCROLL_TO_TOP,
+		TERMINAL_COMMAND_ID.SCROLL_UP_LINE,
+		TERMINAL_COMMAND_ID.SCROLL_UP_PAGE,
+		TERMINAL_COMMAND_ID.SEND_SEQUENCE,
+		TERMINAL_COMMAND_ID.SELECT_ALL,
+		TERMINAL_COMMAND_ID.SELECT_TO_NEXT_COMMAND,
+		TERMINAL_COMMAND_ID.SELECT_TO_NEXT_LINE,
+		TERMINAL_COMMAND_ID.SELECT_TO_PREVIOUS_COMMAND,
+		TERMINAL_COMMAND_ID.SELECT_TO_PREVIOUS_LINE,
+		TERMINAL_COMMAND_ID.SPLIT_IN_ACTIVE_WORKSPACE,
+		TERMINAL_COMMAND_ID.SPLIT,
+		TERMINAL_COMMAND_ID.TOGGLE,
+		ToggleTabFocusModeAction.ID,
+		QUICKOPEN_ACTION_ID,
+		QUICKOPEN_FOCUS_SECONDARY_ACTION_ID,
+		ShowAllCommandsAction.ID,
+		'workbench.action.tasks.build',
+		'workbench.action.tasks.restartTask',
+		'workbench.action.tasks.runTask',
+		'workbench.action.tasks.reRunTask',
+		'workbench.action.tasks.showLog',
+		'workbench.action.tasks.showTasks',
+		'workbench.action.tasks.terminate',
+		'workbench.action.tasks.test',
+		'workbench.action.toggleFullScreen',
+		'workbench.action.terminal.focusAtIndex1',
+		'workbench.action.terminal.focusAtIndex2',
+		'workbench.action.terminal.focusAtIndex3',
+		'workbench.action.terminal.focusAtIndex4',
+		'workbench.action.terminal.focusAtIndex5',
+		'workbench.action.terminal.focusAtIndex6',
+		'workbench.action.terminal.focusAtIndex7',
+		'workbench.action.terminal.focusAtIndex8',
+		'workbench.action.terminal.focusAtIndex9',
+		'workbench.action.focusSecondEditorGroup',
+		'workbench.action.focusThirdEditorGroup',
+		'workbench.action.focusFourthEditorGroup',
+		'workbench.action.focusFifthEditorGroup',
+		'workbench.action.focusSixthEditorGroup',
+		'workbench.action.focusSeventhEditorGroup',
+		'workbench.action.focusEighthEditorGroup',
+		'workbench.action.nextPanelView',
+		'workbench.action.previousPanelView',
+		'workbench.action.nextSideBarView',
+		'workbench.action.previousSideBarView',
+		debugActions.StartAction.ID,
+		debugActions.StopAction.ID,
+		debugActions.RunAction.ID,
+		debugActions.RestartAction.ID,
+		debugActions.ContinueAction.ID,
+		debugActions.PauseAction.ID,
+		debugActions.StepIntoAction.ID,
+		debugActions.StepOutAction.ID,
+		debugActions.StepOverAction.ID,
+		OpenNextRecentlyUsedEditorInGroupAction.ID,
+		OpenPreviousRecentlyUsedEditorInGroupAction.ID,
+		FocusActiveGroupAction.ID,
+		FocusFirstGroupAction.ID,
+		FocusLastGroupAction.ID,
+		OpenFirstEditorInGroup.ID,
+		OpenLastEditorInGroup.ID,
+		NavigateUpAction.ID,
+		NavigateDownAction.ID,
+		NavigateRightAction.ID,
+		NavigateLeftAction.ID,
+		TogglePanelAction.ID,
+		'workbench.action.quickOpenView',
+		'workbench.action.toggleMaximizedPanel'
+	];
+
 	private _setCommandsToSkipShell(commands: string[]): void {
-		this._skipTerminalCommands = commands;
+		const excludeCommands = commands.filter(command => command[0] === '-').map(command => command.slice(1));
+		this._skipTerminalCommands = TerminalInstance._defaultCommandsToSkipShell.filter(defaultCommand => {
+			return excludeCommands.indexOf(defaultCommand) === -1;
+		}).concat(commands);
 	}
 
 	private _setEnableBell(isEnabled: boolean): void {
