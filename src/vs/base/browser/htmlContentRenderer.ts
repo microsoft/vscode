@@ -24,7 +24,7 @@ export interface RenderOptions {
 	className?: string;
 	inline?: boolean;
 	actionHandler?: IContentActionHandler;
-	codeBlockRenderer?: (modeId: string, value: string) => Thenable<string>;
+	codeBlockRenderer?: (modeId: string, value: string) => Promise<string>;
 	codeBlockRenderCallback?: () => void;
 }
 
@@ -92,7 +92,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions
 
 	// signal to code-block render that the
 	// element has been created
-	let signalInnerHTML: Function;
+	let signalInnerHTML: () => void;
 	const withInnerHTML = new Promise(c => signalInnerHTML = c);
 
 	const renderer = new marked.Renderer();

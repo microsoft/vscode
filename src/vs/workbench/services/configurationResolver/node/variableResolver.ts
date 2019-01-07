@@ -82,11 +82,11 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 		return { newConfig, resolvedVariables };
 	}
 
-	public resolveWithInteractionReplace(folder: IWorkspaceFolder, config: any): Thenable<any> {
+	public resolveWithInteractionReplace(folder: IWorkspaceFolder, config: any): Promise<any> {
 		throw new Error('resolveWithInteractionReplace not implemented.');
 	}
 
-	public resolveWithInteraction(folder: IWorkspaceFolder, config: any): Thenable<any> {
+	public resolveWithInteraction(folder: IWorkspaceFolder, config: any): Promise<any> {
 		throw new Error('resolveWithInteraction not implemented.');
 	}
 

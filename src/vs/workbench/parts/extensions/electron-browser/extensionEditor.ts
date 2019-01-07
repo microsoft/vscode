@@ -121,7 +121,7 @@ class NavBar {
 		this.currentId = id;
 		this._onChange.fire({ id, focus });
 		this.actions.forEach(a => a.enabled = a.id !== id);
-		return Promise.resolve(null);
+		return Promise.resolve(undefined);
 	}
 
 	dispose(): void {
@@ -192,7 +192,7 @@ export class ExtensionEditor extends BaseEditor {
 		@IPartService private readonly partService: IPartService,
 		@IExtensionTipsService private readonly extensionTipsService: IExtensionTipsService,
 		@IStorageService storageService: IStorageService,
-		@IExtensionService private extensionService: IExtensionService
+		@IExtensionService private readonly extensionService: IExtensionService
 	) {
 		super(ExtensionEditor.ID, telemetryService, themeService, storageService);
 		this.disposables = [];
@@ -270,7 +270,7 @@ export class ExtensionEditor extends BaseEditor {
 		this.content = append(body, $('.content'));
 	}
 
-	setInput(input: ExtensionsInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
+	setInput(input: ExtensionsInput, options: EditorOptions, token: CancellationToken): Promise<void> {
 		return this.extensionService.getExtensions()
 			.then(runningExtensions => {
 				this.activeElement = null;
@@ -289,7 +289,7 @@ export class ExtensionEditor extends BaseEditor {
 				this.icon.src = extension.iconUrl;
 
 				this.name.textContent = extension.displayName;
-				this.identifier.textContent = extension.id;
+				this.identifier.textContent = extension.identifier.id;
 				this.preview.style.display = extension.preview ? 'inherit' : 'none';
 				this.builtin.style.display = extension.type === LocalExtensionType.System ? 'inherit' : 'none';
 
@@ -298,8 +298,8 @@ export class ExtensionEditor extends BaseEditor {
 
 				const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
 				let recommendationsData = {};
-				if (extRecommendations[extension.id.toLowerCase()]) {
-					recommendationsData = { recommendationReason: extRecommendations[extension.id.toLowerCase()].reasonId };
+				if (extRecommendations[extension.identifier.id.toLowerCase()]) {
+					recommendationsData = { recommendationReason: extRecommendations[extension.identifier.id.toLowerCase()].reasonId };
 				}
 
 				/* __GDPR__
@@ -418,11 +418,11 @@ export class ExtensionEditor extends BaseEditor {
 		this.transientDisposables.push(ignoreAction, undoIgnoreAction);
 
 		const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
-		if (extRecommendations[extension.id.toLowerCase()]) {
+		if (extRecommendations[extension.identifier.id.toLowerCase()]) {
 			ignoreAction.enabled = true;
-			this.subtext.textContent = extRecommendations[extension.id.toLowerCase()].reasonText;
+			this.subtext.textContent = extRecommendations[extension.identifier.id.toLowerCase()].reasonText;
 			show(this.subtextContainer);
-		} else if (this.extensionTipsService.getAllIgnoredRecommendations().global.indexOf(extension.id.toLowerCase()) !== -1) {
+		} else if (this.extensionTipsService.getAllIgnoredRecommendations().global.indexOf(extension.identifier.id.toLowerCase()) !== -1) {
 			undoIgnoreAction.enabled = true;
 			this.subtext.textContent = localize('recommendationHasBeenIgnored', "You have chosen not to receive recommendations for this extension.");
 			show(this.subtextContainer);
@@ -432,13 +432,13 @@ export class ExtensionEditor extends BaseEditor {
 		}
 
 		this.extensionTipsService.onRecommendationChange(change => {
-			if (change.extensionId.toLowerCase() === extension.id.toLowerCase()) {
+			if (change.extensionId.toLowerCase() === extension.identifier.id.toLowerCase()) {
 				if (change.isRecommended) {
 					undoIgnoreAction.enabled = false;
 					const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
-					if (extRecommendations[extension.id.toLowerCase()]) {
+					if (extRecommendations[extension.identifier.id.toLowerCase()]) {
 						ignoreAction.enabled = true;
-						this.subtext.textContent = extRecommendations[extension.id.toLowerCase()].reasonText;
+						this.subtext.textContent = extRecommendations[extension.identifier.id.toLowerCase()].reasonText;
 					}
 				} else {
 					undoIgnoreAction.enabled = true;
@@ -501,7 +501,7 @@ export class ExtensionEditor extends BaseEditor {
 			});
 	}
 
-	private open(id: string, extension: IExtension): Promise<IActiveElement> {
+	private open(id: string, extension: IExtension): Promise<IActiveElement | null> {
 		switch (id) {
 			case NavbarSection.Readme: return this.openReadme();
 			case NavbarSection.Contributions: return this.openContributions();
@@ -538,7 +538,7 @@ export class ExtensionEditor extends BaseEditor {
 				this.contentDisposables.push(wbeviewElement);
 				return wbeviewElement;
 			})
-			.then(void 0, () => {
+			.then(undefined, () => {
 				const p = append(this.content, $('p.nocontent'));
 				p.textContent = noContentCopy;
 				return p;
@@ -602,24 +602,29 @@ export class ExtensionEditor extends BaseEditor {
 		}
 
 		return this.loadContents(() => this.extensionDependencies.get())
-			.then(extensionDependencies => {
-				const content = $('div', { class: 'subcontent' });
-				const scrollableContent = new DomScrollableElement(content, {});
-				append(this.content, scrollableContent.getDomNode());
-				this.contentDisposables.push(scrollableContent);
+			.then<IActiveElement>(extensionDependencies => {
+				if (extensionDependencies) {
+					const content = $('div', { class: 'subcontent' });
+					const scrollableContent = new DomScrollableElement(content, {});
+					append(this.content, scrollableContent.getDomNode());
+					this.contentDisposables.push(scrollableContent);
 
-				const dependenciesTree = this.renderDependencies(content, extensionDependencies);
-				const layout = () => {
+					const dependenciesTree = this.renderDependencies(content, extensionDependencies);
+					const layout = () => {
+						scrollableContent.scanDomNode();
+						const scrollDimensions = scrollableContent.getScrollDimensions();
+						dependenciesTree.layout(scrollDimensions.height);
+					};
+					const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
+					this.contentDisposables.push(toDisposable(removeLayoutParticipant));
+
+					this.contentDisposables.push(dependenciesTree);
 					scrollableContent.scanDomNode();
-					const scrollDimensions = scrollableContent.getScrollDimensions();
-					dependenciesTree.layout(scrollDimensions.height);
-				};
-				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
-				this.contentDisposables.push(toDisposable(removeLayoutParticipant));
-
-				this.contentDisposables.push(dependenciesTree);
-				scrollableContent.scanDomNode();
-				return { focus() { dependenciesTree.domFocus(); } };
+					return { focus() { dependenciesTree.domFocus(); } };
+				} else {
+					append(this.content, $('p.nocontent')).textContent = localize('noDependencies', "No Dependencies");
+					return Promise.resolve(this.content);
+				}
 			}, error => {
 				append(this.content, $('p.nocontent')).textContent = error;
 				this.notificationService.error(error);
@@ -692,7 +697,7 @@ export class ExtensionEditor extends BaseEditor {
 				return this.extension.extensionPack.length > 0;
 			}
 
-			getChildren(): Promise<IExtensionData[]> {
+			getChildren(): Promise<IExtensionData[] | null> {
 				if (this.hasChildren) {
 					const names = arrays.distinct(this.extension.extensionPack, e => e.toLowerCase());
 					return extensionsWorkbenchService.queryGallery({ names, pageSize: names.length })

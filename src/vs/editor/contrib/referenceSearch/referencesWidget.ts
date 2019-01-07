@@ -21,7 +21,7 @@ import { IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/
 import { ModelDecorationOptions, TextModel } from 'vs/editor/common/model/textModel';
 import { Location } from 'vs/editor/common/modes';
 import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { AriaProvider, DataSource, Delegate, FileReferencesRenderer, OneReferenceRenderer, TreeElement } from 'vs/editor/contrib/referenceSearch/referencesTree';
+import { AriaProvider, DataSource, Delegate, FileReferencesRenderer, OneReferenceRenderer, TreeElement, StringRepresentationProvider } from 'vs/editor/contrib/referenceSearch/referencesTree';
 import * as nls from 'vs/nls';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -31,6 +31,9 @@ import { activeContrastBorder, contrastBorder, registerColor } from 'vs/platform
 import { ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { PeekViewWidget } from './peekViewWidget';
 import { FileReferences, OneReference, ReferencesModel } from './referencesModel';
+import { ITreeRenderer, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
+import { IAsyncDataTreeOptions } from 'vs/base/browser/ui/tree/asyncDataTree';
+import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 
 class DecorationsManager implements IDisposable {
 
@@ -227,15 +230,14 @@ export const ctxReferenceWidgetSearchTreeFocused = new RawContextKey<boolean>('r
  */
 export class ReferenceWidget extends PeekViewWidget {
 
-	private _model: ReferencesModel;
+	private _model: ReferencesModel | undefined;
 	private _decorationsManager: DecorationsManager;
 
 	private _disposeOnNewModel: IDisposable[] = [];
 	private _callOnDispose: IDisposable[] = [];
 	private _onDidSelectReference = new Emitter<SelectionEvent>();
 
-	private _treeDataSource: DataSource;
-	private _tree: WorkbenchAsyncDataTree<TreeElement>;
+	private _tree: WorkbenchAsyncDataTree<ReferencesModel | FileReferences, TreeElement>;
 	private _treeContainer: HTMLElement;
 	private _sash: VSash;
 	private _preview: ICodeEditor;
@@ -272,7 +274,7 @@ export class ReferenceWidget extends PeekViewWidget {
 	}
 
 	public dispose(): void {
-		this.setModel(null);
+		this.setModel(undefined);
 		this._callOnDispose = dispose(this._callOnDispose);
 		dispose<IDisposable>(this._preview, this._previewNotAvailableMessage, this._tree, this._sash, this._previewModelReference);
 		super.dispose();
@@ -330,7 +332,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		this._previewNotAvailableMessage = TextModel.createFromString(nls.localize('missingPreviewMessage', "no preview available"));
 
 		// sash
-		this._sash = new VSash(containerElement, this.layoutData.ratio || .8);
+		this._sash = new VSash(containerElement, this.layoutData.ratio || 0.8);
 		this._sash.onDidChangePercentages(() => {
 			let [left, right] = this._sash.percentages;
 			this._previewContainer.style.width = left;
@@ -343,7 +345,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		// tree
 		this._treeContainer = dom.append(containerElement, dom.$('div.ref-tree.inline'));
 
-		const renderer = [
+		const renderers = [
 			this._instantiationService.createInstance(FileReferencesRenderer),
 			this._instantiationService.createInstance(OneReferenceRenderer),
 		];
@@ -351,17 +353,20 @@ export class ReferenceWidget extends PeekViewWidget {
 		const treeOptions = {
 			ariaLabel: nls.localize('treeAriaLabel', "References"),
 			keyboardSupport: this._defaultTreeKeyboardSupport,
-			accessibilityProvider: new AriaProvider()
+			accessibilityProvider: new AriaProvider(),
+			keyboardNavigationLabelProvider: this._instantiationService.createInstance(StringRepresentationProvider)
 		};
 
-		this._treeDataSource = this._instantiationService.createInstance(DataSource);
+		const treeDataSource = this._instantiationService.createInstance(DataSource);
 
-		this._tree = this._instantiationService.createInstance(
-			WorkbenchAsyncDataTree, this._treeContainer, new Delegate(),
-			renderer as any,
-			this._treeDataSource,
+		this._tree = this._instantiationService.createInstance<HTMLElement, IListVirtualDelegate<TreeElement>, ITreeRenderer<any, void, any>[], IAsyncDataSource<ReferencesModel | FileReferences, TreeElement>, IAsyncDataTreeOptions<TreeElement, void>, WorkbenchAsyncDataTree<ReferencesModel | FileReferences, TreeElement, void>>(
+			WorkbenchAsyncDataTree,
+			this._treeContainer,
+			new Delegate(),
+			renderers,
+			treeDataSource,
 			treeOptions
-		) as any as WorkbenchAsyncDataTree<TreeElement>;
+		);
 
 		ctxReferenceWidgetSearchTreeFocused.bindTo(this._tree.contextKeyService);
 
@@ -441,7 +446,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		});
 	}
 
-	public setModel(newModel: ReferencesModel): Thenable<any> {
+	public setModel(newModel: ReferencesModel | undefined): Promise<any> {
 		// clean up
 		this._disposeOnNewModel = dispose(this._disposeOnNewModel);
 		this._model = newModel;
@@ -451,13 +456,13 @@ export class ReferenceWidget extends PeekViewWidget {
 		return undefined;
 	}
 
-	private _onNewModel(): Thenable<any> {
+	private _onNewModel(): Promise<any> {
 
 		if (this._model.empty) {
 			this.setTitle('');
 			this._messageContainer.innerHTML = nls.localize('noResults', "No results");
 			dom.show(this._messageContainer);
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		dom.hide(this._messageContainer);
@@ -493,8 +498,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		this.focus();
 
 		// pick input and a reference to begin with
-		this._treeDataSource.root = this._model.groups.length === 1 ? this._model.groups[0] : this._model;
-		return this._tree.refresh(null);
+		return this._tree.setInput(this._model.groups.length === 1 ? this._model.groups[0] : this._model);
 	}
 
 	private _getFocusedReference(): OneReference {
@@ -528,7 +532,7 @@ export class ReferenceWidget extends PeekViewWidget {
 
 		const promise = this._textModelResolverService.createModelReference(reference.uri);
 
-		if (this._treeDataSource.root === reference.parent) {
+		if (this._tree.getInput() === reference.parent) {
 			this._tree.reveal(reference);
 		} else {
 			if (revealParent) {

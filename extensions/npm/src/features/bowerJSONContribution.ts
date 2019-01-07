@@ -68,9 +68,9 @@ export class BowerJSONContribution implements IJSONContribution {
 							const obj = JSON.parse(success.responseText);
 							if (Array.isArray(obj)) {
 								const results = <{ name: string; description: string; }[]>obj;
-								for (let i = 0; i < results.length; i++) {
-									const name = results[i].name;
-									const description = results[i].description || '';
+								for (const result of results) {
+									const name = result.name;
+									const description = result.description || '';
 									const insertText = new SnippetString().appendText(JSON.stringify(name));
 									if (addValue) {
 										insertText.appendText(': ').appendPlaceholder('latest');
@@ -175,9 +175,9 @@ export class BowerJSONContribution implements IJSONContribution {
 			} catch (e) {
 				// ignore
 			}
-			return void 0;
+			return undefined;
 		}, () => {
-			return void 0;
+			return undefined;
 		});
 	}
 

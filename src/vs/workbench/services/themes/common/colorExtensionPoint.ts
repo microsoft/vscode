@@ -17,51 +17,54 @@ interface IColorExtensionPoint {
 const colorReferenceSchema = getColorRegistry().getColorReferenceSchema();
 const colorIdPattern = '^\\w+[.\\w+]*$';
 
-const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IColorExtensionPoint[]>('colors', [], {
-	description: nls.localize('contributes.color', 'Contributes extension defined themable colors'),
-	type: 'array',
-	items: {
-		type: 'object',
-		properties: {
-			id: {
-				type: 'string',
-				description: nls.localize('contributes.color.id', 'The identifier of the themable color'),
-				pattern: colorIdPattern,
-				patternErrorMessage: nls.localize('contributes.color.id.format', 'Identifiers should be in the form aa[.bb]*'),
-			},
-			description: {
-				type: 'string',
-				description: nls.localize('contributes.color.description', 'The description of the themable color'),
-			},
-			defaults: {
-				type: 'object',
-				properties: {
-					light: {
-						description: nls.localize('contributes.defaults.light', 'The default color for light themes. Either a color value in hex (#RRGGBB[AA]) or the identifier of a themable color which provides the default.'),
-						type: 'string',
-						anyOf: [
-							colorReferenceSchema,
-							{ type: 'string', format: 'color-hex' }
-						]
-					},
-					dark: {
-						description: nls.localize('contributes.defaults.dark', 'The default color for dark themes. Either a color value in hex (#RRGGBB[AA]) or the identifier of a themable color which provides the default.'),
-						type: 'string',
-						anyOf: [
-							colorReferenceSchema,
-							{ type: 'string', format: 'color-hex' }
-						]
-					},
-					highContrast: {
-						description: nls.localize('contributes.defaults.highContrast', 'The default color for high contrast themes. Either a color value in hex (#RRGGBB[AA]) or the identifier of a themable color which provides the default.'),
-						type: 'string',
-						anyOf: [
-							colorReferenceSchema,
-							{ type: 'string', format: 'color-hex' }
-						]
+const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IColorExtensionPoint[]>({
+	extensionPoint: 'colors',
+	jsonSchema: {
+		description: nls.localize('contributes.color', 'Contributes extension defined themable colors'),
+		type: 'array',
+		items: {
+			type: 'object',
+			properties: {
+				id: {
+					type: 'string',
+					description: nls.localize('contributes.color.id', 'The identifier of the themable color'),
+					pattern: colorIdPattern,
+					patternErrorMessage: nls.localize('contributes.color.id.format', 'Identifiers should be in the form aa[.bb]*'),
+				},
+				description: {
+					type: 'string',
+					description: nls.localize('contributes.color.description', 'The description of the themable color'),
+				},
+				defaults: {
+					type: 'object',
+					properties: {
+						light: {
+							description: nls.localize('contributes.defaults.light', 'The default color for light themes. Either a color value in hex (#RRGGBB[AA]) or the identifier of a themable color which provides the default.'),
+							type: 'string',
+							anyOf: [
+								colorReferenceSchema,
+								{ type: 'string', format: 'color-hex' }
+							]
+						},
+						dark: {
+							description: nls.localize('contributes.defaults.dark', 'The default color for dark themes. Either a color value in hex (#RRGGBB[AA]) or the identifier of a themable color which provides the default.'),
+							type: 'string',
+							anyOf: [
+								colorReferenceSchema,
+								{ type: 'string', format: 'color-hex' }
+							]
+						},
+						highContrast: {
+							description: nls.localize('contributes.defaults.highContrast', 'The default color for high contrast themes. Either a color value in hex (#RRGGBB[AA]) or the identifier of a themable color which provides the default.'),
+							type: 'string',
+							anyOf: [
+								colorReferenceSchema,
+								{ type: 'string', format: 'color-hex' }
+							]
+						}
 					}
-				}
-			},
+				},
+			}
 		}
 	}
 });
@@ -70,9 +73,9 @@ export class ColorExtensionPoint {
 
 	constructor() {
 		configurationExtPoint.setHandler((extensions) => {
-			for (let i = 0; i < extensions.length; i++) {
-				const extensionValue = <IColorExtensionPoint[]>extensions[i].value;
-				const collector = extensions[i].collector;
+			for (const extension of extensions) {
+				const extensionValue = <IColorExtensionPoint[]>extension.value;
+				const collector = extension.collector;
 
 				if (!extensionValue || !Array.isArray(extensionValue)) {
 					collector.error(nls.localize('invalid.colorConfiguration', "'configuration.colors' must be a array"));

@@ -82,9 +82,9 @@ export class LabelService implements ILabelService {
 	private readonly _onDidRegisterFormatter = new Emitter<RegisterFormatterEvent>();
 
 	constructor(
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IWindowService private windowService: IWindowService
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IWindowService private readonly windowService: IWindowService
 	) { }
 
 	get onDidRegisterFormatter(): Event<RegisterFormatterEvent> {
@@ -102,7 +102,7 @@ export class LabelService implements ILabelService {
 		if (bestPrefix.length) {
 			return this.formatters[bestPrefix];
 		}
-		return void 0;
+		return undefined;
 	}
 
 	getUriLabel(resource: URI, options: { relative?: boolean, noPrefix?: boolean } = {}): string {

@@ -84,7 +84,7 @@ class ViewDescriptorCollection extends Disposable implements IViewDescriptorColl
 
 	constructor(
 		container: ViewContainer,
-		@IContextKeyService private contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
 		const onRelevantViewsRegistered = filterViewEvent(container, ViewsRegistry.onViewsRegistered);
@@ -384,8 +384,7 @@ export class ContributableViewsModel extends Disposable {
 				}
 			}
 
-			for (let i = 0; i < splice.toInsert.length; i++) {
-				const viewDescriptor = splice.toInsert[i];
+			for (const viewDescriptor of splice.toInsert) {
 				const state = this.viewStates.get(viewDescriptor.id);
 
 				if (state.visible) {
@@ -460,7 +459,7 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 		for (const viewDescriptor of viewDescriptors) {
 			if (viewDescriptor.canToggleVisibility) {
 				const viewState = this.viewStates.get(viewDescriptor.id);
-				storedViewsVisibilityStates.set(viewDescriptor.id, { id: viewDescriptor.id, isHidden: viewState ? !viewState.visible : void 0 });
+				storedViewsVisibilityStates.set(viewDescriptor.id, { id: viewDescriptor.id, isHidden: viewState ? !viewState.visible : undefined });
 			}
 		}
 		this.storageService.store(this.hiddenViewsStorageId, JSON.stringify(values(storedViewsVisibilityStates)), StorageScope.GLOBAL);
@@ -517,8 +516,8 @@ export class ViewsService extends Disposable implements IViewsService {
 	private readonly activeViewContextKeys: Map<string, IContextKey<boolean>>;
 
 	constructor(
-		@IViewletService private viewletService: IViewletService,
-		@IContextKeyService private contextKeyService: IContextKeyService
+		@IViewletService private readonly viewletService: IViewletService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
 
@@ -537,7 +536,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		return this.viewDescriptorCollections.get(container);
 	}
 
-	openView(id: string, focus: boolean): Thenable<IView> {
+	openView(id: string, focus: boolean): Promise<IView | null> {
 		const viewDescriptor = ViewsRegistry.getView(id);
 		if (viewDescriptor) {
 			const viewletDescriptor = this.viewletService.getViewlet(viewDescriptor.container.id);

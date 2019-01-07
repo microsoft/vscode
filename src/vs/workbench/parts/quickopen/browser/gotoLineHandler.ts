@@ -208,7 +208,7 @@ export class GotoLineHandler extends QuickOpenHandler {
 	private rangeHighlightDecorationId: IEditorLineDecoration;
 	private lastKnownEditorViewState: IEditorViewState;
 
-	constructor(@IEditorService private editorService: IEditorService) {
+	constructor(@IEditorService private readonly editorService: IEditorService) {
 		super();
 	}
 
@@ -216,7 +216,7 @@ export class GotoLineHandler extends QuickOpenHandler {
 		return nls.localize('gotoLineHandlerAriaLabel', "Type a line number to navigate to.");
 	}
 
-	getResults(searchValue: string, token: CancellationToken): Thenable<QuickOpenModel> {
+	getResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel> {
 		searchValue = searchValue.trim();
 
 		// Remember view state to be able to restore on cancel

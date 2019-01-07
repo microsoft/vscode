@@ -129,7 +129,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	private gridWidget: SerializableGrid<IEditorGroupView>;
 	private gridWidgetView: GridWidgetView<IEditorGroupView>;
 
-	private _whenRestored: Thenable<void>;
+	private _whenRestored: Promise<void>;
 	private whenRestoredResolve: () => void;
 
 	element: HTMLElement;
@@ -140,9 +140,9 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	constructor(
 		id: string,
 		private restorePreviousState: boolean,
-		@IInstantiationService private instantiationService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
-		@IConfigurationService private configurationService: IConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService
 	) {
 		super(id, { hasTitle: false }, themeService, storageService);
@@ -221,13 +221,13 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 
 	get orientation(): GroupOrientation {
 		if (!this.gridWidget) {
-			return void 0; // we have not been created yet
+			return undefined; // we have not been created yet
 		}
 
 		return this.gridWidget.orientation === Orientation.VERTICAL ? GroupOrientation.VERTICAL : GroupOrientation.HORIZONTAL;
 	}
 
-	get whenRestored(): Thenable<void> {
+	get whenRestored(): Promise<void> {
 		return this._whenRestored;
 	}
 
@@ -763,7 +763,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	private resetPreferredSize(): void {
 
 		// Reset (will be computed upon next access)
-		this._preferredSize = void 0;
+		this._preferredSize = undefined;
 
 		// Event
 		this._onDidPreferredSizeChange.fire();
@@ -863,7 +863,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 
 		this.groupViews.forEach(group => group.dispose());
 		this.groupViews.clear();
-		this._activeGroup = void 0;
+		this._activeGroup = undefined;
 		this.mostRecentActiveGroups = [];
 	}
 
@@ -926,7 +926,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 			this._onDidSizeConstraintsChange.input = gridWidget.onDidChange;
 		}
 
-		this.onDidSetGridWidget.fire();
+		this.onDidSetGridWidget.fire(undefined);
 	}
 
 	private updateContainer(): void {

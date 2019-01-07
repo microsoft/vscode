@@ -38,7 +38,7 @@ export class ExtensionsInput extends EditorInput {
 		return this.extension === otherExtensionInput.extension;
 	}
 
-	resolve(): Thenable<any> {
+	resolve(): Promise<any> {
 		return Promise.resolve(null);
 	}
 
@@ -49,7 +49,7 @@ export class ExtensionsInput extends EditorInput {
 	getResource(): URI {
 		return URI.from({
 			scheme: 'extension',
-			path: this.extension.id
+			path: this.extension.identifier.id
 		});
 	}
 }

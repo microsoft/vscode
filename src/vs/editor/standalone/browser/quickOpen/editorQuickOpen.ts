@@ -35,7 +35,7 @@ export class QuickOpenController implements editorCommon.IEditorContribution, ID
 	private rangeHighlightDecorationId: string;
 	private lastKnownEditorSelection: Selection;
 
-	constructor(editor: ICodeEditor, @IThemeService private themeService: IThemeService) {
+	constructor(editor: ICodeEditor, @IThemeService private readonly themeService: IThemeService) {
 		this.editor = editor;
 	}
 

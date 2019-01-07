@@ -22,8 +22,8 @@ export class OutputLinkProvider {
 	private linkProviderRegistration: IDisposable;
 
 	constructor(
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IModelService private modelService: IModelService
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IModelService private readonly modelService: IModelService
 	) {
 		this.disposeWorkerScheduler = new RunOnceScheduler(() => this.disposeWorker(), OutputLinkProvider.DISPOSE_WORKER_TIME);
 
@@ -42,7 +42,7 @@ export class OutputLinkProvider {
 		if (folders.length > 0) {
 			if (!this.linkProviderRegistration) {
 				this.linkProviderRegistration = LinkProviderRegistry.register([{ language: OUTPUT_MODE_ID, scheme: '*' }, { language: LOG_MODE_ID, scheme: '*' }], {
-					provideLinks: (model, token): Thenable<ILink[]> => {
+					provideLinks: (model, token): Promise<ILink[]> => {
 						return this.provideLinks(model.uri);
 					}
 				});

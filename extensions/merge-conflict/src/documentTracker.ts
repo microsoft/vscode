@@ -91,8 +91,7 @@ export default class DocumentMergeConflictTracker implements vscode.Disposable, 
 			return false;
 		}
 
-		var task = this.cache.get(key);
-
+		const task = this.cache.get(key);
 		if (!task) {
 			return false;
 		}

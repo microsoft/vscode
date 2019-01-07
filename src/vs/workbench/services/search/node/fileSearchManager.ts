@@ -56,13 +56,13 @@ class FileSearchEngine {
 		this.globalExcludePattern = config.excludePattern && glob.parse(config.excludePattern);
 	}
 
-	public cancel(): void {
+	cancel(): void {
 		this.isCanceled = true;
 		this.activeCancellationTokens.forEach(t => t.cancel());
 		this.activeCancellationTokens = new Set();
 	}
 
-	public search(_onResult: (match: IInternalFileMatch) => void): Promise<IInternalSearchComplete> {
+	search(_onResult: (match: IInternalFileMatch) => void): Promise<IInternalSearchComplete> {
 		const folderQueries = this.config.folderQueries || [];
 
 		return new Promise((resolve, reject) => {

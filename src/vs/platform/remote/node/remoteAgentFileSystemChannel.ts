@@ -54,7 +54,7 @@ export class RemoteExtensionsFileSystemProvider extends Disposable implements IF
 			capabilities |= FileSystemProviderCapabilities.PathCaseSensitive;
 		}
 		this.capabilities = capabilities;
-		this._onDidChangeCapabilities.fire(void 0);
+		this._onDidChangeCapabilities.fire(undefined);
 	}
 
 	watch(resource: URI, opts: IWatchOptions): IDisposable {
@@ -75,36 +75,36 @@ export class RemoteExtensionsFileSystemProvider extends Disposable implements IF
 		return Buffer.isBuffer(data) ? data : Buffer.from(data.buffer, data.byteOffset, data.byteLength);
 	}
 
-	stat(resource: URI): Thenable<IStat> {
+	stat(resource: URI): Promise<IStat> {
 		return this._channel.call('stat', [resource]);
 	}
 
-	readFile(resource: URI): Thenable<Uint8Array> {
+	readFile(resource: URI): Promise<Uint8Array> {
 		return this._channel.call('readFile', [resource]);
 	}
 
-	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Thenable<void> {
+	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
 		const contents = RemoteExtensionsFileSystemProvider._asBuffer(content);
 		return this._channel.call('writeFile', [resource, contents, opts]);
 	}
 
-	delete(resource: URI, opts: FileDeleteOptions): Thenable<void> {
+	delete(resource: URI, opts: FileDeleteOptions): Promise<void> {
 		return this._channel.call('delete', [resource, opts]);
 	}
 
-	mkdir(resource: URI): Thenable<void> {
+	mkdir(resource: URI): Promise<void> {
 		return this._channel.call('mkdir', [resource]);
 	}
 
-	readdir(resource: URI): Thenable<[string, FileType][]> {
+	readdir(resource: URI): Promise<[string, FileType][]> {
 		return this._channel.call('readdir', [resource]);
 	}
 
-	rename(resource: URI, target: URI, opts: FileOverwriteOptions): Thenable<void> {
+	rename(resource: URI, target: URI, opts: FileOverwriteOptions): Promise<void> {
 		return this._channel.call('rename', [resource, target, opts]);
 	}
 
-	copy(resource: URI, target: URI, opts: FileOverwriteOptions): Thenable<void> {
+	copy(resource: URI, target: URI, opts: FileOverwriteOptions): Promise<void> {
 		return this._channel.call('copy', [resource, target, opts]);
 	}
 }

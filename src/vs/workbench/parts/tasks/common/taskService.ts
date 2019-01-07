@@ -19,7 +19,7 @@ export { ITaskSummary, Task, TaskTerminateResponse };
 export const ITaskService = createDecorator<ITaskService>('taskService');
 
 export interface ITaskProvider {
-	provideTasks(validTypes: IStringDictionary<boolean>): Thenable<TaskSet>;
+	provideTasks(validTypes: IStringDictionary<boolean>): Promise<TaskSet>;
 }
 
 export interface ProblemMatcherRunOptions {
@@ -55,29 +55,29 @@ export interface ITaskService {
 	supportsMultipleTaskExecutions: boolean;
 
 	configureAction(): Action;
-	build(): Thenable<ITaskSummary>;
-	runTest(): Thenable<ITaskSummary>;
-	run(task: Task, options?: ProblemMatcherRunOptions): Thenable<ITaskSummary>;
+	build(): Promise<ITaskSummary>;
+	runTest(): Promise<ITaskSummary>;
+	run(task: Task, options?: ProblemMatcherRunOptions): Promise<ITaskSummary>;
 	inTerminal(): boolean;
-	isActive(): Thenable<boolean>;
-	getActiveTasks(): Thenable<Task[]>;
+	isActive(): Promise<boolean>;
+	getActiveTasks(): Promise<Task[]>;
 	restart(task: Task): void;
-	terminate(task: Task): Thenable<TaskTerminateResponse>;
-	terminateAll(): Thenable<TaskTerminateResponse[]>;
-	tasks(filter?: TaskFilter): Thenable<Task[]>;
-	getWorkspaceTasks(runSource?: TaskRunSource): Thenable<Map<string, WorkspaceFolderTaskResult>>;
+	terminate(task: Task): Promise<TaskTerminateResponse>;
+	terminateAll(): Promise<TaskTerminateResponse[]>;
+	tasks(filter?: TaskFilter): Promise<Task[]>;
+	getWorkspaceTasks(runSource?: TaskRunSource): Promise<Map<string, WorkspaceFolderTaskResult>>;
 	/**
 	 * @param alias The task's name, label or defined identifier.
 	 */
-	getTask(workspaceFolder: IWorkspaceFolder | string, alias: string | TaskIdentifier, compareId?: boolean): Thenable<Task>;
-	getTasksForGroup(group: string): Thenable<Task[]>;
+	getTask(workspaceFolder: IWorkspaceFolder | string, alias: string | TaskIdentifier, compareId?: boolean): Promise<Task>;
+	getTasksForGroup(group: string): Promise<Task[]>;
 	getRecentlyUsedTasks(): LinkedMap<string, string>;
 	createSorter(): TaskSorter;
 
 	needsFolderQualification();
 	canCustomize(task: ContributedTask | CustomTask): boolean;
-	customize(task: ContributedTask | CustomTask, properties?: {}, openConfig?: boolean): Thenable<void>;
-	openConfig(task: CustomTask | undefined): Thenable<void>;
+	customize(task: ContributedTask | CustomTask, properties?: {}, openConfig?: boolean): Promise<void>;
+	openConfig(task: CustomTask | undefined): Promise<void>;
 
 	registerTaskProvider(taskProvider: ITaskProvider): IDisposable;
 

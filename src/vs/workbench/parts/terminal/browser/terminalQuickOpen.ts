@@ -77,13 +77,13 @@ export class TerminalPickerHandler extends QuickOpenHandler {
 	public static readonly ID = 'workbench.picker.terminals';
 
 	constructor(
-		@ITerminalService private terminalService: ITerminalService,
-		@ICommandService private commandService: ICommandService,
+		@ITerminalService private readonly terminalService: ITerminalService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 	}
 
-	public getResults(searchValue: string, token: CancellationToken): Thenable<QuickOpenModel> {
+	public getResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel> {
 		searchValue = searchValue.trim();
 		const normalizedSearchValueLowercase = stripWildcards(searchValue).toLowerCase();
 

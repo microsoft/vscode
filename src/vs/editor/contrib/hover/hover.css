@@ -36,6 +36,14 @@
 	margin: 8px 0;
 }
 
+.monaco-editor-hover hr {
+	margin-top: 4px;
+	margin-bottom: -6px;
+	margin-left: -10px;
+	margin-right: -10px;
+	height: 1px;
+}
+
 .monaco-editor-hover p:first-child,
 .monaco-editor-hover ul:first-child {
 	margin-top: 0;

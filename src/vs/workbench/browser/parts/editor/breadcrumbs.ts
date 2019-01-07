@@ -59,7 +59,7 @@ export abstract class BreadcrumbsConfig<T> {
 	onDidChange: Event<void>;
 
 	abstract getValue(overrides?: IConfigurationOverrides): T;
-	abstract updateValue(value: T, overrides?: IConfigurationOverrides): Thenable<void>;
+	abstract updateValue(value: T, overrides?: IConfigurationOverrides): Promise<void>;
 	abstract dispose(): void;
 
 	private constructor() {
@@ -92,7 +92,7 @@ export abstract class BreadcrumbsConfig<T> {
 					getValue(overrides?: IConfigurationOverrides): T {
 						return service.getValue(name, overrides);
 					}
-					updateValue(newValue: T, overrides?: IConfigurationOverrides): Thenable<void> {
+					updateValue(newValue: T, overrides?: IConfigurationOverrides): Promise<void> {
 						return service.updateValue(name, newValue, overrides);
 					}
 					dispose(): void {
@@ -112,7 +112,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 	type: 'object',
 	properties: {
 		'breadcrumbs.enabled': {
-			description: localize('enabled', "Enable/disable navigation breadcrumbs"),
+			description: localize('enabled', "Enable/disable navigation breadcrumbs."),
 			type: 'boolean',
 			default: false
 		},

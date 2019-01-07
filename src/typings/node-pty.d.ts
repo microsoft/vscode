@@ -25,6 +25,11 @@ declare module 'node-pty' {
 	  uid?: number;
 	  gid?: number;
 	  encoding?: string;
+	  /**
+	   * Whether to use the experimental ConPTY system on Windows. This setting will be ignored on
+	   * non-Windows.
+	   */
+	  experimentalUseConpty?: boolean;
 	}
 
 	/**

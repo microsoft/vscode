@@ -47,7 +47,7 @@ suite('Workbench - TextModelResolverService', () => {
 	teardown(() => {
 		if (model) {
 			model.dispose();
-			model = void 0;
+			model = (undefined)!;
 		}
 		(<TextFileEditorModelManager>accessor.textFileService.models).clear();
 		(<TextFileEditorModelManager>accessor.textFileService.models).dispose();
@@ -56,18 +56,18 @@ suite('Workbench - TextModelResolverService', () => {
 
 	test('resolve resource', function () {
 		const dispose = accessor.textModelResolverService.registerTextModelContentProvider('test', {
-			provideTextContent: function (resource: URI): Thenable<ITextModel> {
+			provideTextContent: function (resource: URI): Promise<ITextModel> {
 				if (resource.scheme === 'test') {
 					let modelContent = 'Hello Test';
 					let languageSelection = accessor.modeService.create('json');
 					return Promise.resolve(accessor.modelService.createModel(modelContent, languageSelection, resource));
 				}
 
-				return Promise.resolve(null);
+				return Promise.resolve(null!);
 			}
 		});
 
-		let resource = URI.from({ scheme: 'test', authority: null, path: 'thePath' });
+		let resource = URI.from({ scheme: 'test', authority: null!, path: 'thePath' });
 		let input: ResourceEditorInput = instantiationService.createInstance(ResourceEditorInput, 'The Name', 'The Description', resource);
 
 		return input.resolve().then(async model => {
@@ -132,11 +132,11 @@ suite('Workbench - TextModelResolverService', () => {
 	});
 
 	test('even loading documents should be refcounted', async () => {
-		let resolveModel: Function;
+		let resolveModel!: Function;
 		let waitForIt = new Promise(c => resolveModel = c);
 
 		const disposable = accessor.textModelResolverService.registerTextModelContentProvider('test', {
-			provideTextContent: (resource: URI): Thenable<ITextModel> => {
+			provideTextContent: (resource: URI): Promise<ITextModel> => {
 				return waitForIt.then(_ => {
 					let modelContent = 'Hello Test';
 					let languageSelection = accessor.modeService.create('json');
@@ -145,7 +145,7 @@ suite('Workbench - TextModelResolverService', () => {
 			}
 		});
 
-		const uri = URI.from({ scheme: 'test', authority: null, path: 'thePath' });
+		const uri = URI.from({ scheme: 'test', authority: null!, path: 'thePath' });
 
 		const modelRefPromise1 = accessor.textModelResolverService.createModelReference(uri);
 		const modelRefPromise2 = accessor.textModelResolverService.createModelReference(uri);

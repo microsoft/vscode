@@ -35,11 +35,11 @@ export class OutputPanel extends AbstractTextResourceEditor {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
-		@IConfigurationService private baseConfigurationService: IConfigurationService,
+		@IConfigurationService private readonly baseConfigurationService: IConfigurationService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IThemeService themeService: IThemeService,
-		@IOutputService private outputService: IOutputService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
+		@IOutputService private readonly outputService: IOutputService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@ITextFileService textFileService: ITextFileService,
 		@IEditorService editorService: IEditorService,
@@ -112,10 +112,10 @@ export class OutputPanel extends AbstractTextResourceEditor {
 		return channel ? nls.localize('outputPanelWithInputAriaLabel', "{0}, Output panel", channel.label) : nls.localize('outputPanelAriaLabel', "Output panel");
 	}
 
-	public setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
+	public setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
 		this._focus = !options.preserveFocus;
 		if (input.matches(this.input)) {
-			return Promise.resolve(null);
+			return Promise.resolve(undefined);
 		}
 
 		if (this.input) {

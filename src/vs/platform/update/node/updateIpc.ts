@@ -19,7 +19,7 @@ export class UpdateChannel implements IServerChannel {
 		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(_, command: string, arg?: any): Thenable<any> {
+	call(_, command: string, arg?: any): Promise<any> {
 		switch (command) {
 			case 'checkForUpdates': return this.service.checkForUpdates(arg);
 			case 'downloadUpdate': return this.service.downloadUpdate();
@@ -57,23 +57,23 @@ export class UpdateChannelClient implements IUpdateService {
 		});
 	}
 
-	checkForUpdates(context: any): Thenable<void> {
+	checkForUpdates(context: any): Promise<void> {
 		return this.channel.call('checkForUpdates', context);
 	}
 
-	downloadUpdate(): Thenable<void> {
+	downloadUpdate(): Promise<void> {
 		return this.channel.call('downloadUpdate');
 	}
 
-	applyUpdate(): Thenable<void> {
+	applyUpdate(): Promise<void> {
 		return this.channel.call('applyUpdate');
 	}
 
-	quitAndInstall(): Thenable<void> {
+	quitAndInstall(): Promise<void> {
 		return this.channel.call('quitAndInstall');
 	}
 
-	isLatestVersion(): Thenable<boolean> {
+	isLatestVersion(): Promise<boolean> {
 		return this.channel.call('isLatestVersion');
 	}
 }

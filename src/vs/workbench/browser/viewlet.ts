@@ -128,8 +128,8 @@ export class ShowViewletAction extends Action {
 		name: string,
 		viewletId: string,
 		@IViewletService protected viewletService: IViewletService,
-		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
-		@IPartService private partService: IPartService
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
+		@IPartService private readonly partService: IPartService
 	) {
 		super(id, name);
 
@@ -137,7 +137,7 @@ export class ShowViewletAction extends Action {
 		this.enabled = !!this.viewletService && !!this.editorGroupService;
 	}
 
-	run(): Thenable<any> {
+	run(): Promise<any> {
 
 		// Pass focus to viewlet if not open or focused
 		if (this.otherViewletShowing() || !this.sidebarHasFocus()) {
@@ -186,7 +186,7 @@ export class CollapseAction extends Action {
 
 // Collapse All action for the new tree
 export class CollapseAction2 extends Action {
-	constructor(tree: AsyncDataTree<any>, enabled: boolean, clazz: string) {
+	constructor(tree: AsyncDataTree<any, any>, enabled: boolean, clazz: string) {
 		super('workbench.action.collapse', nls.localize('collapse', "Collapse All"), clazz, enabled, () => {
 			tree.collapseAll();
 			return Promise.resolve(undefined);

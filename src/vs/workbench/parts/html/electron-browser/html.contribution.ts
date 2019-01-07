@@ -57,8 +57,7 @@ CommandsRegistry.registerCommand('_workbench.previewHtml', function (
 	// Find already opened HTML input if any
 	if (targetGroup) {
 		const editors = targetGroup.editors;
-		for (let i = 0; i < editors.length; i++) {
-			const editor = editors[i];
+		for (const editor of editors) {
 			const editorResource = editor.getResource();
 			if (editor instanceof HtmlInput && editorResource && editorResource.toString() === resource.toString()) {
 				input = editor;

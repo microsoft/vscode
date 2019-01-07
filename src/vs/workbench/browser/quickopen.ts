@@ -43,14 +43,14 @@ export class QuickOpenHandler {
 	 * As such, returning the same model instance across multiple searches will yield best
 	 * results in terms of performance when many items are shown.
 	 */
-	getResults(searchValue: string, token: CancellationToken): Thenable<IModel<any>> {
+	getResults(searchValue: string, token: CancellationToken): Promise<IModel<any> | null> {
 		return Promise.resolve(null);
 	}
 
 	/**
 	 * The ARIA label to apply when this quick open handler is active in quick open.
 	 */
-	getAriaLabel(): string {
+	getAriaLabel() {
 		return null;
 	}
 
@@ -317,7 +317,7 @@ export class QuickOpenAction extends Action {
 		id: string,
 		label: string,
 		prefix: string,
-		@IQuickOpenService private quickOpenService: IQuickOpenService
+		@IQuickOpenService private readonly quickOpenService: IQuickOpenService
 	) {
 		super(id, label);
 
@@ -330,6 +330,6 @@ export class QuickOpenAction extends Action {
 		// Show with prefix
 		this.quickOpenService.show(this.prefix);
 
-		return Promise.resolve(null);
+		return Promise.resolve(undefined);
 	}
 }

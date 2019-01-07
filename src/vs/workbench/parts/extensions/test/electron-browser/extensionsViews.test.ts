@@ -38,6 +38,7 @@ import { IExperimentService, ExperimentService, ExperimentState, ExperimentActio
 import { IRemoteAgentService } from 'vs/workbench/services/remote/node/remoteAgentService';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import { ExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 
 suite('ExtensionsListView Tests', () => {
@@ -123,11 +124,11 @@ suite('ExtensionsListView Tests', () => {
 		instantiationService.stub(IExtensionService, {
 			getExtensions: () => {
 				return Promise.resolve([
-					{ id: localEnabledTheme.galleryIdentifier.id },
-					{ id: localEnabledLanguage.galleryIdentifier.id },
-					{ id: localRandom.galleryIdentifier.id },
-					{ id: builtInTheme.galleryIdentifier.id },
-					{ id: builtInBasic.galleryIdentifier.id }
+					{ identifier: new ExtensionIdentifier(localEnabledTheme.galleryIdentifier.id) },
+					{ identifier: new ExtensionIdentifier(localEnabledLanguage.galleryIdentifier.id) },
+					{ identifier: new ExtensionIdentifier(localRandom.galleryIdentifier.id) },
+					{ identifier: new ExtensionIdentifier(builtInTheme.galleryIdentifier.id) },
+					{ identifier: new ExtensionIdentifier(builtInBasic.galleryIdentifier.id) }
 				]);
 			}
 		});
@@ -323,11 +324,11 @@ suite('ExtensionsListView Tests', () => {
 		return testableView.show('@recommended:workspace').then(result => {
 			assert.ok(target.calledOnce);
 			const options: IQueryOptions = target.args[0][0];
-			assert.equal(options.names.length, workspaceRecommendedExtensions.length);
+			assert.equal(options.names!.length, workspaceRecommendedExtensions.length);
 			assert.equal(result.length, workspaceRecommendedExtensions.length);
 			for (let i = 0; i < workspaceRecommendedExtensions.length; i++) {
-				assert.equal(options.names[i], workspaceRecommendedExtensions[i].identifier.id);
-				assert.equal(result.get(i).id, workspaceRecommendedExtensions[i].identifier.id);
+				assert.equal(options.names![i], workspaceRecommendedExtensions[i].identifier.id);
+				assert.equal(result.get(i).identifier.id, workspaceRecommendedExtensions[i].identifier.id);
 			}
 		});
 	});
@@ -344,11 +345,11 @@ suite('ExtensionsListView Tests', () => {
 			const options: IQueryOptions = target.args[0][0];
 
 			assert.ok(target.calledOnce);
-			assert.equal(options.names.length, allRecommendedExtensions.length);
+			assert.equal(options.names!.length, allRecommendedExtensions.length);
 			assert.equal(result.length, allRecommendedExtensions.length);
 			for (let i = 0; i < allRecommendedExtensions.length; i++) {
-				assert.equal(options.names[i], allRecommendedExtensions[i].identifier.id);
-				assert.equal(result.get(i).id, allRecommendedExtensions[i].identifier.id);
+				assert.equal(options.names![i], allRecommendedExtensions[i].identifier.id);
+				assert.equal(result.get(i).identifier.id, allRecommendedExtensions[i].identifier.id);
 			}
 		});
 	});
@@ -368,11 +369,11 @@ suite('ExtensionsListView Tests', () => {
 			const options: IQueryOptions = target.args[0][0];
 
 			assert.ok(target.calledOnce);
-			assert.equal(options.names.length, allRecommendedExtensions.length);
+			assert.equal(options.names!.length, allRecommendedExtensions.length);
 			assert.equal(result.length, allRecommendedExtensions.length);
 			for (let i = 0; i < allRecommendedExtensions.length; i++) {
-				assert.equal(options.names[i], allRecommendedExtensions[i].identifier.id);
-				assert.equal(result.get(i).id, allRecommendedExtensions[i].identifier.id);
+				assert.equal(options.names![i], allRecommendedExtensions[i].identifier.id);
+				assert.equal(result.get(i).identifier.id, allRecommendedExtensions[i].identifier.id);
 			}
 		});
 	});
@@ -391,11 +392,11 @@ suite('ExtensionsListView Tests', () => {
 
 			assert.ok(experimentTarget.calledOnce);
 			assert.ok(queryTarget.calledOnce);
-			assert.equal(options.names.length, curatedList.length);
+			assert.equal(options.names!.length, curatedList.length);
 			assert.equal(result.length, curatedList.length);
 			for (let i = 0; i < curatedList.length; i++) {
-				assert.equal(options.names[i], curatedList[i].identifier.id);
-				assert.equal(result.get(i).id, curatedList[i].identifier.id);
+				assert.equal(options.names![i], curatedList[i].identifier.id);
+				assert.equal(result.get(i).identifier.id, curatedList[i].identifier.id);
 			}
 			assert.equal(curatedKey, 'mykey');
 		});
@@ -417,7 +418,7 @@ suite('ExtensionsListView Tests', () => {
 			assert.equal(options.text, searchText);
 			assert.equal(result.length, results.length);
 			for (let i = 0; i < results.length; i++) {
-				assert.equal(result.get(i).id, results[i].identifier.id);
+				assert.equal(result.get(i).identifier.id, results[i].identifier.id);
 			}
 		});
 	});
@@ -466,7 +467,7 @@ suite('ExtensionsListView Tests', () => {
 			assert.equal(options.text, searchText);
 			assert.equal(result.length, expected.length);
 			for (let i = 0; i < expected.length; i++) {
-				assert.equal(result.get(i).id, expected[i].identifier.id);
+				assert.equal(result.get(i).identifier.id, expected[i].identifier.id);
 			}
 		});
 	});
@@ -492,7 +493,7 @@ suite('ExtensionsListView Tests', () => {
 			assert.equal(options.text, searchText);
 			assert.equal(result.length, realResults.length);
 			for (let i = 0; i < realResults.length; i++) {
-				assert.equal(result.get(i).id, realResults[i].identifier.id);
+				assert.equal(result.get(i).identifier.id, realResults[i].identifier.id);
 			}
 		});
 	});
@@ -503,7 +504,7 @@ suite('ExtensionsListView Tests', () => {
 		assign(localExtension.manifest, { name, publisher: 'pub', version: '1.0.0' }, manifest);
 		localExtension.identifier = { id: getLocalExtensionIdFromManifest(localExtension.manifest) };
 		localExtension.metadata = { id: localExtension.identifier.id, publisherId: localExtension.manifest.publisher, publisherDisplayName: 'somename' };
-		localExtension.galleryIdentifier = { id: getGalleryExtensionIdFromLocal(localExtension), uuid: void 0 };
+		localExtension.galleryIdentifier = { id: getGalleryExtensionIdFromLocal(localExtension), uuid: undefined };
 		return localExtension;
 	}
 
@@ -517,7 +518,7 @@ suite('ExtensionsListView Tests', () => {
 	}
 
 	function aPage<T>(...objects: T[]): IPager<T> {
-		return { firstPage: objects, total: objects.length, pageSize: objects.length, getPage: () => null };
+		return { firstPage: objects, total: objects.length, pageSize: objects.length, getPage: () => null! };
 	}
 });
 

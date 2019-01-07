@@ -14,7 +14,7 @@ export class MenubarChannel implements IServerChannel {
 		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(_, command: string, arg?: any): Thenable<any> {
+	call(_, command: string, arg?: any): Promise<any> {
 		switch (command) {
 			case 'updateMenubar': return this.service.updateMenubar(arg[0], arg[1]);
 		}
@@ -29,7 +29,7 @@ export class MenubarChannelClient implements IMenubarService {
 
 	constructor(private channel: IChannel) { }
 
-	updateMenubar(windowId: number, menuData: IMenubarData): Thenable<void> {
+	updateMenubar(windowId: number, menuData: IMenubarData): Promise<void> {
 		return this.channel.call('updateMenubar', [windowId, menuData]);
 	}
 }

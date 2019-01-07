@@ -16,19 +16,19 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 
 export class PreferencesEditorInput extends SideBySideEditorInput {
-	public static readonly ID: string = 'workbench.editorinputs.preferencesEditorInput';
+	static readonly ID: string = 'workbench.editorinputs.preferencesEditorInput';
 
 	getTypeId(): string {
 		return PreferencesEditorInput.ID;
 	}
 
-	public getTitle(verbosity: Verbosity): string {
+	getTitle(verbosity: Verbosity): string {
 		return this.master.getTitle(verbosity);
 	}
 }
 
 export class DefaultPreferencesEditorInput extends ResourceEditorInput {
-	public static readonly ID = 'workbench.editorinputs.defaultpreferences';
+	static readonly ID = 'workbench.editorinputs.defaultpreferences';
 	constructor(defaultSettingsResource: URI,
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IHashService hashService: IHashService
@@ -53,8 +53,8 @@ export class DefaultPreferencesEditorInput extends ResourceEditorInput {
 
 export class KeybindingsEditorInput extends EditorInput {
 
-	public static readonly ID: string = 'workbench.input.keybindings';
-	public readonly keybindingsModel: KeybindingsEditorModel;
+	static readonly ID: string = 'workbench.input.keybindings';
+	readonly keybindingsModel: KeybindingsEditorModel;
 
 	constructor(@IInstantiationService instantiationService: IInstantiationService) {
 		super();
@@ -69,7 +69,7 @@ export class KeybindingsEditorInput extends EditorInput {
 		return nls.localize('keybindingsInputName', "Keyboard Shortcuts");
 	}
 
-	resolve(): Thenable<KeybindingsEditorModel> {
+	resolve(): Promise<KeybindingsEditorModel> {
 		return Promise.resolve(this.keybindingsModel);
 	}
 
@@ -80,7 +80,7 @@ export class KeybindingsEditorInput extends EditorInput {
 
 export class SettingsEditor2Input extends EditorInput {
 
-	public static readonly ID: string = 'workbench.input.settings2';
+	static readonly ID: string = 'workbench.input.settings2';
 	private readonly _settingsModel: Settings2EditorModel;
 	private resource: URI = URI.from({
 		scheme: 'vscode-settings',
@@ -107,11 +107,11 @@ export class SettingsEditor2Input extends EditorInput {
 		return nls.localize('settingsEditor2InputName', "Settings");
 	}
 
-	resolve(): Thenable<Settings2EditorModel> {
+	resolve(): Promise<Settings2EditorModel> {
 		return Promise.resolve(this._settingsModel);
 	}
 
-	public getResource(): URI {
+	getResource(): URI {
 		return this.resource;
 	}
 }

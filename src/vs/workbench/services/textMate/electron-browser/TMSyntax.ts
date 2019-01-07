@@ -19,22 +19,26 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { IEmbeddedLanguagesMap, ITMSyntaxExtensionPoint, TokenTypesContribution, grammarsExtPoint } from 'vs/workbench/services/textMate/electron-browser/TMGrammars';
 import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
 import { ITokenColorizationRule, IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IEmbeddedLanguagesMap as IEmbeddedLanguagesMap2, IGrammar, ITokenTypeMap, Registry, StackElement, StandardTokenType } from 'vscode-textmate';
+import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 export class TMScopeRegistry {
 
 	private _scopeNameToLanguageRegistration: { [scopeName: string]: TMLanguageRegistration; };
 	private _encounteredLanguages: boolean[];
 
-	private readonly _onDidEncounterLanguage: Emitter<LanguageId> = new Emitter<LanguageId>();
+	private readonly _onDidEncounterLanguage = new Emitter<LanguageId>();
 	public readonly onDidEncounterLanguage: Event<LanguageId> = this._onDidEncounterLanguage.event;
 
 	constructor() {
+		this.reset();
+	}
+
+	public reset(): void {
 		this._scopeNameToLanguageRegistration = Object.create(null);
 		this._encounteredLanguages = [];
 	}
@@ -132,55 +136,61 @@ interface ICreateGrammarResult {
 	containsEmbeddedLanguages: boolean;
 }
 
-export class TextMateService implements ITextMateService {
+export class TextMateService extends Disposable implements ITextMateService {
 	public _serviceBrand: any;
 
-	private _grammarRegistry: Promise<[Registry, StackElement]> | null;
-	private _modeService: IModeService;
-	private _themeService: IWorkbenchThemeService;
-	private _fileService: IFileService;
-	private _logService: ILogService;
+	private readonly _onDidEncounterLanguage: Emitter<LanguageId> = this._register(new Emitter<LanguageId>());
+	public readonly onDidEncounterLanguage: Event<LanguageId> = this._onDidEncounterLanguage.event;
+
+	private readonly _styleElement: HTMLStyleElement;
+	private readonly _createdModes: string[];
+
 	private _scopeRegistry: TMScopeRegistry;
 	private _injections: { [scopeName: string]: string[]; };
 	private _injectedEmbeddedLanguages: { [scopeName: string]: IEmbeddedLanguagesMap[]; };
-	private _notificationService: INotificationService;
-
 	private _languageToScope: Map<string, string>;
-	private _styleElement: HTMLStyleElement;
+	private _grammarRegistry: Promise<[Registry, StackElement]> | null;
+	private _tokenizersRegistrations: IDisposable[];
 
-	private _currentTokenColors: ITokenColorizationRule[];
-
-	public readonly onDidEncounterLanguage: Event<LanguageId>;
+	private _currentTokenColors: ITokenColorizationRule[] | null;
 
 	constructor(
-		@IModeService modeService: IModeService,
-		@IWorkbenchThemeService themeService: IWorkbenchThemeService,
-		@IFileService fileService: IFileService,
-		@INotificationService notificationService: INotificationService,
-		@ILogService logService: ILogService,
-		@IExtensionService extensionService: IExtensionService
+		@IModeService private readonly _modeService: IModeService,
+		@IWorkbenchThemeService private readonly _themeService: IWorkbenchThemeService,
+		@IFileService private readonly _fileService: IFileService,
+		@INotificationService private readonly _notificationService: INotificationService,
+		@ILogService private readonly _logService: ILogService
 	) {
+		super();
 		this._styleElement = dom.createStyleSheet();
 		this._styleElement.className = 'vscode-tokens-styles';
-		this._modeService = modeService;
-		this._themeService = themeService;
-		this._fileService = fileService;
-		this._logService = logService;
+		this._createdModes = [];
 		this._scopeRegistry = new TMScopeRegistry();
-		this.onDidEncounterLanguage = this._scopeRegistry.onDidEncounterLanguage;
+		this._scopeRegistry.onDidEncounterLanguage((language) => this._onDidEncounterLanguage.fire(language));
 		this._injections = {};
 		this._injectedEmbeddedLanguages = {};
 		this._languageToScope = new Map<string, string>();
-		this._notificationService = notificationService;
-
 		this._grammarRegistry = null;
+		this._tokenizersRegistrations = [];
+		this._currentTokenColors = null;
 
 		grammarsExtPoint.setHandler((extensions) => {
-			for (let i = 0; i < extensions.length; i++) {
-				let grammars = extensions[i].value;
-				for (let j = 0; j < grammars.length; j++) {
-					this._handleGrammarExtensionPointUser(extensions[i].description.extensionLocation, grammars[j], extensions[i].collector);
+			this._scopeRegistry.reset();
+			this._injections = {};
+			this._injectedEmbeddedLanguages = {};
+			this._languageToScope = new Map<string, string>();
+			this._grammarRegistry = null;
+			this._tokenizersRegistrations = dispose(this._tokenizersRegistrations);
+
+			for (const extension of extensions) {
+				let grammars = extension.value;
+				for (const grammar of grammars) {
+					this._handleGrammarExtensionPointUser(extension.description.extensionLocation, grammar, extension.collector);
 				}
+			}
+
+			for (const createMode of this._createdModes) {
+				this._registerDefinitionIfAvailable(createMode);
 			}
 		});
 
@@ -203,13 +213,21 @@ export class TextMateService implements ITextMateService {
 
 		this._modeService.onDidCreateMode((mode) => {
 			let modeId = mode.getId();
-			// Modes can be instantiated before the extension points have finished registering
-			extensionService.whenInstalledExtensionsRegistered().then(() => {
-				if (this._languageToScope.has(modeId)) {
-					this.registerDefinition(modeId);
-				}
-			});
+			this._createdModes.push(modeId);
+			this._registerDefinitionIfAvailable(modeId);
 		});
+	}
+
+	private _registerDefinitionIfAvailable(modeId: string): void {
+		if (this._languageToScope.has(modeId)) {
+			const promise = this._createGrammar(modeId).then((r) => {
+				return new TMTokenization(this._scopeRegistry, r.languageId, r.grammar, r.initialState, r.containsEmbeddedLanguages, this._notificationService);
+			}, e => {
+				onUnexpectedError(e);
+				return null;
+			});
+			this._tokenizersRegistrations.push(TokenizationRegistry.registerPromise(modeId, promise));
+		}
 	}
 
 	private _getOrCreateGrammarRegistry(): Promise<[Registry, StackElement]> {
@@ -292,7 +310,6 @@ export class TextMateService implements ITextMateService {
 		}
 		return false;
 	}
-
 
 	private _handleGrammarExtensionPointUser(extensionLocation: URI, syntax: ITMSyntaxExtensionPoint, collector: ExtensionMessageCollector): void {
 		if (syntax.language && ((typeof syntax.language !== 'string') || !this._modeService.isRegisteredMode(syntax.language))) {
@@ -404,16 +421,6 @@ export class TextMateService implements ITextMateService {
 			});
 		});
 	}
-
-	private registerDefinition(modeId: string): void {
-		const promise = this._createGrammar(modeId).then((r) => {
-			return new TMTokenization(this._scopeRegistry, r.languageId, r.grammar, r.initialState, r.containsEmbeddedLanguages, this._notificationService);
-		}, e => {
-			onUnexpectedError(e);
-			return null;
-		});
-		TokenizationRegistry.registerPromise(modeId, promise);
-	}
 }
 
 class TMTokenization implements ITokenizationSupport {
@@ -426,7 +433,7 @@ class TMTokenization implements ITokenizationSupport {
 	private readonly _initialState: StackElement;
 	private _tokenizationWarningAlreadyShown: boolean;
 
-	constructor(scopeRegistry: TMScopeRegistry, languageId: LanguageId, grammar: IGrammar, initialState: StackElement, containsEmbeddedLanguages: boolean, @INotificationService private notificationService: INotificationService) {
+	constructor(scopeRegistry: TMScopeRegistry, languageId: LanguageId, grammar: IGrammar, initialState: StackElement, containsEmbeddedLanguages: boolean, @INotificationService private readonly notificationService: INotificationService) {
 		this._scopeRegistry = scopeRegistry;
 		this._languageId = languageId;
 		this._grammar = grammar;

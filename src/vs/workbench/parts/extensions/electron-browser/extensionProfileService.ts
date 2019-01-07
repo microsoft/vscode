@@ -20,6 +20,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { randomPort } from 'vs/base/node/ports';
 import product from 'vs/platform/node/product';
 import { RuntimeExtensionsInput } from 'vs/workbench/services/extensions/electron-browser/runtimeExtensionsInput';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export class ExtensionHostProfileService extends Disposable implements IExtensionHostProfileService {
 
@@ -67,10 +68,10 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 			ProfileExtHostStatusbarItem.instance.hide();
 		}
 
-		this._onDidChangeState.fire(void 0);
+		this._onDidChangeState.fire(undefined);
 	}
 
-	public startProfiling(): Thenable<any> {
+	public startProfiling(): Promise<any> {
 		if (this._state !== ProfileSessionState.None) {
 			return null;
 		}
@@ -118,15 +119,15 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 
 	private _setLastProfile(profile: IExtensionHostProfile) {
 		this._profile = profile;
-		this._onDidChangeLastProfile.fire(void 0);
+		this._onDidChangeLastProfile.fire(undefined);
 	}
 
-	getUnresponsiveProfile(extensionId: string): IExtensionHostProfile | undefined {
-		return this._unresponsiveProfiles.get(extensionId);
+	getUnresponsiveProfile(extensionId: ExtensionIdentifier): IExtensionHostProfile | undefined {
+		return this._unresponsiveProfiles.get(ExtensionIdentifier.toKey(extensionId));
 	}
 
-	setUnresponsiveProfile(extensionId: string, profile: IExtensionHostProfile): void {
-		this._unresponsiveProfiles.set(extensionId, profile);
+	setUnresponsiveProfile(extensionId: ExtensionIdentifier, profile: IExtensionHostProfile): void {
+		this._unresponsiveProfiles.set(ExtensionIdentifier.toKey(extensionId), profile);
 		this._setLastProfile(profile);
 	}
 

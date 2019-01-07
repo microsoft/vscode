@@ -144,7 +144,7 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 		options.descriptionTitle = element.saneDescription;
 		options.descriptionMatches = descriptionHighlights || [];
 		options.extraClasses = element.item.iconClasses;
-		data.label.setValue(element.saneLabel, element.saneDescription, options);
+		data.label.setLabel(element.saneLabel, element.saneDescription, options);
 
 		// Meta
 		data.detail.set(element.saneDetail, detailHighlights);
@@ -215,7 +215,7 @@ export class QuickInputList {
 	readonly id: string;
 	private container: HTMLElement;
 	private list: WorkbenchList<ListElement>;
-	private inputElements: (IQuickPickItem | IQuickPickSeparator)[];
+	private inputElements: Array<IQuickPickItem | IQuickPickSeparator>;
 	private elements: ListElement[] = [];
 	private elementsToIndexes = new Map<IQuickPickItem, number>();
 	matchOnDescription = false;
@@ -239,7 +239,7 @@ export class QuickInputList {
 	constructor(
 		private parent: HTMLElement,
 		id: string,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		this.id = id;
 		this.container = dom.append(this.parent, $('.quick-input-list'));
@@ -356,7 +356,7 @@ export class QuickInputList {
 		}
 	}
 
-	setElements(inputElements: (IQuickPickItem | IQuickPickSeparator)[]): void {
+	setElements(inputElements: Array<IQuickPickItem | IQuickPickSeparator>): void {
 		this.elementDisposables = dispose(this.elementDisposables);
 		const fireButtonTriggered = (event: IQuickPickItemButtonEvent<IQuickPickItem>) => this.fireButtonTriggered(event);
 		this.inputElements = inputElements;

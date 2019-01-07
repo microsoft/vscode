@@ -167,7 +167,7 @@ suite('CacheState', () => {
 			cacheKey => cache.query(cacheKey),
 			query => cache.load(query),
 			cacheKey => cache.dispose(cacheKey),
-			previous
+			previous!
 		);
 	}
 
@@ -180,7 +180,8 @@ suite('CacheState', () => {
 		private _awaitDisposal: (() => void)[][] = [];
 
 		public baseQuery: IFileQuery = {
-			type: QueryType.File
+			type: QueryType.File,
+			folderQueries: []
 		};
 
 		public query(cacheKey: string): IFileQuery {
@@ -190,7 +191,7 @@ suite('CacheState', () => {
 
 		public load(query: IFileQuery): Promise<any> {
 			const promise = new DeferredPromise<any>();
-			this.loading[query.cacheKey] = promise;
+			this.loading[query.cacheKey!] = promise;
 			return promise.p;
 		}
 

@@ -17,20 +17,20 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { IFileService } from 'vs/platform/files/common/files';
 
-class ResourceModelCollection extends ReferenceCollection<Thenable<ITextEditorModel>> {
+class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorModel>> {
 
 	private providers: { [scheme: string]: ITextModelContentProvider[] } = Object.create(null);
 	private modelsToDispose = new Set<string>();
 
 	constructor(
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@ITextFileService private textFileService: ITextFileService,
-		@IFileService private fileService: IFileService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		super();
 	}
 
-	createReferencedObject(key: string, skipActivateProvider?: boolean): Thenable<ITextEditorModel> {
+	createReferencedObject(key: string, skipActivateProvider?: boolean): Promise<ITextEditorModel> {
 		this.modelsToDispose.delete(key);
 
 		const resource = URI.parse(key);
@@ -53,7 +53,7 @@ class ResourceModelCollection extends ReferenceCollection<Thenable<ITextEditorMo
 		return Promise.reject(new Error('resource is not available'));
 	}
 
-	destroyReferencedObject(key: string, modelPromise: Thenable<ITextEditorModel>): void {
+	destroyReferencedObject(key: string, modelPromise: Promise<ITextEditorModel>): void {
 		this.modelsToDispose.add(key);
 
 		modelPromise.then(model => {
@@ -96,7 +96,11 @@ class ResourceModelCollection extends ReferenceCollection<Thenable<ITextEditorMo
 		});
 	}
 
-	private resolveTextModelContent(key: string): Thenable<ITextModel> {
+	hasTextModelContentProvider(scheme: string): boolean {
+		return this.providers[scheme] !== undefined;
+	}
+
+	private resolveTextModelContent(key: string): Promise<ITextModel> {
 		const resource = URI.parse(key);
 		const providers = this.providers[resource.scheme] || [];
 		const factories = providers.map(p => () => Promise.resolve(p.provideTextContent(resource)));
@@ -118,18 +122,18 @@ export class TextModelResolverService implements ITextModelService {
 	private resourceModelCollection: ResourceModelCollection;
 
 	constructor(
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IModelService private modelService: IModelService
+		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IModelService private readonly modelService: IModelService
 	) {
 		this.resourceModelCollection = instantiationService.createInstance(ResourceModelCollection);
 	}
 
-	createModelReference(resource: URI): Thenable<IReference<ITextEditorModel>> {
+	createModelReference(resource: URI): Promise<IReference<ITextEditorModel>> {
 		return this._createModelReference(resource);
 	}
 
-	private _createModelReference(resource: URI): Thenable<IReference<ITextEditorModel>> {
+	private _createModelReference(resource: URI): Promise<IReference<ITextEditorModel>> {
 
 		// Untitled Schema: go through cached input
 		if (resource.scheme === network.Schemas.untitled) {
@@ -161,5 +165,9 @@ export class TextModelResolverService implements ITextModelService {
 
 	registerTextModelContentProvider(scheme: string, provider: ITextModelContentProvider): IDisposable {
 		return this.resourceModelCollection.registerTextModelContentProvider(scheme, provider);
+	}
+
+	hasTextModelContentProvider(scheme: string): boolean {
+		return this.resourceModelCollection.hasTextModelContentProvider(scheme);
 	}
 }

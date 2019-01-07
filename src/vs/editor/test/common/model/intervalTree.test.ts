@@ -74,8 +74,8 @@ suite('IntervalTree', () => {
 		private _oracle: Oracle = new Oracle();
 		private _tree: IntervalTree = new IntervalTree();
 		private _lastNodeId = -1;
-		private _treeNodes: (IntervalNode | null)[] = [];
-		private _oracleNodes: (Interval | null)[] = [];
+		private _treeNodes: Array<IntervalNode | null> = [];
+		private _oracleNodes: Array<Interval | null> = [];
 
 		public acceptOp(op: IOperation): void {
 

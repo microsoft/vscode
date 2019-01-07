@@ -8,6 +8,7 @@ import { MainContext, IMainContext, ExtHostUrlsShape, MainThreadUrlsShape } from
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export class ExtHostUrls implements ExtHostUrlsShape {
 
@@ -23,28 +24,28 @@ export class ExtHostUrls implements ExtHostUrlsShape {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadUrls);
 	}
 
-	registerUriHandler(extensionId: string, handler: vscode.UriHandler): vscode.Disposable {
-		if (this.handles.has(extensionId)) {
+	registerUriHandler(extensionId: ExtensionIdentifier, handler: vscode.UriHandler): vscode.Disposable {
+		if (this.handles.has(ExtensionIdentifier.toKey(extensionId))) {
 			throw new Error(`Protocol handler already registered for extension ${extensionId}`);
 		}
 
 		const handle = ExtHostUrls.HandlePool++;
-		this.handles.add(extensionId);
+		this.handles.add(ExtensionIdentifier.toKey(extensionId));
 		this.handlers.set(handle, handler);
 		this._proxy.$registerUriHandler(handle, extensionId);
 
 		return toDisposable(() => {
-			this.handles.delete(extensionId);
+			this.handles.delete(ExtensionIdentifier.toKey(extensionId));
 			this.handlers.delete(handle);
 			this._proxy.$unregisterUriHandler(handle);
 		});
 	}
 
-	$handleExternalUri(handle: number, uri: UriComponents): Thenable<void> {
+	$handleExternalUri(handle: number, uri: UriComponents): Promise<void> {
 		const handler = this.handlers.get(handle);
 
 		if (!handler) {
-			return Promise.resolve(null);
+			return Promise.resolve(undefined);
 		}
 		try {
 			handler.handleUri(URI.revive(uri));
@@ -52,6 +53,6 @@ export class ExtHostUrls implements ExtHostUrlsShape {
 			onUnexpectedError(err);
 		}
 
-		return Promise.resolve(null);
+		return Promise.resolve(undefined);
 	}
 }

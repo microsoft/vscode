@@ -35,6 +35,11 @@
 
 .monaco-editor .marker-widget .descriptioncontainer .message {
 	display: flex;
+	flex-direction: column;
+}
+
+.monaco-editor .marker-widget .descriptioncontainer .message .details {
+	padding-left: 6px;
 }
 
 .monaco-editor .marker-widget .descriptioncontainer .message .source,

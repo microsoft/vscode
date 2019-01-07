@@ -98,7 +98,7 @@ export class BaseErrorReportingAction extends Action {
 		this._notificationService.error(toErrorMessage(error, false));
 	}
 
-	protected onErrorWithRetry(error: any, retry: () => Thenable<any>): void {
+	protected onErrorWithRetry(error: any, retry: () => Promise<any>): void {
 		this._notificationService.prompt(Severity.Error, toErrorMessage(error, false),
 			[{
 				label: nls.localize('retry', "Retry"),
@@ -167,7 +167,7 @@ class TriggerRenameFileAction extends BaseFileAction {
 		return this.renameAction.validateFileName(this.element.parent, name);
 	}
 
-	public run(context?: any): Thenable<any> {
+	public run(context?: any): Promise<any> {
 		if (!context) {
 			return Promise.reject(new Error('No context provided to BaseEnableFileRenameAction.'));
 		}
@@ -211,7 +211,7 @@ class TriggerRenameFileAction extends BaseFileAction {
 			});
 		});
 
-		return void 0;
+		return undefined;
 	}
 }
 
@@ -234,7 +234,7 @@ export abstract class BaseRenameAction extends BaseFileAction {
 		return super._isEnabled() && this.element && !this.element.isReadonly;
 	}
 
-	public run(context?: any): Thenable<any> {
+	public run(context?: any): Promise<any> {
 		if (!context) {
 			return Promise.reject(new Error('No context provided to BaseRenameFileAction.'));
 		}
@@ -254,7 +254,7 @@ export abstract class BaseRenameAction extends BaseFileAction {
 		}
 
 		// Call function and Emit Event through viewer
-		const promise = this.runAction(name).then(void 0, (error: any) => {
+		const promise = this.runAction(name).then(undefined, (error: any) => {
 			this.onError(error);
 		});
 
@@ -277,7 +277,7 @@ export abstract class BaseRenameAction extends BaseFileAction {
 		return validateFileName(parent, name);
 	}
 
-	public abstract runAction(newName: string): Thenable<any>;
+	public abstract runAction(newName: string): Promise<any>;
 }
 
 class RenameFileAction extends BaseRenameAction {
@@ -295,7 +295,7 @@ class RenameFileAction extends BaseRenameAction {
 		this._updateEnablement();
 	}
 
-	public runAction(newName: string): Thenable<any> {
+	public runAction(newName: string): Promise<any> {
 		const parentResource = this.element.parent.resource;
 		const targetResource = resources.joinPath(parentResource, newName);
 
@@ -332,7 +332,7 @@ export class BaseNewAction extends BaseFileAction {
 		this.renameAction = editableAction;
 	}
 
-	public run(context?: any): Thenable<any> {
+	public run(context?: any): Promise<any> {
 		if (!context) {
 			return Promise.reject(new Error('No context provided to BaseNewAction.'));
 		}
@@ -451,12 +451,12 @@ export class GlobalNewUntitledFileAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IEditorService private editorService: IEditorService
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		super(id, label);
 	}
 
-	public run(): Thenable<any> {
+	public run(): Promise<any> {
 		return this.editorService.openEditor({ options: { pinned: true } } as IUntitledResourceInput); // untitled are always pinned
 	}
 }
@@ -482,7 +482,7 @@ class CreateFileAction extends BaseCreateAction {
 	constructor(
 		element: ExplorerItem,
 		@IFileService fileService: IFileService,
-		@IEditorService private editorService: IEditorService,
+		@IEditorService private readonly editorService: IEditorService,
 		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService
 	) {
@@ -491,7 +491,7 @@ class CreateFileAction extends BaseCreateAction {
 		this._updateEnablement();
 	}
 
-	public runAction(fileName: string): Thenable<any> {
+	public runAction(fileName: string): Promise<any> {
 		const resource = this.element.parent.resource;
 		return this.fileService.createFile(resources.joinPath(resource, fileName)).then(stat => {
 			return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
@@ -518,9 +518,9 @@ class CreateFolderAction extends BaseCreateAction {
 		this._updateEnablement();
 	}
 
-	public runAction(fileName: string): Thenable<any> {
+	public runAction(fileName: string): Promise<any> {
 		const resource = this.element.parent.resource;
-		return this.fileService.createFolder(resources.joinPath(resource, fileName)).then(void 0, (error) => {
+		return this.fileService.createFolder(resources.joinPath(resource, fileName)).then(undefined, (error) => {
 			this.onErrorWithRetry(error, () => this.runAction(fileName));
 		});
 	}
@@ -538,9 +538,9 @@ class BaseDeleteFileAction extends BaseFileAction {
 		private useTrash: boolean,
 		@IFileService fileService: IFileService,
 		@INotificationService notificationService: INotificationService,
-		@IDialogService private dialogService: IDialogService,
+		@IDialogService private readonly dialogService: IDialogService,
 		@ITextFileService textFileService: ITextFileService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super('moveFileToTrash', MOVE_FILE_TO_TRASH_LABEL, fileService, notificationService, textFileService);
 
@@ -554,7 +554,7 @@ class BaseDeleteFileAction extends BaseFileAction {
 		return super._isEnabled() && this.elements && this.elements.every(e => !e.isReadonly);
 	}
 
-	public run(): Thenable<any> {
+	public run(): Promise<any> {
 
 		// Remove highlight
 		if (this.tree) {
@@ -571,7 +571,7 @@ class BaseDeleteFileAction extends BaseFileAction {
 		const distinctElements = resources.distinctParents(this.elements, e => e.resource);
 
 		// Handle dirty
-		let confirmDirtyPromise: Thenable<boolean> = Promise.resolve(true);
+		let confirmDirtyPromise: Promise<boolean> = Promise.resolve(true);
 		const dirty = this.textFileService.getDirty().filter(d => distinctElements.some(e => resources.isEqualOrParent(d, e.resource, !isLinux /* ignorecase */)));
 		if (dirty.length) {
 			let message: string;
@@ -608,7 +608,7 @@ class BaseDeleteFileAction extends BaseFileAction {
 				return null;
 			}
 
-			let confirmDeletePromise: Thenable<IConfirmationResult>;
+			let confirmDeletePromise: Promise<IConfirmationResult>;
 
 			// Check if we need to ask for confirmation at all
 			if (this.skipConfirm || (this.useTrash && this.configurationService.getValue<boolean>(BaseDeleteFileAction.CONFIRM_DELETE_SETTING_KEY) === false)) {
@@ -644,7 +644,7 @@ class BaseDeleteFileAction extends BaseFileAction {
 			return confirmDeletePromise.then(confirmation => {
 
 				// Check for confirmation checkbox
-				let updateConfirmSettingsPromise: Thenable<void> = Promise.resolve(void 0);
+				let updateConfirmSettingsPromise: Promise<void> = Promise.resolve(undefined);
 				if (confirmation.confirmed && confirmation.checkboxChecked === true) {
 					updateConfirmSettingsPromise = this.configurationService.updateValue(BaseDeleteFileAction.CONFIRM_DELETE_SETTING_KEY, false, ConfigurationTarget.USER);
 				}
@@ -696,7 +696,7 @@ class BaseDeleteFileAction extends BaseFileAction {
 								return this.run();
 							}
 
-							return Promise.resolve(void 0);
+							return Promise.resolve(undefined);
 						});
 					});
 
@@ -764,8 +764,8 @@ export class AddFilesAction extends BaseFileAction {
 		element: ExplorerItem,
 		clazz: string,
 		@IFileService fileService: IFileService,
-		@IEditorService private editorService: IEditorService,
-		@IDialogService private dialogService: IDialogService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IDialogService private readonly dialogService: IDialogService,
 		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService
 	) {
@@ -781,7 +781,7 @@ export class AddFilesAction extends BaseFileAction {
 		this._updateEnablement();
 	}
 
-	public run(resourcesToAdd: URI[]): Thenable<any> {
+	public run(resourcesToAdd: URI[]): Promise<any> {
 		const addPromise = Promise.resolve(null).then(() => {
 			if (resourcesToAdd && resourcesToAdd.length > 0) {
 
@@ -807,7 +807,7 @@ export class AddFilesAction extends BaseFileAction {
 						targetNames.add(isLinux ? child.name : child.name.toLowerCase());
 					});
 
-					let overwritePromise: Thenable<IConfirmationResult> = Promise.resolve({ confirmed: true });
+					let overwritePromise: Promise<IConfirmationResult> = Promise.resolve({ confirmed: true });
 					if (resourcesToAdd.some(resource => {
 						return targetNames.has(!resources.hasToIgnoreCase(resource) ? resources.basename(resource) : resources.basename(resource).toLowerCase());
 					})) {
@@ -823,11 +823,11 @@ export class AddFilesAction extends BaseFileAction {
 
 					return overwritePromise.then(res => {
 						if (!res.confirmed) {
-							return void 0;
+							return undefined;
 						}
 
 						// Run add in sequence
-						const addPromisesFactory: ITask<Thenable<void>>[] = [];
+						const addPromisesFactory: ITask<Promise<void>>[] = [];
 						resourcesToAdd.forEach(resource => {
 							addPromisesFactory.push(() => {
 								const sourceFile = resource;
@@ -836,7 +836,7 @@ export class AddFilesAction extends BaseFileAction {
 								// if the target exists and is dirty, make sure to revert it. otherwise the dirty contents
 								// of the target file would replace the contents of the added file. since we already
 								// confirmed the overwrite before, this is OK.
-								let revertPromise: Thenable<ITextFileOperationResult> = Promise.resolve(null);
+								let revertPromise: Promise<ITextFileOperationResult> = Promise.resolve(null);
 								if (this.textFileService.isDirty(targetFile)) {
 									revertPromise = this.textFileService.revertAll([targetFile], { soft: true });
 								}
@@ -859,7 +859,7 @@ export class AddFilesAction extends BaseFileAction {
 				});
 			}
 
-			return void 0;
+			return undefined;
 		});
 
 		return addPromise.then(() => {
@@ -882,7 +882,7 @@ class CopyFileAction extends BaseFileAction {
 		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IClipboardService private clipboardService: IClipboardService
+		@IClipboardService private readonly clipboardService: IClipboardService
 	) {
 		super('filesExplorer.copy', COPY_FILE_LABEL, fileService, notificationService, textFileService);
 
@@ -890,7 +890,7 @@ class CopyFileAction extends BaseFileAction {
 		this._updateEnablement();
 	}
 
-	public run(): Thenable<any> {
+	public run(): Promise<any> {
 
 		// Write to clipboard as file/folder to copy
 		this.clipboardService.writeResources(this.elements.map(e => e.resource));
@@ -919,7 +919,7 @@ class PasteFileAction extends BaseFileAction {
 		@IFileService fileService: IFileService,
 		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService,
-		@IEditorService private editorService: IEditorService
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		super(PasteFileAction.ID, PASTE_FILE_LABEL, fileService, notificationService, textFileService);
 
@@ -932,7 +932,7 @@ class PasteFileAction extends BaseFileAction {
 		this._updateEnablement();
 	}
 
-	public run(fileToPaste: URI): Thenable<any> {
+	public run(fileToPaste: URI): Promise<any> {
 
 		// Check if target is ancestor of pasted folder
 		if (this.element.resource.toString() !== fileToPaste.toString() && resources.isEqualOrParent(this.element.resource, fileToPaste, !isLinux /* ignorecase */)) {
@@ -962,7 +962,7 @@ class PasteFileAction extends BaseFileAction {
 					return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
 				}
 
-				return void 0;
+				return undefined;
 			}, error => this.onError(error)).then(() => {
 				this.tree.domFocus();
 			});
@@ -982,7 +982,7 @@ export class DuplicateFileAction extends BaseFileAction {
 		fileToDuplicate: ExplorerItem,
 		target: ExplorerItem,
 		@IFileService fileService: IFileService,
-		@IEditorService private editorService: IEditorService,
+		@IEditorService private readonly editorService: IEditorService,
 		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService
 	) {
@@ -994,7 +994,7 @@ export class DuplicateFileAction extends BaseFileAction {
 		this._updateEnablement();
 	}
 
-	public run(): Thenable<any> {
+	public run(): Promise<any> {
 
 		// Remove highlight
 		if (this.tree) {
@@ -1007,7 +1007,7 @@ export class DuplicateFileAction extends BaseFileAction {
 				return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
 			}
 
-			return void 0;
+			return undefined;
 		}, error => this.onError(error));
 
 		return result;
@@ -1106,16 +1106,16 @@ export class GlobalCompareResourcesAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IEditorService private editorService: IEditorService,
-		@INotificationService private notificationService: INotificationService,
+		@IQuickOpenService private readonly quickOpenService: IQuickOpenService,
+		@IEditorService private readonly editorService: IEditorService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super(id, label);
 	}
 
-	public run(): Thenable<any> {
+	public run(): Promise<any> {
 		const activeInput = this.editorService.activeEditor;
-		const activeResource = activeInput ? activeInput.getResource() : void 0;
+		const activeResource = activeInput ? activeInput.getResource() : undefined;
 		if (activeResource) {
 
 			// Compare with next editor that opens
@@ -1131,11 +1131,11 @@ export class GlobalCompareResourcesAction extends Action {
 						override: this.editorService.openEditor({
 							leftResource: activeResource,
 							rightResource: resource
-						}).then(() => void 0)
+						}).then(() => undefined)
 					};
 				}
 
-				return void 0;
+				return undefined;
 			});
 
 			// Bring up quick open
@@ -1165,12 +1165,12 @@ export class ToggleAutoSaveAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(id, label);
 	}
 
-	public run(): Thenable<any> {
+	public run(): Promise<any> {
 		const setting = this.configurationService.inspect('files.autoSave');
 		let userAutoSaveConfig = setting.user;
 		if (types.isUndefinedOrNull(userAutoSaveConfig)) {
@@ -1195,8 +1195,8 @@ export abstract class BaseSaveAllAction extends BaseErrorReportingAction {
 	constructor(
 		id: string,
 		label: string,
-		@ITextFileService private textFileService: ITextFileService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService,
 		@ICommandService protected commandService: ICommandService,
 		@INotificationService notificationService: INotificationService,
 	) {
@@ -1210,7 +1210,7 @@ export abstract class BaseSaveAllAction extends BaseErrorReportingAction {
 	}
 
 	protected abstract includeUntitled(): boolean;
-	protected abstract doRun(context: any): Thenable<any>;
+	protected abstract doRun(context: any): Promise<any>;
 
 	private registerListeners(): void {
 
@@ -1232,7 +1232,7 @@ export abstract class BaseSaveAllAction extends BaseErrorReportingAction {
 		}
 	}
 
-	public run(context?: any): Thenable<boolean> {
+	public run(context?: any): Promise<boolean> {
 		return this.doRun(context).then(() => true, error => {
 			this.onError(error);
 			return null;
@@ -1255,7 +1255,7 @@ export class SaveAllAction extends BaseSaveAllAction {
 		return 'explorer-action save-all';
 	}
 
-	protected doRun(context: any): Thenable<any> {
+	protected doRun(context: any): Promise<any> {
 		return this.commandService.executeCommand(SAVE_ALL_COMMAND_ID);
 	}
 
@@ -1273,7 +1273,7 @@ export class SaveAllInGroupAction extends BaseSaveAllAction {
 		return 'explorer-action save-all';
 	}
 
-	protected doRun(context: any): Thenable<any> {
+	protected doRun(context: any): Promise<any> {
 		return this.commandService.executeCommand(SAVE_ALL_IN_GROUP_COMMAND_ID, {}, context);
 	}
 
@@ -1287,11 +1287,11 @@ export class CloseGroupAction extends Action {
 	public static readonly ID = 'workbench.files.action.closeGroup';
 	public static readonly LABEL = nls.localize('closeGroup', "Close Group");
 
-	constructor(id: string, label: string, @ICommandService private commandService: ICommandService) {
+	constructor(id: string, label: string, @ICommandService private readonly commandService: ICommandService) {
 		super(id, label, 'action-close-all-files');
 	}
 
-	public run(context?: any): Thenable<any> {
+	public run(context?: any): Promise<any> {
 		return this.commandService.executeCommand(CLOSE_EDITORS_AND_GROUP_COMMAND_ID, {}, context);
 	}
 }
@@ -1304,12 +1304,12 @@ export class FocusFilesExplorer extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IViewletService private viewletService: IViewletService
+		@IViewletService private readonly viewletService: IViewletService
 	) {
 		super(id, label);
 	}
 
-	public run(): Thenable<any> {
+	public run(): Promise<any> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true).then((viewlet: ExplorerViewlet) => {
 			const view = viewlet.getExplorerView();
 			if (view) {
@@ -1328,14 +1328,14 @@ export class ShowActiveFileInExplorer extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IEditorService private editorService: IEditorService,
-		@INotificationService private notificationService: INotificationService,
-		@ICommandService private commandService: ICommandService
+		@IEditorService private readonly editorService: IEditorService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super(id, label);
 	}
 
-	public run(): Thenable<any> {
+	public run(): Promise<any> {
 		const resource = toResource(this.editorService.activeEditor, { supportSideBySide: true });
 		if (resource) {
 			this.commandService.executeCommand(REVEAL_IN_EXPLORER_COMMAND_ID, resource);
@@ -1355,12 +1355,12 @@ export class CollapseExplorerView extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IViewletService private viewletService: IViewletService
+		@IViewletService private readonly viewletService: IViewletService
 	) {
 		super(id, label);
 	}
 
-	public run(): Thenable<any> {
+	public run(): Promise<any> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true).then((viewlet: ExplorerViewlet) => {
 			const explorerView = viewlet.getExplorerView();
 			if (explorerView) {
@@ -1383,12 +1383,12 @@ export class RefreshExplorerView extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IViewletService private viewletService: IViewletService
+		@IViewletService private readonly viewletService: IViewletService
 	) {
 		super(id, label);
 	}
 
-	public run(): Thenable<any> {
+	public run(): Promise<any> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true).then((viewlet: ExplorerViewlet) => {
 			const explorerView = viewlet.getExplorerView();
 			if (explorerView) {
@@ -1406,14 +1406,14 @@ export class ShowOpenedFileInNewWindow extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IEditorService private editorService: IEditorService,
-		@IWindowService private windowService: IWindowService,
-		@INotificationService private notificationService: INotificationService
+		@IEditorService private readonly editorService: IEditorService,
+		@IWindowService private readonly windowService: IWindowService,
+		@INotificationService private readonly notificationService: INotificationService
 	) {
 		super(id, label);
 	}
 
-	public run(): Thenable<any> {
+	public run(): Promise<any> {
 		const fileResource = toResource(this.editorService.activeEditor, { supportSideBySide: true, filter: Schemas.file /* todo@remote */ });
 		if (fileResource) {
 			this.windowService.openWindow([fileResource], { forceNewWindow: true, forceOpenWorkspaceAsFile: true });
@@ -1500,17 +1500,17 @@ export class CompareWithClipboardAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IEditorService private editorService: IEditorService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@ITextModelService private textModelService: ITextModelService,
-		@IFileService private fileService: IFileService
+		@IEditorService private readonly editorService: IEditorService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ITextModelService private readonly textModelService: ITextModelService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		super(id, label);
 
 		this.enabled = true;
 	}
 
-	public run(): Thenable<any> {
+	public run(): Promise<any> {
 		const resource: URI = toResource(this.editorService.activeEditor, { supportSideBySide: true });
 		if (resource && (this.fileService.canHandleResource(resource) || resource.scheme === Schemas.untitled)) {
 			if (!this.registrationDisposal) {
@@ -1540,12 +1540,12 @@ export class CompareWithClipboardAction extends Action {
 
 class ClipboardContentProvider implements ITextModelContentProvider {
 	constructor(
-		@IClipboardService private clipboardService: IClipboardService,
-		@IModeService private modeService: IModeService,
-		@IModelService private modelService: IModelService
+		@IClipboardService private readonly clipboardService: IClipboardService,
+		@IModeService private readonly modeService: IModeService,
+		@IModelService private readonly modelService: IModelService
 	) { }
 
-	provideTextContent(resource: URI): Thenable<ITextModel> {
+	provideTextContent(resource: URI): Promise<ITextModel> {
 		const model = this.modelService.createModel(this.clipboardService.readText(), this.modeService.create('text/plain'), resource);
 
 		return Promise.resolve(model);
@@ -1570,19 +1570,19 @@ function getContext(listWidget: ListWidget, viewletService: IViewletService): IE
 
 // TODO@isidor these commands are calling into actions due to the complex inheritance action structure.
 // It should be the other way around, that actions call into commands.
-function openExplorerAndRunAction(accessor: ServicesAccessor, constructor: IConstructorSignature2<ITree, ExplorerItem, Action>): Thenable<any> {
+function openExplorerAndRunAction(accessor: ServicesAccessor, constructor: IConstructorSignature2<ITree, ExplorerItem, Action>): Promise<any> {
 	const instantationService = accessor.get(IInstantiationService);
 	const listService = accessor.get(IListService);
 	const viewletService = accessor.get(IViewletService);
 	const activeViewlet = viewletService.getActiveViewlet();
-	let explorerPromise: Thenable<IViewlet> = Promise.resolve(activeViewlet);
+	let explorerPromise: Promise<IViewlet> = Promise.resolve(activeViewlet);
 	if (!activeViewlet || activeViewlet.getId() !== VIEWLET_ID) {
 		explorerPromise = viewletService.openViewlet(VIEWLET_ID, true);
 	}
 
 	return explorerPromise.then((explorer: ExplorerViewlet) => {
 		const explorerView = explorer.getExplorerView();
-		if (explorerView && explorerView.isVisible() && explorerView.isExpanded()) {
+		if (explorerView && explorerView.isBodyVisible()) {
 			explorerView.focus();
 			const explorerContext = getContext(listService.lastFocusedList, viewletService);
 			const action = instantationService.createInstance(constructor, listService.lastFocusedList, explorerContext.stat);

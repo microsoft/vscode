@@ -149,13 +149,13 @@ export interface IGalleryExtensionAsset {
 }
 
 export interface IGalleryExtensionAssets {
-	manifest: IGalleryExtensionAsset;
-	readme: IGalleryExtensionAsset;
-	changelog: IGalleryExtensionAsset;
+	manifest: IGalleryExtensionAsset | null;
+	readme: IGalleryExtensionAsset | null;
+	changelog: IGalleryExtensionAsset | null;
+	license: IGalleryExtensionAsset | null;
+	repository: IGalleryExtensionAsset | null;
 	download: IGalleryExtensionAsset;
 	icon: IGalleryExtensionAsset;
-	license: IGalleryExtensionAsset;
-	repository: IGalleryExtensionAsset;
 	coreTranslations: { [languageId: string]: IGalleryExtensionAsset };
 }
 
@@ -177,6 +177,10 @@ export interface IExtensionIdentifier {
 	uuid?: string;
 }
 
+export interface IGalleryExtensionIdentifier extends IExtensionIdentifier {
+	uuid: string;
+}
+
 export interface IGalleryExtensionVersion {
 	version: string;
 	date: string;
@@ -184,7 +188,7 @@ export interface IGalleryExtensionVersion {
 
 export interface IGalleryExtension {
 	name: string;
-	identifier: IExtensionIdentifier;
+	identifier: IGalleryExtensionIdentifier;
 	version: string;
 	date: string;
 	displayName: string;
@@ -279,14 +283,14 @@ export interface IExtensionGalleryService {
 	download(extension: IGalleryExtension, operation: InstallOperation): Promise<string>;
 	reportStatistic(publisher: string, name: string, version: string, type: StatisticType): Promise<void>;
 	getReadme(extension: IGalleryExtension, token: CancellationToken): Promise<string>;
-	getManifest(extension: IGalleryExtension, token: CancellationToken): Promise<IExtensionManifest>;
+	getManifest(extension: IGalleryExtension, token: CancellationToken): Promise<IExtensionManifest | null>;
 	getChangelog(extension: IGalleryExtension, token: CancellationToken): Promise<string>;
-	getCoreTranslation(extension: IGalleryExtension, languageId: string): Promise<ITranslation>;
-	loadCompatibleVersion(extension: IGalleryExtension, fromVersion?: string): Promise<IGalleryExtension>;
+	getCoreTranslation(extension: IGalleryExtension, languageId: string): Promise<ITranslation | null>;
+	loadCompatibleVersion(extension: IGalleryExtension, fromVersion?: string): Promise<IGalleryExtension | null>;
 	getAllVersions(extension: IGalleryExtension, compatible: boolean): Promise<IGalleryExtensionVersion[]>;
 	loadAllDependencies(dependencies: IExtensionIdentifier[], token: CancellationToken): Promise<IGalleryExtension[]>;
 	getExtensionsReport(): Promise<IReportedExtension[]>;
-	getExtension(id: IExtensionIdentifier, version?: string): Promise<IGalleryExtension>;
+	getExtension(id: IExtensionIdentifier, version?: string): Promise<IGalleryExtension | null>;
 }
 
 export interface InstallExtensionEvent {

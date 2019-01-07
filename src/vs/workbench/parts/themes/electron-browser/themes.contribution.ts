@@ -33,16 +33,16 @@ export class SelectColorThemeAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IQuickInputService private quickInputService: IQuickInputService,
-		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
-		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
-		@IViewletService private viewletService: IViewletService,
-		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
+		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
+		@IViewletService private readonly viewletService: IViewletService,
+		@IWorkspaceConfigurationService private readonly configurationService: IWorkspaceConfigurationService
 	) {
 		super(id, label);
 	}
 
-	run(): Thenable<void> {
+	run(): Promise<void> {
 		return this.themeService.getColorThemes().then(themes => {
 			const currentTheme = this.themeService.getColorTheme();
 
@@ -66,7 +66,7 @@ export class SelectColorThemeAction extends Action {
 					target = typeof confValue.workspace !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
 				}
 
-				this.themeService.setColorTheme(theme.id, target).then(void 0,
+				this.themeService.setColorTheme(theme.id, target).then(undefined,
 					err => {
 						onUnexpectedError(err);
 						this.themeService.setColorTheme(currentTheme.id, null);
@@ -94,17 +94,17 @@ class SelectIconThemeAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IQuickInputService private quickInputService: IQuickInputService,
-		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
-		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
-		@IViewletService private viewletService: IViewletService,
-		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
+		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
+		@IViewletService private readonly viewletService: IViewletService,
+		@IWorkspaceConfigurationService private readonly configurationService: IWorkspaceConfigurationService
 
 	) {
 		super(id, label);
 	}
 
-	run(): Thenable<void> {
+	run(): Promise<void> {
 		return this.themeService.getFileIconThemes().then(themes => {
 			const currentTheme = this.themeService.getFileIconTheme();
 
@@ -126,7 +126,7 @@ class SelectIconThemeAction extends Action {
 					let confValue = this.configurationService.inspect(ICON_THEME_SETTING);
 					target = typeof confValue.workspace !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
 				}
-				this.themeService.setFileIconTheme(theme && theme.id, target).then(void 0,
+				this.themeService.setFileIconTheme(theme && theme.id, target).then(undefined,
 					err => {
 						onUnexpectedError(err);
 						this.themeService.setFileIconTheme(currentTheme.id, null);
@@ -153,7 +153,7 @@ function configurationEntries(extensionGalleryService: IExtensionGalleryService,
 				type: 'separator'
 			},
 			{
-				id: void 0,
+				id: undefined,
 				label: label,
 				alwaysShow: true,
 			}
@@ -169,7 +169,7 @@ function openExtensionViewlet(viewletService: IViewletService, query: string) {
 	});
 }
 
-function toEntries(themes: (IColorTheme | IFileIconTheme)[], label?: string) {
+function toEntries(themes: Array<IColorTheme | IFileIconTheme>, label?: string) {
 	const toEntry = theme => <IQuickPickItem>{ id: theme.id, label: theme.label, description: theme.description };
 	const sorter = (t1: IQuickPickItem, t2: IQuickPickItem) => t1.label.localeCompare(t2.label);
 	let entries: QuickPickInput[] = themes.map(toEntry).sort(sorter);
@@ -187,13 +187,13 @@ class GenerateColorThemeAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
-		@IEditorService private editorService: IEditorService,
+		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super(id, label);
 	}
 
-	run(): Thenable<any> {
+	run(): Promise<any> {
 		let theme = this.themeService.getColorTheme();
 		let colors = Registry.as<IColorRegistry>(ColorRegistryExtensions.ColorContribution).getColors();
 		let colorIds = colors.map(c => c.id).sort();

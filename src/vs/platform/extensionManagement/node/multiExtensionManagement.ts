@@ -16,6 +16,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IRemoteAuthorityResolverService, ResolvedAuthority } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { getManifest } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class MultiExtensionManagementService extends Disposable implements IExtensionManagementService {
 
@@ -29,10 +30,11 @@ export class MultiExtensionManagementService extends Disposable implements IExte
 	private readonly servers: IExtensionManagementServer[];
 
 	constructor(
-		@IExtensionManagementServerService private extensionManagementServerService: IExtensionManagementServerService,
-		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IRemoteAuthorityResolverService private remoteAuthorityResolverService: IRemoteAuthorityResolverService
+		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
+		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 		this.servers = this.extensionManagementServerService.remoteExtensionManagementServer ? [this.extensionManagementServerService.localExtensionManagementServer, this.extensionManagementServerService.remoteExtensionManagementServer] : [this.extensionManagementServerService.localExtensionManagementServer];
@@ -96,9 +98,14 @@ export class MultiExtensionManagementService extends Disposable implements IExte
 		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
 			return Promise.all([this.extensionGalleryService.getManifest(gallery, CancellationToken.None), this.hasToSyncExtensions()])
 				.then(([manifest, syncExtensions]) => {
-					const servers = isUIExtension(manifest, this.configurationService) ? [this.extensionManagementServerService.localExtensionManagementServer] : syncExtensions ? this.servers : [this.extensionManagementServerService.remoteExtensionManagementServer!];
-					return Promise.all(servers.map(server => server.extensionManagementService.installFromGallery(gallery)))
-						.then(() => void 0);
+					if (manifest) {
+						const servers = manifest && isUIExtension(manifest, this.configurationService) ? [this.extensionManagementServerService.localExtensionManagementServer] : syncExtensions ? this.servers : [this.extensionManagementServerService.remoteExtensionManagementServer!];
+						return Promise.all(servers.map(server => server.extensionManagementService.installFromGallery(gallery)))
+							.then(() => undefined);
+					} else {
+						this.logService.info('Manifest was not found. Hence installing only in local server');
+						return this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.installFromGallery(gallery);
+					}
 				});
 		}
 		return this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.installFromGallery(gallery);
@@ -112,8 +119,8 @@ export class MultiExtensionManagementService extends Disposable implements IExte
 		return this.extensionManagementServerService.getExtensionManagementServer(extension.location);
 	}
 
-	private _remoteAuthorityResolverPromise: Thenable<ResolvedAuthority>;
-	private hasToSyncExtensions(): Thenable<boolean> {
+	private _remoteAuthorityResolverPromise: Promise<ResolvedAuthority>;
+	private hasToSyncExtensions(): Promise<boolean> {
 		if (!this.extensionManagementServerService.remoteExtensionManagementServer) {
 			return Promise.resolve(false);
 		}

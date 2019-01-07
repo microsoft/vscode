@@ -111,7 +111,7 @@ export namespace Diagnostic {
 			...Range.from(value.range),
 			message: value.message,
 			source: value.source,
-			code: isString(value.code) || isNumber(value.code) ? String(value.code) : void 0,
+			code: isString(value.code) || isNumber(value.code) ? String(value.code) : undefined,
 			severity: DiagnosticSeverity.from(value.severity),
 			relatedInformation: value.relatedInformation && value.relatedInformation.map(DiagnosticRelatedInformation.from),
 			tags: Array.isArray(value.tags) ? value.tags.map(DiagnosticTag.from) : undefined,
@@ -835,6 +835,30 @@ export namespace Color {
 	}
 }
 
+export namespace SelectionRangeKind {
+
+	export function from(kind: vscode.SelectionRangeKind): string {
+		return kind.value;
+	}
+
+	export function to(value: string): vscode.SelectionRangeKind {
+		return new types.SelectionRangeKind(value);
+	}
+}
+
+export namespace SelectionRange {
+	export function from(obj: vscode.SelectionRange): modes.SelectionRange {
+		return {
+			kind: SelectionRangeKind.from(obj.kind),
+			range: Range.from(obj.range)
+		};
+	}
+
+	export function to(obj: modes.SelectionRange): vscode.SelectionRange {
+		return new types.SelectionRange(Range.to(obj.range), SelectionRangeKind.to(obj.kind));
+	}
+}
+
 export namespace TextDocumentSaveReason {
 
 	export function to(reason: SaveReason): vscode.TextDocumentSaveReason {
@@ -905,7 +929,7 @@ export namespace FoldingRangeKind {
 					return modes.FoldingRangeKind.Region;
 			}
 		}
-		return void 0;
+		return undefined;
 	}
 }
 
@@ -984,8 +1008,6 @@ export namespace LogLevel {
 				return _MainLogLevel.Error;
 			case types.LogLevel.Critical:
 				return _MainLogLevel.Critical;
-			case types.LogLevel.Critical:
-				return _MainLogLevel.Critical;
 			case types.LogLevel.Off:
 				return _MainLogLevel.Off;
 		}
@@ -1005,8 +1027,6 @@ export namespace LogLevel {
 				return types.LogLevel.Warning;
 			case _MainLogLevel.Error:
 				return types.LogLevel.Error;
-			case _MainLogLevel.Critical:
-				return types.LogLevel.Critical;
 			case _MainLogLevel.Critical:
 				return types.LogLevel.Critical;
 			case _MainLogLevel.Off:

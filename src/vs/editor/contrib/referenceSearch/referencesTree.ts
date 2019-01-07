@@ -5,9 +5,8 @@
 
 
 import { ReferencesModel, FileReferences, OneReference } from './referencesModel';
-import { IDataSource } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/tree/tree';
+import { ITreeRenderer, ITreeNode, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -21,24 +20,21 @@ import { escape } from 'vs/base/common/strings';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate, IKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/list/list';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { basename } from 'vs/base/common/paths';
 
 //#region data source
 
 export type TreeElement = FileReferences | OneReference;
 
-export class DataSource implements IDataSource<TreeElement> {
+export class DataSource implements IAsyncDataSource<ReferencesModel | FileReferences, TreeElement> {
 
-	root: ReferencesModel | FileReferences;
+	constructor(@ITextModelService private readonly _resolverService: ITextModelService) { }
 
-	constructor(
-		@ITextModelService private readonly _resolverService: ITextModelService,
-	) {
-		//
-	}
-
-	hasChildren(element: TreeElement): boolean {
-		if (!element) {
+	hasChildren(element: ReferencesModel | FileReferences | TreeElement): boolean {
+		if (element instanceof ReferencesModel) {
 			return true;
 		}
 		if (element instanceof FileReferences && !element.failure) {
@@ -47,10 +43,11 @@ export class DataSource implements IDataSource<TreeElement> {
 		return false;
 	}
 
-	getChildren(element: TreeElement): Thenable<TreeElement[]> {
-		if (!element && this.root instanceof FileReferences) {
-			element = this.root;
+	getChildren(element: ReferencesModel | FileReferences | TreeElement): TreeElement[] | Promise<TreeElement[]> {
+		if (element instanceof ReferencesModel) {
+			return element.groups;
 		}
+
 		if (element instanceof FileReferences) {
 			return element.resolve(this._resolverService).then(val => {
 				// if (element.failure) {
@@ -61,9 +58,7 @@ export class DataSource implements IDataSource<TreeElement> {
 				return val.children;
 			});
 		}
-		if (this.root instanceof ReferencesModel) {
-			return Promise.resolve(this.root.groups);
-		}
+
 		throw new Error('bad tree');
 	}
 }
@@ -80,6 +75,21 @@ export class Delegate implements IListVirtualDelegate<TreeElement> {
 		} else {
 			return OneReferenceRenderer.id;
 		}
+	}
+}
+
+export class StringRepresentationProvider implements IKeyboardNavigationLabelProvider<TreeElement> {
+
+	constructor(@IKeybindingService private readonly _keybindingService: IKeybindingService) { }
+
+	getKeyboardNavigationLabel(element: TreeElement): { toString(): string; } {
+		// todo@joao `OneReference` elements are lazy and their "real" label
+		// isn't known yet
+		return basename(element.uri.path);
+	}
+
+	mightProducePrintableCharacter(event: IKeyboardEvent): boolean {
+		return this._keybindingService.mightProducePrintableCharacter(event);
 	}
 }
 
@@ -108,7 +118,7 @@ class FileReferencesTemplate extends Disposable {
 
 	set(element: FileReferences) {
 		let parent = dirname(element.uri);
-		this.file.setValue(getBaseLabel(element.uri), parent ? this._uriLabel.getUriLabel(parent, { relative: true }) : undefined, { title: this._uriLabel.getUriLabel(element.uri) });
+		this.file.setLabel(getBaseLabel(element.uri), parent ? this._uriLabel.getUriLabel(parent, { relative: true }) : undefined, { title: this._uriLabel.getUriLabel(element.uri) });
 		const len = element.children.length;
 		this.badge.setCount(len);
 		if (element.failure) {

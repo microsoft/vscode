@@ -35,7 +35,7 @@ export interface IExplorerViewlet extends IViewlet {
 }
 
 export interface IExplorerView {
-	select(resource: URI, reveal?: boolean): Thenable<void>;
+	select(resource: URI, reveal?: boolean): Promise<void>;
 }
 
 /**
@@ -110,7 +110,7 @@ export interface IFileResource {
 /**
  * Helper to get an explorer item from an object.
  */
-export function explorerItemToFileResource(obj: ExplorerItem | OpenEditor): IFileResource {
+export function explorerItemToFileResource(obj: ExplorerItem | OpenEditor): IFileResource | null {
 	if (obj instanceof ExplorerItem) {
 		const stat = obj as ExplorerItem;
 
@@ -147,14 +147,14 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 	private fileWatcher: IDisposable;
 
 	constructor(
-		@ITextFileService private textFileService: ITextFileService,
-		@IFileService private fileService: IFileService,
-		@IModeService private modeService: IModeService,
-		@IModelService private modelService: IModelService
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@IFileService private readonly fileService: IFileService,
+		@IModeService private readonly modeService: IModeService,
+		@IModelService private readonly modelService: IModelService
 	) {
 	}
 
-	provideTextContent(resource: URI): Thenable<ITextModel> {
+	provideTextContent(resource: URI): Promise<ITextModel> {
 		const fileOnDiskResource = resource.with({ scheme: Schemas.file });
 
 		// Make sure our file from disk is resolved up to date
@@ -168,17 +168,21 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 					}
 				});
 
-				const disposeListener = codeEditorModel.onWillDispose(() => {
-					disposeListener.dispose();
-					this.fileWatcher = dispose(this.fileWatcher);
-				});
+				if (codeEditorModel) {
+					const disposeListener = codeEditorModel.onWillDispose(() => {
+						disposeListener.dispose();
+						this.fileWatcher = dispose(this.fileWatcher);
+					});
+				}
 			}
 
 			return codeEditorModel;
 		});
 	}
 
-	private resolveEditorModel(resource: URI, createAsNeeded = true): Thenable<ITextModel> {
+	private resolveEditorModel(resource: URI, createAsNeeded?: true): Promise<ITextModel>;
+	private resolveEditorModel(resource: URI, createAsNeeded?: boolean): Promise<ITextModel | null>;
+	private resolveEditorModel(resource: URI, createAsNeeded: boolean = true): Promise<ITextModel | null> {
 		const fileOnDiskResource = resource.with({ scheme: Schemas.file });
 
 		return this.textFileService.resolveTextContent(fileOnDiskResource).then(content => {

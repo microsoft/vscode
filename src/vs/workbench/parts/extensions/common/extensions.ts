@@ -7,7 +7,7 @@ import { IViewlet } from 'vs/workbench/common/viewlet';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { IPager } from 'vs/base/common/paging';
-import { IQueryOptions, IExtensionManifest, LocalExtensionType, EnablementState, ILocalExtension, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IQueryOptions, IExtensionManifest, LocalExtensionType, EnablementState, ILocalExtension, IGalleryExtension, IExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IViewContainersRegistry, ViewContainer, Extensions as ViewContainerExtensions } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -27,32 +27,31 @@ export const enum ExtensionState {
 }
 
 export interface IExtension {
-	type: LocalExtensionType;
+	type?: LocalExtensionType;
 	state: ExtensionState;
 	name: string;
 	displayName: string;
-	id: string;
-	uuid: string;
+	identifier: IExtensionIdentifier;
 	publisher: string;
 	publisherDisplayName: string;
 	version: string;
 	latestVersion: string;
 	description: string;
-	url: string;
-	repository: string;
+	url?: string;
+	repository?: string;
 	iconUrl: string;
 	iconUrlFallback: string;
-	licenseUrl: string;
-	installCount: number;
-	rating: number;
-	ratingCount: number;
+	licenseUrl?: string;
+	installCount?: number;
+	rating?: number;
+	ratingCount?: number;
 	outdated: boolean;
 	enablementState: EnablementState;
 	dependencies: string[];
 	extensionPack: string[];
 	telemetryData: any;
 	preview: boolean;
-	getManifest(token: CancellationToken): Promise<IExtensionManifest | undefined>;
+	getManifest(token: CancellationToken): Promise<IExtensionManifest | null>;
 	getReadme(token: CancellationToken): Promise<string>;
 	hasReadme(): boolean;
 	getChangelog(token: CancellationToken): Promise<string>;
@@ -68,7 +67,7 @@ export interface IExtensionDependencies {
 	hasDependencies: boolean;
 	identifier: string;
 	extension: IExtension;
-	dependent: IExtensionDependencies;
+	dependent: IExtensionDependencies | null;
 }
 
 export const SERVICE_ID = 'extensionsWorkbenchService';
@@ -88,7 +87,7 @@ export interface IExtensionsWorkbenchService {
 	installVersion(extension: IExtension, version: string): Promise<void>;
 	reinstall(extension: IExtension): Promise<void>;
 	setEnablement(extensions: IExtension | IExtension[], enablementState: EnablementState): Promise<void>;
-	loadDependencies(extension: IExtension, token: CancellationToken): Promise<IExtensionDependencies>;
+	loadDependencies(extension: IExtension, token: CancellationToken): Promise<IExtensionDependencies | null>;
 	open(extension: IExtension, sideByside?: boolean): Promise<any>;
 	checkForUpdates(): Promise<void>;
 	allowedBadgeProviders: string[];

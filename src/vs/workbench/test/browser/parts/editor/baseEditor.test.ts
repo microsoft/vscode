@@ -267,7 +267,7 @@ suite('Workbench base editor', () => {
 				super();
 			}
 			public getTypeId() { return 'testEditorInput'; }
-			public resolve(): Thenable<IEditorModel> { return Promise.resolve(null); }
+			public resolve(): Promise<IEditorModel> { return Promise.resolve(null!); }
 
 			public matches(other: TestEditorInput): boolean {
 				return other && this.id === other.id && other instanceof TestEditorInput;

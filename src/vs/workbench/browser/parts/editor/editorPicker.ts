@@ -25,8 +25,8 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 	constructor(
 		private editor: EditorInput,
 		private _group: IEditorGroup,
-		@IModeService private modeService: IModeService,
-		@IModelService private modelService: IModelService
+		@IModeService private readonly modeService: IModeService,
+		@IModelService private readonly modelService: IModelService
 	) {
 		super();
 	}
@@ -90,7 +90,7 @@ export abstract class BaseEditorPicker extends QuickOpenHandler {
 		this.scorerCache = Object.create(null);
 	}
 
-	getResults(searchValue: string, token: CancellationToken): Thenable<QuickOpenModel> {
+	getResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel | null> {
 		const editorEntries = this.getEditorEntries();
 		if (!editorEntries.length) {
 			return Promise.resolve(null);

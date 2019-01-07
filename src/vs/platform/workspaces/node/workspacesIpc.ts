@@ -16,7 +16,7 @@ export class WorkspacesChannel implements IServerChannel {
 		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(_, command: string, arg?: any): Thenable<any> {
+	call(_, command: string, arg?: any): Promise<any> {
 		switch (command) {
 			case 'createWorkspace': {
 				const rawFolders: IWorkspaceFolderCreationData[] = arg;
@@ -44,7 +44,7 @@ export class WorkspacesChannelClient implements IWorkspacesService {
 
 	constructor(private channel: IChannel) { }
 
-	createWorkspace(folders?: IWorkspaceFolderCreationData[]): Thenable<IWorkspaceIdentifier> {
+	createWorkspace(folders?: IWorkspaceFolderCreationData[]): Promise<IWorkspaceIdentifier> {
 		return this.channel.call('createWorkspace', folders);
 	}
 }

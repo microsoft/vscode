@@ -71,7 +71,7 @@ suite('Event', function () {
 
 		// unhook listener
 		while (bucket.length) {
-			bucket.pop().dispose();
+			bucket.pop()!.dispose();
 		}
 
 		// noop
@@ -111,7 +111,7 @@ suite('Event', function () {
 		Errors.setUnexpectedErrorHandler(() => null);
 
 		try {
-			let a = new Emitter();
+			let a = new Emitter<undefined>();
 			let hit = false;
 			a.event(function () {
 				throw 9;
@@ -134,19 +134,19 @@ suite('Event', function () {
 		}
 		const context = {};
 
-		let emitter = new Emitter();
+		let emitter = new Emitter<undefined>();
 		let reg1 = emitter.event(listener, context);
 		let reg2 = emitter.event(listener, context);
 
-		emitter.fire();
+		emitter.fire(undefined);
 		assert.equal(counter, 2);
 
 		reg1.dispose();
-		emitter.fire();
+		emitter.fire(undefined);
 		assert.equal(counter, 3);
 
 		reg2.dispose();
-		emitter.fire();
+		emitter.fire(undefined);
 		assert.equal(counter, 3);
 	});
 
@@ -254,7 +254,7 @@ suite('AsyncEmitter', function () {
 		emitter.fireAsync(thenables => ({
 			foo: true,
 			bar: 1,
-			waitUntil(t: Thenable<void>) { thenables.push(t); }
+			waitUntil(t: Promise<void>) { thenables.push(t); }
 		}));
 		emitter.dispose();
 	});
@@ -448,7 +448,7 @@ suite('Event utils', () => {
 						e(err);
 					}
 
-					c(null);
+					c(undefined);
 				});
 
 				setTimeout(() => emitter.fire(), 10);

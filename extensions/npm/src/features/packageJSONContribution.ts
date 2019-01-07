@@ -87,8 +87,8 @@ export class PackageJSONContribution implements IJSONContribution {
 							const obj = JSON.parse(success.responseText);
 							if (obj && Array.isArray(obj.rows)) {
 								const results = <{ key: string[]; }[]>obj.rows;
-								for (let i = 0; i < results.length; i++) {
-									const keys = results[i].key;
+								for (const result of results) {
+									const keys = result.key;
 									if (Array.isArray(keys) && keys.length > 0) {
 										const name = keys[0];
 										const insertText = new SnippetString().appendText(JSON.stringify(name));

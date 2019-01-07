@@ -17,11 +17,11 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 	_serviceBrand: any;
 
 	constructor(
-		@IIssueService private issueService: IIssueService,
-		@IThemeService private themeService: IThemeService,
-		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
-		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
-		@IWindowService private windowService: IWindowService
+		@IIssueService private readonly issueService: IIssueService,
+		@IThemeService private readonly themeService: IThemeService,
+		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
+		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService,
+		@IWindowService private readonly windowService: IWindowService
 	) { }
 
 	openReporter(dataOverrides: Partial<IssueReporterData> = {}): Promise<void> {
@@ -56,7 +56,7 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 		});
 	}
 
-	openProcessExplorer(): Thenable<void> {
+	openProcessExplorer(): Promise<void> {
 		const theme = this.themeService.getTheme();
 		const data: ProcessExplorerData = {
 			pid: this.windowService.getConfiguration().mainPid,

@@ -53,9 +53,9 @@ export interface IKeybindingsEditor extends IEditor {
 	focusKeybindings(): void;
 	recordSearchKeys(): void;
 	toggleSortByPrecedence(): void;
-	defineKeybinding(keybindingEntry: IKeybindingItemEntry): Thenable<any>;
-	removeKeybinding(keybindingEntry: IKeybindingItemEntry): Thenable<any>;
-	resetKeybinding(keybindingEntry: IKeybindingItemEntry): Thenable<any>;
+	defineKeybinding(keybindingEntry: IKeybindingItemEntry): Promise<any>;
+	removeKeybinding(keybindingEntry: IKeybindingItemEntry): Promise<any>;
+	resetKeybinding(keybindingEntry: IKeybindingItemEntry): Promise<any>;
 	copyKeybinding(keybindingEntry: IKeybindingItemEntry): void;
 	copyKeybindingCommand(keybindingEntry: IKeybindingItemEntry): void;
 	showSimilarKeybindings(keybindingEntry: IKeybindingItemEntry): void;
@@ -102,3 +102,5 @@ export const FOLDER_SETTINGS_PATH = join('.vscode', 'settings.json');
 export const DEFAULT_SETTINGS_EDITOR_SETTING = 'workbench.settings.openDefaultSettings';
 
 export const MODIFIED_SETTING_TAG = 'modified';
+
+export const SETTINGS_COMMAND_OPEN_SETTINGS = 'workbench.action.openSettings';

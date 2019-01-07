@@ -129,7 +129,7 @@ export class DiagnosticsManager {
 	private readonly _diagnostics = new ResourceMap<FileDiagnostics>();
 	private readonly _settings = new DiagnosticSettings();
 	private readonly _currentDiagnostics: vscode.DiagnosticCollection;
-	private _pendingUpdates = new ResourceMap<any>();
+	private readonly _pendingUpdates = new ResourceMap<any>();
 
 	private readonly _updateDelay = 50;
 
@@ -145,7 +145,7 @@ export class DiagnosticsManager {
 		for (const value of this._pendingUpdates.values) {
 			clearTimeout(value);
 		}
-		this._pendingUpdates = new ResourceMap<any>();
+		this._pendingUpdates.clear();
 	}
 
 	public reInitialize(): void {
@@ -173,7 +173,6 @@ export class DiagnosticsManager {
 		kind: DiagnosticKind,
 		diagnostics: vscode.Diagnostic[]
 	): void {
-
 		let didUpdate = false;
 		const entry = this._diagnostics.get(file);
 		if (entry) {
@@ -224,7 +223,7 @@ export class DiagnosticsManager {
 
 	private rebuild(): void {
 		this._currentDiagnostics.clear();
-		for (const fileDiagnostic of Array.from(this._diagnostics.values)) {
+		for (const fileDiagnostic of this._diagnostics.values) {
 			this._currentDiagnostics.set(fileDiagnostic.file, fileDiagnostic.getDiagnostics(this._settings));
 		}
 	}

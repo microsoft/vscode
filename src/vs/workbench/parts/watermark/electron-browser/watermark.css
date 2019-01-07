@@ -55,7 +55,7 @@
 	padding-right: 0.5em;
 }
 
-.monaco-workbench.mac > .part.editor > .content.empty > .watermark dd > .shortcuts {
+.mac > .monaco-workbench > .part.editor > .content.empty > .watermark dd > .shortcuts {
 	letter-spacing: 0.15em;
 	font-family: "Lucida Grande", sans-serif;
 }
@@ -65,7 +65,7 @@
 	padding-right: 0.5em;
 }
 
-.monaco-workbench.mac > .part.editor > .content.empty > .watermark dd > .unbound {
+.mac > .monaco-workbench > .part.editor > .content.empty > .watermark dd > .unbound {
 	font-family: "Lucida Grande", sans-serif;
 }
 

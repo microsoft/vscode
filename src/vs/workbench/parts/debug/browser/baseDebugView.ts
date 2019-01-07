@@ -130,8 +130,8 @@ export abstract class AbstractExpressionsRenderer
 
 	constructor(
 		@IDebugService protected debugService: IDebugService,
-		@IContextViewService private contextViewService: IContextViewService,
-		@IThemeService private themeService: IThemeService
+		@IContextViewService private readonly contextViewService: IContextViewService,
+		@IThemeService private readonly themeService: IThemeService
 	) {
 		super(debugService.getViewModel().onDidSelectExpression);
 	}
@@ -189,6 +189,11 @@ export abstract class AbstractExpressionsRenderer
 			}));
 			data.toDispose.push(dom.addDisposableListener(inputBox.inputElement, 'blur', () => {
 				wrapUp(true);
+			}));
+			data.toDispose.push(dom.addDisposableListener(inputBox.inputElement, 'click', e => {
+				// Do not expand / collapse selected elements
+				e.preventDefault();
+				e.stopPropagation();
 			}));
 		};
 

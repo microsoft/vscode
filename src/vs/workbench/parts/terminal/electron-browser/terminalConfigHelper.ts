@@ -226,6 +226,11 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 				shell.executable = path.join(process.env.windir, 'System32', shell.executable.substr(sysnativePath.length));
 			}
 		}
+
+		// Convert / to \ on Windows for convenience
+		if (platform.isWindows) {
+			shell.executable = shell.executable.replace(/\//g, '\\');
+		}
 	}
 
 	private _toInteger(source: any, minimum: number, maximum: number, fallback: number): number {

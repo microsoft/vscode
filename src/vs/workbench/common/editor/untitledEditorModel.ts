@@ -43,8 +43,8 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 		private preferredEncoding: string,
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
-		@IBackupFileService private backupFileService: IBackupFileService,
-		@ITextResourceConfigurationService private configurationService: ITextResourceConfigurationService
+		@IBackupFileService private readonly backupFileService: IBackupFileService,
+		@ITextResourceConfigurationService private readonly configurationService: ITextResourceConfigurationService
 	) {
 		super(modelService, modeService);
 
@@ -132,7 +132,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 		this.contentChangeEventScheduler.schedule();
 	}
 
-	load(): Thenable<UntitledEditorModel> {
+	load(): Promise<UntitledEditorModel> {
 
 		// Check for backups first
 		return this.backupFileService.loadBackupResource(this.resource).then(backupResource => {

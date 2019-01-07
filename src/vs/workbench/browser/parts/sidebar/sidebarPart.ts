@@ -66,7 +66,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IView, IViewl
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IExtensionService private extensionService: IExtensionService
+		@IExtensionService private readonly extensionService: IExtensionService
 	) {
 		super(
 			notificationService,
@@ -187,7 +187,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IView, IViewl
 		}
 	}
 
-	openViewlet(id: string, focus?: boolean): Thenable<IViewlet> {
+	openViewlet(id: string, focus?: boolean): Promise<IViewlet> {
 		if (this.getViewlet(id)) {
 			return Promise.resolve(this.doOpenViewlet(id, focus));
 		}
@@ -265,13 +265,13 @@ class FocusSideBarAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IViewletService private viewletService: IViewletService,
-		@IPartService private partService: IPartService
+		@IViewletService private readonly viewletService: IViewletService,
+		@IPartService private readonly partService: IPartService
 	) {
 		super(id, label);
 	}
 
-	run(): Thenable<any> {
+	run(): Promise<any> {
 
 		// Show side bar
 		if (!this.partService.isVisible(Parts.SIDEBAR_PART)) {

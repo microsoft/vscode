@@ -20,7 +20,7 @@ export class TestConfigurationService implements IConfigurationService {
 
 	public getValue(arg1?: any, arg2?: any): any {
 		let configuration;
-		const overrides = isConfigurationOverrides(arg1) ? arg1 : isConfigurationOverrides(arg2) ? arg2 : void 0;
+		const overrides = isConfigurationOverrides(arg1) ? arg1 : isConfigurationOverrides(arg2) ? arg2 : undefined;
 		if (overrides) {
 			if (overrides.resource) {
 				configuration = this.configurationByRoot.findSubstr(overrides.resource.fsPath);
@@ -34,10 +34,10 @@ export class TestConfigurationService implements IConfigurationService {
 	}
 
 	public updateValue(key: string, overrides?: IConfigurationOverrides): Promise<void> {
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
-	public setUserConfiguration(key: any, value: any, root?: URI): Thenable<void> {
+	public setUserConfiguration(key: any, value: any, root?: URI): Promise<void> {
 		if (root) {
 			const configForRoot = this.configurationByRoot.get(root.fsPath) || Object.create(null);
 			configForRoot[key] = value;
@@ -46,7 +46,7 @@ export class TestConfigurationService implements IConfigurationService {
 			this.configuration[key] = value;
 		}
 
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	public onDidChangeConfiguration() {

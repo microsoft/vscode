@@ -15,7 +15,7 @@ export class ExtensionHostProfiler {
 
 	public async start(): Promise<ProfileSession> {
 		const profiler = await import('v8-inspect-profiler');
-		const session = await profiler.startProfiling({ port: this._port });
+		const session = await profiler.startProfiling({ port: this._port, checkForPaused: true });
 		return {
 			stop: async () => {
 				const profile = await session.stop();
@@ -56,7 +56,7 @@ export class ExtensionHostProfiler {
 			} else if (segmentId === 'self' && node.callFrame.url) {
 				let extension = searchTree.findSubstr(node.callFrame.url);
 				if (extension) {
-					segmentId = extension.id;
+					segmentId = extension.identifier.value;
 				}
 			}
 			idsToSegmentId.set(node.id, segmentId);

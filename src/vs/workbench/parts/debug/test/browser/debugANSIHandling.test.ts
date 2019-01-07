@@ -34,7 +34,7 @@ suite('Debug - ANSI Handling', () => {
 
 		assert.equal(2, root.children.length);
 
-		child = root.firstChild;
+		child = root.firstChild!;
 		if (child instanceof HTMLSpanElement) {
 			assert.equal('content1', child.textContent);
 			assert(dom.hasClass(child, 'class1'));
@@ -43,7 +43,7 @@ suite('Debug - ANSI Handling', () => {
 			assert.fail('Unexpected assertion error');
 		}
 
-		child = root.lastChild;
+		child = root.lastChild!;
 		if (child instanceof HTMLSpanElement) {
 			assert.equal('content2', child.textContent);
 			assert(dom.hasClass(child, 'class2'));
@@ -62,12 +62,12 @@ suite('Debug - ANSI Handling', () => {
 	function getSequenceOutput(sequence: string): HTMLSpanElement {
 		const root: HTMLSpanElement = handleANSIOutput(sequence, linkDetector);
 		assert.equal(1, root.children.length);
-		const child: Node = root.lastChild;
+		const child: Node = root.lastChild!;
 		if (child instanceof HTMLSpanElement) {
 			return child;
 		} else {
 			assert.fail('Unexpected assertion error');
-			return null;
+			return null!;
 		}
 	}
 

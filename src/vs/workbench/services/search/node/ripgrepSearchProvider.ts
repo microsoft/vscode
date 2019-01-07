@@ -20,7 +20,7 @@ export class RipgrepSearchProvider implements vscode.TextSearchProvider {
 		return this.withToken(token, token => engine.provideTextSearchResults(query, options, progress, token));
 	}
 
-	private async withToken<T>(token: vscode.CancellationToken, fn: (token: vscode.CancellationToken) => Thenable<T>): Promise<T> {
+	private async withToken<T>(token: vscode.CancellationToken, fn: (token: vscode.CancellationToken) => Promise<T>): Promise<T> {
 		const merged = mergedTokenSource(token);
 		this.inProgress.add(merged);
 		const result = await fn(merged.token);

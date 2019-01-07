@@ -12,7 +12,7 @@ import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 import { ISequence } from 'vs/base/common/sequence';
 
 export interface IBaselineResourceProvider {
-	getBaselineResource(resource: URI): Thenable<URI>;
+	getBaselineResource(resource: URI): Promise<URI>;
 }
 
 export const ISCMService = createDecorator<ISCMService>('scm');
@@ -33,7 +33,7 @@ export interface ISCMResource {
 	readonly resourceGroup: ISCMResourceGroup;
 	readonly sourceUri: URI;
 	readonly decorations: ISCMResourceDecorations;
-	open(): Thenable<void>;
+	open(): Promise<void>;
 }
 
 export interface ISCMResourceGroup extends ISequence<ISCMResource> {
@@ -63,7 +63,7 @@ export interface ISCMProvider extends IDisposable {
 	readonly statusBarCommands?: Command[];
 	readonly onDidChange: Event<void>;
 
-	getOriginalResource(uri: URI): Thenable<URI>;
+	getOriginalResource(uri: URI): Promise<URI>;
 }
 
 export const enum InputValidationType {
@@ -78,7 +78,7 @@ export interface IInputValidation {
 }
 
 export interface IInputValidator {
-	(value: string, cursorPosition: number): Thenable<IInputValidation | undefined>;
+	(value: string, cursorPosition: number): Promise<IInputValidation | undefined>;
 }
 
 export interface ISCMInput {

@@ -27,9 +27,9 @@ export class ExtensionEnablementService extends Disposable implements IExtension
 
 	constructor(
 		@IStorageService storageService: IStorageService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IExtensionManagementService private extensionManagementService: IExtensionManagementService
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService
 	) {
 		super();
 		this.storageManger = this._register(new StorageManager(storageService));
@@ -356,7 +356,7 @@ class StorageManager extends Disposable {
 					delete this.storage[key];
 				}
 			}
-			this._set(key, value.length ? newValue : void 0, scope);
+			this._set(key, value.length ? newValue : undefined, scope);
 		}
 	}
 

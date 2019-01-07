@@ -12,13 +12,15 @@ export interface ResolvedAuthority {
 	readonly host: string;
 	readonly port: number;
 	readonly syncExtensions: boolean;
+	readonly debugListenPort?: number;
+	readonly debugConnectPort?: number;
 }
 
 export interface IRemoteAuthorityResolverService {
 
 	_serviceBrand: any;
 
-	resolveAuthority(authority: string): Thenable<ResolvedAuthority>;
+	resolveAuthority(authority: string): Promise<ResolvedAuthority>;
 
 	setResolvedAuthority(resolvedAuthority: ResolvedAuthority): void;
 }

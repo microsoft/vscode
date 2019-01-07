@@ -61,13 +61,13 @@ export class NotificationsToasts extends Themable {
 	constructor(
 		private container: HTMLElement,
 		private model: INotificationsModel,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IPartService private partService: IPartService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IPartService private readonly partService: IPartService,
 		@IThemeService themeService: IThemeService,
-		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IWindowService private windowService: IWindowService
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IWindowService private readonly windowService: IWindowService
 	) {
 		super(themeService);
 
@@ -90,7 +90,7 @@ export class NotificationsToasts extends Themable {
 		});
 	}
 
-	private onCanShowNotifications(): Thenable<void> {
+	private onCanShowNotifications(): Promise<void> {
 
 		// Wait for the running phase to ensure we can draw notifications properly
 		return this.lifecycleService.when(LifecyclePhase.Ready).then(() => {

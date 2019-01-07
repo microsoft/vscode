@@ -28,7 +28,7 @@ export interface ISearchService {
 	textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete>;
 	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete>;
 	extendQuery(query: ITextQuery | IFileQuery): void;
-	clearCache(cacheKey: string): Thenable<void>;
+	clearCache(cacheKey: string): Promise<void>;
 	registerSearchResultProvider(scheme: string, type: SearchProviderType, provider: ISearchResultProvider): IDisposable;
 }
 
@@ -59,7 +59,7 @@ export const enum SearchProviderType {
 export interface ISearchResultProvider {
 	textSearch(query: ITextQuery, onProgress?: (p: ISearchProgressItem) => void, token?: CancellationToken): Promise<ISearchComplete>;
 	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete>;
-	clearCache(cacheKey: string): Thenable<void>;
+	clearCache(cacheKey: string): Promise<void>;
 }
 
 export interface IFolderQuery<U extends UriComponents=URI> {
@@ -76,7 +76,7 @@ export interface ICommonQueryProps<U extends UriComponents> {
 	/** For telemetry - indicates what is triggering the source */
 	_reason?: string;
 
-	folderQueries?: IFolderQuery<U>[];
+	folderQueries: IFolderQuery<U>[];
 	includePattern?: glob.IExpression;
 	excludePattern?: glob.IExpression;
 	extraFileResources?: U[];
@@ -153,7 +153,7 @@ export interface IExtendedExtensionSearchOptions {
 }
 
 export interface IFileMatch<U extends UriComponents = URI> {
-	resource?: U;
+	resource: U;
 	results?: ITextSearchResult[];
 }
 
@@ -200,9 +200,7 @@ export interface IProgress {
 	message?: string;
 }
 
-export interface ISearchProgressItem extends IFileMatch, IProgress {
-	// Marker interface to indicate the possible values for progress calls from the engine
-}
+export type ISearchProgressItem = IFileMatch | IProgress;
 
 export interface ISearchCompleteStats {
 	limitHit?: boolean;
@@ -256,7 +254,7 @@ export interface IFileIndexProviderStats {
 }
 
 export class FileMatch implements IFileMatch {
-	public results: ITextSearchResult[] = [];
+	results: ITextSearchResult[] = [];
 	constructor(public resource: URI) {
 		// empty
 	}
@@ -333,6 +331,7 @@ export interface ISearchConfigurationProperties {
 	showLineNumbers: boolean;
 	usePCRE2: boolean;
 	actionsPosition: 'auto' | 'right';
+	collapseResults: 'auto' | 'alwaysCollapse' | 'alwaysExpand';
 }
 
 export interface ISearchConfiguration extends IFilesConfiguration {

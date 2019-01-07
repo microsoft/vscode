@@ -31,7 +31,7 @@ class MarkerModel {
 	private _nextIdx: number;
 	private _toUnbind: IDisposable[];
 	private _ignoreSelectionChange: boolean;
-	private readonly _onCurrentMarkerChanged: Emitter<IMarker>;
+	private readonly _onCurrentMarkerChanged: Emitter<IMarker | undefined>;
 	private readonly _onMarkerSetChanged: Emitter<MarkerModel>;
 
 	constructor(editor: ICodeEditor, markers: IMarker[]) {
@@ -320,30 +320,30 @@ class MarkerNavigationAction extends EditorAction {
 		this._multiFile = multiFile;
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): Thenable<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 
 		const markerService = accessor.get(IMarkerService);
 		const editorService = accessor.get(ICodeEditorService);
 		const controller = MarkerController.get(editor);
 		if (!controller) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		const model = controller.getOrCreateModel();
 		const atEdge = model.move(this._isNext, !this._multiFile);
 		if (!atEdge || !this._multiFile) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		// try with the next/prev file
 		let markers = markerService.read({ severities: MarkerSeverity.Error | MarkerSeverity.Warning | MarkerSeverity.Info }).sort(MarkerNavigationAction.compareMarker);
 		if (markers.length === 0) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		let editorModel = editor.getModel();
 		if (!editorModel) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		let oldMarker = model.currentMarker || <IMarker>{ resource: editorModel!.uri, severity: MarkerSeverity.Error, startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 };
@@ -363,7 +363,7 @@ class MarkerNavigationAction extends EditorAction {
 			// the next `resource` is this resource which
 			// means we cycle within this file
 			model.move(this._isNext, true);
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		// close the widget for this editor-instance, open the resource

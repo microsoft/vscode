@@ -73,7 +73,7 @@ CommandsRegistry.registerCommand({
 			// Add and show Files Explorer viewlet
 			return workspaceEditingService.addFolders(folders.map(folder => ({ uri: folder })))
 				.then(() => viewletService.openViewlet(viewletService.getDefaultViewletId(), true))
-				.then(() => void 0);
+				.then(() => undefined);
 		});
 	}
 });
@@ -87,7 +87,7 @@ CommandsRegistry.registerCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, function (acc
 
 	const folders = contextService.getWorkspace().folders;
 	if (!folders.length) {
-		return void 0;
+		return undefined;
 	}
 
 	const folderPicks = folders.map(folder => {
@@ -131,7 +131,7 @@ CommandsRegistry.registerCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, function (acc
 
 	return quickInputService.pick(folderPicks, options, token).then(pick => {
 		if (!pick) {
-			return void 0;
+			return undefined;
 		}
 
 		return folders[folderPicks.indexOf(pick)];

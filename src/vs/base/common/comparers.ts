@@ -13,7 +13,7 @@ export function setFileNameComparer(collator: IdleValue<{ collator: Intl.Collato
 	intlFileNameCollator = collator;
 }
 
-export function compareFileNames(one: string, other: string, caseSensitive = false): number {
+export function compareFileNames(one: string | null, other: string | null, caseSensitive = false): number {
 	if (intlFileNameCollator) {
 		const a = one || '';
 		const b = other || '';
@@ -33,7 +33,7 @@ export function compareFileNames(one: string, other: string, caseSensitive = fal
 
 const FileNameMatch = /^(.*?)(\.([^.]*))?$/;
 
-export function noIntlCompareFileNames(one: string, other: string, caseSensitive = false): number {
+export function noIntlCompareFileNames(one: string | null, other: string | null, caseSensitive = false): number {
 	if (!caseSensitive) {
 		one = one && one.toLowerCase();
 		other = other && other.toLowerCase();
@@ -53,7 +53,7 @@ export function noIntlCompareFileNames(one: string, other: string, caseSensitive
 	return oneExtension < otherExtension ? -1 : 1;
 }
 
-export function compareFileExtensions(one: string, other: string): number {
+export function compareFileExtensions(one: string | null, other: string | null): number {
 	if (intlFileNameCollator) {
 		const [oneName, oneExtension] = extractNameAndExtension(one);
 		const [otherName, otherExtension] = extractNameAndExtension(other);
@@ -81,7 +81,7 @@ export function compareFileExtensions(one: string, other: string): number {
 	return noIntlCompareFileExtensions(one, other);
 }
 
-function noIntlCompareFileExtensions(one: string, other: string): number {
+function noIntlCompareFileExtensions(one: string | null, other: string | null): number {
 	const [oneName, oneExtension] = extractNameAndExtension(one && one.toLowerCase());
 	const [otherName, otherExtension] = extractNameAndExtension(other && other.toLowerCase());
 
@@ -96,7 +96,7 @@ function noIntlCompareFileExtensions(one: string, other: string): number {
 	return oneName < otherName ? -1 : 1;
 }
 
-function extractNameAndExtension(str?: string): [string, string] {
+function extractNameAndExtension(str?: string | null): [string, string] {
 	const match = str ? FileNameMatch.exec(str) as Array<string> : ([] as Array<string>);
 
 	return [(match && match[1]) || '', (match && match[3]) || ''];

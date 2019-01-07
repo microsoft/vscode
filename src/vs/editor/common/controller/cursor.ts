@@ -194,7 +194,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 	public setStates(source: string, reason: CursorChangeReason, states: PartialCursorState[] | null): void {
 		if (states !== null && states.length > Cursor.MAX_CURSOR_COUNT) {
 			states = states.slice(0, Cursor.MAX_CURSOR_COUNT);
-			this._onDidReachMaxCursorCount.fire(void 0);
+			this._onDidReachMaxCursorCount.fire(undefined);
 		}
 
 		const oldState = new CursorModelState(this._model, this);
@@ -467,7 +467,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		if (this._configuration.editor.readOnly) {
 			// All the remaining handlers will try to edit the model,
 			// but we cannot edit when read only...
-			this._onDidAttemptReadOnlyEdit.fire(void 0);
+			this._onDidAttemptReadOnlyEdit.fire(undefined);
 			return;
 		}
 
@@ -675,8 +675,7 @@ class CommandExecutor {
 			for (let i = 0; i < ctx.selectionsBefore.length; i++) {
 				groupedInverseEditOperations[i] = [];
 			}
-			for (let i = 0; i < inverseEditOperations.length; i++) {
-				const op = inverseEditOperations[i];
+			for (const op of inverseEditOperations) {
 				if (!op.identifier) {
 					// perhaps auto whitespace trim edits
 					continue;
@@ -728,8 +727,8 @@ class CommandExecutor {
 		});
 
 		// Remove losing cursors
-		for (let i = 0; i < losingCursors.length; i++) {
-			selectionsAfter.splice(losingCursors[i], 1);
+		for (const losingCursor of losingCursors) {
+			selectionsAfter.splice(losingCursor, 1);
 		}
 
 		return selectionsAfter;

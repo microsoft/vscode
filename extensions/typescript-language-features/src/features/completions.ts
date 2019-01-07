@@ -125,11 +125,17 @@ class MyCompletionItem extends vscode.CompletionItem {
 
 		// Try getting longer, prefix based range for completions that span words
 		const wordRange = this.document.getWordRangeAtPosition(this.position);
+		if (wordRange) {
+			this.range = wordRange;
+		}
+
 		const text = line.slice(Math.max(0, this.position.character - this.label.length), this.position.character).toLowerCase();
 		const entryName = this.label.toLowerCase();
 		for (let i = entryName.length; i >= 0; --i) {
 			if (text.endsWith(entryName.substr(0, i)) && (!wordRange || wordRange.start.character > this.position.character - i)) {
-				this.range = new vscode.Range(this.position.line, Math.max(0, this.position.character - i), this.position.line, this.position.character);
+				this.range = new vscode.Range(
+					new vscode.Position(this.position.line, Math.max(0, this.position.character - i)),
+					this.position);
 				break;
 			}
 		}

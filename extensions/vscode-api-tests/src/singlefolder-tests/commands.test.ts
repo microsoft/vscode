@@ -101,17 +101,17 @@ suite('commands namespace tests', () => {
 
 
 		let a = commands.executeCommand('vscode.diff', Uri.parse('sc:a'), Uri.parse('sc:b'), 'DIFF').then(value => {
-			assert.ok(value === void 0);
+			assert.ok(value === undefined);
 			registration.dispose();
 		});
 
 		let b = commands.executeCommand('vscode.diff', Uri.parse('sc:a'), Uri.parse('sc:b')).then(value => {
-			assert.ok(value === void 0);
+			assert.ok(value === undefined);
 			registration.dispose();
 		});
 
 		let c = commands.executeCommand('vscode.diff', Uri.parse('sc:a'), Uri.parse('sc:b'), 'Title', { selection: new Range(new Position(1, 1), new Position(1, 2)) }).then(value => {
-			assert.ok(value === void 0);
+			assert.ok(value === undefined);
 			registration.dispose();
 		});
 

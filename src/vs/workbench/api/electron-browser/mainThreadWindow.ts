@@ -17,7 +17,7 @@ export class MainThreadWindow implements MainThreadWindowShape {
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IWindowService private windowService: IWindowService
+		@IWindowService private readonly windowService: IWindowService
 	) {
 		this.proxy = extHostContext.getProxy(ExtHostContext.ExtHostWindow);
 
@@ -25,7 +25,7 @@ export class MainThreadWindow implements MainThreadWindowShape {
 			(this.proxy.$onDidChangeWindowFocus, this.proxy, this.disposables);
 	}
 
-	$getWindowVisibility(): Thenable<boolean> {
+	$getWindowVisibility(): Promise<boolean> {
 		return this.windowService.isFocused();
 	}
 

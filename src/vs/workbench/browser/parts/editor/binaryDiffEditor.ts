@@ -28,7 +28,7 @@ export class BinaryResourceDiffEditor extends SideBySideEditor {
 		super(telemetryService, instantiationService, themeService, storageService);
 	}
 
-	getMetadata(): string {
+	getMetadata(): string | null {
 		const master = this.masterEditor;
 		const details = this.detailsEditor;
 

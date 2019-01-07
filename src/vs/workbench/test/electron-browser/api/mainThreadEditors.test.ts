@@ -54,15 +54,15 @@ suite('MainThreadEditors', () => {
 			isDirty() { return false; }
 			create(uri: URI, contents?: string, options?: any) {
 				createdResources.add(uri);
-				return Promise.resolve(void 0);
+				return Promise.resolve(undefined);
 			}
 			delete(resource: URI) {
 				deletedResources.add(resource);
-				return Promise.resolve(void 0);
+				return Promise.resolve(undefined);
 			}
 			move(source: URI, target: URI) {
 				movedResources.set(source, target);
-				return Promise.resolve(void 0);
+				return Promise.resolve(undefined);
 			}
 			models = <any>{
 				onModelSaved: Event.None,
