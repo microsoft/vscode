@@ -172,8 +172,8 @@ export class ApiRepository implements Repository {
 		return this._repository.fetch(remote, ref, depth);
 	}
 
-	pull(): Promise<void> {
-		return this._repository.pull();
+	pull(unshallow?: boolean): Promise<void> {
+		return this._repository.pull(undefined, unshallow);
 	}
 
 	push(remoteName?: string, branchName?: string, setUpstream: boolean = false): Promise<void> {

@@ -629,6 +629,10 @@ export interface CommitOptions {
 	empty?: boolean;
 }
 
+export interface PullOptions {
+	unshallow?: boolean;
+}
+
 export enum ForcePushMode {
 	Force,
 	ForceWithLease
@@ -1183,7 +1187,7 @@ export class Repository {
 			args.push('--prune');
 		}
 
-		if (options.depth) {
+		if (typeof options.depth === 'number') {
 			args.push(`--depth=${options.depth}`);
 		}
 
@@ -1200,8 +1204,12 @@ export class Repository {
 		}
 	}
 
-	async pull(rebase?: boolean, remote?: string, branch?: string): Promise<void> {
-		const args = ['pull', '--tags', '--unshallow'];
+	async pull(rebase?: boolean, remote?: string, branch?: string, options: PullOptions = {}): Promise<void> {
+		const args = ['pull', '--tags'];
+
+		if (options.unshallow) {
+			args.push('--unshallow');
+		}
 
 		if (rebase) {
 			args.push('-r');

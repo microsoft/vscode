@@ -951,7 +951,7 @@ export class Repository implements Disposable {
 	}
 
 	@throttle
-	async pull(head?: Branch): Promise<void> {
+	async pull(head?: Branch, unshallow?: boolean): Promise<void> {
 		let remote: string | undefined;
 		let branch: string | undefined;
 
@@ -960,19 +960,19 @@ export class Repository implements Disposable {
 			branch = `${head.upstream.name}`;
 		}
 
-		return this.pullFrom(false, remote, branch);
+		return this.pullFrom(false, remote, branch, unshallow);
 	}
 
-	async pullFrom(rebase?: boolean, remote?: string, branch?: string): Promise<void> {
+	async pullFrom(rebase?: boolean, remote?: string, branch?: string, unshallow?: boolean): Promise<void> {
 		await this.run(Operation.Pull, async () => {
 			await this.maybeAutoStash(async () => {
 				const config = workspace.getConfiguration('git', Uri.file(this.root));
 				const fetchOnPull = config.get<boolean>('fetchOnPull');
 
 				if (fetchOnPull) {
-					await this.repository.pull(rebase);
+					await this.repository.pull(rebase, undefined, undefined, { unshallow });
 				} else {
-					await this.repository.pull(rebase, remote, branch);
+					await this.repository.pull(rebase, remote, branch, { unshallow });
 				}
 			});
 		});
