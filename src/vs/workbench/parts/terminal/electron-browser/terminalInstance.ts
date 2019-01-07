@@ -1029,7 +1029,7 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 	}
 
-	private static readonly _defaultCommandsToSkipShell: string[] = [
+	public static readonly defaultCommandsToSkipShell: string[] = [
 		TERMINAL_COMMAND_ID.CLEAR_SELECTION,
 		TERMINAL_COMMAND_ID.CLEAR,
 		TERMINAL_COMMAND_ID.COPY_SELECTION,
@@ -1137,7 +1137,7 @@ export class TerminalInstance implements ITerminalInstance {
 
 	private _setCommandsToSkipShell(commands: string[]): void {
 		const excludeCommands = commands.filter(command => command[0] === '-').map(command => command.slice(1));
-		this._skipTerminalCommands = TerminalInstance._defaultCommandsToSkipShell.filter(defaultCommand => {
+		this._skipTerminalCommands = TerminalInstance.defaultCommandsToSkipShell.filter(defaultCommand => {
 			return excludeCommands.indexOf(defaultCommand) === -1;
 		}).concat(commands);
 	}
