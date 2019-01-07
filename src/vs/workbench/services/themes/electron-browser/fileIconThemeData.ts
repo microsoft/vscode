@@ -81,6 +81,19 @@ export class FileIconThemeData implements IFileIconTheme {
 		return themeData;
 	}
 
+	static createUnloadedTheme(id: string): FileIconThemeData {
+		let themeData = new FileIconThemeData();
+		themeData.id = '';
+		themeData.label = '';
+		themeData.settingsId = null;
+		themeData.isLoaded = false;
+		themeData.hasFileIcons = false;
+		themeData.hasFolderIcons = false;
+		themeData.hidesExplorerArrows = false;
+		themeData.extensionData = null;
+		return themeData;
+	}
+
 	static fromStorageData(input: string): FileIconThemeData | null {
 		try {
 			let data = JSON.parse(input);

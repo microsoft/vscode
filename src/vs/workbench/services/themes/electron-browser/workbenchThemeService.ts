@@ -27,6 +27,8 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { removeClasses, addClasses } from 'vs/base/browser/dom';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService, FileChangeType } from 'vs/platform/files/common/files';
+import { URI } from 'vs/base/common/uri';
+import * as resources from 'vs/base/common/resources';
 
 // implementation
 
@@ -72,12 +74,12 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	private currentColorTheme: ColorThemeData;
 	private container: HTMLElement;
 	private readonly onColorThemeChange: Emitter<IColorTheme>;
-	private onColorThemeFileChangeListener: IDisposable;
+	private watchedColorThemeLocation: URI;
 
 	private iconThemeStore: FileIconThemeStore;
-	private currentIconTheme: IFileIconTheme;
+	private currentIconTheme: FileIconThemeData;
 	private readonly onFileIconThemeChange: Emitter<IFileIconTheme>;
-	private onIconThemeFileChangeListener: IDisposable;
+	private watchedIconThemeLocation: URI;
 
 	private themingParticipantChangeListener: IDisposable;
 	private _configurationWriter: ConfigurationWriter;
@@ -107,16 +109,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		this.iconThemeStore = new FileIconThemeStore(extensionService);
 		this.onColorThemeChange = new Emitter<IColorTheme>();
 
-		this.currentIconTheme = {
-			id: '',
-			label: '',
-			settingsId: null,
-			isLoaded: false,
-			hasFileIcons: false,
-			hasFolderIcons: false,
-			hidesExplorerArrows: false,
-			extensionData: null
-		};
+		this.currentIconTheme = FileIconThemeData.createUnloadedTheme('');
 
 		// In order to avoid paint flashing for tokens, because
 		// themes are loaded asynchronously, we need to initialize
@@ -183,6 +176,20 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 	acquireFileService(fileService: IFileService): void {
 		this.fileService = fileService;
+
+		this.fileService.onFileChanges(async e => {
+			if (this.watchedColorThemeLocation && this.currentColorTheme && e.contains(this.watchedColorThemeLocation, FileChangeType.UPDATED)) {
+				await this.currentColorTheme.reload(this.fileService);
+				this.currentColorTheme.setCustomColors(this.colorCustomizations);
+				this.currentColorTheme.setCustomTokenColors(this.tokenColorCustomizations);
+				this.updateDynamicCSSRules(this.currentColorTheme);
+				this.applyTheme(this.currentColorTheme, null, false);
+			}
+			if (this.watchedIconThemeLocation && this.currentIconTheme && e.contains(this.watchedIconThemeLocation, FileChangeType.UPDATED)) {
+				await this.currentIconTheme.reload(this.fileService);
+				_applyIconTheme(this.currentIconTheme, () => Promise.resolve(this.currentIconTheme));
+			}
+		});
 	}
 
 	public get onDidColorThemeChange(): Event<IColorTheme> {
@@ -281,32 +288,6 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			return this.writeColorThemeConfiguration(settingsTarget);
 		}
 
-		const onApply = (themeData: ColorThemeData) => {
-			// determine which color theme file to monitor for changes
-			if (this.fileService) {
-				const _currentColorThemeData = this.currentColorTheme as ColorThemeData;
-				if (!this.onColorThemeFileChangeListener) {
-					this.onColorThemeFileChangeListener = this.fileService.onFileChanges(e => {
-						return e.contains(themeData.location, FileChangeType.UPDATED)
-							&& themeData.reload(this.fileService)
-								.then(_ => {
-									themeData.setCustomColors(this.colorCustomizations);
-									themeData.setCustomTokenColors(this.tokenColorCustomizations);
-									this.updateDynamicCSSRules(themeData);
-								});
-					});
-				}
-				// stop monitoring previous color theme file for changes
-				if (_currentColorThemeData.location) {
-					this.fileService.unwatchFileChanges(_currentColorThemeData.location);
-				}
-				// start monitoring new color theme file for changes
-				if (themeData.location) {
-					this.fileService.watchFileChanges(themeData.location);
-				}
-			}
-		};
-
 		themeId = validateThemeId(themeId); // migrate theme ids
 
 		return this.colorThemeStore.findThemeData(themeId, DEFAULT_THEME_ID).then(themeData => {
@@ -314,7 +295,6 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 				return null;
 			}
 			return themeData.ensureLoaded(this.fileService).then(_ => {
-				onApply(themeData);
 				if (themeId === this.currentColorTheme.id && !this.currentColorTheme.isLoaded && this.currentColorTheme.hasEqualData(themeData)) {
 					// the loaded theme is identical to the perisisted theme. Don't need to send an event.
 					this.currentColorTheme = themeData;
@@ -369,7 +349,17 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		}
 		this.currentColorTheme = newTheme;
 		if (!this.themingParticipantChangeListener) {
-			this.themingParticipantChangeListener = themingRegistry.onThemingParticipantAdded(p => this.updateDynamicCSSRules(this.currentColorTheme));
+			this.themingParticipantChangeListener = themingRegistry.onThemingParticipantAdded(_ => this.updateDynamicCSSRules(this.currentColorTheme));
+		}
+
+		if (this.fileService && !resources.isEqual(newTheme.location, this.watchedColorThemeLocation)) {
+			if (this.watchedColorThemeLocation) {
+				this.fileService.unwatchFileChanges(this.watchedColorThemeLocation);
+			}
+			this.watchedColorThemeLocation = newTheme.location;
+			if (this.watchedColorThemeLocation) {
+				this.fileService.watchFileChanges(this.watchedColorThemeLocation);
+			}
 		}
 
 		this.sendTelemetry(newTheme.id, newTheme.extensionData, 'color');
@@ -437,28 +427,6 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			return this.writeFileIconConfiguration(settingsTarget);
 		}
 		let onApply = (newIconTheme: FileIconThemeData) => {
-			// determine which icon theme file to monitor for changes
-			if (this.currentIconTheme.id !== newIconTheme.id || !this.currentIconTheme.isLoaded) {
-				if (this.fileService) {
-					if (!this.onIconThemeFileChangeListener) {
-						this.onIconThemeFileChangeListener = this.fileService.onFileChanges(e => {
-							return e.contains(newIconTheme.location, FileChangeType.UPDATED)
-								&& newIconTheme.reload(this.fileService)
-									.then(_ => _applyIconTheme(newIconTheme, () => Promise.resolve(this.currentIconTheme)));
-						});
-					}
-					const _currentIconThemeData = this.currentIconTheme as FileIconThemeData;
-					// stop monitoring previous icon theme file for changes
-					if (_currentIconThemeData.location) {
-						this.fileService.unwatchFileChanges(_currentIconThemeData.location);
-					}
-					// start monitoring new icon theme file for changes
-					if (newIconTheme.location) {
-						this.fileService.watchFileChanges(newIconTheme.location);
-					}
-				}
-			}
-
 			this.doSetFileIconTheme(newIconTheme);
 
 			// remember theme data for a quick restore
@@ -487,6 +455,17 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 				removeClasses(this.container, fileIconsEnabledClass);
 			}
 		}
+
+		if (this.fileService && !resources.isEqual(iconThemeData.location, this.watchedIconThemeLocation)) {
+			if (this.watchedIconThemeLocation) {
+				this.fileService.unwatchFileChanges(this.watchedIconThemeLocation);
+			}
+			this.watchedIconThemeLocation = iconThemeData.location;
+			if (this.watchedIconThemeLocation) {
+				this.fileService.watchFileChanges(this.watchedIconThemeLocation);
+			}
+		}
+
 		if (iconThemeData.id) {
 			this.sendTelemetry(iconThemeData.id, iconThemeData.extensionData, 'fileIcon');
 		}
