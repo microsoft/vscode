@@ -16,7 +16,6 @@ export class MarkdownString implements IMarkdownString {
 
 	value: string;
 	isTrusted?: boolean;
-	sanitize: boolean = true;
 
 	constructor(value: string = '') {
 		this.value = value;

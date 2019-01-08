@@ -24,6 +24,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { editorHoverBackground, editorHoverBorder, editorHoverHighlight, textCodeBlockBackground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
 
 export class ModesHoverController implements IEditorContribution {
 
@@ -61,6 +62,7 @@ export class ModesHoverController implements IEditorContribution {
 	constructor(private readonly _editor: ICodeEditor,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IModeService private readonly _modeService: IModeService,
+		@IMarkerDecorationsService private readonly _markerDecorationsService: IMarkerDecorationsService,
 		@IThemeService private readonly _themeService: IThemeService
 	) {
 		this._toUnhook = [];
@@ -204,7 +206,7 @@ export class ModesHoverController implements IEditorContribution {
 
 	private _createHoverWidget() {
 		const renderer = new MarkdownRenderer(this._editor, this._modeService, this._openerService);
-		this._contentWidget = new ModesContentHoverWidget(this._editor, renderer, this._themeService);
+		this._contentWidget = new ModesContentHoverWidget(this._editor, renderer, this._markerDecorationsService, this._themeService);
 		this._glyphWidget = new ModesGlyphHoverWidget(this._editor, renderer);
 	}
 

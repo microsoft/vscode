@@ -596,7 +596,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 					}
 
 					// after tests have run, we shutdown the host
-					this._gracefulExit(failures && failures > 0 ? 1 /* ERROR */ : 0 /* OK */);
+					this._gracefulExit(error || (typeof failures === 'number' && failures > 0) ? 1 /* ERROR */ : 0 /* OK */);
 				});
 			});
 		}

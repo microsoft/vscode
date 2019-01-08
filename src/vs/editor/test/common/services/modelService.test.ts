@@ -27,7 +27,7 @@ suite('ModelService', () => {
 		configService.setUserConfiguration('files', { 'eol': '\n' });
 		configService.setUserConfiguration('files', { 'eol': '\r\n' }, URI.file(platform.isWindows ? 'c:\\myroot' : '/myroot'));
 
-		modelService = new ModelServiceImpl(null, configService, new TestTextResourcePropertiesService(configService));
+		modelService = new ModelServiceImpl(configService, new TestTextResourcePropertiesService(configService));
 	});
 
 	teardown(() => {
