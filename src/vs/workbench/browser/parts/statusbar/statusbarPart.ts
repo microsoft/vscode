@@ -42,8 +42,8 @@ export class StatusbarPart extends Part implements IStatusbarService, IView {
 	private statusMsgDispose: IDisposable;
 
 
-	minimumWidth: number;
-	maximumWidth: number;
+	minimumWidth: number = 0;
+	maximumWidth: number = Number.POSITIVE_INFINITY;
 	minimumHeight: number = 22;
 	maximumHeight: number = 22;
 

@@ -63,7 +63,7 @@ export class TitlebarPart extends Part implements ITitleService, IView {
 	private activeEditorListeners: IDisposable[];
 
 	minimumWidth: number = 0;
-	maximumWidth: number = Infinity;
+	maximumWidth: number = Number.POSITIVE_INFINITY;
 	minimumHeight: number = 30;
 	maximumHeight: number = 30;
 

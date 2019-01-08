@@ -63,7 +63,7 @@ export class ActivitybarPart extends Part implements IView {
 	minimumWidth: number = 50;
 	maximumWidth: number = 50;
 	minimumHeight: number = 0;
-	maximumHeight: number = Infinity;
+	maximumHeight: number = Number.POSITIVE_INFINITY;
 
 	private _onDidChange = new Emitter<{ width: number; height: number; }>();
 	readonly onDidChange = this._onDidChange.event;

@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/panelpart';
 import { IAction } from 'vs/base/common/actions';
-import { Event } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IPanel } from 'vs/workbench/common/panel';
@@ -30,9 +30,9 @@ import { Dimension, trackFocus } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IView } from 'vs/base/browser/ui/grid/gridview';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { IView } from 'vs/base/browser/ui/grid/gridview';
 
 export const ActivePanelContext = new RawContextKey<string>('activePanel', '');
 export const PanelFocusContext = new RawContextKey<boolean>('panelFocus', false);
@@ -61,10 +61,11 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService, IV
 	private dimension: Dimension;
 
 	element: HTMLElement;
-	minimumWidth: number = 0;
-	maximumWidth: number = Infinity;
-	minimumHeight: number = 100;
-	maximumHeight: number = Infinity;
+	minimumWidth: number = 300;
+	maximumWidth: number = Number.POSITIVE_INFINITY;
+	minimumHeight: number = 77;
+	maximumHeight: number = Number.POSITIVE_INFINITY;
+	snapSize: number = 50;
 
 	private _onDidChange = new Emitter<{ width: number; height: number; }>();
 	readonly onDidChange = this._onDidChange.event;

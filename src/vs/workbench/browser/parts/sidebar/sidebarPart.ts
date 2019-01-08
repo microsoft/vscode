@@ -28,9 +28,9 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { EventType, addDisposableListener, trackFocus } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IView } from 'vs/base/browser/ui/grid/gridview';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IView } from 'vs/base/browser/ui/grid/gridview';
 
 export const SidebarFocusContext = new RawContextKey<boolean>('sideBarFocus', false);
 export const ActiveViewletContext = new RawContextKey<string>('activeViewlet', '');
@@ -47,10 +47,11 @@ export class SidebarPart extends CompositePart<Viewlet> implements IView, IViewl
 	private _onDidViewletEnable = new Emitter<{ id: string, enabled: boolean }>();
 
 	element: HTMLElement;
-	minimumWidth: number = 200;
-	maximumWidth: number = Infinity;
+	minimumWidth: number = 170;
+	maximumWidth: number = Number.POSITIVE_INFINITY;
 	minimumHeight: number = 0;
-	maximumHeight: number = Infinity;
+	maximumHeight: number = Number.POSITIVE_INFINITY;
+	snapSize: number = 50;
 
 	private _onDidChange = new Emitter<{ width: number; height: number; }>();
 	readonly onDidChange = this._onDidChange.event;

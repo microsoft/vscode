@@ -575,7 +575,7 @@ suite('Editor service', () => {
 
 		const part = partInstantiator.createInstance(EditorPart, 'id', false);
 		part.create(document.createElement('div'));
-		part.layout(new Dimension(400, 300));
+		part.layout(400, 300);
 
 		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([IEditorGroupsService, part]));
 
