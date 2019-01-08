@@ -11,7 +11,7 @@ import { isUndefinedOrNull } from 'vs/base/common/types';
 import { mapToString, setToString } from 'vs/base/common/map';
 import { basename } from 'path';
 import { mark } from 'vs/base/common/performance';
-import { rename, unlinkIgnoreError, copy, renameIgnoreError } from 'vs/base/node/pfs';
+import { rename, copy, renameIgnoreError } from 'vs/base/node/pfs';
 
 export enum StorageHint {
 
@@ -440,7 +440,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 
 		const backupPath = this.toBackupPath(db.path);
 
-		return unlinkIgnoreError(backupPath).then(() => copy(db.path, backupPath));
+		return copy(db.path, backupPath);
 	}
 
 	private toBackupPath(path: string): string {

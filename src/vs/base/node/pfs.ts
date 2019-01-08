@@ -77,12 +77,6 @@ export function unlink(path: string): Promise<void> {
 	return nfcall(fs.unlink, path);
 }
 
-export function unlinkIgnoreError(path: string): Promise<void> {
-	return new Promise(resolve => {
-		fs.unlink(path, () => resolve());
-	});
-}
-
 export function symlink(target: string, path: string, type?: string): Promise<void> {
 	return nfcall<void>(fs.symlink, target, path, type);
 }
