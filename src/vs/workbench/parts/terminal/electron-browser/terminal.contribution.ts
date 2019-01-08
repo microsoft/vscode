@@ -235,7 +235,7 @@ configurationRegistry.registerConfiguration({
 			default: false
 		},
 		'terminal.integrated.commandsToSkipShell': {
-			description: nls.localize('terminal.integrated.commandsToSkipShell', "A set of command IDs whose keybindings will not be sent to the shell and instead always be handled by Code. This allows the use of keybindings that would normally be consumed by the shell to act the same as when the terminal is not focused, for example ctrl+p to launch Quick Open.\nDefault Skipped Commands: [\n{0}\n]", TerminalInstance.defaultCommandsToSkipShell.sort().map(command => `\t\"${command}\"`).join('\n')),
+			description: nls.localize('terminal.integrated.commandsToSkipShell', "A set of command IDs whose keybindings will not be sent to the shell and instead always be handled by Code. This allows the use of keybindings that would normally be consumed by the shell to act the same as when the terminal is not focused, for example ctrl+p to launch Quick Open.\nDefault Skipped Commands:\n\n{0}", TerminalInstance.defaultCommandsToSkipShell.sort().map(command => `- ${command}`).join('\n')),
 			type: 'array',
 			items: {
 				type: 'string'
