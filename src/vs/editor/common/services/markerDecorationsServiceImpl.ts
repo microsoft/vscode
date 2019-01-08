@@ -57,6 +57,7 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 		@IMarkerService private readonly _markerService: IMarkerService
 	) {
 		super();
+		modelService.getModels().forEach(model => this._onModelAdded(model));
 		this._register(modelService.onModelAdded(this._onModelAdded, this));
 		this._register(modelService.onModelRemoved(this._onModelRemoved, this));
 		this._register(this._markerService.onMarkerChanged(this._handleMarkerChange, this));
