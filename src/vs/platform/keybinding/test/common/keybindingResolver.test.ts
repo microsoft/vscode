@@ -347,6 +347,7 @@ suite('KeybindingResolver', () => {
 			const expectedKey = createKeybinding(_expectedKey, OS);
 
 			if (expectedKey.type === KeybindingType.Chord) {
+				// TODO@chords
 				let firstPart = getDispatchStr(expectedKey.parts[0]);
 				let chordPart = getDispatchStr(expectedKey.parts[1]);
 

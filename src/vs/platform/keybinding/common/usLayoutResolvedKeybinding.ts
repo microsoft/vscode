@@ -22,6 +22,7 @@ export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 		if (!actual) {
 			throw new Error(`Invalid USLayoutResolvedKeybinding`);
 		} else if (actual.type === KeybindingType.Chord) {
+			// TODO@chords
 			this._firstPart = actual.parts[0];
 			this._chordPart = actual.parts[1];
 		} else {
