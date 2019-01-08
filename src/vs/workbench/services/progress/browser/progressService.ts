@@ -10,15 +10,38 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
 
-interface ProgressState {
-	infinite?: boolean;
-	total?: number;
-	worked?: number;
-	done?: boolean;
-	whilePromise?: Promise<any>;
-	whileStart?: number;
-	whileDelay?: number;
+
+const NoneProgressState = new class { readonly type = 'none'; };
+const DoneProgressState = new class { readonly type = 'done'; };
+const InfiniteProgressState = new class { readonly type = 'infinite'; };
+
+class WhileProgressState {
+	static readonly type = 'while';
+	public readonly type = WhileProgressState.type;
+
+	constructor(
+		public readonly whilePromise: Promise<any>,
+		public readonly whileStart: number,
+		public readonly whileDelay: number,
+	) { }
 }
+
+class WorkProgressState {
+	static readonly type = 'work';
+	public readonly type = WorkProgressState.type;
+
+	constructor(
+		public readonly total: number | undefined,
+		public readonly worked: number | undefined
+	) { }
+}
+
+type ProgressState =
+	typeof NoneProgressState
+	| typeof DoneProgressState
+	| typeof InfiniteProgressState
+	| WhileProgressState
+	| WorkProgressState;
 
 export abstract class ScopedService extends Disposable {
 
@@ -57,7 +80,7 @@ export class ScopedProgressService extends ScopedService implements IProgressSer
 	_serviceBrand: any;
 	private isActive: boolean;
 	private progressbar: ProgressBar;
-	private progressState: ProgressState;
+	private progressState: ProgressState = NoneProgressState;
 
 	constructor(
 		progressbar: ProgressBar,
@@ -70,7 +93,6 @@ export class ScopedProgressService extends ScopedService implements IProgressSer
 
 		this.progressbar = progressbar;
 		this.isActive = isActive || types.isUndefinedOrNull(scopeId); // If service is unscoped, enable by default
-		this.progressState = Object.create(null);
 	}
 
 	onScopeDeactivated(): void {
@@ -81,15 +103,15 @@ export class ScopedProgressService extends ScopedService implements IProgressSer
 		this.isActive = true;
 
 		// Return early if progress state indicates that progress is done
-		if (this.progressState.done) {
+		if (this.progressState.type === DoneProgressState.type) {
 			return;
 		}
 
 		// Replay Infinite Progress from Promise
-		if (this.progressState.whilePromise) {
+		if (this.progressState.type === WhileProgressState.type) {
 			let delay: number | undefined;
-			if (typeof this.progressState.whileDelay === 'number' && this.progressState.whileDelay > 0) {
-				const remainingDelay = this.progressState.whileDelay - (Date.now() - this.progressState.whileStart!);
+			if (this.progressState.whileDelay > 0) {
+				const remainingDelay = this.progressState.whileDelay - (Date.now() - this.progressState.whileStart);
 				if (remainingDelay > 0) {
 					delay = remainingDelay;
 				}
@@ -99,12 +121,12 @@ export class ScopedProgressService extends ScopedService implements IProgressSer
 		}
 
 		// Replay Infinite Progress
-		else if (this.progressState.infinite) {
+		else if (this.progressState.type === InfiniteProgressState.type) {
 			this.progressbar.infinite().show();
 		}
 
 		// Replay Finite Progress (Total & Worked)
-		else {
+		else if (this.progressState.type === WorkProgressState.type) {
 			if (this.progressState.total) {
 				this.progressbar.total(this.progressState.total).show();
 			}
@@ -115,54 +137,35 @@ export class ScopedProgressService extends ScopedService implements IProgressSer
 		}
 	}
 
-	private clearProgressState(): void {
-		this.progressState.infinite = undefined;
-		this.progressState.done = undefined;
-		this.progressState.worked = undefined;
-		this.progressState.total = undefined;
-		this.progressState.whilePromise = undefined;
-		this.progressState.whileStart = undefined;
-		this.progressState.whileDelay = undefined;
-	}
-
 	show(infinite: boolean, delay?: number): IProgressRunner;
 	show(total: number, delay?: number): IProgressRunner;
 	show(infiniteOrTotal: boolean | number, delay?: number): IProgressRunner {
-		let infinite: boolean | undefined;
-		let total: number | undefined;
-
 		// Sort out Arguments
 		if (typeof infiniteOrTotal === 'boolean') {
-			infinite = infiniteOrTotal;
+			this.progressState = InfiniteProgressState;
 		} else {
-			total = infiniteOrTotal;
+			this.progressState = new WorkProgressState(infiniteOrTotal, undefined);
 		}
-
-		// Reset State
-		this.clearProgressState();
-
-		// Keep in State
-		this.progressState.infinite = infinite;
-		this.progressState.total = total;
 
 		// Active: Show Progress
 		if (this.isActive) {
 
 			// Infinite: Start Progressbar and Show after Delay
-			if (!types.isUndefinedOrNull(infinite)) {
+			if (this.progressState.type === InfiniteProgressState.type) {
 				this.progressbar.infinite().show(delay);
 			}
 
 			// Finite: Start Progressbar and Show after Delay
-			else if (!types.isUndefinedOrNull(total)) {
-				this.progressbar.total(total).show(delay);
+			else if (this.progressState.type === WorkProgressState.type && typeof this.progressState.total === 'number') {
+				this.progressbar.total(this.progressState.total).show(delay);
 			}
 		}
 
 		return {
 			total: (total: number) => {
-				this.progressState.infinite = false;
-				this.progressState.total = total;
+				this.progressState = new WorkProgressState(
+					total,
+					this.progressState.type === WorkProgressState.type ? this.progressState.worked : undefined);
 
 				if (this.isActive) {
 					this.progressbar.total(total);
@@ -173,12 +176,9 @@ export class ScopedProgressService extends ScopedService implements IProgressSer
 
 				// Verify first that we are either not active or the progressbar has a total set
 				if (!this.isActive || this.progressbar.hasTotal()) {
-					this.progressState.infinite = false;
-					if (this.progressState.worked) {
-						this.progressState.worked += worked;
-					} else {
-						this.progressState.worked = worked;
-					}
+					this.progressState = new WorkProgressState(
+						this.progressState.type === WorkProgressState.type ? this.progressState.total : undefined,
+						this.progressState.type === WorkProgressState.type && typeof this.progressState.worked === 'number' ? this.progressState.worked + worked : worked);
 
 					if (this.isActive) {
 						this.progressbar.worked(worked);
@@ -187,16 +187,13 @@ export class ScopedProgressService extends ScopedService implements IProgressSer
 
 				// Otherwise the progress bar does not support worked(), we fallback to infinite() progress
 				else {
-					this.progressState.infinite = true;
-					this.progressState.worked = undefined;
-					this.progressState.total = undefined;
+					this.progressState = InfiniteProgressState;
 					this.progressbar.infinite().show();
 				}
 			},
 
 			done: () => {
-				this.progressState.infinite = false;
-				this.progressState.done = true;
+				this.progressState = DoneProgressState;
 
 				if (this.isActive) {
 					this.progressbar.stop().hide();
@@ -206,32 +203,23 @@ export class ScopedProgressService extends ScopedService implements IProgressSer
 	}
 
 	showWhile(promise: Promise<any>, delay?: number): Promise<void> {
-		let stack: boolean = !!this.progressState.whilePromise;
-
-		// Reset State
-		if (!stack) {
-			this.clearProgressState();
-		}
-
-		// Otherwise join with existing running promise to ensure progress is accurate
-		else {
+		// Join with existing running promise to ensure progress is accurate
+		if (this.progressState.type === WhileProgressState.type) {
 			promise = Promise.all([promise, this.progressState.whilePromise]);
 		}
 
 		// Keep Promise in State
-		this.progressState.whilePromise = promise;
-		this.progressState.whileDelay = delay || 0;
-		this.progressState.whileStart = Date.now();
+		this.progressState = new WhileProgressState(promise, delay || 0, Date.now());
 
 		let stop = () => {
 
 			// If this is not the last promise in the list of joined promises, return early
-			if (!!this.progressState.whilePromise && this.progressState.whilePromise !== promise) {
+			if (this.progressState.type === WhileProgressState.type && this.progressState.whilePromise !== promise) {
 				return;
 			}
 
 			// The while promise is either null or equal the promise we last hooked on
-			this.clearProgressState();
+			this.progressState = NoneProgressState;
 
 			if (this.isActive) {
 				this.progressbar.stop().hide();
