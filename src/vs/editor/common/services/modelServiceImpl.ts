@@ -5,7 +5,6 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
-import * as network from 'vs/base/common/network';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
@@ -20,7 +19,6 @@ import { ILanguageSelection } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IMarkerService } from 'vs/platform/markers/common/markers';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -92,8 +90,6 @@ const DEFAULT_EOL = (platform.isLinux || platform.isMacintosh) ? DefaultEndOfLin
 export class ModelServiceImpl extends Disposable implements IModelService {
 	public _serviceBrand: any;
 
-	private _markerService: IMarkerService | null;
-	private _markerServiceSubscription: IDisposable;
 	private _configurationService: IConfigurationService;
 	private _configurationServiceSubscription: IDisposable;
 	private _resourcePropertiesService: ITextResourcePropertiesService;
@@ -117,12 +113,10 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 	private _models: { [modelId: string]: ModelData; };
 
 	constructor(
-		@IMarkerService markerService: IMarkerService | null,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITextResourcePropertiesService resourcePropertiesService: ITextResourcePropertiesService
 	) {
 		super();
-		this._markerService = markerService;
 		this._configurationService = configurationService;
 		this._resourcePropertiesService = resourcePropertiesService;
 		this._models = {};
@@ -237,25 +231,8 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 	}
 
 	public dispose(): void {
-		if (this._markerServiceSubscription) {
-			this._markerServiceSubscription.dispose();
-		}
 		this._configurationServiceSubscription.dispose();
 		super.dispose();
-	}
-
-	private _cleanUp(model: ITextModel): void {
-		// clean up markers for internal, transient models
-		if (model.uri.scheme === network.Schemas.inMemory
-			|| model.uri.scheme === network.Schemas.internal
-			|| model.uri.scheme === network.Schemas.vscode) {
-			if (this._markerService) {
-				this._markerService.read({ resource: model.uri }).map(marker => marker.owner).forEach(owner => this._markerService!.remove(owner, [model.uri]));
-			}
-		}
-
-		// clean up cache
-		delete this._modelCreationOptionsByLanguageAndResource[model.getLanguageIdentifier().language + model.uri];
 	}
 
 	// --- begin IModelService
@@ -416,7 +393,9 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		delete this._models[modelId];
 		modelData.dispose();
 
-		this._cleanUp(model);
+		// clean up cache
+		delete this._modelCreationOptionsByLanguageAndResource[model.getLanguageIdentifier().language + model.uri];
+
 		this._onModelRemoved.fire(model);
 	}
 

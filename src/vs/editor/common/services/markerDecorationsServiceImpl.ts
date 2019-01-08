@@ -14,6 +14,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { Range } from 'vs/editor/common/core/range';
 import { keys } from 'vs/base/common/map';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
+import { Schemas } from 'vs/base/common/network';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -86,6 +87,15 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 		if (markerDecorations) {
 			markerDecorations.dispose();
 			this._markerDecorations.delete(MODEL_ID(model.uri));
+		}
+
+		// clean up markers for internal, transient models
+		if (model.uri.scheme === Schemas.inMemory
+			|| model.uri.scheme === Schemas.internal
+			|| model.uri.scheme === Schemas.vscode) {
+			if (this._markerService) {
+				this._markerService.read({ resource: model.uri }).map(marker => marker.owner).forEach(owner => this._markerService.remove(owner, [model.uri]));
+			}
 		}
 	}
 
