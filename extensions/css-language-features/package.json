@@ -32,6 +32,10 @@
         "id": "css",
         "title": "%css.title%",
         "properties": {
+          "css.experimental.customData": {
+            "type": "array",
+            "description": "A list of JSON file paths that define custom CSS data that loads extra properties, at directives, pseudo classes / elements."
+          },
           "css.validate": {
             "type": "boolean",
             "scope": "resource",

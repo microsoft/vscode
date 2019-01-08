@@ -7,6 +7,7 @@ import {
 	createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, ServerCapabilities, ConfigurationRequest, WorkspaceFolder
 } from 'vscode-languageserver';
 import URI from 'vscode-uri';
+import * as fs from 'fs';
 import { TextDocument, CompletionList } from 'vscode-languageserver-types';
 
 import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet } from 'vscode-css-languageservice';
@@ -14,6 +15,7 @@ import { getLanguageModelCache } from './languageModelCache';
 import { getPathCompletionParticipant } from './pathCompletion';
 import { formatError, runSafe } from './utils/runner';
 import { getDocumentContext } from './utils/documentContext';
+import { parseCSSData } from './languageFacts';
 
 export interface Settings {
 	css: LanguageSettings;
@@ -50,6 +52,8 @@ let scopedSettingsSupport = false;
 let foldingRangeLimit = Number.MAX_VALUE;
 let workspaceFolders: WorkspaceFolder[];
 
+const languageServices: { [id: string]: LanguageService } = {};
+
 // After the server has started the client sends an initialize request. The server receives
 // in the passed params the rootPath of the workspace plus the client capabilities.
 connection.onInitialize((params: InitializeParams): InitializeResult => {
@@ -60,6 +64,33 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 			workspaceFolders.push({ name: '', uri: URI.file(params.rootPath).toString() });
 		}
 	}
+
+	const dataPaths: string[] = params.initializationOptions.dataPaths;
+
+	let customData = {
+		customProperties: [],
+		customAtDirectives: [],
+		customPseudoElements: [],
+		customPseudoClasses: []
+	};
+
+	dataPaths.forEach(p => {
+		if (fs.existsSync(p)) {
+			const {
+				properties,
+				atDirectives,
+				pseudoClasses,
+				pseudoElements
+			} = parseCSSData(fs.readFileSync(p, 'utf-8'));
+
+			customData.customProperties = customData.customProperties.concat(properties);
+			customData.customAtDirectives = customData.customAtDirectives.concat(atDirectives);
+			customData.customPseudoClasses = customData.customPseudoClasses.concat(pseudoClasses);
+			customData.customPseudoElements = customData.customPseudoElements.concat(pseudoElements);
+		} else {
+			return;
+		}
+	});
 
 	function getClientCapability<T>(name: string, def: T) {
 		const keys = name.split('.');
@@ -75,6 +106,10 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	const snippetSupport = !!getClientCapability('textDocument.completion.completionItem.snippetSupport', false);
 	scopedSettingsSupport = !!getClientCapability('workspace.configuration', false);
 	foldingRangeLimit = getClientCapability('textDocument.foldingRange.rangeLimit', Number.MAX_VALUE);
+
+	languageServices.css = getCSSLanguageService(customData);
+	languageServices.scss = getSCSSLanguageService(customData);
+	languageServices.less = getLESSLanguageService(customData);
 
 	const capabilities: ServerCapabilities = {
 		// Tell the client that the server works in FULL text document sync mode
@@ -95,12 +130,6 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	};
 	return { capabilities };
 });
-
-const languageServices: { [id: string]: LanguageService } = {
-	css: getCSSLanguageService(),
-	scss: getSCSSLanguageService(),
-	less: getLESSLanguageService()
-};
 
 function getLanguageService(document: TextDocument) {
 	let service = languageServices[document.languageId];

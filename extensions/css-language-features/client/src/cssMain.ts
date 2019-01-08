@@ -9,7 +9,7 @@ import * as fs from 'fs';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-import { languages, window, commands, ExtensionContext, Range, Position, CompletionItem, CompletionItemKind, TextEdit, SnippetString } from 'vscode';
+import { languages, window, commands, ExtensionContext, Range, Position, CompletionItem, CompletionItemKind, TextEdit, SnippetString, workspace } from 'vscode';
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, Disposable } from 'vscode-languageclient';
 
 // this method is called when vs code is activated
@@ -30,6 +30,22 @@ export function activate(context: ExtensionContext) {
 
 	let documentSelector = ['css', 'scss', 'less'];
 
+	let dataPaths: string[] = workspace.getConfiguration('css').get('experimental.customData', []);
+	if (dataPaths && dataPaths.length > 0) {
+		if (!workspace.workspaceFolders) {
+			dataPaths = [];
+		} else {
+			try {
+				const workspaceRoot = workspace.workspaceFolders[0].uri.fsPath;
+				dataPaths = dataPaths.map(d => {
+					return path.resolve(workspaceRoot, d);
+				});
+			} catch (err) {
+				dataPaths = [];
+			}
+		}
+	}
+
 	// Options to control the language client
 	let clientOptions: LanguageClientOptions = {
 		documentSelector,
@@ -37,6 +53,7 @@ export function activate(context: ExtensionContext) {
 			configurationSection: ['css', 'scss', 'less']
 		},
 		initializationOptions: {
+			dataPaths
 		}
 	};
 
