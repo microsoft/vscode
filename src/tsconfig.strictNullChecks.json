@@ -571,6 +571,7 @@
 		"./vs/workbench/common/theme.ts",
 		"./vs/workbench/common/viewlet.ts",
 		"./vs/workbench/common/views.ts",
+		"./vs/workbench/electron-browser/actions.ts",
 		"./vs/workbench/electron-browser/resources.ts",
 		"./vs/workbench/electron-browser/window.ts",
 		"./vs/workbench/parts/backup/common/backupRestorer.ts",

@@ -150,7 +150,7 @@ export class ToggleMenuBarAction extends Action {
 
 		this.configurationService.updateValue(ToggleMenuBarAction.menuBarVisibilityKey, newVisibilityValue, ConfigurationTarget.USER);
 
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 
@@ -431,22 +431,22 @@ export abstract class BaseOpenRecentAction extends Action {
 
 	private openRecent(recentWorkspaces: Array<IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier>, recentFiles: URI[]): void {
 
-		const toPick = (workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI, fileKind: FileKind, labelService: ILabelService, buttons: IQuickInputButton[]) => {
+		const toPick = (workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI, fileKind: FileKind, labelService: ILabelService, buttons: IQuickInputButton[] | undefined) => {
 			let resource: URI;
 			let label: string;
 			let description: string;
 			if (isSingleFolderWorkspaceIdentifier(workspace) && fileKind !== FileKind.FILE) {
 				resource = workspace;
 				label = labelService.getWorkspaceLabel(workspace);
-				description = labelService.getUriLabel(dirname(resource));
+				description = labelService.getUriLabel(dirname(resource)!);
 			} else if (isWorkspaceIdentifier(workspace)) {
 				resource = URI.file(workspace.configPath);
 				label = labelService.getWorkspaceLabel(workspace);
-				description = labelService.getUriLabel(dirname(resource));
+				description = labelService.getUriLabel(dirname(resource)!);
 			} else {
 				resource = workspace;
 				label = getBaseLabel(workspace);
-				description = labelService.getUriLabel(dirname(resource));
+				description = labelService.getUriLabel(dirname(resource)!);
 			}
 
 			return {
@@ -486,11 +486,10 @@ export abstract class BaseOpenRecentAction extends Action {
 				this.windowsService.removeFromRecentlyOpened([context.item.workspace]).then(() => context.removeItem());
 			}
 		})
-			.then(pick => {
+			.then((pick): Promise<void> | void => {
 				if (pick) {
 					return runPick(pick.resource, pick.fileKind === FileKind.FILE, keyMods);
 				}
-				return null;
 			});
 	}
 }
@@ -618,7 +617,7 @@ export class KeybindingsReferenceAction extends Action {
 
 	run(): Promise<void> {
 		window.open(KeybindingsReferenceAction.URL);
-		return null;
+		return Promise.resolve();
 	}
 }
 
@@ -639,7 +638,7 @@ export class OpenDocumentationUrlAction extends Action {
 
 	run(): Promise<void> {
 		window.open(OpenDocumentationUrlAction.URL);
-		return null;
+		return Promise.resolve();
 	}
 }
 
@@ -660,7 +659,7 @@ export class OpenIntroductoryVideosUrlAction extends Action {
 
 	run(): Promise<void> {
 		window.open(OpenIntroductoryVideosUrlAction.URL);
-		return null;
+		return Promise.resolve();
 	}
 }
 
@@ -681,7 +680,7 @@ export class OpenTipsAndTricksUrlAction extends Action {
 
 	run(): Promise<void> {
 		window.open(OpenTipsAndTricksUrlAction.URL);
-		return null;
+		return Promise.resolve();
 	}
 }
 
@@ -970,7 +969,7 @@ export abstract class BaseResizeViewAction extends Action {
 		const isSidebarFocus = this.partService.hasFocus(Parts.SIDEBAR_PART);
 		const isPanelFocus = this.partService.hasFocus(Parts.PANEL_PART);
 
-		let part: Parts;
+		let part: Parts | undefined;
 		if (isSidebarFocus) {
 			part = Parts.SIDEBAR_PART;
 		} else if (isPanelFocus) {
@@ -1264,7 +1263,11 @@ export class InspectContextKeysAction extends Action {
 		const disposables: IDisposable[] = [];
 
 		const stylesheet = createStyleSheet();
-		disposables.push(toDisposable(() => stylesheet.parentNode.removeChild(stylesheet)));
+		disposables.push(toDisposable(() => {
+			if (stylesheet.parentNode) {
+				stylesheet.parentNode.removeChild(stylesheet);
+			}
+		}));
 		createCSSRule('*', 'cursor: crosshair !important;', stylesheet);
 
 		const hoverFeedback = document.createElement('div');
@@ -1302,7 +1305,7 @@ export class InspectContextKeysAction extends Action {
 			dispose(disposables);
 		}, null, disposables);
 
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 
