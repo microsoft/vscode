@@ -85,12 +85,12 @@ export class FileIconThemeData implements IFileIconTheme {
 		let themeData = new FileIconThemeData();
 		themeData.id = '';
 		themeData.label = '';
-		themeData.settingsId = null;
+		themeData.settingsId = undefined;
 		themeData.isLoaded = false;
 		themeData.hasFileIcons = false;
 		themeData.hasFolderIcons = false;
 		themeData.hidesExplorerArrows = false;
-		themeData.extensionData = null;
+		themeData.extensionData = undefined;
 		return themeData;
 	}
 
