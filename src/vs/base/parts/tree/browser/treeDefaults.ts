@@ -12,7 +12,7 @@ import * as dom from 'vs/base/browser/dom';
 import * as mouse from 'vs/base/browser/mouseEvent';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import * as _ from 'vs/base/parts/tree/browser/tree';
-import { KeyCode, KeyMod, Keybinding, createKeybinding, SimpleKeybinding, createSimpleKeybinding } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod, Keybinding, SimpleKeybinding, createSimpleKeybinding } from 'vs/base/common/keyCodes';
 
 export interface IKeyBindingCallback {
 	(tree: _.ITree, event: IKeyboardEvent): void;
@@ -70,9 +70,9 @@ export class KeybindingDispatcher {
 		return false;
 	}
 
-	public set(keybinding: KeyCode, callback: IKeyBindingCallback) {
+	public set(keybinding: number, callback: IKeyBindingCallback) {
 		this._arr.push({
-			keybinding: createKeybinding(keybinding, platform.OS)!,
+			keybinding: createSimpleKeybinding(keybinding, platform.OS),
 			callback: callback
 		});
 	}
