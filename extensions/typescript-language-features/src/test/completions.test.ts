@@ -10,35 +10,41 @@ import { disposeAll } from '../utils/dispose';
 
 const testDocumentUri = vscode.Uri.parse('untitled:test.ts');
 
-const configOverrides: { readonly [key: string]: any } = Object.freeze({
-	'editor.suggestSelection': 'first',
-	'typescript.suggest.completeFunctionCalls': false,
-});
+type VsCodeConfiguration = { [key: string]: any };
+
+
+async function updateConfig(newConfig: VsCodeConfiguration): Promise<VsCodeConfiguration> {
+	const oldConfig: VsCodeConfiguration = {};
+	const config = vscode.workspace.getConfiguration(undefined, testDocumentUri);
+	for (const configKey of Object.keys(newConfig)) {
+		oldConfig[configKey] = config.get(configKey);
+		await new Promise((resolve, reject) => config.update(configKey, newConfig[configKey], vscode.ConfigurationTarget.Global).then(() => resolve(), reject));
+	}
+	return oldConfig;
+}
+
 
 suite('TypeScript Completions', () => {
+	const configDefaults: VsCodeConfiguration = Object.freeze({
+		'editor.suggestSelection': 'first',
+		'typescript.suggest.completeFunctionCalls': false,
+	});
+
 	const _disposables: vscode.Disposable[] = [];
 	let oldConfig: { [key: string]: any } = {};
 
 	setup(async () => {
 		await wait(100);
 
-		// save off config and update overrides
-		oldConfig = {};
-		const config = vscode.workspace.getConfiguration(undefined, testDocumentUri);
-		for (const configKey of Object.keys(configOverrides)) {
-			oldConfig[configKey] = config.get(configKey);
-			await new Promise((resolve, reject) => config.update(configKey, configOverrides[configKey], vscode.ConfigurationTarget.Global).then(() => resolve(), reject));
-		}
+		// Save off config and apply defaults
+		oldConfig = await updateConfig(configDefaults);
 	});
 
 	teardown(async () => {
 		disposeAll(_disposables);
 
 		// Restore config
-		const config = vscode.workspace.getConfiguration(undefined, testDocumentUri);
-		for (const configKey of Object.keys(oldConfig)) {
-			await new Promise((resolve, reject) => config.update(configKey, oldConfig[configKey], vscode.ConfigurationTarget.Global).then(() => resolve(), reject));
-		}
+		await updateConfig(oldConfig);
 
 		return vscode.commands.executeCommand('workbench.action.closeAllEditors');
 	});
