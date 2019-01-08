@@ -252,7 +252,7 @@ suite('ExtHostLanguageFeatures', function () {
 				return Promise.resolve(data.provider.resolveCodeLens(model, data.symbol, CancellationToken.None)).then(symbol => {
 
 					assert.equal(symbol.command.id, 'missing');
-					assert.equal(symbol.command.title, '<<MISSING COMMAND>>');
+					assert.equal(symbol.command.title, '!!MISSING: command!!');
 				});
 			});
 		});
