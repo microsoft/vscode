@@ -11,7 +11,7 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./lightBulbWidget';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { CodeActionsState, CodeActionsEmptyState, CodeActionsTriggeredState } from './codeActionModel';
+import { CodeActionsState } from './codeActionModel';
 
 export class LightBulbWidget implements IDisposable, IContentWidget {
 
@@ -25,7 +25,7 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 	readonly onClick: Event<{ x: number, y: number }> = this._onClick.event;
 
 	private _position: IContentWidgetPosition | null;
-	private _state: CodeActionsState = CodeActionsEmptyState;
+	private _state: CodeActionsState.State = CodeActionsState.Empty;
 	private _futureFixes = new CancellationTokenSource();
 
 	constructor(editor: ICodeEditor) {
@@ -40,7 +40,7 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 		this._disposables.push(this._editor.onDidChangeModelContent(_ => {
 			// cancel when the line in question has been removed
 			const editorModel = this._editor.getModel();
-			if (this.state.type !== CodeActionsTriggeredState.type || !editorModel || this.state.position.lineNumber >= editorModel.getLineCount()) {
+			if (this.state.type !== CodeActionsState.Type.Triggered || !editorModel || this.state.position.lineNumber >= editorModel.getLineCount()) {
 				this._futureFixes.cancel();
 			}
 		}));
@@ -53,7 +53,7 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 			const { lineHeight } = this._editor.getConfiguration();
 
 			let pad = Math.floor(lineHeight / 3);
-			if (this._position && this._state.type === CodeActionsTriggeredState.type && this._position.position !== null && this._position.position.lineNumber < this._state.position.lineNumber) {
+			if (this._position && this._state.type === CodeActionsState.Type.Triggered && this._position.position !== null && this._position.position.lineNumber < this._state.position.lineNumber) {
 				pad += lineHeight;
 			}
 
@@ -100,9 +100,9 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 		return this._position;
 	}
 
-	set state(newState: CodeActionsState) {
+	set state(newState: CodeActionsState.State) {
 
-		if (newState.type !== 'triggered' || this._position && (!newState.position || this._position.position && this._position.position.lineNumber !== newState.position.lineNumber)) {
+		if (newState.type !== CodeActionsState.Type.Triggered || this._position && (!newState.position || this._position.position && this._position.position.lineNumber !== newState.position.lineNumber)) {
 			// hide when getting a 'hide'-request or when currently
 			// showing on another line
 			this.hide();
@@ -115,7 +115,7 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 		const { token } = this._futureFixes;
 		this._state = newState;
 
-		if (this._state.type === CodeActionsEmptyState.type) {
+		if (this._state.type === CodeActionsState.Empty.type) {
 			return;
 		}
 
@@ -131,7 +131,7 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 		});
 	}
 
-	get state(): CodeActionsState {
+	get state(): CodeActionsState.State {
 		return this._state;
 	}
 
@@ -148,7 +148,7 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 		if (!config.contribInfo.lightbulbEnabled) {
 			return;
 		}
-		if (this._state.type !== CodeActionsTriggeredState.type) {
+		if (this._state.type !== CodeActionsState.Type.Triggered) {
 			return;
 		}
 		const { lineNumber, column } = this._state.position;
@@ -188,7 +188,7 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 
 	hide(): void {
 		this._position = null;
-		this._state = CodeActionsEmptyState;
+		this._state = CodeActionsState.Empty;
 		this._futureFixes.cancel();
 		this._editor.layoutContentWidget(this);
 	}

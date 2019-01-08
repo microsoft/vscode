@@ -21,7 +21,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IProgressService } from 'vs/platform/progress/common/progress';
-import { CodeActionModel, SUPPORTED_CODE_ACTIONS, CodeActionsState, CodeActionsTriggeredState } from './codeActionModel';
+import { CodeActionModel, SUPPORTED_CODE_ACTIONS, CodeActionsState } from './codeActionModel';
 import { CodeActionAutoApply, CodeActionFilter, CodeActionKind } from './codeActionTrigger';
 import { CodeActionContextMenu } from './codeActionWidget';
 import { LightBulbWidget } from './lightBulbWidget';
@@ -79,13 +79,13 @@ export class QuickFixController implements IEditorContribution {
 		dispose(this._disposables);
 	}
 
-	private _onDidChangeCodeActionsState(newState: CodeActionsState): void {
+	private _onDidChangeCodeActionsState(newState: CodeActionsState.State): void {
 		if (this._activeRequest) {
 			this._activeRequest.cancel();
 			this._activeRequest = undefined;
 		}
 
-		if (newState.type === CodeActionsTriggeredState.type) {
+		if (newState.type === CodeActionsState.Type.Triggered) {
 			this._activeRequest = newState.actions;
 
 			if (newState.trigger.filter && newState.trigger.filter.kind) {
@@ -120,7 +120,7 @@ export class QuickFixController implements IEditorContribution {
 	}
 
 	private _handleLightBulbSelect(coords: { x: number, y: number }): void {
-		if (this._lightBulbWidget.state.type === CodeActionsTriggeredState.type) {
+		if (this._lightBulbWidget.state.type === CodeActionsState.Type.Triggered) {
 			this._codeActionContextMenu.show(this._lightBulbWidget.state.actions, coords);
 		}
 	}

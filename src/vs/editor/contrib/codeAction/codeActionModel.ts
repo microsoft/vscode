@@ -28,7 +28,7 @@ export class CodeActionOracle {
 	constructor(
 		private _editor: ICodeEditor,
 		private readonly _markerService: IMarkerService,
-		private _signalChange: (newState: CodeActionsState) => void,
+		private _signalChange: (newState: CodeActionsState.State) => void,
 		private readonly _delay: number = 250,
 		private readonly _progressService?: IProgressService,
 	) {
@@ -115,13 +115,13 @@ export class CodeActionOracle {
 	private _createEventAndSignalChange(trigger: CodeActionTrigger, selection: Selection | undefined): Promise<CodeAction[] | undefined> {
 		if (!selection) {
 			// cancel
-			this._signalChange(CodeActionsEmptyState);
+			this._signalChange(CodeActionsState.Empty);
 			return Promise.resolve(undefined);
 		} else {
 			const model = this._editor.getModel();
 			if (!model) {
 				// cancel
-				this._signalChange(CodeActionsEmptyState);
+				this._signalChange(CodeActionsState.Empty);
 				return Promise.resolve(undefined);
 			}
 
@@ -133,7 +133,7 @@ export class CodeActionOracle {
 				this._progressService.showWhile(actions, 250);
 			}
 
-			this._signalChange(new CodeActionsTriggeredState(
+			this._signalChange(new CodeActionsState.Triggered(
 				trigger,
 				selection,
 				position,
@@ -144,28 +144,35 @@ export class CodeActionOracle {
 	}
 }
 
-export const CodeActionsEmptyState = new class { readonly type = 'empty'; };
+export namespace CodeActionsState {
 
-export class CodeActionsTriggeredState {
-	static readonly type = 'triggered';
-	readonly type = CodeActionsTriggeredState.type;
+	export const enum Type {
+		Empty,
+		Triggered,
+	}
 
-	constructor(
-		public readonly trigger: CodeActionTrigger,
-		public readonly rangeOrSelection: Range | Selection,
-		public readonly position: Position,
-		public readonly actions: CancelablePromise<CodeAction[]>,
-	) { }
+	export const Empty = new class { readonly type = Type.Empty; };
+
+	export class Triggered {
+		readonly type = Type.Triggered;
+
+		constructor(
+			public readonly trigger: CodeActionTrigger,
+			public readonly rangeOrSelection: Range | Selection,
+			public readonly position: Position,
+			public readonly actions: CancelablePromise<CodeAction[]>,
+		) { }
+	}
+
+	export type State = typeof Empty | Triggered;
 }
-
-export type CodeActionsState = typeof CodeActionsEmptyState | CodeActionsTriggeredState;
 
 export class CodeActionModel {
 
 	private _editor: ICodeEditor;
 	private _markerService: IMarkerService;
 	private _codeActionOracle?: CodeActionOracle;
-	private _onDidChangeState = new Emitter<CodeActionsState>();
+	private _onDidChangeState = new Emitter<CodeActionsState.State>();
 	private _disposables: IDisposable[] = [];
 	private readonly _supportedCodeActions: IContextKey<string>;
 
@@ -187,7 +194,7 @@ export class CodeActionModel {
 		dispose(this._codeActionOracle);
 	}
 
-	get onDidChangeState(): Event<CodeActionsState> {
+	get onDidChangeState(): Event<CodeActionsState.State> {
 		return this._onDidChangeState.event;
 	}
 
@@ -196,7 +203,7 @@ export class CodeActionModel {
 		if (this._codeActionOracle) {
 			this._codeActionOracle.dispose();
 			this._codeActionOracle = undefined;
-			this._onDidChangeState.fire(CodeActionsEmptyState);
+			this._onDidChangeState.fire(CodeActionsState.Empty);
 		}
 
 		const model = this._editor.getModel();
