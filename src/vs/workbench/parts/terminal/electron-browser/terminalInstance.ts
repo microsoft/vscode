@@ -38,14 +38,7 @@ import { TerminalCommandTracker } from 'vs/workbench/parts/terminal/node/termina
 import { TerminalProcessManager } from './terminalProcessManager';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { execFile, exec } from 'child_process';
-import { TogglePanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
-import { NavigateUpAction, NavigateDownAction, NavigateLeftAction, NavigateRightAction } from 'vs/workbench/electron-browser/actions';
-import { QUICKOPEN_ACTION_ID, QUICKOPEN_FOCUS_SECONDARY_ACTION_ID } from 'vs/workbench/browser/parts/quickopen/quickopen';
-import { OpenNextRecentlyUsedEditorInGroupAction, OpenPreviousRecentlyUsedEditorInGroupAction, FocusActiveGroupAction, FocusFirstGroupAction, FocusLastGroupAction, OpenFirstEditorInGroup, OpenLastEditorInGroup } from 'vs/workbench/browser/parts/editor/editorActions';
-import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/toggleTabFocusMode';
-import { ShowAllCommandsAction } from 'vs/workbench/parts/quickopen/browser/commandsHandler';
 import { TERMINAL_COMMAND_ID } from 'vs/workbench/parts/terminal/common/terminalCommands';
-import * as debugActions from 'vs/workbench/parts/debug/browser/debugActions';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -101,10 +94,10 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TERMINAL_COMMAND_ID.SPLIT_IN_ACTIVE_WORKSPACE,
 	TERMINAL_COMMAND_ID.SPLIT,
 	TERMINAL_COMMAND_ID.TOGGLE,
-	ToggleTabFocusModeAction.ID,
-	QUICKOPEN_ACTION_ID,
-	QUICKOPEN_FOCUS_SECONDARY_ACTION_ID,
-	ShowAllCommandsAction.ID,
+	'editor.action.toggleTabFocusMode',
+	'workbench.action.quickOpen',
+	'workbench.action.quickOpenPreviousEditor',
+	'workbench.action.showCommands',
 	'workbench.action.tasks.build',
 	'workbench.action.tasks.restartTask',
 	'workbench.action.tasks.runTask',
@@ -134,27 +127,27 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	'workbench.action.previousPanelView',
 	'workbench.action.nextSideBarView',
 	'workbench.action.previousSideBarView',
-	debugActions.StartAction.ID,
-	debugActions.StopAction.ID,
-	debugActions.RunAction.ID,
-	debugActions.RestartAction.ID,
-	debugActions.ContinueAction.ID,
-	debugActions.PauseAction.ID,
-	debugActions.StepIntoAction.ID,
-	debugActions.StepOutAction.ID,
-	debugActions.StepOverAction.ID,
-	OpenNextRecentlyUsedEditorInGroupAction.ID,
-	OpenPreviousRecentlyUsedEditorInGroupAction.ID,
-	FocusActiveGroupAction.ID,
-	FocusFirstGroupAction.ID,
-	FocusLastGroupAction.ID,
-	OpenFirstEditorInGroup.ID,
-	OpenLastEditorInGroup.ID,
-	NavigateUpAction.ID,
-	NavigateDownAction.ID,
-	NavigateRightAction.ID,
-	NavigateLeftAction.ID,
-	TogglePanelAction.ID,
+	'workbench.action.debug.start',
+	'workbench.action.debug.stop',
+	'workbench.action.debug.run',
+	'workbench.action.debug.restart',
+	'workbench.action.debug.continue',
+	'workbench.action.debug.pause',
+	'workbench.action.debug.stepInto',
+	'workbench.action.debug.stepOut',
+	'workbench.action.debug.stepOver',
+	'workbench.action.openNextRecentlyUsedEditorInGroup',
+	'workbench.action.openPreviousRecentlyUsedEditorInGroup',
+	'workbench.action.focusActiveEditorGroup',
+	'workbench.action.focusFirstEditorGroup',
+	'workbench.action.focusLastEditorGroup',
+	'workbench.action.firstEditorInGroup',
+	'workbench.action.lastEditorInGroup',
+	'workbench.action.navigateUp',
+	'workbench.action.navigateDown',
+	'workbench.action.navigateRight',
+	'workbench.action.navigateLeft',
+	'workbench.action.togglePanel',
 	'workbench.action.quickOpenView',
 	'workbench.action.toggleMaximizedPanel'
 ];
