@@ -8,7 +8,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { equal, ok } from 'assert';
-import { mkdirp, del, writeFile } from 'vs/base/node/pfs';
+import { mkdirp, del, writeFile, exists } from 'vs/base/node/pfs';
 import { timeout } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { isWindows } from 'vs/base/common/platform';
@@ -427,7 +427,7 @@ suite('SQLite Storage Library', () => {
 		await del(storageDir, tmpdir());
 	});
 
-	test('basics (corrupt DB does not backup)', async () => {
+	test('basics (DB that becomes corrupt during runtime restores backup on close())', async () => {
 		if (isWindows) {
 			await Promise.resolve(); // Windows will fail to write to open DB due to locking
 
@@ -449,6 +449,8 @@ suite('SQLite Storage Library', () => {
 		await storage.updateItems({ insert: items });
 		await storage.close();
 
+		equal(await exists(`${storagePath}.backup`), true);
+
 		storage = new SQLiteStorageDatabase(storagePath);
 		await storage.getItems();
 
@@ -461,6 +463,8 @@ suite('SQLite Storage Library', () => {
 		await storage.checkIntegrity(true).then(null, error => { } /* error is expected here but we do not want to fail */);
 
 		await storage.close();
+
+		equal(await exists(`${storagePath}.backup`), false);
 
 		storage = new SQLiteStorageDatabase(storagePath);
 

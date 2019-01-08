@@ -6,7 +6,7 @@
 import { Database, Statement } from 'vscode-sqlite3';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
-import { ThrottledDelayer, timeout } from 'vs/base/common/async';
+import { ThrottledDelayer, timeout, always } from 'vs/base/common/async';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { mapToString, setToString } from 'vs/base/common/map';
 import { basename } from 'path';
@@ -411,26 +411,38 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 
 		return this.whenOpened.then(result => {
 			return new Promise((resolve, reject) => {
-				result.db.close(error => {
-					if (error) {
-						this.handleSQLiteError(error, `[storage ${this.name}] close(): ${error}`);
+				result.db.close(closeError => {
+					if (closeError) {
+						this.handleSQLiteError(closeError, `[storage ${this.name}] close(): ${closeError}`);
+					}
 
-						return reject(error);
+					if (result.path === SQLiteStorageDatabase.IN_MEMORY_PATH) {
+						return resolve(); // return early for in-memory DBs
+					}
+
+					if (this.isCorrupt) {
+						// If the DB is corrupt, make sure to rename the file so that we can start
+						// from a fresh DB or a previous backup on the next startup and not be stuck
+						// with a corrupt DB for ever.
+						this.logger.error(`[storage ${this.name}] close(): removing corrupt DB and trying to restore backup`);
+
+						return always(rename(result.path, this.toCorruptPath(result.path))
+							.then(() => rename(this.toBackupPath(result.path), result.path)), () => closeError ? reject(closeError) : resolve());
+					}
+
+					if (closeError) {
+						return reject(closeError);
 					}
 
 					// If the DB closed successfully and we are not running in-memory
 					// and the DB did not get corrupted during runtime, make a backup
 					// of the DB so that we can use it as fallback in case the actual
 					// DB becomes corrupt.
-					if (result.path !== SQLiteStorageDatabase.IN_MEMORY_PATH && !this.isCorrupt) {
-						return this.backup(result).then(resolve, error => {
-							this.logger.error(`[storage ${this.name}] backup(): ${error}`);
+					return this.backup(result).then(resolve, error => {
+						this.logger.error(`[storage ${this.name}] backup(): ${error}`);
 
-							return resolve(); // ignore failing backup
-						});
-					}
-
-					return resolve();
+						return resolve(); // ignore failing backup
+					});
 				});
 			});
 		});
@@ -510,6 +522,14 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 		return rename(path, this.toCorruptPath(path))
 			.then(() => renameIgnoreError(this.toBackupPath(path), path))
 			.then(() => this.doOpen(path));
+	}
+
+	private handleSQLiteError(error: Error & { code?: string }, msg: string): void {
+		if (error.code === 'SQLITE_CORRUPT' || error.code === 'SQLITE_NOTADB') {
+			this.isCorrupt = true;
+		}
+
+		this.logger.error(msg);
 	}
 
 	private toCorruptPath(path: string): string {
@@ -651,14 +671,6 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 
 			stmt.removeListener('error', statementErrorListener);
 		});
-	}
-
-	private handleSQLiteError(error: Error & { code?: string }, msg: string): void {
-		if (error.code === 'SQLITE_CORRUPT' || error.code === 'SQLITE_NOTADB') {
-			this.isCorrupt = true;
-		}
-
-		this.logger.error(msg);
 	}
 }
 
