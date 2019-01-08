@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getOrDefault } from 'vs/base/common/objects';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { Gesture, EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import * as DOM from 'vs/base/browser/dom';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -12,7 +12,7 @@ import { domEvent } from 'vs/base/browser/event';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollEvent, ScrollbarVisibility, INewScrollDimensions } from 'vs/base/common/scrollable';
 import { RangeMap, shift } from './rangeMap';
-import { IListVirtualDelegate, IListRenderer, IListMouseEvent, IListTouchEvent, IListGestureEvent } from './list';
+import { IListVirtualDelegate, IListRenderer, IListMouseEvent, IListTouchEvent, IListGestureEvent, IDragAndDrop } from './list';
 import { RowCache, IRow } from './rowCache';
 import { isWindows } from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
@@ -41,9 +41,12 @@ interface IItem<T> {
 	size: number;
 	hasDynamicHeight: boolean;
 	renderWidth: number | undefined;
+	uri: string | undefined;
+	dragStartDisposable: IDisposable;
 }
 
-export interface IListViewOptions {
+export interface IListViewOptions<T> {
+	readonly dnd?: IDragAndDrop<T>;
 	readonly useShadows?: boolean;
 	readonly verticalScrollMode?: ScrollbarVisibility;
 	readonly setRowLineHeight?: boolean;
@@ -55,7 +58,13 @@ const DefaultOptions = {
 	useShadows: true,
 	verticalScrollMode: ScrollbarVisibility.Auto,
 	setRowLineHeight: true,
-	supportDynamicHeights: false
+	supportDynamicHeights: false,
+	dnd: {
+		getDragURI() { return null; },
+		onDragStart(): void { },
+		onDragOver() { return false; },
+		drop() { }
+	}
 };
 
 export class ListView<T> implements ISpliceable<T>, IDisposable {
@@ -76,22 +85,26 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	private _scrollHeight: number;
 	private scrollableElementUpdateDisposable: IDisposable | null = null;
 	private splicing = false;
-	private dragAndDropScrollInterval: number;
-	private dragAndDropScrollTimeout: number;
-	private dragAndDropMouseY: number;
+	private dragOverAnimationDisposable: IDisposable | undefined;
+	private dragOverAnimationStopDisposable: IDisposable = Disposable.None;
+	private dragOverMouseY: number;
 	private setRowLineHeight: boolean;
 	private supportDynamicHeights: boolean;
+	private readonly dnd: IDragAndDrop<T>;
 	private disposables: IDisposable[];
 
 	private _onDidChangeContentHeight = new Emitter<number>();
 	readonly onDidChangeContentHeight: Event<number> = Event.latch(this._onDidChangeContentHeight.event);
 	get contentHeight(): number { return this.rangeMap.size; }
 
+	private _onDragStart = new Emitter<{ element: T, uri: string, event: DragMouseEvent }>();
+	readonly onDragStart = this._onDragStart.event;
+
 	constructor(
 		container: HTMLElement,
 		private virtualDelegate: IListVirtualDelegate<T>,
 		renderers: IListRenderer<any /* TODO@joao */, any>[],
-		options: IListViewOptions = DefaultOptions
+		options: IListViewOptions<T> = DefaultOptions
 	) {
 		this.items = [];
 		this.itemId = 0;
@@ -136,9 +149,12 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		const onDragOver = Event.map(domEvent(this.rowsContainer, 'dragover'), e => new DragMouseEvent(e));
 		onDragOver(this.onDragOver, this, this.disposables);
+		const onDragEnd = Event.map(domEvent(document, 'dragend'), e => new DragMouseEvent(e));
+		onDragEnd(this.onDragEnd, this, this.disposables);
 
 		this.setRowLineHeight = getOrDefault(options, o => o.setRowLineHeight, DefaultOptions.setRowLineHeight);
 		this.supportDynamicHeights = getOrDefault(options, o => o.supportDynamicHeights, DefaultOptions.supportDynamicHeights);
+		this.dnd = getOrDefault<IListViewOptions<T>, IDragAndDrop<T>>(options, o => o.dnd, DefaultOptions.dnd);
 
 		this.layout();
 	}
@@ -178,7 +194,9 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			size: this.virtualDelegate.getHeight(element),
 			hasDynamicHeight: !!this.virtualDelegate.hasDynamicHeight && this.virtualDelegate.hasDynamicHeight(element),
 			renderWidth: undefined,
-			row: null
+			row: null,
+			uri: undefined,
+			dragStartDisposable: Disposable.None
 		}));
 
 		let deleted: IItem<T>[];
@@ -354,6 +372,15 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		const renderer = this.renderers.get(item.templateId);
 		renderer.renderElement(item.element, index, item.row.templateData);
+
+		const uri = this.dnd.getDragURI(item.element);
+		item.dragStartDisposable.dispose();
+
+		if (uri) {
+			item.row.domNode!.draggable = true;
+			const onDragStart = Event.map(domEvent(item.row.domNode!, 'dragstart'), e => new DragMouseEvent(e));
+			item.dragStartDisposable = onDragStart(event => this._onDragStart.fire({ element: item.element, uri, event }), this);
+		}
 	}
 
 	private updateItemInDOM(item: IItem<T>, index: number): void {
@@ -372,6 +399,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	private removeItemFromDOM(index: number): void {
 		const item = this.items[index];
+		item.dragStartDisposable.dispose();
+
 		const renderer = this.renderers.get(item.templateId);
 
 		if (renderer.disposeElement) {
@@ -464,55 +493,44 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		this.scrollTop -= event.translationY;
 	}
 
+	// DND
+
 	private onDragOver(event: DragMouseEvent): void {
-		this.setupDragAndDropScrollInterval();
-		this.dragAndDropMouseY = event.posy;
+		if (!this.dragOverAnimationDisposable) {
+			const viewTop = DOM.getTopLeftOffset(this.domNode).top;
+			this.dragOverAnimationDisposable = DOM.animate(this.animateDragAndDropScrollTop.bind(this, viewTop));
+		}
+
+		this.dragOverAnimationStopDisposable.dispose();
+		this.dragOverAnimationStopDisposable = DOM.timeout(() => {
+			this.dragOverAnimationDisposable.dispose();
+			this.dragOverAnimationDisposable = undefined;
+		}, 1000);
+
+		this.dragOverMouseY = event.posy;
 	}
 
-	private setupDragAndDropScrollInterval(): void {
-		const viewTop = DOM.getTopLeftOffset(this.domNode).top;
+	private animateDragAndDropScrollTop(viewTop: number): void {
+		if (this.dragOverMouseY === undefined) {
+			return;
+		}
 
-		if (!this.dragAndDropScrollInterval) {
-			this.dragAndDropScrollInterval = window.setInterval(() => {
-				if (this.dragAndDropMouseY === undefined) {
-					return;
-				}
+		const diff = this.dragOverMouseY - viewTop;
+		const upperLimit = this.renderHeight - 35;
 
-				let diff = this.dragAndDropMouseY - viewTop;
-				let scrollDiff = 0;
-				let upperLimit = this.renderHeight - 35;
-
-				if (diff < 35) {
-					scrollDiff = Math.max(-14, 0.2 * (diff - 35));
-				} else if (diff > upperLimit) {
-					scrollDiff = Math.min(14, 0.2 * (diff - upperLimit));
-				}
-
-				this.scrollTop += scrollDiff;
-			}, 10);
-
-			this.cancelDragAndDropScrollTimeout();
-
-			this.dragAndDropScrollTimeout = window.setTimeout(() => {
-				this.cancelDragAndDropScrollInterval();
-				this.dragAndDropScrollTimeout = -1;
-			}, 1000);
+		if (diff < 35) {
+			this.scrollTop += Math.max(-14, Math.floor(0.3 * (diff - 35)));
+		} else if (diff > upperLimit) {
+			this.scrollTop += Math.min(14, Math.floor(0.3 * (diff - upperLimit)));
 		}
 	}
 
-	private cancelDragAndDropScrollInterval(): void {
-		if (this.dragAndDropScrollInterval) {
-			window.clearInterval(this.dragAndDropScrollInterval);
-			this.dragAndDropScrollInterval = -1;
-		}
+	private onDragEnd(): void {
+		this.dragOverAnimationStopDisposable.dispose();
 
-		this.cancelDragAndDropScrollTimeout();
-	}
-
-	private cancelDragAndDropScrollTimeout(): void {
-		if (this.dragAndDropScrollTimeout) {
-			window.clearTimeout(this.dragAndDropScrollTimeout);
-			this.dragAndDropScrollTimeout = -1;
+		if (this.dragOverAnimationDisposable) {
+			this.dragOverAnimationDisposable.dispose();
+			this.dragOverAnimationDisposable = undefined;
 		}
 	}
 

@@ -880,7 +880,14 @@ export class RepositoryPanel extends ViewletPanel {
 
 		this.list = this.instantiationService.createInstance(WorkbenchList, this.listContainer, delegate, renderers, {
 			identityProvider: scmResourceIdentityProvider,
-			keyboardNavigationLabelProvider: scmKeyboardNavigationLabelProvider
+			keyboardNavigationLabelProvider: scmKeyboardNavigationLabelProvider,
+			dnd: {
+				getDragURI(element) { return 'file:///foo'; },
+				// getDragLabel(elements) { return 'dragging'; },
+				onDragStart(data, originalEvent) { },
+				onDragOver(data, targetElement, originalEvent) { return true; },
+				drop(data, targetElement, originalEvent) { }
+			}
 		}) as WorkbenchList<ISCMResourceGroup | ISCMResource>;
 
 		Event.chain(this.list.onDidOpen)

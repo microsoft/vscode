@@ -22,6 +22,23 @@ function asListOptions<T, TFilterData>(options?: IAbstractTreeOptions<T, TFilter
 				return options.identityProvider!.getId(el.element);
 			}
 		},
+		dnd: options.dnd && {
+			getDragURI(node) {
+				return options.dnd!.getDragURI(node.element);
+			},
+			getDragLabel: options.dnd!.getDragLabel && ((nodes) => {
+				return options.dnd!.getDragLabel!(nodes.map(node => node.element));
+			}),
+			onDragStart(data, originalEvent) {
+				return options.dnd!.onDragStart(data, originalEvent);
+			},
+			onDragOver(data, targetNode, originalEvent) {
+				return options.dnd!.onDragOver(data, targetNode.element, originalEvent);
+			},
+			drop(data, targetNode, originalEvent) {
+				return options.dnd!.drop(data, targetNode.element, originalEvent);
+			}
+		},
 		multipleSelectionController: options.multipleSelectionController && {
 			isSelectionSingleChangeEvent(e) {
 				return options.multipleSelectionController!.isSelectionSingleChangeEvent({ ...e, element: e.element } as any);
