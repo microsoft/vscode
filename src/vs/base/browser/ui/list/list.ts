@@ -47,6 +47,12 @@ export interface IListGestureEvent<T> {
 	index: number | undefined;
 }
 
+export interface IListDragEvent<T> {
+	browserEvent: DragEvent;
+	element: T | undefined;
+	index: number | undefined;
+}
+
 export interface IListContextMenuEvent<T> {
 	browserEvent: UIEvent;
 	element: T | undefined;

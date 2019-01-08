@@ -12,7 +12,7 @@ import { domEvent } from 'vs/base/browser/event';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollEvent, ScrollbarVisibility, INewScrollDimensions } from 'vs/base/common/scrollable';
 import { RangeMap, shift } from './rangeMap';
-import { IListVirtualDelegate, IListRenderer, IListMouseEvent, IListTouchEvent, IListGestureEvent, IDragAndDrop } from './list';
+import { IListVirtualDelegate, IListRenderer, IListMouseEvent, IListTouchEvent, IListGestureEvent, IDragAndDrop, IListDragEvent } from './list';
 import { RowCache, IRow } from './rowCache';
 import { isWindows } from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
@@ -100,6 +100,9 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	private _onDragStart = new Emitter<{ element: T, uri: string, event: DragMouseEvent }>();
 	readonly onDragStart = this._onDragStart.event;
 
+	readonly onDragOver: Event<IListDragEvent<T>>;
+	readonly onDragLeave: Event<void>;
+
 	constructor(
 		container: HTMLElement,
 		private virtualDelegate: IListVirtualDelegate<T>,
@@ -147,10 +150,14 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		domEvent(this.scrollableElement.getDomNode(), 'scroll')
 			(e => (e.target as HTMLElement).scrollTop = 0, null, this.disposables);
 
-		const onDragOver = Event.map(domEvent(this.rowsContainer, 'dragover'), e => new DragMouseEvent(e));
-		onDragOver(this.onDragOver, this, this.disposables);
+		const onDragOver = Event.map(domEvent(this.domNode, 'dragover'), e => new DragMouseEvent(e));
+		onDragOver(this.onDidDragOver, this, this.disposables);
+
+		this.onDragOver = Event.map(domEvent(this.domNode, 'dragover'), e => this.toDragEvent(e));
+		this.onDragLeave = Event.signal(domEvent(this.domNode, 'dragleave'));
+
 		const onDragEnd = Event.map(domEvent(document, 'dragend'), e => new DragMouseEvent(e));
-		onDragEnd(this.onDragEnd, this, this.disposables);
+		onDragEnd(this._onDragEnd, this, this.disposables);
 
 		this.setRowLineHeight = getOrDefault(options, o => o.setRowLineHeight, DefaultOptions.setRowLineHeight);
 		this.supportDynamicHeights = getOrDefault(options, o => o.supportDynamicHeights, DefaultOptions.supportDynamicHeights);
@@ -473,6 +480,13 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		return { browserEvent, index, element };
 	}
 
+	private toDragEvent(browserEvent: DragEvent): IListDragEvent<T> {
+		const index = this.getItemIndexFromEventTarget(browserEvent.target || null);
+		const item = typeof index === 'undefined' ? undefined : this.items[index];
+		const element = item && item.element;
+		return { browserEvent, index, element };
+	}
+
 	private onScroll(e: ScrollEvent): void {
 		try {
 			this.render(e.scrollTop, e.height);
@@ -495,7 +509,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	// DND
 
-	private onDragOver(event: DragMouseEvent): void {
+	private onDidDragOver(event: DragMouseEvent): void {
 		if (!this.dragOverAnimationDisposable) {
 			const viewTop = DOM.getTopLeftOffset(this.domNode).top;
 			this.dragOverAnimationDisposable = DOM.animate(this.animateDragAndDropScrollTop.bind(this, viewTop));
@@ -525,7 +539,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		}
 	}
 
-	private onDragEnd(): void {
+	private _onDragEnd(): void {
 		this.dragOverAnimationStopDisposable.dispose();
 
 		if (this.dragOverAnimationDisposable) {

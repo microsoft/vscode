@@ -16,7 +16,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent, IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Event, Emitter, EventBufferer } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
-import { IListVirtualDelegate, IListRenderer, IListEvent, IListContextMenuEvent, IListMouseEvent, IListTouchEvent, IListGestureEvent, IIdentityProvider, IKeyboardNavigationLabelProvider, IDragAndDrop, IDragAndDropData } from './list';
+import { IListVirtualDelegate, IListRenderer, IListEvent, IListContextMenuEvent, IListMouseEvent, IListTouchEvent, IListGestureEvent, IIdentityProvider, IKeyboardNavigationLabelProvider, IDragAndDrop, IDragAndDropData, IListDragEvent } from './list';
 import { ListView, IListViewOptions } from './listView';
 import { Color } from 'vs/base/common/color';
 import { mixin, getOrDefault } from 'vs/base/common/objects';
@@ -1154,6 +1154,9 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		this.view.onDragStart(this.onDragStart, this, this.disposables);
 
+		this.view.onDragOver(this.onDragOver, this, this.disposables);
+		this.view.onDragLeave(this.onDragLeave, this, this.disposables);
+
 		this.onFocusChange(this._onFocusChange, this, this.disposables);
 		this.onSelectionChange(this._onSelectionChange, this, this.disposables);
 
@@ -1469,6 +1472,14 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		List.currentExternalDragAndDropData = new ExternalElementsDragAndDropData(elements);
 
 		this.dnd.onDragStart(this.currentDragAndDropData, event);
+	}
+
+	private onDragOver(event: IListDragEvent<T>): void {
+		console.log(event);
+	}
+
+	private onDragLeave(): void {
+		console.log('LEAVE');
 	}
 
 	dispose(): void {
