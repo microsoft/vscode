@@ -511,6 +511,10 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	}
 
 	private onListMouseDown(e: IListMouseEvent<CompletionItem>): void {
+		if (typeof e.element === 'undefined' || typeof e.index === 'undefined') {
+			return;
+		}
+
 		this.select(e.element, e.index);
 	}
 
