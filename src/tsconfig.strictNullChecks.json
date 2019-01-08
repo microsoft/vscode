@@ -548,6 +548,7 @@
 		"./vs/workbench/browser/parts/quickinput/quickInputBox.ts",
 		"./vs/workbench/browser/parts/quickinput/quickInputUtils.ts",
 		"./vs/workbench/browser/parts/quickopen/quickopen.ts",
+		"./vs/workbench/browser/parts/sidebar/sidebarPart.ts",
 		"./vs/workbench/browser/parts/statusbar/statusbar.ts",
 		"./vs/workbench/browser/parts/statusbar/statusbarPart.ts",
 		"./vs/workbench/browser/parts/views/panelViewlet.ts",

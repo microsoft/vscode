@@ -768,7 +768,8 @@ export abstract class BaseNavigationAction extends Action {
 
 		const activeViewletId = this.viewletService.getActiveViewlet().getId();
 
-		return this.viewletService.openViewlet(activeViewletId, true);
+		return this.viewletService.openViewlet(activeViewletId, true)
+			.then(value => value === null ? false : value);
 	}
 
 	protected navigateAcrossEditorGroup(direction: GroupDirection): boolean {
