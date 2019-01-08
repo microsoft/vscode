@@ -87,9 +87,9 @@ export class ScopedProgressService extends ScopedService implements IProgressSer
 
 		// Replay Infinite Progress from Promise
 		if (this.progressState.whilePromise) {
-			let delay: number;
-			if (this.progressState.whileDelay > 0) {
-				const remainingDelay = this.progressState.whileDelay - (Date.now() - this.progressState.whileStart);
+			let delay: number | undefined;
+			if (typeof this.progressState.whileDelay === 'number' && this.progressState.whileDelay > 0) {
+				const remainingDelay = this.progressState.whileDelay - (Date.now() - this.progressState.whileStart!);
 				if (remainingDelay > 0) {
 					delay = remainingDelay;
 				}
@@ -128,8 +128,8 @@ export class ScopedProgressService extends ScopedService implements IProgressSer
 	show(infinite: boolean, delay?: number): IProgressRunner;
 	show(total: number, delay?: number): IProgressRunner;
 	show(infiniteOrTotal: boolean | number, delay?: number): IProgressRunner {
-		let infinite: boolean;
-		let total: number;
+		let infinite: boolean = false;
+		let total: number = 0;
 
 		// Sort out Arguments
 		if (typeof infiniteOrTotal === 'boolean') {
