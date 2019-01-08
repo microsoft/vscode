@@ -374,6 +374,15 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 						request.insert!.forEach((value, key) => {
 							stmt.run([key, value]);
 						});
+					}, () => {
+						const keys: string[] = [];
+						let length = 0;
+						request.insert!.forEach((value, key) => {
+							keys.push(key);
+							length += value.length;
+						});
+
+						return `Keys: ${keys.join(', ')} Length: ${length}`;
 					});
 				}
 
@@ -382,6 +391,13 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 						request.delete!.forEach(key => {
 							stmt.run(key);
 						});
+					}, () => {
+						const keys: string[] = [];
+						request.delete!.forEach(key => {
+							keys.push(key);
+						});
+
+						return `Keys: ${keys.join(', ')}`;
 					});
 				}
 			});
@@ -446,8 +462,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 
 		return new Promise((resolve, reject) => {
 			const fallbackToInMemoryDatabase = (error: Error) => {
-				this.logger.error(`[storage ${this.name}] open(): Error (open DB): ${error}`);
-				this.logger.error(`[storage ${this.name}] open(): Falling back to in-memory DB`);
+				this.logger.error(`[storage ${this.name}] open(): Error (open DB): ${error}. Falling back to in-memory DB`);
 
 				// In case of any error to open the DB, use an in-memory
 				// DB so that we always have a valid DB to talk to.
@@ -611,11 +626,11 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 		});
 	}
 
-	private prepare(db: Database, sql: string, runCallback: (stmt: Statement) => void): void {
+	private prepare(db: Database, sql: string, runCallback: (stmt: Statement) => void, errorDetails: () => string): void {
 		const stmt = db.prepare(sql);
 
 		const statementErrorListener = error => {
-			this.logger.error(`[storage ${this.name}] prepare(): ${error} (${sql})`);
+			this.logger.error(`[storage ${this.name}] prepare(): ${error} (${sql}). Details: ${errorDetails()}`);
 		};
 
 		stmt.on('error', statementErrorListener);
