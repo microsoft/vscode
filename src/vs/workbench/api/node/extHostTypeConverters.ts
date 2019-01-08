@@ -543,7 +543,7 @@ export namespace WorkspaceSymbol {
 export namespace DocumentSymbol {
 	export function from(info: vscode.DocumentSymbol): modes.DocumentSymbol {
 		const result: modes.DocumentSymbol = {
-			name: info.name,
+			name: info.name || '!!MISSING: name!!',
 			detail: info.detail,
 			range: Range.from(info.range),
 			selectionRange: Range.from(info.selectionRange),
