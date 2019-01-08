@@ -32,7 +32,7 @@ import { TerminalPanel } from 'vs/workbench/parts/terminal/electron-browser/term
 import { TerminalPickerHandler } from 'vs/workbench/parts/terminal/browser/terminalQuickOpen';
 import { setupTerminalCommands, TERMINAL_COMMAND_ID } from 'vs/workbench/parts/terminal/common/terminalCommands';
 import { setupTerminalMenu } from 'vs/workbench/parts/terminal/common/terminalMenu';
-import { TerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
+import { DEFAULT_COMMANDS_TO_SKIP_SHELL } from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
 
 const quickOpenRegistry = (Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen));
 
@@ -235,7 +235,7 @@ configurationRegistry.registerConfiguration({
 			default: false
 		},
 		'terminal.integrated.commandsToSkipShell': {
-			description: nls.localize('terminal.integrated.commandsToSkipShell', "A set of command IDs whose keybindings will not be sent to the shell and instead always be handled by Code. This allows the use of keybindings that would normally be consumed by the shell to act the same as when the terminal is not focused, for example ctrl+p to launch Quick Open.\nDefault Skipped Commands:\n\n{0}", TerminalInstance.defaultCommandsToSkipShell.sort().map(command => `- ${command}`).join('\n')),
+			description: nls.localize('terminal.integrated.commandsToSkipShell', "A set of command IDs whose keybindings will not be sent to the shell and instead always be handled by Code. This allows the use of keybindings that would normally be consumed by the shell to act the same as when the terminal is not focused, for example ctrl+p to launch Quick Open.\nDefault Skipped Commands:\n\n{0}", DEFAULT_COMMANDS_TO_SKIP_SHELL.sort().map(command => `- ${command}`).join('\n')),
 			type: 'array',
 			items: {
 				type: 'string'
