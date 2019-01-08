@@ -128,8 +128,8 @@ export class ScopedProgressService extends ScopedService implements IProgressSer
 	show(infinite: boolean, delay?: number): IProgressRunner;
 	show(total: number, delay?: number): IProgressRunner;
 	show(infiniteOrTotal: boolean | number, delay?: number): IProgressRunner {
-		let infinite: boolean = false;
-		let total: number = 0;
+		let infinite: boolean | undefined;
+		let total: number | undefined;
 
 		// Sort out Arguments
 		if (typeof infiniteOrTotal === 'boolean') {
