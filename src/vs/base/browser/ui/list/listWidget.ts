@@ -477,7 +477,7 @@ class MouseController<T> implements IDisposable {
 	constructor(
 		private list: List<T>,
 		private view: ListView<T>,
-		private options: IListOptions<T> = {}
+		options: IListOptions<T> = {}
 	) {
 		this.multipleSelectionSupport = !(options.multipleSelectionSupport === false);
 
@@ -550,20 +550,11 @@ class MouseController<T> implements IDisposable {
 
 		this.list.setFocus([focus], e.browserEvent);
 
-		if (this.options.selectOnMouseDown && !isMouseRightClick(e.browserEvent)) {
+		if (!isMouseRightClick(e.browserEvent)) {
 			this.list.setSelection([focus], e.browserEvent);
 
 			if (this.openController.shouldOpen(e.browserEvent)) {
 				this.list.open([focus], e.browserEvent);
-			}
-		}
-
-		if (!this.options.selectOnMouseDown) {
-			const focus = this.list.getFocus();
-			this.list.setSelection(focus, e.browserEvent);
-
-			if (this.openController.shouldOpen(e.browserEvent)) {
-				this.list.open(focus, e.browserEvent);
 			}
 		}
 	}
@@ -724,7 +715,6 @@ export interface IListOptions<T> extends IListViewOptions, IListStyles {
 	keyboardNavigationLabelProvider?: IKeyboardNavigationLabelProvider<T>;
 	ariaLabel?: string;
 	mouseSupport?: boolean;
-	selectOnMouseDown?: boolean;
 	keyboardSupport?: boolean;
 	verticalScrollMode?: ScrollbarVisibility;
 	multipleSelectionSupport?: boolean;

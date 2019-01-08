@@ -234,7 +234,6 @@ export class WorkbenchList<T> extends List<T> {
 		super(container, delegate, renderers,
 			{
 				keyboardSupport: false,
-				selectOnMouseDown: true,
 				styleController: new DefaultStyleController(getSharedListStyleSheet()),
 				...computeStyles(themeService.getTheme(), defaultListStyles),
 				...toWorkbenchListOptions(options, configurationService, keybindingService)
@@ -310,7 +309,6 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 		super(container, delegate, renderers,
 			{
 				keyboardSupport: false,
-				selectOnMouseDown: true,
 				styleController: new DefaultStyleController(getSharedListStyleSheet()),
 				...computeStyles(themeService.getTheme(), defaultListStyles),
 				...toWorkbenchListOptions(options, configurationService, keybindingService)
@@ -903,7 +901,6 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 	) {
 		super(container, delegate, renderers, {
 			keyboardSupport: false,
-			selectOnMouseDown: true,
 			styleController: new DefaultStyleController(getSharedListStyleSheet()),
 			...computeStyles(themeService.getTheme(), defaultListStyles),
 			...toWorkbenchListOptions(options, configurationService, keybindingService)
@@ -980,7 +977,6 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 	) {
 		super(container, delegate, renderers, dataSource, {
 			keyboardSupport: false,
-			selectOnMouseDown: true,
 			styleController: new DefaultStyleController(getSharedListStyleSheet()),
 			...computeStyles(themeService.getTheme(), defaultListStyles),
 			...toWorkbenchListOptions(options, configurationService, keybindingService)
@@ -1052,7 +1048,6 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 	) {
 		super(container, delegate, renderers, dataSource, {
 			keyboardSupport: false,
-			selectOnMouseDown: true,
 			styleController: new DefaultStyleController(getSharedListStyleSheet()),
 			...computeStyles(themeService.getTheme(), defaultListStyles),
 			...toWorkbenchListOptions(options, configurationService, keybindingService)
