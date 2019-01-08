@@ -140,7 +140,7 @@ export class SaveWorkspaceAsAction extends Action {
 	}
 
 	run(): Promise<any> {
-		return this.getNewWorkspaceConfigPath().then(configPathUri => {
+		return this.getNewWorkspaceConfigPath().then((configPathUri): Promise<void> | void => {
 			if (configPathUri) {
 				const configPath = configPathUri.fsPath;
 				switch (this.contextService.getWorkbenchState()) {
@@ -153,12 +153,10 @@ export class SaveWorkspaceAsAction extends Action {
 						return this.workspaceEditingService.saveAndEnterWorkspace(configPath);
 				}
 			}
-
-			return null;
 		});
 	}
 
-	private getNewWorkspaceConfigPath(): Promise<URI> {
+	private getNewWorkspaceConfigPath(): Promise<URI | undefined> {
 		return this.dialogService.showSaveDialog({
 			saveLabel: mnemonicButtonLabel(nls.localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save")),
 			title: nls.localize('saveWorkspace', "Save Workspace"),
@@ -203,7 +201,11 @@ export class OpenWorkspaceConfigFileAction extends Action {
 	}
 
 	run(): Promise<any> {
-		return this.editorService.openEditor({ resource: this.workspaceContextService.getWorkspace().configuration });
+		const configuration = this.workspaceContextService.getWorkspace().configuration;
+		if (configuration) {
+			return this.editorService.openEditor({ resource: configuration });
+		}
+		return Promise.resolve();
 	}
 }
 
