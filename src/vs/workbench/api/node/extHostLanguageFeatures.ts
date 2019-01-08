@@ -29,7 +29,7 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 // --- adapter
 
-class OutlineAdapter {
+class DocumentSymbolAdapter {
 
 	private _documents: ExtHostDocuments;
 	private _provider: vscode.DocumentSymbolProvider;
@@ -44,16 +44,15 @@ class OutlineAdapter {
 		return asPromise(() => this._provider.provideDocumentSymbols(doc, token)).then(value => {
 			if (isFalsyOrEmpty(value)) {
 				return undefined;
-			}
-			if (value[0] instanceof DocumentSymbol) {
+			} else if (value[0] instanceof DocumentSymbol) {
 				return (<DocumentSymbol[]>value).map(typeConvert.DocumentSymbol.from);
 			} else {
-				return OutlineAdapter._asDocumentSymbolTree(resource, <SymbolInformation[]>value);
+				return DocumentSymbolAdapter._asDocumentSymbolTree(<SymbolInformation[]>value);
 			}
 		});
 	}
 
-	private static _asDocumentSymbolTree(resource: URI, infos: SymbolInformation[]): modes.DocumentSymbol[] {
+	private static _asDocumentSymbolTree(infos: SymbolInformation[]): modes.DocumentSymbol[] {
 		// first sort by start (and end) and then loop over all elements
 		// and build a tree based on containment.
 		infos = infos.slice(0).sort((a, b) => {
@@ -67,7 +66,7 @@ class OutlineAdapter {
 		let parentStack: modes.DocumentSymbol[] = [];
 		for (const info of infos) {
 			let element = <modes.DocumentSymbol>{
-				name: info.name,
+				name: info.name || '!!MISSING: name!!',
 				kind: typeConvert.SymbolKind.from(info.kind),
 				containerName: info.containerName,
 				range: typeConvert.Range.from(info.location.range),
@@ -96,7 +95,7 @@ class OutlineAdapter {
 
 class CodeLensAdapter {
 
-	private static _badCmd: vscode.Command = { command: 'missing', title: '<<MISSING COMMAND>>' };
+	private static _badCmd: vscode.Command = { command: 'missing', title: '!!MISSING: command!!' };
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
@@ -875,7 +874,7 @@ class SelectionRangeAdapter {
 	}
 }
 
-type Adapter = OutlineAdapter | CodeLensAdapter | DefinitionAdapter | HoverAdapter
+type Adapter = DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | HoverAdapter
 	| DocumentHighlightAdapter | ReferenceAdapter | CodeActionAdapter | DocumentFormattingAdapter
 	| RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
 	| SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter | ImplementationAdapter | TypeDefinitionAdapter
@@ -1002,14 +1001,14 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 	// --- outline
 
 	registerDocumentSymbolProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentSymbolProvider, metadata?: vscode.DocumentSymbolProviderMetadata): vscode.Disposable {
-		const handle = this._addNewAdapter(new OutlineAdapter(this._documents, provider), extension);
+		const handle = this._addNewAdapter(new DocumentSymbolAdapter(this._documents, provider), extension);
 		const displayName = (metadata && metadata.label) || (extension && (extension.displayName || extension.name)) || undefined;
 		this._proxy.$registerOutlineSupport(handle, this._transformDocumentSelector(selector), displayName);
 		return this._createDisposable(handle);
 	}
 
 	$provideDocumentSymbols(handle: number, resource: UriComponents, token: CancellationToken): Promise<modes.DocumentSymbol[]> {
-		return this._withAdapter(handle, OutlineAdapter, adapter => adapter.provideDocumentSymbols(URI.revive(resource), token));
+		return this._withAdapter(handle, DocumentSymbolAdapter, adapter => adapter.provideDocumentSymbols(URI.revive(resource), token));
 	}
 
 	// --- code lens

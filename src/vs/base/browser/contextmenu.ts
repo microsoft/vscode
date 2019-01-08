@@ -27,7 +27,7 @@ export interface IContextMenuDelegate {
 	getActions(): Array<IAction | ContextSubMenu>;
 	getActionItem?(action: IAction): IActionItem | null;
 	getActionsContext?(event?: IContextMenuEvent): any;
-	getKeyBinding?(action: IAction): ResolvedKeybinding | null;
+	getKeyBinding?(action: IAction): ResolvedKeybinding | undefined;
 	getMenuClassName?(): string;
 	onHide?(didCancel: boolean): void;
 	actionRunner?: IActionRunner;

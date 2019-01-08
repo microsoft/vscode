@@ -162,7 +162,7 @@ suite('TypeScript Completions', () => {
 			));
 	});
 
-	test('Accepting a member completion should result in valid code. #58597', async () => {
+	test.skip('Accepting a member completion should result in valid code. #58597', async () => {
 		await createTestEditor(testDocumentUri,
 			`const abc = 123;`,
 			`ab$0c`
