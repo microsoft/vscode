@@ -615,16 +615,15 @@ export class ExtensionInfoAction extends ExtensionAction {
 	}
 
 	run(): Promise<any> {
-		const { description, version, publisherDisplayName, identifier, displayName } = this.extension;
 
-		const localizedExtension = localize('extensionInfoName', 'Name') + ': ' + displayName;
-		const localizedExtensionId = localize('extensionInfoId', 'Id') + ': ' + identifier.id;
-		const localizedDescription = localize('extensionInfoDescription', 'Description') + ': ' + description;
-		const localizedVersion = localize('extensionInfoVersion', 'Version') + ': ' + version;
-		const localizedPublisher = localize('extensionInfoPublisher', 'Publisher') + ': ' + publisherDisplayName;
-		const localizedVSMarketplaceLink = localize('extensionInfoVSMarketplaceLink', 'VS Marketplace Link') + ': https://marketplace.visualstudio.com/items?itemName=' + identifier.id;
+		const name = localize('extensionInfoName', 'Name: {0}', this.extension.displayName);
+		const id = localize('extensionInfoId', 'Id: {0}', this.extension.identifier.id);
+		const description = localize('extensionInfoDescription', 'Description: {0}', this.extension.description);
+		const verision = localize('extensionInfoVersion', 'Version: {0}', this.extension.version);
+		const publisher = localize('extensionInfoPublisher', 'Publisher: {0}', this.extension.publisherDisplayName);
+		const link = this.extension.url ? localize('extensionInfoVSMarketplaceLink', 'VS Marketplace Link: {0}', this.extension.url.toString()) : null;
 
-		const clipboardStr = `${localizedExtension}\n${localizedExtensionId}\n${localizedDescription}\n${localizedVersion}\n${localizedPublisher}\n${localizedVSMarketplaceLink}`;
+		const clipboardStr = `${name}\n${id}\n${description}\n${verision}\n${publisher}${link ? '\n' + link : ''}`;
 
 		clipboard.writeText(clipboardStr);
 		return Promise.resolve(null);
