@@ -1843,6 +1843,7 @@ class Dialogs {
 			if (numberOfPaths) {
 				this.windowsMainService.open({
 					context: OpenContext.DIALOG,
+					contextWindowId: options.windowId,
 					cli: this.environmentService.args,
 					urisToOpen: paths,
 					forceNewWindow: options.forceNewWindow,
