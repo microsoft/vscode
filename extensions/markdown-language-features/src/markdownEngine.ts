@@ -97,20 +97,21 @@ export class MarkdownEngine {
 		return { text, offset };
 	}
 
-	private tokenize(document: SkinnyTextDocument, engine?: MarkdownIt): Token[] {
+	private tokenize(document: SkinnyTextDocument, engine: MarkdownIt): Token[] {
 		const UNICODE_NEWLINE_REGEX = /\u2028|\u2029/g;
 		const { text, offset } = this.stripFrontmatter(document.getText());
-		if (this.cachedTokens.has(document.uri)) {
-			return this.cachedTokens.get(document.uri)!;
+		const uri = document.uri;
+		if (this.cachedTokens.has(uri)) {
+			return this.cachedTokens.get(uri)!;
 		}
-		const tokens = engine!.parse(text.replace(UNICODE_NEWLINE_REGEX, ''), {}).map(token => {
+		const tokens = engine.parse(text.replace(UNICODE_NEWLINE_REGEX, ''), {}).map(token => {
 			if (token.map) {
 				token.map[0] += offset;
 				token.map[1] += offset;
 			}
 			return token;
 		});
-		this.cachedTokens.set(document.uri, tokens);
+		this.cachedTokens.set(uri, tokens);
 		return tokens;
 	}
 
@@ -127,25 +128,14 @@ export class MarkdownEngine {
 		this._slugCount = new Map<string, number>();
 
 		const engine = await this.getEngine(document.uri);
-		let tokens: Token[];
-		tokens = this.tokenize(document);
-		if (!tokens) {
-			tokens = this.tokenize(document, engine);
-		}
-		return engine.renderer.render(tokens, this.md, {});
+		return engine.renderer.render(this.tokenize(document, engine), this.md, {});
 	}
 
 	public async parse(document: SkinnyTextDocument): Promise<Token[]> {
 		this.currentDocument = document.uri;
 		this._slugCount = new Map<string, number>();
-
 		const engine = await this.getEngine(document.uri);
-		let tokens: Token[];
-		tokens = this.tokenize(document);
-		if (!tokens) {
-			tokens = this.tokenize(document, engine);
-		}
-		return tokens;
+		return this.tokenize(document, engine);
 	}
 
 	private addLineNumberRenderer(md: any, ruleName: string): void {
