@@ -11,6 +11,8 @@ import { IQueryOptions, IExtensionManifest, LocalExtensionType, EnablementState,
 import { IViewContainersRegistry, ViewContainer, Extensions as ViewContainerExtensions } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 
 export const VIEWLET_ID = 'workbench.view.extensions';
 export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(VIEWLET_ID);
@@ -105,4 +107,36 @@ export interface IExtensionsConfiguration {
 	ignoreRecommendations: boolean;
 	showRecommendationsOnlyOnDemand: boolean;
 	closeExtensionDetailsOnViewChange: boolean;
+}
+
+export interface IExtensionContainer {
+	extension: IExtension | null;
+	update(): void;
+}
+
+export class ExtensionContainers extends Disposable {
+
+	constructor(
+		private readonly containers: IExtensionContainer[],
+		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService
+	) {
+		super();
+		this._register(extensionsWorkbenchService.onChange(this.update, this));
+	}
+
+	set extension(extension: IExtension) {
+		this.containers.forEach(c => c.extension = extension);
+	}
+
+	private update(extension: IExtension): void {
+		for (const container of this.containers) {
+			if (extension && container.extension) {
+				if (areSameExtensions(container.extension.identifier, extension.identifier)) {
+					container.extension = extension;
+				}
+			} else {
+				container.update();
+			}
+		}
+	}
 }
