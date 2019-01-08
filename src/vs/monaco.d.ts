@@ -4919,7 +4919,6 @@ declare namespace monaco.languages {
 		readonly triggerKind: SignatureHelpTriggerKind;
 		readonly triggerCharacter?: string;
 		readonly isRetrigger: boolean;
-		readonly activeSignatureHelp?: SignatureHelp;
 	}
 
 	/**
