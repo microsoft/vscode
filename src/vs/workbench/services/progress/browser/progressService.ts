@@ -127,7 +127,7 @@ export class ScopedProgressService extends ScopedService implements IProgressSer
 		}
 
 		// Replay Infinite Progress
-		else if (this.progressState.type === ProgressState.Infinite.type) {
+		else if (this.progressState.type === ProgressState.Type.Infinite) {
 			this.progressbar.infinite().show();
 		}
 
@@ -143,9 +143,9 @@ export class ScopedProgressService extends ScopedService implements IProgressSer
 		}
 	}
 
-	show(infinite: boolean, delay?: number): IProgressRunner;
+	show(infinite: true, delay?: number): IProgressRunner;
 	show(total: number, delay?: number): IProgressRunner;
-	show(infiniteOrTotal: boolean | number, delay?: number): IProgressRunner {
+	show(infiniteOrTotal: true | number, delay?: number): IProgressRunner {
 		// Sort out Arguments
 		if (typeof infiniteOrTotal === 'boolean') {
 			this.progressState = ProgressState.Infinite;
@@ -157,7 +157,7 @@ export class ScopedProgressService extends ScopedService implements IProgressSer
 		if (this.isActive) {
 
 			// Infinite: Start Progressbar and Show after Delay
-			if (this.progressState.type === ProgressState.Infinite.type) {
+			if (this.progressState.type === ProgressState.Type.Infinite) {
 				this.progressbar.infinite().show(delay);
 			}
 
@@ -252,9 +252,9 @@ export class ProgressService implements IProgressService {
 
 	constructor(private progressbar: ProgressBar) { }
 
-	show(infinite: boolean, delay?: number): IProgressRunner;
+	show(infinite: true, delay?: number): IProgressRunner;
 	show(total: number, delay?: number): IProgressRunner;
-	show(infiniteOrTotal: boolean | number, delay?: number): IProgressRunner {
+	show(infiniteOrTotal: true | number, delay?: number): IProgressRunner {
 		if (typeof infiniteOrTotal === 'boolean') {
 			this.progressbar.infinite().show(delay);
 		} else {
