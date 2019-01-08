@@ -121,12 +121,12 @@ export interface IStartupMetrics {
 	/**
 	 * The active viewlet id or `undedined`
 	 */
-	viewletId: string;
+	viewletId?: string;
 
 	/**
 	 * The active panel id or `undefined`
 	 */
-	panelId: string;
+	panelId?: string;
 
 	/**
 	 * The editor input types or `[]`
@@ -173,7 +173,7 @@ export interface IStartupMetrics {
 		 * * This only happens when a non-english locale is being used.
 		 * * It is our code running here and we should monitor this carefully for regressions.
 		 */
-		ellapsedNlsGeneration: number;
+		ellapsedNlsGeneration?: number;
 
 		/**
 		 * The time it took to tell electron to open/restore a renderer (browser window).
@@ -317,15 +317,15 @@ export interface IStartupMetrics {
 	};
 
 	hasAccessibilitySupport: boolean;
-	isVMLikelyhood: number;
-	platform: string;
-	release: string;
-	arch: string;
-	totalmem: number;
-	freemem: number;
-	meminfo: IMemoryInfo;
-	cpus: { count: number; speed: number; model: string; };
-	loadavg: number[];
+	isVMLikelyhood?: number;
+	platform?: string;
+	release?: string;
+	arch?: string;
+	totalmem?: number;
+	freemem?: number;
+	meminfo?: IMemoryInfo;
+	cpus?: { count: number; speed: number; model: string; };
+	loadavg?: number[];
 }
 
 export interface ITimerService {
@@ -367,15 +367,15 @@ class TimerService implements ITimerService {
 		const initialStartup = !!this._windowService.getConfiguration().isInitialStartup;
 		const startMark = initialStartup ? 'main:started' : 'main:loadWindow';
 
-		let totalmem: number;
-		let freemem: number;
-		let cpus: { count: number; speed: number; model: string; };
-		let platform: string;
-		let release: string;
-		let arch: string;
-		let loadavg: number[];
-		let meminfo: IMemoryInfo;
-		let isVMLikelyhood: number;
+		let totalmem: number | undefined;
+		let freemem: number | undefined;
+		let cpus: { count: number; speed: number; model: string; } | undefined;
+		let platform: string | undefined;
+		let release: string | undefined;
+		let arch: string | undefined;
+		let loadavg: number[] | undefined;
+		let meminfo: IMemoryInfo | undefined;
+		let isVMLikelyhood: number | undefined;
 
 		try {
 			totalmem = os.totalmem();

@@ -866,7 +866,8 @@
 		"./vs/workbench/test/common/editor/editorOptions.test.ts",
 		"./vs/workbench/test/common/notifications.test.ts",
 		"./vs/workbench/test/electron-browser/api/extHostTypes.test.ts",
-		"./vs/workbench/test/electron-browser/api/mock.ts"
+		"./vs/workbench/test/electron-browser/api/mock.ts",
+		"./vs/workbench/services/timer/electron-browser/timerService.ts"
 	],
 	"exclude": [
 		"./typings/require-monaco.d.ts"
