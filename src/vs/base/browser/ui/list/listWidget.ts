@@ -488,6 +488,7 @@ class MouseController<T> implements IDisposable {
 		this.openController = options.openController || DefaultOpenController;
 
 		view.onMouseDown(this.onMouseDown, this, this.disposables);
+		view.onContextMenu(this.onContextMenu, this, this.disposables);
 		view.onMouseClick(this.onPointer, this, this.disposables);
 		view.onMouseDblClick(this.onDoubleClick, this, this.disposables);
 		view.onTouchStart(this.onMouseDown, this, this.disposables);
@@ -516,13 +517,17 @@ class MouseController<T> implements IDisposable {
 	}
 
 	private onMouseDown(e: IListMouseEvent<T> | IListTouchEvent<T>): void {
-		if (this.options.focusOnMouseDown === false) {
-			e.browserEvent.preventDefault();
-			e.browserEvent.stopPropagation();
-		} else if (document.activeElement !== e.browserEvent.target) {
+		if (document.activeElement !== e.browserEvent.target) {
 			this.view.domNode.focus();
 		}
+	}
 
+	private onContextMenu(e: IListMouseEvent<T> | IListTouchEvent<T>): void {
+		const focus = typeof e.index === 'undefined' ? [] : [e.index];
+		this.list.setFocus(focus, e.browserEvent);
+	}
+
+	private onPointer(e: IListMouseEvent<T>): void {
 		let reference = this.list.getFocus()[0];
 		const selection = this.list.getSelection();
 		reference = reference === undefined ? selection[0] : reference;
@@ -539,13 +544,11 @@ class MouseController<T> implements IDisposable {
 			return this.changeSelection(e, reference);
 		}
 
-		if (selection.every(s => s !== focus)) {
-			this.list.setFocus([focus], e.browserEvent);
-		}
-
 		if (this.multipleSelectionSupport && this.isSelectionChangeEvent(e)) {
 			return this.changeSelection(e, reference);
 		}
+
+		this.list.setFocus([focus], e.browserEvent);
 
 		if (this.options.selectOnMouseDown && !isMouseRightClick(e.browserEvent)) {
 			this.list.setSelection([focus], e.browserEvent);
@@ -553,12 +556,6 @@ class MouseController<T> implements IDisposable {
 			if (this.openController.shouldOpen(e.browserEvent)) {
 				this.list.open([focus], e.browserEvent);
 			}
-		}
-	}
-
-	private onPointer(e: IListMouseEvent<T>): void {
-		if (this.multipleSelectionSupport && this.isSelectionChangeEvent(e)) {
-			return;
 		}
 
 		if (!this.options.selectOnMouseDown) {
@@ -728,7 +725,6 @@ export interface IListOptions<T> extends IListViewOptions, IListStyles {
 	ariaLabel?: string;
 	mouseSupport?: boolean;
 	selectOnMouseDown?: boolean;
-	focusOnMouseDown?: boolean;
 	keyboardSupport?: boolean;
 	verticalScrollMode?: ScrollbarVisibility;
 	multipleSelectionSupport?: boolean;
