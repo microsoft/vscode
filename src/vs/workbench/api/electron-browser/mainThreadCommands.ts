@@ -8,7 +8,6 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { ExtHostContext, MainThreadCommandsShape, ExtHostCommandsShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { revive } from 'vs/base/common/marshalling';
-import { CommandService } from 'vs/workbench/services/commands/common/commandService';
 
 @extHostNamedCustomer(MainContext.MainThreadCommands)
 export class MainThreadCommands implements MainThreadCommandsShape {
