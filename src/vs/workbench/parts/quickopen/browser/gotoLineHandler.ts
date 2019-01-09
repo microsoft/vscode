@@ -93,7 +93,7 @@ class GotoLineEntry extends EditorQuickOpenEntry {
 		const maxLineNumber = this.getMaxLineNumber();
 		const line = this.editorService.activeTextEditorWidget.getPosition().lineNumber;
 
-		if (this.invalidRange(maxLineNumber)) {
+		if (this.invalidRange(maxLineNumber) && typeof line === 'number') {
 			if (maxLineNumber > 0) {
 				return nls.localize('gotoLineLabelEmptyWithLimit', "Current Line: {0}.  Type a line number between 1 and {1} to navigate to", line, maxLineNumber);
 			}
@@ -216,30 +216,23 @@ export class GotoLineHandler extends QuickOpenHandler {
 
 	getAriaLabel(): string {
 
-		let label = '';
+		let label = nls.localize('canNotRunPlaceholder', "This quick open handler can not be used in the current context.");
 
 		// Check we can run - (is text editor)
 		const canRun = this.canRun();
-		if (types.isUndefinedOrNull(canRun) || (typeof canRun === 'boolean' && !canRun) || typeof canRun === 'string') {
-			label = (typeof canRun === 'string') ? canRun : nls.localize('canNotRunPlaceholder', "This quick open handler can not be used in the current context");
+		if ((typeof canRun === 'boolean' && !canRun) || typeof canRun === 'string') {
+			label = (typeof canRun === 'string') ? canRun : label;
 			return label;
 		}
 
 		const line = this.editorService.activeTextEditorWidget.getPosition().lineNumber;
 
 		if (typeof line === 'number') {
-			// TODO: choose output string
 			// Output verbose current line / go to line label
-			return nls.localize('gotoLineLabelEmpty', "Current Line: {0}. Type a line number to navigate to", line);
-
-			// Output current line # only for prefix / go to line label (@zersiax approach)
-			// return nls.localize('gotoLineLabelEmpty2', "{0}. Type a line number to navigate to", line);
-		}
-		else {
-			return label;
+			label = nls.localize('gotoLineLabelEmpty', "Current Line: {0}. Type a line number to navigate to", line) + '.';
 		}
 
-
+		return label;
 	}
 
 	getResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel> {
