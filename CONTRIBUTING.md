@@ -51,7 +51,9 @@ The built-in tool for reporting an issue, which you can access by using `Report 
 
 Please include the following with each issue:
 
-* Version of VS Code (including operating system)
+* Version of VS Code  
+
+* Your operating system  
 
 * List of extensions that you have installed
 
