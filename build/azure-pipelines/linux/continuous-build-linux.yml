@@ -15,6 +15,8 @@ steps:
     versionSpec: "1.10.1"
 - script: |
     yarn
+    # Keep this version pinned:
+    sudo npm install -g markdown-link-check@3.7.2
   displayName: Install Dependencies
 - script: |
     yarn gulp electron-x64
@@ -37,6 +39,9 @@ steps:
 - script: |
     DISPLAY=:10 ./scripts/test.sh --tfs "Unit Tests"
   displayName: Run Unit Tests
+- script: |
+    find . -name \*.md -exec markdown-link-check {} \;
+  displayName: Test links
 - task: PublishTestResults@2
   displayName: Publish Tests Results
   inputs:
