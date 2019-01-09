@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/tree';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IListOptions, List, IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate, IListRenderer, IListMouseEvent, IListEvent, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction } from 'vs/base/browser/ui/list/list';
-import { append, $, toggleClass } from 'vs/base/browser/dom';
+import { append, $, toggleClass, timeout } from 'vs/base/browser/dom';
 import { Event, Relay } from 'vs/base/common/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -17,6 +17,9 @@ import { IDragAndDropData } from 'vs/base/browser/dnd';
 import { range } from 'vs/base/common/arrays';
 
 class TreeNodeListDragAndDrop<T, TFilterData, TRef> implements IListDragAndDrop<ITreeNode<T, TFilterData>> {
+
+	private autoExpandNode: ITreeNode<T, TFilterData> | undefined;
+	private autoExpandDisposable: IDisposable = Disposable.None;
 
 	constructor(private modelProvider: () => ITreeModel<T, TFilterData, TRef>, private dnd: ITreeDragAndDrop<T>) { }
 
@@ -32,15 +35,33 @@ class TreeNodeListDragAndDrop<T, TFilterData, TRef> implements IListDragAndDrop<
 		this.dnd.onDragStart(data, originalEvent);
 	}
 
-	onDragOver(data: IDragAndDropData, targetNode: ITreeNode<T, TFilterData> | undefined, targetIndex: number | undefined, originalEvent: DragEvent, force = false): boolean | IListDragOverReaction {
+	onDragOver(data: IDragAndDropData, targetNode: ITreeNode<T, TFilterData> | undefined, targetIndex: number | undefined, originalEvent: DragEvent, raw = true): boolean | IListDragOverReaction {
 		const result = this.dnd.onDragOver(data, targetNode && targetNode.element, targetIndex, originalEvent);
 
 		if (typeof targetNode === 'undefined') {
 			return result;
 		}
 
+		if (this.autoExpandNode !== targetNode) {
+			this.autoExpandDisposable.dispose();
+			this.autoExpandNode = targetNode;
+		}
+
+		if (typeof result !== 'boolean' && result.autoExpand) {
+			this.autoExpandDisposable = timeout(() => {
+				const model = this.modelProvider();
+				const ref = model.getNodeLocation(targetNode);
+
+				if (model.isCollapsed(ref)) {
+					model.setCollapsed(ref, false);
+				}
+
+				this.autoExpandNode = undefined;
+			}, 500);
+		}
+
 		if (typeof result === 'boolean' || !result.accept || typeof result.bubble === 'undefined') {
-			if (force) {
+			if (!raw) {
 				const accept = typeof result === 'boolean' ? result : result.accept;
 				const effect = typeof result === 'boolean' ? undefined : result.effect;
 				return { accept, effect, feedback: [targetIndex!] };
@@ -54,7 +75,7 @@ class TreeNodeListDragAndDrop<T, TFilterData, TRef> implements IListDragAndDrop<
 			const model = this.modelProvider();
 			const parentIndex = parentNode && model.getListIndex(model.getNodeLocation(parentNode));
 
-			return this.onDragOver(data, parentNode, parentIndex, originalEvent, true);
+			return this.onDragOver(data, parentNode, parentIndex, originalEvent, false);
 		}
 
 		const model = this.modelProvider();
