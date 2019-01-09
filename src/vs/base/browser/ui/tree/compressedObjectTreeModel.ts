@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ISpliceable } from 'vs/base/common/sequence';
-import { Iterator, ISequence } from 'vs/base/common/iterator';
+import { Iterator, ISequence, getSequenceIterator, IteratorResult } from 'vs/base/common/iterator';
 import { Event } from 'vs/base/common/event';
 import { ITreeModel, ITreeNode, ITreeElement, ICollapseStateChangeEvent } from 'vs/base/browser/ui/tree/tree';
 import { IObjectTreeModelOptions, ObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
@@ -15,7 +15,7 @@ export interface ICompressedObjectTreeModelOptions<T, TFilterData> extends IObje
 export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData extends NonNullable<any> = void> implements ITreeModel<T | null, TFilterData, T | null> {
 
 	private model: ObjectTreeModel<T[], TFilterData>;
-	private compressionMap: Map<T, T[]> = new Map<T, T[]>();
+	private compressionMap = new Map<T, T[]>();
 
 	get rootRef(): any {
 		return this.model.rootRef;
@@ -43,7 +43,110 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 		onDidCreateNode?: (node: ITreeNode<T, TFilterData>) => void,
 		onDidDeleteNode?: (node: ITreeNode<T, TFilterData>) => void
 	): Iterator<ITreeElement<T | null>> {
-		throw new Error('not implemented');
+		const compressedChildren = this.compressSequence(children);
+		// todo@ connect element with children and update compressed map
+
+		const deleted = this.model.setChildren(this.compressionMap.get(element), compressedChildren, undefined, undefined);
+		return this.decompressSequence(deleted);
+	}
+
+	private compressSequence(sequence: ISequence<ITreeElement<T>>): ISequence<ITreeElement<T[]>> {
+		const iterator = getSequenceIterator(sequence);
+		const compressedModel = this;
+
+		return {
+			next() {
+				const element = iterator.next();
+				if (element.done) {
+					return element;
+				}
+
+				const compressed = [element.value.element];
+				compressedModel.compressionMap.set(element.value.element, compressed);
+
+				let childIterator: Iterator<ITreeElement<T>>;
+				let first: IteratorResult<ITreeElement<T>>;
+				let second: IteratorResult<ITreeElement<T>>;
+				let child = element.value;
+				let last: ITreeElement<T>;
+
+				while (true) {
+					childIterator = getSequenceIterator(child.children);
+					first = childIterator.next();
+					second = undefined;
+					if (!first.done) {
+						second = childIterator.next();
+					}
+					last = child;
+					child = second && second.done && first.value.collapsible ? first.value : undefined;
+
+					if (!child) {
+						break;
+					}
+					compressed.push(child.element);
+					compressedModel.compressionMap.set(child.element, compressed);
+				}
+
+				let nextCalled = 0;
+				return {
+					done: false,
+					value: {
+						element: compressed,
+						children: compressedModel.compressSequence({
+							next() {
+								if (nextCalled > 1) {
+									return childIterator.next();
+								} else {
+									nextCalled++;
+									if (nextCalled === 1) {
+										return first;
+									}
+									return second;
+								}
+							}
+						}),
+						collapsed: last.collapsed,
+						collapsible: last.collapsible
+					}
+				};
+			}
+		};
+	}
+
+	private decompressSequence(sequence: ISequence<ITreeElement<T[]>>): Iterator<ITreeElement<T>> {
+		const iterator = getSequenceIterator(sequence);
+		const compressedModel = this;
+		let currentArray: ITreeElement<T[]>;
+		let index: number;
+
+		return {
+			next(): IteratorResult<ITreeElement<T>> {
+				if (!currentArray) {
+					const element = iterator.next();
+					if (element.done) {
+						return element;
+					}
+					currentArray = element.value;
+					index = currentArray.element.length - 1;
+				}
+
+				const result: IteratorResult<ITreeElement<T>> = {
+					done: false,
+					value: {
+						element: currentArray[index],
+						children: compressedModel.decompressSequence(currentArray.children), // todo returning same children for all the elements
+						collapsed: currentArray.collapsed,
+						collapsible: currentArray.collapsible
+					}
+				};
+
+				if (--index === 0) {
+					currentArray = undefined;
+				}
+
+				return result;
+			}
+		};
 	}
 
 	getParentElement(ref: T | null = null): T | null {
