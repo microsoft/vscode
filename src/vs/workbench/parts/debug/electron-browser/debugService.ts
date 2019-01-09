@@ -445,7 +445,6 @@ export class DebugService implements IDebugService {
 			}
 			this.viewModel.firstSessionStart = false;
 
-			this.debugType.set(session.configuration.type);
 			if (this.model.getSessions().length > 1) {
 				this.viewModel.setMultiSessionView(true);
 			}
@@ -535,7 +534,6 @@ export class DebugService implements IDebugService {
 			}
 
 			if (this.model.getSessions().length === 0) {
-				this.debugType.reset();
 				this.viewModel.setMultiSessionView(false);
 
 				if (this.partService.isVisible(Parts.SIDEBAR_PART) && this.configurationService.getValue<IDebugConfiguration>('debug').openExplorerOnEnd) {
@@ -785,6 +783,11 @@ export class DebugService implements IDebugService {
 		if (stackFrame) {
 			stackFrame.openInEditor(this.editorService, true);
 			aria.alert(nls.localize('debuggingPaused', "Debugging paused {0}, {1} {2}", thread.stoppedDetails ? `, reason ${thread.stoppedDetails.reason}` : '', stackFrame.source ? stackFrame.source.name : '', stackFrame.range.startLineNumber));
+		}
+		if (session) {
+			this.debugType.set(session.configuration.type);
+		} else {
+			this.debugType.reset();
 		}
 
 		this.viewModel.setFocus(stackFrame, thread, session, explicit);
