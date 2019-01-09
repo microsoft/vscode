@@ -221,10 +221,10 @@ suite('Resources', () => {
 		}
 		assertMalformedFileUri('/foo/bar', 'file:///foo/bar');
 
-		assertMalformedFileUri('file:///foo/bar', void 0);
-		assertMalformedFileUri('file:///c%3A/foo/bar', void 0);
-		assertMalformedFileUri('file://localhost/c$/devel/test', void 0);
-		assertMalformedFileUri('foo://dadie/foo/bar', void 0);
-		assertMalformedFileUri('foo:///dadie/foo/bar', void 0);
+		assertMalformedFileUri('file:///foo/bar', undefined);
+		assertMalformedFileUri('file:///c%3A/foo/bar', undefined);
+		assertMalformedFileUri('file://localhost/c$/devel/test', undefined);
+		assertMalformedFileUri('foo://dadie/foo/bar', undefined);
+		assertMalformedFileUri('foo:///dadie/foo/bar', undefined);
 	});
 });

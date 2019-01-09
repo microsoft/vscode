@@ -317,7 +317,7 @@ export class QuickOpenAction extends Action {
 		id: string,
 		label: string,
 		prefix: string,
-		@IQuickOpenService private quickOpenService: IQuickOpenService
+		@IQuickOpenService private readonly quickOpenService: IQuickOpenService
 	) {
 		super(id, label);
 
@@ -330,6 +330,6 @@ export class QuickOpenAction extends Action {
 		// Show with prefix
 		this.quickOpenService.show(this.prefix);
 
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 }

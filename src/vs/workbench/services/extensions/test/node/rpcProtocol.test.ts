@@ -15,7 +15,7 @@ suite('RPCProtocol', () => {
 	class MessagePassingProtocol implements IMessagePassingProtocol {
 		private _pair: MessagePassingProtocol;
 
-		private readonly _onMessage: Emitter<Buffer> = new Emitter<Buffer>();
+		private readonly _onMessage = new Emitter<Buffer>();
 		public readonly onMessage: Event<Buffer> = this._onMessage.event;
 
 		public setPair(other: MessagePassingProtocol) {
@@ -45,8 +45,6 @@ suite('RPCProtocol', () => {
 
 		let A = new RPCProtocol(a_protocol);
 		let B = new RPCProtocol(b_protocol);
-
-		delegate = null;
 
 		const bIdentifier = new ProxyIdentifier<BClass>(false, 'bb');
 		const bInstance = new BClass();

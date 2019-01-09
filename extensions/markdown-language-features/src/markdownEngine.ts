@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as crypto from 'crypto';
 import { MarkdownIt, Token } from 'markdown-it';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import * as crypto from 'crypto';
 import { MarkdownContributions } from './markdownExtensions';
 import { Slugifier } from './slugify';
+import { SkinnyTextDocument } from './tableOfContentsProvider';
 import { getUriForLinkWithKnownExternalScheme } from './util/links';
 
 const FrontMatterRegex = /^---\s*[^]*?(-{3}|\.{3})\s*/;
@@ -93,28 +94,29 @@ export class MarkdownEngine {
 		return { text, offset };
 	}
 
-	public async render(document: vscode.Uri, stripFrontmatter: boolean, text: string): Promise<string> {
+	public async render(document: SkinnyTextDocument, stripFrontmatter: boolean): Promise<string> {
 		let offset = 0;
+		let text = document.getText();
 		if (stripFrontmatter) {
 			const markdownContent = this.stripFrontmatter(text);
 			offset = markdownContent.offset;
 			text = markdownContent.text;
 		}
-		this.currentDocument = document;
+		this.currentDocument = document.uri;
 		this.firstLine = offset;
 		this._slugCount = new Map<string, number>();
 
-		const engine = await this.getEngine(document);
+		const engine = await this.getEngine(document.uri);
 		return engine.render(text);
 	}
 
-	public async parse(document: vscode.Uri, source: string): Promise<Token[]> {
+	public async parse(document: SkinnyTextDocument): Promise<Token[]> {
 		const UNICODE_NEWLINE_REGEX = /\u2028|\u2029/g;
-		const { text, offset } = this.stripFrontmatter(source);
-		this.currentDocument = document;
+		const { text, offset } = this.stripFrontmatter(document.getText());
+		this.currentDocument = document.uri;
 		this._slugCount = new Map<string, number>();
 
-		const engine = await this.getEngine(document);
+		const engine = await this.getEngine(document.uri);
 
 		return engine.parse(text.replace(UNICODE_NEWLINE_REGEX, ''), {}).map(token => {
 			if (token.map) {

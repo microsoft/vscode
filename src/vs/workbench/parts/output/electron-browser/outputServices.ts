@@ -76,10 +76,10 @@ abstract class AbstractFileOutputChannel extends Disposable implements OutputCha
 
 	scrollLock: boolean = false;
 
-	protected _onDidAppendedContent: Emitter<void> = new Emitter<void>();
+	protected _onDidAppendedContent = new Emitter<void>();
 	readonly onDidAppendedContent: Event<void> = this._onDidAppendedContent.event;
 
-	protected _onDispose: Emitter<void> = new Emitter<void>();
+	protected _onDispose = new Emitter<void>();
 	readonly onDispose: Event<void> = this._onDispose.event;
 
 	private readonly mimeType: string;
@@ -246,9 +246,9 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 		this.startOffset = 0;
 		this.endOffset = 0;
 		if (this.model) {
-			return this.loadModel().then(() => void 0);
+			return this.loadModel().then(() => undefined);
 		}
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	private loadFile(): Promise<string> {
@@ -281,7 +281,7 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 
 class OutputFileListener extends Disposable {
 
-	private readonly _onDidContentChange: Emitter<number> = new Emitter<number>();
+	private readonly _onDidContentChange = new Emitter<number>();
 	readonly onDidContentChange: Event<number> = this._onDidContentChange.event;
 
 	private watching: boolean = false;
@@ -427,23 +427,23 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 	private activeChannel: IOutputChannel;
 	private readonly outputDir: string;
 
-	private readonly _onActiveOutputChannel: Emitter<string> = new Emitter<string>();
+	private readonly _onActiveOutputChannel = new Emitter<string>();
 	readonly onActiveOutputChannel: Event<string> = this._onActiveOutputChannel.event;
 
 	private _outputPanel: OutputPanel;
 
 	constructor(
-		@IStorageService private storageService: IStorageService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IPanelService private panelService: IPanelService,
+		@IStorageService private readonly storageService: IStorageService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IPanelService private readonly panelService: IPanelService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IWindowService windowService: IWindowService,
-		@ILogService private logService: ILogService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
+		@ILogService private readonly logService: ILogService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
 		this.activeChannelIdInStorage = this.storageService.get(OUTPUT_ACTIVE_CHANNEL_KEY, StorageScope.WORKSPACE, null);
@@ -487,7 +487,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 			if (this._outputPanel && !preserveFocus) {
 				this._outputPanel.focus();
 			}
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		this.activeChannel = channel;
@@ -530,7 +530,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 				return this.doShowChannel(this.activeChannel, preserveFocus);
 			}
 		}
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	private onDidPanelClose(panel: IPanel): void {
@@ -570,7 +570,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 					this.showChannel(channel.id, true);
 				} else {
 					this.activeChannel = channel;
-					this._onActiveOutputChannel.fire(channel ? channel.id : void 0);
+					this._onActiveOutputChannel.fire(channel ? channel.id : undefined);
 				}
 			}
 			Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).removeChannel(id);
@@ -616,7 +616,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 				// Activate smart scroll when switching back to the output panel
 				.then(() => this.setPrimaryCursorToLastLine());
 		}
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	private isChannelShown(channel: IOutputChannel): boolean {
@@ -645,8 +645,8 @@ export class LogContentProvider {
 	private channels: Map<string, OutputChannel> = new Map<string, OutputChannel>();
 
 	constructor(
-		@IOutputService private outputService: IOutputService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IOutputService private readonly outputService: IOutputService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 	}
 
@@ -683,21 +683,21 @@ class BufferredOutputChannel extends Disposable implements OutputChannel {
 	readonly file: URI | null = null;
 	scrollLock: boolean = false;
 
-	protected _onDidAppendedContent: Emitter<void> = new Emitter<void>();
+	protected _onDidAppendedContent = new Emitter<void>();
 	readonly onDidAppendedContent: Event<void> = this._onDidAppendedContent.event;
 
-	private readonly _onDispose: Emitter<void> = new Emitter<void>();
+	private readonly _onDispose = new Emitter<void>();
 	readonly onDispose: Event<void> = this._onDispose.event;
 
 	private modelUpdater: RunOnceScheduler;
 	private model: ITextModel;
 	private readonly bufferredContent: BufferedContent;
-	private lastReadId: number = void 0;
+	private lastReadId: number = undefined;
 
 	constructor(
 		protected readonly outputChannelIdentifier: IOutputChannelDescriptor,
-		@IModelService private modelService: IModelService,
-		@IModeService private modeService: IModeService
+		@IModelService private readonly modelService: IModelService,
+		@IModeService private readonly modeService: IModeService
 	) {
 		super();
 
@@ -728,7 +728,7 @@ class BufferredOutputChannel extends Disposable implements OutputChannel {
 			this.model.setValue('');
 		}
 		this.bufferredContent.clear();
-		this.lastReadId = void 0;
+		this.lastReadId = undefined;
 	}
 
 	loadModel(): Promise<ITextModel> {
@@ -803,7 +803,7 @@ class BufferedContent {
 
 	public getDelta(previousId?: number): { value: string, id: number } {
 		let idx = -1;
-		if (previousId !== void 0) {
+		if (previousId !== undefined) {
 			idx = binarySearch(this.dataIds, previousId, (a, b) => a - b);
 		}
 

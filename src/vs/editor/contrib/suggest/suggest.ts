@@ -16,6 +16,7 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Range } from 'vs/editor/common/core/range';
+import { FuzzyScore } from 'vs/base/common/filters';
 
 export const Context = {
 	Visible: new RawContextKey<boolean>('suggestWidgetVisible', false),
@@ -36,9 +37,8 @@ export class CompletionItem {
 	readonly filterTextLow?: string;
 
 	// sorting, filtering
-	score: number = -100;
+	score: FuzzyScore = FuzzyScore.Default;
 	distance: number = 0;
-	matches?: number[];
 	idx?: number;
 	word?: string;
 

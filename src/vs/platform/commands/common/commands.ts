@@ -108,9 +108,7 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 	}
 
 	registerCommandAlias(oldId: string, newId: string): IDisposable {
-		return CommandsRegistry.registerCommand(oldId, (accessor, ...args) => {
-			accessor.get(ICommandService).executeCommand(newId, ...args);
-		});
+		return CommandsRegistry.registerCommand(oldId, (accessor, ...args) => accessor.get(ICommandService).executeCommand(newId, ...args));
 	}
 
 	getCommand(id: string): ICommand | undefined {

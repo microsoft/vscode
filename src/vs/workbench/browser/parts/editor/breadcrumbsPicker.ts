@@ -25,7 +25,7 @@ import { IConstructorSignature1, IInstantiationService } from 'vs/platform/insta
 import { HighlightingWorkbenchTree, IHighlighter, IHighlightingTreeConfiguration, IHighlightingTreeOptions } from 'vs/platform/list/browser/listService';
 import { breadcrumbsPickerBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { FileLabel } from 'vs/workbench/browser/labels';
+import { ResourceLabels, IResourceLabel, DEFAULT_LABELS_CONTAINER } from 'vs/workbench/browser/labels';
 import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 import { BreadcrumbElement, FileElement } from 'vs/workbench/browser/parts/editor/breadcrumbsModel';
 import { IFileIconTheme, IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
@@ -159,7 +159,7 @@ export abstract class BreadcrumbsPicker {
 			// use proper selection, reveal
 			let selection = this._getInitialSelection(this._tree, input);
 			if (selection) {
-				return this._tree.reveal(selection, .5).then(() => {
+				return this._tree.reveal(selection, 0.5).then(() => {
 					this._tree.setSelection([selection], this._tree);
 					this._tree.setFocus(selection);
 					this._tree.domFocus();
@@ -329,7 +329,7 @@ export class FileHighlighter implements IHighlighter {
 export class FileRenderer implements IRenderer {
 
 	constructor(
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		private readonly _labels: ResourceLabels,
 		@IConfigurationService private readonly _configService: IConfigurationService,
 	) { }
 
@@ -342,10 +342,10 @@ export class FileRenderer implements IRenderer {
 	}
 
 	renderTemplate(tree: ITree, templateId: string, container: HTMLElement) {
-		return this._instantiationService.createInstance(FileLabel, container, { supportHighlights: true });
+		return this._labels.create(container, { supportHighlights: true });
 	}
 
-	renderElement(tree: ITree, element: IFileStat | IWorkspaceFolder, templateId: string, templateData: FileLabel): void {
+	renderElement(tree: ITree, element: IFileStat | IWorkspaceFolder, templateId: string, templateData: IResourceLabel): void {
 		let fileDecorations = this._configService.getValue<{ colors: boolean, badges: boolean }>('explorer.decorations');
 		let resource: URI;
 		let fileKind: FileKind;
@@ -365,7 +365,7 @@ export class FileRenderer implements IRenderer {
 		});
 	}
 
-	disposeTemplate(tree: ITree, templateId: string, templateData: FileLabel): void {
+	disposeTemplate(tree: ITree, templateId: string, templateData: IResourceLabel): void {
 		templateData.dispose();
 	}
 }
@@ -427,7 +427,9 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 		this._disposables.push(filter);
 
 		config.dataSource = this._instantiationService.createInstance(FileDataSource);
-		config.renderer = this._instantiationService.createInstance(FileRenderer);
+		const labels = this._instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER /* TODO@Jo visibility propagation */);
+		this._disposables.push(labels);
+		config.renderer = this._instantiationService.createInstance(FileRenderer, labels);
 		config.sorter = new FileSorter();
 		config.highlighter = new FileHighlighter();
 		config.filter = filter;

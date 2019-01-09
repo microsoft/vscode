@@ -16,7 +16,7 @@ export class ActivityService implements IActivityService {
 	constructor(
 		private activitybarPart: ActivitybarPart,
 		private panelPart: PanelPart,
-		@IPanelService private panelService: IPanelService
+		@IPanelService private readonly panelService: IPanelService
 	) { }
 
 	showActivity(compositeOrActionId: string, badge: IBadge, clazz?: string, priority?: number): IDisposable {

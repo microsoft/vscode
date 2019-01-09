@@ -69,6 +69,13 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 				});
 			}
 		});
+		ipc.on('vscode:osResume', () => {
+			const activeTab = this.getActiveTab();
+			if (!activeTab) {
+				return;
+			}
+			activeTab.terminalInstances.forEach(instance => instance.forceRedraw());
+		});
 	}
 
 	public createTerminal(shell: IShellLaunchConfig = {}, wasNewTerminalAction?: boolean): ITerminalInstance {

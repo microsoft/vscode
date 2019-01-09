@@ -39,8 +39,8 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 
 	constructor(
 		editor: ICodeEditor,
-		@ITextModelService private textModelResolverService: ITextModelService,
-		@IModeService private modeService: IModeService
+		@ITextModelService private readonly textModelResolverService: ITextModelService,
+		@IModeService private readonly modeService: IModeService
 	) {
 		this.toUnhook = [];
 		this.decorations = [];

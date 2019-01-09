@@ -90,25 +90,25 @@ export class DebugService implements IDebugService {
 	private previousState: State;
 
 	constructor(
-		@IStorageService private storageService: IStorageService,
-		@IEditorService private editorService: IEditorService,
-		@ITextFileService private textFileService: ITextFileService,
-		@IViewletService private viewletService: IViewletService,
-		@IPanelService private panelService: IPanelService,
-		@INotificationService private notificationService: INotificationService,
-		@IDialogService private dialogService: IDialogService,
-		@IPartService private partService: IPartService,
-		@IBroadcastService private broadcastService: IBroadcastService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IStorageService private readonly storageService: IStorageService,
+		@IEditorService private readonly editorService: IEditorService,
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@IViewletService private readonly viewletService: IViewletService,
+		@IPanelService private readonly panelService: IPanelService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@IPartService private readonly partService: IPartService,
+		@IBroadcastService private readonly broadcastService: IBroadcastService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IExtensionService private extensionService: IExtensionService,
-		@IMarkerService private markerService: IMarkerService,
-		@ITaskService private taskService: ITaskService,
-		@IFileService private fileService: IFileService,
-		@IConfigurationService private configurationService: IConfigurationService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IMarkerService private readonly markerService: IMarkerService,
+		@ITaskService private readonly taskService: ITaskService,
+		@IFileService private readonly fileService: IFileService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		this.toDispose = [];
 
@@ -606,7 +606,7 @@ export class DebugService implements IDebugService {
 
 								this.launchOrAttachToSession(session, shouldFocus).then(() => {
 									this._onDidNewSession.fire(session);
-									c(void 0);
+									c(undefined);
 								}, err => e(err));
 							});
 						});
@@ -660,7 +660,7 @@ export class DebugService implements IDebugService {
 				return actions[choice].run();
 			}
 
-			return void 0;
+			return undefined;
 		});
 	}
 
@@ -724,10 +724,10 @@ export class DebugService implements IDebugService {
 					taskStarted = true;
 				});
 				const taskPromise = this.taskService.run(task);
-				if (task.isBackground) {
+				if (task.configurationProperties.isBackground) {
 					return new Promise((c, e) => once(e => e.kind === TaskEventKind.Inactive && e.taskId === task._id, this.taskService.onDidStateChange)(() => {
 						taskStarted = true;
-						c(void 0);
+						c(undefined);
 					}));
 				}
 
@@ -778,7 +778,7 @@ export class DebugService implements IDebugService {
 		if (!stackFrame) {
 			if (thread) {
 				const callStack = thread.getCallStack();
-				stackFrame = first(callStack, sf => sf.source && sf.source.available, undefined);
+				stackFrame = first(callStack, sf => sf.source && sf.source.available && sf.source.presentationHint !== 'deemphasize', undefined);
 			}
 		}
 
@@ -912,7 +912,7 @@ export class DebugService implements IDebugService {
 		if (session) {
 			return send(session);
 		}
-		return Promise.all(this.model.getSessions().map(s => send(s))).then(() => void 0);
+		return Promise.all(this.model.getSessions().map(s => send(s))).then(() => undefined);
 	}
 
 	private onFileChanges(fileChangesEvent: FileChangesEvent): void {
@@ -1030,7 +1030,7 @@ export class DebugService implements IDebugService {
 			breakpointCount: this.model.getBreakpoints().length,
 			exceptionBreakpoints: this.model.getExceptionBreakpoints(),
 			watchExpressionsCount: this.model.getWatchExpressions().length,
-			extensionName: extension.id,
+			extensionName: extension.identifier.value,
 			isBuiltin: extension.isBuiltin,
 			launchJsonExists: root && !!this.configurationService.getValue<IGlobalConfig>('launch', { resource: root.uri })
 		});

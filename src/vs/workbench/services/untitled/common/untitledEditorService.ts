@@ -123,8 +123,8 @@ export class UntitledEditorService extends Disposable implements IUntitledEditor
 	get onDidDisposeModel(): Event<URI> { return this._onDidDisposeModel.event; }
 
 	constructor(
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 	}
@@ -268,12 +268,12 @@ export class UntitledEditorService extends Disposable implements IUntitledEditor
 	suggestFileName(resource: URI): string {
 		const input = this.get(resource);
 
-		return input ? input.suggestFileName() : void 0;
+		return input ? input.suggestFileName() : undefined;
 	}
 
 	getEncoding(resource: URI): string {
 		const input = this.get(resource);
 
-		return input ? input.getEncoding() : void 0;
+		return input ? input.getEncoding() : undefined;
 	}
 }

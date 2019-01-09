@@ -442,7 +442,7 @@ export interface IAccessibilityProvider {
 	 *
 	 * See also: https://www.w3.org/TR/wai-aria/states_and_properties#aria-label
 	 */
-	getAriaLabel(tree: ITree, element: any): string;
+	getAriaLabel(tree: ITree, element: any): string | null;
 
 	/**
 	 * Given an element in the tree return its aria-posinset. Should be between 1 and aria-setsize
@@ -604,7 +604,7 @@ export interface IDragAndDrop {
 	 * Returns a uri if the given element should be allowed to drag.
 	 * Returns null, otherwise.
 	 */
-	getDragURI(tree: ITree, element: any): string;
+	getDragURI(tree: ITree, element: any): string | null;
 
 	/**
 	 * Returns a label to display when dragging the element.
@@ -620,7 +620,7 @@ export interface IDragAndDrop {
 	 * Returns a DragOverReaction indicating whether sources can be
 	 * dropped into target or some parent of the target.
 	 */
-	onDragOver(tree: ITree, data: IDragAndDropData, targetElement: any, originalEvent: Mouse.DragMouseEvent): IDragOverReaction;
+	onDragOver(tree: ITree, data: IDragAndDropData, targetElement: any, originalEvent: Mouse.DragMouseEvent): IDragOverReaction | null;
 
 	/**
 	 * Handles the action of dropping sources into target.
@@ -745,5 +745,5 @@ export interface IActionProvider {
 	/**
 	 * Returns an action item to render an action.
 	 */
-	getActionItem(tree: ITree, element: any, action: IAction): IActionItem;
+	getActionItem(tree: ITree, element: any, action: IAction): IActionItem | null;
 }

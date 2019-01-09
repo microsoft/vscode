@@ -73,9 +73,9 @@ export class ColorExtensionPoint {
 
 	constructor() {
 		configurationExtPoint.setHandler((extensions) => {
-			for (let i = 0; i < extensions.length; i++) {
-				const extensionValue = <IColorExtensionPoint[]>extensions[i].value;
-				const collector = extensions[i].collector;
+			for (const extension of extensions) {
+				const extensionValue = <IColorExtensionPoint[]>extension.value;
+				const collector = extension.collector;
 
 				if (!extensionValue || !Array.isArray(extensionValue)) {
 					collector.error(nls.localize('invalid.colorConfiguration', "'configuration.colors' must be a array"));

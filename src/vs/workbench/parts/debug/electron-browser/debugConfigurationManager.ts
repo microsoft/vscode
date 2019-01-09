@@ -49,26 +49,26 @@ export class ConfigurationManager implements IConfigurationManager {
 	private toDispose: IDisposable[];
 	private _onDidSelectConfigurationName = new Emitter<void>();
 	private configProviders: IDebugConfigurationProvider[];
-	private adapterProviders: IDebugAdapterDescriptorFactory[];
+	private adapterDescriptorFactories: IDebugAdapterDescriptorFactory[];
 	private adapterTrackerFactories: IDebugAdapterTrackerFactory[];
 	private debugAdapterFactories: Map<string, IDebugAdapterFactory>;
 	private terminalLauncher: ITerminalLauncher;
 	private debugConfigurationTypeContext: IContextKey<string>;
 
 	constructor(
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IEditorService private editorService: IEditorService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IQuickInputService private quickInputService: IQuickInputService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@ICommandService private commandService: ICommandService,
-		@IStorageService private storageService: IStorageService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IStorageService private readonly storageService: IStorageService,
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@IExtensionService private extensionService: IExtensionService,
+		@IExtensionService private readonly extensionService: IExtensionService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		this.configProviders = [];
-		this.adapterProviders = [];
+		this.adapterDescriptorFactories = [];
 		this.adapterTrackerFactories = [];
 		this.debuggers = [];
 		this.toDispose = [];
@@ -124,7 +124,7 @@ export class ConfigurationManager implements IConfigurationManager {
 	// debug adapter
 
 	public registerDebugAdapterDescriptorFactory(debugAdapterProvider: IDebugAdapterDescriptorFactory): IDisposable {
-		this.adapterProviders.push(debugAdapterProvider);
+		this.adapterDescriptorFactories.push(debugAdapterProvider);
 		return {
 			dispose: () => {
 				this.unregisterDebugAdapterDescriptorFactory(debugAdapterProvider);
@@ -133,13 +133,13 @@ export class ConfigurationManager implements IConfigurationManager {
 	}
 
 	public unregisterDebugAdapterDescriptorFactory(debugAdapterProvider: IDebugAdapterDescriptorFactory): void {
-		const ix = this.adapterProviders.indexOf(debugAdapterProvider);
+		const ix = this.adapterDescriptorFactories.indexOf(debugAdapterProvider);
 		if (ix >= 0) {
-			this.configProviders.splice(ix, 1);
+			this.adapterDescriptorFactories.splice(ix, 1);
 		}
 	}
 
-	public provideDebugAdapter(session: IDebugSession): Promise<IAdapterDescriptor | undefined> {
+	public getDebugAdapterDescriptor(session: IDebugSession): Promise<IAdapterDescriptor | undefined> {
 
 		const config = session.configuration;
 
@@ -151,8 +151,8 @@ export class ConfigurationManager implements IConfigurationManager {
 			// TODO@AW handle n > 1 case
 		}
 
-		// try new proposed API
-		const providers = this.adapterProviders.filter(p => p.type === config.type && p.createDebugAdapterDescriptor);
+		// new API
+		const providers = this.adapterDescriptorFactories.filter(p => p.type === config.type && p.createDebugAdapterDescriptor);
 		if (providers.length === 1) {
 			return providers[0].createDebugAdapterDescriptor(session);
 		} else {
@@ -175,7 +175,7 @@ export class ConfigurationManager implements IConfigurationManager {
 	public unregisterDebugAdapterTrackerFactory(debugAdapterTrackerFactory: IDebugAdapterTrackerFactory): void {
 		const ix = this.adapterTrackerFactories.indexOf(debugAdapterTrackerFactory);
 		if (ix >= 0) {
-			this.configProviders.splice(ix, 1);
+			this.adapterTrackerFactories.splice(ix, 1);
 		}
 	}
 
@@ -207,14 +207,7 @@ export class ConfigurationManager implements IConfigurationManager {
 
 		// if the given debugType matches any registered tracker factory we need to run the DA in the EH
 		const providers = this.adapterTrackerFactories.filter(p => p.type === debugType || p.type === '*');
-		if (providers.length > 0) {
-			return true;
-		}
-
-		// TODO@AW deprecated
-		// if the given debugType matches any registered provider that has a provideTracker method, we need to run the DA in the EH
-		const providers2 = this.configProviders.filter(p => p.hasTracker && (p.type === debugType || p.type === '*'));
-		return providers2.length > 0;
+		return providers.length > 0;
 	}
 
 	public resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: IConfig): Promise<IConfig> {
@@ -240,8 +233,6 @@ export class ConfigurationManager implements IConfigurationManager {
 			.then(() => Promise.all(this.configProviders.filter(p => p.type === type && p.provideDebugConfigurations).map(p => p.provideDebugConfigurations(folderUri)))
 				.then(results => results.reduce((first, second) => first.concat(second), [])));
 	}
-
-	///////////////////////////////////////////////////////////
 
 	private registerListeners(lifecycleService: ILifecycleService): void {
 		debuggersExtPoint.setHandler((extensions) => {
@@ -450,7 +441,7 @@ export class ConfigurationManager implements IConfigurationManager {
 			thenables.push(this.extensionService.activateByEvent(`${activationEvent}:${debugType}`));
 		}
 		return Promise.all(thenables).then(_ => {
-			return void 0;
+			return undefined;
 		});
 	}
 
@@ -471,7 +462,7 @@ class Launch implements ILaunch {
 	constructor(
 		private configurationManager: ConfigurationManager,
 		public workspace: IWorkspaceFolder,
-		@IFileService private fileService: IFileService,
+		@IFileService private readonly fileService: IFileService,
 		@IEditorService protected editorService: IEditorService,
 		@IConfigurationService protected configurationService: IConfigurationService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
@@ -624,7 +615,7 @@ class UserLaunch extends Launch implements ILaunch {
 		@IFileService fileService: IFileService,
 		@IEditorService editorService: IEditorService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IPreferencesService private preferencesService: IPreferencesService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService
 	) {
 		super(configurationManager, undefined, fileService, editorService, configurationService, contextService);

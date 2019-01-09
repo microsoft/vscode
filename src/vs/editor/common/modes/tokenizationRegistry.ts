@@ -5,15 +5,15 @@
 
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, toDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ColorId, ITokenizationRegistry, ITokenizationSupport, ITokenizationSupportChangedEvent } from 'vs/editor/common/modes';
 
 export class TokenizationRegistryImpl implements ITokenizationRegistry {
 
 	private _map: { [language: string]: ITokenizationSupport };
-	private _promises: { [language: string]: Thenable<IDisposable> };
+	private _promises: { [language: string]: Thenable<void> };
 
-	private readonly _onDidChange: Emitter<ITokenizationSupportChangedEvent> = new Emitter<ITokenizationSupportChangedEvent>();
+	private readonly _onDidChange = new Emitter<ITokenizationSupportChangedEvent>();
 	public readonly onDidChange: Event<ITokenizationSupportChangedEvent> = this._onDidChange.event;
 
 	private _colorMap: Color[] | null;
@@ -43,16 +43,25 @@ export class TokenizationRegistryImpl implements ITokenizationRegistry {
 		});
 	}
 
-	public registerPromise(language: string, supportPromise: Thenable<ITokenizationSupport | null>): Thenable<IDisposable> {
-		const promise = this._promises[language] = supportPromise.then(support => {
+	public registerPromise(language: string, supportPromise: Thenable<ITokenizationSupport | null>): IDisposable {
+
+		let registration: IDisposable | null = null;
+		let isDisposed: boolean = false;
+
+		this._promises[language] = supportPromise.then(support => {
 			delete this._promises[language];
-			if (support) {
-				return this.register(language, support);
-			} else {
-				return Disposable.None;
+			if (isDisposed || !support) {
+				return;
+			}
+			registration = this.register(language, support);
+		});
+
+		return toDisposable(() => {
+			isDisposed = true;
+			if (registration) {
+				registration.dispose();
 			}
 		});
-		return promise;
 	}
 
 	public getPromise(language: string): Thenable<ITokenizationSupport> | null {

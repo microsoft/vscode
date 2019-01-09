@@ -80,7 +80,7 @@ function readManifest(extensionPath: string): Promise<{ manifest: IExtensionMani
 		pfs.readFile(path.join(extensionPath, 'package.json'), 'utf8')
 			.then(raw => parseManifest(raw)),
 		pfs.readFile(path.join(extensionPath, 'package.nls.json'), 'utf8')
-			.then(void 0, err => err.code !== 'ENOENT' ? Promise.reject<string>(err) : '{}')
+			.then(undefined, err => err.code !== 'ENOENT' ? Promise.reject<string>(err) : '{}')
 			.then(raw => JSON.parse(raw))
 	];
 
@@ -126,11 +126,11 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	onDidUninstallExtension: Event<DidUninstallExtensionEvent> = this._onDidUninstallExtension.event;
 
 	constructor(
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
-		@ILogService private logService: ILogService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
+		@ILogService private readonly logService: ILogService,
 		@optional(IDownloadService) private downloadService: IDownloadService,
-		@ITelemetryService private telemetryService: ITelemetryService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 		this.systemExtensionsPath = environmentService.builtinExtensionsPath;
@@ -204,7 +204,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 								return this.getInstalled(LocalExtensionType.User)
 									.then(installedExtensions => {
 										const newer = installedExtensions.filter(local => areSameExtensions(extensionIdentifier, { id: getGalleryExtensionIdFromLocal(local) }) && semver.gt(local.manifest.version, manifest.version))[0];
-										return newer ? this.uninstall(newer, true) : void 0;
+										return newer ? this.uninstall(newer, true) : undefined;
 									})
 									.then(() => {
 										this.logService.info('Installing the extension:', identifier.id);
@@ -241,7 +241,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	private removeIfExists(id: string): Promise<void> {
 		return this.getInstalled(LocalExtensionType.User)
 			.then(installed => installed.filter(i => i.identifier.id === id)[0])
-			.then(existing => existing ? this.removeExtension(existing, 'existing') : void 0);
+			.then(existing => existing ? this.removeExtension(existing, 'existing') : undefined);
 	}
 
 	private installFromZipPath(identifier: IExtensionIdentifier, zipPath: string, metadata: IGalleryMetadata | null, type: LocalExtensionType, token: CancellationToken): Promise<ILocalExtension> {
@@ -266,7 +266,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		const onDidInstallExtensionSuccess = (extension: IGalleryExtension, operation: InstallOperation, local: ILocalExtension) => {
 			this.logService.info(`Extensions installed successfully:`, extension.identifier.id);
 			this._onDidInstallExtension.fire({ identifier: { id: getLocalExtensionIdFromGallery(extension, extension.version), uuid: extension.identifier.uuid }, gallery: extension, local, operation });
-			this.reportTelemetry(this.getTelemetryEvent(operation), getGalleryExtensionTelemetryData(extension), new Date().getTime() - startTime, void 0);
+			this.reportTelemetry(this.getTelemetryEvent(operation), getGalleryExtensionTelemetryData(extension), new Date().getTime() - startTime, undefined);
 		};
 
 		const onDidInstallExtensionFailure = (extension: IGalleryExtension, operation: InstallOperation, error) => {
@@ -478,7 +478,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 
 	private rename(id: string, extractPath: string, renamePath: string, retryUntil: number): Promise<void> {
 		return pfs.rename(extractPath, renamePath)
-			.then(void 0, error => {
+			.then(undefined, error => {
 				if (isWindows && error && error.code === 'EPERM' && Date.now() < retryUntil) {
 					this.logService.info(`Failed renaming ${extractPath} to ${renamePath} with 'EPERM' error. Trying again...`);
 					return this.rename(id, extractPath, renamePath, retryUntil);
@@ -517,7 +517,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 					});
 			}
 		}
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	private rollback(extensions: IGalleryExtension[]): Promise<void> {
@@ -525,7 +525,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			.then(installed =>
 				Promise.all(installed.filter(local => extensions.some(galleryExtension => local.identifier.id === getLocalExtensionIdFromGallery(galleryExtension, galleryExtension.version))) // Only check id (pub.name-version) because we want to rollback the exact version
 					.map(local => this.uninstall(local, true))))
-			.then(() => void 0, () => void 0);
+			.then(() => undefined, () => undefined);
 	}
 
 	uninstall(extension: ILocalExtension, force = false): Promise<void> {
@@ -620,7 +620,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 				return Promise.reject(new Error(this.getDependentsErrorMessage(extension, remainingDependents)));
 			}
 		}
-		return Promise.all([this.uninstallExtension(extension), ...otherExtensionsToUninstall.map(d => this.doUninstall(d))]).then(() => void 0);
+		return Promise.all([this.uninstallExtension(extension), ...otherExtensionsToUninstall.map(d => this.doUninstall(d))]).then(() => undefined);
 	}
 
 	private getDependentsErrorMessage(extension: ILocalExtension, dependents: ILocalExtension[]): string {
@@ -699,8 +699,8 @@ export class ExtensionManagementService extends Disposable implements IExtension
 				await this.galleryService.reportStatistic(extension.manifest.publisher, extension.manifest.name, extension.manifest.version, StatisticType.Uninstall);
 			}
 		}
-		this.reportTelemetry('extensionGallery:uninstall', getLocalExtensionTelemetryData(extension), void 0, error);
-		const errorcode = error ? error instanceof ExtensionManagementError ? error.code : ERROR_UNKNOWN : void 0;
+		this.reportTelemetry('extensionGallery:uninstall', getLocalExtensionTelemetryData(extension), undefined, error);
+		const errorcode = error ? error instanceof ExtensionManagementError ? error.code : ERROR_UNKNOWN : undefined;
 		this._onDidUninstallExtension.fire({ identifier: extension.identifier, error: errorcode });
 	}
 
@@ -789,7 +789,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 					const galleryIdentifier = { id: getGalleryExtensionId(manifest.publisher, manifest.name), uuid: identifier.uuid };
 					return <ILocalExtension>{ type, identifier, galleryIdentifier, manifest, metadata, location: URI.file(extensionPath), readmeUrl, changelogUrl };
 				}))
-			.then(void 0, () => null);
+			.then(undefined, () => null);
 	}
 
 	removeDeprecatedExtensions(): Promise<any> {
@@ -804,7 +804,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 					const toRemove: ILocalExtension[] = extensions.filter(e => uninstalled[e.identifier.id]);
 					return Promise.all(toRemove.map(e => this.extensionLifecycle.postUninstall(e).then(() => this.removeUninstalledExtension(e))));
 				})
-			).then(() => void 0);
+			).then(() => undefined);
 	}
 
 	private removeOutdatedExtensions(): Promise<void> {
@@ -817,13 +817,13 @@ export class ExtensionManagementService extends Disposable implements IExtension
 				toRemove.push(...flatten(byExtension.map(p => p.sort((a, b) => semver.rcompare(a.manifest.version, b.manifest.version)).slice(1))));
 
 				return Promise.all(toRemove.map(extension => this.removeExtension(extension, 'outdated')));
-			}).then(() => void 0);
+			}).then(() => undefined);
 	}
 
 	private removeUninstalledExtension(extension: ILocalExtension): Promise<void> {
 		return this.removeExtension(extension, 'uninstalled')
 			.then(() => this.withUninstalledExtensions(uninstalled => delete uninstalled[extension.identifier.id]))
-			.then(() => void 0);
+			.then(() => undefined);
 	}
 
 	private removeExtension(extension: ILocalExtension, type: string): Promise<void> {
@@ -864,7 +864,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		return await this.uninstalledFileLimiter.queue(() => {
 			let result: T | null = null;
 			return pfs.readFile(this.uninstalledPath, 'utf8')
-				.then(void 0, err => err.code === 'ENOENT' ? Promise.resolve('{}') : Promise.reject(err))
+				.then(undefined, err => err.code === 'ENOENT' ? Promise.resolve('{}') : Promise.reject(err))
 				.then<{ [id: string]: boolean }>(raw => { try { return JSON.parse(raw); } catch (e) { return {}; } })
 				.then(uninstalled => { result = fn(uninstalled); return uninstalled; })
 				.then(uninstalled => {
@@ -932,7 +932,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	}
 
 	private reportTelemetry(eventName: string, extensionData: any, duration?: number, error?: Error): void {
-		const errorcode = error ? error instanceof ExtensionManagementError ? error.code : ERROR_UNKNOWN : void 0;
+		const errorcode = error ? error instanceof ExtensionManagementError ? error.code : ERROR_UNKNOWN : undefined;
 		/* __GDPR__
 			"extensionGallery:install" : {
 				"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },

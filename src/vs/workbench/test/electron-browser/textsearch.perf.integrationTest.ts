@@ -62,7 +62,7 @@ suite.skip('TextSearch performance (integration)', () => {
 			[ITelemetryService, telemetryService],
 			[IConfigurationService, configurationService],
 			[ITextResourcePropertiesService, textResourcePropertiesService],
-			[IModelService, new ModelServiceImpl(null, configurationService, textResourcePropertiesService)],
+			[IModelService, new ModelServiceImpl(configurationService, textResourcePropertiesService)],
 			[IWorkspaceContextService, new TestContextService(testWorkspace(URI.file(testWorkspacePath)))],
 			[IEditorService, new TestEditorService()],
 			[IEditorGroupsService, new TestEditorGroupsService()],
@@ -117,7 +117,7 @@ suite.skip('TextSearch performance (integration)', () => {
 			});
 		}
 
-		const finishedEvents = [];
+		const finishedEvents: any[] = [];
 		return runSearch() // Warm-up first
 			.then(() => {
 				if (testWorkspaceArg) { // Don't measure by default

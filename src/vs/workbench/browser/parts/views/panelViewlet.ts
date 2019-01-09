@@ -52,14 +52,17 @@ export abstract class ViewletPanel extends Panel implements IView {
 	private _onDidBlur = new Emitter<void>();
 	readonly onDidBlur: Event<void> = this._onDidBlur.event;
 
+	private _onDidChangeBodyVisibility = new Emitter<boolean>();
+	readonly onDidChangeBodyVisibility: Event<boolean> = this._onDidChangeBodyVisibility.event;
+
 	protected _onDidChangeTitleArea = new Emitter<void>();
 	readonly onDidChangeTitleArea: Event<void> = this._onDidChangeTitleArea.event;
 
-	private _isVisible: boolean = true;
+	private _isVisible: boolean = false;
 	readonly id: string;
 	readonly title: string;
 
-	protected actionRunner: IActionRunner;
+	protected actionRunner?: IActionRunner;
 	protected toolbar: ToolBar;
 	private headerContainer: HTMLElement;
 
@@ -74,16 +77,35 @@ export abstract class ViewletPanel extends Panel implements IView {
 		this.id = options.id;
 		this.title = options.title;
 		this.actionRunner = options.actionRunner;
+
+		this.disposables.push(this._onDidFocus, this._onDidBlur, this._onDidChangeBodyVisibility, this._onDidChangeTitleArea);
 	}
 
 	setVisible(visible: boolean): void {
 		if (this._isVisible !== visible) {
 			this._isVisible = visible;
+
+			if (this.isExpanded()) {
+				this._onDidChangeBodyVisibility.fire(visible);
+			}
 		}
 	}
 
 	isVisible(): boolean {
 		return this._isVisible;
+	}
+
+	isBodyVisible(): boolean {
+		return this._isVisible && this.isExpanded();
+	}
+
+	setExpanded(expanded: boolean): boolean {
+		const changed = super.setExpanded(expanded);
+		if (changed) {
+			this._onDidChangeBodyVisibility.fire(expanded);
+		}
+
+		return changed;
 	}
 
 	render(): void {
@@ -105,7 +127,7 @@ export abstract class ViewletPanel extends Panel implements IView {
 			orientation: ActionsOrientation.HORIZONTAL,
 			actionItemProvider: action => this.getActionItem(action),
 			ariaLabel: nls.localize('viewToolbarAriaLabel', "{0} actions", this.title),
-			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
+			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id) || undefined,
 			actionRunner: this.actionRunner
 		});
 
@@ -118,7 +140,7 @@ export abstract class ViewletPanel extends Panel implements IView {
 	}
 
 	protected renderHeaderTitle(container: HTMLElement, title: string): void {
-		append(container, $('h3.title', null, title));
+		append(container, $('h3.title', undefined, title));
 	}
 
 	focus(): void {
@@ -151,7 +173,7 @@ export abstract class ViewletPanel extends Panel implements IView {
 		return [];
 	}
 
-	getActionItem(action: IAction): IActionItem {
+	getActionItem(action: IAction): IActionItem | null {
 		return null;
 	}
 
@@ -259,7 +281,7 @@ export class PanelViewlet extends Viewlet {
 		return [];
 	}
 
-	getActionItem(action: IAction): IActionItem {
+	getActionItem(action: IAction): IActionItem | null {
 		if (this.isSingleView()) {
 			return this.panelItems[0].panel.getActionItem(action);
 		}

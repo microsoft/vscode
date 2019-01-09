@@ -23,9 +23,9 @@ export class StatusUpdater implements IWorkbenchContribution {
 	private disposables: IDisposable[] = [];
 
 	constructor(
-		@ISCMService private scmService: ISCMService,
-		@IActivityService private activityService: IActivityService,
-		@ILogService private logService: ILogService
+		@ISCMService private readonly scmService: ISCMService,
+		@IActivityService private readonly activityService: IActivityService,
+		@ILogService private readonly logService: ILogService
 	) {
 		for (const repository of this.scmService.repositories) {
 			this.onDidAddRepository(repository);
@@ -88,12 +88,12 @@ export class StatusBarController implements IWorkbenchContribution {
 	private disposables: IDisposable[] = [];
 
 	constructor(
-		@ISCMService private scmService: ISCMService,
-		@IStatusbarService private statusbarService: IStatusbarService,
+		@ISCMService private readonly scmService: ISCMService,
+		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IEditorService private editorService: IEditorService
+		@IEditorService private readonly editorService: IEditorService
 	) {
-		this.focusedProviderContextKey = contextKeyService.createKey<string | undefined>('scmProvider', void 0);
+		this.focusedProviderContextKey = contextKeyService.createKey<string | undefined>('scmProvider', undefined);
 		this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
 
 		for (const repository of this.scmService.repositories) {

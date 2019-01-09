@@ -65,7 +65,7 @@ class InsertSnippetAction extends EditorAction {
 		const modeService = accessor.get(IModeService);
 		const snippetService = accessor.get(ISnippetsService);
 
-		if (!editor.getModel()) {
+		if (!editor.hasModel()) {
 			return undefined;
 		}
 

@@ -143,7 +143,7 @@ export class ColorThemeData implements IColorTheme {
 				});
 			}
 		}
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	/**

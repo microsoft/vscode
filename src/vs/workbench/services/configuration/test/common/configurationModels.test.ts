@@ -201,7 +201,7 @@ suite('AllKeysConfigurationChangeEvent', () => {
 
 	test('changeEvent affects keys for any resource', () => {
 		const configuraiton = new Configuration(new ConfigurationModel({}, ['window.title', 'window.zoomLevel', 'window.restoreFullscreen', 'workbench.editor.enablePreview', 'window.restoreWindows']),
-			new ConfigurationModel(), new ConfigurationModel(), new ResourceMap(), new ConfigurationModel(), new ResourceMap(), null);
+			new ConfigurationModel(), new ConfigurationModel(), new ResourceMap(), new ConfigurationModel(), new ResourceMap(), null!);
 		let testObject = new AllKeysConfigurationChangeEvent(configuraiton, ConfigurationTarget.USER, null);
 
 		assert.deepEqual(testObject.affectedKeys, ['window.title', 'window.zoomLevel', 'window.restoreFullscreen', 'workbench.editor.enablePreview', 'window.restoreWindows']);

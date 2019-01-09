@@ -34,11 +34,13 @@ export abstract class TreeViewsViewletPanel extends ViewletPanel {
 
 	protected tree: WorkbenchTree;
 
-	setExpanded(expanded: boolean): void {
-		if (this.isExpanded() !== expanded) {
+	setExpanded(expanded: boolean): boolean {
+		const changed = super.setExpanded(expanded);
+		if (changed) {
 			this.updateTreeVisibility(this.tree, expanded);
-			super.setExpanded(expanded);
 		}
+
+		return changed;
 	}
 
 	setVisible(visible: boolean): void {

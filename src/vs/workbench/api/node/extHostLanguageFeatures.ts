@@ -25,10 +25,11 @@ import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 // --- adapter
 
-class OutlineAdapter {
+class DocumentSymbolAdapter {
 
 	private _documents: ExtHostDocuments;
 	private _provider: vscode.DocumentSymbolProvider;
@@ -43,19 +44,18 @@ class OutlineAdapter {
 		return asPromise(() => this._provider.provideDocumentSymbols(doc, token)).then(value => {
 			if (isFalsyOrEmpty(value)) {
 				return undefined;
-			}
-			if (value[0] instanceof DocumentSymbol) {
+			} else if (value[0] instanceof DocumentSymbol) {
 				return (<DocumentSymbol[]>value).map(typeConvert.DocumentSymbol.from);
 			} else {
-				return OutlineAdapter._asDocumentSymbolTree(resource, <SymbolInformation[]>value);
+				return DocumentSymbolAdapter._asDocumentSymbolTree(<SymbolInformation[]>value);
 			}
 		});
 	}
 
-	private static _asDocumentSymbolTree(resource: URI, info: SymbolInformation[]): modes.DocumentSymbol[] {
+	private static _asDocumentSymbolTree(infos: SymbolInformation[]): modes.DocumentSymbol[] {
 		// first sort by start (and end) and then loop over all elements
 		// and build a tree based on containment.
-		info = info.slice(0).sort((a, b) => {
+		infos = infos.slice(0).sort((a, b) => {
 			let res = a.location.range.start.compareTo(b.location.range.start);
 			if (res === 0) {
 				res = b.location.range.end.compareTo(a.location.range.end);
@@ -64,13 +64,13 @@ class OutlineAdapter {
 		});
 		let res: modes.DocumentSymbol[] = [];
 		let parentStack: modes.DocumentSymbol[] = [];
-		for (let i = 0; i < info.length; i++) {
+		for (const info of infos) {
 			let element = <modes.DocumentSymbol>{
-				name: info[i].name,
-				kind: typeConvert.SymbolKind.from(info[i].kind),
-				containerName: info[i].containerName,
-				range: typeConvert.Range.from(info[i].location.range),
-				selectionRange: typeConvert.Range.from(info[i].location.range),
+				name: info.name || '!!MISSING: name!!',
+				kind: typeConvert.SymbolKind.from(info.kind),
+				containerName: info.containerName,
+				range: typeConvert.Range.from(info.location.range),
+				selectionRange: typeConvert.Range.from(info.location.range),
 				children: []
 			};
 
@@ -95,7 +95,7 @@ class OutlineAdapter {
 
 class CodeLensAdapter {
 
-	private static _badCmd: vscode.Command = { command: 'missing', title: '<<MISSING COMMAND>>' };
+	private static _badCmd: vscode.Command = { command: 'missing', title: '!!MISSING: command!!' };
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
@@ -289,7 +289,7 @@ class CodeActionAdapter {
 		private readonly _diagnostics: ExtHostDiagnostics,
 		private readonly _provider: vscode.CodeActionProvider,
 		private readonly _logService: ILogService,
-		private readonly _extensionId: string
+		private readonly _extensionId: ExtensionIdentifier
 	) { }
 
 	provideCodeActions(resource: URI, rangeOrSelection: IRange | ISelection, context: modes.CodeActionContext, token: CancellationToken): Promise<CodeActionDto[]> {
@@ -330,9 +330,9 @@ class CodeActionAdapter {
 				} else {
 					if (codeActionContext.only) {
 						if (!candidate.kind) {
-							this._logService.warn(`${this._extensionId} - Code actions of kind '${codeActionContext.only.value} 'requested but returned code action does not have a 'kind'. Code action will be dropped. Please set 'CodeAction.kind'.`);
+							this._logService.warn(`${this._extensionId.value} - Code actions of kind '${codeActionContext.only.value} 'requested but returned code action does not have a 'kind'. Code action will be dropped. Please set 'CodeAction.kind'.`);
 						} else if (!codeActionContext.only.contains(candidate.kind)) {
-							this._logService.warn(`${this._extensionId} -Code actions of kind '${codeActionContext.only.value} 'requested but returned code action is of kind '${candidate.kind.value}'. Code action will be dropped. Please check 'CodeActionContext.only' to only return requested code actions.`);
+							this._logService.warn(`${this._extensionId.value} -Code actions of kind '${codeActionContext.only.value} 'requested but returned code action is of kind '${candidate.kind.value}'. Code action will be dropped. Please check 'CodeActionContext.only' to only return requested code actions.`);
 						}
 					}
 
@@ -730,20 +730,35 @@ class SignatureHelpAdapter {
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.SignatureHelpProvider
+		private readonly _provider: vscode.SignatureHelpProvider,
+		private readonly _heap: ExtHostHeapService,
 	) { }
 
 	provideSignatureHelp(resource: URI, position: IPosition, context: modes.SignatureHelpContext, token: CancellationToken): Promise<modes.SignatureHelp> {
-
 		const doc = this._documents.getDocumentData(resource).document;
 		const pos = typeConvert.Position.to(position);
+		const vscodeContext = this.reviveContext(context);
 
-		return asPromise(() => this._provider.provideSignatureHelp(doc, pos, token, context)).then(value => {
+		return asPromise(() => this._provider.provideSignatureHelp(doc, pos, token, vscodeContext)).then(value => {
 			if (value) {
-				return typeConvert.SignatureHelp.from(value);
+				const id = this._heap.keep(value);
+				return ObjectIdentifier.mixin(typeConvert.SignatureHelp.from(value), id);
 			}
 			return undefined;
 		});
+	}
+
+	private reviveContext(context: modes.SignatureHelpContext): vscode.SignatureHelpContext {
+		let activeSignatureHelp: vscode.SignatureHelp | undefined = undefined;
+		if (context.activeSignatureHelp) {
+			const saved = this._heap.get<vscode.SignatureHelp>(ObjectIdentifier.of(context.activeSignatureHelp));
+			if (saved) {
+				activeSignatureHelp = saved;
+			} else {
+				activeSignatureHelp = typeConvert.SignatureHelp.to(context.activeSignatureHelp);
+			}
+		}
+		return { ...context, activeSignatureHelp };
 	}
 }
 
@@ -839,7 +854,7 @@ class FoldingProviderAdapter {
 		const doc = this._documents.getDocumentData(resource).document;
 		return asPromise(() => this._provider.provideFoldingRanges(doc, context, token)).then(ranges => {
 			if (!Array.isArray(ranges)) {
-				return void 0;
+				return undefined;
 			}
 			return ranges.map(typeConvert.FoldingRange.from);
 		});
@@ -853,28 +868,28 @@ class SelectionRangeAdapter {
 		private readonly _provider: vscode.SelectionRangeProvider
 	) { }
 
-	provideSelectionRanges(resource: URI, position: IPosition, token: CancellationToken): Promise<IRange[]> {
+	provideSelectionRanges(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.SelectionRange[]> {
 		const { document } = this._documents.getDocumentData(resource);
 		const pos = typeConvert.Position.to(position);
-		return asPromise(() => this._provider.provideSelectionRanges(document, pos, token)).then(ranges => {
-			if (isFalsyOrEmpty(ranges)) {
+		return asPromise(() => this._provider.provideSelectionRanges(document, pos, token)).then(selectionRanges => {
+			if (isFalsyOrEmpty(selectionRanges)) {
 				return undefined;
 			}
-			let result: IRange[] = [];
+			let result: modes.SelectionRange[] = [];
 			let last: vscode.Position | vscode.Range = pos;
-			for (const range of ranges) {
-				if (!range.contains(last)) {
+			for (const sel of selectionRanges) {
+				if (!sel.range.contains(last)) {
 					throw new Error('INVALID selection range, must contain the previous range');
 				}
-				result.push(typeConvert.Range.from(range));
-				last = range;
+				result.push(typeConvert.SelectionRange.from(sel));
+				last = sel.range;
 			}
 			return result;
 		});
 	}
 }
 
-type Adapter = OutlineAdapter | CodeLensAdapter | DefinitionAdapter | HoverAdapter
+type Adapter = DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | HoverAdapter
 	| DocumentHighlightAdapter | ReferenceAdapter | CodeActionAdapter | DocumentFormattingAdapter
 	| RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
 	| SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter | ImplementationAdapter | TypeDefinitionAdapter
@@ -975,14 +990,14 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 			let t1: number;
 			if (data.extension) {
 				t1 = Date.now();
-				this._logService.trace(`[${data.extension.id}] INVOKE provider '${(ctor as any).name}'`);
+				this._logService.trace(`[${data.extension.identifier.value}] INVOKE provider '${(ctor as any).name}'`);
 			}
 			let p = callback(data.adapter);
 			if (data.extension) {
 				Promise.resolve(p).then(
-					() => this._logService.trace(`[${data.extension.id}] provider DONE after ${Date.now() - t1}ms`),
+					() => this._logService.trace(`[${data.extension.identifier.value}] provider DONE after ${Date.now() - t1}ms`),
 					err => {
-						this._logService.error(`[${data.extension.id}] provider FAILED`);
+						this._logService.error(`[${data.extension.identifier.value}] provider FAILED`);
 						this._logService.error(err);
 					}
 				);
@@ -1001,14 +1016,14 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 	// --- outline
 
 	registerDocumentSymbolProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentSymbolProvider, metadata?: vscode.DocumentSymbolProviderMetadata): vscode.Disposable {
-		const handle = this._addNewAdapter(new OutlineAdapter(this._documents, provider), extension);
+		const handle = this._addNewAdapter(new DocumentSymbolAdapter(this._documents, provider), extension);
 		const displayName = (metadata && metadata.label) || (extension && (extension.displayName || extension.name)) || undefined;
 		this._proxy.$registerOutlineSupport(handle, this._transformDocumentSelector(selector), displayName);
 		return this._createDisposable(handle);
 	}
 
 	$provideDocumentSymbols(handle: number, resource: UriComponents, token: CancellationToken): Promise<modes.DocumentSymbol[]> {
-		return this._withAdapter(handle, OutlineAdapter, adapter => adapter.provideDocumentSymbols(URI.revive(resource), token));
+		return this._withAdapter(handle, DocumentSymbolAdapter, adapter => adapter.provideDocumentSymbols(URI.revive(resource), token));
 	}
 
 	// --- code lens
@@ -1081,7 +1096,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	// --- extra info
 
-	registerHoverProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.HoverProvider, extensionId?: string): vscode.Disposable {
+	registerHoverProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.HoverProvider, extensionId?: ExtensionIdentifier): vscode.Disposable {
 		const handle = this._addNewAdapter(new HoverAdapter(this._documents, provider), extension);
 		this._proxy.$registerHoverProvider(handle, this._transformDocumentSelector(selector));
 		return this._createDisposable(handle);
@@ -1118,7 +1133,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 	// --- quick fix
 
 	registerCodeActionProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.CodeActionProvider, metadata?: vscode.CodeActionProviderMetadata): vscode.Disposable {
-		const handle = this._addNewAdapter(new CodeActionAdapter(this._documents, this._commands.converter, this._diagnostics, provider, this._logService, extension.id), extension);
+		const handle = this._addNewAdapter(new CodeActionAdapter(this._documents, this._commands.converter, this._diagnostics, provider, this._logService, extension.identifier), extension);
 		this._proxy.$registerQuickFixSupport(handle, this._transformDocumentSelector(selector), metadata && metadata.providedCodeActionKinds ? metadata.providedCodeActionKinds.map(kind => kind.value) : undefined);
 		return this._createDisposable(handle);
 	}
@@ -1223,7 +1238,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 			? { triggerCharacters: metadataOrTriggerChars, retriggerCharacters: [] }
 			: metadataOrTriggerChars;
 
-		const handle = this._addNewAdapter(new SignatureHelpAdapter(this._documents, provider), extension);
+		const handle = this._addNewAdapter(new SignatureHelpAdapter(this._documents, provider, this._heapService), extension);
 		this._proxy.$registerSignatureHelpProvider(handle, this._transformDocumentSelector(selector), metadata);
 		return this._createDisposable(handle);
 	}
@@ -1280,7 +1295,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideSelectionRanges(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<IRange[]> {
+	$provideSelectionRanges(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.SelectionRange[]> {
 		return this._withAdapter(handle, SelectionRangeAdapter, adapter => adapter.provideSelectionRanges(URI.revive(resource), position, token));
 	}
 

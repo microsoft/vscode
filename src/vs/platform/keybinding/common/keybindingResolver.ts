@@ -180,8 +180,7 @@ export class KeybindingResolver {
 		const bExpressions: ContextKeyExpr[] = ((b instanceof ContextKeyAndExpr) ? b.expr : [b]);
 
 		let aIndex = 0;
-		for (let bIndex = 0; bIndex < bExpressions.length; bIndex++) {
-			let bExpr = bExpressions[bIndex];
+		for (const bExpr of bExpressions) {
 			let bExprMatched = false;
 			while (!bExprMatched && aIndex < aExpressions.length) {
 				let aExpr = aExpressions[aIndex];

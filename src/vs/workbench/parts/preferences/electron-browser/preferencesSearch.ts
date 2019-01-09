@@ -34,11 +34,11 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 	private _installedExtensions: Promise<ILocalExtension[]>;
 
 	constructor(
-		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
-		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService
+		@IWorkspaceConfigurationService private readonly configurationService: IWorkspaceConfigurationService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
+		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService
 	) {
 		super();
 
@@ -166,9 +166,9 @@ class RemoteSearchProvider implements ISearchProvider {
 	private _remoteSearchP: Promise<IFilterMetadata>;
 
 	constructor(private options: IRemoteSearchProviderOptions, private installedExtensions: Promise<ILocalExtension[]>,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IRequestService private requestService: IRequestService,
-		@ILogService private logService: ILogService
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IRequestService private readonly requestService: IRequestService,
+		@ILogService private readonly logService: ILogService
 	) {
 		this._remoteSearchP = this.options.filter ?
 			Promise.resolve(this.getSettingsForFilter(this.options.filter)) :
@@ -243,7 +243,7 @@ class RemoteSearchProvider implements ISearchProvider {
 			const metadata = allResponses[0];
 			metadata.requestCount = 1;
 
-			for (let response of allResponses.slice(1)) {
+			for (const response of allResponses.slice(1)) {
 				metadata.requestCount++;
 				metadata.scoredResults = { ...metadata.scoredResults, ...response.scoredResults };
 			}
@@ -440,7 +440,7 @@ class SettingMatches {
 	private readonly keyMatchingWords: Map<string, IRange[]> = new Map<string, IRange[]>();
 	private readonly valueMatchingWords: Map<string, IRange[]> = new Map<string, IRange[]>();
 
-	public readonly matches: IRange[];
+	readonly matches: IRange[];
 
 	constructor(searchString: string, setting: ISetting, private requireFullQueryMatch: boolean, private searchDescription, private valuesMatcher: (filter: string, setting: ISetting) => IRange[]) {
 		this.matches = distinct(this._findMatchesInSetting(searchString, setting), (match) => `${match.startLineNumber}_${match.startColumn}_${match.endLineNumber}_${match.endColumn}_`);
@@ -451,7 +451,7 @@ class SettingMatches {
 		if (setting.overrides && setting.overrides.length) {
 			for (const subSetting of setting.overrides) {
 				const subSettingMatches = new SettingMatches(searchString, subSetting, this.requireFullQueryMatch, this.searchDescription, this.valuesMatcher);
-				let words = searchString.split(' ');
+				const words = searchString.split(' ');
 				const descriptionRanges: IRange[] = this.getRangesForWords(words, this.descriptionMatchingWords, [subSettingMatches.descriptionMatchingWords, subSettingMatches.keyMatchingWords, subSettingMatches.valueMatchingWords]);
 				const keyRanges: IRange[] = this.getRangesForWords(words, this.keyMatchingWords, [subSettingMatches.descriptionMatchingWords, subSettingMatches.keyMatchingWords, subSettingMatches.valueMatchingWords]);
 				const subSettingKeyRanges: IRange[] = this.getRangesForWords(words, subSettingMatches.keyMatchingWords, [this.descriptionMatchingWords, this.keyMatchingWords, subSettingMatches.valueMatchingWords]);
@@ -467,7 +467,7 @@ class SettingMatches {
 		const registry: { [qualifiedKey: string]: IJSONSchema } = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
 		const schema: IJSONSchema = registry[setting.key];
 
-		let words = searchString.split(' ');
+		const words = searchString.split(' ');
 		const settingKeyAsWords: string = setting.key.split('.').join(' ');
 
 		for (const word of words) {

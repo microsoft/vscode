@@ -16,7 +16,7 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
  * This module contains utility functions related to the environment, cwd and paths.
  */
 
-export function mergeEnvironments(parent: platform.IProcessEnvironment, other: ITerminalEnvironment): void {
+export function mergeEnvironments(parent: platform.IProcessEnvironment, other?: ITerminalEnvironment): void {
 	if (!other) {
 		return;
 	}
@@ -65,9 +65,10 @@ export function sanitizeEnvironment(env: ITerminalEnvironment): void {
 		'VSCODE_IPC_HOOK',
 		'VSCODE_LOGS',
 		'VSCODE_NLS_CONFIG',
+		'VSCODE_NODE_CACHED_DATA_DIR',
 		'VSCODE_PORTABLE',
 		'VSCODE_PID',
-		'VSCODE_NODE_CACHED_DATA_DIR'
+		'VSCODE_PREVENT_FOREIGN_INSPECT'
 	];
 	keysToRemove.forEach((key) => {
 		if (env[key]) {
@@ -127,9 +128,9 @@ function _getLangEnvVariable(locale?: string) {
 	return parts.join('_') + '.UTF-8';
 }
 
-export function getCwd(shell: IShellLaunchConfig, root: Uri, customCwd: string): string {
+export function getCwd(shell: IShellLaunchConfig, root?: Uri, customCwd?: string): string {
 	if (shell.cwd) {
-		return shell.cwd;
+		return (typeof shell.cwd === 'object') ? shell.cwd.path : shell.cwd;
 	}
 
 	let cwd: string | undefined;

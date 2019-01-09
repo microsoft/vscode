@@ -19,7 +19,7 @@ suite('MainThreadDiagnostics', function () {
 
 	test('clear markers on dispose', function () {
 
-		let diag = new MainThreadDiagnostics(null, markerService);
+		let diag = new MainThreadDiagnostics(null!, markerService);
 
 		diag.$changeMany('foo', [[URI.file('a'), [{
 			code: '666',

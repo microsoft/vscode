@@ -70,7 +70,9 @@ export function getPathLabel(resource: URI | string, userHomeProvider?: IUserHom
 	return res;
 }
 
-export function getBaseLabel(resource: URI | string): string | undefined {
+export function getBaseLabel(resource: URI | string): string;
+export function getBaseLabel(resource: URI | string | undefined): string | undefined;
+export function getBaseLabel(resource: URI | string | undefined): string | undefined {
 	if (!resource) {
 		return undefined;
 	}
@@ -108,7 +110,7 @@ export function tildify(path: string, userHome: string): string {
 	}
 
 	// Keep a normalized user home path as cache to prevent accumulated string creation
-	let normalizedUserHome = normalizedUserHomeCached.original === userHome ? normalizedUserHomeCached.normalized : void 0;
+	let normalizedUserHome = normalizedUserHomeCached.original === userHome ? normalizedUserHomeCached.normalized : undefined;
 	if (!normalizedUserHome) {
 		normalizedUserHome = `${rtrim(userHome, sep)}${sep}`;
 		normalizedUserHomeCached = { original: userHome, normalized: normalizedUserHome };
@@ -284,11 +286,8 @@ export function template(template: string, values: { [key: string]: string | ISe
 	const segments: ISegment[] = [];
 
 	let inVariable = false;
-	let char: string;
 	let curVal = '';
-	for (let i = 0; i < template.length; i++) {
-		char = template[i];
-
+	for (const char of template) {
 		// Beginning of variable
 		if (char === '$' || (inVariable && char === '{')) {
 			if (curVal) {
@@ -364,7 +363,7 @@ export function mnemonicMenuLabel(label: string, forceDisableMnemonics?: boolean
 
 /**
  * Handles mnemonics for buttons. Depending on OS:
- * - Windows: Supported via & character (replace && with &)
+ * - Windows: Supported via & character (replace && with & and & with && for escaping)
  * -   Linux: Supported via _ character (replace && with _)
  * -   macOS: Unsupported (replace && with empty string)
  */
@@ -373,7 +372,11 @@ export function mnemonicButtonLabel(label: string): string {
 		return label.replace(/\(&&\w\)|&&/g, '');
 	}
 
-	return label.replace(/&&/g, isWindows ? '&' : '_');
+	if (isWindows) {
+		return label.replace(/&&|&/g, m => m === '&' ? '&&' : '&');
+	}
+
+	return label.replace(/&&/g, '_');
 }
 
 export function unmnemonicLabel(label: string): string {

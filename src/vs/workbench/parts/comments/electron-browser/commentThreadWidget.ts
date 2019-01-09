@@ -189,7 +189,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 	}
 
 	protected _fillHead(container: HTMLElement): void {
-		var titleElement = dom.append(this._headElement, dom.$('.review-title'));
+		let titleElement = dom.append(this._headElement, dom.$('.review-title'));
 
 		this._headingLabel = dom.append(titleElement, dom.$('span.filename'));
 		this.createThreadLabel();
@@ -286,7 +286,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 		this._localToDispose.push(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
 		this._localToDispose.push(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
-		var headHeight = Math.ceil(this.editor.getConfiguration().lineHeight * 1.2);
+		let headHeight = Math.ceil(this.editor.getConfiguration().lineHeight * 1.2);
 		this._headElement.style.height = `${headHeight}px`;
 		this._headElement.style.lineHeight = this._headElement.style.height;
 
@@ -294,8 +294,8 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._commentsElement.setAttribute('role', 'presentation');
 
 		this._commentElements = [];
-		for (let i = 0; i < this._commentThread.comments.length; i++) {
-			const newCommentNode = this.createNewCommentNode(this._commentThread.comments[i]);
+		for (const comment of this._commentThread.comments) {
+			const newCommentNode = this.createNewCommentNode(comment);
 
 			this._commentElements.push(newCommentNode);
 			this._commentsElement.appendChild(newCommentNode.domNode);
@@ -372,6 +372,12 @@ export class ReviewZoneWidget extends ZoneWidget {
 		}
 	}
 
+	private handleError(e: Error) {
+		this._error.textContent = e.message;
+		this._commentEditor.getDomNode().style.outline = `1px solid ${this.themeService.getTheme().getColor(inputValidationErrorBorder)}`;
+		dom.removeClass(this._error, 'hidden');
+	}
+
 	private createCommentWidgetActions(container: HTMLElement, model: ITextModel) {
 		const button = new Button(container);
 		attachButtonStyler(button, this.themeService);
@@ -405,7 +411,11 @@ export class ReviewZoneWidget extends ZoneWidget {
 					deletedraftButton.enabled = true;
 
 					deletedraftButton.onDidClick(async () => {
-						await this.commentService.deleteDraft(this._owner);
+						try {
+							await this.commentService.deleteDraft(this._owner, this.editor.getModel().uri);
+						} catch (e) {
+							this.handleError(e);
+						}
 					});
 				}
 
@@ -417,9 +427,15 @@ export class ReviewZoneWidget extends ZoneWidget {
 					submitdraftButton.enabled = true;
 
 					submitdraftButton.onDidClick(async () => {
-						let lineNumber = this._commentGlyph.getPosition().position.lineNumber;
-						await this.createComment(lineNumber);
-						await this.commentService.finishDraft(this._owner);
+						try {
+							let lineNumber = this._commentGlyph.getPosition().position.lineNumber;
+							if (this._commentEditor.getValue()) {
+								await this.createComment(lineNumber);
+							}
+							await this.commentService.finishDraft(this._owner, this.editor.getModel().uri);
+						} catch (e) {
+							this.handleError(e);
+						}
 					});
 				}
 
@@ -441,9 +457,13 @@ export class ReviewZoneWidget extends ZoneWidget {
 					}));
 
 					draftButton.onDidClick(async () => {
-						await this.commentService.startDraft(this._owner);
-						let lineNumber = this._commentGlyph.getPosition().position.lineNumber;
-						await this.createComment(lineNumber);
+						try {
+							await this.commentService.startDraft(this._owner, this.editor.getModel().uri);
+							let lineNumber = this._commentGlyph.getPosition().position.lineNumber;
+							await this.createComment(lineNumber);
+						} catch (e) {
+							this.handleError(e);
+						}
 					});
 				}
 
@@ -778,6 +798,6 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 		this._globalToDispose.forEach(global => global.dispose());
 		this._localToDispose.forEach(local => local.dispose());
-		this._onDidClose.fire();
+		this._onDidClose.fire(undefined);
 	}
 }

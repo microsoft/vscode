@@ -92,7 +92,7 @@ suite('BackupFileService', () => {
 				service = new TestBackupFileService(workspaceResource, backupHome, workspacesJsonPath);
 				return service.loadBackupResource(fooFile).then(resource => {
 					assert.ok(resource);
-					assert.equal(path.basename(resource.fsPath), path.basename(fooBackupPath));
+					assert.equal(path.basename(resource!.fsPath), path.basename(fooBackupPath));
 					return service.hasBackups().then(hasBackups => {
 						assert.ok(hasBackups);
 					});

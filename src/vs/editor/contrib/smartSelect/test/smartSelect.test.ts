@@ -6,7 +6,7 @@ import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
-import { LanguageIdentifier } from 'vs/editor/common/modes';
+import { LanguageIdentifier, SelectionRangeProvider } from 'vs/editor/common/modes';
 import { MockMode, StaticLanguageSelector } from 'vs/editor/test/common/mocks/mockMode';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
@@ -15,16 +15,16 @@ import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/jav
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
-import { TokenTreeSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/tokenTree';
-import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { BracketSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/bracketSelections';
+import { provideSelectionRanges } from 'vs/editor/contrib/smartSelect/smartSelect';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 class TestTextResourcePropertiesService implements ITextResourcePropertiesService {
 
 	_serviceBrand: any;
 
 	constructor(
-		@IConfigurationService private configurationService: IConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 	}
 
@@ -65,7 +65,7 @@ suite('SmartSelect', () => {
 
 	setup(() => {
 		const configurationService = new TestConfigurationService();
-		modelService = new ModelServiceImpl(new MarkerService(), configurationService, new TestTextResourcePropertiesService(configurationService));
+		modelService = new ModelServiceImpl(configurationService, new TestTextResourcePropertiesService(configurationService));
 		mode = new MockJSMode();
 	});
 
@@ -74,18 +74,14 @@ suite('SmartSelect', () => {
 		mode.dispose();
 	});
 
-	function assertGetRangesToPosition(text: string[], lineNumber: number, column: number, ranges: Range[]): void {
+	async function assertGetRangesToPosition(text: string[], lineNumber: number, column: number, ranges: Range[]): Promise<void> {
 		let uri = URI.file('test.js');
 		let model = modelService.createModel(text.join('\n'), new StaticLanguageSelector(mode.getLanguageIdentifier()), uri);
-
-		let actual = new TokenTreeSelectionRangeProvider().provideSelectionRanges(model, new Position(lineNumber, column));
-
-
-		let actualStr = actual.map(r => new Range(r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn).toString());
+		let actual = await provideSelectionRanges(model, new Position(lineNumber, column), CancellationToken.None);
+		let actualStr = actual!.map(r => new Range(r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn).toString());
 		let desiredStr = ranges.reverse().map(r => String(r));
 
 		assert.deepEqual(actualStr, desiredStr);
-
 		modelService.destroyModel(uri);
 	}
 
@@ -98,17 +94,19 @@ suite('SmartSelect', () => {
 			'\t}',
 			'}'
 		], 3, 20, [
-				new Range(1, 1, 5, 2),
-				new Range(1, 21, 5, 2),
+				new Range(1, 1, 5, 2), // all
+				new Range(1, 21, 5, 2), // {} outside
+				new Range(1, 22, 5, 1), // {} inside
 				new Range(2, 1, 4, 3),
+				new Range(2, 2, 4, 3),
 				new Range(2, 11, 4, 3),
-				new Range(3, 1, 4, 2),
-				new Range(3, 1, 3, 27),
-				new Range(3, 10, 3, 27),
-				new Range(3, 11, 3, 26),
-				new Range(3, 17, 3, 26),
-				new Range(3, 18, 3, 25),
-				// new Range(3, 19, 3, 20)
+				new Range(2, 12, 4, 2),
+				new Range(3, 1, 3, 27), // line w/ triva
+				new Range(3, 3, 3, 27), // line w/o triva
+				new Range(3, 10, 3, 27), // () outside
+				new Range(3, 11, 3, 26), // () inside
+				new Range(3, 17, 3, 26), // () outside
+				new Range(3, 18, 3, 25), // () inside
 			]);
 	});
 
@@ -123,8 +121,12 @@ suite('SmartSelect', () => {
 		], 3, 1, [
 				new Range(1, 1, 5, 2),
 				new Range(1, 21, 5, 2),
+				new Range(1, 22, 5, 1),
 				new Range(2, 1, 4, 3),
-				new Range(2, 11, 4, 3)
+				new Range(2, 2, 4, 3),
+				new Range(2, 11, 4, 3),
+				new Range(2, 12, 4, 2),
+				new Range(3, 1, 3, 1),
 			]);
 	});
 
@@ -137,12 +139,14 @@ suite('SmartSelect', () => {
 			'\t}',
 			'}'
 		], 3, 1, [
-				new Range(1, 1, 5, 2),
-				new Range(1, 21, 5, 2),
+				new Range(1, 1, 5, 2), // all
+				new Range(1, 21, 5, 2), // {} outside
+				new Range(1, 22, 5, 1), // {} inside
 				new Range(2, 1, 4, 3),
+				new Range(2, 2, 4, 3),
 				new Range(2, 11, 4, 3),
-				new Range(3, 1, 4, 2),
-				new Range(3, 1, 3, 2)
+				new Range(2, 12, 4, 2),
+				new Range(3, 1, 3, 2) // line w/ triva
 			]);
 	});
 
@@ -154,9 +158,9 @@ suite('SmartSelect', () => {
 			'( ) '
 		], 2, 3, [
 				new Range(1, 1, 3, 5),
-				new Range(2, 1, 2, 6),
-				new Range(2, 2, 2, 5),
-				new Range(2, 3, 2, 4)
+				new Range(2, 1, 2, 6), // line w/ triava
+				new Range(2, 2, 2, 5), // {} inside, line w/o triva
+				new Range(2, 3, 2, 4) // {} inside
 			]);
 	});
 
@@ -167,9 +171,10 @@ suite('SmartSelect', () => {
 			' { } ',
 			'  ( ) '
 		], 1, 3, [
-				new Range(1, 1, 3, 7),
-				new Range(1, 1, 1, 5),
-				new Range(1, 2, 1, 4)
+				new Range(1, 1, 3, 7), // all
+				new Range(1, 1, 1, 5), // line w/ trival
+				new Range(1, 2, 1, 4), // [] outside, line w/o trival
+				new Range(1, 3, 1, 3), // [] inside
 			]);
 	});
 
@@ -180,69 +185,69 @@ suite('SmartSelect', () => {
 			' { } ',
 			'selectthis( ) '
 		], 3, 11, [
-				new Range(1, 1, 3, 15),
-				new Range(3, 1, 3, 15),
-				new Range(3, 1, 3, 11)
+				new Range(1, 1, 3, 15), // all
+				new Range(3, 1, 3, 15), // line w/ trivia
+				new Range(3, 1, 3, 14), // line w/o trivia
+				new Range(3, 1, 3, 11) // word
 			]);
 	});
 
 	// -- bracket selections
 
-	async function assertRanges(value: string, ...expected: IRange[]): Promise<void> {
+	async function assertRanges(provider: SelectionRangeProvider, value: string, ...expected: IRange[]): Promise<void> {
 
 		let model = modelService.createModel(value, new StaticLanguageSelector(mode.getLanguageIdentifier()), URI.parse('fake:lang'));
 		let pos = model.getPositionAt(value.indexOf('I'));
-		let provider = new BracketSelectionRangeProvider();
-		let ranges = await provider.provideSelectionRanges(model, pos);
+		let ranges = await provider.provideSelectionRanges(model, pos, CancellationToken.None);
 		modelService.destroyModel(model.uri);
 
-		assert.equal(expected.length, ranges.length);
-		for (const range of ranges) {
+		assert.equal(expected.length, ranges!.length);
+		for (const range of ranges!) {
 			let exp = expected.shift() || null;
-			assert.ok(Range.equalsRange(range, exp), `A=${range} <> E=${exp}`);
+			assert.ok(Range.equalsRange(range.range, exp), `A=${range} <> E=${exp}`);
 		}
 	}
 
 	test('bracket selection', async () => {
-		await assertRanges('(I)',
+		await assertRanges(new BracketSelectionRangeProvider(), '(I)',
 			new Range(1, 2, 1, 3), new Range(1, 1, 1, 4)
 		);
 
-		await assertRanges('[[[](I)]]',
+		await assertRanges(new BracketSelectionRangeProvider(), '[[[](I)]]',
 			new Range(1, 6, 1, 7), new Range(1, 5, 1, 8), // ()
 			new Range(1, 3, 1, 8), new Range(1, 2, 1, 9), // [[]()]
 			new Range(1, 2, 1, 9), new Range(1, 1, 1, 10), // [[[]()]]
 		);
 
-		await assertRanges('[a[](I)a]',
+		await assertRanges(new BracketSelectionRangeProvider(), '[a[](I)a]',
 			new Range(1, 6, 1, 7), new Range(1, 5, 1, 8),
 			new Range(1, 2, 1, 9), new Range(1, 1, 1, 10),
 		);
 
 		// no bracket
-		await assertRanges('fofofIfofo');
+		await assertRanges(new BracketSelectionRangeProvider(), 'fofofIfofo');
 
 		// empty
-		await assertRanges('[[[]()]]I');
-		await assertRanges('I[[[]()]]');
+		await assertRanges(new BracketSelectionRangeProvider(), '[[[]()]]I');
+		await assertRanges(new BracketSelectionRangeProvider(), 'I[[[]()]]');
 
 		// edge
-		await assertRanges('[I[[]()]]', new Range(1, 2, 1, 9), new Range(1, 1, 1, 10));
-		await assertRanges('[[[]()]I]', new Range(1, 2, 1, 9), new Range(1, 1, 1, 10));
+		await assertRanges(new BracketSelectionRangeProvider(), '[I[[]()]]', new Range(1, 2, 1, 9), new Range(1, 1, 1, 10));
+		await assertRanges(new BracketSelectionRangeProvider(), '[[[]()]I]', new Range(1, 2, 1, 9), new Range(1, 1, 1, 10));
 
-		await assertRanges('aaa(aaa)bbb(bIb)ccc(ccc)', new Range(1, 13, 1, 16), new Range(1, 12, 1, 17));
-		await assertRanges('(aaa(aaa)bbb(bIb)ccc(ccc))', new Range(1, 14, 1, 17), new Range(1, 13, 1, 18), new Range(1, 2, 1, 26), new Range(1, 1, 1, 27));
+		await assertRanges(new BracketSelectionRangeProvider(), 'aaa(aaa)bbb(bIb)ccc(ccc)', new Range(1, 13, 1, 16), new Range(1, 12, 1, 17));
+		await assertRanges(new BracketSelectionRangeProvider(), '(aaa(aaa)bbb(bIb)ccc(ccc))', new Range(1, 14, 1, 17), new Range(1, 13, 1, 18), new Range(1, 2, 1, 26), new Range(1, 1, 1, 27));
 	});
 
 	test('bracket with leading/trailing', async () => {
 
-		await assertRanges('for(a of b){\n  foo(I);\n}',
+		await assertRanges(new BracketSelectionRangeProvider(), 'for(a of b){\n  foo(I);\n}',
 			new Range(2, 7, 2, 8), new Range(2, 6, 2, 9),
 			new Range(1, 13, 3, 1), new Range(1, 12, 3, 2),
 			new Range(1, 1, 3, 2), new Range(1, 1, 3, 2),
 		);
 
-		await assertRanges('for(a of b)\n{\n  foo(I);\n}',
+		await assertRanges(new BracketSelectionRangeProvider(), 'for(a of b)\n{\n  foo(I);\n}',
 			new Range(3, 7, 3, 8), new Range(3, 6, 3, 9),
 			new Range(2, 2, 4, 1), new Range(2, 1, 4, 2),
 			new Range(1, 1, 4, 2), new Range(1, 1, 4, 2),

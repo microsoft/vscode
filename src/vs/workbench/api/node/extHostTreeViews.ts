@@ -31,15 +31,15 @@ function toTreeItemLabel(label: any, extension: IExtensionDescription): ITreeIte
 		&& typeof label === 'object'
 		&& typeof label.label === 'string') {
 		checkProposedApiEnabled(extension);
-		let highlights: [number, number][] = void 0;
+		let highlights: [number, number][] = undefined;
 		if (Array.isArray(label.highlights)) {
 			highlights = (<[number, number][]>label.highlights).filter((highlight => highlight.length === 2 && typeof highlight[0] === 'number' && typeof highlight[1] === 'number'));
-			highlights = highlights.length ? highlights : void 0;
+			highlights = highlights.length ? highlights : undefined;
 		}
 		return { label: label.label, highlights };
 	}
 
-	return void 0;
+	return undefined;
 }
 
 
@@ -195,7 +195,7 @@ class ExtHostTreeView<T> extends Disposable {
 	}
 
 	getChildren(parentHandle?: TreeItemHandle): Promise<ITreeItem[]> {
-		const parentElement = parentHandle ? this.getExtensionElement(parentHandle) : void 0;
+		const parentElement = parentHandle ? this.getExtensionElement(parentHandle) : undefined;
 		if (parentHandle && !parentElement) {
 			console.error(`No tree item with id \'${parentHandle}\' found.`);
 			return Promise.resolve([]);
@@ -321,7 +321,7 @@ class ExtHostTreeView<T> extends Disposable {
 		// clear children cache
 		this.clearChildren(parentElement);
 
-		const parentNode = parentElement ? this.nodes.get(parentElement) : void 0;
+		const parentNode = parentElement ? this.nodes.get(parentElement) : undefined;
 		return asPromise(() => this.dataProvider.getChildren(parentElement))
 			.then(elements => Promise.all(
 				coalesce(elements || [])
@@ -341,7 +341,7 @@ class ExtHostTreeView<T> extends Disposable {
 				return this.refreshHandles(handlesToRefresh);
 			}
 		}
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	private getHandlesToRefresh(elements: T[]): TreeItemHandle[] {
@@ -415,7 +415,7 @@ class ExtHostTreeView<T> extends Disposable {
 		return {
 			item: this.createTreeItem(element, extensionTreeItem, parent),
 			parent,
-			children: void 0
+			children: undefined
 		};
 	}
 
@@ -425,16 +425,16 @@ class ExtHostTreeView<T> extends Disposable {
 		const icon = this.getLightIconPath(extensionTreeItem);
 		const item = {
 			handle,
-			parentHandle: parent ? parent.item.handle : void 0,
+			parentHandle: parent ? parent.item.handle : undefined,
 			label: toTreeItemLabel(extensionTreeItem.label, this.extension),
 			description: extensionTreeItem.description,
 			resourceUri: extensionTreeItem.resourceUri,
-			tooltip: typeof extensionTreeItem.tooltip === 'string' ? extensionTreeItem.tooltip : void 0,
-			command: extensionTreeItem.command ? this.commands.toInternal(extensionTreeItem.command) : void 0,
+			tooltip: typeof extensionTreeItem.tooltip === 'string' ? extensionTreeItem.tooltip : undefined,
+			command: extensionTreeItem.command ? this.commands.toInternal(extensionTreeItem.command) : undefined,
 			contextValue: extensionTreeItem.contextValue,
 			icon,
 			iconDark: this.getDarkIconPath(extensionTreeItem) || icon,
-			themeIcon: extensionTreeItem.iconPath instanceof ThemeIcon ? { id: extensionTreeItem.iconPath.id } : void 0,
+			themeIcon: extensionTreeItem.iconPath instanceof ThemeIcon ? { id: extensionTreeItem.iconPath.id } : undefined,
 			collapsibleState: isUndefinedOrNull(extensionTreeItem.collapsibleState) ? TreeItemCollapsibleState.None : extensionTreeItem.collapsibleState
 		};
 
@@ -450,7 +450,7 @@ class ExtHostTreeView<T> extends Disposable {
 		const prefix: string = parent ? parent.item.handle : ExtHostTreeView.LABEL_HANDLE_PREFIX;
 		let elementId = treeItemLabel ? treeItemLabel.label : resourceUri ? basename(resourceUri.path) : '';
 		elementId = elementId.indexOf('/') !== -1 ? elementId.replace('/', '//') : elementId;
-		const existingHandle = this.nodes.has(element) ? this.nodes.get(element).item.handle : void 0;
+		const existingHandle = this.nodes.has(element) ? this.nodes.get(element).item.handle : undefined;
 		const childrenNodes = (this.getChildrenNodes(parent) || []);
 
 		let handle: TreeItemHandle;
@@ -477,14 +477,14 @@ class ExtHostTreeView<T> extends Disposable {
 			}
 			return this.getIconPath(extensionTreeItem.iconPath['light']);
 		}
-		return void 0;
+		return undefined;
 	}
 
 	private getDarkIconPath(extensionTreeItem: vscode.TreeItem): URI {
 		if (extensionTreeItem.iconPath && !(extensionTreeItem.iconPath instanceof ThemeIcon) && extensionTreeItem.iconPath['dark']) {
 			return this.getIconPath(extensionTreeItem.iconPath['dark']);
 		}
-		return void 0;
+		return undefined;
 	}
 
 	private getIconPath(iconPath: string | URI): URI {
@@ -543,7 +543,7 @@ class ExtHostTreeView<T> extends Disposable {
 					}
 				}
 			}
-			node.children = void 0;
+			node.children = undefined;
 		} else {
 			this.clearAll();
 		}

@@ -108,8 +108,8 @@ export class MockKeybindingService implements IKeybindingService {
 		return [];
 	}
 
-	public lookupKeybinding(commandId: string): ResolvedKeybinding | null {
-		return null;
+	public lookupKeybinding(commandId: string): ResolvedKeybinding | undefined {
+		return undefined;
 	}
 
 	public customKeybindingsCount(): number {
@@ -118,6 +118,10 @@ export class MockKeybindingService implements IKeybindingService {
 
 	public softDispatch(keybinding: IKeyboardEvent, target: IContextKeyServiceTarget): IResolveResult | null {
 		return null;
+	}
+
+	public dispatchByUserSettingsLabel(userSettingsLabel: string, target: IContextKeyServiceTarget): void {
+
 	}
 
 	public dispatchEvent(e: IKeyboardEvent, target: IContextKeyServiceTarget): boolean {

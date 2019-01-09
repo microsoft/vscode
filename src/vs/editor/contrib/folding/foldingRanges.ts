@@ -68,7 +68,7 @@ export class FoldingRegions {
 	}
 
 	public getType(index: number): string | undefined {
-		return this._types ? this._types[index] : void 0;
+		return this._types ? this._types[index] : undefined;
 	}
 
 	public hasTypes() {

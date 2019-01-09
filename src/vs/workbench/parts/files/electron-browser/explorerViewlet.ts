@@ -41,8 +41,8 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 	private openEditorsVisibleContextKey: IContextKey<boolean>;
 
 	constructor(
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
-		@IConfigurationService private configurationService: IConfigurationService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super();
@@ -158,8 +158,8 @@ export class ExplorerViewlet extends ViewContainerViewlet implements IExplorerVi
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 		@IStorageService protected storageService: IStorageService,
-		@IEditorService private editorService: IEditorService,
-		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,

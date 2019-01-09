@@ -31,14 +31,6 @@ import * as editorAPI from './vs/editor/editor.api';
 	a = create1;
 	a = create2;
 
-	// promise polyfill
-	a = PolyfillPromise.all;
-	a = PolyfillPromise.race;
-	a = PolyfillPromise.resolve;
-	a = PolyfillPromise.reject;
-	a = (<PolyfillPromise>b).then;
-	a = (<PolyfillPromise>b).catch;
-
 	// injection madness
 	a = (<SyncDescriptor0<any>>b).ctor;
 	a = (<SyncDescriptor0<any>>b).bind;
@@ -72,7 +64,6 @@ import * as editorAPI from './vs/editor/editor.api';
 	a = editorAPI.SelectionDirection;
 	a = editorAPI.MarkerSeverity;
 	a = editorAPI.MarkerTag;
-	a = editorAPI.Promise;
 	a = editorAPI.Uri;
 	a = editorAPI.Token;
 	a = editorAPI.editor;

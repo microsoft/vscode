@@ -40,10 +40,10 @@ export class JSONValidationExtensionPoint {
 
 	constructor() {
 		configurationExtPoint.setHandler((extensions) => {
-			for (let i = 0; i < extensions.length; i++) {
-				const extensionValue = <IJSONValidationExtensionPoint[]>extensions[i].value;
-				const collector = extensions[i].collector;
-				const extensionLocation = extensions[i].description.extensionLocation;
+			for (const extension of extensions) {
+				const extensionValue = <IJSONValidationExtensionPoint[]>extension.value;
+				const collector = extension.collector;
+				const extensionLocation = extension.description.extensionLocation;
 
 				if (!extensionValue || !Array.isArray(extensionValue)) {
 					collector.error(nls.localize('invalid.jsonValidation', "'configuration.jsonValidation' must be a array"));

@@ -17,9 +17,9 @@ export class BackupRestorer implements IWorkbenchContribution {
 	private static readonly UNTITLED_REGEX = /Untitled-\d+/;
 
 	constructor(
-		@IEditorService private editorService: IEditorService,
-		@IBackupFileService private backupFileService: IBackupFileService,
-		@ILifecycleService private lifecycleService: ILifecycleService
+		@IEditorService private readonly editorService: IEditorService,
+		@IBackupFileService private readonly backupFileService: IBackupFileService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService
 	) {
 		this.restoreBackups();
 	}
@@ -41,7 +41,7 @@ export class BackupRestorer implements IWorkbenchContribution {
 					return this.doOpenEditors(unresolved).then(() => this.doResolveOpenedBackups(unresolved));
 				}
 
-				return void 0;
+				return undefined;
 			});
 		});
 	}
@@ -53,7 +53,7 @@ export class BackupRestorer implements IWorkbenchContribution {
 		backups.forEach(backup => {
 			const openedEditor = this.editorService.getOpened({ resource: backup });
 			if (openedEditor) {
-				restorePromises.push(openedEditor.resolve().then(void 0, () => unresolved.push(backup)));
+				restorePromises.push(openedEditor.resolve().then(undefined, () => unresolved.push(backup)));
 			} else {
 				unresolved.push(backup);
 			}
@@ -67,7 +67,7 @@ export class BackupRestorer implements IWorkbenchContribution {
 		const inputs = resources.map((resource, index) => this.resolveInput(resource, index, hasOpenedEditors));
 
 		// Open all remaining backups as editors and resolve them to load their backups
-		return this.editorService.openEditors(inputs).then(() => void 0);
+		return this.editorService.openEditors(inputs).then(() => undefined);
 	}
 
 	private resolveInput(resource: URI, index: number, hasOpenedEditors: boolean): IResourceInput | IUntitledResourceInput {

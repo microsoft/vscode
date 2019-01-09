@@ -69,13 +69,13 @@ export class WalkThroughPart extends BaseEditor {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IModelService modelService: IModelService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IOpenerService private openerService: IOpenerService,
-		@IKeybindingService private keybindingService: IKeybindingService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IStorageService storageService: IStorageService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@INotificationService private notificationService: INotificationService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@INotificationService private readonly notificationService: INotificationService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
 		super(WalkThroughPart.ID, telemetryService, themeService, storageService);
@@ -437,7 +437,7 @@ export class WalkThroughPart extends BaseEditor {
 	private expandMacros(input: string) {
 		return input.replace(/kb\(([a-z.\d\-]+)\)/gi, (match: string, kb: string) => {
 			const keybinding = this.keybindingService.lookupKeybinding(kb);
-			const shortcut = keybinding ? keybinding.getLabel() : UNBOUND_COMMAND;
+			const shortcut = keybinding ? keybinding.getLabel() || '' : UNBOUND_COMMAND;
 			return `<span class="shortcut">${strings.escape(shortcut)}</span>`;
 		});
 	}
@@ -447,7 +447,7 @@ export class WalkThroughPart extends BaseEditor {
 		Array.prototype.forEach.call(keys, (key: Element) => {
 			const command = key.getAttribute('data-command');
 			const keybinding = command && this.keybindingService.lookupKeybinding(command);
-			const label = keybinding ? keybinding.getLabel() : UNBOUND_COMMAND;
+			const label = keybinding ? keybinding.getLabel() || '' : UNBOUND_COMMAND;
 			while (key.firstChild) {
 				key.removeChild(key.firstChild);
 			}
@@ -477,18 +477,22 @@ export class WalkThroughPart extends BaseEditor {
 	private saveTextEditorViewState(input: WalkThroughInput): void {
 		const scrollPosition = this.scrollbar.getScrollPosition();
 
-		this.editorMemento.saveEditorState(this.group, input, {
-			viewState: {
-				scrollTop: scrollPosition.scrollTop,
-				scrollLeft: scrollPosition.scrollLeft
-			}
-		});
+		if (this.group) {
+			this.editorMemento.saveEditorState(this.group, input, {
+				viewState: {
+					scrollTop: scrollPosition.scrollTop,
+					scrollLeft: scrollPosition.scrollLeft
+				}
+			});
+		}
 	}
 
 	private loadTextEditorViewState(input: WalkThroughInput) {
-		const state = this.editorMemento.loadEditorState(this.group, input);
-		if (state) {
-			this.scrollbar.setScrollPosition(state.viewState);
+		if (this.group) {
+			const state = this.editorMemento.loadEditorState(this.group, input);
+			if (state) {
+				this.scrollbar.setScrollPosition(state.viewState);
+			}
 		}
 	}
 

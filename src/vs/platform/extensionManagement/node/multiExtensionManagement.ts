@@ -30,11 +30,11 @@ export class MultiExtensionManagementService extends Disposable implements IExte
 	private readonly servers: IExtensionManagementServer[];
 
 	constructor(
-		@IExtensionManagementServerService private extensionManagementServerService: IExtensionManagementServerService,
-		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IRemoteAuthorityResolverService private remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@ILogService private logService: ILogService
+		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
+		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 		this.servers = this.extensionManagementServerService.remoteExtensionManagementServer ? [this.extensionManagementServerService.localExtensionManagementServer, this.extensionManagementServerService.remoteExtensionManagementServer] : [this.extensionManagementServerService.localExtensionManagementServer];
@@ -101,7 +101,7 @@ export class MultiExtensionManagementService extends Disposable implements IExte
 					if (manifest) {
 						const servers = manifest && isUIExtension(manifest, this.configurationService) ? [this.extensionManagementServerService.localExtensionManagementServer] : syncExtensions ? this.servers : [this.extensionManagementServerService.remoteExtensionManagementServer!];
 						return Promise.all(servers.map(server => server.extensionManagementService.installFromGallery(gallery)))
-							.then(() => void 0);
+							.then(() => undefined);
 					} else {
 						this.logService.info('Manifest was not found. Hence installing only in local server');
 						return this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.installFromGallery(gallery);

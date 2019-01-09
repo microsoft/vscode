@@ -33,11 +33,11 @@ export class SelectColorThemeAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IQuickInputService private quickInputService: IQuickInputService,
-		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
-		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
-		@IViewletService private viewletService: IViewletService,
-		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
+		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
+		@IViewletService private readonly viewletService: IViewletService,
+		@IWorkspaceConfigurationService private readonly configurationService: IWorkspaceConfigurationService
 	) {
 		super(id, label);
 	}
@@ -66,7 +66,7 @@ export class SelectColorThemeAction extends Action {
 					target = typeof confValue.workspace !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
 				}
 
-				this.themeService.setColorTheme(theme.id, target).then(void 0,
+				this.themeService.setColorTheme(theme.id, target).then(undefined,
 					err => {
 						onUnexpectedError(err);
 						this.themeService.setColorTheme(currentTheme.id, null);
@@ -94,11 +94,11 @@ class SelectIconThemeAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IQuickInputService private quickInputService: IQuickInputService,
-		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
-		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
-		@IViewletService private viewletService: IViewletService,
-		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
+		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
+		@IViewletService private readonly viewletService: IViewletService,
+		@IWorkspaceConfigurationService private readonly configurationService: IWorkspaceConfigurationService
 
 	) {
 		super(id, label);
@@ -126,7 +126,7 @@ class SelectIconThemeAction extends Action {
 					let confValue = this.configurationService.inspect(ICON_THEME_SETTING);
 					target = typeof confValue.workspace !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
 				}
-				this.themeService.setFileIconTheme(theme && theme.id, target).then(void 0,
+				this.themeService.setFileIconTheme(theme && theme.id, target).then(undefined,
 					err => {
 						onUnexpectedError(err);
 						this.themeService.setFileIconTheme(currentTheme.id, null);
@@ -153,7 +153,7 @@ function configurationEntries(extensionGalleryService: IExtensionGalleryService,
 				type: 'separator'
 			},
 			{
-				id: void 0,
+				id: undefined,
 				label: label,
 				alwaysShow: true,
 			}
@@ -187,8 +187,8 @@ class GenerateColorThemeAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
-		@IEditorService private editorService: IEditorService,
+		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super(id, label);
 	}

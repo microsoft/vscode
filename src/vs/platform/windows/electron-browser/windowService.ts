@@ -25,7 +25,7 @@ export class WindowService extends Disposable implements IWindowService {
 	constructor(
 		private windowId: number,
 		private configuration: IWindowConfiguration,
-		@IWindowsService private windowsService: IWindowsService
+		@IWindowsService private readonly windowsService: IWindowsService
 	) {
 		super();
 

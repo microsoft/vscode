@@ -29,18 +29,18 @@ export class KeymapExtensions implements IWorkbenchContribution {
 	private disposables: IDisposable[] = [];
 
 	constructor(
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
-		@IExtensionTipsService private tipsService: IExtensionTipsService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService,
+		@IExtensionTipsService private readonly tipsService: IExtensionTipsService,
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@INotificationService private notificationService: INotificationService,
-		@ITelemetryService private telemetryService: ITelemetryService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		this.disposables.push(
 			lifecycleService.onShutdown(() => this.dispose()),
 			instantiationService.invokeFunction(onExtensionChanged)((identifiers => {
 				Promise.all(identifiers.map(identifier => this.checkForOtherKeymaps(identifier)))
-					.then(void 0, onUnexpectedError);
+					.then(undefined, onUnexpectedError);
 			}))
 		);
 	}

@@ -611,8 +611,8 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		}
 
 		let result: string[] = [];
-		for (let i = 0; i < nonEmptyRanges.length; i++) {
-			result.push(this.getValueInRange(nonEmptyRanges[i], forceCRLF ? EndOfLinePreference.CRLF : EndOfLinePreference.TextDefined));
+		for (const nonEmptyRange of nonEmptyRanges) {
+			result.push(this.getValueInRange(nonEmptyRange, forceCRLF ? EndOfLinePreference.CRLF : EndOfLinePreference.TextDefined));
 		}
 		return result.length === 1 ? result[0] : result;
 	}

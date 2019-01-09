@@ -42,9 +42,9 @@ export class LocalizationsService extends Disposable implements ILocalizationsSe
 	readonly onDidLanguagesChange: Event<void> = this._onDidLanguagesChange.event;
 
 	constructor(
-		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
+		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@ILogService private logService: ILogService
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 		this.cache = this._register(new LanguagePacksCache(environmentService, logService));
@@ -103,7 +103,7 @@ class LanguagePacksCache extends Disposable {
 
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@ILogService private logService: ILogService
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 		this.languagePacksFilePath = posix.join(environmentService.userDataPath, 'languagepacks.json');
@@ -172,7 +172,7 @@ class LanguagePacksCache extends Disposable {
 		return this.languagePacksFileLimiter.queue(() => {
 			let result: T | null = null;
 			return pfs.readFile(this.languagePacksFilePath, 'utf8')
-				.then(void 0, err => err.code === 'ENOENT' ? Promise.resolve('{}') : Promise.reject(err))
+				.then(undefined, err => err.code === 'ENOENT' ? Promise.resolve('{}') : Promise.reject(err))
 				.then<{ [language: string]: ILanguagePack }>(raw => { try { return JSON.parse(raw); } catch (e) { return {}; } })
 				.then(languagePacks => { result = fn(languagePacks); return languagePacks; })
 				.then(languagePacks => {

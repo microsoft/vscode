@@ -47,7 +47,7 @@ export class KeyboardMapperFactory {
 	private _keyboardMapper: IKeyboardMapper | null;
 	private _initialized: boolean;
 
-	private readonly _onDidChangeKeyboardMapper: Emitter<void> = new Emitter<void>();
+	private readonly _onDidChangeKeyboardMapper = new Emitter<void>();
 	public readonly onDidChangeKeyboardMapper: Event<void> = this._onDidChangeKeyboardMapper.event;
 
 	private constructor() {
@@ -156,6 +156,7 @@ export class KeyboardMapperFactory {
 
 interface ContributedKeyBinding {
 	command: string;
+	args?: any;
 	key: string;
 	when?: string;
 	mac?: string;
@@ -207,6 +208,10 @@ let keybindingType: IJSONSchema = {
 			description: nls.localize('vscode.extension.contributes.keybindings.command', 'Identifier of the command to run when keybinding is triggered.'),
 			type: 'string'
 		},
+		args: {
+			'description': nls.localize('vscode.extension.contributes.keybindings.args', "Arguments to pass to the command to execute."),
+			type: 'any'
+		},
 		key: {
 			description: nls.localize('vscode.extension.contributes.keybindings.key', 'Key or key sequence (separate keys with plus-sign and sequences with space, e.g Ctrl+O and Ctrl+L L for a chord).'),
 			type: 'string'
@@ -226,7 +231,7 @@ let keybindingType: IJSONSchema = {
 		when: {
 			description: nls.localize('vscode.extension.contributes.keybindings.when', 'Condition when the key is active.'),
 			type: 'string'
-		}
+		},
 	}
 };
 
@@ -271,7 +276,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IStatusbarService statusBarService: IStatusbarService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IWindowService private windowService: IWindowService
+		@IWindowService private readonly windowService: IWindowService
 	) {
 		super(contextKeyService, commandService, telemetryService, notificationService, statusBarService);
 
@@ -389,8 +394,8 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 				result[resultLen++] = new ResolvedKeybindingItem(null, item.command, item.commandArgs, when, isDefault);
 			} else {
 				const resolvedKeybindings = this.resolveKeybinding(keybinding);
-				for (let j = 0; j < resolvedKeybindings.length; j++) {
-					result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybindings[j], item.command, item.commandArgs, when, isDefault);
+				for (const resolvedKeybinding of resolvedKeybindings) {
+					result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybinding, item.command, item.commandArgs, when, isDefault);
 				}
 			}
 		}
@@ -410,8 +415,8 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 				result[resultLen++] = new ResolvedKeybindingItem(null, item.command, item.commandArgs, when, isDefault);
 			} else {
 				const resolvedKeybindings = this._keyboardMapper.resolveUserBinding(firstPart, chordPart);
-				for (let j = 0; j < resolvedKeybindings.length; j++) {
-					result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybindings[j], item.command, item.commandArgs, when, isDefault);
+				for (const resolvedKeybinding of resolvedKeybindings) {
+					result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybinding, item.command, item.commandArgs, when, isDefault);
 				}
 			}
 		}
@@ -489,7 +494,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 	private _asCommandRule(isBuiltin: boolean, idx: number, binding: ContributedKeyBinding): IKeybindingRule2 | undefined {
 
-		let { command, when, key, mac, linux, win } = binding;
+		let { command, args, when, key, mac, linux, win } = binding;
 
 		let weight: number;
 		if (isBuiltin) {
@@ -500,6 +505,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 		let desc: IKeybindingRule2 = {
 			id: command,
+			args,
 			when: ContextKeyExpr.deserialize(when),
 			weight: weight,
 			primary: KeybindingParser.parseKeybinding(key, OS),

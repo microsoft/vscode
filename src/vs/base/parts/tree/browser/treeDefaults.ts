@@ -12,7 +12,7 @@ import * as dom from 'vs/base/browser/dom';
 import * as mouse from 'vs/base/browser/mouseEvent';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import * as _ from 'vs/base/parts/tree/browser/tree';
-import { KeyCode, KeyMod, Keybinding, createKeybinding, SimpleKeybinding, createSimpleKeybinding } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod, Keybinding, SimpleKeybinding, createSimpleKeybinding } from 'vs/base/common/keyCodes';
 
 export interface IKeyBindingCallback {
 	(tree: _.ITree, event: IKeyboardEvent): void;
@@ -70,14 +70,14 @@ export class KeybindingDispatcher {
 		return false;
 	}
 
-	public set(keybinding: KeyCode, callback: IKeyBindingCallback) {
+	public set(keybinding: number, callback: IKeyBindingCallback) {
 		this._arr.push({
-			keybinding: createKeybinding(keybinding, platform.OS),
+			keybinding: createSimpleKeybinding(keybinding, platform.OS),
 			callback: callback
 		});
 	}
 
-	public dispatch(keybinding: SimpleKeybinding): IKeyBindingCallback {
+	public dispatch(keybinding: SimpleKeybinding): IKeyBindingCallback | null {
 		// Loop from the last to the first to handle overwrites
 		for (let i = this._arr.length - 1; i >= 0; i--) {
 			let item = this._arr[i];
@@ -189,9 +189,9 @@ export class DefaultController implements _.IController {
 
 			if (this.shouldToggleExpansion(element, event, origin)) {
 				if (tree.isExpanded(element)) {
-					tree.collapse(element).then(void 0, errors.onUnexpectedError);
+					tree.collapse(element).then(undefined, errors.onUnexpectedError);
 				} else {
-					tree.expand(element).then(void 0, errors.onUnexpectedError);
+					tree.expand(element).then(undefined, errors.onUnexpectedError);
 				}
 			}
 		}
@@ -225,7 +225,7 @@ export class DefaultController implements _.IController {
 			return false;
 		}
 
-		const twistieWidth = parseInt(twistieStyle.width) + parseInt(twistieStyle.paddingRight);
+		const twistieWidth = parseInt(twistieStyle.width!) + parseInt(twistieStyle.paddingRight!);
 		return event.browserEvent.offsetX <= twistieWidth;
 	}
 
@@ -281,7 +281,7 @@ export class DefaultController implements _.IController {
 			tree.clearHighlight(payload);
 		} else {
 			tree.focusPrevious(1, payload);
-			tree.reveal(tree.getFocus()).then(void 0, errors.onUnexpectedError);
+			tree.reveal(tree.getFocus()).then(undefined, errors.onUnexpectedError);
 		}
 		return true;
 	}
@@ -293,7 +293,7 @@ export class DefaultController implements _.IController {
 			tree.clearHighlight(payload);
 		} else {
 			tree.focusPreviousPage(payload);
-			tree.reveal(tree.getFocus()).then(void 0, errors.onUnexpectedError);
+			tree.reveal(tree.getFocus()).then(undefined, errors.onUnexpectedError);
 		}
 		return true;
 	}
@@ -305,7 +305,7 @@ export class DefaultController implements _.IController {
 			tree.clearHighlight(payload);
 		} else {
 			tree.focusNext(1, payload);
-			tree.reveal(tree.getFocus()).then(void 0, errors.onUnexpectedError);
+			tree.reveal(tree.getFocus()).then(undefined, errors.onUnexpectedError);
 		}
 		return true;
 	}
@@ -317,7 +317,7 @@ export class DefaultController implements _.IController {
 			tree.clearHighlight(payload);
 		} else {
 			tree.focusNextPage(payload);
-			tree.reveal(tree.getFocus()).then(void 0, errors.onUnexpectedError);
+			tree.reveal(tree.getFocus()).then(undefined, errors.onUnexpectedError);
 		}
 		return true;
 	}
@@ -329,7 +329,7 @@ export class DefaultController implements _.IController {
 			tree.clearHighlight(payload);
 		} else {
 			tree.focusFirst(payload);
-			tree.reveal(tree.getFocus()).then(void 0, errors.onUnexpectedError);
+			tree.reveal(tree.getFocus()).then(undefined, errors.onUnexpectedError);
 		}
 		return true;
 	}
@@ -341,7 +341,7 @@ export class DefaultController implements _.IController {
 			tree.clearHighlight(payload);
 		} else {
 			tree.focusLast(payload);
-			tree.reveal(tree.getFocus()).then(void 0, errors.onUnexpectedError);
+			tree.reveal(tree.getFocus()).then(undefined, errors.onUnexpectedError);
 		}
 		return true;
 	}
@@ -359,7 +359,7 @@ export class DefaultController implements _.IController {
 					return tree.reveal(tree.getFocus());
 				}
 				return undefined;
-			}).then(void 0, errors.onUnexpectedError);
+			}).then(undefined, errors.onUnexpectedError);
 		}
 		return true;
 	}
@@ -377,7 +377,7 @@ export class DefaultController implements _.IController {
 					return tree.reveal(tree.getFocus());
 				}
 				return undefined;
-			}).then(void 0, errors.onUnexpectedError);
+			}).then(undefined, errors.onUnexpectedError);
 		}
 		return true;
 	}
@@ -430,7 +430,7 @@ export class DefaultController implements _.IController {
 
 export class DefaultDragAndDrop implements _.IDragAndDrop {
 
-	public getDragURI(tree: _.ITree, element: any): string {
+	public getDragURI(tree: _.ITree, element: any): string | null {
 		return null;
 	}
 
@@ -438,7 +438,7 @@ export class DefaultDragAndDrop implements _.IDragAndDrop {
 		return;
 	}
 
-	public onDragOver(tree: _.ITree, data: _.IDragAndDropData, targetElement: any, originalEvent: mouse.DragMouseEvent): _.IDragOverReaction {
+	public onDragOver(tree: _.ITree, data: _.IDragAndDropData, targetElement: any, originalEvent: mouse.DragMouseEvent): _.IDragOverReaction | null {
 		return null;
 	}
 
@@ -463,7 +463,7 @@ export class DefaultSorter implements _.ISorter {
 
 export class DefaultAccessibilityProvider implements _.IAccessibilityProvider {
 
-	getAriaLabel(tree: _.ITree, element: any): string {
+	getAriaLabel(tree: _.ITree, element: any): string | null {
 		return null;
 	}
 }

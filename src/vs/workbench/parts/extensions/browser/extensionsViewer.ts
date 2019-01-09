@@ -42,7 +42,7 @@ export interface IExtensionData {
 export class DataSource implements IDataSource {
 
 	public getId(tree: ITree, { extension, parent }: IExtensionData): string {
-		return parent ? this.getId(tree, parent) + '/' + extension.id : extension.id;
+		return parent ? this.getId(tree, parent) + '/' + extension.identifier.id : extension.identifier.id;
 	}
 
 	public hasChildren(tree: ITree, { hasChildren }: IExtensionData): boolean {
@@ -63,7 +63,7 @@ export class Renderer implements IRenderer {
 	private static readonly EXTENSION_TEMPLATE_ID = 'extension-template';
 	private static readonly UNKNOWN_EXTENSION_TEMPLATE_ID = 'unknown-extension-template';
 
-	constructor(@IInstantiationService private instantiationService: IInstantiationService) {
+	constructor(@IInstantiationService private readonly instantiationService: IInstantiationService) {
 	}
 
 	public getHeight(tree: ITree, element: IExtensionData): number {
@@ -144,13 +144,13 @@ export class Renderer implements IRenderer {
 		}
 
 		data.name.textContent = extension.displayName;
-		data.identifier.textContent = extension.id;
+		data.identifier.textContent = extension.identifier.id;
 		data.author.textContent = extension.publisherDisplayName;
 		data.extensionData = extensionData;
 	}
 
 	private renderUnknownExtension(tree: ITree, { extension }: IExtensionData, data: IUnknownExtensionTemplateData): void {
-		data.identifier.textContent = extension.id;
+		data.identifier.textContent = extension.identifier.id;
 	}
 
 	public disposeTemplate(tree: ITree, templateId: string, templateData: any): void {
@@ -163,7 +163,7 @@ export class Renderer implements IRenderer {
 export class Controller extends WorkbenchTreeController {
 
 	constructor(
-		@IExtensionsWorkbenchService private extensionsWorkdbenchService: IExtensionsWorkbenchService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkdbenchService: IExtensionsWorkbenchService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super({}, configurationService);
@@ -201,7 +201,7 @@ class OpenExtensionAction extends Action {
 
 	private _extensionData: IExtensionData;
 
-	constructor(@IExtensionsWorkbenchService private extensionsWorkdbenchService: IExtensionsWorkbenchService) {
+	constructor(@IExtensionsWorkbenchService private readonly extensionsWorkdbenchService: IExtensionsWorkbenchService) {
 		super('extensions.action.openExtension', '');
 	}
 

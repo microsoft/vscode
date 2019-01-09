@@ -147,10 +147,10 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 	private fileWatcher: IDisposable;
 
 	constructor(
-		@ITextFileService private textFileService: ITextFileService,
-		@IFileService private fileService: IFileService,
-		@IModeService private modeService: IModeService,
-		@IModelService private modelService: IModelService
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@IFileService private readonly fileService: IFileService,
+		@IModeService private readonly modeService: IModeService,
+		@IModelService private readonly modelService: IModelService
 	) {
 	}
 

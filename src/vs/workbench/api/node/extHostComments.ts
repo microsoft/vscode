@@ -13,6 +13,7 @@ import { ExtHostCommentsShape, IMainContext, MainContext, MainThreadCommentsShap
 import { CommandsConverter } from './extHostCommands';
 import { IRange } from 'vs/editor/common/core/range';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export class ExtHostComments implements ExtHostCommentsShape {
 	private static handlePool = 0;
@@ -31,7 +32,7 @@ export class ExtHostComments implements ExtHostCommentsShape {
 	}
 
 	registerWorkspaceCommentProvider(
-		extensionId: string,
+		extensionId: ExtensionIdentifier,
 		provider: vscode.WorkspaceCommentProvider
 	): vscode.Disposable {
 		const handle = ExtHostComments.handlePool++;
@@ -121,24 +122,42 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		});
 	}
 
-	$startDraft(handle: number): Promise<void> {
+	$startDraft(handle: number, uri: UriComponents): Promise<void> {
+		const data = this._documents.getDocumentData(URI.revive(uri));
+
+		if (!data || !data.document) {
+			throw new Error('Unable to retrieve document from URI');
+		}
+
 		const provider = this._documentProviders.get(handle);
 		return asPromise(() => {
-			return provider.startDraft(CancellationToken.None);
+			return provider.startDraft(data.document, CancellationToken.None);
 		});
 	}
 
-	$deleteDraft(handle: number): Promise<void> {
+	$deleteDraft(handle: number, uri: UriComponents): Promise<void> {
+		const data = this._documents.getDocumentData(URI.revive(uri));
+
+		if (!data || !data.document) {
+			throw new Error('Unable to retrieve document from URI');
+		}
+
 		const provider = this._documentProviders.get(handle);
 		return asPromise(() => {
-			return provider.deleteDraft(CancellationToken.None);
+			return provider.deleteDraft(data.document, CancellationToken.None);
 		});
 	}
 
-	$finishDraft(handle: number): Promise<void> {
+	$finishDraft(handle: number, uri: UriComponents): Promise<void> {
+		const data = this._documents.getDocumentData(URI.revive(uri));
+
+		if (!data || !data.document) {
+			throw new Error('Unable to retrieve document from URI');
+		}
+
 		const provider = this._documentProviders.get(handle);
 		return asPromise(() => {
-			return provider.finishDraft(CancellationToken.None);
+			return provider.finishDraft(data.document, CancellationToken.None);
 		});
 	}
 

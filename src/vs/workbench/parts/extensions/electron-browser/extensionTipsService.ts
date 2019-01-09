@@ -85,28 +85,28 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	public loadWorkspaceConfigPromise: Promise<any>;
 	private proactiveRecommendationsFetched: boolean = false;
 
-	private readonly _onRecommendationChange: Emitter<RecommendationChangeNotification> = new Emitter<RecommendationChangeNotification>();
+	private readonly _onRecommendationChange = new Emitter<RecommendationChangeNotification>();
 	onRecommendationChange: Event<RecommendationChangeNotification> = this._onRecommendationChange.event;
 	private sessionSeed: number;
 
 	constructor(
 		@IExtensionGalleryService private readonly _galleryService: IExtensionGalleryService,
 		@IModelService private readonly _modelService: IModelService,
-		@IStorageService private storageService: IStorageService,
-		@IExtensionManagementService private extensionsService: IExtensionManagementService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IFileService private fileService: IFileService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IExtensionService private extensionService: IExtensionService,
-		@IRequestService private requestService: IRequestService,
-		@IViewletService private viewletService: IViewletService,
-		@INotificationService private notificationService: INotificationService,
-		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
-		@IExtensionsWorkbenchService private extensionWorkbenchService: IExtensionsWorkbenchService,
-		@IExperimentService private experimentService: IExperimentService,
+		@IStorageService private readonly storageService: IStorageService,
+		@IExtensionManagementService private readonly extensionsService: IExtensionManagementService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IFileService private readonly fileService: IFileService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IRequestService private readonly requestService: IRequestService,
+		@IViewletService private readonly viewletService: IViewletService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
+		@IExtensionsWorkbenchService private readonly extensionWorkbenchService: IExtensionsWorkbenchService,
+		@IExperimentService private readonly experimentService: IExperimentService,
 	) {
 		super();
 
@@ -259,7 +259,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	 */
 	private fetchWorkspaceRecommendations(): Promise<void> {
 
-		if (!this.isEnabled) { return Promise.resolve(void 0); }
+		if (!this.isEnabled) { return Promise.resolve(undefined); }
 
 		return this.fetchExtensionRecommendationContents()
 			.then(result => this.validateExtensions(result.map(({ contents }) => contents))
@@ -318,7 +318,6 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 	/**
 	 * Parse the extensions.json file for given workspace and return the recommendations
-	 * @param workspace
 	 */
 	private resolveWorkspaceExtensionConfig(workspace: IWorkspace): Promise<IExtensionsConfigContent | null> {
 		if (!workspace.configuration) {
@@ -331,7 +330,6 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 	/**
 	 * Parse the extensions.json files for given workspace folder and return the recommendations
-	 * @param workspaceFolder
 	 */
 	private resolveWorkspaceFolderExtensionConfig(workspaceFolder: IWorkspaceFolder): Promise<IExtensionsConfigContent | null> {
 		const extensionsJsonUri = workspaceFolder.toResource(paths.join('.vscode', 'extensions.json'));
@@ -343,7 +341,6 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 	/**
 	 * Validate the extensions.json file contents using regex and querying the gallery
-	 * @param contents
 	 */
 	private async validateExtensions(contents: IExtensionsConfigContent[]): Promise<{ invalidExtensions: string[], message: string }> {
 		const extensionsContent: IExtensionsConfigContent = {
@@ -426,7 +423,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			const recommendations = filteredRecs.filter(({ extensionId }) => local.every(local => !areSameExtensions({ id: extensionId }, { id: getGalleryExtensionIdFromLocal(local) })));
 
 			if (!recommendations.length) {
-				return Promise.resolve(void 0);
+				return Promise.resolve(undefined);
 			}
 
 			return new Promise<void>(c => {
@@ -447,7 +444,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 							installAllAction.run();
 							installAllAction.dispose();
 
-							c(void 0);
+							c(undefined);
 						}
 					}, {
 						label: localize('showRecommendations', "Show Recommendations"),
@@ -463,7 +460,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 							showAction.run();
 							showAction.dispose();
 
-							c(void 0);
+							c(undefined);
 						}
 					}, {
 						label: choiceNever,
@@ -477,7 +474,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 							this.telemetryService.publicLog('extensionWorkspaceRecommendations:popup', { userReaction: 'neverShowAgain' });
 							this.storageService.store(storageKey, true, StorageScope.WORKSPACE);
 
-							c(void 0);
+							c(undefined);
 						}
 					}],
 					{
@@ -490,7 +487,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 							*/
 							this.telemetryService.publicLog('extensionWorkspaceRecommendations:popup', { userReaction: 'cancelled' });
 
-							c(void 0);
+							c(undefined);
 						}
 					}
 				);
@@ -579,7 +576,6 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	/**
 	 * Prompt the user to either install the recommended extension for the file type in the current editor model
 	 * or prompt to search the marketplace if it has extensions that can support the file type
-	 * @param model
 	 */
 	private promptFiletypeBasedRecommendations(model: ITextModel): void {
 		let hasSuggestion = false;
@@ -635,8 +631,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			recommendationsToSuggest = recommendationsToSuggest.filter(id => importantRecommendationsIgnoreList.indexOf(id) === -1 && this.isExtensionAllowedToBeRecommended(id));
 
 			const importantTipsPromise = recommendationsToSuggest.length === 0 ? Promise.resolve(null) : this.extensionWorkbenchService.queryLocal().then(local => {
-				const localExtensions = local.map(e => e.id);
-				recommendationsToSuggest = recommendationsToSuggest.filter(id => localExtensions.every(local => local !== id.toLowerCase()));
+				const localExtensions = local.map(e => e.identifier);
+				recommendationsToSuggest = recommendationsToSuggest.filter(id => localExtensions.every(local => !areSameExtensions(local, { id })));
 				if (!recommendationsToSuggest.length) {
 					return;
 				}
@@ -854,7 +850,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 			fetchPromise = new Promise((c, e) => {
 				setTimeout(() => {
-					Promise.all([this.fetchExecutableRecommendations(), this.fetchDynamicWorkspaceRecommendations()]).then(() => c(void 0));
+					Promise.all([this.fetchExecutableRecommendations(), this.fetchDynamicWorkspaceRecommendations()]).then(() => c(undefined));
 				}, calledDuringStartup ? 10000 : 0);
 			});
 
@@ -949,7 +945,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			|| !this.fileService.canHandleResource(this.contextService.getWorkspace().folders[0].uri)
 			|| this._dynamicWorkspaceRecommendations.length
 			|| !this._extensionsRecommendationsUrl) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		const storageKey = 'extensionsAssistant/dynamicWorkspaceRecommendations';

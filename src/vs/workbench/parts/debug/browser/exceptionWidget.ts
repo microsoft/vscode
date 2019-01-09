@@ -28,7 +28,7 @@ export class ExceptionWidget extends ZoneWidget {
 
 	constructor(editor: ICodeEditor, private exceptionInfo: IExceptionInfo,
 		@IThemeService themeService: IThemeService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super(editor, { showFrame: true, showArrow: true, frameWidth: 1, className: 'exception-widget-container' });
 

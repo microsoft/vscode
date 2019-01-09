@@ -618,6 +618,7 @@ export interface SignatureHelpContext {
 	readonly triggerKind: SignatureHelpTriggerKind;
 	readonly triggerCharacter?: string;
 	readonly isRetrigger: boolean;
+	readonly activeSignatureHelp?: SignatureHelp;
 }
 
 /**
@@ -1025,11 +1026,16 @@ export interface DocumentColorProvider {
 	provideColorPresentations(model: model.ITextModel, colorInfo: IColorInformation, token: CancellationToken): ProviderResult<IColorPresentation[]>;
 }
 
+export interface SelectionRange {
+	kind: string;
+	range: IRange;
+}
+
 export interface SelectionRangeProvider {
 	/**
 	 * Provide ranges that should be selected from the given position.
 	 */
-	provideSelectionRanges(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<IRange[]>;
+	provideSelectionRanges(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<SelectionRange[]>;
 }
 
 export interface FoldingContext {
@@ -1240,9 +1246,9 @@ export interface DocumentCommentProvider {
 	replyToCommentThread(resource: URI, range: Range, thread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread>;
 	editComment(resource: URI, comment: Comment, text: string, token: CancellationToken): Promise<void>;
 	deleteComment(resource: URI, comment: Comment, token: CancellationToken): Promise<void>;
-	startDraft?(token: CancellationToken): Promise<void>;
-	deleteDraft?(token: CancellationToken): Promise<void>;
-	finishDraft?(token: CancellationToken): Promise<void>;
+	startDraft?(resource: URI, token: CancellationToken): Promise<void>;
+	deleteDraft?(resource: URI, token: CancellationToken): Promise<void>;
+	finishDraft?(resource: URI, token: CancellationToken): Promise<void>;
 
 	startDraftLabel?: string;
 	deleteDraftLabel?: string;
@@ -1405,7 +1411,7 @@ export interface ITokenizationRegistry {
 	/**
 	 * Register a promise for a tokenization support.
 	 */
-	registerPromise(language: string, promise: Thenable<ITokenizationSupport>): Thenable<IDisposable>;
+	registerPromise(language: string, promise: Thenable<ITokenizationSupport>): IDisposable;
 
 	/**
 	 * Get the tokenization support for a language.

@@ -104,7 +104,7 @@ export class NotificationsListDelegate implements IListVirtualDelegate<INotifica
 			return NotificationRenderer.TEMPLATE_ID;
 		}
 
-		return void 0;
+		return undefined;
 	}
 }
 
@@ -143,8 +143,7 @@ class NotificationMessageRenderer {
 		// Message has links
 		else {
 			let index = 0;
-			for (let i = 0; i < message.links.length; i++) {
-				const link = message.links[i];
+			for (const link of message.links) {
 
 				const textBefore = message.value.substring(index, link.offset);
 				if (textBefore) {
@@ -182,9 +181,9 @@ export class NotificationRenderer implements IListRenderer<INotificationViewItem
 
 	constructor(
 		private actionRunner: IActionRunner,
-		@IThemeService private themeService: IThemeService,
-		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IThemeService private readonly themeService: IThemeService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 	}
 
@@ -293,10 +292,10 @@ export class NotificationTemplateRenderer {
 	constructor(
 		private template: INotificationTemplateData,
 		private actionRunner: IActionRunner,
-		@IOpenerService private openerService: IOpenerService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IThemeService private themeService: IThemeService,
-		@IKeybindingService private keybindingService: IKeybindingService
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IThemeService private readonly themeService: IThemeService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
 		if (!NotificationTemplateRenderer.closeNotificationAction) {
 			NotificationTemplateRenderer.closeNotificationAction = instantiationService.createInstance(ClearNotificationAction, ClearNotificationAction.ID, ClearNotificationAction.LABEL);
@@ -501,7 +500,7 @@ export class NotificationTemplateRenderer {
 	private getKeybindingLabel(action: IAction): string {
 		const keybinding = this.keybindingService.lookupKeybinding(action.id);
 
-		return keybinding ? keybinding.getLabel() : void 0;
+		return keybinding ? keybinding.getLabel() : undefined;
 	}
 
 	dispose(): void {

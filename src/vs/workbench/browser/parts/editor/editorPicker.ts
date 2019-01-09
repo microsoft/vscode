@@ -25,8 +25,8 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 	constructor(
 		private editor: EditorInput,
 		private _group: IEditorGroup,
-		@IModeService private modeService: IModeService,
-		@IModelService private modelService: IModelService
+		@IModeService private readonly modeService: IModeService,
+		@IModelService private readonly modelService: IModelService
 	) {
 		super();
 	}

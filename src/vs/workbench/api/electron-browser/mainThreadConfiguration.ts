@@ -21,7 +21,7 @@ export class MainThreadConfiguration implements MainThreadConfigurationShape {
 	constructor(
 		extHostContext: IExtHostContext,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
-		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService
+		@IWorkspaceConfigurationService private readonly configurationService: IWorkspaceConfigurationService
 	) {
 		const proxy = extHostContext.getProxy(ExtHostContext.ExtHostConfiguration);
 

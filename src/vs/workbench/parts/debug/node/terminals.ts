@@ -71,7 +71,7 @@ abstract class TerminalLauncher implements ITerminalLauncher {
 		return this.runInTerminal0(args.title, args.cwd, args.args, args.env || {}, config);
 	}
 	runInTerminal0(title: string, dir: string, args: string[], envVars: env.IProcessEnvironment, config): Promise<number | undefined> {
-		return void 0;
+		return undefined;
 	}
 }
 
@@ -257,7 +257,7 @@ function quote(args: string[]): string {
 }
 
 
-export function hasChildprocesses(processId: number): boolean {
+export function hasChildProcesses(processId: number): boolean {
 	if (processId) {
 		try {
 			// if shell has at least one child process, assume that shell is busy

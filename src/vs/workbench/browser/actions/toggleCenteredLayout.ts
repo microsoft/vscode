@@ -18,7 +18,7 @@ class ToggleCenteredLayout extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IPartService private partService: IPartService
+		@IPartService private readonly partService: IPartService
 	) {
 		super(id, label);
 		this.enabled = !!this.partService;

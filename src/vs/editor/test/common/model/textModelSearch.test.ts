@@ -29,20 +29,20 @@ suite('TextModelSearch', () => {
 		let startPos = new Position(1, 1);
 		let match = TextModelSearch.findNextMatch(model, searchParams, startPos, false);
 		assert.deepEqual(match, expectedMatches[0], `findNextMatch ${startPos}`);
-		for (let i = 0; i < expectedMatches.length; i++) {
-			startPos = expectedMatches[i].range.getStartPosition();
+		for (const expectedMatch of expectedMatches) {
+			startPos = expectedMatch.range.getStartPosition();
 			match = TextModelSearch.findNextMatch(model, searchParams, startPos, false);
-			assert.deepEqual(match, expectedMatches[i], `findNextMatch ${startPos}`);
+			assert.deepEqual(match, expectedMatch, `findNextMatch ${startPos}`);
 		}
 
 		// test `findPrevMatch`
 		startPos = new Position(model.getLineCount(), model.getLineMaxColumn(model.getLineCount()));
 		match = TextModelSearch.findPreviousMatch(model, searchParams, startPos, false);
 		assert.deepEqual(match, expectedMatches[expectedMatches.length - 1], `findPrevMatch ${startPos}`);
-		for (let i = 0; i < expectedMatches.length; i++) {
-			startPos = expectedMatches[i].range.getEndPosition();
+		for (const expectedMatch of expectedMatches) {
+			startPos = expectedMatch.range.getEndPosition();
 			match = TextModelSearch.findPreviousMatch(model, searchParams, startPos, false);
-			assert.deepEqual(match, expectedMatches[i], `findPrevMatch ${startPos}`);
+			assert.deepEqual(match, expectedMatch, `findPrevMatch ${startPos}`);
 		}
 	}
 

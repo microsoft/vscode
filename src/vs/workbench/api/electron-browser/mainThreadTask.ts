@@ -76,7 +76,7 @@ namespace TaskDefinitionDTO {
 	}
 	export function to(value: TaskDefinitionDTO, executeOnly: boolean): KeyedTaskIdentifier {
 		let result = TaskDefinition.createTaskIdentifier(value, console);
-		if (result === void 0 && executeOnly) {
+		if (result === undefined && executeOnly) {
 			result = {
 				_key: generateUuid(),
 				type: '$executeOnly'
@@ -88,13 +88,13 @@ namespace TaskDefinitionDTO {
 
 namespace TaskPresentationOptionsDTO {
 	export function from(value: PresentationOptions): TaskPresentationOptionsDTO {
-		if (value === void 0 || value === null) {
+		if (value === undefined || value === null) {
 			return undefined;
 		}
 		return Objects.assign(Object.create(null), value);
 	}
 	export function to(value: TaskPresentationOptionsDTO): PresentationOptions {
-		if (value === void 0 || value === null) {
+		if (value === undefined || value === null) {
 			return PresentationOptions.defaults;
 		}
 		return Objects.assign(Object.create(null), PresentationOptions.defaults, value);
@@ -103,13 +103,13 @@ namespace TaskPresentationOptionsDTO {
 
 namespace RunOptionsDTO {
 	export function from(value: RunOptions): RunOptionsDTO {
-		if (value === void 0 || value === null) {
+		if (value === undefined || value === null) {
 			return undefined;
 		}
 		return Objects.assign(Object.create(null), value);
 	}
 	export function to(value: RunOptionsDTO): RunOptions {
-		if (value === void 0 || value === null) {
+		if (value === undefined || value === null) {
 			return RunOptions.defaults;
 		}
 		return Objects.assign(Object.create(null), RunOptions.defaults, value);
@@ -118,7 +118,7 @@ namespace RunOptionsDTO {
 
 namespace ProcessExecutionOptionsDTO {
 	export function from(value: CommandOptions): ProcessExecutionOptionsDTO {
-		if (value === void 0 || value === null) {
+		if (value === undefined || value === null) {
 			return undefined;
 		}
 		return {
@@ -127,7 +127,7 @@ namespace ProcessExecutionOptionsDTO {
 		};
 	}
 	export function to(value: ProcessExecutionOptionsDTO): CommandOptions {
-		if (value === void 0 || value === null) {
+		if (value === undefined || value === null) {
 			return CommandOptions.defaults;
 		}
 		return {
@@ -168,7 +168,7 @@ namespace ProcessExecutionDTO {
 
 namespace ShellExecutionOptionsDTO {
 	export function from(value: CommandOptions): ShellExecutionOptionsDTO {
-		if (value === void 0 || value === null) {
+		if (value === undefined || value === null) {
 			return undefined;
 		}
 		let result: ShellExecutionOptionsDTO = {
@@ -183,7 +183,7 @@ namespace ShellExecutionOptionsDTO {
 		return result;
 	}
 	export function to(value: ShellExecutionOptionsDTO): CommandOptions {
-		if (value === void 0 || value === null) {
+		if (value === undefined || value === null) {
 			return undefined;
 		}
 		let result: CommandOptions = {
@@ -212,7 +212,7 @@ namespace ShellExecutionDTO {
 	}
 	export function from(value: CommandConfiguration): ShellExecutionDTO {
 		let result: ShellExecutionDTO = {};
-		if (value.name && Types.isString(value.name) && (value.args === void 0 || value.args === null || value.args.length === 0)) {
+		if (value.name && Types.isString(value.name) && (value.args === undefined || value.args === null || value.args.length === 0)) {
 			result.commandLine = value.name;
 		} else {
 			result.command = value.name;
@@ -258,7 +258,7 @@ namespace TaskSourceDTO {
 	export function to(value: TaskSourceDTO, workspace: IWorkspaceContextService): ExtensionTaskSource {
 		let scope: TaskScope;
 		let workspaceFolder: IWorkspaceFolder;
-		if ((value.scope === void 0) || ((typeof value.scope === 'number') && (value.scope !== TaskScope.Global))) {
+		if ((value.scope === undefined) || ((typeof value.scope === 'number') && (value.scope !== TaskScope.Global))) {
 			if (workspace.getWorkspace().folders.length === 0) {
 				scope = TaskScope.Global;
 				workspaceFolder = undefined;
@@ -292,23 +292,23 @@ namespace TaskHandleDTO {
 
 namespace TaskDTO {
 	export function from(task: Task): TaskDTO {
-		if (task === void 0 || task === null || (!CustomTask.is(task) && !ContributedTask.is(task))) {
+		if (task === undefined || task === null || (!CustomTask.is(task) && !ContributedTask.is(task))) {
 			return undefined;
 		}
 		let result: TaskDTO = {
 			_id: task._id,
-			name: task.name,
-			definition: TaskDefinitionDTO.from(Task.getTaskDefinition(task)),
+			name: task.configurationProperties.name,
+			definition: TaskDefinitionDTO.from(task.getDefinition()),
 			source: TaskSourceDTO.from(task._source),
 			execution: undefined,
 			presentationOptions: task.command ? TaskPresentationOptionsDTO.from(task.command.presentation) : undefined,
-			isBackground: task.isBackground,
+			isBackground: task.configurationProperties.isBackground,
 			problemMatchers: [],
 			hasDefinedMatchers: ContributedTask.is(task) ? task.hasDefinedMatchers : false,
 			runOptions: RunOptionsDTO.from(task.runOptions),
 		};
-		if (task.group) {
-			result.group = task.group;
+		if (task.configurationProperties.group) {
+			result.group = task.configurationProperties.group;
 		}
 		if (task.command) {
 			if (task.command.runtime === RuntimeType.Process) {
@@ -317,8 +317,8 @@ namespace TaskDTO {
 				result.execution = ShellExecutionDTO.from(task.command);
 			}
 		}
-		if (task.problemMatchers) {
-			for (let matcher of task.problemMatchers) {
+		if (task.configurationProperties.problemMatchers) {
+			for (let matcher of task.configurationProperties.problemMatchers) {
 				if (Types.isString(matcher)) {
 					result.problemMatchers.push(matcher);
 				}
@@ -327,7 +327,7 @@ namespace TaskDTO {
 		return result;
 	}
 
-	export function to(task: TaskDTO, workspace: IWorkspaceContextService, executeOnly: boolean): Task {
+	export function to(task: TaskDTO, workspace: IWorkspaceContextService, executeOnly: boolean): ContributedTask {
 		if (typeof task.name !== 'string') {
 			return undefined;
 		}
@@ -346,21 +346,23 @@ namespace TaskDTO {
 		let label = nls.localize('task.label', '{0}: {1}', source.label, task.name);
 		let definition = TaskDefinitionDTO.to(task.definition, executeOnly);
 		let id = `${task.source.extensionId}.${definition._key}`;
-		let result: ContributedTask = {
-			_id: id, // uuidMap.getUUID(identifier)
-			_source: source,
-			_label: label,
-			type: definition.type,
-			defines: definition,
-			name: task.name,
-			identifier: label,
-			group: task.group,
-			command: command,
-			isBackground: !!task.isBackground,
-			problemMatchers: task.problemMatchers.slice(),
-			hasDefinedMatchers: task.hasDefinedMatchers,
-			runOptions: RunOptionsDTO.to(task.runOptions),
-		};
+		let result: ContributedTask = new ContributedTask(
+			id, // uuidMap.getUUID(identifier)
+			source,
+			label,
+			definition.type,
+			definition,
+			command,
+			task.hasDefinedMatchers,
+			RunOptionsDTO.to(task.runOptions),
+			{
+				name: task.name,
+				identifier: label,
+				group: task.group,
+				isBackground: !!task.isBackground,
+				problemMatchers: task.problemMatchers.slice(),
+			}
+		);
 		return result;
 	}
 }
@@ -392,13 +394,13 @@ export class MainThreadTask implements MainThreadTaskShape {
 		this._taskService.onDidStateChange((event: TaskEvent) => {
 			let task = event.__task;
 			if (event.kind === TaskEventKind.Start) {
-				this._proxy.$onDidStartTask(TaskExecutionDTO.from(Task.getTaskExecution(task)));
+				this._proxy.$onDidStartTask(TaskExecutionDTO.from(task.getTaskExecution()));
 			} else if (event.kind === TaskEventKind.ProcessStarted) {
-				this._proxy.$onDidStartTaskProcess(TaskProcessStartedDTO.from(Task.getTaskExecution(task), event.processId));
+				this._proxy.$onDidStartTaskProcess(TaskProcessStartedDTO.from(task.getTaskExecution(), event.processId));
 			} else if (event.kind === TaskEventKind.ProcessEnded) {
-				this._proxy.$onDidEndTaskProcess(TaskProcessEndedDTO.from(Task.getTaskExecution(task), event.exitCode));
+				this._proxy.$onDidEndTaskProcess(TaskProcessEndedDTO.from(task.getTaskExecution(), event.exitCode));
 			} else if (event.kind === TaskEventKind.End) {
-				this._proxy.$OnDidEndTask(TaskExecutionDTO.from(Task.getTaskExecution(task)));
+				this._proxy.$OnDidEndTask(TaskExecutionDTO.from(task.getTaskExecution()));
 			}
 		});
 	}

@@ -147,10 +147,10 @@ const _manualClassList = new class implements IDomClassList {
 
 	toggleClass(node: HTMLElement, className: string, shouldHaveIt?: boolean): void {
 		this._findClassName(node, className);
-		if (this._lastStart !== -1 && (shouldHaveIt === void 0 || !shouldHaveIt)) {
+		if (this._lastStart !== -1 && (shouldHaveIt === undefined || !shouldHaveIt)) {
 			this.removeClass(node, className);
 		}
-		if (this._lastStart === -1 && (shouldHaveIt === void 0 || shouldHaveIt)) {
+		if (this._lastStart === -1 && (shouldHaveIt === undefined || shouldHaveIt)) {
 			this.addClass(node, className);
 		}
 	}

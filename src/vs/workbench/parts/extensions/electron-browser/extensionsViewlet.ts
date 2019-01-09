@@ -84,7 +84,7 @@ const viewIdNameMappings: { [id: string]: string } = {
 export class ExtensionsViewletViewsContribution implements IWorkbenchContribution {
 
 	constructor(
-		@IExtensionManagementServerService private extensionManagementServerService: IExtensionManagementServerService
+		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService
 	) {
 		this.registerViews();
 	}
@@ -295,12 +295,12 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 	constructor(
 		@IPartService partService: IPartService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IProgressService2 private progressService: IProgressService2,
+		@IProgressService2 private readonly progressService: IProgressService2,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
-		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
-		@INotificationService private notificationService: INotificationService,
-		@IViewletService private viewletService: IViewletService,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
+		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IViewletService private readonly viewletService: IViewletService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
@@ -308,7 +308,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IExtensionService extensionService: IExtensionService,
-		@IExtensionManagementServerService private extensionManagementServerService: IExtensionManagementServerService
+		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService
 	) {
 		super(VIEWLET_ID, `${VIEWLET_ID}.state`, true, configurationService, partService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
 
@@ -370,18 +370,14 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 
 		this.searchBox.onShouldFocusResults(() => this.focusListView(), this, this.disposables);
 
-		this.extensionsBox = append(this.root, $('.extensions'));
-		super.create(this.extensionsBox);
-	}
-
-	setVisible(visible: boolean): void {
-		const isVisibilityChanged = this.isVisible() !== visible;
-		super.setVisible(visible);
-		if (isVisibilityChanged) {
+		this._register(this.onDidChangeVisibility(visible => {
 			if (visible) {
 				this.searchBox.focus();
 			}
-		}
+		}));
+
+		this.extensionsBox = append(this.root, $('.extensions'));
+		super.create(this.extensionsBox);
 	}
 
 	focus(): void {
@@ -449,7 +445,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 	}
 
 	private triggerSearch(immediate = false): void {
-		this.searchDelayer.trigger(() => this.doSearch(), immediate || !this.searchBox.getValue() ? 0 : 500).then(void 0, err => this.onError(err));
+		this.searchDelayer.trigger(() => this.doSearch(), immediate || !this.searchBox.getValue() ? 0 : 500).then(undefined, err => this.onError(err));
 	}
 
 	private normalizedQuery(): string {
@@ -582,8 +578,8 @@ export class StatusUpdater implements IWorkbenchContribution {
 	private badgeHandle: IDisposable;
 
 	constructor(
-		@IActivityService private activityService: IActivityService,
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
+		@IActivityService private readonly activityService: IActivityService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
 		extensionsWorkbenchService.onChange(this.onServiceChange, this, this.disposables);
 	}
@@ -615,11 +611,11 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 	private disposables: IDisposable[];
 
 	constructor(
-		@IExtensionManagementService private extensionsManagementService: IExtensionManagementService,
-		@IWindowService private windowService: IWindowService,
-		@ILogService private logService: ILogService,
-		@INotificationService private notificationService: INotificationService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IExtensionManagementService private readonly extensionsManagementService: IExtensionManagementService,
+		@IWindowService private readonly windowService: IWindowService,
+		@ILogService private readonly logService: ILogService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
 		if (!this.environmentService.disableExtensions) {
 			this.loopCheckForMaliciousExtensions();

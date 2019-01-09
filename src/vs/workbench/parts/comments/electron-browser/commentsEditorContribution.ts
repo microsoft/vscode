@@ -118,8 +118,7 @@ class CommentingRangeDecorator {
 		}
 
 		let commentingRangeDecorations: CommentingRangeDecoration[] = [];
-		for (let i = 0; i < commentInfos.length; i++) {
-			let info = commentInfos[i];
+		for (const info of commentInfos) {
 			info.commentingRanges.forEach(range => {
 				commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, range, info.reply, this.decorationOptions));
 			});
@@ -132,11 +131,10 @@ class CommentingRangeDecorator {
 	}
 
 	public getMatchedCommentAction(line: number) {
-		for (let i = 0; i < this.commentingRangeDecorations.length; i++) {
-			let range = this.commentingRangeDecorations[i].getActiveRange();
-
+		for (const decoration of this.commentingRangeDecorations) {
+			const range = decoration.getActiveRange();
 			if (range.startLineNumber <= line && line <= range.endLineNumber) {
-				return this.commentingRangeDecorations[i].getCommentAction();
+				return decoration.getCommentAction();
 			}
 		}
 
@@ -168,15 +166,15 @@ export class ReviewController implements IEditorContribution {
 	constructor(
 		editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IThemeService private themeService: IThemeService,
-		@ICommentService private commentService: ICommentService,
-		@INotificationService private notificationService: INotificationService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IModeService private modeService: IModeService,
-		@IModelService private modelService: IModelService,
-		@ICodeEditorService private codeEditorService: ICodeEditorService,
-		@IOpenerService private openerService: IOpenerService,
-		@IDialogService private dialogService: IDialogService
+		@IThemeService private readonly themeService: IThemeService,
+		@ICommentService private readonly commentService: ICommentService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IModeService private readonly modeService: IModeService,
+		@IModelService private readonly modelService: IModelService,
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IDialogService private readonly dialogService: IDialogService
 	) {
 		this.editor = editor;
 		this.globalToDispose = [];
@@ -371,6 +369,9 @@ export class ReviewController implements IEditorContribution {
 
 			commentInfo.forEach(info => info.draftMode = draftMode);
 			this._commentWidgets.filter(ZoneWidget => ZoneWidget.owner === e.owner).forEach(widget => widget.updateDraftMode(draftMode));
+			if (this._newCommentWidget && this._newCommentWidget.owner === e.owner) {
+				this._newCommentWidget.updateDraftMode(draftMode);
+			}
 
 			removed.forEach(thread => {
 				let matchedZones = this._commentWidgets.filter(zoneWidget => zoneWidget.owner === e.owner && zoneWidget.commentThread.threadId === thread.threadId);
@@ -378,6 +379,7 @@ export class ReviewController implements IEditorContribution {
 					let matchedZone = matchedZones[0];
 					let index = this._commentWidgets.indexOf(matchedZone);
 					this._commentWidgets.splice(index, 1);
+					matchedZone.dispose();
 				}
 			});
 
@@ -652,7 +654,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 export function getOuterEditor(accessor: ServicesAccessor): ICodeEditor {
-	let editor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
+	const editor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
 	if (editor instanceof EmbeddedCodeEditorWidget) {
 		return editor.getParentEditor();
 	}
@@ -660,13 +662,12 @@ export function getOuterEditor(accessor: ServicesAccessor): ICodeEditor {
 }
 
 function closeReviewPanel(accessor: ServicesAccessor, args: any) {
-	var outerEditor = getOuterEditor(accessor);
+	const outerEditor = getOuterEditor(accessor);
 	if (!outerEditor) {
 		return;
 	}
 
-	let controller = ReviewController.get(outerEditor);
-
+	const controller = ReviewController.get(outerEditor);
 	if (!controller) {
 		return;
 	}

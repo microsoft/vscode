@@ -18,6 +18,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IAction } from 'vs/base/common/actions';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export const TEST_VIEW_CONTAINER_ID = 'workbench.view.extension.test';
 
@@ -44,24 +45,23 @@ export interface IViewContainersRegistry {
 	 *
 	 * @returns the registered ViewContainer.
 	 */
-	registerViewContainer(id: string, extensionId?: string): ViewContainer;
+	registerViewContainer(id: string, extensionId?: ExtensionIdentifier): ViewContainer;
 
 	/**
 	 * Returns the view container with given id.
 	 *
-	 * @param id
 	 * @returns the view container with given id.
 	 */
 	get(id: string): ViewContainer;
 }
 
 export class ViewContainer {
-	protected constructor(readonly id: string, readonly extensionId: string) { }
+	protected constructor(readonly id: string, readonly extensionId: ExtensionIdentifier) { }
 }
 
 class ViewContainersRegistryImpl implements IViewContainersRegistry {
 
-	private readonly _onDidRegister: Emitter<ViewContainer> = new Emitter<ViewContainer>();
+	private readonly _onDidRegister = new Emitter<ViewContainer>();
 	readonly onDidRegister: Event<ViewContainer> = this._onDidRegister.event;
 
 	private viewContainers: Map<string, ViewContainer> = new Map<string, ViewContainer>();
@@ -70,7 +70,7 @@ class ViewContainersRegistryImpl implements IViewContainersRegistry {
 		return values(this.viewContainers);
 	}
 
-	registerViewContainer(id: string, extensionId: string): ViewContainer {
+	registerViewContainer(id: string, extensionId: ExtensionIdentifier): ViewContainer {
 		if (!this.viewContainers.has(id)) {
 			const viewContainer = new class extends ViewContainer {
 				constructor() {
@@ -229,7 +229,7 @@ export const IViewsService = createDecorator<IViewsService>('viewsService');
 export interface IViewsService {
 	_serviceBrand: any;
 
-	openView(id: string, focus?: boolean): Promise<IView>;
+	openView(id: string, focus?: boolean): Promise<IView | null>;
 
 	getViewDescriptors(container: ViewContainer): IViewDescriptorCollection;
 }

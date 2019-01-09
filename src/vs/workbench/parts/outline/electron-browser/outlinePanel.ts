@@ -50,7 +50,7 @@ import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewl
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { IViewsService } from 'vs/workbench/common/views';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { OutlineController, OutlineDataSource, OutlineItemComparator, OutlineItemCompareType, OutlineItemFilter, OutlineRenderer, OutlineTreeState } from '../../../../editor/contrib/documentSymbols/outlineTree';
+import { OutlineController, OutlineDataSource, OutlineItemComparator, OutlineItemCompareType, OutlineItemFilter, OutlineRenderer, OutlineTreeState } from 'vs/editor/contrib/documentSymbols/outlineTree';
 import { OutlineConfigKeys, OutlineViewFiltered, OutlineViewFocused, OutlineViewId } from './outline';
 
 class RequestState {
@@ -372,6 +372,16 @@ export class OutlinePanel extends ViewletPanel {
 				dom.toggleClass(this._domNode, 'no-icons', !this._configurationService.getValue(OutlineConfigKeys.icons));
 			}
 		}));
+
+		this.disposables.push(this.onDidChangeBodyVisibility(visible => {
+			if (visible && !this._requestOracle) {
+				this._requestOracle = this._instantiationService.createInstance(RequestOracle, (editor, event) => this._doUpdate(editor, event), DocumentSymbolProviderRegistry);
+			} else if (!visible) {
+				dispose(this._requestOracle);
+				this._requestOracle = undefined;
+				this._doUpdate(undefined, undefined);
+			}
+		}));
 	}
 
 	protected layoutBody(height: number): void {
@@ -380,25 +390,6 @@ export class OutlinePanel extends ViewletPanel {
 			const treeHeight = height - (5 /*progressbar height*/ + 33 /*input height*/);
 			this._tree.layout(treeHeight);
 		}
-	}
-
-	setVisible(visible: boolean): void {
-		if (visible && this.isExpanded() && !this._requestOracle) {
-			// workaround for https://github.com/Microsoft/vscode/issues/60011
-			this.setExpanded(true);
-		}
-		super.setVisible(visible);
-	}
-
-	setExpanded(expanded: boolean): void {
-		if (expanded) {
-			this._requestOracle = this._requestOracle || this._instantiationService.createInstance(RequestOracle, (editor, event) => this._doUpdate(editor, event).then(undefined, onUnexpectedError), DocumentSymbolProviderRegistry);
-		} else {
-			dispose(this._requestOracle);
-			this._requestOracle = undefined;
-			this._doUpdate(undefined, undefined);
-		}
-		return super.setExpanded(expanded);
 	}
 
 	getActions(): IAction[] {
@@ -706,7 +697,7 @@ export class OutlinePanel extends ViewletPanel {
 		let top = this._tree.getRelativeTop(item);
 		if (top < 0 || top > 1) {
 			// only when outside view port
-			await this._tree.reveal(item, .5);
+			await this._tree.reveal(item, 0.5);
 		}
 		this._tree.setFocus(item, this);
 		this._tree.setSelection([item], this);
@@ -723,7 +714,7 @@ export class OutlinePanel extends ViewletPanel {
 		let navi = this._tree.getNavigator(this._tree.getFocus(), false);
 		let candidate: any;
 		while (candidate = up ? navi.previous() : navi.next()) {
-			if (candidate instanceof OutlineElement && candidate.score && candidate.score[1].length > 0) {
+			if (candidate instanceof OutlineElement && candidate.score && candidate.score[1] > 0) {
 				this._tree.setFocus(candidate, this);
 				this._tree.reveal(candidate).then(undefined, onUnexpectedError);
 				break;
