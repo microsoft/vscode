@@ -10,12 +10,12 @@ import URI from 'vscode-uri';
 import * as fs from 'fs';
 import { TextDocument, CompletionList } from 'vscode-languageserver-types';
 
-import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet } from 'vscode-css-languageservice';
+import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet, CSSData } from 'vscode-css-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
 import { getPathCompletionParticipant } from './pathCompletion';
 import { formatError, runSafe } from './utils/runner';
 import { getDocumentContext } from './utils/documentContext';
-import { parseCSSData } from './languageFacts';
+import { parseCSSData } from './utils/languageFacts';
 
 export interface Settings {
 	css: LanguageSettings;
@@ -67,26 +67,12 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 
 	const dataPaths: string[] = params.initializationOptions.dataPaths;
 
-	let customData = {
-		customProperties: [],
-		customAtDirectives: [],
-		customPseudoElements: [],
-		customPseudoClasses: []
-	};
+	const customDataCollections: CSSData[] = [];
 
 	dataPaths.forEach(p => {
 		if (fs.existsSync(p)) {
-			const {
-				properties,
-				atDirectives,
-				pseudoClasses,
-				pseudoElements
-			} = parseCSSData(fs.readFileSync(p, 'utf-8'));
-
-			customData.customProperties = customData.customProperties.concat(properties);
-			customData.customAtDirectives = customData.customAtDirectives.concat(atDirectives);
-			customData.customPseudoClasses = customData.customPseudoClasses.concat(pseudoClasses);
-			customData.customPseudoElements = customData.customPseudoElements.concat(pseudoElements);
+			const data = parseCSSData(fs.readFileSync(p, 'utf-8'));
+			customDataCollections.push(data);
 		} else {
 			return;
 		}
@@ -107,9 +93,9 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	scopedSettingsSupport = !!getClientCapability('workspace.configuration', false);
 	foldingRangeLimit = getClientCapability('textDocument.foldingRange.rangeLimit', Number.MAX_VALUE);
 
-	languageServices.css = getCSSLanguageService(customData);
-	languageServices.scss = getSCSSLanguageService(customData);
-	languageServices.less = getLESSLanguageService(customData);
+	languageServices.css = getCSSLanguageService({ customDataCollections });
+	languageServices.scss = getSCSSLanguageService({ customDataCollections });
+	languageServices.less = getLESSLanguageService({ customDataCollections });
 
 	const capabilities: ServerCapabilities = {
 		// Tell the client that the server works in FULL text document sync mode
