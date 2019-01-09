@@ -91,12 +91,14 @@ class GotoLineEntry extends EditorQuickOpenEntry {
 
 		// Inform user about valid range if input is invalid
 		const maxLineNumber = this.getMaxLineNumber();
+		const line = this.editorService.activeTextEditorWidget.getPosition().lineNumber;
+
 		if (this.invalidRange(maxLineNumber)) {
 			if (maxLineNumber > 0) {
-				return nls.localize('gotoLineLabelEmptyWithLimit', "Type a line number between 1 and {0} to navigate to", maxLineNumber);
+				return nls.localize('gotoLineLabelEmptyWithLimit', "Current Line: {0}.  Type a line number between 1 and {1} to navigate to", line, maxLineNumber);
 			}
 
-			return nls.localize('gotoLineLabelEmpty', "Type a line number to navigate to");
+			return nls.localize('gotoLineLabelEmpty', "Current Line: {0}. Type a line number to navigate to", line);
 		}
 
 		// Input valid, indicate action
@@ -213,7 +215,31 @@ export class GotoLineHandler extends QuickOpenHandler {
 	}
 
 	getAriaLabel(): string {
-		return nls.localize('gotoLineHandlerAriaLabel', "Type a line number to navigate to.");
+
+		let label = '';
+
+		// Check we can run - (is text editor)
+		const canRun = this.canRun();
+		if (types.isUndefinedOrNull(canRun) || (typeof canRun === 'boolean' && !canRun) || typeof canRun === 'string') {
+			label = (typeof canRun === 'string') ? canRun : nls.localize('canNotRunPlaceholder', "This quick open handler can not be used in the current context");
+			return label;
+		}
+
+		const line = this.editorService.activeTextEditorWidget.getPosition().lineNumber;
+
+		if (typeof line === 'number') {
+			// TODO: choose output string
+			// Output verbose current line / go to line label
+			return nls.localize('gotoLineLabelEmpty', "Current Line: {0}. Type a line number to navigate to", line);
+
+			// Output current line # only for prefix / go to line label (@zersiax approach)
+			// return nls.localize('gotoLineLabelEmpty2', "{0}. Type a line number to navigate to", line);
+		}
+		else {
+			return label;
+		}
+
+
 	}
 
 	getResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel> {
