@@ -480,7 +480,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 		item.additionalTextEdits = codeAction.additionalTextEdits;
 
 		if (detail && item.useCodeSnippet) {
-			const shouldCompleteFunction = await this.isValidFunctionCompletionContext(filepath, item.position, token);
+			const shouldCompleteFunction = await this.isValidFunctionCompletionContext(filepath, item.position, item.document, token);
 			if (shouldCompleteFunction) {
 				const { snippet, parameterCount } = snippetForFunctionCall(item, detail.displayParts);
 				item.insertText = snippet;
@@ -630,6 +630,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 	private async isValidFunctionCompletionContext(
 		filepath: string,
 		position: vscode.Position,
+		document: vscode.TextDocument,
 		token: vscode.CancellationToken
 	): Promise<boolean> {
 		// Workaround for https://github.com/Microsoft/TypeScript/issues/12677
@@ -637,23 +638,25 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 		try {
 			const args: Proto.FileLocationRequestArgs = typeConverters.Position.toFileLocationRequestArgs(filepath, position);
 			const response = await this.client.execute('quickinfo', args, token);
-			if (response.type !== 'response') {
+			if (response.type !== 'response' || !response.body) {
 				return true;
 			}
 
-			const { body } = response;
-			switch (body && body.kind) {
+			switch (response.body.kind) {
 				case 'var':
 				case 'let':
 				case 'const':
 				case 'alias':
 					return false;
-				default:
-					return true;
 			}
 		} catch (e) {
 			return true;
 		}
+
+		// Don't complete function call if there is already something that looks like a funciton call
+		// https://github.com/Microsoft/vscode/issues/18131
+		const after = document.lineAt(position.line).text.slice(position.character);
+		return after.match(/^\s*\(/g) === null;
 	}
 }
 

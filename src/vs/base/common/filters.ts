@@ -348,7 +348,7 @@ export function matchesFuzzy(word: string, wordToMatchAgainst: string, enableSep
  * powerfull than `matchesFuzzy`
  */
 export function matchesFuzzy2(pattern: string, word: string): IMatch[] | null {
-	let score = fuzzyScore(pattern, pattern.toLowerCase(), 0, word, word.toLowerCase(), 0, false);
+	let score = fuzzyScore(pattern, pattern.toLowerCase(), 0, word, word.toLowerCase(), 0, true);
 	return score ? createMatches(score) : null;
 }
 

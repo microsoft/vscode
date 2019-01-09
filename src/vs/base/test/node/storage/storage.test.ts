@@ -8,9 +8,10 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { equal, ok } from 'assert';
-import { mkdirp, del, writeFile } from 'vs/base/node/pfs';
+import { mkdirp, del, writeFile, exists } from 'vs/base/node/pfs';
 import { timeout } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
+import { isWindows } from 'vs/base/common/platform';
 
 suite('Storage Library', () => {
 
@@ -422,6 +423,58 @@ suite('SQLite Storage Library', () => {
 		equal(storedItems.size, 0);
 
 		await testDBBasics(storagePath);
+
+		await del(storageDir, tmpdir());
+	});
+
+	test('basics (DB that becomes corrupt during runtime restores backup on close())', async () => {
+		if (isWindows) {
+			await Promise.resolve(); // Windows will fail to write to open DB due to locking
+
+			return;
+		}
+
+		const storageDir = uniqueStorageDir();
+
+		await mkdirp(storageDir);
+
+		const storagePath = join(storageDir, 'storage.db');
+		let storage = new SQLiteStorageDatabase(storagePath);
+
+		const items = new Map<string, string>();
+		items.set('foo', 'bar');
+		items.set('some/foo/path', 'some/bar/path');
+		items.set(JSON.stringify({ foo: 'bar' }), JSON.stringify({ bar: 'foo' }));
+
+		await storage.updateItems({ insert: items });
+		await storage.close();
+
+		equal(await exists(`${storagePath}.backup`), true);
+
+		storage = new SQLiteStorageDatabase(storagePath);
+		await storage.getItems();
+
+		await writeFile(storagePath, 'This is now a broken DB');
+
+		// we still need to trigger a check to the DB so that we get to know that
+		// the DB is corrupt. We have no extra code on shutdown that checks for the
+		// health of the DB. This is an optimization to not perform too many tasks
+		// on shutdown.
+		await storage.checkIntegrity(true).then(null, error => { } /* error is expected here but we do not want to fail */);
+
+		await storage.close();
+
+		equal(await exists(`${storagePath}.backup`), false);
+
+		storage = new SQLiteStorageDatabase(storagePath);
+
+		const storedItems = await storage.getItems();
+		equal(storedItems.size, items.size);
+		equal(storedItems.get('foo'), 'bar');
+		equal(storedItems.get('some/foo/path'), 'some/bar/path');
+		equal(storedItems.get(JSON.stringify({ foo: 'bar' })), JSON.stringify({ bar: 'foo' }));
+
+		await storage.close();
 
 		await del(storageDir, tmpdir());
 	});
