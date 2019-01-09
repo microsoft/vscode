@@ -162,22 +162,24 @@ class WorkbenchOpenController implements IOpenController {
 }
 
 function toWorkbenchListOptions<T>(options: IListOptions<T>, configurationService: IConfigurationService, keybindingService: IKeybindingService): IListOptions<T> {
+	const result = { ...options };
+
 	if (options.multipleSelectionSupport !== false && !options.multipleSelectionController) {
-		options.multipleSelectionController = new MultipleSelectionController(configurationService);
+		result.multipleSelectionController = new MultipleSelectionController(configurationService);
 	}
 
-	options.openController = new WorkbenchOpenController(configurationService, options.openController);
+	result.openController = new WorkbenchOpenController(configurationService, options.openController);
 
 	if (options.keyboardNavigationLabelProvider) {
 		const tlp = options.keyboardNavigationLabelProvider;
 
-		options.keyboardNavigationLabelProvider = {
+		result.keyboardNavigationLabelProvider = {
 			getKeyboardNavigationLabel(e) { return tlp.getKeyboardNavigationLabel(e); },
 			mightProducePrintableCharacter(e) { return keybindingService.mightProducePrintableCharacter(e); }
 		};
 	}
 
-	return options;
+	return result;
 }
 
 let sharedListStyleSheet: HTMLStyleElement;

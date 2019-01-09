@@ -16,17 +16,15 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent, IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Event, Emitter, EventBufferer } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
-import { IListVirtualDelegate, IListRenderer, IListEvent, IListContextMenuEvent, IListMouseEvent, IListTouchEvent, IListGestureEvent, IIdentityProvider, IKeyboardNavigationLabelProvider, IDragAndDrop, IDragAndDropData, IListDragEvent } from './list';
+import { IListVirtualDelegate, IListRenderer, IListEvent, IListContextMenuEvent, IListMouseEvent, IListTouchEvent, IListGestureEvent, IIdentityProvider, IKeyboardNavigationLabelProvider, IDragAndDrop } from './list';
 import { ListView, IListViewOptions } from './listView';
 import { Color } from 'vs/base/common/color';
-import { mixin, getOrDefault } from 'vs/base/common/objects';
+import { mixin } from 'vs/base/common/objects';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { CombinedSpliceable } from 'vs/base/browser/ui/list/splice';
 import { clamp } from 'vs/base/common/numbers';
 import { matchesPrefix } from 'vs/base/common/filters';
-import { DragMouseEvent } from 'vs/base/browser/mouseEvent';
-import { DataTransfers } from 'vs/base/browser/dnd';
 
 interface ITraitChangeEvent {
 	indexes: number[];
@@ -214,7 +212,7 @@ class TraitSpliceable<T> implements ISpliceable<T> {
 
 	splice(start: number, deleteCount: number, elements: T[]): void {
 		if (!this.identityProvider) {
-			return this.trait.splice(start, deleteCount, elements.map(e => false));
+			return this.trait.splice(start, deleteCount, elements.map(() => false));
 		}
 
 		const pastElementsWithTrait = this.trait.get().map(i => this.identityProvider!.getId(this.view.element(i)).toString());
@@ -714,13 +712,12 @@ export class DefaultStyleController implements IStyleController {
 			content.push(`.monaco-list${suffix} .monaco-list-row:hover { outline: 1px dashed ${styles.listHoverOutline}; outline-offset: -1px; }`);
 		}
 
-		// TODO
-		// if (styles.listDropBackground) {
-		// 	content.push(`
-		// 		.monaco-tree${suffix} .monaco-tree-wrapper.drop-target,
-		// 		.monaco-tree${suffix} .monaco-tree-rows > .monaco-tree-row.drop-target { background-color: ${styles.listDropBackground} !important; color: inherit !important; }
-		// 	`);
-		// }
+		if (styles.listDropBackground) {
+			content.push(`
+				.monaco-list${suffix}.drop-target,
+				.monaco-list${suffix} .monaco-list-row.drop-target { background-color: ${styles.listDropBackground} !important; color: inherit !important; }
+			`);
+		}
 
 		const newStyles = content.join('\n');
 		if (newStyles !== this.styleElement.innerHTML) {
@@ -729,19 +726,24 @@ export class DefaultStyleController implements IStyleController {
 	}
 }
 
-export interface IListOptions<T> extends IListViewOptions<T>, IListStyles {
-	identityProvider?: IIdentityProvider<T>;
-	dnd?: IDragAndDrop<T>;
-	keyboardNavigationLabelProvider?: IKeyboardNavigationLabelProvider<T>;
-	ariaLabel?: string;
-	mouseSupport?: boolean;
-	keyboardSupport?: boolean;
-	verticalScrollMode?: ScrollbarVisibility;
-	multipleSelectionSupport?: boolean;
-	multipleSelectionController?: IMultipleSelectionController<T>;
-	openController?: IOpenController;
-	styleController?: IStyleController;
-	accessibilityProvider?: IAccessibilityProvider<T>;
+export interface IListOptions<T> extends IListStyles {
+	readonly identityProvider?: IIdentityProvider<T>;
+	readonly dnd?: IDragAndDrop<T>;
+	readonly keyboardNavigationLabelProvider?: IKeyboardNavigationLabelProvider<T>;
+	readonly ariaLabel?: string;
+	readonly keyboardSupport?: boolean;
+	readonly multipleSelectionSupport?: boolean;
+	readonly multipleSelectionController?: IMultipleSelectionController<T>;
+	readonly openController?: IOpenController;
+	readonly styleController?: IStyleController;
+	readonly accessibilityProvider?: IAccessibilityProvider<T>;
+
+	// list view options
+	readonly useShadows?: boolean;
+	readonly verticalScrollMode?: ScrollbarVisibility;
+	readonly setRowLineHeight?: boolean;
+	readonly supportDynamicHeights?: boolean;
+	readonly mouseSupport?: boolean;
 }
 
 export interface IListStyles {
@@ -774,7 +776,7 @@ const defaultStyles: IListStyles = {
 	listDropBackground: Color.fromHex('#383B3D')
 };
 
-const DefaultOptions: IListOptions<any> = {
+const DefaultOptions = {
 	keyboardSupport: true,
 	mouseSupport: true,
 	multipleSelectionSupport: true,
@@ -938,72 +940,7 @@ class AccessibiltyRenderer<T> implements IListRenderer<T, HTMLElement> {
 	}
 }
 
-export class ElementsDragAndDropData<T> implements IDragAndDropData {
-
-	private elements: T[];
-
-	constructor(elements: T[]) {
-		this.elements = elements;
-	}
-
-	public update(event: DragMouseEvent): void {
-		// no-op
-	}
-
-	public getData(): any {
-		return this.elements;
-	}
-}
-
-export class ExternalElementsDragAndDropData<T> implements IDragAndDropData {
-
-	private elements: T[];
-
-	constructor(elements: T[]) {
-		this.elements = elements;
-	}
-
-	public update(event: DragMouseEvent): void {
-		// no-op
-	}
-
-	public getData(): any {
-		return this.elements;
-	}
-}
-
-export class DesktopDragAndDropData implements IDragAndDropData {
-
-	private types: any[];
-	private files: any[];
-
-	constructor() {
-		this.types = [];
-		this.files = [];
-	}
-
-	public update(event: DragMouseEvent): void {
-		if (event.dataTransfer.types) {
-			this.types = [...event.dataTransfer.types];
-		}
-
-		if (event.dataTransfer.files) {
-			this.files = [...event.dataTransfer.files];
-			this.files = this.files.filter(f => f.size || f.type);
-		}
-	}
-
-	public getData(): any {
-		return {
-			types: this.types,
-			files: this.files
-		};
-	}
-}
-
 export class List<T> implements ISpliceable<T>, IDisposable {
-
-	private static currentExternalDragAndDropData: IDragAndDropData | undefined;
 
 	private static InstanceCount = 0;
 	private idPrefix = `list_id_${++List.InstanceCount}`;
@@ -1015,9 +952,6 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	private spliceable: ISpliceable<T>;
 	private styleElement: HTMLStyleElement;
 	private styleController: IStyleController;
-
-	private readonly dnd: IDragAndDrop<T>;
-	private currentDragAndDropData: IDragAndDropData | undefined;
 
 	protected disposables: IDisposable[];
 
@@ -1104,7 +1038,6 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	) {
 		this.focus = new FocusTrait(i => this.getElementDomId(i));
 		this.selection = new Trait('selected');
-		this.dnd = getOrDefault<IListOptions<T>, IDragAndDrop<T>>(options, o => o.dnd, DefaultOptions.dnd);
 
 		mixin(options, defaultStyles, false);
 
@@ -1116,7 +1049,20 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		renderers = renderers.map(r => new PipelineRenderer(r.templateId, [...baseRenderers, r]));
 
-		this.view = new ListView(container, virtualDelegate, renderers, options);
+		const that = this;
+		const viewOptions: IListViewOptions<T> = {
+			...options,
+			dnd: options.dnd && {
+				...options.dnd,
+				getDragElements(element) {
+					const selection = that.getSelectedElements();
+					const elements = selection.indexOf(element) > -1 ? selection : [element];
+					return elements;
+				}
+			}
+		};
+
+		this.view = new ListView(container, virtualDelegate, renderers, viewOptions);
 		this.view.domNode.setAttribute('role', 'tree');
 		DOM.addClass(this.view.domNode, this.idPrefix);
 		this.view.domNode.tabIndex = 0;
@@ -1151,11 +1097,6 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		if (typeof options.mouseSupport === 'boolean' ? options.mouseSupport : true) {
 			this.disposables.push(new MouseController(this, this.view, options));
 		}
-
-		this.view.onDragStart(this.onDragStart, this, this.disposables);
-
-		this.view.onDragOver(this.onDragOver, this, this.disposables);
-		this.view.onDragLeave(this.onDragLeave, this, this.disposables);
 
 		this.onFocusChange(this._onFocusChange, this, this.disposables);
 		this.onSelectionChange(this._onSelectionChange, this, this.disposables);
@@ -1441,45 +1382,6 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		DOM.toggleClass(this.view.domNode, 'selection-none', selection.length === 0);
 		DOM.toggleClass(this.view.domNode, 'selection-single', selection.length === 1);
 		DOM.toggleClass(this.view.domNode, 'selection-multiple', selection.length > 1);
-	}
-
-	// DND
-
-	private onDragStart({ element, uri, event }: { element: T, uri: string, event: DragMouseEvent }): void {
-		const selection = this.getSelectedElements();
-		const elements = selection.indexOf(element) > -1 ? selection : [element];
-
-		event.dataTransfer.effectAllowed = 'copyMove';
-		event.dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify([uri]));
-
-		if (event.dataTransfer.setDragImage) {
-			let label: string;
-
-			if (this.dnd.getDragLabel) {
-				label = this.dnd.getDragLabel(elements);
-			} else {
-				label = String(elements.length);
-			}
-
-			const dragImage = DOM.$('.monaco-list-drag-image');
-			dragImage.textContent = label;
-			document.body.appendChild(dragImage);
-			event.dataTransfer.setDragImage(dragImage, -10, -10);
-			setTimeout(() => document.body.removeChild(dragImage), 0);
-		}
-
-		this.currentDragAndDropData = new ElementsDragAndDropData(elements);
-		List.currentExternalDragAndDropData = new ExternalElementsDragAndDropData(elements);
-
-		this.dnd.onDragStart(this.currentDragAndDropData, event);
-	}
-
-	private onDragOver(event: IListDragEvent<T>): void {
-		console.log(event);
-	}
-
-	private onDragLeave(): void {
-		console.log('LEAVE');
 	}
 
 	dispose(): void {

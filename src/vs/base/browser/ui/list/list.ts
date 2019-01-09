@@ -7,7 +7,6 @@ import { GestureEvent } from 'vs/base/browser/touch';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { DragMouseEvent } from 'vs/base/browser/mouseEvent';
 
 export interface IListVirtualDelegate<T> {
 	getHeight(element: T): number;
@@ -82,6 +81,7 @@ export const enum DragOverEffect {
 export interface IDragOverReaction {
 	accept: boolean;
 	effect?: DragOverEffect;
+	feedback?: number[]; // use -1 for entire list
 	// bubble?: DragOverBubble;
 	// autoExpand?: boolean;
 }
@@ -96,16 +96,16 @@ export const DragOverReactions = {
 };
 
 export interface IDragAndDropData {
-	update(event: DragMouseEvent): void;
+	update(dataTransfer: DataTransfer): void;
 	getData(): any;
 }
 
 export interface IDragAndDrop<T> {
 	getDragURI(element: T): string | null;
 	getDragLabel?(elements: T[]): string;
-	onDragStart(data: IDragAndDropData, originalEvent: DragMouseEvent): void;
-	onDragOver(data: IDragAndDropData, targetElement: T, originalEvent: DragMouseEvent): boolean | IDragOverReaction;
-	drop(data: IDragAndDropData, targetElement: T, originalEvent: DragMouseEvent): void;
+	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void;
+	onDragOver(data: IDragAndDropData, targetElement: T | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean | IDragOverReaction;
+	drop(data: IDragAndDropData, targetElement: T | undefined, originalEvent: DragEvent): void;
 }
 
 /**

@@ -140,11 +140,11 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 			onDragStart(data, originalEvent) {
 				return options.dnd!.onDragStart(data, originalEvent);
 			},
-			onDragOver(data, targetNode, originalEvent) {
-				return options.dnd!.onDragOver(data, targetNode.element as T, originalEvent);
+			onDragOver(data, targetNode, targetIndex, originalEvent) {
+				return options.dnd!.onDragOver(data, targetNode && targetNode.element as T, targetIndex, originalEvent);
 			},
 			drop(data, targetNode, originalEvent) {
-				return options.dnd!.drop(data, targetNode.element as T, originalEvent);
+				return options.dnd!.drop(data, targetNode && targetNode.element as T, originalEvent);
 			}
 		},
 		multipleSelectionController: options.multipleSelectionController && {
