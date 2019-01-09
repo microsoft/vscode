@@ -11,7 +11,7 @@ import { append, $, toggleClass } from 'vs/base/browser/dom';
 import { Event, Relay } from 'vs/base/common/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { ITreeModel, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent, ITreeFilter, ITreeNavigator, ICollapseStateChangeEvent } from 'vs/base/browser/ui/tree/tree';
+import { ITreeModel, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent, ITreeFilter, ITreeNavigator, ICollapseStateChangeEvent, ITreeDragAndDrop } from 'vs/base/browser/ui/tree/tree';
 import { ISpliceable } from 'vs/base/common/sequence';
 
 function asListOptions<T, TFilterData>(options?: IAbstractTreeOptions<T, TFilterData>): IListOptions<ITreeNode<T, TFilterData>> | undefined {
@@ -198,6 +198,7 @@ function asTreeContextMenuEvent<T>(event: IListContextMenuEvent<ITreeNode<T, any
 export interface IAbstractTreeOptions<T, TFilterData = void> extends IListOptions<T> {
 	collapseByDefault?: boolean; // defaults to false
 	filter?: ITreeFilter<T, TFilterData>;
+	readonly dnd?: ITreeDragAndDrop<T>;
 }
 
 export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable {

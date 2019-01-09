@@ -69,38 +69,27 @@ export interface IKeyboardNavigationLabelProvider<T> {
 	mightProducePrintableCharacter?(event: IKeyboardEvent): boolean;
 }
 
-export const enum DragOverEffect {
+export const enum ListDragOverEffect {
 	Copy,
 	Move
 }
 
-// export const enum DragOverBubble {
-// 	Down,
-// 	Up
-// }
-
-export interface IDragOverReaction {
+export interface IListDragOverReaction {
 	accept: boolean;
-	effect?: DragOverEffect;
+	effect?: ListDragOverEffect;
 	feedback?: number[]; // use -1 for entire list
-	// bubble?: DragOverBubble;
-	// autoExpand?: boolean;
 }
 
-export const DragOverReactions = {
-	reject(): IDragOverReaction { return { accept: false }; },
-	accept(): IDragOverReaction { return { accept: true }; },
-	// acceptBubbleUp(): IDragOverReaction { return { accept: true, bubble: DragOverBubble.Up }; },
-	// acceptBubbleDown(autoExpand = false): IDragOverReaction { return { accept: true, bubble: DragOverBubble.Down, autoExpand }; },
-	// acceptCopyBubbleUp(): IDragOverReaction { return { accept: true, bubble: DragOverBubble.Up, effect: DragOverEffect.Copy }; },
-	// acceptCopyBubbleDown(autoExpand = false): IDragOverReaction { return { accept: true, bubble: DragOverBubble.Down, effect: DragOverEffect.Copy, autoExpand }; }
+export const ListDragOverReactions = {
+	reject(): IListDragOverReaction { return { accept: false }; },
+	accept(): IListDragOverReaction { return { accept: true }; },
 };
 
-export interface IDragAndDrop<T> {
+export interface IListDragAndDrop<T> {
 	getDragURI(element: T): string | null;
 	getDragLabel?(elements: T[]): string;
 	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void;
-	onDragOver(data: IDragAndDropData, targetElement: T | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean | IDragOverReaction;
+	onDragOver(data: IDragAndDropData, targetElement: T | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean | IListDragOverReaction;
 	drop(data: IDragAndDropData, targetElement: T | undefined, targetIndex: number | undefined, originalEvent: DragEvent): void;
 }
 
