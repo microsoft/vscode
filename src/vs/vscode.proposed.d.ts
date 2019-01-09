@@ -552,6 +552,12 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region Kyle: onDidExecuteCommand
+	export namespace commands {
+		export const onDidExecuteCommand: Event<string>;
+	}
+	//#endregion
+
 	//#region André: debug
 
 	// deprecated

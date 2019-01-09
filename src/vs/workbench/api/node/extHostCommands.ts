@@ -15,6 +15,7 @@ import * as modes from 'vs/editor/common/modes';
 import * as vscode from 'vscode';
 import { ILogService } from 'vs/platform/log/common/log';
 import { revive } from 'vs/base/common/marshalling';
+import { Emitter, Event } from 'vs/base/common/event';
 
 interface CommandHandler {
 	callback: Function;
@@ -33,6 +34,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 	private readonly _converter: CommandsConverter;
 	private readonly _logService: ILogService;
 	private readonly _argumentProcessors: ArgumentProcessor[];
+	private readonly _onDidExecuteCommand: Emitter<string>;
 
 	constructor(
 		mainContext: IMainContext,
@@ -43,6 +45,11 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		this._logService = logService;
 		this._converter = new CommandsConverter(this, heapService);
 		this._argumentProcessors = [{ processArgument(a) { return revive(a, 0); } }];
+		this._onDidExecuteCommand = new Emitter<string>();
+	}
+
+	get onDidExecuteCommand(): Event<string> {
+		return this._onDidExecuteCommand.event;
 	}
 
 	get converter(): CommandsConverter {
@@ -127,6 +134,10 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 			this._logService.error(err, id);
 			return Promise.reject(new Error(`Running the contributed command:'${id}' failed.`));
 		}
+	}
+
+	$onDidExecuteCommand(id: string): void {
+		this._onDidExecuteCommand.fire(id);
 	}
 
 	$executeContributedCommand<T>(id: string, ...args: any[]): Promise<T> {

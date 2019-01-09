@@ -18,6 +18,8 @@ export class CommandService extends Disposable implements ICommandService {
 
 	private readonly _onWillExecuteCommand: Emitter<ICommandEvent> = this._register(new Emitter<ICommandEvent>());
 	public readonly onWillExecuteCommand: Event<ICommandEvent> = this._onWillExecuteCommand.event;
+	private readonly _onDidExecuteCommand: Emitter<ICommandEvent> = this._register(new Emitter<ICommandEvent>());
+	public readonly onDidExecuteCommand: Event<ICommandEvent> = this._onDidExecuteCommand.event;
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -61,6 +63,7 @@ export class CommandService extends Disposable implements ICommandService {
 		try {
 			this._onWillExecuteCommand.fire({ commandId: id });
 			const result = this._instantiationService.invokeFunction.apply(this._instantiationService, [command.handler, ...args]);
+			this._onDidExecuteCommand.fire({ commandId: id });
 			return Promise.resolve(result);
 		} catch (err) {
 			return Promise.reject(err);

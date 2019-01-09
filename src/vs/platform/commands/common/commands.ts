@@ -18,6 +18,7 @@ export interface ICommandEvent {
 export interface ICommandService {
 	_serviceBrand: any;
 	onWillExecuteCommand: Event<ICommandEvent>;
+	onDidExecuteCommand: Event<ICommandEvent>;
 	executeCommand<T = any>(commandId: string, ...args: any[]): Promise<T | undefined>;
 }
 
@@ -131,6 +132,7 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 export const NullCommandService: ICommandService = {
 	_serviceBrand: undefined,
 	onWillExecuteCommand: () => ({ dispose: () => { } }),
+	onDidExecuteCommand: () => ({ dispose: () => { } }),
 	executeCommand<T = any>() {
 		return Promise.resolve<T>(undefined);
 	}

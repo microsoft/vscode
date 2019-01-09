@@ -230,6 +230,9 @@ export function createApiFactory(
 					callback.apply(thisArg, [diff, ...args]);
 				});
 			}),
+			get onDidExecuteCommand(): Event<string> {
+				return extHostCommands.onDidExecuteCommand;
+			},
 			executeCommand<T>(id: string, ...args: any[]): Thenable<T> {
 				return extHostCommands.executeCommand<T>(checkCommand(id), ...args);
 			},

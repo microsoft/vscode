@@ -13,6 +13,7 @@ import { revive } from 'vs/base/common/marshalling';
 export class MainThreadCommands implements MainThreadCommandsShape {
 
 	private readonly _disposables = new Map<string, IDisposable>();
+	private _toDispose: IDisposable[] = [];
 	private readonly _generateCommandsDocumentationRegistration: IDisposable;
 	private readonly _proxy: ExtHostCommandsShape;
 
@@ -21,13 +22,16 @@ export class MainThreadCommands implements MainThreadCommandsShape {
 		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostCommands);
-
+		this._toDispose.push(this._commandService.onDidExecuteCommand((e) => this._proxy.$onDidExecuteCommand(e.commandId)));
 		this._generateCommandsDocumentationRegistration = CommandsRegistry.registerCommand('_generateCommandsDocumentation', () => this._generateCommandsDocumentation());
 	}
 
 	dispose() {
 		this._disposables.forEach(value => value.dispose());
 		this._disposables.clear();
+
+		this._toDispose.forEach(value => value.dispose());
+		this._toDispose = [];
 
 		this._generateCommandsDocumentationRegistration.dispose();
 	}

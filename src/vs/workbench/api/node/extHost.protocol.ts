@@ -629,6 +629,7 @@ export interface MainThreadWindowShape extends IDisposable {
 export interface ExtHostCommandsShape {
 	$executeContributedCommand<T>(id: string, ...args: any[]): Promise<T>;
 	$getContributedCommandHandlerDescriptions(): Promise<{ [id: string]: string | ICommandHandlerDescription }>;
+	$onDidExecuteCommand(id: string): void;
 }
 
 export interface ExtHostConfigurationShape {
