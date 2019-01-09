@@ -25,7 +25,7 @@ export class MainThreadCommands implements MainThreadCommandsShape {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostCommands);
 		this._generateCommandsDocumentationRegistration = CommandsRegistry.registerCommand('_generateCommandsDocumentation', () => this._generateCommandsDocumentation());
 
-		if (_commandService instanceof CommandService) {
+		if (this._commandService) {
 			this._toDispose.push(this._commandService.onDidExecuteCommand((e) => this._proxy.$onDidExecuteCommand(e.commandId)));
 		}
 	}
