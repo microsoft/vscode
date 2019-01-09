@@ -17,6 +17,7 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 	private readonly _onDidChangeTextEditorOptions = new Emitter<vscode.TextEditorOptionsChangeEvent>();
 	private readonly _onDidChangeTextEditorVisibleRanges = new Emitter<vscode.TextEditorVisibleRangesChangeEvent>();
 	private readonly _onDidChangeTextEditorViewColumn = new Emitter<vscode.TextEditorViewColumnChangeEvent>();
+	private readonly _onDidChangeTextEditorFocus = new Emitter<vscode.TextEditorFocusChangeEvent>();
 	private readonly _onDidChangeActiveTextEditor = new Emitter<vscode.TextEditor | undefined>();
 	private readonly _onDidChangeVisibleTextEditors = new Emitter<vscode.TextEditor[]>();
 
@@ -24,6 +25,7 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 	readonly onDidChangeTextEditorOptions: Event<vscode.TextEditorOptionsChangeEvent> = this._onDidChangeTextEditorOptions.event;
 	readonly onDidChangeTextEditorVisibleRanges: Event<vscode.TextEditorVisibleRangesChangeEvent> = this._onDidChangeTextEditorVisibleRanges.event;
 	readonly onDidChangeTextEditorViewColumn: Event<vscode.TextEditorViewColumnChangeEvent> = this._onDidChangeTextEditorViewColumn.event;
+	readonly onDidChangeTextEditorFocus: Event<vscode.TextEditorFocusChangeEvent> = this._onDidChangeTextEditorFocus.event;
 	readonly onDidChangeActiveTextEditor: Event<vscode.TextEditor | undefined> = this._onDidChangeActiveTextEditor.event;
 	readonly onDidChangeVisibleTextEditors: Event<vscode.TextEditor[]> = this._onDidChangeVisibleTextEditors.event;
 
@@ -109,6 +111,9 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 			const visibleRanges = data.visibleRanges.map(TypeConverters.Range.to);
 			textEditor._acceptVisibleRanges(visibleRanges);
 		}
+		if (data.focused !== null) {
+			textEditor._setFocused(data.focused);
+		}
 
 		// (2) fire change events
 		if (data.options) {
@@ -131,6 +136,12 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 			this._onDidChangeTextEditorVisibleRanges.fire({
 				textEditor,
 				visibleRanges
+			});
+		}
+		if (data.focused !== null) {
+			this._onDidChangeTextEditorFocus.fire({
+				textEditor,
+				focused: data.focused,
 			});
 		}
 	}

@@ -25,10 +25,25 @@ export interface IFocusTracker {
 export class MainThreadTextEditorProperties {
 
 	public static readFromEditor(previousProperties: MainThreadTextEditorProperties, model: ITextModel, codeEditor: ICodeEditor): MainThreadTextEditorProperties {
+		const focused = MainThreadTextEditorProperties._readFocusFromCodeEditor(previousProperties, codeEditor);
 		const selections = MainThreadTextEditorProperties._readSelectionsFromCodeEditor(previousProperties, codeEditor);
 		const options = MainThreadTextEditorProperties._readOptionsFromCodeEditor(previousProperties, model, codeEditor);
 		const visibleRanges = MainThreadTextEditorProperties._readVisibleRangesFromCodeEditor(previousProperties, codeEditor);
-		return new MainThreadTextEditorProperties(selections, options, visibleRanges);
+		return new MainThreadTextEditorProperties(focused, selections, options, visibleRanges);
+	}
+
+	private static _readFocusFromCodeEditor(previousProperties: MainThreadTextEditorProperties, codeEditor: ICodeEditor): boolean {
+		let result: boolean | null = null;
+		if (codeEditor) {
+			result = codeEditor.hasTextFocus();
+		}
+		if (result === null && previousProperties) {
+			result = previousProperties.focused;
+		}
+		if (result === null) {
+			result = false;
+		}
+		return result;
 	}
 
 	private static _readSelectionsFromCodeEditor(previousProperties: MainThreadTextEditorProperties, codeEditor: ICodeEditor): Selection[] {
@@ -93,6 +108,7 @@ export class MainThreadTextEditorProperties {
 	}
 
 	constructor(
+		public readonly focused: boolean,
 		public readonly selections: Selection[],
 		public readonly options: IResolvedTextEditorConfiguration,
 		public readonly visibleRanges: Range[]
@@ -101,10 +117,15 @@ export class MainThreadTextEditorProperties {
 
 	public generateDelta(oldProps: MainThreadTextEditorProperties, selectionChangeSource: string): IEditorPropertiesChangeData {
 		let delta: IEditorPropertiesChangeData = {
+			focused: null,
 			options: null,
 			selections: null,
 			visibleRanges: null
 		};
+
+		if (!oldProps || oldProps.focused !== this.focused || oldProps.focused === null) {
+			delta.focused = this.focused;
+		}
 
 		if (!oldProps || !MainThreadTextEditorProperties._selectionsEqual(oldProps.selections, this.selections)) {
 			delta.selections = {
@@ -121,7 +142,7 @@ export class MainThreadTextEditorProperties {
 			delta.visibleRanges = this.visibleRanges;
 		}
 
-		if (delta.selections || delta.options || delta.visibleRanges) {
+		if (delta.selections || delta.options || delta.visibleRanges || delta.focused !== null) {
 			// something changed
 			return delta;
 		}
@@ -267,9 +288,11 @@ export class MainThreadTextEditor {
 
 			this._codeEditorListeners.push(this._codeEditor.onDidFocusEditorWidget(() => {
 				this._focusTracker.onGainedFocus();
+				this._updatePropertiesNow(null);
 			}));
 			this._codeEditorListeners.push(this._codeEditor.onDidBlurEditorWidget(() => {
 				this._focusTracker.onLostFocus();
+				this._updatePropertiesNow(null);
 			}));
 
 			this._codeEditorListeners.push(this._codeEditor.onDidChangeCursorSelection((e) => {
@@ -312,7 +335,7 @@ export class MainThreadTextEditor {
 
 		const newSelections = selections.map(Selection.liftSelection);
 		this._setProperties(
-			new MainThreadTextEditorProperties(newSelections, this._properties.options, this._properties.visibleRanges),
+			new MainThreadTextEditorProperties(this._properties.focused, newSelections, this._properties.options, this._properties.visibleRanges),
 			null
 		);
 	}

@@ -319,6 +319,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 	private _visibleRanges: Range[];
 	private _viewColumn: vscode.ViewColumn;
 	private _disposed: boolean = false;
+	private _focused: boolean = false;
 	private _hasDecorationsForKey: { [key: string]: boolean; };
 
 	get id(): string { return this._id; }
@@ -349,6 +350,10 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 
 	@deprecated('TextEditor.hide') hide() {
 		this._proxy.$tryHideEditor(this._id);
+	}
+
+	get focused(): boolean {
+		return this._focused;
 	}
 
 	// ---- the document
@@ -485,6 +490,10 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 	private _trySetSelection(): Promise<vscode.TextEditor> {
 		let selection = this._selections.map(TypeConverters.Selection.from);
 		return this._runOnProxy(() => this._proxy.$trySetSelections(this._id, selection));
+	}
+
+	_setFocused(focused: boolean): void {
+		this._focused = focused;
 	}
 
 	_acceptSelections(selections: Selection[]): void {

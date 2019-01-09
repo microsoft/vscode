@@ -552,6 +552,32 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region Kyle: focused editor and terminal
+
+	export interface TextEditor {
+		readonly focused: boolean;
+	}
+
+	export namespace window {
+		export const onDidChangeTextEditorFocus: Event<TextEditorFocusChangeEvent>;
+	}
+
+	/**
+	 * Represents an event describing the change in a [text editor's options](#TextEditor.options).
+	 */
+	export interface TextEditorFocusChangeEvent {
+		/**
+		 * The [text editor](#TextEditor) for which the focus has changed.
+		 */
+		textEditor: TextEditor;
+		/**
+		 * Whether the [text editor](#TextEditor) is focused.
+		 */
+		focused: boolean;
+	}
+
+	//#endregion
+
 	//#region André: debug
 
 	// deprecated

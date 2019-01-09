@@ -409,6 +409,9 @@ export function createApiFactory(
 			onDidChangeTextEditorViewColumn(listener, thisArg?, disposables?) {
 				return extHostEditors.onDidChangeTextEditorViewColumn(listener, thisArg, disposables);
 			},
+			onDidChangeTextEditorFocus(listener) {
+				return extHostEditors.onDidChangeTextEditorFocus(listener);
+			},
 			onDidCloseTerminal(listener, thisArg?, disposables?) {
 				return extHostTerminalService.onDidCloseTerminal(listener, thisArg, disposables);
 			},

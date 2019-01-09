@@ -677,6 +677,7 @@ export interface IEditorPropertiesChangeData {
 	options: IResolvedTextEditorConfiguration | null;
 	selections: ISelectionChangeEvent | null;
 	visibleRanges: IRange[] | null;
+	focused: boolean | null;
 }
 export interface ISelectionChangeEvent {
 	selections: Selection[];
