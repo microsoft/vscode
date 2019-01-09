@@ -8,10 +8,10 @@ import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export interface IExtensionDescription {
-	readonly identifier: CanonicalExtensionIdentifier;
+	readonly identifier: ExtensionIdentifier;
 	readonly name: string;
 	readonly uuid?: string;
 	readonly displayName?: string;
@@ -35,7 +35,7 @@ export interface IExtensionDescription {
 }
 
 export const nullExtensionDescription = Object.freeze(<IExtensionDescription>{
-	identifier: new CanonicalExtensionIdentifier('nullExtensionDescription'),
+	identifier: new ExtensionIdentifier('nullExtensionDescription'),
 	name: 'Null Extension Description',
 	version: '0.0.0',
 	publisher: 'vscode',
@@ -50,7 +50,7 @@ export const IExtensionService = createDecorator<IExtensionService>('extensionSe
 export interface IMessage {
 	type: Severity;
 	message: string;
-	extensionId: CanonicalExtensionIdentifier;
+	extensionId: ExtensionIdentifier;
 	extensionPointId: string;
 }
 
@@ -155,7 +155,7 @@ export interface IExtensionService extends ICpuProfilerTarget {
 	 * Fired when extensions status changes.
 	 * The event contains the ids of the extensions that have changed.
 	 */
-	onDidChangeExtensionsStatus: Event<CanonicalExtensionIdentifier[]>;
+	onDidChangeExtensionsStatus: Event<ExtensionIdentifier[]>;
 
 	/**
 	 * An event that is fired when activation happens.

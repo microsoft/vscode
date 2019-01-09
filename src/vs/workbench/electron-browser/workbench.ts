@@ -774,13 +774,13 @@ export class Workbench extends Disposable implements IPartService {
 			// Set lifecycle phase to `Restored`
 			this.lifecycleService.phase = LifecyclePhase.Restored;
 
-			// Set lifecycle phase to `Runnning For A Bit` after a short delay
-			let eventuallPhaseTimeoutHandle = runWhenIdle(() => {
-				eventuallPhaseTimeoutHandle = undefined;
-				this.lifecycleService.phase = LifecyclePhase.Eventually;
-			}, 5000);
-
-			this._register(eventuallPhaseTimeoutHandle);
+			// Set lifecycle phase to `Eventually` after a short delay and when
+			// idle (min 2.5sec, max 5sec)
+			setTimeout(() => {
+				this._register(runWhenIdle(() => {
+					this.lifecycleService.phase = LifecyclePhase.Eventually;
+				}, 2500));
+			}, 2500);
 
 			if (error) {
 				errors.onUnexpectedError(error);

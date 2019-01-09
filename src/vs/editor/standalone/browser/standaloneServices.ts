@@ -42,6 +42,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { MenuService } from 'vs/platform/actions/common/menuService';
+import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
+import { MarkerDecorationsService } from 'vs/editor/common/services/markerDecorationsServiceImpl';
 
 export interface IEditorOverrideServices {
 	[index: string]: any;
@@ -133,7 +135,9 @@ export module StaticServices {
 
 	export const modeService = define(IModeService, (o) => new ModeServiceImpl());
 
-	export const modelService = define(IModelService, (o) => new ModelServiceImpl(markerService.get(o), configurationService.get(o), resourcePropertiesService.get(o)));
+	export const modelService = define(IModelService, (o) => new ModelServiceImpl(configurationService.get(o), resourcePropertiesService.get(o)));
+
+	export const markerDecorationsService = define(IMarkerDecorationsService, (o) => new MarkerDecorationsService(modelService.get(o), markerService.get(o)));
 
 	export const editorWorkerService = define(IEditorWorkerService, (o) => new EditorWorkerServiceImpl(modelService.get(o), resourceConfigurationService.get(o)));
 

@@ -43,7 +43,7 @@ import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import * as vscode from 'vscode';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { ResolvedAuthority } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -114,7 +114,7 @@ export interface CommentProviderFeatures {
 export interface MainThreadCommentsShape extends IDisposable {
 	$registerDocumentCommentProvider(handle: number, features: CommentProviderFeatures): void;
 	$unregisterDocumentCommentProvider(handle: number): void;
-	$registerWorkspaceCommentProvider(handle: number, extensionId: CanonicalExtensionIdentifier): void;
+	$registerWorkspaceCommentProvider(handle: number, extensionId: ExtensionIdentifier): void;
 	$unregisterWorkspaceCommentProvider(handle: number): void;
 	$onDidCommentThreadsChange(handle: number, event: modes.CommentThreadChangedEvent): void;
 }
@@ -440,7 +440,7 @@ export interface MainThreadQuickOpenShape extends IDisposable {
 }
 
 export interface MainThreadStatusBarShape extends IDisposable {
-	$setEntry(id: number, extensionId: CanonicalExtensionIdentifier, text: string, tooltip: string, command: string, color: string | ThemeColor, alignment: MainThreadStatusBarAlignment, priority: number): void;
+	$setEntry(id: number, extensionId: ExtensionIdentifier, text: string, tooltip: string, command: string, color: string | ThemeColor, alignment: MainThreadStatusBarAlignment, priority: number): void;
 	$dispose(id: number): void;
 }
 
@@ -461,7 +461,7 @@ export interface WebviewPanelShowOptions {
 }
 
 export interface MainThreadWebviewsShape extends IDisposable {
-	$createWebviewPanel(handle: WebviewPanelHandle, viewType: string, title: string, showOptions: WebviewPanelShowOptions, options: vscode.WebviewPanelOptions & vscode.WebviewOptions, extensionId: CanonicalExtensionIdentifier, extensionLocation: UriComponents): void;
+	$createWebviewPanel(handle: WebviewPanelHandle, viewType: string, title: string, showOptions: WebviewPanelShowOptions, options: vscode.WebviewPanelOptions & vscode.WebviewOptions, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): void;
 	$disposeWebview(handle: WebviewPanelHandle): void;
 	$reveal(handle: WebviewPanelHandle, showOptions: WebviewPanelShowOptions): void;
 	$setTitle(handle: WebviewPanelHandle, value: string): void;
@@ -488,7 +488,7 @@ export interface ExtHostWebviewsShape {
 }
 
 export interface MainThreadUrlsShape extends IDisposable {
-	$registerUriHandler(handle: number, extensionId: CanonicalExtensionIdentifier): Promise<void>;
+	$registerUriHandler(handle: number, extensionId: ExtensionIdentifier): Promise<void>;
 	$unregisterUriHandler(handle: number): Promise<void>;
 }
 
@@ -538,11 +538,11 @@ export interface MainThreadTaskShape extends IDisposable {
 
 export interface MainThreadExtensionServiceShape extends IDisposable {
 	$localShowMessage(severity: Severity, msg: string): void;
-	$onWillActivateExtension(extensionId: CanonicalExtensionIdentifier): void;
-	$onDidActivateExtension(extensionId: CanonicalExtensionIdentifier, startup: boolean, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationEvent: string): void;
-	$onExtensionActivationFailed(extensionId: CanonicalExtensionIdentifier): void;
-	$onExtensionRuntimeError(extensionId: CanonicalExtensionIdentifier, error: SerializedError): void;
-	$addMessage(extensionId: CanonicalExtensionIdentifier, severity: Severity, message: string): void;
+	$onWillActivateExtension(extensionId: ExtensionIdentifier): void;
+	$onDidActivateExtension(extensionId: ExtensionIdentifier, startup: boolean, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationEvent: string): void;
+	$onExtensionActivationFailed(extensionId: ExtensionIdentifier): void;
+	$onExtensionRuntimeError(extensionId: ExtensionIdentifier, error: SerializedError): void;
+	$addMessage(extensionId: ExtensionIdentifier, severity: Severity, message: string): void;
 }
 
 export interface SCMProviderFeatures {
@@ -606,7 +606,7 @@ export interface MainThreadDebugServiceShape extends IDisposable {
 	$acceptDAMessage(handle: number, message: DebugProtocol.ProtocolMessage): void;
 	$acceptDAError(handle: number, name: string, message: string, stack: string): void;
 	$acceptDAExit(handle: number, code: number, signal: string): void;
-	$registerDebugConfigurationProvider(type: string, hasProvideMethod: boolean, hasResolveMethod: boolean, hasProvideDaMethod: boolean, hasProvideTrackerMethod: boolean, handle: number): Promise<void>;
+	$registerDebugConfigurationProvider(type: string, hasProvideMethod: boolean, hasResolveMethod: boolean, hasProvideDaMethod: boolean, handle: number): Promise<void>;
 	$registerDebugAdapterDescriptorFactory(type: string, handle: number): Promise<void>;
 	$registerDebugAdapterTrackerFactory(type: string, handle: number);
 	$unregisterDebugConfigurationProvider(handle: number): void;
@@ -737,8 +737,12 @@ export interface ExtHostSearchShape {
 
 export interface ExtHostExtensionServiceShape {
 	$resolveAuthority(remoteAuthority: string): Promise<ResolvedAuthority>;
-	$startExtensionHost(enabledExtensionIds: CanonicalExtensionIdentifier[]): Promise<void>;
+	$startExtensionHost(enabledExtensionIds: ExtensionIdentifier[]): Promise<void>;
 	$activateByEvent(activationEvent: string): Promise<void>;
+
+	$test_latency(n: number): Promise<number>;
+	$test_up(b: Buffer): Promise<number>;
+	$test_down(size: number): Promise<Buffer>;
 }
 
 export interface FileSystemEvents {

@@ -151,11 +151,10 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	}
 
 
-	public $registerDebugConfigurationProvider(debugType: string, hasProvide: boolean, hasResolve: boolean, hasProvideDebugAdapter: boolean, hasTracker: boolean, handle: number): Promise<void> {
+	public $registerDebugConfigurationProvider(debugType: string, hasProvide: boolean, hasResolve: boolean, hasProvideDebugAdapter: boolean, handle: number): Promise<void> {
 
 		const provider = <IDebugConfigurationProvider>{
-			type: debugType,
-			hasTracker: hasTracker
+			type: debugType
 		};
 		if (hasProvide) {
 			provider.provideDebugConfigurations = (folder) => {

@@ -374,10 +374,6 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		const item = this.items[index];
 		const renderer = this.renderers.get(item.templateId);
 
-		if (!item.row) {
-			return;
-		}
-
 		if (renderer.disposeElement) {
 			renderer.disposeElement(item.element, index, item.row!.templateData);
 		}
@@ -596,6 +592,16 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 						if (this.items[i].row) {
 							this.removeItemFromDOM(i);
 						}
+					}
+				}
+
+				const renderRanges = Range.relativeComplement(renderRange, previousRenderRange);
+
+				for (const range of renderRanges) {
+					for (let i = range.start; i < range.end; i++) {
+						const beforeRow = i < this.items.length ? this.items[i + 1].row : null;
+						const beforeElement = beforeRow ? beforeRow.domNode : null;
+						this.insertItemInDOM(i, beforeElement);
 					}
 				}
 

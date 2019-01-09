@@ -108,8 +108,8 @@ export class MockKeybindingService implements IKeybindingService {
 		return [];
 	}
 
-	public lookupKeybinding(commandId: string): ResolvedKeybinding | null {
-		return null;
+	public lookupKeybinding(commandId: string): ResolvedKeybinding | undefined {
+		return undefined;
 	}
 
 	public customKeybindingsCount(): number {

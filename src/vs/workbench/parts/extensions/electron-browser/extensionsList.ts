@@ -13,7 +13,7 @@ import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
 import { Event } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
-import { IExtension, IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
+import { IExtension, IExtensionsWorkbenchService, ExtensionContainers } from 'vs/workbench/parts/extensions/common/extensions';
 import { InstallAction, UpdateAction, ManageExtensionAction, ReloadAction, extensionButtonProminentBackground, extensionButtonProminentForeground, MaliciousStatusLabelAction, ExtensionActionItem } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { Label, RatingsWidget, InstallCountWidget } from 'vs/workbench/parts/extensions/browser/extensionsWidgets';
@@ -99,31 +99,28 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		});
 		actionbar.onDidRun(({ error }) => error && this.notificationService.error(error));
 
-		const versionWidget = this.instantiationService.createInstance(Label, version, (e: IExtension) => e.version);
-		const installCountWidget = this.instantiationService.createInstance(InstallCountWidget, installCount, { small: true });
-		const ratingsWidget = this.instantiationService.createInstance(RatingsWidget, ratings, { small: true });
+		const widgets = [
+			this.instantiationService.createInstance(Label, version, (e: IExtension) => e.version),
+			this.instantiationService.createInstance(InstallCountWidget, installCount, true),
+			this.instantiationService.createInstance(RatingsWidget, ratings, true)
+		];
+		const actions = [
+			this.instantiationService.createInstance(UpdateAction),
+			this.instantiationService.createInstance(ReloadAction),
+			this.instantiationService.createInstance(InstallAction),
+			this.instantiationService.createInstance(MaliciousStatusLabelAction, false),
+			this.instantiationService.createInstance(ManageExtensionAction)
+		];
+		const extensionContainers: ExtensionContainers = this.instantiationService.createInstance(ExtensionContainers, [...actions, ...widgets]);
 
-		const maliciousStatusAction = this.instantiationService.createInstance(MaliciousStatusLabelAction, false);
-		const installAction = this.instantiationService.createInstance(InstallAction);
-		const updateAction = this.instantiationService.createInstance(UpdateAction);
-		const reloadAction = this.instantiationService.createInstance(ReloadAction);
-		const manageAction = this.instantiationService.createInstance(ManageExtensionAction);
-
-		actionbar.push([updateAction, reloadAction, installAction, maliciousStatusAction, manageAction], actionOptions);
-		const disposables = [versionWidget, installCountWidget, ratingsWidget, maliciousStatusAction, updateAction, installAction, reloadAction, manageAction, actionbar, bookmarkStyler];
+		actionbar.push(actions, actionOptions);
+		const disposables = [...actions, ...widgets, actionbar, bookmarkStyler, extensionContainers];
 
 		return {
 			root, element, icon, name, installCount, ratings, author, description, disposables, actionbar,
 			extensionDisposables: [],
 			set extension(extension: IExtension) {
-				versionWidget.extension = extension;
-				installCountWidget.extension = extension;
-				ratingsWidget.extension = extension;
-				maliciousStatusAction.extension = extension;
-				installAction.extension = extension;
-				updateAction.extension = extension;
-				reloadAction.extension = extension;
-				manageAction.extension = extension;
+				extensionContainers.extension = extension;
 			}
 		};
 	}

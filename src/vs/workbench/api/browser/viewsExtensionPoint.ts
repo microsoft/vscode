@@ -19,7 +19,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { VIEWLET_ID as EXPLORER } from 'vs/workbench/parts/files/common/files';
 import { VIEWLET_ID as SCM } from 'vs/workbench/parts/scm/common/scm';
 import { VIEWLET_ID as DEBUG } from 'vs/workbench/parts/debug/common/debug';
-import { CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 interface IUserFriendlyViewDescriptor {
 	id: string;
@@ -137,7 +137,7 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 							canToggleVisibility: true,
 							collapsed: this.showCollapsed(container),
 							treeView: this.instantiationService.createInstance(CustomTreeView, item.id, container),
-							order: CanonicalExtensionIdentifier.equals(extension.description.identifier, container.extensionId) ? index + 1 : undefined
+							order: ExtensionIdentifier.equals(extension.description.identifier, container.extensionId) ? index + 1 : undefined
 						};
 
 						viewIds.push(viewDescriptor.id);

@@ -1283,11 +1283,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._modelData.view.getOffsetForColumn(lineNumber, column);
 	}
 
-	public render(): void {
+	public render(forceRedraw: boolean = false): void {
 		if (!this._modelData || !this._modelData.hasRealView) {
 			return;
 		}
-		this._modelData.view.render(true, false);
+		this._modelData.view.render(true, forceRedraw);
 	}
 
 	public applyFontInfo(target: HTMLElement): void {

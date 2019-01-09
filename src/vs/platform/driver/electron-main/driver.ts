@@ -71,6 +71,10 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 		this.windowsService.reload(window);
 	}
 
+	async exitApplication(): Promise<void> {
+		return this.windowsService.quit();
+	}
+
 	async dispatchKeybinding(windowId: number, keybinding: string): Promise<void> {
 		await this.whenUnfrozen(windowId);
 

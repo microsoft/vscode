@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workspace, Disposable, EventEmitter, Memento, window, MessageItem, ConfigurationTarget } from 'vscode';
+import { workspace, Disposable, EventEmitter, Memento, window, MessageItem, ConfigurationTarget, Uri } from 'vscode';
 import { Repository, Operation } from './repository';
 import { eventToPromise, filterEvent, onceEvent } from './util';
 import * as nls from 'vscode-nls';
@@ -60,7 +60,7 @@ export class AutoFetcher {
 		}
 
 		if (result === yes) {
-			const gitConfig = workspace.getConfiguration('git');
+			const gitConfig = workspace.getConfiguration('git', Uri.file(this.repository.root));
 			gitConfig.update('autofetch', true, ConfigurationTarget.Global);
 		}
 
@@ -68,7 +68,7 @@ export class AutoFetcher {
 	}
 
 	private onConfiguration(): void {
-		const gitConfig = workspace.getConfiguration('git');
+		const gitConfig = workspace.getConfiguration('git', Uri.file(this.repository.root));
 
 		if (gitConfig.get<boolean>('autofetch') === false) {
 			this.disable();
@@ -110,7 +110,7 @@ export class AutoFetcher {
 				return;
 			}
 
-			const period = workspace.getConfiguration('git').get<number>('autofetchPeriod', 180) * 1000;
+			const period = workspace.getConfiguration('git', Uri.file(this.repository.root)).get<number>('autofetchPeriod', 180) * 1000;
 			const timeout = new Promise(c => setTimeout(c, period));
 			const whenDisabled = eventToPromise(filterEvent(this.onDidChange, enabled => !enabled));
 

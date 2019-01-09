@@ -4042,7 +4042,7 @@ declare namespace monaco.editor {
 		/**
 		 * Force an editor render now.
 		 */
-		render(): void;
+		render(forceRedraw?: boolean): void;
 		/**
 		 * Get the hit test target at coordinates `clientX` and `clientY`.
 		 * The coordinates are relative to the top-left of the viewport.
@@ -4919,6 +4919,7 @@ declare namespace monaco.languages {
 		readonly triggerKind: SignatureHelpTriggerKind;
 		readonly triggerCharacter?: string;
 		readonly isRetrigger: boolean;
+		readonly activeSignatureHelp?: SignatureHelp;
 	}
 
 	/**

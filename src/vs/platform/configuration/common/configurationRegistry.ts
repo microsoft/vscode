@@ -10,7 +10,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import * as types from 'vs/base/common/types';
 import * as strings from 'vs/base/common/strings';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export const Extensions = {
 	Configuration: 'base.contributions.configuration'
@@ -94,7 +94,7 @@ export interface IConfigurationNode {
 }
 
 export interface IDefaultConfigurationExtension {
-	id: CanonicalExtensionIdentifier;
+	id: ExtensionIdentifier;
 	name: string;
 	defaults: { [key: string]: {} };
 }

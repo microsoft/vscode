@@ -23,7 +23,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { IExtensionManifest, IKeyBinding, IView, IExtensionTipsService, LocalExtensionType, IViewContainer } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ResolvedKeybinding, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
-import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, IExtension, IExtensionDependencies } from 'vs/workbench/parts/extensions/common/extensions';
+import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, IExtension, IExtensionDependencies, ExtensionContainers } from 'vs/workbench/parts/extensions/common/extensions';
 import { RatingsWidget, InstallCountWidget } from 'vs/workbench/parts/extensions/browser/extensionsWidgets';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -348,29 +348,26 @@ export class ExtensionEditor extends BaseEditor {
 					this.repository.style.display = 'none';
 				}
 
-				const install = this.instantiationService.createInstance(InstallCountWidget, this.installCount, { extension });
-				this.transientDisposables.push(install);
-
-				const ratings = this.instantiationService.createInstance(RatingsWidget, this.rating, { extension });
-				this.transientDisposables.push(ratings);
-
-				const maliciousStatusAction = this.instantiationService.createInstance(MaliciousStatusLabelAction, true);
-				const disabledStatusAction = this.instantiationService.createInstance(DisabledStatusLabelAction, runningExtensions);
-				const installAction = this.instantiationService.createInstance(CombinedInstallAction);
-				const updateAction = this.instantiationService.createInstance(UpdateAction);
-				const enableAction = this.instantiationService.createInstance(EnableDropDownAction, extension, runningExtensions);
-				const disableAction = this.instantiationService.createInstance(DisableDropDownAction, extension, runningExtensions);
+				const widgets = [
+					this.instantiationService.createInstance(InstallCountWidget, this.installCount, false),
+					this.instantiationService.createInstance(RatingsWidget, this.rating, false)
+				];
 				const reloadAction = this.instantiationService.createInstance(ReloadAction);
-
-				installAction.extension = extension;
-				maliciousStatusAction.extension = extension;
-				disabledStatusAction.extension = extension;
-				updateAction.extension = extension;
-				reloadAction.extension = extension;
+				const actions = [
+					reloadAction,
+					this.instantiationService.createInstance(UpdateAction),
+					this.instantiationService.createInstance(EnableDropDownAction, runningExtensions),
+					this.instantiationService.createInstance(DisableDropDownAction, runningExtensions),
+					this.instantiationService.createInstance(CombinedInstallAction),
+					this.instantiationService.createInstance(MaliciousStatusLabelAction, true),
+					this.instantiationService.createInstance(DisabledStatusLabelAction, runningExtensions)
+				];
+				const extensionContainers: ExtensionContainers = this.instantiationService.createInstance(ExtensionContainers, [...actions, ...widgets]);
+				extensionContainers.extension = extension;
 
 				this.extensionActionBar.clear();
-				this.extensionActionBar.push([reloadAction, updateAction, enableAction, disableAction, installAction, maliciousStatusAction, disabledStatusAction], { icon: true, label: true });
-				this.transientDisposables.push(enableAction, updateAction, reloadAction, disableAction, installAction, maliciousStatusAction, disabledStatusAction);
+				this.extensionActionBar.push(actions, { icon: true, label: true });
+				this.transientDisposables.push(...[...actions, extensionContainers]);
 
 				this.setSubText(extension, reloadAction);
 				this.content.innerHTML = ''; // Clear content before setting navbar actions.

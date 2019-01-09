@@ -12,7 +12,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { URI } from 'vs/base/common/uri';
 import { ExecutableDebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 import { TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTestServices';
-import { CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 
 suite('Debug - Debugger', () => {
@@ -50,7 +50,7 @@ suite('Debug - Debugger', () => {
 
 	const extensionDescriptor0 = {
 		id: 'adapter',
-		identifier: new CanonicalExtensionIdentifier('adapter'),
+		identifier: new ExtensionIdentifier('adapter'),
 		name: 'myAdapter',
 		version: '1.0.0',
 		publisher: 'vscode',
@@ -67,7 +67,7 @@ suite('Debug - Debugger', () => {
 
 	const extensionDescriptor1 = {
 		id: 'extension1',
-		identifier: new CanonicalExtensionIdentifier('extension1'),
+		identifier: new ExtensionIdentifier('extension1'),
 		name: 'extension1',
 		version: '1.0.0',
 		publisher: 'vscode',
@@ -90,7 +90,7 @@ suite('Debug - Debugger', () => {
 
 	const extensionDescriptor2 = {
 		id: 'extension2',
-		identifier: new CanonicalExtensionIdentifier('extension2'),
+		identifier: new ExtensionIdentifier('extension2'),
 		name: 'extension2',
 		version: '1.0.0',
 		publisher: 'vscode',

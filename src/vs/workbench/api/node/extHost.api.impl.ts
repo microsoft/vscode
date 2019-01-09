@@ -63,7 +63,7 @@ import { IExtensionDescription, throwProposedApiError, checkProposedApiEnabled, 
 import { ProxyIdentifier } from 'vs/workbench/services/extensions/node/proxyIdentifier';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
 import * as vscode from 'vscode';
-import { CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription, registry: ExtensionDescriptionRegistry): typeof vscode;
@@ -838,7 +838,7 @@ export function originalFSPath(uri: URI): string {
 class Extension<T> implements vscode.Extension<T> {
 
 	private _extensionService: ExtHostExtensionService;
-	private _identifier: CanonicalExtensionIdentifier;
+	private _identifier: ExtensionIdentifier;
 
 	public id: string;
 	public extensionPath: string;
@@ -885,10 +885,10 @@ function defineAPI(factory: IExtensionApiFactory, extensionPaths: TernarySearchT
 		// get extension id from filename and api for extension
 		const ext = extensionPaths.findSubstr(URI.file(parent.filename).fsPath);
 		if (ext) {
-			let apiImpl = extApiImpl.get(CanonicalExtensionIdentifier.toKey(ext.identifier));
+			let apiImpl = extApiImpl.get(ExtensionIdentifier.toKey(ext.identifier));
 			if (!apiImpl) {
 				apiImpl = factory(ext, extensionRegistry);
-				extApiImpl.set(CanonicalExtensionIdentifier.toKey(ext.identifier), apiImpl);
+				extApiImpl.set(ExtensionIdentifier.toKey(ext.identifier), apiImpl);
 			}
 			return apiImpl;
 		}

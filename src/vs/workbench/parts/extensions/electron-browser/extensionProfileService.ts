@@ -20,7 +20,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { randomPort } from 'vs/base/node/ports';
 import product from 'vs/platform/node/product';
 import { RuntimeExtensionsInput } from 'vs/workbench/services/extensions/electron-browser/runtimeExtensionsInput';
-import { CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export class ExtensionHostProfileService extends Disposable implements IExtensionHostProfileService {
 
@@ -122,12 +122,12 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 		this._onDidChangeLastProfile.fire(undefined);
 	}
 
-	getUnresponsiveProfile(extensionId: CanonicalExtensionIdentifier): IExtensionHostProfile | undefined {
-		return this._unresponsiveProfiles.get(CanonicalExtensionIdentifier.toKey(extensionId));
+	getUnresponsiveProfile(extensionId: ExtensionIdentifier): IExtensionHostProfile | undefined {
+		return this._unresponsiveProfiles.get(ExtensionIdentifier.toKey(extensionId));
 	}
 
-	setUnresponsiveProfile(extensionId: CanonicalExtensionIdentifier, profile: IExtensionHostProfile): void {
-		this._unresponsiveProfiles.set(CanonicalExtensionIdentifier.toKey(extensionId), profile);
+	setUnresponsiveProfile(extensionId: ExtensionIdentifier, profile: IExtensionHostProfile): void {
+		this._unresponsiveProfiles.set(ExtensionIdentifier.toKey(extensionId), profile);
 		this._setLastProfile(profile);
 	}
 
