@@ -8,6 +8,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { ExtHostContext, MainThreadCommandsShape, ExtHostCommandsShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { revive } from 'vs/base/common/marshalling';
+import { CommandService } from 'vs/workbench/services/commands/common/commandService';
 
 @extHostNamedCustomer(MainContext.MainThreadCommands)
 export class MainThreadCommands implements MainThreadCommandsShape {
@@ -22,8 +23,11 @@ export class MainThreadCommands implements MainThreadCommandsShape {
 		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostCommands);
-		this._toDispose.push(this._commandService.onDidExecuteCommand((e) => this._proxy.$onDidExecuteCommand(e.commandId)));
 		this._generateCommandsDocumentationRegistration = CommandsRegistry.registerCommand('_generateCommandsDocumentation', () => this._generateCommandsDocumentation());
+
+		if (_commandService instanceof CommandService) {
+			this._toDispose.push(this._commandService.onDidExecuteCommand((e) => this._proxy.$onDidExecuteCommand(e.commandId)));
+		}
 	}
 
 	dispose() {
