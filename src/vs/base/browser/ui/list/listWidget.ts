@@ -1049,13 +1049,12 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		renderers = renderers.map(r => new PipelineRenderer(r.templateId, [...baseRenderers, r]));
 
-		const that = this;
 		const viewOptions: IListViewOptions<T> = {
 			...options,
 			dnd: options.dnd && {
 				...options.dnd,
-				getDragElements(element) {
-					const selection = that.getSelectedElements();
+				getDragElements: element => {
+					const selection = this.getSelectedElements();
 					const elements = selection.indexOf(element) > -1 ? selection : [element];
 					return elements;
 				}
