@@ -32,7 +32,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { IView } from 'vs/base/browser/ui/grid/gridview';
+import { ISerializableView } from 'vs/base/browser/ui/grid/grid';
 
 export const ActivePanelContext = new RawContextKey<string>('activePanel', '');
 export const PanelFocusContext = new RawContextKey<boolean>('panelFocus', false);
@@ -44,7 +44,7 @@ interface ICachedPanel {
 	visible: boolean;
 }
 
-export class PanelPart extends CompositePart<Panel> implements IPanelService, IView {
+export class PanelPart extends CompositePart<Panel> implements IPanelService, ISerializableView {
 
 	static readonly activePanelSettingsKey = 'workbench.panelpart.activepanelid';
 
@@ -431,6 +431,12 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService, IV
 
 	private setStoredCachedViewletsValue(value: string): void {
 		this.storageService.store(PanelPart.PINNED_PANELS, value, StorageScope.GLOBAL);
+	}
+
+	toJSON(): object {
+		return {
+			type: Parts.PANEL_PART
+		};
 	}
 }
 

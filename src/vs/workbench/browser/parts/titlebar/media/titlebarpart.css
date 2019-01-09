@@ -42,8 +42,8 @@
 
 /* Windows/Linux: Rules for custom title (icon, window controls)  */
 
-.windows .monaco-workbench > .part.titlebar,
-.linux .monaco-workbench > .part.titlebar {
+.windows .monaco-workbench .part.titlebar,
+.linux .monaco-workbench .part.titlebar {
 	padding: 0;
 	height: 30px;
 	line-height: 30px;

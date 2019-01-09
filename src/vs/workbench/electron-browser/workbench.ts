@@ -112,7 +112,7 @@ import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/work
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { FileDialogService } from 'vs/workbench/services/dialogs/electron-browser/dialogService';
 import { LogStorageAction } from 'vs/platform/storage/node/storageService';
-import { Grid, Sizing, Direction } from 'vs/base/browser/ui/grid/grid';
+import { Sizing, Direction, SerializableGrid, ISerializedGrid } from 'vs/base/browser/ui/grid/grid';
 import { IEditor } from 'vs/editor/common/editorCommon';
 
 interface WorkbenchParams {
@@ -172,6 +172,7 @@ interface IZenMode {
 
 export class Workbench extends Disposable implements IPartService {
 
+	private static readonly workbenchGridUIStateStorageKey = 'workbench.grid.state';
 	private static readonly sidebarHiddenStorageKey = 'workbench.sidebar.hidden';
 	private static readonly menubarVisibilityConfigurationKey = 'window.menuBarVisibility';
 	private static readonly panelHiddenStorageKey = 'workbench.panel.hidden';
@@ -202,7 +203,7 @@ export class Workbench extends Disposable implements IPartService {
 	private fileService: IFileService;
 	private quickInput: QuickInputService;
 
-	private workbenchGrid: Grid<WorkbenchView>;
+	private workbenchGrid: SerializableGrid<WorkbenchView>;
 
 	private titlebarPart: TitlebarPart;
 	private activitybarPart: ActivitybarPart;
@@ -1007,28 +1008,49 @@ export class Workbench extends Disposable implements IPartService {
 	}
 
 	private createWorkbenchLayout(): void {
-		this.workbenchGrid = new Grid(this.editorPart);
+		const serializedWorkbenchGridString = this.storageService.get(Workbench.workbenchGridUIStateStorageKey, StorageScope.GLOBAL, undefined);
 
-		const sidebarDirection = this.sideBarPosition === Position.RIGHT ? Direction.Right : Direction.Left;
+		if (serializedWorkbenchGridString) {
+			console.log(serializedWorkbenchGridString);
+			const serializedWorkbenchGrid = JSON.parse(serializedWorkbenchGridString) as ISerializedGrid;
+			this.workbenchGrid = SerializableGrid.deserialize(serializedWorkbenchGrid, {
+				fromJSON: (serializedView: { type: Parts }): WorkbenchView => {
+					switch (serializedView.type) {
+						case Parts.ACTIVITYBAR_PART: return this.activitybarPart;
+						case Parts.EDITOR_PART: return this.editorPart;
+						case Parts.PANEL_PART: return this.panelPart;
+						case Parts.SIDEBAR_PART: return this.sidebarPart;
+						case Parts.STATUSBAR_PART: return this.statusbarPart;
+						case Parts.TITLEBAR_PART: return this.titlebarPart;
+					}
 
-		if (!this.statusBarHidden) {
-			this.workbenchGrid.addView(this.statusbarPart, Sizing.Split, this.editorPart, Direction.Down);
-		}
+					return null;
+				}
+			});
+		} else {
+			this.workbenchGrid = new SerializableGrid(this.editorPart);
 
-		if (this.useCustomTitleBarStyle) {
-			this.workbenchGrid.addView(this.titlebarPart, Sizing.Split, this.editorPart, Direction.Up);
-		}
+			const sidebarDirection = this.sideBarPosition === Position.RIGHT ? Direction.Right : Direction.Left;
 
-		if (!this.activityBarHidden) {
-			this.workbenchGrid.addView(this.activitybarPart, Sizing.Split, this.editorPart, sidebarDirection);
-		}
+			if (!this.statusBarHidden) {
+				this.workbenchGrid.addView(this.statusbarPart, Sizing.Split, this.editorPart, Direction.Down);
+			}
 
-		if (!this.sideBarHidden) {
-			this.workbenchGrid.addView(this.sidebarPart, Sizing.Split, this.editorPart, sidebarDirection);
-		}
+			if (this.useCustomTitleBarStyle) {
+				this.workbenchGrid.addView(this.titlebarPart, Sizing.Split, this.editorPart, Direction.Up);
+			}
 
-		if (!this.panelHidden) {
-			this.workbenchGrid.addView(this.panelPart, Sizing.Split, this.editorPart, this.panelPosition === Position.BOTTOM ? Direction.Down : Direction.Right);
+			if (!this.activityBarHidden) {
+				this.workbenchGrid.addView(this.activitybarPart, Sizing.Split, this.editorPart, sidebarDirection);
+			}
+
+			if (!this.sideBarHidden) {
+				this.workbenchGrid.addView(this.sidebarPart, Sizing.Split, this.editorPart, sidebarDirection);
+			}
+
+			if (!this.panelHidden) {
+				this.workbenchGrid.addView(this.panelPart, Sizing.Split, this.editorPart, this.panelPosition === Position.BOTTOM ? Direction.Down : Direction.Right);
+			}
 		}
 
 		this.workbench.appendChild(this.workbenchGrid.element);
@@ -1190,6 +1212,10 @@ export class Workbench extends Disposable implements IPartService {
 				// We will not restore zen mode, need to clear all zen mode state changes
 				this.toggleZenMode(true);
 			}
+		}
+
+		if (this.workbenchGrid) {
+			this.storageService.store(Workbench.workbenchGridUIStateStorageKey, JSON.stringify(this.workbenchGrid.serialize()), StorageScope.GLOBAL);
 		}
 	}
 
@@ -1563,7 +1589,11 @@ export class Workbench extends Disposable implements IPartService {
 	}
 
 	isPanelMaximized(): boolean {
-		return this.workbenchGrid.getViewSize2(this.panelPart).height === this.panelPart.maximumHeight;
+		try {
+			return this.workbenchGrid.getViewSize2(this.panelPart).height === this.panelPart.maximumHeight;
+		} catch (e) {
+			return false;
+		}
 	}
 
 	getSideBarPosition(): Position {

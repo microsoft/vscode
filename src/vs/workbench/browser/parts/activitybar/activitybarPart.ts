@@ -28,11 +28,11 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ToggleCompositePinnedAction, ICompositeBarColors } from 'vs/workbench/browser/parts/compositeBarActions';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
-import { IView } from 'vs/base/browser/ui/grid/gridview';
 import { IViewsService, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainer, TEST_VIEW_CONTAINER_ID, IViewDescriptorCollection } from 'vs/workbench/common/views';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { isUndefinedOrNull } from 'vs/base/common/types';
+import { ISerializableView } from 'vs/base/browser/ui/grid/grid';
 
 const SCM_VIEWLET_ID = 'workbench.view.scm';
 
@@ -45,7 +45,7 @@ interface ICachedViewlet {
 	views?: { when: string }[];
 }
 
-export class ActivitybarPart extends Part implements IView {
+export class ActivitybarPart extends Part implements ISerializableView {
 
 	private static readonly ACTION_HEIGHT = 50;
 	private static readonly PINNED_VIEWLETS = 'workbench.activity.pinnedViewlets';
@@ -476,5 +476,11 @@ export class ActivitybarPart extends Part implements IView {
 		}
 		const viewContainerRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
 		return viewContainerRegistry.get(viewletId);
+	}
+
+	toJSON(): object {
+		return {
+			type: Parts.ACTIVITYBAR_PART
+		};
 	}
 }

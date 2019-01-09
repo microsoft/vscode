@@ -27,12 +27,12 @@ import { Color } from 'vs/base/common/color';
 import { addClass, EventHelper, createStyleSheet, addDisposableListener, Dimension } from 'vs/base/browser/dom';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IView } from 'vs/base/browser/ui/grid/gridview';
 import { Emitter } from 'vs/base/common/event';
+import { ISerializableView } from 'vs/base/browser/ui/grid/grid';
+import { Parts } from 'vs/workbench/services/part/common/partService';
 
 
-export class StatusbarPart extends Part implements IStatusbarService, IView {
-
+export class StatusbarPart extends Part implements IStatusbarService, ISerializableView {
 	_serviceBrand: any;
 
 	private static readonly PRIORITY_PROP = 'statusbar-entry-priority';
@@ -235,6 +235,12 @@ export class StatusbarPart extends Part implements IStatusbarService, IView {
 
 	layout(width: number, height: number): void {
 		this.partLayout.layout(new Dimension(width, height));
+	}
+
+	toJSON(): object {
+		return {
+			type: Parts.STATUSBAR_PART
+		};
 	}
 }
 

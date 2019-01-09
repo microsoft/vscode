@@ -32,9 +32,10 @@ import { template, getBaseLabel } from 'vs/base/common/labels';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IView } from 'vs/base/browser/ui/grid/gridview';
+import { ISerializableView } from 'vs/base/browser/ui/grid/grid';
+import { Parts } from 'vs/workbench/services/part/common/partService';
 
-export class TitlebarPart extends Part implements ITitleService, IView {
+export class TitlebarPart extends Part implements ITitleService, ISerializableView {
 
 	_serviceBrand: any;
 
@@ -565,6 +566,12 @@ export class TitlebarPart extends Part implements ITitleService, IView {
 		this.updateLayout(dimensions);
 
 		this.partLayout.layout(dimensions);
+	}
+
+	toJSON(): object {
+		return {
+			type: Parts.TITLEBAR_PART
+		};
 	}
 }
 

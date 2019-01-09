@@ -11,7 +11,7 @@ import { Event, Emitter, Relay } from 'vs/base/common/event';
 import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { GroupDirection, IAddGroupOptions, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, ICopyEditorOptions, GroupsOrder, GroupChangeKind, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Direction, SerializableGrid, Sizing, ISerializedGrid, Orientation, GridBranchNode, isGridBranchNode, GridNode, createSerializedGrid, Grid } from 'vs/base/browser/ui/grid/grid';
+import { Direction, SerializableGrid, Sizing, ISerializedGrid, Orientation, GridBranchNode, isGridBranchNode, GridNode, createSerializedGrid, Grid, ISerializableView } from 'vs/base/browser/ui/grid/grid';
 import { GroupIdentifier, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { values } from 'vs/base/common/map';
 import { EDITOR_GROUP_BORDER, EDITOR_PANE_BACKGROUND } from 'vs/workbench/common/theme';
@@ -30,6 +30,7 @@ import { Color } from 'vs/base/common/color';
 import { CenteredViewLayout } from 'vs/base/browser/ui/centered/centeredViewLayout';
 import { IView, orthogonal } from 'vs/base/browser/ui/grid/gridview';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { Parts } from 'vs/workbench/services/part/common/partService';
 
 interface IEditorPartUIState {
 	serializedGrid: ISerializedGrid;
@@ -79,7 +80,7 @@ class GridWidgetView<T extends IView> implements IView {
 	}
 }
 
-export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditorGroupsAccessor, IView {
+export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditorGroupsAccessor, ISerializableView {
 
 	_serviceBrand: any;
 
@@ -1011,4 +1012,10 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	}
 
 	//#endregion
+
+	toJSON(): object {
+		return {
+			type: Parts.EDITOR_PART
+		};
+	}
 }

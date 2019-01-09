@@ -30,12 +30,12 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IView } from 'vs/base/browser/ui/grid/gridview';
+import { ISerializableView } from 'vs/base/browser/ui/grid/grid';
 
 export const SidebarFocusContext = new RawContextKey<boolean>('sideBarFocus', false);
 export const ActiveViewletContext = new RawContextKey<string>('activeViewlet', '');
 
-export class SidebarPart extends CompositePart<Viewlet> implements IView, IViewletService {
+export class SidebarPart extends CompositePart<Viewlet> implements ISerializableView, IViewletService {
 	_serviceBrand: any;
 
 	static readonly activeViewletSettingsKey = 'workbench.sidebar.activeviewletid';
@@ -255,6 +255,12 @@ export class SidebarPart extends CompositePart<Viewlet> implements IView, IViewl
 				});
 			}
 		}
+	}
+
+	toJSON(): object {
+		return {
+			type: Parts.SIDEBAR_PART
+		};
 	}
 }
 
