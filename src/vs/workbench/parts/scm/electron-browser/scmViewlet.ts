@@ -878,19 +878,9 @@ export class RepositoryPanel extends ViewletPanel {
 			new ResourceRenderer(this.listLabels, actionItemProvider, () => this.getSelectedResources(), this.themeService, this.menus)
 		];
 
-		const that = this;
 		this.list = this.instantiationService.createInstance(WorkbenchList, this.listContainer, delegate, renderers, {
 			identityProvider: scmResourceIdentityProvider,
-			keyboardNavigationLabelProvider: scmKeyboardNavigationLabelProvider,
-			dnd: {
-				getDragURI(element) { return 'file:///foo'; },
-				// getDragLabel(elements) { return 'dragging'; },
-				onDragStart(data, originalEvent) { },
-				onDragOver(data, targetElement, targetIndex, originalEvent) {
-					return { accept: true, feedback: typeof targetIndex === 'undefined' ? undefined : [targetIndex - 1, targetIndex, targetIndex + 1].filter(i => i >= 0 && i < that.list.length) };
-				},
-				drop(data, targetElement, originalEvent) { }
-			}
+			keyboardNavigationLabelProvider: scmKeyboardNavigationLabelProvider
 		}) as WorkbenchList<ISCMResourceGroup | ISCMResource>;
 
 		Event.chain(this.list.onDidOpen)

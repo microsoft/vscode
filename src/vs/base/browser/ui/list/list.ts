@@ -7,6 +7,7 @@ import { GestureEvent } from 'vs/base/browser/touch';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDragAndDropData } from 'vs/base/browser/dnd';
 
 export interface IListVirtualDelegate<T> {
 	getHeight(element: T): number;
@@ -95,17 +96,12 @@ export const DragOverReactions = {
 	// acceptCopyBubbleDown(autoExpand = false): IDragOverReaction { return { accept: true, bubble: DragOverBubble.Down, effect: DragOverEffect.Copy, autoExpand }; }
 };
 
-export interface IDragAndDropData {
-	update(dataTransfer: DataTransfer): void;
-	getData(): any;
-}
-
 export interface IDragAndDrop<T> {
 	getDragURI(element: T): string | null;
 	getDragLabel?(elements: T[]): string;
 	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void;
 	onDragOver(data: IDragAndDropData, targetElement: T | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean | IDragOverReaction;
-	drop(data: IDragAndDropData, targetElement: T | undefined, originalEvent: DragEvent): void;
+	drop(data: IDragAndDropData, targetElement: T | undefined, targetIndex: number | undefined, originalEvent: DragEvent): void;
 }
 
 /**

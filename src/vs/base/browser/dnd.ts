@@ -84,3 +84,16 @@ export function applyDragImage(event: DragEvent, label: string, clazz: string): 
 		setTimeout(() => document.body.removeChild(dragImage), 0);
 	}
 }
+
+export interface IDragAndDropData {
+	update(dataTransfer: DataTransfer): void;
+	getData(): any;
+}
+
+export interface IStaticDND {
+	CurrentDragAndDropData: IDragAndDropData | undefined;
+}
+
+export const StaticDND: IStaticDND = {
+	CurrentDragAndDropData: undefined
+};

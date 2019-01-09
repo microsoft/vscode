@@ -21,7 +21,7 @@ import { HeightMap, IViewItem } from 'vs/base/parts/tree/browser/treeViewModel';
 import * as _ from 'vs/base/parts/tree/browser/tree';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Event, Emitter } from 'vs/base/common/event';
-import { DataTransfers } from 'vs/base/browser/dnd';
+import { DataTransfers, StaticDND, IDragAndDropData } from 'vs/base/browser/dnd';
 import { DefaultTreestyler } from './treeDefaults';
 import { Delayer, timeout } from 'vs/base/common/async';
 
@@ -410,8 +410,6 @@ export class TreeView extends HeightMap {
 	private static counter: number = 0;
 	private instance: number;
 
-	private static currentExternalDragAndDropData: _.IDragAndDropData = null;
-
 	private context: IViewContext;
 	private modelListeners: Lifecycle.IDisposable[];
 	private model: Model.TreeModel;
@@ -438,7 +436,7 @@ export class TreeView extends HeightMap {
 
 	private isRefreshing = false;
 	private refreshingPreviousChildrenIds: { [id: string]: string[] } = {};
-	private currentDragAndDropData: _.IDragAndDropData;
+	private currentDragAndDropData: IDragAndDropData;
 	private currentDropElement: any;
 	private currentDropElementReaction: _.IDragOverReaction;
 	private currentDropTarget: ViewItem;
@@ -1399,7 +1397,7 @@ export class TreeView extends HeightMap {
 		}
 
 		this.currentDragAndDropData = new dnd.ElementsDragAndDropData(elements);
-		TreeView.currentExternalDragAndDropData = new dnd.ExternalElementsDragAndDropData(elements);
+		StaticDND.CurrentDragAndDropData = new dnd.ExternalElementsDragAndDropData(elements);
 
 		this.context.dnd.onDragStart(this.context.tree, this.currentDragAndDropData, new Mouse.DragMouseEvent(e));
 	}
@@ -1482,8 +1480,8 @@ export class TreeView extends HeightMap {
 		if (!this.currentDragAndDropData) {
 			// just started dragging
 
-			if (TreeView.currentExternalDragAndDropData) {
-				this.currentDragAndDropData = TreeView.currentExternalDragAndDropData;
+			if (StaticDND.CurrentDragAndDropData) {
+				this.currentDragAndDropData = StaticDND.CurrentDragAndDropData;
 			} else {
 				if (!event.dataTransfer.types) {
 					return false;
@@ -1493,7 +1491,7 @@ export class TreeView extends HeightMap {
 			}
 		}
 
-		this.currentDragAndDropData.update(event);
+		this.currentDragAndDropData.update((event.browserEvent as DragEvent).dataTransfer);
 
 		let element: any;
 		let item: Model.Item = viewItem.model;
@@ -1581,7 +1579,7 @@ export class TreeView extends HeightMap {
 		if (this.currentDropElement) {
 			let event = new Mouse.DragMouseEvent(e);
 			event.preventDefault();
-			this.currentDragAndDropData.update(event);
+			this.currentDragAndDropData.update((event.browserEvent as DragEvent).dataTransfer);
 			this.context.dnd.drop(this.context.tree, this.currentDragAndDropData, this.currentDropElement, event);
 			this.onDragEnd(e);
 		}
@@ -1598,7 +1596,7 @@ export class TreeView extends HeightMap {
 
 		this.cancelDragAndDropScrollInterval();
 		this.currentDragAndDropData = null;
-		TreeView.currentExternalDragAndDropData = null;
+		StaticDND.CurrentDragAndDropData = undefined;
 		this.currentDropElement = null;
 		this.currentDropTarget = null;
 		this.dragAndDropMouseY = null;

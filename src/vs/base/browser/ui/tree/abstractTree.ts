@@ -35,8 +35,8 @@ function asListOptions<T, TFilterData>(options?: IAbstractTreeOptions<T, TFilter
 			onDragOver(data, targetNode, targetIndex, originalEvent) {
 				return options.dnd!.onDragOver(data, targetNode && targetNode.element, targetIndex, originalEvent);
 			},
-			drop(data, targetNode, originalEvent) {
-				return options.dnd!.drop(data, targetNode && targetNode.element, originalEvent);
+			drop(data, targetNode, targetIndex, originalEvent) {
+				return options.dnd!.drop(data, targetNode && targetNode.element, targetIndex, originalEvent);
 			}
 		},
 		multipleSelectionController: options.multipleSelectionController && {

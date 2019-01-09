@@ -12,7 +12,7 @@ import { domEvent } from 'vs/base/browser/event';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollEvent, ScrollbarVisibility, INewScrollDimensions } from 'vs/base/common/scrollable';
 import { RangeMap, shift } from './rangeMap';
-import { IListVirtualDelegate, IListRenderer, IListMouseEvent, IListTouchEvent, IListGestureEvent, IListDragEvent, IDragAndDrop, IDragAndDropData } from './list';
+import { IListVirtualDelegate, IListRenderer, IListMouseEvent, IListTouchEvent, IListGestureEvent, IListDragEvent, IDragAndDrop, DragOverEffect } from './list';
 import { RowCache, IRow } from './rowCache';
 import { isWindows } from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
@@ -20,7 +20,7 @@ import { ISpliceable } from 'vs/base/common/sequence';
 import { memoize } from 'vs/base/common/decorators';
 import { Range, IRange } from 'vs/base/common/range';
 import { equals, distinct } from 'vs/base/common/arrays';
-import { DataTransfers } from 'vs/base/browser/dnd';
+import { DataTransfers, StaticDND, IDragAndDropData } from 'vs/base/browser/dnd';
 
 function canUseTranslate3d(): boolean {
 	if (browser.isFirefox) {
@@ -153,8 +153,6 @@ function equalsDragFeedback(f1: number[] | undefined, f2: number[] | undefined):
 }
 
 export class ListView<T> implements ISpliceable<T>, IDisposable {
-
-	private static currentExternalDragAndDropData: IDragAndDropData | undefined;
 
 	readonly domNode: HTMLElement;
 
@@ -629,14 +627,12 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		}
 
 		this.currentDragData = new ElementsDragAndDropData(elements);
-		ListView.currentExternalDragAndDropData = new ExternalElementsDragAndDropData(elements);
+		StaticDND.CurrentDragAndDropData = new ExternalElementsDragAndDropData(elements);
 
 		this.dnd.onDragStart(this.currentDragData, event);
 	}
 
 	private onDragOver(event: IListDragEvent<T>): boolean {
-		console.log('DRAG OVER');
-
 		this.onDragLeaveTimeout.dispose();
 		this.setupDragAndDropScrollTopAnimation(event.browserEvent);
 
@@ -646,9 +642,9 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		// Drag over from outside
 		if (!this.currentDragData) {
-			if (ListView.currentExternalDragAndDropData) {
+			if (StaticDND.CurrentDragAndDropData) {
 				// Drag over from another list
-				this.currentDragData = ListView.currentExternalDragAndDropData;
+				this.currentDragData = StaticDND.CurrentDragAndDropData;
 
 			} else {
 				// Drag over from the desktop
@@ -662,11 +658,12 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		const result = this.dnd.onDragOver(this.currentDragData, event.element, event.index, event.browserEvent);
 		const canDrop = typeof result === 'boolean' ? result : result.accept;
-		// const reaction = (typeof result !== 'boolean' && result.effect === DragOverEffect.Copy) ? 'copy' : 'move';
 
 		if (!canDrop) {
 			return false;
 		}
+
+		event.browserEvent.dataTransfer.dropEffect = (typeof result !== 'boolean' && result.effect === DragOverEffect.Copy) ? 'copy' : 'move';
 
 		let feedback: number[];
 
@@ -691,8 +688,6 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		if (equalsDragFeedback(this.currentDragFeedback, feedback)) {
 			return true;
 		}
-
-		console.log(this.currentDragFeedback, feedback);
 
 		this.currentDragFeedback = feedback;
 		this.currentDragFeedbackDisposable.dispose();
@@ -725,21 +720,31 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		return true;
 	}
 
-	private onDragLeave(event: DragEvent): void {
-		console.log('LEAVE');
+	private onDragLeave(): void {
 		this.onDragLeaveTimeout = DOM.timeout(() => this.clearDragOverFeedback(), 100);
 	}
 
-	private onDrop(e: IListDragEvent<T>): void {
-		console.log('DROP');
+	private onDrop(event: IListDragEvent<T>): void {
+		const dragData = this.currentDragData;
 		this.teardownDragAndDropScrollTopAnimation();
 		this.clearDragOverFeedback();
+		this.currentDragData = undefined;
+		StaticDND.CurrentDragAndDropData = undefined;
+
+		if (!dragData || !event.browserEvent.dataTransfer) {
+			return;
+		}
+
+		event.browserEvent.preventDefault();
+		dragData.update(event.browserEvent.dataTransfer);
+		this.dnd.drop(dragData, event.element, event.index, event.browserEvent);
 	}
 
 	private onDragEnd(): void {
-		console.log('DRAG END');
 		this.teardownDragAndDropScrollTopAnimation();
 		this.clearDragOverFeedback();
+		this.currentDragData = undefined;
+		StaticDND.CurrentDragAndDropData = undefined;
 	}
 
 	private clearDragOverFeedback(): void {

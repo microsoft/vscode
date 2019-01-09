@@ -13,6 +13,7 @@ import * as mouse from 'vs/base/browser/mouseEvent';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import * as _ from 'vs/base/parts/tree/browser/tree';
 import { KeyCode, KeyMod, Keybinding, createKeybinding, SimpleKeybinding, createSimpleKeybinding } from 'vs/base/common/keyCodes';
+import { IDragAndDropData } from 'vs/base/browser/dnd';
 
 export interface IKeyBindingCallback {
 	(tree: _.ITree, event: IKeyboardEvent): void;
@@ -434,15 +435,15 @@ export class DefaultDragAndDrop implements _.IDragAndDrop {
 		return null;
 	}
 
-	public onDragStart(tree: _.ITree, data: _.IDragAndDropData, originalEvent: mouse.DragMouseEvent): void {
+	public onDragStart(tree: _.ITree, data: IDragAndDropData, originalEvent: mouse.DragMouseEvent): void {
 		return;
 	}
 
-	public onDragOver(tree: _.ITree, data: _.IDragAndDropData, targetElement: any, originalEvent: mouse.DragMouseEvent): _.IDragOverReaction | null {
+	public onDragOver(tree: _.ITree, data: IDragAndDropData, targetElement: any, originalEvent: mouse.DragMouseEvent): _.IDragOverReaction | null {
 		return null;
 	}
 
-	public drop(tree: _.ITree, data: _.IDragAndDropData, targetElement: any, originalEvent: mouse.DragMouseEvent): void {
+	public drop(tree: _.ITree, data: IDragAndDropData, targetElement: any, originalEvent: mouse.DragMouseEvent): void {
 		return;
 	}
 }
