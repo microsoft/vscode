@@ -468,7 +468,9 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		this.updateItemInDOM(item, index);
 
 		const renderer = this.renderers.get(item.templateId);
-		renderer.renderElement(item.element, index, item.row.templateData);
+		if (renderer) {
+			renderer.renderElement(item.element, index, item.row.templateData);
+		}
 
 		const uri = this.dnd.getDragURI(item.element);
 		item.dragStartDisposable.dispose();
@@ -500,8 +502,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		item.dragStartDisposable.dispose();
 
 		const renderer = this.renderers.get(item.templateId);
-
-		if (renderer.disposeElement) {
+		if (renderer && renderer.disposeElement) {
 			renderer.disposeElement(item.element, index, item.row!.templateData);
 		}
 
@@ -917,7 +918,9 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		row.domNode!.style.height = '';
 		this.rowsContainer.appendChild(row.domNode!);
-		renderer.renderElement(item.element, index, row.templateData);
+		if (renderer) {
+			renderer.renderElement(item.element, index, row.templateData);
+		}
 		item.size = row.domNode!.offsetHeight;
 		item.renderWidth = this.renderWidth;
 		this.rowsContainer.removeChild(row.domNode!);
@@ -953,7 +956,9 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			for (const item of this.items) {
 				if (item.row) {
 					const renderer = this.renderers.get(item.row.templateId);
-					renderer.disposeTemplate(item.row.templateData);
+					if (renderer) {
+						renderer.disposeTemplate(item.row.templateData);
+					}
 				}
 			}
 

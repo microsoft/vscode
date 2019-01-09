@@ -46,7 +46,7 @@ export class ExtensionDescriptionRegistry {
 					if (!this._activationMap.has(activationEvent)) {
 						this._activationMap.set(activationEvent, []);
 					}
-					this._activationMap.get(activationEvent).push(extensionDescription);
+					this._activationMap.get(activationEvent)!.push(extensionDescription);
 				}
 			}
 		}
@@ -69,10 +69,8 @@ export class ExtensionDescriptionRegistry {
 	}
 
 	public getExtensionDescriptionsForActivationEvent(activationEvent: string): IExtensionDescription[] {
-		if (!this._activationMap.has(activationEvent)) {
-			return [];
-		}
-		return this._activationMap.get(activationEvent).slice(0);
+		const extensions = this._activationMap.get(activationEvent);
+		return extensions ? extensions.slice(0) : [];
 	}
 
 	public getAllExtensionDescriptions(): IExtensionDescription[] {
@@ -80,9 +78,7 @@ export class ExtensionDescriptionRegistry {
 	}
 
 	public getExtensionDescription(extensionId: ExtensionIdentifier | string): IExtensionDescription | null {
-		if (!this._extensionsMap.has(ExtensionIdentifier.toKey(extensionId))) {
-			return null;
-		}
-		return this._extensionsMap.get(ExtensionIdentifier.toKey(extensionId));
+		const extension = this._extensionsMap.get(ExtensionIdentifier.toKey(extensionId));
+		return extension ? extension : null;
 	}
 }

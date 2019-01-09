@@ -49,9 +49,8 @@ export function collectLaunchConfigs(folder: string): Promise<WorkspaceStatItem[
 							const type = each['type'];
 							if (type) {
 								if (launchConfigs.has(type)) {
-									launchConfigs.set(type, launchConfigs.get(type) + 1);
-								}
-								else {
+									launchConfigs.set(type, launchConfigs.get(type)! + 1);
+								} else {
 									launchConfigs.set(type, 1);
 								}
 							}
