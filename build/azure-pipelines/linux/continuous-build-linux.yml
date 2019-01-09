@@ -19,7 +19,7 @@ steps:
     sudo npm install -g markdown-link-check@3.7.2
   displayName: Install Dependencies
 - script: |
-    yarn gulp electron-x64
+    sudo yarn gulp electron-x64
   displayName: Download Electron
 - script: |
     yarn gulp hygiene
