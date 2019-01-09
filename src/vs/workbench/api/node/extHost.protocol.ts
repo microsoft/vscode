@@ -29,7 +29,7 @@ import { IPatternInfo, IRawFileMatch2, IRawQuery, IRawTextQuery, ISearchComplete
 import { StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/platform/statusbar/common/statusbar';
 import { ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
-import { EndOfLine, IFileOperationOptions, TextEditorLineNumbersStyle } from 'vs/workbench/api/node/extHostTypes';
+import { EndOfLine, IFileOperationOptions, TextEditorLineNumbersStyle, CommandExecutionSource } from 'vs/workbench/api/node/extHostTypes';
 import { EditorViewColumn } from 'vs/workbench/api/shared/editor';
 import { TaskDTO, TaskExecutionDTO, TaskFilterDTO, TaskHandleDTO, TaskProcessEndedDTO, TaskProcessStartedDTO, TaskSystemInfoDTO, TaskSetDTO } from 'vs/workbench/api/shared/tasks';
 import { ITreeItem, IRevealOptions } from 'vs/workbench/common/views';
@@ -629,7 +629,7 @@ export interface MainThreadWindowShape extends IDisposable {
 export interface ExtHostCommandsShape {
 	$executeContributedCommand<T>(id: string, ...args: any[]): Promise<T>;
 	$getContributedCommandHandlerDescriptions(): Promise<{ [id: string]: string | ICommandHandlerDescription }>;
-	$onDidExecuteCommand(id: string): void;
+	$onDidExecuteCommand(id: string, source: CommandExecutionSource): void;
 }
 
 export interface ExtHostConfigurationShape {

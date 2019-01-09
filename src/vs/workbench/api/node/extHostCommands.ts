@@ -34,7 +34,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 	private readonly _converter: CommandsConverter;
 	private readonly _logService: ILogService;
 	private readonly _argumentProcessors: ArgumentProcessor[];
-	private readonly _onDidExecuteCommand: Emitter<string>;
+	private readonly _onDidExecuteCommand: Emitter<vscode.CommandExecutedEvent>;
 
 	constructor(
 		mainContext: IMainContext,
@@ -45,10 +45,10 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		this._logService = logService;
 		this._converter = new CommandsConverter(this, heapService);
 		this._argumentProcessors = [{ processArgument(a) { return revive(a, 0); } }];
-		this._onDidExecuteCommand = new Emitter<string>();
+		this._onDidExecuteCommand = new Emitter();
 	}
 
-	get onDidExecuteCommand(): Event<string> {
+	get onDidExecuteCommand(): Event<vscode.CommandExecutedEvent> {
 		return this._onDidExecuteCommand.event;
 	}
 
@@ -136,8 +136,8 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		}
 	}
 
-	$onDidExecuteCommand(id: string): void {
-		this._onDidExecuteCommand.fire(id);
+	$onDidExecuteCommand(id: string, source: extHostTypes.CommandExecutionSource): void {
+		this._onDidExecuteCommand.fire({ commandId: id, source });
 	}
 
 	$executeContributedCommand<T>(id: string, ...args: any[]): Promise<T> {

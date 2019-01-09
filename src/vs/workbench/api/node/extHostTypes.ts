@@ -2025,6 +2025,12 @@ export class DebugAdapterImplementation implements vscode.DebugAdapterImplementa
 }
 */
 
+export enum CommandExecutionSource {
+	CommandPalette = 1,
+	Workbench = 2,
+	Editor = 3,
+}
+
 export enum LogLevel {
 	Trace = 1,
 	Debug = 2,

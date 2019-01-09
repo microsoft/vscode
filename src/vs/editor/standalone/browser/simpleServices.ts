@@ -24,7 +24,7 @@ import { TextEdit, WorkspaceEdit, isResourceTextEdit } from 'vs/editor/common/mo
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextEditorModel, ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ITextResourceConfigurationService, ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
-import { CommandsRegistry, ICommand, ICommandEvent, ICommandHandler, ICommandService } from 'vs/platform/commands/common/commands';
+import { CommandsRegistry, ICommand, ICommandEvent, ICommandHandler, ICommandService, CommandExecutionSource } from 'vs/platform/commands/common/commands';
 import { IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Configuration, ConfigurationModel, DefaultConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -247,9 +247,9 @@ export class StandaloneCommandService implements ICommandService {
 		}
 
 		try {
-			this._onWillExecuteCommand.fire({ commandId: id });
+			this._onWillExecuteCommand.fire({ commandId: id, source: CommandExecutionSource.Editor });
 			const result = this._instantiationService.invokeFunction.apply(this._instantiationService, [command.handler, ...args]) as T;
-			this._onDidExecuteCommand.fire({ commandId: id });
+			this._onDidExecuteCommand.fire({ commandId: id, source: CommandExecutionSource.Editor });
 			return Promise.resolve(result);
 		} catch (err) {
 			return Promise.reject(err);

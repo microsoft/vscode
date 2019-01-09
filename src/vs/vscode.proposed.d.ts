@@ -553,8 +553,19 @@ declare module 'vscode' {
 	//#endregion
 
 	//#region Kyle: onDidExecuteCommand
+	export enum CommandExecutionSource {
+		CommandPalette = 1,
+		Workbench = 2,
+		Editor = 3,
+	}
+
+	export interface CommandExecutedEvent {
+		readonly commandId: string;
+		readonly source: CommandExecutionSource;
+	}
+
 	export namespace commands {
-		export const onDidExecuteCommand: Event<string>;
+		export const onDidExecuteCommand: Event<CommandExecutedEvent>;
 	}
 	//#endregion
 

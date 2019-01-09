@@ -5,11 +5,12 @@
 
 
 import * as assert from 'assert';
-import { MarkdownString, LogLevel } from 'vs/workbench/api/node/extHostTypeConverters';
+import { MarkdownString, LogLevel, CommandExecutionSource } from 'vs/workbench/api/node/extHostTypeConverters';
 import { isEmptyObject } from 'vs/base/common/types';
 import { size } from 'vs/base/common/collections';
 import * as types from 'vs/workbench/api/node/extHostTypes';
 import { LogLevel as _MainLogLevel } from 'vs/platform/log/common/log';
+import { CommandExecutionSource as _MainCommandExecutionSource } from 'vs/platform/commands/common/commands';
 
 suite('ExtHostTypeConverter', function () {
 
@@ -67,5 +68,15 @@ suite('ExtHostTypeConverter', function () {
 		assert.equal(LogLevel.to(_MainLogLevel.Error), types.LogLevel.Error);
 		assert.equal(LogLevel.to(_MainLogLevel.Info), types.LogLevel.Info);
 		assert.equal(LogLevel.to(_MainLogLevel.Off), types.LogLevel.Off);
+	});
+
+	test('CommandExecutionSource', () => {
+		assert.equal(CommandExecutionSource.from(types.CommandExecutionSource.CommandPalette), _MainCommandExecutionSource.CommandPalette);
+		assert.equal(CommandExecutionSource.from(types.CommandExecutionSource.Workbench), _MainCommandExecutionSource.Workbench);
+		assert.equal(CommandExecutionSource.from(types.CommandExecutionSource.Editor), _MainCommandExecutionSource.Editor);
+
+		assert.equal(CommandExecutionSource.to(_MainCommandExecutionSource.CommandPalette), types.CommandExecutionSource.CommandPalette);
+		assert.equal(CommandExecutionSource.to(_MainCommandExecutionSource.Workbench), types.CommandExecutionSource.Workbench);
+		assert.equal(CommandExecutionSource.to(_MainCommandExecutionSource.Editor), types.CommandExecutionSource.Editor);
 	});
 });

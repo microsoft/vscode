@@ -11,8 +11,15 @@ import { LinkedList } from 'vs/base/common/linkedList';
 
 export const ICommandService = createDecorator<ICommandService>('commandService');
 
+export enum CommandExecutionSource {
+	CommandPalette,
+	Workbench,
+	Editor,
+}
+
 export interface ICommandEvent {
 	commandId: string;
+	source: CommandExecutionSource;
 }
 
 export interface ICommandService {
@@ -20,6 +27,13 @@ export interface ICommandService {
 	onWillExecuteCommand: Event<ICommandEvent>;
 	onDidExecuteCommand: Event<ICommandEvent>;
 	executeCommand<T = any>(commandId: string, ...args: any[]): Promise<T | undefined>;
+
+	/**
+	 * TODO: Find a cleaner way to proxy this.
+	 * CommandsHandler needs a way to emit that it
+	 * executed a command.
+	 */
+	_emitDidExecute?(event: ICommandEvent): void;
 }
 
 export interface ICommandsMap {

@@ -8,7 +8,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { AbstractCodeEditorService } from 'vs/editor/browser/services/abstractCodeEditorService';
 import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
 import { IModelDecorationOptions } from 'vs/editor/common/model';
-import { CommandsRegistry, ICommandEvent, ICommandService } from 'vs/platform/commands/common/commands';
+import { CommandsRegistry, ICommandEvent, ICommandService, CommandExecutionSource } from 'vs/platform/commands/common/commands';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
@@ -45,9 +45,9 @@ export class TestCommandService implements ICommandService {
 		}
 
 		try {
-			this._onWillExecuteCommand.fire({ commandId: id });
+			this._onWillExecuteCommand.fire({ commandId: id, source: CommandExecutionSource.Editor });
 			const result = this._instantiationService.invokeFunction.apply(this._instantiationService, [command.handler, ...args]) as T;
-			this._onDidExecuteCommand.fire({ commandId: id });
+			this._onDidExecuteCommand.fire({ commandId: id, source: CommandExecutionSource.Editor });
 			return Promise.resolve(result);
 		} catch (err) {
 			return Promise.reject(err);

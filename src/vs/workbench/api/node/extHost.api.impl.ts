@@ -230,7 +230,7 @@ export function createApiFactory(
 					callback.apply(thisArg, [diff, ...args]);
 				});
 			}),
-			get onDidExecuteCommand(): Event<string> {
+			get onDidExecuteCommand(): Event<vscode.CommandExecutedEvent> {
 				return extHostCommands.onDidExecuteCommand;
 			},
 			executeCommand<T>(id: string, ...args: any[]): Thenable<T> {
@@ -748,6 +748,7 @@ export function createApiFactory(
 			Color: extHostTypes.Color,
 			ColorInformation: extHostTypes.ColorInformation,
 			ColorPresentation: extHostTypes.ColorPresentation,
+			CommandExecutionSource: extHostTypes.CommandExecutionSource,
 			CommentThreadCollapsibleState: extHostTypes.CommentThreadCollapsibleState,
 			CompletionItem: extHostTypes.CompletionItem,
 			CompletionItemKind: extHostTypes.CompletionItemKind,

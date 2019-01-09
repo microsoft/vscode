@@ -28,6 +28,7 @@ import * as marked from 'vs/base/common/marked/marked';
 import { parse } from 'vs/base/common/marshalling';
 import { cloneAndChange } from 'vs/base/common/objects';
 import { LogLevel as _MainLogLevel } from 'vs/platform/log/common/log';
+import { CommandExecutionSource as _MainCommandExecutionSource } from 'vs/platform/commands/common/commands';
 
 export interface PositionLike {
 	line: number;
@@ -1034,5 +1035,29 @@ export namespace LogLevel {
 		}
 
 		return types.LogLevel.Info;
+	}
+}
+
+export namespace CommandExecutionSource {
+	export function from(extSource: types.CommandExecutionSource): _MainCommandExecutionSource {
+		switch (extSource) {
+			case types.CommandExecutionSource.CommandPalette:
+				return _MainCommandExecutionSource.CommandPalette;
+			case types.CommandExecutionSource.Workbench:
+				return _MainCommandExecutionSource.Workbench;
+			case types.CommandExecutionSource.Editor:
+				return _MainCommandExecutionSource.Editor;
+		}
+	}
+
+	export function to(mainSource: _MainCommandExecutionSource): types.CommandExecutionSource {
+		switch (mainSource) {
+			case _MainCommandExecutionSource.CommandPalette:
+				return types.CommandExecutionSource.CommandPalette;
+			case _MainCommandExecutionSource.Editor:
+				return types.CommandExecutionSource.Editor;
+			case _MainCommandExecutionSource.Workbench:
+				return types.CommandExecutionSource.Workbench;
+		}
 	}
 }

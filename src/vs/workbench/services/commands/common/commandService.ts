@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ICommandService, ICommandEvent, CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { ICommandService, ICommandEvent, CommandsRegistry, CommandExecutionSource } from 'vs/platform/commands/common/commands';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -55,15 +55,19 @@ export class CommandService extends Disposable implements ICommandService {
 		}
 	}
 
+	_emitDidExecute(event): void {
+		this._onDidExecuteCommand.fire(event);
+	}
+
 	private _tryExecuteCommand(id: string, args: any[]): Promise<any> {
 		const command = CommandsRegistry.getCommand(id);
 		if (!command) {
 			return Promise.reject(new Error(`command '${id}' not found`));
 		}
 		try {
-			this._onWillExecuteCommand.fire({ commandId: id });
+			this._onWillExecuteCommand.fire({ commandId: id, source: CommandExecutionSource.Workbench });
 			const result = this._instantiationService.invokeFunction.apply(this._instantiationService, [command.handler, ...args]);
-			this._onDidExecuteCommand.fire({ commandId: id });
+			this._onDidExecuteCommand.fire({ commandId: id, source: CommandExecutionSource.Workbench });
 			return Promise.resolve(result);
 		} catch (err) {
 			return Promise.reject(err);

@@ -31,6 +31,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { ICommandService, CommandExecutionSource } from 'vs/platform/commands/common/commands';
 
 export const ALL_COMMANDS_PREFIX = '>';
 
@@ -222,8 +223,9 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 		alias: string,
 		highlights: { label: IHighlight[], alias: IHighlight[] },
 		private onBeforeRun: (commandId: string) => void,
+		private onAfterRun: (commandId: string) => void,
 		@INotificationService private readonly notificationService: INotificationService,
-		@ITelemetryService protected telemetryService: ITelemetryService
+		@ITelemetryService protected telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -307,6 +309,8 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 						if (action instanceof Action) {
 							action.dispose();
 						}
+
+						this.onAfterRun(this.commandId);
 					}, err => this.onError(err));
 				} catch (error) {
 					this.onError(error);
@@ -336,10 +340,11 @@ class EditorActionCommandEntry extends BaseCommandEntry {
 		highlights: { label: IHighlight[], alias: IHighlight[] },
 		private action: IEditorAction,
 		onBeforeRun: (commandId: string) => void,
+		onAfterRun: (commandId: string) => void,
 		@INotificationService notificationService: INotificationService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		super(commandId, keybinding, label, meta, highlights, onBeforeRun, notificationService, telemetryService);
+		super(commandId, keybinding, label, meta, highlights, onBeforeRun, onAfterRun, notificationService, telemetryService);
 	}
 
 	protected getAction(): Action | IEditorAction {
@@ -357,10 +362,11 @@ class ActionCommandEntry extends BaseCommandEntry {
 		highlights: { label: IHighlight[], alias: IHighlight[] },
 		private action: Action,
 		onBeforeRun: (commandId: string) => void,
+		onAfterRun: (commandId: string) => void,
 		@INotificationService notificationService: INotificationService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		super(commandId, keybinding, label, alias, highlights, onBeforeRun, notificationService, telemetryService);
+		super(commandId, keybinding, label, alias, highlights, onBeforeRun, onAfterRun, notificationService, telemetryService);
 	}
 
 	protected getAction(): Action | IEditorAction {
@@ -382,6 +388,7 @@ export class CommandsHandler extends QuickOpenHandler {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IMenuService private readonly menuService: IMenuService,
+		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExtensionService private readonly extensionService: IExtensionService
 	) {
@@ -500,7 +507,7 @@ export class CommandsHandler extends QuickOpenHandler {
 				const aliasHighlights = alias ? wordFilter(searchValue, alias) : null;
 
 				if (labelHighlights || aliasHighlights) {
-					entries.push(this.instantiationService.createInstance(EditorActionCommandEntry, action.id, this.keybindingService.lookupKeybinding(action.id), label, alias, { label: labelHighlights, alias: aliasHighlights }, action, (id: string) => this.onBeforeRunCommand(id)));
+					entries.push(this.instantiationService.createInstance(EditorActionCommandEntry, action.id, this.keybindingService.lookupKeybinding(action.id), label, alias, { label: labelHighlights, alias: aliasHighlights }, action, (id: string) => this.onBeforeRunCommand(id), (id: string) => this.onAfterRunCommand(id)));
 				}
 			}
 		}
@@ -509,9 +516,14 @@ export class CommandsHandler extends QuickOpenHandler {
 	}
 
 	private onBeforeRunCommand(commandId: string): void {
-
 		// Remember in commands history
 		this.commandsHistory.push(commandId);
+	}
+
+	private onAfterRunCommand(commandId: string): void {
+		if (this.commandService._emitDidExecute) {
+			this.commandService._emitDidExecute({ commandId, source: CommandExecutionSource.CommandPalette });
+		}
 	}
 
 	private menuItemActionsToEntries(actions: MenuItemAction[], searchValue: string): ActionCommandEntry[] {
@@ -540,7 +552,7 @@ export class CommandsHandler extends QuickOpenHandler {
 				const aliasHighlights = alias ? wordFilter(searchValue, alias) : null;
 
 				if (labelHighlights || aliasHighlights) {
-					entries.push(this.instantiationService.createInstance(ActionCommandEntry, action.id, this.keybindingService.lookupKeybinding(action.item.id), label, alias, { label: labelHighlights, alias: aliasHighlights }, action, (id: string) => this.onBeforeRunCommand(id)));
+					entries.push(this.instantiationService.createInstance(ActionCommandEntry, action.id, this.keybindingService.lookupKeybinding(action.item.id), label, alias, { label: labelHighlights, alias: aliasHighlights }, action, (id: string) => this.onBeforeRunCommand(id), (id: string) => this.onAfterRunCommand(id)));
 				}
 			}
 		}
