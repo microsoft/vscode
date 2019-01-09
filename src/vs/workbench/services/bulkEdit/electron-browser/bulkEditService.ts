@@ -69,16 +69,23 @@ class ModelEditTask implements IDisposable {
 				// honor eol-change
 				this._newEol = edit.eol;
 			}
-			if (edit.range || edit.text) {
-				// create edit operation
-				let range: Range;
-				if (!edit.range) {
-					range = this._model.getFullModelRange();
-				} else {
-					range = Range.lift(edit.range);
-				}
-				this._edits.push(EditOperation.replaceMove(range, edit.text));
+			if (!edit.range && !edit.text) {
+				// lacks both a range and the text
+				continue;
 			}
+			if (Range.isEmpty(edit.range) && !edit.text) {
+				// no-op edit (replace empty range with empty text)
+				continue;
+			}
+
+			// create edit operation
+			let range: Range;
+			if (!edit.range) {
+				range = this._model.getFullModelRange();
+			} else {
+				range = Range.lift(edit.range);
+			}
+			this._edits.push(EditOperation.replaceMove(range, edit.text));
 		}
 	}
 
@@ -333,6 +340,7 @@ export class BulkEdit {
 	}
 
 	private async _performTextEdits(edits: ResourceTextEdit[], progress: IProgress<void>): Promise<void> {
+		console.log(JSON.stringify(edits, null, '\t'));
 		this._logService.debug('_performTextEdits', JSON.stringify(edits));
 
 		const recording = Recording.start(this._fileService);
