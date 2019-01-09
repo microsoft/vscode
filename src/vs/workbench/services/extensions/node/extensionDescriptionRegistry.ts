@@ -22,9 +22,7 @@ export class ExtensionDescriptionRegistry {
 		this._extensionsArr = [];
 		this._activationMap = new Map<string, IExtensionDescription[]>();
 
-		for (let i = 0, len = this._extensionDescriptions.length; i < len; i++) {
-			let extensionDescription = this._extensionDescriptions[i];
-
+		for (const extensionDescription of this._extensionDescriptions) {
 			if (this._extensionsMap.has(ExtensionIdentifier.toKey(extensionDescription.identifier))) {
 				// No overwriting allowed!
 				console.error('Extension `' + extensionDescription.identifier.value + '` is already registered');
@@ -35,9 +33,7 @@ export class ExtensionDescriptionRegistry {
 			this._extensionsArr.push(extensionDescription);
 
 			if (Array.isArray(extensionDescription.activationEvents)) {
-				for (let j = 0, lenJ = extensionDescription.activationEvents.length; j < lenJ; j++) {
-					let activationEvent = extensionDescription.activationEvents[j];
-
+				for (let activationEvent of extensionDescription.activationEvents) {
 					// TODO@joao: there's no easy way to contribute this
 					if (activationEvent === 'onUri') {
 						activationEvent = `onUri:${ExtensionIdentifier.toKey(extensionDescription.identifier)}`;
@@ -53,7 +49,7 @@ export class ExtensionDescriptionRegistry {
 	}
 
 	public keepOnly(extensionIds: ExtensionIdentifier[]): void {
-		let toKeep = new Set<string>();
+		const toKeep = new Set<string>();
 		extensionIds.forEach(extensionId => toKeep.add(ExtensionIdentifier.toKey(extensionId)));
 		this._extensionDescriptions = this._extensionDescriptions.filter(extension => toKeep.has(ExtensionIdentifier.toKey(extension.identifier)));
 		this._initialize();
