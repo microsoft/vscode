@@ -12,22 +12,27 @@ const testDocumentUri = vscode.Uri.parse('untitled:test.ts');
 
 type VsCodeConfiguration = { [key: string]: any };
 
-
 async function updateConfig(newConfig: VsCodeConfiguration): Promise<VsCodeConfiguration> {
 	const oldConfig: VsCodeConfiguration = {};
 	const config = vscode.workspace.getConfiguration(undefined, testDocumentUri);
 	for (const configKey of Object.keys(newConfig)) {
 		oldConfig[configKey] = config.get(configKey);
-		await new Promise((resolve, reject) => config.update(configKey, newConfig[configKey], vscode.ConfigurationTarget.Global).then(() => resolve(), reject));
+		await new Promise((resolve, reject) =>
+			config.update(configKey, newConfig[configKey], vscode.ConfigurationTarget.Global)
+				.then(() => resolve(), reject));
 	}
 	return oldConfig;
 }
 
+namespace Config {
+	export const suggestSelection = 'editor.suggestSelection';
+	export const completeFunctionCalls = 'typescript.suggest.completeFunctionCalls';
+}
 
 suite('TypeScript Completions', () => {
 	const configDefaults: VsCodeConfiguration = Object.freeze({
-		'editor.suggestSelection': 'first',
-		'typescript.suggest.completeFunctionCalls': false,
+		[Config.suggestSelection]: 'first',
+		[Config.completeFunctionCalls]: false,
 	});
 
 	const _disposables: vscode.Disposable[] = [];
@@ -182,6 +187,25 @@ suite('TypeScript Completions', () => {
 				`abc`
 			));
 	});
+
+	test('completeFunctionCalls should complete function parameters', async () => {
+		await updateConfig({
+			[Config.completeFunctionCalls]: true,
+		});
+
+		await createTestEditor(testDocumentUri,
+			`function foo(x, y, z) { }`,
+			`foo$0`
+		);
+
+		const document = await acceptFirstSuggestion(testDocumentUri, _disposables);
+		assert.strictEqual(
+			document.getText(),
+			joinLines(
+				`function foo(x, y, z) { }`,
+				`foo(x, y, z)`
+			));
+	});
 });
 
 const joinLines = (...args: string[]) => args.join('\n');
@@ -193,6 +217,9 @@ async function acceptFirstSuggestion(uri: vscode.Uri, _disposables: vscode.Dispo
 	const didSuggest = onDidSuggest(_disposables);
 	await vscode.commands.executeCommand('editor.action.triggerSuggest');
 	await didSuggest;
+	// TODO: depends on reverting fix for https://github.com/Microsoft/vscode/issues/64257
+	// Make sure we have time to resolve the suggestion because `acceptSelectedSuggestion` doesn't
+	await wait(40);
 	await vscode.commands.executeCommand('acceptSelectedSuggestion');
 	return await didChangeDocument;
 }
