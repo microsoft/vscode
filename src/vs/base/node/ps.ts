@@ -22,7 +22,7 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 
 	return new Promise((resolve, reject) => {
 
-		let rootItem: ProcessItem;
+		let rootItem: ProcessItem | undefined;
 		const map = new Map<number, ProcessItem>();
 
 		function addToTree(pid: number, ppid: number, cmd: string, load: number, mem: number) {

@@ -312,6 +312,9 @@ export class ContributableViewsModel extends Disposable {
 		for (let i = 0, visibleIndex = 0; i < this.viewDescriptors.length; i++) {
 			const viewDescriptor = this.viewDescriptors[i];
 			const state = this.viewStates.get(viewDescriptor.id);
+			if (!state) {
+				throw new Error(`View state for ${id} not found`);
+			}
 
 			if (viewDescriptor.id === id) {
 				return { index: i, visibleIndex, viewDescriptor, state };

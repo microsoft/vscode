@@ -150,7 +150,7 @@ export function collectWorkspaceStats(folder: string, filter: string[]): Promise
 
 	let addFileType = (fileType: string) => {
 		if (fileTypes.has(fileType)) {
-			fileTypes.set(fileType, fileTypes.get(fileType) + 1);
+			fileTypes.set(fileType, fileTypes.get(fileType)! + 1);
 		}
 		else {
 			fileTypes.set(fileType, 1);
@@ -161,7 +161,7 @@ export function collectWorkspaceStats(folder: string, filter: string[]): Promise
 		for (const each of configFilePatterns) {
 			if (each.pattern.test(fileName)) {
 				if (configFiles.has(each.tag)) {
-					configFiles.set(each.tag, configFiles.get(each.tag) + 1);
+					configFiles.set(each.tag, configFiles.get(each.tag)! + 1);
 				} else {
 					configFiles.set(each.tag, 1);
 				}

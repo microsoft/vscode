@@ -7,6 +7,7 @@ import { Event } from 'vs/base/common/event';
 import { Iterator } from 'vs/base/common/iterator';
 import { IListRenderer, AbstractListRenderer, IListDragOverReaction, IListDragAndDrop, ListDragOverEffect } from 'vs/base/browser/ui/list/list';
 import { IDragAndDropData } from 'vs/base/browser/dnd';
+import { coalesce } from 'vs/base/common/arrays';
 
 export const enum TreeVisibility {
 
@@ -192,9 +193,9 @@ export abstract class AbstractTreeRenderer<T, TFilterData = void, TTemplateData 
 			if (typeof e === 'undefined') {
 				return undefined;
 			} else if (Array.isArray(e)) {
-				return e.map(e => this.elementsToNodes.get(e) || null).filter(e => e !== null);
+				return coalesce(e.map(e => this.elementsToNodes.get(e)));
 			} else {
-				return this.elementsToNodes.get(e) || null;
+				return this.elementsToNodes.get(e);
 			}
 		}));
 	}

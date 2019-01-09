@@ -86,7 +86,7 @@ export class MarkersWorkbenchService extends Disposable implements IMarkersWorkb
 			codeActionsPerMarker = new Map<string, CodeAction[]>();
 			this.codeActions.set(marker.resource.toString(), codeActionsPerMarker);
 		}
-		let codeActions = codeActionsPerMarker.get(markerKey);
+		const codeActions = codeActionsPerMarker.get(markerKey);
 		if (codeActions) {
 			return Promise.resolve(this.toActions(codeActions, marker));
 		} else {
@@ -98,10 +98,10 @@ export class MarkersWorkbenchService extends Disposable implements IMarkersWorkb
 			if (!codeActionsPromisesPerMarker.has(markerKey)) {
 				const codeActionsPromise = this.getFixes(marker);
 				codeActionsPromisesPerMarker.set(markerKey, codeActionsPromise);
-				codeActionsPromise.then(codeActions => codeActionsPerMarker.set(markerKey, codeActions));
+				codeActionsPromise.then(codeActions => codeActionsPerMarker!.set(markerKey, codeActions));
 			}
 			// Wait for 100ms for code actions fetching.
-			return timeout(100).then(() => this.toActions(codeActionsPerMarker.get(markerKey) || [], marker));
+			return timeout(100).then(() => this.toActions(codeActionsPerMarker!.get(markerKey) || [], marker));
 		}
 	}
 
