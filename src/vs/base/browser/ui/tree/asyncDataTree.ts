@@ -130,6 +130,23 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 				return options.identityProvider!.getId(el.element as T);
 			}
 		},
+		dnd: options.dnd && {
+			getDragURI(node) {
+				return options.dnd!.getDragURI(node.element as T);
+			},
+			getDragLabel: options.dnd!.getDragLabel && ((nodes) => {
+				return options.dnd!.getDragLabel!(nodes.map(node => node.element as T));
+			}),
+			onDragStart(data, originalEvent) {
+				return options.dnd!.onDragStart(data, originalEvent);
+			},
+			onDragOver(data, targetNode, targetIndex, originalEvent) {
+				return options.dnd!.onDragOver(data, targetNode && targetNode.element as T, targetIndex, originalEvent);
+			},
+			drop(data, targetNode, targetIndex, originalEvent) {
+				return options.dnd!.drop(data, targetNode && targetNode.element as T, targetIndex, originalEvent);
+			}
+		},
 		multipleSelectionController: options.multipleSelectionController && {
 			isSelectionSingleChangeEvent(e) {
 				return options.multipleSelectionController!.isSelectionSingleChangeEvent({ ...e, element: e.element } as any);

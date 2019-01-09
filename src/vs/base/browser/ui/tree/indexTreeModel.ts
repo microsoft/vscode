@@ -127,6 +127,10 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		return this.getTreeNodeWithListIndex(location).listIndex;
 	}
 
+	getListRenderCount(location: number[]): number {
+		return this.getTreeNode(location).renderNodeCount;
+	}
+
 	isCollapsible(location: number[]): boolean {
 		return this.getTreeNode(location).collapsible;
 	}

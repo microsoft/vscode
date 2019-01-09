@@ -162,22 +162,24 @@ class WorkbenchOpenController implements IOpenController {
 }
 
 function toWorkbenchListOptions<T>(options: IListOptions<T>, configurationService: IConfigurationService, keybindingService: IKeybindingService): IListOptions<T> {
+	const result = { ...options };
+
 	if (options.multipleSelectionSupport !== false && !options.multipleSelectionController) {
-		options.multipleSelectionController = new MultipleSelectionController(configurationService);
+		result.multipleSelectionController = new MultipleSelectionController(configurationService);
 	}
 
-	options.openController = new WorkbenchOpenController(configurationService, options.openController);
+	result.openController = new WorkbenchOpenController(configurationService, options.openController);
 
 	if (options.keyboardNavigationLabelProvider) {
 		const tlp = options.keyboardNavigationLabelProvider;
 
-		options.keyboardNavigationLabelProvider = {
+		result.keyboardNavigationLabelProvider = {
 			getKeyboardNavigationLabel(e) { return tlp.getKeyboardNavigationLabel(e); },
 			mightProducePrintableCharacter(e) { return keybindingService.mightProducePrintableCharacter(e); }
 		};
 	}
 
-	return options;
+	return result;
 }
 
 let sharedListStyleSheet: HTMLStyleElement;
@@ -234,7 +236,6 @@ export class WorkbenchList<T> extends List<T> {
 		super(container, delegate, renderers,
 			{
 				keyboardSupport: false,
-				selectOnMouseDown: true,
 				styleController: new DefaultStyleController(getSharedListStyleSheet()),
 				...computeStyles(themeService.getTheme(), defaultListStyles),
 				...toWorkbenchListOptions(options, configurationService, keybindingService)
@@ -310,7 +311,6 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 		super(container, delegate, renderers,
 			{
 				keyboardSupport: false,
-				selectOnMouseDown: true,
 				styleController: new DefaultStyleController(getSharedListStyleSheet()),
 				...computeStyles(themeService.getTheme(), defaultListStyles),
 				...toWorkbenchListOptions(options, configurationService, keybindingService)
@@ -903,7 +903,6 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 	) {
 		super(container, delegate, renderers, {
 			keyboardSupport: false,
-			selectOnMouseDown: true,
 			styleController: new DefaultStyleController(getSharedListStyleSheet()),
 			...computeStyles(themeService.getTheme(), defaultListStyles),
 			...toWorkbenchListOptions(options, configurationService, keybindingService)
@@ -980,7 +979,6 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 	) {
 		super(container, delegate, renderers, dataSource, {
 			keyboardSupport: false,
-			selectOnMouseDown: true,
 			styleController: new DefaultStyleController(getSharedListStyleSheet()),
 			...computeStyles(themeService.getTheme(), defaultListStyles),
 			...toWorkbenchListOptions(options, configurationService, keybindingService)
@@ -1052,7 +1050,6 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 	) {
 		super(container, delegate, renderers, dataSource, {
 			keyboardSupport: false,
-			selectOnMouseDown: true,
 			styleController: new DefaultStyleController(getSharedListStyleSheet()),
 			...computeStyles(themeService.getTheme(), defaultListStyles),
 			...toWorkbenchListOptions(options, configurationService, keybindingService)
