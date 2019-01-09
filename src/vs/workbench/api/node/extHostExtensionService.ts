@@ -646,6 +646,20 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 				.then(_ => this._activateByEvent(activationEvent, false))
 		);
 	}
+
+	public async $test_latency(n: number): Promise<number> {
+		return n;
+	}
+
+	public async $test_up(b: Buffer): Promise<number> {
+		return b.length;
+	}
+
+	public async $test_down(size: number): Promise<Buffer> {
+		let b = Buffer.alloc(size, Math.random() % 256);
+		return b;
+	}
+
 }
 
 function loadCommonJSModule<T>(logService: ILogService, modulePath: string, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {
