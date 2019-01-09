@@ -31,12 +31,13 @@ import { WordContextKey } from 'vs/editor/contrib/suggest/wordContextKey';
 import { Event } from 'vs/base/common/event';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { IdleValue } from 'vs/base/common/async';
+import { CharacterSet } from 'vs/editor/common/core/characterClassifier';
 
 class AcceptOnCharacterOracle {
 
 	private _disposables: IDisposable[] = [];
 
-	private _activeAcceptCharacters = new Set<string>();
+	private _activeAcceptCharacters = new CharacterSet();
 	private _activeItem: ISelectedSuggestion;
 
 	constructor(editor: ICodeEditor, widget: SuggestWidget, accept: (selected: ISelectedSuggestion) => any) {
@@ -47,7 +48,7 @@ class AcceptOnCharacterOracle {
 
 		this._disposables.push(editor.onWillType(text => {
 			if (this._activeItem) {
-				const ch = text[text.length - 1];
+				const ch = text.charCodeAt(text.length - 1);
 				if (this._activeAcceptCharacters.has(ch) && editor.getConfiguration().contribInfo.acceptSuggestionOnCommitCharacter) {
 					accept(this._activeItem);
 				}
@@ -61,10 +62,10 @@ class AcceptOnCharacterOracle {
 			return;
 		}
 		this._activeItem = selected;
-		this._activeAcceptCharacters.clear();
+		this._activeAcceptCharacters = new CharacterSet();
 		for (const ch of selected.item.completion.commitCharacters) {
 			if (ch.length > 0) {
-				this._activeAcceptCharacters.add(ch[0]);
+				this._activeAcceptCharacters.add(ch.charCodeAt(0));
 			}
 		}
 	}
