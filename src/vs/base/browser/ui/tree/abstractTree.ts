@@ -37,17 +37,18 @@ class TreeNodeListDragAndDrop<T, TFilterData, TRef> implements IListDragAndDrop<
 
 	onDragOver(data: IDragAndDropData, targetNode: ITreeNode<T, TFilterData> | undefined, targetIndex: number | undefined, originalEvent: DragEvent, raw = true): boolean | IListDragOverReaction {
 		const result = this.dnd.onDragOver(data, targetNode && targetNode.element, targetIndex, originalEvent);
+		const didChangeAutoExpandNode = this.autoExpandNode !== targetNode;
+
+		if (didChangeAutoExpandNode) {
+			this.autoExpandDisposable.dispose();
+			this.autoExpandNode = targetNode;
+		}
 
 		if (typeof targetNode === 'undefined') {
 			return result;
 		}
 
-		if (this.autoExpandNode !== targetNode) {
-			this.autoExpandDisposable.dispose();
-			this.autoExpandNode = targetNode;
-		}
-
-		if (typeof result !== 'boolean' && result.autoExpand) {
+		if (didChangeAutoExpandNode && typeof result !== 'boolean' && result.autoExpand) {
 			this.autoExpandDisposable = timeout(() => {
 				const model = this.modelProvider();
 				const ref = model.getNodeLocation(targetNode);
