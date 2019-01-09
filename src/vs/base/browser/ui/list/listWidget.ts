@@ -16,8 +16,8 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent, IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Event, Emitter, EventBufferer } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
-import { IListVirtualDelegate, IListRenderer, IListEvent, IListContextMenuEvent, IListMouseEvent, IListTouchEvent, IListGestureEvent, IIdentityProvider, IKeyboardNavigationLabelProvider, IListDragAndDrop } from './list';
-import { ListView, IListViewOptions } from './listView';
+import { IListVirtualDelegate, IListRenderer, IListEvent, IListContextMenuEvent, IListMouseEvent, IListTouchEvent, IListGestureEvent, IIdentityProvider, IKeyboardNavigationLabelProvider, IListDragAndDrop, IListDragOverReaction } from './list';
+import { ListView, IListViewOptions, IListViewDragAndDrop } from './listView';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
@@ -25,6 +25,7 @@ import { ISpliceable } from 'vs/base/common/sequence';
 import { CombinedSpliceable } from 'vs/base/browser/ui/list/splice';
 import { clamp } from 'vs/base/common/numbers';
 import { matchesPrefix } from 'vs/base/common/filters';
+import { IDragAndDropData } from 'vs/base/browser/dnd';
 
 interface ITraitChangeEvent {
 	indexes: number[];
@@ -940,6 +941,37 @@ class AccessibiltyRenderer<T> implements IListRenderer<T, HTMLElement> {
 	}
 }
 
+class ListViewDragAndDrop<T> implements IListViewDragAndDrop<T> {
+
+	constructor(private list: List<T>, private dnd: IListDragAndDrop<T>) { }
+
+	getDragElements(element: T): T[] {
+		const selection = this.list.getSelectedElements();
+		const elements = selection.indexOf(element) > -1 ? selection : [element];
+		return elements;
+	}
+
+	getDragURI(element: T): string | null {
+		return this.dnd.getDragURI(element);
+	}
+
+	getDragLabel?(elements: T[]): string | undefined {
+		return this.dnd.getDragLabel && this.dnd.getDragLabel(elements);
+	}
+
+	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
+		this.dnd.onDragStart(data, originalEvent);
+	}
+
+	onDragOver(data: IDragAndDropData, targetElement: T, targetIndex: number, originalEvent: DragEvent): boolean | IListDragOverReaction {
+		return this.dnd.onDragOver(data, targetElement, targetIndex, originalEvent);
+	}
+
+	drop(data: IDragAndDropData, targetElement: T, targetIndex: number, originalEvent: DragEvent): void {
+		this.dnd.drop(data, targetElement, targetIndex, originalEvent);
+	}
+}
+
 export class List<T> implements ISpliceable<T>, IDisposable {
 
 	private static InstanceCount = 0;
@@ -1051,14 +1083,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		const viewOptions: IListViewOptions<T> = {
 			...options,
-			dnd: options.dnd && {
-				...options.dnd,
-				getDragElements: element => {
-					const selection = this.getSelectedElements();
-					const elements = selection.indexOf(element) > -1 ? selection : [element];
-					return elements;
-				}
-			}
+			dnd: options.dnd && new ListViewDragAndDrop(this, options.dnd)
 		};
 
 		this.view = new ListView(container, virtualDelegate, renderers, viewOptions);

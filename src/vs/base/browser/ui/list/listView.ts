@@ -611,11 +611,13 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		event.dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify([uri]));
 
 		if (event.dataTransfer.setDragImage) {
-			let label: string;
+			let label: string | undefined;
 
 			if (this.dnd.getDragLabel) {
 				label = this.dnd.getDragLabel(elements);
-			} else {
+			}
+
+			if (typeof label === 'undefined') {
 				label = String(elements.length);
 			}
 
@@ -721,6 +723,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	private onDragLeave(): void {
+		this.onDragLeaveTimeout.dispose();
 		this.onDragLeaveTimeout = DOM.timeout(() => this.clearDragOverFeedback(), 100);
 	}
 
@@ -750,6 +753,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	private clearDragOverFeedback(): void {
 		this.currentDragFeedback = undefined;
 		this.currentDragFeedbackDisposable.dispose();
+		this.currentDragFeedbackDisposable = Disposable.None;
 	}
 
 	// DND scroll top animation
