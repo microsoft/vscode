@@ -572,6 +572,14 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	}
 
 	private _handleExtensionTests(): Promise<void> {
+		return this._doHandleExtensionTests().then(undefined, error => {
+			console.error(error); // ensure any error message makes it onto the console
+
+			return Promise.reject(error);
+		});
+	}
+
+	private _doHandleExtensionTests(): Promise<void> {
 		if (!this._initData.environment.extensionTestsPath || !this._initData.environment.extensionDevelopmentLocationURI) {
 			return Promise.resolve(undefined);
 		}
