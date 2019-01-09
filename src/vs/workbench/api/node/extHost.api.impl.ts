@@ -627,7 +627,7 @@ export function createApiFactory(
 				return extHostSearch.registerFileIndexProvider(scheme, provider);
 			}),
 			registerDocumentCommentProvider: proposedApiFunction(extension, (provider: vscode.DocumentCommentProvider) => {
-				return exthostCommentProviders.registerDocumentCommentProvider(provider);
+				return exthostCommentProviders.registerDocumentCommentProvider(extension.identifier, provider);
 			}),
 			registerWorkspaceCommentProvider: proposedApiFunction(extension, (provider: vscode.WorkspaceCommentProvider) => {
 				return exthostCommentProviders.registerWorkspaceCommentProvider(extension.identifier, provider);

@@ -1149,6 +1149,7 @@ export interface Command {
  * @internal
  */
 export interface CommentInfo {
+	extensionId: string;
 	threads: CommentThread[];
 	commentingRanges?: IRange[];
 	reply?: Command;
@@ -1182,6 +1183,7 @@ export enum CommentThreadCollapsibleState {
  * @internal
  */
 export interface CommentThread {
+	extensionId: string;
 	threadId: string;
 	resource: string;
 	range: IRange;
