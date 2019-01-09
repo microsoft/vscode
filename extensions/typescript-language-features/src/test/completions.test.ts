@@ -188,22 +188,80 @@ suite('TypeScript Completions', () => {
 			));
 	});
 
-	test('completeFunctionCalls should complete function parameters', async () => {
+	test('completeFunctionCalls should complete function parameters when at end of word', async () => {
 		await updateConfig({
 			[Config.completeFunctionCalls]: true,
 		});
 
+		// Complete with-in word
 		await createTestEditor(testDocumentUri,
-			`function foo(x, y, z) { }`,
-			`foo$0`
+			`function abcdef(x, y, z) { }`,
+			`abcdef$0`
 		);
 
 		const document = await acceptFirstSuggestion(testDocumentUri, _disposables);
 		assert.strictEqual(
 			document.getText(),
 			joinLines(
-				`function foo(x, y, z) { }`,
-				`foo(x, y, z)`
+				`function abcdef(x, y, z) { }`,
+				`abcdef(x, y, z)`
+			));
+	});
+
+	test.skip('completeFunctionCalls should complete function parameters when within word', async () => {
+		await updateConfig({
+			[Config.completeFunctionCalls]: true,
+		});
+
+		await createTestEditor(testDocumentUri,
+			`function abcdef(x, y, z) { }`,
+			`abcd$0ef`
+		);
+
+		const document = await acceptFirstSuggestion(testDocumentUri, _disposables);
+		assert.strictEqual(
+			document.getText(),
+			joinLines(
+				`function abcdef(x, y, z) { }`,
+				`abcdef(x, y, z)`
+			));
+	});
+
+	test('completeFunctionCalls should not complete function parameters at end of word if we are already in something that looks like a function call, #18131', async () => {
+		await updateConfig({
+			[Config.completeFunctionCalls]: true,
+		});
+
+		await createTestEditor(testDocumentUri,
+			`function abcdef(x, y, z) { }`,
+			`abcdef$0(1, 2, 3)`
+		);
+
+		const document = await acceptFirstSuggestion(testDocumentUri, _disposables);
+		assert.strictEqual(
+			document.getText(),
+			joinLines(
+				`function abcdef(x, y, z) { }`,
+				`abcdef(1, 2, 3)`
+			));
+	});
+
+	test.skip('completeFunctionCalls should not complete function parameters within word if we are already in something that looks like a function call, #18131', async () => {
+		await updateConfig({
+			[Config.completeFunctionCalls]: true,
+		});
+
+		await createTestEditor(testDocumentUri,
+			`function abcdef(x, y, z) { }`,
+			`abcd$0ef(1, 2, 3)`
+		);
+
+		const document = await acceptFirstSuggestion(testDocumentUri, _disposables);
+		assert.strictEqual(
+			document.getText(),
+			joinLines(
+				`function abcdef(x, y, z) { }`,
+				`abcdef(1, 2, 3)`
 			));
 	});
 });
