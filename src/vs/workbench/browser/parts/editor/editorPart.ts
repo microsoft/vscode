@@ -28,7 +28,7 @@ import { EditorDropTarget } from 'vs/workbench/browser/parts/editor/editorDropTa
 import { localize } from 'vs/nls';
 import { Color } from 'vs/base/common/color';
 import { CenteredViewLayout } from 'vs/base/browser/ui/centered/centeredViewLayout';
-import { IView, orthogonal } from 'vs/base/browser/ui/grid/gridview';
+import { IView, orthogonal, LayoutPriority } from 'vs/base/browser/ui/grid/gridview';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Parts } from 'vs/workbench/services/part/common/partService';
 
@@ -137,6 +137,8 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 
 	private _onDidChange = new Emitter<{ width: number; height: number; }>();
 	readonly onDidChange = this._onDidChange.event;
+
+	priority: LayoutPriority = LayoutPriority.High;
 
 	constructor(
 		id: string,
