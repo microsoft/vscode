@@ -21,7 +21,7 @@ function transformOutgoingURI(uri: URI, transformer: IURITransformer | null): UR
 function transformIncomingExtension(extension: ILocalExtension, transformer: IURITransformer | null): ILocalExtension {
 	transformer = transformer ? transformer : DefaultURITransformer;
 	const manfiest = extension.manifest;
-	extension.manifest = undefined;
+	delete extension.manifest;
 	extension = transformAndReviveIncomingURIs(extension, transformer);
 	extension.manifest = manfiest;
 	return extension;
@@ -49,7 +49,7 @@ export class ExtensionManagementChannel implements IServerChannel {
 		const uriTransformer = this.getUriTransformer(context);
 		switch (event) {
 			case 'onInstallExtension': return this.onInstallExtension;
-			case 'onDidInstallExtension': return Event.map(this.onDidInstallExtension, i => ({ ...i, local: transformOutgoingExtension(i.local, uriTransformer) }));
+			case 'onDidInstallExtension': return Event.map(this.onDidInstallExtension, i => ({ ...i, local: i.local ? transformOutgoingExtension(i.local, uriTransformer) : i.local }));
 			case 'onUninstallExtension': return this.onUninstallExtension;
 			case 'onDidUninstallExtension': return this.onDidUninstallExtension;
 		}
@@ -82,7 +82,7 @@ export class ExtensionManagementChannelClient implements IExtensionManagementSer
 	constructor(private channel: IChannel) { }
 
 	get onInstallExtension(): Event<InstallExtensionEvent> { return this.channel.listen('onInstallExtension'); }
-	get onDidInstallExtension(): Event<DidInstallExtensionEvent> { return Event.map(this.channel.listen<DidInstallExtensionEvent>('onDidInstallExtension'), i => ({ ...i, local: transformIncomingExtension(i.local, null) })); }
+	get onDidInstallExtension(): Event<DidInstallExtensionEvent> { return Event.map(this.channel.listen<DidInstallExtensionEvent>('onDidInstallExtension'), i => ({ ...i, local: i.local ? transformIncomingExtension(i.local, null) : i.local })); }
 	get onUninstallExtension(): Event<IExtensionIdentifier> { return this.channel.listen('onUninstallExtension'); }
 	get onDidUninstallExtension(): Event<DidUninstallExtensionEvent> { return this.channel.listen('onDidUninstallExtension'); }
 
