@@ -16,7 +16,7 @@ import { URI } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { BUILTIN_MANIFEST_CACHE_FILE, MANIFEST_CACHE_FOLDER, USER_MANIFEST_CACHE_FILE, CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { BUILTIN_MANIFEST_CACHE_FILE, MANIFEST_CACHE_FOLDER, USER_MANIFEST_CACHE_FILE, ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import pkg from 'vs/platform/node/package';
 import product from 'vs/platform/node/product';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -68,24 +68,27 @@ export class CachedExtensionScanner {
 			.then(({ system, user, development }) => {
 				let result = new Map<string, IExtensionDescription>();
 				system.forEach((systemExtension) => {
-					const extensionKey = CanonicalExtensionIdentifier.toKey(systemExtension.identifier);
-					if (result.has(extensionKey)) {
-						log.warn(systemExtension.extensionLocation.fsPath, nls.localize('overwritingExtension', "Overwriting extension {0} with {1}.", result.get(extensionKey).extensionLocation.fsPath, systemExtension.extensionLocation.fsPath));
+					const extensionKey = ExtensionIdentifier.toKey(systemExtension.identifier);
+					const extension = result.get(extensionKey);
+					if (extension) {
+						log.warn(systemExtension.extensionLocation.fsPath, nls.localize('overwritingExtension', "Overwriting extension {0} with {1}.", extension.extensionLocation.fsPath, systemExtension.extensionLocation.fsPath));
 					}
 					result.set(extensionKey, systemExtension);
 				});
 				user.forEach((userExtension) => {
-					const extensionKey = CanonicalExtensionIdentifier.toKey(userExtension.identifier);
-					if (result.has(extensionKey)) {
-						log.warn(userExtension.extensionLocation.fsPath, nls.localize('overwritingExtension', "Overwriting extension {0} with {1}.", result.get(extensionKey).extensionLocation.fsPath, userExtension.extensionLocation.fsPath));
+					const extensionKey = ExtensionIdentifier.toKey(userExtension.identifier);
+					const extension = result.get(extensionKey);
+					if (extension) {
+						log.warn(userExtension.extensionLocation.fsPath, nls.localize('overwritingExtension', "Overwriting extension {0} with {1}.", extension.extensionLocation.fsPath, userExtension.extensionLocation.fsPath));
 					}
 					result.set(extensionKey, userExtension);
 				});
 				development.forEach(developedExtension => {
 					log.info('', nls.localize('extensionUnderDevelopment', "Loading development extension at {0}", developedExtension.extensionLocation.fsPath));
-					const extensionKey = CanonicalExtensionIdentifier.toKey(developedExtension.identifier);
-					if (result.has(extensionKey)) {
-						log.warn(developedExtension.extensionLocation.fsPath, nls.localize('overwritingExtension', "Overwriting extension {0} with {1}.", result.get(extensionKey).extensionLocation.fsPath, developedExtension.extensionLocation.fsPath));
+					const extensionKey = ExtensionIdentifier.toKey(developedExtension.identifier);
+					const extension = result.get(extensionKey);
+					if (extension) {
+						log.warn(developedExtension.extensionLocation.fsPath, nls.localize('overwritingExtension', "Overwriting extension {0} with {1}.", extension.extensionLocation.fsPath, developedExtension.extensionLocation.fsPath));
 					}
 					result.set(extensionKey, developedExtension);
 				});

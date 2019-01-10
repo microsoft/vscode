@@ -776,9 +776,9 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			.then(children => readManifest(extensionPath)
 				.then(({ manifest, metadata }) => {
 					const readme = children.filter(child => /^readme(\.txt|\.md|)$/i.test(child))[0];
-					const readmeUrl = readme ? URI.file(path.join(extensionPath, readme)).toString() : null;
+					const readmeUrl = readme ? URI.file(path.join(extensionPath, readme)) : null;
 					const changelog = children.filter(child => /^changelog(\.txt|\.md|)$/i.test(child))[0];
-					const changelogUrl = changelog ? URI.file(path.join(extensionPath, changelog)).toString() : null;
+					const changelogUrl = changelog ? URI.file(path.join(extensionPath, changelog)) : null;
 					if (manifest.extensionDependencies) {
 						manifest.extensionDependencies = manifest.extensionDependencies.map(id => adoptToGalleryExtensionId(id));
 					}

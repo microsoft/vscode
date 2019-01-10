@@ -104,6 +104,8 @@ import { TextResourcePropertiesService } from 'vs/workbench/services/textfile/el
 import { MultiExtensionManagementService } from 'vs/platform/extensionManagement/node/multiExtensionManagement';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-browser/remoteAuthorityResolverService';
+import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
+import { MarkerDecorationsService } from 'vs/editor/common/services/markerDecorationsServiceImpl';
 
 /**
  * Services that we require for the Shell
@@ -488,6 +490,7 @@ export class WorkbenchShell extends Disposable {
 
 		serviceCollection.set(IMarkerService, new SyncDescriptor(MarkerService, undefined, true));
 
+
 		serviceCollection.set(IModeService, new SyncDescriptor(WorkbenchModeServiceImpl));
 
 		serviceCollection.set(ITextResourceConfigurationService, new SyncDescriptor(TextResourceConfigurationService));
@@ -495,6 +498,8 @@ export class WorkbenchShell extends Disposable {
 		serviceCollection.set(ITextResourcePropertiesService, new SyncDescriptor(TextResourcePropertiesService));
 
 		serviceCollection.set(IModelService, new SyncDescriptor(ModelServiceImpl, undefined, true));
+
+		serviceCollection.set(IMarkerDecorationsService, new SyncDescriptor(MarkerDecorationsService));
 
 		serviceCollection.set(IEditorWorkerService, new SyncDescriptor(EditorWorkerServiceImpl));
 

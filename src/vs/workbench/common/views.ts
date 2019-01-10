@@ -18,7 +18,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IAction } from 'vs/base/common/actions';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export const TEST_VIEW_CONTAINER_ID = 'workbench.view.extension.test';
 
@@ -45,18 +45,18 @@ export interface IViewContainersRegistry {
 	 *
 	 * @returns the registered ViewContainer.
 	 */
-	registerViewContainer(id: string, extensionId?: CanonicalExtensionIdentifier): ViewContainer;
+	registerViewContainer(id: string, extensionId?: ExtensionIdentifier): ViewContainer;
 
 	/**
 	 * Returns the view container with given id.
 	 *
 	 * @returns the view container with given id.
 	 */
-	get(id: string): ViewContainer;
+	get(id: string): ViewContainer | undefined;
 }
 
 export class ViewContainer {
-	protected constructor(readonly id: string, readonly extensionId: CanonicalExtensionIdentifier) { }
+	protected constructor(readonly id: string, readonly extensionId: ExtensionIdentifier) { }
 }
 
 class ViewContainersRegistryImpl implements IViewContainersRegistry {
@@ -70,20 +70,23 @@ class ViewContainersRegistryImpl implements IViewContainersRegistry {
 		return values(this.viewContainers);
 	}
 
-	registerViewContainer(id: string, extensionId: CanonicalExtensionIdentifier): ViewContainer {
-		if (!this.viewContainers.has(id)) {
-			const viewContainer = new class extends ViewContainer {
-				constructor() {
-					super(id, extensionId);
-				}
-			};
-			this.viewContainers.set(id, viewContainer);
-			this._onDidRegister.fire(viewContainer);
+	registerViewContainer(id: string, extensionId: ExtensionIdentifier): ViewContainer {
+		const existing = this.viewContainers.get(id);
+		if (existing) {
+			return existing;
 		}
-		return this.get(id);
+
+		const viewContainer = new class extends ViewContainer {
+			constructor() {
+				super(id, extensionId);
+			}
+		};
+		this.viewContainers.set(id, viewContainer);
+		this._onDidRegister.fire(viewContainer);
+		return viewContainer;
 	}
 
-	get(id: string): ViewContainer {
+	get(id: string): ViewContainer | undefined {
 		return this.viewContainers.get(id);
 	}
 }
@@ -229,7 +232,7 @@ export const IViewsService = createDecorator<IViewsService>('viewsService');
 export interface IViewsService {
 	_serviceBrand: any;
 
-	openView(id: string, focus?: boolean): Promise<IView>;
+	openView(id: string, focus?: boolean): Promise<IView | null>;
 
 	getViewDescriptors(container: ViewContainer): IViewDescriptorCollection;
 }

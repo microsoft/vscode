@@ -7,6 +7,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IExtensionManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import * as strings from 'vs/base/common/strings';
+import { isNonEmptyArray } from 'vs/base/common/arrays';
 
 export const MANIFEST_CACHE_FOLDER = 'CachedExtensions';
 export const USER_MANIFEST_CACHE_FILE = 'user';
@@ -29,7 +30,19 @@ export function isUIExtension(manifest: IExtensionManifest, configurationService
 	switch (manifest.extensionKind) {
 		case 'ui': return true;
 		case 'workspace': return false;
-		default: return uiExtensions.has(extensionId) || !manifest.main;
+		default: {
+			if (uiExtensions.has(extensionId)) {
+				return true;
+			}
+			if (manifest.main) {
+				return false;
+			}
+			if (manifest.contributes && isNonEmptyArray(manifest.contributes.debuggers)) {
+				return false;
+			}
+			// Default is UI Extension
+			return true;
+		}
 	}
 }
 
@@ -49,7 +62,7 @@ export function isUIExtension(manifest: IExtensionManifest, configurationService
  * To make matters more complicated, an extension can optionally have an UUID. When two
  * extensions have the same UUID, they are considered equal even if their identifier is different.
  */
-export class CanonicalExtensionIdentifier {
+export class ExtensionIdentifier {
 	public readonly value: string;
 	private readonly _lower: string;
 
@@ -58,7 +71,7 @@ export class CanonicalExtensionIdentifier {
 		this._lower = value.toLowerCase();
 	}
 
-	public static equals(a: CanonicalExtensionIdentifier | string | null | undefined, b: CanonicalExtensionIdentifier | string | null | undefined) {
+	public static equals(a: ExtensionIdentifier | string | null | undefined, b: ExtensionIdentifier | string | null | undefined) {
 		if (typeof a === 'undefined' || a === null) {
 			return (typeof b === 'undefined' || b === null);
 		}
@@ -73,14 +86,14 @@ export class CanonicalExtensionIdentifier {
 			return strings.equalsIgnoreCase(aValue, bValue);
 		}
 
-		// Now we know both arguments are CanonicalExtensionIdentifier
+		// Now we know both arguments are ExtensionIdentifier
 		return (a._lower === b._lower);
 	}
 
 	/**
 	 * Gives the value by which to index (for equality).
 	 */
-	public static toKey(id: CanonicalExtensionIdentifier | string): string {
+	public static toKey(id: ExtensionIdentifier | string): string {
 		if (typeof id === 'string') {
 			return id.toLowerCase();
 		}

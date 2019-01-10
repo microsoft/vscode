@@ -347,10 +347,10 @@ abstract class AbstractLineMatcher implements ILineMatcher {
 	}
 
 	private createLocation(startLine: number, startColumn: number | undefined, endLine: number | undefined, endColumn: number | undefined): Location {
-		if (startLine && startColumn && endColumn) {
+		if (startColumn !== undefined && endColumn !== undefined) {
 			return { startLineNumber: startLine, startCharacter: startColumn, endLineNumber: endLine || startLine, endCharacter: endColumn };
 		}
-		if (startLine && startColumn) {
+		if (startColumn !== undefined) {
 			return { startLineNumber: startLine, startCharacter: startColumn, endLineNumber: startLine, endCharacter: startColumn };
 		}
 		return { startLineNumber: startLine, startCharacter: 1, endLineNumber: startLine, endCharacter: Number.MAX_VALUE };
@@ -625,16 +625,15 @@ export namespace Config {
 
 	export namespace MultiLineCheckedProblemPattern {
 		export function is(value: any): value is MultiLineCheckedProblemPattern {
-			let is = false;
-			if (value && Types.isArray(value)) {
-				is = true;
-				value.forEach(element => {
-					if (!Config.CheckedProblemPattern.is(element)) {
-						is = false;
-					}
-				});
+			if (!MultiLineProblemPattern.is(value)) {
+				return false;
 			}
-			return is;
+			for (const element of value) {
+				if (!Config.CheckedProblemPattern.is(element)) {
+					return false;
+				}
+			}
+			return true;
 		}
 	}
 
@@ -823,11 +822,6 @@ export class ProblemPatternParser extends Parser {
 	public parse(value: Config.NamedProblemPattern): NamedProblemPattern;
 	public parse(value: Config.NamedMultiLineCheckedProblemPattern): NamedMultiLineProblemPattern;
 	public parse(value: Config.ProblemPattern | Config.MultiLineProblemPattern | Config.NamedProblemPattern | Config.NamedMultiLineCheckedProblemPattern): any {
-		if ((Config.MultiLineProblemPattern.is(value) && !Config.MultiLineCheckedProblemPattern.is(value)) ||
-			(!Config.MultiLineProblemPattern.is(value) && !Config.CheckedProblemPattern.is(value))) {
-			this.error(localize('ProblemPatternParser.problemPattern.missingRegExp', 'The problem pattern is missing a regular expression.'));
-		}
-
 		if (Config.NamedMultiLineCheckedProblemPattern.is(value)) {
 			return this.createNamedMultiLineProblemPattern(value);
 		} else if (Config.MultiLineCheckedProblemPattern.is(value)) {
@@ -839,6 +833,7 @@ export class ProblemPatternParser extends Parser {
 		} else if (Config.CheckedProblemPattern.is(value)) {
 			return this.createSingleProblemPattern(value);
 		} else {
+			this.error(localize('ProblemPatternParser.problemPattern.missingRegExp', 'The problem pattern is missing a regular expression.'));
 			return null;
 		}
 	}

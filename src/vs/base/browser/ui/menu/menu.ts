@@ -27,7 +27,7 @@ export interface IMenuOptions {
 	context?: any;
 	actionItemProvider?: IActionItemProvider;
 	actionRunner?: IActionRunner;
-	getKeyBinding?: (action: IAction) => ResolvedKeybinding | null;
+	getKeyBinding?: (action: IAction) => ResolvedKeybinding | undefined;
 	ariaLabel?: string;
 	enableMnemonics?: boolean;
 	anchorAlignment?: AnchorAlignment;
@@ -96,7 +96,7 @@ export class Menu extends ActionBar {
 				const key = KeyCodeUtils.fromString(e.key);
 				if (this.mnemonics.has(key)) {
 					EventHelper.stop(e, true);
-					const actions = this.mnemonics.get(key);
+					const actions = this.mnemonics.get(key)!;
 
 					if (actions.length === 1) {
 						if (actions[0] instanceof SubmenuActionItem) {
@@ -292,7 +292,7 @@ export class Menu extends ActionBar {
 				if (mnemonic && menuActionItem.isEnabled()) {
 					let actionItems: MenuActionItem[] = [];
 					if (this.mnemonics.has(mnemonic)) {
-						actionItems = this.mnemonics.get(mnemonic);
+						actionItems = this.mnemonics.get(mnemonic)!;
 					}
 
 					actionItems.push(menuActionItem);
@@ -322,7 +322,7 @@ export class Menu extends ActionBar {
 				if (mnemonic && menuActionItem.isEnabled()) {
 					let actionItems: MenuActionItem[] = [];
 					if (this.mnemonics.has(mnemonic)) {
-						actionItems = this.mnemonics.get(mnemonic);
+						actionItems = this.mnemonics.get(mnemonic)!;
 					}
 
 					actionItems.push(menuActionItem);

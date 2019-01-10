@@ -62,7 +62,7 @@ class StartDebugEntry extends Model.QuickOpenEntry {
 	}
 
 	public run(mode: QuickOpen.Mode, context: Model.IContext): boolean {
-		if (mode === QuickOpen.Mode.PREVIEW || !StartAction.isEnabled(this.debugService, this.contextService, this.configurationName)) {
+		if (mode === QuickOpen.Mode.PREVIEW || !StartAction.isEnabled(this.debugService)) {
 			return false;
 		}
 		// Run selected debug configuration

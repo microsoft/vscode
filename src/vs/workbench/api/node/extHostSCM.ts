@@ -17,7 +17,7 @@ import * as vscode from 'vscode';
 import { ISplice } from 'vs/base/common/sequence';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 type ProviderHandle = number;
 type GroupHandle = number;
@@ -591,9 +591,9 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		const sourceControl = new ExtHostSourceControl(extension, this._proxy, this._commands, id, label, rootUri);
 		this._sourceControls.set(handle, sourceControl);
 
-		const sourceControls = this._sourceControlsByExtension.get(CanonicalExtensionIdentifier.toKey(extension.identifier)) || [];
+		const sourceControls = this._sourceControlsByExtension.get(ExtensionIdentifier.toKey(extension.identifier)) || [];
 		sourceControls.push(sourceControl);
-		this._sourceControlsByExtension.set(CanonicalExtensionIdentifier.toKey(extension.identifier), sourceControls);
+		this._sourceControlsByExtension.set(ExtensionIdentifier.toKey(extension.identifier), sourceControls);
 
 		return sourceControl;
 	}
@@ -602,7 +602,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 	getLastInputBox(extension: IExtensionDescription): ExtHostSCMInputBox {
 		this.logService.trace('ExtHostSCM#getLastInputBox', extension.identifier.value);
 
-		const sourceControls = this._sourceControlsByExtension.get(CanonicalExtensionIdentifier.toKey(extension.identifier));
+		const sourceControls = this._sourceControlsByExtension.get(ExtensionIdentifier.toKey(extension.identifier));
 		const sourceControl = sourceControls && sourceControls[sourceControls.length - 1];
 		const inputBox = sourceControl && sourceControl.inputBox;
 

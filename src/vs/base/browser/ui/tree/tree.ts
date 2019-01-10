@@ -5,7 +5,9 @@
 
 import { Event } from 'vs/base/common/event';
 import { Iterator } from 'vs/base/common/iterator';
-import { IListRenderer, AbstractListRenderer } from 'vs/base/browser/ui/list/list';
+import { IListRenderer, AbstractListRenderer, IListDragOverReaction, IListDragAndDrop, ListDragOverEffect } from 'vs/base/browser/ui/list/list';
+import { IDragAndDropData } from 'vs/base/browser/dnd';
+import { coalesce } from 'vs/base/common/arrays';
 
 export const enum TreeVisibility {
 
@@ -100,6 +102,7 @@ export interface ITreeModel<T, TFilterData, TRef> {
 	readonly onDidChangeRenderNodeCount: Event<ITreeNode<T, TFilterData>>;
 
 	getListIndex(location: TRef): number;
+	getListRenderCount(location: TRef): number;
 	getNode(location?: TRef): ITreeNode<T, any>;
 	getNodeLocation(node: ITreeNode<T, any>): TRef;
 	getParentNodeLocation(location: TRef): TRef;
@@ -154,6 +157,27 @@ export interface IAsyncDataSource<TInput, T> {
 	getChildren(element: TInput | T): T[] | Promise<T[]>;
 }
 
+export const enum TreeDragOverBubble {
+	Down,
+	Up
+}
+
+export interface ITreeDragOverReaction extends IListDragOverReaction {
+	bubble?: TreeDragOverBubble;
+	autoExpand?: boolean;
+}
+
+export const TreeDragOverReactions = {
+	acceptBubbleUp(): ITreeDragOverReaction { return { accept: true, bubble: TreeDragOverBubble.Up }; },
+	acceptBubbleDown(autoExpand = false): ITreeDragOverReaction { return { accept: true, bubble: TreeDragOverBubble.Down, autoExpand }; },
+	acceptCopyBubbleUp(): ITreeDragOverReaction { return { accept: true, bubble: TreeDragOverBubble.Up, effect: ListDragOverEffect.Copy }; },
+	acceptCopyBubbleDown(autoExpand = false): ITreeDragOverReaction { return { accept: true, bubble: TreeDragOverBubble.Down, effect: ListDragOverEffect.Copy, autoExpand }; }
+};
+
+export interface ITreeDragAndDrop<T> extends IListDragAndDrop<T> {
+	onDragOver(data: IDragAndDropData, targetElement: T | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean | ITreeDragOverReaction;
+}
+
 /**
  * Use this renderer when you want to re-render elements on account of
  * an event firing.
@@ -169,9 +193,9 @@ export abstract class AbstractTreeRenderer<T, TFilterData = void, TTemplateData 
 			if (typeof e === 'undefined') {
 				return undefined;
 			} else if (Array.isArray(e)) {
-				return e.map(e => this.elementsToNodes.get(e) || null).filter(e => e !== null);
+				return coalesce(e.map(e => this.elementsToNodes.get(e)));
 			} else {
-				return this.elementsToNodes.get(e) || null;
+				return this.elementsToNodes.get(e);
 			}
 		}));
 	}

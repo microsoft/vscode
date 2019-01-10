@@ -252,7 +252,7 @@ suite('ExtHostLanguageFeatures', function () {
 				return Promise.resolve(data.provider.resolveCodeLens(model, data.symbol, CancellationToken.None)).then(symbol => {
 
 					assert.equal(symbol.command.id, 'missing');
-					assert.equal(symbol.command.title, '<<MISSING COMMAND>>');
+					assert.equal(symbol.command.title, '!!MISSING: command!!');
 				});
 			});
 		});
@@ -892,6 +892,7 @@ suite('ExtHostLanguageFeatures', function () {
 			});
 		});
 	});
+
 	test('Parameter Hints, evil provider', function () {
 
 		disposables.push(extHost.registerSignatureHelpProvider(defaultExtension, defaultSelector, new class implements vscode.SignatureHelpProvider {

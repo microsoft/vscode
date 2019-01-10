@@ -130,6 +130,29 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 				return options.identityProvider!.getId(el.element as T);
 			}
 		},
+		dnd: options.dnd && {
+			getDragURI(node) {
+				return options.dnd!.getDragURI(node.element as T);
+			},
+			getDragLabel(nodes) {
+				if (options.dnd!.getDragLabel) {
+					return options.dnd!.getDragLabel!(nodes.map(node => node.element as T));
+				}
+
+				return undefined;
+			},
+			onDragStart(data, originalEvent) {
+				if (options.dnd!.onDragStart) {
+					options.dnd!.onDragStart!(data, originalEvent);
+				}
+			},
+			onDragOver(data, targetNode, targetIndex, originalEvent) {
+				return options.dnd!.onDragOver(data, targetNode && targetNode.element as T, targetIndex, originalEvent);
+			},
+			drop(data, targetNode, targetIndex, originalEvent) {
+				options.dnd!.drop(data, targetNode && targetNode.element as T, targetIndex, originalEvent);
+			}
+		},
 		multipleSelectionController: options.multipleSelectionController && {
 			isSelectionSingleChangeEvent(e) {
 				return options.multipleSelectionController!.isSelectionSingleChangeEvent({ ...e, element: e.element } as any);
@@ -433,9 +456,9 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	// Implementation
 
 	private getDataNode(element: TInput | T): IAsyncDataTreeNode<TInput, T> {
-		const node: IAsyncDataTreeNode<TInput, T> = this.nodes.get((element === this.root.element ? null : element) as T);
+		const node: IAsyncDataTreeNode<TInput, T> | undefined = this.nodes.get((element === this.root.element ? null : element) as T);
 
-		if (typeof node === 'undefined') {
+		if (!node) {
 			throw new Error(`Data tree node not found: ${element}`);
 		}
 

@@ -107,6 +107,18 @@
 		},
 		{
 			"component": {
+				"type": "git",
+				"git": {
+					"name": "vscode-octicons-font",
+					"repositoryUrl": "https://github.com/Microsoft/vscode-octicons-font",
+					"commitHash": "174697a8d28a65dc6600c44d239bd75f7d157c71"
+				}
+			},
+			"license": "MIT",
+			"version": "1.0.0"
+		},
+		{
+			"component": {
 				"type": "npm",
 				"npm": {
 					"name": "mdn-data",

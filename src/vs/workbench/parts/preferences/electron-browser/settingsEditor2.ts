@@ -470,6 +470,7 @@ export class SettingsEditor2 extends BaseEditor {
 		this._register(DOM.addDisposableListener(clearSearch, DOM.EventType.CLICK, (e: MouseEvent) => {
 			DOM.EventHelper.stop(e, false);
 			this.clearSearchResults();
+			this.focusSearch();
 		}));
 
 		DOM.append(this.noResultsMessage, clearSearchContainer);

@@ -629,6 +629,10 @@ export interface CommitOptions {
 	empty?: boolean;
 }
 
+export interface PullOptions {
+	unshallow?: boolean;
+}
+
 export enum ForcePushMode {
 	Force,
 	ForceWithLease
@@ -1166,7 +1170,7 @@ export class Repository {
 		await this.run(args);
 	}
 
-	async fetch(options: { remote?: string, ref?: string, all?: boolean, prune?: boolean } = {}): Promise<void> {
+	async fetch(options: { remote?: string, ref?: string, all?: boolean, prune?: boolean, depth?: number } = {}): Promise<void> {
 		const args = ['fetch'];
 
 		if (options.remote) {
@@ -1183,6 +1187,9 @@ export class Repository {
 			args.push('--prune');
 		}
 
+		if (typeof options.depth === 'number') {
+			args.push(`--depth=${options.depth}`);
+		}
 
 		try {
 			await this.run(args);
@@ -1197,8 +1204,12 @@ export class Repository {
 		}
 	}
 
-	async pull(rebase?: boolean, remote?: string, branch?: string): Promise<void> {
+	async pull(rebase?: boolean, remote?: string, branch?: string, options: PullOptions = {}): Promise<void> {
 		const args = ['pull', '--tags'];
+
+		if (options.unshallow) {
+			args.push('--unshallow');
+		}
 
 		if (rebase) {
 			args.push('-r');
