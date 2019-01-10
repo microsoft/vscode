@@ -14,16 +14,38 @@ import { getUriForLinkWithKnownExternalScheme } from './util/links';
 
 const UNICODE_NEWLINE_REGEX = /\u2028|\u2029/g;
 
+class TokenCache {
+	private cachedDocument?: {
+		readonly uri: vscode.Uri;
+		readonly version: number;
+	};
+	private tokens?: Token[];
+
+	public tryGetCached(document: SkinnyTextDocument): Token[] | undefined {
+		if (this.cachedDocument
+			&& this.cachedDocument.uri.toString() === document.uri.toString()
+			&& this.cachedDocument.version === document.version
+		) {
+			return this.tokens;
+		}
+		return undefined;
+	}
+
+	public update(document: SkinnyTextDocument, tokens: Token[]) {
+		this.cachedDocument = {
+			uri: document.uri,
+			version: document.version
+		};
+		this.tokens = tokens;
+	}
+}
+
 export class MarkdownEngine {
 	private md?: Promise<MarkdownIt>;
 
 	private currentDocument?: vscode.Uri;
 	private _slugCount = new Map<string, number>();
-	private _cache?: {
-		readonly document: vscode.Uri;
-		readonly version: number;
-		readonly tokens: Token[]
-	};
+	private _tokenCache = new TokenCache();
 
 	public constructor(
 		private readonly extensionPreviewResourceProvider: MarkdownContributions,
@@ -103,11 +125,9 @@ export class MarkdownEngine {
 	}
 
 	private tokenize(document: SkinnyTextDocument, engine: MarkdownIt): Token[] {
-		if (this._cache
-			&& this._cache.document.toString() === document.uri.toString()
-			&& this._cache.version === document.version
-		) {
-			return this._cache.tokens;
+		const cached = this._tokenCache.tryGetCached(document);
+		if (cached) {
+			return cached;
 		}
 
 		this.currentDocument = document.uri;
@@ -115,11 +135,7 @@ export class MarkdownEngine {
 
 		const text = document.getText();
 		const tokens = engine.parse(text.replace(UNICODE_NEWLINE_REGEX, ''), {});
-		this._cache = {
-			tokens,
-			document: document.uri,
-			version: document.version
-		};
+		this._tokenCache.update(document, tokens);
 		return tokens;
 	}
 
