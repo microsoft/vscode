@@ -453,11 +453,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			const items = (data as ElementsDragAndDropData<ExplorerItem>).elements;
 
 			if (!target) {
-				if (items[0].isRoot) {
-					return { accept: true, bubble: TreeDragOverBubble.Down, autoExpand: false };
-				}
-
-				return false;
+				return { accept: true, bubble: TreeDragOverBubble.Down, autoExpand: false };
 			}
 
 			if (!Array.isArray(items)) {
