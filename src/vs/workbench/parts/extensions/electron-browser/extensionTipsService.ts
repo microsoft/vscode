@@ -372,7 +372,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 		if (filteredWanted.length) {
 			try {
-				let validRecommendations = (await this._galleryService.query({ names: filteredWanted })).firstPage
+				let validRecommendations = (await this._galleryService.query({ names: filteredWanted, pageSize: filteredWanted.length })).firstPage
 					.map(extension => extension.identifier.id.toLowerCase());
 
 				if (validRecommendations.length !== filteredWanted.length) {
