@@ -262,8 +262,8 @@ export class RipgrepParser extends EventEmitter {
 			let matchText = bytesOrTextToString(match.match);
 			if (lineNumber === 0 && i === 0 && isBOMStripped) {
 				matchText = stripUTF8BOM(matchText);
-				match.start -= 3;
-				match.end -= 3;
+				match.start = match.start <= 3 ? 0 : match.start - 3;
+				match.end = match.end <= 3 ? 0 : match.end - 3;
 			}
 			const inBetweenChars = fullTextBytes.slice(prevMatchEnd, match.start).toString().length;
 			let startCol = prevMatchEndCol + inBetweenChars;
