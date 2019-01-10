@@ -203,7 +203,7 @@ export class FileWalker {
 		const useRipgrep = this.useRipgrep;
 		let noSiblingsClauses: boolean;
 		if (useRipgrep) {
-			const ripgrep = spawnRipgrepCmd(this.config, folderQuery, this.config.includePattern, this.folderExcludePatterns.get(folderQuery.folder.fsPath).expression);
+			const ripgrep = spawnRipgrepCmd(this.config, folderQuery, this.config.includePattern, this.folderExcludePatterns.get(folderQuery.folder.fsPath)!.expression);
 			cmd = ripgrep.cmd;
 			noSiblingsClauses = !Object.keys(ripgrep.siblingClauses).length;
 
@@ -286,7 +286,7 @@ export class FileWalker {
 	 * Public for testing.
 	 */
 	spawnFindCmd(folderQuery: IFolderQuery) {
-		const excludePattern = this.folderExcludePatterns.get(folderQuery.folder.fsPath);
+		const excludePattern = this.folderExcludePatterns.get(folderQuery.folder.fsPath)!;
 		const basenames = excludePattern.getBasenameTerms();
 		const pathTerms = excludePattern.getPathTerms();
 		const args = ['-L', '.'];
@@ -428,7 +428,7 @@ export class FileWalker {
 
 	private matchDirectoryTree({ rootEntries, pathToEntries }: IDirectoryTree, rootFolder: string, onResult: (result: IRawFileMatch) => void) {
 		const self = this;
-		const excludePattern = this.folderExcludePatterns.get(rootFolder);
+		const excludePattern = this.folderExcludePatterns.get(rootFolder)!;
 		const filePattern = this.filePattern;
 		function matchDirectory(entries: IDirectoryEntry[]) {
 			self.directoriesWalked++;
@@ -508,7 +508,7 @@ export class FileWalker {
 			// to ignore filtering by siblings because the user seems to know what she
 			// is searching for and we want to include the result in that case anyway
 			const currentRelativePath = relativeParentPath ? [relativeParentPath, file].join(path.sep) : file;
-			if (this.folderExcludePatterns.get(folderQuery.folder.fsPath).test(currentRelativePath, file, this.config.filePattern !== file ? hasSibling : undefined)) {
+			if (this.folderExcludePatterns.get(folderQuery.folder.fsPath)!.test(currentRelativePath, file, this.config.filePattern !== file ? hasSibling : undefined)) {
 				return clb(null);
 			}
 

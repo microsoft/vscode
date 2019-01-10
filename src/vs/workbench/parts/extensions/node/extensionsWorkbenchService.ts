@@ -341,7 +341,7 @@ class ExtensionDependencies implements IExtensionDependencies {
 		if (!this.hasDependencies) {
 			return [];
 		}
-		return this._extension.dependencies.map(id => new ExtensionDependencies(this._map.get(id), id, this._map, this));
+		return this._extension.dependencies.map(id => new ExtensionDependencies(this._map.get(id)!, id, this._map, this));
 	}
 
 	private computeHasDependencies(): boolean {
