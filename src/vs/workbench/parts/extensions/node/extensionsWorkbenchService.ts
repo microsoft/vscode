@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { readFile } from 'vs/base/node/pfs';
 import * as semver from 'semver';
 import { Event, Emitter } from 'vs/base/common/event';
 import { index, distinct } from 'vs/base/common/arrays';
@@ -37,6 +36,7 @@ import { Schemas } from 'vs/base/common/network';
 import * as resources from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IFileService } from 'vs/platform/files/common/files';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -53,7 +53,8 @@ class Extension implements IExtension {
 		public locals: ILocalExtension[],
 		public gallery: IGalleryExtension | undefined,
 		private telemetryService: ITelemetryService,
-		private logService: ILogService
+		private logService: ILogService,
+		private fileService: IFileService
 	) { }
 
 	get type(): LocalExtensionType | undefined {
@@ -237,8 +238,7 @@ class Extension implements IExtension {
 		}
 
 		if (this.local && this.local.readmeUrl) {
-			const uri = URI.parse(this.local.readmeUrl);
-			return readFile(uri.fsPath, 'utf8');
+			return this.fileService.resolveContent(this.local.readmeUrl, { encoding: 'utf8' }).then(content => content.value);
 		}
 
 		if (this.type === LocalExtensionType.System) {
@@ -258,8 +258,7 @@ ${this.description}
 		}
 
 		if (this.local && this.local.changelogUrl) {
-			const uri = URI.parse(this.local.changelogUrl);
-			return uri.scheme === 'file';
+			return true;
 		}
 
 		return this.type === LocalExtensionType.System;
@@ -280,13 +279,7 @@ ${this.description}
 			return Promise.reject(new Error('not available'));
 		}
 
-		const uri = URI.parse(changelogUrl);
-
-		if (uri.scheme === 'file') {
-			return readFile(uri.fsPath, 'utf8');
-		}
-
-		return Promise.reject(new Error('not available'));
+		return this.fileService.resolveContent(changelogUrl, { encoding: 'utf8' }).then(content => content.value);
 	}
 
 	get dependencies(): string[] {
@@ -391,7 +384,8 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		@IProgressService2 private readonly progressService: IProgressService2,
 		@IExtensionService private readonly runtimeExtensionService: IExtensionService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
-		@IStorageService private readonly storageService: IStorageService
+		@IStorageService private readonly storageService: IStorageService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		this.stateProvider = ext => this.getExtensionState(ext);
 
@@ -443,7 +437,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 						const locals = groupById[getGalleryExtensionIdFromLocal(local)];
 						locals.splice(locals.indexOf(local), 1);
 						locals.splice(0, 0, local);
-						const extension = installedById[local.identifier.id] || new Extension(this.galleryService, this.stateProvider, locals, undefined, this.telemetryService, this.logService);
+						const extension = installedById[local.identifier.id] || new Extension(this.galleryService, this.stateProvider, locals, undefined, this.telemetryService, this.logService, this.fileService);
 						extension.locals = locals;
 						extension.enablementState = this.extensionEnablementService.getEnablementState(local);
 						return extension;
@@ -561,7 +555,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 				this.syncLocalWithGalleryExtension(result, gallery);
 			}
 		} else {
-			result = new Extension(this.galleryService, this.stateProvider, [], gallery, this.telemetryService, this.logService);
+			result = new Extension(this.galleryService, this.stateProvider, [], gallery, this.telemetryService, this.logService, this.fileService);
 		}
 
 		if (maliciousExtensionSet.has(result.identifier.id)) {
@@ -920,7 +914,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		let extension = this.installed.filter(e => areSameExtensions(e.identifier, gallery.identifier))[0];
 
 		if (!extension) {
-			extension = new Extension(this.galleryService, this.stateProvider, [], gallery, this.telemetryService, this.logService);
+			extension = new Extension(this.galleryService, this.stateProvider, [], gallery, this.telemetryService, this.logService, this.fileService);
 		}
 
 		this.installing.push(extension);
@@ -931,7 +925,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 	private onDidInstallExtension(event: DidInstallExtensionEvent): void {
 		const { local, zipPath, error, gallery } = event;
 		const installingExtension = gallery ? this.installing.filter(e => areSameExtensions(e.identifier, gallery.identifier))[0] : null;
-		let extension: Extension | undefined = installingExtension ? installingExtension : zipPath ? new Extension(this.galleryService, this.stateProvider, local ? [local] : [], undefined, this.telemetryService, this.logService) : undefined;
+		let extension: Extension | undefined = installingExtension ? installingExtension : zipPath ? new Extension(this.galleryService, this.stateProvider, local ? [local] : [], undefined, this.telemetryService, this.logService, this.fileService) : undefined;
 		if (extension) {
 			this.installing = installingExtension ? this.installing.filter(e => e !== installingExtension) : this.installing;
 			if (local) {

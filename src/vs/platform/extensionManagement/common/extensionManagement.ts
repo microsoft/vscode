@@ -223,8 +223,8 @@ export interface ILocalExtension {
 	manifest: IExtensionManifest;
 	metadata: IGalleryMetadata;
 	location: URI;
-	readmeUrl: string;
-	changelogUrl: string;
+	readmeUrl: URI | null;
+	changelogUrl: URI | null;
 }
 
 export const IExtensionManagementService = createDecorator<IExtensionManagementService>('extensionManagementService');
