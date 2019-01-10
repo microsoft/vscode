@@ -232,6 +232,10 @@ export class SnippetFile {
 			body = body.join('\n');
 		}
 
+		if (Array.isArray(description)) {
+			description = description.join('\n');
+		}
+
 		if ((typeof prefix !== 'string' && !Array.isArray(prefix)) || typeof body !== 'string') {
 			return;
 		}
