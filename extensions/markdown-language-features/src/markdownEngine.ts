@@ -12,13 +12,11 @@ import { Slugifier } from './slugify';
 import { SkinnyTextDocument } from './tableOfContentsProvider';
 import { getUriForLinkWithKnownExternalScheme } from './util/links';
 
-const FrontMatterRegex = /^---\s*[^]*?(-{3}|\.{3})\s*/;
 const UNICODE_NEWLINE_REGEX = /\u2028|\u2029/g;
 
 export class MarkdownEngine {
 	private md?: MarkdownIt;
 
-	private firstLine?: number;
 	private currentDocument?: vscode.Uri;
 	private _slugCount = new Map<string, number>();
 	private _cache?: {
@@ -69,6 +67,21 @@ export class MarkdownEngine {
 				this.usePlugin(await plugin);
 			}
 
+			const frontMatterPlugin = require('markdown-it-front-matter');
+			// Extract rules from front matter plugin and apply at a lower precedence
+			let fontMatterRule: any;
+			frontMatterPlugin({
+				block: {
+					ruler: {
+						before: (_id: any, _id2: any, rule: any) => { fontMatterRule = rule; }
+					}
+				}
+			}, () => { /* noop */ });
+
+			this.md.block.ruler.before('fence', 'front_matter', fontMatterRule, {
+				alt: ['paragraph', 'reference', 'blockquote', 'list']
+			});
+
 			for (const renderName of ['paragraph_open', 'heading_open', 'image', 'code_block', 'fence', 'blockquote_open', 'list_item_open']) {
 				this.addLineNumberRenderer(this.md, renderName);
 			}
@@ -89,20 +102,7 @@ export class MarkdownEngine {
 		return this.md;
 	}
 
-	private stripFrontmatter(text: string): { frontMatter?: string, body: string, lineOffset: number } {
-		let offset = 0;
-		const frontMatterMatch = FrontMatterRegex.exec(text);
-		let frontMatter: string | undefined;
-		if (frontMatterMatch) {
-			frontMatter = frontMatterMatch[0];
-			offset = frontMatter.split(/\r\n|\n|\r/g).length - 1;
-			text = text.substr(frontMatter.length);
-		}
-		return { frontMatter, body: text, lineOffset: offset };
-	}
-
 	private tokenize(document: SkinnyTextDocument, engine: MarkdownIt): Token[] {
-		const { body: text, lineOffset: offset } = this.stripFrontmatter(document.getText());
 		const uri = document.uri;
 		if (this._cache
 			&& this._cache.document.toString() === uri.toString()
@@ -113,15 +113,9 @@ export class MarkdownEngine {
 
 		this.currentDocument = document.uri;
 		this._slugCount = new Map<string, number>();
-		this.firstLine = offset;
 
-		const tokens = engine.parse(text.replace(UNICODE_NEWLINE_REGEX, ''), {}).map(token => {
-			if (token.map) {
-				token.map[0] += offset;
-				token.map[1] += offset;
-			}
-			return token;
-		});
+		const text = document.getText();
+		const tokens = engine.parse(text.replace(UNICODE_NEWLINE_REGEX, ''), {});
 		this._cache = {
 			tokens,
 			document: uri,
@@ -130,10 +124,9 @@ export class MarkdownEngine {
 		return tokens;
 	}
 
-	public async render(document: SkinnyTextDocument, _stripFrontmatter: boolean): Promise<string> {
+	public async render(document: SkinnyTextDocument): Promise<string> {
 		const engine = await this.getEngine(document.uri);
-		const html = engine.renderer.render(this.tokenize(document, engine), this.md, {});
-		return html;
+		return engine.renderer.render(this.tokenize(document, engine), engine, {});
 	}
 
 	public async parse(document: SkinnyTextDocument): Promise<Token[]> {
@@ -146,7 +139,7 @@ export class MarkdownEngine {
 		md.renderer.rules[ruleName] = (tokens: any, idx: number, options: any, env: any, self: any) => {
 			const token = tokens[idx];
 			if (token.map && token.map.length) {
-				token.attrSet('data-line', this.firstLine + token.map[0]);
+				token.attrSet('data-line', token.map[0]);
 				token.attrJoin('class', 'code-line');
 			}
 

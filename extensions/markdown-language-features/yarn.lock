@@ -3895,6 +3895,11 @@ map-visit@^1.0.0:
   dependencies:
     object-visit "^1.0.0"
 
+markdown-it-front-matter@^0.1.2:
+  version "0.1.2"
+  resolved "https://registry.yarnpkg.com/markdown-it-front-matter/-/markdown-it-front-matter-0.1.2.tgz#e50bf56e77e6a4f5ac4ffa894d4d45ccd9896b20"
+  integrity sha1-5Qv1bnfmpPWsT/qJTU1FzNmJayA=
+
 markdown-it@^8.4.2:
   version "8.4.2"
   resolved "https://registry.yarnpkg.com/markdown-it/-/markdown-it-8.4.2.tgz#386f98998dc15a37722aa7722084f4020bdd9b54"
