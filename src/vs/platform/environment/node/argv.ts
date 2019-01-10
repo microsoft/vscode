@@ -168,6 +168,7 @@ const extensionsHelp: { [name: string]: string; } = {
 	'--show-versions': localize('showVersions', "Show versions of installed extensions, when using --list-extension."),
 	'--uninstall-extension (<extension-id> | <extension-vsix-path>)': localize('uninstallExtension', "Uninstalls an extension."),
 	'--install-extension (<extension-id> | <extension-vsix-path>)': localize('installExtension', "Installs or updates the extension. Use `--force` argument to avoid prompts."),
+	'--install-extensions-file (<file>)': localize('installExtensionsFile', "Installs or updates the list of extensions provided in the given file. File should contain single extension per line. Use `--force` argument to avoid prompts."),
 	'--enable-proposed-api (<extension-id>)': localize('experimentalApis', "Enables proposed API features for extensions. Can receive one or more extension IDs to enable individually.")
 };
 
