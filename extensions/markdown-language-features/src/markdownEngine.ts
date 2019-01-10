@@ -13,16 +13,19 @@ import { SkinnyTextDocument } from './tableOfContentsProvider';
 import { getUriForLinkWithKnownExternalScheme } from './util/links';
 
 const FrontMatterRegex = /^---\s*[^]*?(-{3}|\.{3})\s*/;
+const UNICODE_NEWLINE_REGEX = /\u2028|\u2029/g;
+
 export class MarkdownEngine {
 	private md?: MarkdownIt;
 
 	private firstLine?: number;
 	private currentDocument?: vscode.Uri;
 	private _slugCount = new Map<string, number>();
-	private cachedTokens = new Map<vscode.Uri, Token[]>();
-
-
-
+	private _cache?: {
+		readonly document: vscode.Uri;
+		readonly version: number;
+		readonly tokens: Token[]
+	};
 
 	public constructor(
 		private readonly extensionPreviewResourceProvider: MarkdownContributions,
@@ -86,24 +89,32 @@ export class MarkdownEngine {
 		return this.md;
 	}
 
-	private stripFrontmatter(text: string): { text: string, offset: number } {
+	private stripFrontmatter(text: string): { frontMatter?: string, body: string, lineOffset: number } {
 		let offset = 0;
 		const frontMatterMatch = FrontMatterRegex.exec(text);
+		let frontMatter: string | undefined;
 		if (frontMatterMatch) {
-			const frontMatter = frontMatterMatch[0];
+			frontMatter = frontMatterMatch[0];
 			offset = frontMatter.split(/\r\n|\n|\r/g).length - 1;
 			text = text.substr(frontMatter.length);
 		}
-		return { text, offset };
+		return { frontMatter, body: text, lineOffset: offset };
 	}
 
 	private tokenize(document: SkinnyTextDocument, engine: MarkdownIt): Token[] {
-		const UNICODE_NEWLINE_REGEX = /\u2028|\u2029/g;
-		const { text, offset } = this.stripFrontmatter(document.getText());
+		const { body: text, lineOffset: offset } = this.stripFrontmatter(document.getText());
 		const uri = document.uri;
-		if (this.cachedTokens.has(uri)) {
-			return this.cachedTokens.get(uri)!;
+		if (this._cache
+			&& this._cache.document.toString() === uri.toString()
+			&& this._cache.version === document.version
+		) {
+			return this._cache.tokens;
 		}
+
+		this.currentDocument = document.uri;
+		this._slugCount = new Map<string, number>();
+		this.firstLine = offset;
+
 		const tokens = engine.parse(text.replace(UNICODE_NEWLINE_REGEX, ''), {}).map(token => {
 			if (token.map) {
 				token.map[0] += offset;
@@ -111,29 +122,21 @@ export class MarkdownEngine {
 			}
 			return token;
 		});
-		this.cachedTokens.set(uri, tokens);
+		this._cache = {
+			tokens,
+			document: uri,
+			version: document.version
+		};
 		return tokens;
 	}
 
-	public async render(document: SkinnyTextDocument, stripFrontmatter: boolean): Promise<string> {
-		let offset = 0;
-		let text = document.getText();
-		if (stripFrontmatter) {
-			const markdownContent = this.stripFrontmatter(text);
-			offset = markdownContent.offset;
-			text = markdownContent.text;
-		}
-		this.currentDocument = document.uri;
-		this.firstLine = offset;
-		this._slugCount = new Map<string, number>();
-
+	public async render(document: SkinnyTextDocument, _stripFrontmatter: boolean): Promise<string> {
 		const engine = await this.getEngine(document.uri);
-		return engine.renderer.render(this.tokenize(document, engine), this.md, {});
+		const html = engine.renderer.render(this.tokenize(document, engine), this.md, {});
+		return html;
 	}
 
 	public async parse(document: SkinnyTextDocument): Promise<Token[]> {
-		this.currentDocument = document.uri;
-		this._slugCount = new Map<string, number>();
 		const engine = await this.getEngine(document.uri);
 		return this.tokenize(document, engine);
 	}
