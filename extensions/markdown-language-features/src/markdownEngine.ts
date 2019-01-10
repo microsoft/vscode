@@ -15,7 +15,7 @@ import { getUriForLinkWithKnownExternalScheme } from './util/links';
 const UNICODE_NEWLINE_REGEX = /\u2028|\u2029/g;
 
 export class MarkdownEngine {
-	private md?: MarkdownIt;
+	private md?: Promise<MarkdownIt>;
 
 	private currentDocument?: vscode.Uri;
 	private _slugCount = new Map<string, number>();
@@ -30,82 +30,81 @@ export class MarkdownEngine {
 		private readonly slugifier: Slugifier,
 	) { }
 
-	private usePlugin(factory: (md: any) => any): void {
-		try {
-			this.md = factory(this.md);
-		} catch (e) {
-			// noop
-		}
-	}
-
 	private async getEngine(resource: vscode.Uri): Promise<MarkdownIt> {
 		if (!this.md) {
-			const hljs = await import('highlight.js');
-			this.md = (await import('markdown-it'))({
-				html: true,
-				highlight: (str: string, lang?: string) => {
-					// Workaround for highlight not supporting tsx: https://github.com/isagalaev/highlight.js/issues/1155
-					if (lang && ['tsx', 'typescriptreact'].indexOf(lang.toLocaleLowerCase()) >= 0) {
-						lang = 'jsx';
+			this.md = import('markdown-it').then(async markdownIt => {
+				const hljs = await import('highlight.js');
+				let md = markdownIt({
+					html: true,
+					highlight: (str: string, lang?: string) => {
+						// Workaround for highlight not supporting tsx: https://github.com/isagalaev/highlight.js/issues/1155
+						if (lang && ['tsx', 'typescriptreact'].indexOf(lang.toLocaleLowerCase()) >= 0) {
+							lang = 'jsx';
+						}
+						if (lang && lang.toLocaleLowerCase() === 'json5') {
+							lang = 'json';
+						}
+						if (lang && lang.toLocaleLowerCase() === 'c#') {
+							lang = 'cs';
+						}
+						if (lang && hljs.getLanguage(lang)) {
+							try {
+								return `<div>${hljs.highlight(lang, str, true).value}</div>`;
+							} catch (error) { }
+						}
+						return `<code><div>${md!.utils.escapeHtml(str)}</div></code>`;
 					}
-					if (lang && lang.toLocaleLowerCase() === 'json5') {
-						lang = 'json';
-					}
-					if (lang && lang.toLocaleLowerCase() === 'c#') {
-						lang = 'cs';
-					}
-					if (lang && hljs.getLanguage(lang)) {
-						try {
-							return `<div>${hljs.highlight(lang, str, true).value}</div>`;
-						} catch (error) { }
-					}
-					return `<code><div>${this.md!.utils.escapeHtml(str)}</div></code>`;
-				}
-			});
+				});
 
-			for (const plugin of this.extensionPreviewResourceProvider.markdownItPlugins) {
-				this.usePlugin(await plugin);
-			}
-
-			const frontMatterPlugin = require('markdown-it-front-matter');
-			// Extract rules from front matter plugin and apply at a lower precedence
-			let fontMatterRule: any;
-			frontMatterPlugin({
-				block: {
-					ruler: {
-						before: (_id: any, _id2: any, rule: any) => { fontMatterRule = rule; }
+				for (const plugin of this.extensionPreviewResourceProvider.markdownItPlugins) {
+					try {
+						md = (await plugin)(md);
+					} catch {
+						// noop
 					}
 				}
-			}, () => { /* noop */ });
 
-			this.md.block.ruler.before('fence', 'front_matter', fontMatterRule, {
-				alt: ['paragraph', 'reference', 'blockquote', 'list']
+				const frontMatterPlugin = require('markdown-it-front-matter');
+				// Extract rules from front matter plugin and apply at a lower precedence
+				let fontMatterRule: any;
+				frontMatterPlugin({
+					block: {
+						ruler: {
+							before: (_id: any, _id2: any, rule: any) => { fontMatterRule = rule; }
+						}
+					}
+				}, () => { /* noop */ });
+
+				md.block.ruler.before('fence', 'front_matter', fontMatterRule, {
+					alt: ['paragraph', 'reference', 'blockquote', 'list']
+				});
+
+				for (const renderName of ['paragraph_open', 'heading_open', 'image', 'code_block', 'fence', 'blockquote_open', 'list_item_open']) {
+					this.addLineNumberRenderer(md, renderName);
+				}
+
+				this.addImageStabilizer(md);
+				this.addFencedRenderer(md);
+
+				this.addLinkNormalizer(md);
+				this.addLinkValidator(md);
+				this.addNamedHeaders(md);
+				return md;
 			});
-
-			for (const renderName of ['paragraph_open', 'heading_open', 'image', 'code_block', 'fence', 'blockquote_open', 'list_item_open']) {
-				this.addLineNumberRenderer(this.md, renderName);
-			}
-
-			this.addImageStabilizer(this.md);
-			this.addFencedRenderer(this.md);
-
-			this.addLinkNormalizer(this.md);
-			this.addLinkValidator(this.md);
-			this.addNamedHeaders(this.md);
 		}
 
+		const md = await this.md!;
 		const config = vscode.workspace.getConfiguration('markdown', resource);
-		this.md.set({
+		md.set({
 			breaks: config.get<boolean>('preview.breaks', false),
 			linkify: config.get<boolean>('preview.linkify', true)
 		});
-		return this.md;
+		return md;
 	}
 
 	private tokenize(document: SkinnyTextDocument, engine: MarkdownIt): Token[] {
-		const uri = document.uri;
 		if (this._cache
-			&& this._cache.document.toString() === uri.toString()
+			&& this._cache.document.toString() === document.uri.toString()
 			&& this._cache.version === document.version
 		) {
 			return this._cache.tokens;
@@ -118,7 +117,7 @@ export class MarkdownEngine {
 		const tokens = engine.parse(text.replace(UNICODE_NEWLINE_REGEX, ''), {});
 		this._cache = {
 			tokens,
-			document: uri,
+			document: document.uri,
 			version: document.version
 		};
 		return tokens;
