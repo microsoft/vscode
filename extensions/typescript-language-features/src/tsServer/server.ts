@@ -308,18 +308,16 @@ export class TypeScriptServer extends Disposable {
 		};
 		let result: Promise<any>;
 		if (executeInfo.expectsResult) {
-			let wasCancelled = false;
 			result = new Promise<any>((resolve, reject) => {
 				this._callbacks.add(request.seq, { onSuccess: resolve, onError: reject, startTime: Date.now(), isAsync: executeInfo.isAsync }, executeInfo.isAsync);
 
 				if (executeInfo.token) {
 					executeInfo.token.onCancellationRequested(() => {
-						wasCancelled = true;
 						this.tryCancelRequest(request.seq, command);
 					});
 				}
 			}).catch((err: any) => {
-				if (!wasCancelled) {
+				if (!executeInfo.token || !executeInfo.token.isCancellationRequested) {
 					this._logger.error(`'${command}' request failed with error.`, err);
 					const properties = this.parseErrorText(err && err.message, command);
 					/* __GDPR__
