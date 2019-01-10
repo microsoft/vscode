@@ -14,27 +14,36 @@ import { getUriForLinkWithKnownExternalScheme } from './util/links';
 
 const UNICODE_NEWLINE_REGEX = /\u2028|\u2029/g;
 
+interface MarkdownItConfig {
+	readonly breaks: boolean;
+	readonly linkify: boolean;
+}
+
 class TokenCache {
 	private cachedDocument?: {
 		readonly uri: vscode.Uri;
 		readonly version: number;
+		readonly config: MarkdownItConfig;
 	};
 	private tokens?: Token[];
 
-	public tryGetCached(document: SkinnyTextDocument): Token[] | undefined {
+	public tryGetCached(document: SkinnyTextDocument, config: MarkdownItConfig): Token[] | undefined {
 		if (this.cachedDocument
 			&& this.cachedDocument.uri.toString() === document.uri.toString()
 			&& this.cachedDocument.version === document.version
+			&& this.cachedDocument.config.breaks === config.breaks
+			&& this.cachedDocument.config.linkify === config.linkify
 		) {
 			return this.tokens;
 		}
 		return undefined;
 	}
 
-	public update(document: SkinnyTextDocument, tokens: Token[]) {
+	public update(document: SkinnyTextDocument, config: MarkdownItConfig, tokens: Token[]) {
 		this.cachedDocument = {
 			uri: document.uri,
-			version: document.version
+			version: document.version,
+			config,
 		};
 		this.tokens = tokens;
 	}
@@ -52,7 +61,7 @@ export class MarkdownEngine {
 		private readonly slugifier: Slugifier,
 	) { }
 
-	private async getEngine(resource: vscode.Uri): Promise<MarkdownIt> {
+	private async getEngine(config: MarkdownItConfig): Promise<MarkdownIt> {
 		if (!this.md) {
 			this.md = import('markdown-it').then(async markdownIt => {
 				const hljs = await import('highlight.js');
@@ -116,16 +125,16 @@ export class MarkdownEngine {
 		}
 
 		const md = await this.md!;
-		const config = vscode.workspace.getConfiguration('markdown', resource);
-		md.set({
-			breaks: config.get<boolean>('preview.breaks', false),
-			linkify: config.get<boolean>('preview.linkify', true)
-		});
+		md.set(config);
 		return md;
 	}
 
-	private tokenize(document: SkinnyTextDocument, engine: MarkdownIt): Token[] {
-		const cached = this._tokenCache.tryGetCached(document);
+	private tokenize(
+		document: SkinnyTextDocument,
+		config: MarkdownItConfig,
+		engine: MarkdownIt
+	): Token[] {
+		const cached = this._tokenCache.tryGetCached(document, config);
 		if (cached) {
 			return cached;
 		}
@@ -135,18 +144,28 @@ export class MarkdownEngine {
 
 		const text = document.getText();
 		const tokens = engine.parse(text.replace(UNICODE_NEWLINE_REGEX, ''), {});
-		this._tokenCache.update(document, tokens);
+		this._tokenCache.update(document, config, tokens);
 		return tokens;
 	}
 
 	public async render(document: SkinnyTextDocument): Promise<string> {
-		const engine = await this.getEngine(document.uri);
-		return engine.renderer.render(this.tokenize(document, engine), engine, {});
+		const config = this.getConfig(document.uri);
+		const engine = await this.getEngine(config);
+		return engine.renderer.render(this.tokenize(document, config, engine), engine, {});
 	}
 
 	public async parse(document: SkinnyTextDocument): Promise<Token[]> {
-		const engine = await this.getEngine(document.uri);
-		return this.tokenize(document, engine);
+		const config = this.getConfig(document.uri);
+		const engine = await this.getEngine(config);
+		return this.tokenize(document, config, engine);
+	}
+
+	private getConfig(resource: vscode.Uri): MarkdownItConfig {
+		const config = vscode.workspace.getConfiguration('markdown', resource);
+		return {
+			breaks: config.get<boolean>('preview.breaks', false),
+			linkify: config.get<boolean>('preview.linkify', true)
+		};
 	}
 
 	private addLineNumberRenderer(md: any, ruleName: string): void {
