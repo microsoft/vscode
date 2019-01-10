@@ -35,7 +35,7 @@ import { fillResourceDataTransfers, CodeDataTransfers, extractResources } from '
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDragAndDropData, DataTransfers } from 'vs/base/browser/dnd';
 import { Schemas } from 'vs/base/common/network';
-import { DesktopDragAndDropData, ExternalElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
+import { DesktopDragAndDropData, ExternalElementsDragAndDropData, ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { isMacintosh, isLinux } from 'vs/base/common/platform';
 import { IDialogService, IConfirmationResult, IConfirmation, getConfirmMessage } from 'vs/platform/dialogs/common/dialogs';
 import { ITextFileService, ITextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
@@ -450,20 +450,21 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 		// In-Explorer DND
 		else {
-			const sources: ExplorerItem[] = data.getData();
+			const items = (data as ElementsDragAndDropData<ExplorerItem>).elements;
+
 			if (!target) {
-				if (sources[0].isRoot) {
+				if (items[0].isRoot) {
 					return { accept: true, bubble: TreeDragOverBubble.Down, autoExpand: false };
 				}
 
 				return false;
 			}
 
-			if (!Array.isArray(sources)) {
+			if (!Array.isArray(items)) {
 				return false;
 			}
 
-			if (sources.some((source) => {
+			if (items.some((source) => {
 				if (source.isRoot && target instanceof ExplorerItem && !target.isRoot) {
 					return true; // Root folder can not be moved to a non root file stat.
 				}
@@ -529,14 +530,14 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	}
 
 	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
-		const sources: ExplorerItem[] = data.getData();
-		if (sources && sources.length) {
+		const items = (data as ElementsDragAndDropData<ExplorerItem>).elements;
+		if (items && items.length) {
 			// Apply some datatransfer types to allow for dragging the element outside of the application
-			this.instantiationService.invokeFunction(fillResourceDataTransfers, sources, originalEvent);
+			this.instantiationService.invokeFunction(fillResourceDataTransfers, items, originalEvent);
 
 			// The only custom data transfer we set from the explorer is a file transfer
 			// to be able to DND between multiple code file explorers across windows
-			const fileResources = sources.filter(s => !s.isDirectory && s.resource.scheme === Schemas.file).map(r => r.resource.fsPath);
+			const fileResources = items.filter(s => !s.isDirectory && s.resource.scheme === Schemas.file).map(r => r.resource.fsPath);
 			if (fileResources.length) {
 				originalEvent.dataTransfer.setData(CodeDataTransfers.FILES, JSON.stringify(fileResources));
 			}
@@ -674,7 +675,8 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	}
 
 	private handleExplorerDrop(data: IDragAndDropData, target: ExplorerItem | undefined, originalEvent: DragEvent): Promise<void> {
-		const sources: ExplorerItem[] = distinctParents(data.getData(), s => s.resource);
+		const elementsData = (data as ElementsDragAndDropData<ExplorerItem>).elements;
+		const items = distinctParents(elementsData, s => s.resource);
 		const isCopy = (originalEvent.ctrlKey && !isMacintosh) || (originalEvent.altKey && isMacintosh);
 
 		let confirmPromise: Promise<IConfirmationResult>;
@@ -683,10 +685,10 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		const confirmDragAndDrop = !isCopy && this.configurationService.getValue<boolean>(FileDragAndDrop.CONFIRM_DND_SETTING_KEY);
 		if (confirmDragAndDrop) {
 			confirmPromise = this.dialogService.confirm({
-				message: sources.length > 1 && sources.every(s => s.isRoot) ? localize('confirmRootsMove', "Are you sure you want to change the order of multiple root folders in your workspace?")
-					: sources.length > 1 ? getConfirmMessage(localize('confirmMultiMove', "Are you sure you want to move the following {0} files?", sources.length), sources.map(s => s.resource))
-						: sources[0].isRoot ? localize('confirmRootMove', "Are you sure you want to change the order of root folder '{0}' in your workspace?", sources[0].name)
-							: localize('confirmMove', "Are you sure you want to move '{0}'?", sources[0].name),
+				message: items.length > 1 && items.every(s => s.isRoot) ? localize('confirmRootsMove', "Are you sure you want to change the order of multiple root folders in your workspace?")
+					: items.length > 1 ? getConfirmMessage(localize('confirmMultiMove', "Are you sure you want to move the following {0} files?", items.length), items.map(s => s.resource))
+						: items[0].isRoot ? localize('confirmRootMove', "Are you sure you want to change the order of root folder '{0}' in your workspace?", items[0].name)
+							: localize('confirmMove', "Are you sure you want to move '{0}'?", items[0].name),
 				checkbox: {
 					label: localize('doNotAskAgain', "Do not ask me again")
 				},
@@ -707,8 +709,8 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 			return updateConfirmSettingsPromise.then(() => {
 				if (res.confirmed) {
-					const rootDropPromise = this.doHandleRootDrop(sources.filter(s => s.isRoot), target);
-					return Promise.all(sources.filter(s => !s.isRoot).map(source => this.doHandleExplorerDrop(source, target, isCopy)).concat(rootDropPromise)).then(() => undefined);
+					const rootDropPromise = this.doHandleRootDrop(items.filter(s => s.isRoot), target);
+					return Promise.all(items.filter(s => !s.isRoot).map(source => this.doHandleExplorerDrop(source, target, isCopy)).concat(rootDropPromise)).then(() => undefined);
 				}
 
 				return Promise.resolve(undefined);

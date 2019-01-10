@@ -290,10 +290,10 @@ class WatchExpressionsDragAndDrop implements ITreeDragAndDrop<IExpression> {
 	}
 
 	drop(data: IDragAndDropData, targetElement: IExpression): void {
-		const draggedData = data.getData();
+		const expressions = (data as ElementsDragAndDropData<IExpression>).elements;
 
-		if (Array.isArray(draggedData)) {
-			const draggedElement = <IExpression>draggedData[0].element.element;
+		if (Array.isArray(expressions)) {
+			const draggedElement = expressions[0];
 			const watches = this.debugService.getModel().getWatchExpressions();
 			const position = targetElement instanceof Expression ? watches.indexOf(targetElement) : watches.length - 1;
 			this.debugService.moveWatchExpression(draggedElement.getId(), position);
