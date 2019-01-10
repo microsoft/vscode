@@ -7,7 +7,7 @@ import 'vs/css!./media/fileactions';
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import { isWindows, isLinux } from 'vs/base/common/platform';
-import { sequence, ITask, always } from 'vs/base/common/async';
+import { always } from 'vs/base/common/async';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
@@ -16,8 +16,8 @@ import * as strings from 'vs/base/common/strings';
 import { Action } from 'vs/base/common/actions';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { VIEWLET_ID, IExplorerService } from 'vs/workbench/parts/files/common/files';
-import { ITextFileService, ITextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
-import { IFileService, IFileStat, AutoSaveConfiguration } from 'vs/platform/files/common/files';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IFileService, AutoSaveConfiguration } from 'vs/platform/files/common/files';
 import { toResource, IUntitledResourceInput } from 'vs/workbench/common/editor';
 import { ExplorerViewlet } from 'vs/workbench/parts/files/electron-browser/explorerViewlet';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -36,7 +36,7 @@ import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/c
 import { IListService, ListWidget } from 'vs/platform/list/browser/listService';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Schemas } from 'vs/base/common/network';
-import { IDialogService, IConfirmationResult, IConfirmation, getConfirmMessage } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IConfirmationResult, getConfirmMessage } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Constants } from 'vs/editor/common/core/uint';
@@ -431,106 +431,6 @@ class BaseDeleteFileAction extends BaseErrorReportingAction {
 	}
 }
 
-/* Add File */
-export class AddFilesAction extends BaseErrorReportingAction {
-
-	constructor(
-		private element: ExplorerItem,
-		clazz: string,
-		@IFileService private readonly fileService: IFileService,
-		@IEditorService private readonly editorService: IEditorService,
-		@IDialogService private readonly dialogService: IDialogService,
-		@INotificationService notificationService: INotificationService,
-		@ITextFileService private readonly textFileService: ITextFileService,
-		@IExplorerService private readonly explorerService: IExplorerService
-	) {
-		super('workbench.files.action.addFile', nls.localize('addFiles', "Add Files"), notificationService);
-
-		if (clazz) {
-			this.class = clazz;
-		}
-	}
-
-	public run(resourcesToAdd: URI[]): Promise<any> {
-		if (resourcesToAdd && resourcesToAdd.length > 0) {
-
-			// Find parent to add to
-			let targetElement: ExplorerItem;
-			if (this.element) {
-				targetElement = this.element;
-			} else {
-				targetElement = this.explorerService.roots[0];
-			}
-
-			if (!targetElement.isDirectory) {
-				targetElement = targetElement.parent;
-			}
-
-			// Resolve target to check for name collisions and ask user
-			return this.fileService.resolveFile(targetElement.resource).then((targetStat: IFileStat) => {
-
-				// Check for name collisions
-				const targetNames = new Set<string>();
-				targetStat.children.forEach((child) => {
-					targetNames.add(isLinux ? child.name : child.name.toLowerCase());
-				});
-
-				let overwritePromise: Promise<IConfirmationResult> = Promise.resolve({ confirmed: true });
-				if (resourcesToAdd.some(resource => {
-					return targetNames.has(!resources.hasToIgnoreCase(resource) ? resources.basename(resource) : resources.basename(resource).toLowerCase());
-				})) {
-					const confirm: IConfirmation = {
-						message: nls.localize('confirmOverwrite', "A file or folder with the same name already exists in the destination folder. Do you want to replace it?"),
-						detail: nls.localize('irreversible', "This action is irreversible!"),
-						primaryButton: nls.localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
-						type: 'warning'
-					};
-
-					overwritePromise = this.dialogService.confirm(confirm);
-				}
-
-				return overwritePromise.then(res => {
-					if (!res.confirmed) {
-						return undefined;
-					}
-
-					// Run add in sequence
-					const addPromisesFactory: ITask<Promise<void>>[] = [];
-					resourcesToAdd.forEach(resource => {
-						addPromisesFactory.push(() => {
-							const sourceFile = resource;
-							const targetFile = resources.joinPath(targetElement.resource, resources.basename(sourceFile));
-
-							// if the target exists and is dirty, make sure to revert it. otherwise the dirty contents
-							// of the target file would replace the contents of the added file. since we already
-							// confirmed the overwrite before, this is OK.
-							let revertPromise: Promise<ITextFileOperationResult> = Promise.resolve(null);
-							if (this.textFileService.isDirty(targetFile)) {
-								revertPromise = this.textFileService.revertAll([targetFile], { soft: true });
-							}
-
-							return revertPromise.then(() => {
-								const target = resources.joinPath(targetElement.resource, resources.basename(sourceFile));
-								return this.fileService.copyFile(sourceFile, target, true).then(stat => {
-
-									// if we only add one file, just open it directly
-									if (resourcesToAdd.length === 1) {
-										this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
-									}
-								}, error => this.onError(error));
-							});
-						});
-					});
-
-					return sequence(addPromisesFactory);
-				});
-			});
-		}
-
-		return Promise.resolve(undefined);
-	}
-}
-
 // Copy File/Folder
 class CopyFileAction extends BaseErrorReportingAction {
 
@@ -603,7 +503,7 @@ class PasteFileAction extends BaseErrorReportingAction {
 	}
 }
 
-function findValidPasteFileTarget(targetFolder: ExplorerItem, fileToPaste: { resource: URI, isDirectory?: boolean }): URI {
+export function findValidPasteFileTarget(targetFolder: ExplorerItem, fileToPaste: { resource: URI, isDirectory?: boolean }): URI {
 	let name = resources.basenameOrAuthority(fileToPaste.resource);
 
 	let candidate = resources.joinPath(targetFolder.resource, name);

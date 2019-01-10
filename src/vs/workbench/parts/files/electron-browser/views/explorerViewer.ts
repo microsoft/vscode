@@ -6,21 +6,21 @@
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import * as DOM from 'vs/base/browser/dom';
 import * as glob from 'vs/base/common/glob';
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate, ListDragOverEffect } from 'vs/base/browser/ui/list/list';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IFileService, FileKind } from 'vs/platform/files/common/files';
+import { IFileService, FileKind, IFileStat, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, Disposable, dispose } from 'vs/base/common/lifecycle';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IFileLabelOptions, IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
-import { ITreeRenderer, ITreeNode, ITreeFilter, TreeVisibility, TreeFilterResult, IAsyncDataSource, ITreeSorter } from 'vs/base/browser/ui/tree/tree';
+import { ITreeRenderer, ITreeNode, ITreeFilter, TreeVisibility, TreeFilterResult, IAsyncDataSource, ITreeSorter, ITreeDragAndDrop, ITreeDragOverReaction, TreeDragOverBubble } from 'vs/base/browser/ui/tree/tree';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IFilesConfiguration, IExplorerService, IEditableData } from 'vs/workbench/parts/files/common/files';
-import { dirname, joinPath } from 'vs/base/common/resources';
+import { dirname, joinPath, isEqualOrParent, basename, hasToIgnoreCase, distinctParents } from 'vs/base/common/resources';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { localize } from 'vs/nls';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
@@ -31,6 +31,21 @@ import { equals, deepClone } from 'vs/base/common/objects';
 import * as path from 'path';
 import { ExplorerItem } from 'vs/workbench/parts/files/common/explorerModel';
 import { compareFileExtensions, compareFileNames } from 'vs/base/common/comparers';
+import { fillResourceDataTransfers, CodeDataTransfers, extractResources } from 'vs/workbench/browser/dnd';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IDragAndDropData, DataTransfers } from 'vs/base/browser/dnd';
+import { Schemas } from 'vs/base/common/network';
+import { DesktopDragAndDropData, ExternalElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
+import { isMacintosh, isLinux } from 'vs/base/common/platform';
+import { IDialogService, IConfirmationResult, IConfirmation, getConfirmMessage } from 'vs/platform/dialogs/common/dialogs';
+import { ITextFileService, ITextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
+import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
+import { URI } from 'vs/base/common/uri';
+import { ITask, sequence } from 'vs/base/common/async';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
+import { findValidPasteFileTarget } from 'vs/workbench/parts/files/electron-browser/fileActions';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -379,345 +394,412 @@ export class FileSorter implements ITreeSorter<ExplorerItem> {
 	}
 }
 
-// export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
-
-// 	private static readonly CONFIRM_DND_SETTING_KEY = 'explorer.confirmDragAndDrop';
-
-// 	private toDispose: IDisposable[];
-// 	private dropEnabled: boolean;
-
-// 	constructor(
-// 		@INotificationService private notificationService: INotificationService,
-// 		@IDialogService private dialogService: IDialogService,
-// 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-// 		@IFileService private fileService: IFileService,
-// 		@IConfigurationService private configurationService: IConfigurationService,
-// 		@IInstantiationService instantiationService: IInstantiationService,
-// 		@ITextFileService private textFileService: ITextFileService,
-// 		@IWindowService private windowService: IWindowService,
-// 		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService
-// 	) {
-// 		super(stat => this.statToResource(stat), instantiationService);
-
-// 		this.toDispose = [];
-
-// 		this.updateDropEnablement();
-
-// 		this.registerListeners();
-// 	}
-
-// 	private statToResource(stat: ExplorerItem): URI {
-// 		if (stat.isDirectory) {
-// 			return URI.from({ scheme: 'folder', path: stat.resource.path }); // indicates that we are dragging a folder
-// 		}
-
-// 		return stat.resource;
-// 	}
-
-// 	private registerListeners(): void {
-// 		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => this.updateDropEnablement()));
-// 	}
-
-// 	private updateDropEnablement(): void {
-// 		this.dropEnabled = this.configurationService.getValue('explorer.enableDragAndDrop');
-// 	}
-
-// 	public onDragStart(tree: ITree, data: IDragAndDropData, originalEvent: DragMouseEvent): void {
-// 		const sources: ExplorerItem[] = data.getData();
-// 		if (sources && sources.length) {
-
-// 			// When dragging folders, make sure to collapse them to free up some space
-// 			sources.forEach(s => {
-// 				if (s.isDirectory && tree.isExpanded(s)) {
-// 					tree.collapse(s, false);
-// 				}
-// 			});
-
-// 			// Apply some datatransfer types to allow for dragging the element outside of the application
-// 			this.instantiationService.invokeFunction(fillResourceDataTransfers, sources, originalEvent);
-
-// 			// The only custom data transfer we set from the explorer is a file transfer
-// 			// to be able to DND between multiple code file explorers across windows
-// 			const fileResources = sources.filter(s => !s.isDirectory && s.resource.scheme === Schemas.file).map(r => r.resource.fsPath);
-// 			if (fileResources.length) {
-// 				originalEvent.dataTransfer.setData(CodeDataTransfers.FILES, JSON.stringify(fileResources));
-// 			}
-// 		}
-// 	}
-
-// 	public onDragOver(tree: ITree, data: IDragAndDropData, target: ExplorerItem | Model, originalEvent: DragMouseEvent): IDragOverReaction {
-// 		if (!this.dropEnabled) {
-// 			return DRAG_OVER_REJECT;
-// 		}
-
-// 		const isCopy = originalEvent && ((originalEvent.ctrlKey && !isMacintosh) || (originalEvent.altKey && isMacintosh));
-// 		const fromDesktop = data instanceof DesktopDragAndDropData;
-
-// 		// Desktop DND
-// 		if (fromDesktop) {
-// 			const types: string[] = originalEvent.dataTransfer.types;
-// 			const typesArray: string[] = [];
-// 			for (let i = 0; i < types.length; i++) {
-// 				typesArray.push(types[i].toLowerCase()); // somehow the types are lowercase
-// 			}
-
-// 			if (typesArray.indexOf(DataTransfers.FILES.toLowerCase()) === -1 && typesArray.indexOf(CodeDataTransfers.FILES.toLowerCase()) === -1) {
-// 				return DRAG_OVER_REJECT;
-// 			}
-// 		}
-
-// 		// Other-Tree DND
-// 		else if (data instanceof ExternalElementsDragAndDropData) {
-// 			return DRAG_OVER_REJECT;
-// 		}
-
-// 		// In-Explorer DND
-// 		else {
-// 			const sources: ExplorerItem[] = data.getData();
-// 			if (target instanceof Model) {
-// 				if (sources[0].isRoot) {
-// 					return DRAG_OVER_ACCEPT_BUBBLE_DOWN(false);
-// 				}
-
-// 				return DRAG_OVER_REJECT;
-// 			}
-
-// 			if (!Array.isArray(sources)) {
-// 				return DRAG_OVER_REJECT;
-// 			}
-
-// 			if (sources.some((source) => {
-// 				if (source instanceof NewStatPlaceholder) {
-// 					return true; // NewStatPlaceholders can not be moved
-// 				}
-
-// 				if (source.isRoot && target instanceof ExplorerItem && !target.isRoot) {
-// 					return true; // Root folder can not be moved to a non root file stat.
-// 				}
-
-// 				if (source.resource.toString() === target.resource.toString()) {
-// 					return true; // Can not move anything onto itself
-// 				}
-
-// 				if (source.isRoot && target instanceof ExplorerItem && target.isRoot) {
-// 					// Disable moving workspace roots in one another
-// 					return false;
-// 				}
-
-// 				if (!isCopy && resources.dirname(source.resource).toString() === target.resource.toString()) {
-// 					return true; // Can not move a file to the same parent unless we copy
-// 				}
-
-// 				if (resources.isEqualOrParent(target.resource, source.resource, !isLinux /* ignorecase */)) {
-// 					return true; // Can not move a parent folder into one of its children
-// 				}
-
-// 				return false;
-// 			})) {
-// 				return DRAG_OVER_REJECT;
-// 			}
-// 		}
-
-// 		// All (target = model)
-// 		if (target instanceof Model) {
-// 			return this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY(false) : DRAG_OVER_REJECT; // can only drop folders to workspace
-// 		}
-
-// 		// All (target = file/folder)
-// 		else {
-// 			if (target.isDirectory) {
-// 				if (target.isReadonly) {
-// 					return DRAG_OVER_REJECT;
-// 				}
-// 				return fromDesktop || isCopy ? DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY(true) : DRAG_OVER_ACCEPT_BUBBLE_DOWN(true);
-// 			}
-
-// 			if (this.contextService.getWorkspace().folders.every(folder => folder.uri.toString() !== target.resource.toString())) {
-// 				return fromDesktop || isCopy ? DRAG_OVER_ACCEPT_BUBBLE_UP_COPY : DRAG_OVER_ACCEPT_BUBBLE_UP;
-// 			}
-// 		}
-
-// 		return DRAG_OVER_REJECT;
-// 	}
-
-// 	public drop(tree: ITree, data: IDragAndDropData, target: ExplorerItem | Model, originalEvent: DragMouseEvent): void {
-
-// 		// Desktop DND (Import file)
-// 		if (data instanceof DesktopDragAndDropData) {
-// 			this.handleExternalDrop(tree, data, target, originalEvent);
-// 		}
-
-// 		// In-Explorer DND (Move/Copy file)
-// 		else {
-// 			this.handleExplorerDrop(tree, data, target, originalEvent);
-// 		}
-// 	}
-
-// 	private handleExternalDrop(tree: ITree, data: DesktopDragAndDropData, target: ExplorerItem | Model, originalEvent: DragMouseEvent): Promise<void> {
-// 		const droppedResources = extractResources(originalEvent.browserEvent as DragEvent, true);
-
-// 		// Check for dropped external files to be folders
-// 		return this.fileService.resolveFiles(droppedResources).then(result => {
-
-// 			// Pass focus to window
-// 			this.windowService.focusWindow();
-
-// 			// Handle folders by adding to workspace if we are in workspace context
-// 			const folders = result.filter(r => r.success && r.stat.isDirectory).map(result => ({ uri: result.stat.resource }));
-// 			if (folders.length > 0) {
-
-// 				// If we are in no-workspace context, ask for confirmation to create a workspace
-// 				let confirmedPromise: Promise<IConfirmationResult> = Promise.resolve({ confirmed: true });
-// 				if (this.contextService.getWorkbenchState() !== WorkbenchState.WORKSPACE) {
-// 					confirmedPromise = this.dialogService.confirm({
-// 						message: folders.length > 1 ? nls.localize('dropFolders', "Do you want to add the folders to the workspace?") : nls.localize('dropFolder', "Do you want to add the folder to the workspace?"),
-// 						type: 'question',
-// 						primaryButton: folders.length > 1 ? nls.localize('addFolders', "&&Add Folders") : nls.localize('addFolder', "&&Add Folder")
-// 					});
-// 				}
-
-// 				return confirmedPromise.then(res => {
-// 					if (res.confirmed) {
-// 						return this.workspaceEditingService.addFolders(folders);
-// 					}
-
-// 					return undefined;
-// 				});
-// 			}
-
-// 			// Handle dropped files (only support FileStat as target)
-// 			else if (target instanceof ExplorerItem && !target.isReadonly) {
-// 				const addFilesAction = this.instantiationService.createInstance(AddFilesAction, tree, target, null);
-
-// 				return addFilesAction.run(droppedResources.map(res => res.resource));
-// 			}
-
-// 			return undefined;
-// 		});
-// 	}
-
-// 	private handleExplorerDrop(tree: ITree, data: IDragAndDropData, target: ExplorerItem | Model, originalEvent: DragMouseEvent): Promise<void> {
-// 		const sources: ExplorerItem[] = resources.distinctParents(data.getData(), s => s.resource);
-// 		const isCopy = (originalEvent.ctrlKey && !isMacintosh) || (originalEvent.altKey && isMacintosh);
-
-// 		let confirmPromise: Promise<IConfirmationResult>;
-
-// 		// Handle confirm setting
-// 		const confirmDragAndDrop = !isCopy && this.configurationService.getValue<boolean>(FileDragAndDrop.CONFIRM_DND_SETTING_KEY);
-// 		if (confirmDragAndDrop) {
-// 			confirmPromise = this.dialogService.confirm({
-// 				message: sources.length > 1 && sources.every(s => s.isRoot) ? nls.localize('confirmRootsMove', "Are you sure you want to change the order of multiple root folders in your workspace?")
-// 					: sources.length > 1 ? getConfirmMessage(nls.localize('confirmMultiMove', "Are you sure you want to move the following {0} files?", sources.length), sources.map(s => s.resource))
-// 						: sources[0].isRoot ? nls.localize('confirmRootMove', "Are you sure you want to change the order of root folder '{0}' in your workspace?", sources[0].name)
-// 							: nls.localize('confirmMove', "Are you sure you want to move '{0}'?", sources[0].name),
-// 				checkbox: {
-// 					label: nls.localize('doNotAskAgain', "Do not ask me again")
-// 				},
-// 				type: 'question',
-// 				primaryButton: nls.localize({ key: 'moveButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Move")
-// 			});
-// 		} else {
-// 			confirmPromise = Promise.resolve({ confirmed: true } as IConfirmationResult);
-// 		}
-
-// 		return confirmPromise.then(res => {
-
-// 			// Check for confirmation checkbox
-// 			let updateConfirmSettingsPromise: Promise<void> = Promise.resolve(undefined);
-// 			if (res.confirmed && res.checkboxChecked === true) {
-// 				updateConfirmSettingsPromise = this.configurationService.updateValue(FileDragAndDrop.CONFIRM_DND_SETTING_KEY, false, ConfigurationTarget.USER);
-// 			}
-
-// 			return updateConfirmSettingsPromise.then(() => {
-// 				if (res.confirmed) {
-// 					const rootDropPromise = this.doHandleRootDrop(sources.filter(s => s.isRoot), target);
-// 					return Promise.all(sources.filter(s => !s.isRoot).map(source => this.doHandleExplorerDrop(tree, source, target, isCopy)).concat(rootDropPromise)).then(() => undefined);
-// 				}
-
-// 				return Promise.resolve(undefined);
-// 			});
-// 		});
-// 	}
-
-// 	private doHandleRootDrop(roots: ExplorerItem[], target: ExplorerItem | Model): Promise<void> {
-// 		if (roots.length === 0) {
-// 			return Promise.resolve(undefined);
-// 		}
-
-// 		const folders = this.contextService.getWorkspace().folders;
-// 		let targetIndex: number;
-// 		const workspaceCreationData: IWorkspaceFolderCreationData[] = [];
-// 		const rootsToMove: IWorkspaceFolderCreationData[] = [];
-
-// 		for (let index = 0; index < folders.length; index++) {
-// 			const data = {
-// 				uri: folders[index].uri
-// 			};
-// 			if (target instanceof ExplorerItem && folders[index].uri.toString() === target.resource.toString()) {
-// 				targetIndex = workspaceCreationData.length;
-// 			}
-
-// 			if (roots.every(r => r.resource.toString() !== folders[index].uri.toString())) {
-// 				workspaceCreationData.push(data);
-// 			} else {
-// 				rootsToMove.push(data);
-// 			}
-// 		}
-// 		if (target instanceof Model) {
-// 			targetIndex = workspaceCreationData.length;
-// 		}
-
-// 		workspaceCreationData.splice(targetIndex, 0, ...rootsToMove);
-// 		return this.workspaceEditingService.updateFolders(0, workspaceCreationData.length, workspaceCreationData);
-// 	}
-
-// 	private doHandleExplorerDrop(tree: ITree, source: ExplorerItem, target: ExplorerItem | Model, isCopy: boolean): Promise<void> {
-// 		if (!(target instanceof ExplorerItem)) {
-// 			return Promise.resolve(undefined);
-// 		}
-
-// 		return tree.expand(target).then(() => {
-
-// 			if (target.isReadonly) {
-// 				return undefined;
-// 			}
-
-// 			// Reuse duplicate action if user copies
-// 			if (isCopy) {
-// 				return this.instantiationService.createInstance(DuplicateFileAction, tree, source, target).run();
-// 			}
-
-// 			// Otherwise move
-// 			const targetResource = resources.joinPath(target.resource, source.name);
-
-// 			return this.textFileService.move(source.resource, targetResource).then(undefined, error => {
-
-// 				// Conflict
-// 				if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_MOVE_CONFLICT) {
-// 					const confirm: IConfirmation = {
-// 						message: nls.localize('confirmOverwriteMessage', "'{0}' already exists in the destination folder. Do you want to replace it?", source.name),
-// 						detail: nls.localize('irreversible', "This action is irreversible!"),
-// 						primaryButton: nls.localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
-// 						type: 'warning'
-// 					};
-
-// 					// Move with overwrite if the user confirms
-// 					return this.dialogService.confirm(confirm).then(res => {
-// 						if (res.confirmed) {
-// 							return this.textFileService.move(source.resource, targetResource, true /* overwrite */).then(undefined, error => this.notificationService.error(error));
-// 						}
-
-// 						return undefined;
-// 					});
-// 				}
-
-// 				// Any other error
-// 				else {
-// 					this.notificationService.error(error);
-// 				}
-
-// 				return undefined;
-// 			});
-// 		}, errors.onUnexpectedError);
-// 	}
-// }
+export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
+	private static readonly CONFIRM_DND_SETTING_KEY = 'explorer.confirmDragAndDrop';
+
+	private toDispose: IDisposable[];
+	private dropEnabled: boolean;
+
+	constructor(
+		@INotificationService private notificationService: INotificationService,
+		@IExplorerService private explorerService: IExplorerService,
+		@IEditorService private editorService: IEditorService,
+		@IDialogService private dialogService: IDialogService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IFileService private fileService: IFileService,
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@ITextFileService private textFileService: ITextFileService,
+		@IWindowService private windowService: IWindowService,
+		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService
+	) {
+		this.toDispose = [];
+
+		const updateDropEnablement = () => {
+			this.dropEnabled = this.configurationService.getValue('explorer.enableDragAndDrop');
+		};
+		updateDropEnablement();
+		this.toDispose.push(this.configurationService.onDidChangeConfiguration((e) => updateDropEnablement()));
+	}
+
+	onDragOver(data: IDragAndDropData, target: ExplorerItem, targetIndex: number, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
+		if (!this.dropEnabled) {
+			return false;
+		}
+
+		const isCopy = originalEvent && ((originalEvent.ctrlKey && !isMacintosh) || (originalEvent.altKey && isMacintosh));
+		const fromDesktop = data instanceof DesktopDragAndDropData;
+
+		// Desktop DND
+		if (fromDesktop) {
+			const types = originalEvent.dataTransfer.types;
+			const typesArray: string[] = [];
+			for (let i = 0; i < types.length; i++) {
+				typesArray.push(types[i].toLowerCase()); // somehow the types are lowercase
+			}
+
+			if (typesArray.indexOf(DataTransfers.FILES.toLowerCase()) === -1 && typesArray.indexOf(CodeDataTransfers.FILES.toLowerCase()) === -1) {
+				return false;
+			}
+		}
+
+		// Other-Tree DND
+		else if (data instanceof ExternalElementsDragAndDropData) {
+			return false;
+		}
+
+		// In-Explorer DND
+		else {
+			const sources: ExplorerItem[] = data.getData();
+			if (!target) {
+				if (sources[0].isRoot) {
+					return { accept: true, bubble: TreeDragOverBubble.Down, autoExpand: false };
+				}
+
+				return false;
+			}
+
+			if (!Array.isArray(sources)) {
+				return false;
+			}
+
+			if (sources.some((source) => {
+				if (source.isRoot && target instanceof ExplorerItem && !target.isRoot) {
+					return true; // Root folder can not be moved to a non root file stat.
+				}
+
+				if (source.resource.toString() === target.resource.toString()) {
+					return true; // Can not move anything onto itself
+				}
+
+				if (source.isRoot && target instanceof ExplorerItem && target.isRoot) {
+					// Disable moving workspace roots in one another
+					return false;
+				}
+
+				if (!isCopy && dirname(source.resource).toString() === target.resource.toString()) {
+					return true; // Can not move a file to the same parent unless we copy
+				}
+
+				if (isEqualOrParent(target.resource, source.resource, !isLinux /* ignorecase */)) {
+					return true; // Can not move a parent folder into one of its children
+				}
+
+				return false;
+			})) {
+				return false;
+			}
+		}
+
+		// All (target = model)
+		if (!target) {
+			return this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? { accept: true, bubble: TreeDragOverBubble.Down } : false; // can only drop folders to workspace
+		}
+
+		// All (target = file/folder)
+		else {
+			const effect = fromDesktop || isCopy ? ListDragOverEffect.Copy : ListDragOverEffect.Move;
+
+			if (target.isDirectory) {
+				if (target.isReadonly) {
+					return false;
+				}
+
+				return { accept: true, bubble: TreeDragOverBubble.Down, effect, autoExpand: true };
+			}
+
+			if (this.contextService.getWorkspace().folders.every(folder => folder.uri.toString() !== target.resource.toString())) {
+				return { accept: true, bubble: TreeDragOverBubble.Up, effect };
+			}
+		}
+
+		return false;
+	}
+
+	getDragURI(element: ExplorerItem): string {
+		return element.resource.toString();
+	}
+
+	getDragLabel(elements: ExplorerItem[]): string {
+		if (elements.length > 1) {
+			return String(elements.length);
+		}
+
+		return elements[0].name;
+	}
+
+	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
+		const sources: ExplorerItem[] = data.getData();
+		if (sources && sources.length) {
+			// Apply some datatransfer types to allow for dragging the element outside of the application
+			this.instantiationService.invokeFunction(fillResourceDataTransfers, sources, originalEvent);
+
+			// The only custom data transfer we set from the explorer is a file transfer
+			// to be able to DND between multiple code file explorers across windows
+			const fileResources = sources.filter(s => !s.isDirectory && s.resource.scheme === Schemas.file).map(r => r.resource.fsPath);
+			if (fileResources.length) {
+				originalEvent.dataTransfer.setData(CodeDataTransfers.FILES, JSON.stringify(fileResources));
+			}
+		}
+	}
+
+	drop(data: IDragAndDropData, target: ExplorerItem, targetIndex: number, originalEvent: DragEvent): void {
+		// Desktop DND (Import file)
+		if (data instanceof DesktopDragAndDropData) {
+			this.handleExternalDrop(data, target, originalEvent);
+		}
+
+		// In-Explorer DND (Move/Copy file)
+		else {
+			this.handleExplorerDrop(data, target, originalEvent);
+		}
+	}
+
+
+	private handleExternalDrop(data: DesktopDragAndDropData, target: ExplorerItem, originalEvent: DragEvent): Promise<void> {
+		const droppedResources = extractResources(originalEvent, true);
+
+		// Check for dropped external files to be folders
+		return this.fileService.resolveFiles(droppedResources).then(result => {
+
+			// Pass focus to window
+			this.windowService.focusWindow();
+
+			// Handle folders by adding to workspace if we are in workspace context
+			const folders = result.filter(r => r.success && r.stat.isDirectory).map(result => ({ uri: result.stat.resource }));
+			if (folders.length > 0) {
+
+				// If we are in no-workspace context, ask for confirmation to create a workspace
+				let confirmedPromise: Promise<IConfirmationResult> = Promise.resolve({ confirmed: true });
+				if (this.contextService.getWorkbenchState() !== WorkbenchState.WORKSPACE) {
+					confirmedPromise = this.dialogService.confirm({
+						message: folders.length > 1 ? localize('dropFolders', "Do you want to add the folders to the workspace?") : localize('dropFolder', "Do you want to add the folder to the workspace?"),
+						type: 'question',
+						primaryButton: folders.length > 1 ? localize('addFolders', "&&Add Folders") : localize('addFolder', "&&Add Folder")
+					});
+				}
+
+				return confirmedPromise.then(res => {
+					if (res.confirmed) {
+						return this.workspaceEditingService.addFolders(folders);
+					}
+
+					return undefined;
+				});
+			}
+
+			// Handle dropped files (only support FileStat as target)
+			else if (target instanceof ExplorerItem && !target.isReadonly) {
+				return this.addResources(target, droppedResources.map(res => res.resource));
+			}
+
+			return undefined;
+		});
+	}
+
+	private addResources(target: ExplorerItem, resources: URI[]): Promise<any> {
+		if (resources && resources.length > 0) {
+
+			// Find parent to add to
+			if (!target) {
+				target = this.explorerService.roots[0];
+			}
+
+			if (!target.isDirectory) {
+				target = target.parent;
+			}
+
+			// Resolve target to check for name collisions and ask user
+			return this.fileService.resolveFile(target.resource).then((targetStat: IFileStat) => {
+
+				// Check for name collisions
+				const targetNames = new Set<string>();
+				targetStat.children.forEach((child) => {
+					targetNames.add(isLinux ? child.name : child.name.toLowerCase());
+				});
+
+				let overwritePromise: Promise<IConfirmationResult> = Promise.resolve({ confirmed: true });
+				if (resources.some(resource => {
+					return targetNames.has(!hasToIgnoreCase(resource) ? basename(resource) : basename(resource).toLowerCase());
+				})) {
+					const confirm: IConfirmation = {
+						message: localize('confirmOverwrite', "A file or folder with the same name already exists in the destination folder. Do you want to replace it?"),
+						detail: localize('irreversible', "This action is irreversible!"),
+						primaryButton: localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
+						type: 'warning'
+					};
+
+					overwritePromise = this.dialogService.confirm(confirm);
+				}
+
+				return overwritePromise.then(res => {
+					if (!res.confirmed) {
+						return undefined;
+					}
+
+					// Run add in sequence
+					const addPromisesFactory: ITask<Promise<void>>[] = [];
+					resources.forEach(resource => {
+						addPromisesFactory.push(() => {
+							const sourceFile = resource;
+							const targetFile = joinPath(target.resource, basename(sourceFile));
+
+							// if the target exists and is dirty, make sure to revert it. otherwise the dirty contents
+							// of the target file would replace the contents of the added file. since we already
+							// confirmed the overwrite before, this is OK.
+							let revertPromise: Promise<ITextFileOperationResult> = Promise.resolve(null);
+							if (this.textFileService.isDirty(targetFile)) {
+								revertPromise = this.textFileService.revertAll([targetFile], { soft: true });
+							}
+
+							return revertPromise.then(() => {
+								const copyTarget = joinPath(target.resource, basename(sourceFile));
+								return this.fileService.copyFile(sourceFile, copyTarget, true).then(stat => {
+
+									// if we only add one file, just open it directly
+									if (resources.length === 1) {
+										this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
+									}
+								});
+							});
+						});
+					});
+
+					return sequence(addPromisesFactory);
+				});
+			});
+		}
+
+		return Promise.resolve(undefined);
+	}
+
+	private handleExplorerDrop(data: IDragAndDropData, target: ExplorerItem | undefined, originalEvent: DragEvent): Promise<void> {
+		const sources: ExplorerItem[] = distinctParents(data.getData(), s => s.resource);
+		const isCopy = (originalEvent.ctrlKey && !isMacintosh) || (originalEvent.altKey && isMacintosh);
+
+		let confirmPromise: Promise<IConfirmationResult>;
+
+		// Handle confirm setting
+		const confirmDragAndDrop = !isCopy && this.configurationService.getValue<boolean>(FileDragAndDrop.CONFIRM_DND_SETTING_KEY);
+		if (confirmDragAndDrop) {
+			confirmPromise = this.dialogService.confirm({
+				message: sources.length > 1 && sources.every(s => s.isRoot) ? localize('confirmRootsMove', "Are you sure you want to change the order of multiple root folders in your workspace?")
+					: sources.length > 1 ? getConfirmMessage(localize('confirmMultiMove', "Are you sure you want to move the following {0} files?", sources.length), sources.map(s => s.resource))
+						: sources[0].isRoot ? localize('confirmRootMove', "Are you sure you want to change the order of root folder '{0}' in your workspace?", sources[0].name)
+							: localize('confirmMove', "Are you sure you want to move '{0}'?", sources[0].name),
+				checkbox: {
+					label: localize('doNotAskAgain', "Do not ask me again")
+				},
+				type: 'question',
+				primaryButton: localize({ key: 'moveButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Move")
+			});
+		} else {
+			confirmPromise = Promise.resolve({ confirmed: true } as IConfirmationResult);
+		}
+
+		return confirmPromise.then(res => {
+
+			// Check for confirmation checkbox
+			let updateConfirmSettingsPromise: Promise<void> = Promise.resolve(undefined);
+			if (res.confirmed && res.checkboxChecked === true) {
+				updateConfirmSettingsPromise = this.configurationService.updateValue(FileDragAndDrop.CONFIRM_DND_SETTING_KEY, false, ConfigurationTarget.USER);
+			}
+
+			return updateConfirmSettingsPromise.then(() => {
+				if (res.confirmed) {
+					const rootDropPromise = this.doHandleRootDrop(sources.filter(s => s.isRoot), target);
+					return Promise.all(sources.filter(s => !s.isRoot).map(source => this.doHandleExplorerDrop(source, target, isCopy)).concat(rootDropPromise)).then(() => undefined);
+				}
+
+				return Promise.resolve(undefined);
+			});
+		});
+	}
+
+	private doHandleRootDrop(roots: ExplorerItem[], target: ExplorerItem | undefined): Promise<void> {
+		if (roots.length === 0) {
+			return Promise.resolve(undefined);
+		}
+
+		const folders = this.contextService.getWorkspace().folders;
+		let targetIndex: number;
+		const workspaceCreationData: IWorkspaceFolderCreationData[] = [];
+		const rootsToMove: IWorkspaceFolderCreationData[] = [];
+
+		for (let index = 0; index < folders.length; index++) {
+			const data = {
+				uri: folders[index].uri
+			};
+			if (target instanceof ExplorerItem && folders[index].uri.toString() === target.resource.toString()) {
+				targetIndex = workspaceCreationData.length;
+			}
+
+			if (roots.every(r => r.resource.toString() !== folders[index].uri.toString())) {
+				workspaceCreationData.push(data);
+			} else {
+				rootsToMove.push(data);
+			}
+		}
+		if (!target) {
+			// Empty area
+			targetIndex = workspaceCreationData.length;
+		}
+
+		workspaceCreationData.splice(targetIndex, 0, ...rootsToMove);
+		return this.workspaceEditingService.updateFolders(0, workspaceCreationData.length, workspaceCreationData);
+	}
+
+	private doHandleExplorerDrop(source: ExplorerItem, target: ExplorerItem | undefined, isCopy: boolean): Promise<void> {
+		if (!(target instanceof ExplorerItem)) {
+			return Promise.resolve(undefined);
+		}
+
+		if (target.isReadonly) {
+			return undefined;
+		}
+
+		// Reuse duplicate action if user copies
+		if (isCopy) {
+
+			return this.fileService.copyFile(source.resource, findValidPasteFileTarget(target, { resource: source.resource, isDirectory: source.isDirectory })).then(stat => {
+				if (!stat.isDirectory) {
+					return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } }).then(() => undefined);
+				}
+
+				return undefined;
+			});
+		}
+
+		// Otherwise move
+		const targetResource = joinPath(target.resource, source.name);
+
+		return this.textFileService.move(source.resource, targetResource).then(undefined, error => {
+
+			// Conflict
+			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_MOVE_CONFLICT) {
+				const confirm: IConfirmation = {
+					message: localize('confirmOverwriteMessage', "'{0}' already exists in the destination folder. Do you want to replace it?", source.name),
+					detail: localize('irreversible', "This action is irreversible!"),
+					primaryButton: localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
+					type: 'warning'
+				};
+
+				// Move with overwrite if the user confirms
+				return this.dialogService.confirm(confirm).then(res => {
+					if (res.confirmed) {
+						return this.textFileService.move(source.resource, targetResource, true /* overwrite */).then(undefined, error => this.notificationService.error(error));
+					}
+
+					return undefined;
+				});
+			}
+
+			// Any other error
+			else {
+				this.notificationService.error(error);
+			}
+
+			return undefined;
+		});
+	}
+}
