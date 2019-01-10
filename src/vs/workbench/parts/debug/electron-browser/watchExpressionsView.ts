@@ -288,10 +288,6 @@ class WatchExpressionsDragAndDrop implements ITreeDragAndDrop<IExpression> {
 		return elements[0].name;
 	}
 
-	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
-		// noop
-	}
-
 	drop(data: IDragAndDropData, targetElement: IExpression, targetIndex: number, originalEvent: DragEvent): void {
 		const draggedData = data.getData();
 		if (Array.isArray(draggedData)) {

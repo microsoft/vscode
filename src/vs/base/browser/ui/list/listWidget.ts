@@ -956,11 +956,17 @@ class ListViewDragAndDrop<T> implements IListViewDragAndDrop<T> {
 	}
 
 	getDragLabel?(elements: T[]): string | undefined {
-		return this.dnd.getDragLabel && this.dnd.getDragLabel(elements);
+		if (this.dnd.getDragLabel) {
+			return this.dnd.getDragLabel(elements);
+		}
+
+		return undefined;
 	}
 
 	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
-		this.dnd.onDragStart(data, originalEvent);
+		if (this.dnd.onDragStart) {
+			this.dnd.onDragStart(data, originalEvent);
+		}
 	}
 
 	onDragOver(data: IDragAndDropData, targetElement: T, targetIndex: number, originalEvent: DragEvent): boolean | IListDragOverReaction {

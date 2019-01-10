@@ -632,7 +632,9 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		this.currentDragData = new ElementsDragAndDropData(elements);
 		StaticDND.CurrentDragAndDropData = new ExternalElementsDragAndDropData(elements);
 
-		this.dnd.onDragStart(this.currentDragData, event);
+		if (this.dnd.onDragStart) {
+			this.dnd.onDragStart(this.currentDragData, event);
+		}
 	}
 
 	private onDragOver(event: IListDragEvent<T>): boolean {

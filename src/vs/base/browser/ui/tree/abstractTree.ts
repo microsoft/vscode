@@ -28,11 +28,17 @@ class TreeNodeListDragAndDrop<T, TFilterData, TRef> implements IListDragAndDrop<
 	}
 
 	getDragLabel(nodes: ITreeNode<T, TFilterData>[]): string | undefined {
-		return this.dnd.getDragLabel && this.dnd.getDragLabel(nodes.map(node => node.element));
+		if (this.dnd.getDragLabel) {
+			return this.dnd.getDragLabel(nodes.map(node => node.element));
+		}
+
+		return undefined;
 	}
 
 	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
-		this.dnd.onDragStart(data, originalEvent);
+		if (this.dnd.onDragStart) {
+			this.dnd.onDragStart(data, originalEvent);
+		}
 	}
 
 	onDragOver(data: IDragAndDropData, targetNode: ITreeNode<T, TFilterData> | undefined, targetIndex: number | undefined, originalEvent: DragEvent, raw = true): boolean | IListDragOverReaction {
