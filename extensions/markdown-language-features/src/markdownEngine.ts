@@ -13,13 +13,16 @@ import { SkinnyTextDocument } from './tableOfContentsProvider';
 import { getUriForLinkWithKnownExternalScheme } from './util/links';
 
 const FrontMatterRegex = /^---\s*[^]*?(-{3}|\.{3})\s*/;
-
 export class MarkdownEngine {
 	private md?: MarkdownIt;
 
 	private firstLine?: number;
 	private currentDocument?: vscode.Uri;
 	private _slugCount = new Map<string, number>();
+	private cachedTokens = new Map<vscode.Uri, Token[]>();
+
+
+
 
 	public constructor(
 		private readonly extensionPreviewResourceProvider: MarkdownContributions,
@@ -94,6 +97,24 @@ export class MarkdownEngine {
 		return { text, offset };
 	}
 
+	private tokenize(document: SkinnyTextDocument, engine: MarkdownIt): Token[] {
+		const UNICODE_NEWLINE_REGEX = /\u2028|\u2029/g;
+		const { text, offset } = this.stripFrontmatter(document.getText());
+		const uri = document.uri;
+		if (this.cachedTokens.has(uri)) {
+			return this.cachedTokens.get(uri)!;
+		}
+		const tokens = engine.parse(text.replace(UNICODE_NEWLINE_REGEX, ''), {}).map(token => {
+			if (token.map) {
+				token.map[0] += offset;
+				token.map[1] += offset;
+			}
+			return token;
+		});
+		this.cachedTokens.set(uri, tokens);
+		return tokens;
+	}
+
 	public async render(document: SkinnyTextDocument, stripFrontmatter: boolean): Promise<string> {
 		let offset = 0;
 		let text = document.getText();
@@ -107,24 +128,14 @@ export class MarkdownEngine {
 		this._slugCount = new Map<string, number>();
 
 		const engine = await this.getEngine(document.uri);
-		return engine.render(text);
+		return engine.renderer.render(this.tokenize(document, engine), this.md, {});
 	}
 
 	public async parse(document: SkinnyTextDocument): Promise<Token[]> {
-		const UNICODE_NEWLINE_REGEX = /\u2028|\u2029/g;
-		const { text, offset } = this.stripFrontmatter(document.getText());
 		this.currentDocument = document.uri;
 		this._slugCount = new Map<string, number>();
-
 		const engine = await this.getEngine(document.uri);
-
-		return engine.parse(text.replace(UNICODE_NEWLINE_REGEX, ''), {}).map(token => {
-			if (token.map) {
-				token.map[0] += offset;
-				token.map[1] += offset;
-			}
-			return token;
-		});
+		return this.tokenize(document, engine);
 	}
 
 	private addLineNumberRenderer(md: any, ruleName: string): void {
