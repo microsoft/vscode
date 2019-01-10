@@ -76,55 +76,51 @@ const DefaultOptions = {
 
 export class ElementsDragAndDropData<T> implements IDragAndDropData {
 
-	private elements: T[];
+	readonly elements: T[];
 
 	constructor(elements: T[]) {
 		this.elements = elements;
 	}
 
-	public update(dataTransfer: DataTransfer): void {
-		// no-op
-	}
+	update(): void { }
 
-	public getData(): any {
+	getData(): any {
 		return this.elements;
 	}
 }
 
 export class ExternalElementsDragAndDropData<T> implements IDragAndDropData {
 
-	private elements: T[];
+	readonly elements: T[];
 
 	constructor(elements: T[]) {
 		this.elements = elements;
 	}
 
-	public update(dataTransfer: DataTransfer): void {
-		// no-op
-	}
+	update(): void { }
 
-	public getData(): any {
+	getData(): any {
 		return this.elements;
 	}
 }
 
 export class DesktopDragAndDropData implements IDragAndDropData {
 
-	private types: any[];
-	private files: any[];
+	readonly types: any[];
+	readonly files: any[];
 
 	constructor() {
 		this.types = [];
 		this.files = [];
 	}
 
-	public update(dataTransfer: DataTransfer): void {
+	update(dataTransfer: DataTransfer): void {
 		if (dataTransfer.types) {
-			this.types = [...dataTransfer.types];
+			this.types.splice(0, this.types.length, ...dataTransfer.types);
 		}
 
 		if (dataTransfer.files) {
-			this.files = [];
+			this.files.splice(0, this.files.length);
 
 			for (let i = 0; i < dataTransfer.files.length; i++) {
 				const file = dataTransfer.files.item(i);
@@ -136,7 +132,7 @@ export class DesktopDragAndDropData implements IDragAndDropData {
 		}
 	}
 
-	public getData(): any {
+	getData(): any {
 		return {
 			types: this.types,
 			files: this.files

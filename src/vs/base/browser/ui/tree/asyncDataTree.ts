@@ -13,6 +13,8 @@ import { timeout, always } from 'vs/base/common/async';
 import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { toggleClass } from 'vs/base/browser/dom';
 import { Iterator } from 'vs/base/common/iterator';
+import { IDragAndDropData } from 'vs/base/browser/dnd';
+import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 
 enum AsyncDataTreeNodeState {
 	Uninitialized,
@@ -147,7 +149,14 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 				}
 			},
 			onDragOver(data, targetNode, targetIndex, originalEvent) {
-				return options.dnd!.onDragOver(data, targetNode && targetNode.element as T, targetIndex, originalEvent);
+				let treeData: IDragAndDropData = data;
+
+				if (data instanceof ElementsDragAndDropData) {
+					const nodes = (data as ElementsDragAndDropData<IAsyncDataTreeNode<TInput, T>>).elements;
+					treeData = new ElementsDragAndDropData(nodes.map(node => node.element));
+				}
+
+				return options.dnd!.onDragOver(treeData, targetNode && targetNode.element as T, targetIndex, originalEvent);
 			},
 			drop(data, targetNode, targetIndex, originalEvent) {
 				options.dnd!.drop(data, targetNode && targetNode.element as T, targetIndex, originalEvent);
