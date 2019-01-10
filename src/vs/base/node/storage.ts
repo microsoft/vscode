@@ -6,12 +6,12 @@
 import { Database, Statement } from 'vscode-sqlite3';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
-import { ThrottledDelayer, timeout, always } from 'vs/base/common/async';
+import { ThrottledDelayer, timeout } from 'vs/base/common/async';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { mapToString, setToString } from 'vs/base/common/map';
 import { basename } from 'path';
 import { mark } from 'vs/base/common/performance';
-import { rename, copy, renameIgnoreError } from 'vs/base/node/pfs';
+import { rename, copy, renameIgnoreError, unlink } from 'vs/base/node/pfs';
 
 export enum StorageHint {
 
@@ -42,7 +42,7 @@ export interface IStorageDatabase {
 	getItems(): Promise<Map<string, string>>;
 	updateItems(request: IUpdateRequest): Promise<void>;
 
-	close(): Promise<void>;
+	close(recovery?: () => Map<string, string>): Promise<void>;
 
 	checkIntegrity(full: boolean): Promise<string>;
 }
@@ -273,7 +273,10 @@ export class Storage extends Disposable implements IStorage {
 		// Trigger new flush to ensure data is persisted and then close
 		// even if there is an error flushing. We must always ensure
 		// the DB is closed to avoid corruption.
-		const onDone = () => this.database.close();
+		//
+		// Recovery: we pass our cache over as recovery option in case
+		// the DB is not healthy.
+		const onDone = () => this.database.close(() => this.cache);
 		return this.flushDelayer.trigger(() => this.flushPending(), 0 /* as soon as possible */).then(onDone, onDone);
 	}
 
@@ -303,8 +306,8 @@ interface IDatabaseConnection {
 
 	isInMemory: boolean;
 
-	isCorrupted?: boolean;
 	isErroneous?: boolean;
+	lastError?: string;
 }
 
 export interface ISQLiteStorageDatabaseOptions {
@@ -359,6 +362,10 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 	}
 
 	updateItems(request: IUpdateRequest): Promise<void> {
+		return this.whenConnected.then(connection => this.doUpdateItems(connection, request));
+	}
+
+	private doUpdateItems(connection: IDatabaseConnection, request: IUpdateRequest): Promise<void> {
 		let updateCount = 0;
 		if (request.insert) {
 			updateCount += request.insert.size;
@@ -375,90 +382,109 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 			this.logger.trace(`[storage ${this.name}] updateItems(): insert(${request.insert ? mapToString(request.insert) : '0'}), delete(${request.delete ? setToString(request.delete) : '0'})`);
 		}
 
-		return this.whenConnected.then(connection => {
-			return this.transaction(connection, () => {
-				if (request.insert && request.insert.size > 0) {
-					this.prepare(connection, 'INSERT INTO ItemTable VALUES (?,?)', stmt => {
-						request.insert!.forEach((value, key) => {
-							stmt.run([key, value]);
-						});
-					}, () => {
-						const keys: string[] = [];
-						let length = 0;
-						request.insert!.forEach((value, key) => {
-							keys.push(key);
-							length += value.length;
-						});
-
-						return `Keys: ${keys.join(', ')} Length: ${length}`;
+		return this.transaction(connection, () => {
+			if (request.insert && request.insert.size > 0) {
+				this.prepare(connection, 'INSERT INTO ItemTable VALUES (?,?)', stmt => {
+					request.insert!.forEach((value, key) => {
+						stmt.run([key, value]);
 					});
-				}
-
-				if (request.delete && request.delete.size) {
-					this.prepare(connection, 'DELETE FROM ItemTable WHERE key=?', stmt => {
-						request.delete!.forEach(key => {
-							stmt.run(key);
-						});
-					}, () => {
-						const keys: string[] = [];
-						request.delete!.forEach(key => {
-							keys.push(key);
-						});
-
-						return `Keys: ${keys.join(', ')}`;
+				}, () => {
+					const keys: string[] = [];
+					let length = 0;
+					request.insert!.forEach((value, key) => {
+						keys.push(key);
+						length += value.length;
 					});
-				}
-			});
+
+					return `Keys: ${keys.join(', ')} Length: ${length}`;
+				});
+			}
+
+			if (request.delete && request.delete.size) {
+				this.prepare(connection, 'DELETE FROM ItemTable WHERE key=?', stmt => {
+					request.delete!.forEach(key => {
+						stmt.run(key);
+					});
+				}, () => {
+					const keys: string[] = [];
+					request.delete!.forEach(key => {
+						keys.push(key);
+					});
+
+					return `Keys: ${keys.join(', ')}`;
+				});
+			}
 		});
 	}
 
-	close(): Promise<void> {
+	close(recovery?: () => Map<string, string>): Promise<void> {
 		this.logger.trace(`[storage ${this.name}] close()`);
 
-		return this.whenConnected.then(connection => {
-			return new Promise((resolve, reject) => {
-				connection.db.close(closeError => {
-					if (closeError) {
-						this.handleSQLiteError(connection, closeError, `[storage ${this.name}] close(): ${closeError}`);
-					}
+		return this.whenConnected.then(connection => this.doClose(connection, recovery));
+	}
 
-					if (connection.isInMemory) {
-						return resolve(); // return early for in-memory DBs
-					}
+	private doClose(connection: IDatabaseConnection, recovery?: () => Map<string, string>): Promise<void> {
+		return new Promise((resolve, reject) => {
+			connection.db.close(closeError => {
+				if (closeError) {
+					this.handleSQLiteError(connection, closeError, `[storage ${this.name}] close(): ${closeError}`);
+				}
 
-					// If the DB is corrupt, make sure to rename the file so that we can start
-					// from a fresh DB or a previous backup on the next startup and not be stuck
-					// with a corrupt DB for ever.
-					if (connection.isCorrupted) {
-						this.logger.error(`[storage ${this.name}] close(): removing corrupt DB and trying to restore backup`);
+				// Return early if this storage was created only in-memory
+				// e.g. when running tests we do not need to backup.
+				if (this.path === SQLiteStorageDatabase.IN_MEMORY_PATH) {
+					return resolve();
+				}
 
-						return always(rename(this.path, this.toCorruptPath(this.path))
-							.then(() => rename(this.toBackupPath(this.path), this.path)), () => closeError ? reject(closeError) : resolve());
-					}
-
-					if (closeError) {
-						return reject(closeError);
-					}
-
-					// If the DB closed successfully and we are not running in-memory
-					// and the DB did not get corrupted during runtime, make a backup
-					// of the DB so that we can use it as fallback in case the actual
-					// DB becomes corrupt.
-					return this.backup(connection).then(resolve, error => {
+				// If the DB closed successfully and we are not running in-memory
+				// and the DB did not get errors during runtime, make a backup
+				// of the DB so that we can use it as fallback in case the actual
+				// DB becomes corrupt in the future.
+				if (!connection.isErroneous && !connection.isInMemory) {
+					return this.backup().then(resolve, error => {
 						this.logger.error(`[storage ${this.name}] backup(): ${error}`);
 
 						return resolve(); // ignore failing backup
 					});
-				});
+				}
+
+				// Recovery: if we detected errors while using the DB or we are using
+				// an inmemory DB (as a fallback to not being able to open the DB initially)
+				// and we have a recovery function provided, we recreate the DB with this
+				// data to recover all known data without loss if possible.
+				if (typeof recovery === 'function') {
+
+					// Delete the existing DB. If the path does not exist or fails to
+					// be deleted, we do not try to recover anymore because we assume
+					// that the path is no longer writeable for us.
+					return unlink(this.path).then(() => {
+
+						// Re-open the DB fresh
+						return this.doConnect(this.path).then(recoveryConnection => {
+							const closeRecoveryConnection = () => {
+								return this.doClose(recoveryConnection, undefined /* do not attempt to recover again */);
+							};
+
+							// Store items
+							return this.doUpdateItems(recoveryConnection, { insert: recovery() }).then(() => closeRecoveryConnection(), error => {
+
+								// In case of an error updating items, still ensure to close the connection
+								// to prevent SQLITE_BUSY errors when the connection is restablished
+								closeRecoveryConnection();
+
+								return Promise.reject(error);
+							});
+						});
+					}).then(resolve, reject);
+				}
+
+				// Finally without recovery we just reject
+				return reject(closeError || new Error('Database has errors or is in-memory without recovery option'));
 			});
 		});
 	}
 
-	private backup(db: IDatabaseConnection): Promise<void> {
-		if (db.isInMemory) {
-			return Promise.resolve(); // no backups when running in-memory
-		}
-
+	private backup(): Promise<void> {
 		const backupPath = this.toBackupPath(this.path);
 
 		return copy(this.path, backupPath);
@@ -473,7 +499,17 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 
 		return this.whenConnected.then(connection => {
 			return this.get(connection, full ? 'PRAGMA integrity_check' : 'PRAGMA quick_check').then(row => {
-				return full ? row['integrity_check'] : row['quick_check'];
+				const integrity = full ? row['integrity_check'] : row['quick_check'];
+
+				if (connection.isErroneous) {
+					return `${integrity} (last error: ${connection.lastError})`;
+				}
+
+				if (connection.isInMemory) {
+					return `${integrity} (in-memory!)`;
+				}
+
+				return integrity;
 			});
 		});
 	}
@@ -525,10 +561,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 
 	private handleSQLiteError(connection: IDatabaseConnection, error: Error & { code?: string }, msg: string): void {
 		connection.isErroneous = true;
-
-		if (error.code === 'SQLITE_CORRUPT' || error.code === 'SQLITE_NOTADB') {
-			connection.isCorrupted = true;
-		}
+		connection.lastError = msg;
 
 		this.logger.error(msg);
 	}
