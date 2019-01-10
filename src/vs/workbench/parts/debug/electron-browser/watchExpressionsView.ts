@@ -263,7 +263,7 @@ class WatchExpressionsDragAndDrop implements ITreeDragAndDrop<IExpression> {
 
 	constructor(private debugService: IDebugService) { }
 
-	onDragOver(data: IDragAndDropData, targetElement: IExpression, targetIndex: number, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
+	onDragOver(data: IDragAndDropData): boolean | ITreeDragOverReaction {
 		const draggedData = data.getData();
 		if (Array.isArray(draggedData) && draggedData[0] && draggedData[0].element.element instanceof Expression) {
 			return true;
@@ -280,7 +280,7 @@ class WatchExpressionsDragAndDrop implements ITreeDragAndDrop<IExpression> {
 		return element.getId();
 	}
 
-	getDragLabel?(elements: IExpression[]): string {
+	getDragLabel(elements: IExpression[]): string {
 		if (elements.length > 1) {
 			return String(elements.length);
 		}
@@ -288,7 +288,7 @@ class WatchExpressionsDragAndDrop implements ITreeDragAndDrop<IExpression> {
 		return elements[0].name;
 	}
 
-	drop(data: IDragAndDropData, targetElement: IExpression, targetIndex: number, originalEvent: DragEvent): void {
+	drop(data: IDragAndDropData, targetElement: IExpression): void {
 		const draggedData = data.getData();
 		if (Array.isArray(draggedData)) {
 			const draggedElement = <IExpression>draggedData[0].element.element;
