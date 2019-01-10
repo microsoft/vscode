@@ -19,7 +19,7 @@ import { basename, dirname, join } from 'vs/base/common/paths';
 import { Schemas } from 'vs/base/common/network';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
-import { ILabelService, LabelRules, RegisterFormatterData } from 'vs/platform/label/common/label';
+import { ILabelService, LabelRules } from 'vs/platform/label/common/label';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
 interface LabelRulesWithPrefix extends LabelRules {
@@ -87,7 +87,7 @@ export class LabelService implements ILabelService {
 	_serviceBrand: any;
 
 	private readonly formatters: { [prefix: string]: LabelRules } = Object.create(null);
-	private readonly _onDidRegisterFormatter = new Emitter<RegisterFormatterData>();
+	private readonly _onDidRegisterFormatter = new Emitter<void>();
 
 	constructor(
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
@@ -95,11 +95,12 @@ export class LabelService implements ILabelService {
 		@IWindowService private readonly windowService: IWindowService
 	) {
 		labelsExtPoint.setHandler(extensions => {
-			extensions.forEach(extension => extension.value.forEach(rule => this.registerFormatter(rule.prefix, rule)));
+			extensions.forEach(extension => extension.value.forEach(rule => this.formatters[rule.prefix] = rule));
+			this._onDidRegisterFormatter.fire();
 		});
 	}
 
-	get onDidRegisterFormatter(): Event<RegisterFormatterData> {
+	get onDidRegisterFormatter(): Event<void> {
 		return this._onDidRegisterFormatter.event;
 	}
 
@@ -200,7 +201,7 @@ export class LabelService implements ILabelService {
 
 	registerFormatter(selector: string, formatter: LabelRules): IDisposable {
 		this.formatters[selector] = formatter;
-		this._onDidRegisterFormatter.fire({ selector, formatter });
+		this._onDidRegisterFormatter.fire();
 
 		return {
 			dispose: () => delete this.formatters[selector]

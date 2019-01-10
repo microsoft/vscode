@@ -15,11 +15,6 @@ import { localize } from 'vs/nls';
 import { isParent } from 'vs/platform/files/common/files';
 import { basename } from 'vs/base/common/paths';
 
-export interface RegisterFormatterData {
-	selector: string;
-	formatter: LabelRules;
-}
-
 export interface ILabelService {
 	_serviceBrand: any;
 	/**
@@ -31,7 +26,7 @@ export interface ILabelService {
 	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IWorkspace), options?: { verbose: boolean }): string;
 	getHostLabel(): string;
 	registerFormatter(selector: string, formatter: LabelRules): IDisposable;
-	onDidRegisterFormatter: Event<RegisterFormatterData>;
+	onDidRegisterFormatter: Event<void>;
 }
 
 export interface LabelRules {
