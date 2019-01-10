@@ -19,7 +19,7 @@ import { ActivatedExtension, EmptyExtension, ExtensionActivatedByAPI, ExtensionA
 import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
 import { ExtHostStorage } from 'vs/workbench/api/node/extHostStorage';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
-import { IExtensionDescription, checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
 import { connectProxyResolver } from 'vs/workbench/node/proxyResolver';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -104,7 +104,7 @@ class ExtensionStoragePath {
 	}
 
 	globalValue(extension: IExtensionDescription): string {
-		return path.join(this._environment.globalStorageHome.fsPath, extension.identifier.value);
+		return path.join(this._environment.globalStorageHome.fsPath, extension.identifier.value.toLowerCase());
 	}
 
 	private async _getOrCreateWorkspaceStoragePath(): Promise<string> {
@@ -422,7 +422,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 				subscriptions: [],
 				get extensionPath() { return extensionDescription.extensionLocation.fsPath; },
 				storagePath: this._storagePath.workspaceValue(extensionDescription),
-				get globalStoragePath(): string { checkProposedApiEnabled(extensionDescription); return that._storagePath.globalValue(extensionDescription); },
+				globalStoragePath: this._storagePath.globalValue(extensionDescription),
 				asAbsolutePath: (relativePath: string) => { return path.join(extensionDescription.extensionLocation.fsPath, relativePath); },
 				logPath: that._extHostLogService.getLogDirectory(extensionDescription.identifier)
 			});
