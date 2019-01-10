@@ -36,8 +36,7 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 		if (this.client.apiVersion.gte(API.v310)) {
 			const triggerSpan = renameInfo.triggerSpan;
 			if (triggerSpan) {
-				const range = typeConverters.Range.fromTextSpan(triggerSpan);
-				return range;
+				return typeConverters.Range.fromTextSpan(triggerSpan);
 			}
 		}
 
@@ -90,7 +89,9 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 			findInComments: false
 		};
 
-		return this.client.execute('rename', args, token);
+		return this.client.interuptGetErr(() => {
+			return this.client.execute('rename', args, token);
+		});
 	}
 
 	private updateLocs(
