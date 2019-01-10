@@ -15,6 +15,7 @@ import { ITreeModel, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITre
 import { ISpliceable } from 'vs/base/common/sequence';
 import { IDragAndDropData } from 'vs/base/browser/dnd';
 import { range } from 'vs/base/common/arrays';
+import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 
 class TreeNodeListDragAndDrop<T, TFilterData, TRef> implements IListDragAndDrop<ITreeNode<T, TFilterData>> {
 
@@ -42,7 +43,14 @@ class TreeNodeListDragAndDrop<T, TFilterData, TRef> implements IListDragAndDrop<
 	}
 
 	onDragOver(data: IDragAndDropData, targetNode: ITreeNode<T, TFilterData> | undefined, targetIndex: number | undefined, originalEvent: DragEvent, raw = true): boolean | IListDragOverReaction {
-		const result = this.dnd.onDragOver(data, targetNode && targetNode.element, targetIndex, originalEvent);
+		let treeData: IDragAndDropData = data;
+
+		if (data instanceof ElementsDragAndDropData) {
+			const nodes = (data as ElementsDragAndDropData<ITreeNode<T, TFilterData>>).elements;
+			treeData = new ElementsDragAndDropData(nodes.map(node => node.element));
+		}
+
+		const result = this.dnd.onDragOver(treeData, targetNode && targetNode.element, targetIndex, originalEvent);
 		const didChangeAutoExpandNode = this.autoExpandNode !== targetNode;
 
 		if (didChangeAutoExpandNode) {

@@ -29,6 +29,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IAsyncDataSource, ITreeMouseEvent, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeDragOverReaction } from 'vs/base/browser/ui/tree/tree';
 import { IDragAndDropData } from 'vs/base/browser/dnd';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 
 const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
 
@@ -264,9 +265,12 @@ class WatchExpressionsDragAndDrop implements ITreeDragAndDrop<IExpression> {
 	constructor(private debugService: IDebugService) { }
 
 	onDragOver(data: IDragAndDropData): boolean | ITreeDragOverReaction {
-		const draggedData = data.getData();
+		if (!(data instanceof ElementsDragAndDropData)) {
+			return false;
+		}
 
-		return Array.isArray(draggedData) && draggedData[0] && draggedData[0].element.element instanceof Expression;
+		const expressions = (data as ElementsDragAndDropData<IExpression>).elements;
+		return expressions.length > 0 && expressions[0] instanceof Expression;
 	}
 
 	getDragURI(element: IExpression): string | null {
