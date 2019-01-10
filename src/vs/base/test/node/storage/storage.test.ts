@@ -246,6 +246,36 @@ suite('Storage Library', () => {
 		await storage.close();
 		await del(storageDir, tmpdir());
 	});
+
+	test('corrupt DB recovers', async () => {
+		const storageDir = uniqueStorageDir();
+		await mkdirp(storageDir);
+
+		const storageFile = join(storageDir, 'storage.db');
+
+		let storage = new Storage(new SQLiteStorageDatabase(storageFile));
+		await storage.init();
+
+		await storage.set('bar', 'foo');
+
+		await writeFile(storageFile, 'This is a broken DB');
+
+		await storage.set('foo', 'bar');
+
+		equal(storage.get('bar'), 'foo');
+		equal(storage.get('foo'), 'bar');
+
+		await storage.close();
+
+		storage = new Storage(new SQLiteStorageDatabase(storageFile));
+		await storage.init();
+
+		equal(storage.get('bar'), 'foo');
+		equal(storage.get('foo'), 'bar');
+
+		await storage.close();
+		await del(storageDir, tmpdir());
+	});
 });
 
 suite('SQLite Storage Library', () => {
