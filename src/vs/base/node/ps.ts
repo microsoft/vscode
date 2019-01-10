@@ -218,7 +218,7 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 							} else {
 								const cpuUsage = stdout.toString().split('\n');
 								for (let i = 0; i < pids.length; i++) {
-									const processInfo = map.get(pids[i]);
+									const processInfo = map.get(pids[i])!;
 									processInfo.load = parseFloat(cpuUsage[i]);
 								}
 

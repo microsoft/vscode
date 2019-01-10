@@ -163,8 +163,9 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 		this._phase = value;
 		mark(`LifecyclePhase/${LifecyclePhaseToString(value)}`);
 
-		if (this.phaseWhen.has(this._phase)) {
-			this.phaseWhen.get(this._phase).open();
+		const barrier = this.phaseWhen.get(this._phase);
+		if (barrier) {
+			barrier.open();
 			this.phaseWhen.delete(this._phase);
 		}
 	}

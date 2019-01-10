@@ -231,7 +231,7 @@ export class MenuItemActionItem extends ActionItem {
 			const iconPathMapKey = item.iconLocation.dark.toString();
 
 			if (MenuItemActionItem.ICON_PATH_TO_CSS_RULES.has(iconPathMapKey)) {
-				iconClass = MenuItemActionItem.ICON_PATH_TO_CSS_RULES.get(iconPathMapKey);
+				iconClass = MenuItemActionItem.ICON_PATH_TO_CSS_RULES.get(iconPathMapKey)!;
 			} else {
 				iconClass = ids.nextId();
 				createCSSRule(`.icon.${iconClass}`, `background-image: url("${(item.iconLocation.light || item.iconLocation.dark).toString()}")`);

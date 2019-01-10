@@ -145,7 +145,7 @@ export class OneSnippet {
 			// Special case #2: placeholders enclosing active placeholders
 			const selections: Selection[] = [];
 			for (const placeholder of this._placeholderGroups[this._placeholderGroupsIdx]) {
-				const id = this._placeholderDecorations.get(placeholder);
+				const id = this._placeholderDecorations.get(placeholder)!;
 				const range = this._editor.getModel().getDecorationRange(id)!;
 				selections.push(new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn));
 
