@@ -20,6 +20,61 @@ import { Schemas } from 'vs/base/common/network';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { ILabelService, LabelRules, RegisterFormatterData } from 'vs/platform/label/common/label';
+import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+
+interface LabelRulesWithPrefix extends LabelRules {
+	prefix: string;
+}
+
+export const labelsExtPoint = ExtensionsRegistry.registerExtensionPoint<LabelRulesWithPrefix[]>({
+	extensionPoint: 'labels',
+	jsonSchema: {
+		description: localize('vscode.extension.contributes.labels', 'Contributes label formatting rules.'),
+		type: 'array',
+		items: {
+			type: 'object',
+			required: ['prefix'],
+			properties: {
+				prefix: {
+					type: 'string',
+					description: localize('vscode.extension.contributes.labels.prefix', 'URI prefix on which to match the rules on. For example file:///myFolder'),
+				},
+				uri: {
+					description: localize('vscode.extension.contributes.labels.uri', "Rules for formatting uri resource labels."),
+					type: 'object',
+					properties: {
+						label: {
+							type: 'string',
+							description: localize('vscode.extension.contributes.labels.uri.label', "Label rules to display. For example: myLabel:/${path}. ${path}, ${scheme} and ${authority} are supported as variables.")
+						},
+						separator: {
+							type: 'string',
+							description: localize('vscode.extension.contributes.labels.uri.separator', "Separator to be used in the uri label display. '/' or '\' as an example.")
+						},
+						tildify: {
+							type: 'boolean',
+							description: localize('vscode.extension.contributes.labels.uri.tildify', "Controls if the start of the uri label should be tildified when possible.")
+						},
+						normalizeDriveLetter: {
+							type: 'boolean',
+							description: localize('vscode.extension.contributes.labels.uri.normalizeDriveLetter', "Controls if the drive letters should be upper cased.")
+						}
+					}
+				},
+				workspace: {
+					description: localize('vscode.extension.contributes.labels.workspace', "Rules for formatting workspace labels."),
+					type: 'object',
+					properties: {
+						suffix: {
+							type: 'string',
+							description: localize('vscode.extension.contributes.labels.workspace.suffix', "Suffix appended to the workspace label.")
+						}
+					}
+				},
+			}
+		}
+	}
+});
 
 const sepRegexp = /\//g;
 const labelMatchingRegexp = /\$\{scheme\}|\$\{authority\}|\$\{path\}/g;
@@ -27,7 +82,6 @@ const labelMatchingRegexp = /\$\{scheme\}|\$\{authority\}|\$\{path\}/g;
 function hasDriveLetter(path: string): boolean {
 	return !!(isWindows && path && path[2] === ':');
 }
-
 
 export class LabelService implements ILabelService {
 	_serviceBrand: any;
@@ -39,7 +93,11 @@ export class LabelService implements ILabelService {
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IWindowService private readonly windowService: IWindowService
-	) { }
+	) {
+		labelsExtPoint.setHandler(extensions => {
+			extensions.forEach(extension => extension.value.forEach(rule => this.registerFormatter(rule.prefix, rule)));
+		});
+	}
 
 	get onDidRegisterFormatter(): Event<RegisterFormatterData> {
 		return this._onDidRegisterFormatter.event;
