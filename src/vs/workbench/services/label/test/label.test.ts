@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { LabelService } from 'vs/platform/label/common/label';
 import { TestEnvironmentService, TestContextService, TestWindowService } from 'vs/workbench/test/workbenchTestServices';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { URI } from 'vs/base/common/uri';
 import { nativeSep } from 'vs/base/common/paths';
 import { isWindows } from 'vs/base/common/platform';
+import { LabelService } from 'vs/workbench/services/label/common/labelService';
 
 suite('URI Label', () => {
 

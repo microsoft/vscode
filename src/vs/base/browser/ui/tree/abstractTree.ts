@@ -17,6 +17,15 @@ import { IDragAndDropData } from 'vs/base/browser/dnd';
 import { range } from 'vs/base/common/arrays';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 
+function asTreeDragAndDropData<T, TFilterData>(data: IDragAndDropData): IDragAndDropData {
+	if (data instanceof ElementsDragAndDropData) {
+		const nodes = (data as ElementsDragAndDropData<ITreeNode<T, TFilterData>>).elements;
+		return new ElementsDragAndDropData(nodes.map(node => node.element));
+	}
+
+	return data;
+}
+
 class TreeNodeListDragAndDrop<T, TFilterData, TRef> implements IListDragAndDrop<ITreeNode<T, TFilterData>> {
 
 	private autoExpandNode: ITreeNode<T, TFilterData> | undefined;
@@ -38,19 +47,12 @@ class TreeNodeListDragAndDrop<T, TFilterData, TRef> implements IListDragAndDrop<
 
 	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
 		if (this.dnd.onDragStart) {
-			this.dnd.onDragStart(data, originalEvent);
+			this.dnd.onDragStart(asTreeDragAndDropData(data), originalEvent);
 		}
 	}
 
 	onDragOver(data: IDragAndDropData, targetNode: ITreeNode<T, TFilterData> | undefined, targetIndex: number | undefined, originalEvent: DragEvent, raw = true): boolean | IListDragOverReaction {
-		let treeData: IDragAndDropData = data;
-
-		if (data instanceof ElementsDragAndDropData) {
-			const nodes = (data as ElementsDragAndDropData<ITreeNode<T, TFilterData>>).elements;
-			treeData = new ElementsDragAndDropData(nodes.map(node => node.element));
-		}
-
-		const result = this.dnd.onDragOver(treeData, targetNode && targetNode.element, targetIndex, originalEvent);
+		const result = this.dnd.onDragOver(asTreeDragAndDropData(data), targetNode && targetNode.element, targetIndex, originalEvent);
 		const didChangeAutoExpandNode = this.autoExpandNode !== targetNode;
 
 		if (didChangeAutoExpandNode) {
@@ -102,7 +104,7 @@ class TreeNodeListDragAndDrop<T, TFilterData, TRef> implements IListDragAndDrop<
 	}
 
 	drop(data: IDragAndDropData, targetNode: ITreeNode<T, TFilterData> | undefined, targetIndex: number | undefined, originalEvent: DragEvent): void {
-		this.dnd.drop(data, targetNode && targetNode.element, targetIndex, originalEvent);
+		this.dnd.drop(asTreeDragAndDropData(data), targetNode && targetNode.element, targetIndex, originalEvent);
 	}
 }
 
