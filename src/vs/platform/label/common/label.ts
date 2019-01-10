@@ -21,7 +21,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 
-export interface RegisterFormatterEvent {
+export interface RegisterFormatterData {
 	selector: string;
 	formatter: LabelRules;
 }
@@ -37,7 +37,7 @@ export interface ILabelService {
 	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IWorkspace), options?: { verbose: boolean }): string;
 	getHostLabel(): string;
 	registerFormatter(selector: string, formatter: LabelRules): IDisposable;
-	onDidRegisterFormatter: Event<RegisterFormatterEvent>;
+	onDidRegisterFormatter: Event<RegisterFormatterData>;
 }
 
 export interface LabelRules {
@@ -79,7 +79,7 @@ export class LabelService implements ILabelService {
 	_serviceBrand: any;
 
 	private readonly formatters: { [prefix: string]: LabelRules } = Object.create(null);
-	private readonly _onDidRegisterFormatter = new Emitter<RegisterFormatterEvent>();
+	private readonly _onDidRegisterFormatter = new Emitter<RegisterFormatterData>();
 
 	constructor(
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
@@ -87,7 +87,7 @@ export class LabelService implements ILabelService {
 		@IWindowService private readonly windowService: IWindowService
 	) { }
 
-	get onDidRegisterFormatter(): Event<RegisterFormatterEvent> {
+	get onDidRegisterFormatter(): Event<RegisterFormatterData> {
 		return this._onDidRegisterFormatter.event;
 	}
 
