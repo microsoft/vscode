@@ -259,12 +259,12 @@ export class RipgrepParser extends EventEmitter {
 				this.hitLimit = true;
 			}
 
+			let matchText = bytesOrTextToString(match.match);
 			if (lineNumber === 0 && i === 0 && isBOMStripped) {
+				matchText = stripUTF8BOM(matchText);
 				match.start -= 3;
 				match.end -= 3;
 			}
-
-			let matchText = bytesOrTextToString(match.match);
 			const inBetweenChars = fullTextBytes.slice(prevMatchEnd, match.start).toString().length;
 			let startCol = prevMatchEndCol + inBetweenChars;
 
