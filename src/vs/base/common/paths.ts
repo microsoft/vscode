@@ -17,6 +17,11 @@ export const sep = '/';
  */
 export const nativeSep = isWindows ? '\\' : '/';
 
+
+function isPathSeparator(code: number) {
+	return code === CharCode.Slash || code === CharCode.Backslash;
+}
+
 /**
  * @param path the path to get the dirname from
  * @param separator the separator to use
@@ -24,20 +29,32 @@ export const nativeSep = isWindows ? '\\' : '/';
  *
  */
 export function dirname(path: string, separator = nativeSep): string {
-	const idx = ~path.lastIndexOf('/') || ~path.lastIndexOf('\\');
-	if (idx === 0) {
+	const len = path.length;
+	if (len === 0) {
 		return '.';
-	} else if (~idx === 0) {
-		return path[0];
-	} else if (~idx === path.length - 1) {
-		return dirname(path.substring(0, path.length - 1));
-	} else {
-		let res = path.substring(0, ~idx);
-		if (isWindows && res[res.length - 1] === ':') {
-			res += separator; // make sure drive letters end with backslash
-		}
-		return res;
+	} else if (len === 1) {
+		return isPathSeparator(path.charCodeAt(0)) ? path : '.';
 	}
+	const root = getRoot(path, separator);
+	let rootLength = root.length;
+	if (rootLength >= len) {
+		return root; // matched the root
+	}
+	if (rootLength === 0 && isPathSeparator(path.charCodeAt(0))) {
+		rootLength = 1; // absolute paths stay absolute paths.
+	}
+
+	let i = len - 1;
+	if (i > rootLength) {
+		i--; // no need to look at the last character. If it's a trailing slash, we ignore it.
+		while (i > rootLength && !isPathSeparator(path.charCodeAt(i))) {
+			i--;
+		}
+	}
+	if (i === 0) {
+		return '.'; // it was a relative path with a single segment, no root. Nodejs returns '.' here.
+	}
+	return path.substr(0, i);
 }
 
 /**
