@@ -8,7 +8,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { basenameOrAuthority } from 'vs/base/common/resources';
+import { basename as resourceBasename } from 'vs/base/common/resources';
 import { isLinux } from 'vs/base/common/platform';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 import { localize } from 'vs/nls';
@@ -51,7 +51,7 @@ const LABEL_SERVICE_ID = 'label';
 
 export function getSimpleWorkspaceLabel(workspace: IWorkspaceIdentifier | URI, workspaceHome: string): string {
 	if (isSingleFolderWorkspaceIdentifier(workspace)) {
-		return basenameOrAuthority(workspace);
+		return resourceBasename(workspace);
 	}
 	// Workspace: Untitled
 	if (isParent(workspace.configPath, workspaceHome, !isLinux /* ignore case */)) {
