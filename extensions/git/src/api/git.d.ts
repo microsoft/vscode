@@ -156,6 +156,7 @@ export interface Repository {
 	fetch(remote?: string, ref?: string, depth?: number): Promise<void>;
 	pull(unshallow?: boolean): Promise<void>;
 	push(remoteName?: string, branchName?: string, setUpstream?: boolean): Promise<void>;
+	blame(path: string): Promise<string>;
 }
 
 export interface API {
