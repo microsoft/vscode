@@ -111,12 +111,12 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 			const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.file);
 			this.initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, activeWorkspaceRootUri, this._configHelper.config.cwd);
 
-			// Compell type system as process.env should not have any undefined entries
+			// Compel type system as process.env should not have any undefined entries
 			let env: platform.IProcessEnvironment = {};
 
-			// When this is true, the caller must provide the complete environment as nothing will be inherited from the process
-			// or any configuration.
 			if (shellLaunchConfig.strictEnv) {
+				// Only base the terminal process environment on this environment and add the
+				// various mixins when strictEnv is false
 				env = { ...shellLaunchConfig.env } as any;
 			} else {
 				// Merge process env with the env from config and from shellLaunchConfig
