@@ -25,10 +25,12 @@ import { CallbackMap } from './callbackMap';
 import { RequestItem, RequestQueue, RequestQueueingType } from './requestQueue';
 
 class TypeScriptServerError extends Error {
+
 	constructor(
+		version: TypeScriptVersion,
 		public readonly response: Proto.Response,
 	) {
-		super(response.message);
+		super(`TypeScript Server Error (${version.versionString})\n${response.message}`);
 	}
 }
 
@@ -49,7 +51,7 @@ export class TypeScriptServerSpawner {
 	): TypeScriptServer {
 		const apiVersion = version.version || API.defaultVersion;
 
-		const { args, cancellationPipeName, tsServerLogFile } = this.getTsServerArgs(configuration, version, pluginManager);
+		const { args, cancellationPipeName, tsServerLogFile } = this.getTsServerArgs(configuration, version, apiVersion, pluginManager);
 
 		if (TypeScriptServerSpawner.isLoggingEnabled(apiVersion, configuration)) {
 			if (tsServerLogFile) {
@@ -63,7 +65,7 @@ export class TypeScriptServerSpawner {
 		const childProcess = electron.fork(version.tsServerPath, args, this.getForkOptions());
 		this._logger.info('Started TSServer');
 
-		return new TypeScriptServer(childProcess, tsServerLogFile, cancellationPipeName, this._telemetryReporter, this._tracer);
+		return new TypeScriptServer(childProcess, tsServerLogFile, cancellationPipeName, version, this._telemetryReporter, this._tracer);
 	}
 
 	private getForkOptions() {
@@ -77,13 +79,12 @@ export class TypeScriptServerSpawner {
 	private getTsServerArgs(
 		configuration: TypeScriptServiceConfiguration,
 		currentVersion: TypeScriptVersion,
+		apiVersion: API,
 		pluginManager: PluginManager,
 	): { args: string[], cancellationPipeName: string | undefined, tsServerLogFile: string | undefined } {
 		const args: string[] = [];
 		let cancellationPipeName: string | undefined;
 		let tsServerLogFile: string | undefined;
-
-		const apiVersion = currentVersion.version || API.defaultVersion;
 
 		if (apiVersion.gte(API.v206)) {
 			if (apiVersion.gte(API.v250)) {
@@ -184,6 +185,7 @@ export class TypeScriptServer extends Disposable {
 		private readonly _childProcess: cp.ChildProcess,
 		private readonly _tsServerLogFile: string | undefined,
 		private readonly _cancellationPipeName: string | undefined,
+		private readonly _version: TypeScriptVersion,
 		private readonly _telemetryReporter: TelemetryReporter,
 		private readonly _tracer: Tracer,
 	) {
@@ -301,7 +303,7 @@ export class TypeScriptServer extends Disposable {
 			// Special case where response itself is successful but there is not any data to return.
 			callback.onSuccess(new NoContentResponse());
 		} else {
-			callback.onError(new TypeScriptServerError(response));
+			callback.onError(new TypeScriptServerError(this._version, response));
 		}
 	}
 
