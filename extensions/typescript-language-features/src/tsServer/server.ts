@@ -17,6 +17,7 @@ import LogDirectoryProvider from '../utils/logDirectoryProvider';
 import Logger from '../utils/logger';
 import { TypeScriptPluginPathsProvider } from '../utils/pluginPathsProvider';
 import { PluginManager } from '../utils/plugins';
+import { escapeRegExp } from '../utils/regexp';
 import TelemetryReporter from '../utils/telemetry';
 import Tracer from '../utils/tracer';
 import { TypeScriptVersion, TypeScriptVersionProvider } from '../utils/versionProvider';
@@ -30,7 +31,20 @@ class TypeScriptServerError extends Error {
 		version: TypeScriptVersion,
 		public readonly response: Proto.Response,
 	) {
-		super(`TypeScript Server Error (${version.versionString})\n${response.message}`);
+		super(`TypeScript Server Error (${version.versionString})\n${TypeScriptServerError.normalizeMessageStack(version, response.message)}`);
+	}
+
+	/**
+	 * Try to replace full TS Server paths with 'tsserver.js' so that we don't have to post process the data as much
+	 */
+	private static normalizeMessageStack(
+		version: TypeScriptVersion,
+		message: string | undefined,
+	) {
+		if (!message) {
+			return message;
+		}
+		return message.replace(new RegExp(`${escapeRegExp(version.path)}[/\\\\]tsserver.js:`, 'gi'), 'tsserver.js:');
 	}
 }
 
