@@ -541,11 +541,21 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	}
 
 	drop(data: IDragAndDropData, target: ExplorerItem, targetIndex: number, originalEvent: DragEvent): void {
+		// Find parent to add to
+		if (!target) {
+			target = this.explorerService.roots[this.explorerService.roots.length - 1];
+		}
+		if (!target.isDirectory) {
+			target = target.parent;
+		}
+		if (target.isReadonly) {
+			return;
+		}
+
 		// Desktop DND (Import file)
 		if (data instanceof DesktopDragAndDropData) {
 			this.handleExternalDrop(data, target, originalEvent);
 		}
-
 		// In-Explorer DND (Move/Copy file)
 		else {
 			this.handleExplorerDrop(data, target, originalEvent);
@@ -586,7 +596,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			}
 
 			// Handle dropped files (only support FileStat as target)
-			else if (target instanceof ExplorerItem && !target.isReadonly) {
+			else if (target instanceof ExplorerItem) {
 				return this.addResources(target, droppedResources.map(res => res.resource));
 			}
 
@@ -596,15 +606,6 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 	private addResources(target: ExplorerItem, resources: URI[]): Promise<any> {
 		if (resources && resources.length > 0) {
-
-			// Find parent to add to
-			if (!target) {
-				target = this.explorerService.roots[0];
-			}
-
-			if (!target.isDirectory) {
-				target = target.parent;
-			}
 
 			// Resolve target to check for name collisions and ask user
 			return this.fileService.resolveFile(target.resource).then((targetStat: IFileStat) => {
@@ -670,7 +671,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		return Promise.resolve(undefined);
 	}
 
-	private handleExplorerDrop(data: IDragAndDropData, target: ExplorerItem | undefined, originalEvent: DragEvent): Promise<void> {
+	private handleExplorerDrop(data: IDragAndDropData, target: ExplorerItem, originalEvent: DragEvent): Promise<void> {
 		const elementsData = (data as ElementsDragAndDropData<ExplorerItem>).elements;
 		const items = distinctParents(elementsData, s => s.resource);
 		const isCopy = (originalEvent.ctrlKey && !isMacintosh) || (originalEvent.altKey && isMacintosh);
@@ -714,7 +715,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		});
 	}
 
-	private doHandleRootDrop(roots: ExplorerItem[], target: ExplorerItem | undefined): Promise<void> {
+	private doHandleRootDrop(roots: ExplorerItem[], target: ExplorerItem): Promise<void> {
 		if (roots.length === 0) {
 			return Promise.resolve(undefined);
 		}
@@ -738,24 +739,12 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				rootsToMove.push(data);
 			}
 		}
-		if (!target) {
-			// Empty area
-			targetIndex = workspaceCreationData.length;
-		}
 
 		workspaceCreationData.splice(targetIndex, 0, ...rootsToMove);
 		return this.workspaceEditingService.updateFolders(0, workspaceCreationData.length, workspaceCreationData);
 	}
 
-	private doHandleExplorerDrop(source: ExplorerItem, target: ExplorerItem | undefined, isCopy: boolean): Promise<void> {
-		if (!(target instanceof ExplorerItem)) {
-			return Promise.resolve(undefined);
-		}
-
-		if (target.isReadonly) {
-			return undefined;
-		}
-
+	private doHandleExplorerDrop(source: ExplorerItem, target: ExplorerItem, isCopy: boolean): Promise<void> {
 		// Reuse duplicate action if user copies
 		if (isCopy) {
 
