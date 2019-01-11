@@ -804,10 +804,10 @@ export interface LocationDto {
 }
 
 export interface DefinitionLinkDto {
-	origin?: IRange;
+	originSelectionRange?: IRange;
 	uri: UriComponents;
 	range: IRange;
-	selectionRange?: IRange;
+	targetSelectionRange?: IRange;
 }
 
 export interface WorkspaceSymbolDto extends IdObject {

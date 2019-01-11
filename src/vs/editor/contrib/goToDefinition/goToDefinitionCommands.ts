@@ -15,7 +15,7 @@ import * as corePosition from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ITextModel, IWordAtPosition } from 'vs/editor/common/model';
-import { DefinitionLink, Location } from 'vs/editor/common/modes';
+import { LocationLink, Location } from 'vs/editor/common/modes';
 import { MessageController } from 'vs/editor/contrib/message/messageController';
 import { PeekContext } from 'vs/editor/contrib/referenceSearch/peekViewWidget';
 import { ReferencesController } from 'vs/editor/contrib/referenceSearch/referencesController';
@@ -69,7 +69,7 @@ export class DefinitionAction extends EditorAction {
 			// * remove falsy references
 			// * find reference at the current pos
 			let idxOfCurrent = -1;
-			const result: DefinitionLink[] = [];
+			const result: LocationLink[] = [];
 			for (const reference of references) {
 				if (!reference || !reference.range) {
 					continue;
@@ -113,7 +113,7 @@ export class DefinitionAction extends EditorAction {
 		return definitionPromise;
 	}
 
-	protected _getTargetLocationForPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<DefinitionLink[]> {
+	protected _getTargetLocationForPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<LocationLink[]> {
 		return getDefinitionsAtPosition(model, position, token);
 	}
 
@@ -256,7 +256,7 @@ export class PeekDefinitionAction extends DefinitionAction {
 
 export class DeclarationAction extends DefinitionAction {
 
-	protected _getTargetLocationForPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<DefinitionLink[]> {
+	protected _getTargetLocationForPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<LocationLink[]> {
 		return getDeclarationsAtPosition(model, position, token);
 	}
 
@@ -320,7 +320,7 @@ export class PeekDeclarationAction extends DeclarationAction {
 }
 
 export class ImplementationAction extends DefinitionAction {
-	protected _getTargetLocationForPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<DefinitionLink[]> {
+	protected _getTargetLocationForPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<LocationLink[]> {
 		return getImplementationsAtPosition(model, position, token);
 	}
 
@@ -378,7 +378,7 @@ export class PeekImplementationAction extends ImplementationAction {
 }
 
 export class TypeDefinitionAction extends DefinitionAction {
-	protected _getTargetLocationForPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<DefinitionLink[]> {
+	protected _getTargetLocationForPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<LocationLink[]> {
 		return getTypeDefinitionsAtPosition(model, position, token);
 	}
 
