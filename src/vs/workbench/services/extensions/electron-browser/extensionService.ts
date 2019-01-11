@@ -357,8 +357,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		let result: { [id: string]: IExtensionsStatus; } = Object.create(null);
 		if (this._registry) {
 			const extensions = this._registry.getAllExtensionDescriptions();
-			for (let i = 0, len = extensions.length; i < len; i++) {
-				const extension = extensions[i];
+			for (const extension of extensions) {
 				const extensionKey = ExtensionIdentifier.toKey(extension.identifier);
 				result[extension.identifier.value] = {
 					messages: this._extensionsMessages.get(extensionKey),

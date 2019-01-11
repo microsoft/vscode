@@ -537,8 +537,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 
 	public invalidateOverviewRulerColorCache(): void {
 		const decorations = this.model.getOverviewRulerDecorations();
-		for (let i = 0, len = decorations.length; i < len; i++) {
-			const decoration = decorations[i];
+		for (const decoration of decorations) {
 			const opts = <ModelDecorationOverviewRulerOptions>decoration.options.overviewRuler;
 			if (opts) {
 				opts.invalidateCachedColor();

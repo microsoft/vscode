@@ -187,8 +187,7 @@ export class ExtensionHostProcessManager extends Disposable {
 
 		// Customers
 		const customers = ExtHostCustomersRegistry.getCustomers();
-		for (let i = 0, len = customers.length; i < len; i++) {
-			const ctor = customers[i];
+		for (const ctor of customers) {
 			const instance = this._instantiationService.createInstance(ctor, extHostContext);
 			this._extensionHostProcessCustomers.push(instance);
 		}

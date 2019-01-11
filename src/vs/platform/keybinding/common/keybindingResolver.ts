@@ -77,8 +77,7 @@ export class KeybindingResolver {
 	public static combine(defaults: ResolvedKeybindingItem[], rawOverrides: ResolvedKeybindingItem[]): ResolvedKeybindingItem[] {
 		defaults = defaults.slice(0);
 		let overrides: ResolvedKeybindingItem[] = [];
-		for (let i = 0, len = rawOverrides.length; i < len; i++) {
-			const override = rawOverrides[i];
+		for (const override of rawOverrides) {
 			if (!override.command || override.command.length === 0 || override.command.charAt(0) !== '-') {
 				overrides.push(override);
 				continue;
