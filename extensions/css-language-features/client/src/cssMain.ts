@@ -11,7 +11,7 @@ const localize = nls.loadMessageBundle();
 
 import { languages, window, commands, ExtensionContext, Range, Position, CompletionItem, CompletionItemKind, TextEdit, SnippetString, workspace } from 'vscode';
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, Disposable } from 'vscode-languageclient';
-import { getCustomDataPathsInAllWorkspaces } from './customData';
+import { getCustomDataPathsInAllWorkspaces, getCustomDataPathsFromAllExtensions } from './customData';
 
 // this method is called when vs code is activated
 export function activate(context: ExtensionContext) {
@@ -31,7 +31,10 @@ export function activate(context: ExtensionContext) {
 
 	let documentSelector = ['css', 'scss', 'less'];
 
-	let dataPaths = getCustomDataPathsInAllWorkspaces(workspace.workspaceFolders);
+	let dataPaths = [
+		...getCustomDataPathsInAllWorkspaces(workspace.workspaceFolders),
+		...getCustomDataPathsFromAllExtensions()
+	];
 
 	// Options to control the language client
 	let clientOptions: LanguageClientOptions = {

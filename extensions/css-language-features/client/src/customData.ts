@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as path from 'path';
-import { workspace, WorkspaceFolder } from 'vscode';
+import { workspace, WorkspaceFolder, extensions } from 'vscode';
 
 interface ExperimentalConfig {
 	experimental?: {
-		customData?: string[]
+		customData?: string[];
 	};
 }
 
@@ -28,12 +28,28 @@ export function getCustomDataPathsInAllWorkspaces(workspaceFolders: WorkspaceFol
 			wfCSSConfig.workspaceFolderValue.experimental &&
 			wfCSSConfig.workspaceFolderValue.experimental.customData
 		) {
-
 			wfCSSConfig.workspaceFolderValue.experimental.customData.forEach(p => [
 				dataPaths.push(path.resolve(wf.uri.fsPath, p))
 			]);
 		}
 	});
+
+	return dataPaths;
+}
+
+export function getCustomDataPathsFromAllExtensions(): string[] {
+	const dataPaths: string[] = [];
+
+	for (const extension of extensions.all) {
+		const contributes = extension.packageJSON && extension.packageJSON.contributes;
+
+		if (contributes && contributes.css && contributes.css.customData && Array.isArray(contributes.css.customData)) {
+			const relativePaths: string[] = contributes.css.customData;
+			relativePaths.forEach(rp => {
+				dataPaths.push(path.resolve(extension.extensionPath, rp));
+			});
+		}
+	}
 
 	return dataPaths;
 }
