@@ -91,7 +91,7 @@ export interface IGalleryMetadata {
 }
 
 export interface ILocalExtension extends IExtension {
-	manifest: IExtensionManifest; /** TODO:@sandy081 - remove the readonly relaxment */
+	readonly manifest: IExtensionManifest;
 	metadata: IGalleryMetadata;
 	readmeUrl: URI | null;
 	changelogUrl: URI | null;

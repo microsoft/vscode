@@ -25,10 +25,6 @@ export function getGalleryExtensionId(publisher: string, name: string): string {
 	return `${publisher.toLocaleLowerCase()}.${name.toLocaleLowerCase()}`;
 }
 
-export function getGalleryExtensionIdFromLocal(local: ILocalExtension): string {
-	return local.manifest ? getGalleryExtensionId(local.manifest.publisher, local.manifest.name) : local.identifier.id;
-}
-
 export const LOCAL_EXTENSION_ID_REGEX = /^([^.]+\..+)-(\d+\.\d+\.\d+(-.*)?)$/;
 
 export function getIdFromLocalExtensionId(localExtensionId: string): string {
@@ -74,7 +70,7 @@ export function groupByExtension<T>(extensions: T[], getExtensionIdentifier: (t:
 
 export function getLocalExtensionTelemetryData(extension: ILocalExtension): any {
 	return {
-		id: getGalleryExtensionIdFromLocal(extension),
+		id: extension.galleryIdentifier.id,
 		name: extension.manifest.name,
 		galleryId: null,
 		publisherId: extension.metadata ? extension.metadata.publisherId : null,

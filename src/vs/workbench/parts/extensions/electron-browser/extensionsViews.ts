@@ -232,7 +232,7 @@ export class ExtensionsListView extends ViewletPanel {
 						&& e.local.manifest.contributes
 						&& Array.isArray(e.local.manifest.contributes.grammars)
 						&& e.local.manifest.contributes.grammars.length
-						&& e.local.identifier.id !== 'git';
+						&& e.local.galleryIdentifier.id !== 'vscode.git';
 				});
 				return this.getPagedModel(this.sortExtensions(basics, options));
 			}
@@ -240,7 +240,7 @@ export class ExtensionsListView extends ViewletPanel {
 				const others = result.filter(e => {
 					return e.local.manifest
 						&& e.local.manifest.contributes
-						&& (!Array.isArray(e.local.manifest.contributes.grammars) || e.local.identifier.id === 'git')
+						&& (!Array.isArray(e.local.manifest.contributes.grammars) || e.local.galleryIdentifier.id === 'vscode.git')
 						&& !Array.isArray(e.local.manifest.contributes.themes);
 				});
 				return this.getPagedModel(this.sortExtensions(others, options));
