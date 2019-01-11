@@ -192,6 +192,7 @@ export class ExplorerService implements IExplorerService {
 					// Move in Model
 					modelElements.forEach((modelElement, index) => {
 						const oldParent = modelElement.parent;
+						modelElement.move(newParents[index]);
 						this._onDidChangeItem.fire(oldParent);
 						this._onDidChangeItem.fire(newParents[index]);
 					});
