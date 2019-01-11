@@ -853,18 +853,16 @@ export class RefreshExplorerView extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IViewletService private readonly viewletService: IViewletService
+		@IViewletService private readonly viewletService: IViewletService,
+		@IExplorerService private readonly explorerService: IExplorerService
 	) {
 		super(id, label, 'explorer-action refresh-explorer');
 	}
 
 	public run(): Promise<any> {
-		return this.viewletService.openViewlet(VIEWLET_ID, true).then((viewlet: ExplorerViewlet) => {
-			const explorerView = viewlet.getExplorerView();
-			if (explorerView) {
-				explorerView.refresh();
-			}
-		});
+		return this.viewletService.openViewlet(VIEWLET_ID, true).then(() =>
+			this.explorerService.refresh()
+		);
 	}
 }
 

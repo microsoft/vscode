@@ -134,6 +134,11 @@ export class ExplorerService implements IExplorerService {
 		});
 	}
 
+	refresh(): void {
+		this.model.roots.forEach(r => r.isDirectoryResolved = false);
+		this._onDidChangeItem.fire(null);
+	}
+
 	// File events
 
 	private onFileOperation(e: FileOperationEvent): void {

@@ -355,7 +355,7 @@ export class ExplorerView extends ViewletPanel {
 	 * Refresh the contents of the explorer to get up to date data from the disk about the file structure.
 	 * If the item is passed we refresh only that level of the tree, otherwise we do a full refresh.
 	 */
-	refresh(item?: ExplorerItem): Promise<void> {
+	private refresh(item?: ExplorerItem): Promise<void> {
 		if (!this.tree || !this.isBodyVisible()) {
 			this.shouldRefresh = true;
 			return Promise.resolve(undefined);

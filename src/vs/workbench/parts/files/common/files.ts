@@ -49,6 +49,7 @@ export interface IExplorerService {
 	setEditable(stat: ExplorerItem, data: IEditableData): void;
 	getEditableData(stat: ExplorerItem): IEditableData | undefined;
 	findClosest(resource: URI): ExplorerItem | null;
+	refresh(): void;
 
 	/**
 	 * Selects and reveal the file element provided by the given resource if its found in the explorer. Will try to
