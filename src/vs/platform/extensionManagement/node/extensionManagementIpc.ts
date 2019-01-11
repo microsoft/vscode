@@ -21,11 +21,9 @@ function transformOutgoingURI(uri: URI, transformer: IURITransformer | null): UR
 
 function transformIncomingExtension(extension: ILocalExtension, transformer: IURITransformer | null): ILocalExtension {
 	transformer = transformer ? transformer : DefaultURITransformer;
-	const manfiest = extension.manifest;
-	delete extension.manifest;
-	extension = transformAndReviveIncomingURIs(extension, transformer);
-	extension.manifest = manfiest;
-	return extension;
+	const manifest = extension.manifest;
+	const transformed = transformAndReviveIncomingURIs({ ...extension, ...{ manifest: undefined } }, transformer);
+	return { ...transformed, ...{ manifest } };
 }
 
 function transformOutgoingExtension(extension: ILocalExtension, transformer: IURITransformer | null): ILocalExtension {

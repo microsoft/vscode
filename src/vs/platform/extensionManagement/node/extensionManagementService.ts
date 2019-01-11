@@ -21,7 +21,7 @@ import {
 	INSTALL_ERROR_MALICIOUS,
 	INSTALL_ERROR_INCOMPATIBLE
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { getGalleryExtensionIdFromLocal, adoptToGalleryExtensionId, areSameExtensions, getGalleryExtensionId, groupByExtension, getMaliciousExtensionsSet, getLocalExtensionId, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, getIdFromLocalExtensionId, getLocalExtensionIdFromManifest, getLocalExtensionIdFromGallery } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { adoptToGalleryExtensionId, areSameExtensions, getGalleryExtensionId, groupByExtension, getMaliciousExtensionsSet, getLocalExtensionId, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, getIdFromLocalExtensionId, getLocalExtensionIdFromManifest, getLocalExtensionIdFromGallery } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { localizeManifest } from '../common/extensionNls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Limiter, always, createCancelablePromise, CancelablePromise, Queue } from 'vs/base/common/async';
@@ -150,7 +150,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	}
 
 	zip(extension: ILocalExtension): Promise<URI> {
-		this.logService.trace('ExtensionManagementService#zip', extension.identifier.id);
+		this.logService.trace('ExtensionManagementService#zip', extension.galleryIdentifier.id);
 		return this.collectFiles(extension)
 			.then(files => zip(path.join(tmpdir(), generateUuid()), files))
 			.then(path => URI.file(path));
@@ -204,7 +204,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 								const extensionIdentifier = { id: getGalleryExtensionId(manifest.publisher, manifest.name) };
 								return this.getInstalled(ExtensionType.User)
 									.then(installedExtensions => {
-										const newer = installedExtensions.filter(local => areSameExtensions(extensionIdentifier, { id: getGalleryExtensionIdFromLocal(local) }) && semver.gt(local.manifest.version, manifest.version))[0];
+										const newer = installedExtensions.filter(local => areSameExtensions(extensionIdentifier, local.galleryIdentifier) && semver.gt(local.manifest.version, manifest.version))[0];
 										return newer ? this.uninstall(newer, true) : undefined;
 									})
 									.then(() => {
@@ -349,7 +349,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	}
 
 	reinstallFromGallery(extension: ILocalExtension): Promise<void> {
-		this.logService.trace('ExtensionManagementService#reinstallFromGallery', extension.identifier.id);
+		this.logService.trace('ExtensionManagementService#reinstallFromGallery', extension.galleryIdentifier.id);
 		if (!this.galleryService.isEnabled()) {
 			return Promise.reject(new Error(nls.localize('MarketPlaceDisabled', "Marketplace is not enabled")));
 		}
@@ -367,7 +367,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	}
 
 	private getOperation(extensionToInstall: IExtensionIdentifier, installed: ILocalExtension[]): InstallOperation {
-		return installed.some(i => areSameExtensions({ id: getGalleryExtensionIdFromLocal(i), uuid: i.identifier.uuid }, extensionToInstall)) ? InstallOperation.Update : InstallOperation.Install;
+		return installed.some(i => areSameExtensions(i.galleryIdentifier, extensionToInstall)) ? InstallOperation.Update : InstallOperation.Install;
 	}
 
 	private getTelemetryEvent(operation: InstallOperation): string {
@@ -530,7 +530,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	}
 
 	uninstall(extension: ILocalExtension, force = false): Promise<void> {
-		this.logService.trace('ExtensionManagementService#uninstall', extension.identifier.id);
+		this.logService.trace('ExtensionManagementService#uninstall', extension.galleryIdentifier.id);
 		return this.toNonCancellablePromise(this.getInstalled(ExtensionType.User)
 			.then(installed => {
 				const extensionsToUninstall = installed
@@ -545,7 +545,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	}
 
 	updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension> {
-		this.logService.trace('ExtensionManagementService#updateMetadata', local.identifier.id);
+		this.logService.trace('ExtensionManagementService#updateMetadata', local.galleryIdentifier.id);
 		local.metadata = metadata;
 		return this.saveMetadataForLocalExtension(local)
 			.then(localExtension => {
@@ -572,11 +572,11 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	}
 
 	private findGalleryExtension(local: ILocalExtension): Promise<IGalleryExtension> {
-		if (local.identifier.uuid) {
-			return this.findGalleryExtensionById(local.identifier.uuid)
-				.then(galleryExtension => galleryExtension ? galleryExtension : this.findGalleryExtensionByName(getGalleryExtensionIdFromLocal(local)));
+		if (local.galleryIdentifier.uuid) {
+			return this.findGalleryExtensionById(local.galleryIdentifier.uuid)
+				.then(galleryExtension => galleryExtension ? galleryExtension : this.findGalleryExtensionByName(local.galleryIdentifier.id));
 		}
-		return this.findGalleryExtensionByName(getGalleryExtensionIdFromLocal(local));
+		return this.findGalleryExtensionByName(local.galleryIdentifier.id);
 	}
 
 	private findGalleryExtensionById(uuid: string): Promise<IGalleryExtension> {
@@ -672,31 +672,30 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		return Promise.resolve(pfs.exists(extension.location.fsPath))
 			.then(exists => exists ? null : Promise.reject(new Error(nls.localize('notExists', "Could not find extension"))))
 			.then(() => {
-				this.logService.info('Uninstalling extension:', extension.identifier.id);
+				this.logService.info('Uninstalling extension:', extension.galleryIdentifier.id);
 				this._onUninstallExtension.fire(extension.identifier);
 			});
 	}
 
 	private uninstallExtension(local: ILocalExtension): Promise<void> {
-		const id = getGalleryExtensionIdFromLocal(local);
-		let promise = this.uninstallingExtensions.get(id);
+		let promise = this.uninstallingExtensions.get(local.galleryIdentifier.id);
 		if (!promise) {
 			// Set all versions of the extension as uninstalled
 			promise = createCancelablePromise(token => this.scanUserExtensions(false)
-				.then(userExtensions => this.setUninstalled(...userExtensions.filter(u => areSameExtensions({ id: getGalleryExtensionIdFromLocal(u), uuid: u.identifier.uuid }, { id, uuid: local.identifier.uuid }))))
-				.then(() => { this.uninstallingExtensions.delete(id); }));
-			this.uninstallingExtensions.set(id, promise);
+				.then(userExtensions => this.setUninstalled(...userExtensions.filter(u => areSameExtensions(u.galleryIdentifier, local.galleryIdentifier))))
+				.then(() => { this.uninstallingExtensions.delete(local.galleryIdentifier.id); }));
+			this.uninstallingExtensions.set(local.galleryIdentifier.id, promise);
 		}
 		return promise;
 	}
 
 	private async postUninstallExtension(extension: ILocalExtension, error?: Error): Promise<void> {
 		if (error) {
-			this.logService.error('Failed to uninstall extension:', extension.identifier.id, error.message);
+			this.logService.error('Failed to uninstall extension:', extension.galleryIdentifier.id, error.message);
 		} else {
-			this.logService.info('Successfully uninstalled extension:', extension.identifier.id);
+			this.logService.info('Successfully uninstalled extension:', extension.galleryIdentifier.id);
 			// only report if extension has a mapped gallery extension. UUID identifies the gallery extension.
-			if (extension.identifier.uuid) {
+			if (extension.galleryIdentifier.uuid) {
 				await this.galleryService.reportStatistic(extension.manifest.publisher, extension.manifest.name, extension.manifest.version, StatisticType.Uninstall);
 			}
 		}
@@ -753,7 +752,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			.then(([uninstalled, extensions]) => {
 				extensions = extensions.filter(e => !uninstalled[e.identifier.id]);
 				if (excludeOutdated) {
-					const byExtension: ILocalExtension[][] = groupByExtension(extensions, e => ({ id: getGalleryExtensionIdFromLocal(e), uuid: e.identifier.uuid }));
+					const byExtension: ILocalExtension[][] = groupByExtension(extensions, e => e.galleryIdentifier);
 					extensions = byExtension.map(p => p.sort((a, b) => semver.rcompare(a.manifest.version, b.manifest.version))[0]);
 				}
 				this.logService.info('Scanned user extensions:', extensions.length);
@@ -808,7 +807,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 				const toRemove: ILocalExtension[] = [];
 
 				// Outdated extensions
-				const byExtension: ILocalExtension[][] = groupByExtension(extensions, e => ({ id: getGalleryExtensionIdFromLocal(e), uuid: e.identifier.uuid }));
+				const byExtension: ILocalExtension[][] = groupByExtension(extensions, e => e.galleryIdentifier);
 				toRemove.push(...flatten(byExtension.map(p => p.sort((a, b) => semver.rcompare(a.manifest.version, b.manifest.version)).slice(1))));
 
 				return Promise.all(toRemove.map(extension => this.removeExtension(extension, 'outdated')));
@@ -822,8 +821,8 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	}
 
 	private removeExtension(extension: ILocalExtension, type: string): Promise<void> {
-		this.logService.trace(`Deleting ${type} extension from disk`, extension.identifier.id);
-		return pfs.rimraf(extension.location.fsPath).then(() => this.logService.info('Deleted from disk', extension.identifier.id));
+		this.logService.trace(`Deleting ${type} extension from disk`, extension.galleryIdentifier.id, extension.location.fsPath);
+		return pfs.rimraf(extension.location.fsPath).then(() => this.logService.info('Deleted from disk', extension.galleryIdentifier.id, extension.location.fsPath));
 	}
 
 	private isUninstalled(id: string): Promise<boolean> {

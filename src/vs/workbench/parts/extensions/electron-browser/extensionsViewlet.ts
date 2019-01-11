@@ -40,7 +40,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IContextKeyService, ContextKeyExpr, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { getGalleryExtensionIdFromLocal, getMaliciousExtensionsSet } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { getMaliciousExtensionsSet } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IWindowService } from 'vs/platform/windows/common/windows';
@@ -635,13 +635,13 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 
 			return this.extensionsManagementService.getInstalled(ExtensionType.User).then(installed => {
 				const maliciousExtensions = installed
-					.filter(e => maliciousSet.has(getGalleryExtensionIdFromLocal(e)));
+					.filter(e => maliciousSet.has(e.galleryIdentifier.id));
 
 				if (maliciousExtensions.length) {
 					return Promise.all(maliciousExtensions.map(e => this.extensionsManagementService.uninstall(e, true).then(() => {
 						this.notificationService.prompt(
 							Severity.Warning,
-							localize('malicious warning', "We have uninstalled '{0}' which was reported to be problematic.", getGalleryExtensionIdFromLocal(e)),
+							localize('malicious warning', "We have uninstalled '{0}' which was reported to be problematic.", e.galleryIdentifier.id),
 							[{
 								label: localize('reloadNow', "Reload Now"),
 								run: () => this.windowService.reloadWindow()
