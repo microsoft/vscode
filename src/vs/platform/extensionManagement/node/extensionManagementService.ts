@@ -261,7 +261,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	async installFromGallery(extension: IGalleryExtension): Promise<void> {
 		const startTime = new Date().getTime();
 
-		this.logService.info('Installing extension:', extension.name);
+		this.logService.info('Installing extension:', extension.identifier.id);
 		this._onInstallExtension.fire({ identifier: extension.identifier, gallery: extension });
 
 		const onDidInstallExtensionSuccess = (extension: IGalleryExtension, operation: InstallOperation, local: ILocalExtension) => {
@@ -386,11 +386,11 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			publisherDisplayName: extension.publisherDisplayName,
 		};
 
-		this.logService.trace('Started downloading extension:', extension.name);
+		this.logService.trace('Started downloading extension:', extension.identifier.id);
 		return this.galleryService.download(extension, operation)
 			.then(
 				zipPath => {
-					this.logService.info('Downloaded extension:', extension.name, zipPath);
+					this.logService.info('Downloaded extension:', extension.identifier.id, zipPath);
 					return getManifest(zipPath)
 						.then(
 							manifest => (<InstallableExtension>{ zipPath, id: getLocalExtensionIdFromManifest(manifest), metadata }),
