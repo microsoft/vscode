@@ -61,7 +61,7 @@ export function sanitizeEnvironment(env: ITerminalEnvironment): void {
 	const envKeys = Object.keys(env);
 	envKeys.forEach(envKey => {
 		for (let i = 0; i < keysToRemove.length; i++) {
-			if (envKey.search(keysToRemove[i])) {
+			if (envKey.search(keysToRemove[i]) !== -1) {
 				delete env[envKey];
 				break;
 			}
