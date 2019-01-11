@@ -40,7 +40,7 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 					repositoryUrl: manifest.repository && manifest.repository.url,
 					bugsUrl: manifest.bugs && manifest.bugs.url,
 					displayName: manifest.displayName,
-					id: extension.identifier.id,
+					id: extension.galleryIdentifier.id,
 					isTheme: isTheme
 				};
 			});

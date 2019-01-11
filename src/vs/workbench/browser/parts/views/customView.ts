@@ -451,14 +451,28 @@ export class CustomTreeView extends Disposable implements ITreeView {
 
 	refresh(elements?: ITreeItem[]): Promise<void> {
 		if (this.dataProvider && this.tree) {
-			elements = elements || [this.root];
+			if (!elements) {
+				elements = [this.root];
+				// remove all waiting elements to refresh if root is asked to refresh
+				this.elementsToRefresh = [];
+			}
 			for (const element of elements) {
 				element.children = null; // reset children
 			}
 			if (this.isVisible) {
 				return this.doRefresh(elements);
 			} else {
-				this.elementsToRefresh.push(...elements);
+				if (this.elementsToRefresh.length) {
+					const seen: Set<string> = new Set<string>();
+					this.elementsToRefresh.forEach(element => seen.add(element.handle));
+					for (const element of elements) {
+						if (!seen.has(element.handle)) {
+							this.elementsToRefresh.push(element);
+						}
+					}
+				} else {
+					this.elementsToRefresh.push(...elements);
+				}
 			}
 		}
 		return Promise.resolve(undefined);

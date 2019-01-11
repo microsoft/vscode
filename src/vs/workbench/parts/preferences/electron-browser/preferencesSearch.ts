@@ -49,7 +49,7 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 			return exts
 				.filter(ext => this.extensionEnablementService.isEnabled(ext))
 				.filter(ext => ext.manifest && ext.manifest.contributes && ext.manifest.contributes.configuration)
-				.filter(ext => !!ext.identifier.uuid);
+				.filter(ext => !!ext.galleryIdentifier.uuid);
 		});
 	}
 
@@ -393,7 +393,7 @@ class RemoteSearchProvider implements ISearchProvider {
 	}
 
 	private getExtensionFilter(ext: ILocalExtension): string {
-		const uuid = ext.identifier.uuid;
+		const uuid = ext.galleryIdentifier.uuid;
 		const versionString = ext.manifest.version
 			.split('.')
 			.map(versionPart => strings.pad(<any>versionPart, 10))
