@@ -11,7 +11,7 @@ import BufferSyncSupport from './features/bufferSyncSupport';
 import { DiagnosticKind, DiagnosticsManager } from './features/diagnostics';
 import * as Proto from './protocol';
 import { TypeScriptServer, TypeScriptServerSpawner } from './tsServer/server';
-import { ITypeScriptServiceClient } from './typescriptService';
+import { ITypeScriptServiceClient, ServerResponse, LanguageServiceDisabledContentResponse } from './typescriptService';
 import API from './utils/api';
 import { TsServerLogLevel, TypeScriptServiceConfiguration } from './utils/configuration';
 import { Disposable } from './utils/dispose';
@@ -57,6 +57,7 @@ namespace ServerState {
 			 * Version reported by currently-running tsserver.
 			 */
 			public tsserverVersion: string | undefined,
+			public langaugeServiceEnabled: boolean,
 		) { }
 	}
 
@@ -243,16 +244,16 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.telemetryReporter.logTelemetry(eventName, properties);
 	}
 
-	private service(): TypeScriptServer {
+	private service(): ServerState.Running {
 		if (this.serverState.type === ServerState.Type.Running) {
-			return this.serverState.server;
+			return this.serverState;
 		}
 		if (this.serverState.type === ServerState.Type.Errored) {
 			throw this.serverState.error;
 		}
 		const newState = this.startService();
 		if (newState.type === ServerState.Type.Running) {
-			return newState.server;
+			return newState;
 		}
 		throw new Error('Could not create TS service');
 	}
@@ -285,7 +286,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		let mytoken = ++this.token;
 
 		const handle = this.typescriptServerSpawner.spawn(currentVersion, this.configuration, this.pluginManager);
-		this.serverState = new ServerState.Running(handle, apiVersion, undefined);
+		this.serverState = new ServerState.Running(handle, apiVersion, undefined, true);
 		this.lastStart = Date.now();
 
 		handle.onError((err: Error) => {
@@ -589,7 +590,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		return undefined;
 	}
 
-	public execute(command: string, args: any, token: vscode.CancellationToken, lowPriority?: boolean): Promise<any> {
+	public execute(command: string, args: any, token: vscode.CancellationToken, lowPriority?: boolean): Promise<ServerResponse<Proto.Response>> {
 		return this.executeImpl(command, args, {
 			isAsync: false,
 			token,
@@ -606,7 +607,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		});
 	}
 
-	public executeAsync(command: string, args: Proto.GeterrRequestArgs, token: vscode.CancellationToken): Promise<any> {
+	public executeAsync(command: string, args: Proto.GeterrRequestArgs, token: vscode.CancellationToken): Promise<ServerResponse<Proto.Response>> {
 		return this.executeImpl(command, args, {
 			isAsync: true,
 			token,
@@ -614,12 +615,30 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		});
 	}
 
-	private executeImpl(command: string, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean }): Promise<any> {
-		const server = this.service();
-		if (!server) {
-			return Promise.reject(new Error('Could not load TS Server'));
+	private executeImpl(command: string, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: false, lowPriority?: boolean }): undefined;
+	private executeImpl(command: string, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean }): Promise<ServerResponse<Proto.Response>>;
+	private executeImpl(command: string, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean }): Promise<ServerResponse<Proto.Response>> | undefined {
+		const runningServerState = this.service();
+
+		if (!runningServerState.langaugeServiceEnabled) {
+			const nonSemanticCommands: string[] = [
+				'change',
+				'close',
+				'compilerOptionsForInferredProjects',
+				'configure',
+				'format',
+				'formatonkey',
+				'getOutliningSpans',
+				'open',
+				'projectInfo',
+				'reloadProjects',
+			];
+			if (nonSemanticCommands.indexOf(command) === -1) {
+				return Promise.resolve(LanguageServiceDisabledContentResponse);
+			}
 		}
-		return server.executeImpl(command, args, executeInfo);
+
+		return runningServerState.server.executeImpl(command, args, executeInfo);
 	}
 
 	public interuptGetErr<R>(f: () => R): R {
@@ -649,14 +668,23 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				break;
 
 			case 'telemetry':
-				const telemetryData = (event as Proto.TelemetryEvent).body;
-				this.dispatchTelemetryEvent(telemetryData);
-				break;
-
+				{
+					const body = (event as Proto.TelemetryEvent).body;
+					this.dispatchTelemetryEvent(body);
+					break;
+				}
 			case 'projectLanguageServiceState':
-				this._onProjectLanguageServiceStateChanged.fire((event as Proto.ProjectLanguageServiceStateEvent).body);
-				break;
-
+				{
+					const body = (event as Proto.ProjectLanguageServiceStateEvent).body!;
+					if (this.serverState.type === ServerState.Type.Running) {
+						this.serverState = {
+							...this.serverState,
+							langaugeServiceEnabled: body.languageServiceEnabled,
+						};
+					}
+					this._onProjectLanguageServiceStateChanged.fire(body);
+					break;
+				}
 			case 'projectsUpdatedInBackground':
 				const body = (event as Proto.ProjectsUpdatedInBackgroundEvent).body;
 				const resources = body.openFiles.map(vscode.Uri.file);
@@ -721,7 +749,10 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		}
 		if (telemetryData.telemetryEventName === 'projectInfo') {
 			if (this.serverState.type === ServerState.Type.Running) {
-				this.serverState = new ServerState.Running(this.serverState.server, this.serverState.apiVersion, properties['version']);
+				this.serverState = {
+					...this.serverState,
+					tsserverVersion: properties['version']
+				};
 			}
 		}
 

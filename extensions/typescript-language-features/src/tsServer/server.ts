@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import * as Proto from '../protocol';
-import { CancelledResponse, NoContentResponse } from '../typescriptService';
+import { CancelledResponse, NoContentResponse, ServerResponse } from '../typescriptService';
 import API from '../utils/api';
 import { TsServerLogLevel, TypeScriptServiceConfiguration } from '../utils/configuration';
 import { Disposable } from '../utils/dispose';
@@ -307,7 +307,9 @@ export class TypeScriptServer extends Disposable {
 		}
 	}
 
-	public executeImpl(command: string, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean }): Promise<any> {
+	public executeImpl(command: string, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: false, lowPriority?: boolean }): undefined;
+	public executeImpl(command: string, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean }): Promise<ServerResponse<Proto.Response>>;
+	public executeImpl(command: string, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean }): Promise<ServerResponse<Proto.Response>> | undefined {
 		const request = this._requestQueue.createRequest(command, args);
 		const requestInfo: RequestItem = {
 			request,
@@ -315,9 +317,9 @@ export class TypeScriptServer extends Disposable {
 			isAsync: executeInfo.isAsync,
 			queueingType: getQueueingType(command, executeInfo.lowPriority)
 		};
-		let result: Promise<any>;
+		let result: Promise<ServerResponse<Proto.Response>> | undefined;
 		if (executeInfo.expectsResult) {
-			result = new Promise<any>((resolve, reject) => {
+			result = new Promise<ServerResponse<Proto.Response>>((resolve, reject) => {
 				this._callbacks.add(request.seq, { onSuccess: resolve, onError: reject, startTime: Date.now(), isAsync: executeInfo.isAsync }, executeInfo.isAsync);
 
 				if (executeInfo.token) {
@@ -346,9 +348,8 @@ export class TypeScriptServer extends Disposable {
 
 				throw err;
 			});
-		} else {
-			result = Promise.resolve(null);
 		}
+
 		this._requestQueue.enqueue(requestInfo);
 		this.sendNextRequests();
 
