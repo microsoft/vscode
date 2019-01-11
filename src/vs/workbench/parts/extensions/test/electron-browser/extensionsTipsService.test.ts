@@ -11,7 +11,7 @@ import * as os from 'os';
 import * as uuid from 'vs/base/common/uuid';
 import { mkdirp } from 'vs/base/node/pfs';
 import {
-	IExtensionGalleryService, IGalleryExtensionAssets, IGalleryExtension, IExtensionManagementService, LocalExtensionType,
+	IExtensionGalleryService, IGalleryExtensionAssets, IGalleryExtension, IExtensionManagementService,
 	IExtensionEnablementService, DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionTipsService } from 'vs/workbench/parts/extensions/electron-browser/extensionTipsService';
@@ -47,6 +47,7 @@ import { URLService } from 'vs/platform/url/common/urlService';
 import { IExperimentService } from 'vs/workbench/parts/experiments/node/experimentService';
 import { TestExperimentService } from 'vs/workbench/parts/experiments/test/electron-browser/experimentService.test';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 
 const mockExtensionGallery: IGalleryExtension[] = [
 	aGalleryExtension('MockExtension1', {
@@ -97,7 +98,7 @@ const mockExtensionGallery: IGalleryExtension[] = [
 
 const mockExtensionLocal = [
 	{
-		type: LocalExtensionType.User,
+		type: ExtensionType.User,
 		identifier: mockExtensionGallery[0].identifier,
 		manifest: {
 			name: mockExtensionGallery[0].name,
@@ -110,7 +111,7 @@ const mockExtensionLocal = [
 		changelogUrl: 'some changelogUrl'
 	},
 	{
-		type: LocalExtensionType.User,
+		type: ExtensionType.User,
 		identifier: mockExtensionGallery[1].identifier,
 		manifest: {
 			name: mockExtensionGallery[1].name,

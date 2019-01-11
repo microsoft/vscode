@@ -76,6 +76,9 @@ export function dirname(resource: URI): URI | null {
 	if (resource.scheme === Schemas.file) {
 		return URI.file(paths.dirname(fsPath(resource)));
 	}
+	if (resource.path.length === 0) {
+		return resource;
+	}
 	let dirname = paths.dirname(resource.path, '/');
 	if (resource.authority && dirname.length && dirname.charCodeAt(0) !== CharCode.Slash) {
 		return null; // If a URI contains an authority component, then the path component must either be empty or begin with a CharCode.Slash ("/") character

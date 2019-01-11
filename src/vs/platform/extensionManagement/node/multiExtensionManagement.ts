@@ -5,11 +5,11 @@
 
 import { Event, EventMultiplexer } from 'vs/base/common/event';
 import {
-	IExtensionManagementService, ILocalExtension, IGalleryExtension, LocalExtensionType, InstallExtensionEvent, DidInstallExtensionEvent, IExtensionIdentifier, DidUninstallExtensionEvent, IReportedExtension, IGalleryMetadata,
+	IExtensionManagementService, ILocalExtension, IGalleryExtension, InstallExtensionEvent, DidInstallExtensionEvent, IExtensionIdentifier, DidUninstallExtensionEvent, IReportedExtension, IGalleryMetadata,
 	IExtensionManagementServerService, IExtensionManagementServer, IExtensionGalleryService
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { flatten } from 'vs/base/common/arrays';
-import { isUIExtension } from 'vs/platform/extensions/common/extensions';
+import { isUIExtension, ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -45,7 +45,7 @@ export class MultiExtensionManagementService extends Disposable implements IExte
 		this.onDidUninstallExtension = this._register(this.servers.reduce((emitter: EventMultiplexer<DidUninstallExtensionEvent>, server) => { emitter.add(server.extensionManagementService.onDidUninstallExtension); return emitter; }, new EventMultiplexer<DidUninstallExtensionEvent>())).event;
 	}
 
-	getInstalled(type?: LocalExtensionType): Promise<ILocalExtension[]> {
+	getInstalled(type?: ExtensionType): Promise<ILocalExtension[]> {
 		return Promise.all(this.servers.map(({ extensionManagementService }) => extensionManagementService.getInstalled(type)))
 			.then(result => flatten(result));
 	}
@@ -78,7 +78,7 @@ export class MultiExtensionManagementService extends Disposable implements IExte
 		throw new Error('Not Supported');
 	}
 
-	unzip(zipLocation: URI, type: LocalExtensionType): Promise<IExtensionIdentifier> {
+	unzip(zipLocation: URI, type: ExtensionType): Promise<IExtensionIdentifier> {
 		return Promise.all(this.servers.map(({ extensionManagementService }) => extensionManagementService.unzip(zipLocation, type))).then(([extensionIdentifier]) => extensionIdentifier);
 	}
 

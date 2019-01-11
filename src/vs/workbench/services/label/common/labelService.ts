@@ -9,7 +9,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
-import { isEqual, basenameOrAuthority } from 'vs/base/common/resources';
+import { isEqual, basenameOrAuthority, basename as resourceBasename } from 'vs/base/common/resources';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { tildify, getPathLabel } from 'vs/base/common/labels';
 import { ltrim, startsWith } from 'vs/base/common/strings';
@@ -102,12 +102,12 @@ export class LabelService implements ILabelService {
 		// Workspace: Single Folder
 		if (isSingleFolderWorkspaceIdentifier(workspace)) {
 			// Folder on disk
-			const formatter = this.findFormatter(workspace);
-			const label = options && options.verbose ? this.getUriLabel(workspace) : basenameOrAuthority(workspace);
+			const label = options && options.verbose ? this.getUriLabel(workspace) : resourceBasename(workspace) || '/';
 			if (workspace.scheme === Schemas.file) {
 				return label;
 			}
 
+			const formatter = this.findFormatter(workspace);
 			const suffix = formatter && formatter.workspace && (typeof formatter.workspace.suffix === 'string') ? formatter.workspace.suffix : workspace.scheme;
 			return suffix ? `${label} (${suffix})` : label;
 		}

@@ -24,7 +24,7 @@ import {
 	ShowOutdatedExtensionsAction, ClearExtensionsInputAction, ChangeSortAction, UpdateAllAction, CheckForUpdatesAction, DisableAllAction, EnableAllAction,
 	EnableAutoUpdateAction, DisableAutoUpdateAction, ShowBuiltInExtensionsAction, InstallVSIXAction, ChangeGroupAction
 } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
-import { LocalExtensionType, IExtensionManagementService, IExtensionManagementServerService, IExtensionManagementServer, EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtensionManagementServerService, IExtensionManagementServer, EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { ExtensionsListView, EnabledExtensionsView, DisabledExtensionsView, RecommendedExtensionsView, WorkspaceRecommendedExtensionsView, BuiltInExtensionsView, BuiltInThemesExtensionsView, BuiltInBasicsExtensionsView, GroupByServerExtensionsView, DefaultRecommendedExtensionsView } from './extensionsViews';
 import { OpenGlobalSettingsAction } from 'vs/workbench/parts/preferences/browser/preferencesActions';
@@ -55,6 +55,7 @@ import { SuggestEnabledInput, attachSuggestEnabledInputBoxStyler } from 'vs/work
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
@@ -323,7 +324,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		this.defaultRecommendedExtensionsContextKey.set(!this.configurationService.getValue<boolean>(ShowRecommendationsOnlyOnDemandKey));
 		this.disposables.push(this.viewletService.onDidViewletOpen(this.onViewletOpen, this, this.disposables));
 
-		this.extensionManagementService.getInstalled(LocalExtensionType.User).then(result => {
+		this.extensionManagementService.getInstalled(ExtensionType.User).then(result => {
 			this.hasInstalledExtensionsContextKey.set(result.length > 0);
 		});
 
@@ -632,7 +633,7 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 		return this.extensionsManagementService.getExtensionsReport().then(report => {
 			const maliciousSet = getMaliciousExtensionsSet(report);
 
-			return this.extensionsManagementService.getInstalled(LocalExtensionType.User).then(installed => {
+			return this.extensionsManagementService.getInstalled(ExtensionType.User).then(installed => {
 				const maliciousExtensions = installed
 					.filter(e => maliciousSet.has(getGalleryExtensionIdFromLocal(e)));
 

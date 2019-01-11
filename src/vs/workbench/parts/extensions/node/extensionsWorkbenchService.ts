@@ -13,8 +13,8 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IPager, mapPager, singlePagePager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import {
-	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions, IExtensionManifest,
-	InstallExtensionEvent, DidInstallExtensionEvent, LocalExtensionType, DidUninstallExtensionEvent, IExtensionEnablementService, IExtensionIdentifier, EnablementState, IExtensionManagementServerService
+	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions,
+	InstallExtensionEvent, DidInstallExtensionEvent, DidUninstallExtensionEvent, IExtensionEnablementService, IExtensionIdentifier, EnablementState, IExtensionManagementServerService
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionIdFromLocal, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, getMaliciousExtensionsSet, getLocalExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -37,6 +37,7 @@ import * as resources from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IExtensionManifest, ExtensionType } from 'vs/platform/extensions/common/extensions';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -57,7 +58,7 @@ class Extension implements IExtension {
 		private fileService: IFileService
 	) { }
 
-	get type(): LocalExtensionType | undefined {
+	get type(): ExtensionType | undefined {
 		return this.local ? this.local.type : undefined;
 	}
 
@@ -144,7 +145,7 @@ class Extension implements IExtension {
 	}
 
 	private get defaultIconUrl(): string {
-		if (this.type === LocalExtensionType.System) {
+		if (this.type === ExtensionType.System) {
 			if (this.local.manifest && this.local.manifest.contributes) {
 				if (Array.isArray(this.local.manifest.contributes.themes) && this.local.manifest.contributes.themes.length) {
 					return require.toUrl('../electron-browser/media/theme-icon.png');
@@ -184,7 +185,7 @@ class Extension implements IExtension {
 	}
 
 	get outdated(): boolean {
-		return !!this.gallery && this.type === LocalExtensionType.User && semver.gt(this.latestVersion, this.version);
+		return !!this.gallery && this.type === ExtensionType.User && semver.gt(this.latestVersion, this.version);
 	}
 
 	get telemetryData(): any {
@@ -226,7 +227,7 @@ class Extension implements IExtension {
 			return true;
 		}
 
-		return this.type === LocalExtensionType.System;
+		return this.type === ExtensionType.System;
 	}
 
 	getReadme(token: CancellationToken): Promise<string> {
@@ -241,7 +242,7 @@ class Extension implements IExtension {
 			return this.fileService.resolveContent(this.local.readmeUrl, { encoding: 'utf8' }).then(content => content.value);
 		}
 
-		if (this.type === LocalExtensionType.System) {
+		if (this.type === ExtensionType.System) {
 			return Promise.resolve(`# ${this.displayName || this.name}
 **Notice:** This extension is bundled with Visual Studio Code. It can be disabled but not uninstalled.
 ## Features
@@ -261,7 +262,7 @@ ${this.description}
 			return true;
 		}
 
-		return this.type === LocalExtensionType.System;
+		return this.type === ExtensionType.System;
 	}
 
 	getChangelog(token: CancellationToken): Promise<string> {
@@ -272,7 +273,7 @@ ${this.description}
 		const changelogUrl = this.local && this.local.changelogUrl;
 
 		if (!changelogUrl) {
-			if (this.type === LocalExtensionType.System) {
+			if (this.type === ExtensionType.System) {
 				return Promise.resolve('Please check the [VS Code Release Notes](command:update.showCurrentReleaseNotes) for changes to the built-in extensions.');
 			}
 
@@ -615,7 +616,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 	private syncWithGallery(): Promise<void> {
 		const ids: string[] = [], names: string[] = [];
 		for (const installed of this.installed) {
-			if (installed.type === LocalExtensionType.User) {
+			if (installed.type === ExtensionType.User) {
 				if (installed.uuid) {
 					ids.push(installed.uuid);
 				} else {
@@ -818,7 +819,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 					return false;
 				}
 				const enable = enablementState === EnablementState.Enabled || enablementState === EnablementState.WorkspaceEnabled;
-				return (enable || i.type === LocalExtensionType.User) // Include all Extensions for enablement and only user extensions for disablement
+				return (enable || i.type === ExtensionType.User) // Include all Extensions for enablement and only user extensions for disablement
 					&& (options.dependencies || options.pack)
 					&& extensions.some(extension =>
 						(options.dependencies && extension.dependencies.some(id => areSameExtensions({ id }, i.identifier)))
