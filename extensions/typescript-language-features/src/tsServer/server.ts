@@ -301,7 +301,7 @@ export class TypeScriptServer extends Disposable {
 			callback.onSuccess(response);
 		} else if (response.message === 'No content available.') {
 			// Special case where response itself is successful but there is not any data to return.
-			callback.onSuccess(new NoContentResponse());
+			callback.onSuccess(NoContentResponse);
 		} else {
 			callback.onError(new TypeScriptServerError(this._version, response));
 		}
