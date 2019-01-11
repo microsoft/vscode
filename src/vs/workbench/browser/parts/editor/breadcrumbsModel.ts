@@ -108,13 +108,16 @@ export class EditorBreadcrumbsModel {
 			folder: workspaceService.getWorkspaceFolder(uri),
 			path: []
 		};
-
 		while (uri.path !== '/') {
 			if (info.folder && isEqual(info.folder.uri, uri)) {
 				break;
 			}
 			info.path.unshift(new FileElement(uri, info.path.length === 0 ? FileKind.FILE : FileKind.FOLDER));
+			let prevPathLength = uri.path.length;
 			uri = dirname(uri);
+			if (uri.path.length === prevPathLength) {
+				break;
+			}
 		}
 
 		if (info.folder && workspaceService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
