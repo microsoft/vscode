@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import strings = require('vs/base/common/strings');
 import { isAbsolute } from 'vs/base/common/paths';
 import { URI as uri } from 'vs/base/common/uri';
 import { isMacintosh } from 'vs/base/common/platform';
@@ -32,7 +33,7 @@ export class LinkDetector {
 	 * Matches and handles absolute file links in the string provided.
 	 * Returns <span/> element that wraps the processed string, where matched links are replaced by <a/> and unmatched parts are surrounded by <span/> elements.
 	 * 'onclick' event is attached to all anchored links that opens them in the editor.
-	 * If no links were detected, returns the original string wrapped in a <span>.
+	 * Each line of the text, even if it contains no links, is wrapped in a <span> and added as a child of the returned <span>.
 	 */
 	handleLinks(text: string): HTMLElement {
 		const container = document.createElement('span');
@@ -40,7 +41,7 @@ export class LinkDetector {
 		// Handle the text one line at a time
 		const lines = text.split('\n');
 
-		if (text.charAt(text.length - 1) === '\n') {
+		if (strings.endsWith(text, '\n')) {
 			// Remove the last element ('') that split added
 			lines.pop();
 		}
@@ -49,7 +50,7 @@ export class LinkDetector {
 			let line = lines[i];
 
 			// Re-introduce the newline for every line except the last (unless the last line originally ended with a newline)
-			if (i < lines.length - 1 || text.charAt(text.length - 1) === '\n') {
+			if (i < lines.length - 1 || strings.endsWith(text, '\n')) {
 				line += '\n';
 			}
 
@@ -106,20 +107,30 @@ export class LinkDetector {
 					}
 				}
 
-				// If we found any matches for this pattern, don't check any more patterns
+				// If we found any matches for this pattern, don't check any more patterns. Other parts of the line will be checked for the other patterns due to the recursion.
 				if (lineContainer.hasChildNodes()) {
 					break;
 				}
 			}
 
-			if (!lineContainer.hasChildNodes()) {
-				// We didn't find a match for any of the patterns. Add the unmodified line.
-				let span = document.createElement('span');
-				span.textContent = line;
-				lineContainer.appendChild(span);
+			if (lines.length === 1) {
+				if (lineContainer.hasChildNodes()) {
+					// Adding lineContainer to container would introduce an unnecessary surrounding span since there is only one line, so instead we just return lineContainer
+					return lineContainer;
+				} else {
+					container.textContent = line;
+				}
+			} else {
+				if (lineContainer.hasChildNodes()) {
+					// Add this line to the container
+					container.appendChild(lineContainer);
+				} else {
+					// No links were added, but we still need to surround the unmodified line with a span before adding it
+					let span = document.createElement('span');
+					span.textContent = line;
+					container.appendChild(span);
+				}
 			}
-
-			container.appendChild(lineContainer);
 		}
 
 		return container;
