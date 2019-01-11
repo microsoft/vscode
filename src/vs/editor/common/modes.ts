@@ -739,6 +739,13 @@ export interface LocationLink {
 	targetSelectionRange?: IRange;
 }
 
+export function isLocationLink(thing: any): thing is LocationLink {
+	return thing
+		&& URI.isUri((thing as LocationLink).uri)
+		&& Range.isIRange((thing as LocationLink).range)
+		&& (Range.isIRange((thing as LocationLink).originSelectionRange) || Range.isIRange((thing as LocationLink).targetSelectionRange));
+}
+
 export type Definition = Location | Location[] | LocationLink[];
 
 /**

@@ -12,10 +12,10 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, IActionOptions, registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import * as corePosition from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ITextModel, IWordAtPosition } from 'vs/editor/common/model';
-import { LocationLink, Location } from 'vs/editor/common/modes';
+import { LocationLink, Location, isLocationLink } from 'vs/editor/common/modes';
 import { MessageController } from 'vs/editor/contrib/message/messageController';
 import { PeekContext } from 'vs/editor/contrib/referenceSearch/peekViewWidget';
 import { ReferencesController } from 'vs/editor/contrib/referenceSearch/referencesController';
@@ -28,7 +28,6 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition, getDeclarationsAtPosition } from './goToDefinition';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-
 
 export class DefinitionActionConfig {
 
@@ -44,7 +43,7 @@ export class DefinitionActionConfig {
 
 export class DefinitionAction extends EditorAction {
 
-	private _configuration: DefinitionActionConfig;
+	private readonly _configuration: DefinitionActionConfig;
 
 	constructor(configuration: DefinitionActionConfig, opts: IActionOptions) {
 		super(opts);
@@ -74,14 +73,10 @@ export class DefinitionAction extends EditorAction {
 				if (!reference || !reference.range) {
 					continue;
 				}
-				let { uri, range } = reference;
-				let newLen = result.push({
-					uri,
-					range
-				});
+				const newLen = result.push(reference);
 				if (this._configuration.filterCurrent
-					&& uri.toString() === model.uri.toString()
-					&& Range.containsPosition(range, pos)
+					&& reference.uri.toString() === model.uri.toString()
+					&& Range.containsPosition(reference.range, pos)
 					&& idxOfCurrent === -1
 				) {
 					idxOfCurrent = newLen - 1;
@@ -145,11 +140,21 @@ export class DefinitionAction extends EditorAction {
 		}
 	}
 
-	private _openReference(editor: ICodeEditor, editorService: ICodeEditorService, reference: Location, sideBySide: boolean): Promise<ICodeEditor> {
+	private _openReference(editor: ICodeEditor, editorService: ICodeEditorService, reference: Location | LocationLink, sideBySide: boolean): Promise<ICodeEditor> {
+		// range is the target-selection-range when we have one
+		// and the the fallback is the 'full' range
+		let range: IRange = undefined;
+		if (isLocationLink(reference)) {
+			range = reference.targetSelectionRange;
+		}
+		if (!range) {
+			range = reference.range;
+		}
+
 		return editorService.openCodeEditor({
 			resource: reference.uri,
 			options: {
-				selection: Range.collapseToStart(reference.range),
+				selection: Range.collapseToStart(range),
 				revealIfOpened: true,
 				revealInCenterIfOutsideViewport: true
 			}
