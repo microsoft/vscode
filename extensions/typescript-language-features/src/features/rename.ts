@@ -10,12 +10,14 @@ import * as Proto from '../protocol';
 import { ITypeScriptServiceClient, ServerResponse } from '../typescriptService';
 import API from '../utils/api';
 import * as typeConverters from '../utils/typeConverters';
+import FileConfigurationManager from './fileConfigurationManager';
 
 const localize = nls.loadMessageBundle();
 
 class TypeScriptRenameProvider implements vscode.RenameProvider {
 	public constructor(
-		private readonly client: ITypeScriptServiceClient
+		private readonly client: ITypeScriptServiceClient,
+		private readonly fileConfigurationManager: FileConfigurationManager
 	) { }
 
 	public async prepareRename(
@@ -90,6 +92,7 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 		};
 
 		return this.client.interuptGetErr(() => {
+			this.fileConfigurationManager.ensureConfigurationForDocument(document, token);
 			return this.client.execute('rename', args, token);
 		});
 	}
@@ -143,6 +146,8 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 export function register(
 	selector: vscode.DocumentSelector,
 	client: ITypeScriptServiceClient,
+	fileConfigurationManager: FileConfigurationManager,
 ) {
-	return vscode.languages.registerRenameProvider(selector, new TypeScriptRenameProvider(client));
+	return vscode.languages.registerRenameProvider(selector,
+		new TypeScriptRenameProvider(client, fileConfigurationManager));
 }
