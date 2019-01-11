@@ -44,6 +44,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { MenuService } from 'vs/platform/actions/common/menuService';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
 import { MarkerDecorationsService } from 'vs/editor/common/services/markerDecorationsServiceImpl';
+import { ISuggestMemoryService, SuggestMemoryService } from 'vs/editor/contrib/suggest/suggestMemory';
 
 export interface IEditorOverrideServices {
 	[index: string]: any;
@@ -150,6 +151,8 @@ export module StaticServices {
 	export const storageService = define(IStorageService, () => new InMemoryStorageService());
 
 	export const logService = define(ILogService, () => new NullLogService());
+
+	export const suggestMemoryService = define(ISuggestMemoryService, (o) => new SuggestMemoryService(storageService.get(o), configurationService.get(o)));
 
 }
 

@@ -340,7 +340,6 @@ export class BulkEdit {
 	}
 
 	private async _performTextEdits(edits: ResourceTextEdit[], progress: IProgress<void>): Promise<void> {
-		console.log(JSON.stringify(edits, null, '\t'));
 		this._logService.debug('_performTextEdits', JSON.stringify(edits));
 
 		const recording = Recording.start(this._fileService);

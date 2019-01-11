@@ -469,7 +469,11 @@ class TestViewDeserializer implements IViewDeserializer<TestSerializableView> {
 	}
 
 	getView(id: string): TestSerializableView {
-		return this.views.get(id);
+		const view = this.views.get(id);
+		if (!view) {
+			throw new Error('Unknown view');
+		}
+		return view;
 	}
 }
 

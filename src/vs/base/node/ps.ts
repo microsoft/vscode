@@ -22,7 +22,7 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 
 	return new Promise((resolve, reject) => {
 
-		let rootItem: ProcessItem;
+		let rootItem: ProcessItem | undefined;
 		const map = new Map<number, ProcessItem>();
 
 		function addToTree(pid: number, ppid: number, cmd: string, load: number, mem: number) {
@@ -218,7 +218,7 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 							} else {
 								const cpuUsage = stdout.toString().split('\n');
 								for (let i = 0; i < pids.length; i++) {
-									const processInfo = map.get(pids[i]);
+									const processInfo = map.get(pids[i])!;
 									processInfo.load = parseFloat(cpuUsage[i]);
 								}
 

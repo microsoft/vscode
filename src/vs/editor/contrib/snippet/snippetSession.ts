@@ -108,7 +108,7 @@ export class OneSnippet {
 			for (const placeholder of this._placeholderGroups[this._placeholderGroupsIdx]) {
 				// Check if the placeholder has a transformation
 				if (placeholder.transform) {
-					const id = this._placeholderDecorations.get(placeholder);
+					const id = this._placeholderDecorations.get(placeholder)!;
 					const range = this._editor.getModel().getDecorationRange(id)!;
 					const currentValue = this._editor.getModel().getValueInRange(range);
 
@@ -145,7 +145,7 @@ export class OneSnippet {
 			// Special case #2: placeholders enclosing active placeholders
 			const selections: Selection[] = [];
 			for (const placeholder of this._placeholderGroups[this._placeholderGroupsIdx]) {
-				const id = this._placeholderDecorations.get(placeholder);
+				const id = this._placeholderDecorations.get(placeholder)!;
 				const range = this._editor.getModel().getDecorationRange(id)!;
 				selections.push(new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn));
 
@@ -158,7 +158,7 @@ export class OneSnippet {
 				activePlaceholders.add(placeholder);
 
 				for (const enclosingPlaceholder of this._snippet.enclosingPlaceholders(placeholder)) {
-					const id = this._placeholderDecorations.get(enclosingPlaceholder);
+					const id = this._placeholderDecorations.get(enclosingPlaceholder)!;
 					accessor.changeDecorationOptions(id, enclosingPlaceholder.isFinalTabstop ? OneSnippet._decor.activeFinal : OneSnippet._decor.active);
 					activePlaceholders.add(enclosingPlaceholder);
 				}
@@ -206,7 +206,7 @@ export class OneSnippet {
 					result.set(placeholder.index, ranges);
 				}
 
-				const id = this._placeholderDecorations.get(placeholder);
+				const id = this._placeholderDecorations.get(placeholder)!;
 				const range = this._editor.getModel().getDecorationRange(id);
 				if (!range) {
 					// one of the placeholder lost its decoration and
@@ -257,7 +257,7 @@ export class OneSnippet {
 
 				// Remove the placeholder at which position are inserting
 				// the snippet and also remove its decoration.
-				const id = this._placeholderDecorations.get(placeholder);
+				const id = this._placeholderDecorations.get(placeholder)!;
 				accessor.removeDecoration(id);
 				this._placeholderDecorations.delete(placeholder);
 
@@ -574,7 +574,7 @@ export class SnippetSession {
 			// add selections from 'this' snippet so that we know all
 			// selections for this placeholder
 			allPossibleSelections.forEach((array, index) => {
-				array.push(...possibleSelections.get(index));
+				array.push(...possibleSelections.get(index)!);
 			});
 		}
 

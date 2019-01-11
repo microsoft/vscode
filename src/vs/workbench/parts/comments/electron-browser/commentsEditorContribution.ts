@@ -64,7 +64,7 @@ class CommentingRangeDecoration {
 		return this._decorationId;
 	}
 
-	constructor(private _editor: ICodeEditor, private _ownerId: string, private _range: IRange, private _reply: modes.Command, commentingOptions: ModelDecorationOptions) {
+	constructor(private _editor: ICodeEditor, private _ownerId: string, private _extensionId: string, private _range: IRange, private _reply: modes.Command, commentingOptions: ModelDecorationOptions) {
 		const startLineNumber = _range.startLineNumber;
 		const endLineNumber = _range.endLineNumber;
 		let commentingRangeDecorations = [{
@@ -81,8 +81,9 @@ class CommentingRangeDecoration {
 		}
 	}
 
-	public getCommentAction(): { replyCommand: modes.Command, ownerId: string } {
+	public getCommentAction(): { replyCommand: modes.Command, ownerId: string, extensionId: string } {
 		return {
+			extensionId: this._extensionId,
 			replyCommand: this._reply,
 			ownerId: this._ownerId
 		};
@@ -120,7 +121,7 @@ class CommentingRangeDecorator {
 		let commentingRangeDecorations: CommentingRangeDecoration[] = [];
 		for (const info of commentInfos) {
 			info.commentingRanges.forEach(range => {
-				commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, range, info.reply, this.decorationOptions));
+				commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, info.extensionId, range, info.reply, this.decorationOptions));
 			});
 		}
 
@@ -161,7 +162,7 @@ export class ReviewController implements IEditorContribution {
 	private _computePromise: CancelablePromise<ICommentInfo[]> | null;
 
 	private _pendingCommentCache: { [key: number]: { [key: string]: string } };
-	private _pendingNewCommentCache: { [key: string]: { lineNumber: number, replyCommand: modes.Command, ownerId: string, pendingComment: string, draftMode: modes.DraftMode } };
+	private _pendingNewCommentCache: { [key: string]: { lineNumber: number, replyCommand: modes.Command, ownerId: string, extensionId: string, pendingComment: string, draftMode: modes.DraftMode } };
 
 	constructor(
 		editor: ICodeEditor,
@@ -325,6 +326,7 @@ export class ReviewController implements IEditorContribution {
 						this._pendingNewCommentCache[e.oldModelUrl.toString()] = {
 							lineNumber: position.lineNumber,
 							ownerId: this._newCommentWidget.owner,
+							extensionId: this._newCommentWidget.extensionId,
 							replyCommand: this._newCommentWidget.commentThread.reply,
 							pendingComment: pendingNewComment,
 							draftMode: this._newCommentWidget.draftMode
@@ -344,7 +346,7 @@ export class ReviewController implements IEditorContribution {
 
 		if (e.newModelUrl && this._pendingNewCommentCache[e.newModelUrl.toString()]) {
 			let newCommentCache = this._pendingNewCommentCache[e.newModelUrl.toString()];
-			this.addComment(newCommentCache.lineNumber, newCommentCache.replyCommand, newCommentCache.ownerId, newCommentCache.draftMode, newCommentCache.pendingComment);
+			this.addComment(newCommentCache.lineNumber, newCommentCache.replyCommand, newCommentCache.ownerId, newCommentCache.extensionId, newCommentCache.draftMode, newCommentCache.pendingComment);
 		}
 
 		this.localToDispose.push(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
@@ -402,7 +404,7 @@ export class ReviewController implements IEditorContribution {
 		this.beginCompute();
 	}
 
-	private addComment(lineNumber: number, replyCommand: modes.Command, ownerId: string, draftMode: modes.DraftMode, pendingComment: string) {
+	private addComment(lineNumber: number, replyCommand: modes.Command, ownerId: string, extensionId: string, draftMode: modes.DraftMode, pendingComment: string) {
 		if (this._newCommentWidget !== null) {
 			this.notificationService.warn(`Please submit the comment at line ${this._newCommentWidget.position.lineNumber} before creating a new one.`);
 			return;
@@ -411,6 +413,7 @@ export class ReviewController implements IEditorContribution {
 		// add new comment
 		this._reviewPanelVisible.set(true);
 		this._newCommentWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.openerService, this.dialogService, this.notificationService, this.editor, ownerId, {
+			extensionId: extensionId,
 			threadId: null,
 			resource: null,
 			comments: [],
@@ -502,7 +505,7 @@ export class ReviewController implements IEditorContribution {
 			if (!newCommentInfo) {
 				return;
 			}
-			const { replyCommand, ownerId } = newCommentInfo;
+			const { replyCommand, ownerId, extensionId } = newCommentInfo;
 
 			let commentInfo = this._commentInfos.filter(info => info.owner === ownerId);
 			if (!commentInfo || !commentInfo.length) {
@@ -511,7 +514,7 @@ export class ReviewController implements IEditorContribution {
 
 			let draftMode = commentInfo[0].draftMode;
 
-			this.addComment(lineNumber, replyCommand, ownerId, draftMode, null);
+			this.addComment(lineNumber, replyCommand, ownerId, extensionId, draftMode, null);
 		}
 	}
 

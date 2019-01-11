@@ -8,7 +8,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { equal, ok } from 'assert';
-import { mkdirp, del, writeFile, exists } from 'vs/base/node/pfs';
+import { mkdirp, del, writeFile, exists, unlink } from 'vs/base/node/pfs';
 import { timeout } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { isWindows } from 'vs/base/common/platform';
@@ -246,6 +246,36 @@ suite('Storage Library', () => {
 		await storage.close();
 		await del(storageDir, tmpdir());
 	});
+
+	test('corrupt DB recovers', async () => {
+		const storageDir = uniqueStorageDir();
+		await mkdirp(storageDir);
+
+		const storageFile = join(storageDir, 'storage.db');
+
+		let storage = new Storage(new SQLiteStorageDatabase(storageFile));
+		await storage.init();
+
+		await storage.set('bar', 'foo');
+
+		await writeFile(storageFile, 'This is a broken DB');
+
+		await storage.set('foo', 'bar');
+
+		equal(storage.get('bar'), 'foo');
+		equal(storage.get('foo'), 'bar');
+
+		await storage.close();
+
+		storage = new Storage(new SQLiteStorageDatabase(storageFile));
+		await storage.init();
+
+		equal(storage.get('bar'), 'foo');
+		equal(storage.get('foo'), 'bar');
+
+		await storage.close();
+		await del(storageDir, tmpdir());
+	});
 });
 
 suite('SQLite Storage Library', () => {
@@ -325,7 +355,14 @@ suite('SQLite Storage Library', () => {
 		storedItems = await storage.getItems();
 		equal(storedItems.size, 0);
 
-		await storage.close();
+		let recoveryCalled = false;
+		await storage.close(() => {
+			recoveryCalled = true;
+
+			return new Map();
+		});
+
+		equal(recoveryCalled, false);
 	}
 
 	test('basics', async () => {
@@ -333,7 +370,7 @@ suite('SQLite Storage Library', () => {
 
 		await mkdirp(storageDir);
 
-		testDBBasics(join(storageDir, 'storage.db'));
+		await testDBBasics(join(storageDir, 'storage.db'));
 
 		await del(storageDir, tmpdir());
 	});
@@ -393,7 +430,14 @@ suite('SQLite Storage Library', () => {
 		equal(storedItems.get('some/foo/path'), 'some/bar/path');
 		equal(storedItems.get(JSON.stringify({ foo: 'bar' })), JSON.stringify({ bar: 'foo' }));
 
-		await storage.close();
+		let recoveryCalled = false;
+		await storage.close(() => {
+			recoveryCalled = true;
+
+			return new Map();
+		});
+
+		equal(recoveryCalled, false);
 
 		await del(storageDir, tmpdir());
 	});
@@ -427,7 +471,7 @@ suite('SQLite Storage Library', () => {
 		await del(storageDir, tmpdir());
 	});
 
-	test('basics (DB that becomes corrupt during runtime restores backup on close())', async () => {
+	test('basics (DB that becomes corrupt during runtime stores all state from cache on close)', async () => {
 		if (isWindows) {
 			await Promise.resolve(); // Windows will fail to write to open DB due to locking
 
@@ -449,7 +493,8 @@ suite('SQLite Storage Library', () => {
 		await storage.updateItems({ insert: items });
 		await storage.close();
 
-		equal(await exists(`${storagePath}.backup`), true);
+		const backupPath = `${storagePath}.backup`;
+		equal(await exists(backupPath), true);
 
 		storage = new SQLiteStorageDatabase(storagePath);
 		await storage.getItems();
@@ -462,9 +507,17 @@ suite('SQLite Storage Library', () => {
 		// on shutdown.
 		await storage.checkIntegrity(true).then(null, error => { } /* error is expected here but we do not want to fail */);
 
-		await storage.close();
+		await unlink(backupPath); // also test that the recovery DB is backed up properly
 
-		equal(await exists(`${storagePath}.backup`), false);
+		let recoveryCalled = false;
+		await storage.close(() => {
+			recoveryCalled = true;
+
+			return items;
+		});
+
+		equal(recoveryCalled, true);
+		equal(await exists(backupPath), true);
 
 		storage = new SQLiteStorageDatabase(storagePath);
 
@@ -474,7 +527,14 @@ suite('SQLite Storage Library', () => {
 		equal(storedItems.get('some/foo/path'), 'some/bar/path');
 		equal(storedItems.get(JSON.stringify({ foo: 'bar' })), JSON.stringify({ bar: 'foo' }));
 
-		await storage.close();
+		recoveryCalled = false;
+		await storage.close(() => {
+			recoveryCalled = true;
+
+			return new Map();
+		});
+
+		equal(recoveryCalled, false);
 
 		await del(storageDir, tmpdir());
 	});

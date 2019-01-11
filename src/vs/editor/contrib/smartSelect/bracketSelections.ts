@@ -47,11 +47,11 @@ export class BracketSelectionRangeProvider implements SelectionRangeProvider {
 			const key = bracket.close;
 			if (bracket.isOpen) {
 				// wait for closing
-				let val = counts.has(key) ? counts.get(key) : 0;
+				let val = counts.has(key) ? counts.get(key)! : 0;
 				counts.set(key, val + 1);
 			} else {
 				// process closing
-				let val = counts.has(key) ? counts.get(key) : 0;
+				let val = counts.has(key) ? counts.get(key)! : 0;
 				val -= 1;
 				counts.set(key, Math.max(0, val));
 				if (val < 0) {
@@ -92,11 +92,11 @@ export class BracketSelectionRangeProvider implements SelectionRangeProvider {
 			const key = bracket.close;
 			if (!bracket.isOpen) {
 				// wait for opening
-				let val = counts.has(key) ? counts.get(key) : 0;
+				let val = counts.has(key) ? counts.get(key)! : 0;
 				counts.set(key, val + 1);
 			} else {
 				// opening
-				let val = counts.has(key) ? counts.get(key) : 0;
+				let val = counts.has(key) ? counts.get(key)! : 0;
 				val -= 1;
 				counts.set(key, Math.max(0, val));
 				if (val < 0) {

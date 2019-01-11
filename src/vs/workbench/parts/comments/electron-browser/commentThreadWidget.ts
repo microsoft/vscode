@@ -80,6 +80,10 @@ export class ReviewZoneWidget extends ZoneWidget {
 		return this._commentThread;
 	}
 
+	public get extensionId(): string {
+		return this._commentThread.extensionId;
+	}
+
 	public get draftMode(): modes.DraftMode {
 		return this._draftMode;
 	}
@@ -305,7 +309,11 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._commentForm = dom.append(this._bodyElement, dom.$('.comment-form'));
 		this._commentEditor = this.instantiationService.createInstance(SimpleCommentEditor, this._commentForm, SimpleCommentEditor.getEditorOptions());
 		const modeId = hasExistingComments ? this._commentThread.threadId : ++INMEM_MODEL_ID;
-		const resource = URI.parse(`${COMMENT_SCHEME}:commentinput-${modeId}.md`);
+		const params = JSON.stringify({
+			extensionId: this.extensionId,
+			commentThreadId: this.commentThread.threadId
+		});
+		const resource = URI.parse(`${COMMENT_SCHEME}:commentinput-${modeId}.md?${params}`);
 		const model = this.modelService.createModel(this._pendingComment || '', this.modeService.createByFilepathOrFirstLine(resource.path), resource, false);
 		this._localToDispose.push(model);
 		this._commentEditor.setModel(model);

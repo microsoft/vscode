@@ -31,13 +31,16 @@ import { WordContextKey } from 'vs/editor/contrib/suggest/wordContextKey';
 import { Event } from 'vs/base/common/event';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { IdleValue } from 'vs/base/common/async';
+import { CharacterSet } from 'vs/editor/common/core/characterClassifier';
 
 class AcceptOnCharacterOracle {
 
 	private _disposables: IDisposable[] = [];
 
-	private _activeAcceptCharacters = new Set<string>();
-	private _activeItem: ISelectedSuggestion;
+	private _active?: {
+		readonly acceptCharacters: CharacterSet;
+		readonly item: ISelectedSuggestion;
+	};
 
 	constructor(editor: ICodeEditor, widget: SuggestWidget, accept: (selected: ISelectedSuggestion) => any) {
 
@@ -46,10 +49,10 @@ class AcceptOnCharacterOracle {
 		this._disposables.push(widget.onDidHide(this.reset, this));
 
 		this._disposables.push(editor.onWillType(text => {
-			if (this._activeItem) {
-				const ch = text[text.length - 1];
-				if (this._activeAcceptCharacters.has(ch) && editor.getConfiguration().contribInfo.acceptSuggestionOnCommitCharacter) {
-					accept(this._activeItem);
+			if (this._active) {
+				const ch = text.charCodeAt(text.length - 1);
+				if (this._active.acceptCharacters.has(ch) && editor.getConfiguration().contribInfo.acceptSuggestionOnCommitCharacter) {
+					accept(this._active.item);
 				}
 			}
 		}));
@@ -60,17 +63,18 @@ class AcceptOnCharacterOracle {
 			this.reset();
 			return;
 		}
-		this._activeItem = selected;
-		this._activeAcceptCharacters.clear();
+
+		const acceptCharacters = new CharacterSet();
 		for (const ch of selected.item.completion.commitCharacters) {
 			if (ch.length > 0) {
-				this._activeAcceptCharacters.add(ch[0]);
+				acceptCharacters.add(ch.charCodeAt(0));
 			}
 		}
+		this._active = { acceptCharacters, item: selected };
 	}
 
 	reset(): void {
-		this._activeItem = undefined;
+		this._active = undefined;
 	}
 
 	dispose() {

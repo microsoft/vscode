@@ -123,6 +123,11 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 		return this.model.getListIndex(location);
 	}
 
+	getListRenderCount(element: T): number {
+		const location = this.getElementLocation(element);
+		return this.model.getListRenderCount(location);
+	}
+
 	isCollapsible(element: T): boolean {
 		const location = this.getElementLocation(element);
 		return this.model.isCollapsible(location);

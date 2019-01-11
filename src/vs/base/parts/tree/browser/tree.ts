@@ -12,6 +12,7 @@ import { Event } from 'vs/base/common/event';
 import { IAction, IActionItem } from 'vs/base/common/actions';
 import { Color } from 'vs/base/common/color';
 import { IItemCollapseEvent, IItemExpandEvent } from 'vs/base/parts/tree/browser/treeModel';
+import { IDragAndDropData } from 'vs/base/browser/dnd';
 
 export interface ITree {
 
@@ -592,11 +593,6 @@ export const DRAG_OVER_ACCEPT_BUBBLE_UP: IDragOverReaction = { accept: true, bub
 export const DRAG_OVER_ACCEPT_BUBBLE_DOWN = (autoExpand = false) => ({ accept: true, bubble: DragOverBubble.BUBBLE_DOWN, autoExpand });
 export const DRAG_OVER_ACCEPT_BUBBLE_UP_COPY: IDragOverReaction = { accept: true, bubble: DragOverBubble.BUBBLE_UP, effect: DragOverEffect.COPY };
 export const DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY = (autoExpand = false) => ({ accept: true, bubble: DragOverBubble.BUBBLE_DOWN, effect: DragOverEffect.COPY, autoExpand });
-
-export interface IDragAndDropData {
-	update(event: Mouse.DragMouseEvent): void;
-	getData(): any;
-}
 
 export interface IDragAndDrop {
 

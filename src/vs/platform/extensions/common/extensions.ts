@@ -7,6 +7,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IExtensionManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import * as strings from 'vs/base/common/strings';
+import { isNonEmptyArray } from 'vs/base/common/arrays';
 
 export const MANIFEST_CACHE_FOLDER = 'CachedExtensions';
 export const USER_MANIFEST_CACHE_FILE = 'user';
@@ -29,7 +30,19 @@ export function isUIExtension(manifest: IExtensionManifest, configurationService
 	switch (manifest.extensionKind) {
 		case 'ui': return true;
 		case 'workspace': return false;
-		default: return uiExtensions.has(extensionId) || !manifest.main;
+		default: {
+			if (uiExtensions.has(extensionId)) {
+				return true;
+			}
+			if (manifest.main) {
+				return false;
+			}
+			if (manifest.contributes && isNonEmptyArray(manifest.contributes.debuggers)) {
+				return false;
+			}
+			// Default is UI Extension
+			return true;
+		}
 	}
 }
 

@@ -130,6 +130,6 @@ export class ExtensionsLifecycle extends Disposable {
 	}
 
 	private getExtensionStoragePath(extension: ILocalExtension): string {
-		return posix.join(this.environmentService.globalStorageHome, extension.identifier.id.toLocaleLowerCase());
+		return posix.join(this.environmentService.globalStorageHome, extension.galleryIdentifier.id.toLowerCase());
 	}
 }

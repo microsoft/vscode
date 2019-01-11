@@ -96,7 +96,7 @@ import { SearchHistoryService } from 'vs/workbench/services/search/node/searchHi
 import { ExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 import { LogLevelSetterChannel } from 'vs/platform/log/node/logIpc';
-import { ILabelService, LabelService } from 'vs/platform/label/common/label';
+import { ILabelService } from 'vs/platform/label/common/label';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadService } from 'vs/platform/download/node/downloadService';
 import { DownloadServiceChannel } from 'vs/platform/download/node/downloadIpc';
@@ -106,6 +106,7 @@ import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remot
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-browser/remoteAuthorityResolverService';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
 import { MarkerDecorationsService } from 'vs/editor/common/services/markerDecorationsServiceImpl';
+import { LabelService } from 'vs/workbench/services/label/common/labelService';
 
 /**
  * Services that we require for the Shell

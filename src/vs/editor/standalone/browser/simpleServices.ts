@@ -36,7 +36,7 @@ import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingReso
 import { IKeybindingItem, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
-import { ILabelService, LabelRules, RegisterFormatterEvent } from 'vs/platform/label/common/label';
+import { ILabelService, LabelRules, RegisterFormatterData } from 'vs/platform/label/common/label';
 import { INotification, INotificationHandle, INotificationService, IPromptChoice, IPromptOptions, NoOpNotification } from 'vs/platform/notification/common/notification';
 import { IProgressRunner, IProgressService } from 'vs/platform/progress/common/progress';
 import { ITelemetryInfo, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -612,8 +612,8 @@ export class SimpleBulkEditService implements IBulkEditService {
 export class SimpleUriLabelService implements ILabelService {
 	_serviceBrand: any;
 
-	private readonly _onDidRegisterFormatter = new Emitter<RegisterFormatterEvent>();
-	public readonly onDidRegisterFormatter: Event<RegisterFormatterEvent> = this._onDidRegisterFormatter.event;
+	private readonly _onDidRegisterFormatter = new Emitter<RegisterFormatterData>();
+	public readonly onDidRegisterFormatter: Event<RegisterFormatterData> = this._onDidRegisterFormatter.event;
 
 	public getUriLabel(resource: URI, options?: { relative?: boolean, forceNoTildify?: boolean }): string {
 		if (resource.scheme === 'file') {
