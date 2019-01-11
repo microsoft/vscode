@@ -102,12 +102,12 @@ export class LabelService implements ILabelService {
 		// Workspace: Single Folder
 		if (isSingleFolderWorkspaceIdentifier(workspace)) {
 			// Folder on disk
-			const formatter = this.findFormatter(workspace);
-			const label = options && options.verbose ? this.getUriLabel(workspace) : resourceBasename(workspace);
+			const label = options && options.verbose ? this.getUriLabel(workspace) : resourceBasename(workspace) || '/';
 			if (workspace.scheme === Schemas.file) {
 				return label;
 			}
 
+			const formatter = this.findFormatter(workspace);
 			const suffix = formatter && formatter.workspace && (typeof formatter.workspace.suffix === 'string') ? formatter.workspace.suffix : workspace.scheme;
 			return suffix ? `${label} (${suffix})` : label;
 		}
