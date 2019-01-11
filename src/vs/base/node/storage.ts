@@ -11,7 +11,7 @@ import { isUndefinedOrNull } from 'vs/base/common/types';
 import { mapToString, setToString } from 'vs/base/common/map';
 import { basename } from 'path';
 import { mark } from 'vs/base/common/performance';
-import { rename, copy, renameIgnoreError, unlink } from 'vs/base/node/pfs';
+import { copy, renameIgnoreError, unlink } from 'vs/base/node/pfs';
 
 export enum StorageHint {
 
@@ -514,48 +514,41 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 		});
 	}
 
-	private connect(path: string): Promise<IDatabaseConnection> {
-		this.logger.trace(`[storage ${this.name}] open()`);
+	private connect(path: string, retryOnBusy: boolean = true): Promise<IDatabaseConnection> {
+		this.logger.trace(`[storage ${this.name}] open(${path}, retryOnBusy: ${retryOnBusy})`);
 
-		return new Promise((resolve, reject) => {
-			const fallbackToInMemoryDatabase = (error: Error) => {
-				this.logger.error(`[storage ${this.name}] open(): Error (open DB): ${error}. Falling back to in-memory DB`);
+		return this.doConnect(path).then(undefined, error => {
+			this.logger.error(`[storage ${this.name}] open(): Unable to open DB due to ${error}`);
 
-				// In case of any error to open the DB, use an in-memory
-				// DB so that we always have a valid DB to talk to.
-				this.doConnect(SQLiteStorageDatabase.IN_MEMORY_PATH).then(resolve, reject);
-			};
+			// SQLITE_BUSY should only arise if another process is locking the same DB we want
+			// to open at that time. This typically never happens because a DB connection is
+			// limited per window. However, in the event of a window reload, it may be possible
+			// that the previous connection was not properly closed while the new connection is
+			// already established.
+			//
+			// In this case we simply wait for some time and retry once to establish the connection.
+			//
+			if (error.code === 'SQLITE_BUSY' && retryOnBusy) {
+				return timeout(SQLiteStorageDatabase.BUSY_OPEN_TIMEOUT).then(() => this.connect(path, false /* not another retry */));
+			}
 
-			return this.doConnect(path).then(resolve, error => {
+			// Otherwise, best we can do is to recover from a backup if that exists, as such we
+			// move the DB to a different filename and try to load from backup. If that fails,
+			// a new empty DB is being created automatically.
+			//
+			// The final fallback is to use an in-memory DB which should only happen if the target
+			// folder is really not writeable for us.
+			//
+			return unlink(path)
+				.then(() => renameIgnoreError(this.toBackupPath(path), path))
+				.then(() => this.doConnect(path))
+				.then(undefined, error => {
+					this.logger.error(`[storage ${this.name}] open(): Unable to use backup due to ${error}`);
 
-				// This error code should only arise if another process is locking the same DB we
-				// want to open at that time. This typically never happens because a DB connection
-				// is limited per window. However, in the event of a window reload, it may be possible
-				// that the previous connection was not properly closed while the new connection is
-				// already established.
-				if (error.code === 'SQLITE_BUSY') {
-					this.logger.error(`[storage ${this.name}] open(): Retrying after ${SQLiteStorageDatabase.BUSY_OPEN_TIMEOUT}ms due to SQLITE_BUSY`);
-
-					// Retry after some time if the DB is busy
-					return timeout(SQLiteStorageDatabase.BUSY_OPEN_TIMEOUT).then(() => this.doConnect(path)).then(resolve, fallbackToInMemoryDatabase);
-				}
-
-				// This error code indicates that even though the DB file exists,
-				// SQLite cannot open it and signals it is corrupt or not a DB.
-				if (error.code === 'SQLITE_CORRUPT' || error.code === 'SQLITE_NOTADB') {
-					this.logger.error(`[storage ${this.name}] open(): Unable to open DB due to ${error.code}`);
-
-					// Move corrupt DB to a different filename and try to load from backup
-					// If that fails, a new empty DB is being created automatically
-					return rename(path, this.toCorruptPath(path))
-						.then(() => renameIgnoreError(this.toBackupPath(path), path))
-						.then(() => this.doConnect(path))
-						.then(resolve, fallbackToInMemoryDatabase);
-				}
-
-				// Otherwise give up and fallback to in-memory DB
-				return fallbackToInMemoryDatabase(error);
-			});
+					// In case of any error to open the DB, use an in-memory
+					// DB so that we always have a valid DB to talk to.
+					return this.doConnect(SQLiteStorageDatabase.IN_MEMORY_PATH);
+				});
 		});
 	}
 
@@ -564,12 +557,6 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 		connection.lastError = msg;
 
 		this.logger.error(msg);
-	}
-
-	private toCorruptPath(path: string): string {
-		const randomSuffix = Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 4);
-
-		return `${path}.${randomSuffix}.corrupt`;
 	}
 
 	private doConnect(path: string): Promise<IDatabaseConnection> {
@@ -598,7 +585,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 						// - create the DB if it does not exist yet
 						// - validate that the DB is not corrupt (the open() call does not throw otherwise)
 						mark('willSetupSQLiteSchema');
-						this.exec(connection, [
+						return this.exec(connection, [
 							'PRAGMA user_version = 1;',
 							'CREATE TABLE IF NOT EXISTS ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB)'
 						].join('')).then(() => {
@@ -621,7 +608,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 				if (this.logger.isTracing) {
 					connection.db.on('trace', sql => this.logger.trace(`[storage ${this.name}] Trace (event): ${sql}`));
 				}
-			});
+			}, reject);
 		});
 	}
 
