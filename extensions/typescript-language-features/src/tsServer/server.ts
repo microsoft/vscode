@@ -24,6 +24,14 @@ import { Reader } from '../utils/wireProtocol';
 import { CallbackMap } from './callbackMap';
 import { RequestItem, RequestQueue, RequestQueueingType } from './requestQueue';
 
+class TypeScriptServerError extends Error {
+	constructor(
+		public readonly response: Proto.Response,
+	) {
+		super(response.message);
+	}
+}
+
 export class TypeScriptServerSpawner {
 	public constructor(
 		private readonly _versionProvider: TypeScriptVersionProvider,
@@ -55,7 +63,7 @@ export class TypeScriptServerSpawner {
 		const childProcess = electron.fork(version.tsServerPath, args, this.getForkOptions());
 		this._logger.info('Started TSServer');
 
-		return new TypeScriptServer(childProcess, tsServerLogFile, cancellationPipeName, this._logger, this._telemetryReporter, this._tracer);
+		return new TypeScriptServer(childProcess, tsServerLogFile, cancellationPipeName, this._telemetryReporter, this._tracer);
 	}
 
 	private getForkOptions() {
@@ -176,7 +184,6 @@ export class TypeScriptServer extends Disposable {
 		private readonly _childProcess: cp.ChildProcess,
 		private readonly _tsServerLogFile: string | undefined,
 		private readonly _cancellationPipeName: string | undefined,
-		private readonly _logger: Logger,
 		private readonly _telemetryReporter: TelemetryReporter,
 		private readonly _tracer: Tracer,
 	) {
@@ -294,7 +301,7 @@ export class TypeScriptServer extends Disposable {
 			// Special case where response itself is successful but there is not any data to return.
 			callback.onSuccess(new NoContentResponse());
 		} else {
-			callback.onError(response);
+			callback.onError(new TypeScriptServerError(response));
 		}
 	}
 
@@ -316,23 +323,25 @@ export class TypeScriptServer extends Disposable {
 						this.tryCancelRequest(request.seq, command);
 					});
 				}
-			}).catch((err: any) => {
-				if (!executeInfo.token || !executeInfo.token.isCancellationRequested) {
-					this._logger.error(`'${command}' request failed with error.`, err);
-					const properties = this.parseErrorText(err && err.message, command);
-					/* __GDPR__
-						"languageServiceErrorResponse" : {
-							"command" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-							"message" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
-							"stack" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
-							"errortext" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
-							"${include}": [
-								"${TypeScriptCommonProperties}"
-							]
-						}
-					*/
-					this._telemetryReporter.logTelemetry('languageServiceErrorResponse', properties);
+			}).catch((err: Error) => {
+				if (err instanceof TypeScriptServerError) {
+					if (!executeInfo.token || !executeInfo.token.isCancellationRequested) {
+						const properties = this.parseErrorText(err.response.message, err.response.command);
+						/* __GDPR__
+							"languageServiceErrorResponse" : {
+								"command" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+								"message" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
+								"stack" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
+								"errortext" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
+								"${include}": [
+									"${TypeScriptCommonProperties}"
+								]
+							}
+						*/
+						this._telemetryReporter.logTelemetry('languageServiceErrorResponse', properties);
+					}
 				}
+
 				throw err;
 			});
 		} else {
