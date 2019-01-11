@@ -42,6 +42,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ExplorerItem } from 'vs/workbench/parts/files/common/explorerModel';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ResourceLabels, IResourceLabelsContainer } from 'vs/workbench/browser/labels';
+import { createFileIconThemableTreeContainerScope } from 'vs/workbench/browser/parts/views/views';
 
 export class ExplorerView extends ViewletPanel {
 	static readonly ID: string = 'workbench.explorer.fileView';
@@ -224,6 +225,8 @@ export class ExplorerView extends ViewletPanel {
 
 		const filesRenderer = this.instantiationService.createInstance(FilesRenderer, explorerLabels);
 		this.disposables.push(filesRenderer);
+
+		this.disposables.push(createFileIconThemableTreeContainerScope(container, this.themeService));
 
 		this.tree = new WorkbenchAsyncDataTree(container, new ExplorerDelegate(), [filesRenderer],
 			this.instantiationService.createInstance(ExplorerDataSource), {

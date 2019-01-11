@@ -193,7 +193,7 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 		this.renderedNodes.set(node, templateData);
 		this.renderedElements.set(node.element, node);
 
-		templateData.twistie.style.width = `${10 + node.depth * 10}px`;
+		templateData.twistie.style.marginLeft = `${node.depth * 10}px`;
 		this.renderTwistie(node, templateData.twistie);
 
 		this.renderer.renderElement(node, index, templateData.templateData);

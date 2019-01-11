@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/views';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IViewsService, ViewsRegistry, IViewsViewlet, ViewContainer, IViewDescriptor, IViewContainersRegistry, Extensions as ViewContainerExtensions, IView, IViewDescriptorCollection } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -19,6 +19,8 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { localize } from 'vs/nls';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { values } from 'vs/base/common/map';
+import { IFileIconTheme, IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { toggleClass, addClass } from 'vs/base/browser/dom';
 
 function filterViewEvent(container: ViewContainer, event: Event<IViewDescriptor[]>): Event<IViewDescriptor[]> {
 	return Event.chain(event)
@@ -611,4 +613,17 @@ export class ViewsService extends Disposable implements IViewsService {
 		}
 		return contextKey;
 	}
+}
+
+export function createFileIconThemableTreeContainerScope(container: HTMLElement, themeService: IWorkbenchThemeService): IDisposable {
+	addClass(container, 'file-icon-themable-tree');
+	addClass(container, 'show-file-icons');
+
+	const onDidChangeFileIconTheme = (theme: IFileIconTheme) => {
+		toggleClass(container, 'align-icons-and-twisties', theme.hasFileIcons && !theme.hasFolderIcons);
+		toggleClass(container, 'hide-arrows', theme.hidesExplorerArrows === true);
+	};
+
+	onDidChangeFileIconTheme(themeService.getFileIconTheme());
+	return themeService.onDidFileIconThemeChange(onDidChangeFileIconTheme);
 }
