@@ -19,11 +19,9 @@ export class CancelledResponse {
 	) { }
 }
 
-export class NoContentResponse {
-	public readonly type: 'noContent' = 'noContent';
-}
+export const NoContentResponse = new class { readonly type = 'noContent'; };
 
-export type ServerResponse<T extends Proto.Response> = T | CancelledResponse | NoContentResponse;
+export type ServerResponse<T extends Proto.Response> = T | CancelledResponse | typeof NoContentResponse;
 
 interface TypeScriptRequestTypes {
 	'applyCodeActionCommand': [Proto.ApplyCodeActionCommandRequestArgs, Proto.ApplyCodeActionCommandResponse];

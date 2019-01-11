@@ -5038,8 +5038,6 @@ declare namespace monaco.languages {
 		targetSelectionRange?: IRange;
 	}
 
-	export function isLocationLink(thing: any): thing is LocationLink;
-
 	export type Definition = Location | Location[] | LocationLink[];
 
 	/**
