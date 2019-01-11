@@ -6,12 +6,13 @@
 import { localize } from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IExtensionManagementService, DidUninstallExtensionEvent, IExtensionEnablementService, IExtensionIdentifier, EnablementState, ILocalExtension, isIExtensionIdentifier, LocalExtensionType, DidInstallExtensionEvent, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, DidUninstallExtensionEvent, IExtensionEnablementService, IExtensionIdentifier, EnablementState, isIExtensionIdentifier, DidInstallExtensionEvent, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getIdFromLocalExtensionId, areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IStorageService, StorageScope, IWorkspaceStorageChangeEvent } from 'vs/platform/storage/common/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { isUndefinedOrNull } from 'vs/base/common/types';
+import { ExtensionType, IExtension } from 'vs/platform/extensions/common/extensions';
 
 const DISABLED_EXTENSIONS_STORAGE_PATH = 'extensionsIdentifiers/disabled';
 const ENABLED_EXTENSIONS_STORAGE_PATH = 'extensionsIdentifiers/enabled';
@@ -76,7 +77,7 @@ export class ExtensionEnablementService extends Disposable implements IExtension
 		return result;
 	}
 
-	getEnablementState(extension: ILocalExtension): EnablementState {
+	getEnablementState(extension: IExtension): EnablementState {
 		if (this._isExtensionDisabledInEnvironment(extension)) {
 			return EnablementState.Disabled;
 		}
@@ -96,17 +97,17 @@ export class ExtensionEnablementService extends Disposable implements IExtension
 		return EnablementState.Enabled;
 	}
 
-	canChangeEnablement(extension: ILocalExtension): boolean {
+	canChangeEnablement(extension: IExtension): boolean {
 		if (extension.manifest && extension.manifest.contributes && extension.manifest.contributes.localizations && extension.manifest.contributes.localizations.length) {
 			return false;
 		}
-		if (extension.type === LocalExtensionType.User && this.environmentService.disableExtensions) {
+		if (extension.type === ExtensionType.User && this.environmentService.disableExtensions) {
 			return false;
 		}
 		return true;
 	}
 
-	setEnablement(arg: ILocalExtension | IExtensionIdentifier, newState: EnablementState): Promise<boolean> {
+	setEnablement(arg: IExtension | IExtensionIdentifier, newState: EnablementState): Promise<boolean> {
 		let identifier: IExtensionIdentifier;
 		if (isIExtensionIdentifier(arg)) {
 			identifier = arg;
@@ -148,14 +149,14 @@ export class ExtensionEnablementService extends Disposable implements IExtension
 		return Promise.resolve(true);
 	}
 
-	isEnabled(extension: ILocalExtension): boolean {
+	isEnabled(extension: IExtension): boolean {
 		const enablementState = this.getEnablementState(extension);
 		return enablementState === EnablementState.WorkspaceEnabled || enablementState === EnablementState.Enabled;
 	}
 
-	private _isExtensionDisabledInEnvironment(extension: ILocalExtension): boolean {
+	private _isExtensionDisabledInEnvironment(extension: IExtension): boolean {
 		if (this.allUserExtensionsDisabled) {
-			return extension.type === LocalExtensionType.User;
+			return extension.type === ExtensionType.User;
 		}
 		const disabledExtensions = this.environmentService.disableExtensions;
 		if (Array.isArray(disabledExtensions)) {

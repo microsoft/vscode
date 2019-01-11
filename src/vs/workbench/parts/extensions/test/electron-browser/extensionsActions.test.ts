@@ -10,11 +10,11 @@ import { IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/commo
 import * as ExtensionsActions from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { ExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/node/extensionsWorkbenchService';
 import {
-	IExtensionManagementService, IExtensionGalleryService, IExtensionEnablementService, IExtensionTipsService, ILocalExtension, LocalExtensionType, IGalleryExtension,
-	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, EnablementState, InstallOperation, IExtensionManagementServerService, IExtensionManagementServer, IExtensionContributions
+	IExtensionManagementService, IExtensionGalleryService, IExtensionEnablementService, IExtensionTipsService, ILocalExtension, IGalleryExtension,
+	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, EnablementState, InstallOperation, IExtensionManagementServerService, IExtensionManagementServer
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { getGalleryExtensionId, getGalleryExtensionIdFromLocal } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { ExtensionManagementService, getLocalExtensionIdFromGallery, getLocalExtensionIdFromManifest } from 'vs/platform/extensionManagement/node/extensionManagementService';
+import { getGalleryExtensionId, getLocalExtensionIdFromManifest, getLocalExtensionIdFromGallery } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionTipsService } from 'vs/workbench/parts/extensions/electron-browser/extensionTipsService';
 import { TestExtensionEnablementService } from 'vs/platform/extensionManagement/test/electron-browser/extensionEnablementService.test';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
@@ -36,7 +36,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { ExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/node/remoteAgentService';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionContributions, ExtensionType } from 'vs/platform/extensions/common/extensions';
 
 suite('ExtensionsActions Test', () => {
 
@@ -153,7 +153,7 @@ suite('ExtensionsActions Test', () => {
 	test('Test Install action when extension is system action', () => {
 		const testObject: ExtensionsActions.InstallAction = instantiationService.createInstance(ExtensionsActions.InstallAction);
 		instantiationService.get(IExtensionsWorkbenchService).onChange(() => testObject.update());
-		const local = aLocalExtension('a', {}, { type: LocalExtensionType.System });
+		const local = aLocalExtension('a', {}, { type: ExtensionType.System });
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
 		return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
@@ -221,7 +221,7 @@ suite('ExtensionsActions Test', () => {
 	test('Test Uninstall action when state is installed and is system extension', () => {
 		const testObject: ExtensionsActions.UninstallAction = instantiationService.createInstance(ExtensionsActions.UninstallAction);
 		instantiationService.get(IExtensionsWorkbenchService).onChange(() => testObject.update());
-		const local = aLocalExtension('a', {}, { type: LocalExtensionType.System });
+		const local = aLocalExtension('a', {}, { type: ExtensionType.System });
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
 		return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
@@ -280,7 +280,7 @@ suite('ExtensionsActions Test', () => {
 	test('Test CombinedInstallAction when extension is system extension', () => {
 		const testObject: ExtensionsActions.CombinedInstallAction = instantiationService.createInstance(ExtensionsActions.CombinedInstallAction);
 		instantiationService.get(IExtensionsWorkbenchService).onChange(() => testObject.update());
-		const local = aLocalExtension('a', {}, { type: LocalExtensionType.System });
+		const local = aLocalExtension('a', {}, { type: ExtensionType.System });
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
 		return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
@@ -411,7 +411,7 @@ suite('ExtensionsActions Test', () => {
 	test('Test UpdateAction when extension is installed outdated and system extension', () => {
 		const testObject: ExtensionsActions.UpdateAction = instantiationService.createInstance(ExtensionsActions.UpdateAction);
 		instantiationService.get(IExtensionsWorkbenchService).onChange(() => testObject.update());
-		const local = aLocalExtension('a', { version: '1.0.0' }, { type: LocalExtensionType.System });
+		const local = aLocalExtension('a', { version: '1.0.0' }, { type: ExtensionType.System });
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
 		return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
@@ -540,7 +540,7 @@ suite('ExtensionsActions Test', () => {
 	test('Test ManageExtensionAction when extension is system extension', () => {
 		const testObject: ExtensionsActions.ManageExtensionAction = instantiationService.createInstance(ExtensionsActions.ManageExtensionAction);
 		instantiationService.get(IExtensionsWorkbenchService).onChange(() => testObject.update());
-		const local = aLocalExtension('a', {}, { type: LocalExtensionType.System });
+		const local = aLocalExtension('a', {}, { type: ExtensionType.System });
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
 		return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
@@ -1341,13 +1341,15 @@ suite('ExtensionsActions Test', () => {
 	});
 
 	function aLocalExtension(name: string = 'someext', manifest: any = {}, properties: any = {}): ILocalExtension {
-		const localExtension = <ILocalExtension>Object.create({ manifest: {} });
-		assign(localExtension, { type: LocalExtensionType.User, manifest: {}, location: URI.file(`pub.${name}`) }, properties);
-		assign(localExtension.manifest, { name, publisher: 'pub', version: '1.0.0' }, manifest);
-		localExtension.identifier = { id: getLocalExtensionIdFromManifest(localExtension.manifest) };
-		localExtension.metadata = { id: localExtension.identifier.id, publisherId: localExtension.manifest.publisher, publisherDisplayName: 'somename' };
-		localExtension.galleryIdentifier = { id: getGalleryExtensionIdFromLocal(localExtension), uuid: undefined };
-		return localExtension;
+		manifest = assign({ name, publisher: 'pub', version: '1.0.0' }, manifest);
+		properties = assign({
+			type: ExtensionType.User,
+			location: URI.file(`pub.${name}`),
+			identifier: { id: getLocalExtensionIdFromManifest(manifest) },
+			galleryIdentifier: { id: getGalleryExtensionId(manifest.publisher, manifest.name), uuid: undefined },
+			metadata: { id: getGalleryExtensionId(manifest.publisher, manifest.name), publisherId: manifest.publisher, publisherDisplayName: 'somename' }
+		}, properties);
+		return <ILocalExtension>Object.create({ manifest, ...properties });
 	}
 
 	function aGalleryExtension(name: string, properties: any = {}, galleryExtensionProperties: any = {}, assets: any = {}): IGalleryExtension {

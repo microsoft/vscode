@@ -16,7 +16,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { IExtensionManagementService, IExtensionGalleryService, IExtensionManifest, IGalleryExtension, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtensionGalleryService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -38,6 +38,7 @@ import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { areSameExtensions, getGalleryExtensionIdFromLocal, adoptToGalleryExtensionId, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { URI } from 'vs/base/common/uri';
 import { getManifest } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
+import { IExtensionManifest, ExtensionType } from 'vs/platform/extensions/common/extensions';
 
 const notFound = (id: string) => localize('notFound', "Extension '{0}' not found.", id);
 const notInstalled = (id: string) => localize('notInstalled', "Extension '{0}' is not installed.", id);
@@ -94,7 +95,7 @@ class Main {
 	}
 
 	private async listExtensions(showVersions: boolean): Promise<any> {
-		const extensions = await this.extensionManagementService.getInstalled(LocalExtensionType.User);
+		const extensions = await this.extensionManagementService.getInstalled(ExtensionType.User);
 		extensions.forEach(e => console.log(getId(e.manifest, showVersions)));
 	}
 
@@ -134,7 +135,7 @@ class Main {
 		}
 
 		const [id, version] = getIdAndVersion(extension);
-		return this.extensionManagementService.getInstalled(LocalExtensionType.User)
+		return this.extensionManagementService.getInstalled(ExtensionType.User)
 			.then(installed => this.extensionGalleryService.getExtension({ id }, version)
 				.then<IGalleryExtension>(null, err => {
 					if (err.responseText) {
@@ -184,7 +185,7 @@ class Main {
 		}
 
 		const extensionIdentifier = { id: getGalleryExtensionId(manifest.publisher, manifest.name) };
-		const installedExtensions = await this.extensionManagementService.getInstalled(LocalExtensionType.User);
+		const installedExtensions = await this.extensionManagementService.getInstalled(ExtensionType.User);
 		const newer = installedExtensions.filter(local => areSameExtensions(extensionIdentifier, { id: getGalleryExtensionIdFromLocal(local) }) && semver.gt(local.manifest.version, manifest.version))[0];
 
 		if (newer && !force) {
@@ -223,7 +224,7 @@ class Main {
 
 		return sequence(extensions.map(extension => () => {
 			return getExtensionId(extension).then(id => {
-				return this.extensionManagementService.getInstalled(LocalExtensionType.User).then(installed => {
+				return this.extensionManagementService.getInstalled(ExtensionType.User).then(installed => {
 					const [extension] = installed.filter(e => areSameExtensions({ id: getGalleryExtensionIdFromLocal(e) }, { id }));
 
 					if (!extension) {
