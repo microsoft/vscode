@@ -8,6 +8,8 @@ import * as types from 'vs/base/common/types';
 import { IEntryRunContext, Mode, IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { QuickOpenHandler, EditorQuickOpenEntry, QuickOpenAction } from 'vs/workbench/browser/quickopen';
+import { IQuickInputService, IPickOptions, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { Action, IAction } from 'vs/base/common/actions';
 import { IEditor, IEditorViewState, IDiffEditorModel, ScrollType } from 'vs/editor/common/editorCommon';
 import { OverviewRulerLane, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
@@ -68,6 +70,78 @@ export class GotoLineAction extends QuickOpenAction {
 		return result;
 	}
 }
+
+
+export class GotoLineAction2 extends Action {
+
+	static readonly ID = 'workbench.action.gotoLine';
+	static readonly LABEL = nls.localize('gotoLine', "Go to Line...");
+
+	constructor(actionId: string, actionLabel: string,
+		@IQuickOpenService private readonly _quickOpenService: IQuickOpenService,
+		@IQuickInputService protected quickInputService: IQuickInputService,
+		@IEditorService private readonly editorService: IEditorService
+	) {
+		// super(actionId, actionLabel, GOTO_LINE_PREFIX, _quickOpenService);
+		super(actionId, actionLabel);
+	}
+
+	run(): Promise<void> {
+
+		let activeTextEditorWidget = this.editorService.activeTextEditorWidget;
+		if (isDiffEditor(activeTextEditorWidget)) {
+			activeTextEditorWidget = activeTextEditorWidget.getModifiedEditor();
+		}
+		let restoreOptions: IEditorOptions | null = null;
+
+		if (isCodeEditor(activeTextEditorWidget)) {
+			const config = activeTextEditorWidget.getConfiguration();
+			if (config.viewInfo.renderLineNumbers === RenderLineNumbersType.Relative) {
+				activeTextEditorWidget.updateOptions({
+					lineNumbers: 'on'
+				});
+				restoreOptions = {
+					lineNumbers: 'relative'
+				};
+			}
+		}
+
+		const line = this.editorService.activeTextEditorWidget.getPosition().lineNumber;
+		let model = activeTextEditorWidget.getModel();
+		if (model && (<IDiffEditorModel>model).modified && (<IDiffEditorModel>model).original) {
+			model = (<IDiffEditorModel>model).modified; // Support for diff editor models
+		}
+
+		const maxLine = (<ITextModel>this.editorService.activeTextEditorWidget.getModel()).getLineCount();
+		// maxLine = model && types.isFunction((<ITextModel>model).getLineCount) ? (<ITextModel>model).getLineCount();
+
+		return this.quickInputService.input({
+			// value: '',
+			value: line.toString(),
+			prompt: nls.localize('gotoLine.prompt1', "Type a line number between 1 and {0} to navigate to.", maxLine),
+			// placeHolder: nls.localize('gotoLine3',"Current line: {0}.", line.toString())
+
+		}).then(name => {
+			if (name) {
+				// terminalInstance.setTitle(name, false);
+			}
+		});
+
+
+		const result = super.run();
+
+		if (restoreOptions) {
+			Event.once(this._quickOpenService.onHide)(() => {
+				activeTextEditorWidget.updateOptions(restoreOptions);
+			});
+		}
+
+		return result;
+	}
+}
+
+
+
 
 class GotoLineEntry extends EditorQuickOpenEntry {
 	private line: number;
