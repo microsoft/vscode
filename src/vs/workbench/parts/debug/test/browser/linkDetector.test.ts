@@ -104,7 +104,7 @@ suite('Debug - Link Detector', () => {
 		assertElementIsLink(output.children[1]);
 		assertElementIsLink(output.children[3]);
 		assert.equal(isWindows ? 'C:/foo/bar.js:12:34' : '/Users/foo/bar.js:12:34', output.children[1].textContent);
-		assert.equal(isWindows ? 'C:/boo/far.js:56:78' : '/Users/boo/far.js:56:78', output.children[3].textContent);
+		assert.equal(isWindows ? 'D:/boo/far.js:56:78' : '/Users/boo/far.js:56:78', output.children[3].textContent);
 	});
 
 	test('multilineNoLinks', () => {
