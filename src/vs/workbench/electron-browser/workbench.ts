@@ -113,6 +113,7 @@ import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/work
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { FileDialogService } from 'vs/workbench/services/dialogs/electron-browser/dialogService';
 import { LogStorageAction } from 'vs/platform/storage/node/storageService';
+import { IEditor } from 'vs/editor/common/editorCommon';
 
 interface WorkbenchParams {
 	configuration: IWindowConfiguration;
@@ -125,6 +126,7 @@ interface IZenModeSettings {
 	hideTabs: boolean;
 	hideActivityBar: boolean;
 	hideStatusBar: boolean;
+	hideLineNumbers: boolean;
 	restore: boolean;
 }
 
@@ -234,14 +236,14 @@ export class Workbench extends Disposable implements IPartService {
 		serviceCollection: ServiceCollection,
 		private lifecycleService: LifecycleService,
 		private mainProcessClient: IPCClient,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IStorageService private storageService: IStorageService,
-		@IConfigurationService private configurationService: WorkspaceService,
-		@IWorkbenchThemeService private themeService: WorkbenchThemeService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IWindowService private windowService: IWindowService,
-		@INotificationService private notificationService: NotificationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IStorageService private readonly storageService: IStorageService,
+		@IConfigurationService private readonly configurationService: WorkspaceService,
+		@IWorkbenchThemeService private readonly themeService: WorkbenchThemeService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IWindowService private readonly windowService: IWindowService,
+		@INotificationService private readonly notificationService: NotificationService
 	) {
 		super();
 
@@ -292,7 +294,7 @@ export class Workbench extends Disposable implements IPartService {
 	private createWorkbench(): void {
 		this.workbench = document.createElement('div');
 		this.workbench.id = Identifiers.WORKBENCH_CONTAINER;
-		DOM.addClasses(this.workbench, 'monaco-workbench', isWindows ? 'windows' : isLinux ? 'linux' : 'mac');
+		DOM.addClass(this.workbench, 'monaco-workbench');
 
 		this._register(DOM.addDisposableListener(this.workbench, DOM.EventType.SCROLL, () => {
 			this.workbench.scrollTop = 0; // Prevent workbench from scrolling #55456
@@ -304,8 +306,8 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Actions registered here to adjust for developing vs built workbench
 		const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
-		registry.registerWorkbenchAction(new SyncActionDescriptor(ReloadWindowAction, ReloadWindowAction.ID, ReloadWindowAction.LABEL, isDeveloping ? { primary: KeyMod.CtrlCmd | KeyCode.KEY_R } : void 0), 'Reload Window');
-		registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleDevToolsAction, ToggleDevToolsAction.ID, ToggleDevToolsAction.LABEL, isDeveloping ? { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I, mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_I } } : void 0), 'Developer: Toggle Developer Tools', localize('developer', "Developer"));
+		registry.registerWorkbenchAction(new SyncActionDescriptor(ReloadWindowAction, ReloadWindowAction.ID, ReloadWindowAction.LABEL, isDeveloping ? { primary: KeyMod.CtrlCmd | KeyCode.KEY_R } : undefined), 'Reload Window');
+		registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleDevToolsAction, ToggleDevToolsAction.ID, ToggleDevToolsAction.LABEL, isDeveloping ? { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I, mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_I } } : undefined), 'Developer: Toggle Developer Tools', localize('developer', "Developer"));
 		registry.registerWorkbenchAction(new SyncActionDescriptor(OpenRecentAction, OpenRecentAction.ID, OpenRecentAction.LABEL, { primary: isDeveloping ? null : KeyMod.CtrlCmd | KeyCode.KEY_R, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_R } }), 'File: Open Recent...', localize('file', "File"));
 		registry.registerWorkbenchAction(new SyncActionDescriptor(ReloadWindowWithExtensionsDisabledAction, ReloadWindowWithExtensionsDisabledAction.ID, ReloadWindowWithExtensionsDisabledAction.LABEL), 'Reload Window Without Extensions');
 		registry.registerWorkbenchAction(new SyncActionDescriptor(LogStorageAction, LogStorageAction.ID, LogStorageAction.LABEL), 'Developer: Log Storage', localize('developer', "Developer"));
@@ -772,13 +774,13 @@ export class Workbench extends Disposable implements IPartService {
 			// Set lifecycle phase to `Restored`
 			this.lifecycleService.phase = LifecyclePhase.Restored;
 
-			// Set lifecycle phase to `Runnning For A Bit` after a short delay
-			let eventuallPhaseTimeoutHandle = runWhenIdle(() => {
-				eventuallPhaseTimeoutHandle = void 0;
-				this.lifecycleService.phase = LifecyclePhase.Eventually;
-			}, 5000);
-
-			this._register(eventuallPhaseTimeoutHandle);
+			// Set lifecycle phase to `Eventually` after a short delay and when
+			// idle (min 2.5sec, max 5sec)
+			setTimeout(() => {
+				this._register(runWhenIdle(() => {
+					this.lifecycleService.phase = LifecyclePhase.Eventually;
+				}, 2500));
+			}, 2500);
 
 			if (error) {
 				errors.onUnexpectedError(error);
@@ -1236,6 +1238,14 @@ export class Workbench extends Disposable implements IPartService {
 		// Check if zen mode transitioned to full screen and if now we are out of zen mode
 		// -> we need to go out of full screen (same goes for the centered editor layout)
 		let toggleFullScreen = false;
+		const setLineNumbers = (lineNumbers: any) => {
+			this.editorService.visibleControls.forEach(editor => {
+				const control = <IEditor>editor.getControl();
+				if (control) {
+					control.updateOptions({ lineNumbers });
+				}
+			});
+		};
 
 		// Zen Mode Active
 		if (this.zenMode.active) {
@@ -1256,6 +1266,11 @@ export class Workbench extends Disposable implements IPartService {
 
 			if (config.hideStatusBar) {
 				this.setStatusBarHidden(true, true);
+			}
+
+			if (config.hideLineNumbers) {
+				setLineNumbers('off');
+				this.zenMode.transitionDisposeables.push(this.editorService.onDidVisibleEditorsChange(() => setLineNumbers('off')));
 			}
 
 			if (config.hideTabs && this.editorPart.partOptions.showTabs) {
@@ -1280,6 +1295,7 @@ export class Workbench extends Disposable implements IPartService {
 			if (this.zenMode.transitionedToCenteredEditorLayout) {
 				this.centerEditorLayout(false, true);
 			}
+			setLineNumbers(this.configurationService.getValue('editor.lineNumbers'));
 
 			// Status bar and activity bar visibility come from settings -> update their visibility.
 			this.onDidUpdateConfiguration(true);

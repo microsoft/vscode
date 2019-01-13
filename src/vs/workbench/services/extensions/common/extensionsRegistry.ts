@@ -35,7 +35,7 @@ export class ExtensionMessageCollector {
 		this._messageHandler({
 			type: type,
 			message: message,
-			extensionId: this._extension.id,
+			extensionId: this._extension.identifier,
 			extensionPointId: this._extensionPointId
 		});
 	}

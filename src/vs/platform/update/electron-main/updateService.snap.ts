@@ -14,6 +14,7 @@ import * as path from 'path';
 import { realpath, watch } from 'fs';
 import { spawn } from 'child_process';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { stat } from 'vs/base/node/pfs';
 
 abstract class AbstractUpdateService2 implements IUpdateService {
 
@@ -35,7 +36,7 @@ abstract class AbstractUpdateService2 implements IUpdateService {
 	}
 
 	constructor(
-		@ILifecycleService private lifecycleService: ILifecycleService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@ILogService protected logService: ILogService,
 	) {
@@ -80,7 +81,7 @@ abstract class AbstractUpdateService2 implements IUpdateService {
 	}
 
 	protected doDownloadUpdate(state: AvailableForDownload): Promise<void> {
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	async applyUpdate(): Promise<void> {
@@ -94,14 +95,14 @@ abstract class AbstractUpdateService2 implements IUpdateService {
 	}
 
 	protected doApplyUpdate(): Promise<void> {
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	quitAndInstall(): Promise<void> {
 		this.logService.trace('update#quitAndInstall, state = ', this.state.type);
 
 		if (this.state.type !== StateType.Ready) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		this.logService.trace('update#quitAndInstall(): before lifecycle quit()');
@@ -116,7 +117,7 @@ abstract class AbstractUpdateService2 implements IUpdateService {
 			this.doQuitAndInstall();
 		});
 
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 
@@ -136,18 +137,21 @@ export class SnapUpdateService extends AbstractUpdateService2 {
 
 	_serviceBrand: any;
 
+	private snapUpdatePath: string;
+
 	constructor(
+		private snap: string,
+		private snapRevision: string,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@ILogService logService: ILogService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super(lifecycleService, environmentService, logService);
 
-		if (typeof process.env.SNAP === 'undefined') {
-			throw new Error(`'SNAP' environment variable not set`);
-		}
-		const watcher = watch(path.dirname(process.env.SNAP));
+		this.snapUpdatePath = path.join(this.snap, `usr/share/${product.applicationName}/snapUpdate.sh`);
+
+		const watcher = watch(path.dirname(this.snap));
 		const onChange = Event.fromNodeEventEmitter(watcher, 'change', (_, fileName: string) => fileName);
 		const onCurrentChange = Event.filter(onChange, n => n === 'current');
 		const onDebouncedCurrentChange = Event.debounce(onCurrentChange, (_, e) => e, 2000);
@@ -164,7 +168,7 @@ export class SnapUpdateService extends AbstractUpdateService2 {
 
 		this.isUpdateAvailable().then(result => {
 			if (result) {
-				this.setState(State.Ready({ version: 'something', productVersion: 'someting' }));
+				this.setState(State.Ready({ version: 'something', productVersion: 'something' }));
 			} else {
 				/* __GDPR__
 					"update:notAvailable" : {
@@ -191,26 +195,23 @@ export class SnapUpdateService extends AbstractUpdateService2 {
 	protected doQuitAndInstall(): void {
 		this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
 
-		if (typeof process.env.SNAP === 'undefined') {
-			return;
-		}
-
 		// Allow 3 seconds for VS Code to close
-		spawn('bash', ['-c', path.join(process.env.SNAP, `usr/share/${product.applicationName}/snapUpdate.sh`)], {
+		spawn('bash', ['-c', this.snapUpdatePath], {
 			detached: true,
 			stdio: ['ignore', 'ignore', 'ignore']
 		});
 	}
 
-	private isUpdateAvailable(): Promise<boolean> {
-		return new Promise((c, e) => {
-			realpath(`/snap/${product.applicationName}/current`, (err, resolvedCurrentSnapPath) => {
-				if (err) { return e(err); }
+	private async isUpdateAvailable(): Promise<boolean> {
+		try {
+			await stat(this.snapUpdatePath);
+		} catch (err) {
+			return false;
+		}
 
-				const currentRevision = path.basename(resolvedCurrentSnapPath);
-				c(process.env.SNAP_REVISION !== currentRevision);
-			});
-		});
+		const resolvedCurrentSnapPath = await new Promise<string>((c, e) => realpath(`${path.dirname(this.snap)}/current`, (err, r) => err ? e(err) : c(r)));
+		const currentRevision = path.basename(resolvedCurrentSnapPath);
+		return this.snapRevision !== currentRevision;
 	}
 
 	isLatestVersion(): Promise<boolean | undefined> {

@@ -50,8 +50,8 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 	private mapResourceToPendingModelLoaders: ResourceMap<Promise<ITextFileEditorModel>>;
 
 	constructor(
-		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 
@@ -153,7 +153,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 
 		// Model does not exist
 		else {
-			model = this.instantiationService.createInstance(TextFileEditorModel, resource, options ? options.encoding : void 0);
+			model = this.instantiationService.createInstance(TextFileEditorModel, resource, options ? options.encoding : undefined);
 			modelPromise = model.load(options);
 
 			// Install state change listener

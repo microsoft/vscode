@@ -121,7 +121,7 @@ export class FileService extends Disposable implements IFileService {
 	}
 
 	private handleError(error: string | Error): void {
-		const msg = error ? error.toString() : void 0;
+		const msg = error ? error.toString() : undefined;
 		if (!msg) {
 			return;
 		}
@@ -221,7 +221,7 @@ export class FileService extends Disposable implements IFileService {
 
 	resolveFiles(toResolve: { resource: uri, options?: IResolveFileOptions }[]): Promise<IResolveFileResult[]> {
 		return Promise.all(toResolve.map(resourceAndOptions => this.resolve(resourceAndOptions.resource, resourceAndOptions.options)
-			.then(stat => ({ stat, success: true }), error => ({ stat: void 0, success: false }))));
+			.then(stat => ({ stat, success: true }), error => ({ stat: undefined, success: false }))));
 	}
 
 	existsFile(resource: uri): Promise<boolean> {
@@ -263,13 +263,13 @@ export class FileService extends Disposable implements IFileService {
 		}
 
 		const result: IStreamContent = {
-			resource: void 0,
-			name: void 0,
-			mtime: void 0,
-			etag: void 0,
-			encoding: void 0,
+			resource: undefined,
+			name: undefined,
+			mtime: undefined,
+			etag: undefined,
+			encoding: undefined,
 			isReadonly: false,
-			value: void 0
+			value: undefined
 		};
 
 		const contentResolverTokenSource = new CancellationTokenSource();
@@ -326,7 +326,7 @@ export class FileService extends Disposable implements IFileService {
 				}
 			}
 
-			return void 0;
+			return undefined;
 		}, err => {
 
 			// Wrap file not found errors
@@ -358,8 +358,8 @@ export class FileService extends Disposable implements IFileService {
 			let contentsError: Error;
 
 			completePromise = Promise.all([
-				statsPromise.then(() => void 0, error => statsError = error),
-				this.fillInContents(result, resource, options, contentResolverTokenSource.token).then(() => void 0, error => contentsError = error)
+				statsPromise.then(() => undefined, error => statsError = error),
+				this.fillInContents(result, resource, options, contentResolverTokenSource.token).then(() => undefined, error => contentsError = error)
 			]).then(() => {
 				// Since each file operation can return a FileOperationError
 				// we want to prefer that one if possible. Otherwise we just
@@ -376,7 +376,7 @@ export class FileService extends Disposable implements IFileService {
 					return Promise.reject(statsError || contentsError);
 				}
 
-				return void 0;
+				return undefined;
 			});
 		}
 
@@ -402,8 +402,8 @@ export class FileService extends Disposable implements IFileService {
 		const chunkBuffer = Buffer.allocUnsafe(64 * 1024);
 
 		const result: IContentData = {
-			encoding: void 0,
-			stream: void 0
+			encoding: undefined,
+			stream: undefined
 		};
 
 		return new Promise<IContentData>((resolve, reject) => {
@@ -528,7 +528,7 @@ export class FileService extends Disposable implements IFileService {
 									resolve(result);
 									handleChunk(bytesRead);
 								}
-							}).then(void 0, err => {
+							}).then(undefined, err => {
 								// failed to get encoding
 								finish(err);
 							});
@@ -599,7 +599,7 @@ export class FileService extends Disposable implements IFileService {
 						return pfs.truncate(absolutePath, 0).then(() => {
 
 							// 5.) set contents (with r+ mode) and resolve
-							return this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encodingToWrite, { flag: 'r+' }).then(void 0, error => {
+							return this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encodingToWrite, { flag: 'r+' }).then(undefined, error => {
 								if (this.environmentService.verbose) {
 									console.error(`Truncate succeeded, but save failed (${error}), retrying after 100ms`);
 								}
@@ -622,7 +622,7 @@ export class FileService extends Disposable implements IFileService {
 					}
 				});
 			});
-		}).then(void 0, error => {
+		}).then(undefined, error => {
 			if (error.code === 'EACCES' || error.code === 'EPERM') {
 				return Promise.reject(new FileOperationError(
 					nls.localize('filePermission', "Permission denied writing to file ({0})", resource.toString(true)),
@@ -678,7 +678,7 @@ export class FileService extends Disposable implements IFileService {
 					return new Promise<void>((resolve, reject) => {
 						const promptOptions = {
 							name: this.environmentService.appNameLong.replace('-', ''),
-							icns: (isMacintosh && this.environmentService.isBuilt) ? paths.join(paths.dirname(this.environmentService.appRoot), `${product.nameShort}.icns`) : void 0
+							icns: (isMacintosh && this.environmentService.isBuilt) ? paths.join(paths.dirname(this.environmentService.appRoot), `${product.nameShort}.icns`) : undefined
 						};
 
 						const sudoCommand: string[] = [`"${this.environmentService.cliPath}"`];
@@ -691,7 +691,7 @@ export class FileService extends Disposable implements IFileService {
 							if (error || stderr) {
 								reject(error || stderr);
 							} else {
-								resolve(void 0);
+								resolve(undefined);
 							}
 						});
 					});
@@ -705,7 +705,7 @@ export class FileService extends Disposable implements IFileService {
 					});
 				});
 			});
-		}).then(void 0, error => {
+		}).then(undefined, error => {
 			if (this.environmentService.verbose) {
 				this.handleError(`Unable to write to file '${resource.toString(true)}' as elevated user (${error})`);
 			}
@@ -938,12 +938,12 @@ export class FileService extends Disposable implements IFileService {
 		if (!recursive) {
 			assertNonRecursiveDelete = pfs.stat(absolutePath).then(stat => {
 				if (!stat.isDirectory()) {
-					return void 0;
+					return undefined;
 				}
 
 				return pfs.readdir(absolutePath).then(children => {
 					if (children.length === 0) {
-						return void 0;
+						return undefined;
 					}
 
 					return Promise.reject(new Error(nls.localize('deleteFailed', "Failed to delete non-empty folder '{0}'.", paths.basename(absolutePath))));
@@ -985,7 +985,7 @@ export class FileService extends Disposable implements IFileService {
 		const absolutePath = this.toAbsolutePath(resource);
 
 		return pfs.statLink(absolutePath).then(({ isSymbolicLink, stat }) => {
-			return new StatResolver(resource, isSymbolicLink, stat.isDirectory(), stat.mtime.getTime(), stat.size, this.environmentService.verbose ? err => this.handleError(err) : void 0);
+			return new StatResolver(resource, isSymbolicLink, stat.isDirectory(), stat.mtime.getTime(), stat.size, this.environmentService.verbose ? err => this.handleError(err) : undefined);
 		});
 	}
 

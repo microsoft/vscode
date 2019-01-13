@@ -164,10 +164,13 @@ function configureCommandlineSwitches(cliArgs, nodeCachedDataDir) {
  * @returns {string}
  */
 function resolveJSFlags(cliArgs, ...jsFlags) {
+
+	// Add any existing JS flags we already got from the command line
 	if (cliArgs['js-flags']) {
 		jsFlags.push(cliArgs['js-flags']);
 	}
 
+	// Support max-memory flag
 	if (cliArgs['max-memory'] && !/max_old_space_size=(\d+)/g.exec(cliArgs['js-flags'])) {
 		jsFlags.push(`--max_old_space_size=${cliArgs['max-memory']}`);
 	}
@@ -411,7 +414,7 @@ function rimraf(location) {
 		}
 	}, err => {
 		if (err.code === 'ENOENT') {
-			return void 0;
+			return undefined;
 		}
 		throw err;
 	});

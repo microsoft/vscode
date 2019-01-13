@@ -31,7 +31,7 @@ export class TMScopeRegistry {
 	private _scopeNameToLanguageRegistration: { [scopeName: string]: TMLanguageRegistration; };
 	private _encounteredLanguages: boolean[];
 
-	private readonly _onDidEncounterLanguage: Emitter<LanguageId> = new Emitter<LanguageId>();
+	private readonly _onDidEncounterLanguage = new Emitter<LanguageId>();
 	public readonly onDidEncounterLanguage: Event<LanguageId> = this._onDidEncounterLanguage.event;
 
 	constructor() {
@@ -110,8 +110,7 @@ export class TMLanguageRegistration {
 		if (tokenTypes) {
 			// If tokenTypes is configured, fill in `this._tokenTypes`
 			const scopes = Object.keys(tokenTypes);
-			for (let i = 0, len = scopes.length; i < len; i++) {
-				const scope = scopes[i];
+			for (const scope of scopes) {
 				const tokenType = tokenTypes[scope];
 				switch (tokenType) {
 					case 'string':
@@ -182,15 +181,15 @@ export class TextMateService extends Disposable implements ITextMateService {
 			this._grammarRegistry = null;
 			this._tokenizersRegistrations = dispose(this._tokenizersRegistrations);
 
-			for (let i = 0; i < extensions.length; i++) {
-				let grammars = extensions[i].value;
-				for (let j = 0; j < grammars.length; j++) {
-					this._handleGrammarExtensionPointUser(extensions[i].description.extensionLocation, grammars[j], extensions[i].collector);
+			for (const extension of extensions) {
+				let grammars = extension.value;
+				for (const grammar of grammars) {
+					this._handleGrammarExtensionPointUser(extension.description.extensionLocation, grammar, extension.collector);
 				}
 			}
 
-			for (let i = 0; i < this._createdModes.length; i++) {
-				this._registerDefinitionIfAvailable(this._createdModes[i]);
+			for (const createMode of this._createdModes) {
+				this._registerDefinitionIfAvailable(createMode);
 			}
 		});
 
@@ -390,8 +389,12 @@ export class TextMateService extends Disposable implements ITextMateService {
 	}
 
 	private _createGrammar(modeId: string): Promise<ICreateGrammarResult> {
-		let scopeName = this._languageToScope.get(modeId);
-		let languageRegistration = this._scopeRegistry.getLanguageRegistration(scopeName);
+		const scopeName = this._languageToScope.get(modeId);
+		if (typeof scopeName !== 'string') {
+			// No TM grammar defined
+			return Promise.reject(new Error(nls.localize('no-tm-grammar', "No TM Grammar registered for this language.")));
+		}
+		const languageRegistration = this._scopeRegistry.getLanguageRegistration(scopeName);
 		if (!languageRegistration) {
 			// No TM grammar defined
 			return Promise.reject(new Error(nls.localize('no-tm-grammar', "No TM Grammar registered for this language.")));
@@ -433,7 +436,7 @@ class TMTokenization implements ITokenizationSupport {
 	private readonly _initialState: StackElement;
 	private _tokenizationWarningAlreadyShown: boolean;
 
-	constructor(scopeRegistry: TMScopeRegistry, languageId: LanguageId, grammar: IGrammar, initialState: StackElement, containsEmbeddedLanguages: boolean, @INotificationService private notificationService: INotificationService) {
+	constructor(scopeRegistry: TMScopeRegistry, languageId: LanguageId, grammar: IGrammar, initialState: StackElement, containsEmbeddedLanguages: boolean, @INotificationService private readonly notificationService: INotificationService) {
 		this._scopeRegistry = scopeRegistry;
 		this._languageId = languageId;
 		this._grammar = grammar;

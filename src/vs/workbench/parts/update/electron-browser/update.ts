@@ -41,7 +41,7 @@ function showReleaseNotes(instantiationService: IInstantiationService, version: 
 export class OpenLatestReleaseNotesInBrowserAction extends Action {
 
 	constructor(
-		@IOpenerService private openerService: IOpenerService
+		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		super('update.openLatestReleaseNotes', nls.localize('releaseNotes', "Release Notes"), null, true);
 	}
@@ -61,7 +61,7 @@ export abstract class AbstractShowReleaseNotesAction extends Action {
 		id: string,
 		label: string,
 		private version: string,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super(id, label, null, true);
 	}
@@ -74,7 +74,7 @@ export abstract class AbstractShowReleaseNotesAction extends Action {
 		this.enabled = false;
 
 		return showReleaseNotes(this.instantiationService, this.version)
-			.then(void 0, () => {
+			.then(undefined, () => {
 				const action = this.instantiationService.createInstance(OpenLatestReleaseNotesInBrowserAction);
 				return action.run().then(() => false);
 			});
@@ -162,7 +162,7 @@ class NeverShowAgain {
 		return Promise.resolve(true);
 	});
 
-	constructor(key: string, @IStorageService private storageService: IStorageService) {
+	constructor(key: string, @IStorageService private readonly storageService: IStorageService) {
 		this.key = `neverShowAgain:${key}`;
 	}
 
@@ -242,14 +242,14 @@ export class UpdateContribution implements IGlobalActivity {
 	private disposables: IDisposable[] = [];
 
 	constructor(
-		@IStorageService private storageService: IStorageService,
-		@ICommandService private commandService: ICommandService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@INotificationService private notificationService: INotificationService,
-		@IDialogService private dialogService: IDialogService,
-		@IUpdateService private updateService: IUpdateService,
-		@IActivityService private activityService: IActivityService,
-		@IWindowService private windowService: IWindowService
+		@IStorageService private readonly storageService: IStorageService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@IUpdateService private readonly updateService: IUpdateService,
+		@IActivityService private readonly activityService: IActivityService,
+		@IWindowService private readonly windowService: IWindowService
 	) {
 		this.state = updateService.state;
 

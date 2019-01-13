@@ -211,7 +211,7 @@ class TriggerRenameFileAction extends BaseFileAction {
 			});
 		});
 
-		return void 0;
+		return undefined;
 	}
 }
 
@@ -254,7 +254,7 @@ export abstract class BaseRenameAction extends BaseFileAction {
 		}
 
 		// Call function and Emit Event through viewer
-		const promise = this.runAction(name).then(void 0, (error: any) => {
+		const promise = this.runAction(name).then(undefined, (error: any) => {
 			this.onError(error);
 		});
 
@@ -451,7 +451,7 @@ export class GlobalNewUntitledFileAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IEditorService private editorService: IEditorService
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		super(id, label);
 	}
@@ -482,7 +482,7 @@ class CreateFileAction extends BaseCreateAction {
 	constructor(
 		element: ExplorerItem,
 		@IFileService fileService: IFileService,
-		@IEditorService private editorService: IEditorService,
+		@IEditorService private readonly editorService: IEditorService,
 		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService
 	) {
@@ -520,7 +520,7 @@ class CreateFolderAction extends BaseCreateAction {
 
 	public runAction(fileName: string): Promise<any> {
 		const resource = this.element.parent.resource;
-		return this.fileService.createFolder(resources.joinPath(resource, fileName)).then(void 0, (error) => {
+		return this.fileService.createFolder(resources.joinPath(resource, fileName)).then(undefined, (error) => {
 			this.onErrorWithRetry(error, () => this.runAction(fileName));
 		});
 	}
@@ -538,9 +538,9 @@ class BaseDeleteFileAction extends BaseFileAction {
 		private useTrash: boolean,
 		@IFileService fileService: IFileService,
 		@INotificationService notificationService: INotificationService,
-		@IDialogService private dialogService: IDialogService,
+		@IDialogService private readonly dialogService: IDialogService,
 		@ITextFileService textFileService: ITextFileService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super('moveFileToTrash', MOVE_FILE_TO_TRASH_LABEL, fileService, notificationService, textFileService);
 
@@ -644,7 +644,7 @@ class BaseDeleteFileAction extends BaseFileAction {
 			return confirmDeletePromise.then(confirmation => {
 
 				// Check for confirmation checkbox
-				let updateConfirmSettingsPromise: Promise<void> = Promise.resolve(void 0);
+				let updateConfirmSettingsPromise: Promise<void> = Promise.resolve(undefined);
 				if (confirmation.confirmed && confirmation.checkboxChecked === true) {
 					updateConfirmSettingsPromise = this.configurationService.updateValue(BaseDeleteFileAction.CONFIRM_DELETE_SETTING_KEY, false, ConfigurationTarget.USER);
 				}
@@ -696,7 +696,7 @@ class BaseDeleteFileAction extends BaseFileAction {
 								return this.run();
 							}
 
-							return Promise.resolve(void 0);
+							return Promise.resolve(undefined);
 						});
 					});
 
@@ -764,8 +764,8 @@ export class AddFilesAction extends BaseFileAction {
 		element: ExplorerItem,
 		clazz: string,
 		@IFileService fileService: IFileService,
-		@IEditorService private editorService: IEditorService,
-		@IDialogService private dialogService: IDialogService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IDialogService private readonly dialogService: IDialogService,
 		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService
 	) {
@@ -823,7 +823,7 @@ export class AddFilesAction extends BaseFileAction {
 
 					return overwritePromise.then(res => {
 						if (!res.confirmed) {
-							return void 0;
+							return undefined;
 						}
 
 						// Run add in sequence
@@ -859,7 +859,7 @@ export class AddFilesAction extends BaseFileAction {
 				});
 			}
 
-			return void 0;
+			return undefined;
 		});
 
 		return addPromise.then(() => {
@@ -882,7 +882,7 @@ class CopyFileAction extends BaseFileAction {
 		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IClipboardService private clipboardService: IClipboardService
+		@IClipboardService private readonly clipboardService: IClipboardService
 	) {
 		super('filesExplorer.copy', COPY_FILE_LABEL, fileService, notificationService, textFileService);
 
@@ -919,7 +919,7 @@ class PasteFileAction extends BaseFileAction {
 		@IFileService fileService: IFileService,
 		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService,
-		@IEditorService private editorService: IEditorService
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		super(PasteFileAction.ID, PASTE_FILE_LABEL, fileService, notificationService, textFileService);
 
@@ -962,7 +962,7 @@ class PasteFileAction extends BaseFileAction {
 					return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
 				}
 
-				return void 0;
+				return undefined;
 			}, error => this.onError(error)).then(() => {
 				this.tree.domFocus();
 			});
@@ -982,7 +982,7 @@ export class DuplicateFileAction extends BaseFileAction {
 		fileToDuplicate: ExplorerItem,
 		target: ExplorerItem,
 		@IFileService fileService: IFileService,
-		@IEditorService private editorService: IEditorService,
+		@IEditorService private readonly editorService: IEditorService,
 		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService
 	) {
@@ -1007,7 +1007,7 @@ export class DuplicateFileAction extends BaseFileAction {
 				return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
 			}
 
-			return void 0;
+			return undefined;
 		}, error => this.onError(error));
 
 		return result;
@@ -1106,16 +1106,16 @@ export class GlobalCompareResourcesAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IEditorService private editorService: IEditorService,
-		@INotificationService private notificationService: INotificationService,
+		@IQuickOpenService private readonly quickOpenService: IQuickOpenService,
+		@IEditorService private readonly editorService: IEditorService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super(id, label);
 	}
 
 	public run(): Promise<any> {
 		const activeInput = this.editorService.activeEditor;
-		const activeResource = activeInput ? activeInput.getResource() : void 0;
+		const activeResource = activeInput ? activeInput.getResource() : undefined;
 		if (activeResource) {
 
 			// Compare with next editor that opens
@@ -1131,11 +1131,11 @@ export class GlobalCompareResourcesAction extends Action {
 						override: this.editorService.openEditor({
 							leftResource: activeResource,
 							rightResource: resource
-						}).then(() => void 0)
+						}).then(() => undefined)
 					};
 				}
 
-				return void 0;
+				return undefined;
 			});
 
 			// Bring up quick open
@@ -1165,7 +1165,7 @@ export class ToggleAutoSaveAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(id, label);
 	}
@@ -1195,8 +1195,8 @@ export abstract class BaseSaveAllAction extends BaseErrorReportingAction {
 	constructor(
 		id: string,
 		label: string,
-		@ITextFileService private textFileService: ITextFileService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService,
 		@ICommandService protected commandService: ICommandService,
 		@INotificationService notificationService: INotificationService,
 	) {
@@ -1287,7 +1287,7 @@ export class CloseGroupAction extends Action {
 	public static readonly ID = 'workbench.files.action.closeGroup';
 	public static readonly LABEL = nls.localize('closeGroup', "Close Group");
 
-	constructor(id: string, label: string, @ICommandService private commandService: ICommandService) {
+	constructor(id: string, label: string, @ICommandService private readonly commandService: ICommandService) {
 		super(id, label, 'action-close-all-files');
 	}
 
@@ -1304,7 +1304,7 @@ export class FocusFilesExplorer extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IViewletService private viewletService: IViewletService
+		@IViewletService private readonly viewletService: IViewletService
 	) {
 		super(id, label);
 	}
@@ -1328,9 +1328,9 @@ export class ShowActiveFileInExplorer extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IEditorService private editorService: IEditorService,
-		@INotificationService private notificationService: INotificationService,
-		@ICommandService private commandService: ICommandService
+		@IEditorService private readonly editorService: IEditorService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super(id, label);
 	}
@@ -1355,7 +1355,7 @@ export class CollapseExplorerView extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IViewletService private viewletService: IViewletService
+		@IViewletService private readonly viewletService: IViewletService
 	) {
 		super(id, label);
 	}
@@ -1383,7 +1383,7 @@ export class RefreshExplorerView extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IViewletService private viewletService: IViewletService
+		@IViewletService private readonly viewletService: IViewletService
 	) {
 		super(id, label);
 	}
@@ -1406,9 +1406,9 @@ export class ShowOpenedFileInNewWindow extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IEditorService private editorService: IEditorService,
-		@IWindowService private windowService: IWindowService,
-		@INotificationService private notificationService: INotificationService
+		@IEditorService private readonly editorService: IEditorService,
+		@IWindowService private readonly windowService: IWindowService,
+		@INotificationService private readonly notificationService: INotificationService
 	) {
 		super(id, label);
 	}
@@ -1500,10 +1500,10 @@ export class CompareWithClipboardAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IEditorService private editorService: IEditorService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@ITextModelService private textModelService: ITextModelService,
-		@IFileService private fileService: IFileService
+		@IEditorService private readonly editorService: IEditorService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ITextModelService private readonly textModelService: ITextModelService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		super(id, label);
 
@@ -1540,9 +1540,9 @@ export class CompareWithClipboardAction extends Action {
 
 class ClipboardContentProvider implements ITextModelContentProvider {
 	constructor(
-		@IClipboardService private clipboardService: IClipboardService,
-		@IModeService private modeService: IModeService,
-		@IModelService private modelService: IModelService
+		@IClipboardService private readonly clipboardService: IClipboardService,
+		@IModeService private readonly modeService: IModeService,
+		@IModelService private readonly modelService: IModelService
 	) { }
 
 	provideTextContent(resource: URI): Promise<ITextModel> {
@@ -1582,7 +1582,7 @@ function openExplorerAndRunAction(accessor: ServicesAccessor, constructor: ICons
 
 	return explorerPromise.then((explorer: ExplorerViewlet) => {
 		const explorerView = explorer.getExplorerView();
-		if (explorerView && explorerView.isVisible() && explorerView.isExpanded()) {
+		if (explorerView && explorerView.isBodyVisible()) {
 			explorerView.focus();
 			const explorerContext = getContext(listService.lastFocusedList, viewletService);
 			const action = instantationService.createInstance(constructor, listService.lastFocusedList, explorerContext.stat);

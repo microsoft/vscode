@@ -91,7 +91,7 @@ suite('Debug - Model', () => {
 		assert.equal(model.getBreakpoints().length, 0);
 	});
 
-	test('function brekapoints', () => {
+	test('function breakpoints', () => {
 		model.addFunctionBreakpoint('foo', '1');
 		model.addFunctionBreakpoint('bar', '2');
 		model.renameFunctionBreakpoint('1', 'fooUpdated');

@@ -140,7 +140,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 			reviveWebview: (webview: WebviewEditorInput): Promise<void> => {
 				return this.tryRevive(webview).then(didRevive => {
 					if (didRevive) {
-						return Promise.resolve(void 0);
+						return Promise.resolve(undefined);
 					}
 
 					// A reviver may not be registered yet. Put into queue and resolve promise when we can revive
@@ -171,7 +171,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 		this._awaitingRevival = this._awaitingRevival.filter(x => x.input.viewType !== viewType);
 
 		for (const input of toRevive) {
-			reviver.reviveWebview(input.input).then(() => input.resolve(void 0));
+			reviver.reviveWebview(input.input).then(() => input.resolve(undefined));
 		}
 
 		return toDisposable(() => {

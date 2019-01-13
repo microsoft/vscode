@@ -310,7 +310,7 @@ export class LanguageConfigurationFileHandler {
 
 			richEditConfig.folding = {
 				offSide: configuration.folding.offSide,
-				markers: markers ? { start: new RegExp(markers.start), end: new RegExp(markers.end) } : void 0
+				markers: markers ? { start: new RegExp(markers.start), end: new RegExp(markers.end) } : undefined
 			};
 		}
 

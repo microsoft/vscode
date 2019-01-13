@@ -5,9 +5,9 @@
 
 import * as semver from 'semver';
 import { adoptToGalleryExtensionId, LOCAL_EXTENSION_ID_REGEX } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IExtensionManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { buffer } from 'vs/platform/node/zip';
 import { localize } from 'vs/nls';
+import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 
 export function getIdAndVersionFromLocalExtensionId(localExtensionId: string): { id: string, version: string | null } {
 	const matches = LOCAL_EXTENSION_ID_REGEX.exec(localExtensionId);

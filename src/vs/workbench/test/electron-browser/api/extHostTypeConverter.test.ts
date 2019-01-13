@@ -29,34 +29,34 @@ suite('ExtHostTypeConverter', function () {
 
 		data = MarkdownString.from('Hello [link](foo:path)');
 		assert.equal(data.value, 'Hello [link](foo:path)');
-		assert.equal(size(data.uris), 1);
-		assert.ok(!!data.uris['foo:path']);
+		assert.equal(size(data.uris!), 1);
+		assert.ok(!!data.uris!['foo:path']);
 
 		data = MarkdownString.from('hello@foo.bar');
 		assert.equal(data.value, 'hello@foo.bar');
-		assert.equal(size(data.uris), 1);
-		assert.ok(!!data.uris['mailto:hello@foo.bar']);
+		assert.equal(size(data.uris!), 1);
+		assert.ok(!!data.uris!['mailto:hello@foo.bar']);
 
 		data = MarkdownString.from('*hello* [click](command:me)');
 		assert.equal(data.value, '*hello* [click](command:me)');
-		assert.equal(size(data.uris), 1);
-		assert.ok(!!data.uris['command:me']);
+		assert.equal(size(data.uris!), 1);
+		assert.ok(!!data.uris!['command:me']);
 
 		data = MarkdownString.from('*hello* [click](file:///somepath/here). [click](file:///somepath/here)');
 		assert.equal(data.value, '*hello* [click](file:///somepath/here). [click](file:///somepath/here)');
-		assert.equal(size(data.uris), 1);
-		assert.ok(!!data.uris['file:///somepath/here']);
+		assert.equal(size(data.uris!), 1);
+		assert.ok(!!data.uris!['file:///somepath/here']);
 
 		data = MarkdownString.from('*hello* [click](file:///somepath/here). [click](file:///somepath/here)');
 		assert.equal(data.value, '*hello* [click](file:///somepath/here). [click](file:///somepath/here)');
-		assert.equal(size(data.uris), 1);
-		assert.ok(!!data.uris['file:///somepath/here']);
+		assert.equal(size(data.uris!), 1);
+		assert.ok(!!data.uris!['file:///somepath/here']);
 
 		data = MarkdownString.from('*hello* [click](file:///somepath/here). [click](file:///somepath/here2)');
 		assert.equal(data.value, '*hello* [click](file:///somepath/here). [click](file:///somepath/here2)');
-		assert.equal(size(data.uris), 2);
-		assert.ok(!!data.uris['file:///somepath/here']);
-		assert.ok(!!data.uris['file:///somepath/here2']);
+		assert.equal(size(data.uris!), 2);
+		assert.ok(!!data.uris!['file:///somepath/here']);
+		assert.ok(!!data.uris!['file:///somepath/here2']);
 	});
 
 	test('LogLevel', () => {

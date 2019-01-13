@@ -74,7 +74,7 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 	private _pidPromise: Promise<number>;
 	private _pidPromiseComplete: (value: number) => any;
 
-	private readonly _onData: Emitter<string> = new Emitter<string>();
+	private readonly _onData = new Emitter<string>();
 	public get onDidWriteData(): Event<string> {
 		// Tell the main side to start sending data if it's not already
 		this._idPromise.then(c => {
@@ -102,11 +102,12 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 	public create(
 		shellPath?: string,
 		shellArgs?: string[],
-		cwd?: string,
+		cwd?: string | URI,
 		env?: { [key: string]: string },
-		waitOnExit?: boolean
+		waitOnExit?: boolean,
+		strictEnv?: boolean
 	): void {
-		this._proxy.$createTerminal(this._name, shellPath, shellArgs, cwd, env, waitOnExit).then(terminal => {
+		this._proxy.$createTerminal(this._name, shellPath, shellArgs, cwd, env, waitOnExit, strictEnv).then(terminal => {
 			this._name = terminal.name;
 			this._runQueuedRequests(terminal.id);
 		});
@@ -167,7 +168,7 @@ export class ExtHostTerminalRenderer extends BaseExtHostTerminal implements vsco
 		this._queueApiRequest(this._proxy.$terminalRendererSetName, [this._name]);
 	}
 
-	private readonly _onInput: Emitter<string> = new Emitter<string>();
+	private readonly _onInput = new Emitter<string>();
 	public get onDidAcceptInput(): Event<string> {
 		this._checkDisposed();
 		this._queueApiRequest(this._proxy.$terminalRendererRegisterOnInputListener, [this._id]);
@@ -269,7 +270,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 
 	public createTerminalFromOptions(options: vscode.TerminalOptions): vscode.Terminal {
 		const terminal = new ExtHostTerminal(this._proxy, options.name);
-		terminal.create(options.shellPath, options.shellArgs, options.cwd, options.env /*, options.waitOnExit*/);
+		terminal.create(options.shellPath, options.shellArgs, options.cwd, options.env, /*options.waitOnExit*/ undefined, options.strictEnv);
 		this._terminals.push(terminal);
 		return terminal;
 	}
@@ -413,7 +414,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 
 		// Fork the process and listen for messages
 		this._logService.debug(`Terminal process launching on ext host`, shellLaunchConfig, initialCwd, cols, rows, env);
-		this._terminalProcesses[id] = new TerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env);
+		this._terminalProcesses[id] = new TerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, terminalConfig.get('windowsEnableConpty'));
 		this._terminalProcesses[id].onProcessIdReady(pid => this._proxy.$sendProcessPid(id, pid));
 		this._terminalProcesses[id].onProcessTitleChanged(title => this._proxy.$sendProcessTitle(id, title));
 		this._terminalProcesses[id].onProcessData(data => this._proxy.$sendProcessData(id, data));

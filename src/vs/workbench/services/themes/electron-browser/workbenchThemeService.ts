@@ -91,19 +91,19 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	constructor(
 		container: HTMLElement,
 		@IExtensionService extensionService: IExtensionService,
-		@IStorageService private storageService: IStorageService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IWindowService private windowService: IWindowService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IStorageService private readonly storageService: IStorageService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IWindowService private readonly windowService: IWindowService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
 
 		this.container = container;
 		this.colorThemeStore = new ColorThemeStore(extensionService, ColorThemeData.createLoadedEmptyTheme(DEFAULT_THEME_ID, DEFAULT_THEME_SETTING_VALUE));
 		this.onFileIconThemeChange = new Emitter<IFileIconTheme>();
 		this.iconThemeStore = new FileIconThemeStore(extensionService);
-		this.onColorThemeChange = new Emitter<IColorTheme>({ leakWarningThreshold: 500 });
+		this.onColorThemeChange = new Emitter<IColorTheme>();
 
 		this.currentIconTheme = {
 			id: '',
@@ -145,7 +145,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			}
 		}
 
-		this.initialize().then(void 0, errors.onUnexpectedError).then(_ => {
+		this.initialize().then(undefined, errors.onUnexpectedError).then(_ => {
 			this.installConfigurationListener();
 		});
 
@@ -271,7 +271,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return this.getColorTheme();
 	}
 
-	public setColorTheme(themeId: string, settingsTarget: ConfigurationTarget): Promise<IColorTheme | null> {
+	public setColorTheme(themeId: string, settingsTarget: ConfigurationTarget | null): Promise<IColorTheme | null> {
 		if (!themeId) {
 			return Promise.resolve(null);
 		}
@@ -493,23 +493,23 @@ colorThemeSchema.register();
 fileIconThemeSchema.register();
 
 class ConfigurationWriter {
-	constructor(@IConfigurationService private configurationService: IConfigurationService) {
+	constructor(@IConfigurationService private readonly configurationService: IConfigurationService) {
 	}
 
 	public writeConfiguration(key: string, value: any, settingsTarget: ConfigurationTarget): Promise<void> {
 		let settings = this.configurationService.inspect(key);
 		if (settingsTarget === ConfigurationTarget.USER) {
 			if (value === settings.user) {
-				return Promise.resolve(void 0); // nothing to do
+				return Promise.resolve(undefined); // nothing to do
 			} else if (value === settings.default) {
 				if (types.isUndefined(settings.user)) {
-					return Promise.resolve(void 0); // nothing to do
+					return Promise.resolve(undefined); // nothing to do
 				}
-				value = void 0; // remove configuration from user settings
+				value = undefined; // remove configuration from user settings
 			}
 		} else if (settingsTarget === ConfigurationTarget.WORKSPACE) {
 			if (value === settings.value) {
-				return Promise.resolve(void 0); // nothing to do
+				return Promise.resolve(undefined); // nothing to do
 			}
 		}
 		return this.configurationService.updateValue(key, value, settingsTarget);

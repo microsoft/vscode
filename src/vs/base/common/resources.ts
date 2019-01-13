@@ -76,6 +76,9 @@ export function dirname(resource: URI): URI | null {
 	if (resource.scheme === Schemas.file) {
 		return URI.file(paths.dirname(fsPath(resource)));
 	}
+	if (resource.path.length === 0) {
+		return resource;
+	}
 	let dirname = paths.dirname(resource.path, '/');
 	if (resource.authority && dirname.length && dirname.charCodeAt(0) !== CharCode.Slash) {
 		return null; // If a URI contains an authority component, then the path component must either be empty or begin with a CharCode.Slash ("/") character
@@ -186,7 +189,7 @@ export function isMalformedFileUri(candidate: URI): URI | undefined {
 	if (!candidate.scheme || isWindows && candidate.scheme.match(/^[a-zA-Z]$/)) {
 		return URI.file((candidate.scheme ? candidate.scheme + ':' : '') + candidate.path);
 	}
-	return void 0;
+	return undefined;
 }
 
 

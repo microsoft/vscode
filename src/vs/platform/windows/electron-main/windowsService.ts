@@ -45,12 +45,12 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 
 	constructor(
 		private sharedProcess: ISharedProcess,
-		@IWindowsMainService private windowsMainService: IWindowsMainService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IURLService urlService: IURLService,
-		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IHistoryMainService private historyService: IHistoryMainService,
-		@ILogService private logService: ILogService
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IHistoryMainService private readonly historyService: IHistoryMainService,
+		@ILogService private readonly logService: ILogService
 	) {
 		urlService.registerHandler(this);
 
@@ -171,7 +171,7 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 	async addRecentlyOpened(files: URI[]): Promise<void> {
 		this.logService.trace('windowsService#addRecentlyOpened');
 
-		this.historyService.addRecentlyOpened(void 0, files);
+		this.historyService.addRecentlyOpened(undefined, files);
 	}
 
 	async removeFromRecentlyOpened(paths: Array<IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | string>): Promise<void> {
@@ -289,7 +289,7 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 	async openWindow(windowId: number, paths: URI[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean, args?: ParsedArgs }): Promise<void> {
 		this.logService.trace('windowsService#openWindow');
 		if (!paths || !paths.length) {
-			return void 0;
+			return undefined;
 		}
 
 		this.windowsMainService.open({
@@ -466,7 +466,7 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 			return fallback();
 		}
 
-		return void 0;
+		return undefined;
 	}
 
 	dispose(): void {

@@ -8,6 +8,7 @@ import './electron-browser/accessibility';
 import './electron-browser/inspectKeybindings';
 import './electron-browser/largeFileOptimizations';
 import './electron-browser/selectionClipboard';
+import './electron-browser/sleepResumeRepaintMinimap';
 import './electron-browser/textMate/inspectTMScopes';
 import './electron-browser/toggleMinimap';
 import './electron-browser/toggleMultiCursorModifier';

@@ -395,7 +395,7 @@ const enum BinaryKeybindingsMask {
 	Shift = (1 << 10) >>> 0,
 	Alt = (1 << 9) >>> 0,
 	WinCtrl = (1 << 8) >>> 0,
-	KeyCode = 0x000000ff
+	KeyCode = 0x000000FF
 }
 
 export const enum KeyMod {
@@ -406,7 +406,7 @@ export const enum KeyMod {
 }
 
 export function KeyChord(firstPart: number, secondPart: number): number {
-	let chordPart = ((secondPart & 0x0000ffff) << 16) >>> 0;
+	let chordPart = ((secondPart & 0x0000FFFF) << 16) >>> 0;
 	return (firstPart | chordPart) >>> 0;
 }
 
@@ -414,8 +414,8 @@ export function createKeybinding(keybinding: number, OS: OperatingSystem): Keybi
 	if (keybinding === 0) {
 		return null;
 	}
-	const firstPart = (keybinding & 0x0000ffff) >>> 0;
-	const chordPart = (keybinding & 0xffff0000) >>> 16;
+	const firstPart = (keybinding & 0x0000FFFF) >>> 0;
+	const chordPart = (keybinding & 0xFFFF0000) >>> 16;
 	if (chordPart !== 0) {
 		return new ChordKeybinding(
 			createSimpleKeybinding(firstPart, OS),

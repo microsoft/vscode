@@ -87,7 +87,7 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 			const instantiationService = accessor.get(IInstantiationService);
 			const lifecycleService = accessor.get(ILifecycleService);
 
-			Promise.resolve(this.triggerAndDisposeAction(instantiationService, lifecycleService, descriptor, args)).then(void 0, err => {
+			Promise.resolve(this.triggerAndDisposeAction(instantiationService, lifecycleService, descriptor, args)).then(undefined, err => {
 				notificationService.error(err);
 			});
 		};
@@ -105,7 +105,7 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 				if (!actionInstance.enabled) {
 					actionInstance.dispose();
 
-					return void 0;
+					return undefined;
 				}
 
 				const from = args && args.from || 'keybinding';

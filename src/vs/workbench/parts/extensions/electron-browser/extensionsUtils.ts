@@ -13,7 +13,7 @@ import { IExtensionManagementService, ILocalExtension, IExtensionEnablementServi
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { areSameExtensions, adoptToGalleryExtensionId, getGalleryExtensionIdFromLocal } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { getIdAndVersionFromLocalExtensionId } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 import { Severity, INotificationService } from 'vs/platform/notification/common/notification';
 import product from 'vs/platform/node/product';
@@ -29,18 +29,18 @@ export class KeymapExtensions implements IWorkbenchContribution {
 	private disposables: IDisposable[] = [];
 
 	constructor(
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
-		@IExtensionTipsService private tipsService: IExtensionTipsService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService,
+		@IExtensionTipsService private readonly tipsService: IExtensionTipsService,
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@INotificationService private notificationService: INotificationService,
-		@ITelemetryService private telemetryService: ITelemetryService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		this.disposables.push(
 			lifecycleService.onShutdown(() => this.dispose()),
 			instantiationService.invokeFunction(onExtensionChanged)((identifiers => {
 				Promise.all(identifiers.map(identifier => this.checkForOtherKeymaps(identifier)))
-					.then(void 0, onUnexpectedError);
+					.then(undefined, onUnexpectedError);
 			}))
 		);
 	}
@@ -126,9 +126,9 @@ export function getInstalledExtensions(accessor: ServicesAccessor): Promise<IExt
 			.then(disabledExtensions => {
 				return extensions.map(extension => {
 					return {
-						identifier: { id: adoptToGalleryExtensionId(stripVersion(extension.identifier.id)), uuid: extension.identifier.uuid },
+						identifier: extension.galleryIdentifier,
 						local: extension,
-						globallyEnabled: disabledExtensions.every(disabled => !areSameExtensions(disabled, extension.identifier))
+						globallyEnabled: disabledExtensions.every(disabled => !areSameExtensions(disabled, extension.galleryIdentifier))
 					};
 				});
 			});
@@ -137,7 +137,7 @@ export function getInstalledExtensions(accessor: ServicesAccessor): Promise<IExt
 
 export function isKeymapExtension(tipsService: IExtensionTipsService, extension: IExtensionStatus): boolean {
 	const cats = extension.local.manifest.categories;
-	return cats && cats.indexOf('Keymaps') !== -1 || tipsService.getKeymapRecommendations().some(({ extensionId }) => areSameExtensions({ id: extensionId }, { id: getGalleryExtensionIdFromLocal(extension.local) }));
+	return cats && cats.indexOf('Keymaps') !== -1 || tipsService.getKeymapRecommendations().some(({ extensionId }) => areSameExtensions({ id: extensionId }, extension.local.galleryIdentifier));
 }
 
 function stripVersion(id: string): string {

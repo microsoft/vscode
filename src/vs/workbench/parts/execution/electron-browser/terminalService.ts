@@ -85,7 +85,7 @@ export class WinTerminalService implements ITerminalService {
 		// unless otherwise specified
 		if (spawnType === WinSpawnType.CMDER) {
 			spawner.spawn(exec, [cwd]);
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		const cmdArgs = ['/c', 'start', '/wait'];
@@ -97,7 +97,7 @@ export class WinTerminalService implements ITerminalService {
 		cmdArgs.push(exec);
 
 		return new Promise<void>((c, e) => {
-			const env = cwd ? { cwd: cwd } : void 0;
+			const env = cwd ? { cwd: cwd } : undefined;
 			const child = spawner.spawn(command, cmdArgs, env);
 			child.on('error', e);
 			child.on('exit', () => c());
@@ -279,7 +279,7 @@ export class LinuxTerminalService implements ITerminalService {
 	private spawnTerminal(spawner, configuration: ITerminalConfiguration, cwd?: string): Promise<void> {
 		const terminalConfig = configuration.terminal.external;
 		const execPromise = terminalConfig.linuxExec ? Promise.resolve(terminalConfig.linuxExec) : getDefaultTerminalLinuxReady();
-		const env = cwd ? { cwd: cwd } : void 0;
+		const env = cwd ? { cwd: cwd } : undefined;
 
 		return new Promise<void>((c, e) => {
 			execPromise.then(exec => {

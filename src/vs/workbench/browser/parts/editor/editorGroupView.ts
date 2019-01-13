@@ -117,15 +117,15 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		private accessor: IEditorGroupsAccessor,
 		from: IEditorGroupView | ISerializedEditorGroup,
 		private _label: string,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
-		@INotificationService private notificationService: INotificationService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IKeybindingService private keybindingService: IKeybindingService,
-		@IMenuService private menuService: IMenuService,
-		@IContextMenuService private contextMenuService: IContextMenuService
+		@INotificationService private readonly notificationService: INotificationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IMenuService private readonly menuService: IMenuService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) {
 		super(themeService);
 
@@ -134,7 +134,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		} else if (isSerializedEditorGroup(from)) {
 			this._group = this._register(instantiationService.createInstance(EditorGroup, from));
 		} else {
-			this._group = this._register(instantiationService.createInstance(EditorGroup, void 0));
+			this._group = this._register(instantiationService.createInstance(EditorGroup, undefined));
 		}
 
 		this.disposedEditorsWorker = this._register(new RunOnceWorker(editors => this.handleDisposedEditors(editors), 0));
@@ -278,7 +278,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Toolbar actions
 		const removeGroupAction = this._register(new Action(CLOSE_EDITOR_GROUP_COMMAND_ID, localize('closeGroupAction', "Close"), 'close-editor-group', true, () => { this.accessor.removeGroup(this); return Promise.resolve(true); }));
 		const keybinding = this.keybindingService.lookupKeybinding(removeGroupAction.id);
-		containerToolbar.push(removeGroupAction, { icon: true, label: false, keybinding: keybinding ? keybinding.getLabel() : void 0 });
+		containerToolbar.push(removeGroupAction, { icon: true, label: false, keybinding: keybinding ? keybinding.getLabel() : undefined });
 	}
 
 	private createContainerContextMenu(): void {
@@ -302,7 +302,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Fill in contributed actions
 		const actions: IAction[] = [];
-		fillInContextMenuActions(menu, void 0, actions, this.contextMenuService);
+		fillInContextMenuActions(menu, undefined, actions, this.contextMenuService);
 
 		// Show it
 		this.contextMenuService.showContextMenu({
@@ -327,7 +327,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			let target: HTMLElement;
 			if (e instanceof MouseEvent) {
 				if (e.button !== 0) {
-					return void 0; // only for left mouse click
+					return undefined; // only for left mouse click
 				}
 
 				target = e.target as HTMLElement;
@@ -484,7 +484,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Close the editor when it is no longer open in any group including diff editors
 		editorsToClose.forEach(editorToClose => {
-			const resource = editorToClose ? editorToClose.getResource() : void 0; // prefer resource to not close right-hand side editors of a diff editor
+			const resource = editorToClose ? editorToClose.getResource() : undefined; // prefer resource to not close right-hand side editors of a diff editor
 			if (!this.accessor.groups.some(groupView => groupView.group.contains(resource || editorToClose))) {
 				editorToClose.close();
 			}
@@ -653,7 +653,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	get activeControl(): BaseEditor {
-		return this.editorControl ? this.editorControl.activeControl : void 0;
+		return this.editorControl ? this.editorControl.activeControl : undefined;
 	}
 
 	get activeEditor(): EditorInput {
@@ -747,7 +747,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Determine options
 		const openEditorOptions: IEditorOpenOptions = {
-			index: options ? options.index : void 0,
+			index: options ? options.index : undefined,
 			pinned: !this.accessor.partOptions.enablePreview || editor.isDirty() || (options && options.pinned) || (options && typeof options.index === 'number'),
 			active: this._group.count === 0 || !options || !options.inactive
 		};
@@ -898,7 +898,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	private doMoveEditorInsideGroup(editor: EditorInput, moveOptions?: IMoveEditorOptions): void {
-		const moveToIndex = moveOptions ? moveOptions.index : void 0;
+		const moveToIndex = moveOptions ? moveOptions.index : undefined;
 		if (typeof moveToIndex !== 'number') {
 			return; // do nothing if we move into same group without index
 		}
@@ -1030,7 +1030,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				this.ignoreOpenEditorErrors = true;
 			}
 
-			const options = !focusNext ? EditorOptions.create({ preserveFocus: true }) : void 0;
+			const options = !focusNext ? EditorOptions.create({ preserveFocus: true }) : undefined;
 			this.openEditor(nextActiveEditor, options).then(() => {
 				this.ignoreOpenEditorErrors = false;
 			});
@@ -1327,7 +1327,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			// Forward to title control
 			this.titleAreaControl.closeEditor(activeReplacement.editor);
 
-			return openEditorResult.then(() => void 0);
+			return openEditorResult.then(() => undefined);
 		}
 
 		return Promise.resolve();

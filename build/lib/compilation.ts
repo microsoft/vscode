@@ -159,6 +159,20 @@ class MonacoGenerator {
 				this._declarationResolver.invalidateCache(moduleId);
 				this._executeSoon();
 			});
+			watcher.addListener('error', (err) => {
+				console.error(`Encountered error while watching ${filePath}.`);
+				console.log(err);
+				delete this._watchedFiles[filePath];
+				for (let i = 0; i < this._watchers.length; i++) {
+					if (this._watchers[i] === watcher) {
+						this._watchers.splice(i, 1);
+						break;
+					}
+				}
+				watcher.close();
+				this._declarationResolver.invalidateCache(moduleId);
+				this._executeSoon();
+			});
 			this._watchers.push(watcher);
 		};
 		this._fsProvider = new class extends monacodts.FSProvider {

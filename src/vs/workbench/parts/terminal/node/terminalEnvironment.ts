@@ -16,7 +16,7 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
  * This module contains utility functions related to the environment, cwd and paths.
  */
 
-export function mergeEnvironments(parent: platform.IProcessEnvironment, other: ITerminalEnvironment): void {
+export function mergeEnvironments(parent: platform.IProcessEnvironment, other?: ITerminalEnvironment): void {
 	if (!other) {
 		return;
 	}
@@ -54,24 +54,17 @@ function _mergeEnvironmentValue(env: ITerminalEnvironment, key: string, value: s
 export function sanitizeEnvironment(env: ITerminalEnvironment): void {
 	// Remove keys based on strings
 	const keysToRemove = [
-		'ELECTRON_ENABLE_STACK_DUMPING',
-		'ELECTRON_ENABLE_LOGGING',
-		'ELECTRON_NO_ASAR',
-		'ELECTRON_NO_ATTACH_CONSOLE',
-		'ELECTRON_RUN_AS_NODE',
-		'GOOGLE_API_KEY',
-		'VSCODE_CLI',
-		'VSCODE_DEV',
-		'VSCODE_IPC_HOOK',
-		'VSCODE_LOGS',
-		'VSCODE_NLS_CONFIG',
-		'VSCODE_PORTABLE',
-		'VSCODE_PID',
-		'VSCODE_NODE_CACHED_DATA_DIR'
+		/^ELECTRON_.+$/,
+		/^GOOGLE_API_KEY$/,
+		/^VSCODE_.+$/
 	];
-	keysToRemove.forEach((key) => {
-		if (env[key]) {
-			delete env[key];
+	const envKeys = Object.keys(env);
+	envKeys.forEach(envKey => {
+		for (let i = 0; i < keysToRemove.length; i++) {
+			if (envKey.search(keysToRemove[i]) !== -1) {
+				delete env[envKey];
+				break;
+			}
 		}
 	});
 }
@@ -127,9 +120,9 @@ function _getLangEnvVariable(locale?: string) {
 	return parts.join('_') + '.UTF-8';
 }
 
-export function getCwd(shell: IShellLaunchConfig, root: Uri, customCwd: string): string {
+export function getCwd(shell: IShellLaunchConfig, root?: Uri, customCwd?: string): string {
 	if (shell.cwd) {
-		return shell.cwd;
+		return (typeof shell.cwd === 'object') ? shell.cwd.path : shell.cwd;
 	}
 
 	let cwd: string | undefined;

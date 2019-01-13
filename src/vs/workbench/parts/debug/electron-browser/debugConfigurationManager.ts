@@ -56,15 +56,15 @@ export class ConfigurationManager implements IConfigurationManager {
 	private debugConfigurationTypeContext: IContextKey<string>;
 
 	constructor(
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IEditorService private editorService: IEditorService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IQuickInputService private quickInputService: IQuickInputService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@ICommandService private commandService: ICommandService,
-		@IStorageService private storageService: IStorageService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IStorageService private readonly storageService: IStorageService,
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@IExtensionService private extensionService: IExtensionService,
+		@IExtensionService private readonly extensionService: IExtensionService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		this.configProviders = [];
@@ -207,14 +207,7 @@ export class ConfigurationManager implements IConfigurationManager {
 
 		// if the given debugType matches any registered tracker factory we need to run the DA in the EH
 		const providers = this.adapterTrackerFactories.filter(p => p.type === debugType || p.type === '*');
-		if (providers.length > 0) {
-			return true;
-		}
-
-		// TODO@AW deprecated
-		// if the given debugType matches any registered provider that has a provideTracker method, we need to run the DA in the EH
-		const providers2 = this.configProviders.filter(p => p.hasTracker && (p.type === debugType || p.type === '*'));
-		return providers2.length > 0;
+		return providers.length > 0;
 	}
 
 	public resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: IConfig): Promise<IConfig> {
@@ -240,8 +233,6 @@ export class ConfigurationManager implements IConfigurationManager {
 			.then(() => Promise.all(this.configProviders.filter(p => p.type === type && p.provideDebugConfigurations).map(p => p.provideDebugConfigurations(folderUri)))
 				.then(results => results.reduce((first, second) => first.concat(second), [])));
 	}
-
-	///////////////////////////////////////////////////////////
 
 	private registerListeners(lifecycleService: ILifecycleService): void {
 		debuggersExtPoint.setHandler((extensions) => {
@@ -450,7 +441,7 @@ export class ConfigurationManager implements IConfigurationManager {
 			thenables.push(this.extensionService.activateByEvent(`${activationEvent}:${debugType}`));
 		}
 		return Promise.all(thenables).then(_ => {
-			return void 0;
+			return undefined;
 		});
 	}
 
@@ -471,7 +462,7 @@ class Launch implements ILaunch {
 	constructor(
 		private configurationManager: ConfigurationManager,
 		public workspace: IWorkspaceFolder,
-		@IFileService private fileService: IFileService,
+		@IFileService private readonly fileService: IFileService,
 		@IEditorService protected editorService: IEditorService,
 		@IConfigurationService protected configurationService: IConfigurationService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
@@ -624,7 +615,7 @@ class UserLaunch extends Launch implements ILaunch {
 		@IFileService fileService: IFileService,
 		@IEditorService editorService: IEditorService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IPreferencesService private preferencesService: IPreferencesService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService
 	) {
 		super(configurationManager, undefined, fileService, editorService, configurationService, contextService);

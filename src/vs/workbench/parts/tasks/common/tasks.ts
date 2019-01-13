@@ -218,7 +218,7 @@ export interface PresentationOptions {
 
 export namespace PresentationOptions {
 	export const defaults: PresentationOptions = {
-		echo: true, reveal: RevealKind.Always, focus: false, panel: PanelKind.Shared, showReuseMessage: true, clear: false
+		echo: false, reveal: RevealKind.Always, focus: false, panel: PanelKind.Shared, showReuseMessage: true, clear: false
 	};
 }
 
@@ -262,12 +262,12 @@ export interface CommandConfiguration {
 	/**
 	 * The task type
 	 */
-	runtime: RuntimeType;
+	runtime?: RuntimeType;
 
 	/**
 	 * The command to execute
 	 */
-	name: CommandString;
+	name?: CommandString;
 
 	/**
 	 * Additional command options.
@@ -293,7 +293,7 @@ export interface CommandConfiguration {
 	/**
 	 * Describes how the task is presented in the UI.
 	 */
-	presentation: PresentationOptions;
+	presentation?: PresentationOptions;
 }
 
 export namespace TaskGroup {
@@ -372,7 +372,7 @@ export interface KeyedTaskIdentifier extends TaskIdentifier {
 
 export interface TaskDependency {
 	workspaceFolder: IWorkspaceFolder;
-	task: string | KeyedTaskIdentifier;
+	task: string | KeyedTaskIdentifier | undefined;
 }
 
 export const enum GroupType {
@@ -467,10 +467,14 @@ export abstract class CommonTask {
 
 	_source: BaseTaskSource;
 
-	protected constructor(id: string, label: string, type, runOptions: RunOptions,
+	private _taskLoadMessages: string[] | undefined;
+
+	protected constructor(id: string, label: string | undefined, type, runOptions: RunOptions,
 		configurationProperties: ConfigurationProperties, source: BaseTaskSource) {
 		this._id = id;
-		this._label = label;
+		if (label) {
+			this._label = label;
+		}
 		if (type) {
 			this.type = type;
 		}
@@ -492,8 +496,10 @@ export abstract class CommonTask {
 	}
 
 	public clone(): Task {
-		return Objects.assign({}, <any>this);
+		return this.fromObject(Objects.assign({}, <any>this));
 	}
+
+	protected abstract fromObject(object: any): Task;
 
 	public getWorkspaceFolder(): IWorkspaceFolder | undefined {
 		return undefined;
@@ -504,14 +510,14 @@ export abstract class CommonTask {
 	}
 
 	public matches(key: string | KeyedTaskIdentifier, compareId: boolean = false): boolean {
-		if (key === void 0) {
+		if (key === undefined) {
 			return false;
 		}
 		if (Types.isString(key)) {
 			return key === this._label || key === this.configurationProperties.identifier || (compareId && key === this._id);
 		}
 		let identifier = this.getDefinition(true);
-		return identifier !== void 0 && identifier._key === key._key;
+		return identifier !== undefined && identifier._key === key._key;
 	}
 
 	public getQualifiedLabel(): string {
@@ -529,6 +535,19 @@ export abstract class CommonTask {
 			task: <any>this
 		};
 		return result;
+	}
+
+	public addTaskLoadMessages(messages: string[] | undefined) {
+		if (this._taskLoadMessages === undefined) {
+			this._taskLoadMessages = [];
+		}
+		if (messages) {
+			this._taskLoadMessages = this._taskLoadMessages.concat(messages);
+		}
+	}
+
+	get taskLoadMessages(): string[] | undefined {
+		return this._taskLoadMessages;
 	}
 }
 
@@ -548,12 +567,14 @@ export class CustomTask extends CommonTask {
 	 */
 	command: CommandConfiguration;
 
-	public constructor(id: string, source: WorkspaceTaskSource, label: string, type, command: CommandConfiguration,
+	public constructor(id: string, source: WorkspaceTaskSource, label: string, type, command: CommandConfiguration | undefined,
 		hasDefinedMatchers: boolean, runOptions: RunOptions, configurationProperties: ConfigurationProperties) {
 		super(id, label, undefined, runOptions, configurationProperties, source);
 		this._source = source;
 		this.hasDefinedMatchers = hasDefinedMatchers;
-		this.command = command;
+		if (command) {
+			this.command = command;
+		}
 	}
 
 	public customizes(): KeyedTaskIdentifier | undefined {
@@ -564,11 +585,11 @@ export class CustomTask extends CommonTask {
 	}
 
 	public getDefinition(useSource: boolean = false): KeyedTaskIdentifier {
-		if (useSource && this._source.customizes !== void 0) {
+		if (useSource && this._source.customizes !== undefined) {
 			return this._source.customizes;
 		} else {
 			let type: string;
-			if (this.command !== void 0) {
+			if (this.command !== undefined) {
 				type = this.command.runtime === RuntimeType.Shell ? 'shell' : 'process';
 			} else {
 				type = '$composite';
@@ -616,6 +637,10 @@ export class CustomTask extends CommonTask {
 			return 'workspace';
 		}
 	}
+
+	protected fromObject(object: CustomTask): CustomTask {
+		return new CustomTask(object._id, object._source, object._label, object.type, object.command, object.hasDefinedMatchers, object.runOptions, object.configurationProperties);
+	}
 }
 
 export class ConfiguringTask extends CommonTask {
@@ -627,7 +652,7 @@ export class ConfiguringTask extends CommonTask {
 
 	configures: KeyedTaskIdentifier;
 
-	public constructor(id: string, source: WorkspaceTaskSource, label: string, type,
+	public constructor(id: string, source: WorkspaceTaskSource, label: string | undefined, type,
 		configures: KeyedTaskIdentifier, runOptions: RunOptions, configurationProperties: ConfigurationProperties) {
 		super(id, label, type, runOptions, configurationProperties, source);
 		this._source = source;
@@ -637,6 +662,11 @@ export class ConfiguringTask extends CommonTask {
 	public static is(value: any): value is ConfiguringTask {
 		return value instanceof ConfiguringTask;
 	}
+
+	protected fromObject(object: any): Task {
+		return object;
+	}
+
 }
 
 export class ContributedTask extends CommonTask {
@@ -701,6 +731,10 @@ export class ContributedTask extends CommonTask {
 	public getTelemetryKind(): string {
 		return 'extension';
 	}
+
+	protected fromObject(object: ContributedTask): ContributedTask {
+		return new ContributedTask(object._id, object._source, object._label, object.type, object.defines, object.command, object.hasDefinedMatchers, object.runOptions, object.configurationProperties);
+	}
 }
 
 export class InMemoryTask extends CommonTask {
@@ -723,6 +757,10 @@ export class InMemoryTask extends CommonTask {
 
 	public getTelemetryKind(): string {
 		return 'composite';
+	}
+
+	protected fromObject(object: InMemoryTask): InMemoryTask {
+		return new InMemoryTask(object._id, object._source, object._label, object.type, object.runOptions, object.configurationProperties);
 	}
 }
 
@@ -774,9 +812,9 @@ export class TaskSorter {
 		let bw = b.getWorkspaceFolder();
 		if (aw && bw) {
 			let ai = this._order.get(aw.uri.toString());
-			ai = ai === void 0 ? 0 : ai + 1;
+			ai = ai === undefined ? 0 : ai + 1;
 			let bi = this._order.get(bw.uri.toString());
-			bi = bi === void 0 ? 0 : bi + 1;
+			bi = bi === undefined ? 0 : bi + 1;
 			if (ai === bi) {
 				return a._label.localeCompare(b._label);
 			} else {
@@ -827,8 +865,7 @@ export const enum TaskRunSource {
 }
 
 export namespace TaskEvent {
-	export function create(kind: TaskEventKind.ProcessStarted, task: Task, processId: number): TaskEvent;
-	export function create(kind: TaskEventKind.ProcessEnded, task: Task, exitCode: number): TaskEvent;
+	export function create(kind: TaskEventKind.ProcessStarted | TaskEventKind.ProcessEnded, task: Task, processIdOrExitCode: number): TaskEvent;
 	export function create(kind: TaskEventKind.Start | TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.Terminated | TaskEventKind.End, task: Task): TaskEvent;
 	export function create(kind: TaskEventKind.Changed): TaskEvent;
 	export function create(kind: TaskEventKind, task?: Task, processIdOrExitCode?: number): TaskEvent {

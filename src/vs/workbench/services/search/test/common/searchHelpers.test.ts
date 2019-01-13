@@ -73,6 +73,7 @@ suite('SearchHelpers', () => {
 
 		function getQuery(beforeContext?: number, afterContext?: number): ITextQuery {
 			return {
+				folderQueries: [],
 				type: QueryType.Text,
 				contentPattern: { pattern: 'test' },
 				beforeContext,

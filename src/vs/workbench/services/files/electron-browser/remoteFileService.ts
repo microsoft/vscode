@@ -90,8 +90,8 @@ class WorkspaceWatchLogic extends Disposable {
 
 	constructor(
 		private _fileService: RemoteFileService,
-		@IConfigurationService private _configurationService: IConfigurationService,
-		@IWorkspaceContextService private _contextService: IWorkspaceContextService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 	) {
 		super();
 
@@ -482,7 +482,7 @@ export class RemoteFileService extends FileService {
 		return new Promise<IFileStat>((resolve, reject) => {
 			readable.pipe(encoder).pipe(target);
 			target.once('error', err => reject(err));
-			target.once('finish', _ => resolve(void 0));
+			target.once('finish', _ => resolve(undefined));
 		}).then(_ => {
 			return this.resolveFile(resource);
 		});

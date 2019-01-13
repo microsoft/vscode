@@ -36,15 +36,15 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 	private activeOutOfWorkspaceWatchers: ResourceMap<URI>;
 
 	constructor(
-		@IEditorService private editorService: IEditorService,
-		@ITextFileService private textFileService: ITextFileService,
-		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
-		@IFileService private fileService: IFileService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IWindowService private windowService: IWindowService
+		@IEditorService private readonly editorService: IEditorService,
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
+		@IFileService private readonly fileService: IFileService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IWindowService private readonly windowService: IWindowService
 	) {
 		super();
 
@@ -95,7 +95,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 				this.editorService.visibleEditors
 					.map(editorInput => {
 						const resource = toResource(editorInput, { supportSideBySide: true });
-						return resource ? this.textFileService.models.get(resource) : void 0;
+						return resource ? this.textFileService.models.get(resource) : undefined;
 					})
 					.filter(model => model && !model.isDirty()),
 				m => m.getResource().toString()
@@ -116,7 +116,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 
 		// Handle deletes
 		if (e.operation === FileOperation.DELETE || e.operation === FileOperation.MOVE) {
-			this.handleDeletes(e.resource, false, e.target ? e.target.resource : void 0);
+			this.handleDeletes(e.resource, false, e.target ? e.target.resource : undefined);
 		}
 	}
 
@@ -270,8 +270,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 	private getViewStateFor(resource: URI, group: IEditorGroup): IEditorViewState | undefined {
 		const editors = this.editorService.visibleControls;
 
-		for (let i = 0; i < editors.length; i++) {
-			const editor = editors[i];
+		for (const editor of editors) {
 			if (editor && editor.input && editor.group === group) {
 				const editorResource = editor.input.getResource();
 				if (editorResource && resource.toString() === editorResource.toString()) {
@@ -283,7 +282,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 			}
 		}
 
-		return void 0;
+		return undefined;
 	}
 
 	private handleUpdates(e: FileChangesEvent): void {

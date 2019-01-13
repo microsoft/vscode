@@ -65,7 +65,7 @@ export class WorkspaceConfiguration extends Disposable {
 					parseErrors = [...this._workspaceConfigurationModelParser.errors];
 					this.consolidate();
 					return this._workspaceConfigurationModelParser;
-				}, initCallback: () => c(void 0)
+				}, initCallback: () => c(undefined)
 			});
 			this.listenToWatcher();
 		});
@@ -75,7 +75,7 @@ export class WorkspaceConfiguration extends Disposable {
 		this.stopListeningToWatcher();
 		return new Promise<void>(c => this._workspaceConfigurationWatcher.reload(() => {
 			this.listenToWatcher();
-			c(void 0);
+			c(undefined);
 		}));
 	}
 
@@ -231,7 +231,7 @@ export class NodeBasedFolderConfiguration extends AbstractFolderConfiguration {
 			return this.resolveContents(stat.children.filter(stat => isFolderConfigurationFile(stat.resource))
 				.map(stat => stat.resource));
 		}, err => [] /* never fail this call */)
-			.then(void 0, e => {
+			.then(undefined, e => {
 				errors.onUnexpectedError(e);
 				return [];
 			});
@@ -291,11 +291,11 @@ export class FileServiceBasedFolderConfiguration extends AbstractFolderConfigura
 						.forEach(child => {
 							const folderRelativePath = this.toFolderRelativePath(child.resource);
 							if (folderRelativePath) {
-								workspaceFilePathToConfiguration[folderRelativePath] = Promise.resolve(this.fileService.resolveContent(child.resource)).then(void 0, errors.onUnexpectedError);
+								workspaceFilePathToConfiguration[folderRelativePath] = Promise.resolve(this.fileService.resolveContent(child.resource)).then(undefined, errors.onUnexpectedError);
 							}
 						});
 				}
-			}).then(void 0, err => [] /* never fail this call */);
+			}).then(undefined, err => [] /* never fail this call */);
 
 		return bulkContentFetchromise.then(() => Promise.all(collections.values(workspaceFilePathToConfiguration)));
 	}
@@ -395,7 +395,7 @@ export class CachedFolderConfiguration extends Disposable implements IFolderConf
 			if (created) {
 				return configurationModel.keys.length ? pfs.writeFile(this.cachedConfigurationPath, raw) : pfs.rimraf(this.cachedFolderPath);
 			}
-			return void 0;
+			return undefined;
 		});
 	}
 
@@ -409,7 +409,7 @@ export class CachedFolderConfiguration extends Disposable implements IFolderConf
 
 	private createCachedFolder(): Promise<boolean> {
 		return Promise.resolve(pfs.exists(this.cachedFolderPath))
-			.then(void 0, () => false)
+			.then(undefined, () => false)
 			.then(exists => exists ? exists : pfs.mkdirp(this.cachedFolderPath).then(() => true, () => false));
 	}
 }
@@ -500,6 +500,6 @@ export class FolderConfiguration extends Disposable implements IFolderConfigurat
 			return this.folderConfiguration.loadConfiguration()
 				.then(configurationModel => this.cachedFolderConfiguration.updateConfiguration(configurationModel));
 		}
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 }

@@ -17,8 +17,8 @@ suite('Telemetry - common properties', function () {
 	const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'telemetryservice');
 	const installSource = path.join(parentDir, 'installSource');
 
-	const commit: string = void 0;
-	const version: string = void 0;
+	const commit: string = (undefined)!;
+	const version: string = (undefined)!;
 	let testStorageService: IStorageService;
 
 	setup(() => {

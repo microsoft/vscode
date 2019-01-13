@@ -68,7 +68,7 @@ export class MarkdownContentProvider {
 		const nonce = new Date().getTime() + '' + new Date().getMilliseconds();
 		const csp = this.getCspForResource(sourceUri, nonce);
 
-		const body = await this.engine.render(sourceUri, config.previewFrontMatter === 'hide', markdownDocument.getText());
+		const body = await this.engine.render(markdownDocument);
 		return `<!DOCTYPE html>
 			<html>
 			<head>

@@ -320,7 +320,7 @@ suite('Strings', () => {
 	});
 
 	test('fuzzyContains', () => {
-		assert.ok(!strings.fuzzyContains(void 0, null));
+		assert.ok(!strings.fuzzyContains((undefined)!, null!));
 		assert.ok(strings.fuzzyContains('hello world', 'h'));
 		assert.ok(!strings.fuzzyContains('hello world', 'q'));
 		assert.ok(strings.fuzzyContains('hello world', 'hw'));

@@ -55,13 +55,13 @@ export class Win32UpdateService extends AbstractUpdateService {
 	@memoize
 	get cachePath(): Promise<string> {
 		const result = path.join(tmpdir(), `vscode-update-${product.target}-${process.arch}`);
-		return pfs.mkdirp(result, void 0).then(() => result);
+		return pfs.mkdirp(result, undefined).then(() => result);
 	}
 
 	constructor(
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@ITelemetryService private telemetryService: ITelemetryService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IRequestService requestService: IRequestService,
 		@ILogService logService: ILogService
@@ -143,7 +143,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 
 							return this.requestService.request({ url }, CancellationToken.None)
 								.then(context => download(downloadPath, context))
-								.then(hash ? () => checksum(downloadPath, update.hash) : () => void 0)
+								.then(hash ? () => checksum(downloadPath, update.hash) : () => undefined)
 								.then(() => pfs.rename(downloadPath, updatePackagePath))
 								.then(() => updatePackagePath);
 						});
@@ -164,7 +164,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 					});
 				});
 			})
-			.then(void 0, err => {
+			.then(undefined, err => {
 				this.logService.error(err);
 				/* __GDPR__
 					"update:notAvailable" : {
@@ -210,11 +210,11 @@ export class Win32UpdateService extends AbstractUpdateService {
 
 	protected async doApplyUpdate(): Promise<void> {
 		if (this.state.type !== StateType.Downloaded && this.state.type !== StateType.Downloading) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		if (!this.availableUpdate) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		const update = this.state.update;

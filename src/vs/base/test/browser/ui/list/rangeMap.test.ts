@@ -8,7 +8,7 @@ import { RangeMap, groupIntersect, consolidate } from 'vs/base/browser/ui/list/r
 import { Range } from 'vs/base/common/range';
 
 suite('RangeMap', () => {
-	var rangeMap: RangeMap;
+	let rangeMap: RangeMap;
 
 	setup(() => {
 		rangeMap = new RangeMap();

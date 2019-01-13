@@ -9,6 +9,7 @@ import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { ExtHostLogServiceShape } from 'vs/workbench/api/node/extHost.protocol';
 import { ExtensionHostLogFileName } from 'vs/workbench/services/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 
 export class ExtHostLogService extends DelegatedLogService implements ILogService, ExtHostLogServiceShape {
@@ -29,7 +30,7 @@ export class ExtHostLogService extends DelegatedLogService implements ILogServic
 		this.setLevel(level);
 	}
 
-	getLogDirectory(extensionID: string): string {
-		return join(this._logsPath, extensionID);
+	getLogDirectory(extensionID: ExtensionIdentifier): string {
+		return join(this._logsPath, extensionID.value);
 	}
 }

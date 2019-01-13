@@ -30,6 +30,7 @@ export interface IDriver {
 	getWindowIds(): Promise<number[]>;
 	capturePage(windowId: number): Promise<string>;
 	reloadWindow(windowId: number): Promise<void>;
+	exitApplication(): Promise<void>;
 	dispatchKeybinding(windowId: number, keybinding: string): Promise<void>;
 	click(windowId: number, selector: string, xoffset?: number | undefined, yoffset?: number | undefined): Promise<void>;
 	doubleClick(windowId: number, selector: string): Promise<void>;
@@ -56,6 +57,7 @@ export class DriverChannel implements IServerChannel {
 			case 'getWindowIds': return this.driver.getWindowIds();
 			case 'capturePage': return this.driver.capturePage(arg);
 			case 'reloadWindow': return this.driver.reloadWindow(arg);
+			case 'exitApplication': return this.driver.exitApplication();
 			case 'dispatchKeybinding': return this.driver.dispatchKeybinding(arg[0], arg[1]);
 			case 'click': return this.driver.click(arg[0], arg[1], arg[2], arg[3]);
 			case 'doubleClick': return this.driver.doubleClick(arg[0], arg[1]);
@@ -88,6 +90,10 @@ export class DriverChannelClient implements IDriver {
 
 	reloadWindow(windowId: number): Promise<void> {
 		return this.channel.call('reloadWindow', windowId);
+	}
+
+	exitApplication(): Promise<void> {
+		return this.channel.call('exitApplication');
 	}
 
 	dispatchKeybinding(windowId: number, keybinding: string): Promise<void> {

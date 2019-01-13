@@ -64,7 +64,7 @@ async function connect(child: cp.ChildProcess, outPath: string, handlePath: stri
 	while (true) {
 		try {
 			const { client, driver } = await connectDriver(outPath, handlePath);
-			return new Code(child, client, driver, logger);
+			return new Code(client, driver, logger);
 		} catch (err) {
 			if (++errCount > 50) {
 				child.kill();
@@ -188,7 +188,6 @@ export class Code {
 	private driver: IDriver;
 
 	constructor(
-		private process: cp.ChildProcess,
 		private client: IDisposable,
 		driver: IDriver,
 		readonly logger: Logger
@@ -230,9 +229,13 @@ export class Code {
 		await this.driver.reloadWindow(windowId);
 	}
 
+	async exit(): Promise<void> {
+		await this.driver.exitApplication();
+	}
+
 	async waitForTextContent(selector: string, textContent?: string, accept?: (result: string) => boolean): Promise<string> {
 		const windowId = await this.getActiveWindowId();
-		accept = accept || (result => textContent !== void 0 ? textContent === result : !!result);
+		accept = accept || (result => textContent !== undefined ? textContent === result : !!result);
 
 		return await poll(
 			() => this.driver.getElements(windowId, selector).then(els => els.length > 0 ? Promise.resolve(els[0].textContent) : Promise.reject(new Error('Element not found for textContent'))),
@@ -302,7 +305,6 @@ export class Code {
 
 	dispose(): void {
 		this.client.dispose();
-		this.process.kill();
 	}
 }
 

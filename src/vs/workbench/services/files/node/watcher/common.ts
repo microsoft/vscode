@@ -30,8 +30,7 @@ export function normalize(changes: IRawFileChange[]): IRawFileChange[] {
 
 	// Build deltas
 	let normalizer = new EventNormalizer();
-	for (let i = 0; i < changes.length; i++) {
-		let event = changes[i];
+	for (const event of changes) {
 		normalizer.processEvent(event);
 	}
 

@@ -57,13 +57,13 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	private mapCompositeToCompositeContainer: { [compositeId: string]: HTMLElement; };
 	private mapActionsBindingToComposite: { [compositeId: string]: () => void; };
 	private mapProgressServiceToComposite: { [compositeId: string]: IProgressService; };
-	private activeComposite: Composite;
+	private activeComposite: Composite | null;
 	private lastActiveCompositeId: string;
 	private instantiatedComposites: Composite[];
 	private titleLabel: ICompositeTitleLabel;
 	private progressBar: ProgressBar;
 	private contentAreaSize: Dimension;
-	private telemetryActionsListener: IDisposable;
+	private telemetryActionsListener: IDisposable | null;
 	private currentCompositeOpenToken: string;
 
 	constructor(
@@ -95,7 +95,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		this.lastActiveCompositeId = storageService.get(activeCompositeSettingsKey, StorageScope.WORKSPACE, this.defaultCompositeId);
 	}
 
-	protected openComposite(id: string, focus?: boolean): Composite {
+	protected openComposite(id: string, focus?: boolean): Composite | undefined {
 		// Check if composite already visible and just focus in that case
 		if (this.activeComposite && this.activeComposite.getId() === id) {
 			if (focus) {
@@ -110,7 +110,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		return this.doOpenComposite(id, focus);
 	}
 
-	private doOpenComposite(id: string, focus?: boolean): Composite {
+	private doOpenComposite(id: string, focus: boolean = false): Composite | undefined {
 
 		// Use a generated token to avoid race conditions from long running promises
 		const currentCompositeOpenToken = defaultGenerator.nextId();
@@ -159,9 +159,9 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	protected createComposite(id: string, isActive?: boolean): Composite {
 
 		// Check if composite is already created
-		for (let i = 0; i < this.instantiatedComposites.length; i++) {
-			if (this.instantiatedComposites[i].getId() === id) {
-				return this.instantiatedComposites[i];
+		for (const composite of this.instantiatedComposites) {
+			if (composite.getId() === id) {
+				return composite;
 			}
 		}
 
@@ -227,11 +227,14 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		// Fill Content and Actions
 		// Make sure that the user meanwhile did not open another composite or closed the part containing the composite
 		if (!this.activeComposite || composite.getId() !== this.activeComposite.getId()) {
-			return void 0;
+			return undefined;
 		}
 
 		// Take Composite on-DOM and show
-		this.getContentArea().appendChild(compositeContainer);
+		const contentArea = this.getContentArea();
+		if (contentArea) {
+			contentArea.appendChild(compositeContainer);
+		}
 		show(compositeContainer);
 
 		// Setup action runner
@@ -240,7 +243,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		// Update title with composite title if it differs from descriptor
 		const descriptor = this.registry.getComposite(composite.getId());
 		if (descriptor && descriptor.name !== composite.getTitle()) {
-			this.updateTitle(composite.getId(), composite.getTitle());
+			this.updateTitle(composite.getId(), composite.getTitle() || undefined);
 		}
 
 		// Handle Composite Actions
@@ -296,7 +299,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		if (this.activeComposite && this.activeComposite.getId() === compositeId) {
 
 			// Title
-			this.updateTitle(this.activeComposite.getId(), this.activeComposite.getTitle());
+			this.updateTitle(this.activeComposite.getId(), this.activeComposite.getTitle() || undefined);
 
 			// Actions
 			const actionsBinding = this.collectCompositeActions(this.activeComposite);
@@ -322,7 +325,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 		const keybinding = this.keybindingService.lookupKeybinding(compositeId);
 
-		this.titleLabel.updateTitle(compositeId, compositeTitle, keybinding ? keybinding.getLabel() : undefined);
+		this.titleLabel.updateTitle(compositeId, compositeTitle, (keybinding && keybinding.getLabel()) || undefined);
 
 		this.toolBar.setAriaLabel(nls.localize('ariaCompositeToolbarLabel', "{0} actions", compositeTitle));
 	}
@@ -341,7 +344,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		return this.toolBar.setActions(prepareActions(primaryActions), prepareActions(secondaryActions));
 	}
 
-	protected getActiveComposite(): IComposite {
+	protected getActiveComposite(): IComposite | null {
 		return this.activeComposite;
 	}
 
@@ -349,7 +352,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		return this.lastActiveCompositeId;
 	}
 
-	protected hideActiveComposite(): Composite {
+	protected hideActiveComposite(): Composite | undefined {
 		if (!this.activeComposite) {
 			return undefined; // Nothing to do
 		}
@@ -423,14 +426,14 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		this.titleLabel.updateStyles();
 	}
 
-	protected actionItemProvider(action: Action): IActionItem {
+	protected actionItemProvider(action: Action): IActionItem | null {
 
 		// Check Active Composite
 		if (this.activeComposite) {
 			return this.activeComposite.getActionItem(action);
 		}
 
-		return undefined;
+		return null;
 	}
 
 	createContentArea(parent: HTMLElement): HTMLElement {
@@ -474,12 +477,12 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	}
 
 	dispose(): void {
-		this.mapCompositeToCompositeContainer = null;
-		this.mapProgressServiceToComposite = null;
-		this.mapActionsBindingToComposite = null;
+		this.mapCompositeToCompositeContainer = null!; // StrictNullOverride: nulling out ok in dispose
+		this.mapProgressServiceToComposite = null!; // StrictNullOverride: nulling out ok in dispose
+		this.mapActionsBindingToComposite = null!; // StrictNullOverride: nulling out ok in dispose
 
-		for (let i = 0; i < this.instantiatedComposites.length; i++) {
-			this.instantiatedComposites[i].dispose();
+		for (const composite of this.instantiatedComposites) {
+			composite.dispose();
 		}
 
 		this.instantiatedComposites = [];

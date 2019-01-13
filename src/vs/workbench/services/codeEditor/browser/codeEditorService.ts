@@ -14,7 +14,7 @@ import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/
 export class CodeEditorService extends CodeEditorServiceImpl {
 
 	constructor(
-		@IEditorService private editorService: IEditorService,
+		@IEditorService private readonly editorService: IEditorService,
 		@IThemeService themeService: IThemeService
 	) {
 		super(themeService);

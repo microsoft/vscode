@@ -51,7 +51,7 @@ function serializeElement(element: Element, recursive: boolean): IElement {
 class WindowDriver implements IWindowDriver {
 
 	constructor(
-		@IWindowService private windowService: IWindowService
+		@IWindowService private readonly windowService: IWindowService
 	) { }
 
 	click(selector: string, xoffset?: number, yoffset?: number): Promise<void> {

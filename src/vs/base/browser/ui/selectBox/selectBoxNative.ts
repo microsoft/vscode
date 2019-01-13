@@ -115,7 +115,7 @@ export class SelectBoxNative implements ISelectBoxDelegate {
 		}
 
 		this.selectElement.selectedIndex = this.selected;
-		if (this.options.length && typeof this.options[this.selected].text === 'string') {
+		if ((this.selected < this.options.length) && typeof this.options[this.selected].text === 'string') {
 			this.selectElement.title = this.options[this.selected].text;
 		} else {
 			this.selectElement.title = '';

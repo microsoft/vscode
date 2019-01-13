@@ -48,18 +48,18 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private onDidChangeWorkspaceFoldersUnbind: IDisposable;
 
 	constructor(
-		@IWindowsService private windowsService: IWindowsService,
-		@IWindowService private windowService: IWindowService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IEnvironmentService private envService: IEnvironmentService,
-		@IDialogService private dialogService: IDialogService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IExtensionService private extensionService: IExtensionService
+		@IWindowsService private readonly windowsService: IWindowsService,
+		@IWindowService private readonly windowService: IWindowService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IEnvironmentService private readonly envService: IEnvironmentService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IExtensionService private readonly extensionService: IExtensionService
 	) {
 		super();
 
 		const workspace = this.contextService.getWorkspace();
-		this.firstFolderResource = workspace.folders.length > 0 ? workspace.folders[0].uri : void 0;
+		this.firstFolderResource = workspace.folders.length > 0 ? workspace.folders[0].uri : undefined;
 		this.extensionHostRestarter = new RunOnceScheduler(() => this.extensionService.restartExtensionHost(), 10);
 
 		this.onConfigurationChange(configurationService.getValue<IConfiguration>(), false);
@@ -162,7 +162,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 
 			// Update our known first folder path if we entered workspace
 			const workspace = this.contextService.getWorkspace();
-			this.firstFolderResource = workspace.folders.length > 0 ? workspace.folders[0].uri : void 0;
+			this.firstFolderResource = workspace.folders.length > 0 ? workspace.folders[0].uri : undefined;
 
 			// Install workspace folder listener
 			if (!this.onDidChangeWorkspaceFoldersUnbind) {
@@ -180,7 +180,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		const workspace = this.contextService.getWorkspace();
 
 		// Restart extension host if first root folder changed (impact on deprecated workspace.rootPath API)
-		const newFirstFolderResource = workspace.folders.length > 0 ? workspace.folders[0].uri : void 0;
+		const newFirstFolderResource = workspace.folders.length > 0 ? workspace.folders[0].uri : undefined;
 		if (!isEqual(this.firstFolderResource, newFirstFolderResource, !isLinux)) {
 			this.firstFolderResource = newFirstFolderResource;
 
@@ -203,7 +203,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 				});
 			}
 
-			return void 0;
+			return undefined;
 		});
 	}
 }

@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISpliceable } from 'vs/base/common/sequence';
-import { Iterator, ISequence } from 'vs/base/common/iterator';
-import { Emitter, Event, EventBufferer } from 'vs/base/common/event';
+import { ICollapseStateChangeEvent, ITreeElement, ITreeFilter, ITreeFilterDataResult, ITreeModel, ITreeNode, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 import { tail2 } from 'vs/base/common/arrays';
-import { ITreeFilterDataResult, TreeVisibility, ITreeFilter, ITreeModel, ITreeNode, ITreeElement, ICollapseStateChangeEvent } from 'vs/base/browser/ui/tree/tree';
+import { Emitter, Event, EventBufferer } from 'vs/base/common/event';
+import { ISequence, Iterator } from 'vs/base/common/iterator';
+import { ISpliceable } from 'vs/base/common/sequence';
 
 interface IMutableTreeNode<T, TFilterData> extends ITreeNode<T, TFilterData> {
 	readonly parent: IMutableTreeNode<T, TFilterData> | undefined;
@@ -125,6 +125,10 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 
 	getListIndex(location: number[]): number {
 		return this.getTreeNodeWithListIndex(location).listIndex;
+	}
+
+	getListRenderCount(location: number[]): number {
+		return this.getTreeNode(location).renderNodeCount;
 	}
 
 	isCollapsible(location: number[]): boolean {

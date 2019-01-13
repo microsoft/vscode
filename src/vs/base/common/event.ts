@@ -137,7 +137,7 @@ export namespace Event {
 						output = undefined;
 						handle = undefined;
 						if (!leading || numDebouncedCalls > 1) {
-							emitter.fire(_output);
+							emitter.fire(_output!);
 						}
 
 						numDebouncedCalls = 0;
@@ -332,17 +332,17 @@ export namespace Event {
 		return result.event;
 	}
 
-	export function fromPromise<T =any>(promise: Promise<T>): Event<T> {
-		const emitter = new Emitter<T>();
+	export function fromPromise<T = any>(promise: Promise<T>): Event<undefined> {
+		const emitter = new Emitter<undefined>();
 		let shouldEmit = false;
 
 		promise
 			.then(undefined, () => null)
 			.then(() => {
 				if (!shouldEmit) {
-					setTimeout(() => emitter.fire(), 0);
+					setTimeout(() => emitter.fire(undefined), 0);
 				} else {
-					emitter.fire();
+					emitter.fire(undefined);
 				}
 			});
 
@@ -355,7 +355,7 @@ export namespace Event {
 	}
 }
 
-type Listener = [Function, any] | Function;
+type Listener<T> = [(e: T) => void, any] | ((e: T) => void);
 
 export interface EmitterOptions {
 	onFirstListenerAdd?: Function;
@@ -414,7 +414,7 @@ class LeakageMonitor {
 		if (this._warnCountdown <= 0) {
 			// only warn on first exceed and then every time the limit
 			// is exceeded by 50% again
-			this._warnCountdown = threshold * .5;
+			this._warnCountdown = threshold * 0.5;
 
 			// find most frequent listener and print warning
 			let topStack: string;
@@ -462,12 +462,12 @@ export class Emitter<T> {
 
 	private static readonly _noop = function () { };
 
-	private readonly _options: EmitterOptions | undefined;
-	private readonly _leakageMon: LeakageMonitor | undefined;
+	private readonly _options?: EmitterOptions;
+	private readonly _leakageMon?: LeakageMonitor;
 	private _disposed: boolean = false;
-	private _event: Event<T> | undefined;
-	private _deliveryQueue: [Listener, (T | undefined)][] | undefined;
-	protected _listeners: LinkedList<Listener> | undefined;
+	private _event?: Event<T>;
+	private _deliveryQueue: [Listener<T>, T][];
+	protected _listeners?: LinkedList<Listener<T>>;
 
 	constructor(options?: EmitterOptions) {
 		this._options = options;
@@ -541,7 +541,7 @@ export class Emitter<T> {
 	 * To be kept private to fire an event to
 	 * subscribers
 	 */
-	fire(event?: T): any {
+	fire(event: T): void {
 		if (this._listeners) {
 			// put all [listener,event]-pairs into delivery queue
 			// then emit all event. an inner/nested event might be
@@ -590,7 +590,7 @@ export interface IWaitUntil {
 
 export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
 
-	private _asyncDeliveryQueue: [Listener, T, Promise<any>[]][];
+	private _asyncDeliveryQueue: [Listener<T>, T, Promise<any>[]][];
 
 	async fireAsync(eventFn: (thenables: Promise<any>[], listener: Function) => T): Promise<void> {
 		if (!this._listeners) {
@@ -727,12 +727,12 @@ export class EventBufferer {
 				} else {
 					listener.call(thisArgs, i);
 				}
-			}, void 0, disposables);
+			}, undefined, disposables);
 		};
 	}
 
 	bufferEvents<R = void>(fn: () => R): R {
-		const buffer: Function[] = [];
+		const buffer: Array<() => R> = [];
 		this.buffers.push(buffer);
 		const r = fn();
 		this.buffers.pop();

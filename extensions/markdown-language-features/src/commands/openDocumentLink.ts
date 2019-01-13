@@ -39,9 +39,9 @@ export class OpenDocumentLinkCommand implements Command {
 				return this.tryOpen(p + '.md', args);
 			}
 			const resource = vscode.Uri.file(p);
-			return Promise.resolve(void 0)
+			return Promise.resolve(undefined)
 				.then(() => vscode.commands.executeCommand('vscode.open', resource))
-				.then(() => void 0);
+				.then(() => undefined);
 		});
 	}
 
