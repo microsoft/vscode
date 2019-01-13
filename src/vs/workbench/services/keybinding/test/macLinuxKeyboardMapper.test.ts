@@ -1409,7 +1409,7 @@ suite('keyboardMapper - MAC zh_hant', () => {
 				userSettingsLabel: 'cmd+c',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['meta+[KeyC]', null],
+				dispatchParts: ['meta+[KeyC]'],
 			}]
 		);
 	});
@@ -1436,6 +1436,6 @@ function _assertKeybindingTranslation(mapper: MacLinuxKeyboardMapper, OS: Operat
 	}
 
 	const actual = actualHardwareKeypresses
-		.map(k => UserSettingsLabelProvider.toLabel(k, ScanCodeUtils.toString(k.scanCode), null, null, OS));
+		.map(k => UserSettingsLabelProvider.toLabel([k], [ScanCodeUtils.toString(k.scanCode)], OS));
 	assert.deepEqual(actual, expected, `simpleKeybindingToHardwareKeypress -- "${keybindingLabel}" -- actual: "${actual}" -- expected: "${expected}"`);
 }

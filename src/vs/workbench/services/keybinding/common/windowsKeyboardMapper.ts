@@ -101,9 +101,15 @@ export class WindowsNativeResolvedKeybinding extends ResolvedKeybinding {
 	}
 
 	public getLabel(): string | null {
-		let firstPart = this._getUILabelForKeybinding(this._parts[0]);
-		let chordPart = this._getUILabelForKeybinding(this._parts[1]);
-		return UILabelProvider.toLabel(this._parts[0], firstPart, this._parts[1], chordPart, OperatingSystem.Windows);
+		let partKeys: string[] = [];
+		for (let part of this._parts) {
+			let key = this._getUILabelForKeybinding(part);
+			if (key === null) {
+				return null;
+			}
+			partKeys.push(key);
+		}
+		return UILabelProvider.toLabel(this._parts, partKeys, OperatingSystem.Windows);
 	}
 
 	private _getUSLabelForKeybinding(keybinding: SimpleKeybinding | null): string | null {
@@ -117,9 +123,15 @@ export class WindowsNativeResolvedKeybinding extends ResolvedKeybinding {
 	}
 
 	public getUSLabel(): string | null {
-		let firstPart = this._getUSLabelForKeybinding(this._parts[0]);
-		let chordPart = this._getUSLabelForKeybinding(this._parts[1]);
-		return UILabelProvider.toLabel(this._parts[0], firstPart, this._parts[1], chordPart, OperatingSystem.Windows);
+		let partKeys: string[] = [];
+		for (let part of this._parts) {
+			let key = this._getUSLabelForKeybinding(part);
+			if (key === null) {
+				return null;
+			}
+			partKeys.push(key);
+		}
+		return UILabelProvider.toLabel(this._parts, partKeys, OperatingSystem.Windows);
 	}
 
 	private _getAriaLabelForKeybinding(keybinding: SimpleKeybinding | null): string | null {
@@ -133,9 +145,15 @@ export class WindowsNativeResolvedKeybinding extends ResolvedKeybinding {
 	}
 
 	public getAriaLabel(): string | null {
-		let firstPart = this._getAriaLabelForKeybinding(this._parts[0]);
-		let chordPart = this._getAriaLabelForKeybinding(this._parts[1]);
-		return AriaLabelProvider.toLabel(this._parts[0], firstPart, this._parts[1], chordPart, OperatingSystem.Windows);
+		let partKeys: string[] = [];
+		for (let part of this._parts) {
+			let key = this._getAriaLabelForKeybinding(part);
+			if (key === null) {
+				return null;
+			}
+			partKeys.push(key);
+		}
+		return AriaLabelProvider.toLabel(this._parts, partKeys, OperatingSystem.Windows);
 	}
 
 	private _keyCodeToElectronAccelerator(keyCode: KeyCode): string | null {
@@ -176,7 +194,10 @@ export class WindowsNativeResolvedKeybinding extends ResolvedKeybinding {
 		}
 
 		let firstPart = this._getElectronAcceleratorLabelForKeybinding(this._parts[0]);
-		return ElectronAcceleratorLabelProvider.toLabel(this._parts[0], firstPart, null, null, OperatingSystem.Windows);
+		if (firstPart === null) {
+			return null;
+		}
+		return ElectronAcceleratorLabelProvider.toLabel(this._parts, [firstPart], OperatingSystem.Windows);
 	}
 
 	private _getUserSettingsLabelForKeybinding(keybinding: SimpleKeybinding | null): string | null {
@@ -190,9 +211,15 @@ export class WindowsNativeResolvedKeybinding extends ResolvedKeybinding {
 	}
 
 	public getUserSettingsLabel(): string | null {
-		let firstPart = this._getUserSettingsLabelForKeybinding(this._parts[0]);
-		let chordPart = this._getUserSettingsLabelForKeybinding(this._parts[1]);
-		let result = UserSettingsLabelProvider.toLabel(this._parts[0], firstPart, this._parts[1], chordPart, OperatingSystem.Windows);
+		let partKeys: string[] = [];
+		for (let part of this._parts) {
+			let key = this._getUserSettingsLabelForKeybinding(part);
+			if (key === null) {
+				return null;
+			}
+			partKeys.push(key);
+		}
+		let result = UserSettingsLabelProvider.toLabel(this._parts, partKeys, OperatingSystem.Windows);
 		return (result ? result.toLowerCase() : result);
 	}
 
@@ -224,11 +251,8 @@ export class WindowsNativeResolvedKeybinding extends ResolvedKeybinding {
 		return this._parts.length > 1;
 	}
 
-	public getParts(): [ResolvedKeybindingPart, ResolvedKeybindingPart | null] {
-		return [
-			this._toResolvedKeybindingPart(this._parts[0]),
-			this._parts[1] ? this._toResolvedKeybindingPart(this._parts[1]) : null
-		];
+	public getParts(): ResolvedKeybindingPart[] {
+		return this._parts.map(this._toResolvedKeybindingPart);
 	}
 
 	private _toResolvedKeybindingPart(keybinding: SimpleKeybinding): ResolvedKeybindingPart {
@@ -242,7 +266,7 @@ export class WindowsNativeResolvedKeybinding extends ResolvedKeybinding {
 		);
 	}
 
-	public getDispatchParts(): string[] {
+	public getDispatchParts(): (string | null)[] {
 		return this._parts.map(this._getDispatchStr);
 	}
 
@@ -546,7 +570,7 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 	public resolveUserBinding(firstPart: SimpleKeybinding | ScanCodeBinding | null, chordPart: SimpleKeybinding | ScanCodeBinding | null): ResolvedKeybinding[] {
 		const _firstPart = this._resolveSimpleUserBinding(firstPart);
 		const _chordPart = this._resolveSimpleUserBinding(chordPart);
-		let parts = [];
+		let parts: SimpleKeybinding[] = [];
 		if (_firstPart) {
 			parts.push(_firstPart);
 		}

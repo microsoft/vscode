@@ -583,12 +583,12 @@ export abstract class ResolvedKeybinding {
 	public abstract isChord(): boolean;
 
 	/**
-	 * Returns the firstPart, chordPart that should be used for dispatching.
+	 * Returns the parts that should be used for dispatching.
 	 */
-	public abstract getDispatchParts(): string[];
+	public abstract getDispatchParts(): (string | null)[];
 	/**
-	 * Returns the firstPart, chordPart of the keybinding.
-	 * For simple keybindings, the second element will be null.
+	 * Returns the parts that comprise of the keybinding.
+	 * Simple keybindings return one element.
 	 */
 	public abstract getParts(): ResolvedKeybindingPart[];
 }

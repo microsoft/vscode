@@ -13,7 +13,7 @@ import { OperatingSystem } from 'vs/base/common/platform';
 export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 
 	private readonly _os: OperatingSystem;
-	private readonly _chords: SimpleKeybinding[];
+	private readonly _parts: SimpleKeybinding[];
 
 	constructor(actual: Keybinding, OS: OperatingSystem) {
 		super();
@@ -21,7 +21,7 @@ export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 		if (!actual) {
 			throw new Error(`Invalid USLayoutResolvedKeybinding`);
 		} else {
-			this._chords = actual.parts;
+			this._parts = actual.parts;
 		}
 	}
 
@@ -52,9 +52,15 @@ export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 	}
 
 	public getLabel(): string | null {
-		let firstPart = this._getUILabelForKeybinding(this._chords[0]);
-		let chordPart = this._getUILabelForKeybinding(this._chords[1]);
-		return UILabelProvider.toLabel(this._chords[0], firstPart, this._chords[1], chordPart, this._os);
+		let partKeys: string[] = [];
+		for (let part of this._parts) {
+			let key = this._getUILabelForKeybinding(part);
+			if (key === null) {
+				return null;
+			}
+			partKeys.push(key);
+		}
+		return UILabelProvider.toLabel(this._parts, partKeys, this._os);
 	}
 
 	private _getAriaLabelForKeybinding(keybinding: SimpleKeybinding | null): string | null {
@@ -68,9 +74,15 @@ export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 	}
 
 	public getAriaLabel(): string | null {
-		let firstPart = this._getAriaLabelForKeybinding(this._chords[0]);
-		let chordPart = this._getAriaLabelForKeybinding(this._chords[1]);
-		return AriaLabelProvider.toLabel(this._chords[0], firstPart, this._chords[1], chordPart, this._os);
+		let partKeys: string[] = [];
+		for (let part of this._parts) {
+			let key = this._getAriaLabelForKeybinding(part);
+			if (key === null) {
+				return null;
+			}
+			partKeys.push(key);
+		}
+		return AriaLabelProvider.toLabel(this._parts, partKeys, this._os);
 	}
 
 	private _keyCodeToElectronAccelerator(keyCode: KeyCode): string | null {
@@ -104,13 +116,16 @@ export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 	}
 
 	public getElectronAccelerator(): string | null {
-		if (this._chords.length > 1) {
+		if (this._parts.length > 1) {
 			// Electron cannot handle chords
 			return null;
 		}
 
-		let firstPart = this._getElectronAcceleratorLabelForKeybinding(this._chords[0]);
-		return ElectronAcceleratorLabelProvider.toLabel(this._chords[0], firstPart, null, null, this._os);
+		let firstPart = this._getElectronAcceleratorLabelForKeybinding(this._parts[0]);
+		if (firstPart === null) {
+			return null;
+		}
+		return ElectronAcceleratorLabelProvider.toLabel(this._parts, [firstPart], this._os);
 	}
 
 	private _getUserSettingsLabelForKeybinding(keybinding: SimpleKeybinding | null): string | null {
@@ -124,9 +139,15 @@ export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 	}
 
 	public getUserSettingsLabel(): string | null {
-		let firstPart = this._getUserSettingsLabelForKeybinding(this._chords[0]);
-		let chordPart = this._getUserSettingsLabelForKeybinding(this._chords[1]);
-		let result = UserSettingsLabelProvider.toLabel(this._chords[0], firstPart, this._chords[1], chordPart, this._os);
+		let partKeys: string[] = [];
+		for (let part of this._parts) {
+			let key = this._getUserSettingsLabelForKeybinding(part);
+			if (key === null) {
+				return null;
+			}
+			partKeys.push(key);
+		}
+		let result = UserSettingsLabelProvider.toLabel(this._parts, partKeys, this._os);
 		return (result ? result.toLowerCase() : result);
 	}
 
@@ -135,11 +156,11 @@ export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 	}
 
 	public isChord(): boolean {
-		return this._chords.length > 1;
+		return this._parts.length > 1;
 	}
 
 	public getParts(): ResolvedKeybindingPart[] {
-		return this._chords.map(this._toResolvedKeybindingPart);
+		return this._parts.map(this._toResolvedKeybindingPart);
 	}
 
 	private _toResolvedKeybindingPart(keybinding: SimpleKeybinding): ResolvedKeybindingPart {
@@ -153,8 +174,8 @@ export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 		);
 	}
 
-	public getDispatchParts(): string[] {
-		return this._chords.map((chord) => USLayoutResolvedKeybinding.getDispatchStr(chord));
+	public getDispatchParts(): (string | null)[] {
+		return this._parts.map((chord) => USLayoutResolvedKeybinding.getDispatchStr(chord));
 	}
 
 	public static getDispatchStr(keybinding: SimpleKeybinding): string | null {

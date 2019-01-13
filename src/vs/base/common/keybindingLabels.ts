@@ -32,11 +32,8 @@ export class ModifierLabelProvider {
 		this.modifierLabels[OperatingSystem.Linux] = linux;
 	}
 
-	public toLabel(firstPartMod: Modifiers | null, firstPartKey: string | null, chordPartMod: Modifiers | null, chordPartKey: string | null, OS: OperatingSystem): string | null {
-		if (firstPartMod === null || firstPartKey === null) {
-			return null;
-		}
-		return _asString(firstPartMod, firstPartKey, chordPartMod, chordPartKey, this.modifierLabels[OS]);
+	public toLabel(partModifiers: Modifiers[], partKeys: string[], OS: OperatingSystem): string | null {
+		return _asString(partModifiers, partKeys, this.modifierLabels[OS]);
 	}
 }
 
@@ -172,13 +169,10 @@ function _simpleAsString(modifiers: Modifiers, key: string, labels: ModifierLabe
 	return result.join(labels.separator);
 }
 
-function _asString(firstPartMod: Modifiers, firstPartKey: string, chordPartMod: Modifiers | null, chordPartKey: string | null, labels: ModifierLabels): string {
-	let result = _simpleAsString(firstPartMod, firstPartKey, labels);
-
-	if (chordPartMod !== null && chordPartKey !== null) {
-		result += ' ';
-		result += _simpleAsString(chordPartMod, chordPartKey, labels);
+function _asString(partModifiers: Modifiers[], partKeys: string[], labels: ModifierLabels): string {
+	let results: string[] = [];
+	for (let i = 0; i < partModifiers.length; i++) {
+		results.push(_simpleAsString(partModifiers[i], partKeys[i], labels));
 	}
-
-	return result;
+	return results.join(' ');
 }

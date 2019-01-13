@@ -67,44 +67,65 @@ export class NativeResolvedKeybinding extends ResolvedKeybinding {
 
 	private readonly _mapper: MacLinuxKeyboardMapper;
 	private readonly _OS: OperatingSystem;
-	private readonly _chords: ScanCodeBinding[];
+	private readonly _parts: ScanCodeBinding[];
 
-	constructor(mapper: MacLinuxKeyboardMapper, OS: OperatingSystem, chords: ScanCodeBinding[]) {
+	constructor(mapper: MacLinuxKeyboardMapper, OS: OperatingSystem, parts: ScanCodeBinding[]) {
 		super();
-		if (chords.length === 0) {
+		if (parts.length === 0) {
 			throw new Error(`Invalid USLayoutResolvedKeybinding`);
 		}
 		this._mapper = mapper;
 		this._OS = OS;
-		this._chords = chords;
+		this._parts = parts;
 	}
 
 	public getLabel(): string | null {
-		let firstPart = this._mapper.getUILabelForScanCodeBinding(this._chords[0]);
-		let chordPart = this._mapper.getUILabelForScanCodeBinding(this._chords[1]);
-		return UILabelProvider.toLabel(this._chords[0], firstPart, this._chords[1], chordPart, this._OS);
+		let partKeys: string[] = [];
+		for (let part of this._parts) {
+			let key = this._mapper.getUILabelForScanCodeBinding(part);
+			if (key === null) {
+				return null;
+			}
+			partKeys.push(key);
+		}
+		return UILabelProvider.toLabel(this._parts, partKeys, this._OS);
 	}
 
 	public getAriaLabel(): string | null {
-		let firstPart = this._mapper.getAriaLabelForScanCodeBinding(this._chords[0]);
-		let chordPart = this._mapper.getAriaLabelForScanCodeBinding(this._chords[1]);
-		return AriaLabelProvider.toLabel(this._chords[0], firstPart, this._chords[1], chordPart, this._OS);
+		let partKeys: string[] = [];
+		for (let part of this._parts) {
+			let key = this._mapper.getAriaLabelForScanCodeBinding(part);
+			if (key === null) {
+				return null;
+			}
+			partKeys.push(key);
+		}
+		return AriaLabelProvider.toLabel(this._parts, partKeys, this._OS);
 	}
 
 	public getElectronAccelerator(): string | null {
-		if (this._chords.length > 1) {
+		if (this._parts.length > 1) {
 			// Electron cannot handle chords
 			return null;
 		}
 
-		let firstPart = this._mapper.getElectronAcceleratorLabelForScanCodeBinding(this._chords[0]);
-		return ElectronAcceleratorLabelProvider.toLabel(this._chords[0], firstPart, null, null, this._OS);
+		let firstPart = this._mapper.getElectronAcceleratorLabelForScanCodeBinding(this._parts[0]);
+		if (firstPart === null) {
+			return null;
+		}
+		return ElectronAcceleratorLabelProvider.toLabel(this._parts, [firstPart], this._OS);
 	}
 
 	public getUserSettingsLabel(): string | null {
-		let firstPart = this._mapper.getUserSettingsLabelForScanCodeBinding(this._chords[0]);
-		let chordPart = this._mapper.getUserSettingsLabelForScanCodeBinding(this._chords[1]);
-		return UserSettingsLabelProvider.toLabel(this._chords[0], firstPart, this._chords[1], chordPart, this._OS);
+		let partKeys: string[] = [];
+		for (let part of this._parts) {
+			let key = this._mapper.getUserSettingsLabelForScanCodeBinding(part);
+			if (key === null) {
+				return null;
+			}
+			partKeys.push(key);
+		}
+		return UserSettingsLabelProvider.toLabel(this._parts, partKeys, this._OS);
 	}
 
 	private _isWYSIWYG(binding: ScanCodeBinding | null): boolean {
@@ -127,15 +148,15 @@ export class NativeResolvedKeybinding extends ResolvedKeybinding {
 	}
 
 	public isWYSIWYG(): boolean {
-		return this._chords.every(this._isWYSIWYG);
+		return this._parts.every(this._isWYSIWYG);
 	}
 
 	public isChord(): boolean {
-		return this._chords.length > 1;
+		return this._parts.length > 1;
 	}
 
 	public getParts(): ResolvedKeybindingPart[] {
-		return this._chords.map(this._toResolvedKeybindingPart);
+		return this._parts.map(this._toResolvedKeybindingPart);
 	}
 
 	private _toResolvedKeybindingPart(binding: ScanCodeBinding): ResolvedKeybindingPart {
@@ -149,8 +170,8 @@ export class NativeResolvedKeybinding extends ResolvedKeybinding {
 		);
 	}
 
-	public getDispatchParts(): string[] {
-		return this._chords.map(this._mapper.getDispatchStrForScanCodeBinding);
+	public getDispatchParts(): (string | null)[] {
+		return this._parts.map(this._mapper.getDispatchStrForScanCodeBinding);
 	}
 }
 
@@ -1093,7 +1114,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 	}
 
 	public resolveUserBinding(_firstPart: SimpleKeybinding | ScanCodeBinding | null, _chordPart: SimpleKeybinding | ScanCodeBinding | null): ResolvedKeybinding[] {
-		let chordParts = [];
+		let chordParts: ScanCodeBinding[][] = [];
 		if (_firstPart) {
 			chordParts.push(this._resolveSimpleUserBinding(_firstPart));
 		}
