@@ -186,6 +186,7 @@
 		"./vs/editor/contrib/find/simpleFindWidget.ts",
 		"./vs/editor/contrib/find/test/find.test.ts",
 		"./vs/editor/contrib/find/test/findController.test.ts",
+		"./vs/editor/contrib/find/test/findModel.test.ts",
 		"./vs/editor/contrib/find/test/replacePattern.test.ts",
 		"./vs/editor/contrib/folding/folding.ts",
 		"./vs/editor/contrib/folding/foldingDecorations.ts",
