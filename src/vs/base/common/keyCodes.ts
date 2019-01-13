@@ -416,13 +416,11 @@ export function createKeybinding(keybinding: number, OS: OperatingSystem): Keybi
 	}
 	const firstPart = (keybinding & 0x0000FFFF) >>> 0;
 	const chordPart = (keybinding & 0xFFFF0000) >>> 16;
+	let parts = [createSimpleKeybinding(firstPart, OS)];
 	if (chordPart !== 0) {
-		return new ChordKeybinding([
-			createSimpleKeybinding(firstPart, OS),
-			createSimpleKeybinding(chordPart, OS),
-		]);
+		parts.push(createSimpleKeybinding(chordPart, OS));
 	}
-	return createSimpleKeybinding(firstPart, OS);
+	return new ChordKeybinding(parts);
 }
 
 export function createSimpleKeybinding(keybinding: number, OS: OperatingSystem): SimpleKeybinding {
@@ -461,10 +459,7 @@ export class SimpleKeybinding {
 		this.keyCode = keyCode;
 	}
 
-	public equals(other: Keybinding): boolean {
-		if (other.type !== KeybindingType.Simple) {
-			return false;
-		}
+	public equals(other: SimpleKeybinding): boolean {
 		return (
 			this.ctrlKey === other.ctrlKey
 			&& this.shiftKey === other.shiftKey
@@ -492,6 +487,10 @@ export class SimpleKeybinding {
 		);
 	}
 
+	public toChord(): ChordKeybinding {
+		return new ChordKeybinding([this]);
+	}
+
 	/**
 	 * Does this keybinding refer to the key code of a modifier and it also has the modifier flag?
 	 */
@@ -517,9 +516,21 @@ export class ChordKeybinding {
 		let hashCodes = this.parts.map((p) => p.getHashCode().toString());
 		return hashCodes.join(';');
 	}
+
+	public equals(other: ChordKeybinding): boolean {
+		if (this.parts.length !== other.parts.length) {
+			return false;
+		}
+		for (let i = 0; i < this.parts.length; i++) {
+			if (!this.parts[i].equals(other.parts[i])) {
+				return false;
+			}
+		}
+		return true;
+	}
 }
 
-export type Keybinding = SimpleKeybinding | ChordKeybinding;
+export type Keybinding = ChordKeybinding;
 
 export class ResolvedKeybindingPart {
 	readonly ctrlKey: boolean;
@@ -574,10 +585,10 @@ export abstract class ResolvedKeybinding {
 	/**
 	 * Returns the firstPart, chordPart that should be used for dispatching.
 	 */
-	public abstract getDispatchParts(): [string | null, string | null];
+	public abstract getDispatchParts(): string[];
 	/**
 	 * Returns the firstPart, chordPart of the keybinding.
 	 * For simple keybindings, the second element will be null.
 	 */
-	public abstract getParts(): [ResolvedKeybindingPart, ResolvedKeybindingPart | null];
+	public abstract getParts(): ResolvedKeybindingPart[];
 }

@@ -92,11 +92,6 @@ export class KeybindingParser {
 			[part, input] = this.parseSimpleKeybinding(input);
 			parts.push(part);
 		} while (input.length > 0);
-
-		if (parts.length === 1) {
-			// This is a simple keybinding
-			return parts[0];
-		}
 		return new ChordKeybinding(parts);
 	}
 

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode, KeyCodeUtils, Keybinding, KeybindingType, ResolvedKeybinding, ResolvedKeybindingPart, SimpleKeybinding } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyCodeUtils, Keybinding, ResolvedKeybinding, ResolvedKeybindingPart, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { AriaLabelProvider, ElectronAcceleratorLabelProvider, UILabelProvider, UserSettingsLabelProvider } from 'vs/base/common/keybindingLabels';
 import { OperatingSystem } from 'vs/base/common/platform';
 
@@ -13,21 +13,15 @@ import { OperatingSystem } from 'vs/base/common/platform';
 export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 
 	private readonly _os: OperatingSystem;
-	private readonly _firstPart: SimpleKeybinding;
-	private readonly _chordPart: SimpleKeybinding | null;
+	private readonly _chords: SimpleKeybinding[];
 
 	constructor(actual: Keybinding, OS: OperatingSystem) {
 		super();
 		this._os = OS;
 		if (!actual) {
 			throw new Error(`Invalid USLayoutResolvedKeybinding`);
-		} else if (actual.type === KeybindingType.Chord) {
-			// TODO@chords
-			this._firstPart = actual.parts[0];
-			this._chordPart = actual.parts[1];
 		} else {
-			this._firstPart = actual;
-			this._chordPart = null;
+			this._chords = actual.parts;
 		}
 	}
 
@@ -58,9 +52,9 @@ export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 	}
 
 	public getLabel(): string | null {
-		let firstPart = this._getUILabelForKeybinding(this._firstPart);
-		let chordPart = this._getUILabelForKeybinding(this._chordPart);
-		return UILabelProvider.toLabel(this._firstPart, firstPart, this._chordPart, chordPart, this._os);
+		let firstPart = this._getUILabelForKeybinding(this._chords[0]);
+		let chordPart = this._getUILabelForKeybinding(this._chords[1]);
+		return UILabelProvider.toLabel(this._chords[0], firstPart, this._chords[1], chordPart, this._os);
 	}
 
 	private _getAriaLabelForKeybinding(keybinding: SimpleKeybinding | null): string | null {
@@ -74,9 +68,9 @@ export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 	}
 
 	public getAriaLabel(): string | null {
-		let firstPart = this._getAriaLabelForKeybinding(this._firstPart);
-		let chordPart = this._getAriaLabelForKeybinding(this._chordPart);
-		return AriaLabelProvider.toLabel(this._firstPart, firstPart, this._chordPart, chordPart, this._os);
+		let firstPart = this._getAriaLabelForKeybinding(this._chords[0]);
+		let chordPart = this._getAriaLabelForKeybinding(this._chords[1]);
+		return AriaLabelProvider.toLabel(this._chords[0], firstPart, this._chords[1], chordPart, this._os);
 	}
 
 	private _keyCodeToElectronAccelerator(keyCode: KeyCode): string | null {
@@ -110,13 +104,13 @@ export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 	}
 
 	public getElectronAccelerator(): string | null {
-		if (this._chordPart !== null) {
+		if (this._chords.length > 1) {
 			// Electron cannot handle chords
 			return null;
 		}
 
-		let firstPart = this._getElectronAcceleratorLabelForKeybinding(this._firstPart);
-		return ElectronAcceleratorLabelProvider.toLabel(this._firstPart, firstPart, null, null, this._os);
+		let firstPart = this._getElectronAcceleratorLabelForKeybinding(this._chords[0]);
+		return ElectronAcceleratorLabelProvider.toLabel(this._chords[0], firstPart, null, null, this._os);
 	}
 
 	private _getUserSettingsLabelForKeybinding(keybinding: SimpleKeybinding | null): string | null {
@@ -130,9 +124,9 @@ export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 	}
 
 	public getUserSettingsLabel(): string | null {
-		let firstPart = this._getUserSettingsLabelForKeybinding(this._firstPart);
-		let chordPart = this._getUserSettingsLabelForKeybinding(this._chordPart);
-		let result = UserSettingsLabelProvider.toLabel(this._firstPart, firstPart, this._chordPart, chordPart, this._os);
+		let firstPart = this._getUserSettingsLabelForKeybinding(this._chords[0]);
+		let chordPart = this._getUserSettingsLabelForKeybinding(this._chords[1]);
+		let result = UserSettingsLabelProvider.toLabel(this._chords[0], firstPart, this._chords[1], chordPart, this._os);
 		return (result ? result.toLowerCase() : result);
 	}
 
@@ -141,14 +135,11 @@ export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 	}
 
 	public isChord(): boolean {
-		return (this._chordPart ? true : false);
+		return this._chords.length > 1;
 	}
 
-	public getParts(): [ResolvedKeybindingPart, ResolvedKeybindingPart | null] {
-		return [
-			this._toResolvedKeybindingPart(this._firstPart),
-			this._chordPart ? this._toResolvedKeybindingPart(this._chordPart) : null
-		];
+	public getParts(): ResolvedKeybindingPart[] {
+		return this._chords.map(this._toResolvedKeybindingPart);
 	}
 
 	private _toResolvedKeybindingPart(keybinding: SimpleKeybinding): ResolvedKeybindingPart {
@@ -162,10 +153,8 @@ export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 		);
 	}
 
-	public getDispatchParts(): [string | null, string | null] {
-		let firstPart = this._firstPart ? USLayoutResolvedKeybinding.getDispatchStr(this._firstPart) : null;
-		let chordPart = this._chordPart ? USLayoutResolvedKeybinding.getDispatchStr(this._chordPart) : null;
-		return [firstPart, chordPart];
+	public getDispatchParts(): string[] {
+		return this._chords.map((chord) => USLayoutResolvedKeybinding.getDispatchStr(chord));
 	}
 
 	public static getDispatchStr(keybinding: SimpleKeybinding): string | null {
