@@ -75,9 +75,9 @@ suite('Debug - Link Detector', () => {
 	});
 
 	test('singleLineLinkAndText', function () {
-		var input = isWindows ? 'The link: C:/foo/bar.js:12:34' : 'The link: /Users/foo/bar.js:12:34';
-		var expectedOutput = /^<span><span>The link: <\/span><a title=".*">.*\/foo\/bar.js:12:34<\/a><\/span>$/;
-		var output = linkDetector.handleLinks(input);
+		const input = isWindows ? 'The link: C:/foo/bar.js:12:34' : 'The link: /Users/foo/bar.js:12:34';
+		const expectedOutput = /^<span><span>The link: <\/span><a title=".*">.*\/foo\/bar.js:12:34<\/a><\/span>$/;
+		const output = linkDetector.handleLinks(input);
 
 		assert.equal(2, output.children.length);
 		assert.equal('SPAN', output.tagName);
