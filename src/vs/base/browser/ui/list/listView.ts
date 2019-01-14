@@ -661,6 +661,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		const canDrop = typeof result === 'boolean' ? result : result.accept;
 
 		if (!canDrop) {
+			this.currentDragFeedback = undefined;
+			this.currentDragFeedbackDisposable.dispose();
 			return false;
 		}
 
