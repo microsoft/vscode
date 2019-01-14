@@ -12,7 +12,7 @@ import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/wor
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { GotoSymbolAction, GOTO_SYMBOL_PREFIX, SCOPE_PREFIX, GotoSymbolHandler } from 'vs/workbench/parts/quickopen/browser/gotoSymbolHandler';
 import { ShowAllCommandsAction, ALL_COMMANDS_PREFIX, ClearCommandHistoryAction, CommandsHandler } from 'vs/workbench/parts/quickopen/browser/commandsHandler';
-import { GotoLineAction, GOTO_LINE_PREFIX, GotoLineHandler } from 'vs/workbench/parts/quickopen/browser/gotoLineHandler';
+import { GotoLineAction, GotoLineAction2, GOTO_LINE_PREFIX, GotoLineHandler } from 'vs/workbench/parts/quickopen/browser/gotoLineHandler';
 import { HELP_PREFIX, HelpHandler } from 'vs/workbench/parts/quickopen/browser/helpHandler';
 import { VIEW_PICKER_PREFIX, OpenViewPickerAction, QuickOpenViewPickerAction, ViewPickerHandler } from 'vs/workbench/parts/quickopen/browser/viewPickerHandler';
 import { inQuickOpenContext, getQuickNavigateHandler } from 'vs/workbench/browser/parts/quickopen/quickopen';
@@ -31,6 +31,14 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(GotoLineAction, GotoLi
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_G,
 	mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_G }
 }), 'Go to Line...');
+
+// experimental shortcut for example 4
+registry.registerWorkbenchAction(new SyncActionDescriptor(GotoLineAction2, GotoLineAction2.ID, GotoLineAction2.LABEL, {
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_J,
+	mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_J }
+}), 'Go to Line Ex 4...');
+
+
 
 registry.registerWorkbenchAction(new SyncActionDescriptor(GotoSymbolAction, GotoSymbolAction.ID, GotoSymbolAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_O

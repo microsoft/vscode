@@ -72,9 +72,11 @@ export class GotoLineAction extends QuickOpenAction {
 }
 
 
+// Example 4 / 2,3 with tweaks
+
 export class GotoLineAction2 extends Action {
 
-	static readonly ID = 'workbench.action.gotoLine';
+	static readonly ID = 'workbench.action.gotoLine2';
 	static readonly LABEL = nls.localize('gotoLine', "Go to Line...");
 
 	constructor(actionId: string, actionLabel: string,
@@ -82,11 +84,10 @@ export class GotoLineAction2 extends Action {
 		@IQuickInputService protected quickInputService: IQuickInputService,
 		@IEditorService private readonly editorService: IEditorService
 	) {
-		// super(actionId, actionLabel, GOTO_LINE_PREFIX, _quickOpenService);
 		super(actionId, actionLabel);
 	}
 
-	run(): Promise<void> {
+	run(): Promise<any> {
 
 		let activeTextEditorWidget = this.editorService.activeTextEditorWidget;
 		if (isDiffEditor(activeTextEditorWidget)) {
@@ -107,36 +108,26 @@ export class GotoLineAction2 extends Action {
 		}
 
 		const line = this.editorService.activeTextEditorWidget.getPosition().lineNumber;
-		let model = activeTextEditorWidget.getModel();
-		if (model && (<IDiffEditorModel>model).modified && (<IDiffEditorModel>model).original) {
-			model = (<IDiffEditorModel>model).modified; // Support for diff editor models
-		}
-
 		const maxLine = (<ITextModel>this.editorService.activeTextEditorWidget.getModel()).getLineCount();
-		// maxLine = model && types.isFunction((<ITextModel>model).getLineCount) ? (<ITextModel>model).getLineCount();
 
 		return this.quickInputService.input({
-			// value: '',
-			value: line.toString(),
+			// value: line.toString(), // for examples 2,3
 			prompt: nls.localize('gotoLine.prompt1', "Type a line number between 1 and {0} to navigate to.", maxLine),
-			// placeHolder: nls.localize('gotoLine3',"Current line: {0}.", line.toString())
+			placeHolder: nls.localize('gotoLine3', "Current line: {0}.", line.toString())
 
-		}).then(name => {
-			if (name) {
-				// terminalInstance.setTitle(name, false);
+		}).then(line => {
+			if (line) {
+
+				// need to add 	validation and error prompt - actual jump
+
+				if (restoreOptions) {
+					Event.once(this._quickOpenService.onHide)(() => {
+						activeTextEditorWidget.updateOptions(restoreOptions);
+					});
+				}
+
 			}
 		});
-
-
-		const result = super.run();
-
-		if (restoreOptions) {
-			Event.once(this._quickOpenService.onHide)(() => {
-				activeTextEditorWidget.updateOptions(restoreOptions);
-			});
-		}
-
-		return result;
 	}
 }
 
