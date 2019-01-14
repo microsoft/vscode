@@ -188,7 +188,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements ISerializable
 		}
 	}
 
-	openViewlet(id: string, focus?: boolean): Promise<IViewlet> {
+	openViewlet(id: string, focus?: boolean): Promise<IViewlet | null> {
 		if (this.getViewlet(id)) {
 			return Promise.resolve(this.doOpenViewlet(id, focus));
 		}
@@ -208,7 +208,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements ISerializable
 
 	getAllViewlets(): ViewletDescriptor[] {
 		return this.viewletRegistry.getViewlets()
-			.sort((v1, v2) => v1.order - v2.order);
+			.sort((v1, v2) => v1.order! - v2.order!);
 	}
 
 	getDefaultViewletId(): string {
@@ -219,7 +219,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements ISerializable
 		return this.getViewlets().filter(viewlet => viewlet.id === id)[0];
 	}
 
-	private doOpenViewlet(id: string, focus?: boolean): Viewlet {
+	private doOpenViewlet(id: string, focus?: boolean): Viewlet | null {
 		if (this.blockOpeningViewlet) {
 			return null; // Workaround against a potential race condition
 		}

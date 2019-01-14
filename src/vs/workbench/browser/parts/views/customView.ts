@@ -451,14 +451,28 @@ export class CustomTreeView extends Disposable implements ITreeView {
 
 	refresh(elements?: ITreeItem[]): Promise<void> {
 		if (this.dataProvider && this.tree) {
-			elements = elements || [this.root];
+			if (!elements) {
+				elements = [this.root];
+				// remove all waiting elements to refresh if root is asked to refresh
+				this.elementsToRefresh = [];
+			}
 			for (const element of elements) {
 				element.children = null; // reset children
 			}
 			if (this.isVisible) {
 				return this.doRefresh(elements);
 			} else {
-				this.elementsToRefresh.push(...elements);
+				if (this.elementsToRefresh.length) {
+					const seen: Set<string> = new Set<string>();
+					this.elementsToRefresh.forEach(element => seen.add(element.handle));
+					for (const element of elements) {
+						if (!seen.has(element.handle)) {
+							this.elementsToRefresh.push(element);
+						}
+					}
+				} else {
+					this.elementsToRefresh.push(...elements);
+				}
 			}
 		}
 		return Promise.resolve(undefined);
@@ -597,10 +611,12 @@ registerThemingParticipant((theme, collector) => {
 	const findMatchHighlightColor = theme.getColor(editorFindMatchHighlight);
 	if (findMatchHighlightColor) {
 		collector.addRule(`.file-icon-themable-tree .monaco-tree-row .content .monaco-highlighted-label .highlight { color: unset !important; background-color: ${findMatchHighlightColor}; }`);
+		collector.addRule(`.file-icon-themable-tree .monaco-tl-contents .monaco-highlighted-label .highlight { color: unset !important; background-color: ${findMatchHighlightColor}; }`);
 	}
 	const findMatchHighlightColorBorder = theme.getColor(editorFindMatchHighlightBorder);
 	if (findMatchHighlightColorBorder) {
 		collector.addRule(`.file-icon-themable-tree .monaco-tree-row .content .monaco-highlighted-label .highlight { color: unset !important; border: 1px dotted ${findMatchHighlightColorBorder}; box-sizing: border-box; }`);
+		collector.addRule(`.file-icon-themable-tree .monaco-tl-contents .monaco-highlighted-label .highlight { color: unset !important; border: 1px dotted ${findMatchHighlightColorBorder}; box-sizing: border-box; }`);
 	}
 	const link = theme.getColor(textLinkForeground);
 	if (link) {

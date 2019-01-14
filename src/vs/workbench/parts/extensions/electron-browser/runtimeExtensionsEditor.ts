@@ -23,7 +23,7 @@ import { ActionBar, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { clipboard } from 'electron';
-import { LocalExtensionType, EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { writeFile } from 'vs/base/node/pfs';
@@ -42,7 +42,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { join } from 'path';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, ExtensionType } from 'vs/platform/extensions/common/extensions';
 
 export const IExtensionHostProfileService = createDecorator<IExtensionHostProfileService>('extensionHostProfileService');
 export const CONTEXT_PROFILE_SESSION_STATE = new RawContextKey<string>('profileSessionState', 'none');
@@ -476,7 +476,7 @@ export class ReportExtensionIssueAction extends Action {
 	}) {
 		super(ReportExtensionIssueAction._id, ReportExtensionIssueAction._label, 'extension-action report-issue');
 		this.enabled = extension.marketplaceInfo
-			&& extension.marketplaceInfo.type === LocalExtensionType.User
+			&& extension.marketplaceInfo.type === ExtensionType.User
 			&& Boolean(extension.description.repository) && Boolean(extension.description.repository.url);
 
 		const { url, task } = ReportExtensionIssueAction._generateNewIssueUrl(extension);
@@ -499,7 +499,7 @@ export class ReportExtensionIssueAction extends Action {
 	}): { url: string, task?: () => Promise<any> } {
 
 		let task: () => Promise<any>;
-		let baseUrl = extension.marketplaceInfo && extension.marketplaceInfo.type === LocalExtensionType.User && extension.description.repository ? extension.description.repository.url : undefined;
+		let baseUrl = extension.marketplaceInfo && extension.marketplaceInfo.type === ExtensionType.User && extension.description.repository ? extension.description.repository.url : undefined;
 		if (!!baseUrl) {
 			baseUrl = `${baseUrl.indexOf('.git') !== -1 ? baseUrl.substr(0, baseUrl.length - 4) : baseUrl}/issues/new/`;
 		} else {

@@ -431,7 +431,7 @@ export class ResourceMap<T> {
 		this.map.set(this.toKey(resource), value);
 	}
 
-	get(resource: URI): T {
+	get(resource: URI): T | undefined {
 		return this.map.get(this.toKey(resource));
 	}
 

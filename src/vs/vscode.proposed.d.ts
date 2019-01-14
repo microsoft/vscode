@@ -1088,18 +1088,14 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	//#region Extension Context
-	export interface ExtensionContext {
-
+	//#region SignatureHelpContext active paramters - mjbvz
+	export interface SignatureHelpContext {
 		/**
-		 * An absolute file path in which the extension can store gloabal state.
-		 * The directory might not exist on disk and creation is
-		 * up to the extension. However, the parent directory is guaranteed to be existent.
+		 * The currently active [`SignatureHelp`](#SignatureHelp).
 		 *
-		 * Use [`globalState`](#ExtensionContext.globalState) to store key value data.
+		 * Will have the [`SignatureHelp.activeSignature`] field updated based on user arrowing through sig help
 		 */
-		globalStoragePath: string;
-
+		readonly activeSignatureHelp?: SignatureHelp;
 	}
 	//#endregion
 }

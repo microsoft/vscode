@@ -110,8 +110,7 @@ export class TMLanguageRegistration {
 		if (tokenTypes) {
 			// If tokenTypes is configured, fill in `this._tokenTypes`
 			const scopes = Object.keys(tokenTypes);
-			for (let i = 0, len = scopes.length; i < len; i++) {
-				const scope = scopes[i];
+			for (const scope of scopes) {
 				const tokenType = tokenTypes[scope];
 				switch (tokenType) {
 					case 'string':
@@ -390,8 +389,12 @@ export class TextMateService extends Disposable implements ITextMateService {
 	}
 
 	private _createGrammar(modeId: string): Promise<ICreateGrammarResult> {
-		let scopeName = this._languageToScope.get(modeId);
-		let languageRegistration = this._scopeRegistry.getLanguageRegistration(scopeName);
+		const scopeName = this._languageToScope.get(modeId);
+		if (typeof scopeName !== 'string') {
+			// No TM grammar defined
+			return Promise.reject(new Error(nls.localize('no-tm-grammar', "No TM Grammar registered for this language.")));
+		}
+		const languageRegistration = this._scopeRegistry.getLanguageRegistration(scopeName);
 		if (!languageRegistration) {
 			// No TM grammar defined
 			return Promise.reject(new Error(nls.localize('no-tm-grammar', "No TM Grammar registered for this language.")));

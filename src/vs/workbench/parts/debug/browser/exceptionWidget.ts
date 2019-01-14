@@ -81,7 +81,7 @@ export class ExceptionWidget extends ZoneWidget {
 			let stackTrace = $('.stack-trace');
 			const linkDetector = this.instantiationService.createInstance(LinkDetector);
 			const linkedStackTrace = linkDetector.handleLinks(this.exceptionInfo.details.stackTrace);
-			typeof linkedStackTrace === 'string' ? stackTrace.textContent = linkedStackTrace : stackTrace.appendChild(linkedStackTrace);
+			stackTrace.appendChild(linkedStackTrace);
 			dom.append(container, stackTrace);
 		}
 	}

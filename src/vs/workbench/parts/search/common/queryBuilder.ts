@@ -286,9 +286,9 @@ export class QueryBuilder {
 		const searchPathPatternMap = new Map<string, ISearchPathPattern>();
 		expandedSearchPaths.forEach(oneSearchPathPattern => {
 			const key = oneSearchPathPattern.searchPath.toString();
-			if (searchPathPatternMap.has(key)) {
+			const existing = searchPathPatternMap.get(key);
+			if (existing) {
 				if (oneSearchPathPattern.pattern) {
-					const existing = searchPathPatternMap.get(key);
 					existing.pattern = existing.pattern || {};
 					existing.pattern[oneSearchPathPattern.pattern] = true;
 				}

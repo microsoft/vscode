@@ -10,7 +10,7 @@ import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { match } from 'vs/base/common/glob';
 import * as json from 'vs/base/common/json';
 import {
-	IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, ExtensionRecommendationReason, LocalExtensionType, EXTENSION_IDENTIFIER_PATTERN,
+	IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, ExtensionRecommendationReason, EXTENSION_IDENTIFIER_PATTERN,
 	IExtensionsConfigContent, RecommendationChangeNotification, IExtensionRecommendation, ExtensionRecommendationSource, InstallOperation
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -40,10 +40,11 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { Emitter, Event } from 'vs/base/common/event';
 import { assign } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
-import { areSameExtensions, getGalleryExtensionIdFromLocal } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExperimentService, ExperimentActionType, ExperimentState } from 'vs/workbench/parts/experiments/node/experimentService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { getKeywordsForExtension } from 'vs/workbench/parts/extensions/electron-browser/extensionsUtils';
+import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 
 const milliSecondsInADay = 1000 * 60 * 60 * 24;
 const choiceNever = localize('neverShowAgain', "Don't Show Again");
@@ -372,7 +373,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 		if (filteredWanted.length) {
 			try {
-				let validRecommendations = (await this._galleryService.query({ names: filteredWanted })).firstPage
+				let validRecommendations = (await this._galleryService.query({ names: filteredWanted, pageSize: filteredWanted.length })).firstPage
 					.map(extension => extension.identifier.id.toLowerCase());
 
 				if (validRecommendations.length !== filteredWanted.length) {
@@ -419,8 +420,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			return;
 		}
 
-		this.extensionsService.getInstalled(LocalExtensionType.User).then(local => {
-			const recommendations = filteredRecs.filter(({ extensionId }) => local.every(local => !areSameExtensions({ id: extensionId }, { id: getGalleryExtensionIdFromLocal(local) })));
+		this.extensionsService.getInstalled(ExtensionType.User).then(local => {
+			const recommendations = filteredRecs.filter(({ extensionId }) => local.every(local => !areSameExtensions({ id: extensionId }, local.identifier)));
 
 			if (!recommendations.length) {
 				return Promise.resolve(undefined);

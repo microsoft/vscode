@@ -13,8 +13,8 @@ import * as perf from 'vs/base/common/performance';
 import { isEqualOrParent } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { EnablementState, IExtensionEnablementService, IExtensionIdentifier, IExtensionManagementService, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { BetterMergeId, areSameExtensions, getGalleryExtensionIdFromLocal } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { EnablementState, IExtensionEnablementService, IExtensionIdentifier, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { BetterMergeId, areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import pkg from 'vs/platform/node/package';
@@ -29,7 +29,7 @@ import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/n
 import { ResponsiveState } from 'vs/workbench/services/extensions/node/rpcProtocol';
 import { CachedExtensionScanner, Logger } from 'vs/workbench/services/extensions/electron-browser/cachedExtensionScanner';
 import { ExtensionHostProcessManager } from 'vs/workbench/services/extensions/electron-browser/extensionHostProcessManager';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, ExtensionType } from 'vs/platform/extensions/common/extensions';
 
 const hasOwnProperty = Object.hasOwnProperty;
 const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
@@ -357,8 +357,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		let result: { [id: string]: IExtensionsStatus; } = Object.create(null);
 		if (this._registry) {
 			const extensions = this._registry.getAllExtensionDescriptions();
-			for (let i = 0, len = extensions.length; i < len; i++) {
-				const extension = extensions[i];
+			for (const extension of extensions) {
 				const extensionKey = ExtensionIdentifier.toKey(extension.identifier);
 				result[extension.identifier.value] = {
 					messages: this._extensionsMessages.get(extensionKey),
@@ -413,11 +412,13 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		const extensionHost = this._extensionHostProcessManagers[0];
 		const extensions = await this._extensionScanner.scannedExtensions;
 		const enabledExtensions = await this._getRuntimeExtensions(extensions);
+
+		this._handleExtensionPoints(enabledExtensions);
 		extensionHost.start(enabledExtensions.map(extension => extension.identifier));
-		this._onHasExtensions(enabledExtensions);
+		this._releaseBarrier();
 	}
 
-	private _onHasExtensions(allExtensions: IExtensionDescription[]): void {
+	private _handleExtensionPoints(allExtensions: IExtensionDescription[]): void {
 		this._registry = new ExtensionDescriptionRegistry(allExtensions);
 
 		let availableExtensions = this._registry.getAllExtensionDescriptions();
@@ -428,11 +429,13 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		for (let i = 0, len = extensionPoints.length; i < len; i++) {
 			ExtensionService._handleExtensionPoint(extensionPoints[i], availableExtensions, messageHandler);
 		}
+	}
 
+	private _releaseBarrier(): void {
 		perf.mark('extensionHostReady');
 		this._installedExtensionsReady.open();
 		this._onDidRegisterExtensions.fire(undefined);
-		this._onDidChangeExtensionsStatus.fire(availableExtensions.map(e => e.identifier));
+		this._onDidChangeExtensionsStatus.fire(this._registry.getAllExtensionDescriptions().map(e => e.identifier));
 	}
 
 	private _getRuntimeExtensions(allExtensions: IExtensionDescription[]): Promise<IExtensionDescription[]> {
@@ -492,9 +495,9 @@ export class ExtensionService extends Disposable implements IExtensionService {
 				});
 
 				if (extensionsToDisable.length) {
-					return this._extensionManagementService.getInstalled(LocalExtensionType.User)
+					return this._extensionManagementService.getInstalled(ExtensionType.User)
 						.then(installed => {
-							const toDisable = installed.filter(i => extensionsToDisable.some(e => areSameExtensions({ id: getGalleryExtensionIdFromLocal(i) }, e)));
+							const toDisable = installed.filter(i => extensionsToDisable.some(e => areSameExtensions(i.identifier, e)));
 							return Promise.all(toDisable.map(e => this._extensionEnablementService.setEnablement(e, EnablementState.Disabled)));
 						})
 						.then(() => {

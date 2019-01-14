@@ -12,11 +12,10 @@ import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 import * as types from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
-import { getGalleryExtensionId, getLocalExtensionId, groupByExtension } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { getIdAndVersionFromLocalExtensionId } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
+import { getGalleryExtensionId, groupByExtension } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { isValidExtensionVersion } from 'vs/platform/extensions/node/extensionValidator';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, ExtensionIdentifierWithVersion } from 'vs/platform/extensions/common/extensions';
 
 const MANIFEST_FILE = 'package.json';
 
@@ -557,27 +556,13 @@ export class ExtensionScanner {
 			refs.sort((a, b) => a.name < b.name ? -1 : 1);
 
 			if (!isBuiltin) {
-				// TODO: align with extensionsService
-				const nonGallery: IExtensionReference[] = [];
-				const gallery: IExtensionReference[] = [];
-
-				refs.forEach(ref => {
-					if (ref.name.indexOf('.') !== 0) { // Do not consider user extension folder starting with `.`
-						const { id, version } = getIdAndVersionFromLocalExtensionId(ref.name);
-						if (!id || !version) {
-							nonGallery.push(ref);
-						} else {
-							gallery.push(ref);
-						}
-					}
-				});
-				refs = [...nonGallery, ...gallery];
+				refs = refs.filter(ref => ref.name.indexOf('.') !== 0); // Do not consider user extension folder starting with `.`
 			}
 
 			const nlsConfig = ExtensionScannerInput.createNLSConfig(input);
 			let _extensionDescriptions = await Promise.all(refs.map(r => this.scanExtension(input.ourVersion, log, r.path, isBuiltin, isUnderDevelopment, nlsConfig)));
 			let extensionDescriptions = arrays.coalesce(_extensionDescriptions);
-			extensionDescriptions = extensionDescriptions.filter(item => item !== null && !obsolete[getLocalExtensionId(getGalleryExtensionId(item.publisher, item.name), item.version)]);
+			extensionDescriptions = extensionDescriptions.filter(item => item !== null && !obsolete[new ExtensionIdentifierWithVersion({ id: getGalleryExtensionId(item.publisher, item.name) }, item.version).key()]);
 
 			if (!isBuiltin) {
 				// Filter out outdated extensions

@@ -460,10 +460,10 @@ append-buffer@^1.0.2:
   dependencies:
     buffer-equal "^1.0.0"
 
-applicationinsights@1.0.7:
-  version "1.0.7"
-  resolved "https://registry.yarnpkg.com/applicationinsights/-/applicationinsights-1.0.7.tgz#f8d5758b99e5c3e5b2877cfa120c2164a5cf675b"
-  integrity sha512-h2v03PzxrsFe/kiPt1FTRKUjVXBln2ZqCCGByeeBbFt8nkyWHfLV6pBgRRRJjMQ0IZCnayzH0lPm4XeOCqugoQ==
+applicationinsights@1.0.8:
+  version "1.0.8"
+  resolved "https://registry.yarnpkg.com/applicationinsights/-/applicationinsights-1.0.8.tgz#db6e3d983cf9f9405fe1ee5ba30ac6e1914537b5"
+  integrity sha512-KzOOGdphOS/lXWMFZe5440LUdFbrLpMvh2SaRxn7BmiI550KAoSb2gIhiq6kJZ9Ir3AxRRztjhzif+e5P5IXIg==
   dependencies:
     diagnostic-channel "0.2.0"
     diagnostic-channel-publishers "0.2.1"
@@ -9409,10 +9409,10 @@ vscode-ripgrep@^1.2.5:
   resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-1.2.5.tgz#2093c8f36d52bd2dab9eb45b003dd02533c5499c"
   integrity sha512-n5XBm9od5hahpljw9T8wbkuMnAY7LlAG1OyEEtcCZEX9aCHFuBKSP0IcvciGRTbtWRovNuT83A2iRjt6PL3bLg==
 
-vscode-sqlite3@4.0.6:
-  version "4.0.6"
-  resolved "https://registry.yarnpkg.com/vscode-sqlite3/-/vscode-sqlite3-4.0.6.tgz#dc330338f49230c012fc2d375bed4c970bd659af"
-  integrity sha512-awM7eVat4uguebwA8AXutVH7QpoP4v76UtEmGB/9T/uEVzkCv32G/cNmw02j3EzS65P8xlW5gyfzlXDXJMW2Mw==
+vscode-sqlite3@4.0.7:
+  version "4.0.7"
+  resolved "https://registry.yarnpkg.com/vscode-sqlite3/-/vscode-sqlite3-4.0.7.tgz#7adbf0fe411c87716ca3c4e467f04de3a7353125"
+  integrity sha512-1BqWdf6Nzs+q7JC+JFXDLX2Z8ZID7lZH69AoLh9FXos7XgLbF4dsmUZO5a6d9X3Jccu/m0PfKK1K4E6dk/xiRg==
   dependencies:
     nan "~2.10.0"
 
@@ -9428,10 +9428,10 @@ vscode-uri@^1.0.6:
   resolved "https://registry.yarnpkg.com/vscode-uri/-/vscode-uri-1.0.6.tgz#6b8f141b0bbc44ad7b07e94f82f168ac7608ad4d"
   integrity sha512-sLI2L0uGov3wKVb9EB+vIQBl9tVP90nqRvxSoJ35vI3NjxE8jfsE5DSOhWgSunHSZmKS4OCi2jrtfxK7uyp2ww==
 
-vscode-xterm@3.10.0-beta10-reflow:
-  version "3.10.0-beta10-reflow"
-  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.10.0-beta10-reflow.tgz#365de16498f3a3759bcbc7a275a619336c15fba9"
-  integrity sha512-Are5wfIFstC+vciiOdjeSSbNUN+NgV8cmMlTPCNh6O1z6otmoBuRyBoz4Noz2ACUlTTDnYcMOL2YFxCj/kYrLQ==
+vscode-xterm@3.10.0-beta11-reflow:
+  version "3.10.0-beta11-reflow"
+  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.10.0-beta11-reflow.tgz#e92eb61163489957ba2d4ec978ddebd0bb7b6631"
+  integrity sha512-BrOMsRAgsZ/lDTtgsRdlHPAFy4ZDr6MxVGYbQzysO4RTP010kno5qmOvctQP/6tRDl9gymUHZIy1FmjfsmdxcQ==
 
 vso-node-api@6.1.2-preview:
   version "6.1.2-preview"

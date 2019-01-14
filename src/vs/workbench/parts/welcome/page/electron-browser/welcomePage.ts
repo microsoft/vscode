@@ -24,7 +24,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { Schemas } from 'vs/base/common/network';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { getInstalledExtensions, IExtensionStatus, onExtensionChanged, isKeymapExtension } from 'vs/workbench/parts/extensions/electron-browser/extensionsUtils';
-import { IExtensionEnablementService, IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, EnablementState, LocalExtensionType, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionEnablementService, IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, EnablementState, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { used } from 'vs/workbench/parts/welcome/page/electron-browser/vs_code_welcome_page';
 import { ILifecycleService, StartupKind } from 'vs/platform/lifecycle/common/lifecycle';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -35,12 +35,12 @@ import { getExtraColor } from 'vs/workbench/parts/welcome/walkThrough/node/walkT
 import { IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IEditorInputFactory, EditorInput } from 'vs/workbench/common/editor';
-import { getIdAndVersionFromLocalExtensionId } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IFileService } from 'vs/platform/files/common/files';
+import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 
 used();
 
@@ -384,7 +384,7 @@ class WelcomePage {
 		this.updateInstalledExtensions(container, installedExtensions);
 		this.disposables.push(this.instantiationService.invokeFunction(onExtensionChanged)(ids => {
 			for (const id of ids) {
-				if (container.querySelector(`.installExtension[data-extension="${stripVersion(id.id)}"], .enabledExtension[data-extension="${stripVersion(id.id)}"]`)) {
+				if (container.querySelector(`.installExtension[data-extension="${id.id}"], .enabledExtension[data-extension="${id.id}"]`)) {
 					const installedExtensions = this.instantiationService.invokeFunction(getInstalledExtensions);
 					this.updateInstalledExtensions(container, installedExtensions);
 					break;
@@ -441,7 +441,7 @@ class WelcomePage {
 			extensionId: extensionSuggestion.id,
 		});
 		this.instantiationService.invokeFunction(getInstalledExtensions).then(extensions => {
-			const installedExtension = arrays.first(extensions, extension => stripVersion(extension.identifier.id) === extensionSuggestion.id);
+			const installedExtension = arrays.first(extensions, extension => areSameExtensions(extension.identifier, { id: extensionSuggestion.id }));
 			if (installedExtension && installedExtension.globallyEnabled) {
 				/* __GDPR__FRAGMENT__
 					"WelcomePageInstalled-1" : {
@@ -465,9 +465,9 @@ class WelcomePage {
 						return null;
 					}
 					return this.extensionManagementService.installFromGallery(extension)
-						.then(() => this.extensionManagementService.getInstalled(LocalExtensionType.User))
+						.then(() => this.extensionManagementService.getInstalled(ExtensionType.User))
 						.then(installed => {
-							const local = installed.filter(i => areSameExtensions(extension.identifier, i.galleryIdentifier))[0];
+							const local = installed.filter(i => areSameExtensions(extension.identifier, i.identifier))[0];
 							// TODO: Do this as part of the install to avoid multiple events.
 							return this.extensionEnablementService.setEnablement(local, EnablementState.Disabled).then(() => local);
 						});
@@ -586,7 +586,7 @@ class WelcomePage {
 				elements[i].classList.remove('installed');
 			}
 			extensions.filter(ext => ext.globallyEnabled)
-				.map(ext => stripVersion(ext.identifier.id))
+				.map(ext => ext.identifier.id)
 				.forEach(id => {
 					const install = container.querySelectorAll(`.installExtension[data-extension="${id}"]`);
 					for (let i = 0; i < install.length; i++) {
@@ -604,11 +604,6 @@ class WelcomePage {
 		this.disposables = dispose(this.disposables);
 	}
 }
-
-function stripVersion(id: string): string {
-	return getIdAndVersionFromLocalExtensionId(id).id;
-}
-
 
 export class WelcomeInputFactory implements IEditorInputFactory {
 

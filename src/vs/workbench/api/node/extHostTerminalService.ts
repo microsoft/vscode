@@ -104,9 +104,10 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 		shellArgs?: string[],
 		cwd?: string | URI,
 		env?: { [key: string]: string },
-		waitOnExit?: boolean
+		waitOnExit?: boolean,
+		strictEnv?: boolean
 	): void {
-		this._proxy.$createTerminal(this._name, shellPath, shellArgs, cwd, env, waitOnExit).then(terminal => {
+		this._proxy.$createTerminal(this._name, shellPath, shellArgs, cwd, env, waitOnExit, strictEnv).then(terminal => {
 			this._name = terminal.name;
 			this._runQueuedRequests(terminal.id);
 		});
@@ -269,7 +270,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 
 	public createTerminalFromOptions(options: vscode.TerminalOptions): vscode.Terminal {
 		const terminal = new ExtHostTerminal(this._proxy, options.name);
-		terminal.create(options.shellPath, options.shellArgs, options.cwd, options.env /*, options.waitOnExit*/);
+		terminal.create(options.shellPath, options.shellArgs, options.cwd, options.env, /*options.waitOnExit*/ undefined, options.strictEnv);
 		this._terminals.push(terminal);
 		return terminal;
 	}
@@ -373,11 +374,11 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		}
 	}
 
-	public $createProcess(id: number, shellLaunchConfig: ShellLaunchConfigDto, activeWorkspaceRootUriComponents: UriComponents, cols: number, rows: number): void {
+	public async $createProcess(id: number, shellLaunchConfig: ShellLaunchConfigDto, activeWorkspaceRootUriComponents: UriComponents, cols: number, rows: number): Promise<void> {
 		// TODO: This function duplicates a lot of TerminalProcessManager.createProcess, ideally
 		// they would be merged into a single implementation.
-
-		const terminalConfig = this._extHostConfiguration.getConfiguration('terminal.integrated');
+		const configProvider = await this._extHostConfiguration.getConfigProvider();
+		const terminalConfig = configProvider.getConfiguration('terminal.integrated');
 
 		if (!shellLaunchConfig.executable) {
 			// TODO: This duplicates some of TerminalConfigHelper.mergeDefaultShellPathAndArgs and should be merged

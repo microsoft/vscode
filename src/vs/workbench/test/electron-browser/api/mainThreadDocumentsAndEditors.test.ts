@@ -42,7 +42,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 		deltas.length = 0;
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration('editor', { 'detectIndentation': false });
-		modelService = new ModelServiceImpl(null, configService, new TestTextResourcePropertiesService(configService));
+		modelService = new ModelServiceImpl(configService, new TestTextResourcePropertiesService(configService));
 		codeEditorService = new TestCodeEditorService();
 		textFileService = new class extends mock<ITextFileService>() {
 			isDirty() { return false; }

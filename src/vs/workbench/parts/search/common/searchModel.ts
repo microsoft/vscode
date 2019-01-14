@@ -457,8 +457,8 @@ export class BaseFolderMatch extends Disposable {
 		const added: FileMatch[] = [];
 		const updated: FileMatch[] = [];
 		raw.forEach(rawFileMatch => {
-			if (this._fileMatches.has(rawFileMatch.resource)) {
-				const existingFileMatch = this._fileMatches.get(rawFileMatch.resource);
+			const existingFileMatch = this._fileMatches.get(rawFileMatch.resource);
+			if (existingFileMatch) {
 				rawFileMatch
 					.results!
 					.filter(resultIsMatch)
@@ -691,8 +691,9 @@ export class SearchResult extends Disposable {
 				return;
 			}
 
-			if (folderMatch.resource()) {
-				rawPerFolder.get(folderMatch.resource()!).push(rawFileMatch);
+			const resource = folderMatch.resource();
+			if (resource) {
+				rawPerFolder.get(resource)!.push(rawFileMatch);
 			} else {
 				otherFileMatches.push(rawFileMatch);
 			}

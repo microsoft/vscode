@@ -223,8 +223,8 @@ class SnippetsService implements ISnippetsService {
 					}
 
 					const resource = validContribution.location.toString();
-					if (this._files.has(resource)) {
-						const file = this._files.get(resource);
+					const file = this._files.get(resource);
+					if (file) {
 						if (file.defaultScopes) {
 							file.defaultScopes.push(validContribution.language);
 						} else {

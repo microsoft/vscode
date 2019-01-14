@@ -4919,6 +4919,7 @@ declare namespace monaco.languages {
 		readonly triggerKind: SignatureHelpTriggerKind;
 		readonly triggerCharacter?: string;
 		readonly isRetrigger: boolean;
+		readonly activeSignatureHelp?: SignatureHelp;
 	}
 
 	/**
@@ -5017,19 +5018,27 @@ declare namespace monaco.languages {
 		range: IRange;
 	}
 
-	/**
-	 * The definition of a symbol represented as one or many [locations](#Location).
-	 * For most programming languages there is only one location at which a symbol is
-	 * defined.
-	 */
-	export type Definition = Location | Location[];
-
-	export interface DefinitionLink {
-		origin?: IRange;
+	export interface LocationLink {
+		/**
+		 * A range to select where this link originates from.
+		 */
+		originSelectionRange?: IRange;
+		/**
+		 * The target uri this link points to.
+		 */
 		uri: Uri;
+		/**
+		 * The full range this link points to.
+		 */
 		range: IRange;
-		selectionRange?: IRange;
+		/**
+		 * A range to select this link points to. Must be contained
+		 * in `LocationLink.range`.
+		 */
+		targetSelectionRange?: IRange;
 	}
+
+	export type Definition = Location | Location[] | LocationLink[];
 
 	/**
 	 * The definition provider interface defines the contract between extensions and
@@ -5040,7 +5049,7 @@ declare namespace monaco.languages {
 		/**
 		 * Provide the definition of the symbol at the given position and document.
 		 */
-		provideDefinition(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | DefinitionLink[]>;
+		provideDefinition(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | LocationLink[]>;
 	}
 
 	/**
@@ -5052,7 +5061,7 @@ declare namespace monaco.languages {
 		/**
 		 * Provide the declaration of the symbol at the given position and document.
 		 */
-		provideDeclaration(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | DefinitionLink[]>;
+		provideDeclaration(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | LocationLink[]>;
 	}
 
 	/**
@@ -5063,7 +5072,7 @@ declare namespace monaco.languages {
 		/**
 		 * Provide the implementation of the symbol at the given position and document.
 		 */
-		provideImplementation(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | DefinitionLink[]>;
+		provideImplementation(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | LocationLink[]>;
 	}
 
 	/**
@@ -5074,7 +5083,7 @@ declare namespace monaco.languages {
 		/**
 		 * Provide the type definition of the symbol at the given position and document.
 		 */
-		provideTypeDefinition(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | DefinitionLink[]>;
+		provideTypeDefinition(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | LocationLink[]>;
 	}
 
 	/**
