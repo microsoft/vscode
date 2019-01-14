@@ -103,7 +103,7 @@ export class NewFileAction extends BaseErrorReportingAction {
 	static readonly LABEL = nls.localize('createNewFile', "New File");
 
 	constructor(
-		private element: ExplorerItem,
+		private getElement: () => ExplorerItem,
 		@INotificationService notificationService: INotificationService,
 		@IExplorerService private explorerService: IExplorerService,
 		@IFileService private fileService: IFileService,
@@ -115,8 +115,9 @@ export class NewFileAction extends BaseErrorReportingAction {
 
 	run(): Promise<any> {
 		let folder: ExplorerItem;
-		if (this.element) {
-			folder = this.element.isDirectory ? this.element : this.element.parent;
+		const element = this.getElement();
+		if (element) {
+			folder = element.isDirectory ? element : element.parent;
 		} else {
 			folder = this.explorerService.roots[0];
 		}
@@ -157,7 +158,7 @@ export class NewFolderAction extends BaseErrorReportingAction {
 	static readonly LABEL = nls.localize('createNewFolder', "New Folder");
 
 	constructor(
-		private element: ExplorerItem,
+		private getElement: () => ExplorerItem,
 		@INotificationService notificationService: INotificationService,
 		@IFileService private fileService: IFileService,
 		@IExplorerService private explorerService: IExplorerService
@@ -168,8 +169,9 @@ export class NewFolderAction extends BaseErrorReportingAction {
 
 	run(): Promise<any> {
 		let folder: ExplorerItem;
-		if (this.element) {
-			folder = this.element.isDirectory ? this.element : this.element.parent;
+		const element = this.getElement();
+		if (element) {
+			folder = element.isDirectory ? element : element.parent;
 		} else {
 			folder = this.explorerService.roots[0];
 		}
@@ -1040,7 +1042,7 @@ function getContext(listWidget: ListWidget): IExplorerContext {
 
 // TODO@isidor these commands are calling into actions due to the complex inheritance action structure.
 // It should be the other way around, that actions call into commands.
-function openExplorerAndRunAction(accessor: ServicesAccessor, constructor: IConstructorSignature1<ExplorerItem, Action>): Promise<any> {
+function openExplorerAndRunAction(accessor: ServicesAccessor, constructor: IConstructorSignature1<() => ExplorerItem, Action>): Promise<any> {
 	const instantationService = accessor.get(IInstantiationService);
 	const listService = accessor.get(IListService);
 	const viewletService = accessor.get(IViewletService);
@@ -1055,7 +1057,7 @@ function openExplorerAndRunAction(accessor: ServicesAccessor, constructor: ICons
 		if (explorerView && explorerView.isBodyVisible()) {
 			explorerView.focus();
 			const { stat } = getContext(listService.lastFocusedList);
-			const action = instantationService.createInstance(constructor, stat);
+			const action = instantationService.createInstance(constructor, () => stat);
 
 			return action.run();
 		}
