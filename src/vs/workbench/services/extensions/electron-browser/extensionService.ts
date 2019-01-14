@@ -412,11 +412,13 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		const extensionHost = this._extensionHostProcessManagers[0];
 		const extensions = await this._extensionScanner.scannedExtensions;
 		const enabledExtensions = await this._getRuntimeExtensions(extensions);
+
+		this._handleExtensionPoints(enabledExtensions);
 		extensionHost.start(enabledExtensions.map(extension => extension.identifier));
-		this._onHasExtensions(enabledExtensions);
+		this._releaseBarrier();
 	}
 
-	private _onHasExtensions(allExtensions: IExtensionDescription[]): void {
+	private _handleExtensionPoints(allExtensions: IExtensionDescription[]): void {
 		this._registry = new ExtensionDescriptionRegistry(allExtensions);
 
 		let availableExtensions = this._registry.getAllExtensionDescriptions();
@@ -427,11 +429,13 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		for (let i = 0, len = extensionPoints.length; i < len; i++) {
 			ExtensionService._handleExtensionPoint(extensionPoints[i], availableExtensions, messageHandler);
 		}
+	}
 
+	private _releaseBarrier(): void {
 		perf.mark('extensionHostReady');
 		this._installedExtensionsReady.open();
 		this._onDidRegisterExtensions.fire(undefined);
-		this._onDidChangeExtensionsStatus.fire(availableExtensions.map(e => e.identifier));
+		this._onDidChangeExtensionsStatus.fire(this._registry.getAllExtensionDescriptions().map(e => e.identifier));
 	}
 
 	private _getRuntimeExtensions(allExtensions: IExtensionDescription[]): Promise<IExtensionDescription[]> {
