@@ -495,7 +495,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 		// All (target = model)
 		if (!target) {
-			return this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? { accept: true, bubble: TreeDragOverBubble.Down } : false; // can only drop folders to workspace
+			return { accept: true, bubble: TreeDragOverBubble.Down };
 		}
 
 		// All (target = file/folder)
