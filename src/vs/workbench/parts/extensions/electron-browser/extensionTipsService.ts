@@ -311,7 +311,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	 */
 	private fetchExtensionRecommendationContents(): Promise<{ contents: IExtensionsConfigContent, source: ExtensionRecommendationSource }[]> {
 		const workspace = this.contextService.getWorkspace();
-		return Promise.all<{ contents: IExtensionsConfigContent, source: ExtensionRecommendationSource }>([
+		return Promise.all<{ contents: IExtensionsConfigContent, source: ExtensionRecommendationSource } | null>([
 			this.resolveWorkspaceExtensionConfig(workspace).then(contents => contents ? { contents, source: workspace } : null),
 			...workspace.folders.map(workspaceFolder => this.resolveWorkspaceFolderExtensionConfig(workspaceFolder).then(contents => contents ? { contents, source: workspaceFolder } : null))
 		]).then(contents => coalesce(contents));
@@ -638,7 +638,11 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 					return;
 				}
 				const id = recommendationsToSuggest[0];
-				const name = caseInsensitiveGet(product.extensionImportantTips, id)['name'];
+				const entry = caseInsensitiveGet(product.extensionImportantTips, id);
+				if (!entry) {
+					return;
+				}
+				const name = entry['name'];
 
 				// Indicates we have a suggested extension via the whitelist
 				hasSuggestion = true;
@@ -842,7 +846,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	}
 
 	private fetchProactiveRecommendations(calledDuringStartup?: boolean): Promise<void> {
-		let fetchPromise = Promise.resolve(null);
+		let fetchPromise = Promise.resolve(undefined);
 		if (!this.proactiveRecommendationsFetched) {
 			this.proactiveRecommendationsFetched = true;
 
@@ -893,10 +897,10 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				if (!windowsPath || typeof windowsPath !== 'string') {
 					return;
 				}
-				windowsPath = windowsPath.replace('%USERPROFILE%', process.env['USERPROFILE'])
-					.replace('%ProgramFiles(x86)%', process.env['ProgramFiles(x86)'])
-					.replace('%ProgramFiles%', process.env['ProgramFiles'])
-					.replace('%APPDATA%', process.env['APPDATA']);
+				windowsPath = windowsPath.replace('%USERPROFILE%', process.env['USERPROFILE']!)
+					.replace('%ProgramFiles(x86)%', process.env['ProgramFiles(x86)']!)
+					.replace('%ProgramFiles%', process.env['ProgramFiles']!)
+					.replace('%APPDATA%', process.env['APPDATA']!);
 				promises.push(findExecutable(exeName, windowsPath));
 			} else {
 				promises.push(findExecutable(exeName, paths.join('/usr/local/bin', exeName)));
@@ -954,14 +958,17 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		return Promise.all([getHashedRemotesFromUri(workspaceUri, this.fileService, false), getHashedRemotesFromUri(workspaceUri, this.fileService, true)]).then(([hashedRemotes1, hashedRemotes2]) => {
 			const hashedRemotes = (hashedRemotes1 || []).concat(hashedRemotes2 || []);
 			if (!hashedRemotes.length) {
-				return null;
+				return undefined;
 			}
 
 			return this.requestService.request({ type: 'GET', url: this._extensionsRecommendationsUrl }, CancellationToken.None).then(context => {
 				if (context.res.statusCode !== 200) {
-					return Promise.resolve(null);
+					return Promise.resolve(undefined);
 				}
 				return asJson(context).then((result) => {
+					if (!result) {
+						return;
+					}
 					const allRecommendations: IDynamicWorkspaceRecommendations[] = Array.isArray(result['workspaceRecommendations']) ? result['workspaceRecommendations'] : [];
 					if (!allRecommendations.length) {
 						return;
@@ -998,9 +1005,10 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	private fetchExperimentalRecommendations() {
 		this.experimentService.getExperimentsByType(ExperimentActionType.AddToRecommendations).then(experiments => {
 			(experiments || []).forEach(experiment => {
-				if (experiment.state === ExperimentState.Run && experiment.action.properties && Array.isArray(experiment.action.properties.recommendations) && experiment.action.properties.recommendationReason) {
-					experiment.action.properties.recommendations.forEach(id => {
-						this._experimentalRecommendations[id] = experiment.action.properties.recommendationReason;
+				const action = experiment.action;
+				if (action && experiment.state === ExperimentState.Run && action.properties && Array.isArray(action.properties.recommendations) && action.properties.recommendationReason) {
+					action.properties.recommendations.forEach(id => {
+						this._experimentalRecommendations[id] = action.properties.recommendationReason;
 					});
 				}
 			});
