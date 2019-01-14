@@ -73,11 +73,11 @@ export function basename(resource: URI): string {
  * @returns The URI representing the directory of the input URI.
  */
 export function dirname(resource: URI): URI | null {
-	if (resource.scheme === Schemas.file) {
-		return URI.file(paths.dirname(fsPath(resource)));
-	}
 	if (resource.path.length === 0) {
 		return resource;
+	}
+	if (resource.scheme === Schemas.file) {
+		return URI.file(paths.dirname(fsPath(resource)));
 	}
 	let dirname = paths.dirname(resource.path, '/');
 	if (resource.authority && dirname.length && dirname.charCodeAt(0) !== CharCode.Slash) {
@@ -134,19 +134,20 @@ export function normalizePath(resource: URI): URI {
  */
 export function fsPath(uri: URI): string {
 	let value: string;
-	if (uri.authority && uri.path.length > 1 && uri.scheme === 'file') {
+	const uriPath = uri.path;
+	if (uri.authority && uriPath.length > 1 && uri.scheme === 'file') {
 		// unc path: file://shares/c$/far/boo
-		value = `//${uri.authority}${uri.path}`;
+		value = `//${uri.authority}${uriPath}`;
 	} else if (
 		isWindows
-		&& uri.path.charCodeAt(0) === CharCode.Slash
-		&& (uri.path.charCodeAt(1) >= CharCode.A && uri.path.charCodeAt(1) <= CharCode.Z || uri.path.charCodeAt(1) >= CharCode.a && uri.path.charCodeAt(1) <= CharCode.z)
-		&& uri.path.charCodeAt(2) === CharCode.Colon
+		&& uriPath.charCodeAt(0) === CharCode.Slash
+		&& paths.isWindowsDriveLetter(uriPath.charCodeAt(0))
+		&& uriPath.charCodeAt(2) === CharCode.Colon
 	) {
-		value = uri.path.substr(1);
+		value = uriPath.substr(1);
 	} else {
 		// other path
-		value = uri.path;
+		value = uriPath;
 	}
 	if (isWindows) {
 		value = value.replace(/\//g, '\\');
