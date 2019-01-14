@@ -493,7 +493,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 				if (extensionsToDisable.length) {
 					return this._extensionManagementService.getInstalled(ExtensionType.User)
 						.then(installed => {
-							const toDisable = installed.filter(i => extensionsToDisable.some(e => areSameExtensions(i.galleryIdentifier, e)));
+							const toDisable = installed.filter(i => extensionsToDisable.some(e => areSameExtensions(i.identifier, e)));
 							return Promise.all(toDisable.map(e => this._extensionEnablementService.setEnablement(e, EnablementState.Disabled)));
 						})
 						.then(() => {

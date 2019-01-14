@@ -153,7 +153,7 @@ class Main {
 						return Promise.reject(new Error(`${notFound(version ? `${id}@${version}` : id)}\n${useId}`));
 					}
 
-					const [installedExtension] = installed.filter(e => areSameExtensions(e.galleryIdentifier, { id }));
+					const [installedExtension] = installed.filter(e => areSameExtensions(e.identifier, { id }));
 					if (installedExtension) {
 						if (extension.version !== installedExtension.manifest.version) {
 							if (version || force) {
@@ -186,10 +186,10 @@ class Main {
 
 		const extensionIdentifier = { id: getGalleryExtensionId(manifest.publisher, manifest.name) };
 		const installedExtensions = await this.extensionManagementService.getInstalled(ExtensionType.User);
-		const newer = installedExtensions.filter(local => areSameExtensions(extensionIdentifier, local.galleryIdentifier) && semver.gt(local.manifest.version, manifest.version))[0];
+		const newer = installedExtensions.filter(local => areSameExtensions(extensionIdentifier, local.identifier) && semver.gt(local.manifest.version, manifest.version))[0];
 
 		if (newer && !force) {
-			console.log(localize('forceDowngrade', "A newer version of this extension '{0}' v{1} is already installed. Use '--force' option to downgrade to older version.", newer.galleryIdentifier.id, newer.manifest.version, manifest.version));
+			console.log(localize('forceDowngrade', "A newer version of this extension '{0}' v{1} is already installed. Use '--force' option to downgrade to older version.", newer.identifier.id, newer.manifest.version, manifest.version));
 			return false;
 		}
 
@@ -225,7 +225,7 @@ class Main {
 		return sequence(extensions.map(extension => () => {
 			return getExtensionId(extension).then(id => {
 				return this.extensionManagementService.getInstalled(ExtensionType.User).then(installed => {
-					const [extension] = installed.filter(e => areSameExtensions(e.galleryIdentifier, { id }));
+					const [extension] = installed.filter(e => areSameExtensions(e.identifier, { id }));
 
 					if (!extension) {
 						return Promise.reject(new Error(`${notInstalled(id)}\n${useId}`));

@@ -87,7 +87,7 @@ suite('ExtensionEnablementService Test', () => {
 		const target = sinon.spy();
 		testObject.onEnablementChanged(target);
 		return testObject.setEnablement(aLocalExtension('pub.a'), EnablementState.Disabled)
-			.then(() => assert.ok(target.calledWithExactly({ id: 'pub.a', uuid: undefined })));
+			.then(() => assert.ok(target.calledWithExactly({ id: 'pub.a' })));
 	});
 
 	test('test disable an extension globally again should return a falsy promise', () => {
@@ -199,7 +199,7 @@ suite('ExtensionEnablementService Test', () => {
 		return testObject.setEnablement(aLocalExtension('pub.a'), EnablementState.WorkspaceDisabled)
 			.then(() => testObject.onEnablementChanged(target))
 			.then(() => testObject.setEnablement(aLocalExtension('pub.a'), EnablementState.Disabled))
-			.then(() => assert.ok(target.calledWithExactly({ id: 'pub.a', uuid: undefined })));
+			.then(() => assert.ok(target.calledWithExactly({ id: 'pub.a' })));
 	});
 
 	test('test disable an extension globally and then for workspace', () => {
@@ -220,7 +220,7 @@ suite('ExtensionEnablementService Test', () => {
 		return testObject.setEnablement(aLocalExtension('pub.a'), EnablementState.Disabled)
 			.then(() => testObject.onEnablementChanged(target))
 			.then(() => testObject.setEnablement(aLocalExtension('pub.a'), EnablementState.WorkspaceDisabled))
-			.then(() => assert.ok(target.calledWithExactly({ id: 'pub.a', uuid: undefined })));
+			.then(() => assert.ok(target.calledWithExactly({ id: 'pub.a' })));
 	});
 
 	test('test disable an extension for workspace when there is no workspace throws error', () => {
@@ -247,7 +247,7 @@ suite('ExtensionEnablementService Test', () => {
 		return testObject.setEnablement(aLocalExtension('pub.a'), EnablementState.Disabled)
 			.then(() => testObject.onEnablementChanged(target))
 			.then(() => testObject.setEnablement(aLocalExtension('pub.a'), EnablementState.Enabled))
-			.then(() => assert.ok(target.calledWithExactly({ id: 'pub.a', uuid: undefined })));
+			.then(() => assert.ok(target.calledWithExactly({ id: 'pub.a' })));
 	});
 
 	test('test enable an extension globally when already enabled return falsy promise', () => {
@@ -273,7 +273,7 @@ suite('ExtensionEnablementService Test', () => {
 		return testObject.setEnablement(aLocalExtension('pub.b'), EnablementState.WorkspaceDisabled)
 			.then(() => testObject.onEnablementChanged(target))
 			.then(() => testObject.setEnablement(aLocalExtension('pub.b'), EnablementState.WorkspaceEnabled))
-			.then(() => assert.ok(target.calledWithExactly({ id: 'pub.b', uuid: undefined })));
+			.then(() => assert.ok(target.calledWithExactly({ id: 'pub.b' })));
 	});
 
 	test('test enable an extension for workspace when already enabled return truthy promise', () => {
@@ -300,7 +300,7 @@ suite('ExtensionEnablementService Test', () => {
 	test('test installing an extension re-eanbles it when disabled globally', async () => {
 		const local = aLocalExtension('pub.a');
 		await testObject.setEnablement(local, EnablementState.Disabled);
-		didInstallEvent.fire({ local, identifier: local.galleryIdentifier, operation: InstallOperation.Install });
+		didInstallEvent.fire({ local, identifier: local.identifier, operation: InstallOperation.Install });
 		const extensions = await testObject.getDisabledExtensions();
 		assert.deepEqual([], extensions);
 	});
@@ -308,7 +308,7 @@ suite('ExtensionEnablementService Test', () => {
 	test('test updating an extension does not re-eanbles it when disabled globally', async () => {
 		const local = aLocalExtension('pub.a');
 		await testObject.setEnablement(local, EnablementState.Disabled);
-		didInstallEvent.fire({ local, identifier: local.galleryIdentifier, operation: InstallOperation.Update });
+		didInstallEvent.fire({ local, identifier: local.identifier, operation: InstallOperation.Update });
 		const extensions = await testObject.getDisabledExtensions();
 		assert.deepEqual([{ id: 'pub.a' }], extensions);
 	});
@@ -318,11 +318,11 @@ suite('ExtensionEnablementService Test', () => {
 		await testObject.setEnablement(local, EnablementState.Disabled);
 		return new Promise((c, e) => {
 			testObject.onEnablementChanged(e => {
-				if (e.id === local.galleryIdentifier.id) {
+				if (e.id === local.identifier.id) {
 					c();
 				}
 			});
-			didInstallEvent.fire({ local, identifier: local.galleryIdentifier, operation: InstallOperation.Install });
+			didInstallEvent.fire({ local, identifier: local.identifier, operation: InstallOperation.Install });
 		});
 	});
 
@@ -331,14 +331,14 @@ suite('ExtensionEnablementService Test', () => {
 		const local = aLocalExtension('pub.a');
 		await testObject.setEnablement(local, EnablementState.Disabled);
 		testObject.onEnablementChanged(target);
-		didInstallEvent.fire({ local, identifier: local.galleryIdentifier, operation: InstallOperation.Update });
+		didInstallEvent.fire({ local, identifier: local.identifier, operation: InstallOperation.Update });
 		assert.ok(!target.called);
 	});
 
 	test('test installing an extension re-eanbles it when workspace disabled', async () => {
 		const local = aLocalExtension('pub.a');
 		await testObject.setEnablement(local, EnablementState.WorkspaceDisabled);
-		didInstallEvent.fire({ local, identifier: local.galleryIdentifier, operation: InstallOperation.Install });
+		didInstallEvent.fire({ local, identifier: local.identifier, operation: InstallOperation.Install });
 		const extensions = await testObject.getDisabledExtensions();
 		assert.deepEqual([], extensions);
 	});
@@ -346,7 +346,7 @@ suite('ExtensionEnablementService Test', () => {
 	test('test updating an extension does not re-eanbles it when workspace disabled', async () => {
 		const local = aLocalExtension('pub.a');
 		await testObject.setEnablement(local, EnablementState.WorkspaceDisabled);
-		didInstallEvent.fire({ local, identifier: local.galleryIdentifier, operation: InstallOperation.Update });
+		didInstallEvent.fire({ local, identifier: local.identifier, operation: InstallOperation.Update });
 		const extensions = await testObject.getDisabledExtensions();
 		assert.deepEqual([{ id: 'pub.a' }], extensions);
 	});
@@ -356,11 +356,11 @@ suite('ExtensionEnablementService Test', () => {
 		await testObject.setEnablement(local, EnablementState.WorkspaceDisabled);
 		return new Promise((c, e) => {
 			testObject.onEnablementChanged(e => {
-				if (e.id === local.galleryIdentifier.id) {
+				if (e.id === local.identifier.id) {
 					c();
 				}
 			});
-			didInstallEvent.fire({ local, identifier: local.galleryIdentifier, operation: InstallOperation.Install });
+			didInstallEvent.fire({ local, identifier: local.identifier, operation: InstallOperation.Install });
 		});
 	});
 
@@ -369,7 +369,7 @@ suite('ExtensionEnablementService Test', () => {
 		const local = aLocalExtension('pub.a');
 		await testObject.setEnablement(local, EnablementState.WorkspaceDisabled);
 		testObject.onEnablementChanged(target);
-		didInstallEvent.fire({ local, identifier: local.galleryIdentifier, operation: InstallOperation.Update });
+		didInstallEvent.fire({ local, identifier: local.identifier, operation: InstallOperation.Update });
 		assert.ok(!target.called);
 	});
 
@@ -377,14 +377,14 @@ suite('ExtensionEnablementService Test', () => {
 		const target = sinon.spy();
 		const local = aLocalExtension('pub.a');
 		testObject.onEnablementChanged(target);
-		didInstallEvent.fire({ local, identifier: local.galleryIdentifier, operation: InstallOperation.Install });
+		didInstallEvent.fire({ local, identifier: local.identifier, operation: InstallOperation.Install });
 		assert.ok(!target.called);
 	});
 
 	test('test remove an extension from disablement list when uninstalled', () => {
 		return testObject.setEnablement(aLocalExtension('pub.a'), EnablementState.WorkspaceDisabled)
 			.then(() => testObject.setEnablement(aLocalExtension('pub.a'), EnablementState.Disabled))
-			.then(() => didUninstallEvent.fire({ identifier: { id: 'pub.a-1.0.0' } }))
+			.then(() => didUninstallEvent.fire({ identifier: { id: 'pub.a' } }))
 			.then(() => testObject.getDisabledExtensions())
 			.then(extensions => assert.deepEqual([], extensions));
 	});

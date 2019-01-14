@@ -14,7 +14,7 @@ import {
 	IExtensionManagementService, IExtensionGalleryService, IExtensionEnablementService, IExtensionTipsService, ILocalExtension, IGalleryExtension, IQueryOptions,
 	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, IExtensionManagementServerService, IExtensionManagementServer, EnablementState, ExtensionRecommendationReason, SortBy
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { getGalleryExtensionId, getLocalExtensionIdFromManifest } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionTipsService } from 'vs/workbench/parts/extensions/electron-browser/extensionTipsService';
 import { TestExtensionEnablementService } from 'vs/platform/extensionManagement/test/electron-browser/extensionEnablementService.test';
@@ -124,11 +124,11 @@ suite('ExtensionsListView Tests', () => {
 		instantiationService.stub(IExtensionService, {
 			getExtensions: () => {
 				return Promise.resolve([
-					{ identifier: new ExtensionIdentifier(localEnabledTheme.galleryIdentifier.id) },
-					{ identifier: new ExtensionIdentifier(localEnabledLanguage.galleryIdentifier.id) },
-					{ identifier: new ExtensionIdentifier(localRandom.galleryIdentifier.id) },
-					{ identifier: new ExtensionIdentifier(builtInTheme.galleryIdentifier.id) },
-					{ identifier: new ExtensionIdentifier(builtInBasic.galleryIdentifier.id) }
+					{ identifier: new ExtensionIdentifier(localEnabledTheme.identifier.id) },
+					{ identifier: new ExtensionIdentifier(localEnabledLanguage.identifier.id) },
+					{ identifier: new ExtensionIdentifier(localRandom.identifier.id) },
+					{ identifier: new ExtensionIdentifier(builtInTheme.identifier.id) },
+					{ identifier: new ExtensionIdentifier(builtInBasic.identifier.id) }
 				]);
 			}
 		});
@@ -503,8 +503,7 @@ suite('ExtensionsListView Tests', () => {
 		properties = assign({
 			type: ExtensionType.User,
 			location: URI.file(`pub.${name}`),
-			identifier: { id: getLocalExtensionIdFromManifest(manifest) },
-			galleryIdentifier: { id: getGalleryExtensionId(manifest.publisher, manifest.name), uuid: undefined },
+			identifier: { id: getGalleryExtensionId(manifest.publisher, manifest.name), uuid: undefined },
 			metadata: { id: getGalleryExtensionId(manifest.publisher, manifest.name), publisherId: manifest.publisher, publisherDisplayName: 'somename' }
 		}, properties);
 		return <ILocalExtension>Object.create({ manifest, ...properties });

@@ -635,13 +635,13 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 
 			return this.extensionsManagementService.getInstalled(ExtensionType.User).then(installed => {
 				const maliciousExtensions = installed
-					.filter(e => maliciousSet.has(e.galleryIdentifier.id));
+					.filter(e => maliciousSet.has(e.identifier.id));
 
 				if (maliciousExtensions.length) {
 					return Promise.all(maliciousExtensions.map(e => this.extensionsManagementService.uninstall(e, true).then(() => {
 						this.notificationService.prompt(
 							Severity.Warning,
-							localize('malicious warning', "We have uninstalled '{0}' which was reported to be problematic.", e.galleryIdentifier.id),
+							localize('malicious warning', "We have uninstalled '{0}' which was reported to be problematic.", e.identifier.id),
 							[{
 								label: localize('reloadNow', "Reload Now"),
 								run: () => this.windowService.reloadWindow()

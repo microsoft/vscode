@@ -14,7 +14,7 @@ import {
 	IExtensionManagementService, IExtensionGalleryService, IExtensionEnablementService, IExtensionTipsService, ILocalExtension, IGalleryExtension,
 	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IGalleryExtensionAssets, IExtensionIdentifier, EnablementState, InstallOperation
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { getGalleryExtensionId, getLocalExtensionIdFromManifest, getLocalExtensionIdFromGallery } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionTipsService } from 'vs/workbench/parts/extensions/electron-browser/extensionTipsService';
 import { TestExtensionEnablementService } from 'vs/platform/extensionManagement/test/electron-browser/extensionEnablementService.test';
@@ -329,7 +329,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			assert.equal(ExtensionState.Uninstalled, extension.state);
 
 			testObject.install(extension);
-			const identifier = { id: getLocalExtensionIdFromGallery(gallery, gallery.version) };
+			const identifier = gallery.identifier;
 
 			// Installing
 			installEvent.fire({ identifier, gallery });
@@ -1186,8 +1186,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		properties = assign({
 			type: ExtensionType.User,
 			location: URI.file(`pub.${name}`),
-			identifier: { id: getLocalExtensionIdFromManifest(manifest) },
-			galleryIdentifier: { id: getGalleryExtensionId(manifest.publisher, manifest.name), uuid: undefined },
+			identifier: { id: getGalleryExtensionId(manifest.publisher, manifest.name), uuid: undefined },
 			metadata: { id: getGalleryExtensionId(manifest.publisher, manifest.name), publisherId: manifest.publisher, publisherDisplayName: 'somename' }
 		}, properties);
 		return <ILocalExtension>Object.create({ manifest, ...properties });

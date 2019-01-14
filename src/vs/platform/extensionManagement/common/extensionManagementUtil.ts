@@ -5,7 +5,6 @@
 
 import { ILocalExtension, IGalleryExtension, IExtensionIdentifier, IReportedExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { compareIgnoreCase } from 'vs/base/common/strings';
-import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 
 export function areSameExtensions(a: IExtensionIdentifier, b: IExtensionIdentifier): boolean {
 	if (a.uuid && b.uuid) {
@@ -23,28 +22,6 @@ export function adoptToGalleryExtensionId(id: string): string {
 
 export function getGalleryExtensionId(publisher: string, name: string): string {
 	return `${publisher.toLocaleLowerCase()}.${name.toLocaleLowerCase()}`;
-}
-
-export const LOCAL_EXTENSION_ID_REGEX = /^([^.]+\..+)-(\d+\.\d+\.\d+(-.*)?)$/;
-
-export function getIdFromLocalExtensionId(localExtensionId: string): string {
-	const matches = LOCAL_EXTENSION_ID_REGEX.exec(localExtensionId);
-	if (matches && matches[1]) {
-		return adoptToGalleryExtensionId(matches[1]);
-	}
-	return adoptToGalleryExtensionId(localExtensionId);
-}
-
-export function getLocalExtensionIdFromGallery(extension: IGalleryExtension, version: string): string {
-	return getLocalExtensionId(extension.identifier.id, version);
-}
-
-export function getLocalExtensionIdFromManifest(manifest: IExtensionManifest): string {
-	return getLocalExtensionId(getGalleryExtensionId(manifest.publisher, manifest.name), manifest.version);
-}
-
-export function getLocalExtensionId(id: string, version: string): string {
-	return `${id}-${version}`;
 }
 
 export function groupByExtension<T>(extensions: T[], getExtensionIdentifier: (t: T) => IExtensionIdentifier): T[][] {
@@ -70,7 +47,7 @@ export function groupByExtension<T>(extensions: T[], getExtensionIdentifier: (t:
 
 export function getLocalExtensionTelemetryData(extension: ILocalExtension): any {
 	return {
-		id: extension.galleryIdentifier.id,
+		id: extension.identifier.id,
 		name: extension.manifest.name,
 		galleryId: null,
 		publisherId: extension.metadata ? extension.metadata.publisherId : null,

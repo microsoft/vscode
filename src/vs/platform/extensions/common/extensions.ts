@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { getGalleryExtensionId, areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import * as strings from 'vs/base/common/strings';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { ILocalization } from 'vs/platform/localizations/common/localizations';
@@ -111,6 +111,24 @@ export interface IExtensionContributions {
 
 export type ExtensionKind = 'ui' | 'workspace';
 
+export class ExtensionIdentifierWithVersion {
+	constructor(
+		readonly identifier: IExtensionIdentifier,
+		readonly version: string
+	) { }
+
+	key(): string {
+		return `${this.identifier.id}-${this.version}`;
+	}
+
+	equals(o: any): boolean {
+		if (!(o instanceof ExtensionIdentifierWithVersion)) {
+			return false;
+		}
+		return areSameExtensions(this.identifier, o.identifier) && this.version === o.version;
+	}
+}
+
 export interface IExtensionIdentifier {
 	id: string;
 	uuid?: string;
@@ -145,7 +163,6 @@ export const enum ExtensionType {
 export interface IExtension {
 	readonly type: ExtensionType;
 	readonly identifier: IExtensionIdentifier;
-	readonly galleryIdentifier: IExtensionIdentifier; /** This should be removed */
 	readonly manifest: IExtensionManifest;
 	readonly location: URI;
 }

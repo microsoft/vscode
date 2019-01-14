@@ -13,7 +13,7 @@ import {
 	IExtensionManagementService, IExtensionGalleryService, IExtensionEnablementService, IExtensionTipsService, ILocalExtension, IGalleryExtension,
 	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, EnablementState, InstallOperation, IExtensionManagementServerService, IExtensionManagementServer
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { getGalleryExtensionId, getLocalExtensionIdFromManifest, getLocalExtensionIdFromGallery } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionTipsService } from 'vs/workbench/parts/extensions/electron-browser/extensionTipsService';
 import { TestExtensionEnablementService } from 'vs/platform/extensionManagement/test/electron-browser/extensionEnablementService.test';
@@ -1109,11 +1109,11 @@ suite('ExtensionsActions Test', () => {
 		return instantiationService.get(IExtensionsWorkbenchService).queryGallery()
 			.then((paged) => {
 				testObject.extension = paged.firstPage[0];
-				const identifier = { id: getLocalExtensionIdFromGallery(gallery, gallery.version) };
-				installEvent.fire({ identifier: identifier, gallery });
-				didInstallEvent.fire({ identifier: identifier, gallery, operation: InstallOperation.Install, local: aLocalExtension('a', gallery, { identifier }) });
+				const identifier = gallery.identifier;
+				installEvent.fire({ identifier, gallery });
+				didInstallEvent.fire({ identifier, gallery, operation: InstallOperation.Install, local: aLocalExtension('a', gallery, { identifier }) });
 				uninstallEvent.fire(identifier);
-				didUninstallEvent.fire({ identifier: identifier });
+				didUninstallEvent.fire({ identifier });
 
 				assert.ok(!testObject.enabled);
 			});
@@ -1152,9 +1152,9 @@ suite('ExtensionsActions Test', () => {
 				didUninstallEvent.fire({ identifier: local.identifier });
 
 				const gallery = aGalleryExtension('a');
-				const id = getLocalExtensionIdFromGallery(gallery, gallery.version);
-				installEvent.fire({ identifier: { id }, gallery });
-				didInstallEvent.fire({ identifier: { id }, gallery, operation: InstallOperation.Install, local });
+				const identifier = gallery.identifier;
+				installEvent.fire({ identifier, gallery });
+				didInstallEvent.fire({ identifier, gallery, operation: InstallOperation.Install, local });
 
 				assert.ok(!testObject.enabled);
 			});
@@ -1345,8 +1345,7 @@ suite('ExtensionsActions Test', () => {
 		properties = assign({
 			type: ExtensionType.User,
 			location: URI.file(`pub.${name}`),
-			identifier: { id: getLocalExtensionIdFromManifest(manifest) },
-			galleryIdentifier: { id: getGalleryExtensionId(manifest.publisher, manifest.name), uuid: undefined },
+			identifier: { id: getGalleryExtensionId(manifest.publisher, manifest.name), uuid: undefined },
 			metadata: { id: getGalleryExtensionId(manifest.publisher, manifest.name), publisherId: manifest.publisher, publisherDisplayName: 'somename' }
 		}, properties);
 		return <ILocalExtension>Object.create({ manifest, ...properties });

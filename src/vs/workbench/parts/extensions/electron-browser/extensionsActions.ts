@@ -748,7 +748,7 @@ export class InstallInRemoteServerAction extends ExtensionAction {
 				this.storageService.store('askToInstallRemoteServerExtension', false, StorageScope.GLOBAL);
 			}
 		}
-		const galleryExtension = this.extension.gallery ? this.extension.gallery : await this.extensionGalleryService.getExtension(this.extension.local!.galleryIdentifier);
+		const galleryExtension = this.extension.gallery ? this.extension.gallery : await this.extensionGalleryService.getExtension(this.extension.local!.identifier);
 		if (galleryExtension) {
 			return this.extensionManagementServerService.remoteExtensionManagementServer!.extensionManagementService.installFromGallery(galleryExtension);
 		} else {
