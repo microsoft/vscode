@@ -138,6 +138,7 @@ suite('Resources', () => {
 			assert.equal(normalizePath(URI.file('/foo/foo/../../bar')).toString(), 'file:///bar');
 			assert.equal(normalizePath(URI.file('/foo/foo/./../../bar')).toString(), 'file:///bar');
 			assert.equal(normalizePath(URI.file('/foo/foo/./../some/../bar')).toString(), 'file:///foo/bar');
+			assert.equal(normalizePath(URI.file('/f')).toString(), 'file:///f');
 		}
 		assert.equal(normalizePath(URI.parse('foo://a/foo/./bar')).toString(), 'foo://a/foo/bar');
 		assert.equal(normalizePath(URI.parse('foo://a/foo/.')).toString(), 'foo://a/foo');
@@ -148,6 +149,8 @@ suite('Resources', () => {
 		assert.equal(normalizePath(URI.parse('foo://a/foo/foo/../../bar')).toString(), 'foo://a/bar');
 		assert.equal(normalizePath(URI.parse('foo://a/foo/foo/./../../bar')).toString(), 'foo://a/bar');
 		assert.equal(normalizePath(URI.parse('foo://a/foo/foo/./../some/../bar')).toString(), 'foo://a/foo/bar');
+		assert.equal(normalizePath(URI.parse('foo://a')).toString(), 'foo://a');
+		assert.equal(normalizePath(URI.parse('foo://a/')).toString(), 'foo://a/');
 	});
 
 	test('isAbsolute', () => {

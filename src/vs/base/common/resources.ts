@@ -114,6 +114,9 @@ export function joinPath(resource: URI, pathFragment: string): URI {
  * @returns The URI with the normalized path.
  */
 export function normalizePath(resource: URI): URI {
+	if (!resource.path.length) {
+		return resource;
+	}
 	let normalizedPath: string;
 	if (resource.scheme === Schemas.file) {
 		normalizedPath = URI.file(paths.normalize(fsPath(resource))).path;
