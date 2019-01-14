@@ -21,7 +21,8 @@ enum AsyncDataTreeNodeState {
 	Uninitialized,
 	Loaded,
 	Loading,
-	Slow
+	Slow,
+	Disposed
 }
 
 interface IAsyncDataTreeNode<TInput, T> {
@@ -30,6 +31,16 @@ interface IAsyncDataTreeNode<TInput, T> {
 	readonly id?: string | null;
 	readonly children?: IAsyncDataTreeNode<TInput, T>[];
 	state: AsyncDataTreeNodeState;
+}
+
+function isAncestor<TInput, T>(ancestor: IAsyncDataTreeNode<TInput, T>, descendant: IAsyncDataTreeNode<TInput, T>): boolean {
+	if (!descendant.parent) {
+		return false;
+	} else if (descendant.parent === ancestor) {
+		return true;
+	} else {
+		return isAncestor(ancestor, descendant.parent);
+	}
 }
 
 interface IDataTreeListTemplateData<T> {
@@ -477,11 +488,37 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	}
 
 	private async refreshNode(node: IAsyncDataTreeNode<TInput, T>, recursive: boolean): Promise<void> {
-		await this.doRefresh(node, recursive);
+		await this.queueRefresh(node, recursive);
 
 		if (recursive && node.children) {
 			await Promise.all(node.children.map(child => this.refreshNode(child, recursive)));
 		}
+	}
+
+	private currentRefreshCalls = new Map<IAsyncDataTreeNode<TInput, T>, Promise<void>>();
+
+	private async queueRefresh(node: IAsyncDataTreeNode<TInput, T>, recursive: boolean): Promise<void> {
+		if (node.state === AsyncDataTreeNodeState.Disposed) {
+			console.error('Async data tree node is disposed');
+			return;
+		}
+
+		let result: Promise<void> | undefined;
+
+		this.currentRefreshCalls.forEach((refreshPromise, refreshNode) => {
+			if (isAncestor(refreshNode, node) || isAncestor(node, refreshNode)) {
+				result = refreshPromise.then(() => this.queueRefresh(node, recursive));
+			}
+		});
+
+		if (result) {
+			return result;
+		}
+
+		result = this.doRefresh(node, recursive);
+
+		this.currentRefreshCalls.set(node, result);
+		return always(result, () => this.currentRefreshCalls.delete(node));
 	}
 
 	private doRefresh(node: IAsyncDataTreeNode<TInput, T>, recursive: boolean): Promise<void> {
@@ -491,6 +528,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			this.setChildren(node, [], recursive);
 			return Promise.resolve();
 		} else if (node !== this.root && (!this.tree.isCollapsible(node) || this.tree.isCollapsed(node))) {
+			node.state = AsyncDataTreeNodeState.Uninitialized;
 			return Promise.resolve();
 		} else {
 			node.state = AsyncDataTreeNodeState.Loading;
@@ -636,6 +674,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		const onDidDeleteNode = (treeNode: ITreeNode<IAsyncDataTreeNode<TInput, T>, TFilterData>) => {
 			if (treeNode.element.element) {
 				if (!insertedElements.has(treeNode.element.element as T)) {
+					treeNode.element.state = AsyncDataTreeNodeState.Disposed;
 					this.nodes.delete(treeNode.element.element as T);
 				}
 			}
