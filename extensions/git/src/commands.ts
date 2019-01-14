@@ -1292,22 +1292,24 @@ export class CommandCenter {
 	private async commitWithAnyInput(repository: Repository, opts?: CommitOptions): Promise<void> {
 		const message = repository.inputBox.value;
 		const getCommitMessage = async () => {
-			if (message) {
-				return message;
+			let _message: string | undefined = message;
+			if (!_message) {
+				let value: string | undefined = undefined;
+
+				if (opts && opts.amend && repository.HEAD && repository.HEAD.commit) {
+					value = (await repository.getCommit(repository.HEAD.commit)).message;
+				}
+
+				_message = await window.showInputBox({
+					value,
+					placeHolder: localize('commit message', "Commit message"),
+					prompt: localize('provide commit message', "Please provide a commit message"),
+					ignoreFocusOut: true
+				});
 			}
 
-			let value: string | undefined = undefined;
+			return _message ? repository.cleanUpCommitEditMessage(_message) : _message;
 
-			if (opts && opts.amend && repository.HEAD && repository.HEAD.commit) {
-				value = (await repository.getCommit(repository.HEAD.commit)).message;
-			}
-
-			return await window.showInputBox({
-				value,
-				placeHolder: localize('commit message', "Commit message"),
-				prompt: localize('provide commit message', "Please provide a commit message"),
-				ignoreFocusOut: true
-			});
 		};
 
 		const didCommit = await this.smartCommit(repository, getCommitMessage, opts);
@@ -1328,7 +1330,7 @@ export class CommandCenter {
 			return;
 		}
 
-		const didCommit = await this.smartCommit(repository, async () => repository.inputBox.value);
+		const didCommit = await this.smartCommit(repository, async () => repository.cleanUpCommitEditMessage(repository.inputBox.value));
 
 		if (didCommit) {
 			repository.inputBox.value = await repository.getCommitTemplate();
