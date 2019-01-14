@@ -453,6 +453,11 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			const items = (data as ElementsDragAndDropData<ExplorerItem>).elements;
 
 			if (!target) {
+				// Droping onto the empty area. Do not accept if items dragged are already children of the root
+				if (items.every(i => i.parent.isRoot)) {
+					return false;
+				}
+
 				return { accept: true, bubble: TreeDragOverBubble.Down, autoExpand: false };
 			}
 
