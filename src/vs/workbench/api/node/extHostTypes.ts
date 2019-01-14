@@ -1022,6 +1022,7 @@ export class CodeActionKind {
 	public static readonly RefactorRewrite = CodeActionKind.Refactor.append('rewrite');
 	public static readonly Source = CodeActionKind.Empty.append('source');
 	public static readonly SourceOrganizeImports = CodeActionKind.Source.append('organizeImports');
+	public static readonly SourceAutoFix = CodeActionKind.Source.append('autoFix');
 
 	constructor(
 		public readonly value: string
