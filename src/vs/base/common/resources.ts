@@ -141,7 +141,7 @@ export function fsPath(uri: URI): string {
 	} else if (
 		isWindows
 		&& uriPath.charCodeAt(0) === CharCode.Slash
-		&& paths.isWindowsDriveLetter(uriPath.charCodeAt(0))
+		&& paths.isWindowsDriveLetter(uriPath.charCodeAt(1))
 		&& uriPath.charCodeAt(2) === CharCode.Colon
 	) {
 		value = uriPath.substr(1);
