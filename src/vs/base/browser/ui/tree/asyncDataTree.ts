@@ -350,17 +350,18 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	}
 
 	collapse(element: T, recursive: boolean = false): boolean {
-		return this.tree.collapse(this.getDataNode(element), recursive);
+		const node = this.getDataNode(element);
+		return this.tree.collapse(node === this.root ? null : node, recursive);
 	}
 
 	async expand(element: T, recursive: boolean = false): Promise<boolean> {
 		const node = this.getDataNode(element);
 
-		if (!this.tree.isCollapsed(node)) {
+		if (!this.tree.isCollapsed(node === this.root ? null : node)) {
 			return false;
 		}
 
-		this.tree.expand(node, recursive);
+		this.tree.expand(node === this.root ? null : node, recursive);
 
 		if (node.state !== AsyncDataTreeNodeState.Loaded) {
 			await this.refreshNode(node, false);
@@ -558,7 +559,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 					this._onDidChangeNodeState.fire(node);
 
 					if (node !== this.root) {
-						this.tree.collapse(node);
+						this.tree.collapse(node === this.root ? null : node);
 					}
 
 					return Promise.reject(err);
@@ -632,12 +633,12 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			asyncDataTreeNode.element = element;
 
 			const collapsible = !!this.dataSource.hasChildren(element);
-			const collapsed = !collapsible || this.tree.isCollapsed(asyncDataTreeNode);
+			const collapsed = !collapsible || this.tree.isCollapsed(asyncDataTreeNode === this.root ? null : asyncDataTreeNode);
 
 			if (recursive) {
 				asyncDataTreeNode.state = AsyncDataTreeNodeState.Uninitialized;
 
-				if (this.tree.isCollapsed(asyncDataTreeNode)) {
+				if (this.tree.isCollapsed(asyncDataTreeNode === this.root ? null : asyncDataTreeNode)) {
 					asyncDataTreeNode.children!.length = 0;
 
 					return {

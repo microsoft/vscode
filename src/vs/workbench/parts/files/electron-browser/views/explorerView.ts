@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import * as perf from 'vs/base/common/performance';
-import { sequence, ignoreErrors } from 'vs/base/common/async';
+import { sequence } from 'vs/base/common/async';
 import { Action, IAction } from 'vs/base/common/actions';
 import { memoize } from 'vs/base/common/decorators';
 import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, IExplorerService } from 'vs/workbench/parts/files/common/files';
@@ -165,10 +165,14 @@ export class ExplorerView extends ViewletPanel {
 			const isEditing = !!this.explorerService.getEditableData(e);
 			if (isEditing) {
 				this.tree.setFocus([]);
-				expandPromise = ignoreErrors(this.tree.expand(e.parent));
+				expandPromise = this.tree.expand(e.parent);
 			}
 			DOM.toggleClass(this.tree.getHTMLElement(), 'highlight', isEditing);
-			expandPromise.then(() => this.refresh(e.parent));
+			expandPromise.then(() => this.refresh(e.parent)).then(() => {
+				if (isEditing) {
+					this.tree.reveal(e);
+				}
+			});
 		}));
 		this.disposables.push(this.explorerService.onDidSelectItem(e => this.onSelectItem(e.item, e.reveal)));
 
@@ -435,7 +439,7 @@ export class ExplorerView extends ViewletPanel {
 			parent = parent.parent;
 		}
 
-		return sequence(toExpand.reverse().map(s => () => ignoreErrors(this.tree.expand(s)))).then(() => {
+		return sequence(toExpand.reverse().map(s => () => this.tree.expand(s))).then(() => {
 			if (reveal) {
 				this.tree.reveal(fileStat, 0.5);
 			}
