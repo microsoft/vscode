@@ -164,7 +164,6 @@ export class ExplorerView extends ViewletPanel {
 			let expandPromise = Promise.resolve(null);
 			const isEditing = !!this.explorerService.getEditableData(e);
 			if (isEditing) {
-				this.tree.setFocus([]);
 				expandPromise = this.tree.expand(e.parent);
 			}
 			DOM.toggleClass(this.tree.getHTMLElement(), 'highlight', isEditing);
