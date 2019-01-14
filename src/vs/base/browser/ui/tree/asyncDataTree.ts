@@ -115,16 +115,6 @@ function asTreeContextMenuEvent<TInput, T>(e: ITreeContextMenuEvent<IAsyncDataTr
 	};
 }
 
-export enum ChildrenResolutionReason {
-	Refresh,
-	Expand
-}
-
-export interface IChildrenResolutionEvent<T> {
-	readonly element: T | null;
-	readonly reason: ChildrenResolutionReason;
-}
-
 function asAsyncDataTreeDragAndDropData<TInput, T>(data: IDragAndDropData): IDragAndDropData {
 	if (data instanceof ElementsDragAndDropData) {
 		const nodes = (data as ElementsDragAndDropData<IAsyncDataTreeNode<TInput, T>>).elements;
@@ -233,9 +223,6 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	get onDidChangeSelection(): Event<ITreeEvent<T>> { return Event.map(this.tree.onDidChangeSelection, asTreeEvent); }
 	get onDidOpen(): Event<ITreeEvent<T>> { return Event.map(this.tree.onDidOpen, asTreeEvent); }
 
-	private readonly _onDidResolveChildren = new Emitter<IChildrenResolutionEvent<T>>();
-	readonly onDidResolveChildren: Event<IChildrenResolutionEvent<T>> = this._onDidResolveChildren.event;
-
 	get onMouseClick(): Event<ITreeMouseEvent<T>> { return Event.map(this.tree.onMouseClick, asTreeMouseEvent); }
 	get onMouseDblClick(): Event<ITreeMouseEvent<T>> { return Event.map(this.tree.onMouseDblClick, asTreeMouseEvent); }
 	get onContextMenu(): Event<ITreeContextMenuEvent<T>> { return Event.map(this.tree.onContextMenu, asTreeContextMenuEvent); }
@@ -340,7 +327,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			throw new Error('Tree input not set');
 		}
 
-		return this.refreshNode(this.getDataNode(element), recursive, ChildrenResolutionReason.Refresh);
+		return this.refreshNode(this.getDataNode(element), recursive);
 	}
 
 	// Tree
@@ -365,7 +352,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		this.tree.expand(node, recursive);
 
 		if (node.state !== AsyncDataTreeNodeState.Loaded) {
-			await this.refreshNode(node, false, ChildrenResolutionReason.Expand);
+			await this.refreshNode(node, false);
 		}
 
 		return true;
@@ -489,15 +476,15 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		return node;
 	}
 
-	private async refreshNode(node: IAsyncDataTreeNode<TInput, T>, recursive: boolean, reason: ChildrenResolutionReason): Promise<void> {
-		await this.doRefresh(node, recursive, reason);
+	private async refreshNode(node: IAsyncDataTreeNode<TInput, T>, recursive: boolean): Promise<void> {
+		await this.doRefresh(node, recursive);
 
 		if (recursive && node.children) {
-			await Promise.all(node.children.map(child => this.refreshNode(child, recursive, reason)));
+			await Promise.all(node.children.map(child => this.refreshNode(child, recursive)));
 		}
 	}
 
-	private doRefresh(node: IAsyncDataTreeNode<TInput, T>, recursive: boolean, reason: ChildrenResolutionReason): Promise<void> {
+	private doRefresh(node: IAsyncDataTreeNode<TInput, T>, recursive: boolean): Promise<void> {
 		const hasChildren = !!this.dataSource.hasChildren(node.element!);
 
 		if (!hasChildren) {
@@ -523,7 +510,6 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 					this._onDidChangeNodeState.fire(node);
 
 					this.setChildren(node, children, recursive);
-					this._onDidResolveChildren.fire({ element: node.element as T, reason });
 				}, err => {
 					if (isPromiseCanceledError(err)) {
 						return Promise.resolve(null);
@@ -559,7 +545,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			if (deep) {
 				this.collapse(node.element.element as T);
 			} else {
-				this.refreshNode(node.element, false, ChildrenResolutionReason.Expand);
+				this.refreshNode(node.element, false);
 			}
 		}
 	}
