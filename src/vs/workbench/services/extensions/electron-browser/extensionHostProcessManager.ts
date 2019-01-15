@@ -252,6 +252,10 @@ export class ExtensionHostProcessManager extends Disposable {
 	public addExtension(extension: IExtensionDescription): Promise<void> {
 		return this._extensionHostProcessProxy.then(proxy => proxy.value.$addExtension(extension));
 	}
+
+	public removeExtension(extensionId: ExtensionIdentifier): Promise<void> {
+		return this._extensionHostProcessProxy.then(proxy => proxy.value.$removeExtension(extensionId));
+	}
 }
 
 const colorTables = [

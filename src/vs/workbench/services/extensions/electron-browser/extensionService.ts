@@ -142,7 +142,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		}
 	}
 
-	private _removeExtension(extensionId: string): void {
+	private async _removeExtension(extensionId: string): Promise<void> {
 		const extensionDescription = this._registry.getExtensionDescription(extensionId);
 		if (!extensionDescription) {
 			// ignore disabling an extension which is not running
@@ -156,9 +156,12 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 		// Remove the extension from the local registry and from the extension host
 		this._registry.remove(extensionDescription.identifier);
-		// TODO@Alex: remove from the extension host
 
 		this._rehandleExtensionPoints(extensionDescription);
+
+		if (this._extensionHostProcessManagers.length > 0) {
+			await this._extensionHostProcessManagers[0].removeExtension(extensionDescription.identifier);
+		}
 	}
 
 	private _rehandleExtensionPoints(extensionDescription: IExtensionDescription): void {

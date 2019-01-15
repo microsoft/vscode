@@ -675,6 +675,11 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		return Promise.resolve(undefined);
 	}
 
+	public $removeExtension(extensionId: ExtensionIdentifier): Promise<void> {
+		this._registry.remove(extensionId);
+		return Promise.resolve(undefined);
+	}
+
 	public async $test_latency(n: number): Promise<number> {
 		return n;
 	}

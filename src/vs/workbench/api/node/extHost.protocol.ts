@@ -742,6 +742,7 @@ export interface ExtHostExtensionServiceShape {
 	$activate(extensionId: ExtensionIdentifier, activationEvent: string): Promise<void>;
 
 	$addExtension(extension: IExtensionDescription): Promise<void>;
+	$removeExtension(extension: ExtensionIdentifier): Promise<void>;
 
 	$test_latency(n: number): Promise<number>;
 	$test_up(b: Buffer): Promise<number>;
