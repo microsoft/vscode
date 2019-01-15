@@ -193,7 +193,7 @@ export class ExplorerView extends ViewletPanel {
 				if (activeFile) {
 					this.explorerService.select(this.getActiveFile());
 				} else {
-					// this.tree.setSelection([]);
+					this.tree.setSelection([]);
 				}
 			}
 		}));
