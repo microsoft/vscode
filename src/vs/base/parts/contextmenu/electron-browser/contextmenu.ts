@@ -4,13 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ipcRenderer, Event } from 'electron';
-import { IContextMenuItem, ISerializableContextMenuItem, CONTEXT_MENU_CLOSE_CHANNEL, CONTEXT_MENU_CHANNEL, IPopupOptions, IContextMenuEvent, CONTEXT_MENU_HIDE_CHANNEL } from 'vs/base/parts/contextmenu/common/contextmenu';
+import { IContextMenuItem, ISerializableContextMenuItem, CONTEXT_MENU_CLOSE_CHANNEL, CONTEXT_MENU_CHANNEL, IPopupOptions, IContextMenuEvent } from 'vs/base/parts/contextmenu/common/contextmenu';
 
 let contextMenuIdPool = 0;
-
-export function hidePopup() {
-	ipcRenderer.send(CONTEXT_MENU_HIDE_CHANNEL);
-}
 
 export function popup(items: IContextMenuItem[], options?: IPopupOptions): void {
 	const processedItems: IContextMenuItem[] = [];
