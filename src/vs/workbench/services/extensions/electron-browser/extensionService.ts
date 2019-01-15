@@ -34,7 +34,6 @@ import { Schemas } from 'vs/base/common/network';
 
 const hasOwnProperty = Object.hasOwnProperty;
 const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
-const DYNAMIC_EXTENSION_POINTS = false;
 
 schema.properties.engines.properties.vscode.default = `^${pkg.version}`;
 
@@ -115,31 +114,29 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			}]);
 		}
 
-		if (DYNAMIC_EXTENSION_POINTS) {
-			this._extensionEnablementService.onEnablementChanged((extension) => {
-				if (this._extensionEnablementService.isEnabled(extension)) {
-					// an extension has been enabled
-					this._addExtension(extension);
-				} else {
-					// an extension has been disabled
-					this._removeExtension(extension.identifier.id);
-				}
-			});
+		this._extensionEnablementService.onEnablementChanged((extension) => {
+			if (this._extensionEnablementService.isEnabled(extension)) {
+				// an extension has been enabled
+				this._addExtension(extension);
+			} else {
+				// an extension has been disabled
+				this._removeExtension(extension.identifier.id);
+			}
+		});
 
-			this._extensionManagementService.onDidInstallExtension((event) => {
-				if (event.local) {
-					// an extension has been installed
-					this._addExtension(event.local);
-				}
-			});
+		this._extensionManagementService.onDidInstallExtension((event) => {
+			if (event.local) {
+				// an extension has been installed
+				this._addExtension(event.local);
+			}
+		});
 
-			this._extensionManagementService.onDidUninstallExtension((event) => {
-				if (!event.error) {
-					// an extension has been uninstalled
-					this._removeExtension(event.identifier.id);
-				}
-			});
-		}
+		this._extensionManagementService.onDidUninstallExtension((event) => {
+			if (!event.error) {
+				// an extension has been uninstalled
+				this._removeExtension(event.identifier.id);
+			}
+		});
 	}
 
 	private async _removeExtension(extensionId: string): Promise<void> {
@@ -255,10 +252,16 @@ export class ExtensionService extends Disposable implements IExtensionService {
 					shouldActivateReason = activationEvent;
 					break;
 				}
+
+				if (/^workspaceContains/.test(activationEvent)) {
+					// do not trigger a search, just activate in this case...
+					shouldActivate = true;
+					shouldActivateReason = activationEvent;
+					break;
+				}
 			}
 		}
 
-		// TODO@Alex: workspaceContains will not work
 		if (shouldActivate) {
 			await Promise.all(
 				this._extensionHostProcessManagers.map(extHostManager => extHostManager.activate(extensionDescription.identifier, shouldActivateReason))
