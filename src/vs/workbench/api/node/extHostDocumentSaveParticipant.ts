@@ -83,7 +83,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 
 		}, err => {
 
-			this._logService.error(`onWillSaveTextDocument-listener from extension '${extension.id}' threw ERROR`);
+			this._logService.error(`onWillSaveTextDocument-listener from extension '${extension.identifier.value}' threw ERROR`);
 			this._logService.error(err);
 
 			if (!(err instanceof Error) || (<Error>err).message !== 'concurrent_edits') {
@@ -91,7 +91,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 				this._badListeners.set(listener, !errors ? 1 : errors + 1);
 
 				if (errors > this._thresholds.errors) {
-					this._logService.info(`onWillSaveTextDocument-listener from extension '${extension.id}' will now be IGNORED because of timeouts and/or errors`);
+					this._logService.info(`onWillSaveTextDocument-listener from extension '${extension.identifier.value}' will now be IGNORED because of timeouts and/or errors`);
 				}
 			}
 			return false;
@@ -132,7 +132,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 			const handle = setTimeout(() => reject(new Error('timeout')), this._thresholds.timeout);
 
 			return Promise.all(promises).then(edits => {
-				this._logService.debug(`onWillSaveTextDocument-listener from extension '${extension.id}' finished after ${(Date.now() - t1)}ms`);
+				this._logService.debug(`onWillSaveTextDocument-listener from extension '${extension.identifier.value}' finished after ${(Date.now() - t1)}ms`);
 				clearTimeout(handle);
 				resolve(edits);
 			}).catch(err => {

@@ -120,15 +120,7 @@ export function appendStylizedStringToContainer(root: HTMLElement, stringContent
 		return;
 	}
 
-	const content = linkDetector.handleLinks(stringContent);
-	let container: HTMLElement;
-
-	if (typeof content === 'string') {
-		container = document.createElement('span');
-		container.textContent = content;
-	} else {
-		container = content;
-	}
+	const container = linkDetector.handleLinks(stringContent);
 
 	container.className = cssClasses.join(' ');
 	root.appendChild(container);

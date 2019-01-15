@@ -41,7 +41,7 @@ suite('Color Registry', function () {
 
 	test('all colors documented', async function () {
 		const reqContext = await request({ url: 'https://raw.githubusercontent.com/Microsoft/vscode-docs/vnext/docs/getstarted/theme-color-reference.md' }, CancellationToken.None);
-		const content = await asText(reqContext);
+		const content = (await asText(reqContext))!;
 
 		const expression = /\-\s*\`([\w\.]+)\`: (.*)/g;
 

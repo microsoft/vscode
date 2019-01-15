@@ -41,7 +41,7 @@ suite('ExtHostTreeView', function () {
 
 	let testObject: ExtHostTreeViews;
 	let target: RecordingShape;
-	let onDidChangeTreeNode: Emitter<{ key: string }>;
+	let onDidChangeTreeNode: Emitter<{ key: string } | undefined>;
 	let onDidChangeTreeNodeWithId: Emitter<{ key: string }>;
 	let tree, labels, nodes;
 
@@ -199,7 +199,7 @@ suite('ExtHostTreeView', function () {
 						.then(() => { assert.fail('Should fail with duplicate id'); done(); }, () => done());
 				});
 		});
-		onDidChangeTreeNode.fire();
+		onDidChangeTreeNode.fire(undefined);
 	});
 
 	test('refresh root', function (done) {
@@ -207,7 +207,7 @@ suite('ExtHostTreeView', function () {
 			assert.equal(undefined, actuals);
 			done();
 		});
-		onDidChangeTreeNode.fire();
+		onDidChangeTreeNode.fire(undefined);
 	});
 
 	test('refresh a parent node', () => {
@@ -219,7 +219,7 @@ suite('ExtHostTreeView', function () {
 					label: { label: 'b' },
 					collapsibleState: TreeItemCollapsibleState.Collapsed
 				});
-				c(null);
+				c(undefined);
 			});
 			onDidChangeTreeNode.fire(getNode('b'));
 		});
@@ -300,10 +300,10 @@ suite('ExtHostTreeView', function () {
 			assert.equal(undefined, actuals);
 			done();
 		});
-		onDidChangeTreeNode.fire();
-		onDidChangeTreeNode.fire();
-		onDidChangeTreeNode.fire();
-		onDidChangeTreeNode.fire();
+		onDidChangeTreeNode.fire(undefined);
+		onDidChangeTreeNode.fire(undefined);
+		onDidChangeTreeNode.fire(undefined);
+		onDidChangeTreeNode.fire(undefined);
 	});
 
 	test('refresh calls are throttled on elements', function (done) {
@@ -339,7 +339,7 @@ suite('ExtHostTreeView', function () {
 		onDidChangeTreeNode.fire(getNode('a'));
 		onDidChangeTreeNode.fire(getNode('b'));
 		onDidChangeTreeNode.fire(getNode('g'));
-		onDidChangeTreeNode.fire();
+		onDidChangeTreeNode.fire(undefined);
 	});
 
 	test('refresh calls are throttled on elements and root', function (done) {
@@ -350,7 +350,7 @@ suite('ExtHostTreeView', function () {
 
 		onDidChangeTreeNode.fire(getNode('a'));
 		onDidChangeTreeNode.fire(getNode('b'));
-		onDidChangeTreeNode.fire();
+		onDidChangeTreeNode.fire(undefined);
 		onDidChangeTreeNode.fire(getNode('a'));
 	});
 
@@ -366,7 +366,7 @@ suite('ExtHostTreeView', function () {
 					done();
 				});
 		});
-		onDidChangeTreeNode.fire();
+		onDidChangeTreeNode.fire(undefined);
 	});
 
 	test('tree with duplicate labels', (done) => {
@@ -415,7 +415,7 @@ suite('ExtHostTreeView', function () {
 				});
 		});
 
-		onDidChangeTreeNode.fire();
+		onDidChangeTreeNode.fire(undefined);
 	});
 
 	test('getChildren is not returned from cache if refreshed', (done) => {
@@ -431,7 +431,7 @@ suite('ExtHostTreeView', function () {
 				});
 		});
 
-		onDidChangeTreeNode.fire();
+		onDidChangeTreeNode.fire(undefined);
 	});
 
 	test('getChildren is returned from cache if not refreshed', () => {
@@ -596,7 +596,7 @@ suite('ExtHostTreeView', function () {
 		if (typeof obj === 'object') {
 			const result = {};
 			for (const key of Object.keys(obj)) {
-				if (obj[key] !== void 0) {
+				if (obj[key] !== undefined) {
 					result[key] = removeUnsetKeys(obj[key]);
 				}
 			}
@@ -627,7 +627,7 @@ suite('ExtHostTreeView', function () {
 			},
 			getParent: ({ key }: { key: string }): { key: string } => {
 				const parentKey = key.substring(0, key.length - 1);
-				return parentKey ? new Key(parentKey) : void 0;
+				return parentKey ? new Key(parentKey) : undefined;
 			},
 			onDidChangeTreeData: onDidChangeTreeNode.event
 		};

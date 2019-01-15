@@ -14,12 +14,12 @@ import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 suite('ExtHostTextEditor', () => {
 
 	let editor: ExtHostTextEditor;
-	let doc = new ExtHostDocumentData(undefined, URI.file(''), [
+	let doc = new ExtHostDocumentData(undefined!, URI.file(''), [
 		'aaaa bbbb+cccc abc'
 	], '\n', 'text', 1, false);
 
 	setup(() => {
-		editor = new ExtHostTextEditor(null, 'fake', doc, [], { cursorStyle: 0, insertSpaces: true, lineNumbers: 1, tabSize: 4 }, [], 1);
+		editor = new ExtHostTextEditor(null!, 'fake', doc, [], { cursorStyle: 0, insertSpaces: true, lineNumbers: 1, tabSize: 4 }, [], 1);
 	});
 
 	test('disposed editor', () => {
@@ -34,7 +34,7 @@ suite('ExtHostTextEditor', () => {
 		assert.equal(3, editor.viewColumn);
 
 		assert.ok(editor.document);
-		assert.throws(() => editor._acceptOptions(null));
+		assert.throws(() => editor._acceptOptions(null!));
 		assert.throws(() => editor._acceptSelections([]));
 	});
 
@@ -66,25 +66,25 @@ suite('ExtHostTextEditorOptions', () => {
 	setup(() => {
 		calls = [];
 		let mockProxy: MainThreadTextEditorsShape = {
-			dispose: undefined,
+			dispose: undefined!,
 			$trySetOptions: (id: string, options: ITextEditorConfigurationUpdate) => {
 				assert.equal(id, '1');
 				calls.push(options);
-				return Promise.resolve(void 0);
+				return Promise.resolve(undefined);
 			},
-			$tryShowTextDocument: undefined,
-			$registerTextEditorDecorationType: undefined,
-			$removeTextEditorDecorationType: undefined,
-			$tryShowEditor: undefined,
-			$tryHideEditor: undefined,
-			$trySetDecorations: undefined,
-			$trySetDecorationsFast: undefined,
-			$tryRevealRange: undefined,
-			$trySetSelections: undefined,
-			$tryApplyEdits: undefined,
-			$tryApplyWorkspaceEdit: undefined,
-			$tryInsertSnippet: undefined,
-			$getDiffInformation: undefined
+			$tryShowTextDocument: undefined!,
+			$registerTextEditorDecorationType: undefined!,
+			$removeTextEditorDecorationType: undefined!,
+			$tryShowEditor: undefined!,
+			$tryHideEditor: undefined!,
+			$trySetDecorations: undefined!,
+			$trySetDecorationsFast: undefined!,
+			$tryRevealRange: undefined!,
+			$trySetSelections: undefined!,
+			$tryApplyEdits: undefined!,
+			$tryApplyWorkspaceEdit: undefined!,
+			$tryInsertSnippet: undefined!,
+			$getDiffInformation: undefined!
 		};
 		opts = new ExtHostTextEditorOptions(mockProxy, '1', {
 			tabSize: 4,
@@ -95,8 +95,8 @@ suite('ExtHostTextEditorOptions', () => {
 	});
 
 	teardown(() => {
-		opts = null;
-		calls = null;
+		opts = null!;
+		calls = null!;
 	});
 
 	function assertState(opts: ExtHostTextEditorOptions, expected: IResolvedTextEditorConfiguration): void {
@@ -165,7 +165,7 @@ suite('ExtHostTextEditorOptions', () => {
 	});
 
 	test('ignores invalid tabSize 1', () => {
-		opts.tabSize = null;
+		opts.tabSize = null!;
 		assertState(opts, {
 			tabSize: 4,
 			insertSpaces: false,

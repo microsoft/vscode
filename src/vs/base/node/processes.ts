@@ -107,7 +107,7 @@ export abstract class AbstractProcess<TProgressData> {
 	public constructor(executable: Executable);
 	public constructor(cmd: string, args: string[] | undefined, shell: boolean, options: CommandOptions | undefined);
 	public constructor(arg1: string | Executable, arg2?: string[], arg3?: boolean, arg4?: CommandOptions) {
-		if (arg2 !== void 0 && arg3 !== void 0 && arg4 !== void 0) {
+		if (arg2 !== undefined && arg3 !== undefined && arg4 !== undefined) {
 			this.cmd = <string>arg1;
 			this.args = arg2;
 			this.shell = arg3;
@@ -409,7 +409,7 @@ export namespace win32 {
 		if (path.isAbsolute(command)) {
 			return command;
 		}
-		if (cwd === void 0) {
+		if (cwd === undefined) {
 			cwd = process.cwd();
 		}
 		let dir = path.dirname(command);
@@ -418,11 +418,11 @@ export namespace win32 {
 			// to the current working directory.
 			return path.join(cwd, command);
 		}
-		if (paths === void 0 && Types.isString(process.env.PATH)) {
+		if (paths === undefined && Types.isString(process.env.PATH)) {
 			paths = process.env.PATH.split(path.delimiter);
 		}
 		// No PATH environment. Make path absolute to the cwd.
-		if (paths === void 0 || paths.length === 0) {
+		if (paths === undefined || paths.length === 0) {
 			return path.join(cwd, command);
 		}
 		// We have a simple file name. We get the path variable from the env

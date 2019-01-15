@@ -9,23 +9,23 @@ import {
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 
 function assertKinds(text: string, ...kinds: SyntaxKind[]): void {
-	var scanner = createScanner(text);
-	var kind: SyntaxKind;
+	let scanner = createScanner(text);
+	let kind: SyntaxKind;
 	while ((kind = scanner.scan()) !== SyntaxKind.EOF) {
 		assert.equal(kind, kinds.shift());
 	}
 	assert.equal(kinds.length, 0);
 }
 function assertScanError(text: string, expectedKind: SyntaxKind, scanError: ScanError): void {
-	var scanner = createScanner(text);
+	let scanner = createScanner(text);
 	scanner.scan();
 	assert.equal(scanner.getToken(), expectedKind);
 	assert.equal(scanner.getTokenError(), scanError);
 }
 
 function assertValidParse(input: string, expected: any, options?: ParseOptions): void {
-	var errors: ParseError[] = [];
-	var actual = parse(input, errors, options);
+	let errors: ParseError[] = [];
+	let actual = parse(input, errors, options);
 
 	if (errors.length !== 0) {
 		assert(false, getParseErrorMessage(errors[0].error));
@@ -34,16 +34,16 @@ function assertValidParse(input: string, expected: any, options?: ParseOptions):
 }
 
 function assertInvalidParse(input: string, expected: any, options?: ParseOptions): void {
-	var errors: ParseError[] = [];
-	var actual = parse(input, errors, options);
+	let errors: ParseError[] = [];
+	let actual = parse(input, errors, options);
 
 	assert(errors.length > 0);
 	assert.deepEqual(actual, expected);
 }
 
 function assertTree(input: string, expected: any, expectedErrors: number[] = [], options?: ParseOptions): void {
-	var errors: ParseError[] = [];
-	var actual = parseTree(input, errors, options);
+	let errors: ParseError[] = [];
+	let actual = parseTree(input, errors, options);
 
 	assert.deepEqual(errors.map(e => e.error, expected), expectedErrors);
 	let checkParent = (node: Node) => {

@@ -154,11 +154,11 @@ export interface IViewModel {
 
 export class MinimapLinesRenderingData {
 	public readonly tabSize: number;
-	public readonly data: (ViewLineData | null)[];
+	public readonly data: Array<ViewLineData | null>;
 
 	constructor(
 		tabSize: number,
-		data: (ViewLineData | null)[]
+		data: Array<ViewLineData | null>
 	) {
 		this.tabSize = tabSize;
 		this.data = data;

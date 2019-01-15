@@ -445,11 +445,11 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 	/**
 	 * UI label for a ScanCode.
 	 */
-	private readonly _scanCodeToLabel: (string | null)[] = [];
+	private readonly _scanCodeToLabel: Array<string | null> = [];
 	/**
 	 * Dispatching string for a ScanCode.
 	 */
-	private readonly _scanCodeToDispatch: (string | null)[] = [];
+	private readonly _scanCodeToDispatch: Array<string | null> = [];
 
 	constructor(isUSStandard: boolean, rawMappings: IMacLinuxKeyboardMapping, OS: OperatingSystem) {
 		this._isUSStandard = isUSStandard;

@@ -65,7 +65,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 
 				// Check for cancellation
 				if (token.isCancellationRequested) {
-					return void 0;
+					return undefined;
 				}
 
 				// Assert Model instance
@@ -90,7 +90,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 					this.restoreTextResourceEditorViewState(input);
 				}
 
-				return void 0;
+				return undefined;
 			});
 		});
 	}

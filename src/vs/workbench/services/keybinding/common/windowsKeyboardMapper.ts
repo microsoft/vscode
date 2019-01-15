@@ -303,7 +303,7 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 	public readonly isUSStandard: boolean;
 	private readonly _codeInfo: IScanCodeMapping[];
 	private readonly _scanCodeToKeyCode: KeyCode[];
-	private readonly _keyCodeToLabel: (string | null)[] = [];
+	private readonly _keyCodeToLabel: Array<string | null> = [];
 	private readonly _keyCodeExists: boolean[];
 
 	constructor(isUSStandard: boolean, rawMappings: IWindowsKeyboardMapping) {
@@ -460,9 +460,8 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 			const mapping = this._codeInfo[scanCode];
 			const strCode = ScanCodeUtils.toString(scanCode);
 
-			let mods = [0b000, 0b010, 0b101, 0b111];
-			for (let modIndex = 0; modIndex < mods.length; modIndex++) {
-				const mod = mods[modIndex];
+			const mods = [0b000, 0b010, 0b101, 0b111];
+			for (const mod of mods) {
 				const ctrlKey = (mod & 0b001) ? true : false;
 				const shiftKey = (mod & 0b010) ? true : false;
 				const altKey = (mod & 0b100) ? true : false;

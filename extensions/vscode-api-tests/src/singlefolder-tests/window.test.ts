@@ -136,8 +136,7 @@ suite('window namespace tests', () => {
 			}).then(() => {
 				assert.equal(actualEvents.length, 2);
 
-				for (let i = 0; i < actualEvents.length; i++) {
-					const event = actualEvents[i];
+				for (const event of actualEvents) {
 					assert.equal(event.viewColumn, event.textEditor.viewColumn);
 				}
 

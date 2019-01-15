@@ -289,6 +289,9 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
 
 	private onPromise(request: IRawPromiseRequest): void {
 		const channel = this.channels.get(request.channelName);
+		if (!channel) {
+			throw new Error('Unknown channel');
+		}
 		const cancellationTokenSource = new CancellationTokenSource();
 		let promise: Promise<any>;
 
@@ -309,7 +312,7 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
 					id, data: {
 						message: err.message,
 						name: err.name,
-						stack: err.stack ? (err.stack.split ? err.stack.split('\n') : err.stack) : void 0
+						stack: err.stack ? (err.stack.split ? err.stack.split('\n') : err.stack) : undefined
 					}, type: ResponseType.PromiseError
 				});
 			} else {
@@ -325,6 +328,9 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
 
 	private onEventListen(request: IRawEventListenRequest): void {
 		const channel = this.channels.get(request.channelName);
+		if (!channel) {
+			throw new Error('Unknown channel');
+		}
 
 		const id = request.id;
 		const event = channel.listen(this.ctx, request.name, request.arg);

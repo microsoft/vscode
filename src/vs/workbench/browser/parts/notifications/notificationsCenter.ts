@@ -42,11 +42,11 @@ export class NotificationsCenter extends Themable {
 		private container: HTMLElement,
 		private model: INotificationsModel,
 		@IThemeService themeService: IThemeService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IPartService private partService: IPartService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IPartService private readonly partService: IPartService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
-		@IKeybindingService private keybindingService: IKeybindingService
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
 		super(themeService);
 
@@ -155,7 +155,7 @@ export class NotificationsCenter extends Themable {
 	private getKeybindingLabel(action: IAction): string {
 		const keybinding = this.keybindingService.lookupKeybinding(action.id);
 
-		return keybinding ? keybinding.getLabel() : void 0;
+		return keybinding ? keybinding.getLabel() : undefined;
 	}
 
 	private onDidNotificationChange(e: INotificationChangeEvent): void {

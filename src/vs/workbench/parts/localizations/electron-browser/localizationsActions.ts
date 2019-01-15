@@ -28,17 +28,17 @@ export class ConfigureLocaleAction extends Action {
 	].join('\n');
 
 	constructor(id: string, label: string,
-		@IFileService private fileService: IFileService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IEditorService private editorService: IEditorService,
-		@ILabelService private labelService: ILabelService
+		@IFileService private readonly fileService: IFileService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IEditorService private readonly editorService: IEditorService,
+		@ILabelService private readonly labelService: ILabelService
 	) {
 		super(id, label);
 	}
 
 	public run(event?: any): Promise<IEditor | undefined> {
 		const file = URI.file(join(this.environmentService.appSettingsHome, 'locale.json'));
-		return this.fileService.resolveFile(file).then(void 0, (error) => {
+		return this.fileService.resolveFile(file).then(undefined, (error) => {
 			return this.fileService.createFile(file, ConfigureLocaleAction.DEFAULT_CONTENT);
 		}).then((stat): Promise<IEditor | undefined> | undefined => {
 			if (!stat) {

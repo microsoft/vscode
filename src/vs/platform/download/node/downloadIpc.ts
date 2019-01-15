@@ -19,7 +19,7 @@ export function upload(uri: URI): Event<UploadResponse> {
 	const readstream = fs.createReadStream(uri.fsPath);
 	readstream.on('data', data => stream.fire(data));
 	readstream.on('error', error => stream.fire(error.toString()));
-	readstream.on('close', () => stream.fire());
+	readstream.on('close', () => stream.fire(undefined));
 	return stream.event;
 }
 
@@ -58,7 +58,7 @@ export class DownloadServiceChannelClient implements IDownloadService {
 					out.once('error', e);
 					const uploadStream = this.channel.listen<UploadResponse>('upload', from);
 					const disposable = uploadStream(result => {
-						if (result === void 0) {
+						if (result === undefined) {
 							disposable.dispose();
 							out.end(c);
 						} else if (Buffer.isBuffer(result)) {

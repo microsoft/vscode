@@ -65,7 +65,7 @@ export class ProgressService2 implements IProgressService2 {
 
 		const promise = callback(task[1]);
 
-		let delayHandle = setTimeout(() => {
+		let delayHandle: any = setTimeout(() => {
 			delayHandle = undefined;
 			this._stack.unshift(task);
 			this._updateWindowProgress();
@@ -131,7 +131,7 @@ export class ProgressService2 implements IProgressService2 {
 	private _withNotificationProgress<P extends Promise<R>, R=any>(options: IProgressOptions, callback: (progress: IProgress<{ message?: string, increment?: number }>) => P, onDidCancel?: () => void): P {
 		const toDispose: IDisposable[] = [];
 
-		const createNotification = (message: string, increment?: number): INotificationHandle => {
+		const createNotification = (message: string | undefined, increment?: number): INotificationHandle | undefined => {
 			if (!message) {
 				return undefined; // we need a message at least
 			}
@@ -140,7 +140,7 @@ export class ProgressService2 implements IProgressService2 {
 			if (options.cancellable) {
 				const cancelAction = new class extends Action {
 					constructor() {
-						super('progress.cancel', localize('cancel', "Cancel"), null, true);
+						super('progress.cancel', localize('cancel', "Cancel"), undefined, true);
 					}
 
 					run(): Promise<any> {
@@ -148,12 +148,12 @@ export class ProgressService2 implements IProgressService2 {
 							onDidCancel();
 						}
 
-						return Promise.resolve(void 0);
+						return Promise.resolve(undefined);
 					}
 				};
 				toDispose.push(cancelAction);
 
-				actions.primary.push(cancelAction);
+				actions.primary!.push(cancelAction);
 			}
 
 			const handle = this._notificationService.notify({
@@ -181,7 +181,7 @@ export class ProgressService2 implements IProgressService2 {
 			}
 		};
 
-		let handle: INotificationHandle;
+		let handle: INotificationHandle | undefined;
 		const updateNotification = (message?: string, increment?: number): void => {
 			if (!handle) {
 				handle = createNotification(message, increment);
@@ -235,7 +235,7 @@ export class ProgressService2 implements IProgressService2 {
 
 		// show activity bar
 		let activityProgress: IDisposable;
-		let delayHandle = setTimeout(() => {
+		let delayHandle: any = setTimeout(() => {
 			delayHandle = undefined;
 			const handle = this._activityBar.showActivity(
 				viewletId,

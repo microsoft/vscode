@@ -16,10 +16,10 @@ export class ExperimentalPrompts extends Disposable implements IWorkbenchContrib
 	private _disposables: IDisposable[] = [];
 
 	constructor(
-		@IExperimentService private experimentService: IExperimentService,
-		@IViewletService private viewletService: IViewletService,
-		@INotificationService private notificationService: INotificationService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@IExperimentService private readonly experimentService: IExperimentService,
+		@IViewletService private readonly viewletService: IViewletService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 
 	) {
 		super();
@@ -51,7 +51,7 @@ export class ExperimentalPrompts extends Disposable implements IWorkbenchContrib
 		};
 
 		const actionProperties = (<IExperimentActionPromptProperties>experiment.action.properties);
-		const promptText = ExperimentalPrompts.getLocalizedText(actionProperties.promptText, language);
+		const promptText = ExperimentalPrompts.getLocalizedText(actionProperties.promptText, language || '');
 		if (!actionProperties || !promptText) {
 			return;
 		}
@@ -60,7 +60,7 @@ export class ExperimentalPrompts extends Disposable implements IWorkbenchContrib
 		}
 
 		const choices: IPromptChoice[] = actionProperties.commands.map((command: IExperimentActionPromptCommand) => {
-			const commandText = ExperimentalPrompts.getLocalizedText(command.text, language);
+			const commandText = ExperimentalPrompts.getLocalizedText(command.text, language || '');
 			return {
 				label: commandText,
 				run: () => {

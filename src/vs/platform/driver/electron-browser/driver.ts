@@ -19,14 +19,19 @@ function serializeElement(element: Element, recursive: boolean): IElement {
 
 	for (let j = 0; j < element.attributes.length; j++) {
 		const attr = element.attributes.item(j);
-		attributes[attr.name] = attr.value;
+		if (attr) {
+			attributes[attr.name] = attr.value;
+		}
 	}
 
 	const children: IElement[] = [];
 
 	if (recursive) {
 		for (let i = 0; i < element.children.length; i++) {
-			children.push(serializeElement(element.children.item(i), true));
+			const child = element.children.item(i);
+			if (child) {
+				children.push(serializeElement(child, true));
+			}
 		}
 	}
 
@@ -46,18 +51,19 @@ function serializeElement(element: Element, recursive: boolean): IElement {
 class WindowDriver implements IWindowDriver {
 
 	constructor(
-		@IWindowService private windowService: IWindowService
+		@IWindowService private readonly windowService: IWindowService
 	) { }
 
 	click(selector: string, xoffset?: number, yoffset?: number): Promise<void> {
-		return this._click(selector, 1, xoffset, yoffset);
+		const offset = typeof xoffset === 'number' && typeof yoffset === 'number' ? { x: xoffset, y: yoffset } : undefined;
+		return this._click(selector, 1, offset);
 	}
 
 	doubleClick(selector: string): Promise<void> {
 		return this._click(selector, 2);
 	}
 
-	private async _getElementXY(selector: string, xoffset?: number, yoffset?: number): Promise<{ x: number; y: number; }> {
+	private async _getElementXY(selector: string, offset?: { x: number, y: number }): Promise<{ x: number; y: number; }> {
 		const element = document.querySelector(selector);
 
 		if (!element) {
@@ -68,9 +74,9 @@ class WindowDriver implements IWindowDriver {
 		const { width, height } = getClientArea(element as HTMLElement);
 		let x: number, y: number;
 
-		if ((typeof xoffset === 'number') || (typeof yoffset === 'number')) {
-			x = left + xoffset;
-			y = top + yoffset;
+		if (offset) {
+			x = left + offset.x;
+			y = top + offset.y;
 		} else {
 			x = left + (width / 2);
 			y = top + (height / 2);
@@ -82,8 +88,8 @@ class WindowDriver implements IWindowDriver {
 		return { x, y };
 	}
 
-	private async _click(selector: string, clickCount: number, xoffset?: number, yoffset?: number): Promise<void> {
-		const { x, y } = await this._getElementXY(selector, xoffset, yoffset);
+	private async _click(selector: string, clickCount: number, offset?: { x: number, y: number }): Promise<void> {
+		const { x, y } = await this._getElementXY(selector, offset);
 
 		const webContents: electron.WebContents = (electron as any).remote.getCurrentWebContents();
 		webContents.sendInputEvent({ type: 'mouseDown', x, y, button: 'left', clickCount } as any);

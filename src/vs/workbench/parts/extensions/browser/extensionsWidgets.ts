@@ -4,61 +4,49 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/extensionsWidgets';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IExtension, IExtensionsWorkbenchService } from '../common/extensions';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { IExtension, IExtensionsWorkbenchService, IExtensionContainer } from '../common/extensions';
 import { append, $, addClass } from 'vs/base/browser/dom';
 import * as platform from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
 
-export interface IOptions {
-	extension?: IExtension;
-	small?: boolean;
-}
-
-export class Label implements IDisposable {
-
-	private listener: IDisposable;
+export abstract class ExtensionWidget extends Disposable implements IExtensionContainer {
 	private _extension: IExtension;
 	get extension(): IExtension { return this._extension; }
-	set extension(extension: IExtension) { this._extension = extension; this.render(); }
+	set extension(extension: IExtension) { this._extension = extension; this.update(); }
+	update(): void { this.render(); }
+	abstract render(): void;
+}
+
+export class Label extends ExtensionWidget {
 
 	constructor(
 		private element: HTMLElement,
 		private fn: (extension: IExtension) => string,
 		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
+		super();
 		this.render();
-		this.listener = extensionsWorkbenchService.onChange(this.render, this);
 	}
 
-	private render(): void {
+	render(): void {
 		this.element.textContent = this.extension ? this.fn(this.extension) : '';
-	}
-
-	dispose(): void {
-		this.listener = dispose(this.listener);
 	}
 }
 
-export class InstallCountWidget implements IDisposable {
-
-	private disposables: IDisposable[] = [];
-	private _extension: IExtension;
-	get extension(): IExtension { return this._extension; }
-	set extension(extension: IExtension) { this._extension = extension; this.render(); }
+export class InstallCountWidget extends ExtensionWidget {
 
 	constructor(
 		private container: HTMLElement,
-		private options: IOptions,
+		private small: boolean,
 		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
-		this._extension = options.extension;
-		this.disposables.push(extensionsWorkbenchService.onChange(() => this.render()));
+		super();
 		addClass(container, 'extension-install-count');
 		this.render();
 	}
 
-	private render(): void {
+	render(): void {
 		this.container.innerHTML = '';
 
 		if (!this.extension) {
@@ -67,13 +55,13 @@ export class InstallCountWidget implements IDisposable {
 
 		const installCount = this.extension.installCount;
 
-		if (installCount === null) {
+		if (installCount === undefined) {
 			return;
 		}
 
 		let installLabel: string;
 
-		if (this.options.small) {
+		if (this.small) {
 			if (installCount > 1000000) {
 				installLabel = `${Math.floor(installCount / 100000) / 10}M`;
 			} else if (installCount > 1000) {
@@ -90,53 +78,43 @@ export class InstallCountWidget implements IDisposable {
 		const count = append(this.container, $('span.count'));
 		count.textContent = installLabel;
 	}
-
-	dispose(): void {
-		this.disposables = dispose(this.disposables);
-	}
 }
 
-export class RatingsWidget implements IDisposable {
-
-	private disposables: IDisposable[] = [];
-	private _extension: IExtension;
-	get extension(): IExtension { return this._extension; }
-	set extension(extension: IExtension) { this._extension = extension; this.render(); }
+export class RatingsWidget extends ExtensionWidget {
 
 	constructor(
 		private container: HTMLElement,
-		private options: IOptions,
+		private small: boolean,
 		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
-		this._extension = options.extension;
-		this.disposables.push(extensionsWorkbenchService.onChange(() => this.render()));
+		super();
 		addClass(container, 'extension-ratings');
 
-		if (options.small) {
+		if (this.small) {
 			addClass(container, 'small');
 		}
 
 		this.render();
 	}
 
-	private render(): void {
+	render(): void {
 		this.container.innerHTML = '';
 
 		if (!this.extension) {
 			return;
 		}
 
+		if (this.extension.rating === undefined) {
+			return;
+		}
+
+		if (this.small && !this.extension.ratingCount) {
+			return;
+		}
+
 		const rating = Math.round(this.extension.rating * 2) / 2;
 
-		if (this.extension.rating === null) {
-			return;
-		}
-
-		if (this.options.small && this.extension.ratingCount === 0) {
-			return;
-		}
-
-		if (this.options.small) {
+		if (this.small) {
 			append(this.container, $('span.full.star'));
 
 			const count = append(this.container, $('span.count'));
@@ -153,9 +131,5 @@ export class RatingsWidget implements IDisposable {
 				}
 			}
 		}
-	}
-
-	dispose(): void {
-		this.disposables = dispose(this.disposables);
 	}
 }

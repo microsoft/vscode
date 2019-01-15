@@ -76,7 +76,7 @@ export class WindowsChannel implements IServerChannel {
 			case 'setRepresentedFilename': return this.service.setRepresentedFilename(arg[0], arg[1]);
 			case 'addRecentlyOpened': return this.service.addRecentlyOpened(arg.map(URI.revive));
 			case 'removeFromRecentlyOpened': {
-				let paths: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | string)[] = arg;
+				let paths: Array<IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | string> = arg;
 				if (Array.isArray(paths)) {
 					paths = paths.map(path => isWorkspaceIdentifier(path) || typeof path === 'string' ? path : URI.revive(path));
 				}
@@ -203,7 +203,7 @@ export class WindowsChannelClient implements IWindowsService {
 		return this.channel.call('addRecentlyOpened', files);
 	}
 
-	removeFromRecentlyOpened(paths: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI)[]): Promise<void> {
+	removeFromRecentlyOpened(paths: Array<IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI>): Promise<void> {
 		return this.channel.call('removeFromRecentlyOpened', paths);
 	}
 

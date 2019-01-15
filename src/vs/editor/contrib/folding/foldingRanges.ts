@@ -18,9 +18,9 @@ export class FoldingRegions {
 	private _endIndexes: Uint32Array;
 	private _collapseStates: Uint32Array;
 	private _parentsComputed: boolean;
-	private _types: (string | undefined)[] | undefined;
+	private _types: Array<string | undefined> | undefined;
 
-	constructor(startIndexes: Uint32Array, endIndexes: Uint32Array, types?: (string | undefined)[]) {
+	constructor(startIndexes: Uint32Array, endIndexes: Uint32Array, types?: Array<string | undefined>) {
 		if (startIndexes.length !== endIndexes.length || startIndexes.length > MAX_FOLDING_REGIONS) {
 			throw new Error('invalid startIndexes or endIndexes size');
 		}
@@ -68,7 +68,7 @@ export class FoldingRegions {
 	}
 
 	public getType(index: number): string | undefined {
-		return this._types ? this._types[index] : void 0;
+		return this._types ? this._types[index] : undefined;
 	}
 
 	public hasTypes() {

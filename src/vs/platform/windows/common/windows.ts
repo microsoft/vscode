@@ -120,7 +120,7 @@ export interface IWindowsService {
 	toggleFullScreen(windowId: number): Promise<void>;
 	setRepresentedFilename(windowId: number, fileName: string): Promise<void>;
 	addRecentlyOpened(files: URI[]): Promise<void>;
-	removeFromRecentlyOpened(paths: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | string)[]): Promise<void>;
+	removeFromRecentlyOpened(paths: Array<IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | string>): Promise<void>;
 	clearRecentlyOpened(): Promise<void>;
 	getRecentlyOpened(windowId: number): Promise<IRecentlyOpened>;
 	focusWindow(windowId: number): Promise<void>;
@@ -407,6 +407,10 @@ export interface IRunActionInWindowRequest {
 	id: string;
 	from: 'menu' | 'touchbar' | 'mouse';
 	args?: any[];
+}
+
+export interface IRunKeybindingInWindowRequest {
+	userSettingsLabel: string;
 }
 
 export class ActiveWindowManager implements IDisposable {

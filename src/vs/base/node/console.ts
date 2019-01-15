@@ -83,7 +83,7 @@ export function getFirstFrame(arg0: IRemoteConsoleLog | string | undefined): ISt
 		}
 	}
 
-	return void 0;
+	return undefined;
 }
 
 function findFirstFrame(stack: string | undefined): string | undefined {

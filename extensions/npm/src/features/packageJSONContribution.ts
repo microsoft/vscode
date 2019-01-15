@@ -26,7 +26,7 @@ export class PackageJSONContribution implements IJSONContribution {
 		'shelljs', 'gulp', 'yargs', 'browserify', 'minimatch', 'react', 'less', 'prompt', 'inquirer', 'ws', 'event-stream', 'inherits', 'mysql', 'esprima',
 		'jsdom', 'stylus', 'when', 'readable-stream', 'aws-sdk', 'concat-stream', 'chai', 'Thenable', 'wrench'];
 
-	private knownScopes = ['@types', '@angular'];
+	private knownScopes = ['@types', '@angular', '@babel', '@nuxtjs', '@vue', '@bazel'];
 	private xhr: XHRRequest;
 
 	public getDocumentSelector(): DocumentSelector {
@@ -87,8 +87,8 @@ export class PackageJSONContribution implements IJSONContribution {
 							const obj = JSON.parse(success.responseText);
 							if (obj && Array.isArray(obj.rows)) {
 								const results = <{ key: string[]; }[]>obj.rows;
-								for (let i = 0; i < results.length; i++) {
-									const keys = results[i].key;
+								for (const result of results) {
+									const keys = result.key;
 									if (Array.isArray(keys) && keys.length > 0) {
 										const name = keys[0];
 										const insertText = new SnippetString().appendText(JSON.stringify(name));
@@ -163,7 +163,11 @@ export class PackageJSONContribution implements IJSONContribution {
 			}
 		} else if (segments.length === 2 && segments[0].length > 1) {
 			let scope = segments[0].substr(1);
-			let queryUrl = `https://registry.npmjs.org/-/v1/search?text=scope:${scope}%20${segments[1]}&size=${SCOPED_LIMIT}&popularity=1.0`;
+			let name = segments[1];
+			if (name.length < 4) {
+				name = '';
+			}
+			let queryUrl = `https://api.npms.io/v2/search?q=scope:${scope}%20${name}&size=250`;
 			return this.xhr({
 				url: queryUrl,
 				agent: USER_AGENT
@@ -171,8 +175,8 @@ export class PackageJSONContribution implements IJSONContribution {
 				if (success.status === 200) {
 					try {
 						const obj = JSON.parse(success.responseText);
-						if (obj && Array.isArray(obj.objects)) {
-							const objects = <{ package: { name: string; version: string, description: string; } }[]>obj.objects;
+						if (obj && Array.isArray(obj.results)) {
+							const objects = <{ package: { name: string; version: string, description: string; } }[]>obj.results;
 							for (let object of objects) {
 								if (object.package && object.package.name) {
 									const name = object.package.name;

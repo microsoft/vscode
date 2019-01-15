@@ -206,16 +206,17 @@ suite('Filters', () => {
 
 	function assertMatches(pattern: string, word: string, decoratedWord: string | undefined, filter: FuzzyScorer, opts: { patternPos?: number, wordPos?: number, firstMatchCanBeWeak?: boolean } = {}) {
 		let r = filter(pattern, pattern.toLowerCase(), opts.patternPos || 0, word, word.toLowerCase(), opts.wordPos || 0, opts.firstMatchCanBeWeak || false);
-		assert.ok(!decoratedWord === (!r || r[1].length === 0));
+		assert.ok(!decoratedWord === !r);
 		if (r) {
-			const [, matches] = r;
-			let pos = 0;
-			for (let i = 0; i < matches.length; i++) {
-				let actual = matches[i];
-				let expected = decoratedWord!.indexOf('^', pos) - i;
-				assert.equal(actual, expected);
-				pos = expected + 1 + i;
+			let [, matches] = r;
+			let actualWord = '';
+			for (let pos = 0; pos < word.length; pos++) {
+				if (2 ** pos & matches) {
+					actualWord += '^';
+				}
+				actualWord += word[pos];
 			}
+			assert.equal(actualWord, decoratedWord);
 		}
 	}
 

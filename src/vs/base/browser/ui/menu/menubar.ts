@@ -118,7 +118,7 @@ export class MenuBar extends Disposable {
 			} else if (event.equals(KeyCode.Escape) && this.isFocused && !this.isOpen) {
 				this.setUnfocusedState();
 			} else if (!this.isOpen && !event.ctrlKey && this.options.enableMnemonics && this.mnemonicsInUse && this.mnemonics.has(key)) {
-				const menuIndex = this.mnemonics.get(key);
+				const menuIndex = this.mnemonics.get(key)!;
 				this.onMenuTriggered(menuIndex, false);
 			} else {
 				eventHandled = false;
@@ -171,7 +171,7 @@ export class MenuBar extends Disposable {
 			this.mnemonicsInUse = true;
 			this.updateMnemonicVisibility(true);
 
-			const menuIndex = this.mnemonics.get(key);
+			const menuIndex = this.mnemonics.get(key)!;
 			this.onMenuTriggered(menuIndex, false);
 		}));
 
@@ -520,6 +520,8 @@ export class MenuBar extends Disposable {
 		if (this.container.style.display !== 'flex') {
 			this.container.style.display = 'flex';
 			this._onVisibilityChange.fire(true);
+
+			this.updateOverflowAction();
 		}
 	}
 
@@ -859,12 +861,6 @@ export class MenuBar extends Disposable {
 
 		this._register(menuWidget.onDidCancel(() => {
 			this.focusState = MenubarState.FOCUSED;
-		}));
-
-		this._register(menuWidget.onDidBlur(() => {
-			setTimeout(() => {
-				this.cleanupCustomMenu();
-			}, 100);
 		}));
 
 		if (actualMenuIndex !== menuIndex) {

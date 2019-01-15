@@ -37,11 +37,11 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 	constructor(
 		private resource: URI,
 		preferredEncoding: string,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@ITextFileService private textFileService: ITextFileService,
-		@ITextModelService private textModelResolverService: ITextModelService,
-		@IHashService private hashService: IHashService,
-		@ILabelService private labelService: ILabelService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@ITextModelService private readonly textModelResolverService: ITextModelService,
+		@IHashService private readonly hashService: IHashService,
+		@ILabelService private readonly labelService: ILabelService
 	) {
 		super();
 

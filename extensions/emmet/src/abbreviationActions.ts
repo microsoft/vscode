@@ -105,9 +105,9 @@ function doWrapping(individualLines: boolean, args: any) {
 
 	function revertPreview(): Thenable<any> {
 		return editor.edit(builder => {
-			for (let i = 0; i < rangesToReplace.length; i++) {
-				builder.replace(rangesToReplace[i].previewRange, rangesToReplace[i].originalContent);
-				rangesToReplace[i].previewRange = rangesToReplace[i].originalRange;
+			for (const rangeToReplace of rangesToReplace) {
+				builder.replace(rangeToReplace.previewRange, rangeToReplace.originalContent);
+				rangeToReplace.previewRange = rangeToReplace.originalRange;
 			}
 		}, { undoStopBefore: false, undoStopAfter: false });
 	}
@@ -295,8 +295,8 @@ export function expandEmmetAbbreviation(args: any): Thenable<boolean | undefined
 
 	let selectionsInReverseOrder = editor.selections.slice(0);
 	selectionsInReverseOrder.sort((a, b) => {
-		var posA = a.isReversed ? a.anchor : a.active;
-		var posB = b.isReversed ? b.anchor : b.active;
+		const posA = a.isReversed ? a.anchor : a.active;
+		const posB = b.isReversed ? b.anchor : b.active;
 		return posA.compareTo(posB) * -1;
 	});
 
@@ -535,9 +535,7 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 
 /**
  * Expands abbreviations as detailed in expandAbbrList in the editor
- * @param editor
- * @param expandAbbrList
- * @param insertSameSnippet
+ *
  * @returns false if no snippet can be inserted.
  */
 function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: ExpandAbbreviationInput[], insertSameSnippet: boolean): Thenable<boolean> {

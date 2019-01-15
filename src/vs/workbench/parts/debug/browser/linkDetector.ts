@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import strings = require('vs/base/common/strings');
+import { isAbsolute } from 'vs/base/common/paths';
 import { URI as uri } from 'vs/base/common/uri';
 import { isMacintosh } from 'vs/base/common/platform';
 import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -22,70 +24,116 @@ export class LinkDetector {
 	];
 
 	constructor(
-		@IEditorService private editorService: IEditorService
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		// noop
 	}
 
 	/**
-	 * Matches and handles relative and absolute file links in the string provided.
+	 * Matches and handles absolute file links in the string provided.
 	 * Returns <span/> element that wraps the processed string, where matched links are replaced by <a/> and unmatched parts are surrounded by <span/> elements.
 	 * 'onclick' event is attached to all anchored links that opens them in the editor.
-	 * If no links were detected, returns the original string.
+	 * Each line of the text, even if it contains no links, is wrapped in a <span> and added as a child of the returned <span>.
 	 */
-	handleLinks(text: string): HTMLElement | string {
-		if (text.length > LinkDetector.MAX_LENGTH) {
-			return text;
+	handleLinks(text: string): HTMLElement {
+		const container = document.createElement('span');
+
+		// Handle the text one line at a time
+		const lines = text.split('\n');
+
+		if (strings.endsWith(text, '\n')) {
+			// Remove the last element ('') that split added
+			lines.pop();
 		}
 
-		let linkContainer: HTMLElement | undefined;
-		for (let pattern of LinkDetector.FILE_LOCATION_PATTERNS) {
-			pattern.lastIndex = 0; // the holy grail of software development
-			let lastMatchIndex = 0;
+		for (let i = 0; i < lines.length; i++) {
+			let line = lines[i];
 
-			let match = pattern.exec(text);
-			while (match !== null) {
-				let resource: uri | null = null;
-				if (!resource) {
-					match = pattern.exec(text);
-					continue;
-				}
-				if (!linkContainer) {
-					linkContainer = document.createElement('span');
-				}
+			// Re-introduce the newline for every line except the last (unless the last line originally ended with a newline)
+			if (i < lines.length - 1 || strings.endsWith(text, '\n')) {
+				line += '\n';
+			}
 
-				let textBeforeLink = text.substring(lastMatchIndex, match.index);
-				if (textBeforeLink) {
-					let span = document.createElement('span');
-					span.textContent = textBeforeLink;
-					linkContainer.appendChild(span);
-				}
+			// Don't handle links for lines that are too long
+			if (line.length > LinkDetector.MAX_LENGTH) {
+				let span = document.createElement('span');
+				span.textContent = line;
+				container.appendChild(span);
+				continue;
+			}
 
-				const link = document.createElement('a');
-				link.textContent = text.substr(match.index, match[0].length);
-				link.title = isMacintosh ? nls.localize('fileLinkMac', "Click to follow (Cmd + click opens to the side)") : nls.localize('fileLink', "Click to follow (Ctrl + click opens to the side)");
-				linkContainer.appendChild(link);
-				const line = Number(match[3]);
-				const column = match[4] ? Number(match[4]) : undefined;
-				link.onclick = (e) => this.onLinkClick(new StandardMouseEvent(e), resource!, line, column);
+			const lineContainer = document.createElement('span');
 
-				lastMatchIndex = pattern.lastIndex;
-				const currentMatch = match;
-				match = pattern.exec(text);
+			for (let pattern of LinkDetector.FILE_LOCATION_PATTERNS) {
+				// Reset the state of the pattern
+				pattern = new RegExp(pattern);
+				let lastMatchIndex = 0;
 
-				// Append last string part if no more link matches
-				if (!match) {
-					let textAfterLink = text.substr(currentMatch.index + currentMatch[0].length);
-					if (textAfterLink) {
-						let span = document.createElement('span');
-						span.textContent = textAfterLink;
-						linkContainer.appendChild(span);
+				let match = pattern.exec(line);
+
+				while (match !== null) {
+					let resource: uri | null = isAbsolute(match[1]) ? uri.file(match[1]) : null;
+
+					if (!resource) {
+						match = pattern.exec(line);
+						continue;
 					}
+
+					const textBeforeLink = line.substring(lastMatchIndex, match.index);
+					if (textBeforeLink) {
+						// textBeforeLink may have matches for other patterns, so we run handleLinks on it before adding it.
+						lineContainer.appendChild(this.handleLinks(textBeforeLink));
+					}
+
+					const link = document.createElement('a');
+					link.textContent = line.substr(match.index, match[0].length);
+					link.title = isMacintosh ? nls.localize('fileLinkMac', "Click to follow (Cmd + click opens to the side)") : nls.localize('fileLink', "Click to follow (Ctrl + click opens to the side)");
+					lineContainer.appendChild(link);
+					const lineNumber = Number(match[3]);
+					const columnNumber = match[4] ? Number(match[4]) : undefined;
+					link.onclick = (e) => this.onLinkClick(new StandardMouseEvent(e), resource!, lineNumber, columnNumber);
+
+					lastMatchIndex = pattern.lastIndex;
+					const currentMatch = match;
+					match = pattern.exec(line);
+
+					// Append last string part if no more link matches
+					if (!match) {
+						const textAfterLink = line.substr(currentMatch.index + currentMatch[0].length);
+						if (textAfterLink) {
+							// textAfterLink may have matches for other patterns, so we run handleLinks on it before adding it.
+							lineContainer.appendChild(this.handleLinks(textAfterLink));
+						}
+					}
+				}
+
+				// If we found any matches for this pattern, don't check any more patterns. Other parts of the line will be checked for the other patterns due to the recursion.
+				if (lineContainer.hasChildNodes()) {
+					break;
+				}
+			}
+
+			if (lines.length === 1) {
+				if (lineContainer.hasChildNodes()) {
+					// Adding lineContainer to container would introduce an unnecessary surrounding span since there is only one line, so instead we just return lineContainer
+					return lineContainer;
+				} else {
+					container.textContent = line;
+				}
+			} else {
+				if (lineContainer.hasChildNodes()) {
+					// Add this line to the container
+					container.appendChild(lineContainer);
+				} else {
+					// No links were added, but we still need to surround the unmodified line with a span before adding it
+					let span = document.createElement('span');
+					span.textContent = line;
+					container.appendChild(span);
 				}
 			}
 		}
 
-		return linkContainer || text;
+		return container;
 	}
 
 	private onLinkClick(event: IMouseEvent, resource: uri, line: number, column: number = 0): void {

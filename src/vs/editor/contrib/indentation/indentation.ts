@@ -461,7 +461,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 		}
 
 		// no model
-		if (!this.editor.getModel()) {
+		if (!this.editor.hasModel()) {
 			return;
 		}
 

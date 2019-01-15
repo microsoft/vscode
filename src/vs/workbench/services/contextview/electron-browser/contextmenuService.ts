@@ -27,9 +27,9 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
 	get onDidContextMenu(): Event<void> { return this._onDidContextMenu.event; }
 
 	constructor(
-		@INotificationService private notificationService: INotificationService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IKeybindingService private keybindingService: IKeybindingService
+		@INotificationService private readonly notificationService: INotificationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
 		super();
 	}
@@ -67,13 +67,13 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
 			popup(menu, {
 				x: Math.floor(x),
 				y: Math.floor(y),
-				positioningItem: delegate.autoSelectFirstItem ? 0 : void 0,
+				positioningItem: delegate.autoSelectFirstItem ? 0 : undefined,
 				onHide: () => onHide()
 			});
 		}
 	}
 
-	private createMenu(delegate: IContextMenuDelegate, entries: (IAction | ContextSubMenu)[], onHide: () => void): IContextMenuItem[] {
+	private createMenu(delegate: IContextMenuDelegate, entries: Array<IAction | ContextSubMenu>, onHide: () => void): IContextMenuItem[] {
 		const actionRunner = delegate.actionRunner || new ActionRunner();
 
 		return entries.map(entry => this.createMenuItem(delegate, entry, actionRunner, onHide));
@@ -99,7 +99,7 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
 			const item: IContextMenuItem = {
 				label: unmnemonicLabel(entry.label),
 				checked: !!entry.checked || !!entry.radio,
-				type: !!entry.checked ? 'checkbox' : !!entry.radio ? 'radio' : void 0,
+				type: !!entry.checked ? 'checkbox' : !!entry.radio ? 'radio' : undefined,
 				enabled: !!entry.enabled,
 				click: event => {
 

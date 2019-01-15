@@ -76,8 +76,8 @@ export class LanguagesRegistry extends Disposable {
 
 	_registerLanguages(desc: ILanguageExtensionPoint[]): void {
 
-		for (let i = 0; i < desc.length; i++) {
-			this._registerLanguage(desc[i]);
+		for (const d of desc) {
+			this._registerLanguage(d);
 		}
 
 		// Rebuild fast path maps
@@ -190,7 +190,7 @@ export class LanguagesRegistry extends Disposable {
 
 		resolvedLanguage.aliases.push(langId);
 
-		let langAliases: (string | null)[] | null = null;
+		let langAliases: Array<string | null> | null = null;
 		if (typeof lang.aliases !== 'undefined' && Array.isArray(lang.aliases)) {
 			if (lang.aliases.length === 0) {
 				// signal that this language should not get a name
@@ -201,8 +201,7 @@ export class LanguagesRegistry extends Disposable {
 		}
 
 		if (langAliases !== null) {
-			for (let i = 0; i < langAliases.length; i++) {
-				const langAlias = langAliases[i];
+			for (const langAlias of langAliases) {
 				if (!langAlias || langAlias.length === 0) {
 					continue;
 				}

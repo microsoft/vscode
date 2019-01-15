@@ -206,14 +206,14 @@ export async function main(argv: string[]): Promise<any> {
 							console.log(`Run with '${product.applicationName} -' to read from stdin (e.g. 'ps aux | grep code | ${product.applicationName} -').`);
 						}
 
-						c(void 0);
+						c(undefined);
 					};
 
 					// wait for 1s maximum...
 					setTimeout(() => {
 						process.stdin.removeListener('data', dataListener);
 
-						c(void 0);
+						c(undefined);
 					}, 1000);
 
 					// ...but finish early if we detect data
@@ -360,7 +360,7 @@ export async function main(argv: string[]): Promise<any> {
 			return new Promise<void>(c => {
 
 				// Complete when process exits
-				child.once('exit', () => c(void 0));
+				child.once('exit', () => c(undefined));
 
 				// Complete when wait marker file is deleted
 				whenDeleted(waitMarkerFilePath!).then(c, c);

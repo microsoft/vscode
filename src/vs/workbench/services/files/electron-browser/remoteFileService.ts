@@ -90,8 +90,8 @@ class WorkspaceWatchLogic extends Disposable {
 
 	constructor(
 		private _fileService: RemoteFileService,
-		@IConfigurationService private _configurationService: IConfigurationService,
-		@IWorkspaceContextService private _contextService: IWorkspaceContextService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 	) {
 		super();
 
@@ -297,7 +297,7 @@ export class RemoteFileService extends FileService {
 	resolveFiles(toResolve: { resource: URI; options?: IResolveFileOptions; }[]): Promise<IResolveFileResult[]> {
 
 		// soft-groupBy, keep order, don't rearrange/merge groups
-		let groups: (typeof toResolve)[] = [];
+		let groups: Array<typeof toResolve> = [];
 		let group: typeof toResolve;
 		for (const request of toResolve) {
 			if (!group || group[0].resource.scheme !== request.resource.scheme) {
@@ -482,7 +482,7 @@ export class RemoteFileService extends FileService {
 		return new Promise<IFileStat>((resolve, reject) => {
 			readable.pipe(encoder).pipe(target);
 			target.once('error', err => reject(err));
-			target.once('finish', _ => resolve(void 0));
+			target.once('finish', _ => resolve(undefined));
 		}).then(_ => {
 			return this.resolveFile(resource);
 		});

@@ -48,7 +48,7 @@ export class FileIconThemeStore {
 
 	public get onDidChange(): Event<FileIconThemeData[]> { return this.onDidChangeEmitter.event; }
 
-	constructor(@IExtensionService private extensionService: IExtensionService) {
+	constructor(@IExtensionService private readonly extensionService: IExtensionService) {
 		this.knownIconThemes = [];
 		this.onDidChangeEmitter = new Emitter<FileIconThemeData[]>();
 		this.initialize();
@@ -58,7 +58,7 @@ export class FileIconThemeStore {
 		iconThemeExtPoint.setHandler((extensions) => {
 			for (let ext of extensions) {
 				let extensionData = {
-					extensionId: ext.description.id,
+					extensionId: ext.description.identifier.value,
 					extensionPublisher: ext.description.publisher,
 					extensionName: ext.description.name,
 					extensionIsBuiltin: ext.description.isBuiltin

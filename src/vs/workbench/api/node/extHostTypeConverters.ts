@@ -111,7 +111,7 @@ export namespace Diagnostic {
 			...Range.from(value.range),
 			message: value.message,
 			source: value.source,
-			code: isString(value.code) || isNumber(value.code) ? String(value.code) : void 0,
+			code: isString(value.code) || isNumber(value.code) ? String(value.code) : undefined,
 			severity: DiagnosticSeverity.from(value.severity),
 			relatedInformation: value.relatedInformation && value.relatedInformation.map(DiagnosticRelatedInformation.from),
 			tags: Array.isArray(value.tags) ? value.tags.map(DiagnosticTag.from) : undefined,
@@ -543,7 +543,7 @@ export namespace WorkspaceSymbol {
 export namespace DocumentSymbol {
 	export function from(info: vscode.DocumentSymbol): modes.DocumentSymbol {
 		const result: modes.DocumentSymbol = {
-			name: info.name,
+			name: info.name || '!!MISSING: name!!',
 			detail: info.detail,
 			range: Range.from(info.range),
 			selectionRange: Range.from(info.selectionRange),
@@ -583,16 +583,16 @@ export namespace location {
 }
 
 export namespace DefinitionLink {
-	export function from(value: vscode.Location | vscode.DefinitionLink): modes.DefinitionLink {
+	export function from(value: vscode.Location | vscode.DefinitionLink): modes.LocationLink {
 		const definitionLink = <vscode.DefinitionLink>value;
 		const location = <vscode.Location>value;
 		return {
-			origin: definitionLink.originSelectionRange
+			originSelectionRange: definitionLink.originSelectionRange
 				? Range.from(definitionLink.originSelectionRange)
 				: undefined,
 			uri: definitionLink.targetUri ? definitionLink.targetUri : location.uri,
 			range: Range.from(definitionLink.targetRange ? definitionLink.targetRange : location.range),
-			selectionRange: definitionLink.targetSelectionRange
+			targetSelectionRange: definitionLink.targetSelectionRange
 				? Range.from(definitionLink.targetSelectionRange)
 				: undefined,
 		};
@@ -835,6 +835,30 @@ export namespace Color {
 	}
 }
 
+export namespace SelectionRangeKind {
+
+	export function from(kind: vscode.SelectionRangeKind): string {
+		return kind.value;
+	}
+
+	export function to(value: string): vscode.SelectionRangeKind {
+		return new types.SelectionRangeKind(value);
+	}
+}
+
+export namespace SelectionRange {
+	export function from(obj: vscode.SelectionRange): modes.SelectionRange {
+		return {
+			kind: SelectionRangeKind.from(obj.kind),
+			range: Range.from(obj.range)
+		};
+	}
+
+	export function to(obj: modes.SelectionRange): vscode.SelectionRange {
+		return new types.SelectionRange(Range.to(obj.range), SelectionRangeKind.to(obj.kind));
+	}
+}
+
 export namespace TextDocumentSaveReason {
 
 	export function to(reason: SaveReason): vscode.TextDocumentSaveReason {
@@ -905,7 +929,7 @@ export namespace FoldingRangeKind {
 					return modes.FoldingRangeKind.Region;
 			}
 		}
-		return void 0;
+		return undefined;
 	}
 }
 
@@ -984,8 +1008,6 @@ export namespace LogLevel {
 				return _MainLogLevel.Error;
 			case types.LogLevel.Critical:
 				return _MainLogLevel.Critical;
-			case types.LogLevel.Critical:
-				return _MainLogLevel.Critical;
 			case types.LogLevel.Off:
 				return _MainLogLevel.Off;
 		}
@@ -1005,8 +1027,6 @@ export namespace LogLevel {
 				return types.LogLevel.Warning;
 			case _MainLogLevel.Error:
 				return types.LogLevel.Error;
-			case _MainLogLevel.Critical:
-				return types.LogLevel.Critical;
 			case _MainLogLevel.Critical:
 				return types.LogLevel.Critical;
 			case _MainLogLevel.Off:

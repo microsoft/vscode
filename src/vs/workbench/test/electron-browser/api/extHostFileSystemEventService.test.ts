@@ -12,17 +12,17 @@ suite('ExtHostFileSystemEventService', () => {
 	test('FileSystemWatcher ignore events properties are reversed #26851', function () {
 
 		const protocol: IMainContext = {
-			getProxy: () => { return undefined; },
-			set: undefined,
-			assertRegistered: undefined
+			getProxy: () => { return undefined!; },
+			set: undefined!,
+			assertRegistered: undefined!
 		};
 
-		const watcher1 = new ExtHostFileSystemEventService(protocol, undefined).createFileSystemWatcher('**/somethingInteresting', false, false, false);
+		const watcher1 = new ExtHostFileSystemEventService(protocol, undefined!).createFileSystemWatcher('**/somethingInteresting', false, false, false);
 		assert.equal(watcher1.ignoreChangeEvents, false);
 		assert.equal(watcher1.ignoreCreateEvents, false);
 		assert.equal(watcher1.ignoreDeleteEvents, false);
 
-		const watcher2 = new ExtHostFileSystemEventService(protocol, undefined).createFileSystemWatcher('**/somethingBoring', true, true, true);
+		const watcher2 = new ExtHostFileSystemEventService(protocol, undefined!).createFileSystemWatcher('**/somethingBoring', true, true, true);
 		assert.equal(watcher2.ignoreChangeEvents, true);
 		assert.equal(watcher2.ignoreCreateEvents, true);
 		assert.equal(watcher2.ignoreDeleteEvents, true);

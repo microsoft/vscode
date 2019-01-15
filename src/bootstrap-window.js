@@ -185,7 +185,7 @@ function registerDeveloperKeybindings() {
 	return function () {
 		if (listener) {
 			window.removeEventListener('keydown', listener);
-			listener = void 0;
+			listener = undefined;
 		}
 	};
 }

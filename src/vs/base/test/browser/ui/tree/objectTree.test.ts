@@ -41,6 +41,7 @@ suite('ObjectTree', function () {
 
 		teardown(() => {
 			tree.dispose();
+			filter = (_: number) => true;
 		});
 
 		test('should be able to navigate', () => {

@@ -30,10 +30,10 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 	}
 */
 export interface IMemoryInfo {
-	workingSetSize: number;
-	peakWorkingSetSize: number;
-	privateBytes: number;
-	sharedBytes: number;
+	readonly workingSetSize: number;
+	readonly peakWorkingSetSize: number;
+	readonly privateBytes: number;
+	readonly sharedBytes: number;
 }
 
 /* __GDPR__FRAGMENT__
@@ -85,53 +85,53 @@ export interface IStartupMetrics {
 	/**
 	 * The version of these metrics.
 	 */
-	version: 2;
+	readonly version: 2;
 
 	/**
 	 * If this started the main process and renderer or just a renderer (new or reloaded).
 	 */
-	initialStartup: boolean;
+	readonly initialStartup: boolean;
 
 	/**
 	 * No folder, no file, no workspace has been opened
 	 */
-	emptyWorkbench: boolean;
+	readonly emptyWorkbench: boolean;
 
 	/**
 	 * This is the latest (stable/insider) version. Iff not we should ignore this
 	 * measurement.
 	 */
-	isLatestVersion: boolean;
+	readonly isLatestVersion: boolean;
 
 	/**
 	 * Whether we asked for and V8 accepted cached data.
 	 */
-	didUseCachedData: boolean;
+	readonly didUseCachedData: boolean;
 
 	/**
 	 * How/why the window was created. See https://github.com/Microsoft/vscode/blob/d1f57d871722f4d6ba63e4ef6f06287121ceb045/src/vs/platform/lifecycle/common/lifecycle.ts#L50
 	 */
-	windowKind: number;
+	readonly windowKind: number;
 
 	/**
 	 * The total number of windows that have been restored/created
 	 */
-	windowCount: number;
+	readonly windowCount: number;
 
 	/**
 	 * The active viewlet id or `undedined`
 	 */
-	viewletId: string;
+	readonly viewletId?: string;
 
 	/**
 	 * The active panel id or `undefined`
 	 */
-	panelId: string;
+	readonly panelId?: string;
 
 	/**
 	 * The editor input types or `[]`
 	 */
-	editorIds: string[];
+	readonly editorIds: string[];
 
 	/**
 	 * The time it took to create the workbench.
@@ -146,12 +146,12 @@ export interface IStartupMetrics {
 	 *  * The numbers of windows being restored (when starting 'fresh')
 	 *  * The viewlet being restored (esp. when it's a contributed viewlet)
 	 */
-	ellapsed: number;
+	readonly ellapsed: number;
 
 	/**
 	 * Individual timers...
 	 */
-	timers: {
+	readonly timers: {
 		/**
 		 * The time it took to receieve the [`ready`](https://electronjs.org/docs/api/app#event-ready)-event. Measured from the first line
 		 * of JavaScript code till receiving that event.
@@ -163,7 +163,7 @@ export interface IStartupMetrics {
 		 * * This is often affected by AV software (and can change with AV software updates outside of our release-cycle).
 		 * * It is not our code running here and we can only observe what's happening.
 		 */
-		ellapsedAppReady?: number;
+		readonly ellapsedAppReady?: number;
 
 		/**
 		 * The time it took to generate NLS data.
@@ -173,7 +173,7 @@ export interface IStartupMetrics {
 		 * * This only happens when a non-english locale is being used.
 		 * * It is our code running here and we should monitor this carefully for regressions.
 		 */
-		ellapsedNlsGeneration: number;
+		readonly ellapsedNlsGeneration?: number;
 
 		/**
 		 * The time it took to tell electron to open/restore a renderer (browser window).
@@ -183,7 +183,7 @@ export interface IStartupMetrics {
 		 * * This can be compared between insider and stable builds.
 		 * * It is our code running here and we should monitor this carefully for regressions.
 		 */
-		ellapsedWindowLoad?: number;
+		readonly ellapsedWindowLoad?: number;
 
 		/**
 		 * The time it took to create a new renderer (browser window) and to initialize that to the point
@@ -195,7 +195,7 @@ export interface IStartupMetrics {
 		 * * It is mostly not our code running here and we can only observe what's happening.
 		 *
 		 */
-		ellapsedWindowLoadToRequire: number;
+		readonly ellapsedWindowLoadToRequire: number;
 
 		/**
 		 * The time it took to require the global storage DB, connect to it
@@ -204,7 +204,7 @@ export interface IStartupMetrics {
 		 * * Happens in the main-process
 		 * * Measured with the `main:willInitGlobalStorage` and `main:didInitGlobalStorage` performance marks.
 		 */
-		ellapsedGlobalStorageInitMain: number;
+		readonly ellapsedGlobalStorageInitMain: number;
 
 		/**
 		 * The time it took to load the initial set of values from the global storage.
@@ -212,7 +212,7 @@ export interface IStartupMetrics {
 		 * * Happens in the renderer-process
 		 * * Measured with the `willInitGlobalStorage` and `didInitGlobalStorage` performance marks.
 		 */
-		ellapsedGlobalStorageInitRenderer: number;
+		readonly ellapsedGlobalStorageInitRenderer: number;
 
 		/**
 		 * The time it took to require the workspace storage DB.
@@ -220,7 +220,7 @@ export interface IStartupMetrics {
 		 * * Happens in the renderer-process
 		 * * Measured with the `willRequireSQLite` and `didRequireSQLite` performance marks.
 		 */
-		ellapsedWorkspaceStorageRequire: number;
+		readonly ellapsedWorkspaceStorageRequire: number;
 
 		/**
 		 * The time it took to require the workspace storage DB, connect to it
@@ -229,7 +229,7 @@ export interface IStartupMetrics {
 		 * * Happens in the renderer-process
 		 * * Measured with the `willInitWorkspaceStorage` and `didInitWorkspaceStorage` performance marks.
 		 */
-		ellapsedWorkspaceStorageInit: number;
+		readonly ellapsedWorkspaceStorageInit: number;
 
 		/**
 		 * The time it took to initialize the workspace and configuration service.
@@ -237,7 +237,7 @@ export interface IStartupMetrics {
 		 * * Happens in the renderer-process
 		 * * Measured with the `willInitWorkspaceService` and `didInitWorkspaceService` performance marks.
 		 */
-		ellapsedWorkspaceServiceInit: number;
+		readonly ellapsedWorkspaceServiceInit: number;
 
 		/**
 		 * The time it took to load the main-bundle of the workbench, e.g `workbench.main.js`.
@@ -248,7 +248,7 @@ export interface IStartupMetrics {
 		 * * This should be looked at with and without V8 cached data usage and per electron/v8 version
 		 * * This is affected by the size of our code bundle (which  grows about 3-5% per release)
 		 */
-		ellapsedRequire: number;
+		readonly ellapsedRequire: number;
 
 		/**
 		 * The time it took to read extensions' package.json-files *and* interpret them (invoking
@@ -262,11 +262,11 @@ export interface IStartupMetrics {
 		 *
 		 * todo@joh/ramya this measures an artifical dealy we have added, see https://github.com/Microsoft/vscode/blob/2f07ddae8bf56e969e3f4ba1447258ebc999672f/src/vs/workbench/services/extensions/electron-browser/extensionService.ts#L311-L326
 		 */
-		ellapsedExtensions: number;
+		readonly ellapsedExtensions: number;
 
 		// the time from start till `didLoadExtensions`
 		// remove?
-		ellapsedExtensionsReady: number;
+		readonly ellapsedExtensionsReady: number;
 
 		/**
 		 * The time it took to restore the viewlet.
@@ -276,7 +276,7 @@ export interface IStartupMetrics {
 		 * * This should be looked at per viewlet-type/id.
 		 * * Happens in parallel to other things, depends on async timing
 		 */
-		ellapsedViewletRestore: number;
+		readonly ellapsedViewletRestore: number;
 
 		/**
 		 * The time it took to restore the panel.
@@ -286,7 +286,7 @@ export interface IStartupMetrics {
 		 * * This should be looked at per panel-type/id.
 		 * * Happens in parallel to other things, depends on async timing
 		 */
-		ellapsedPanelRestore: number;
+		readonly ellapsedPanelRestore: number;
 
 		/**
 		 * The time it took to restore editors - that is text editor and complex editor likes the settings UI
@@ -299,7 +299,7 @@ export interface IStartupMetrics {
 		 *
 		 * todo@joh/ramya We should probably measures each editor individually?
 		 */
-		ellapsedEditorRestore: number;
+		readonly ellapsedEditorRestore: number;
 
 		/**
 		 * The time it took to create the workbench.
@@ -309,23 +309,23 @@ export interface IStartupMetrics {
 		 *
 		 * todo@joh/ramya Not sure if this is useful because this includes too much
 		 */
-		ellapsedWorkbench: number;
+		readonly ellapsedWorkbench: number;
 
 		// the time it took to generate this object.
 		// remove?
-		ellapsedTimersToTimersComputed: number;
+		readonly ellapsedTimersToTimersComputed: number;
 	};
 
-	hasAccessibilitySupport: boolean;
-	isVMLikelyhood: number;
-	platform: string;
-	release: string;
-	arch: string;
-	totalmem: number;
-	freemem: number;
-	meminfo: IMemoryInfo;
-	cpus: { count: number; speed: number; model: string; };
-	loadavg: number[];
+	readonly hasAccessibilitySupport: boolean;
+	readonly isVMLikelyhood?: number;
+	readonly platform?: string;
+	readonly release?: string;
+	readonly arch?: string;
+	readonly totalmem?: number;
+	readonly freemem?: number;
+	readonly meminfo?: IMemoryInfo;
+	readonly cpus?: { count: number; speed: number; model: string; };
+	readonly loadavg?: number[];
 }
 
 export interface ITimerService {
@@ -349,8 +349,7 @@ class TimerService implements ITimerService {
 		@IViewletService private readonly _viewletService: IViewletService,
 		@IPanelService private readonly _panelService: IPanelService,
 		@IEditorService private readonly _editorService: IEditorService,
-	) {
-	}
+	) { }
 
 	get startupMetrics(): Promise<IStartupMetrics> {
 		if (!this._startupMetrics) {
@@ -367,15 +366,15 @@ class TimerService implements ITimerService {
 		const initialStartup = !!this._windowService.getConfiguration().isInitialStartup;
 		const startMark = initialStartup ? 'main:started' : 'main:loadWindow';
 
-		let totalmem: number;
-		let freemem: number;
-		let cpus: { count: number; speed: number; model: string; };
-		let platform: string;
-		let release: string;
-		let arch: string;
-		let loadavg: number[];
-		let meminfo: IMemoryInfo;
-		let isVMLikelyhood: number;
+		let totalmem: number | undefined;
+		let freemem: number | undefined;
+		let cpus: { count: number; speed: number; model: string; } | undefined;
+		let platform: string | undefined;
+		let release: string | undefined;
+		let arch: string | undefined;
+		let loadavg: number[] | undefined;
+		let meminfo: IMemoryInfo | undefined;
+		let isVMLikelyhood: number | undefined;
 
 		try {
 			totalmem = os.totalmem();

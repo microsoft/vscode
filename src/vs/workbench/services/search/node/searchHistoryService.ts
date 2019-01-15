@@ -9,23 +9,23 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { isEmptyObject } from 'vs/base/common/types';
 
 export class SearchHistoryService implements ISearchHistoryService {
-	public _serviceBrand: any;
+	_serviceBrand: any;
 
 	private static readonly SEARCH_HISTORY_KEY = 'workbench.search.history';
 
-	private readonly _onDidClearHistory: Emitter<void> = new Emitter<void>();
-	public readonly onDidClearHistory: Event<void> = this._onDidClearHistory.event;
+	private readonly _onDidClearHistory = new Emitter<void>();
+	readonly onDidClearHistory: Event<void> = this._onDidClearHistory.event;
 
 	constructor(
-		@IStorageService private storageService: IStorageService
+		@IStorageService private readonly storageService: IStorageService
 	) { }
 
-	public clearHistory(): void {
+	clearHistory(): void {
 		this.storageService.remove(SearchHistoryService.SEARCH_HISTORY_KEY, StorageScope.WORKSPACE);
 		this._onDidClearHistory.fire();
 	}
 
-	public load(): ISearchHistoryValues {
+	load(): ISearchHistoryValues {
 		let result: ISearchHistoryValues | undefined;
 		const raw = this.storageService.get(SearchHistoryService.SEARCH_HISTORY_KEY, StorageScope.WORKSPACE);
 
@@ -40,7 +40,7 @@ export class SearchHistoryService implements ISearchHistoryService {
 		return result || {};
 	}
 
-	public save(history: ISearchHistoryValues): void {
+	save(history: ISearchHistoryValues): void {
 		if (isEmptyObject(history)) {
 			this.storageService.remove(SearchHistoryService.SEARCH_HISTORY_KEY, StorageScope.WORKSPACE);
 		} else {

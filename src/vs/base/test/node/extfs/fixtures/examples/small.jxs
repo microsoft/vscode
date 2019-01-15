@@ -7,10 +7,10 @@ var M;
         return C;
     })();
     (function (x, property, number) {
-        if (property === void 0) { property = w; }
+        if (property === undefined) { property = w; }
         var local = 1;
         // unresolved symbol because x is local
-        //self.x++; 
+        //self.x++;
         self.w--; // ok because w is a property
         property;
         f = function (y) {

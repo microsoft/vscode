@@ -122,10 +122,10 @@ export class LaunchService implements ILaunchService {
 	_serviceBrand: any;
 
 	constructor(
-		@ILogService private logService: ILogService,
-		@IWindowsMainService private windowsMainService: IWindowsMainService,
-		@IURLService private urlService: IURLService,
-		@IWorkspacesMainService private workspacesMainService: IWorkspacesMainService,
+		@ILogService private readonly logService: ILogService,
+		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
+		@IURLService private readonly urlService: IURLService,
+		@IWorkspacesMainService private readonly workspacesMainService: IWorkspacesMainService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) { }
@@ -152,7 +152,7 @@ export class LaunchService implements ILaunchService {
 				}
 			});
 
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		// Otherwise handle in windows service
@@ -226,10 +226,10 @@ export class LaunchService implements ILaunchService {
 			return Promise.race([
 				this.windowsMainService.waitForWindowCloseOrLoad(usedWindows[0].id),
 				whenDeleted(args.waitMarkerFilePath)
-			]).then(() => void 0, () => void 0);
+			]).then(() => undefined, () => undefined);
 		}
 
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	getMainProcessId(): Promise<number> {

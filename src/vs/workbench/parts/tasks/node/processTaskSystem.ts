@@ -35,6 +35,9 @@ import {
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
+/**
+ * Since ProcessTaskSystem is not receiving new feature updates all strict null check fixing has been done with !.
+ */
 export class ProcessTaskSystem implements ITaskSystem {
 
 	public static TelemetryEventName: string = 'taskService';
@@ -48,9 +51,9 @@ export class ProcessTaskSystem implements ITaskSystem {
 	private outputChannel: IOutputChannel;
 
 	private errorsShown: boolean;
-	private childProcess: LineProcess;
-	private activeTask: CustomTask;
-	private activeTaskPromise: Promise<ITaskSummary>;
+	private childProcess: LineProcess | null;
+	private activeTask: CustomTask | null;
+	private activeTaskPromise: Promise<ITaskSummary> | null;
 
 	private readonly _onDidStateChange: Emitter<TaskEvent>;
 
@@ -92,7 +95,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 
 	public run(task: Task): ITaskExecuteResult {
 		if (this.activeTask) {
-			return { kind: TaskExecuteKind.Active, task, active: { same: this.activeTask._id === task._id, background: this.activeTask.isBackground }, promise: this.activeTaskPromise };
+			return { kind: TaskExecuteKind.Active, task, active: { same: this.activeTask._id === task._id, background: this.activeTask.configurationProperties.isBackground! }, promise: this.activeTaskPromise! };
 		}
 		return this.executeTask(task);
 	}
@@ -109,7 +112,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 	public canAutoTerminate(): boolean {
 		if (this.childProcess) {
 			if (this.activeTask) {
-				return !this.activeTask.promptOnClose;
+				return !this.activeTask.configurationProperties.promptOnClose;
 			}
 			return false;
 		}
@@ -117,7 +120,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 	}
 
 	public terminate(task: Task): Promise<TaskTerminateResponse> {
-		if (!this.activeTask || Task.getMapKey(this.activeTask) !== Task.getMapKey(task)) {
+		if (!this.activeTask || this.activeTask.getMapKey() !== task.getMapKey()) {
 			return Promise.resolve<TaskTerminateResponse>({ success: false, task: undefined });
 		}
 		return this.terminateAll().then(values => values[0]);
@@ -127,8 +130,8 @@ export class ProcessTaskSystem implements ITaskSystem {
 		if (this.childProcess) {
 			let task = this.activeTask;
 			return this.childProcess.terminate().then((response) => {
-				let result: TaskTerminateResponse = Objects.assign({ task: task }, response);
-				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Terminated, task));
+				let result: TaskTerminateResponse = Objects.assign({ task: task! }, response);
+				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Terminated, task!));
 				return [result];
 			});
 		}
@@ -142,7 +145,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 		let telemetryEvent: TelemetryEvent = {
 			trigger: trigger,
 			runner: 'output',
-			taskKind: Task.getTelemetryKind(task),
+			taskKind: task.getTelemetryKind(),
 			command: 'other',
 			success: true
 		};
@@ -220,22 +223,22 @@ export class ProcessTaskSystem implements ITaskSystem {
 			}
 		}
 		args = this.resolveVariables(task, args);
-		let command: string = this.resolveVariable(task, Types.isString(commandConfig.name) ? commandConfig.name : commandConfig.name.value);
-		this.childProcess = new LineProcess(command, args, commandConfig.runtime === RuntimeType.Shell, this.resolveOptions(task, commandConfig.options));
+		let command: string = this.resolveVariable(task, Types.isString(commandConfig.name) ? commandConfig.name : commandConfig.name!.value);
+		this.childProcess = new LineProcess(command, args, commandConfig.runtime === RuntimeType.Shell, this.resolveOptions(task, commandConfig.options!));
 		telemetryEvent.command = this.childProcess.getSanitizedCommand();
 		// we have no problem matchers defined. So show the output log
-		let reveal = task.command.presentation.reveal;
-		if (reveal === RevealKind.Always || (reveal === RevealKind.Silent && task.problemMatchers.length === 0)) {
+		let reveal = task.command.presentation!.reveal;
+		if (reveal === RevealKind.Always || (reveal === RevealKind.Silent && task.configurationProperties.problemMatchers!.length === 0)) {
 			this.showOutput();
 		}
 
-		if (commandConfig.presentation.echo) {
+		if (commandConfig.presentation!.echo) {
 			let prompt: string = Platform.isWindows ? '>' : '$';
 			this.log(`running command${prompt} ${command} ${args.join(' ')}`);
 		}
-		if (task.isBackground) {
-			let watchingProblemMatcher = new WatchingProblemCollector(this.resolveMatchers(task, task.problemMatchers), this.markerService, this.modelService);
-			let toDispose: IDisposable[] = [];
+		if (task.configurationProperties.isBackground) {
+			let watchingProblemMatcher = new WatchingProblemCollector(this.resolveMatchers(task, task.configurationProperties.problemMatchers!), this.markerService, this.modelService);
+			let toDispose: IDisposable[] | null = [];
 			let eventCounter: number = 0;
 			toDispose.push(watchingProblemMatcher.onDidStateChange((event) => {
 				if (event.kind === ProblemCollectorEventKind.BackgroundProcessingBegins) {
@@ -247,7 +250,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 				}
 			}));
 			watchingProblemMatcher.aboutToStart();
-			let delayer: Async.Delayer<any> = null;
+			let delayer: Async.Delayer<any> | null = null;
 			this.activeTask = task;
 			const inactiveEvent = TaskEvent.create(TaskEventKind.Inactive, task);
 			let processStartedSignaled: boolean = false;
@@ -277,9 +280,9 @@ export class ProcessTaskSystem implements ITaskSystem {
 				watchingProblemMatcher.done();
 				watchingProblemMatcher.dispose();
 				if (processStartedSignaled) {
-					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessEnded, task, success.cmdCode));
+					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessEnded, task, success.cmdCode!));
 				}
-				toDispose = dispose(toDispose);
+				toDispose = dispose(toDispose!);
 				toDispose = null;
 				for (let i = 0; i < eventCounter; i++) {
 					this._onDidStateChange.fire(inactiveEvent);
@@ -296,7 +299,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 			}, (error: ErrorData) => {
 				this.childProcessEnded();
 				watchingProblemMatcher.dispose();
-				toDispose = dispose(toDispose);
+				toDispose = dispose(toDispose!);
 				toDispose = null;
 				for (let i = 0; i < eventCounter; i++) {
 					this._onDidStateChange.fire(inactiveEvent);
@@ -311,7 +314,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 		} else {
 			this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task));
 			this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Active, task));
-			let startStopProblemMatcher = new StartStopProblemCollector(this.resolveMatchers(task, task.problemMatchers), this.markerService, this.modelService);
+			let startStopProblemMatcher = new StartStopProblemCollector(this.resolveMatchers(task, task.configurationProperties.problemMatchers!), this.markerService, this.modelService);
 			this.activeTask = task;
 			const inactiveEvent = TaskEvent.create(TaskEventKind.Inactive, task);
 			let processStartedSignaled: boolean = false;
@@ -333,7 +336,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 				startStopProblemMatcher.dispose();
 				this.checkTerminated(task, success);
 				if (processStartedSignaled) {
-					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessEnded, task, success.cmdCode));
+					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessEnded, task, success.cmdCode!));
 				}
 				this._onDidStateChange.fire(inactiveEvent);
 				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.End, task));
@@ -390,22 +393,22 @@ export class ProcessTaskSystem implements ITaskSystem {
 
 	private checkTerminated(task: Task, data: SuccessData | ErrorData): boolean {
 		if (data.terminated) {
-			this.log(nls.localize('TaskRunnerSystem.cancelRequested', '\nThe task \'{0}\' was terminated per user request.', task.name));
+			this.log(nls.localize('TaskRunnerSystem.cancelRequested', '\nThe task \'{0}\' was terminated per user request.', task.configurationProperties.name));
 			return true;
 		}
 		return false;
 	}
 
 	private resolveOptions(task: CustomTask, options: CommandOptions): CommandOptions {
-		let result: CommandOptions = { cwd: this.resolveVariable(task, options.cwd) };
+		let result: CommandOptions = { cwd: this.resolveVariable(task, options.cwd!) };
 		if (options.env) {
 			result.env = Object.create(null);
 			Object.keys(options.env).forEach((key) => {
-				let value: any = options.env[key];
+				let value: any = options.env![key];
 				if (Types.isString(value)) {
-					result.env[key] = this.resolveVariable(task, value);
+					result.env![key] = this.resolveVariable(task, value);
 				} else {
-					result.env[key] = value.toString();
+					result.env![key] = value.toString();
 				}
 			});
 		}
@@ -416,8 +419,8 @@ export class ProcessTaskSystem implements ITaskSystem {
 		return value.map(s => this.resolveVariable(task, s));
 	}
 
-	private resolveMatchers(task: CustomTask, values: (string | ProblemMatcher)[]): ProblemMatcher[] {
-		if (values === void 0 || values === null || values.length === 0) {
+	private resolveMatchers(task: CustomTask, values: Array<string | ProblemMatcher>): ProblemMatcher[] {
+		if (values === undefined || values === null || values.length === 0) {
 			return [];
 		}
 		let result: ProblemMatcher[] = [];
@@ -440,7 +443,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 				result.push(matcher);
 			} else {
 				let copy = Objects.deepClone(matcher);
-				copy.filePrefix = this.resolveVariable(task, copy.filePrefix);
+				copy.filePrefix = this.resolveVariable(task, copy.filePrefix!);
 				result.push(copy);
 			}
 		});
@@ -448,7 +451,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 	}
 
 	private resolveVariable(task: CustomTask, value: string): string {
-		return this.configurationResolverService.resolve(Task.getWorkspaceFolder(task), value);
+		return this.configurationResolverService.resolve(task.getWorkspaceFolder()!, value);
 	}
 
 	public log(value: string): void {

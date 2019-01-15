@@ -42,10 +42,10 @@ export class SearchWorker implements ISearchWorker {
 			this.currentSearchEngine.cancel();
 		}
 
-		return Promise.resolve<void>(null);
+		return Promise.resolve<void>(undefined);
 	}
 
-	search(args: ISearchWorkerSearchArgs): Promise<ISearchWorkerSearchResult> {
+	search(args: ISearchWorkerSearchArgs): Promise<ISearchWorkerSearchResult | null> {
 		if (!this.currentSearchEngine) {
 			// Worker timed out during search
 			this.initialize();
@@ -61,27 +61,27 @@ interface IFileSearchResult {
 	limitReached?: boolean;
 }
 
-const LF = 0x0a;
-const CR = 0x0d;
+const LF = 0x0A;
+const CR = 0x0D;
 
 export class SearchWorkerEngine {
-	private nextSearch = Promise.resolve(null);
+	private nextSearch: Promise<any> = Promise.resolve(null);
 	private isCanceled = false;
 
 	/**
 	 * Searches some number of the given paths concurrently, and starts searches in other paths when those complete.
 	 */
-	searchBatch(args: ISearchWorkerSearchArgs): Promise<ISearchWorkerSearchResult> {
-		const contentPattern = strings.createRegExp(args.pattern.pattern, args.pattern.isRegExp, { matchCase: args.pattern.isCaseSensitive, wholeWord: args.pattern.isWordMatch, multiline: false, global: true });
+	searchBatch(args: ISearchWorkerSearchArgs): Promise<ISearchWorkerSearchResult | null> {
+		const contentPattern = strings.createRegExp(args.pattern.pattern, !!args.pattern.isRegExp, { matchCase: args.pattern.isCaseSensitive, wholeWord: args.pattern.isWordMatch, multiline: false, global: true });
 		const fileEncoding = encodingExists(args.fileEncoding) ? args.fileEncoding : UTF8;
 		return this.nextSearch =
 			this.nextSearch.then(() => this._searchBatch(args, contentPattern, fileEncoding));
 	}
 
 
-	private _searchBatch(args: ISearchWorkerSearchArgs, contentPattern: RegExp, fileEncoding: string): Promise<ISearchWorkerSearchResult> {
+	private _searchBatch(args: ISearchWorkerSearchArgs, contentPattern: RegExp, fileEncoding: string): Promise<ISearchWorkerSearchResult | null> {
 		if (this.isCanceled) {
-			return Promise.resolve<ISearchWorkerSearchResult>(null);
+			return Promise.resolve(null);
 		}
 
 		return new Promise<ISearchWorkerSearchResult>(batchDone => {
@@ -122,7 +122,7 @@ export class SearchWorkerEngine {
 		this.isCanceled = true;
 	}
 
-	private searchInFile(absolutePath: string, contentPattern: RegExp, fileEncoding: string, maxResults?: number, previewOptions?: ITextSearchPreviewOptions): Promise<IFileSearchResult> {
+	private searchInFile(absolutePath: string, contentPattern: RegExp, fileEncoding: string, maxResults?: number, previewOptions?: ITextSearchPreviewOptions): Promise<IFileSearchResult | null> {
 		let fileMatch: FileMatch | null = null;
 		let limitReached = false;
 		let numMatches = 0;
@@ -157,7 +157,7 @@ export class SearchWorkerEngine {
 		return new Promise<void>((resolve, reject) => {
 			fs.open(filename, 'r', null, (error: Error, fd: number) => {
 				if (error) {
-					return resolve(null);
+					return resolve(undefined);
 				}
 
 				const buffer = Buffer.allocUnsafe(options.bufferLength);
@@ -165,7 +165,7 @@ export class SearchWorkerEngine {
 				let lineNumber = 0;
 				let lastBufferHadTrailingCR = false;
 
-				const readFile = (isFirstRead: boolean, clb: (error: Error) => void): void => {
+				const readFile = (isFirstRead: boolean, clb: (error: Error | null) => void): void => {
 					if (this.isCanceled) {
 						return clb(null); // return early if canceled or limit reached
 					}
@@ -274,7 +274,7 @@ export class SearchWorkerEngine {
 
 				readFile(/*isFirstRead=*/true, (error: Error) => {
 					if (error) {
-						return resolve(null);
+						return resolve(undefined);
 					}
 
 					if (line.length) {
@@ -282,7 +282,7 @@ export class SearchWorkerEngine {
 					}
 
 					fs.close(fd, (error: Error) => {
-						resolve(null);
+						resolve(undefined);
 					});
 				});
 			});

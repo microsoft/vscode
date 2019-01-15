@@ -1,3 +1,3 @@
 #!/bin/sh
 sleep 2
-@@NAME@@
+$SNAP_NAME

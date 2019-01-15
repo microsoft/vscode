@@ -89,7 +89,7 @@ class OutlineModel extends QuickOpenModel {
 
 			// Filter by search
 			if (normalizedSearchValue) {
-				const highlights = filters.matchesFuzzy(normalizedSearchValue, entry.getLabel());
+				const highlights = filters.matchesFuzzy2(normalizedSearchValue, entry.getLabel());
 				if (highlights) {
 					entry.setHighlights(highlights);
 					entry.setHidden(false);
@@ -372,7 +372,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 	private pendingOutlineRequest: CancellationTokenSource;
 
 	constructor(
-		@IEditorService private editorService: IEditorService
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		super();
 
@@ -386,8 +386,8 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 	private onDidActiveEditorChange(): void {
 		this.clearOutlineRequest();
 
-		this.lastKnownEditorViewState = void 0;
-		this.rangeHighlightDecorationId = void 0;
+		this.lastKnownEditorViewState = undefined;
+		this.rangeHighlightDecorationId = undefined;
 	}
 
 	getResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel> {
@@ -490,7 +490,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		return this.cachedOutlineRequest;
 	}
 
-	private doGetActiveOutline(): Promise<OutlineModel> {
+	private doGetActiveOutline(): Promise<OutlineModel | null> {
 		const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
 		if (activeTextEditorWidget) {
 			let model = activeTextEditorWidget.getModel();
@@ -595,7 +595,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		if (this.pendingOutlineRequest) {
 			this.pendingOutlineRequest.cancel();
 			this.pendingOutlineRequest.dispose();
-			this.pendingOutlineRequest = void 0;
+			this.pendingOutlineRequest = undefined;
 		}
 
 		this.cachedOutlineRequest = null;

@@ -131,8 +131,8 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 	readonly onBeforeWindowUnload: Event<IWindowUnloadEvent> = this._onBeforeWindowUnload.event;
 
 	constructor(
-		@ILogService private logService: ILogService,
-		@IStateService private stateService: IStateService
+		@ILogService private readonly logService: ILogService,
+		@IStateService private readonly stateService: IStateService
 	) {
 		super();
 
@@ -234,7 +234,7 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 			}
 		});
 
-		this.pendingWillShutdownPromise = Promise.all(joiners).then(void 0, err => this.logService.error(err));
+		this.pendingWillShutdownPromise = Promise.all(joiners).then(undefined, err => this.logService.error(err));
 
 		return this.pendingWillShutdownPromise;
 	}
