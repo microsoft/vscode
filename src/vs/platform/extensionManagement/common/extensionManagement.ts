@@ -238,7 +238,7 @@ export interface IExtensionEnablementService {
 	/**
 	 * Event to listen on for extension enablement changes
 	 */
-	onEnablementChanged: Event<IExtensionIdentifier>;
+	onEnablementChanged: Event<IExtension>;
 
 	/**
 	 * Returns all disabled extension identifiers for current workspace

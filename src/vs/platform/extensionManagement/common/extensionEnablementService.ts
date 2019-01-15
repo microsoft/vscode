@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IExtensionManagementService, DidUninstallExtensionEvent, IExtensionEnablementService, IExtensionIdentifier, EnablementState, isIExtensionIdentifier, DidInstallExtensionEvent, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, DidUninstallExtensionEvent, IExtensionEnablementService, IExtensionIdentifier, EnablementState, DidInstallExtensionEvent, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IStorageService, StorageScope, IWorkspaceStorageChangeEvent } from 'vs/platform/storage/common/storage';
@@ -21,8 +21,8 @@ export class ExtensionEnablementService extends Disposable implements IExtension
 
 	_serviceBrand: any;
 
-	private _onEnablementChanged = new Emitter<IExtensionIdentifier>();
-	public readonly onEnablementChanged: Event<IExtensionIdentifier> = this._onEnablementChanged.event;
+	private _onEnablementChanged = new Emitter<IExtension>();
+	public readonly onEnablementChanged: Event<IExtension> = this._onEnablementChanged.event;
 
 	private readonly storageManger: StorageManager;
 
@@ -107,23 +107,14 @@ export class ExtensionEnablementService extends Disposable implements IExtension
 		return true;
 	}
 
-	setEnablement(arg: IExtension | IExtensionIdentifier, newState: EnablementState): Promise<boolean> {
-		let identifier: IExtensionIdentifier;
-		if (isIExtensionIdentifier(arg)) {
-			identifier = arg;
-		} else {
-			if (!this.canChangeEnablement(arg)) {
-				return Promise.resolve(false);
-			}
-			identifier = arg.identifier;
-		}
+	setEnablement(extension: IExtension, newState: EnablementState): Promise<boolean> {
 
 		const workspace = newState === EnablementState.WorkspaceDisabled || newState === EnablementState.WorkspaceEnabled;
 		if (workspace && !this.hasWorkspace) {
 			return Promise.reject(new Error(localize('noWorkspace', "No workspace.")));
 		}
 
-		const currentState = this._getEnablementState(identifier);
+		const currentState = this._getEnablementState(extension.identifier);
 
 		if (currentState === newState) {
 			return Promise.resolve(false);
@@ -132,20 +123,20 @@ export class ExtensionEnablementService extends Disposable implements IExtension
 
 		switch (newState) {
 			case EnablementState.Enabled:
-				this._enableExtension(identifier);
+				this._enableExtension(extension.identifier);
 				break;
 			case EnablementState.Disabled:
-				this._disableExtension(identifier);
+				this._disableExtension(extension.identifier);
 				break;
 			case EnablementState.WorkspaceEnabled:
-				this._enableExtensionInWorkspace(identifier);
+				this._enableExtensionInWorkspace(extension.identifier);
 				break;
 			case EnablementState.WorkspaceDisabled:
-				this._disableExtensionInWorkspace(identifier);
+				this._disableExtensionInWorkspace(extension.identifier);
 				break;
 		}
 
-		this._onEnablementChanged.fire(identifier);
+		this._onEnablementChanged.fire(extension);
 		return Promise.resolve(true);
 	}
 
@@ -288,7 +279,9 @@ export class ExtensionEnablementService extends Disposable implements IExtension
 		this.storageManger.set(storageId, extensions, scope);
 	}
 
-	private onDidChangeStorage(extensions: IExtensionIdentifier[]): void {
+	private async onDidChangeStorage(extensionIdentifiers: IExtensionIdentifier[]): Promise<void> {
+		const installedExtensions = await this.extensionManagementService.getInstalled();
+		const extensions = installedExtensions.filter(installedExtension => extensionIdentifiers.some(identifier => areSameExtensions(identifier, installedExtension.identifier)));
 		for (const extension of extensions) {
 			this._onEnablementChanged.fire(extension);
 		}
@@ -299,7 +292,7 @@ export class ExtensionEnablementService extends Disposable implements IExtension
 			const wasDisabled = !this.isEnabled(event.local);
 			this._reset(event.local.identifier);
 			if (wasDisabled) {
-				this._onEnablementChanged.fire(event.local.identifier);
+				this._onEnablementChanged.fire(event.local);
 			}
 		}
 	}

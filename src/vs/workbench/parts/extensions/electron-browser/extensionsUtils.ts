@@ -106,7 +106,7 @@ export function onExtensionChanged(accessor: ServicesAccessor): Event<IExtension
 		Event.chain(Event.any(onDidInstallExtension, extensionService.onDidUninstallExtension))
 			.map(e => e.identifier)
 			.event,
-		extensionEnablementService.onEnablementChanged
+		Event.map(extensionEnablementService.onEnablementChanged, e => e.identifier)
 	), (list, id) => {
 		if (!list) {
 			return [id];

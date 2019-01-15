@@ -114,7 +114,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		}
 
 		if (DYNAMIC_EXTENSION_POINTS) {
-			this._extensionEnablementService.onEnablementChanged((identifier) => {
+			this._extensionEnablementService.onEnablementChanged(({ identifier }) => {
 				const extension = this._registry.getExtensionDescription(identifier.id);
 				if (!extension) {
 					// cannot handle enablement yet

@@ -318,7 +318,7 @@ suite('ExtensionEnablementService Test', () => {
 		await testObject.setEnablement(local, EnablementState.Disabled);
 		return new Promise((c, e) => {
 			testObject.onEnablementChanged(e => {
-				if (e.id === local.identifier.id) {
+				if (e.identifier.id === local.identifier.id) {
 					c();
 				}
 			});
@@ -356,7 +356,7 @@ suite('ExtensionEnablementService Test', () => {
 		await testObject.setEnablement(local, EnablementState.WorkspaceDisabled);
 		return new Promise((c, e) => {
 			testObject.onEnablementChanged(e => {
-				if (e.id === local.identifier.id) {
+				if (e.identifier.id === local.identifier.id) {
 					c();
 				}
 			});

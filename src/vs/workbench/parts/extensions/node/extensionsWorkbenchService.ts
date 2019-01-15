@@ -37,7 +37,7 @@ import * as resources from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IExtensionManifest, ExtensionType, ExtensionIdentifierWithVersion } from 'vs/platform/extensions/common/extensions';
+import { IExtensionManifest, ExtensionType, ExtensionIdentifierWithVersion, IExtension as IPlatformExtension } from 'vs/platform/extensions/common/extensions';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -978,7 +978,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		this._onChange.fire(uninstalling);
 	}
 
-	private onEnablementChanged(identifier: IExtensionIdentifier) {
+	private onEnablementChanged({ identifier }: IPlatformExtension) {
 		const [extension] = this.local.filter(e => areSameExtensions(e.identifier, identifier));
 		if (extension && extension.local) {
 			const enablementState = this.extensionEnablementService.getEnablementState(extension.local);
