@@ -701,8 +701,7 @@ class InputBox extends QuickInput implements IInputBox {
 	set prompt(prompt: string) {
 		this._prompt = prompt;
 		this.noValidationMessage = prompt
-			// ? localize('inputModeEntryDescription', "{0} (Press 'Enter' to confirm or 'Escape' to cancel)", prompt)
-			? localize('inputModeEntryDescription', "{0}", prompt)
+			? localize('inputModeEntryDescription', "{0} (Press 'Enter' to confirm or 'Escape' to cancel)", prompt)
 			: InputBox.noPromptMessage;
 		this.update();
 	}

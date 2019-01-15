@@ -8,8 +8,6 @@ import * as types from 'vs/base/common/types';
 import { IEntryRunContext, Mode, IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { QuickOpenHandler, EditorQuickOpenEntry, QuickOpenAction } from 'vs/workbench/browser/quickopen';
-import { IQuickInputService, IPickOptions, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { Action, IAction } from 'vs/base/common/actions';
 import { IEditor, IEditorViewState, IDiffEditorModel, ScrollType } from 'vs/editor/common/editorCommon';
 import { OverviewRulerLane, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
@@ -70,79 +68,6 @@ export class GotoLineAction extends QuickOpenAction {
 		return result;
 	}
 }
-
-
-// Example 2 / 3,4 - uncomment desired example
-
-export class GotoLineAction2 extends Action {
-
-	static readonly ID = 'workbench.action.gotoLine2';
-	static readonly LABEL = nls.localize('gotoLine', "Go to Line...");
-
-	constructor(actionId: string, actionLabel: string,
-		@IQuickOpenService private readonly _quickOpenService: IQuickOpenService,
-		@IQuickInputService protected quickInputService: IQuickInputService,
-		@IEditorService private readonly editorService: IEditorService
-	) {
-		super(actionId, actionLabel);
-	}
-
-	run(): Promise<any> {
-
-		let activeTextEditorWidget = this.editorService.activeTextEditorWidget;
-		if (isDiffEditor(activeTextEditorWidget)) {
-			activeTextEditorWidget = activeTextEditorWidget.getModifiedEditor();
-		}
-		let restoreOptions: IEditorOptions | null = null;
-
-		if (isCodeEditor(activeTextEditorWidget)) {
-			const config = activeTextEditorWidget.getConfiguration();
-			if (config.viewInfo.renderLineNumbers === RenderLineNumbersType.Relative) {
-				activeTextEditorWidget.updateOptions({
-					lineNumbers: 'on'
-				});
-				restoreOptions = {
-					lineNumbers: 'relative'
-				};
-			}
-		}
-
-		const line = this.editorService.activeTextEditorWidget.getPosition().lineNumber;
-		const maxLine = (<ITextModel>this.editorService.activeTextEditorWidget.getModel()).getLineCount();
-
-		return this.quickInputService.input({
-			// Example 2: Populate input value, gets selected - SR outputs "xx selected", no placeholder
-			value: line.toString(),
-			prompt: nls.localize('gotoLine.prompt1', "Type a line number between 1 and {0} to navigate to.", maxLine),
-
-			// Example 3: Populate input value, gets selected, set placeholder - gets read but not shown
-			// value: line.toString(),
-			// prompt: nls.localize('gotoLine.prompt1', "Type a line number between 1 and {0} to navigate to.", maxLine),
-			// placeHolder: nls.localize('gotoLine3', "Current line: {0}.", line.toString())
-
-			// Example 4: NO preset input value, elected, set placeholder - gets read but not shown
-			// prompt: nls.localize('gotoLine.prompt1', "Type a line number between 1 and {0} to navigate to.", maxLine),
-			// placeHolder: nls.localize('gotoLine3', "Current line: {0}.", line.toString())
-
-
-		}).then(line => {
-			if (line) {
-
-				// need to add 	validation and error prompt - actual jump
-
-				if (restoreOptions) {
-					Event.once(this._quickOpenService.onHide)(() => {
-						activeTextEditorWidget.updateOptions(restoreOptions);
-					});
-				}
-
-			}
-		});
-	}
-}
-
-
-
 
 class GotoLineEntry extends EditorQuickOpenEntry {
 	private line: number;
