@@ -1291,6 +1291,10 @@ export class Repository {
 
 			return result.stdout.trim();
 		} catch (err) {
+			if (/^fatal: no such path/.test(err.stderr || '')) {
+				err.gitErrorCode = GitErrorCodes.NoPathFound;
+			}
+
 			throw err;
 		}
 	}
