@@ -136,7 +136,7 @@ export class ExtensionPoint<T> implements IExtensionPoint<T> {
 	}
 
 	private _handle(): void {
-		if (this._handler === null || this._users === null) {
+		if (this._handler === null || this._users === null || this._delta === null) {
 			return;
 		}
 
