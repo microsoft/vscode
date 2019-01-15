@@ -61,8 +61,12 @@ class MockMainThreadSearch implements MainThreadSearchShape {
 }
 
 class MockExtHostConfiguration {
-	getConfiguration(section?: string, resource?: URI, extensionId?: string): vscode.WorkspaceConfiguration {
-		return <vscode.WorkspaceConfiguration>{};
+	getConfigProvider(): Promise<any> {
+		return Promise.resolve({
+			getConfiguration: (section?: string, resource?: URI, extensionId?: string): vscode.WorkspaceConfiguration => {
+				return <vscode.WorkspaceConfiguration>{};
+			}
+		});
 	}
 }
 

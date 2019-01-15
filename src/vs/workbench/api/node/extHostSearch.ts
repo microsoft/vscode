@@ -9,7 +9,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import * as extfs from 'vs/base/node/extfs';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IFileQuery, IFolderQuery, IRawFileQuery, IRawQuery, IRawTextQuery, ISearchCompleteStats, ITextQuery } from 'vs/platform/search/common/search';
-import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
+import { ExtHostConfiguration, ExtHostConfigProvider } from 'vs/workbench/api/node/extHostConfiguration';
 import { FileIndexSearchManager } from 'vs/workbench/api/node/extHostSearch.fileIndex';
 import { FileSearchManager } from 'vs/workbench/services/search/node/fileSearchManager';
 import { SearchService } from 'vs/workbench/services/search/node/rawSearchService';
@@ -46,7 +46,9 @@ export class ExtHostSearch implements ExtHostSearchShape {
 		this._fileSearchManager = new FileSearchManager();
 		this._fileIndexSearchManager = new FileIndexSearchManager();
 
-		registerEHProviders(this, _logService, configService);
+		configService.getConfigProvider().then((configProvider) => {
+			registerEHProviders(this, _logService, configProvider);
+		});
 	}
 
 	private _transformScheme(scheme: string): string {
@@ -176,7 +178,7 @@ export class ExtHostSearch implements ExtHostSearchShape {
 	}
 }
 
-function registerEHProviders(extHostSearch: ExtHostSearch, logService: ILogService, configService: ExtHostConfiguration) {
+function registerEHProviders(extHostSearch: ExtHostSearch, logService: ILogService, configService: ExtHostConfigProvider) {
 	if (configService.getConfiguration('searchRipgrep').enable || configService.getConfiguration('search').runInExtensionHost) {
 		const outputChannel = new OutputChannel(logService);
 		extHostSearch.registerTextSearchProvider('file', new RipgrepSearchProvider(outputChannel));

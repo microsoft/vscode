@@ -219,15 +219,22 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 
 		this._started = false;
 
-		initializeExtensionApi(this, this._extensionApiFactory, this._registry).then(() => {
-			// Do this when extension service exists, but extensions are not being activated yet.
-			return connectProxyResolver(this._extHostWorkspace, this._extHostConfiguration, this, this._extHostLogService, this._mainThreadTelemetryProxy);
-		}).then(() => {
-			this._barrier.open();
-		});
+		this._initialize();
 
 		if (this._initData.autoStart) {
 			this._startExtensionHost();
+		}
+	}
+
+	private async _initialize(): Promise<void> {
+		try {
+			const configProvider = await this._extHostConfiguration.getConfigProvider();
+			await initializeExtensionApi(this, this._extensionApiFactory, this._registry, configProvider);
+			// Do this when extension service exists, but extensions are not being activated yet.
+			await connectProxyResolver(this._extHostWorkspace, configProvider, this, this._extHostLogService, this._mainThreadTelemetryProxy);
+			this._barrier.open();
+		} catch (err) {
+			errors.onUnexpectedError(err);
 		}
 	}
 

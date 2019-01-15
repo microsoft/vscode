@@ -987,8 +987,7 @@ export class TreeView extends HeightMap {
 			// 50 is an optimization number, at some point we're better off
 			// just replacing everything
 			if (!skipDiff && !doToInsertItemsAlreadyExist && diff.length < 50) {
-				for (let i = 0, len = diff.length; i < len; i++) {
-					const diffChange = diff[i];
+				for (const diffChange of diff) {
 
 					if (diffChange.originalLength > 0) {
 						this.onRemoveItems(new ArrayIterator(previousChildrenIds, diffChange.originalStart, diffChange.originalStart + diffChange.originalLength));

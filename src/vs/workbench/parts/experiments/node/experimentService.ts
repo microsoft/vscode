@@ -11,7 +11,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IExtensionManagementService, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IRequestService } from 'vs/platform/request/node/request';
 import { language } from 'vs/base/common/platform';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -23,6 +23,7 @@ import { WorkspaceStats } from 'vs/workbench/parts/stats/node/workspaceStats';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { distinct } from 'vs/base/common/arrays';
 import { lastSessionDateStorageKey } from 'vs/platform/telemetry/node/workbenchCommonProperties';
+import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 
 interface IExperimentStorageState {
 	enabled: boolean;
@@ -370,7 +371,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 		let extensionsCheckPromise = Promise.resolve(true);
 		const installedExtensions = condition.installedExtensions;
 		if (installedExtensions) {
-			extensionsCheckPromise = this.extensionManagementService.getInstalled(LocalExtensionType.User).then(locals => {
+			extensionsCheckPromise = this.extensionManagementService.getInstalled(ExtensionType.User).then(locals => {
 				let includesCheck = true;
 				let excludesCheck = true;
 				const localExtensions = locals.map(local => `${local.manifest.publisher.toLowerCase()}.${local.manifest.name.toLowerCase()}`);

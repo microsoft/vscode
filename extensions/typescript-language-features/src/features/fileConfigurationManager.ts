@@ -186,8 +186,10 @@ export default class FileConfigurationManager {
 		return {
 			quotePreference: getQuoteStylePreference(preferences),
 			importModuleSpecifierPreference: getImportModuleSpecifierPreference(preferences),
-			allowTextChangesInNewFiles: document.uri.scheme === 'file'
-		};
+			allowTextChangesInNewFiles: document.uri.scheme === 'file',
+			providePrefixAndSuffixTextForRename: true,
+			allowRenameOfImportPath: true,
+		} as Proto.UserPreferences;
 	}
 }
 

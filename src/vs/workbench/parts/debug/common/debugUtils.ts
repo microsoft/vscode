@@ -163,6 +163,11 @@ function convertPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePaths: (toDA:
 				case 'gotoTargets':
 					fixSourcePaths(true, (<DebugProtocol.GotoTargetsArguments>request.arguments).source);
 					break;
+				case 'launchVSCode':
+					const source = { path: request.arguments.extensionDevelopmentPath };
+					fixSourcePaths(false, source);
+					request.arguments.extensionDevelopmentPath = source.path;
+					break;
 				default:
 					break;
 			}

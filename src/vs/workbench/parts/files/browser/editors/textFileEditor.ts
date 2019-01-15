@@ -8,7 +8,7 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import * as types from 'vs/base/common/types';
 import * as paths from 'vs/base/common/paths';
 import { Action } from 'vs/base/common/actions';
-import { VIEWLET_ID, IExplorerViewlet, TEXT_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
+import { VIEWLET_ID, TEXT_FILE_EDITOR_ID, IExplorerService } from 'vs/workbench/parts/files/common/files';
 import { ITextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { BaseTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
 import { EditorOptions, TextEditorOptions } from 'vs/workbench/common/editor';
@@ -54,7 +54,8 @@ export class TextFileEditor extends BaseTextEditor {
 		@ITextFileService textFileService: ITextFileService,
 		@IWindowsService private readonly windowsService: IWindowsService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
-		@IWindowService windowService: IWindowService
+		@IWindowService windowService: IWindowService,
+		@IExplorerService private readonly explorerService: IExplorerService
 	) {
 		super(TextFileEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService, windowService);
 
@@ -218,8 +219,8 @@ export class TextFileEditor extends BaseTextEditor {
 
 			// Best we can do is to reveal the folder in the explorer
 			if (this.contextService.isInsideWorkspace(input.getResource())) {
-				this.viewletService.openViewlet(VIEWLET_ID, true).then(viewlet => {
-					return (viewlet as IExplorerViewlet).getExplorerView().select(input.getResource(), true);
+				this.viewletService.openViewlet(VIEWLET_ID, true).then(() => {
+					this.explorerService.select(input.getResource(), true);
 				});
 			}
 		});

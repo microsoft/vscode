@@ -801,8 +801,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		const contributionsState: { [key: string]: any } = {};
 
 		const keys = Object.keys(this._contributions);
-		for (let i = 0, len = keys.length; i < len; i++) {
-			const id = keys[i];
+		for (const id of keys) {
 			const contribution = this._contributions[id];
 			if (typeof contribution.saveViewState === 'function') {
 				contributionsState[id] = contribution.saveViewState();

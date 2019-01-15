@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { IListService } from 'vs/platform/list/browser/listService';
-import { ExplorerItem, OpenEditor } from 'vs/workbench/parts/files/common/explorerModel';
+import { IListService, WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
+import { OpenEditor } from 'vs/workbench/parts/files/common/files';
 import { toResource } from 'vs/workbench/common/editor';
-import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ExplorerItem } from 'vs/workbench/parts/files/common/explorerModel';
 
 // Commands can get exeucted from a command pallete, from a context menu or from some list using a keybinding
 // To cover all these cases we need to properly compute the resource on which the command is being executed
@@ -44,7 +44,7 @@ export function getMultiSelectedResources(resource: URI | object, listService: I
 	const list = listService.lastFocusedList;
 	if (list && list.getHTMLElement() === document.activeElement) {
 		// Explorer
-		if (list instanceof Tree) {
+		if (list instanceof WorkbenchAsyncDataTree) {
 			const selection = list.getSelection().map((fs: ExplorerItem) => fs.resource);
 			const focus = list.getFocus();
 			const mainUriStr = URI.isUri(resource) ? resource.toString() : focus instanceof ExplorerItem ? focus.resource.toString() : undefined;

@@ -110,8 +110,7 @@ export class TMLanguageRegistration {
 		if (tokenTypes) {
 			// If tokenTypes is configured, fill in `this._tokenTypes`
 			const scopes = Object.keys(tokenTypes);
-			for (let i = 0, len = scopes.length; i < len; i++) {
-				const scope = scopes[i];
+			for (const scope of scopes) {
 				const tokenType = tokenTypes[scope];
 				switch (tokenType) {
 					case 'string':
