@@ -17,13 +17,15 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 
 export interface ILaunchVSCodeArguments {
 	sessionId: string;
-	debugMode: 'noDebug' | 'break';
+	debugMode: 'noDebug' | 'break' | 'noBreak';
 	debugPort: number;
-	extensionDevelopmentPath: string;
 	options: string[];
-	args: string[];
-	cwd?: string;
-	env: { [key: string]: string | null; };
+	extensionDevelopmentPath: string;
+	pathArgs: {
+		type: 'folder' | 'file';
+		path: string;
+	}[];
+	env?: { [key: string]: string | null; };
 }
 
 /**
@@ -539,26 +541,30 @@ export class RawDebugSession {
 
 	private launch(VSCodeArgs: ILaunchVSCodeArguments): Promise<void> {
 
-		let envArgs = process.env;
-		if (VSCodeArgs.env) {
-			// merge environment variables into a copy of the process.env
-			envArgs = objects.mixin(objects.mixin({}, process.env), VSCodeArgs.env);
-			// and delete some if necessary
-			Object.keys(envArgs).filter(k => envArgs[k] === null).forEach(key => delete envArgs[key]);
-		}
 
 		const spawnOpts: cp.SpawnOptions = {
-			env: envArgs,
 			detached: false	// https://github.com/Microsoft/vscode/issues/57018
 		};
-		if (VSCodeArgs.cwd) {
-			spawnOpts.cwd = VSCodeArgs.cwd;
+
+		if (VSCodeArgs.env) {
+			// merge environment variables into a copy of the process.env
+			const envArgs = objects.mixin(objects.mixin({}, process.env), VSCodeArgs.env);
+			// and delete some if necessary
+			Object.keys(envArgs).filter(k => envArgs[k] === null).forEach(key => delete envArgs[key]);
+			spawnOpts.env = envArgs;
 		}
 
 		let spawnArgs = [].concat(VSCodeArgs.options);
 
-		if (VSCodeArgs.debugMode !== 'noDebug') {
-			spawnArgs.push(`--debugBrkPluginHost=${VSCodeArgs.debugPort}`);
+		switch (VSCodeArgs.debugMode) {
+			case 'noDebug':
+				break;
+			case 'break':
+				spawnArgs.push(`--inspect-brk-extensions=${VSCodeArgs.debugPort}`);
+				break;
+			case 'noBreak':
+				spawnArgs.push(`--inspect-extensions=${VSCodeArgs.debugPort}`);
+				break;
 		}
 
 		// pass the debug session ID to the EH so that broadcast events know where they come from
@@ -575,19 +581,31 @@ export class RawDebugSession {
 			return Promise.reject(new Error(`VS Code executable unknown`));
 		}
 
-		// if VS Code runs out of sources, add the path to the VS Code workspace as a first argument so that Electron turns into VS Code
+		// if VS Code runs out of sources, add the VS Code workspace path as the first argument so that Electron turns into VS Code
 		const electronIdx = runtimeExecutable.indexOf(process.platform === 'win32' ? '\\.build\\electron\\' : '/.build/electron/');
-		if (electronIdx > 0 && VSCodeArgs.args.length > 0) {
-			// guess the VS Code workspace path
+		if (electronIdx > 0) {
+			// guess the VS Code workspace path from the executable
 			const vscodeWorkspacePath = runtimeExecutable.substr(0, electronIdx);
 
-			// only add path if user hasn't already added path
-			if (VSCodeArgs.args.length === 0 || VSCodeArgs.args[0].indexOf(vscodeWorkspacePath) !== 0) {
+			// only add path if user hasn't already added that path
+			if (VSCodeArgs.pathArgs.length === 0 || VSCodeArgs.pathArgs[0].path.indexOf(vscodeWorkspacePath) !== 0) {
 				spawnArgs.push(vscodeWorkspacePath);
 			}
 		}
 
-		spawnArgs = spawnArgs.concat(VSCodeArgs.args);
+		VSCodeArgs.pathArgs.forEach(p => {
+			switch (p.type) {
+				case 'file':
+					spawnArgs.push(`--file-uri=${p.path}`);
+					break;
+				case 'folder':
+					spawnArgs.push(`--folder-uri=${p.path}`);
+					break;
+				default:
+					spawnArgs.push(p.path);
+					break;
+			}
+		});
 
 		// Workaround for bug Microsoft/vscode#45832
 		if (process.platform === 'win32' && runtimeExecutable.indexOf(' ') > 0) {
