@@ -72,7 +72,7 @@ export class GotoLineAction extends QuickOpenAction {
 }
 
 
-// Example 4 / 2,3 with tweaks
+// Example 2 / 3,4 - uncomment desired example
 
 export class GotoLineAction2 extends Action {
 
@@ -111,9 +111,19 @@ export class GotoLineAction2 extends Action {
 		const maxLine = (<ITextModel>this.editorService.activeTextEditorWidget.getModel()).getLineCount();
 
 		return this.quickInputService.input({
-			// value: line.toString(), // for examples 2,3
+			// Example 2: Populate input value, gets selected - SR outputs "xx selected", no placeholder
+			value: line.toString(),
 			prompt: nls.localize('gotoLine.prompt1', "Type a line number between 1 and {0} to navigate to.", maxLine),
-			placeHolder: nls.localize('gotoLine3', "Current line: {0}.", line.toString())
+
+			// Example 3: Populate input value, gets selected, set placeholder - gets read but not shown
+			// value: line.toString(),
+			// prompt: nls.localize('gotoLine.prompt1', "Type a line number between 1 and {0} to navigate to.", maxLine),
+			// placeHolder: nls.localize('gotoLine3', "Current line: {0}.", line.toString())
+
+			// Example 4: NO preset input value, elected, set placeholder - gets read but not shown
+			// prompt: nls.localize('gotoLine.prompt1', "Type a line number between 1 and {0} to navigate to.", maxLine),
+			// placeHolder: nls.localize('gotoLine3', "Current line: {0}.", line.toString())
+
 
 		}).then(line => {
 			if (line) {
