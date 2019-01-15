@@ -53,7 +53,6 @@ import { alert } from 'vs/base/browser/ui/aria/aria';
 import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
-import { CancellationToken } from 'vs/base/common/cancellation';
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
