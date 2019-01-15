@@ -43,6 +43,10 @@ function isAncestor<TInput, T>(ancestor: IAsyncDataTreeNode<TInput, T>, descenda
 	}
 }
 
+function intersects<TInput, T>(node: IAsyncDataTreeNode<TInput, T>, other: IAsyncDataTreeNode<TInput, T>): boolean {
+	return node === other || isAncestor(node, other) || isAncestor(other, node);
+}
+
 interface IDataTreeListTemplateData<T> {
 	templateData: T;
 }
@@ -361,13 +365,13 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			return false;
 		}
 
-		this.tree.expand(node === this.root ? null : node, recursive);
+		const result = this.tree.expand(node === this.root ? null : node, recursive);
 
-		if (node.state !== AsyncDataTreeNodeState.Loaded) {
-			await this.refreshNode(node, false);
+		if (node.state === AsyncDataTreeNodeState.Loading) {
+			await this.currentRefreshCalls.get(node)!;
 		}
 
-		return true;
+		return result;
 	}
 
 	toggleCollapsed(element: T, recursive: boolean = false): boolean {
@@ -507,7 +511,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		let result: Promise<void> | undefined;
 
 		this.currentRefreshCalls.forEach((refreshPromise, refreshNode) => {
-			if (isAncestor(refreshNode, node) || isAncestor(node, refreshNode)) {
+			if (intersects(refreshNode, node)) {
 				result = refreshPromise.then(() => this.queueRefresh(node, recursive));
 			}
 		});
