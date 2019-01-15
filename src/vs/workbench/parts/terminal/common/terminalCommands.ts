@@ -46,6 +46,7 @@ export const enum TERMINAL_COMMAND_ID {
 	SCROLL_UP_PAGE = 'workbench.action.terminal.scrollUpPage',
 	SCROLL_TO_TOP = 'workbench.action.terminal.scrollToTop',
 	CLEAR = 'workbench.action.terminal.clear',
+	EXIT = 'workbench.action.terminal.exit',
 	CLEAR_SELECTION = 'workbench.action.terminal.clearSelection',
 	WORKSPACE_SHELL_ALLOW = 'workbench.action.terminal.allowWorkspaceShell',
 	WORKSPACE_SHELL_DISALLOW = 'workbench.action.terminal.disallowWorkspaceShell',
