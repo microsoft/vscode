@@ -885,26 +885,6 @@ export class ClearTerminalAction extends Action {
 		return Promise.resolve(undefined);
 	}
 }
-export class ExitTerminalAction extends Action {
-
-	public static readonly ID = TERMINAL_COMMAND_ID.CLEAR;
-	public static readonly LABEL = nls.localize('workbench.action.terminal.exit', "Exit");
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService private readonly terminalService: ITerminalService
-	) {
-		super(id, label);
-	}
-
-	public run(event?: any): Promise<any> {
-		const terminalInstance = this.terminalService.getActiveInstance();
-		if (terminalInstance) {
-			terminalInstance.dispose(true);
-		}
-		return Promise.resolve(undefined);
-	}
-}
 
 export class ClearSelectionTerminalAction extends Action {
 
