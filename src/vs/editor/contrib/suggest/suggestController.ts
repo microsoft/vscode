@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { alert } from 'vs/base/browser/ui/aria/aria';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
@@ -58,8 +58,8 @@ class AcceptOnCharacterOracle {
 		}));
 	}
 
-	private _onItem(selected: ISelectedSuggestion): void {
-		if (!selected || isFalsyOrEmpty(selected.item.completion.commitCharacters)) {
+	private _onItem(selected: ISelectedSuggestion | undefined): void {
+		if (!selected || !isNonEmptyArray(selected.item.completion.commitCharacters)) {
 			this.reset();
 			return;
 		}
@@ -209,10 +209,13 @@ export class SuggestController implements IEditorContribution {
 		}
 	}
 
-	protected _onDidSelectItem(event: ISelectedSuggestion, keepAlternativeSuggestions: boolean, undoStops: boolean): void {
+	protected _onDidSelectItem(event: ISelectedSuggestion | undefined, keepAlternativeSuggestions: boolean, undoStops: boolean): void {
 		if (!event || !event.item) {
 			this._alternatives.getValue().reset();
 			this._model.cancel();
+			return;
+		}
+		if (!this._editor.hasModel()) {
 			return;
 		}
 
@@ -299,7 +302,10 @@ export class SuggestController implements IEditorContribution {
 	}
 
 	triggerSuggestAndAcceptBest(defaultTypeText: string): void {
+		if (!this._editor.hasModel()) {
+			return;
 
+		}
 		const positionNow = this._editor.getPosition();
 
 		const fallback = () => {
@@ -366,7 +372,7 @@ export class SuggestController implements IEditorContribution {
 	acceptSelectedSuggestion(keepAlternativeSuggestions?: boolean): void {
 		if (this._widget) {
 			const item = this._widget.getValue().getFocusedItem();
-			this._onDidSelectItem(item, keepAlternativeSuggestions, true);
+			this._onDidSelectItem(item, !!keepAlternativeSuggestions, true);
 		}
 	}
 

@@ -41,13 +41,10 @@ class Args {
 	private static readonly _empty = new Args(undefined, undefined, undefined);
 
 	private constructor(
-		public readonly snippet: string,
-		public readonly name: string,
-		public readonly langId: string
-	) {
-
-	}
-
+		public readonly snippet: string | undefined,
+		public readonly name: string | undefined,
+		public readonly langId: string | undefined
+	) { }
 }
 
 class InsertSnippetAction extends EditorAction {
@@ -61,7 +58,7 @@ class InsertSnippetAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor, arg: any): Promise<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, arg: any): Promise<void> | undefined {
 		const modeService = accessor.get(IModeService);
 		const snippetService = accessor.get(ISnippetsService);
 
@@ -116,7 +113,7 @@ class InsertSnippetAction extends EditorAction {
 				// let user pick a snippet
 				const snippets = (await snippetService.getSnippets(languageId)).sort(Snippet.compare);
 				const picks: QuickPickInput<ISnippetPick>[] = [];
-				let prevSnippet: Snippet;
+				let prevSnippet: Snippet | undefined;
 				for (const snippet of snippets) {
 					const pick: ISnippetPick = {
 						label: snippet.prefix,
