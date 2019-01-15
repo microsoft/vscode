@@ -60,6 +60,11 @@ export class ExtensionDescriptionRegistry {
 		this._initialize();
 	}
 
+	public add(extension: IExtensionDescription): void {
+		this._extensionDescriptions.push(extension);
+		this._initialize();
+	}
+
 	public containsActivationEvent(activationEvent: string): boolean {
 		return this._activationMap.has(activationEvent);
 	}
