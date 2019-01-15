@@ -86,10 +86,6 @@ export class KeybindingsSearchWidget extends SearchWidget {
 		this.inputBox.value = this._inputValue;
 	}
 
-	focus(): void {
-		this.inputBox.focus();
-	}
-
 	private _reset() {
 		this._firstPart = null;
 		this._chordPart = null;
