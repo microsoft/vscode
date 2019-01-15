@@ -150,8 +150,8 @@ export class TextMateService extends Disposable implements ITextMateService {
 	private _languageToScope: Map<string, string>;
 	private _grammarRegistry: Promise<[Registry, StackElement]> | null;
 	private _tokenizersRegistrations: IDisposable[];
-
 	private _currentTokenColors: ITokenColorizationRule[] | null;
+	private _themeListener: IDisposable;
 
 	constructor(
 		@IModeService private readonly _modeService: IModeService,
@@ -172,6 +172,7 @@ export class TextMateService extends Disposable implements ITextMateService {
 		this._grammarRegistry = null;
 		this._tokenizersRegistrations = [];
 		this._currentTokenColors = null;
+		this._themeListener = null;
 
 		grammarsExtPoint.setHandler((extensions) => {
 			this._scopeRegistry.reset();
@@ -180,6 +181,11 @@ export class TextMateService extends Disposable implements ITextMateService {
 			this._languageToScope = new Map<string, string>();
 			this._grammarRegistry = null;
 			this._tokenizersRegistrations = dispose(this._tokenizersRegistrations);
+			this._currentTokenColors = null;
+			if (this._themeListener) {
+				this._themeListener.dispose();
+				this._themeListener = null;
+			}
 
 			for (const extension of extensions) {
 				let grammars = extension.value;
@@ -257,7 +263,7 @@ export class TextMateService extends Disposable implements ITextMateService {
 			}
 		});
 		this._updateTheme(grammarRegistry);
-		this._themeService.onDidColorThemeChange((e) => this._updateTheme(grammarRegistry));
+		this._themeListener = this._themeService.onDidColorThemeChange((e) => this._updateTheme(grammarRegistry));
 		return <[Registry, StackElement]>[grammarRegistry, INITIAL];
 	}
 
