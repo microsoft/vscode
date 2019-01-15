@@ -397,7 +397,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	async expand(element: T, recursive: boolean = false): Promise<boolean> {
 		const node = this.getDataNode(element);
 
-		if (node !== this.root && !this.tree.isCollapsed(node === this.root ? null : node)) {
+		if (node !== this.root && node.state !== AsyncDataTreeNodeState.Loading && !this.tree.isCollapsed(node)) {
 			return false;
 		}
 
