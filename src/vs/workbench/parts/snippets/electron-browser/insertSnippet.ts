@@ -58,7 +58,7 @@ class InsertSnippetAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor, arg: any): Promise<void> | undefined {
+	run(accessor: ServicesAccessor, editor: ICodeEditor, arg: any): Promise<void> | undefined {
 		const modeService = accessor.get(IModeService);
 		const snippetService = accessor.get(ISnippetsService);
 
@@ -74,19 +74,22 @@ class InsertSnippetAction extends EditorAction {
 
 			if (snippet) {
 				return resolve(new Snippet(
-					undefined,
-					undefined,
-					undefined,
-					undefined,
+					[],
+					'',
+					'',
+					'',
 					snippet,
-					undefined,
+					'',
 					SnippetSource.User,
 				));
 			}
 
-			let languageId: LanguageId;
+			let languageId = LanguageId.Null;
 			if (langId) {
-				languageId = modeService.getLanguageIdentifier(langId).id;
+				const otherLangId = modeService.getLanguageIdentifier(langId);
+				if (otherLangId) {
+					languageId = otherLangId.id;
+				}
 			} else {
 				editor.getModel().tokenizeIfCheap(lineNumber);
 				languageId = editor.getModel().getLanguageIdAtPosition(lineNumber, column);
@@ -94,8 +97,8 @@ class InsertSnippetAction extends EditorAction {
 				// validate the `languageId` to ensure this is a user
 				// facing language with a name and the chance to have
 				// snippets, else fall back to the outer language
-				const { language } = modeService.getLanguageIdentifier(languageId);
-				if (!modeService.getLanguageName(language)) {
+				const otherLangId = modeService.getLanguageIdentifier(languageId);
+				if (otherLangId && !modeService.getLanguageName(otherLangId.language)) {
 					languageId = editor.getModel().getLanguageIdentifier().id;
 				}
 			}

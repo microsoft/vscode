@@ -671,6 +671,7 @@
 		"./vs/workbench/parts/search/test/common/searchModel.test.ts",
 		"./vs/workbench/parts/search/test/common/searchResult.test.ts",
 		"./vs/workbench/parts/snippets/electron-browser/configureSnippets.ts",
+		"./vs/workbench/parts/snippets/electron-browser/insertSnippet.ts",
 		"./vs/workbench/parts/snippets/electron-browser/snippetCompletionProvider.ts",
 		"./vs/workbench/parts/snippets/electron-browser/snippets.contribution.ts",
 		"./vs/workbench/parts/snippets/electron-browser/snippetsFile.ts",
