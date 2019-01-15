@@ -889,7 +889,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 				for (const range of renderRanges) {
 					for (let i = range.start; i < range.end; i++) {
-						const beforeRow = i < this.items.length ? this.items[i + 1].row : null;
+						const afterIndex = i + 1;
+						const beforeRow = afterIndex < this.items.length ? this.items[afterIndex].row : null;
 						const beforeElement = beforeRow ? beforeRow.domNode : null;
 						this.insertItemInDOM(i, beforeElement);
 					}
