@@ -229,39 +229,42 @@ export class TextMateService extends Disposable implements ITextMateService {
 		}
 	}
 
+	private async _createGrammarRegistry(): Promise<[Registry, StackElement]> {
+		const { Registry, INITIAL, parseRawGrammar } = await import('vscode-textmate');
+		const grammarRegistry = new Registry({
+			loadGrammar: async (scopeName: string) => {
+				const location = this._scopeRegistry.getGrammarLocation(scopeName);
+				if (!location) {
+					this._logService.trace(`No grammar found for scope ${scopeName}`);
+					return null;
+				}
+				try {
+					const content = await this._fileService.resolveContent(location, { encoding: 'utf8' });
+					return parseRawGrammar(content.value, location.path);
+				} catch (e) {
+					this._logService.error(`Unable to load and parse grammar for scope ${scopeName} from ${location}`, e);
+					return null;
+				}
+			},
+			getInjections: (scopeName: string) => {
+				const scopeParts = scopeName.split('.');
+				let injections: string[] = [];
+				for (let i = 1; i <= scopeParts.length; i++) {
+					const subScopeName = scopeParts.slice(0, i).join('.');
+					injections = [...injections, ...this._injections[subScopeName]];
+				}
+				return injections;
+			}
+		});
+		this._updateTheme(grammarRegistry);
+		this._themeService.onDidColorThemeChange((e) => this._updateTheme(grammarRegistry));
+		return <[Registry, StackElement]>[grammarRegistry, INITIAL];
+	}
+
 	private _getOrCreateGrammarRegistry(): Promise<[Registry, StackElement]> {
 		if (!this._grammarRegistry) {
-			this._grammarRegistry = import('vscode-textmate').then(({ Registry, INITIAL, parseRawGrammar }) => {
-				const grammarRegistry = new Registry({
-					loadGrammar: (scopeName: string) => {
-						const location = this._scopeRegistry.getGrammarLocation(scopeName);
-						if (!location) {
-							this._logService.trace(`No grammar found for scope ${scopeName}`);
-							return null;
-						}
-						return this._fileService.resolveContent(location, { encoding: 'utf8' }).then(content => {
-							return parseRawGrammar(content.value, location.path);
-						}, e => {
-							this._logService.error(`Unable to load and parse grammar for scope ${scopeName} from ${location}`, e);
-							return null;
-						});
-					},
-					getInjections: (scopeName: string) => {
-						const scopeParts = scopeName.split('.');
-						let injections: string[] = [];
-						for (let i = 1; i <= scopeParts.length; i++) {
-							const subScopeName = scopeParts.slice(0, i).join('.');
-							injections = [...injections, ...this._injections[subScopeName]];
-						}
-						return injections;
-					}
-				});
-				this._updateTheme(grammarRegistry);
-				this._themeService.onDidColorThemeChange((e) => this._updateTheme(grammarRegistry));
-				return <[Registry, StackElement]>[grammarRegistry, INITIAL];
-			});
+			this._grammarRegistry = this._createGrammarRegistry();
 		}
-
 		return this._grammarRegistry;
 	}
 
@@ -384,11 +387,12 @@ export class TextMateService extends Disposable implements ITextMateService {
 		return result;
 	}
 
-	public createGrammar(modeId: string): Promise<IGrammar> {
-		return this._createGrammar(modeId).then(r => r.grammar);
+	public async createGrammar(modeId: string): Promise<IGrammar> {
+		const { grammar } = await this._createGrammar(modeId);
+		return grammar;
 	}
 
-	private _createGrammar(modeId: string): Promise<ICreateGrammarResult> {
+	private async _createGrammar(modeId: string): Promise<ICreateGrammarResult> {
 		const scopeName = this._languageToScope.get(modeId);
 		if (typeof scopeName !== 'string') {
 			// No TM grammar defined
@@ -412,17 +416,15 @@ export class TextMateService extends Disposable implements ITextMateService {
 
 		let languageId = this._modeService.getLanguageIdentifier(modeId)!.id;
 		let containsEmbeddedLanguages = (Object.keys(embeddedLanguages).length > 0);
-		return this._getOrCreateGrammarRegistry().then((_res) => {
-			const [grammarRegistry, initialState] = _res;
-			return grammarRegistry.loadGrammarWithConfiguration(scopeName, languageId, { embeddedLanguages, tokenTypes: languageRegistration.tokenTypes }).then(grammar => {
-				return {
-					languageId: languageId,
-					grammar: grammar,
-					initialState: initialState,
-					containsEmbeddedLanguages: containsEmbeddedLanguages
-				};
-			});
-		});
+
+		const [grammarRegistry, initialState] = await this._getOrCreateGrammarRegistry();
+		const grammar = await grammarRegistry.loadGrammarWithConfiguration(scopeName, languageId, { embeddedLanguages, tokenTypes: languageRegistration.tokenTypes });
+		return {
+			languageId: languageId,
+			grammar: grammar,
+			initialState: initialState,
+			containsEmbeddedLanguages: containsEmbeddedLanguages
+		};
 	}
 }
 
