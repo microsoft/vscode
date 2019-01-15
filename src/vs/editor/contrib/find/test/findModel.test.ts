@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommands';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Cursor } from 'vs/editor/common/controller/cursor';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -18,7 +18,7 @@ import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 
 suite('FindModel', () => {
 
-	function findTest(testName: string, callback: (editor: ICodeEditor, cursor: Cursor) => void): void {
+	function findTest(testName: string, callback: (editor: IActiveCodeEditor, cursor: Cursor) => void): void {
 		test(testName, () => {
 			const textArr = [
 				'// my cool header',
@@ -34,7 +34,7 @@ suite('FindModel', () => {
 				'// blablablaciao',
 				''
 			];
-			withTestCodeEditor(textArr, {}, callback);
+			withTestCodeEditor(textArr, {}, (editor, cursor) => callback(editor as unknown as IActiveCodeEditor, cursor));
 
 			const text = textArr.join('\n');
 			const ptBuilder = new PieceTreeTextBufferBuilder();
@@ -45,7 +45,9 @@ suite('FindModel', () => {
 			withTestCodeEditor([],
 				{
 					model: new TextModel(factory, TextModel.DEFAULT_CREATION_OPTIONS, null, null)
-				}, callback);
+				},
+				(editor, cursor) => callback(editor as unknown as IActiveCodeEditor, cursor)
+			);
 		});
 	}
 
