@@ -630,6 +630,7 @@
 		"./vs/workbench/parts/feedback/electron-browser/feedbackStatusbarItem.ts",
 		"./vs/workbench/parts/files/common/explorerModel.ts",
 		"./vs/workbench/parts/files/common/files.ts",
+		"./vs/workbench/parts/files/electron-browser/explorerService.ts",
 		"./vs/workbench/parts/files/electron-browser/views/explorerDecorationsProvider.ts",
 		"./vs/workbench/parts/localizations/electron-browser/localizationsActions.ts",
 		"./vs/workbench/parts/logs/common/logConstants.ts",

@@ -148,7 +148,7 @@ export class ExplorerItem {
 		return this === this.root;
 	}
 
-	static create(raw: IFileStat, parent: ExplorerItem, resolveTo?: URI[]): ExplorerItem {
+	static create(raw: IFileStat, parent: ExplorerItem | undefined, resolveTo?: URI[]): ExplorerItem {
 		const stat = new ExplorerItem(raw.resource, parent, raw.isDirectory, raw.isSymbolicLink, raw.isReadonly, raw.name, raw.mtime, raw.etag);
 
 		// Recursively add children if present
