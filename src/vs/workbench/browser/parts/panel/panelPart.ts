@@ -297,10 +297,18 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService, IS
 		};
 	}
 
-	layout(width: number, height: number): void {
+	layout(dimension: Dimension): Dimension[];
+	layout(width: number, height: number): void;
+	layout(dim1: Dimension | number, dim2?: number): Dimension[] | void {
 		if (!this.partService.isVisible(Parts.PANEL_PART)) {
+			if (dim1 instanceof Dimension) {
+				return [dim1];
+			}
+
 			return;
 		}
+
+		const { width, height } = dim1 instanceof Dimension ? dim1 : { width: dim1, height: dim2 };
 
 		if (this.partService.getPanelPosition() === Position.RIGHT) {
 			// Take into account the 1px border when layouting
@@ -309,8 +317,12 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService, IS
 			this.dimension = new Dimension(width, height);
 		}
 
-		super.layout(this.dimension.width, this.dimension.height);
+		const sizes = super.layout(this.dimension.width, this.dimension.height);
 		this.layoutCompositeBar();
+
+		if (dim1 instanceof Dimension) {
+			return sizes;
+		}
 	}
 
 	private layoutCompositeBar(): void {

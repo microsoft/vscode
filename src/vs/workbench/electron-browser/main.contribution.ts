@@ -684,6 +684,12 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('workbench.enableExperiments', "Fetches experiments to run from a Microsoft online service."),
 			'default': true,
 			'tags': ['usesOnlineServices']
+		},
+		'workbench.useGridLayout': {
+			'type': 'boolean',
+			'description': nls.localize('workbench.useGridLayout', "Enables the grid layout for the workbench. This setting may enable additional layout options for workbench components."),
+			'default': false,
+			'scope': ConfigurationScope.APPLICATION
 		}
 	}
 });

@@ -351,13 +351,19 @@ export class ActivitybarPart extends Part implements ISerializableView {
 			.map(v => v.id);
 	}
 
-	layout(width: number, height: number): void {
+	layout(dimension: Dimension): Dimension[];
+	layout(width: number, height: number): void;
+	layout(dim1: Dimension | number, dim2?: number): Dimension[] | void {
 		if (!this.partService.isVisible(Parts.ACTIVITYBAR_PART)) {
+			if (dim1 instanceof Dimension) {
+				return [dim1];
+			}
+
 			return;
 		}
 
 		// Pass to super
-		const sizes = this.partLayout.layout(new Dimension(width, height));
+		const sizes = dim1 instanceof Dimension ? super.layout(dim1) : this.partLayout.layout(new Dimension(dim1, dim2));
 
 		this.dimension = sizes[1];
 
@@ -366,7 +372,11 @@ export class ActivitybarPart extends Part implements ISerializableView {
 			// adjust height for global actions showing
 			availableHeight -= (this.globalActionBar.items.length * ActivitybarPart.ACTION_HEIGHT);
 		}
-		this.compositeBar.layout(new Dimension(width, availableHeight));
+		this.compositeBar.layout(new Dimension(dim1 instanceof Dimension ? dim1.width : dim1, availableHeight));
+
+		if (dim1 instanceof Dimension) {
+			return sizes;
+		}
 	}
 
 	private onDidStorageChange(e: IWorkspaceStorageChangeEvent): void {

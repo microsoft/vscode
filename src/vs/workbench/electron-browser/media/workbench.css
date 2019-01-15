@@ -12,7 +12,7 @@
 }
 
 .monaco-workbench .part {
-	/* position: absolute; */
+	position: absolute;
 	box-sizing:	border-box;
 }
 

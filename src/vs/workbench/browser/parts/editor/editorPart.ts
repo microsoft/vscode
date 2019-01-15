@@ -955,10 +955,16 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		return this.groupViews.size === 1 && this._activeGroup.isEmpty();
 	}
 
-	layout(width: number, height: number): void {
-		const sizes = this.partLayout.layout(new Dimension(width, height));
+	layout(dimension: Dimension): Dimension[];
+	layout(width: number, height: number): void;
+	layout(dim1: Dimension | number, dim2?: number): Dimension[] | void {
+		const sizes = dim1 instanceof Dimension ? super.layout(dim1) : this.partLayout.layout(new Dimension(dim1, dim2));
 
 		this.doLayout(sizes[1]);
+
+		if (dim1 instanceof Dimension) {
+			return sizes;
+		}
 	}
 
 	private doLayout(dimension: Dimension): void {

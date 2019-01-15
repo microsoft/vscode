@@ -561,8 +561,16 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 		}
 	}
 
-	layout(width: number, height: number): void {
-		const dimensions = new Dimension(width, height);
+	layout(dimension: Dimension): Dimension[];
+	layout(width: number, height: number): void;
+	layout(dim1: Dimension | number, dim2?: number): Dimension[] | void {
+		if (dim1 instanceof Dimension) {
+			this.updateLayout(dim1);
+
+			return super.layout(dim1);
+		}
+
+		const dimensions = new Dimension(dim1, dim2);
 		this.updateLayout(dimensions);
 
 		this.partLayout.layout(dimensions);

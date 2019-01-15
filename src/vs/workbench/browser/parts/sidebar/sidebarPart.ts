@@ -25,7 +25,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { SIDE_BAR_TITLE_FOREGROUND, SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND, SIDE_BAR_BORDER } from 'vs/workbench/common/theme';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { EventType, addDisposableListener, trackFocus } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, trackFocus, Dimension } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
@@ -172,12 +172,22 @@ export class SidebarPart extends CompositePart<Viewlet> implements ISerializable
 		this.hideActiveComposite();
 	}
 
-	layout(width: number, height: number): void {
+	layout(dimension: Dimension): Dimension[];
+	layout(width: number, height: number): void;
+	layout(dim1: Dimension | number, dim2?: number): Dimension[] | void {
 		if (!this.partService.isVisible(Parts.SIDEBAR_PART)) {
+			if (dim1 instanceof Dimension) {
+				return [dim1];
+			}
+
 			return;
 		}
 
-		super.layout(width, height);
+		if (dim1 instanceof Dimension) {
+			return super.layout(dim1);
+		}
+
+		super.layout(dim1, dim2);
 	}
 
 	setViewletEnablement(id: string, enabled: boolean): void {

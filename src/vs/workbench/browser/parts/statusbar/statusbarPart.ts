@@ -233,8 +233,14 @@ export class StatusbarPart extends Part implements IStatusbarService, ISerializa
 		return dispose;
 	}
 
-	layout(width: number, height: number): void {
-		this.partLayout.layout(new Dimension(width, height));
+	layout(dimension: Dimension): Dimension[];
+	layout(width: number, height: number): void;
+	layout(dim1: Dimension | number, dim2?: number): Dimension[] | void {
+		if (dim1 instanceof Dimension) {
+			return super.layout(dim1);
+		} else {
+			this.partLayout.layout(new Dimension(dim1, dim2));
+		}
 	}
 
 	toJSON(): object {
