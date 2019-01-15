@@ -201,12 +201,19 @@ export class ExplorerView extends ViewletPanel {
 		// Also handle configuration updates
 		this.disposables.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IFilesConfiguration>(), e)));
 
-		this.disposables.push(this.onDidChangeBodyVisibility(visible => {
+		this.disposables.push(this.onDidChangeBodyVisibility(async visible => {
 			if (visible) {
 				// If a refresh was requested and we are now visible, run it
 				if (this.shouldRefresh) {
 					this.shouldRefresh = false;
-					this.setTreeInput().then(undefined, onUnexpectedError);
+					await this.setTreeInput();
+				}
+				// Find resource to focus from active editor input if set
+				if (this.autoReveal) {
+					const activeFile = this.getActiveFile();
+					if (activeFile) {
+						this.explorerService.select(activeFile, true);
+					}
 				}
 			}
 		}));
@@ -420,16 +427,6 @@ export class ExplorerView extends ViewletPanel {
 		}
 
 		const promise = this.tree.setInput(input, viewState).then(() => {
-			// Find resource to focus from active editor input if set
-			if (this.autoReveal && initialInputSetup) {
-				const resourceToFocus = this.getActiveFile();
-				if (resourceToFocus) {
-					return this.explorerService.select(resourceToFocus, true);
-				}
-			}
-
-			return undefined;
-		}).then(() => {
 			if (initialInputSetup) {
 				perf.mark('didResolveExplorer');
 			}
