@@ -12,7 +12,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ExtHostCustomersRegistry } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { ExtHostContext, ExtHostExtensionServiceShape, IExtHostContext, MainContext } from 'vs/workbench/api/node/extHost.protocol';
-import { ProfileSession } from 'vs/workbench/services/extensions/common/extensions';
+import { ProfileSession, IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtensionHostStarter } from 'vs/workbench/services/extensions/electron-browser/extensionHost';
 import { ExtensionHostProfiler } from 'vs/workbench/services/extensions/electron-browser/extensionHostProfiler';
 import { ProxyIdentifier } from 'vs/workbench/services/extensions/node/proxyIdentifier';
@@ -199,6 +199,12 @@ export class ExtensionHostProcessManager extends Disposable {
 		return this._extensionHostProcessRPCProtocol.getProxy(ExtHostContext.ExtHostExtensionService);
 	}
 
+	public activate(extension: ExtensionIdentifier, activationEvent: string): Promise<void> {
+		return this._extensionHostProcessProxy.then((proxy) => {
+			return proxy.value.$activate(extension, activationEvent);
+		});
+	}
+
 	public activateByEvent(activationEvent: string): Promise<void> {
 		if (this._extensionHostProcessFinishedActivateEvents[activationEvent] || !this._extensionHostProcessProxy) {
 			return NO_OP_VOID_PROMISE;
@@ -241,6 +247,10 @@ export class ExtensionHostProcessManager extends Disposable {
 
 	public start(enabledExtensionIds: ExtensionIdentifier[]): Promise<void> {
 		return this._extensionHostProcessProxy.then(proxy => proxy.value.$startExtensionHost(enabledExtensionIds));
+	}
+
+	public addExtension(extension: IExtensionDescription): Promise<void> {
+		return this._extensionHostProcessProxy.then(proxy => proxy.value.$addExtension(extension));
 	}
 }
 

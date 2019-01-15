@@ -224,9 +224,43 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 		// Add the extension to the local registry and to the extension host
 		this._registry.add(extensionDescription);
-		// TODO@Alex: add to the extension host
 
 		this._rehandleExtensionPoints(extensionDescription);
+
+		if (this._extensionHostProcessManagers.length > 0) {
+			await this._extensionHostProcessManagers[0].addExtension(extensionDescription);
+		}
+
+		let shouldActivate = false;
+		let shouldActivateReason: string | null = null;
+		if (Array.isArray(extensionDescription.activationEvents)) {
+			for (let activationEvent of extensionDescription.activationEvents) {
+				// TODO@joao: there's no easy way to contribute this
+				if (activationEvent === 'onUri') {
+					activationEvent = `onUri:${ExtensionIdentifier.toKey(extensionDescription.identifier)}`;
+				}
+
+				if (this._allRequestedActivateEvents[activationEvent]) {
+					// This activation event was fired before the extension was added
+					shouldActivate = true;
+					shouldActivateReason = activationEvent;
+					break;
+				}
+
+				if (activationEvent === '*') {
+					shouldActivate = true;
+					shouldActivateReason = activationEvent;
+					break;
+				}
+			}
+		}
+
+		// TODO@Alex: workspaceContains will not work
+		if (shouldActivate) {
+			await Promise.all(
+				this._extensionHostProcessManagers.map(extHostManager => extHostManager.activate(extensionDescription.identifier, shouldActivateReason))
+			).then(() => { });
+		}
 	}
 
 	private _startDelayed(lifecycleService: ILifecycleService): void {
@@ -350,13 +384,13 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		if (this._installedExtensionsReady.isOpen()) {
 			// Extensions have been scanned and interpreted
 
+			// Record the fact that this activationEvent was requested (in case of a restart)
+			this._allRequestedActivateEvents[activationEvent] = true;
+
 			if (!this._registry.containsActivationEvent(activationEvent)) {
 				// There is no extension that is interested in this activation event
 				return NO_OP_VOID_PROMISE;
 			}
-
-			// Record the fact that this activationEvent was requested (in case of a restart)
-			this._allRequestedActivateEvents[activationEvent] = true;
 
 			return this._activateByEvent(activationEvent);
 		} else {

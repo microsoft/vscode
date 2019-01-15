@@ -662,6 +662,19 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		);
 	}
 
+	public $activate(extensionId: ExtensionIdentifier, activationEvent: string): Promise<void> {
+		return (
+			this._barrier.wait()
+				.then(_ => this._activateById(extensionId, new ExtensionActivatedByEvent(false, activationEvent)))
+		);
+	}
+
+	public $addExtension(extension: IExtensionDescription): Promise<void> {
+		(<any>extension).extensionLocation = URI.revive(extension.extensionLocation);
+		this._registry.add(extension);
+		return Promise.resolve(undefined);
+	}
+
 	public async $test_latency(n: number): Promise<number> {
 		return n;
 	}
