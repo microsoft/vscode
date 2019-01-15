@@ -127,28 +127,28 @@ export class NewFileAction extends BaseErrorReportingAction {
 		}
 
 		const stat = new ExplorerItem(PLACEHOLDER_URI, folder, false);
-		folder.addChild(stat);
+		return folder.fetchChildren(this.fileService).then(() => {
+			folder.addChild(stat);
 
-		const onSuccess = value => {
-			return this.fileService.createFile(resources.joinPath(folder.resource, value)).then(stat => {
-				return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
-			}, (error) => {
-				this.onErrorWithRetry(error, () => onSuccess(value));
-			});
-		};
+			const onSuccess = value => {
+				return this.fileService.createFile(resources.joinPath(folder.resource, value)).then(stat => {
+					return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
+				}, (error) => {
+					this.onErrorWithRetry(error, () => onSuccess(value));
+				});
+			};
 
-		this.explorerService.setEditable(stat, {
-			validationMessage: value => validateFileName(stat, value),
-			onFinish: (value, success) => {
-				folder.removeChild(stat);
-				this.explorerService.setEditable(stat, null);
-				if (success) {
-					onSuccess(value);
+			this.explorerService.setEditable(stat, {
+				validationMessage: value => validateFileName(stat, value),
+				onFinish: (value, success) => {
+					folder.removeChild(stat);
+					this.explorerService.setEditable(stat, null);
+					if (success) {
+						onSuccess(value);
+					}
 				}
-			}
+			});
 		});
-
-		return Promise.resolve(null);
 	}
 }
 
@@ -181,28 +181,28 @@ export class NewFolderAction extends BaseErrorReportingAction {
 		}
 
 		const stat = new ExplorerItem(PLACEHOLDER_URI, folder, true);
-		folder.addChild(stat);
+		return folder.fetchChildren(this.fileService).then(() => {
+			folder.addChild(stat);
 
-		const onSuccess = value => {
-			return this.fileService.createFolder(resources.joinPath(folder.resource, value)).then(stat => {
-				return this.explorerService.select(stat.resource, true);
-			}, (error) => {
-				this.onErrorWithRetry(error, () => onSuccess(value));
-			});
-		};
+			const onSuccess = value => {
+				return this.fileService.createFolder(resources.joinPath(folder.resource, value)).then(stat => {
+					return this.explorerService.select(stat.resource, true);
+				}, (error) => {
+					this.onErrorWithRetry(error, () => onSuccess(value));
+				});
+			};
 
-		this.explorerService.setEditable(stat, {
-			validationMessage: value => validateFileName(stat, value),
-			onFinish: (value, success) => {
-				folder.removeChild(stat);
-				this.explorerService.setEditable(stat, null);
-				if (success) {
-					onSuccess(value);
+			this.explorerService.setEditable(stat, {
+				validationMessage: value => validateFileName(stat, value),
+				onFinish: (value, success) => {
+					folder.removeChild(stat);
+					this.explorerService.setEditable(stat, null);
+					if (success) {
+						onSuccess(value);
+					}
 				}
-			}
+			});
 		});
-
-		return Promise.resolve(null);
 	}
 }
 
