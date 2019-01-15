@@ -13,7 +13,7 @@ import * as perf from 'vs/base/common/performance';
 import { isEqualOrParent } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { EnablementState, IExtensionEnablementService, IExtensionIdentifier, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { EnablementState, IExtensionEnablementService, IExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { BetterMergeId, areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
@@ -22,14 +22,14 @@ import product from 'vs/platform/node/product';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
-import { ActivationTimes, ExtensionPointContribution, IExtensionDescription, IExtensionService, IExtensionsStatus, IMessage, ProfileSession, IWillActivateEvent, IResponsiveStateChangeEvent } from 'vs/workbench/services/extensions/common/extensions';
+import { ActivationTimes, ExtensionPointContribution, IExtensionDescription, IExtensionService, IExtensionsStatus, IMessage, ProfileSession, IWillActivateEvent, IResponsiveStateChangeEvent, toExtension } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionMessageCollector, ExtensionPoint, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser, schema } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ExtensionHostProcessWorker } from 'vs/workbench/services/extensions/electron-browser/extensionHost';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
 import { ResponsiveState } from 'vs/workbench/services/extensions/node/rpcProtocol';
 import { CachedExtensionScanner, Logger } from 'vs/workbench/services/extensions/electron-browser/cachedExtensionScanner';
 import { ExtensionHostProcessManager } from 'vs/workbench/services/extensions/electron-browser/extensionHostProcessManager';
-import { ExtensionIdentifier, ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 const hasOwnProperty = Object.hasOwnProperty;
 const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
@@ -86,8 +86,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IExtensionEnablementService private readonly _extensionEnablementService: IExtensionEnablementService,
 		@IWindowService private readonly _windowService: IWindowService,
-		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
-		@IExtensionManagementService private readonly _extensionManagementService: IExtensionManagementService
+		@ILifecycleService private readonly _lifecycleService: ILifecycleService
 	) {
 		super();
 		this._extensionHostLogsLocation = URI.file(path.posix.join(this._environmentService.logsPath, `exthost${this._windowService.getCurrentWindowId()}`));
@@ -443,7 +442,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			.then(disabledExtensions => {
 
 				const runtimeExtensions: IExtensionDescription[] = [];
-				const extensionsToDisable: IExtensionIdentifier[] = [];
+				const extensionsToDisable: IExtensionDescription[] = [];
 				const userMigratedSystemExtensions: IExtensionIdentifier[] = [{ id: BetterMergeId }];
 
 				let enableProposedApiFor: string | string[] = this._environmentService.args['enable-proposed-api'] || [];
@@ -482,7 +481,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 						// Check if the extension is changed to system extension
 						const userMigratedSystemExtension = userMigratedSystemExtensions.filter(userMigratedSystemExtension => areSameExtensions(userMigratedSystemExtension, { id: extension.identifier.value }))[0];
 						if (userMigratedSystemExtension) {
-							extensionsToDisable.push(userMigratedSystemExtension);
+							extensionsToDisable.push(extension);
 							continue;
 						}
 					}
@@ -495,14 +494,8 @@ export class ExtensionService extends Disposable implements IExtensionService {
 				});
 
 				if (extensionsToDisable.length) {
-					return this._extensionManagementService.getInstalled(ExtensionType.User)
-						.then(installed => {
-							const toDisable = installed.filter(i => extensionsToDisable.some(e => areSameExtensions(i.identifier, e)));
-							return Promise.all(toDisable.map(e => this._extensionEnablementService.setEnablement(e, EnablementState.Disabled)));
-						})
-						.then(() => {
-							return runtimeExtensions;
-						});
+					return Promise.all(extensionsToDisable.map(e => this._extensionEnablementService.setEnablement(toExtension(e), EnablementState.Disabled)))
+						.then(() => runtimeExtensions);
 				} else {
 					return runtimeExtensions;
 				}

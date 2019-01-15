@@ -8,29 +8,15 @@ import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionManifest, IExtension, ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 
-export interface IExtensionDescription {
+export interface IExtensionDescription extends IExtensionManifest {
 	readonly identifier: ExtensionIdentifier;
-	readonly name: string;
 	readonly uuid?: string;
-	readonly displayName?: string;
-	readonly version: string;
-	readonly publisher: string;
 	readonly isBuiltin: boolean;
 	readonly isUnderDevelopment: boolean;
 	readonly extensionLocation: URI;
-	readonly extensionDependencies?: string[];
-	readonly activationEvents?: string[];
-	readonly engines: {
-		vscode: string;
-	};
-	readonly main?: string;
-	readonly contributes?: { [point: string]: any; };
-	readonly keywords?: string[];
-	readonly repository?: {
-		url: string;
-	};
 	enableProposedApi?: boolean;
 }
 
@@ -246,4 +232,13 @@ export function checkProposedApiEnabled(extension: IExtensionDescription): void 
 
 export function throwProposedApiError(extension: IExtensionDescription): never {
 	throw new Error(`[${extension.identifier.value}]: Proposed API is only available when running out of dev or with the following command line switch: --enable-proposed-api ${extension.identifier.value}`);
+}
+
+export function toExtension(extensionDescription: IExtensionDescription): IExtension {
+	return {
+		type: extensionDescription.isBuiltin ? ExtensionType.System : ExtensionType.User,
+		identifier: { id: getGalleryExtensionId(extensionDescription.publisher, extensionDescription.name), uuid: extensionDescription.uuid },
+		manifest: extensionDescription,
+		location: extensionDescription.extensionLocation,
+	};
 }
