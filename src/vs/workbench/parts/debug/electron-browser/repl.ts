@@ -258,7 +258,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 				}
 			});
 		};
-		traverseAndAppend(this.tree.getNode(null));
+		traverseAndAppend(this.tree.getNode());
 
 		return removeAnsiEscapeCodes(text);
 	}

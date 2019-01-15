@@ -383,7 +383,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 	// Tree
 
-	getNode(element: TInput | T): ITreeNode<TInput | T, TFilterData> {
+	getNode(element: TInput | T = this.root.element): ITreeNode<TInput | T, TFilterData> {
 		const dataNode = this.getDataNode(element);
 		const node = this.tree.getNode(dataNode === this.root ? null : dataNode);
 		return new AsyncDataTreeNodeWrapper<TInput, T, TFilterData>(node);
