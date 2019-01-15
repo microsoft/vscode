@@ -251,7 +251,8 @@ export class ExplorerView extends ViewletPanel {
 				multipleSelectionSupport: true,
 				filter: this.filter,
 				sorter: this.instantiationService.createInstance(FileSorter),
-				dnd: this.instantiationService.createInstance(FileDragAndDrop)
+				dnd: this.instantiationService.createInstance(FileDragAndDrop),
+				autoExpandSingleChildren: true
 			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
 
 		this.disposables.push(this.tree);
