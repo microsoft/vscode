@@ -151,7 +151,7 @@ export class TextMateService extends Disposable implements ITextMateService {
 	private _grammarRegistry: Promise<[Registry, StackElement]> | null;
 	private _tokenizersRegistrations: IDisposable[];
 	private _currentTokenColors: ITokenColorizationRule[] | null;
-	private _themeListener: IDisposable;
+	private _themeListener: IDisposable | null;
 
 	constructor(
 		@IModeService private readonly _modeService: IModeService,
