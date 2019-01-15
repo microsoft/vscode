@@ -234,11 +234,26 @@ export interface IAsyncDataTreeOptions<T, TFilterData = void> extends IAbstractT
 	autoExpandSingleChildren?: boolean;
 }
 
+export interface IAsyncDataTreeViewState {
+	readonly focus: string[];
+	readonly selection: string[];
+	readonly expanded: string[];
+}
+
+interface IAsyncDataTreeViewStateContext<TInput, T> {
+	readonly viewState: IAsyncDataTreeViewState;
+	readonly selection: IAsyncDataTreeNode<TInput, T>[];
+	readonly focus: IAsyncDataTreeNode<TInput, T>[];
+}
+
 export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable {
 
 	private readonly tree: ObjectTree<IAsyncDataTreeNode<TInput, T>, TFilterData>;
 	private readonly root: IAsyncDataTreeNode<TInput, T>;
 	private readonly nodes = new Map<null | T, IAsyncDataTreeNode<TInput, T>>();
+	private readonly currentRefreshCalls = new Map<IAsyncDataTreeNode<TInput, T>, Promise<void>>();
+
+	// TODO@joao remove this
 	private readonly refreshPromises = new Map<IAsyncDataTreeNode<TInput, T>, CancelablePromise<T[]>>();
 	private readonly identityProvider?: IIdentityProvider<T>;
 	private readonly autoExpandSingleChildren: boolean;
@@ -342,20 +357,28 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		return this.root.element as TInput;
 	}
 
-	setInput(input: TInput): Promise<void> {
+	async setInput(input: TInput, viewState?: IAsyncDataTreeViewState): Promise<void> {
 		this.refreshPromises.forEach(promise => promise.cancel());
 		this.refreshPromises.clear();
 
 		this.root.element = input!;
-		return this.refresh(input);
+
+		const viewStateContext = viewState && { viewState, focus: [], selection: [] } as IAsyncDataTreeViewStateContext<TInput, T>;
+
+		await this.refresh(input, true, viewStateContext);
+
+		if (viewStateContext) {
+			this.tree.setFocus(viewStateContext.focus);
+			this.tree.setSelection(viewStateContext.selection);
+		}
 	}
 
-	refresh(element: TInput | T = this.root.element, recursive = true): Promise<void> {
+	refresh(element: TInput | T = this.root.element, recursive = true, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>): Promise<void> {
 		if (typeof this.root.element === 'undefined') {
 			throw new Error('Tree input not set');
 		}
 
-		return this.refreshNode(this.getDataNode(element), recursive, ChildrenResolutionReason.Refresh);
+		return this.refreshNode(this.getDataNode(element), recursive, ChildrenResolutionReason.Refresh, viewStateContext);
 	}
 
 	// Tree
@@ -505,17 +528,15 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		return node;
 	}
 
-	private async refreshNode(node: IAsyncDataTreeNode<TInput, T>, recursive: boolean, reason: ChildrenResolutionReason): Promise<void> {
-		await this.queueRefresh(node, recursive, reason);
+	private async refreshNode(node: IAsyncDataTreeNode<TInput, T>, recursive: boolean, reason: ChildrenResolutionReason, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>): Promise<void> {
+		await this.queueRefresh(node, recursive, reason, viewStateContext);
 
 		if (recursive && node.children) {
-			await Promise.all(node.children.map(child => this.refreshNode(child, recursive, reason)));
+			await Promise.all(node.children.map(child => this.refreshNode(child, recursive, reason, viewStateContext)));
 		}
 	}
 
-	private currentRefreshCalls = new Map<IAsyncDataTreeNode<TInput, T>, Promise<void>>();
-
-	private async queueRefresh(node: IAsyncDataTreeNode<TInput, T>, recursive: boolean, reason: ChildrenResolutionReason): Promise<void> {
+	private async queueRefresh(node: IAsyncDataTreeNode<TInput, T>, recursive: boolean, reason: ChildrenResolutionReason, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>): Promise<void> {
 		if (node.state === AsyncDataTreeNodeState.Disposed) {
 			console.error('Async data tree node is disposed');
 			return;
@@ -525,7 +546,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 		this.currentRefreshCalls.forEach((refreshPromise, refreshNode) => {
 			if (intersects(refreshNode, node)) {
-				result = refreshPromise.then(() => this.queueRefresh(node, recursive, reason));
+				result = refreshPromise.then(() => this.queueRefresh(node, recursive, reason, viewStateContext));
 			}
 		});
 
@@ -533,17 +554,17 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			return result;
 		}
 
-		result = this.doRefresh(node, recursive, reason);
+		result = this.doRefresh(node, recursive, reason, viewStateContext);
 
 		this.currentRefreshCalls.set(node, result);
 		return always(result, () => this.currentRefreshCalls.delete(node));
 	}
 
-	private async doRefresh(node: IAsyncDataTreeNode<TInput, T>, recursive: boolean, reason: ChildrenResolutionReason): Promise<void> {
+	private async doRefresh(node: IAsyncDataTreeNode<TInput, T>, recursive: boolean, reason: ChildrenResolutionReason, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>): Promise<void> {
 		const hasChildren = !!this.dataSource.hasChildren(node.element!);
 
 		if (!hasChildren) {
-			this.setChildren(node, [], recursive);
+			this.setChildren(node, [], recursive, viewStateContext);
 			return;
 		}
 
@@ -568,7 +589,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			node.state = AsyncDataTreeNodeState.Loaded;
 			this._onDidChangeNodeState.fire(node);
 
-			this.setChildren(node, children, recursive);
+			this.setChildren(node, children, recursive, viewStateContext);
 
 			if (node !== this.root && this.autoExpandSingleChildren && reason === ChildrenResolutionReason.Expand) {
 				const treeNode = this.tree.getNode(node);
@@ -617,7 +638,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		}
 	}
 
-	private setChildren(node: IAsyncDataTreeNode<TInput, T>, childrenElements: T[], recursive: boolean): void {
+	private setChildren(node: IAsyncDataTreeNode<TInput, T>, childrenElements: T[], recursive: boolean, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>): void {
 		let nodeChildren: Map<string, IAsyncDataTreeNode<TInput, T>> | undefined;
 
 		if (this.identityProvider) {
@@ -645,16 +666,28 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			const asyncDataTreeNode = nodeChildren!.get(id);
 
 			if (!asyncDataTreeNode) {
+				const childAsyncDataTreeNode: IAsyncDataTreeNode<TInput, T> = {
+					element,
+					parent: node,
+					id,
+					children: [],
+					state: AsyncDataTreeNodeState.Uninitialized
+				};
+
+				if (viewStateContext) {
+					if (viewStateContext.viewState.focus.indexOf(id) > -1) {
+						viewStateContext.focus.push(childAsyncDataTreeNode);
+					}
+
+					if (viewStateContext.viewState.selection.indexOf(id) > -1) {
+						viewStateContext.selection.push(childAsyncDataTreeNode);
+					}
+				}
+
 				return {
-					element: {
-						element,
-						parent: node,
-						id,
-						children: [],
-						state: AsyncDataTreeNodeState.Uninitialized
-					},
+					element: childAsyncDataTreeNode,
 					collapsible: !!this.dataSource.hasChildren(element),
-					collapsed: true
+					collapsed: typeof viewStateContext === 'undefined' ? true : viewStateContext.viewState.expanded.indexOf(id) === -1
 				};
 			}
 
@@ -714,6 +747,34 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		if (this.identityProvider) {
 			node.children!.splice(0, node.children!.length, ...children.map(c => c.element));
 		}
+	}
+
+	// view state
+
+	getViewState(): IAsyncDataTreeViewState {
+		if (!this.identityProvider) {
+			throw new Error('Can\'t get tree view state without an identity provider');
+		}
+
+		const getId = (element: T) => this.identityProvider!.getId(element).toString();
+		const focus = this.getFocus().map(getId);
+		const selection = this.getSelection().map(getId);
+
+		const expanded: string[] = [];
+		const root = this.tree.getNode();
+		const queue = [root];
+
+		while (queue.length > 0) {
+			const node = queue.shift()!;
+
+			if (node !== root && !node.collapsed) {
+				expanded.push(getId(node.element!.element as T));
+			}
+
+			queue.push(...node.children);
+		}
+
+		return { focus, selection, expanded };
 	}
 
 	dispose(): void {

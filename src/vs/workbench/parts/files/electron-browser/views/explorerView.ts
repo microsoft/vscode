@@ -43,9 +43,12 @@ import { ExplorerItem } from 'vs/workbench/parts/files/common/explorerModel';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ResourceLabels, IResourceLabelsContainer } from 'vs/workbench/browser/labels';
 import { createFileIconThemableTreeContainerScope } from 'vs/workbench/browser/parts/views/views';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IAsyncDataTreeViewState } from 'vs/base/browser/ui/tree/asyncDataTree';
 
 export class ExplorerView extends ViewletPanel {
 	static readonly ID: string = 'workbench.explorer.fileView';
+	static readonly TREE_VIEW_STATE_STORAGE_KEY: string = 'workbench.explorer.treeViewState';
 
 	private tree: WorkbenchAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem>;
 	private filter: FilesFilter;
@@ -80,7 +83,8 @@ export class ExplorerView extends ViewletPanel {
 		@IMenuService private readonly menuService: IMenuService,
 		@IClipboardService private readonly clipboardService: IClipboardService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IExplorerService private readonly explorerService: IExplorerService
+		@IExplorerService private readonly explorerService: IExplorerService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		super({ ...(options as IViewletPanelOptions), id: ExplorerView.ID, ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService);
 
@@ -189,7 +193,7 @@ export class ExplorerView extends ViewletPanel {
 				if (activeFile) {
 					this.explorerService.select(this.getActiveFile());
 				} else {
-					this.tree.setSelection([]);
+					// this.tree.setSelection([]);
 				}
 			}
 		}));
@@ -254,8 +258,8 @@ export class ExplorerView extends ViewletPanel {
 				dnd: this.instantiationService.createInstance(FileDragAndDrop),
 				autoExpandSingleChildren: true
 			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
-
 		this.disposables.push(this.tree);
+
 		// Bind context keys
 		FilesExplorerFocusedContext.bindTo(this.tree.contextKeyService);
 		ExplorerFocusedContext.bindTo(this.tree.contextKeyService);
@@ -311,6 +315,11 @@ export class ExplorerView extends ViewletPanel {
 		}));
 
 		this.disposables.push(this.tree.onContextMenu(e => this.onContextMenu(e)));
+
+		// save view state on shutdown
+		this.storageService.onWillSaveState(() => {
+			this.storageService.store(ExplorerView.TREE_VIEW_STATE_STORAGE_KEY, JSON.stringify(this.tree.getViewState()), StorageScope.WORKSPACE);
+		}, null, this.disposables);
 	}
 
 	// React on events
@@ -384,6 +393,8 @@ export class ExplorerView extends ViewletPanel {
 		return DOM.getLargestChildWidth(parentNode, childNodes);
 	}
 
+	// private didLoad = false;
+
 	private setTreeInput(): Promise<void> {
 		if (!this.isBodyVisible()) {
 			this.shouldRefresh = true;
@@ -401,7 +412,14 @@ export class ExplorerView extends ViewletPanel {
 			input = roots;
 		}
 
-		const promise = this.tree.setInput(input).then(() => {
+		const rawViewState = this.storageService.get(ExplorerView.TREE_VIEW_STATE_STORAGE_KEY, StorageScope.WORKSPACE);
+		let viewState: IAsyncDataTreeViewState | undefined;
+
+		if (rawViewState) {
+			viewState = JSON.parse(rawViewState) as IAsyncDataTreeViewState;
+		}
+
+		const promise = this.tree.setInput(input, viewState).then(() => {
 			// Find resource to focus from active editor input if set
 			if (this.autoReveal && initialInputSetup) {
 				const resourceToFocus = this.getActiveFile();
@@ -449,10 +467,6 @@ export class ExplorerView extends ViewletPanel {
 		return sequence(toExpand.reverse().map(s => () => this.tree.expand(s))).then(() => {
 			if (reveal) {
 				this.tree.reveal(fileStat, 0.5);
-			}
-
-			if (!fileStat.isDirectory) {
-				this.tree.setSelection([fileStat]); // Since folders can not be opened, only select files
 			}
 
 			this.tree.setFocus([fileStat]);
