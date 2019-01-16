@@ -17,7 +17,7 @@
 		"./vs/editor/contrib/gotoError/**/*.ts",
 		"./vs/editor/contrib/inPlaceReplace/**/*.ts",
 		"./vs/editor/contrib/suggest/**/*.ts",
-		"./vs/editor/contrib/snippet/**/*.ts",
+		"./vs/editor/contrib/snippet/**/*.ts"
 	],
 	"files": [
 		"./vs/base/parts/contextmenu/common/contextmenu.ts",
@@ -576,6 +576,7 @@
 		"./vs/workbench/parts/codeEditor/electron-browser/languageConfiguration/languageConfigurationExtensionPoint.ts",
 		"./vs/workbench/parts/codeEditor/electron-browser/largeFileOptimizations.ts",
 		"./vs/workbench/parts/codeEditor/electron-browser/selectionClipboard.ts",
+		"./vs/workbench/parts/codeEditor/electron-browser/simpleEditorOptions.ts",
 		"./vs/workbench/parts/codeEditor/electron-browser/sleepResumeRepaintMinimap.ts",
 		"./vs/workbench/parts/codeEditor/electron-browser/textMate/inspectTMScopes.ts",
 		"./vs/workbench/parts/codeEditor/electron-browser/toggleMinimap.ts",
@@ -585,6 +586,7 @@
 		"./vs/workbench/parts/codeEditor/electron-browser/toggleWordWrap.ts",
 		"./vs/workbench/parts/comments/common/commentModel.ts",
 		"./vs/workbench/parts/comments/electron-browser/commentGlyphWidget.ts",
+		"./vs/workbench/parts/comments/electron-browser/simpleCommentEditor.ts",
 		"./vs/workbench/parts/debug/browser/debugANSIHandling.ts",
 		"./vs/workbench/parts/debug/browser/linkDetector.ts",
 		"./vs/workbench/parts/debug/node/telemetryApp.ts",
