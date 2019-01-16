@@ -575,6 +575,9 @@ export class TerminalInstance implements ITerminalInstance {
 
 			if (this._processManager) {
 				this._widgetManager = new TerminalWidgetManager(this._wrapperElement);
+				this._disposables.push(dom.addDisposableListener(this._xterm.element, 'mouseleave', () => {
+					this._widgetManager.closeMessage();
+				}));
 				this._linkHandler.setWidgetManager(this._widgetManager);
 			}
 
