@@ -65,7 +65,8 @@ export class SearchDelegate implements IListVirtualDelegate<RenderableMatch> {
 			return MatchRenderer.TEMPLATE_ID;
 		}
 
-		return null;
+		console.error('Invalid search tree element', element);
+		throw new Error('Invalid search tree element');
 	}
 }
 
