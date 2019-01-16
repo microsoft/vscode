@@ -588,10 +588,13 @@ export interface IResourceResultsNavigationOptions {
 
 export class TreeResourceNavigator2<T, TFilterData> extends Disposable {
 
-	private readonly _openResource: Emitter<IOpenEvent<T>> = new Emitter<IOpenEvent<T>>();
-	readonly openResource: Event<IOpenEvent<T>> = this._openResource.event;
+	private readonly _openResource = new Emitter<IOpenEvent<T | null>>();
+	readonly openResource: Event<IOpenEvent<T | null>> = this._openResource.event;
 
-	constructor(private tree: WorkbenchObjectTree<T, TFilterData> | WorkbenchAsyncDataTree<any, T, TFilterData>, private options?: IResourceResultsNavigationOptions) {
+	constructor(
+		private tree: WorkbenchObjectTree<T, TFilterData> | WorkbenchAsyncDataTree<any, T, TFilterData>,
+		private options?: IResourceResultsNavigationOptions
+	) {
 		super();
 
 		this.registerListeners();
@@ -605,9 +608,9 @@ export class TreeResourceNavigator2<T, TFilterData> extends Disposable {
 		this._register(this.tree.onDidChangeSelection(e => this.onSelection(e)));
 	}
 
-	private onFocus(e: ITreeEvent<T>): void {
+	private onFocus(e: ITreeEvent<T | null>): void {
 		const focus = this.tree.getFocus();
-		this.tree.setSelection(focus, e.browserEvent);
+		this.tree.setSelection(focus as T[], e.browserEvent);
 
 		if (!e.browserEvent) {
 			return;
@@ -620,7 +623,7 @@ export class TreeResourceNavigator2<T, TFilterData> extends Disposable {
 		}
 	}
 
-	private onSelection(e: ITreeEvent<T>): void {
+	private onSelection(e: ITreeEvent<T | null>): void {
 		if (!e.browserEvent) {
 			return;
 		}
@@ -686,8 +689,8 @@ export class HighlightingTreeController extends WorkbenchTreeController {
 class HightlightsFilter implements IFilter {
 
 	static add(config: ITreeConfiguration, options: IHighlightingTreeOptions): ITreeConfiguration {
-		let myFilter = new HightlightsFilter();
-		myFilter.enabled = options.filterOnType;
+		const myFilter = new HightlightsFilter();
+		myFilter.enabled = !!options.filterOnType;
 		if (!config.filter) {
 			config.filter = myFilter;
 		} else {
@@ -809,7 +812,7 @@ export class HighlightingWorkbenchTree extends WorkbenchTree {
 
 	layout(height?: number, width?: number): void {
 		this.input.layout();
-		super.layout(isNaN(height) ? height : height - getTotalHeight(this.inputContainer), width);
+		super.layout(typeof height !== 'number' || isNaN(height) ? height : height - getTotalHeight(this.inputContainer), width);
 	}
 
 	private onTypeInTree(): void {
@@ -835,7 +838,7 @@ export class HighlightingWorkbenchTree extends WorkbenchTree {
 		let topElement: any;
 		if (pattern) {
 			let nav = this.getNavigator(undefined, false);
-			let topScore: FuzzyScore;
+			let topScore: FuzzyScore | undefined;
 			while (nav.next()) {
 				let element = nav.current();
 				let score = this.highlighter.getHighlights(this, element, pattern);
@@ -867,7 +870,7 @@ export class HighlightingWorkbenchTree extends WorkbenchTree {
 		return this.highlights.size > 0;
 	}
 
-	getHighlighterScore(element: any): FuzzyScore {
+	getHighlighterScore(element: any): FuzzyScore | undefined {
 		return this.highlights.get(this._getHighlightsStorageKey(element));
 	}
 
