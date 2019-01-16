@@ -25,6 +25,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { DataTree } from 'vs/base/browser/ui/tree/dataTree';
+import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
 
 // --- List Commands
 
@@ -588,6 +589,28 @@ export function registerCommands(): void {
 			if (focused instanceof List || focused instanceof PagedList) {
 				const list = focused;
 				list.setSelection(range(list.length));
+			}
+
+			// Trees
+			else if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
+				const tree = focused;
+				const selection: any[] = [];
+				const visit = (node: ITreeNode<any, any>) => {
+					node.children.forEach(child => {
+						if (child.visible) {
+							selection.push(child.element);
+
+							if (!child.collapsed) {
+								visit(child);
+							}
+						}
+					});
+				};
+
+				visit(tree.getNode());
+
+				const fakeKeyboardEvent = new KeyboardEvent('keydown');
+				tree.setSelection(selection, fakeKeyboardEvent);
 			}
 		}
 	});

@@ -18,8 +18,8 @@ import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/co
 import { IExpression } from 'vs/base/common/glob';
 
 function getFileEventsExcludes(configurationService: IConfigurationService, root?: URI): IExpression {
-	const scope = root ? { resource: root } : void 0;
-	const configuration = configurationService.getValue<IFilesConfiguration>(scope);
+	const scope = root ? { resource: root } : undefined;
+	const configuration = scope ? configurationService.getValue<IFilesConfiguration>(scope) : configurationService.getValue<IFilesConfiguration>();
 
 	return (configuration && configuration.files && configuration.files.exclude) || Object.create(null);
 }
@@ -30,9 +30,9 @@ export class ExplorerService implements IExplorerService {
 	private static readonly EXPLORER_FILE_CHANGES_REACT_DELAY = 500; // delay in ms to react to file changes to give our internal events a chance to react first
 
 	private _onDidChangeRoots = new Emitter<void>();
-	private _onDidChangeItem = new Emitter<ExplorerItem | null>();
+	private _onDidChangeItem = new Emitter<ExplorerItem | undefined>();
 	private _onDidChangeEditable = new Emitter<ExplorerItem>();
-	private _onDidSelectItem = new Emitter<{ item: ExplorerItem, reveal: boolean }>();
+	private _onDidSelectItem = new Emitter<{ item?: ExplorerItem, reveal?: boolean }>();
 	private disposables: IDisposable[] = [];
 	private editableStats = new Map<ExplorerItem, IEditableData>();
 	private _sortOrder: SortOrder;
@@ -52,7 +52,7 @@ export class ExplorerService implements IExplorerService {
 		return this._onDidChangeRoots.event;
 	}
 
-	get onDidChangeItem(): Event<ExplorerItem | null> {
+	get onDidChangeItem(): Event<ExplorerItem | undefined> {
 		return this._onDidChangeItem.event;
 	}
 
@@ -60,7 +60,7 @@ export class ExplorerService implements IExplorerService {
 		return this._onDidChangeEditable.event;
 	}
 
-	get onDidSelectItem(): Event<{ item: ExplorerItem, reveal: boolean }> {
+	get onDidSelectItem(): Event<{ item?: ExplorerItem, reveal?: boolean }> {
 		return this._onDidSelectItem.event;
 	}
 
@@ -72,7 +72,7 @@ export class ExplorerService implements IExplorerService {
 	@memoize private get fileEventsFilter(): ResourceGlobMatcher {
 		const fileEventsFilter = this.instantiationService.createInstance(
 			ResourceGlobMatcher,
-			(root: URI) => getFileEventsExcludes(this.configurationService, root),
+			(root?: URI) => getFileEventsExcludes(this.configurationService, root),
 			(event: IConfigurationChangeEvent) => event.affectsConfiguration(FILES_EXCLUDE_CONFIG)
 		);
 		this.disposables.push(fileEventsFilter);
@@ -86,7 +86,7 @@ export class ExplorerService implements IExplorerService {
 		this.disposables.push(this.fileService.onAfterOperation(e => this.onFileOperation(e)));
 		this.disposables.push(this.fileService.onFileChanges(e => this.onFileChanges(e)));
 		this.disposables.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IFilesConfiguration>())));
-		this.disposables.push(this.fileService.onDidChangeFileSystemProviderRegistrations(() => this._onDidChangeItem.fire(null)));
+		this.disposables.push(this.fileService.onDidChangeFileSystemProviderRegistrations(() => this._onDidChangeItem.fire(undefined)));
 		this.disposables.push(model.onDidChangeRoots(() => this._onDidChangeRoots.fire()));
 
 		return model;
@@ -94,7 +94,7 @@ export class ExplorerService implements IExplorerService {
 
 	// IExplorerService methods
 
-	findClosest(resource: URI): ExplorerItem {
+	findClosest(resource: URI): ExplorerItem | null {
 		return this.model.findClosest(resource);
 	}
 
@@ -111,23 +111,23 @@ export class ExplorerService implements IExplorerService {
 		const fileStat = this.findClosest(resource);
 		if (fileStat) {
 			this._onDidSelectItem.fire({ item: fileStat, reveal });
-			return Promise.resolve(null);
+			return Promise.resolve(undefined);
 		}
 
 		// Stat needs to be resolved first and then revealed
 		const options: IResolveFileOptions = { resolveTo: [resource] };
 		const workspaceFolder = this.contextService.getWorkspaceFolder(resource);
 		const rootUri = workspaceFolder ? workspaceFolder.uri : this.roots[0].resource;
-		const root = this.roots.filter(r => r.resource.toString() === rootUri.toString()).pop();
+		const root = this.roots.filter(r => r.resource.toString() === rootUri.toString()).pop()!;
 		return this.fileService.resolveFile(rootUri, options).then(stat => {
 
 			// Convert to model
-			const modelStat = ExplorerItem.create(stat, null, options.resolveTo);
+			const modelStat = ExplorerItem.create(stat, undefined, options.resolveTo);
 			// Update Input with disk Stat
 			ExplorerItem.mergeLocalWithDisk(modelStat, root);
 
 			// Select and Reveal
-			this._onDidSelectItem.fire({ item: root.find(resource), reveal });
+			this._onDidSelectItem.fire({ item: root.find(resource) || undefined, reveal });
 		}, () => {
 			root.isError = true;
 			this._onDidChangeItem.fire(root);
@@ -136,7 +136,7 @@ export class ExplorerService implements IExplorerService {
 
 	refresh(): void {
 		this.model.roots.forEach(r => r.isDirectoryResolved = false);
-		this._onDidChangeItem.fire(null);
+		this._onDidChangeItem.fire(undefined);
 	}
 
 	// File events
@@ -144,8 +144,8 @@ export class ExplorerService implements IExplorerService {
 	private onFileOperation(e: FileOperationEvent): void {
 		// Add
 		if (e.operation === FileOperation.CREATE || e.operation === FileOperation.COPY) {
-			const addedElement = e.target;
-			const parentResource = dirname(addedElement.resource);
+			const addedElement = e.target!;
+			const parentResource = dirname(addedElement.resource)!;
 			const parents = this.model.findAll(parentResource);
 
 			if (parents.length) {
@@ -153,7 +153,7 @@ export class ExplorerService implements IExplorerService {
 				// Add the new file to its parent (Model)
 				parents.forEach(p => {
 					// We have to check if the parent is resolved #29177
-					const thenable: Promise<IFileStat> = p.isDirectoryResolved ? Promise.resolve(undefined) : this.fileService.resolveFile(p.resource);
+					const thenable: Promise<IFileStat | undefined> = p.isDirectoryResolved ? Promise.resolve(undefined) : this.fileService.resolveFile(p.resource);
 					thenable.then(stat => {
 						if (stat) {
 							const modelStat = ExplorerItem.create(stat, p.parent);
@@ -174,7 +174,7 @@ export class ExplorerService implements IExplorerService {
 		// Move (including Rename)
 		else if (e.operation === FileOperation.MOVE) {
 			const oldResource = e.resource;
-			const newElement = e.target;
+			const newElement = e.target!;
 			const oldParentResource = dirname(oldResource);
 			const newParentResource = dirname(newElement.resource);
 
@@ -243,6 +243,9 @@ export class ExplorerService implements IExplorerService {
 
 					// Find parent
 					const parent = dirname(change.resource);
+					if (!parent) {
+						continue;
+					}
 
 					// Continue if parent was already determined as to be ignored
 					if (ignoredPaths[parent.toString()]) {
@@ -270,7 +273,7 @@ export class ExplorerService implements IExplorerService {
 				for (let j = 0; j < deleted.length; j++) {
 					const del = deleted[j];
 					const item = this.model.findClosest(del.resource);
-					if (item) {
+					if (item && item.parent) {
 						explorerItemChanged(item.parent);
 					}
 				}
@@ -285,7 +288,7 @@ export class ExplorerService implements IExplorerService {
 					const upd = updated[j];
 					const item = this.model.findClosest(upd.resource);
 
-					if (item) {
+					if (item && item.parent) {
 						explorerItemChanged(item.parent);
 					}
 				}

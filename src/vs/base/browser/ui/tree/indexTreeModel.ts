@@ -39,8 +39,9 @@ function getVisibleState(visibility: boolean | TreeVisibility): TreeVisibility {
 }
 
 export interface IIndexTreeModelOptions<T, TFilterData> {
-	collapseByDefault?: boolean; // defaults to false
-	filter?: ITreeFilter<T, TFilterData>;
+	readonly collapseByDefault?: boolean; // defaults to false
+	readonly filter?: ITreeFilter<T, TFilterData>;
+	readonly autoExpandSingleChildren?: boolean;
 }
 
 export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = void> implements ITreeModel<T, TFilterData, number[]> {
@@ -58,10 +59,12 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 
 	private collapseByDefault: boolean;
 	private filter?: ITreeFilter<T, TFilterData>;
+	private autoExpandSingleChildren: boolean;
 
 	constructor(private list: ISpliceable<ITreeNode<T, TFilterData>>, rootElement: T, options: IIndexTreeModelOptions<T, TFilterData> = {}) {
 		this.collapseByDefault = typeof options.collapseByDefault === 'undefined' ? false : options.collapseByDefault;
 		this.filter = options.filter;
+		this.autoExpandSingleChildren = typeof options.autoExpandSingleChildren === 'undefined' ? false : options.autoExpandSingleChildren;
 
 		// this.onDidChangeCollapseState(node => console.log(node.collapsed, node));
 
@@ -140,18 +143,45 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 	}
 
 	setCollapsed(location: number[], collapsed?: boolean, recursive?: boolean): boolean {
-		const { node, listIndex, revealed } = this.getTreeNodeWithListIndex(location);
+		const node = this.getTreeNode(location);
 
 		if (typeof collapsed === 'undefined') {
 			collapsed = !node.collapsed;
 		}
 
-		return this.eventBufferer.bufferEvents(() => {
-			return this._setCollapsed(node, listIndex, revealed, collapsed!, recursive || false);
-		});
+		return this.eventBufferer.bufferEvents(() => this._setCollapsed(location, collapsed!, recursive));
 	}
 
-	private _setCollapsed(node: IMutableTreeNode<T, TFilterData>, listIndex: number, revealed: boolean, collapsed: boolean, recursive: boolean): boolean {
+	private _setCollapsed(location: number[], collapsed: boolean, recursive?: boolean): boolean {
+		const { node, listIndex, revealed } = this.getTreeNodeWithListIndex(location);
+
+		const result = this._setListNodeCollapsed(node, listIndex, revealed, collapsed!, recursive || false);
+
+		if (this.autoExpandSingleChildren && !collapsed! && !recursive) {
+			let onlyVisibleChildIndex = -1;
+
+			for (let i = 0; i < node.children.length; i++) {
+				const child = node.children[i];
+
+				if (child.visible) {
+					if (onlyVisibleChildIndex > -1) {
+						onlyVisibleChildIndex = -1;
+						break;
+					} else {
+						onlyVisibleChildIndex = i;
+					}
+				}
+			}
+
+			if (onlyVisibleChildIndex > -1) {
+				this._setCollapsed([...location, onlyVisibleChildIndex], false, false);
+			}
+		}
+
+		return result;
+	}
+
+	private _setListNodeCollapsed(node: IMutableTreeNode<T, TFilterData>, listIndex: number, revealed: boolean, collapsed: boolean, recursive: boolean): boolean {
 		const result = this._setNodeCollapsed(node, collapsed, recursive, false);
 
 		if (!revealed || !node.visible) {
