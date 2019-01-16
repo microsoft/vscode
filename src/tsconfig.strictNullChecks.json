@@ -631,6 +631,7 @@
 		"./vs/workbench/parts/feedback/electron-browser/feedback.contribution.ts",
 		"./vs/workbench/parts/feedback/electron-browser/feedback.ts",
 		"./vs/workbench/parts/feedback/electron-browser/feedbackStatusbarItem.ts",
+		"./vs/workbench/parts/files/browser/files.ts",
 		"./vs/workbench/parts/files/common/explorerModel.ts",
 		"./vs/workbench/parts/files/common/files.ts",
 		"./vs/workbench/parts/files/electron-browser/explorerService.ts",
