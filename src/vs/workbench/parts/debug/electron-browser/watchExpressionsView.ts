@@ -54,7 +54,7 @@ export class WatchExpressionsView extends ViewletPanel {
 
 		this.onWatchExpressionsUpdatedScheduler = new RunOnceScheduler(() => {
 			this.needsRefresh = false;
-			this.tree.refresh();
+			this.tree.updateChildren();
 		}, 50);
 	}
 
@@ -64,7 +64,6 @@ export class WatchExpressionsView extends ViewletPanel {
 		CONTEXT_WATCH_EXPRESSIONS_FOCUSED.bindTo(this.contextKeyService.createScoped(treeContainer));
 
 		const expressionsRenderer = this.instantiationService.createInstance(WatchExpressionsRenderer);
-		this.disposables.push(expressionsRenderer);
 		this.tree = new WorkbenchAsyncDataTree(treeContainer, new WatchExpressionsDelegate(), [expressionsRenderer, this.instantiationService.createInstance(VariablesRenderer)],
 			new WatchExpressionsDataSource(), {
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'watchAriaTreeLabel' }, "Debug Watch Expressions"),
@@ -87,7 +86,7 @@ export class WatchExpressionsView extends ViewletPanel {
 			if (!this.isBodyVisible()) {
 				this.needsRefresh = true;
 			} else {
-				this.tree.refresh();
+				this.tree.updateChildren();
 			}
 		}));
 		this.disposables.push(this.debugService.getViewModel().onDidFocusStackFrame(() => {
@@ -100,11 +99,16 @@ export class WatchExpressionsView extends ViewletPanel {
 				this.onWatchExpressionsUpdatedScheduler.schedule();
 			}
 		}));
-		this.disposables.push(variableSetEmitter.event(() => this.tree.refresh()));
+		this.disposables.push(variableSetEmitter.event(() => this.tree.updateChildren()));
 
 		this.disposables.push(this.onDidChangeBodyVisibility(visible => {
 			if (visible && this.needsRefresh) {
 				this.onWatchExpressionsUpdatedScheduler.schedule();
+			}
+		}));
+		this.disposables.push(this.debugService.getViewModel().onDidSelectExpression(e => {
+			if (e instanceof Expression && e.name) {
+				this.tree.refresh(e);
 			}
 		}));
 	}

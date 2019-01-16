@@ -103,6 +103,11 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 		});
 	}
 
+	refresh(element: T): void {
+		const location = this.getElementLocation(element);
+		this.model.refresh(location);
+	}
+
 	getParentElement(ref: T | null = null): T | null {
 		const location = this.getElementLocation(ref);
 		return this.model.getParentElement(location);

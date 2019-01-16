@@ -126,6 +126,18 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		return Iterator.map(Iterator.fromArray(deletedNodes), treeNodeToElement);
 	}
 
+	refresh(location: number[]): void {
+		if (location.length === 0) {
+			throw new Error('Invalid tree location');
+		}
+
+		const { node, listIndex, revealed } = this.getTreeNodeWithListIndex(location);
+
+		if (revealed) {
+			this.list.splice(listIndex, 1, [node]);
+		}
+	}
+
 	getListIndex(location: number[]): number {
 		return this.getTreeNodeWithListIndex(location).listIndex;
 	}

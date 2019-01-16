@@ -351,7 +351,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		this.tree.style(styles);
 	}
 
-	// Data Tree
+	// Model
 
 	getInput(): TInput | undefined {
 		return this.root.element as TInput;
@@ -365,7 +365,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 		const viewStateContext = viewState && { viewState, focus: [], selection: [] } as IAsyncDataTreeViewStateContext<TInput, T>;
 
-		await this.refresh(input, true, viewStateContext);
+		await this.updateChildren(input, true, viewStateContext);
 
 		if (viewStateContext) {
 			this.tree.setFocus(viewStateContext.focus);
@@ -373,12 +373,19 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		}
 	}
 
-	refresh(element: TInput | T = this.root.element, recursive = true, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>): Promise<void> {
+	updateChildren(element: TInput | T = this.root.element, recursive = true, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>): Promise<void> {
 		if (typeof this.root.element === 'undefined') {
 			throw new Error('Tree input not set');
 		}
 
 		return this.refreshNode(this.getDataNode(element), recursive, ChildrenResolutionReason.Refresh, viewStateContext);
+	}
+
+	// View
+
+	refresh(element: T): void {
+		const node = this.getDataNode(element);
+		this.tree.refresh(node);
 	}
 
 	// Tree

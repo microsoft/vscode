@@ -398,7 +398,7 @@ export class ExplorerView extends ViewletPanel {
 		const recursive = !item;
 		const toRefresh = item || this.tree.getInput();
 
-		return this.tree.refresh(toRefresh, recursive);
+		return this.tree.updateChildren(toRefresh, recursive);
 	}
 
 	getOptimalWidth(): number {
