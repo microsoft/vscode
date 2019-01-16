@@ -594,23 +594,60 @@ export function registerCommands(): void {
 			// Trees
 			else if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
 				const tree = focused;
-				const selection: any[] = [];
+				const focus = tree.getFocus();
+				const selection = tree.getSelection();
+
+				// Which element should be considered to start selecting all?
+				let start: any | undefined = undefined;
+
+				if (focus.length > 0 && (selection.length === 0 || selection.indexOf(focus[0]) === -1)) {
+					start = focus[0];
+				}
+
+				if (!start && selection.length > 0) {
+					start = selection[0];
+				}
+
+				// What is the scope of select all?
+				let scope: any | undefined = undefined;
+
+				if (!start) {
+					scope = undefined;
+				} else {
+					const selectedNode = tree.getNode(start);
+					const parentNode = selectedNode.parent;
+
+					if (!parentNode.parent) { // root
+						scope = undefined;
+					} else {
+						scope = parentNode.element;
+					}
+				}
+
+				const newSelection: any[] = [];
+
+				// If the scope isn't the tree root, it should be part of the new selection
+				if (scope) {
+					newSelection.push(scope);
+				}
+
 				const visit = (node: ITreeNode<any, any>) => {
-					node.children.forEach(child => {
+					for (const child of node.children) {
 						if (child.visible) {
-							selection.push(child.element);
+							newSelection.push(child.element);
 
 							if (!child.collapsed) {
 								visit(child);
 							}
 						}
-					});
+					}
 				};
 
-				visit(tree.getNode());
+				// Add the whole scope subtree to the new selection
+				visit(tree.getNode(scope));
 
 				const fakeKeyboardEvent = new KeyboardEvent('keydown');
-				tree.setSelection(selection, fakeKeyboardEvent);
+				tree.setSelection(newSelection, fakeKeyboardEvent);
 			}
 		}
 	});
