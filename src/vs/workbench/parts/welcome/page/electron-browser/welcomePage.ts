@@ -312,70 +312,17 @@ class WelcomePage {
 			if (!ul) {
 				return;
 			}
-			const before = ul.firstElementChild;
-			workspaces.slice(0, 5).forEach(workspace => {
-				let label: string;
-				let resource: URI;
-				if (isSingleFolderWorkspaceIdentifier(workspace)) {
-					resource = workspace;
-					label = this.labelService.getWorkspaceLabel(workspace);
-				} else if (isWorkspaceIdentifier(workspace)) {
-					label = this.labelService.getWorkspaceLabel(workspace);
-					resource = URI.file(workspace.configPath);
-				} else {
-					label = getBaseLabel(workspace);
-					resource = URI.file(workspace);
+			const moreRecent = ul.querySelector('.moreRecent');
+			const workspacesToShow = workspaces.slice(0, 5);
+			const updateEntries = () => {
+				const listEntries = this.createListEntries(workspacesToShow);
+				while (ul.firstChild) {
+					ul.removeChild(ul.firstChild);
 				}
-
-				const li = document.createElement('li');
-
-				const a = document.createElement('a');
-				let name = label;
-				let parentFolderPath: string | undefined;
-
-				if (resource.scheme === Schemas.file) {
-					let parentFolder = path.dirname(resource.fsPath);
-					if (!name && parentFolder) {
-						const tmp = name;
-						name = parentFolder;
-						parentFolder = tmp;
-					}
-					parentFolderPath = tildify(parentFolder, this.environmentService.userHome);
-				} else {
-					parentFolderPath = this.labelService.getUriLabel(resource);
-				}
-
-
-				a.innerText = name;
-				a.title = label;
-				a.setAttribute('aria-label', localize('welcomePage.openFolderWithPath', "Open folder {0} with path {1}", name, parentFolderPath));
-				a.href = 'javascript:void(0)';
-				a.addEventListener('click', e => {
-					/* __GDPR__
-						"workbenchActionExecuted" : {
-							"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-							"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-						}
-					*/
-					this.telemetryService.publicLog('workbenchActionExecuted', {
-						id: 'openRecentFolder',
-						from: telemetryFrom
-					});
-					this.windowService.openWindow([resource], { forceNewWindow: e.ctrlKey || e.metaKey });
-					e.preventDefault();
-					e.stopPropagation();
-				});
-				li.appendChild(a);
-
-				const span = document.createElement('span');
-				span.classList.add('path');
-				span.classList.add('detail');
-				span.innerText = parentFolderPath;
-				span.title = label;
-				li.appendChild(span);
-
-				ul.insertBefore(li, before);
-			});
+				ul.append(...listEntries, moreRecent);
+			};
+			updateEntries();
+			this.disposables.push(this.labelService.onDidRegisterFormatter(updateEntries));
 		}).then(undefined, onUnexpectedError);
 
 		this.addExtensionList(container, '.extensionPackList', extensionPacks, extensionPackStrings);
@@ -391,6 +338,72 @@ class WelcomePage {
 				}
 			}
 		}));
+	}
+
+	private createListEntries(workspaces: (URI | IWorkspaceIdentifier)[]) {
+		return workspaces.map(workspace => {
+			let label: string;
+			let resource: URI;
+			if (isSingleFolderWorkspaceIdentifier(workspace)) {
+				resource = workspace;
+				label = this.labelService.getWorkspaceLabel(workspace);
+			} else if (isWorkspaceIdentifier(workspace)) {
+				label = this.labelService.getWorkspaceLabel(workspace);
+				resource = URI.file(workspace.configPath);
+			} else {
+				label = getBaseLabel(workspace);
+				resource = URI.file(workspace);
+			}
+
+			const li = document.createElement('li');
+
+			const a = document.createElement('a');
+			let name = label;
+			let parentFolderPath: string | undefined;
+
+			if (resource.scheme === Schemas.file) {
+				let parentFolder = path.dirname(resource.fsPath);
+				if (!name && parentFolder) {
+					const tmp = name;
+					name = parentFolder;
+					parentFolder = tmp;
+				}
+				parentFolderPath = tildify(parentFolder, this.environmentService.userHome);
+			} else {
+				parentFolderPath = this.labelService.getUriLabel(resource);
+			}
+
+
+			a.innerText = name;
+			a.title = label;
+			a.setAttribute('aria-label', localize('welcomePage.openFolderWithPath', "Open folder {0} with path {1}", name, parentFolderPath));
+			a.href = 'javascript:void(0)';
+			a.addEventListener('click', e => {
+				/* __GDPR__
+					"workbenchActionExecuted" : {
+						"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					}
+				*/
+				this.telemetryService.publicLog('workbenchActionExecuted', {
+					id: 'openRecentFolder',
+					from: telemetryFrom
+				});
+				this.windowService.openWindow([resource], { forceNewWindow: e.ctrlKey || e.metaKey });
+				e.preventDefault();
+				e.stopPropagation();
+			});
+			li.appendChild(a);
+
+			const span = document.createElement('span');
+			span.classList.add('path');
+			span.classList.add('detail');
+			span.innerText = parentFolderPath;
+			span.title = label;
+			li.appendChild(span);
+
+			return li;
+		});
 	}
 
 	private addExtensionList(container: HTMLElement, listSelector: string, suggestions: ExtensionSuggestion[], strings: Strings) {
