@@ -30,6 +30,7 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	highlightModifiedTabs: false,
 	tabCloseButton: 'right',
 	tabSizing: 'fit',
+	tabClosingOrder: 'mru',
 	showIcons: true,
 	enablePreview: true,
 	openPositioning: 'right',

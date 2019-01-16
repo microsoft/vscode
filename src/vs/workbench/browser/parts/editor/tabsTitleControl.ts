@@ -385,6 +385,7 @@ export class TabsTitleControl extends TitleControl {
 			oldOptions.labelFormat !== newOptions.labelFormat ||
 			oldOptions.tabCloseButton !== newOptions.tabCloseButton ||
 			oldOptions.tabSizing !== newOptions.tabSizing ||
+			oldOptions.tabClosingOrder !== newOptions.tabClosingOrder ||
 			oldOptions.showIcons !== newOptions.showIcons ||
 			oldOptions.iconTheme !== newOptions.iconTheme ||
 			oldOptions.highlightModifiedTabs !== newOptions.highlightModifiedTabs
@@ -837,6 +838,11 @@ export class TabsTitleControl extends TitleControl {
 		['fit', 'shrink'].forEach(option => {
 			const domAction = options.tabSizing === option ? addClass : removeClass;
 			domAction(tabContainer, `sizing-${option}`);
+		});
+
+		['mru', 'ltr', 'rtl'].forEach(option => {
+			const domAction = options.tabClosingOrder === option ? addClass : removeClass;
+			domAction(tabContainer, `closing-tab-order-${option}`);
 		});
 
 		if (options.showIcons && !!options.iconTheme) {
