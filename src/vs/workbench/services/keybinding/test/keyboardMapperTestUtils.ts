@@ -19,7 +19,7 @@ export interface IResolvedKeybinding {
 	userSettingsLabel: string | null;
 	isWYSIWYG: boolean;
 	isChord: boolean;
-	dispatchParts: string[];
+	dispatchParts: Array<string | null>;
 }
 
 function toIResolvedKeybinding(kb: ResolvedKeybinding): IResolvedKeybinding {

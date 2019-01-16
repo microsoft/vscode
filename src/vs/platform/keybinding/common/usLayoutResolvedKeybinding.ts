@@ -160,7 +160,7 @@ export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 	}
 
 	public getParts(): ResolvedKeybindingPart[] {
-		return this._parts.map(this._toResolvedKeybindingPart);
+		return this._parts.map(this._toResolvedKeybindingPart, this);
 	}
 
 	private _toResolvedKeybindingPart(keybinding: SimpleKeybinding): ResolvedKeybindingPart {

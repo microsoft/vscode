@@ -24,6 +24,9 @@ export class ResolvedKeybindingItem {
 		if (resolvedKeybinding) {
 			let [keypressFirstPart, keypressChordPart] = resolvedKeybinding.getDispatchParts();
 			this.keypressFirstPart = keypressFirstPart;
+			if (keypressChordPart === undefined) {
+				keypressChordPart = null;
+			}
 			this.keypressChordPart = keypressChordPart;
 		} else {
 			this.keypressFirstPart = null;

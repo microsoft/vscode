@@ -148,7 +148,7 @@ export class NativeResolvedKeybinding extends ResolvedKeybinding {
 	}
 
 	public isWYSIWYG(): boolean {
-		return this._parts.every(this._isWYSIWYG);
+		return this._parts.every(this._isWYSIWYG, this);
 	}
 
 	public isChord(): boolean {
@@ -156,7 +156,7 @@ export class NativeResolvedKeybinding extends ResolvedKeybinding {
 	}
 
 	public getParts(): ResolvedKeybindingPart[] {
-		return this._parts.map(this._toResolvedKeybindingPart);
+		return this._parts.map(this._toResolvedKeybindingPart, this);
 	}
 
 	private _toResolvedKeybindingPart(binding: ScanCodeBinding): ResolvedKeybindingPart {
@@ -171,7 +171,11 @@ export class NativeResolvedKeybinding extends ResolvedKeybinding {
 	}
 
 	public getDispatchParts(): (string | null)[] {
-		return this._parts.map(this._mapper.getDispatchStrForScanCodeBinding);
+		let dispatchParts = [];
+		for (let part of this._parts) {
+			dispatchParts.push(part ? this._mapper.getDispatchStrForScanCodeBinding(part) : null);
+		}
+		return dispatchParts;
 	}
 }
 
@@ -1026,7 +1030,10 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 	}
 
 	public resolveKeybinding(keybinding: Keybinding): NativeResolvedKeybinding[] {
-		let chordParts = keybinding.parts.map(this.simpleKeybindingToScanCodeBinding);
+		let chordParts: ScanCodeBinding[][] = [];
+		for (let part of keybinding.parts) {
+			chordParts.push(this.simpleKeybindingToScanCodeBinding(part));
+		}
 		let result: NativeResolvedKeybinding[] = [];
 		this._resolveKeybindingPart(chordParts, 0, [], result);
 		return result;
