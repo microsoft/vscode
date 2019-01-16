@@ -312,7 +312,7 @@ class WelcomePage {
 			if (!ul) {
 				return;
 			}
-			const moreRecent = ul.querySelector('.moreRecent');
+			const moreRecent = ul.querySelector('.moreRecent')!;
 			const workspacesToShow = workspaces.slice(0, 5);
 			const updateEntries = () => {
 				const listEntries = this.createListEntries(workspacesToShow);
