@@ -178,6 +178,8 @@ export class ExplorerView extends ViewletPanel {
 			if (isEditing) {
 				DOM.addClass(this.tree.getHTMLElement(), 'highlight');
 				this.tree.reveal(e);
+			} else {
+				this.tree.domFocus();
 			}
 		}));
 		this.disposables.push(this.explorerService.onDidSelectItem(e => this.onSelectItem(e.item, e.reveal)));
