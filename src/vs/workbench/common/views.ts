@@ -297,7 +297,7 @@ export interface IRevealOptions {
 export interface ICustomViewDescriptor extends IViewDescriptor {
 
 	readonly treeView: ITreeView;
-
+	readonly extensionId: ExtensionIdentifier;
 }
 
 export type TreeViewItemHandleArg = {
