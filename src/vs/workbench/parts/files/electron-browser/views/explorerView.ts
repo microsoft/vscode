@@ -298,7 +298,9 @@ export class ExplorerView extends ViewletPanel {
 					return;
 				}
 				if (selection[0].isDirectory) {
-					this.tree.toggleCollapsed(selection[0]);
+					if (e.browserEvent instanceof KeyboardEvent) {
+						this.tree.toggleCollapsed(selection[0]);
+					}
 					return;
 				}
 				let isDoubleClick = false;
