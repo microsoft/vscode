@@ -102,6 +102,7 @@ export class ContextView extends Disposable {
 
 	private container: HTMLElement | null;
 	private view: HTMLElement;
+	private block: HTMLElement | null;
 	private delegate: IDelegate | null;
 	private toDisposeOnClean: IDisposable | null;
 	private toDisposeOnSetContainer: IDisposable;
@@ -160,6 +161,9 @@ export class ContextView extends Disposable {
 
 		// Render content
 		this.toDisposeOnClean = delegate.render(this.view);
+
+		// Render invisible div to block mouse interaction in the rest of the UI
+		this.block = this.view.appendChild(DOM.$('.context-view-block'));
 
 		// Set active delegate
 		this.delegate = delegate;
@@ -268,6 +272,11 @@ export class ContextView extends Disposable {
 		if (this.toDisposeOnClean) {
 			this.toDisposeOnClean.dispose();
 			this.toDisposeOnClean = null;
+		}
+
+		if (this.block) {
+			this.block.remove();
+			this.block = null;
 		}
 
 		DOM.hide(this.view);

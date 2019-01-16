@@ -16,7 +16,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
-import { addDisposableListener, EventType, EventHelper, isAncestor } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { attachMenuStyler } from 'vs/platform/theme/common/styler';
 import { domEvent } from 'vs/base/browser/event';
 
@@ -78,13 +78,6 @@ export class ContextMenuHandler {
 				const actionRunner = delegate.actionRunner || new ActionRunner();
 				actionRunner.onDidBeforeRun(this.onActionRun, this, menuDisposables);
 				actionRunner.onDidRun(this.onDidActionRun, this, menuDisposables);
-				domEvent(document.body, EventType.MOUSE_DOWN, true)((e: MouseEvent) => {
-					if (!e.target || !isAncestor(e.target as HTMLElement, container)) {
-						EventHelper.stop(e, true);
-						this.contextViewService.hideContextView();
-					}
-				}, this, menuDisposables);
-
 				menu = new Menu(container, actions, {
 					actionItemProvider: delegate.getActionItem,
 					context: delegate.getActionsContext ? delegate.getActionsContext() : null,
