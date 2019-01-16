@@ -494,7 +494,10 @@ export class RawDebugSession {
 
 		switch (request.command) {
 			case 'launchVSCode':
-				this.launch(<ILaunchVSCodeArguments>request.arguments).then(_ => {
+				this.launchVsCode(<ILaunchVSCodeArguments>request.arguments).then(pid => {
+					response.body = {
+						processId: pid
+					};
 					safeSendResponse(response);
 				}, err => {
 					response.success = false;
@@ -539,41 +542,40 @@ export class RawDebugSession {
 		}
 	}
 
-	private launch(VSCodeArgs: ILaunchVSCodeArguments): Promise<void> {
-
+	private launchVsCode(args: ILaunchVSCodeArguments): Promise<number> {
 
 		const spawnOpts: cp.SpawnOptions = {
 			detached: false	// https://github.com/Microsoft/vscode/issues/57018
 		};
 
-		if (VSCodeArgs.env) {
+		if (args.env) {
 			// merge environment variables into a copy of the process.env
-			const envArgs = objects.mixin(objects.mixin({}, process.env), VSCodeArgs.env);
+			const envArgs = objects.mixin(objects.mixin({}, process.env), args.env);
 			// and delete some if necessary
 			Object.keys(envArgs).filter(k => envArgs[k] === null).forEach(key => delete envArgs[key]);
 			spawnOpts.env = envArgs;
 		}
 
-		let spawnArgs = [].concat(VSCodeArgs.options);
+		let spawnArgs = [].concat(args.options);
 
-		switch (VSCodeArgs.debugMode) {
+		switch (args.debugMode) {
 			case 'noDebug':
 				break;
 			case 'break':
-				spawnArgs.push(`--inspect-brk-extensions=${VSCodeArgs.debugPort}`);
+				spawnArgs.push(`--inspect-brk-extensions=${args.debugPort}`);
 				break;
 			case 'noBreak':
-				spawnArgs.push(`--inspect-extensions=${VSCodeArgs.debugPort}`);
+				spawnArgs.push(`--inspect-extensions=${args.debugPort}`);
 				break;
 		}
 
 		// pass the debug session ID to the EH so that broadcast events know where they come from
-		if (VSCodeArgs.sessionId) {
-			spawnArgs.push(`--debugId=${VSCodeArgs.sessionId}`);
+		if (args.sessionId) {
+			spawnArgs.push(`--debugId=${args.sessionId}`);
 		}
 
-		if (VSCodeArgs.extensionDevelopmentPath) {
-			spawnArgs.push(`--extensionDevelopmentPath=${VSCodeArgs.extensionDevelopmentPath}`);
+		if (args.extensionDevelopmentPath) {
+			spawnArgs.push(`--extensionDevelopmentPath=${args.extensionDevelopmentPath}`);
 		}
 
 		let runtimeExecutable = this.environmentService['execPath'];
@@ -588,12 +590,12 @@ export class RawDebugSession {
 			const vscodeWorkspacePath = runtimeExecutable.substr(0, electronIdx);
 
 			// only add path if user hasn't already added that path
-			if (VSCodeArgs.pathArgs.length === 0 || VSCodeArgs.pathArgs[0].path.indexOf(vscodeWorkspacePath) !== 0) {
+			if (args.pathArgs.length === 0 || args.pathArgs[0].path.indexOf(vscodeWorkspacePath) !== 0) {
 				spawnArgs.push(vscodeWorkspacePath);
 			}
 		}
 
-		VSCodeArgs.pathArgs.forEach(p => {
+		args.pathArgs.forEach(p => {
 			switch (p.type) {
 				case 'file':
 					spawnArgs.push(`--file-uri=${p.path}`);
@@ -629,14 +631,14 @@ export class RawDebugSession {
 			}
 		}
 
-		return new Promise<void>((resolve, reject) => {
+		return new Promise((resolve, reject) => {
 			const process = cp.spawn(runtimeExecutable, spawnArgs, spawnOpts);
 			process.on('error', error => {
 				reject(error);
 			});
 			process.on('exit', code => {
 				if (code === 0) {
-					resolve();
+					resolve(process.pid);
 				} else {
 					reject(new Error(`VS Code exited with ${code}`));
 				}
