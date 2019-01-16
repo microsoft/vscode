@@ -842,7 +842,7 @@ export class TabsTitleControl extends TitleControl {
 
 		['mru', 'ltr', 'rtl'].forEach(option => {
 			const domAction = options.tabClosingOrder === option ? addClass : removeClass;
-			domAction(tabContainer, `closing-tab-order-${option}`);
+			domAction(tabContainer, `tab-closing-order-${option}`);
 		});
 
 		if (options.showIcons && !!options.iconTheme) {
