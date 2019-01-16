@@ -689,11 +689,16 @@ export class TerminalTaskSystem implements ITaskSystem {
 		});
 	}
 
+	private createTerminalName(task: CustomTask | ContributedTask): string {
+		const needsFolderQualification = this.currentTask.workspaceFolder && this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE;
+		return nls.localize('TerminalTaskSystem.terminalName', 'Task - {0}', needsFolderQualification ? task.getQualifiedLabel() : task.configurationProperties.name);
+	}
+
 	private createShellLaunchConfig(task: CustomTask | ContributedTask, variableResolver: VariableResolver, platform: Platform.Platform, options: CommandOptions, command: CommandString, args: CommandString[], waitOnExit: boolean | string): IShellLaunchConfig | undefined {
 		let shellLaunchConfig: IShellLaunchConfig;
 		let isShellCommand = task.command.runtime === RuntimeType.Shell;
 		let needsFolderQualification = this.currentTask.workspaceFolder && this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE;
-		let terminalName = nls.localize('TerminalTaskSystem.terminalName', 'Task - {0}', needsFolderQualification ? task.getQualifiedLabel() : task.configurationProperties.name);
+		let terminalName = this.createTerminalName(task);
 		let originalCommand = task.command.name;
 		if (isShellCommand) {
 			shellLaunchConfig = { name: terminalName, executable: undefined, args: undefined, waitOnExit };
@@ -775,7 +780,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 				}
 			}
 		} else {
-			let commandExecutable = CommandString.value(command);
+			let commandExecutable = task.command.runtime !== RuntimeType.ExtensionCallback ? CommandString.value(command) : undefined;
 			let executable = !isShellCommand
 				? this.resolveVariable(variableResolver, '${' + TerminalTaskSystem.ProcessVarName + '}')
 				: commandExecutable;
@@ -834,9 +839,8 @@ export class TerminalTaskSystem implements ITaskSystem {
 	private createTerminal(task: CustomTask | ContributedTask, resolver: VariableResolver): [ITerminalInstance | undefined, string | undefined, TaskError | undefined] {
 		let platform = resolver.taskSystemInfo ? resolver.taskSystemInfo.platform : Platform.platform;
 		let options = this.resolveOptions(resolver, task.command.options);
+
 		let waitOnExit: boolean | string = false;
-		let { command, args } = this.resolveCommandAndArgs(resolver, task.command);
-		let commandExecutable = CommandString.value(command);
 		const presentationOptions = task.command.presentation;
 		if (!presentationOptions) {
 			throw new Error('Task presentation options should not be undefined here.');
@@ -851,10 +855,23 @@ export class TerminalTaskSystem implements ITaskSystem {
 				waitOnExit = true;
 			}
 		}
-		this.currentTask.shellLaunchConfig = this.isRerun ? this.lastTask.getVerifiedTask().shellLaunchConfig : this.createShellLaunchConfig(task, resolver, platform, options, command, args, waitOnExit);
-		if (this.currentTask.shellLaunchConfig === undefined) {
-			return [undefined, undefined, new TaskError(Severity.Error, nls.localize('TerminalTaskSystem', 'Can\'t execute a shell command on an UNC drive using cmd.exe.'), TaskErrors.UnknownError)];
+
+		let commandExecutable: string | undefined;
+		let command: CommandString | undefined;
+		let args: CommandString[] | undefined;
+
+		if (task.command.runtime !== RuntimeType.ExtensionCallback) {
+			let resolvedResult: { command: CommandString, args: CommandString[] } = this.resolveCommandAndArgs(resolver, task.command);
+			command = resolvedResult.command;
+			args = resolvedResult.args;
+			commandExecutable = CommandString.value(command);
+
+			this.currentTask.shellLaunchConfig = this.isRerun ? this.lastTask.getVerifiedTask().shellLaunchConfig : this.createShellLaunchConfig(task, resolver, platform, options, command, args, waitOnExit);
+			if (this.currentTask.shellLaunchConfig === undefined) {
+				return [undefined, undefined, new TaskError(Severity.Error, nls.localize('TerminalTaskSystem', 'Can\'t execute a shell command on an UNC drive using cmd.exe.'), TaskErrors.UnknownError)];
+			}
 		}
+
 		let prefersSameTerminal = presentationOptions.panel === PanelKind.Dedicated;
 		let allowsSharedTerminal = presentationOptions.panel === PanelKind.Shared;
 
@@ -873,14 +890,21 @@ export class TerminalTaskSystem implements ITaskSystem {
 			}
 		}
 		if (terminalToReuse) {
-			terminalToReuse.terminal.reuseTerminal(this.currentTask.shellLaunchConfig);
+			if (task.command.runtime !== RuntimeType.ExtensionCallback) {
+				if (!this.currentTask.shellLaunchConfig) {
+					throw new Error('Task shell launch configuration should not be undefined here.');
+				}
+
+				terminalToReuse.terminal.reuseTerminal(this.currentTask.shellLaunchConfig);
+			}
+
 			if (task.command.presentation && task.command.presentation.clear) {
 				terminalToReuse.terminal.clear();
 			}
 			return [terminalToReuse.terminal, commandExecutable, undefined];
 		}
 
-		const result = this.terminalService.createTerminal(this.currentTask.shellLaunchConfig);
+		const result = task.command.runtime !== RuntimeType.ExtensionCallback ? this.terminalService.createTerminal(this.currentTask.shellLaunchConfig) : this.terminalService.createTerminalRenderer(this.createTerminalName(task));
 		const terminalKey = result.id.toString();
 		result.onDisposed((terminal) => {
 			let terminalData = this.terminals[terminalKey];
@@ -1016,6 +1040,12 @@ export class TerminalTaskSystem implements ITaskSystem {
 	}
 
 	private collectCommandVariables(variables: Set<string>, command: CommandConfiguration, task: CustomTask | ContributedTask): void {
+		// An extension callback should have everything it needs already as it provided
+		// the callback.
+		if (command.runtime === RuntimeType.ExtensionCallback) {
+			return;
+		}
+
 		if (command.name === undefined) {
 			throw new Error('Command name should never be undefined here.');
 		}

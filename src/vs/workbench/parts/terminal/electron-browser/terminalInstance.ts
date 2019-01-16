@@ -260,6 +260,8 @@ export class TerminalInstance implements ITerminalInstance {
 		this._logService.trace(`terminalInstance#ctor (id: ${this.id})`, this._shellLaunchConfig);
 
 		this._initDimensions();
+		// There may not be an executable name if a terminal is being used
+		// for rendering as well as input\output
 		if (!this.shellLaunchConfig.isRendererOnly) {
 			this._createProcess();
 		} else {

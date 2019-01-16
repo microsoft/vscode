@@ -1621,8 +1621,34 @@ export enum TaskScope {
 	Workspace = 2
 }
 
+export class ExtensionCallbackExecution implements vscode.ExtensionCallbackExecution {
+	private _callback: (args: vscode.ExtensionCallbackExecutionArgs, cancellationToken: vscode.CancellationToken) => Thenable<void>;
+
+	constructor(callback: (args: vscode.ExtensionCallbackExecutionArgs, cancellationToken: vscode.CancellationToken) => Thenable<void>) {
+		this._callback = callback;
+	}
+
+	public computeId(): string {
+		const hash = crypto.createHash('md5');
+		hash.update('extensionCallback');
+		// TODO: How is this ID used. Not sure how to create a valid ID from a function.
+		// TODO: Also not clear on how the ID is used
+		hash.update(generateUuid());
+		return hash.digest('hex');
+	}
+
+	public set callback(value: (args: vscode.ExtensionCallbackExecutionArgs, cancellationToken: vscode.CancellationToken) => Thenable<void>) {
+		this._callback = value;
+	}
+
+	public get callback(): (args: vscode.ExtensionCallbackExecutionArgs, cancellationToken: vscode.CancellationToken) => Thenable<void> {
+		return this._callback;
+	}
+}
+
 export class Task implements vscode.Task {
 
+	private static ExtensionCallbackType: string = 'extensionCallback';
 	private static ProcessType: string = 'process';
 	private static ShellType: string = 'shell';
 	private static EmptyType: string = '$empty';
@@ -1632,7 +1658,7 @@ export class Task implements vscode.Task {
 	private _definition: vscode.TaskDefinition;
 	private _scope: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder | undefined;
 	private _name: string;
-	private _execution: ProcessExecution | ShellExecution | undefined;
+	private _execution: ProcessExecution | ShellExecution | ExtensionCallbackExecution | undefined;
 	private _problemMatchers: string[];
 	private _hasDefinedMatchers: boolean;
 	private _isBackground: boolean;
@@ -1641,8 +1667,8 @@ export class Task implements vscode.Task {
 	private _presentationOptions: vscode.TaskPresentationOptions;
 	private _runOptions: vscode.RunOptions;
 
-	constructor(definition: vscode.TaskDefinition, name: string, source: string, execution?: ProcessExecution | ShellExecution, problemMatchers?: string | string[]);
-	constructor(definition: vscode.TaskDefinition, scope: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder, name: string, source: string, execution?: ProcessExecution | ShellExecution, problemMatchers?: string | string[]);
+	constructor(definition: vscode.TaskDefinition, name: string, source: string, execution?: ProcessExecution | ShellExecution | ExtensionCallbackExecution, problemMatchers?: string | string[]);
+	constructor(definition: vscode.TaskDefinition, scope: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder, name: string, source: string, execution?: ProcessExecution | ShellExecution | ExtensionCallbackExecution, problemMatchers?: string | string[]);
 	constructor(definition: vscode.TaskDefinition, arg2: string | (vscode.TaskScope.Global | vscode.TaskScope.Workspace) | vscode.WorkspaceFolder, arg3: any, arg4?: any, arg5?: any, arg6?: any) {
 		this.definition = definition;
 		let problemMatchers: string | string[];
@@ -1707,6 +1733,11 @@ export class Task implements vscode.Task {
 				type: Task.ShellType,
 				id: this._execution.computeId()
 			};
+		} else if (this._execution instanceof ExtensionScriptApis) {
+			this._definition = {
+				type: Task.ExtensionCallbackType,
+				id: this._execution.computeId()
+			};
 		} else {
 			this._definition = {
 				type: Task.EmptyType,
@@ -1748,11 +1779,11 @@ export class Task implements vscode.Task {
 		this._name = value;
 	}
 
-	get execution(): ProcessExecution | ShellExecution | undefined {
+	get execution(): ProcessExecution | ShellExecution | ExtensionCallbackExecution | undefined {
 		return this._execution;
 	}
 
-	set execution(value: ProcessExecution | ShellExecution | undefined) {
+	set execution(value: ProcessExecution | ShellExecution | ExtensionCallbackExecution | undefined) {
 		if (value === null) {
 			value = undefined;
 		}

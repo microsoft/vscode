@@ -19,8 +19,11 @@ import * as types from 'vs/workbench/api/node/extHostTypes';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import * as vscode from 'vscode';
 import {
-	TaskDefinitionDTO, TaskExecutionDTO, TaskPresentationOptionsDTO, ProcessExecutionOptionsDTO, ProcessExecutionDTO,
-	ShellExecutionOptionsDTO, ShellExecutionDTO, TaskDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO, TaskSystemInfoDTO, TaskSetDTO
+	TaskDefinitionDTO, TaskExecutionDTO, TaskPresentationOptionsDTO,
+	ProcessExecutionOptionsDTO, ProcessExecutionDTO,
+	ShellExecutionOptionsDTO, ShellExecutionDTO,
+	CallbackExecutionDTO,
+	TaskDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO, TaskSystemInfoDTO, TaskSetDTO
 } from '../shared/tasks';
 import { ExtHostVariableResolverService } from 'vs/workbench/api/node/extHostDebugService';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
@@ -74,7 +77,7 @@ namespace ProcessExecutionOptionsDTO {
 }
 
 namespace ProcessExecutionDTO {
-	export function is(value: ShellExecutionDTO | ProcessExecutionDTO): value is ProcessExecutionDTO {
+	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CallbackExecutionDTO): value is ProcessExecutionDTO {
 		let candidate = value as ProcessExecutionDTO;
 		return candidate && !!candidate.process;
 	}
@@ -115,7 +118,7 @@ namespace ShellExecutionOptionsDTO {
 }
 
 namespace ShellExecutionDTO {
-	export function is(value: ShellExecutionDTO | ProcessExecutionDTO): value is ShellExecutionDTO {
+	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CallbackExecutionDTO): value is ShellExecutionDTO {
 		let candidate = value as ShellExecutionDTO;
 		return candidate && (!!candidate.commandLine || !!candidate.command);
 	}
@@ -145,6 +148,19 @@ namespace ShellExecutionDTO {
 		} else {
 			return new types.ShellExecution(value.command, value.args ? value.args : [], value.options);
 		}
+	}
+}
+
+namespace CallbackExecutionDTO {
+	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CallbackExecutionDTO): value is CallbackExecutionDTO {
+		let candidate = value as CallbackExecutionDTO;
+		return candidate && candidate.extensionCallback === 'extensionCallback';
+	}
+
+	export function from(value: vscode.ExtensionCallbackExecution): CallbackExecutionDTO {
+		return {
+			extensionCallback: 'extensionCallback'
+		};
 	}
 }
 
@@ -181,12 +197,15 @@ namespace TaskDTO {
 		if (value === undefined || value === null) {
 			return undefined;
 		}
-		let execution: ShellExecutionDTO | ProcessExecutionDTO;
+		let execution: ShellExecutionDTO | ProcessExecutionDTO | CallbackExecutionDTO;
 		if (value.execution instanceof types.ProcessExecution) {
 			execution = ProcessExecutionDTO.from(value.execution);
 		} else if (value.execution instanceof types.ShellExecution) {
 			execution = ShellExecutionDTO.from(value.execution);
+		} else if (value.execution instanceof types.ExtensionCallbackExecution) {
+			execution = CallbackExecutionDTO.from(value.execution);
 		}
+
 		let definition: TaskDefinitionDTO = TaskDefinitionDTO.from(value.definition);
 		let scope: number | UriComponents;
 		if (value.scope) {

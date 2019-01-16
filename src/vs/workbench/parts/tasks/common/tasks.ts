@@ -224,7 +224,8 @@ export namespace PresentationOptions {
 
 export enum RuntimeType {
 	Shell = 1,
-	Process = 2
+	Process = 2,
+	ExtensionCallback = 3
 }
 
 export namespace RuntimeType {
@@ -234,6 +235,8 @@ export namespace RuntimeType {
 				return RuntimeType.Shell;
 			case 'process':
 				return RuntimeType.Process;
+			case 'extensionCallback':
+				return RuntimeType.ExtensionCallback;
 			default:
 				return RuntimeType.Process;
 		}

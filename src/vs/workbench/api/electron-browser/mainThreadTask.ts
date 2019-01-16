@@ -31,7 +31,8 @@ import { ExtHostContext, MainThreadTaskShape, ExtHostTaskShape, MainContext, IEx
 import {
 	TaskDefinitionDTO, TaskExecutionDTO, ProcessExecutionOptionsDTO, TaskPresentationOptionsDTO,
 	ProcessExecutionDTO, ShellExecutionDTO, ShellExecutionOptionsDTO, TaskDTO, TaskSourceDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO, TaskSystemInfoDTO,
-	RunOptionsDTO
+	RunOptionsDTO,
+	CallbackExecutionDTO
 } from 'vs/workbench/api/shared/tasks';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 
@@ -138,7 +139,7 @@ namespace ProcessExecutionOptionsDTO {
 }
 
 namespace ProcessExecutionDTO {
-	export function is(value: ShellExecutionDTO | ProcessExecutionDTO): value is ProcessExecutionDTO {
+	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CallbackExecutionDTO): value is ProcessExecutionDTO {
 		let candidate = value as ProcessExecutionDTO;
 		return candidate && !!candidate.process;
 	}
@@ -206,7 +207,7 @@ namespace ShellExecutionOptionsDTO {
 }
 
 namespace ShellExecutionDTO {
-	export function is(value: ShellExecutionDTO | ProcessExecutionDTO): value is ShellExecutionDTO {
+	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CallbackExecutionDTO): value is ShellExecutionDTO {
 		let candidate = value as ShellExecutionDTO;
 		return candidate && (!!candidate.commandLine || !!candidate.command);
 	}
@@ -234,6 +235,26 @@ namespace ShellExecutionDTO {
 			result.options = ShellExecutionOptionsDTO.to(value.options);
 		}
 		return result;
+	}
+}
+
+namespace CallbackExecutionDTO {
+	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CallbackExecutionDTO): value is CallbackExecutionDTO {
+		let candidate = value as CallbackExecutionDTO;
+		return candidate && candidate.extensionCallback === 'extensionCallback';
+	}
+
+	export function from(value: CommandConfiguration): CallbackExecutionDTO {
+		return {
+			extensionCallback: 'extensionCallback'
+		};
+	}
+
+	export function to(value: CallbackExecutionDTO): CommandConfiguration {
+		return {
+			runtime: RuntimeType.ExtensionCallback,
+			presentation: undefined
+		};
 	}
 }
 
@@ -336,6 +357,8 @@ namespace TaskDTO {
 			command = ShellExecutionDTO.to(task.execution);
 		} else if (ProcessExecutionDTO.is(task.execution)) {
 			command = ProcessExecutionDTO.to(task.execution);
+		} else if (CallbackExecutionDTO.is(task.execution)) {
+			command = CallbackExecutionDTO.to(task.execution);
 		}
 		if (!command) {
 			return undefined;
