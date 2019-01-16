@@ -430,7 +430,8 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			accessibilityProvider
 		}, {
 				autoExpandSingleChildren: true,
-				ariaLabel: nls.localize('treeAriaLabel', "Files Explorer")
+				ariaLabel: nls.localize('treeAriaLabel', "Files Explorer"),
+				indentPixels: 20
 			});
 
 		// Bind context keys
