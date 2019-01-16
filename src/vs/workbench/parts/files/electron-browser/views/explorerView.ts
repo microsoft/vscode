@@ -293,8 +293,12 @@ export class ExplorerView extends ViewletPanel {
 			const selection = e.elements;
 			// Do not react if the user is expanding selection
 			if (selection && selection.length === 1) {
-				if (selection[0].isDirectory || !selection[0].name) {
-					// Do not react if user is clicking on directories or explorer items which are input placeholders
+				if (!selection[0].name) {
+					// Do not react if user is clicking on explorer items which are input placeholders
+					return;
+				}
+				if (selection[0].isDirectory) {
+					this.tree.toggleCollapsed(selection[0]);
 					return;
 				}
 				let isDoubleClick = false;
