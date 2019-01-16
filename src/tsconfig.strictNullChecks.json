@@ -591,6 +591,7 @@
 		"./vs/workbench/parts/codeEditor/electron-browser/selectionClipboard.ts",
 		"./vs/workbench/parts/codeEditor/electron-browser/simpleEditorOptions.ts",
 		"./vs/workbench/parts/codeEditor/electron-browser/sleepResumeRepaintMinimap.ts",
+		"./vs/workbench/parts/codeEditor/electron-browser/suggestEnabledInput.ts",
 		"./vs/workbench/parts/codeEditor/electron-browser/textMate/inspectTMScopes.ts",
 		"./vs/workbench/parts/codeEditor/electron-browser/toggleMinimap.ts",
 		"./vs/workbench/parts/codeEditor/electron-browser/toggleMultiCursorModifier.ts",
