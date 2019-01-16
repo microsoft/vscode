@@ -89,14 +89,14 @@ suite('ExtensionEnablementService Test', () => {
 		return testObject.setEnablement([aLocalExtension('pub.a')], EnablementState.Disabled)
 			.then(() => {
 				assert.ok(target.calledOnce);
-				assert.deepEqual((<IExtension>target.args[0][0]).identifier, { id: 'pub.a' });
+				assert.deepEqual((<IExtension>target.args[0][0][0]).identifier, { id: 'pub.a' });
 			});
 	});
 
 	test('test disable an extension globally again should return a falsy promise', () => {
 		return testObject.setEnablement([aLocalExtension('pub.a')], EnablementState.Disabled)
 			.then(() => testObject.setEnablement([aLocalExtension('pub.a')], EnablementState.Disabled))
-			.then(value => assert.ok(!value));
+			.then(value => assert.ok(!value[0]));
 	});
 
 	test('test state of globally disabled extension', () => {
@@ -124,7 +124,7 @@ suite('ExtensionEnablementService Test', () => {
 	test('test disable an extension for workspace again should return a falsy promise', () => {
 		return testObject.setEnablement([aLocalExtension('pub.a')], EnablementState.WorkspaceDisabled)
 			.then(() => testObject.setEnablement([aLocalExtension('pub.a')], EnablementState.WorkspaceDisabled))
-			.then(value => assert.ok(!value));
+			.then(value => assert.ok(!value[0]));
 	});
 
 	test('test state of workspace disabled extension', () => {
@@ -204,7 +204,7 @@ suite('ExtensionEnablementService Test', () => {
 			.then(() => testObject.setEnablement([aLocalExtension('pub.a')], EnablementState.Disabled))
 			.then(() => {
 				assert.ok(target.calledOnce);
-				assert.deepEqual((<IExtension>target.args[0][0]).identifier, { id: 'pub.a' });
+				assert.deepEqual((<IExtension>target.args[0][0][0]).identifier, { id: 'pub.a' });
 			});
 	});
 
@@ -228,7 +228,7 @@ suite('ExtensionEnablementService Test', () => {
 			.then(() => testObject.setEnablement([aLocalExtension('pub.a')], EnablementState.WorkspaceDisabled))
 			.then(() => {
 				assert.ok(target.calledOnce);
-				assert.deepEqual((<IExtension>target.args[0][0]).identifier, { id: 'pub.a' });
+				assert.deepEqual((<IExtension>target.args[0][0][0]).identifier, { id: 'pub.a' });
 			});
 	});
 
@@ -258,13 +258,13 @@ suite('ExtensionEnablementService Test', () => {
 			.then(() => testObject.setEnablement([aLocalExtension('pub.a')], EnablementState.Enabled))
 			.then(() => {
 				assert.ok(target.calledOnce);
-				assert.deepEqual((<IExtension>target.args[0][0]).identifier, { id: 'pub.a' });
+				assert.deepEqual((<IExtension>target.args[0][0][0]).identifier, { id: 'pub.a' });
 			});
 	});
 
 	test('test enable an extension globally when already enabled return falsy promise', () => {
 		return testObject.setEnablement([aLocalExtension('pub.a')], EnablementState.Enabled)
-			.then(value => assert.ok(!value));
+			.then(value => assert.ok(!value[0]));
 	});
 
 	test('test enable an extension for workspace', () => {
@@ -287,7 +287,7 @@ suite('ExtensionEnablementService Test', () => {
 			.then(() => testObject.setEnablement([aLocalExtension('pub.b')], EnablementState.WorkspaceEnabled))
 			.then(() => {
 				assert.ok(target.calledOnce);
-				assert.deepEqual((<IExtension>target.args[0][0]).identifier, { id: 'pub.b' });
+				assert.deepEqual((<IExtension>target.args[0][0][0]).identifier, { id: 'pub.b' });
 			});
 	});
 
