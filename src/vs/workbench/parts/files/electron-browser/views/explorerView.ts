@@ -64,6 +64,7 @@ export class ExplorerView extends ViewletPanel {
 	private decorationProvider: ExplorerDecorationsProvider;
 	private autoReveal = false;
 	private ignoreActiveEditorChange;
+	private previousSelection: ExplorerItem[] = [];
 
 	constructor(
 		options: IViewletPanelOptions,
@@ -291,8 +292,12 @@ export class ExplorerView extends ViewletPanel {
 				return;
 			}
 			const selection = e.elements;
-			// Do not react if the user is expanding selection
-			if (selection && selection.length === 1) {
+			const wasSelected = this.previousSelection.indexOf(selection[0]) >= 0;
+			this.previousSelection = selection;
+			// Do not react if the user is expanding selection.
+			// Check if the item was previously also selected, if yes the user is simply expanding / collapsing current selection #66589.
+			if (selection.length === 1 && !wasSelected) {
+				// Do not react if user is clicking on explorer items which are input placeholders
 				if (!selection[0].name) {
 					// Do not react if user is clicking on explorer items which are input placeholders
 					return;
