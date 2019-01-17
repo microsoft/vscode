@@ -167,7 +167,7 @@ export class BowerJSONContribution implements IJSONContribution {
 					if (url.indexOf('git://') === 0) {
 						url = url.substring(6);
 					}
-					if (url.lastIndexOf('.git') === url.length - 4) {
+					if (url.length >= 4 && url.substr(url.length - 4) === '.git') {
 						url = url.substring(0, url.length - 4);
 					}
 					return url;

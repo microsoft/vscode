@@ -551,9 +551,6 @@ export class WindowsManager implements IWindowsMainService {
 			if (lastActiveWindow) {
 				usedWindows.push(this.doAddFoldersToExistingWindow(lastActiveWindow, foldersToAdd));
 			}
-
-			// Reset because we handled them
-			foldersToAdd = [];
 		}
 
 		// Handle files to open/diff or to create when we dont open a folder and we do not restore any folder/untitled from hot-exit
