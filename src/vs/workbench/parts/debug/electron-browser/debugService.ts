@@ -428,6 +428,12 @@ export class DebugService implements IDebugService {
 		// this event doesn't go to extensions
 		this._onWillNewSession.fire(session);
 
+		const openDebug = this.configurationService.getValue<IDebugConfiguration>('debug').openDebug;
+		// Open debug viewlet based on the visibility of the side bar and openDebug setting. Do not open for 'run without debug'
+		if (!configuration.resolved.noDebug && (openDebug === 'openOnSessionStart' || (openDebug === 'openOnFirstSessionStart' && this.viewModel.firstSessionStart))) {
+			this.viewletService.openViewlet(VIEWLET_ID).then(undefined, errors.onUnexpectedError);
+		}
+
 		return this.launchOrAttachToSession(session).then(() => {
 
 			// since the initialized response has arrived announce the new Session (including extensions)
@@ -438,14 +444,8 @@ export class DebugService implements IDebugService {
 				this.panelService.openPanel(REPL_ID, false);
 			}
 
-			const openDebug = this.configurationService.getValue<IDebugConfiguration>('debug').openDebug;
-			// Open debug viewlet based on the visibility of the side bar and openDebug setting. Do not open for 'run without debug'
-			if (!configuration.resolved.noDebug && (openDebug === 'openOnSessionStart' || (openDebug === 'openOnFirstSessionStart' && this.viewModel.firstSessionStart))) {
-				this.viewletService.openViewlet(VIEWLET_ID);
-			}
 			this.viewModel.firstSessionStart = false;
 
-			this.debugType.set(session.configuration.type);
 			if (this.model.getSessions().length > 1) {
 				this.viewModel.setMultiSessionView(true);
 			}
@@ -535,7 +535,6 @@ export class DebugService implements IDebugService {
 			}
 
 			if (this.model.getSessions().length === 0) {
-				this.debugType.reset();
 				this.viewModel.setMultiSessionView(false);
 
 				if (this.partService.isVisible(Parts.SIDEBAR_PART) && this.configurationService.getValue<IDebugConfiguration>('debug').openExplorerOnEnd) {
@@ -785,6 +784,11 @@ export class DebugService implements IDebugService {
 		if (stackFrame) {
 			stackFrame.openInEditor(this.editorService, true);
 			aria.alert(nls.localize('debuggingPaused', "Debugging paused {0}, {1} {2}", thread.stoppedDetails ? `, reason ${thread.stoppedDetails.reason}` : '', stackFrame.source ? stackFrame.source.name : '', stackFrame.range.startLineNumber));
+		}
+		if (session) {
+			this.debugType.set(session.configuration.type);
+		} else {
+			this.debugType.reset();
 		}
 
 		this.viewModel.setFocus(stackFrame, thread, session, explicit);

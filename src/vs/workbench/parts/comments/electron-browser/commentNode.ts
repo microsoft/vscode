@@ -227,7 +227,7 @@ export class CommentNode extends Disposable {
 
 			const cancelEditButton = new Button(formActions);
 			cancelEditButton.label = nls.localize('label.cancel', "Cancel");
-			attachButtonStyler(cancelEditButton, this.themeService);
+			this._toDispose.push(attachButtonStyler(cancelEditButton, this.themeService));
 
 			this._toDispose.push(cancelEditButton.onDidClick(_ => {
 				this.removeCommentEditor();
@@ -235,7 +235,7 @@ export class CommentNode extends Disposable {
 
 			this._updateCommentButton = new Button(formActions);
 			this._updateCommentButton.label = UPDATE_COMMENT_LABEL;
-			attachButtonStyler(this._updateCommentButton, this.themeService);
+			this._toDispose.push(attachButtonStyler(this._updateCommentButton, this.themeService));
 
 			this._toDispose.push(this._updateCommentButton.onDidClick(_ => {
 				this.editComment();

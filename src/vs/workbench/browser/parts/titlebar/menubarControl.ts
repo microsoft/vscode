@@ -262,6 +262,9 @@ export class MenubarControl extends Disposable {
 				this.menubar.blur();
 			}));
 		}
+
+		// Update recent menu items on formatter registration
+		this._register(this.labelService.onDidRegisterFormatter(() => { this.onRecentlyOpenedChange(); }));
 	}
 
 	private doUpdateMenubar(firstTime: boolean): void {

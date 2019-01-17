@@ -8,7 +8,7 @@ import { IExpression, IDebugService } from 'vs/workbench/parts/debug/common/debu
 import { Expression, Variable } from 'vs/workbench/parts/debug/common/debugModel';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInputValidationOptions, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { ITreeRenderer, ITreeNode, AbstractTreeRenderer } from 'vs/base/browser/ui/tree/tree';
+import { ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
@@ -124,17 +124,13 @@ export interface IExpressionTemplateData {
 	toDispose: IDisposable[];
 }
 
-export abstract class AbstractExpressionsRenderer
-	extends AbstractTreeRenderer<IExpression, void, IExpressionTemplateData>
-	implements ITreeRenderer<IExpression, void, IExpressionTemplateData>, IDisposable {
+export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpression, void, IExpressionTemplateData> {
 
 	constructor(
 		@IDebugService protected debugService: IDebugService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IThemeService private readonly themeService: IThemeService
-	) {
-		super(debugService.getViewModel().onDidSelectExpression);
-	}
+	) { }
 
 	abstract get templateId(): string;
 
@@ -201,8 +197,6 @@ export abstract class AbstractExpressionsRenderer
 	}
 
 	renderElement(node: ITreeNode<IExpression>, index: number, data: IExpressionTemplateData): void {
-		super.renderElement(node, index, data);
-
 		const { element } = node;
 		if (element === this.debugService.getViewModel().getSelectedExpression()) {
 			data.enableInputBox(element, this.getInputBoxOptions(element));

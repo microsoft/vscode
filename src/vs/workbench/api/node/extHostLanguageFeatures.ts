@@ -143,7 +143,7 @@ class CodeLensAdapter {
 	}
 }
 
-function convertToDefinitionLinks(value: vscode.Definition): modes.DefinitionLink[] {
+function convertToLocationLinks(value: vscode.Definition): modes.LocationLink[] {
 	if (Array.isArray(value)) {
 		return (value as (vscode.DefinitionLink | vscode.Location)[]).map(typeConvert.DefinitionLink.from);
 	} else if (value) {
@@ -159,10 +159,10 @@ class DefinitionAdapter {
 		private readonly _provider: vscode.DefinitionProvider
 	) { }
 
-	provideDefinition(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.DefinitionLink[]> {
+	provideDefinition(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.LocationLink[]> {
 		let doc = this._documents.getDocumentData(resource).document;
 		let pos = typeConvert.Position.to(position);
-		return asPromise(() => this._provider.provideDefinition(doc, pos, token)).then(convertToDefinitionLinks);
+		return asPromise(() => this._provider.provideDefinition(doc, pos, token)).then(convertToLocationLinks);
 	}
 }
 
@@ -173,10 +173,10 @@ class DeclarationAdapter {
 		private readonly _provider: vscode.DeclarationProvider
 	) { }
 
-	provideDeclaration(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.DefinitionLink[]> {
+	provideDeclaration(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.LocationLink[]> {
 		let doc = this._documents.getDocumentData(resource).document;
 		let pos = typeConvert.Position.to(position);
-		return asPromise(() => this._provider.provideDeclaration(doc, pos, token)).then(convertToDefinitionLinks);
+		return asPromise(() => this._provider.provideDeclaration(doc, pos, token)).then(convertToLocationLinks);
 	}
 }
 
@@ -187,10 +187,10 @@ class ImplementationAdapter {
 		private readonly _provider: vscode.ImplementationProvider
 	) { }
 
-	provideImplementation(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.DefinitionLink[]> {
+	provideImplementation(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.LocationLink[]> {
 		let doc = this._documents.getDocumentData(resource).document;
 		let pos = typeConvert.Position.to(position);
-		return asPromise(() => this._provider.provideImplementation(doc, pos, token)).then(convertToDefinitionLinks);
+		return asPromise(() => this._provider.provideImplementation(doc, pos, token)).then(convertToLocationLinks);
 	}
 }
 
@@ -201,10 +201,10 @@ class TypeDefinitionAdapter {
 		private readonly _provider: vscode.TypeDefinitionProvider
 	) { }
 
-	provideTypeDefinition(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.DefinitionLink[]> {
+	provideTypeDefinition(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.LocationLink[]> {
 		const doc = this._documents.getDocumentData(resource).document;
 		const pos = typeConvert.Position.to(position);
-		return asPromise(() => this._provider.provideTypeDefinition(doc, pos, token)).then(convertToDefinitionLinks);
+		return asPromise(() => this._provider.provideTypeDefinition(doc, pos, token)).then(convertToLocationLinks);
 	}
 }
 
@@ -342,7 +342,8 @@ class CodeActionAdapter {
 						command: candidate.command && this._commands.toInternal(candidate.command),
 						diagnostics: candidate.diagnostics && candidate.diagnostics.map(typeConvert.Diagnostic.from),
 						edit: candidate.edit && typeConvert.WorkspaceEdit.from(candidate.edit),
-						kind: candidate.kind && candidate.kind.value
+						kind: candidate.kind && candidate.kind.value,
+						canAutoApply: candidate.canAutoApply,
 					});
 				}
 			}
@@ -1060,7 +1061,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideDefinition(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.DefinitionLink[]> {
+	$provideDefinition(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.LocationLink[]> {
 		return this._withAdapter(handle, DefinitionAdapter, adapter => adapter.provideDefinition(URI.revive(resource), position, token));
 	}
 
@@ -1070,7 +1071,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideDeclaration(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.DefinitionLink[]> {
+	$provideDeclaration(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.LocationLink[]> {
 		return this._withAdapter(handle, DeclarationAdapter, adapter => adapter.provideDeclaration(URI.revive(resource), position, token));
 	}
 
@@ -1080,7 +1081,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideImplementation(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.DefinitionLink[]> {
+	$provideImplementation(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.LocationLink[]> {
 		return this._withAdapter(handle, ImplementationAdapter, adapter => adapter.provideImplementation(URI.revive(resource), position, token));
 	}
 
@@ -1090,7 +1091,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideTypeDefinition(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.DefinitionLink[]> {
+	$provideTypeDefinition(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.LocationLink[]> {
 		return this._withAdapter(handle, TypeDefinitionAdapter, adapter => adapter.provideTypeDefinition(URI.revive(resource), position, token));
 	}
 

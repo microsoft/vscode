@@ -52,7 +52,7 @@ export interface IViewContainersRegistry {
 	 *
 	 * @returns the view container with given id.
 	 */
-	get(id: string): ViewContainer;
+	get(id: string): ViewContainer | undefined;
 }
 
 export class ViewContainer {
@@ -71,19 +71,22 @@ class ViewContainersRegistryImpl implements IViewContainersRegistry {
 	}
 
 	registerViewContainer(id: string, extensionId: ExtensionIdentifier): ViewContainer {
-		if (!this.viewContainers.has(id)) {
-			const viewContainer = new class extends ViewContainer {
-				constructor() {
-					super(id, extensionId);
-				}
-			};
-			this.viewContainers.set(id, viewContainer);
-			this._onDidRegister.fire(viewContainer);
+		const existing = this.viewContainers.get(id);
+		if (existing) {
+			return existing;
 		}
-		return this.get(id);
+
+		const viewContainer = new class extends ViewContainer {
+			constructor() {
+				super(id, extensionId);
+			}
+		};
+		this.viewContainers.set(id, viewContainer);
+		this._onDidRegister.fire(viewContainer);
+		return viewContainer;
 	}
 
-	get(id: string): ViewContainer {
+	get(id: string): ViewContainer | undefined {
 		return this.viewContainers.get(id);
 	}
 }
@@ -294,7 +297,7 @@ export interface IRevealOptions {
 export interface ICustomViewDescriptor extends IViewDescriptor {
 
 	readonly treeView: ITreeView;
-
+	readonly extensionId: ExtensionIdentifier;
 }
 
 export type TreeViewItemHandleArg = {

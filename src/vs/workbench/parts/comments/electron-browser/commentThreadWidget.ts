@@ -80,6 +80,10 @@ export class ReviewZoneWidget extends ZoneWidget {
 		return this._commentThread;
 	}
 
+	public get extensionId(): string {
+		return this._commentThread.extensionId;
+	}
+
 	public get draftMode(): modes.DraftMode {
 		return this._draftMode;
 	}
@@ -305,7 +309,11 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._commentForm = dom.append(this._bodyElement, dom.$('.comment-form'));
 		this._commentEditor = this.instantiationService.createInstance(SimpleCommentEditor, this._commentForm, SimpleCommentEditor.getEditorOptions());
 		const modeId = hasExistingComments ? this._commentThread.threadId : ++INMEM_MODEL_ID;
-		const resource = URI.parse(`${COMMENT_SCHEME}:commentinput-${modeId}.md`);
+		const params = JSON.stringify({
+			extensionId: this.extensionId,
+			commentThreadId: this.commentThread.threadId
+		});
+		const resource = URI.parse(`${COMMENT_SCHEME}:commentinput-${modeId}.md?${params}`);
 		const model = this.modelService.createModel(this._pendingComment || '', this.modeService.createByFilepathOrFirstLine(resource.path), resource, false);
 		this._localToDispose.push(model);
 		this._commentEditor.setModel(model);
@@ -380,7 +388,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 	private createCommentWidgetActions(container: HTMLElement, model: ITextModel) {
 		const button = new Button(container);
-		attachButtonStyler(button, this.themeService);
+		this._disposables.push(attachButtonStyler(button, this.themeService));
 		button.label = 'Add comment';
 
 		button.enabled = model.getValueLength() > 0;
@@ -406,23 +414,23 @@ export class ReviewZoneWidget extends ZoneWidget {
 				const deleteDraftLabel = this.commentService.getDeleteDraftLabel(this._owner);
 				if (deleteDraftLabel) {
 					const deletedraftButton = new Button(container);
-					attachButtonStyler(deletedraftButton, this.themeService);
+					this._disposables.push(attachButtonStyler(deletedraftButton, this.themeService));
 					deletedraftButton.label = deleteDraftLabel;
 					deletedraftButton.enabled = true;
 
-					deletedraftButton.onDidClick(async () => {
+					this._disposables.push(deletedraftButton.onDidClick(async () => {
 						try {
 							await this.commentService.deleteDraft(this._owner, this.editor.getModel().uri);
 						} catch (e) {
 							this.handleError(e);
 						}
-					});
+					}));
 				}
 
 				const submitDraftLabel = this.commentService.getFinishDraftLabel(this._owner);
 				if (submitDraftLabel) {
 					const submitdraftButton = new Button(container);
-					attachButtonStyler(submitdraftButton, this.themeService);
+					this._disposables.push(attachButtonStyler(submitdraftButton, this.themeService));
 					submitdraftButton.label = this.commentService.getFinishDraftLabel(this._owner);
 					submitdraftButton.enabled = true;
 
@@ -444,7 +452,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 				const startDraftLabel = this.commentService.getStartDraftLabel(this._owner);
 				if (startDraftLabel) {
 					const draftButton = new Button(container);
-					attachButtonStyler(draftButton, this.themeService);
+					this._disposables.push(attachButtonStyler(draftButton, this.themeService));
 					draftButton.label = this.commentService.getStartDraftLabel(this._owner);
 
 					draftButton.enabled = model.getValueLength() > 0;
@@ -456,7 +464,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 						}
 					}));
 
-					draftButton.onDidClick(async () => {
+					this._disposables.push(draftButton.onDidClick(async () => {
 						try {
 							await this.commentService.startDraft(this._owner, this.editor.getModel().uri);
 							let lineNumber = this._commentGlyph.getPosition().position.lineNumber;
@@ -464,7 +472,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 						} catch (e) {
 							this.handleError(e);
 						}
-					});
+					}));
 				}
 
 				break;

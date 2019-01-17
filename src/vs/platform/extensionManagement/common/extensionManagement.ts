@@ -7,134 +7,13 @@ import { localize } from 'vs/nls';
 import { Event } from 'vs/base/common/event';
 import { IPager } from 'vs/base/common/paging';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILocalization } from 'vs/platform/localizations/common/localizations';
 import { URI } from 'vs/base/common/uri';
 import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IExtensionManifest, IExtension, ExtensionType } from 'vs/platform/extensions/common/extensions';
 
 export const EXTENSION_IDENTIFIER_PATTERN = '^([a-z0-9A-Z][a-z0-9\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\-A-Z]*)$';
 export const EXTENSION_IDENTIFIER_REGEX = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
-
-export interface ICommand {
-	command: string;
-	title: string;
-	category?: string;
-}
-
-export interface IConfigurationProperty {
-	description: string;
-	type: string | string[];
-	default?: any;
-}
-
-export interface IConfiguration {
-	properties: { [key: string]: IConfigurationProperty; };
-}
-
-export interface IDebugger {
-	label?: string;
-	type: string;
-	runtime: string;
-}
-
-export interface IGrammar {
-	language: string;
-}
-
-export interface IJSONValidation {
-	fileMatch: string;
-	url: string;
-}
-
-export interface IKeyBinding {
-	command: string;
-	key: string;
-	when?: string;
-	mac?: string;
-	linux?: string;
-	win?: string;
-}
-
-export interface ILanguage {
-	id: string;
-	extensions: string[];
-	aliases: string[];
-}
-
-export interface IMenu {
-	command: string;
-	alt?: string;
-	when?: string;
-	group?: string;
-}
-
-export interface ISnippet {
-	language: string;
-}
-
-export interface ITheme {
-	label: string;
-}
-
-export interface IViewContainer {
-	id: string;
-	title: string;
-}
-
-export interface IView {
-	id: string;
-	name: string;
-}
-
-export interface IColor {
-	id: string;
-	description: string;
-	defaults: { light: string, dark: string, highContrast: string };
-}
-
-export interface IExtensionContributions {
-	commands?: ICommand[];
-	configuration?: IConfiguration | IConfiguration[];
-	debuggers?: IDebugger[];
-	grammars?: IGrammar[];
-	jsonValidation?: IJSONValidation[];
-	keybindings?: IKeyBinding[];
-	languages?: ILanguage[];
-	menus?: { [context: string]: IMenu[] };
-	snippets?: ISnippet[];
-	themes?: ITheme[];
-	iconThemes?: ITheme[];
-	viewsContainers?: { [location: string]: IViewContainer[] };
-	views?: { [location: string]: IView[] };
-	colors?: IColor[];
-	localizations?: ILocalization[];
-}
-
-export type ExtensionKind = 'ui' | 'workspace';
-
-export interface IExtensionManifest {
-	name: string;
-	publisher: string;
-	version: string;
-	engines: { vscode: string };
-	displayName?: string;
-	description?: string;
-	main?: string;
-	icon?: string;
-	categories?: string[];
-	keywords?: string[];
-	activationEvents?: string[];
-	extensionDependencies?: string[];
-	extensionPack?: string[];
-	extensionKind?: ExtensionKind;
-	contributes?: IExtensionContributions;
-	repository?: {
-		url: string;
-	};
-	bugs?: {
-		url: string;
-	};
-}
 
 export interface IGalleryExtensionProperties {
 	dependencies?: string[];
@@ -211,20 +90,11 @@ export interface IGalleryMetadata {
 	publisherDisplayName: string;
 }
 
-export const enum LocalExtensionType {
-	System,
-	User
-}
-
-export interface ILocalExtension {
-	type: LocalExtensionType;
-	identifier: IExtensionIdentifier;
-	galleryIdentifier: IExtensionIdentifier;
-	manifest: IExtensionManifest;
+export interface ILocalExtension extends IExtension {
+	readonly manifest: IExtensionManifest;
 	metadata: IGalleryMetadata;
-	location: URI;
-	readmeUrl: string;
-	changelogUrl: string;
+	readmeUrl: URI | null;
+	changelogUrl: URI | null;
 }
 
 export const IExtensionManagementService = createDecorator<IExtensionManagementService>('extensionManagementService');
@@ -325,12 +195,12 @@ export interface IExtensionManagementService {
 	onDidUninstallExtension: Event<DidUninstallExtensionEvent>;
 
 	zip(extension: ILocalExtension): Promise<URI>;
-	unzip(zipLocation: URI, type: LocalExtensionType): Promise<IExtensionIdentifier>;
+	unzip(zipLocation: URI, type: ExtensionType): Promise<IExtensionIdentifier>;
 	install(vsix: URI): Promise<IExtensionIdentifier>;
 	installFromGallery(extension: IGalleryExtension): Promise<void>;
 	uninstall(extension: ILocalExtension, force?: boolean): Promise<void>;
 	reinstallFromGallery(extension: ILocalExtension): Promise<void>;
-	getInstalled(type?: LocalExtensionType): Promise<ILocalExtension[]>;
+	getInstalled(type?: ExtensionType): Promise<ILocalExtension[]>;
 	getExtensionsReport(): Promise<IReportedExtension[]>;
 
 	updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension>;
@@ -368,7 +238,7 @@ export interface IExtensionEnablementService {
 	/**
 	 * Event to listen on for extension enablement changes
 	 */
-	onEnablementChanged: Event<IExtensionIdentifier>;
+	onEnablementChanged: Event<IExtension[]>;
 
 	/**
 	 * Returns all disabled extension identifiers for current workspace
@@ -379,17 +249,17 @@ export interface IExtensionEnablementService {
 	/**
 	 * Returns the enablement state for the given extension
 	 */
-	getEnablementState(extension: ILocalExtension): EnablementState;
+	getEnablementState(extension: IExtension): EnablementState;
 
 	/**
 	 * Returns `true` if the enablement can be changed.
 	 */
-	canChangeEnablement(extension: ILocalExtension): boolean;
+	canChangeEnablement(extension: IExtension): boolean;
 
 	/**
 	 * Returns `true` if the given extension identifier is enabled.
 	 */
-	isEnabled(extension: ILocalExtension): boolean;
+	isEnabled(extension: IExtension): boolean;
 
 	/**
 	 * Enable or disable the given extension.
@@ -400,7 +270,7 @@ export interface IExtensionEnablementService {
 	 *
 	 * Throws error if enablement is requested for workspace and there is no workspace
 	 */
-	setEnablement(extension: ILocalExtension, state: EnablementState): Promise<boolean>;
+	setEnablement(extensions: IExtension[], state: EnablementState): Promise<boolean[]>;
 }
 
 export interface IExtensionsConfigContent {

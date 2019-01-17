@@ -471,14 +471,15 @@ export class ExtHostTask implements ExtHostTaskShape {
 		});
 	}
 
-	public $resolveVariables(uriComponents: UriComponents, toResolve: { process?: { name: string; cwd?: string; path?: string }, variables: string[] }): Promise<{ process?: string, variables: { [key: string]: string; } }> {
+	public async $resolveVariables(uriComponents: UriComponents, toResolve: { process?: { name: string; cwd?: string; path?: string }, variables: string[] }): Promise<{ process?: string, variables: { [key: string]: string; } }> {
+		const configProvider = await this._configurationService.getConfigProvider();
 		let uri: URI = URI.revive(uriComponents);
 		let result = {
 			process: undefined as string,
 			variables: Object.create(null)
 		};
 		let workspaceFolder = this._workspaceService.resolveWorkspaceFolder(uri);
-		let resolver = new ExtHostVariableResolverService(this._workspaceService, this._editorService, this._configurationService);
+		let resolver = new ExtHostVariableResolverService(this._workspaceService, this._editorService, configProvider);
 		let ws: IWorkspaceFolder = {
 			uri: workspaceFolder.uri,
 			name: workspaceFolder.name,
@@ -504,7 +505,7 @@ export class ExtHostTask implements ExtHostTaskShape {
 				paths
 			);
 		}
-		return Promise.resolve(result);
+		return result;
 	}
 
 	private nextHandle(): number {

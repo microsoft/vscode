@@ -41,7 +41,7 @@ class MarkerDecorations extends Disposable {
 		}
 	}
 
-	getMarker(decoration: IModelDecoration): IMarker | null {
+	getMarker(decoration: IModelDecoration): IMarker | undefined {
 		return this._markersData.get(decoration.id);
 	}
 }
@@ -65,7 +65,7 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 
 	getMarker(model: ITextModel, decoration: IModelDecoration): IMarker | null {
 		const markerDecorations = this._markerDecorations.get(MODEL_ID(model.uri));
-		return markerDecorations ? markerDecorations.getMarker(decoration) : null;
+		return markerDecorations ? markerDecorations.getMarker(decoration) || null : null;
 	}
 
 	private _handleMarkerChange(changedResources: URI[]): void {

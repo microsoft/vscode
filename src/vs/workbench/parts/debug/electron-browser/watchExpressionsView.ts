@@ -26,7 +26,10 @@ import { VariablesRenderer, variableSetEmitter } from 'vs/workbench/parts/debug/
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { WorkbenchAsyncDataTree, IListService } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IAsyncDataSource, ITreeMouseEvent, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
+import { IAsyncDataSource, ITreeMouseEvent, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeDragOverReaction } from 'vs/base/browser/ui/tree/tree';
+import { IDragAndDropData } from 'vs/base/browser/dnd';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 
 const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
 
@@ -51,7 +54,7 @@ export class WatchExpressionsView extends ViewletPanel {
 
 		this.onWatchExpressionsUpdatedScheduler = new RunOnceScheduler(() => {
 			this.needsRefresh = false;
-			this.tree.refresh();
+			this.tree.updateChildren();
 		}, 50);
 	}
 
@@ -61,17 +64,16 @@ export class WatchExpressionsView extends ViewletPanel {
 		CONTEXT_WATCH_EXPRESSIONS_FOCUSED.bindTo(this.contextKeyService.createScoped(treeContainer));
 
 		const expressionsRenderer = this.instantiationService.createInstance(WatchExpressionsRenderer);
-		this.disposables.push(expressionsRenderer);
 		this.tree = new WorkbenchAsyncDataTree(treeContainer, new WatchExpressionsDelegate(), [expressionsRenderer, this.instantiationService.createInstance(VariablesRenderer)],
 			new WatchExpressionsDataSource(), {
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'watchAriaTreeLabel' }, "Debug Watch Expressions"),
 				accessibilityProvider: new WatchExpressionsAccessibilityProvider(),
 				identityProvider: { getId: element => element.getId() },
-				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: e => e }
+				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: e => e },
+				dnd: new WatchExpressionsDragAndDrop(this.debugService),
 			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
 
-		// TODO@isidor this is a promise
-		this.tree.setInput(this.debugService);
+		this.tree.setInput(this.debugService).then(undefined, onUnexpectedError);
 
 		const addWatchExpressionAction = new AddWatchExpressionAction(AddWatchExpressionAction.ID, AddWatchExpressionAction.LABEL, this.debugService, this.keybindingService);
 		const collapseAction = new CollapseAction2(this.tree, true, 'explorer-action collapse-explorer');
@@ -84,7 +86,7 @@ export class WatchExpressionsView extends ViewletPanel {
 			if (!this.isBodyVisible()) {
 				this.needsRefresh = true;
 			} else {
-				this.tree.refresh();
+				this.tree.updateChildren();
 			}
 		}));
 		this.disposables.push(this.debugService.getViewModel().onDidFocusStackFrame(() => {
@@ -97,11 +99,16 @@ export class WatchExpressionsView extends ViewletPanel {
 				this.onWatchExpressionsUpdatedScheduler.schedule();
 			}
 		}));
-		this.disposables.push(variableSetEmitter.event(() => this.tree.refresh()));
+		this.disposables.push(variableSetEmitter.event(() => this.tree.updateChildren()));
 
 		this.disposables.push(this.onDidChangeBodyVisibility(visible => {
 			if (visible && this.needsRefresh) {
 				this.onWatchExpressionsUpdatedScheduler.schedule();
+			}
+		}));
+		this.disposables.push(this.debugService.getViewModel().onDidSelectExpression(e => {
+			if (e instanceof Expression && e.name) {
+				this.tree.refresh(e);
 			}
 		}));
 	}
@@ -257,47 +264,43 @@ class WatchExpressionsAccessibilityProvider implements IAccessibilityProvider<IE
 	}
 }
 
-// TODO@Isidor
-// class WatchExpressionsDragAndDrop extends DefaultDragAndDrop {
+class WatchExpressionsDragAndDrop implements ITreeDragAndDrop<IExpression> {
 
-// 	constructor(private debugService: IDebugService) {
-// 		super();
-// 	}
+	constructor(private debugService: IDebugService) { }
 
-// 	getDragURI(tree: ITree, element: Expression): string {
-// 		if (!(element instanceof Expression) || element === this.debugService.getViewModel().getSelectedExpression()) {
-// 			return null;
-// 		}
+	onDragOver(data: IDragAndDropData): boolean | ITreeDragOverReaction {
+		if (!(data instanceof ElementsDragAndDropData)) {
+			return false;
+		}
 
-// 		return element.getId();
-// 	}
+		const expressions = (data as ElementsDragAndDropData<IExpression>).elements;
+		return expressions.length > 0 && expressions[0] instanceof Expression;
+	}
 
-// 	getDragLabel(tree: ITree, elements: Expression[]): string {
-// 		if (elements.length > 1) {
-// 			return String(elements.length);
-// 		}
+	getDragURI(element: IExpression): string | null {
+		if (!(element instanceof Expression) || element === this.debugService.getViewModel().getSelectedExpression()) {
+			return null;
+		}
 
-// 		return elements[0].name;
-// 	}
+		return element.getId();
+	}
 
-// 	onDragOver(tree: ITree, data: IDragAndDropData, target: Expression | DebugModel, originalEvent: DragMouseEvent): IDragOverReaction {
-// 		if (target instanceof Expression || target instanceof DebugModel) {
-// 			return {
-// 				accept: true,
-// 				autoExpand: false
-// 			};
-// 		}
+	getDragLabel(elements: IExpression[]): string | undefined {
+		if (elements.length === 1) {
+			return elements[0].name;
+		}
 
-// 		return DRAG_OVER_REJECT;
-// 	}
+		return undefined;
+	}
 
-// 	drop(tree: ITree, data: IDragAndDropData, target: Expression | DebugModel, originalEvent: DragMouseEvent): void {
-// 		const draggedData = data.getData();
-// 		if (Array.isArray(draggedData)) {
-// 			const draggedElement = <Expression>draggedData[0];
-// 			const watches = this.debugService.getModel().getWatchExpressions();
-// 			const position = target instanceof DebugModel ? watches.length - 1 : watches.indexOf(target);
-// 			this.debugService.moveWatchExpression(draggedElement.getId(), position);
-// 		}
-// 	}
-// }
+	drop(data: IDragAndDropData, targetElement: IExpression): void {
+		if (!(data instanceof ElementsDragAndDropData)) {
+			return;
+		}
+
+		const draggedElement = (data as ElementsDragAndDropData<IExpression>).elements[0];
+		const watches = this.debugService.getModel().getWatchExpressions();
+		const position = targetElement instanceof Expression ? watches.indexOf(targetElement) : watches.length - 1;
+		this.debugService.moveWatchExpression(draggedElement.getId(), position);
+	}
+}

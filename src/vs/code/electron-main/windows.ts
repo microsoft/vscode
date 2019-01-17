@@ -1016,8 +1016,9 @@ export class WindowsManager implements IWindowsMainService {
 
 		// normalize URI
 		uri = normalizePath(uri);
-		if (endsWith(uri.path, '/')) {
-			uri = uri.with({ path: uri.path.substr(0, uri.path.length - 1) });
+		const uriPath = uri.path;
+		if (uriPath.length > 2 && endsWith(uriPath, '/')) {
+			uri = uri.with({ path: uriPath.substr(0, uriPath.length - 1) });
 		}
 		if (isFile) {
 			if (options && options.gotoLineMode) {

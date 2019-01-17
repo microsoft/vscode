@@ -216,10 +216,11 @@ export class ExtensionsActivator {
 	public getActivatedExtension(extensionId: ExtensionIdentifier): ActivatedExtension {
 		const extensionKey = ExtensionIdentifier.toKey(extensionId);
 
-		if (!this._activatedExtensions.has(extensionKey)) {
+		const activatedExtension = this._activatedExtensions.get(extensionKey);
+		if (!activatedExtension) {
 			throw new Error('Extension `' + extensionId.value + '` is not known or not activated');
 		}
-		return this._activatedExtensions.get(extensionKey);
+		return activatedExtension;
 	}
 
 	public activateByEvent(activationEvent: string, reason: ExtensionActivationReason): Promise<void> {
@@ -261,8 +262,8 @@ export class ExtensionsActivator {
 				return;
 			}
 
-			if (this._activatedExtensions.has(ExtensionIdentifier.toKey(depId))) {
-				let dep = this._activatedExtensions.get(ExtensionIdentifier.toKey(depId));
+			const dep = this._activatedExtensions.get(ExtensionIdentifier.toKey(depId));
+			if (dep) {
 				if (dep.activationFailed) {
 					// Error condition 2: a dependency has already failed activation
 					this._host.showMessage(Severity.Error, nls.localize('failedDep1', "Cannot activate extension '{0}' as the depending extension '{1}' is failed to activate.", currentExtension.displayName || currentExtension.identifier.value, depId));
@@ -344,11 +345,12 @@ export class ExtensionsActivator {
 			return Promise.resolve(undefined);
 		}
 
-		if (this._activatingExtensions.has(extensionKey)) {
-			return this._activatingExtensions.get(extensionKey);
+		const currentlyActivatingExtension = this._activatingExtensions.get(extensionKey);
+		if (currentlyActivatingExtension) {
+			return currentlyActivatingExtension;
 		}
 
-		this._activatingExtensions.set(extensionKey, this._host.actualActivateExtension(extensionDescription, reason).then(undefined, (err) => {
+		const newlyActivatingExtension = this._host.actualActivateExtension(extensionDescription, reason).then(undefined, (err) => {
 			this._host.showMessage(Severity.Error, nls.localize('activationError', "Activating extension '{0}' failed: {1}.", extensionDescription.identifier.value, err.message));
 			console.error('Activating extension `' + extensionDescription.identifier.value + '` failed: ', err.message);
 			console.log('Here is the error stack: ', err.stack);
@@ -357,8 +359,9 @@ export class ExtensionsActivator {
 		}).then((x: ActivatedExtension) => {
 			this._activatedExtensions.set(extensionKey, x);
 			this._activatingExtensions.delete(extensionKey);
-		}));
+		});
 
-		return this._activatingExtensions.get(extensionKey);
+		this._activatingExtensions.set(extensionKey, newlyActivatingExtension);
+		return newlyActivatingExtension;
 	}
 }

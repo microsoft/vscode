@@ -1309,7 +1309,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 				} else if (hasExcludes) {
 					message = nls.localize('noResultsExcludes', "No results found excluding '{0}' - ", excludePatternText);
 				} else {
-					message = nls.localize('noResultsFound', "No results found. Review your settings for configured exclusions and ignore files - ");
+					message = nls.localize('noResultsFound', "No results found. Review your settings for configured exclusions and check your gitignore files - ");
 				}
 
 				// Indicate as status to ARIA

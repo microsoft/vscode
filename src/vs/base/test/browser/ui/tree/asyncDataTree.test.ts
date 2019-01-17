@@ -91,14 +91,14 @@ suite('AsyncDataTree', function () {
 			{ id: 'ac' }
 		];
 
-		await tree.refresh(root);
+		await tree.updateChildren(root);
 		assert.equal(container.querySelectorAll('.monaco-list-row').length, 1);
 
 		await tree.expand(_('a'));
 		assert.equal(container.querySelectorAll('.monaco-list-row').length, 4);
 
 		_('a').children = [];
-		await tree.refresh(root);
+		await tree.updateChildren(root);
 		assert.equal(container.querySelectorAll('.monaco-list-row').length, 1);
 	});
 });

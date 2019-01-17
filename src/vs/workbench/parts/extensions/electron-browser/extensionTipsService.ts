@@ -10,7 +10,7 @@ import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { match } from 'vs/base/common/glob';
 import * as json from 'vs/base/common/json';
 import {
-	IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, ExtensionRecommendationReason, LocalExtensionType, EXTENSION_IDENTIFIER_PATTERN,
+	IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, ExtensionRecommendationReason, EXTENSION_IDENTIFIER_PATTERN,
 	IExtensionsConfigContent, RecommendationChangeNotification, IExtensionRecommendation, ExtensionRecommendationSource, InstallOperation
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -40,10 +40,11 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { Emitter, Event } from 'vs/base/common/event';
 import { assign } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
-import { areSameExtensions, getGalleryExtensionIdFromLocal } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExperimentService, ExperimentActionType, ExperimentState } from 'vs/workbench/parts/experiments/node/experimentService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { getKeywordsForExtension } from 'vs/workbench/parts/extensions/electron-browser/extensionsUtils';
+import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 
 const milliSecondsInADay = 1000 * 60 * 60 * 24;
 const choiceNever = localize('neverShowAgain', "Don't Show Again");
@@ -310,7 +311,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	 */
 	private fetchExtensionRecommendationContents(): Promise<{ contents: IExtensionsConfigContent, source: ExtensionRecommendationSource }[]> {
 		const workspace = this.contextService.getWorkspace();
-		return Promise.all<{ contents: IExtensionsConfigContent, source: ExtensionRecommendationSource }>([
+		return Promise.all<{ contents: IExtensionsConfigContent, source: ExtensionRecommendationSource } | null>([
 			this.resolveWorkspaceExtensionConfig(workspace).then(contents => contents ? { contents, source: workspace } : null),
 			...workspace.folders.map(workspaceFolder => this.resolveWorkspaceFolderExtensionConfig(workspaceFolder).then(contents => contents ? { contents, source: workspaceFolder } : null))
 		]).then(contents => coalesce(contents));
@@ -372,7 +373,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 		if (filteredWanted.length) {
 			try {
-				let validRecommendations = (await this._galleryService.query({ names: filteredWanted })).firstPage
+				let validRecommendations = (await this._galleryService.query({ names: filteredWanted, pageSize: filteredWanted.length })).firstPage
 					.map(extension => extension.identifier.id.toLowerCase());
 
 				if (validRecommendations.length !== filteredWanted.length) {
@@ -419,8 +420,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			return;
 		}
 
-		this.extensionsService.getInstalled(LocalExtensionType.User).then(local => {
-			const recommendations = filteredRecs.filter(({ extensionId }) => local.every(local => !areSameExtensions({ id: extensionId }, { id: getGalleryExtensionIdFromLocal(local) })));
+		this.extensionsService.getInstalled(ExtensionType.User).then(local => {
+			const recommendations = filteredRecs.filter(({ extensionId }) => local.every(local => !areSameExtensions({ id: extensionId }, local.identifier)));
 
 			if (!recommendations.length) {
 				return Promise.resolve(undefined);
@@ -637,7 +638,11 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 					return;
 				}
 				const id = recommendationsToSuggest[0];
-				const name = caseInsensitiveGet(product.extensionImportantTips, id)['name'];
+				const entry = caseInsensitiveGet(product.extensionImportantTips, id);
+				if (!entry) {
+					return;
+				}
+				const name = entry['name'];
 
 				// Indicates we have a suggested extension via the whitelist
 				hasSuggestion = true;
@@ -841,7 +846,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	}
 
 	private fetchProactiveRecommendations(calledDuringStartup?: boolean): Promise<void> {
-		let fetchPromise = Promise.resolve(null);
+		let fetchPromise = Promise.resolve(undefined);
 		if (!this.proactiveRecommendationsFetched) {
 			this.proactiveRecommendationsFetched = true;
 
@@ -892,10 +897,10 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				if (!windowsPath || typeof windowsPath !== 'string') {
 					return;
 				}
-				windowsPath = windowsPath.replace('%USERPROFILE%', process.env['USERPROFILE'])
-					.replace('%ProgramFiles(x86)%', process.env['ProgramFiles(x86)'])
-					.replace('%ProgramFiles%', process.env['ProgramFiles'])
-					.replace('%APPDATA%', process.env['APPDATA']);
+				windowsPath = windowsPath.replace('%USERPROFILE%', process.env['USERPROFILE']!)
+					.replace('%ProgramFiles(x86)%', process.env['ProgramFiles(x86)']!)
+					.replace('%ProgramFiles%', process.env['ProgramFiles']!)
+					.replace('%APPDATA%', process.env['APPDATA']!);
 				promises.push(findExecutable(exeName, windowsPath));
 			} else {
 				promises.push(findExecutable(exeName, paths.join('/usr/local/bin', exeName)));
@@ -953,14 +958,17 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		return Promise.all([getHashedRemotesFromUri(workspaceUri, this.fileService, false), getHashedRemotesFromUri(workspaceUri, this.fileService, true)]).then(([hashedRemotes1, hashedRemotes2]) => {
 			const hashedRemotes = (hashedRemotes1 || []).concat(hashedRemotes2 || []);
 			if (!hashedRemotes.length) {
-				return null;
+				return undefined;
 			}
 
 			return this.requestService.request({ type: 'GET', url: this._extensionsRecommendationsUrl }, CancellationToken.None).then(context => {
 				if (context.res.statusCode !== 200) {
-					return Promise.resolve(null);
+					return Promise.resolve(undefined);
 				}
 				return asJson(context).then((result) => {
+					if (!result) {
+						return;
+					}
 					const allRecommendations: IDynamicWorkspaceRecommendations[] = Array.isArray(result['workspaceRecommendations']) ? result['workspaceRecommendations'] : [];
 					if (!allRecommendations.length) {
 						return;
@@ -997,9 +1005,10 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	private fetchExperimentalRecommendations() {
 		this.experimentService.getExperimentsByType(ExperimentActionType.AddToRecommendations).then(experiments => {
 			(experiments || []).forEach(experiment => {
-				if (experiment.state === ExperimentState.Run && experiment.action.properties && Array.isArray(experiment.action.properties.recommendations) && experiment.action.properties.recommendationReason) {
-					experiment.action.properties.recommendations.forEach(id => {
-						this._experimentalRecommendations[id] = experiment.action.properties.recommendationReason;
+				const action = experiment.action;
+				if (action && experiment.state === ExperimentState.Run && action.properties && Array.isArray(action.properties.recommendations) && action.properties.recommendationReason) {
+					action.properties.recommendations.forEach(id => {
+						this._experimentalRecommendations[id] = action.properties.recommendationReason;
 					});
 				}
 			});

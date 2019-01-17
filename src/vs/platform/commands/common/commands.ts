@@ -96,7 +96,8 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 
 		let ret = toDisposable(() => {
 			removeFn();
-			if (this._commands.get(id).isEmpty()) {
+			const command = this._commands.get(id);
+			if (command && command.isEmpty()) {
 				this._commands.delete(id);
 			}
 		});

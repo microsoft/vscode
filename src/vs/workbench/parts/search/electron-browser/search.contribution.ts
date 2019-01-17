@@ -32,13 +32,11 @@ import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IListService, WorkbenchListFocusContextKey, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ISearchConfigurationProperties, VIEW_ID } from 'vs/platform/search/common/search';
-import { Extensions as PanelExtensions, PanelDescriptor, PanelRegistry } from 'vs/workbench/browser/panel';
+import { ISearchConfigurationProperties, VIEW_ID, ISearchConfiguration } from 'vs/platform/search/common/search';
 import { defaultQuickOpenContextKey } from 'vs/workbench/browser/parts/quickopen/quickopen';
 import { Extensions as QuickOpenExtensions, IQuickOpenRegistry, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
-import { Extensions as ViewletExtensions, ViewletDescriptor, ViewletRegistry } from 'vs/workbench/browser/viewlet';
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { getMultiSelectedResources } from 'vs/workbench/parts/files/browser/files';
 import { ExplorerFolderContext, ExplorerRootContext, FilesExplorerFocusCondition } from 'vs/workbench/parts/files/common/files';
@@ -46,8 +44,6 @@ import { OpenAnythingHandler } from 'vs/workbench/parts/search/browser/openAnyth
 import { OpenSymbolHandler } from 'vs/workbench/parts/search/browser/openSymbolHandler';
 import { registerContributions as replaceContributions } from 'vs/workbench/parts/search/browser/replaceContributions';
 import { clearHistoryCommand, ClearSearchResultsAction, CloseReplaceAction, CollapseDeepestExpandedLevelAction, copyAllCommand, copyMatchCommand, copyPathCommand, FindInFilesAction, FocusNextInputAction, FocusNextSearchResultAction, FocusPreviousInputAction, FocusPreviousSearchResultAction, focusSearchListCommand, getSearchView, openSearchView, OpenSearchViewletAction, RefreshAction, RemoveAction, ReplaceAction, ReplaceAllAction, ReplaceAllInFolderAction, ReplaceInFilesAction, toggleCaseSensitiveCommand, toggleRegexCommand, toggleWholeWordCommand } from 'vs/workbench/parts/search/browser/searchActions';
-import { SearchView } from 'vs/workbench/parts/search/browser/searchView';
-import { SearchViewLocationUpdater } from 'vs/workbench/parts/search/browser/searchViewLocationUpdater';
 import { registerContributions as searchWidgetContributions } from 'vs/workbench/parts/search/browser/searchWidget';
 import * as Constants from 'vs/workbench/parts/search/common/constants';
 import { getWorkspaceSymbols } from 'vs/workbench/parts/search/common/search';
@@ -55,6 +51,9 @@ import { FileMatchOrMatch, ISearchWorkbenchService, RenderableMatch, SearchWorkb
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { PanelRegistry, Extensions as PanelExtensions, PanelDescriptor } from 'vs/workbench/browser/panel';
+import { ViewletDescriptor, ViewletRegistry, Extensions as ViewletExtensions } from 'vs/workbench/browser/viewlet';
+import { SearchView } from 'vs/workbench/parts/search/browser/searchView';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService, true);
 replaceContributions();
@@ -450,25 +449,51 @@ class ShowAllSymbolsAction extends Action {
 	}
 }
 
-// Register View in Viewlet and Panel area
-Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new ViewletDescriptor(
-	SearchView,
-	VIEW_ID,
-	nls.localize('name', "Search"),
-	'search',
-	1
-));
+class RegisterSearchViewContribution implements IWorkbenchContribution {
 
-Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(new PanelDescriptor(
-	SearchView,
-	VIEW_ID,
-	nls.localize('name', "Search"),
-	'search',
-	10
-));
+	constructor(
+		@IViewletService viewletService: IViewletService,
+		@IPanelService panelService: IPanelService,
+		@IConfigurationService configurationService: IConfigurationService
+	) {
+		const updateSearchViewLocation = (open: boolean) => {
+			const config = configurationService.getValue<ISearchConfiguration>();
+			if (config.search.location === 'panel') {
+				Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).deregisterViewlet(VIEW_ID);
+				Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(new PanelDescriptor(
+					SearchView,
+					VIEW_ID,
+					nls.localize('name', "Search"),
+					'search',
+					10
+				));
+				if (open) {
+					panelService.openPanel(VIEW_ID);
+				}
+			} else {
+				Registry.as<PanelRegistry>(PanelExtensions.Panels).deregisterPanel(VIEW_ID);
+				Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new ViewletDescriptor(
+					SearchView,
+					VIEW_ID,
+					nls.localize('name', "Search"),
+					'search',
+					1
+				));
+				if (open) {
+					viewletService.openViewlet(VIEW_ID);
+				}
+			}
+		};
+		configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('search.location')) {
+				updateSearchViewLocation(true);
+			}
+		});
 
-// Register view location updater
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(SearchViewLocationUpdater, LifecyclePhase.Starting);
+		updateSearchViewLocation(false);
+	}
+}
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(RegisterSearchViewContribution, LifecyclePhase.Starting);
 
 // Actions
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
@@ -714,10 +739,10 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 // Go to menu
 
 MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
-	group: 'z_go_to',
+	group: '3_global_nav',
 	command: {
 		id: 'workbench.action.showAllSymbols',
 		title: nls.localize({ key: 'miGotoSymbolInWorkspace', comment: ['&& denotes a mnemonic'] }, "Go to Symbol in &&Workspace...")
 	},
-	order: 3
+	order: 2
 });

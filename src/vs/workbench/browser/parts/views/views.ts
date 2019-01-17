@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/views';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IViewsService, ViewsRegistry, IViewsViewlet, ViewContainer, IViewDescriptor, IViewContainersRegistry, Extensions as ViewContainerExtensions, IView, IViewDescriptorCollection } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -19,6 +19,8 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { localize } from 'vs/nls';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { values } from 'vs/base/common/map';
+import { IFileIconTheme, IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { toggleClass, addClass } from 'vs/base/browser/dom';
 
 function filterViewEvent(container: ViewContainer, event: Event<IViewDescriptor[]>): Event<IViewDescriptor[]> {
 	return Event.chain(event)
@@ -204,7 +206,7 @@ export class ContributableViewsModel extends Disposable {
 
 	readonly viewDescriptors: IViewDescriptor[] = [];
 	get visibleViewDescriptors(): IViewDescriptor[] {
-		return this.viewDescriptors.filter(v => this.viewStates.get(v.id).visible);
+		return this.viewDescriptors.filter(v => this.viewStates.get(v.id)!.visible);
 	}
 
 	private _onDidAdd = this._register(new Emitter<IAddedViewDescriptorRef[]>());
@@ -298,7 +300,7 @@ export class ContributableViewsModel extends Disposable {
 		move(this.viewDescriptors, fromIndex, toIndex);
 
 		for (let index = 0; index < this.viewDescriptors.length; index++) {
-			const state = this.viewStates.get(this.viewDescriptors[index].id);
+			const state = this.viewStates.get(this.viewDescriptors[index].id)!;
 			state.order = index;
 		}
 
@@ -312,6 +314,9 @@ export class ContributableViewsModel extends Disposable {
 		for (let i = 0, visibleIndex = 0; i < this.viewDescriptors.length; i++) {
 			const viewDescriptor = this.viewDescriptors[i];
 			const state = this.viewStates.get(viewDescriptor.id);
+			if (!state) {
+				throw new Error(`View state for ${id} not found`);
+			}
 
 			if (viewDescriptor.id === id) {
 				return { index: i, visibleIndex, viewDescriptor, state };
@@ -385,7 +390,7 @@ export class ContributableViewsModel extends Disposable {
 			}
 
 			for (const viewDescriptor of splice.toInsert) {
-				const state = this.viewStates.get(viewDescriptor.id);
+				const state = this.viewStates.get(viewDescriptor.id)!;
 
 				if (state.visible) {
 					toAdd.push({ index: startIndex++, viewDescriptor, size: state.size, collapsed: state.collapsed });
@@ -533,7 +538,7 @@ export class ViewsService extends Disposable implements IViewsService {
 	}
 
 	getViewDescriptors(container: ViewContainer): IViewDescriptorCollection {
-		return this.viewDescriptorCollections.get(container);
+		return this.viewDescriptorCollections.get(container)!;
 	}
 
 	openView(id: string, focus: boolean): Promise<IView | null> {
@@ -608,4 +613,17 @@ export class ViewsService extends Disposable implements IViewsService {
 		}
 		return contextKey;
 	}
+}
+
+export function createFileIconThemableTreeContainerScope(container: HTMLElement, themeService: IWorkbenchThemeService): IDisposable {
+	addClass(container, 'file-icon-themable-tree');
+	addClass(container, 'show-file-icons');
+
+	const onDidChangeFileIconTheme = (theme: IFileIconTheme) => {
+		toggleClass(container, 'align-icons-and-twisties', theme.hasFileIcons && !theme.hasFolderIcons);
+		toggleClass(container, 'hide-arrows', theme.hidesExplorerArrows === true);
+	};
+
+	onDidChangeFileIconTheme(themeService.getFileIconTheme());
+	return themeService.onDidFileIconThemeChange(onDidChangeFileIconTheme);
 }

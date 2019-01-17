@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import * as Proto from '../protocol';
-import { CancelledResponse, NoContentResponse } from '../typescriptService';
+import { CancelledResponse, NoContentResponse, ServerResponse } from '../typescriptService';
 import API from '../utils/api';
 import { TsServerLogLevel, TypeScriptServiceConfiguration } from '../utils/configuration';
 import { Disposable } from '../utils/dispose';
@@ -17,12 +17,36 @@ import LogDirectoryProvider from '../utils/logDirectoryProvider';
 import Logger from '../utils/logger';
 import { TypeScriptPluginPathsProvider } from '../utils/pluginPathsProvider';
 import { PluginManager } from '../utils/plugins';
+import { escapeRegExp } from '../utils/regexp';
 import TelemetryReporter from '../utils/telemetry';
 import Tracer from '../utils/tracer';
 import { TypeScriptVersion, TypeScriptVersionProvider } from '../utils/versionProvider';
 import { Reader } from '../utils/wireProtocol';
 import { CallbackMap } from './callbackMap';
 import { RequestItem, RequestQueue, RequestQueueingType } from './requestQueue';
+
+class TypeScriptServerError extends Error {
+
+	constructor(
+		version: TypeScriptVersion,
+		public readonly response: Proto.Response,
+	) {
+		super(`TypeScript Server Error (${version.versionString})\n${TypeScriptServerError.normalizeMessageStack(version, response.message)}`);
+	}
+
+	/**
+	 * Try to replace full TS Server paths with 'tsserver.js' so that we don't have to post process the data as much
+	 */
+	private static normalizeMessageStack(
+		version: TypeScriptVersion,
+		message: string | undefined,
+	) {
+		if (!message) {
+			return message;
+		}
+		return message.replace(new RegExp(`${escapeRegExp(version.path)}[/\\\\]tsserver.js:`, 'gi'), 'tsserver.js:');
+	}
+}
 
 export class TypeScriptServerSpawner {
 	public constructor(
@@ -41,7 +65,7 @@ export class TypeScriptServerSpawner {
 	): TypeScriptServer {
 		const apiVersion = version.version || API.defaultVersion;
 
-		const { args, cancellationPipeName, tsServerLogFile } = this.getTsServerArgs(configuration, version, pluginManager);
+		const { args, cancellationPipeName, tsServerLogFile } = this.getTsServerArgs(configuration, version, apiVersion, pluginManager);
 
 		if (TypeScriptServerSpawner.isLoggingEnabled(apiVersion, configuration)) {
 			if (tsServerLogFile) {
@@ -55,7 +79,7 @@ export class TypeScriptServerSpawner {
 		const childProcess = electron.fork(version.tsServerPath, args, this.getForkOptions());
 		this._logger.info('Started TSServer');
 
-		return new TypeScriptServer(childProcess, tsServerLogFile, cancellationPipeName, this._logger, this._telemetryReporter, this._tracer);
+		return new TypeScriptServer(childProcess, tsServerLogFile, cancellationPipeName, version, this._telemetryReporter, this._tracer);
 	}
 
 	private getForkOptions() {
@@ -69,13 +93,12 @@ export class TypeScriptServerSpawner {
 	private getTsServerArgs(
 		configuration: TypeScriptServiceConfiguration,
 		currentVersion: TypeScriptVersion,
+		apiVersion: API,
 		pluginManager: PluginManager,
 	): { args: string[], cancellationPipeName: string | undefined, tsServerLogFile: string | undefined } {
 		const args: string[] = [];
 		let cancellationPipeName: string | undefined;
 		let tsServerLogFile: string | undefined;
-
-		const apiVersion = currentVersion.version || API.defaultVersion;
 
 		if (apiVersion.gte(API.v206)) {
 			if (apiVersion.gte(API.v250)) {
@@ -176,7 +199,7 @@ export class TypeScriptServer extends Disposable {
 		private readonly _childProcess: cp.ChildProcess,
 		private readonly _tsServerLogFile: string | undefined,
 		private readonly _cancellationPipeName: string | undefined,
-		private readonly _logger: Logger,
+		private readonly _version: TypeScriptVersion,
 		private readonly _telemetryReporter: TelemetryReporter,
 		private readonly _tracer: Tracer,
 	) {
@@ -292,13 +315,15 @@ export class TypeScriptServer extends Disposable {
 			callback.onSuccess(response);
 		} else if (response.message === 'No content available.') {
 			// Special case where response itself is successful but there is not any data to return.
-			callback.onSuccess(new NoContentResponse());
+			callback.onSuccess(NoContentResponse);
 		} else {
-			callback.onError(response);
+			callback.onError(new TypeScriptServerError(this._version, response));
 		}
 	}
 
-	public executeImpl(command: string, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean }): Promise<any> {
+	public executeImpl(command: string, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: false, lowPriority?: boolean }): undefined;
+	public executeImpl(command: string, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean }): Promise<ServerResponse<Proto.Response>>;
+	public executeImpl(command: string, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean }): Promise<ServerResponse<Proto.Response>> | undefined {
 		const request = this._requestQueue.createRequest(command, args);
 		const requestInfo: RequestItem = {
 			request,
@@ -306,40 +331,39 @@ export class TypeScriptServer extends Disposable {
 			isAsync: executeInfo.isAsync,
 			queueingType: getQueueingType(command, executeInfo.lowPriority)
 		};
-		let result: Promise<any>;
+		let result: Promise<ServerResponse<Proto.Response>> | undefined;
 		if (executeInfo.expectsResult) {
-			let wasCancelled = false;
-			result = new Promise<any>((resolve, reject) => {
+			result = new Promise<ServerResponse<Proto.Response>>((resolve, reject) => {
 				this._callbacks.add(request.seq, { onSuccess: resolve, onError: reject, startTime: Date.now(), isAsync: executeInfo.isAsync }, executeInfo.isAsync);
 
 				if (executeInfo.token) {
 					executeInfo.token.onCancellationRequested(() => {
-						wasCancelled = true;
 						this.tryCancelRequest(request.seq, command);
 					});
 				}
-			}).catch((err: any) => {
-				if (!wasCancelled) {
-					this._logger.error(`'${command}' request failed with error.`, err);
-					const properties = this.parseErrorText(err && err.message, command);
-					/* __GDPR__
-						"languageServiceErrorResponse" : {
-							"command" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-							"message" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
-							"stack" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
-							"errortext" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
-							"${include}": [
-								"${TypeScriptCommonProperties}"
-							]
-						}
-					*/
-					this._telemetryReporter.logTelemetry('languageServiceErrorResponse', properties);
+			}).catch((err: Error) => {
+				if (err instanceof TypeScriptServerError) {
+					if (!executeInfo.token || !executeInfo.token.isCancellationRequested) {
+						const properties = this.parseErrorText(err.response.message, err.response.command);
+						/* __GDPR__
+							"languageServiceErrorResponse" : {
+								"command" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+								"message" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
+								"stack" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
+								"errortext" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
+								"${include}": [
+									"${TypeScriptCommonProperties}"
+								]
+							}
+						*/
+						this._telemetryReporter.logTelemetry('languageServiceErrorResponse', properties);
+					}
 				}
+
 				throw err;
 			});
-		} else {
-			result = Promise.resolve(null);
 		}
+
 		this._requestQueue.enqueue(requestInfo);
 		this.sendNextRequests();
 

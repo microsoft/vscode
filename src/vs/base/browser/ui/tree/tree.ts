@@ -5,7 +5,8 @@
 
 import { Event } from 'vs/base/common/event';
 import { Iterator } from 'vs/base/common/iterator';
-import { IListRenderer, AbstractListRenderer } from 'vs/base/browser/ui/list/list';
+import { IListRenderer, IListDragOverReaction, IListDragAndDrop, ListDragOverEffect } from 'vs/base/browser/ui/list/list';
+import { IDragAndDropData } from 'vs/base/browser/dnd';
 
 export const enum TreeVisibility {
 
@@ -100,6 +101,7 @@ export interface ITreeModel<T, TFilterData, TRef> {
 	readonly onDidChangeRenderNodeCount: Event<ITreeNode<T, TFilterData>>;
 
 	getListIndex(location: TRef): number;
+	getListRenderCount(location: TRef): number;
 	getNode(location?: TRef): ITreeNode<T, any>;
 	getNodeLocation(node: ITreeNode<T, any>): TRef;
 	getParentNodeLocation(location: TRef): TRef;
@@ -154,35 +156,23 @@ export interface IAsyncDataSource<TInput, T> {
 	getChildren(element: TInput | T): T[] | Promise<T[]>;
 }
 
-/**
- * Use this renderer when you want to re-render elements on account of
- * an event firing.
- */
-export abstract class AbstractTreeRenderer<T, TFilterData = void, TTemplateData = void>
-	extends AbstractListRenderer<ITreeNode<T, TFilterData>, TTemplateData>
-	implements ITreeRenderer<T, TFilterData, TTemplateData> {
+export const enum TreeDragOverBubble {
+	Down,
+	Up
+}
 
-	private elementsToNodes = new Map<T, ITreeNode<T, TFilterData>>();
+export interface ITreeDragOverReaction extends IListDragOverReaction {
+	bubble?: TreeDragOverBubble;
+	autoExpand?: boolean;
+}
 
-	constructor(onDidChange: Event<T | T[] | undefined>) {
-		super(Event.map(onDidChange, e => {
-			if (typeof e === 'undefined') {
-				return undefined;
-			} else if (Array.isArray(e)) {
-				return e.map(e => this.elementsToNodes.get(e) || null).filter(e => e !== null);
-			} else {
-				return this.elementsToNodes.get(e) || null;
-			}
-		}));
-	}
+export const TreeDragOverReactions = {
+	acceptBubbleUp(): ITreeDragOverReaction { return { accept: true, bubble: TreeDragOverBubble.Up }; },
+	acceptBubbleDown(autoExpand = false): ITreeDragOverReaction { return { accept: true, bubble: TreeDragOverBubble.Down, autoExpand }; },
+	acceptCopyBubbleUp(): ITreeDragOverReaction { return { accept: true, bubble: TreeDragOverBubble.Up, effect: ListDragOverEffect.Copy }; },
+	acceptCopyBubbleDown(autoExpand = false): ITreeDragOverReaction { return { accept: true, bubble: TreeDragOverBubble.Down, effect: ListDragOverEffect.Copy, autoExpand }; }
+};
 
-	renderElement(node: ITreeNode<T, TFilterData>, index: number, templateData: TTemplateData): void {
-		super.renderElement(node, index, templateData);
-		this.elementsToNodes.set(node.element, node);
-	}
-
-	disposeElement(node: ITreeNode<T, TFilterData>, index: number, templateData: TTemplateData): void {
-		this.elementsToNodes.set(node.element, node);
-		super.disposeElement(node, index, templateData);
-	}
+export interface ITreeDragAndDrop<T> extends IListDragAndDrop<T> {
+	onDragOver(data: IDragAndDropData, targetElement: T | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean | ITreeDragOverReaction;
 }

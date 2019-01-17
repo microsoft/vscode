@@ -19,7 +19,7 @@ import { ActivatedExtension, EmptyExtension, ExtensionActivatedByAPI, ExtensionA
 import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
 import { ExtHostStorage } from 'vs/workbench/api/node/extHostStorage';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
-import { IExtensionDescription, checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
 import { connectProxyResolver } from 'vs/workbench/node/proxyResolver';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -104,7 +104,7 @@ class ExtensionStoragePath {
 	}
 
 	globalValue(extension: IExtensionDescription): string {
-		return path.join(this._environment.globalStorageHome.fsPath, extension.identifier.value);
+		return path.join(this._environment.globalStorageHome.fsPath, extension.identifier.value.toLowerCase());
 	}
 
 	private async _getOrCreateWorkspaceStoragePath(): Promise<string> {
@@ -219,15 +219,22 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 
 		this._started = false;
 
-		initializeExtensionApi(this, this._extensionApiFactory, this._registry).then(() => {
-			// Do this when extension service exists, but extensions are not being activated yet.
-			return connectProxyResolver(this._extHostWorkspace, this._extHostConfiguration, this, this._extHostLogService, this._mainThreadTelemetryProxy);
-		}).then(() => {
-			this._barrier.open();
-		});
+		this._initialize();
 
 		if (this._initData.autoStart) {
 			this._startExtensionHost();
+		}
+	}
+
+	private async _initialize(): Promise<void> {
+		try {
+			const configProvider = await this._extHostConfiguration.getConfigProvider();
+			await initializeExtensionApi(this, this._extensionApiFactory, this._registry, configProvider);
+			// Do this when extension service exists, but extensions are not being activated yet.
+			await connectProxyResolver(this._extHostWorkspace, configProvider, this, this._extHostLogService, this._mainThreadTelemetryProxy);
+			this._barrier.open();
+		} catch (err) {
+			errors.onUnexpectedError(err);
 		}
 	}
 
@@ -422,7 +429,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 				subscriptions: [],
 				get extensionPath() { return extensionDescription.extensionLocation.fsPath; },
 				storagePath: this._storagePath.workspaceValue(extensionDescription),
-				get globalStoragePath(): string { checkProposedApiEnabled(extensionDescription); return that._storagePath.globalValue(extensionDescription); },
+				globalStoragePath: this._storagePath.globalValue(extensionDescription),
 				asAbsolutePath: (relativePath: string) => { return path.join(extensionDescription.extensionLocation.fsPath, relativePath); },
 				logPath: that._extHostLogService.getLogDirectory(extensionDescription.identifier)
 			});
@@ -572,6 +579,14 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	}
 
 	private _handleExtensionTests(): Promise<void> {
+		return this._doHandleExtensionTests().then(undefined, error => {
+			console.error(error); // ensure any error message makes it onto the console
+
+			return Promise.reject(error);
+		});
+	}
+
+	private _doHandleExtensionTests(): Promise<void> {
 		if (!this._initData.environment.extensionTestsPath || !this._initData.environment.extensionDevelopmentLocationURI) {
 			return Promise.resolve(undefined);
 		}
@@ -645,6 +660,24 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 			this._barrier.wait()
 				.then(_ => this._activateByEvent(activationEvent, false))
 		);
+	}
+
+	public $activate(extensionId: ExtensionIdentifier, activationEvent: string): Promise<void> {
+		return (
+			this._barrier.wait()
+				.then(_ => this._activateById(extensionId, new ExtensionActivatedByEvent(false, activationEvent)))
+		);
+	}
+
+	public $addExtension(extension: IExtensionDescription): Promise<void> {
+		(<any>extension).extensionLocation = URI.revive(extension.extensionLocation);
+		this._registry.add(extension);
+		return Promise.resolve(undefined);
+	}
+
+	public $removeExtension(extensionId: ExtensionIdentifier): Promise<void> {
+		this._registry.remove(extensionId);
+		return Promise.resolve(undefined);
 	}
 
 	public async $test_latency(n: number): Promise<number> {

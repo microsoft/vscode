@@ -20,7 +20,8 @@ import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionManifest, IKeyBinding, IView, IExtensionTipsService, LocalExtensionType, IViewContainer } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManifest, IKeyBinding, IView, IViewContainer, ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { ResolvedKeybinding, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, IExtension, IExtensionDependencies, ExtensionContainers } from 'vs/workbench/parts/extensions/common/extensions';
@@ -291,7 +292,7 @@ export class ExtensionEditor extends BaseEditor {
 				this.name.textContent = extension.displayName;
 				this.identifier.textContent = extension.identifier.id;
 				this.preview.style.display = extension.preview ? 'inherit' : 'none';
-				this.builtin.style.display = extension.type === LocalExtensionType.System ? 'inherit' : 'none';
+				this.builtin.style.display = extension.type === ExtensionType.System ? 'inherit' : 'none';
 
 				this.publisher.textContent = extension.publisherDisplayName;
 				this.description.textContent = extension.description;
@@ -998,7 +999,7 @@ export class ExtensionEditor extends BaseEditor {
 
 		const renderKeybinding = (keybinding: ResolvedKeybinding): HTMLElement => {
 			const element = $('');
-			new KeybindingLabel(element, OS).set(keybinding, null);
+			new KeybindingLabel(element, OS).set(keybinding);
 			return element;
 		};
 

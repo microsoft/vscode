@@ -15,12 +15,12 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { DefaultEndOfLine } from 'vs/editor/common/model';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
-import { DataTransfers } from 'vs/base/browser/dnd';
+import { DataTransfers, IDragAndDropData } from 'vs/base/browser/dnd';
 import { DefaultDragAndDrop } from 'vs/base/parts/tree/browser/treeDefaults';
 import { DragMouseEvent } from 'vs/base/browser/mouseEvent';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { MIME_BINARY } from 'vs/base/common/mime';
-import { ITree, IDragAndDropData } from 'vs/base/parts/tree/browser/tree';
+import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { isWindows } from 'vs/base/common/platform';
 import { coalesce } from 'vs/base/common/arrays';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
