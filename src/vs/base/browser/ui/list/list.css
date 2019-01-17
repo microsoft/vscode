@@ -77,7 +77,6 @@
 	overflow: hidden;
 	text-align: right;
 	box-sizing: border-box;
-	direction: rtl;
 }
 
 .monaco-list-type-filter:empty {
