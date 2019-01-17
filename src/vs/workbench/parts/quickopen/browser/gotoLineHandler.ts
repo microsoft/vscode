@@ -93,17 +93,17 @@ class GotoLineEntry extends EditorQuickOpenEntry {
 		const maxLineNumber = this.getMaxLineNumber();
 
 		if (this.invalidRange(maxLineNumber)) {
-			const line = this.editorService.activeTextEditorWidget.getPosition().lineNumber;
+			const currentLine = this.editorService.activeTextEditorWidget.getPosition().lineNumber;
 
 			if (maxLineNumber > 0) {
-				return nls.localize('gotoLineLabelEmptyWithLimit', "Current Line: {0}. Type a line number between 1 and {1} to navigate to.", line, maxLineNumber);
+				return nls.localize('gotoLineLabelEmptyWithLimit', "Current Line: {0}. Type a line number between 1 and {1} to navigate to.", currentLine, maxLineNumber);
 			}
 
-			return nls.localize('gotoLineLabelEmpty', "Current Line: {0}. Type a line number to navigate to.", line);
+			return nls.localize('gotoLineLabelEmpty', "Current Line: {0}. Type a line number to navigate to.", currentLine);
 		}
 
 		// Input valid, indicate action
-		return this.column ? nls.localize('gotoLineColumnLabel', "Go to line {0} and character {1}", this.line, this.column) : nls.localize('gotoLineLabel', "Go to line {0}", this.line);
+		return this.column ? nls.localize('gotoLineColumnLabel', "Go to line {0} and character {1}.", this.line, this.column) : nls.localize('gotoLineLabel', "Go to line {0}.", this.line);
 	}
 
 	private invalidRange(maxLineNumber: number = this.getMaxLineNumber()): boolean {
@@ -216,10 +216,9 @@ export class GotoLineHandler extends QuickOpenHandler {
 	}
 
 	getAriaLabel(): string {
-
 		if (this.editorService.activeTextEditorWidget) {
 			const currentLine = this.editorService.activeTextEditorWidget.getPosition().lineNumber;
-			// Output verbose current line / go to line label
+
 			return nls.localize('gotoLineLabelEmpty', "Current Line: {0}. Type a line number to navigate to.", currentLine);
 		}
 
