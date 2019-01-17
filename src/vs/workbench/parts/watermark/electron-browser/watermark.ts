@@ -87,8 +87,7 @@ const noFolderEntries = [
 	openFolderNonMacOnly,
 	openFileOrFolderMacOnly,
 	openRecent,
-	newUntitledFileMacOnly,
-	toggleTerminal
+	newUntitledFileMacOnly
 ];
 
 const folderEntries = [
