@@ -19,8 +19,16 @@ interface IMutableTreeNode<T, TFilterData> extends ITreeNode<T, TFilterData> {
 	filterData: TFilterData | undefined;
 }
 
-function isFilterResult<T>(obj: any): obj is ITreeFilterDataResult<T> {
+export function isFilterResult<T>(obj: any): obj is ITreeFilterDataResult<T> {
 	return typeof obj === 'object' && 'visibility' in obj && 'data' in obj;
+}
+
+export function getVisibleState(visibility: boolean | TreeVisibility): TreeVisibility {
+	switch (visibility) {
+		case true: return TreeVisibility.Visible;
+		case false: return TreeVisibility.Hidden;
+		default: return visibility;
+	}
 }
 
 function treeNodeToElement<T>(node: IMutableTreeNode<T, any>): ITreeElement<T> {
@@ -28,14 +36,6 @@ function treeNodeToElement<T>(node: IMutableTreeNode<T, any>): ITreeElement<T> {
 	const children = Iterator.map(Iterator.fromArray(node.children), treeNodeToElement);
 
 	return { element, children, collapsed };
-}
-
-function getVisibleState(visibility: boolean | TreeVisibility): TreeVisibility {
-	switch (visibility) {
-		case true: return TreeVisibility.Visible;
-		case false: return TreeVisibility.Hidden;
-		default: return visibility;
-	}
 }
 
 export interface IIndexTreeModelOptions<T, TFilterData> {
@@ -124,6 +124,18 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		}
 
 		return Iterator.map(Iterator.fromArray(deletedNodes), treeNodeToElement);
+	}
+
+	refresh(location: number[]): void {
+		if (location.length === 0) {
+			throw new Error('Invalid tree location');
+		}
+
+		const { node, listIndex, revealed } = this.getTreeNodeWithListIndex(location);
+
+		if (revealed) {
+			this.list.splice(listIndex, 1, [node]);
+		}
 	}
 
 	getListIndex(location: number[]): number {

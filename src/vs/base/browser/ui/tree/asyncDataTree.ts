@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ComposedTreeDelegate, IAbstractTreeOptions } from 'vs/base/browser/ui/tree/abstractTree';
+import { ComposedTreeDelegate, IAbstractTreeOptions, IAbstractTreeOptionsUpdate } from 'vs/base/browser/ui/tree/abstractTree';
 import { ObjectTree, IObjectTreeOptions } from 'vs/base/browser/ui/tree/objectTree';
 import { IListVirtualDelegate, IIdentityProvider, IListDragAndDrop, IListDragOverReaction } from 'vs/base/browser/ui/list/list';
 import { ITreeElement, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent, ITreeSorter, ICollapseStateChangeEvent, IAsyncDataSource, ITreeDragAndDrop } from 'vs/base/browser/ui/tree/tree';
@@ -228,7 +228,9 @@ function asTreeElement<TInput, T>(node: IAsyncDataTreeNode<TInput, T>): ITreeEle
 	};
 }
 
-export interface IAsyncDataTreeOptions<T, TFilterData = void> extends IAbstractTreeOptions<T, TFilterData> {
+export interface IAsyncDataTreeOptionsUpdate extends IAbstractTreeOptionsUpdate { }
+
+export interface IAsyncDataTreeOptions<T, TFilterData = void> extends IAsyncDataTreeOptionsUpdate, IAbstractTreeOptions<T, TFilterData> {
 	identityProvider?: IIdentityProvider<T>;
 	sorter?: ITreeSorter<T>;
 	autoExpandSingleChildren?: boolean;
@@ -309,6 +311,10 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		this.tree.onDidChangeCollapseState(this._onDidChangeCollapseState, this, this.disposables);
 	}
 
+	updateOptions(options: IAsyncDataTreeOptionsUpdate = {}): void {
+		this.tree.updateOptions(options);
+	}
+
 	// Widget
 
 	getHTMLElement(): HTMLElement {
@@ -351,7 +357,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		this.tree.style(styles);
 	}
 
-	// Data Tree
+	// Model
 
 	getInput(): TInput | undefined {
 		return this.root.element as TInput;
@@ -365,7 +371,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 		const viewStateContext = viewState && { viewState, focus: [], selection: [] } as IAsyncDataTreeViewStateContext<TInput, T>;
 
-		await this.refresh(input, true, viewStateContext);
+		await this.updateChildren(input, true, viewStateContext);
 
 		if (viewStateContext) {
 			this.tree.setFocus(viewStateContext.focus);
@@ -373,12 +379,19 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		}
 	}
 
-	refresh(element: TInput | T = this.root.element, recursive = true, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>): Promise<void> {
+	updateChildren(element: TInput | T = this.root.element, recursive = true, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>): Promise<void> {
 		if (typeof this.root.element === 'undefined') {
 			throw new Error('Tree input not set');
 		}
 
 		return this.refreshNode(this.getDataNode(element), recursive, ChildrenResolutionReason.Refresh, viewStateContext);
+	}
+
+	// View
+
+	refresh(element: T): void {
+		const node = this.getDataNode(element);
+		this.tree.refresh(node);
 	}
 
 	// Tree

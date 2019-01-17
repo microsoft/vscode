@@ -63,7 +63,7 @@ export function getIdAndVersion(id: string): [string, string | undefined] {
 }
 
 
-class Main {
+export class Main {
 
 	constructor(
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,

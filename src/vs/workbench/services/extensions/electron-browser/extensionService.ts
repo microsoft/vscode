@@ -114,13 +114,15 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			}]);
 		}
 
-		this._extensionEnablementService.onEnablementChanged((extension) => {
-			if (this._extensionEnablementService.isEnabled(extension)) {
-				// an extension has been enabled
-				this._addExtension(extension);
-			} else {
-				// an extension has been disabled
-				this._removeExtension(extension.identifier.id);
+		this._extensionEnablementService.onEnablementChanged((extensions) => {
+			for (const extension of extensions) {
+				if (this._extensionEnablementService.isEnabled(extension)) {
+					// an extension has been enabled
+					this._addExtension(extension);
+				} else {
+					// an extension has been disabled
+					this._removeExtension(extension.identifier.id);
+				}
 			}
 		});
 
@@ -599,7 +601,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 				});
 
 				if (extensionsToDisable.length) {
-					return Promise.all(extensionsToDisable.map(e => this._extensionEnablementService.setEnablement(toExtension(e), EnablementState.Disabled)))
+					return this._extensionEnablementService.setEnablement(extensionsToDisable.map(e => toExtension(e)), EnablementState.Disabled)
 						.then(() => runtimeExtensions);
 				} else {
 					return runtimeExtensions;

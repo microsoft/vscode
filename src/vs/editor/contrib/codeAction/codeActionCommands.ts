@@ -358,3 +358,31 @@ export class OrganizeImportsAction extends EditorAction {
 			CodeActionAutoApply.IfSingle);
 	}
 }
+
+export class AutoFixAction extends EditorAction {
+
+	static readonly Id = 'editor.action.autoFix';
+
+	constructor() {
+		super({
+			id: AutoFixAction.Id,
+			label: nls.localize('autoFix.label', "Auto Fix"),
+			alias: 'Auto Fix',
+			precondition: ContextKeyExpr.and(
+				EditorContextKeys.writable,
+				contextKeyForSupportedActions(CodeActionKind.QuickFix)),
+			kbOpts: {
+				kbExpr: EditorContextKeys.editorTextFocus,
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.US_DOT,
+				weight: KeybindingWeight.EditorContrib
+			}
+		});
+	}
+
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
+		return showCodeActionsForEditorSelection(editor,
+			nls.localize('editor.action.autoFix.noneMessage', "No auto fixes available"),
+			{ kind: CodeActionKind.QuickFix, autoFixesOnly: true },
+			CodeActionAutoApply.IfSingle);
+	}
+}

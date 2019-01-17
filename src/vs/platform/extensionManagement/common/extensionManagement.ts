@@ -238,7 +238,7 @@ export interface IExtensionEnablementService {
 	/**
 	 * Event to listen on for extension enablement changes
 	 */
-	onEnablementChanged: Event<IExtension>;
+	onEnablementChanged: Event<IExtension[]>;
 
 	/**
 	 * Returns all disabled extension identifiers for current workspace
@@ -270,7 +270,7 @@ export interface IExtensionEnablementService {
 	 *
 	 * Throws error if enablement is requested for workspace and there is no workspace
 	 */
-	setEnablement(extension: IExtension, state: EnablementState): Promise<boolean>;
+	setEnablement(extensions: IExtension[], state: EnablementState): Promise<boolean[]>;
 }
 
 export interface IExtensionsConfigContent {

@@ -64,6 +64,7 @@ export class ExplorerView extends ViewletPanel {
 	private decorationProvider: ExplorerDecorationsProvider;
 	private autoReveal = false;
 	private ignoreActiveEditorChange;
+	private previousSelection: ExplorerItem[] = [];
 
 	constructor(
 		options: IViewletPanelOptions,
@@ -178,6 +179,8 @@ export class ExplorerView extends ViewletPanel {
 			if (isEditing) {
 				DOM.addClass(this.tree.getHTMLElement(), 'highlight');
 				this.tree.reveal(e);
+			} else {
+				this.tree.domFocus();
 			}
 		}));
 		this.disposables.push(this.explorerService.onDidSelectItem(e => this.onSelectItem(e.item, e.reveal)));
@@ -289,10 +292,20 @@ export class ExplorerView extends ViewletPanel {
 				return;
 			}
 			const selection = e.elements;
-			// Do not react if the user is expanding selection
-			if (selection && selection.length === 1) {
-				if (selection[0].isDirectory || !selection[0].name) {
-					// Do not react if user is clicking on directories or explorer items which are input placeholders
+			// Do not react if the user is expanding selection via keyboard.
+			// Check if the item was previously also selected, if yes the user is simply expanding / collapsing current selection #66589.
+			const wasSelectedAndKeyboard = (e.browserEvent instanceof KeyboardEvent) && this.previousSelection.indexOf(selection[0]) >= 0;
+			this.previousSelection = selection;
+			if (selection.length === 1 && !wasSelectedAndKeyboard) {
+				// Do not react if user is clicking on explorer items which are input placeholders
+				if (!selection[0].name) {
+					// Do not react if user is clicking on explorer items which are input placeholders
+					return;
+				}
+				if (selection[0].isDirectory) {
+					if (e.browserEvent instanceof KeyboardEvent) {
+						this.tree.toggleCollapsed(selection[0]);
+					}
 					return;
 				}
 				let isDoubleClick = false;
@@ -390,7 +403,7 @@ export class ExplorerView extends ViewletPanel {
 		const recursive = !item;
 		const toRefresh = item || this.tree.getInput();
 
-		return this.tree.refresh(toRefresh, recursive);
+		return this.tree.updateChildren(toRefresh, recursive);
 	}
 
 	getOptimalWidth(): number {

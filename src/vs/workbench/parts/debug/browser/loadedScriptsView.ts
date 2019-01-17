@@ -422,7 +422,7 @@ export class LoadedScriptsView extends ViewletPanel {
 		this.changeScheduler = new RunOnceScheduler(() => {
 			this.treeNeedsRefreshOnVisible = false;
 			if (this.tree) {
-				this.tree.refresh();
+				this.tree.updateChildren();
 			}
 		}, 300);
 		this.disposables.push(this.changeScheduler);

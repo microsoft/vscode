@@ -15,7 +15,12 @@ import { CodeAction, CodeActionContext, CodeActionProviderRegistry, CodeActionTr
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { CodeActionFilter, CodeActionKind, CodeActionTrigger } from './codeActionTrigger';
 
-export function getCodeActions(model: ITextModel, rangeOrSelection: Range | Selection, trigger?: CodeActionTrigger, token: CancellationToken = CancellationToken.None): Promise<CodeAction[]> {
+export function getCodeActions(
+	model: ITextModel,
+	rangeOrSelection: Range | Selection,
+	trigger?: CodeActionTrigger,
+	token: CancellationToken = CancellationToken.None
+): Promise<CodeAction[]> {
 	const codeActionContext: CodeActionContext = {
 		only: trigger && trigger.filter && trigger.filter.kind ? trigger.filter.kind.value : undefined,
 		trigger: trigger && trigger.type === 'manual' ? CodeActionTriggerKind.Manual : CodeActionTriggerKind.Automatic
@@ -65,7 +70,9 @@ export function getCodeActions(model: ITextModel, rangeOrSelection: Range | Sele
 }
 
 function isValidAction(filter: CodeActionFilter | undefined, action: CodeAction): boolean {
-	return action && isValidActionKind(filter, action.kind);
+	return action
+		&& isValidActionKind(filter, action.kind)
+		&& (filter && filter.autoFixesOnly ? !!action.canAutoApply : true);
 }
 
 function isValidActionKind(filter: CodeActionFilter | undefined, kind: string | undefined): boolean {

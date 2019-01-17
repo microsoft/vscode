@@ -25,8 +25,7 @@ interface ParseResult {
 }
 
 export class GotoLineEntry extends QuickOpenEntry {
-
-	private _parseResult: ParseResult;
+	private parseResult: ParseResult;
 	private decorator: IDecorator;
 	private editor: editorCommon.IEditor;
 
@@ -35,14 +34,12 @@ export class GotoLineEntry extends QuickOpenEntry {
 
 		this.editor = editor;
 		this.decorator = decorator;
-		this._parseResult = this._parseInput(line);
+		this.parseResult = this.parseInput(line);
 	}
 
-
-	private _parseInput(line: string): ParseResult {
-
-		let numbers = line.split(',').map(part => parseInt(part, 10)).filter(part => !isNaN(part)),
-			position: Position;
+	private parseInput(line: string): ParseResult {
+		const numbers = line.split(',').map(part => parseInt(part, 10)).filter(part => !isNaN(part));
+		let position: Position;
 
 		if (numbers.length === 0) {
 			position = new Position(-1, -1);
@@ -59,8 +56,8 @@ export class GotoLineEntry extends QuickOpenEntry {
 			model = (<IDiffEditor>this.editor).getModel().modified;
 		}
 
-		let isValid = model.validatePosition(position).equals(position),
-			label: string;
+		const isValid = model.validatePosition(position).equals(position);
+		let label: string;
 
 		if (isValid) {
 			if (position.column && position.column > 1) {
@@ -81,15 +78,17 @@ export class GotoLineEntry extends QuickOpenEntry {
 		};
 	}
 
-	public getLabel(): string {
-		return this._parseResult.label;
+	getLabel(): string {
+		return this.parseResult.label;
 	}
 
-	public getAriaLabel(): string {
-		return nls.localize('gotoLineAriaLabel', "Go to line {0}", this._parseResult.label);
+	getAriaLabel(): string {
+		const currentLine = this.editor.getPosition().lineNumber;
+
+		return nls.localize('gotoLineAriaLabel', "Current Line: {0}. Go to line {0}.", currentLine, this.parseResult.label);
 	}
 
-	public run(mode: Mode, context: IContext): boolean {
+	run(mode: Mode, context: IContext): boolean {
 		if (mode === Mode.OPEN) {
 			return this.runOpen();
 		}
@@ -97,15 +96,15 @@ export class GotoLineEntry extends QuickOpenEntry {
 		return this.runPreview();
 	}
 
-	public runOpen(): boolean {
+	runOpen(): boolean {
 
 		// No-op if range is not valid
-		if (!this._parseResult.isValid) {
+		if (!this.parseResult.isValid) {
 			return false;
 		}
 
 		// Apply selection and focus
-		let range = this.toSelection();
+		const range = this.toSelection();
 		(<ICodeEditor>this.editor).setSelection(range);
 		(<ICodeEditor>this.editor).revealRangeInCenter(range, editorCommon.ScrollType.Smooth);
 		this.editor.focus();
@@ -113,16 +112,16 @@ export class GotoLineEntry extends QuickOpenEntry {
 		return true;
 	}
 
-	public runPreview(): boolean {
+	runPreview(): boolean {
 
 		// No-op if range is not valid
-		if (!this._parseResult.isValid) {
+		if (!this.parseResult.isValid) {
 			this.decorator.clearDecorations();
 			return false;
 		}
 
 		// Select Line Position
-		let range = this.toSelection();
+		const range = this.toSelection();
 		this.editor.revealRangeInCenter(range, editorCommon.ScrollType.Smooth);
 
 		// Decorate if possible
@@ -133,10 +132,10 @@ export class GotoLineEntry extends QuickOpenEntry {
 
 	private toSelection(): Range {
 		return new Range(
-			this._parseResult.position.lineNumber,
-			this._parseResult.position.column,
-			this._parseResult.position.lineNumber,
-			this._parseResult.position.column
+			this.parseResult.position.lineNumber,
+			this.parseResult.position.column,
+			this.parseResult.position.lineNumber,
+			this.parseResult.position.column
 		);
 	}
 }
@@ -158,7 +157,7 @@ export class GotoLineAction extends BaseEditorQuickOpenAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		this._show(this.getController(editor), {
 			getModel: (value: string): QuickOpenModel => {
 				return new QuickOpenModel([new GotoLineEntry(value, editor, this.getController(editor))]);

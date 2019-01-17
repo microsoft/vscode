@@ -714,10 +714,10 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 // Go to menu
 
 MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
-	group: 'z_go_to',
+	group: '3_global_nav',
 	command: {
 		id: 'workbench.action.showAllSymbols',
 		title: nls.localize({ key: 'miGotoSymbolInWorkspace', comment: ['&& denotes a mnemonic'] }, "Go to Symbol in &&Workspace...")
 	},
-	order: 3
+	order: 2
 });

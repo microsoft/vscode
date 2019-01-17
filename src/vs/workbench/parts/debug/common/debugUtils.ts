@@ -134,6 +134,11 @@ export function convertToVSCPaths(message: DebugProtocol.ProtocolMessage, fixSou
 }
 
 function convertPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePaths: (toDA: boolean, source: DebugProtocol.Source | undefined) => void): void {
+
+	const tmpSource: DebugProtocol.Source = {
+		path: ''
+	};
+
 	switch (msg.type) {
 		case 'event':
 			const event = <DebugProtocol.Event>msg;
@@ -164,9 +169,15 @@ function convertPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePaths: (toDA:
 					fixSourcePaths(true, (<DebugProtocol.GotoTargetsArguments>request.arguments).source);
 					break;
 				case 'launchVSCode':
-					const source = { path: request.arguments.extensionDevelopmentPath };
-					fixSourcePaths(false, source);
-					request.arguments.extensionDevelopmentPath = source.path;
+					tmpSource.path = request.arguments.extensionDevelopmentPath;
+					fixSourcePaths(false, tmpSource);
+					request.arguments.extensionDevelopmentPath = tmpSource.path;
+
+					request.arguments.pathArgs.forEach(p => {
+						tmpSource.path = p.path;
+						fixSourcePaths(false, tmpSource);
+						p.path = tmpSource.path;
+					});
 					break;
 				default:
 					break;
