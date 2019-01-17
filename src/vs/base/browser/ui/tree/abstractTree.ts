@@ -172,7 +172,7 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 	readonly templateId: string;
 	private renderedElements = new Map<T, ITreeNode<T, TFilterData>>();
 	private renderedNodes = new Map<ITreeNode<T, TFilterData>, ITreeListTemplateData<TTemplateData>>();
-	private indent = 12;
+	private indent: number;
 	private disposables: IDisposable[] = [];
 
 	constructor(
@@ -191,8 +191,7 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 	}
 
 	updateOptions(options: ITreeRendererOptions = {}): void {
-		this.indent = typeof options.indent === 'number' ? options.indent : 12;
-		console.log(this.indent);
+		this.indent = typeof options.indent === 'number' ? options.indent : 8;
 
 		this.renderedNodes.forEach((templateData, node) => {
 			templateData.twistie.style.marginLeft = `${node.depth * this.indent}px`;
