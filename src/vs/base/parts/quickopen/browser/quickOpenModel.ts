@@ -474,7 +474,7 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 			data.detail.set(entry.getDetail(), detailHighlights);
 
 			// Keybinding
-			data.keybinding.set(entry.getKeybinding(), null);
+			data.keybinding.set(entry.getKeybinding());
 		}
 	}
 
@@ -484,7 +484,6 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		data.actionBar = null;
 		data.container = null;
 		data.entry = null;
-		data.keybinding.dispose();
 		data.keybinding = null;
 		data.detail.dispose();
 		data.detail = null;
