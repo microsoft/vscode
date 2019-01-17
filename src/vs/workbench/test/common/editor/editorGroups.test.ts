@@ -656,7 +656,7 @@ suite('Workbench editor groups', () => {
 		config.setUserConfiguration('workbench', { editor: { tabClosingOrder: 'rtl' } });
 		inst.stub(IConfigurationService, config);
 
-		const group = createGroup();
+		const group = inst.createInstance(EditorGroup);
 		const events = groupListener(group);
 
 		const input1 = input();
@@ -714,7 +714,7 @@ suite('Workbench editor groups', () => {
 		config.setUserConfiguration('workbench', { editor: { tabClosingOrder: 'ltr' } });
 		inst.stub(IConfigurationService, config);
 
-		const group = createGroup();
+		const group = inst.createInstance(EditorGroup);
 		const events = groupListener(group);
 
 		const input1 = input();
