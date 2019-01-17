@@ -240,7 +240,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
 
 		const results = new CodeActionSet();
 		for (const tsCodeFix of response.body) {
-			this.addAllFixesForTsCodeAction(results, document, file, diagnostic, tsCodeFix);
+			this.addAllFixesForTsCodeAction(results, document, file, diagnostic, tsCodeFix as Proto.CodeFixAction);
 		}
 		return results.values;
 	}
@@ -250,7 +250,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
 		document: vscode.TextDocument,
 		file: string,
 		diagnostic: vscode.Diagnostic,
-		tsAction: Proto.CodeAction
+		tsAction: Proto.CodeFixAction
 	): CodeActionSet {
 		results.addAction(this.getSingleFixForTsCodeAction(diagnostic, tsAction));
 		this.addFixAllForTsCodeAction(results, document, file, diagnostic, tsAction as Proto.CodeFixAction);
@@ -259,7 +259,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
 
 	private getSingleFixForTsCodeAction(
 		diagnostic: vscode.Diagnostic,
-		tsAction: Proto.CodeAction
+		tsAction: Proto.CodeFixAction
 	): vscode.CodeAction {
 		const codeAction = new vscode.CodeAction(tsAction.description, vscode.CodeActionKind.QuickFix);
 		codeAction.edit = getEditForCodeAction(this.client, tsAction);
@@ -269,6 +269,9 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
 			arguments: [tsAction],
 			title: ''
 		};
+		if (tsAction.fixName === 'spelling') {
+			codeAction.canAutoApply = true;
+		}
 		return codeAction;
 	}
 
