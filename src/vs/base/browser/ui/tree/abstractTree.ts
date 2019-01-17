@@ -8,7 +8,7 @@ import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IListOptions, List, IListStyles, mightProducePrintableCharacter } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate, IListRenderer, IListMouseEvent, IListEvent, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/list/list';
 import { append, $, toggleClass, timeout } from 'vs/base/browser/dom';
-import { Event, Relay } from 'vs/base/common/event';
+import { Event, Relay, Emitter } from 'vs/base/common/event';
 import { StandardKeyboardEvent, IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ITreeModel, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent, ITreeFilter, ITreeNavigator, ICollapseStateChangeEvent, ITreeDragAndDrop, TreeDragOverBubble, TreeVisibility, TreeFilterResult } from 'vs/base/browser/ui/tree/tree';
@@ -321,7 +321,15 @@ class TypeFilter<T> implements ITreeFilter<T, FuzzyScore> {
 
 class TypeFilterController<T, TFilterData> implements IDisposable {
 
+	get pattern(): string {
+		return this._pattern;
+	}
+
+	private _onDidChangePattern = new Emitter<string>();
+	readonly onDidChangePattern = this._onDidChangePattern.event;
+
 	private domNode: HTMLElement;
+	private _pattern = '';
 	private disposables: IDisposable[] = [];
 
 	constructor(
@@ -356,9 +364,12 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 	}
 
 	private onInput(pattern: string): void {
+		this._pattern = pattern;
 		this.domNode.textContent = pattern;
 		this.filter.pattern = pattern;
 		this.tree.refilter();
+
+		this._onDidChangePattern.fire(pattern);
 	}
 
 	dispose() {
@@ -409,6 +420,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 	private view: List<ITreeNode<T, TFilterData>>;
 	private renderers: TreeRenderer<T, TFilterData, any>[];
+	private focusNavigationFilter: ((node: ITreeNode<T, TFilterData>) => boolean) | undefined;
 	protected model: ITreeModel<T, TFilterData, TRef>;
 	protected disposables: IDisposable[] = [];
 
@@ -470,7 +482,10 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 		if (options.keyboardNavigationLabelProvider) {
 			const typeFilterController = new TypeFilterController(this, this.view, filter as TypeFilter<T>, options.keyboardNavigationLabelProvider);
+			this.focusNavigationFilter = node => !typeFilterController.pattern || !FuzzyScore.isDefault(node.filterData as any as FuzzyScore); // TODO@joao
 			this.disposables.push(typeFilterController);
+
+			typeFilterController.onDidChangePattern(() => this.focusNext(0, true), this, this.disposables);
 		}
 	}
 
@@ -594,27 +609,27 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	}
 
 	focusNext(n = 1, loop = false, browserEvent?: UIEvent): void {
-		this.view.focusNext(n, loop, browserEvent);
+		this.view.focusNext(n, loop, browserEvent, this.focusNavigationFilter);
 	}
 
 	focusPrevious(n = 1, loop = false, browserEvent?: UIEvent): void {
-		this.view.focusPrevious(n, loop, browserEvent);
+		this.view.focusPrevious(n, loop, browserEvent, this.focusNavigationFilter);
 	}
 
 	focusNextPage(browserEvent?: UIEvent): void {
-		this.view.focusNextPage(browserEvent);
+		this.view.focusNextPage(browserEvent, this.focusNavigationFilter);
 	}
 
 	focusPreviousPage(browserEvent?: UIEvent): void {
-		this.view.focusPreviousPage(browserEvent);
+		this.view.focusPreviousPage(browserEvent, this.focusNavigationFilter);
 	}
 
 	focusLast(browserEvent?: UIEvent): void {
-		this.view.focusLast(browserEvent);
+		this.view.focusLast(browserEvent, this.focusNavigationFilter);
 	}
 
 	focusFirst(browserEvent?: UIEvent): void {
-		this.view.focusFirst(browserEvent);
+		this.view.focusFirst(browserEvent, this.focusNavigationFilter);
 	}
 
 	getFocus(): T[] {
