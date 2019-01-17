@@ -86,7 +86,14 @@ export class GotoLineEntry extends QuickOpenEntry {
 	}
 
 	public getAriaLabel(): string {
-		return nls.localize('gotoLineAriaLabel', "Go to line {0}", this._parseResult.label);
+
+		if (this.editor) {
+			const currentLine = this.editor.getPosition().lineNumber;
+			// Output verbose current line / go to line label
+			return nls.localize('gotoLineAriaLabel', "Current Line: {0}. Go to line {0}.", currentLine, this._parseResult.label);
+		}
+
+		return nls.localize('cannotRunGotoLine', "Open a text file first to go to a line.");
 	}
 
 	public run(mode: Mode, context: IContext): boolean {
