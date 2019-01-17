@@ -1622,9 +1622,9 @@ export enum TaskScope {
 }
 
 export class ExtensionCallbackExecution implements vscode.ExtensionCallbackExecution {
-	private _callback: (args: vscode.ExtensionCallbackExecutionArgs, cancellationToken: vscode.CancellationToken) => Thenable<void>;
+	private _callback: (args: vscode.TerminalRenderer, cancellationToken: vscode.CancellationToken) => Thenable<void>;
 
-	constructor(callback: (args: vscode.ExtensionCallbackExecutionArgs, cancellationToken: vscode.CancellationToken) => Thenable<void>) {
+	constructor(callback: (args: vscode.TerminalRenderer, cancellationToken: vscode.CancellationToken) => Thenable<void>) {
 		this._callback = callback;
 	}
 
@@ -1637,11 +1637,11 @@ export class ExtensionCallbackExecution implements vscode.ExtensionCallbackExecu
 		return hash.digest('hex');
 	}
 
-	public set callback(value: (args: vscode.ExtensionCallbackExecutionArgs, cancellationToken: vscode.CancellationToken) => Thenable<void>) {
+	public set callback(value: (args: vscode.TerminalRenderer, cancellationToken: vscode.CancellationToken) => Thenable<void>) {
 		this._callback = value;
 	}
 
-	public get callback(): (args: vscode.ExtensionCallbackExecutionArgs, cancellationToken: vscode.CancellationToken) => Thenable<void> {
+	public get callback(): (args: vscode.TerminalRenderer, cancellationToken: vscode.CancellationToken) => Thenable<void> {
 		return this._callback;
 	}
 }

@@ -5075,33 +5075,18 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Arguments passed to the callback provided in [ExtensionCallbackExecution](#ExtensionCallbackExecution) class.
-	 */
-	export interface ExtensionCallbackExecutionArgs {
-		/**
-		 * @param text Text to output from the task.
-		 **/
-		sendText(text: string, addNewLine?: boolean): void;
-
-		/**
-		 * An event fired when the task is to accept input data.
-		 */
-		onTextInput: Event<string>;
-	}
-
-	/**
 	 * Class used to execute an extension callback as a task.
 	 */
 	export class ExtensionCallbackExecution {
 		/**
 		 * @param callback The callback that will be called when the extension callback task is executed.
 		 */
-		constructor(callback: (args: ExtensionCallbackExecutionArgs, cancellationToken: CancellationToken, thisArg?: any) => Thenable<void>);
+		constructor(callback: (terminalRenderer: TerminalRenderer, cancellationToken: CancellationToken, thisArg?: any) => Thenable<void>);
 
 		/**
 		 * The callback used to execute the task.
 		 */
-		callback: (args: ExtensionCallbackExecutionArgs, cancellationToken: CancellationToken, thisArg?: any) => Thenable<void>;
+		callback: (terminalRenderer: TerminalRenderer, cancellationToken: CancellationToken, thisArg?: any) => Thenable<void>;
 	}
 
 	/**

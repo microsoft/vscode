@@ -208,13 +208,16 @@ export class ExtHostTerminalRenderer extends BaseExtHostTerminal implements vsco
 	constructor(
 		proxy: MainThreadTerminalServiceShape,
 		private _name: string,
-		private _terminal: ExtHostTerminal
+		private _terminal: ExtHostTerminal,
+		id?: number
 	) {
-		super(proxy);
-		this._proxy.$createTerminalRenderer(this._name).then(id => {
-			this._runQueuedRequests(id);
-			(<any>this._terminal)._runQueuedRequests(id);
-		});
+		super(proxy, id);
+		if (!id) {
+			this._proxy.$createTerminalRenderer(this._name).then(id => {
+				this._runQueuedRequests(id);
+				(<any>this._terminal)._runQueuedRequests(id);
+			});
+		}
 	}
 
 	public write(data: string): void {
@@ -245,11 +248,14 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 
 	public get activeTerminal(): ExtHostTerminal { return this._activeTerminal; }
 	public get terminals(): ExtHostTerminal[] { return this._terminals; }
+	public get rendererTerminals(): ExtHostTerminalRenderer[] { return this._terminalRenderers; }
 
 	private readonly _onDidCloseTerminal: Emitter<vscode.Terminal> = new Emitter<vscode.Terminal>();
 	public get onDidCloseTerminal(): Event<vscode.Terminal> { return this._onDidCloseTerminal && this._onDidCloseTerminal.event; }
 	private readonly _onDidOpenTerminal: Emitter<vscode.Terminal> = new Emitter<vscode.Terminal>();
 	public get onDidOpenTerminal(): Event<vscode.Terminal> { return this._onDidOpenTerminal && this._onDidOpenTerminal.event; }
+	private readonly _onDidOpenRendererTerminal: Emitter<vscode.TerminalRenderer> = new Emitter<vscode.TerminalRenderer>();
+	public get onDidOpenRendererTerminal(): Event<vscode.TerminalRenderer> { return this._onDidOpenRendererTerminal && this._onDidOpenRendererTerminal.event; }
 	private readonly _onDidChangeActiveTerminal: Emitter<vscode.Terminal | undefined> = new Emitter<vscode.Terminal | undefined>();
 	public get onDidChangeActiveTerminal(): Event<vscode.Terminal | undefined> { return this._onDidChangeActiveTerminal && this._onDidChangeActiveTerminal.event; }
 
@@ -342,17 +348,39 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		this._onDidCloseTerminal.fire(terminal);
 	}
 
-	public $acceptTerminalOpened(id: number, name: string): void {
+	public $acceptTerminalOpened(id: number, name: string, isRendererOnly: boolean): void {
+		// If this is a terminal created by one of the public createrTerminal* APIs
+		// then @acceptTerminalOpened was called from the main thread task
+		// to indicate that the terminal is ready for use.
+		// In those cases, we don't need to create the extension host objects
+		// as they alrady exist, but, we do still need to fire the events
+		// to our consumers.
 		const index = this._getTerminalObjectIndexById(this._terminals, id);
 		if (index !== null) {
-			// The terminal has already been created (via createTerminal*), only fire the event
 			this._onDidOpenTerminal.fire(this.terminals[index]);
+		}
+
+		let renderer = this._getTerminalRendererById(id);
+		if (renderer) {
+			// The terminal has already been created (via createTerminal*), only fire the event
+			this._onDidOpenRendererTerminal.fire(renderer);
+		}
+
+		if (renderer || index) {
 			return;
 		}
-		const renderer = this._getTerminalRendererById(id);
+
+		// The extension host did not know about this terminal, so create extension host
+		// objects to represent them.
 		const terminal = new ExtHostTerminal(this._proxy, name, id, renderer ? RENDERER_NO_PROCESS_ID : undefined);
 		this._terminals.push(terminal);
 		this._onDidOpenTerminal.fire(terminal);
+
+		if (isRendererOnly) {
+			renderer = new ExtHostTerminalRenderer(this._proxy, name, terminal, id);
+			this.rendererTerminals.push(renderer);
+			this._onDidOpenRendererTerminal.fire(renderer);
+		}
 	}
 
 	public $acceptTerminalProcessId(id: number, processId: number): void {
