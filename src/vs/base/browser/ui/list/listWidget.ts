@@ -1228,41 +1228,54 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		this.focus.set(indexes, browserEvent);
 	}
 
-	focusNext(n = 1, loop = false, browserEvent?: UIEvent): void {
+	focusNext(n = 1, loop = false, browserEvent?: UIEvent, filter?: (element: T) => boolean): void {
 		if (this.length === 0) { return; }
+
 		const focus = this.focus.get();
-		let index = focus.length > 0 ? focus[0] + n : 0;
-		this.setFocus(loop ? [index % this.length] : [Math.min(index, this.length - 1)], browserEvent);
+		const index = this.findNextIndex(focus.length > 0 ? focus[0] + n : 0, loop, filter);
+
+		if (index > -1) {
+			this.setFocus([index], browserEvent);
+		}
 	}
 
-	focusPrevious(n = 1, loop = false, browserEvent?: UIEvent): void {
+	focusPrevious(n = 1, loop = false, browserEvent?: UIEvent, filter?: (element: T) => boolean): void {
 		if (this.length === 0) { return; }
+
 		const focus = this.focus.get();
-		let index = focus.length > 0 ? focus[0] - n : 0;
-		if (loop && index < 0) { index = (this.length + (index % this.length)) % this.length; }
-		this.setFocus([Math.max(index, 0)], browserEvent);
+		const index = this.findPreviousIndex(focus.length > 0 ? focus[0] - n : 0, loop, filter);
+
+		if (index > -1) {
+			this.setFocus([index], browserEvent);
+		}
 	}
 
-	focusNextPage(browserEvent?: UIEvent): void {
+	focusNextPage(browserEvent?: UIEvent, filter?: (element: T) => boolean): void {
 		let lastPageIndex = this.view.indexAt(this.view.getScrollTop() + this.view.renderHeight);
 		lastPageIndex = lastPageIndex === 0 ? 0 : lastPageIndex - 1;
 		const lastPageElement = this.view.element(lastPageIndex);
 		const currentlyFocusedElement = this.getFocusedElements()[0];
 
 		if (currentlyFocusedElement !== lastPageElement) {
-			this.setFocus([lastPageIndex], browserEvent);
+			const lastGoodPageIndex = this.findPreviousIndex(lastPageIndex, false, filter);
+
+			if (lastGoodPageIndex > -1 && currentlyFocusedElement !== this.view.element(lastGoodPageIndex)) {
+				this.setFocus([lastGoodPageIndex], browserEvent);
+			} else {
+				this.setFocus([lastPageIndex], browserEvent);
+			}
 		} else {
 			const previousScrollTop = this.view.getScrollTop();
 			this.view.setScrollTop(previousScrollTop + this.view.renderHeight - this.view.elementHeight(lastPageIndex));
 
 			if (this.view.getScrollTop() !== previousScrollTop) {
 				// Let the scroll event listener run
-				setTimeout(() => this.focusNextPage(browserEvent), 0);
+				setTimeout(() => this.focusNextPage(browserEvent, filter), 0);
 			}
 		}
 	}
 
-	focusPreviousPage(browserEvent?: UIEvent): void {
+	focusPreviousPage(browserEvent?: UIEvent, filter?: (element: T) => boolean): void {
 		let firstPageIndex: number;
 		const scrollTop = this.view.getScrollTop();
 
@@ -1276,26 +1289,78 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		const currentlyFocusedElement = this.getFocusedElements()[0];
 
 		if (currentlyFocusedElement !== firstPageElement) {
-			this.setFocus([firstPageIndex], browserEvent);
+			const firstGoodPageIndex = this.findNextIndex(firstPageIndex, false, filter);
+
+			if (firstGoodPageIndex > -1 && currentlyFocusedElement !== this.view.element(firstGoodPageIndex)) {
+				this.setFocus([firstGoodPageIndex], browserEvent);
+			} else {
+				this.setFocus([firstPageIndex], browserEvent);
+			}
 		} else {
 			const previousScrollTop = scrollTop;
 			this.view.setScrollTop(scrollTop - this.view.renderHeight);
 
 			if (this.view.getScrollTop() !== previousScrollTop) {
 				// Let the scroll event listener run
-				setTimeout(() => this.focusPreviousPage(browserEvent), 0);
+				setTimeout(() => this.focusPreviousPage(browserEvent, filter), 0);
 			}
 		}
 	}
 
-	focusLast(browserEvent?: UIEvent): void {
+	focusLast(browserEvent?: UIEvent, filter?: (element: T) => boolean): void {
 		if (this.length === 0) { return; }
-		this.setFocus([this.length - 1], browserEvent);
+
+		const index = this.findPreviousIndex(this.length - 1, false, filter);
+
+		if (index > -1) {
+			this.setFocus([index], browserEvent);
+		}
 	}
 
-	focusFirst(browserEvent?: UIEvent): void {
+	focusFirst(browserEvent?: UIEvent, filter?: (element: T) => boolean): void {
 		if (this.length === 0) { return; }
-		this.setFocus([0], browserEvent);
+
+		const index = this.findNextIndex(0, false, filter);
+
+		if (index > -1) {
+			this.setFocus([index], browserEvent);
+		}
+	}
+
+	private findNextIndex(index: number, loop = false, filter?: (element: T) => boolean): number {
+		for (let i = 0; i < this.length; i++) {
+			if (index >= this.length && !loop) {
+				return -1;
+			}
+
+			index = index % this.length;
+
+			if (!filter || filter(this.element(index))) {
+				return index;
+			}
+
+			index++;
+		}
+
+		return -1;
+	}
+
+	private findPreviousIndex(index: number, loop = false, filter?: (element: T) => boolean): number {
+		for (let i = 0; i < this.length; i++) {
+			if (index < 0 && !loop) {
+				return -1;
+			}
+
+			index = (this.length + (index % this.length)) % this.length;
+
+			if (!filter || filter(this.element(index))) {
+				return index;
+			}
+
+			index--;
+		}
+
+		return -1;
 	}
 
 	getFocus(): number[] {
