@@ -91,14 +91,15 @@ class GotoLineEntry extends EditorQuickOpenEntry {
 
 		// Inform user about valid range if input is invalid
 		const maxLineNumber = this.getMaxLineNumber();
-		const line = this.editorService.activeTextEditorWidget.getPosition().lineNumber;
 
-		if (this.invalidRange(maxLineNumber) && typeof line === 'number') {
+		if (this.invalidRange(maxLineNumber)) {
+			const line = this.editorService.activeTextEditorWidget.getPosition().lineNumber;
+
 			if (maxLineNumber > 0) {
-				return nls.localize('gotoLineLabelEmptyWithLimit', "Current Line: {0}.  Type a line number between 1 and {1} to navigate to", line, maxLineNumber);
+				return nls.localize('gotoLineLabelEmptyWithLimit', "Current Line: {0}. Type a line number between 1 and {1} to navigate to.", line, maxLineNumber);
 			}
 
-			return nls.localize('gotoLineLabelEmpty', "Current Line: {0}. Type a line number to navigate to", line);
+			return nls.localize('gotoLineLabelEmpty', "Current Line: {0}. Type a line number to navigate to.", line);
 		}
 
 		// Input valid, indicate action
@@ -216,23 +217,13 @@ export class GotoLineHandler extends QuickOpenHandler {
 
 	getAriaLabel(): string {
 
-		let label = nls.localize('canNotRunPlaceholder', "This quick open handler can not be used in the current context.");
-
-		// Check we can run - (is text editor)
-		const canRun = this.canRun();
-		if ((typeof canRun === 'boolean' && !canRun) || typeof canRun === 'string') {
-			label = (typeof canRun === 'string') ? canRun : label;
-			return label;
-		}
-
-		const line = this.editorService.activeTextEditorWidget.getPosition().lineNumber;
-
-		if (typeof line === 'number') {
+		if (this.editorService.activeTextEditorWidget) {
+			const currentLine = this.editorService.activeTextEditorWidget.getPosition().lineNumber;
 			// Output verbose current line / go to line label
-			label = nls.localize('gotoLineLabelEmpty', "Current Line: {0}. Type a line number to navigate to", line) + '.';
+			return nls.localize('gotoLineLabelEmpty', "Current Line: {0}. Type a line number to navigate to.", currentLine);
 		}
 
-		return label;
+		return nls.localize('cannotRunGotoLine', "Open a text file first to go to a line.");
 	}
 
 	getResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel> {
@@ -250,7 +241,7 @@ export class GotoLineHandler extends QuickOpenHandler {
 	canRun(): boolean | string {
 		const canRun = !!this.editorService.activeTextEditorWidget;
 
-		return canRun ? true : nls.localize('cannotRunGotoLine', "Open a text file first to go to a line");
+		return canRun ? true : nls.localize('cannotRunGotoLine', "Open a text file first to go to a line.");
 	}
 
 	decorateOutline(range: IRange, editor: IEditor, group: IEditorGroup): void {
