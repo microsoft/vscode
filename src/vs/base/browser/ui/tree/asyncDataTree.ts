@@ -517,12 +517,6 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		return (node && node.element)!;
 	}
 
-	getLastElementAncestor(element: TInput | T = this.root.element): TInput | T | undefined {
-		const dataNode = this.getDataNode(element);
-		const node = this.tree.getLastElementAncestor(dataNode === this.root ? null : dataNode);
-		return (node && node.element)!;
-	}
-
 	// List
 
 	get visibleNodeCount(): number {
