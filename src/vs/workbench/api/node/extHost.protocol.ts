@@ -527,6 +527,7 @@ export interface MainThreadSearchShape extends IDisposable {
 }
 
 export interface MainThreadTaskShape extends IDisposable {
+	$createTaskId(task: TaskDTO): Promise<string>;
 	$registerTaskProvider(handle: number): Promise<void>;
 	$unregisterTaskProvider(handle: number): Promise<void>;
 	$fetchTasks(filter?: TaskFilterDTO): Promise<TaskDTO[]>;
@@ -938,7 +939,7 @@ export interface ExtHostSCMShape {
 
 export interface ExtHostTaskShape {
 	$provideTasks(handle: number, validTypes: { [key: string]: boolean; }): Thenable<TaskSetDTO>;
-	$onDidStartTask(execution: TaskExecutionDTO): void;
+	$onDidStartTask(execution: TaskExecutionDTO, terminalId: number): void;
 	$onDidStartTaskProcess(value: TaskProcessStartedDTO): void;
 	$onDidEndTaskProcess(value: TaskProcessEndedDTO): void;
 	$OnDidEndTask(execution: TaskExecutionDTO): void;

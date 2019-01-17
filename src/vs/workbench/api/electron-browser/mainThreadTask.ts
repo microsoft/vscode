@@ -417,7 +417,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 		this._taskService.onDidStateChange((event: TaskEvent) => {
 			let task = event.__task;
 			if (event.kind === TaskEventKind.Start) {
-				this._proxy.$onDidStartTask(TaskExecutionDTO.from(task.getTaskExecution()));
+				this._proxy.$onDidStartTask(TaskExecutionDTO.from(task.getTaskExecution()), event.terminalId);
 			} else if (event.kind === TaskEventKind.ProcessStarted) {
 				this._proxy.$onDidStartTaskProcess(TaskProcessStartedDTO.from(task.getTaskExecution(), event.processId));
 			} else if (event.kind === TaskEventKind.ProcessEnded) {
@@ -433,6 +433,13 @@ export class MainThreadTask implements MainThreadTaskShape {
 			value.disposable.dispose();
 		});
 		this._providers.clear();
+	}
+
+	$createTaskId(taskDTO: TaskDTO): Promise<string> {
+		return new Promise((resolve) => {
+			let task = TaskDTO.to(taskDTO, this._workspaceContextServer, true);
+			resolve(task._id);
+		});
 	}
 
 	public $registerTaskProvider(handle: number): Promise<void> {

@@ -520,7 +520,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 				}, (_error) => {
 					// The process never got ready. Need to think how to handle this.
 				});
-				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task));
+				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task, terminal.id));
 				const registeredLinkMatchers = this.registerLinkMatchers(terminal, problemMatchers);
 				const onData = terminal.onLineData((line) => {
 					watchingProblemMatcher.processLine(line);
@@ -587,7 +587,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 				}, (_error) => {
 					// The process never got ready. Need to think how to handle this.
 				});
-				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task));
+				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task, terminal.id));
 				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Active, task));
 				let problemMatchers = this.resolveMatchers(resolver, task.configurationProperties.problemMatchers);
 				let startStopProblemMatcher = new StartStopProblemCollector(problemMatchers, this.markerService, this.modelService);

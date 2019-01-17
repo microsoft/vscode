@@ -5096,12 +5096,12 @@ declare module 'vscode' {
 		/**
 		 * @param callback The callback that will be called when the extension callback task is executed.
 		 */
-		constructor(callback: (args: ExtensionCallbackExecutionArgs, cancellationToken: CancellationToken) => Thenable<void>);
+		constructor(callback: (args: ExtensionCallbackExecutionArgs, cancellationToken: CancellationToken, thisArg?: any) => Thenable<void>);
 
 		/**
 		 * The callback used to execute the task.
 		 */
-		callback: (args: ExtensionCallbackExecutionArgs, cancellationToken: CancellationToken) => Thenable<void>;
+		callback: (args: ExtensionCallbackExecutionArgs, cancellationToken: CancellationToken, thisArg?: any) => Thenable<void>;
 	}
 
 	/**

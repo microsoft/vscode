@@ -28,8 +28,9 @@ import {
 import { ExtHostVariableResolverService } from 'vs/workbench/api/node/extHostDebugService';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
+import { ExtHostTerminalService, ExtHostTerminal } from 'vs/workbench/api/node/extHostTerminalService';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 
 namespace TaskDefinitionDTO {
 	export function from(value: vscode.TaskDefinition): TaskDefinitionDTO {
@@ -331,15 +332,55 @@ interface HandlerData {
 	extension: IExtensionDescription;
 }
 
+class ExtensionCallbackExecutionData {
+	private _cancellationSource?: CancellationTokenSource;
+	constructor(private readonly callbackData: vscode.ExtensionCallbackExecution, private readonly terminalService: ExtHostTerminalService) {
+	}
+
+	public terminateCallback(): void {
+		if (this._cancellationSource) {
+			return undefined;
+		}
+
+		this._cancellationSource.cancel();
+		this._cancellationSource.dispose();
+		this._cancellationSource = undefined;
+	}
+
+	public startCallback(terminalId: number): Thenable<void> {
+		if (this._cancellationSource) {
+			return undefined;
+		}
+
+		let foundTerminal: ExtHostTerminal | undefined;
+		for (let terminal of this.terminalService.terminals) {
+			if (terminal._id === terminalId) {
+				foundTerminal = terminal;
+				break;
+			}
+		}
+
+		if (!foundTerminal) {
+			throw new Error('Should have a terminal by this point.');
+		}
+
+		this._cancellationSource = new CancellationTokenSource();
+		return this.callbackData.callback(undefined, this._cancellationSource.token);
+	}
+}
+
 export class ExtHostTask implements ExtHostTaskShape {
 
 	private _proxy: MainThreadTaskShape;
 	private _workspaceService: ExtHostWorkspace;
 	private _editorService: ExtHostDocumentsAndEditors;
 	private _configurationService: ExtHostConfiguration;
+	private _terminalService: ExtHostTerminalService;
 	private _handleCounter: number;
 	private _handlers: Map<number, HandlerData>;
 	private _taskExecutions: Map<string, TaskExecutionImpl>;
+	private _providedExtensionCallbacks: Map<string, ExtensionCallbackExecutionData>;
+	private _activeExtensionCallbacks: Map<string, ExtensionCallbackExecutionData>;
 
 	private readonly _onDidExecuteTask: Emitter<vscode.TaskStartEvent> = new Emitter<vscode.TaskStartEvent>();
 	private readonly _onDidTerminateTask: Emitter<vscode.TaskEndEvent> = new Emitter<vscode.TaskEndEvent>();
@@ -347,14 +388,22 @@ export class ExtHostTask implements ExtHostTaskShape {
 	private readonly _onDidTaskProcessStarted: Emitter<vscode.TaskProcessStartEvent> = new Emitter<vscode.TaskProcessStartEvent>();
 	private readonly _onDidTaskProcessEnded: Emitter<vscode.TaskProcessEndEvent> = new Emitter<vscode.TaskProcessEndEvent>();
 
-	constructor(mainContext: IMainContext, workspaceService: ExtHostWorkspace, editorService: ExtHostDocumentsAndEditors, configurationService: ExtHostConfiguration) {
+	constructor(
+		mainContext: IMainContext,
+		workspaceService: ExtHostWorkspace,
+		editorService: ExtHostDocumentsAndEditors,
+		configurationService: ExtHostConfiguration,
+		extHostTerminalService: ExtHostTerminalService) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadTask);
 		this._workspaceService = workspaceService;
 		this._editorService = editorService;
 		this._configurationService = configurationService;
+		this._terminalService = extHostTerminalService;
 		this._handleCounter = 0;
 		this._handlers = new Map<number, HandlerData>();
 		this._taskExecutions = new Map<string, TaskExecutionImpl>();
+		this._providedExtensionCallbacks = new Map<string, ExtensionCallbackExecutionData>();
+		this._activeExtensionCallbacks = new Map<string, ExtensionCallbackExecutionData>();
 	}
 
 	public get extHostWorkspace(): ExtHostWorkspace {
@@ -422,7 +471,21 @@ export class ExtHostTask implements ExtHostTaskShape {
 		return this._onDidExecuteTask.event;
 	}
 
-	public $onDidStartTask(execution: TaskExecutionDTO): void {
+	public $onDidStartTask(execution: TaskExecutionDTO, terminalId: number): void {
+		// Once a terminal is spun up for the extension callback task execution
+		// this event will be fired.
+		// At that point, we need to actually start the callback, but
+		// only if it hasn't already begun.
+		const extensionCallback: ExtensionCallbackExecutionData | undefined = this._providedExtensionCallbacks.get(execution.id);
+		if (extensionCallback) {
+			// TODO: Verify whether this can ever happen???
+			if (this._activeExtensionCallbacks.get(execution.id) === undefined) {
+				this._activeExtensionCallbacks.set(execution.id, extensionCallback);
+			}
+
+			extensionCallback.startCallback(terminalId);
+		}
+
 		this._onDidExecuteTask.fire({
 			execution: this.getTaskExecution(execution)
 		});
@@ -435,6 +498,7 @@ export class ExtHostTask implements ExtHostTaskShape {
 	public $OnDidEndTask(execution: TaskExecutionDTO): void {
 		const _execution = this.getTaskExecution(execution);
 		this._taskExecutions.delete(execution.id);
+		this.terminateExtensionCallbackExecution(execution);
 		this._onDidTerminateTask.fire({
 			execution: _execution
 		});
@@ -473,20 +537,54 @@ export class ExtHostTask implements ExtHostTaskShape {
 		if (!handler) {
 			return Promise.reject(new Error('no handler found'));
 		}
-		return asPromise(() => handler.provider.provideTasks(CancellationToken.None)).then(value => {
-			let sanitized: vscode.Task[] = [];
+
+		// For extension callback tasks, we need to store the execution objects locally
+		// since we obviously cannot send callback functions through the proxy.
+		// So, clear out any existing ones.
+		this._providedExtensionCallbacks.clear();
+
+		// Set up a list of task ID promises that we can wait on
+		// before returning the provided tasks. The ensures that
+		// our task IDs are calculated for any extension callback tasks.
+		// Knowing this ID ahead of time is needed because when a task
+		// start event is fired this is when the extension callback is called.
+		// The task start event is also the first time we see the ID from the main
+		// thread, which is too late for us because we need to save an map
+		// from an ID to an extension callback function. (Kind of a cart before the horse problem).
+		let taskIdPromises: Promise<void>[] = [];
+		let fetchPromise = asPromise(() => handler.provider.provideTasks(CancellationToken.None)).then(value => {
+			const taskDTOs: TaskDTO[] = [];
 			for (let task of value) {
-				if (task.definition && validTypes[task.definition.type] === true) {
-					sanitized.push(task);
-				} else {
-					sanitized.push(task);
+				if (!task.definition || !validTypes[task.definition.type]) {
 					console.warn(`The task [${task.source}, ${task.name}] uses an undefined task type. The task will be ignored in the future.`);
 				}
+
+				const taskDTO: TaskDTO = TaskDTO.from(task, handler.extension);
+				taskDTOs.push(taskDTO);
+
+				if (CallbackExecutionDTO.is(taskDTO.execution)) {
+					taskIdPromises.push(new Promise((resolve) => {
+						// The ID is calculated on the main thread task side, so, let's call into it here.
+						this._proxy.$createTaskId(taskDTO).then((taskId) => {
+							this._providedExtensionCallbacks.set(taskId, new ExtensionCallbackExecutionData(<vscode.ExtensionCallbackExecution>task.execution, this._terminalService));
+							resolve();
+						});
+					}));
+				}
 			}
+
 			return {
-				tasks: TaskDTO.fromMany(sanitized, handler.extension),
+				tasks: taskDTOs,
 				extension: handler.extension
 			};
+		});
+
+		return new Promise((resolve) => {
+			fetchPromise.then((result) => {
+				Promise.all(taskIdPromises).then(() => {
+					resolve(result);
+				});
+			});
 		});
 	}
 
@@ -543,5 +641,13 @@ export class ExtHostTask implements ExtHostTaskShape {
 		result = new TaskExecutionImpl(this, execution.id, task ? task : TaskDTO.to(execution.task, this._workspaceService));
 		this._taskExecutions.set(execution.id, result);
 		return result;
+	}
+
+	private terminateExtensionCallbackExecution(execution: TaskExecutionDTO): void {
+		const extensionCallback: ExtensionCallbackExecutionData | undefined = this._activeExtensionCallbacks.get(execution.id);
+		if (extensionCallback) {
+			extensionCallback.terminateCallback();
+			this._activeExtensionCallbacks.delete(execution.id);
+		}
 	}
 }
