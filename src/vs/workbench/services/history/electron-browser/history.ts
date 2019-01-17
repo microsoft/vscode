@@ -20,7 +20,7 @@ import { Event } from 'vs/base/common/event';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { getCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { getExcludes, ISearchConfiguration } from 'vs/platform/search/common/search';
 import { IExpression } from 'vs/base/common/glob';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
@@ -127,6 +127,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	private canNavigateBackContextKey: IContextKey<boolean>;
 	private canNavigateForwardContextKey: IContextKey<boolean>;
+	private canNavigateToLastEditLocationContextKey: IContextKey<boolean>;
 
 	constructor(
 		@IEditorService private readonly editorService: EditorServiceImpl,
@@ -146,6 +147,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		this.canNavigateBackContextKey = (new RawContextKey<boolean>('canNavigateBack', false)).bindTo(this.contextKeyService);
 		this.canNavigateForwardContextKey = (new RawContextKey<boolean>('canNavigateForward', false)).bindTo(this.contextKeyService);
+		this.canNavigateToLastEditLocationContextKey = (new RawContextKey<boolean>('canNavigateToLastEditLocation', false)).bindTo(this.contextKeyService);
 
 		this.fileInputFactory = Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).getFileInputFactory();
 
@@ -216,17 +218,20 @@ export class HistoryService extends Disposable implements IHistoryService {
 			// Track the last edit location by tracking model content change events
 			// Use a debouncer to make sure to capture the correct cursor position
 			// after the model content has changed.
-			this.activeEditorListeners.push(Event.debounce(activeTextEditorWidget.onDidChangeModelContent, (last, event) => event, 0)((event => {
-				this.lastEditLocation = { input: activeEditor };
+			this.activeEditorListeners.push(Event.debounce(activeTextEditorWidget.onDidChangeModelContent, (last, event) => event, 0)((event => this.rememberLastEditLocation(activeEditor, activeTextEditorWidget))));
+		}
+	}
 
-				const position = activeTextEditorWidget.getPosition();
-				if (position) {
-					this.lastEditLocation.selection = {
-						startLineNumber: position.lineNumber,
-						startColumn: position.column
-					};
-				}
-			})));
+	private rememberLastEditLocation(activeEditor: IEditorInput, activeTextEditorWidget: ICodeEditor): void {
+		this.lastEditLocation = { input: activeEditor };
+		this.canNavigateToLastEditLocationContextKey.set(true);
+
+		const position = activeTextEditorWidget.getPosition();
+		if (position) {
+			this.lastEditLocation.selection = {
+				startLineNumber: position.lineNumber,
+				startColumn: position.column
+			};
 		}
 	}
 

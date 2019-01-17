@@ -38,7 +38,7 @@ import { Action, IAction, ActionRunner } from 'vs/base/common/actions';
 import { IActionBarOptions, ActionsOrientation, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { basename } from 'vs/base/common/paths';
-import { MenuId, IMenuService, IMenu, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { MenuId, IMenuService, IMenu, MenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { MenuItemActionItem, fillInActionBarActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IChange, IEditorModel, ScrollType, IEditorContribution, IDiffEditorModel } from 'vs/editor/common/editorCommon';
 import { OverviewRulerLane, ITextModel, IModelDecorationOptions } from 'vs/editor/common/model';
@@ -442,6 +442,25 @@ export class ShowNextChangeAction extends EditorAction {
 	}
 }
 registerEditorAction(ShowNextChangeAction);
+
+// Go to menu
+MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+	group: '7_change_nav',
+	command: {
+		id: 'editor.action.dirtydiff.next',
+		title: nls.localize({ key: 'miGotoNextChange', comment: ['&& denotes a mnemonic'] }, "Next &&Change")
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+	group: '7_change_nav',
+	command: {
+		id: 'editor.action.dirtydiff.previous',
+		title: nls.localize({ key: 'miGotoPreviousChange', comment: ['&& denotes a mnemonic'] }, "Previous &&Change")
+	},
+	order: 2
+});
 
 export class MoveToPreviousChangeAction extends EditorAction {
 
