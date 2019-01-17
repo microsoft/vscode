@@ -12,7 +12,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IFileService, FileKind, IFileStat, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IDisposable, Disposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IFileLabelOptions, IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { ITreeRenderer, ITreeNode, ITreeFilter, TreeVisibility, TreeFilterResult, IAsyncDataSource, ITreeSorter, ITreeDragAndDrop, ITreeDragOverReaction, TreeDragOverBubble } from 'vs/base/browser/ui/tree/tree';
@@ -155,12 +155,11 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, void, IFileTem
 		// Input Box
 		else {
 			templateData.label.element.style.display = 'none';
-			this.renderInputBox(templateData.container, stat, editableData);
-			templateData.elementDisposable = Disposable.None;
+			templateData.elementDisposable = this.renderInputBox(templateData.container, stat, editableData);
 		}
 	}
 
-	private renderInputBox(container: HTMLElement, stat: ExplorerItem, editableData: IEditableData): void {
+	private renderInputBox(container: HTMLElement, stat: ExplorerItem, editableData: IEditableData): IDisposable {
 
 		// Use a file label only for the icon next to the input box
 		const label = this.labels.create(container);
@@ -211,6 +210,12 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, void, IFileTem
 			editableData.onFinish(value, success);
 		});
 
+		// It can happen that the tree re-renders this node. When that happens,
+		// we're gonna get a blur event first and only after an element disposable.
+		// Because of that, we should setTimeout the blur handler to differentiate
+		// between the blur happening because of a unrender or because of a user action.
+		let ignoreBlur = false;
+
 		const toDispose = [
 			inputBox,
 			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
@@ -223,11 +228,17 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, void, IFileTem
 				}
 			}),
 			DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, () => {
-				done(inputBox.isInputValid(), true);
+				setTimeout(() => {
+					if (!ignoreBlur) {
+						done(inputBox.isInputValid(), true);
+					}
+				}, 0);
 			}),
 			label,
 			styler
 		];
+
+		return toDisposable(() => ignoreBlur = true);
 	}
 
 	disposeElement?(element: ITreeNode<ExplorerItem, void>, index: number, templateData: IFileTemplateData): void {

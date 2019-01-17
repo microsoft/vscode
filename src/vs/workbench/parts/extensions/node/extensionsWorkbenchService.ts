@@ -37,7 +37,7 @@ import * as resources from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IExtensionManifest, ExtensionType, ExtensionIdentifierWithVersion } from 'vs/platform/extensions/common/extensions';
+import { IExtensionManifest, ExtensionType, ExtensionIdentifierWithVersion, IExtension as IPlatformExtension } from 'vs/platform/extensions/common/extensions';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -800,7 +800,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 				}
 			}
 		}
-		return Promise.all(allExtensions.map(e => this.doSetEnablement(e, enablementState)));
+		return this.doSetEnablement(allExtensions, enablementState);
 	}
 
 	private getExtensionsRecursively(extensions: IExtension[], installed: IExtension[], enablementState: EnablementState, options: { dependencies: boolean, pack: boolean }, checked: IExtension[] = []): IExtension[] {
@@ -872,28 +872,28 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 			extension.displayName, dependents[0].displayName, dependents[1].displayName);
 	}
 
-	private doSetEnablement(extension: IExtension, enablementState: EnablementState): Promise<boolean> {
-		return this.extensionEnablementService.setEnablement(extension.local!, enablementState)
-			.then(changed => {
-				if (changed) {
-					/* __GDPR__
-					"extension:enable" : {
-						"${include}": [
-							"${GalleryExtensionTelemetryData}"
-						]
-					}
-					*/
-					/* __GDPR__
-					"extension:disable" : {
-						"${include}": [
-							"${GalleryExtensionTelemetryData}"
-						]
-					}
-					*/
-					this.telemetryService.publicLog(enablementState === EnablementState.Enabled || enablementState === EnablementState.WorkspaceEnabled ? 'extension:enable' : 'extension:disable', extension.telemetryData);
+	private async doSetEnablement(extensions: IExtension[], enablementState: EnablementState): Promise<boolean[]> {
+		const changed = await this.extensionEnablementService.setEnablement(extensions.map(e => e.local!), enablementState);
+		for (let i = 0; i < changed.length; i++) {
+			if (changed[i]) {
+				/* __GDPR__
+				"extension:enable" : {
+					"${include}": [
+						"${GalleryExtensionTelemetryData}"
+					]
 				}
-				return changed;
-			});
+				*/
+				/* __GDPR__
+				"extension:disable" : {
+					"${include}": [
+						"${GalleryExtensionTelemetryData}"
+					]
+				}
+				*/
+				this.telemetryService.publicLog(enablementState === EnablementState.Enabled || enablementState === EnablementState.WorkspaceEnabled ? 'extension:enable' : 'extension:disable', extensions[i].telemetryData);
+			}
+		}
+		return changed;
 	}
 
 	get allowedBadgeProviders(): string[] {
@@ -978,13 +978,15 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		this._onChange.fire(uninstalling);
 	}
 
-	private onEnablementChanged(identifier: IExtensionIdentifier) {
-		const [extension] = this.local.filter(e => areSameExtensions(e.identifier, identifier));
-		if (extension && extension.local) {
-			const enablementState = this.extensionEnablementService.getEnablementState(extension.local);
-			if (enablementState !== extension.enablementState) {
-				extension.enablementState = enablementState;
-				this._onChange.fire(extension);
+	private onEnablementChanged(platformExtensions: IPlatformExtension[]) {
+		const extensions = this.local.filter(e => platformExtensions.some(p => areSameExtensions(e.identifier, p.identifier)));
+		for (const extension of extensions) {
+			if (extension.local) {
+				const enablementState = this.extensionEnablementService.getEnablementState(extension.local);
+				if (enablementState !== extension.enablementState) {
+					extension.enablementState = enablementState;
+					this._onChange.fire(extension);
+				}
 			}
 		}
 	}

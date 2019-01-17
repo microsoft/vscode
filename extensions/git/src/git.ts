@@ -1282,6 +1282,23 @@ export class Repository {
 		}
 	}
 
+	async blame(path: string): Promise<string> {
+		try {
+			const args = ['blame'];
+			args.push(path);
+
+			let result = await this.run(args);
+
+			return result.stdout.trim();
+		} catch (err) {
+			if (/^fatal: no such path/.test(err.stderr || '')) {
+				err.gitErrorCode = GitErrorCodes.NoPathFound;
+			}
+
+			throw err;
+		}
+	}
+
 	async createStash(message?: string, includeUntracked?: boolean): Promise<void> {
 		try {
 			const args = ['stash', 'save'];

@@ -299,7 +299,8 @@ export const enum Operation {
 	GetObjectDetails = 'GetObjectDetails',
 	SubmoduleUpdate = 'SubmoduleUpdate',
 	RebaseContinue = 'RebaseContinue',
-	Apply = 'Apply'
+	Apply = 'Apply',
+	Blame = 'Blame'
 }
 
 function isReadOnly(operation: Operation): boolean {
@@ -997,6 +998,10 @@ export class Repository implements Disposable {
 
 	async pushTags(remote?: string, forcePushMode?: ForcePushMode): Promise<void> {
 		await this.run(Operation.Push, () => this.repository.push(remote, undefined, false, true, forcePushMode));
+	}
+
+	async blame(path: string): Promise<string> {
+		return await this.run(Operation.Blame, () => this.repository.blame(path));
 	}
 
 	@throttle

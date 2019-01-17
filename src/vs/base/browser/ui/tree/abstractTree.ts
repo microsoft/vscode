@@ -196,7 +196,7 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 		this.renderedNodes.set(node, templateData);
 		this.renderedElements.set(node.element, node);
 
-		templateData.twistie.style.marginLeft = `${node.depth * 10}px`;
+		templateData.twistie.style.marginLeft = `${node.depth * 12}px`;
 		this.renderTwistie(node, templateData.twistie);
 
 		this.renderer.renderElement(node, index, templateData.templateData);
@@ -277,9 +277,10 @@ function asTreeContextMenuEvent<T>(event: IListContextMenuEvent<ITreeNode<T, any
 }
 
 export interface IAbstractTreeOptions<T, TFilterData = void> extends IListOptions<T> {
-	collapseByDefault?: boolean; // defaults to false
-	filter?: ITreeFilter<T, TFilterData>;
+	readonly collapseByDefault?: boolean; // defaults to false
+	readonly filter?: ITreeFilter<T, TFilterData>;
 	readonly dnd?: ITreeDragAndDrop<T>;
+	readonly autoExpandSingleChildren?: boolean;
 }
 
 export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable {
