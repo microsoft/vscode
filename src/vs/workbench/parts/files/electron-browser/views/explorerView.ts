@@ -45,12 +45,13 @@ import { ResourceLabels, IResourceLabelsContainer } from 'vs/workbench/browser/l
 import { createFileIconThemableTreeContainerScope } from 'vs/workbench/browser/parts/views/views';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IAsyncDataTreeViewState } from 'vs/base/browser/ui/tree/asyncDataTree';
+import { FuzzyScore } from 'vs/base/common/filters';
 
 export class ExplorerView extends ViewletPanel {
 	static readonly ID: string = 'workbench.explorer.fileView';
 	static readonly TREE_VIEW_STATE_STORAGE_KEY: string = 'workbench.explorer.treeViewState';
 
-	private tree: WorkbenchAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem>;
+	private tree: WorkbenchAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>;
 	private filter: FilesFilter;
 
 	private resourceContext: ResourceContextKey;

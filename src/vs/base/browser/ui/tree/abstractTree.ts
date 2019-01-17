@@ -5,17 +5,20 @@
 
 import 'vs/css!./media/tree';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
-import { IListOptions, List, IListStyles } from 'vs/base/browser/ui/list/listWidget';
-import { IListVirtualDelegate, IListRenderer, IListMouseEvent, IListEvent, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction } from 'vs/base/browser/ui/list/list';
+import { IListOptions, List, IListStyles, mightProducePrintableCharacter } from 'vs/base/browser/ui/list/listWidget';
+import { IListVirtualDelegate, IListRenderer, IListMouseEvent, IListEvent, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/list/list';
 import { append, $, toggleClass, timeout } from 'vs/base/browser/dom';
 import { Event, Relay } from 'vs/base/common/event';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { StandardKeyboardEvent, IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { ITreeModel, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent, ITreeFilter, ITreeNavigator, ICollapseStateChangeEvent, ITreeDragAndDrop, TreeDragOverBubble } from 'vs/base/browser/ui/tree/tree';
+import { ITreeModel, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent, ITreeFilter, ITreeNavigator, ICollapseStateChangeEvent, ITreeDragAndDrop, TreeDragOverBubble, TreeVisibility, TreeFilterResult } from 'vs/base/browser/ui/tree/tree';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { IDragAndDropData } from 'vs/base/browser/dnd';
 import { range } from 'vs/base/common/arrays';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
+import { domEvent } from 'vs/base/browser/event';
+import { fuzzyScore, FuzzyScore } from 'vs/base/common/filters';
+import { getVisibleState, isFilterResult } from 'vs/base/browser/ui/tree/indexTreeModel';
 
 function asTreeDragAndDropData<T, TFilterData>(data: IDragAndDropData): IDragAndDropData {
 	if (data instanceof ElementsDragAndDropData) {
@@ -133,11 +136,7 @@ function asListOptions<T, TFilterData, TRef>(modelProvider: () => ITreeModel<T, 
 				return options.accessibilityProvider!.getAriaLabel(e.element);
 			}
 		},
-		keyboardNavigationLabelProvider: options.keyboardNavigationLabelProvider && {
-			getKeyboardNavigationLabel(e) {
-				return options.keyboardNavigationLabelProvider!.getKeyboardNavigationLabel(e.element);
-			}
-		}
+		keyboardNavigationLabelProvider: undefined
 	};
 }
 
@@ -265,6 +264,108 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 	}
 }
 
+class TypeFilter<T> implements ITreeFilter<T, FuzzyScore> {
+
+	private _pattern: string;
+	private _lowercasePattern: string;
+
+	set pattern(pattern: string) {
+		this._pattern = pattern;
+		this._lowercasePattern = pattern.toLowerCase();
+	}
+
+	constructor(
+		private keyboardNavigationLabelProvider: IKeyboardNavigationLabelProvider<T>,
+		private _filter?: ITreeFilter<T, FuzzyScore>
+	) { }
+
+	filter(element: T, parentVisibility: TreeVisibility): TreeFilterResult<FuzzyScore> {
+		if (this._filter) {
+			const result = this._filter.filter(element, parentVisibility);
+			let visibility: TreeVisibility;
+
+			if (typeof result === 'boolean') {
+				visibility = result ? TreeVisibility.Visible : TreeVisibility.Hidden;
+			} else if (isFilterResult(result)) {
+				visibility = getVisibleState(result.visibility);
+			} else {
+				visibility = result;
+			}
+
+			if (visibility === TreeVisibility.Hidden) {
+				return false;
+			}
+		}
+
+		if (!this._pattern) {
+			return { data: FuzzyScore.Default, visibility: true };
+		}
+
+		const label = this.keyboardNavigationLabelProvider.getKeyboardNavigationLabel(element).toString();
+		const score = fuzzyScore(this._pattern, this._lowercasePattern, 0, label, label.toLowerCase(), 0, true);
+
+		if (!score) {
+			// DEMO: just highlights
+			return { data: FuzzyScore.Default, visibility: true };
+
+			// DEMO: filter
+			// return TreeVisibility.Recurse;
+
+			// DEMO: smarter filter
+			// return parentVisibility === TreeVisibility.Visible ? true : TreeVisibility.Recurse;
+		}
+
+		return { data: score, visibility: true };
+	}
+}
+
+class TypeFilterController<T, TFilterData> implements IDisposable {
+
+	private domNode: HTMLElement;
+	private disposables: IDisposable[] = [];
+
+	constructor(
+		private tree: AbstractTree<T, TFilterData, any>,
+		view: List<ITreeNode<T, TFilterData>>,
+		private filter: TypeFilter<T>,
+		keyboardNavigationLabelProvider: IKeyboardNavigationLabelProvider<T>
+	) {
+		const container = view.getHTMLElement();
+		this.domNode = append(container, $('.monaco-tl-type-filter'));
+
+		const isPrintableCharEvent = keyboardNavigationLabelProvider.mightProducePrintableCharacter ? (e: IKeyboardEvent) => keyboardNavigationLabelProvider.mightProducePrintableCharacter!(e) : (e: IKeyboardEvent) => mightProducePrintableCharacter(e);
+		const onInput = Event.chain(domEvent(container, 'keydown'))
+			.filter(e => !isInputElement(e.target as HTMLElement))
+			.map(e => new StandardKeyboardEvent(e))
+			.filter(e => e.keyCode === KeyCode.Backspace || e.keyCode === KeyCode.Escape || isPrintableCharEvent(e))
+			.forEach(e => { e.stopPropagation(); e.preventDefault(); })
+			.reduce((previous: string, e) => {
+				if (e.keyCode === KeyCode.Escape) {
+					return '';
+				}
+
+				if (e.keyCode === KeyCode.Backspace) {
+					return previous.length === 0 ? '' : previous.substr(0, previous.length - 1);
+				}
+
+				return previous + e.browserEvent.key;
+			}, '')
+			.event;
+
+		onInput(this.onInput, this, this.disposables);
+	}
+
+	private onInput(pattern: string): void {
+		this.domNode.textContent = pattern;
+		this.filter.pattern = pattern;
+		this.tree.refilter();
+	}
+
+	dispose() {
+		this.disposables = dispose(this.disposables);
+	}
+}
+
 function isInputElement(e: HTMLElement): boolean {
 	return e.tagName === 'INPUT' || e.tagName === 'TEXTAREA';
 }
@@ -291,15 +392,17 @@ function asTreeContextMenuEvent<T>(event: IListContextMenuEvent<ITreeNode<T, any
 	};
 }
 
-export interface IAbstractTreeOptionsUpdate extends ITreeRendererOptions {
-
-}
+export interface IAbstractTreeOptionsUpdate extends ITreeRendererOptions { }
 
 export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTreeOptionsUpdate, IListOptions<T> {
 	readonly collapseByDefault?: boolean; // defaults to false
 	readonly filter?: ITreeFilter<T, TFilterData>;
 	readonly dnd?: ITreeDragAndDrop<T>;
 	readonly autoExpandSingleChildren?: boolean;
+}
+
+export interface IAbstractTreeWithTypeFilterOptions<T> extends IAbstractTreeOptions<T, string> {
+	readonly keyboardNavigationLabelProvider: IKeyboardNavigationLabelProvider<T>;
 }
 
 export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable {
@@ -341,6 +444,13 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		this.renderers = renderers.map(r => new TreeRenderer<T, TFilterData, any>(r, onDidChangeCollapseStateRelay.event, options));
 		this.disposables.push(...this.renderers);
 
+		let filter: ITreeFilter<T, TFilterData> | undefined;
+
+		if (options.keyboardNavigationLabelProvider) {
+			filter = new TypeFilter(options.keyboardNavigationLabelProvider, options.filter as ITreeFilter<T, FuzzyScore>) as ITreeFilter<T, TFilterData>; // TODO need typescript help here
+			options = { ...options, filter };
+		}
+
 		this.view = new List(container, treeDelegate, this.renderers, asListOptions(() => this.model, options));
 
 		this.model = this.createModel(this.view, options);
@@ -356,6 +466,11 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 			onKeyDown.filter(e => e.keyCode === KeyCode.LeftArrow).on(this.onLeftArrow, this, this.disposables);
 			onKeyDown.filter(e => e.keyCode === KeyCode.RightArrow).on(this.onRightArrow, this, this.disposables);
 			onKeyDown.filter(e => e.keyCode === KeyCode.Space).on(this.onSpace, this, this.disposables);
+		}
+
+		if (options.keyboardNavigationLabelProvider) {
+			const typeFilterController = new TypeFilterController(this, this.view, filter as TypeFilter<T>, options.keyboardNavigationLabelProvider);
+			this.disposables.push(typeFilterController);
 		}
 	}
 
