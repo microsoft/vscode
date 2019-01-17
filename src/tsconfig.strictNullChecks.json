@@ -672,7 +672,6 @@
 		"./vs/workbench/parts/search/browser/patternInputWidget.ts",
 		"./vs/workbench/parts/search/browser/replaceContributions.ts",
 		"./vs/workbench/parts/search/browser/replaceService.ts",
-		"./vs/workbench/parts/search/browser/searchViewLocationUpdater.ts",
 		"./vs/workbench/parts/search/common/constants.ts",
 		"./vs/workbench/parts/search/common/queryBuilder.ts",
 		"./vs/workbench/parts/search/common/replace.ts",
