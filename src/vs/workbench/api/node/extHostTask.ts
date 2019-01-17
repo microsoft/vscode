@@ -28,10 +28,10 @@ import {
 import { ExtHostVariableResolverService } from 'vs/workbench/api/node/extHostDebugService';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
-import { ExtHostTerminalService, ExtHostTerminalRenderer } from 'vs/workbench/api/node/extHostTerminalService';
+import { ExtHostTerminalService, ExtHostTerminal, ExtHostTerminalRenderer } from 'vs/workbench/api/node/extHostTerminalService';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 namespace TaskDefinitionDTO {
 	export function from(value: vscode.TaskDefinition): TaskDefinitionDTO {
@@ -337,22 +337,29 @@ class ExtensionCallbackExecutionData implements IDisposable {
 	private _cancellationSource?: CancellationTokenSource;
 	private _onDidOpenRendererTerminal?: IDisposable;
 	private _terminalId?: number;
+	private readonly _onTaskExecutionComplete: Emitter<ExtensionCallbackExecutionData> = new Emitter<ExtensionCallbackExecutionData>();
+	private readonly _disposables: IDisposable[] = [];
 
-	constructor(private readonly callbackData: vscode.ExtensionCallbackExecution, private readonly terminalService: ExtHostTerminalService) {
+	constructor(
+		private readonly callbackData: vscode.ExtensionCallbackExecution,
+		private readonly terminalService: ExtHostTerminalService) {
 	}
 
 	public dispose(): void {
-		if (this._cancellationSource) {
-			this._cancellationSource.cancel();
-			this._cancellationSource.dispose();
-		}
+		dispose(this._disposables);
+	}
 
-		if (this._onDidOpenRendererTerminal) {
-			this._onDidOpenRendererTerminal.dispose();
+	public get onTaskExecutionComplete(): Event<ExtensionCallbackExecutionData> {
+		return this._onTaskExecutionComplete.event;
+	}
+
+	private onDidCloseTerminal(terminal: vscode.Terminal): void {
+		if (terminal instanceof ExtHostTerminal && terminal._id === this._terminalId) {
+			this._cancellationSource.cancel();
 		}
 	}
 
-	private onDidOpenRenderTerminal(terminal: vscode.TerminalRenderer): Thenable<void> {
+	private onDidOpenRenderTerminal(terminalRenderer: vscode.TerminalRenderer): Thenable<void> {
 		// If we have already started the extension task callback, then
 		// do not start it again.
 		// It is completely valid for multiple terminals to be opened
@@ -361,7 +368,7 @@ class ExtensionCallbackExecutionData implements IDisposable {
 			return undefined;
 		}
 
-		if (terminal instanceof ExtHostTerminalRenderer && terminal._id === this._terminalId) {
+		if (terminalRenderer instanceof ExtHostTerminalRenderer && terminalRenderer._id === this._terminalId) {
 			// Stop listening (if we are) for more terminals
 			// to be created.
 			if (this._onDidOpenRendererTerminal) {
@@ -369,13 +376,19 @@ class ExtensionCallbackExecutionData implements IDisposable {
 				this._onDidOpenRendererTerminal = undefined;
 			}
 
-			if (!(terminal instanceof ExtHostTerminalRenderer)) {
+			if (!(terminalRenderer instanceof ExtHostTerminalRenderer)) {
 				throw new Error('Expected a terminal renderer');
 			}
 
 			this._cancellationSource = new CancellationTokenSource();
-			return this.callbackData.callback(terminal, this._cancellationSource.token).then(() => {
-			});
+			this._disposables.push(this._cancellationSource);
+
+			this._disposables.push(this.terminalService.onDidCloseTerminal(this.onDidCloseTerminal.bind(this)));
+
+			// Regardless of how the task completes, we are done with this extension callback task execution.
+			return this.callbackData.callback(terminalRenderer, this._cancellationSource.token).then(
+				() => this._onTaskExecutionComplete.fire(this),
+				() => this._onTaskExecutionComplete.fire(this));
 		}
 
 		return undefined;
@@ -402,7 +415,7 @@ class ExtensionCallbackExecutionData implements IDisposable {
 
 		// If we get here, then the terminal is unknown to the extension host. Let's wait
 		// for it to be created and the start our extension callback.
-		this._onDidOpenRendererTerminal = this.terminalService.onDidOpenRendererTerminal(this.onDidOpenRenderTerminal.bind(this));
+		this._disposables.push(this.terminalService.onDidOpenRendererTerminal(this.onDidOpenRenderTerminal.bind(this)));
 	}
 }
 
@@ -519,6 +532,10 @@ export class ExtHostTask implements ExtHostTaskShape {
 			if (this._activeExtensionCallbacks.get(execution.id) === undefined) {
 				this._activeExtensionCallbacks.set(execution.id, extensionCallback);
 			}
+
+			extensionCallback.onTaskExecutionComplete(() => {
+				this.terminateExtensionCallbackExecution(execution);
+			});
 
 			extensionCallback.startCallback(terminalId);
 		}
