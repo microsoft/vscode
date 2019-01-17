@@ -324,17 +324,17 @@ enum TypeLabelControllerState {
 	Typing
 }
 
-class TypeLabelController<T> implements IDisposable {
-
-	private static mightProducePrintableCharacter(event: IKeyboardEvent): boolean {
-		if (event.ctrlKey || event.metaKey || event.altKey) {
-			return false;
-		}
-
-		return (event.keyCode >= KeyCode.KEY_A && event.keyCode <= KeyCode.KEY_Z)
-			|| (event.keyCode >= KeyCode.KEY_0 && event.keyCode <= KeyCode.KEY_9)
-			|| (event.keyCode >= KeyCode.US_SEMICOLON && event.keyCode <= KeyCode.US_QUOTE);
+export function mightProducePrintableCharacter(event: IKeyboardEvent): boolean {
+	if (event.ctrlKey || event.metaKey || event.altKey) {
+		return false;
 	}
+
+	return (event.keyCode >= KeyCode.KEY_A && event.keyCode <= KeyCode.KEY_Z)
+		|| (event.keyCode >= KeyCode.KEY_0 && event.keyCode <= KeyCode.KEY_9)
+		|| (event.keyCode >= KeyCode.US_SEMICOLON && event.keyCode <= KeyCode.US_QUOTE);
+}
+
+class TypeLabelController<T> implements IDisposable {
 
 	private state: TypeLabelControllerState = TypeLabelControllerState.Idle;
 	private disposables: IDisposable[] = [];
@@ -347,7 +347,7 @@ class TypeLabelController<T> implements IDisposable {
 		const onChar = Event.chain(domEvent(view.domNode, 'keydown'))
 			.filter(e => !isInputElement(e.target as HTMLElement))
 			.map(event => new StandardKeyboardEvent(event))
-			.filter(keyboardNavigationLabelProvider.mightProducePrintableCharacter ? e => keyboardNavigationLabelProvider.mightProducePrintableCharacter!(e) : e => TypeLabelController.mightProducePrintableCharacter(e))
+			.filter(keyboardNavigationLabelProvider.mightProducePrintableCharacter ? e => keyboardNavigationLabelProvider.mightProducePrintableCharacter!(e) : e => mightProducePrintableCharacter(e))
 			.map(event => event.browserEvent.key)
 			.event;
 

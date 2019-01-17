@@ -9,7 +9,7 @@ import * as nodeurl from 'url';
 
 import { assign } from 'vs/base/common/objects';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
-import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
+import { ExtHostConfigProvider } from 'vs/workbench/api/node/extHostConfiguration';
 import { ProxyAgent } from 'vscode-proxy-agent';
 import { MainThreadTelemetryShape } from 'vs/workbench/api/node/extHost.protocol';
 import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
@@ -19,13 +19,13 @@ import { URI } from 'vs/base/common/uri';
 
 export function connectProxyResolver(
 	extHostWorkspace: ExtHostWorkspace,
-	extHostConfiguration: ExtHostConfiguration,
+	configProvider: ExtHostConfigProvider,
 	extensionService: ExtHostExtensionService,
 	extHostLogService: ExtHostLogService,
 	mainThreadTelemetry: MainThreadTelemetryShape
 ) {
-	const agent = createProxyAgent(extHostWorkspace, extHostConfiguration, extHostLogService, mainThreadTelemetry);
-	const lookup = createPatchedModules(extHostConfiguration, agent);
+	const agent = createProxyAgent(extHostWorkspace, configProvider, extHostLogService, mainThreadTelemetry);
+	const lookup = createPatchedModules(configProvider, agent);
 	return configureModuleLoading(extensionService, lookup);
 }
 
@@ -33,14 +33,14 @@ const maxCacheEntries = 5000; // Cache can grow twice that much due to 'oldCache
 
 function createProxyAgent(
 	extHostWorkspace: ExtHostWorkspace,
-	extHostConfiguration: ExtHostConfiguration,
+	configProvider: ExtHostConfigProvider,
 	extHostLogService: ExtHostLogService,
 	mainThreadTelemetry: MainThreadTelemetryShape
 ) {
-	let settingsProxy = proxyFromConfigURL(extHostConfiguration.getConfiguration('http')
+	let settingsProxy = proxyFromConfigURL(configProvider.getConfiguration('http')
 		.get<string>('proxy'));
-	extHostConfiguration.onDidChangeConfiguration(e => {
-		settingsProxy = proxyFromConfigURL(extHostConfiguration.getConfiguration('http')
+	configProvider.onDidChangeConfiguration(e => {
+		settingsProxy = proxyFromConfigURL(configProvider.getConfiguration('http')
 			.get<string>('proxy'));
 	});
 	const env = process.env;
@@ -177,13 +177,13 @@ function proxyFromConfigURL(configURL: string) {
 	return undefined;
 }
 
-function createPatchedModules(extHostConfiguration: ExtHostConfiguration, agent: http.Agent) {
+function createPatchedModules(configProvider: ExtHostConfigProvider, agent: http.Agent) {
 	const setting = {
-		config: extHostConfiguration.getConfiguration('http')
+		config: configProvider.getConfiguration('http')
 			.get<string>('proxySupport') || 'off'
 	};
-	extHostConfiguration.onDidChangeConfiguration(e => {
-		setting.config = extHostConfiguration.getConfiguration('http')
+	configProvider.onDidChangeConfiguration(e => {
+		setting.config = configProvider.getConfiguration('http')
 			.get<string>('proxySupport') || 'off';
 	});
 

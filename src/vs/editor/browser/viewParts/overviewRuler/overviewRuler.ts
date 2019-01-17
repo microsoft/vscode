@@ -132,8 +132,7 @@ export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
 		let currentFrom = 0;
 		let currentTo = 0;
 
-		for (let i = 0, len = colorZones.length; i < len; i++) {
-			const zone = colorZones[i];
+		for (const zone of colorZones) {
 
 			const zoneColorId = zone.colorId;
 			const zoneFrom = zone.from;

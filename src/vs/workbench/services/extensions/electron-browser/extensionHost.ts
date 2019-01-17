@@ -22,7 +22,6 @@ import { findFreePort, randomPort } from 'vs/base/node/ports';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
 import { Protocol, generateRandomPipeName, BufferedProtocol } from 'vs/base/parts/ipc/node/ipc.net';
 import { IBroadcast, IBroadcastService } from 'vs/platform/broadcast/electron-browser/broadcastService';
-import { getScopes } from 'vs/platform/configuration/common/configurationRegistry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { EXTENSION_ATTACH_BROADCAST_CHANNEL, EXTENSION_CLOSE_EXTHOST_BROADCAST_CHANNEL, EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_RELOAD_BROADCAST_CHANNEL, EXTENSION_TERMINATE_BROADCAST_CHANNEL } from 'vs/platform/extensions/common/extensionHost';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -33,9 +32,8 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IConfigurationInitData, IInitData } from 'vs/workbench/api/node/extHost.protocol';
+import { IInitData } from 'vs/workbench/api/node/extHost.protocol';
 import { MessageType, createMessageOfType, isMessageOfType } from 'vs/workbench/common/extensionHostProtocol';
-import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { ICrashReporterService } from 'vs/workbench/services/crashReporter/electron-browser/crashReporterService';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 
@@ -102,7 +100,6 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		@IBroadcastService private readonly _broadcastService: IBroadcastService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
-		@IWorkspaceConfigurationService private readonly _configurationService: IWorkspaceConfigurationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ICrashReporterService private readonly _crashReporterService: ICrashReporterService,
 		@ILogService private readonly _logService: ILogService,
@@ -415,7 +412,6 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 	private _createExtHostInitData(): Promise<IInitData> {
 		return Promise.all([this._telemetryService.getTelemetryInfo(), this._extensions])
 			.then(([telemetryInfo, extensionDescriptions]) => {
-				const configurationData: IConfigurationInitData = { ...this._configurationService.getConfigurationData(), configurationScopes: {} };
 				const workspace = this._contextService.getWorkspace();
 				const r: IInitData = {
 					commit: product.commit,
@@ -435,8 +431,6 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 						name: this._labelService.getWorkspaceLabel(workspace)
 					},
 					extensions: extensionDescriptions,
-					// Send configurations scopes only in development mode.
-					configuration: !this._environmentService.isBuilt || this._environmentService.isExtensionDevelopment ? { ...configurationData, configurationScopes: getScopes() } : configurationData,
 					telemetryInfo,
 					logLevel: this._logService.getLevel(),
 					logsLocation: this._extensionHostLogsLocation,

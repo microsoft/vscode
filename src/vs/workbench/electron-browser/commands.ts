@@ -25,6 +25,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { DataTree } from 'vs/base/browser/ui/tree/dataTree';
+import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
 
 // --- List Commands
 
@@ -588,6 +589,65 @@ export function registerCommands(): void {
 			if (focused instanceof List || focused instanceof PagedList) {
 				const list = focused;
 				list.setSelection(range(list.length));
+			}
+
+			// Trees
+			else if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
+				const tree = focused;
+				const focus = tree.getFocus();
+				const selection = tree.getSelection();
+
+				// Which element should be considered to start selecting all?
+				let start: any | undefined = undefined;
+
+				if (focus.length > 0 && (selection.length === 0 || selection.indexOf(focus[0]) === -1)) {
+					start = focus[0];
+				}
+
+				if (!start && selection.length > 0) {
+					start = selection[0];
+				}
+
+				// What is the scope of select all?
+				let scope: any | undefined = undefined;
+
+				if (!start) {
+					scope = undefined;
+				} else {
+					const selectedNode = tree.getNode(start);
+					const parentNode = selectedNode.parent;
+
+					if (!parentNode.parent) { // root
+						scope = undefined;
+					} else {
+						scope = parentNode.element;
+					}
+				}
+
+				const newSelection: any[] = [];
+
+				// If the scope isn't the tree root, it should be part of the new selection
+				if (scope) {
+					newSelection.push(scope);
+				}
+
+				const visit = (node: ITreeNode<any, any>) => {
+					for (const child of node.children) {
+						if (child.visible) {
+							newSelection.push(child.element);
+
+							if (!child.collapsed) {
+								visit(child);
+							}
+						}
+					}
+				};
+
+				// Add the whole scope subtree to the new selection
+				visit(tree.getNode(scope));
+
+				const fakeKeyboardEvent = new KeyboardEvent('keydown');
+				tree.setSelection(newSelection, fakeKeyboardEvent);
 			}
 		}
 	});

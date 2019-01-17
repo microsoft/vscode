@@ -32,6 +32,7 @@ export const enum CodeActionAutoApply {
 export interface CodeActionFilter {
 	readonly kind?: CodeActionKind;
 	readonly includeSourceActions?: boolean;
+	readonly autoFixesOnly?: boolean;
 }
 
 export interface CodeActionTrigger {

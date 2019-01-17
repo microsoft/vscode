@@ -17,6 +17,15 @@ import { IDragAndDropData } from 'vs/base/browser/dnd';
 import { range } from 'vs/base/common/arrays';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 
+function asTreeDragAndDropData<T, TFilterData>(data: IDragAndDropData): IDragAndDropData {
+	if (data instanceof ElementsDragAndDropData) {
+		const nodes = (data as ElementsDragAndDropData<ITreeNode<T, TFilterData>>).elements;
+		return new ElementsDragAndDropData(nodes.map(node => node.element));
+	}
+
+	return data;
+}
+
 class TreeNodeListDragAndDrop<T, TFilterData, TRef> implements IListDragAndDrop<ITreeNode<T, TFilterData>> {
 
 	private autoExpandNode: ITreeNode<T, TFilterData> | undefined;
@@ -38,19 +47,12 @@ class TreeNodeListDragAndDrop<T, TFilterData, TRef> implements IListDragAndDrop<
 
 	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
 		if (this.dnd.onDragStart) {
-			this.dnd.onDragStart(data, originalEvent);
+			this.dnd.onDragStart(asTreeDragAndDropData(data), originalEvent);
 		}
 	}
 
 	onDragOver(data: IDragAndDropData, targetNode: ITreeNode<T, TFilterData> | undefined, targetIndex: number | undefined, originalEvent: DragEvent, raw = true): boolean | IListDragOverReaction {
-		let treeData: IDragAndDropData = data;
-
-		if (data instanceof ElementsDragAndDropData) {
-			const nodes = (data as ElementsDragAndDropData<ITreeNode<T, TFilterData>>).elements;
-			treeData = new ElementsDragAndDropData(nodes.map(node => node.element));
-		}
-
-		const result = this.dnd.onDragOver(treeData, targetNode && targetNode.element, targetIndex, originalEvent);
+		const result = this.dnd.onDragOver(asTreeDragAndDropData(data), targetNode && targetNode.element, targetIndex, originalEvent);
 		const didChangeAutoExpandNode = this.autoExpandNode !== targetNode;
 
 		if (didChangeAutoExpandNode) {
@@ -102,7 +104,10 @@ class TreeNodeListDragAndDrop<T, TFilterData, TRef> implements IListDragAndDrop<
 	}
 
 	drop(data: IDragAndDropData, targetNode: ITreeNode<T, TFilterData> | undefined, targetIndex: number | undefined, originalEvent: DragEvent): void {
-		this.dnd.drop(data, targetNode && targetNode.element, targetIndex, originalEvent);
+		this.autoExpandDisposable.dispose();
+		this.autoExpandNode = undefined;
+
+		this.dnd.drop(asTreeDragAndDropData(data), targetNode && targetNode.element, targetIndex, originalEvent);
 	}
 }
 
@@ -158,24 +163,39 @@ interface ITreeListTemplateData<T> {
 	templateData: T;
 }
 
+interface ITreeRendererOptions {
+	readonly indent?: number;
+}
+
 class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITreeNode<T, TFilterData>, ITreeListTemplateData<TTemplateData>> {
 
 	readonly templateId: string;
 	private renderedElements = new Map<T, ITreeNode<T, TFilterData>>();
 	private renderedNodes = new Map<ITreeNode<T, TFilterData>, ITreeListTemplateData<TTemplateData>>();
+	private indent: number;
 	private disposables: IDisposable[] = [];
 
 	constructor(
 		private renderer: ITreeRenderer<T, TFilterData, TTemplateData>,
-		onDidChangeCollapseState: Event<ICollapseStateChangeEvent<T, TFilterData>>
+		onDidChangeCollapseState: Event<ICollapseStateChangeEvent<T, TFilterData>>,
+		options: ITreeRendererOptions = {}
 	) {
 		this.templateId = renderer.templateId;
+		this.updateOptions(options);
 
 		Event.map(onDidChangeCollapseState, e => e.node)(this.onDidChangeNodeTwistieState, this, this.disposables);
 
 		if (renderer.onDidChangeTwistieState) {
 			renderer.onDidChangeTwistieState(this.onDidChangeTwistieState, this, this.disposables);
 		}
+	}
+
+	updateOptions(options: ITreeRendererOptions = {}): void {
+		this.indent = typeof options.indent === 'number' ? options.indent : 8;
+
+		this.renderedNodes.forEach((templateData, node) => {
+			templateData.twistie.style.marginLeft = `${node.depth * this.indent}px`;
+		});
 	}
 
 	renderTemplate(container: HTMLElement): ITreeListTemplateData<TTemplateData> {
@@ -191,7 +211,7 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 		this.renderedNodes.set(node, templateData);
 		this.renderedElements.set(node.element, node);
 
-		templateData.twistie.style.width = `${10 + node.depth * 10}px`;
+		templateData.twistie.style.marginLeft = `${node.depth * this.indent}px`;
 		this.renderTwistie(node, templateData.twistie);
 
 		this.renderer.renderElement(node, index, templateData.templateData);
@@ -271,15 +291,21 @@ function asTreeContextMenuEvent<T>(event: IListContextMenuEvent<ITreeNode<T, any
 	};
 }
 
-export interface IAbstractTreeOptions<T, TFilterData = void> extends IListOptions<T> {
-	collapseByDefault?: boolean; // defaults to false
-	filter?: ITreeFilter<T, TFilterData>;
+export interface IAbstractTreeOptionsUpdate extends ITreeRendererOptions {
+
+}
+
+export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTreeOptionsUpdate, IListOptions<T> {
+	readonly collapseByDefault?: boolean; // defaults to false
+	readonly filter?: ITreeFilter<T, TFilterData>;
 	readonly dnd?: ITreeDragAndDrop<T>;
+	readonly autoExpandSingleChildren?: boolean;
 }
 
 export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable {
 
 	private view: List<ITreeNode<T, TFilterData>>;
+	private renderers: TreeRenderer<T, TFilterData, any>[];
 	protected model: ITreeModel<T, TFilterData, TRef>;
 	protected disposables: IDisposable[] = [];
 
@@ -312,10 +338,10 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		const treeDelegate = new ComposedTreeDelegate<T, ITreeNode<T, TFilterData>>(delegate);
 
 		const onDidChangeCollapseStateRelay = new Relay<ICollapseStateChangeEvent<T, TFilterData>>();
-		const treeRenderers = renderers.map(r => new TreeRenderer<T, TFilterData, any>(r, onDidChangeCollapseStateRelay.event));
-		this.disposables.push(...treeRenderers);
+		this.renderers = renderers.map(r => new TreeRenderer<T, TFilterData, any>(r, onDidChangeCollapseStateRelay.event, options));
+		this.disposables.push(...this.renderers);
 
-		this.view = new List(container, treeDelegate, treeRenderers, asListOptions(() => this.model, options));
+		this.view = new List(container, treeDelegate, this.renderers, asListOptions(() => this.model, options));
 
 		this.model = this.createModel(this.view, options);
 		onDidChangeCollapseStateRelay.input = this.model.onDidChangeCollapseState;
@@ -330,6 +356,12 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 			onKeyDown.filter(e => e.keyCode === KeyCode.LeftArrow).on(this.onLeftArrow, this, this.disposables);
 			onKeyDown.filter(e => e.keyCode === KeyCode.RightArrow).on(this.onRightArrow, this, this.disposables);
 			onKeyDown.filter(e => e.keyCode === KeyCode.Space).on(this.onSpace, this, this.disposables);
+		}
+	}
+
+	updateOptions(options: IAbstractTreeOptionsUpdate = {}): void {
+		for (const renderer of this.renderers) {
+			renderer.updateOptions(options);
 		}
 	}
 

@@ -179,6 +179,10 @@ export class ApiRepository implements Repository {
 	push(remoteName?: string, branchName?: string, setUpstream: boolean = false): Promise<void> {
 		return this._repository.pushTo(remoteName, branchName, setUpstream);
 	}
+
+	blame(path: string): Promise<string> {
+		return this._repository.blame(path);
+	}
 }
 
 export class ApiGit implements Git {

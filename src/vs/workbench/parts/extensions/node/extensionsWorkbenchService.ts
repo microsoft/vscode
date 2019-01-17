@@ -13,10 +13,10 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IPager, mapPager, singlePagePager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import {
-	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions, IExtensionManifest,
-	InstallExtensionEvent, DidInstallExtensionEvent, LocalExtensionType, DidUninstallExtensionEvent, IExtensionEnablementService, IExtensionIdentifier, EnablementState, IExtensionManagementServerService
+	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions,
+	InstallExtensionEvent, DidInstallExtensionEvent, DidUninstallExtensionEvent, IExtensionEnablementService, IExtensionIdentifier, EnablementState, IExtensionManagementServerService
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { getGalleryExtensionIdFromLocal, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, getMaliciousExtensionsSet, getLocalExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, getMaliciousExtensionsSet } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWindowService } from 'vs/platform/windows/common/windows';
@@ -37,6 +37,7 @@ import * as resources from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IExtensionManifest, ExtensionType, ExtensionIdentifierWithVersion, IExtension as IPlatformExtension } from 'vs/platform/extensions/common/extensions';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -57,7 +58,7 @@ class Extension implements IExtension {
 		private fileService: IFileService
 	) { }
 
-	get type(): LocalExtensionType | undefined {
+	get type(): ExtensionType | undefined {
 		return this.local ? this.local.type : undefined;
 	}
 
@@ -77,7 +78,7 @@ class Extension implements IExtension {
 		if (this.gallery) {
 			return this.gallery.identifier;
 		}
-		return { id: getGalleryExtensionIdFromLocal(this.local), uuid: this.local.identifier.uuid };
+		return this.local.identifier;
 	}
 
 	get uuid(): string | undefined {
@@ -144,7 +145,7 @@ class Extension implements IExtension {
 	}
 
 	private get defaultIconUrl(): string {
-		if (this.type === LocalExtensionType.System) {
+		if (this.type === ExtensionType.System) {
 			if (this.local.manifest && this.local.manifest.contributes) {
 				if (Array.isArray(this.local.manifest.contributes.themes) && this.local.manifest.contributes.themes.length) {
 					return require.toUrl('../electron-browser/media/theme-icon.png');
@@ -184,7 +185,7 @@ class Extension implements IExtension {
 	}
 
 	get outdated(): boolean {
-		return !!this.gallery && this.type === LocalExtensionType.User && semver.gt(this.latestVersion, this.version);
+		return !!this.gallery && this.type === ExtensionType.User && semver.gt(this.latestVersion, this.version);
 	}
 
 	get telemetryData(): any {
@@ -226,7 +227,7 @@ class Extension implements IExtension {
 			return true;
 		}
 
-		return this.type === LocalExtensionType.System;
+		return this.type === ExtensionType.System;
 	}
 
 	getReadme(token: CancellationToken): Promise<string> {
@@ -241,7 +242,7 @@ class Extension implements IExtension {
 			return this.fileService.resolveContent(this.local.readmeUrl, { encoding: 'utf8' }).then(content => content.value);
 		}
 
-		if (this.type === LocalExtensionType.System) {
+		if (this.type === ExtensionType.System) {
 			return Promise.resolve(`# ${this.displayName || this.name}
 **Notice:** This extension is bundled with Visual Studio Code. It can be disabled but not uninstalled.
 ## Features
@@ -261,7 +262,7 @@ ${this.description}
 			return true;
 		}
 
-		return this.type === LocalExtensionType.System;
+		return this.type === ExtensionType.System;
 	}
 
 	getChangelog(token: CancellationToken): Promise<string> {
@@ -272,7 +273,7 @@ ${this.description}
 		const changelogUrl = this.local && this.local.changelogUrl;
 
 		if (!changelogUrl) {
-			if (this.type === LocalExtensionType.System) {
+			if (this.type === ExtensionType.System) {
 				return Promise.resolve('Please check the [VS Code Release Notes](command:update.showCurrentReleaseNotes) for changes to the built-in extensions.');
 			}
 
@@ -431,10 +432,10 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		return this.extensionService.getInstalled()
 			.then(installed => this.getDistinctInstalledExtensions(installed)
 				.then(distinctInstalled => {
-					const installedById = index(this.installed, e => e.local.identifier.id);
-					const groupById = groupBy(installed, i => getGalleryExtensionIdFromLocal(i));
+					const installedById = index(this.installed, e => e.identifier.id);
+					const groupById = groupBy(installed, i => i.identifier.id);
 					this.installed = distinctInstalled.map(local => {
-						const locals = groupById[getGalleryExtensionIdFromLocal(local)];
+						const locals = groupById[local.identifier.id];
 						locals.splice(locals.indexOf(local), 1);
 						locals.splice(0, 0, local);
 						const extension = installedById[local.identifier.id] || new Extension(this.galleryService, this.stateProvider, locals, undefined, this.telemetryService, this.logService, this.fileService);
@@ -497,7 +498,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		return Promise.all([this.runtimeExtensionService.getExtensions(), this.extensionEnablementService.getDisabledExtensions()])
 			.then(([runtimeExtensions, disabledExtensionIdentifiers]) => {
 				const groups = groupBy(allInstalled, (extension: ILocalExtension) => {
-					const isDisabled = disabledExtensionIdentifiers.some(identifier => areSameExtensions(identifier, { id: getGalleryExtensionIdFromLocal(extension), uuid: extension.identifier.uuid }));
+					const isDisabled = disabledExtensionIdentifiers.some(identifier => areSameExtensions(identifier, extension.identifier));
 					if (isDisabled) {
 						return extension.location.scheme === Schemas.file ? 'disabled:primary' : 'disabled:secondary';
 					} else {
@@ -510,21 +511,20 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 				for (const extension of (groups['enabled'] || [])) {
 					if (runtimeExtensions.some(r => r.extensionLocation.toString() === extension.location.toString())) {
 						enabled.push(extension);
-						seenExtensions[getGalleryExtensionIdFromLocal(extension)] = true;
+						seenExtensions[extension.identifier.id] = true;
 					} else {
 						notRunningExtensions.push(extension);
 					}
 				}
 				for (const extension of notRunningExtensions) {
-					if (!seenExtensions[getGalleryExtensionIdFromLocal(extension)]) {
+					if (!seenExtensions[extension.identifier.id]) {
 						enabled.push(extension);
-						seenExtensions[getGalleryExtensionIdFromLocal(extension)] = true;
+						seenExtensions[extension.identifier.id] = true;
 					}
 				}
 				const primaryDisabled = groups['disabled:primary'] || [];
 				const secondaryDisabled = (groups['disabled:secondary'] || []).filter(disabled => {
-					const identifier: IExtensionIdentifier = { id: getGalleryExtensionIdFromLocal(disabled), uuid: disabled.identifier.uuid };
-					return primaryDisabled.every(p => !areSameExtensions({ id: getGalleryExtensionIdFromLocal(p), uuid: p.identifier.uuid }, identifier));
+					return primaryDisabled.every(p => !areSameExtensions(p.identifier, disabled.identifier));
 				});
 				return [...enabled, ...primaryDisabled, ...secondaryDisabled];
 			});
@@ -533,11 +533,10 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 	private hasDuplicates(extensions: ILocalExtension[]): boolean {
 		const seen: { [key: string]: boolean; } = Object.create(null);
 		for (const i of extensions) {
-			const key = getGalleryExtensionIdFromLocal(i);
-			if (seen[key]) {
+			if (seen[i.identifier.id]) {
 				return true;
 			}
-			seen[key] = true;
+			seen[i.identifier.id] = true;
 		}
 		return false;
 	}
@@ -615,7 +614,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 	private syncWithGallery(): Promise<void> {
 		const ids: string[] = [], names: string[] = [];
 		for (const installed of this.installed) {
-			if (installed.type === LocalExtensionType.User) {
+			if (installed.type === ExtensionType.User) {
 				if (installed.uuid) {
 					ids.push(installed.uuid);
 				} else {
@@ -647,7 +646,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 
 		const toUpdate = this.local.filter(e =>
 			e.outdated && e.state !== ExtensionState.Installing
-			&& e.local && !this.isAutoUpdateIgnored(e.local.galleryIdentifier.id, e.local.manifest.version));
+			&& e.local && !this.isAutoUpdateIgnored(new ExtensionIdentifierWithVersion(e.identifier, e.version)));
 		return Promise.all(toUpdate.map(e => this.install(e)));
 	}
 
@@ -732,7 +731,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 					() => this.extensionService.installFromGallery(gallery)
 						.then(() => {
 							if (extension.latestVersion !== version) {
-								this.ignoreAutoUpdate(gallery.identifier.id, version);
+								this.ignoreAutoUpdate(new ExtensionIdentifierWithVersion(gallery.identifier, version));
 							}
 						})
 					, gallery.displayName);
@@ -766,7 +765,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 	}
 
 	private checkAndEnableDisabledDependencies(extensionIdentifier: IExtensionIdentifier): Promise<void> {
-		const extension = this.local.filter(e => (e.local || e.gallery) && areSameExtensions(extensionIdentifier, e.local ? e.local.identifier : e.gallery!.identifier))[0];
+		const extension = this.local.filter(e => (e.local || e.gallery) && areSameExtensions(extensionIdentifier, e.identifier))[0];
 		if (extension) {
 			const disabledDepencies = this.getExtensionsRecursively([extension], this.local, EnablementState.Enabled, { dependencies: true, pack: false });
 			if (disabledDepencies.length) {
@@ -801,7 +800,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 				}
 			}
 		}
-		return Promise.all(allExtensions.map(e => this.doSetEnablement(e, enablementState)));
+		return this.doSetEnablement(allExtensions, enablementState);
 	}
 
 	private getExtensionsRecursively(extensions: IExtension[], installed: IExtension[], enablementState: EnablementState, options: { dependencies: boolean, pack: boolean }, checked: IExtension[] = []): IExtension[] {
@@ -818,7 +817,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 					return false;
 				}
 				const enable = enablementState === EnablementState.Enabled || enablementState === EnablementState.WorkspaceEnabled;
-				return (enable || i.type === LocalExtensionType.User) // Include all Extensions for enablement and only user extensions for disablement
+				return (enable || i.type === ExtensionType.User) // Include all Extensions for enablement and only user extensions for disablement
 					&& (options.dependencies || options.pack)
 					&& extensions.some(extension =>
 						(options.dependencies && extension.dependencies.some(id => areSameExtensions({ id }, i.identifier)))
@@ -873,28 +872,28 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 			extension.displayName, dependents[0].displayName, dependents[1].displayName);
 	}
 
-	private doSetEnablement(extension: IExtension, enablementState: EnablementState): Promise<boolean> {
-		return this.extensionEnablementService.setEnablement(extension.local!, enablementState)
-			.then(changed => {
-				if (changed) {
-					/* __GDPR__
-					"extension:enable" : {
-						"${include}": [
-							"${GalleryExtensionTelemetryData}"
-						]
-					}
-					*/
-					/* __GDPR__
-					"extension:disable" : {
-						"${include}": [
-							"${GalleryExtensionTelemetryData}"
-						]
-					}
-					*/
-					this.telemetryService.publicLog(enablementState === EnablementState.Enabled || enablementState === EnablementState.WorkspaceEnabled ? 'extension:enable' : 'extension:disable', extension.telemetryData);
+	private async doSetEnablement(extensions: IExtension[], enablementState: EnablementState): Promise<boolean[]> {
+		const changed = await this.extensionEnablementService.setEnablement(extensions.map(e => e.local!), enablementState);
+		for (let i = 0; i < changed.length; i++) {
+			if (changed[i]) {
+				/* __GDPR__
+				"extension:enable" : {
+					"${include}": [
+						"${GalleryExtensionTelemetryData}"
+					]
 				}
-				return changed;
-			});
+				*/
+				/* __GDPR__
+				"extension:disable" : {
+					"${include}": [
+						"${GalleryExtensionTelemetryData}"
+					]
+				}
+				*/
+				this.telemetryService.publicLog(enablementState === EnablementState.Enabled || enablementState === EnablementState.WorkspaceEnabled ? 'extension:enable' : 'extension:disable', extensions[i].telemetryData);
+			}
+		}
+		return changed;
 	}
 
 	get allowedBadgeProviders(): string[] {
@@ -953,43 +952,41 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		this._onChange.fire(error ? undefined : extension);
 	}
 
-	private onUninstallExtension({ id }: IExtensionIdentifier): void {
-		this.logService.info(`Uninstalling the extension ${id} from window ${this.windowService.getCurrentWindowId()}`);
-		const extension = this.installed.filter(e => e.local.identifier.id === id)[0];
-		const newLength = this.installed.filter(e => e.local.identifier.id !== id).length;
-		// TODO: Ask @Joao why is this?
-		if (newLength === this.installed.length) {
+	private onUninstallExtension(identifier: IExtensionIdentifier): void {
+		const extension = this.installed.filter(e => areSameExtensions(e.identifier, identifier))[0];
+		if (!extension) {
 			return;
 		}
 
-		const uninstalling = this.uninstalling.filter(e => e.local.identifier.id === id)[0] || extension;
-		this.uninstalling = [uninstalling, ...this.uninstalling.filter(e => e.local.identifier.id !== id)];
+		const uninstalling = this.uninstalling.filter(e => areSameExtensions(e.identifier, identifier))[0] || extension;
+		this.uninstalling = [uninstalling, ...this.uninstalling.filter(e => !areSameExtensions(e.identifier, identifier))];
 
-		this._onChange.fire(undefined);
+		this._onChange.fire(uninstalling);
 	}
 
 	private onDidUninstallExtension({ identifier, error }: DidUninstallExtensionEvent): void {
-		const id = identifier.id;
 		if (!error) {
-			this.installed = this.installed.filter(e => e.local.identifier.id !== id);
+			this.installed = this.installed.filter(e => !areSameExtensions(e.identifier, identifier));
 		}
 
-		const uninstalling = this.uninstalling.filter(e => e.local.identifier.id === id)[0];
-		this.uninstalling = this.uninstalling.filter(e => e.local.identifier.id !== id);
+		const uninstalling = this.uninstalling.filter(e => areSameExtensions(e.identifier, identifier))[0];
+		this.uninstalling = this.uninstalling.filter(e => !areSameExtensions(e.identifier, identifier));
 		if (!uninstalling) {
 			return;
 		}
 
-		this._onChange.fire(undefined);
+		this._onChange.fire(uninstalling);
 	}
 
-	private onEnablementChanged(identifier: IExtensionIdentifier) {
-		const [extension] = this.local.filter(e => areSameExtensions(e.identifier, identifier));
-		if (extension && extension.local) {
-			const enablementState = this.extensionEnablementService.getEnablementState(extension.local);
-			if (enablementState !== extension.enablementState) {
-				extension.enablementState = enablementState;
-				this._onChange.fire(extension);
+	private onEnablementChanged(platformExtensions: IPlatformExtension[]) {
+		const extensions = this.local.filter(e => platformExtensions.some(p => areSameExtensions(e.identifier, p.identifier)));
+		for (const extension of extensions) {
+			if (extension.local) {
+				const enablementState = this.extensionEnablementService.getEnablementState(extension.local);
+				if (enablementState !== extension.enablementState) {
+					extension.enablementState = enablementState;
+					this._onChange.fire(extension);
+				}
 			}
 		}
 	}
@@ -1085,19 +1082,18 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		this.storageService.store('extensions.ignoredAutoUpdateExtension', JSON.stringify(this._ignoredAutoUpdateExtensions), StorageScope.GLOBAL);
 	}
 
-	private ignoreAutoUpdate(galleryId: string, version: string): void {
-		if (!this.isAutoUpdateIgnored(galleryId, version)) {
-			this.ignoredAutoUpdateExtensions = [...this.ignoredAutoUpdateExtensions, getLocalExtensionId(galleryId, version)];
+	private ignoreAutoUpdate(identifierWithVersion: ExtensionIdentifierWithVersion): void {
+		if (!this.isAutoUpdateIgnored(identifierWithVersion)) {
+			this.ignoredAutoUpdateExtensions = [...this.ignoredAutoUpdateExtensions, identifierWithVersion.key()];
 		}
 	}
 
-	private isAutoUpdateIgnored(galleryId: string, version: string): boolean {
-		const extensionId = getLocalExtensionId(galleryId, version).toLowerCase();
-		return this.ignoredAutoUpdateExtensions.indexOf(extensionId) !== -1;
+	private isAutoUpdateIgnored(identifierWithVersion: ExtensionIdentifierWithVersion): boolean {
+		return this.ignoredAutoUpdateExtensions.indexOf(identifierWithVersion.key()) !== -1;
 	}
 
 	private resetIgnoreAutoUpdateExtensions(): void {
-		this.ignoredAutoUpdateExtensions = this.ignoredAutoUpdateExtensions.filter(extensionId => this.local.some(local => !!local.local && local.local.identifier.id.toLowerCase() === extensionId));
+		this.ignoredAutoUpdateExtensions = this.ignoredAutoUpdateExtensions.filter(extensionId => this.local.some(local => !!local.local && new ExtensionIdentifierWithVersion(local.identifier, local.version).key() === extensionId));
 	}
 
 	dispose(): void {

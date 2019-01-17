@@ -173,6 +173,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	private supportDynamicHeights: boolean;
 
 	private dnd: IListViewDragAndDrop<T>;
+	private canDrop: boolean = false;
 	private currentDragData: IDragAndDropData | undefined;
 	private currentDragFeedback: number[] | undefined;
 	private currentDragFeedbackDisposable: IDisposable = Disposable.None;
@@ -658,9 +659,11 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		}
 
 		const result = this.dnd.onDragOver(this.currentDragData, event.element, event.index, event.browserEvent);
-		const canDrop = typeof result === 'boolean' ? result : result.accept;
+		this.canDrop = typeof result === 'boolean' ? result : result.accept;
 
-		if (!canDrop) {
+		if (!this.canDrop) {
+			this.currentDragFeedback = undefined;
+			this.currentDragFeedbackDisposable.dispose();
 			return false;
 		}
 
@@ -727,6 +730,10 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	private onDrop(event: IListDragEvent<T>): void {
+		if (!this.canDrop) {
+			return;
+		}
+
 		const dragData = this.currentDragData;
 		this.teardownDragAndDropScrollTopAnimation();
 		this.clearDragOverFeedback();
@@ -743,6 +750,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	private onDragEnd(): void {
+		this.canDrop = false;
 		this.teardownDragAndDropScrollTopAnimation();
 		this.clearDragOverFeedback();
 		this.currentDragData = undefined;
@@ -881,7 +889,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 				for (const range of renderRanges) {
 					for (let i = range.start; i < range.end; i++) {
-						const beforeRow = i < this.items.length ? this.items[i + 1].row : null;
+						const afterIndex = i + 1;
+						const beforeRow = afterIndex < this.items.length ? this.items[afterIndex].row : null;
 						const beforeElement = beforeRow ? beforeRow.domNode : null;
 						this.insertItemInDOM(i, beforeElement);
 					}

@@ -119,7 +119,6 @@ export class RatingsWidget extends ExtensionWidget {
 
 			const count = append(this.container, $('span.count'));
 			count.textContent = String(rating);
-			this.container.title = this.extension.ratingCount > 1 ? localize('ratedByUsers', "Rated by {0} users", this.extension.ratingCount) : localize('ratedBySingleUser', "Rated by 1 user");
 		} else {
 			for (let i = 1; i <= 5; i++) {
 				if (rating >= i) {
@@ -131,5 +130,6 @@ export class RatingsWidget extends ExtensionWidget {
 				}
 			}
 		}
+		this.container.title = this.extension.ratingCount > 1 ? localize('ratedByUsers', "Rated by {0} users", this.extension.ratingCount) : localize('ratedBySingleUser', "Rated by 1 user");
 	}
 }

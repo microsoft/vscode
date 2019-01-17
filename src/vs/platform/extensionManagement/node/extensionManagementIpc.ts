@@ -4,31 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
-import { IExtensionManagementService, ILocalExtension, InstallExtensionEvent, DidInstallExtensionEvent, IGalleryExtension, LocalExtensionType, DidUninstallExtensionEvent, IExtensionIdentifier, IGalleryMetadata, IReportedExtension } from '../common/extensionManagement';
+import { IExtensionManagementService, ILocalExtension, InstallExtensionEvent, DidInstallExtensionEvent, IGalleryExtension, DidUninstallExtensionEvent, IExtensionIdentifier, IGalleryMetadata, IReportedExtension } from '../common/extensionManagement';
 import { Event } from 'vs/base/common/event';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IURITransformer, DefaultURITransformer, transformAndReviveIncomingURIs } from 'vs/base/common/uriIpc';
 import { cloneAndChange } from 'vs/base/common/objects';
+import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 
 function transformIncomingURI(uri: UriComponents, transformer: IURITransformer | null): URI {
 	return URI.revive(transformer ? transformer.transformIncoming(uri) : uri);
 }
 
 function transformOutgoingURI(uri: URI, transformer: IURITransformer | null): URI {
-	return transformer ? transformer.transformOutgoing(uri) : uri;
+	return transformer ? transformer.transformOutgoingURI(uri) : uri;
 }
 
 function transformIncomingExtension(extension: ILocalExtension, transformer: IURITransformer | null): ILocalExtension {
 	transformer = transformer ? transformer : DefaultURITransformer;
-	const manfiest = extension.manifest;
-	delete extension.manifest;
-	extension = transformAndReviveIncomingURIs(extension, transformer);
-	extension.manifest = manfiest;
-	return extension;
+	const manifest = extension.manifest;
+	const transformed = transformAndReviveIncomingURIs({ ...extension, ...{ manifest: undefined } }, transformer);
+	return { ...transformed, ...{ manifest } };
 }
 
 function transformOutgoingExtension(extension: ILocalExtension, transformer: IURITransformer | null): ILocalExtension {
-	return transformer ? cloneAndChange(extension, value => value instanceof URI ? transformer.transformOutgoing(value) : undefined) : extension;
+	return transformer ? cloneAndChange(extension, value => value instanceof URI ? transformer.transformOutgoingURI(value) : undefined) : extension;
 }
 
 export class ExtensionManagementChannel implements IServerChannel {
@@ -90,7 +89,7 @@ export class ExtensionManagementChannelClient implements IExtensionManagementSer
 		return Promise.resolve(this.channel.call('zip', [extension]).then(result => URI.revive(result)));
 	}
 
-	unzip(zipLocation: URI, type: LocalExtensionType): Promise<IExtensionIdentifier> {
+	unzip(zipLocation: URI, type: ExtensionType): Promise<IExtensionIdentifier> {
 		return Promise.resolve(this.channel.call('unzip', [zipLocation, type]));
 	}
 
@@ -110,7 +109,7 @@ export class ExtensionManagementChannelClient implements IExtensionManagementSer
 		return Promise.resolve(this.channel.call('reinstallFromGallery', [extension]));
 	}
 
-	getInstalled(type: LocalExtensionType | null = null): Promise<ILocalExtension[]> {
+	getInstalled(type: ExtensionType | null = null): Promise<ILocalExtension[]> {
 		return Promise.resolve(this.channel.call<ILocalExtension[]>('getInstalled', [type]))
 			.then(extensions => extensions.map(extension => transformIncomingExtension(extension, null)));
 	}

@@ -23,7 +23,7 @@ import { ITerminalSettings, IDebuggerContribution, IConfig, IDebugAdapter, IDebu
 import { getTerminalLauncher, hasChildProcesses, prepareCommand } from 'vs/workbench/parts/debug/node/terminals';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/node/variableResolver';
-import { ExtHostConfiguration } from './extHostConfiguration';
+import { ExtHostConfiguration, ExtHostConfigProvider } from './extHostConfiguration';
 import { convertToVSCPaths, convertToDAPaths, stringToUri, uriToString } from 'vs/workbench/parts/debug/common/debugUtils';
 import { ExtHostTerminalService } from 'vs/workbench/api/node/extHostTerminalService';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -359,9 +359,10 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		return undefined;
 	}
 
-	public $substituteVariables(folderUri: UriComponents | undefined, config: IConfig): Promise<IConfig> {
+	public async $substituteVariables(folderUri: UriComponents | undefined, config: IConfig): Promise<IConfig> {
+		const configProvider = await this._configurationService.getConfigProvider();
 		if (!this._variableResolver) {
-			this._variableResolver = new ExtHostVariableResolverService(this._workspaceService, this._editorsService, this._configurationService);
+			this._variableResolver = new ExtHostVariableResolverService(this._workspaceService, this._editorsService, configProvider);
 		}
 		let ws: IWorkspaceFolder;
 		const folder = this.getFolder(folderUri);
@@ -375,7 +376,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 				}
 			};
 		}
-		return Promise.resolve(this._variableResolver.resolveAny(ws, config));
+		return this._variableResolver.resolveAny(ws, config);
 	}
 
 	public $startDASession(debugAdapterHandle: number, sessionDto: IDebugSessionDto): Promise<void> {
@@ -852,7 +853,7 @@ export class ExtHostDebugConsole implements vscode.DebugConsole {
 
 export class ExtHostVariableResolverService extends AbstractVariableResolverService {
 
-	constructor(workspaceService: ExtHostWorkspace, editorService: ExtHostDocumentsAndEditors, configurationService: ExtHostConfiguration) {
+	constructor(workspaceService: ExtHostWorkspace, editorService: ExtHostDocumentsAndEditors, configurationService: ExtHostConfigProvider) {
 		super({
 			getFolderUri: (folderName: string): URI => {
 				const folders = workspaceService.getWorkspaceFolders();

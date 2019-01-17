@@ -9,8 +9,18 @@
 }
 
 /* --- Explorer viewlet --- */
-.explorer-viewlet {
+.explorer-viewlet,
+.explorer-folders-view {
 	height: 100%;
+}
+
+.explorer-folders-view .monaco-list-row {
+	padding-left: 4px; /* align top level twistie with `Explorer` title label */
+}
+
+.explorer-viewlet .monaco-list.highlight .explorer-item:not(.explorer-item-edited),
+.explorer-viewlet .monaco-list.highlight .monaco-tl-twistie {
+	opacity: 0.3;
 }
 
 .explorer-viewlet .explorer-item,

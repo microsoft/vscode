@@ -1098,4 +1098,17 @@ declare module 'vscode' {
 		readonly activeSignatureHelp?: SignatureHelp;
 	}
 	//#endregion
+
+	//#region CodeAction.canAutoApply - mjbvz
+	export interface CodeAction {
+		/**
+		 * If the action can be safely automatically applied without the user selecting it from a list.
+		 *
+		 * Set this on quick fixes to indicate that the fix properly addresses the underlying error.
+		 */
+		canAutoApply?: boolean;
+	}
+	//#endregion
+
+
 }

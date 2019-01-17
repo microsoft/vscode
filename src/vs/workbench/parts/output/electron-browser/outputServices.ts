@@ -10,7 +10,6 @@ import * as extfs from 'vs/base/node/extfs';
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -540,16 +539,6 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		}
 	}
 
-	private setPrimaryCursorToLastLine(): void {
-		const codeEditor = <ICodeEditor>this._outputPanel.getControl();
-		const model = codeEditor.getModel();
-
-		if (model) {
-			const lastLine = model.getLineCount();
-			codeEditor.setPosition({ lineNumber: lastLine, column: model.getLineMaxColumn(lastLine) });
-		}
-	}
-
 	private createChannel(id: string): OutputChannel {
 		const channelDisposables: IDisposable[] = [];
 		const channel = this.instantiateChannel(id);
@@ -558,7 +547,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 				const panel = this.panelService.getActivePanel();
 				if (panel && panel.getId() === OUTPUT_PANEL_ID && this.isChannelShown(channel)) {
 					let outputPanel = <OutputPanel>panel;
-					outputPanel.revealLastLine(true);
+					outputPanel.revealLastLine();
 				}
 			}
 		}, channelDisposables);
@@ -612,9 +601,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 					if (!preserveFocus) {
 						this._outputPanel.focus();
 					}
-				})
-				// Activate smart scroll when switching back to the output panel
-				.then(() => this.setPrimaryCursorToLastLine());
+				});
 		}
 		return Promise.resolve(undefined);
 	}

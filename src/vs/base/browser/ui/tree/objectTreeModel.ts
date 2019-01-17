@@ -10,7 +10,7 @@ import { Event } from 'vs/base/common/event';
 import { ITreeModel, ITreeNode, ITreeElement, ITreeSorter, ICollapseStateChangeEvent } from 'vs/base/browser/ui/tree/tree';
 
 export interface IObjectTreeModelOptions<T, TFilterData> extends IIndexTreeModelOptions<T, TFilterData> {
-	sorter?: ITreeSorter<T>;
+	readonly sorter?: ITreeSorter<T>;
 }
 
 export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends NonNullable<any> = void> implements ITreeModel<T | null, TFilterData, T | null> {
@@ -101,6 +101,11 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 				children: this.preserveCollapseState(treeElement.children)
 			};
 		});
+	}
+
+	refresh(element: T): void {
+		const location = this.getElementLocation(element);
+		this.model.refresh(location);
 	}
 
 	getParentElement(ref: T | null = null): T | null {
