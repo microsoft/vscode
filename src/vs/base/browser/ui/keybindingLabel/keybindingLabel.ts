@@ -34,7 +34,7 @@ export class KeybindingLabel {
 
 	private domNode: HTMLElement;
 	private keybinding: ResolvedKeybinding;
-	private matches: Matches;
+	private matches: Matches | undefined;
 	private didEverRender: boolean;
 
 	constructor(container: HTMLElement, private os: OperatingSystem, private options?: KeybindingLabelOptions) {
@@ -108,7 +108,7 @@ export class KeybindingLabel {
 		dom.append(parent, $('span.monaco-keybinding-key', undefined, localize('unbound', "Unbound")));
 	}
 
-	private static areSame(a: Matches, b: Matches): boolean {
+	private static areSame(a: Matches | undefined, b: Matches | undefined): boolean {
 		if (a === b || (!a && !b)) {
 			return true;
 		}
