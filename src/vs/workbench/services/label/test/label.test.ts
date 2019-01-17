@@ -21,7 +21,7 @@ suite('URI Label', () => {
 
 	test('file scheme', function () {
 		labelService.registerFormatter({
-			scheme: 'file://',
+			scheme: 'file',
 			formatting: {
 				label: '${path}',
 				separator: nativeSep,
@@ -40,7 +40,7 @@ suite('URI Label', () => {
 
 	test('custom scheme', function () {
 		labelService.registerFormatter({
-			scheme: 'vscode://',
+			scheme: 'vscode',
 			formatting: {
 				label: 'LABEL/${path}/${authority}/END',
 				separator: '/',
@@ -51,5 +51,41 @@ suite('URI Label', () => {
 
 		const uri1 = URI.parse('vscode://microsoft.com/1/2/3/4/5');
 		assert.equal(labelService.getUriLabel(uri1, { relative: false }), 'LABEL//1/2/3/4/5/microsoft.com/END');
+	});
+
+	test('custom authority', function () {
+		labelService.registerFormatter({
+			scheme: 'vscode',
+			authority: 'micro*',
+			formatting: {
+				label: 'LABEL/${path}/${authority}/END',
+				separator: '/'
+			}
+		});
+
+		const uri1 = URI.parse('vscode://microsoft.com/1/2/3/4/5');
+		assert.equal(labelService.getUriLabel(uri1, { relative: false }), 'LABEL//1/2/3/4/5/microsoft.com/END');
+	});
+
+	test('mulitple authority', function () {
+		labelService.registerFormatter({
+			scheme: 'vscode',
+			authority: 'micro*',
+			formatting: {
+				label: 'first',
+				separator: '/'
+			}
+		});
+		labelService.registerFormatter({
+			scheme: 'vscode',
+			authority: 'microsof*',
+			formatting: {
+				label: 'second',
+				separator: '/'
+			}
+		});
+
+		const uri1 = URI.parse('vscode://microsoft.com/1/2/3/4/5');
+		assert.equal(labelService.getUriLabel(uri1, { relative: false }), 'second');
 	});
 });

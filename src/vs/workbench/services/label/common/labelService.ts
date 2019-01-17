@@ -7,6 +7,8 @@ import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
+import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { isEqual, basenameOrAuthority, basename as resourceBasename } from 'vs/base/common/resources';
@@ -22,8 +24,9 @@ import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { ILabelService, ResourceLabelFormatter, ResourceLabelFormatting } from 'vs/platform/label/common/label';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { match } from 'vs/base/common/glob';
+import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
-export const labelsExtPoint = ExtensionsRegistry.registerExtensionPoint<ResourceLabelFormatter[]>({
+const resourceLabelFormattersExtPoint = ExtensionsRegistry.registerExtensionPoint<ResourceLabelFormatter[]>({
 	extensionPoint: 'resourceLabelFormatters',
 	jsonSchema: {
 		description: localize('vscode.extension.contributes.resourceLabelFormatters', 'Contributes resource label formatting rules.'),
@@ -74,6 +77,16 @@ function hasDriveLetter(path: string): boolean {
 	return !!(isWindows && path && path[2] === ':');
 }
 
+
+class ResourceLabelFormattersHandler implements IWorkbenchContribution {
+	constructor(@ILabelService labelService: ILabelService) {
+		resourceLabelFormattersExtPoint.setHandler(extensions => {
+			extensions.forEach(extension => extension.value.forEach(formatter => labelService.registerFormatter(formatter)));
+		});
+	}
+}
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ResourceLabelFormattersHandler, LifecyclePhase.Restored);
+
 export class LabelService implements ILabelService {
 	_serviceBrand: any;
 
@@ -84,12 +97,7 @@ export class LabelService implements ILabelService {
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IWindowService private readonly windowService: IWindowService
-	) {
-		labelsExtPoint.setHandler(extensions => {
-			extensions.forEach(extension => extension.value.forEach(formatter => this.formatters.push(formatter)));
-			this._onDidRegisterFormatter.fire();
-		});
-	}
+	) { }
 
 	get onDidRegisterFormatter(): Event<void> {
 		return this._onDidRegisterFormatter.event;
@@ -100,18 +108,21 @@ export class LabelService implements ILabelService {
 
 		this.formatters.forEach(formatter => {
 			if (formatter.scheme === resource.scheme) {
-				if (!formatter.authority && !bestResult) {
+				if (!bestResult) {
 					bestResult = formatter;
 					return;
 				}
+				if (!formatter.authority) {
+					return;
+				}
 
-				if (match(resource.authority, formatter.authority) && (!bestResult.authority || formatter.authority.length > bestResult.authority.length)) {
+				if (match(formatter.authority, resource.authority) && (!bestResult.authority || formatter.authority.length > bestResult.authority.length)) {
 					bestResult = formatter;
 				}
 			}
 		});
 
-		return bestResult.formatting;
+		return bestResult ? bestResult.formatting : undefined;
 	}
 
 	getUriLabel(resource: URI, options: { relative?: boolean, noPrefix?: boolean } = {}): string {
