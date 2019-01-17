@@ -333,8 +333,13 @@ export class EditorGroup extends Disposable {
 			// More than one editor
 			if (this.mru.length > 1) {
 				const tabClosingOrder = this.configurationService.getValue('workbench.editor.tabClosingOrder');
-				if (tabClosingOrder === 'mru') {
-					this.setActive(this.mru[1]); // active editor is always first in MRU, so pick second editor after as new active
+				if (tabClosingOrder === 'rtl') {
+					if (index === 0) {
+						this.setActive(this.editors[1]); // first editor is closed, pick second as new active
+					}
+					else {
+						this.setActive(this.editors[index - 1]); // pick previous editor as new active
+					}
 				}
 				else if (tabClosingOrder === 'ltr') {
 					if (index === this.editors.length - 1) {
@@ -345,12 +350,7 @@ export class EditorGroup extends Disposable {
 					}
 				}
 				else {
-					if (index === 0) {
-						this.setActive(this.editors[1]); // first editor is closed, pick second as new active
-					}
-					else {
-						this.setActive(this.editors[index - 1]); // pick previous editor as new active
-					}
+					this.setActive(this.mru[1]); // active editor is always first in MRU, so pick second editor after as new active
 				}
 			}
 
