@@ -474,7 +474,7 @@ registerEditorCommand(new MarkerCommand({
 MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
 	group: '6_problem_nav',
 	command: {
-		id: 'editor.action.marker.next',
+		id: 'editor.action.marker.nextInFiles',
 		title: nls.localize({ key: 'miGotoNextProblem', comment: ['&& denotes a mnemonic'] }, "Next &&Problem")
 	},
 	order: 1
@@ -483,7 +483,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
 MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
 	group: '6_problem_nav',
 	command: {
-		id: 'editor.action.marker.prev',
+		id: 'editor.action.marker.prevInFiles',
 		title: nls.localize({ key: 'miGotoPreviousProblem', comment: ['&& denotes a mnemonic'] }, "Previous &&Problem")
 	},
 	order: 2
