@@ -66,17 +66,3 @@
 .hc-black .monaco-tl-twistie.loading {
 	background-image: url("loading-hc.svg");
 }
-
-.monaco-tl-type-filter {
-	position: absolute;
-	right: 5px;
-	top: 4px;
-	border-radius: 2px;
-	background: #0947718a; /* TODO@joao: theme */
-	border: 1px solid #8080808a;
-	padding: 0px 3px;
-}
-
-.monaco-tl-type-filter:empty {
-	display: none;
-}

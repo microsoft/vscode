@@ -339,7 +339,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		keyboardNavigationLabelProvider: IKeyboardNavigationLabelProvider<T>
 	) {
 		const container = view.getHTMLElement();
-		this.domNode = append(container, $('.monaco-tl-type-filter'));
+		this.domNode = append(container, $('.monaco-list-type-filter'));
 
 		const isPrintableCharEvent = keyboardNavigationLabelProvider.mightProducePrintableCharacter ? (e: IKeyboardEvent) => keyboardNavigationLabelProvider.mightProducePrintableCharacter!(e) : (e: IKeyboardEvent) => mightProducePrintableCharacter(e);
 		const onInput = Event.chain(domEvent(container, 'keydown'))
