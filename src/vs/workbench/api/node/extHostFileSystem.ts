@@ -12,7 +12,7 @@ import { FileChangeType, DocumentLink } from 'vs/workbench/api/node/extHostTypes
 import * as typeConverter from 'vs/workbench/api/node/extHostTypeConverters';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFeatures';
 import { Schemas } from 'vs/base/common/network';
-import { LabelRules } from 'vs/platform/label/common/label';
+import { ResourceLabelFormatter } from 'vs/platform/label/common/label';
 import { State, StateMachine, LinkComputer } from 'vs/editor/common/modes/linkComputer';
 import { commonPrefixLength } from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
@@ -205,8 +205,8 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		});
 	}
 
-	setUriFormatter(scheme: string, formatter: LabelRules): void {
-		this._proxy.$setUriFormatter(scheme, formatter);
+	setUriFormatter(formatter: ResourceLabelFormatter): void {
+		this._proxy.$setUriFormatter(formatter);
 	}
 
 	private static _asIStat(stat: vscode.FileStat): files.IStat {

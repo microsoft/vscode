@@ -12,65 +12,56 @@ import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/comm
 import { isEqual, basenameOrAuthority, basename as resourceBasename } from 'vs/base/common/resources';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { tildify, getPathLabel } from 'vs/base/common/labels';
-import { ltrim, startsWith } from 'vs/base/common/strings';
+import { ltrim } from 'vs/base/common/strings';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, WORKSPACE_EXTENSION, toWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { isParent } from 'vs/platform/files/common/files';
 import { basename, dirname, join } from 'vs/base/common/paths';
 import { Schemas } from 'vs/base/common/network';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
-import { ILabelService, LabelRules } from 'vs/platform/label/common/label';
+import { ILabelService, ResourceLabelFormatter, ResourceLabelFormatting } from 'vs/platform/label/common/label';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { match } from 'vs/base/common/glob';
 
-interface LabelRulesWithPrefix extends LabelRules {
-	prefix: string;
-}
-
-export const labelsExtPoint = ExtensionsRegistry.registerExtensionPoint<LabelRulesWithPrefix[]>({
-	extensionPoint: 'labels',
+export const labelsExtPoint = ExtensionsRegistry.registerExtensionPoint<ResourceLabelFormatter[]>({
+	extensionPoint: 'resourceLabelFormatters',
 	jsonSchema: {
-		description: localize('vscode.extension.contributes.labels', 'Contributes label formatting rules.'),
+		description: localize('vscode.extension.contributes.resourceLabelFormatters', 'Contributes resource label formatting rules.'),
 		type: 'array',
 		items: {
 			type: 'object',
-			required: ['prefix'],
+			required: ['scheme', 'formatting'],
 			properties: {
-				prefix: {
+				scheme: {
 					type: 'string',
-					description: localize('vscode.extension.contributes.labels.prefix', 'URI prefix on which to match the rules on. For example file:///myFolder'),
+					description: localize('vscode.extension.contributes.resourceLabelFormatters.scheme', 'URI scheme on which to match the formatter on. For example "file". Simple glob patterns are supported.'),
 				},
-				uri: {
-					description: localize('vscode.extension.contributes.labels.uri', "Rules for formatting uri resource labels."),
+				authority: {
+					type: 'string',
+					description: localize('vscode.extension.contributes.resourceLabelFormatters.authority', 'URI authority on which to match the formatter on. Simple glob patterns are supported.'),
+				},
+				formatting: {
+					description: localize('vscode.extension.contributes.resourceLabelFormatters.formatting', "Rules for formatting uri resource labels."),
 					type: 'object',
 					properties: {
 						label: {
 							type: 'string',
-							description: localize('vscode.extension.contributes.labels.uri.label', "Label rules to display. For example: myLabel:/${path}. ${path}, ${scheme} and ${authority} are supported as variables.")
+							description: localize('vscode.extension.contributes.resourceLabelFormatters.label', "Label rules to display. For example: myLabel:/${path}. ${path}, ${scheme} and ${authority} are supported as variables.")
 						},
 						separator: {
 							type: 'string',
-							description: localize('vscode.extension.contributes.labels.uri.separator', "Separator to be used in the uri label display. '/' or '\' as an example.")
+							description: localize('vscode.extension.contributes.resourceLabelFormatters.separator', "Separator to be used in the uri label display. '/' or '\' as an example.")
 						},
 						tildify: {
 							type: 'boolean',
-							description: localize('vscode.extension.contributes.labels.uri.tildify', "Controls if the start of the uri label should be tildified when possible.")
+							description: localize('vscode.extension.contributes.resourceLabelFormatters.tildify', "Controls if the start of the uri label should be tildified when possible.")
 						},
-						normalizeDriveLetter: {
-							type: 'boolean',
-							description: localize('vscode.extension.contributes.labels.uri.normalizeDriveLetter', "Controls if the drive letters should be upper cased.")
-						}
-					}
-				},
-				workspace: {
-					description: localize('vscode.extension.contributes.labels.workspace', "Rules for formatting workspace labels."),
-					type: 'object',
-					properties: {
-						suffix: {
+						workspaceSuffix: {
 							type: 'string',
-							description: localize('vscode.extension.contributes.labels.workspace.suffix', "Suffix appended to the workspace label.")
+							description: localize('vscode.extension.contributes.resourceLabelFormatters.formatting.workspaceSuffix', "Suffix appended to the workspace label.")
 						}
 					}
-				},
+				}
 			}
 		}
 	}
@@ -86,7 +77,7 @@ function hasDriveLetter(path: string): boolean {
 export class LabelService implements ILabelService {
 	_serviceBrand: any;
 
-	private readonly formatters: { [prefix: string]: LabelRules } = Object.create(null);
+	private formatters: ResourceLabelFormatter[] = [];
 	private readonly _onDidRegisterFormatter = new Emitter<void>();
 
 	constructor(
@@ -95,7 +86,7 @@ export class LabelService implements ILabelService {
 		@IWindowService private readonly windowService: IWindowService
 	) {
 		labelsExtPoint.setHandler(extensions => {
-			extensions.forEach(extension => extension.value.forEach(rule => this.formatters[rule.prefix] = rule));
+			extensions.forEach(extension => extension.value.forEach(formatter => this.formatters.push(formatter)));
 			this._onDidRegisterFormatter.fire();
 		});
 	}
@@ -104,23 +95,28 @@ export class LabelService implements ILabelService {
 		return this._onDidRegisterFormatter.event;
 	}
 
-	findFormatter(resource: URI): LabelRules | undefined {
-		const path = `${resource.scheme}://${resource.authority}`;
-		let bestPrefix = '';
-		for (let prefix in this.formatters) {
-			if (startsWith(path, prefix) && prefix.length > bestPrefix.length) {
-				bestPrefix = prefix;
+	findFormatting(resource: URI): ResourceLabelFormatting | undefined {
+		let bestResult: ResourceLabelFormatter;
+
+		this.formatters.forEach(formatter => {
+			if (formatter.scheme === resource.scheme) {
+				if (!formatter.authority && !bestResult) {
+					bestResult = formatter;
+					return;
+				}
+
+				if (match(resource.authority, formatter.authority) && (!bestResult.authority || formatter.authority.length > bestResult.authority.length)) {
+					bestResult = formatter;
+				}
 			}
-		}
-		if (bestPrefix.length) {
-			return this.formatters[bestPrefix];
-		}
-		return undefined;
+		});
+
+		return bestResult.formatting;
 	}
 
 	getUriLabel(resource: URI, options: { relative?: boolean, noPrefix?: boolean } = {}): string {
-		const formatter = this.findFormatter(resource);
-		if (!formatter) {
+		const formatting = this.findFormatting(resource);
+		if (!formatting) {
 			return getPathLabel(resource.path, this.environmentService, options.relative ? this.contextService : undefined);
 		}
 
@@ -131,8 +127,8 @@ export class LabelService implements ILabelService {
 				if (isEqual(baseResource.uri, resource, !isLinux)) {
 					relativeLabel = ''; // no label if resources are identical
 				} else {
-					const baseResourceLabel = this.formatUri(baseResource.uri, formatter, options.noPrefix);
-					relativeLabel = ltrim(this.formatUri(resource, formatter, options.noPrefix).substring(baseResourceLabel.length), formatter.uri.separator);
+					const baseResourceLabel = this.formatUri(baseResource.uri, formatting, options.noPrefix);
+					relativeLabel = ltrim(this.formatUri(resource, formatting, options.noPrefix).substring(baseResourceLabel.length), formatting.separator);
 				}
 
 				const hasMultipleRoots = this.contextService.getWorkspace().folders.length > 1;
@@ -145,7 +141,7 @@ export class LabelService implements ILabelService {
 			}
 		}
 
-		return this.formatUri(resource, formatter, options.noPrefix);
+		return this.formatUri(resource, formatting, options.noPrefix);
 	}
 
 	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IWorkspace), options?: { verbose: boolean }): string {
@@ -166,8 +162,8 @@ export class LabelService implements ILabelService {
 				return label;
 			}
 
-			const formatter = this.findFormatter(workspace);
-			const suffix = formatter && formatter.workspace && (typeof formatter.workspace.suffix === 'string') ? formatter.workspace.suffix : workspace.scheme;
+			const formatting = this.findFormatting(workspace);
+			const suffix = formatting && (typeof formatting.workspaceSuffix === 'string') ? formatting.workspaceSuffix : workspace.scheme;
 			return suffix ? `${label} (${suffix})` : label;
 		}
 
@@ -190,26 +186,26 @@ export class LabelService implements ILabelService {
 		if (this.windowService) {
 			const authority = this.windowService.getConfiguration().remoteAuthority;
 			if (authority) {
-				const formatter = this.findFormatter(URI.from({ scheme: REMOTE_HOST_SCHEME, authority }));
-				if (formatter && formatter.workspace) {
-					return formatter.workspace.suffix;
+				const formatter = this.findFormatting(URI.from({ scheme: REMOTE_HOST_SCHEME, authority }));
+				if (formatter && formatter.workspaceSuffix) {
+					return formatter.workspaceSuffix;
 				}
 			}
 		}
 		return '';
 	}
 
-	registerFormatter(selector: string, formatter: LabelRules): IDisposable {
-		this.formatters[selector] = formatter;
+	registerFormatter(formatter: ResourceLabelFormatter): IDisposable {
+		this.formatters.push(formatter);
 		this._onDidRegisterFormatter.fire();
 
 		return {
-			dispose: () => delete this.formatters[selector]
+			dispose: () => this.formatters = this.formatters.filter(f => f !== formatter)
 		};
 	}
 
-	private formatUri(resource: URI, formatter: LabelRules, forceNoTildify?: boolean): string {
-		let label = formatter.uri.label.replace(labelMatchingRegexp, match => {
+	private formatUri(resource: URI, formatting: ResourceLabelFormatting, forceNoTildify?: boolean): string {
+		let label = formatting.label.replace(labelMatchingRegexp, match => {
 			switch (match) {
 				case '${scheme}': return resource.scheme;
 				case '${authority}': return resource.authority;
@@ -219,17 +215,17 @@ export class LabelService implements ILabelService {
 		});
 
 		// convert \c:\something => C:\something
-		if (formatter.uri.normalizeDriveLetter && hasDriveLetter(label)) {
+		if (formatting.normalizeDriveLetter && hasDriveLetter(label)) {
 			label = label.charAt(1).toUpperCase() + label.substr(2);
 		}
 
-		if (formatter.uri.tildify && !forceNoTildify) {
+		if (formatting.tildify && !forceNoTildify) {
 			label = tildify(label, this.environmentService.userHome);
 		}
-		if (formatter.uri.authorityPrefix && resource.authority) {
-			label = formatter.uri.authorityPrefix + label;
+		if (formatting.authorityPrefix && resource.authority) {
+			label = formatting.authorityPrefix + label;
 		}
 
-		return label.replace(sepRegexp, formatter.uri.separator);
+		return label.replace(sepRegexp, formatting.separator);
 	}
 }

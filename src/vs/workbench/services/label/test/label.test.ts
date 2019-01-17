@@ -20,8 +20,9 @@ suite('URI Label', () => {
 	});
 
 	test('file scheme', function () {
-		labelService.registerFormatter('file://', {
-			uri: {
+		labelService.registerFormatter({
+			scheme: 'file://',
+			formatting: {
 				label: '${path}',
 				separator: nativeSep,
 				tildify: !isWindows,
@@ -38,8 +39,9 @@ suite('URI Label', () => {
 	});
 
 	test('custom scheme', function () {
-		labelService.registerFormatter('vscode://', {
-			uri: {
+		labelService.registerFormatter({
+			scheme: 'vscode://',
+			formatting: {
 				label: 'LABEL/${path}/${authority}/END',
 				separator: '/',
 				tildify: true,
