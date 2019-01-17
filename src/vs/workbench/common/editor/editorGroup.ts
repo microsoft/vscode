@@ -329,14 +329,15 @@ export class EditorGroup extends Disposable {
 
 		// Active Editor closed
 		if (openNext && this.matches(this.active, editor)) {
+
 			// More than one editor
 			if (this.mru.length > 1) {
 				const tabClosingOrder = this.configurationService.getValue('workbench.editor.tabClosingOrder');
-				if(tabClosingOrder === 'mru') {
-						this.setActive(this.mru[1]); // active editor is always first in MRU, so pick second editor after as new active
+				if (tabClosingOrder === 'mru') {
+					this.setActive(this.mru[1]); // active editor is always first in MRU, so pick second editor after as new active
 				}
-				else if(tabClosingOrder === 'ltr') {
-					if (index === this.editors.length -1) {
+				else if (tabClosingOrder === 'ltr') {
+					if (index === this.editors.length - 1) {
 						this.setActive(this.editors[index - 1]); // last editor is closed, pick previous as new active
 					}
 					else {
