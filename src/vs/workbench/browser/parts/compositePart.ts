@@ -6,7 +6,7 @@
 import 'vs/css!./media/compositepart';
 import * as nls from 'vs/nls';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { Emitter } from 'vs/base/common/event';
 import * as errors from 'vs/base/common/errors';
@@ -46,6 +46,12 @@ export interface ICompositeTitleLabel {
 	updateStyles(): void;
 }
 
+interface CompositeItem {
+	composite: Composite;
+	disposable: IDisposable;
+	progressService: IProgressService;
+}
+
 export abstract class CompositePart<T extends Composite> extends Part {
 
 	protected _onDidCompositeOpen = this._register(new Emitter<{ composite: IComposite, focus: boolean }>());
@@ -53,13 +59,11 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 	protected toolBar: ToolBar;
 
-	private instantiatedCompositeListeners: IDisposable[];
 	private mapCompositeToCompositeContainer: { [compositeId: string]: HTMLElement; };
 	private mapActionsBindingToComposite: { [compositeId: string]: () => void; };
-	private mapProgressServiceToComposite: { [compositeId: string]: IProgressService; };
 	private activeComposite: Composite | null;
 	private lastActiveCompositeId: string;
-	private instantiatedComposites: Composite[];
+	private instantiatedCompositeItems: Map<string, CompositeItem>;
 	private titleLabel: ICompositeTitleLabel;
 	private progressBar: ProgressBar;
 	private contentAreaSize: Dimension;
@@ -86,12 +90,10 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	) {
 		super(id, options, themeService, storageService);
 
-		this.instantiatedCompositeListeners = [];
 		this.mapCompositeToCompositeContainer = {};
 		this.mapActionsBindingToComposite = {};
-		this.mapProgressServiceToComposite = {};
 		this.activeComposite = null;
-		this.instantiatedComposites = [];
+		this.instantiatedCompositeItems = new Map<string, CompositeItem>();
 		this.lastActiveCompositeId = storageService.get(activeCompositeSettingsKey, StorageScope.WORKSPACE, this.defaultCompositeId);
 	}
 
@@ -159,10 +161,9 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	protected createComposite(id: string, isActive?: boolean): Composite {
 
 		// Check if composite is already created
-		for (const composite of this.instantiatedComposites) {
-			if (composite.getId() === id) {
-				return composite;
-			}
+		const compositeItem = this.instantiatedCompositeItems.get(id);
+		if (compositeItem) {
+			return compositeItem.composite;
 		}
 
 		// Instantiate composite from registry otherwise
@@ -172,13 +173,13 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			const compositeInstantiationService = this.instantiationService.createChild(new ServiceCollection([IProgressService, progressService]));
 
 			const composite = compositeDescriptor.instantiate(compositeInstantiationService);
-			this.mapProgressServiceToComposite[composite.getId()] = progressService;
+			const disposables: IDisposable[] = [];
 
 			// Remember as Instantiated
-			this.instantiatedComposites.push(composite);
+			this.instantiatedCompositeItems.set(id, { composite, disposable: toDisposable(() => dispose(disposables)), progressService });
 
 			// Register to title area update events from the composite
-			this.instantiatedCompositeListeners.push(composite.onTitleAreaUpdate(() => this.onTitleAreaUpdate(composite.getId())));
+			composite.onTitleAreaUpdate(() => this.onTitleAreaUpdate(composite.getId()), this, disposables);
 
 			return composite;
 		}
@@ -219,9 +220,9 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		}
 
 		// Report progress for slow loading composites (but only if we did not create the composites before already)
-		const progressService = this.mapProgressServiceToComposite[composite.getId()];
-		if (progressService && !compositeContainer) {
-			this.mapProgressServiceToComposite[composite.getId()].showWhile(Promise.resolve(), this.partService.isRestored() ? 800 : 3200 /* less ugly initial startup */);
+		const compositeItem = this.instantiatedCompositeItems.get(composite.getId());
+		if (compositeItem && !compositeContainer) {
+			compositeItem.progressService.showWhile(Promise.resolve(), this.partService.isRestored() ? 800 : 3200 /* less ugly initial startup */);
 		}
 
 		// Fill Content and Actions
@@ -446,8 +447,9 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		return contentContainer;
 	}
 
-	getProgressIndicator(id: string): IProgressService {
-		return this.mapProgressServiceToComposite[id];
+	getProgressIndicator(id: string): IProgressService | null {
+		const compositeItem = this.instantiatedCompositeItems.get(id);
+		return compositeItem ? compositeItem.progressService : null;
 	}
 
 	protected getActions(): IAction[] {
@@ -476,17 +478,33 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		return sizes;
 	}
 
-	dispose(): void {
-		this.mapCompositeToCompositeContainer = null!; // StrictNullOverride: nulling out ok in dispose
-		this.mapProgressServiceToComposite = null!; // StrictNullOverride: nulling out ok in dispose
-		this.mapActionsBindingToComposite = null!; // StrictNullOverride: nulling out ok in dispose
-
-		for (const composite of this.instantiatedComposites) {
-			composite.dispose();
+	protected removeComposite(compositeId: string): boolean {
+		if (this.activeComposite && this.activeComposite.getId() === compositeId) {
+			// do not remove active compoiste
+			return false;
 		}
 
-		this.instantiatedComposites = [];
-		this.instantiatedCompositeListeners = dispose(this.instantiatedCompositeListeners);
+		delete this.mapCompositeToCompositeContainer[compositeId];
+		delete this.mapActionsBindingToComposite[compositeId];
+		const compositeItem = this.instantiatedCompositeItems.get(compositeId);
+		if (compositeItem) {
+			compositeItem.composite.dispose();
+			dispose(compositeItem.disposable);
+			this.instantiatedCompositeItems.delete(compositeId);
+		}
+		return true;
+	}
+
+	dispose(): void {
+		this.mapCompositeToCompositeContainer = null!; // StrictNullOverride: nulling out ok in dispose
+		this.mapActionsBindingToComposite = null!; // StrictNullOverride: nulling out ok in dispose
+
+		this.instantiatedCompositeItems.forEach(compositeItem => {
+			compositeItem.composite.dispose();
+			dispose(compositeItem.disposable);
+		});
+
+		this.instantiatedCompositeItems.clear();
 
 		super.dispose();
 	}

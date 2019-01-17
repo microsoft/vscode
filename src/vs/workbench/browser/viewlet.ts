@@ -87,6 +87,16 @@ export class ViewletRegistry extends CompositeRegistry<Viewlet> {
 	}
 
 	/**
+	 * Deregisters a viewlet to the platform.
+	 */
+	deregisterViewlet(id: string): void {
+		if (id === this.defaultViewletId) {
+			throw new Error('Cannot deregister default viewlet');
+		}
+		super.deregisterComposite(id);
+	}
+
+	/**
 	 * Returns the viewlet descriptor for the given id or null if none.
 	 */
 	getViewlet(id: string): ViewletDescriptor {
