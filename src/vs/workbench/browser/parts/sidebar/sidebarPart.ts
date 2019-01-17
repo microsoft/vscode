@@ -187,7 +187,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements ISerializable
 			return super.layout(dim1);
 		}
 
-		super.layout(dim1, dim2);
+		super.layout(dim1, dim2!);
 	}
 
 	setViewletEnablement(id: string, enabled: boolean): void {
