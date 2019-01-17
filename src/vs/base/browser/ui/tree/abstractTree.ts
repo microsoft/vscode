@@ -306,13 +306,13 @@ class TypeFilter<T> implements ITreeFilter<T, FuzzyScore> {
 
 		if (!score) {
 			// DEMO: just highlights
-			return { data: FuzzyScore.Default, visibility: true };
+			// return { data: FuzzyScore.Default, visibility: true };
 
 			// DEMO: filter
 			// return TreeVisibility.Recurse;
 
 			// DEMO: smarter filter
-			// return parentVisibility === TreeVisibility.Visible ? true : TreeVisibility.Recurse;
+			return parentVisibility === TreeVisibility.Visible ? true : TreeVisibility.Recurse;
 		}
 
 		return { data: score, visibility: true };
