@@ -113,6 +113,7 @@ function createScopedContextKeyService(contextKeyService: IContextKeyService, wi
 export const multiSelectModifierSettingKey = 'workbench.list.multiSelectModifier';
 export const openModeSettingKey = 'workbench.list.openMode';
 export const horizontalScrollingKey = 'workbench.tree.horizontalScrolling';
+const treeIndentKey = 'workbench.tree.indent';
 
 function useAltAsMultipleSelectionModifier(configurationService: IConfigurationService): boolean {
 	return configurationService.getValue(multiSelectModifierSettingKey) === 'alt';
@@ -908,7 +909,8 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 			keyboardSupport: false,
 			styleController: new DefaultStyleController(getSharedListStyleSheet()),
 			...computeStyles(themeService.getTheme(), defaultListStyles),
-			...toWorkbenchListOptions(options, configurationService, keybindingService)
+			...toWorkbenchListOptions(options, configurationService, keybindingService),
+			indent: configurationService.getValue(treeIndentKey)
 		});
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
@@ -943,6 +945,10 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 			configurationService.onDidChangeConfiguration(e => {
 				if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
 					this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
+				}
+				if (e.affectsConfiguration(treeIndentKey)) {
+					const indent = configurationService.getValue<number>(treeIndentKey);
+					this.updateOptions({ indent });
 				}
 			})
 		);
@@ -1055,7 +1061,8 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 			keyboardSupport: false,
 			styleController: new DefaultStyleController(getSharedListStyleSheet()),
 			...computeStyles(themeService.getTheme(), defaultListStyles),
-			...toWorkbenchListOptions(options, configurationService, keybindingService)
+			...toWorkbenchListOptions(options, configurationService, keybindingService),
+			indent: configurationService.getValue<number>(treeIndentKey)
 		});
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
@@ -1090,6 +1097,10 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 			configurationService.onDidChangeConfiguration(e => {
 				if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
 					this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
+				}
+				if (e.affectsConfiguration(treeIndentKey)) {
+					const indent = configurationService.getValue<number>(treeIndentKey);
+					this.updateOptions({ indent });
 				}
 			})
 		);
@@ -1137,6 +1148,11 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': false,
 			'description': localize('horizontalScrolling setting', "Controls whether trees support horizontal scrolling in the workbench.")
+		},
+		[treeIndentKey]: {
+			'type': 'number',
+			'default': 8,
+			'description': localize('tree indent setting', "Controls tree indentation in pixels.")
 		}
 	}
 });
