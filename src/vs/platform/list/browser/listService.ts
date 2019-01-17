@@ -990,7 +990,8 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 			keyboardSupport: false,
 			styleController: new DefaultStyleController(getSharedListStyleSheet()),
 			...computeStyles(themeService.getTheme(), defaultListStyles),
-			...toWorkbenchListOptions(options, configurationService, keybindingService)
+			...toWorkbenchListOptions(options, configurationService, keybindingService),
+			indent: configurationService.getValue(treeIndentKey)
 		});
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
@@ -1025,6 +1026,10 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 			configurationService.onDidChangeConfiguration(e => {
 				if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
 					this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
+				}
+				if (e.affectsConfiguration(treeIndentKey)) {
+					const indent = configurationService.getValue<number>(treeIndentKey);
+					this.updateOptions({ indent });
 				}
 			})
 		);
