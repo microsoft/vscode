@@ -171,7 +171,7 @@ export class NativeResolvedKeybinding extends ResolvedKeybinding {
 	}
 
 	public getDispatchParts(): (string | null)[] {
-		let dispatchParts = [];
+		let dispatchParts: (string | null)[] = [];
 		for (let part of this._parts) {
 			dispatchParts.push(part ? this._mapper.getDispatchStrForScanCodeBinding(part) : null);
 		}

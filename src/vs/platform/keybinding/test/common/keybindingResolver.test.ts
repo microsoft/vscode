@@ -346,21 +346,22 @@ suite('KeybindingResolver', () => {
 		let testResolve = (ctx: IContext, _expectedKey: number, commandId: string) => {
 			const expectedKey = createKeybinding(_expectedKey, OS)!;
 
-			let previousPart = null;
+			let previousPart: (string | null) = null;
 			for (let i = 0, len = expectedKey.parts.length; i < len; i++) {
 				let part = getDispatchStr(expectedKey.parts[i]);
 				let result = resolver.resolve(ctx, previousPart, part);
-				assert.ok(result !== null, `Enters chord for ${commandId} at part ${i}`);
 				if (i === len - 1) {
 					// if it's the final part, then we should find a valid command,
 					// and there should not be a chord.
-					assert.equal(result.commandId, commandId, `Enters chord for ${commandId} at part ${i}`);
-					assert.equal(result.enterChord, false, `Enters chord for ${commandId} at part ${i}`);
+					assert.ok(result !== null, `Enters chord for ${commandId} at part ${i}`);
+					assert.equal(result!.commandId, commandId, `Enters chord for ${commandId} at part ${i}`);
+					assert.equal(result!.enterChord, false, `Enters chord for ${commandId} at part ${i}`);
 				} else {
 					// if it's not the final part, then we should not find a valid command,
 					// and there should be a chord.
-					assert.equal(result.commandId, null, `Enters chord for ${commandId} at part ${i}`);
-					assert.equal(result.enterChord, true, `Enters chord for ${commandId} at part ${i}`);
+					assert.ok(result !== null, `Enters chord for ${commandId} at part ${i}`);
+					assert.equal(result!.commandId, null, `Enters chord for ${commandId} at part ${i}`);
+					assert.equal(result!.enterChord, true, `Enters chord for ${commandId} at part ${i}`);
 				}
 				previousPart = part;
 			}

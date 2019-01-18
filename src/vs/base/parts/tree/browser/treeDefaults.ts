@@ -49,7 +49,7 @@ export interface IControllerOptions {
 }
 
 interface IKeybindingDispatcherItem {
-	keybinding: Keybinding;
+	keybinding: Keybinding | null;
 	callback: IKeyBindingCallback;
 }
 
@@ -63,9 +63,11 @@ export class KeybindingDispatcher {
 
 	public has(keybinding: KeyCode): boolean {
 		let target = createKeybinding(keybinding, platform.OS);
-		for (const a of this._arr) {
-			if (target.equals(a.keybinding)) {
-				return true;
+		if (target !== null) {
+			for (const a of this._arr) {
+				if (target.equals(a.keybinding)) {
+					return true;
+				}
 			}
 		}
 		return false;

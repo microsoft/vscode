@@ -517,7 +517,10 @@ export class ChordKeybinding {
 		return hashCodes.join(';');
 	}
 
-	public equals(other: ChordKeybinding): boolean {
+	public equals(other: ChordKeybinding | null): boolean {
+		if (other === null) {
+			return false;
+		}
 		if (this.parts.length !== other.parts.length) {
 			return false;
 		}
