@@ -322,7 +322,10 @@ function _loadColorTheme(fileService: IFileService, themeLocation: URI, resultRu
 
 let pListParser: Promise<{ parse(content: string) }>;
 function getPListParser() {
-	return pListParser || import('fast-plist');
+	if (!pListParser) {
+		pListParser = import('fast-plist');
+	}
+	return pListParser;
 }
 
 function _loadSyntaxTokens(fileService: IFileService, themeLocation: URI, resultRules: ITokenColorizationRule[], resultColors: IColorMap): Promise<any> {

@@ -92,8 +92,7 @@ export class ViewModelDecorations implements IDisposable {
 	}
 
 	public getDecorationsViewportData(viewRange: Range): IDecorationsViewportData {
-		let cacheIsValid = true;
-		cacheIsValid = cacheIsValid && (this._cachedModelDecorationsResolver !== null);
+		let cacheIsValid = (this._cachedModelDecorationsResolver !== null);
 		cacheIsValid = cacheIsValid && (viewRange.equalsRange(this._cachedModelDecorationsResolverViewRange));
 		if (!cacheIsValid) {
 			this._cachedModelDecorationsResolver = this._getDecorationsViewportData(viewRange);

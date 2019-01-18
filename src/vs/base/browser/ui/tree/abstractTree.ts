@@ -134,6 +134,9 @@ function asListOptions<T, TFilterData, TRef>(modelProvider: () => ITreeModel<T, 
 		accessibilityProvider: options.accessibilityProvider && {
 			getAriaLabel(e) {
 				return options.accessibilityProvider!.getAriaLabel(e.element);
+			},
+			getAriaLevel(node) {
+				return node.depth;
 			}
 		},
 		keyboardNavigationLabelProvider: undefined

@@ -41,11 +41,11 @@ export class StartupTimings implements IWorkbenchContribution {
 
 	private async _report() {
 		const isStandardStartup = await this._isStandardStartup();
-		this._reportStartupTimes(isStandardStartup).catch(onUnexpectedError);
+		this._reportStartupTimes().catch(onUnexpectedError);
 		this._appendStartupTimes(isStandardStartup).catch(onUnexpectedError);
 	}
 
-	private async _reportStartupTimes(isStandardStartup: boolean): Promise<void> {
+	private async _reportStartupTimes(): Promise<void> {
 		const metrics = await this._timerService.startupMetrics;
 
 		/* __GDPR__
@@ -56,15 +56,6 @@ export class StartupTimings implements IWorkbenchContribution {
 			}
 		*/
 		this._telemetryService.publicLog('startupTimeVaried', metrics);
-
-		/* __GDPR__
-		"startupTime" : {
-			"${include}": [
-				"${IStartupMetrics}"
-			]
-		}
-		*/
-		this._telemetryService.publicLog('startupTime', metrics);
 	}
 
 	private async _appendStartupTimes(isStandardStartup: boolean) {

@@ -268,7 +268,8 @@ function getNodeCachedDir() {
 		}
 
 		jsFlags() {
-			return this.value ? '--nolazy' : undefined;
+			// return this.value ? '--nolazy' : undefined;
+			return undefined;
 		}
 
 		ensureExists() {
