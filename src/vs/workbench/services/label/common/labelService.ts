@@ -104,7 +104,7 @@ export class LabelService implements ILabelService {
 	}
 
 	findFormatting(resource: URI): ResourceLabelFormatting | undefined {
-		let bestResult: ResourceLabelFormatter;
+		let bestResult: ResourceLabelFormatter | undefined;
 
 		this.formatters.forEach(formatter => {
 			if (formatter.scheme === resource.scheme) {
