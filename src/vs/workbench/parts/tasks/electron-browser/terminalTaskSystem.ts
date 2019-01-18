@@ -514,7 +514,9 @@ export class TerminalTaskSystem implements ITaskSystem {
 				let processStartedSignaled = false;
 				terminal.processReady.then(() => {
 					if (!processStartedSignaled) {
-						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal!.processId!));
+						if (task.command.runtime !== RuntimeType.ExtensionCallback) {
+							this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal!.processId!));
+						}
 						processStartedSignaled = true;
 					}
 				}, (_error) => {
@@ -581,7 +583,9 @@ export class TerminalTaskSystem implements ITaskSystem {
 				let processStartedSignaled = false;
 				terminal.processReady.then(() => {
 					if (!processStartedSignaled) {
-						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal!.processId!));
+						if (task.command.runtime !== RuntimeType.ExtensionCallback) {
+							this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal!.processId!));
+						}
 						processStartedSignaled = true;
 					}
 				}, (_error) => {

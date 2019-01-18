@@ -65,7 +65,7 @@ export interface ShellExecutionDTO {
 	options?: ShellExecutionOptionsDTO;
 }
 
-export interface CallbackExecutionDTO {
+export interface ExtensionCallbackExecutionDTO {
 	extensionCallback: 'extensionCallback';
 }
 
@@ -83,7 +83,7 @@ export interface TaskHandleDTO {
 export interface TaskDTO {
 	_id: string;
 	name: string;
-	execution: ProcessExecutionDTO | ShellExecutionDTO | CallbackExecutionDTO;
+	execution: ProcessExecutionDTO | ShellExecutionDTO | ExtensionCallbackExecutionDTO;
 	definition: TaskDefinitionDTO;
 	isBackground: boolean;
 	source: TaskSourceDTO;

@@ -800,7 +800,7 @@ export function createApiFactory(
 			SymbolInformation: extHostTypes.SymbolInformation,
 			SymbolKind: extHostTypes.SymbolKind,
 			Task: extHostTypes.Task,
-			Task2: extHostTypes.Task,
+			TaskWithExtensionCallback: extHostTypes.Task,
 			TaskGroup: extHostTypes.TaskGroup,
 			TaskPanelKind: extHostTypes.TaskPanelKind,
 			TaskRevealKind: extHostTypes.TaskRevealKind,

@@ -22,7 +22,7 @@ import {
 	TaskDefinitionDTO, TaskExecutionDTO, TaskPresentationOptionsDTO,
 	ProcessExecutionOptionsDTO, ProcessExecutionDTO,
 	ShellExecutionOptionsDTO, ShellExecutionDTO,
-	CallbackExecutionDTO,
+	ExtensionCallbackExecutionDTO,
 	TaskDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO, TaskSystemInfoDTO, TaskSetDTO
 } from '../shared/tasks';
 import { ExtHostVariableResolverService } from 'vs/workbench/api/node/extHostDebugService';
@@ -79,7 +79,7 @@ namespace ProcessExecutionOptionsDTO {
 }
 
 namespace ProcessExecutionDTO {
-	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CallbackExecutionDTO): value is ProcessExecutionDTO {
+	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | ExtensionCallbackExecutionDTO): value is ProcessExecutionDTO {
 		let candidate = value as ProcessExecutionDTO;
 		return candidate && !!candidate.process;
 	}
@@ -120,7 +120,7 @@ namespace ShellExecutionOptionsDTO {
 }
 
 namespace ShellExecutionDTO {
-	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CallbackExecutionDTO): value is ShellExecutionDTO {
+	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | ExtensionCallbackExecutionDTO): value is ShellExecutionDTO {
 		let candidate = value as ShellExecutionDTO;
 		return candidate && (!!candidate.commandLine || !!candidate.command);
 	}
@@ -153,13 +153,13 @@ namespace ShellExecutionDTO {
 	}
 }
 
-namespace CallbackExecutionDTO {
-	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CallbackExecutionDTO): value is CallbackExecutionDTO {
-		let candidate = value as CallbackExecutionDTO;
+namespace ExtensionCallbackExecutionDTO {
+	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | ExtensionCallbackExecutionDTO): value is ExtensionCallbackExecutionDTO {
+		let candidate = value as ExtensionCallbackExecutionDTO;
 		return candidate && candidate.extensionCallback === 'extensionCallback';
 	}
 
-	export function from(value: vscode.ExtensionCallbackExecution): CallbackExecutionDTO {
+	export function from(value: vscode.ExtensionCallbackExecution): ExtensionCallbackExecutionDTO {
 		return {
 			extensionCallback: 'extensionCallback'
 		};
@@ -199,13 +199,13 @@ namespace TaskDTO {
 		if (value === undefined || value === null) {
 			return undefined;
 		}
-		let execution: ShellExecutionDTO | ProcessExecutionDTO | CallbackExecutionDTO;
+		let execution: ShellExecutionDTO | ProcessExecutionDTO | ExtensionCallbackExecutionDTO;
 		if (value.execution instanceof types.ProcessExecution) {
 			execution = ProcessExecutionDTO.from(value.execution);
 		} else if (value.execution instanceof types.ShellExecution) {
 			execution = ShellExecutionDTO.from(value.execution);
-		} else if (value.execution instanceof types.ExtensionCallbackExecution) {
-			execution = CallbackExecutionDTO.from(value.execution);
+		} else if ((<vscode.TaskWithExtensionCallback>value).executionWithExtensionCallback && (<vscode.TaskWithExtensionCallback>value).executionWithExtensionCallback instanceof types.ExtensionCallbackExecution) {
+			execution = ExtensionCallbackExecutionDTO.from(<types.ExtensionCallbackExecution>(<vscode.TaskWithExtensionCallback>value).executionWithExtensionCallback);
 		}
 
 		let definition: TaskDefinitionDTO = TaskDefinitionDTO.from(value.definition);
@@ -387,8 +387,13 @@ class ExtensionCallbackExecutionData implements IDisposable {
 
 			// Regardless of how the task completes, we are done with this extension callback task execution.
 			return this.callbackData.callback(terminalRenderer, this._cancellationSource.token).then(
-				() => this._onTaskExecutionComplete.fire(this),
-				() => this._onTaskExecutionComplete.fire(this));
+				(success) => {
+					this._onTaskExecutionComplete.fire(this);
+					terminalRenderer.terminal.dispose();
+				}, (rejected) => {
+					this._onTaskExecutionComplete.fire(this);
+					terminalRenderer.terminal.dispose();
+				});
 		}
 
 		return undefined;
@@ -617,11 +622,11 @@ export class ExtHostTask implements ExtHostTaskShape {
 				const taskDTO: TaskDTO = TaskDTO.from(task, handler.extension);
 				taskDTOs.push(taskDTO);
 
-				if (CallbackExecutionDTO.is(taskDTO.execution)) {
+				if (ExtensionCallbackExecutionDTO.is(taskDTO.execution)) {
 					taskIdPromises.push(new Promise((resolve) => {
 						// The ID is calculated on the main thread task side, so, let's call into it here.
 						this._proxy.$createTaskId(taskDTO).then((taskId) => {
-							this._providedExtensionCallbacks.set(taskId, new ExtensionCallbackExecutionData(<vscode.ExtensionCallbackExecution>task.execution, this._terminalService));
+							this._providedExtensionCallbacks.set(taskId, new ExtensionCallbackExecutionData(<vscode.ExtensionCallbackExecution>(<vscode.TaskWithExtensionCallback>task).executionWithExtensionCallback, this._terminalService));
 							resolve();
 						});
 					}));

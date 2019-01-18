@@ -1646,7 +1646,7 @@ export class ExtensionCallbackExecution implements vscode.ExtensionCallbackExecu
 	}
 }
 
-export class Task implements vscode.Task {
+export class Task implements vscode.TaskWithExtensionCallback {
 
 	private static ExtensionCallbackType: string = 'extensionCallback';
 	private static ProcessType: string = 'process';
@@ -1733,7 +1733,7 @@ export class Task implements vscode.Task {
 				type: Task.ShellType,
 				id: this._execution.computeId()
 			};
-		} else if (this._execution instanceof ExtensionScriptApis) {
+		} else if (this._execution instanceof ExtensionCallbackExecution) {
 			this._definition = {
 				type: Task.ExtensionCallbackType,
 				id: this._execution.computeId()
@@ -1779,18 +1779,34 @@ export class Task implements vscode.Task {
 		this._name = value;
 	}
 
-	get execution(): ProcessExecution | ShellExecution | ExtensionCallbackExecution | undefined {
+	get execution(): ProcessExecution | ShellExecution | undefined {
+		return (this._execution instanceof ExtensionCallbackExecution) ? undefined : this._execution;
+	}
+
+	set execution(value: ProcessExecution | ShellExecution | undefined) {
+		this.executionInternal = value;
+	}
+
+	get executionWithExtensionCallback(): ProcessExecution | ShellExecution | ExtensionCallbackExecution | undefined {
+		return this.executionInternal;
+	}
+
+	set executionWithExtensionCallback(value: ProcessExecution | ShellExecution | ExtensionCallbackExecution | undefined) {
+		this.executionInternal = value;
+	}
+
+	private get executionInternal(): ProcessExecution | ShellExecution | ExtensionCallbackExecution | undefined {
 		return this._execution;
 	}
 
-	set execution(value: ProcessExecution | ShellExecution | ExtensionCallbackExecution | undefined) {
+	private set executionInternal(value: ProcessExecution | ShellExecution | ExtensionCallbackExecution | undefined) {
 		if (value === null) {
 			value = undefined;
 		}
 		this.clear();
 		this._execution = value;
 		let type = this._definition.type;
-		if (Task.EmptyType === type || Task.ProcessType === type || Task.ShellType === type) {
+		if (Task.EmptyType === type || Task.ProcessType === type || Task.ShellType === type || Task.ExtensionCallbackType === type) {
 			this.computeDefinitionBasedOnExecution();
 		}
 	}

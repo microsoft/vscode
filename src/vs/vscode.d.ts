@@ -5075,21 +5075,6 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Class used to execute an extension callback as a task.
-	 */
-	export class ExtensionCallbackExecution {
-		/**
-		 * @param callback The callback that will be called when the extension callback task is executed.
-		 */
-		constructor(callback: (terminalRenderer: TerminalRenderer, cancellationToken: CancellationToken, thisArg?: any) => Thenable<void>);
-
-		/**
-		 * The callback used to execute the task.
-		 */
-		callback: (terminalRenderer: TerminalRenderer, cancellationToken: CancellationToken, thisArg?: any) => Thenable<void>;
-	}
-
-	/**
 	 * The scope of a task.
 	 */
 	export enum TaskScope {
@@ -5118,7 +5103,6 @@ declare module 'vscode' {
 	 * A task to execute
 	 */
 	export class Task {
-
 		/**
 		 * Creates a new task.
 		 *
@@ -5131,7 +5115,7 @@ declare module 'vscode' {
 		 *  or '$eslint'. Problem matchers can be contributed by an extension using
 		 *  the `problemMatchers` extension point.
 		 */
-		constructor(taskDefinition: TaskDefinition, scope: WorkspaceFolder | TaskScope.Global | TaskScope.Workspace, name: string, source: string, execution?: ProcessExecution | ShellExecution | ExtensionCallbackExecution, problemMatchers?: string | string[]);
+		constructor(taskDefinition: TaskDefinition, scope: WorkspaceFolder | TaskScope.Global | TaskScope.Workspace, name: string, source: string, execution?: ProcessExecution | ShellExecution, problemMatchers?: string | string[]);
 
 		/**
 		 * ~~Creates a new task.~~
@@ -5146,7 +5130,7 @@ declare module 'vscode' {
 		 *  or '$eslint'. Problem matchers can be contributed by an extension using
 		 *  the `problemMatchers` extension point.
 		 */
-		constructor(taskDefinition: TaskDefinition, name: string, source: string, execution?: ProcessExecution | ShellExecution | ExtensionCallbackExecution, problemMatchers?: string | string[]);
+		constructor(taskDefinition: TaskDefinition, name: string, source: string, execution?: ProcessExecution | ShellExecution, problemMatchers?: string | string[]);
 
 		/**
 		 * The task's definition.
@@ -5166,7 +5150,7 @@ declare module 'vscode' {
 		/**
 		 * The task's execution engine
 		 */
-		execution?: ProcessExecution | ShellExecution | ExtensionCallbackExecution;
+		execution?: ProcessExecution | ShellExecution;
 
 		/**
 		 * Whether the task is a background task or not.

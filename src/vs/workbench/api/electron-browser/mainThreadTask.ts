@@ -32,7 +32,7 @@ import {
 	TaskDefinitionDTO, TaskExecutionDTO, ProcessExecutionOptionsDTO, TaskPresentationOptionsDTO,
 	ProcessExecutionDTO, ShellExecutionDTO, ShellExecutionOptionsDTO, TaskDTO, TaskSourceDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO, TaskSystemInfoDTO,
 	RunOptionsDTO,
-	CallbackExecutionDTO
+	ExtensionCallbackExecutionDTO
 } from 'vs/workbench/api/shared/tasks';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 
@@ -139,7 +139,7 @@ namespace ProcessExecutionOptionsDTO {
 }
 
 namespace ProcessExecutionDTO {
-	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CallbackExecutionDTO): value is ProcessExecutionDTO {
+	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | ExtensionCallbackExecutionDTO): value is ProcessExecutionDTO {
 		let candidate = value as ProcessExecutionDTO;
 		return candidate && !!candidate.process;
 	}
@@ -207,7 +207,7 @@ namespace ShellExecutionOptionsDTO {
 }
 
 namespace ShellExecutionDTO {
-	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CallbackExecutionDTO): value is ShellExecutionDTO {
+	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | ExtensionCallbackExecutionDTO): value is ShellExecutionDTO {
 		let candidate = value as ShellExecutionDTO;
 		return candidate && (!!candidate.commandLine || !!candidate.command);
 	}
@@ -239,18 +239,18 @@ namespace ShellExecutionDTO {
 }
 
 namespace CallbackExecutionDTO {
-	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CallbackExecutionDTO): value is CallbackExecutionDTO {
-		let candidate = value as CallbackExecutionDTO;
+	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | ExtensionCallbackExecutionDTO): value is ExtensionCallbackExecutionDTO {
+		let candidate = value as ExtensionCallbackExecutionDTO;
 		return candidate && candidate.extensionCallback === 'extensionCallback';
 	}
 
-	export function from(value: CommandConfiguration): CallbackExecutionDTO {
+	export function from(value: CommandConfiguration): ExtensionCallbackExecutionDTO {
 		return {
 			extensionCallback: 'extensionCallback'
 		};
 	}
 
-	export function to(value: CallbackExecutionDTO): CommandConfiguration {
+	export function to(value: ExtensionCallbackExecutionDTO): CommandConfiguration {
 		return {
 			runtime: RuntimeType.ExtensionCallback,
 			presentation: undefined
