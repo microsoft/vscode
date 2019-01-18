@@ -880,7 +880,7 @@ var AMDLoader;
                             detail: err
                         });
                     });
-                }, moduleManager.getConfig().getOptionsLiteral().nodeCachedData.writeDelay * 2);
+                }, moduleManager.getConfig().getOptionsLiteral().nodeCachedData.writeDelay);
             }
         };
         NodeScriptLoader._runSoon = function (callback, minTimeout) {
