@@ -7,7 +7,7 @@ import 'vs/css!./media/tree';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IListOptions, List, IListStyles, mightProducePrintableCharacter } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate, IListRenderer, IListMouseEvent, IListEvent, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/list/list';
-import { append, $, toggleClass, timeout } from 'vs/base/browser/dom';
+import { append, $, toggleClass, timeout, getDomNodePagePosition } from 'vs/base/browser/dom';
 import { Event, Relay, Emitter } from 'vs/base/common/event';
 import { StandardKeyboardEvent, IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -309,13 +309,13 @@ class TypeFilter<T> implements ITreeFilter<T, FuzzyScore> {
 
 		if (!score) {
 			// DEMO: just highlights
-			// return { data: FuzzyScore.Default, visibility: true };
+			return { data: FuzzyScore.Default, visibility: true };
 
 			// DEMO: filter
 			// return TreeVisibility.Recurse;
 
 			// DEMO: smarter filter
-			return parentVisibility === TreeVisibility.Visible ? true : TreeVisibility.Recurse;
+			// return parentVisibility === TreeVisibility.Visible ? true : TreeVisibility.Recurse;
 		}
 
 		return { data: score, visibility: true };
@@ -337,15 +337,14 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 
 	constructor(
 		private tree: AbstractTree<T, TFilterData, any>,
-		view: List<ITreeNode<T, TFilterData>>,
+		private view: List<ITreeNode<T, TFilterData>>,
 		private filter: TypeFilter<T>,
 		keyboardNavigationLabelProvider: IKeyboardNavigationLabelProvider<T>
 	) {
-		const container = view.getHTMLElement();
-		this.domNode = append(container, $('.monaco-list-type-filter'));
+		this.domNode = $('.monaco-list-type-filter');
 
 		const isPrintableCharEvent = keyboardNavigationLabelProvider.mightProducePrintableCharacter ? (e: IKeyboardEvent) => keyboardNavigationLabelProvider.mightProducePrintableCharacter!(e) : (e: IKeyboardEvent) => mightProducePrintableCharacter(e);
-		const onInput = Event.chain(domEvent(container, 'keydown'))
+		const onInput = Event.chain(domEvent(view.getHTMLElement(), 'keydown'))
 			.filter(e => !isInputElement(e.target as HTMLElement))
 			.map(e => new StandardKeyboardEvent(e))
 			.filter(e => e.keyCode === KeyCode.Backspace || e.keyCode === KeyCode.Escape || isPrintableCharEvent(e))
@@ -367,6 +366,20 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 	}
 
 	private onInput(pattern: string): void {
+		const container = this.view.getHTMLElement();
+
+		if (pattern && !this.domNode.parentElement) {
+			const { top, left } = getDomNodePagePosition(container);
+
+			this.domNode.style.top = `${top - 22}px`;
+			this.domNode.style.left = `${left + 2}px`;
+			this.domNode.style.maxWidth = `${container.clientWidth}px`;
+			document.body.append(this.domNode);
+
+		} else if (!pattern && this.domNode.parentElement) {
+			this.domNode.remove();
+		}
+
 		this._pattern = pattern;
 		this.domNode.textContent = pattern;
 		this.filter.pattern = pattern;

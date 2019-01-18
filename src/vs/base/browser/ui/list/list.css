@@ -64,10 +64,15 @@
 }
 
 /* Type filter */
+@keyframes monaco-list-type-filter-fade-in {
+	0% { opacity: 0; }
+	100% { opacity: 1; }
+}
+
 .monaco-list-type-filter {
 	position: absolute;
-	right: 5px;
-	top: 4px;
+	/* right: 2px;
+	top: 1px; */
 	border-radius: 2px;
 	border-width: 1px;
 	border-style: solid;
@@ -77,8 +82,9 @@
 	overflow: hidden;
 	text-align: right;
 	box-sizing: border-box;
-}
-
-.monaco-list-type-filter:empty {
-	display: none;
+	animation: monaco-list-type-filter-fade-in 150ms linear 0s;
+	font-size: 13px;
+	line-height: 18px;
+	height: 20px;
+	z-index: 100;
 }
