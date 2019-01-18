@@ -84,7 +84,16 @@ suite('URI Label', () => {
 				separator: '/'
 			}
 		});
+		labelService.registerFormatter({
+			scheme: 'vscode',
+			authority: 'mi*',
+			formatting: {
+				label: 'third',
+				separator: '/'
+			}
+		});
 
+		// Make sure the most specific authority is picked
 		const uri1 = URI.parse('vscode://microsoft.com/1/2/3/4/5');
 		assert.equal(labelService.getUriLabel(uri1, { relative: false }), 'second');
 	});

@@ -77,7 +77,6 @@ function hasDriveLetter(path: string): boolean {
 	return !!(isWindows && path && path[2] === ':');
 }
 
-
 class ResourceLabelFormattersHandler implements IWorkbenchContribution {
 	constructor(@ILabelService labelService: ILabelService) {
 		resourceLabelFormattersExtPoint.setHandler(extensions => {
