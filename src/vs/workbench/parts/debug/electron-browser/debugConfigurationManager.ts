@@ -272,11 +272,12 @@ export class ConfigurationManager implements IConfigurationManager {
 			this.setCompoundSchemaValues();
 		});
 
-		breakpointsExtPoint.setHandler(extensions => {
-			extensions.forEach(ext => {
-				ext.value.forEach(breakpoints => {
-					this.breakpointModeIdsSet.add(breakpoints.language);
-				});
+		breakpointsExtPoint.setHandler((extensions, delta) => {
+			delta.removed.forEach(removed => {
+				removed.value.forEach(breakpoints => this.breakpointModeIdsSet.delete(breakpoints.language));
+			});
+			delta.added.forEach(added => {
+				added.value.forEach(breakpoints => this.breakpointModeIdsSet.add(breakpoints.language));
 			});
 		});
 

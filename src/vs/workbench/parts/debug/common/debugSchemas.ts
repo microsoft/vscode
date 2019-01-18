@@ -111,6 +111,7 @@ export interface IRawBreakpointContribution {
 // breakpoints extension point #9037
 export const breakpointsExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawBreakpointContribution[]>({
 	extensionPoint: 'breakpoints',
+	isDynamic: true,
 	jsonSchema: {
 		description: nls.localize('vscode.extension.contributes.breakpoints', 'Contributes breakpoints.'),
 		type: 'array',
