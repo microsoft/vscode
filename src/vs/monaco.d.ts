@@ -4848,7 +4848,7 @@ declare namespace monaco.languages {
 		edit?: WorkspaceEdit;
 		diagnostics?: editor.IMarkerData[];
 		kind?: string;
-		canAutoApply?: boolean;
+		isPreferred?: boolean;
 	}
 
 	/**

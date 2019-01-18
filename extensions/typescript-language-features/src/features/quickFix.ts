@@ -270,7 +270,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
 			title: ''
 		};
 		if (tsAction.fixName === 'spelling') {
-			codeAction.canAutoApply = true;
+			codeAction.isPreferred = true;
 		}
 		return codeAction;
 	}

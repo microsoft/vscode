@@ -516,7 +516,7 @@ export interface CodeAction {
 	edit?: WorkspaceEdit;
 	diagnostics?: IMarkerData[];
 	kind?: string;
-	canAutoApply?: boolean;
+	isPreferred?: boolean;
 }
 
 /**

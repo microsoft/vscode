@@ -864,7 +864,7 @@ export interface CodeActionDto {
 	diagnostics?: IMarkerData[];
 	command?: modes.Command;
 	kind?: string;
-	canAutoApply?: boolean;
+	isPreferred?: boolean;
 }
 
 export interface ExtHostLanguageFeaturesShape {

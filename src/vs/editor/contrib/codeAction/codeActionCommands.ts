@@ -90,13 +90,23 @@ export class QuickFixController implements IEditorContribution {
 
 			if (newState.trigger.filter && newState.trigger.filter.kind) {
 				// Triggered for specific scope
-				// Apply if we only have one action or requested autoApply, otherwise show menu
 				newState.actions.then(fixes => {
-					if (fixes.length > 0 && newState.trigger.autoApply === CodeActionAutoApply.First || (newState.trigger.autoApply === CodeActionAutoApply.IfSingle && fixes.length === 1)) {
-						this._onApplyCodeAction(fixes[0]);
-					} else {
-						this._codeActionContextMenu.show(newState.actions, newState.position);
+					if (fixes.length > 0) {
+						// Apply if we only have one action or requested autoApply
+						if (newState.trigger.autoApply === CodeActionAutoApply.First || (newState.trigger.autoApply === CodeActionAutoApply.IfSingle && fixes.length === 1)) {
+							this._onApplyCodeAction(fixes[0]);
+							return;
+						}
+
+						// Or if we have a single preferred action
+						const preferred = fixes.filter(fix => fix.isPreferred);
+						if (preferred.length === 0) {
+							this._onApplyCodeAction(preferred[0]);
+							return;
+						}
 					}
+					this._codeActionContextMenu.show(newState.actions, newState.position);
+
 				}).catch(onUnexpectedError);
 			} else if (newState.trigger.type === 'manual') {
 				this._codeActionContextMenu.show(newState.actions, newState.position);
@@ -221,6 +231,7 @@ class CodeActionCommandArgs {
 			case 'first': return CodeActionAutoApply.First;
 			case 'never': return CodeActionAutoApply.Never;
 			case 'ifsingle': return CodeActionAutoApply.IfSingle;
+			case 'preferred': return CodeActionAutoApply.Preferred;
 			default: return defaultAutoApply;
 		}
 	}
@@ -382,7 +393,7 @@ export class AutoFixAction extends EditorAction {
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 		return showCodeActionsForEditorSelection(editor,
 			nls.localize('editor.action.autoFix.noneMessage', "No auto fixes available"),
-			{ kind: CodeActionKind.QuickFix, autoFixesOnly: true },
+			{ kind: CodeActionKind.QuickFix, onlyIncludePreferredActions: true },
 			CodeActionAutoApply.IfSingle);
 	}
 }

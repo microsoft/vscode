@@ -72,7 +72,7 @@ export function getCodeActions(
 function isValidAction(filter: CodeActionFilter | undefined, action: CodeAction): boolean {
 	return action
 		&& isValidActionKind(filter, action.kind)
-		&& (filter && filter.autoFixesOnly ? !!action.canAutoApply : true);
+		&& (filter && filter.onlyIncludePreferredActions ? !!action.isPreferred : true);
 }
 
 function isValidActionKind(filter: CodeActionFilter | undefined, kind: string | undefined): boolean {

@@ -347,7 +347,7 @@ class CodeActionAdapter {
 						diagnostics: candidate.diagnostics && candidate.diagnostics.map(typeConvert.Diagnostic.from),
 						edit: candidate.edit && typeConvert.WorkspaceEdit.from(candidate.edit),
 						kind: candidate.kind && candidate.kind.value,
-						canAutoApply: candidate.canAutoApply,
+						isPreferred: candidate.isPreferred,
 					});
 				}
 			}

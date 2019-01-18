@@ -24,15 +24,16 @@ export class CodeActionKind {
 }
 
 export const enum CodeActionAutoApply {
-	IfSingle = 1,
-	First = 2,
-	Never = 3
+	IfSingle,
+	First,
+	Preferred,
+	Never,
 }
 
 export interface CodeActionFilter {
 	readonly kind?: CodeActionKind;
 	readonly includeSourceActions?: boolean;
-	readonly autoFixesOnly?: boolean;
+	readonly onlyIncludePreferredActions?: boolean;
 }
 
 export interface CodeActionTrigger {

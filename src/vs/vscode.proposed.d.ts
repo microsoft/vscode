@@ -1110,14 +1110,15 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	//#region CodeAction.canAutoApply - mjbvz
+	//#region CodeAction.isPreferred - mjbvz
 	export interface CodeAction {
 		/**
-		 * If the action can be safely automatically applied without the user selecting it from a list.
+		 * If the action is a prefered action or fix to take.
 		 *
-		 * Set this on quick fixes to indicate that the fix properly addresses the underlying error.
+		 * A quick fix should be marked preferred if it properly addresses the underlying error.
+		 * A refactoring should be marked preferred if it is the most reasonable choice of actions to take.
 		 */
-		canAutoApply?: boolean;
+		isPreferred?: boolean;
 	}
 	//#endregion
 
