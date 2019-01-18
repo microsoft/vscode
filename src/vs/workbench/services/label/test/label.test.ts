@@ -70,7 +70,7 @@ suite('URI Label', () => {
 	test('mulitple authority', function () {
 		labelService.registerFormatter({
 			scheme: 'vscode',
-			authority: 'micro*',
+			authority: 'not_matching_but_long',
 			formatting: {
 				label: 'first',
 				separator: '/'

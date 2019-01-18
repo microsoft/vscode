@@ -107,7 +107,7 @@ export class LabelService implements ILabelService {
 
 		this.formatters.forEach(formatter => {
 			if (formatter.scheme === resource.scheme) {
-				if (!bestResult) {
+				if (!bestResult && !formatter.authority) {
 					bestResult = formatter;
 					return;
 				}
@@ -115,7 +115,7 @@ export class LabelService implements ILabelService {
 					return;
 				}
 
-				if (match(formatter.authority, resource.authority) && (!bestResult.authority || formatter.authority.length > bestResult.authority.length)) {
+				if (match(formatter.authority, resource.authority) && (!bestResult || !bestResult.authority || formatter.authority.length > bestResult.authority.length)) {
 					bestResult = formatter;
 				}
 			}
