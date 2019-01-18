@@ -130,9 +130,13 @@ export interface IViewsRegistry {
 
 	readonly onViewsDeregistered: Event<{ views: IViewDescriptor[], viewContainer: ViewContainer }>;
 
+	readonly onDidChangeContainer: Event<{ views: IViewDescriptor[], from: ViewContainer, to: ViewContainer }>;
+
 	registerViews(views: IViewDescriptor[], viewContainer: ViewContainer): void;
 
 	deregisterViews(ids: string[], viewContainer: ViewContainer): void;
+
+	moveViews(ids: string[], viewContainer: ViewContainer): void;
 
 	getViews(viewContainer: ViewContainer): IViewDescriptor[];
 
@@ -148,6 +152,9 @@ export const ViewsRegistry: IViewsRegistry = new class implements IViewsRegistry
 
 	private readonly _onViewsDeregistered: Emitter<{ views: IViewDescriptor[], viewContainer: ViewContainer }> = new Emitter<{ views: IViewDescriptor[], viewContainer: ViewContainer }>();
 	readonly onViewsDeregistered: Event<{ views: IViewDescriptor[], viewContainer: ViewContainer }> = this._onViewsDeregistered.event;
+
+	private readonly _onDidChangeContainer: Emitter<{ views: IViewDescriptor[], from: ViewContainer, to: ViewContainer }> = new Emitter<{ views: IViewDescriptor[], from: ViewContainer, to: ViewContainer }>();
+	readonly onDidChangeContainer: Event<{ views: IViewDescriptor[], from: ViewContainer, to: ViewContainer }> = this._onDidChangeContainer.event;
 
 	private _viewContainers: ViewContainer[] = [];
 	private _views: Map<ViewContainer, IViewDescriptor[]> = new Map<ViewContainer, IViewDescriptor[]>();
@@ -190,6 +197,17 @@ export const ViewsRegistry: IViewsRegistry = new class implements IViewsRegistry
 			this._onViewsDeregistered.fire({ views: viewsToDeregister, viewContainer });
 		}
 
+	}
+
+	moveViews(ids: string[], viewContainer: ViewContainer): void {
+		this._views.forEach((views, container) => {
+			if (container !== viewContainer) {
+				const movedViews = views.filter(view => ids.indexOf(view.id) !== -1);
+				if (movedViews.length) {
+					this._onDidChangeContainer.fire({ views: movedViews, from: container, to: viewContainer });
+				}
+			}
+		});
 	}
 
 	getViews(loc: ViewContainer): IViewDescriptor[] {

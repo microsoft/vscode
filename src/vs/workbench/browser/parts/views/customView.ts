@@ -235,6 +235,11 @@ export class CustomTreeView extends Disposable implements ITreeView {
 				this.markdownResult.dispose();
 			}
 		}));
+		this._register(ViewsRegistry.onDidChangeContainer(({ views, from, to }) => {
+			if (from === this.viewContainer && views.some(v => v.id === this.id)) {
+				this.viewContainer = to;
+			}
+		}));
 		this.create();
 	}
 
