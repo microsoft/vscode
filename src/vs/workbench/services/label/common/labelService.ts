@@ -98,7 +98,7 @@ export class LabelService implements ILabelService {
 	_serviceBrand: any;
 
 	private formatters: ResourceLabelFormatter[] = [];
-	private readonly _onDidRegisterFormatter = new Emitter<void>();
+	private readonly _onDidChangeFormatters = new Emitter<void>();
 
 	constructor(
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
@@ -106,8 +106,8 @@ export class LabelService implements ILabelService {
 		@IWindowService private readonly windowService: IWindowService
 	) { }
 
-	get onDidRegisterFormatter(): Event<void> {
-		return this._onDidRegisterFormatter.event;
+	get onDidChangeFormatters(): Event<void> {
+		return this._onDidChangeFormatters.event;
 	}
 
 	findFormatting(resource: URI): ResourceLabelFormatting | undefined {
@@ -215,12 +215,12 @@ export class LabelService implements ILabelService {
 
 	registerFormatter(formatter: ResourceLabelFormatter): IDisposable {
 		this.formatters.push(formatter);
-		this._onDidRegisterFormatter.fire();
+		this._onDidChangeFormatters.fire();
 
 		return {
 			dispose: () => {
 				this.formatters = this.formatters.filter(f => f !== formatter);
-				this._onDidRegisterFormatter.fire();
+				this._onDidChangeFormatters.fire();
 			}
 		};
 	}

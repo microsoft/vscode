@@ -26,7 +26,7 @@ export interface ILabelService {
 	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IWorkspace), options?: { verbose: boolean }): string;
 	getHostLabel(): string;
 	registerFormatter(formatter: ResourceLabelFormatter): IDisposable;
-	onDidRegisterFormatter: Event<void>;
+	onDidChangeFormatters: Event<void>;
 }
 
 export interface ResourceLabelFormatter {
