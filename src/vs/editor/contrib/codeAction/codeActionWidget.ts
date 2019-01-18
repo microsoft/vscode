@@ -51,8 +51,12 @@ export class CodeActionContextMenu {
 	}
 
 	private codeActionToAction(action: CodeAction): Action {
-		return new Action(action.command ? action.command.id : action.title, action.title, undefined, true, () => {
-			return always(this._onApplyCodeAction(action), () => this._onDidExecuteCodeAction.fire(undefined));
+		const id = action.command ? action.command.id : action.title;
+		const title = action.isPreferred ? `${action.title} ★` : action.title;
+		return new Action(id, title, undefined, true, () => {
+			return always(
+				this._onApplyCodeAction(action),
+				() => this._onDidExecuteCodeAction.fire(undefined));
 		});
 	}
 
