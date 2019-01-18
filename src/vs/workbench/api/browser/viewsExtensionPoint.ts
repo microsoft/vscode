@@ -336,7 +336,6 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						id: item.id,
 						name: item.name,
 						ctor: CustomTreeViewPanel,
-						container,
 						when: ContextKeyExpr.deserialize(item.when),
 						canToggleVisibility: true,
 						collapsed: this.showCollapsed(container),
@@ -348,7 +347,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 					viewIds.push(viewDescriptor.id);
 					return viewDescriptor;
 				}));
-				ViewsRegistry.registerViews(viewDescriptors);
+				ViewsRegistry.registerViews(viewDescriptors, container);
 			});
 		}
 	}

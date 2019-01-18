@@ -99,8 +99,6 @@ export interface IViewDescriptor {
 
 	readonly name: string;
 
-	readonly container: ViewContainer;
-
 	// TODO@Sandeep do we really need this?!
 	readonly ctor: any;
 
@@ -128,52 +126,52 @@ export interface IViewDescriptorCollection {
 
 export interface IViewsRegistry {
 
-	readonly onViewsRegistered: Event<IViewDescriptor[]>;
+	readonly onViewsRegistered: Event<{ views: IViewDescriptor[], viewContainer: ViewContainer }>;
 
-	readonly onViewsDeregistered: Event<IViewDescriptor[]>;
+	readonly onViewsDeregistered: Event<{ views: IViewDescriptor[], viewContainer: ViewContainer }>;
 
-	registerViews(views: IViewDescriptor[]): void;
+	registerViews(views: IViewDescriptor[], viewContainer: ViewContainer): void;
 
-	deregisterViews(ids: string[], container: ViewContainer): void;
+	deregisterViews(ids: string[], viewContainer: ViewContainer): void;
 
-	getViews(loc: ViewContainer): IViewDescriptor[];
+	getViews(viewContainer: ViewContainer): IViewDescriptor[];
 
 	getView(id: string): IViewDescriptor | null;
 
-	getAllViews(): IViewDescriptor[];
+	getViewContainer(id: string): ViewContainer | null;
 }
 
 export const ViewsRegistry: IViewsRegistry = new class implements IViewsRegistry {
 
-	private readonly _onViewsRegistered: Emitter<IViewDescriptor[]> = new Emitter<IViewDescriptor[]>();
-	readonly onViewsRegistered: Event<IViewDescriptor[]> = this._onViewsRegistered.event;
+	private readonly _onViewsRegistered: Emitter<{ views: IViewDescriptor[], viewContainer: ViewContainer }> = new Emitter<{ views: IViewDescriptor[], viewContainer: ViewContainer }>();
+	readonly onViewsRegistered: Event<{ views: IViewDescriptor[], viewContainer: ViewContainer }> = this._onViewsRegistered.event;
 
-	private readonly _onViewsDeregistered: Emitter<IViewDescriptor[]> = new Emitter<IViewDescriptor[]>();
-	readonly onViewsDeregistered: Event<IViewDescriptor[]> = this._onViewsDeregistered.event;
+	private readonly _onViewsDeregistered: Emitter<{ views: IViewDescriptor[], viewContainer: ViewContainer }> = new Emitter<{ views: IViewDescriptor[], viewContainer: ViewContainer }>();
+	readonly onViewsDeregistered: Event<{ views: IViewDescriptor[], viewContainer: ViewContainer }> = this._onViewsDeregistered.event;
 
-	private _viewContainer: ViewContainer[] = [];
+	private _viewContainers: ViewContainer[] = [];
 	private _views: Map<ViewContainer, IViewDescriptor[]> = new Map<ViewContainer, IViewDescriptor[]>();
 
-	registerViews(viewDescriptors: IViewDescriptor[]): void {
+	registerViews(viewDescriptors: IViewDescriptor[], viewContainer: ViewContainer): void {
 		if (viewDescriptors.length) {
+			let views = this._views.get(viewContainer);
+			if (!views) {
+				views = [];
+				this._views.set(viewContainer, views);
+				this._viewContainers.push(viewContainer);
+			}
 			for (const viewDescriptor of viewDescriptors) {
-				let views = this._views.get(viewDescriptor.container);
-				if (!views) {
-					views = [];
-					this._views.set(viewDescriptor.container, views);
-					this._viewContainer.push(viewDescriptor.container);
-				}
 				if (views.some(v => v.id === viewDescriptor.id)) {
-					throw new Error(localize('duplicateId', "A view with id '{0}' is already registered in the container '{1}'", viewDescriptor.id, viewDescriptor.container.id));
+					throw new Error(localize('duplicateId', "A view with id '{0}' is already registered in the container '{1}'", viewDescriptor.id, viewContainer.id));
 				}
 				views.push(viewDescriptor);
 			}
-			this._onViewsRegistered.fire(viewDescriptors);
+			this._onViewsRegistered.fire({ views: viewDescriptors, viewContainer });
 		}
 	}
 
-	deregisterViews(ids: string[], container: ViewContainer): void {
-		const views = this._views.get(container);
+	deregisterViews(ids: string[], viewContainer: ViewContainer): void {
+		const views = this._views.get(viewContainer);
 
 		if (!views) {
 			return;
@@ -184,12 +182,12 @@ export const ViewsRegistry: IViewsRegistry = new class implements IViewsRegistry
 		if (viewsToDeregister.length) {
 			const remaningViews = views.filter(view => ids.indexOf(view.id) === -1);
 			if (remaningViews.length) {
-				this._views.set(container, remaningViews);
+				this._views.set(viewContainer, remaningViews);
 			} else {
-				this._views.delete(container);
-				this._viewContainer.splice(this._viewContainer.indexOf(container), 1);
+				this._views.delete(viewContainer);
+				this._viewContainers.splice(this._viewContainers.indexOf(viewContainer), 1);
 			}
-			this._onViewsDeregistered.fire(viewsToDeregister);
+			this._onViewsDeregistered.fire({ views: viewsToDeregister, viewContainer });
 		}
 
 	}
@@ -199,7 +197,7 @@ export const ViewsRegistry: IViewsRegistry = new class implements IViewsRegistry
 	}
 
 	getView(id: string): IViewDescriptor | null {
-		for (const viewContainer of this._viewContainer) {
+		for (const viewContainer of this._viewContainers) {
 			const viewDescriptor = (this._views.get(viewContainer) || []).filter(v => v.id === id)[0];
 			if (viewDescriptor) {
 				return viewDescriptor;
@@ -208,10 +206,14 @@ export const ViewsRegistry: IViewsRegistry = new class implements IViewsRegistry
 		return null;
 	}
 
-	getAllViews(): IViewDescriptor[] {
-		const allViews: IViewDescriptor[] = [];
-		this._views.forEach(views => allViews.push(...views));
-		return allViews;
+	getViewContainer(viewId: string): ViewContainer | null {
+		for (const viewContainer of this._viewContainers) {
+			const viewDescriptor = (this._views.get(viewContainer) || []).filter(v => v.id === viewId)[0];
+			if (viewDescriptor) {
+				return viewContainer;
+			}
+		}
+		return null;
 	}
 };
 
@@ -297,7 +299,7 @@ export interface IRevealOptions {
 export interface ITreeViewDescriptor extends IViewDescriptor {
 
 	readonly treeView: ITreeView;
-	readonly extensionId: ExtensionIdentifier;
+
 }
 
 export type TreeViewItemHandleArg = {

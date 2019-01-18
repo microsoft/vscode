@@ -88,7 +88,7 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 		}
 
 		if (viewDescriptorsToRegister.length) {
-			ViewsRegistry.registerViews(viewDescriptorsToRegister);
+			ViewsRegistry.registerViews(viewDescriptorsToRegister, VIEW_CONTAINER);
 		}
 		if (viewDescriptorsToDeregister.length) {
 			ViewsRegistry.deregisterViews(viewDescriptorsToDeregister, VIEW_CONTAINER);
@@ -99,7 +99,6 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 		return {
 			id: OpenEditorsView.ID,
 			name: OpenEditorsView.NAME,
-			container: VIEW_CONTAINER,
 			ctor: OpenEditorsView,
 			order: 0,
 			when: OpenEditorsVisibleCondition,
@@ -115,7 +114,6 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 		return {
 			id: EmptyView.ID,
 			name: EmptyView.NAME,
-			container: VIEW_CONTAINER,
 			ctor: EmptyView,
 			order: 1,
 			canToggleVisibility: false
@@ -126,7 +124,6 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 		return {
 			id: ExplorerView.ID,
 			name: localize('folders', "Folders"),
-			container: VIEW_CONTAINER,
 			ctor: ExplorerView,
 			order: 1,
 			canToggleVisibility: false

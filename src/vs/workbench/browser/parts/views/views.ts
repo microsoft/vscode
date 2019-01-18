@@ -22,9 +22,9 @@ import { values } from 'vs/base/common/map';
 import { IFileIconTheme, IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { toggleClass, addClass } from 'vs/base/browser/dom';
 
-function filterViewEvent(container: ViewContainer, event: Event<IViewDescriptor[]>): Event<IViewDescriptor[]> {
+function filterViewEvent(container: ViewContainer, event: Event<{ viewContainer: ViewContainer, views: IViewDescriptor[] }>): Event<IViewDescriptor[]> {
 	return Event.chain(event)
-		.map(views => views.filter(view => view.container === container))
+		.map(({ views, viewContainer }) => viewContainer === container ? views : [])
 		.filter(views => views.length > 0)
 		.event;
 }
@@ -529,11 +529,12 @@ export class ViewsService extends Disposable implements IViewsService {
 		this.viewDescriptorCollections = new Map<ViewContainer, IViewDescriptorCollection>();
 		this.activeViewContextKeys = new Map<string, IContextKey<boolean>>();
 
-		this.onDidRegisterViews(ViewsRegistry.getAllViews());
-		this._register(ViewsRegistry.onViewsRegistered(views => this.onDidRegisterViews(views)));
-
 		const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
-		viewContainersRegistry.all.forEach(viewContainer => this.onDidRegisterViewContainer(viewContainer));
+		viewContainersRegistry.all.forEach(viewContainer => {
+			this.onDidRegisterViews(viewContainer, ViewsRegistry.getViews(viewContainer));
+			this.onDidRegisterViewContainer(viewContainer);
+		});
+		this._register(ViewsRegistry.onViewsRegistered(({ views, viewContainer }) => this.onDidRegisterViews(viewContainer, views)));
 		this._register(viewContainersRegistry.onDidRegister(viewContainer => this.onDidRegisterViewContainer(viewContainer)));
 	}
 
@@ -542,9 +543,9 @@ export class ViewsService extends Disposable implements IViewsService {
 	}
 
 	openView(id: string, focus: boolean): Promise<IView | null> {
-		const viewDescriptor = ViewsRegistry.getView(id);
-		if (viewDescriptor) {
-			const viewletDescriptor = this.viewletService.getViewlet(viewDescriptor.container.id);
+		const viewContainer = ViewsRegistry.getViewContainer(id);
+		if (viewContainer) {
+			const viewletDescriptor = this.viewletService.getViewlet(viewContainer.id);
 			if (viewletDescriptor) {
 				return this.viewletService.openViewlet(viewletDescriptor.id, focus)
 					.then((viewlet: IViewsViewlet) => {
@@ -572,9 +573,9 @@ export class ViewsService extends Disposable implements IViewsService {
 		removed.forEach(viewDescriptor => this.getOrCreateActiveViewContextKey(viewDescriptor).set(false));
 	}
 
-	private onDidRegisterViews(viewDescriptors: IViewDescriptor[]): void {
-		for (const viewDescriptor of viewDescriptors) {
-			const viewlet = this.viewletService.getViewlet(viewDescriptor.container.id);
+	private onDidRegisterViews(container: ViewContainer, views: IViewDescriptor[]): void {
+		const viewlet = this.viewletService.getViewlet(container.id);
+		for (const viewDescriptor of views) {
 			const command: ICommandAction = {
 				id: viewDescriptor.focusCommand ? viewDescriptor.focusCommand.id : `${viewDescriptor.id}.focus`,
 				title: { original: `Focus on ${viewDescriptor.name} View`, value: localize('focus view', "Focus on {0} View", viewDescriptor.name) },

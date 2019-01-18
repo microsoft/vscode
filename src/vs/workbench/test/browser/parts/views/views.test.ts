@@ -64,11 +64,10 @@ suite('ContributableViewsModel', () => {
 		const viewDescriptor: IViewDescriptor = {
 			id: 'view1',
 			ctor: null,
-			container,
 			name: 'Test View 1'
 		};
 
-		ViewsRegistry.registerViews([viewDescriptor]);
+		ViewsRegistry.registerViews([viewDescriptor], container);
 
 		assert.equal(model.visibleViewDescriptors.length, 1);
 		assert.equal(seq.elements.length, 1);
@@ -91,12 +90,11 @@ suite('ContributableViewsModel', () => {
 		const viewDescriptor: IViewDescriptor = {
 			id: 'view1',
 			ctor: null,
-			container,
 			name: 'Test View 1',
 			when: ContextKeyExpr.equals('showview1', true)
 		};
 
-		ViewsRegistry.registerViews([viewDescriptor]);
+		ViewsRegistry.registerViews([viewDescriptor], container);
 		assert.equal(model.visibleViewDescriptors.length, 0, 'view should not appear since context isnt in');
 		assert.equal(seq.elements.length, 0);
 
@@ -130,10 +128,10 @@ suite('ContributableViewsModel', () => {
 		const model = new ContributableViewsModel(container, viewsService);
 		const seq = new ViewDescriptorSequence(model);
 
-		const view1: IViewDescriptor = { id: 'view1', ctor: null, container, name: 'Test View 1' };
-		const view2: IViewDescriptor = { id: 'view2', ctor: null, container, name: 'Test View 2', when: ContextKeyExpr.equals('showview2', true) };
+		const view1: IViewDescriptor = { id: 'view1', ctor: null, name: 'Test View 1' };
+		const view2: IViewDescriptor = { id: 'view2', ctor: null, name: 'Test View 2', when: ContextKeyExpr.equals('showview2', true) };
 
-		ViewsRegistry.registerViews([view1, view2]);
+		ViewsRegistry.registerViews([view1, view2], container);
 		assert.deepEqual(model.visibleViewDescriptors, [view1], 'only view1 should be visible');
 		assert.deepEqual(seq.elements, [view1], 'only view1 should be visible');
 
@@ -153,10 +151,10 @@ suite('ContributableViewsModel', () => {
 		const model = new ContributableViewsModel(container, viewsService);
 		const seq = new ViewDescriptorSequence(model);
 
-		const view1: IViewDescriptor = { id: 'view1', ctor: null, container, name: 'Test View 1', when: ContextKeyExpr.equals('showview1', true) };
-		const view2: IViewDescriptor = { id: 'view2', ctor: null, container, name: 'Test View 2' };
+		const view1: IViewDescriptor = { id: 'view1', ctor: null, name: 'Test View 1', when: ContextKeyExpr.equals('showview1', true) };
+		const view2: IViewDescriptor = { id: 'view2', ctor: null, name: 'Test View 2' };
 
-		ViewsRegistry.registerViews([view1, view2]);
+		ViewsRegistry.registerViews([view1, view2], container);
 		assert.deepEqual(model.visibleViewDescriptors, [view2], 'only view2 should be visible');
 		assert.deepEqual(seq.elements, [view2], 'only view2 should be visible');
 
@@ -176,11 +174,11 @@ suite('ContributableViewsModel', () => {
 		const model = new ContributableViewsModel(container, viewsService);
 		const seq = new ViewDescriptorSequence(model);
 
-		const view1: IViewDescriptor = { id: 'view1', ctor: null, container, name: 'Test View 1', canToggleVisibility: true };
-		const view2: IViewDescriptor = { id: 'view2', ctor: null, container, name: 'Test View 2', canToggleVisibility: true };
-		const view3: IViewDescriptor = { id: 'view3', ctor: null, container, name: 'Test View 3', canToggleVisibility: true };
+		const view1: IViewDescriptor = { id: 'view1', ctor: null, name: 'Test View 1', canToggleVisibility: true };
+		const view2: IViewDescriptor = { id: 'view2', ctor: null, name: 'Test View 2', canToggleVisibility: true };
+		const view3: IViewDescriptor = { id: 'view3', ctor: null, name: 'Test View 3', canToggleVisibility: true };
 
-		ViewsRegistry.registerViews([view1, view2, view3]);
+		ViewsRegistry.registerViews([view1, view2, view3], container);
 		assert.deepEqual(model.visibleViewDescriptors, [view1, view2, view3]);
 		assert.deepEqual(seq.elements, [view1, view2, view3]);
 
@@ -221,11 +219,11 @@ suite('ContributableViewsModel', () => {
 		const model = new ContributableViewsModel(container, viewsService);
 		const seq = new ViewDescriptorSequence(model);
 
-		const view1: IViewDescriptor = { id: 'view1', ctor: null, container, name: 'Test View 1' };
-		const view2: IViewDescriptor = { id: 'view2', ctor: null, container, name: 'Test View 2' };
-		const view3: IViewDescriptor = { id: 'view3', ctor: null, container, name: 'Test View 3' };
+		const view1: IViewDescriptor = { id: 'view1', ctor: null, name: 'Test View 1' };
+		const view2: IViewDescriptor = { id: 'view2', ctor: null, name: 'Test View 2' };
+		const view3: IViewDescriptor = { id: 'view3', ctor: null, name: 'Test View 3' };
 
-		ViewsRegistry.registerViews([view1, view2, view3]);
+		ViewsRegistry.registerViews([view1, view2, view3], container);
 		assert.deepEqual(model.visibleViewDescriptors, [view1, view2, view3], 'model views should be OK');
 		assert.deepEqual(seq.elements, [view1, view2, view3], 'sql views should be OK');
 
