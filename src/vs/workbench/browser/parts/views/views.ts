@@ -243,8 +243,10 @@ export class ContributableViewsModel extends Disposable {
 		super();
 		const viewDescriptorCollection = viewsService.getViewDescriptors(container);
 
-		this._register(viewDescriptorCollection.onDidChangeActiveViews(() => this.onDidChangeViewDescriptors(viewDescriptorCollection.activeViewDescriptors)));
-		this.onDidChangeViewDescriptors(viewDescriptorCollection.activeViewDescriptors);
+		if (viewDescriptorCollection) {
+			this._register(viewDescriptorCollection.onDidChangeActiveViews(() => this.onDidChangeViewDescriptors(viewDescriptorCollection.activeViewDescriptors)));
+			this.onDidChangeViewDescriptors(viewDescriptorCollection.activeViewDescriptors);
+		}
 	}
 
 	isVisible(id: string): boolean {

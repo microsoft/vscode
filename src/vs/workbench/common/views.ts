@@ -289,7 +289,7 @@ export interface IViewsService {
 
 	openView(id: string, focus?: boolean): Promise<IView | null>;
 
-	getViewDescriptors(container: ViewContainer): IViewDescriptorCollection;
+	getViewDescriptors(container: ViewContainer): IViewDescriptorCollection | null;
 }
 
 // Custom views

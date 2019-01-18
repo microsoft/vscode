@@ -124,8 +124,10 @@ export class ActivitybarPart extends Part {
 			const viewContainer = this.getViewContainer(viewlet.id);
 			if (viewContainer) {
 				const viewDescriptors = this.viewsService.getViewDescriptors(viewContainer);
-				this.onDidChangeActiveViews(viewlet, viewDescriptors);
-				viewDescriptors.onDidChangeActiveViews(() => this.onDidChangeActiveViews(viewlet, viewDescriptors));
+				if (viewDescriptors) {
+					this.onDidChangeActiveViews(viewlet, viewDescriptors);
+					viewDescriptors.onDidChangeActiveViews(() => this.onDidChangeActiveViews(viewlet, viewDescriptors));
+				}
 			}
 		}
 		this.saveCachedViewlets();
@@ -145,9 +147,12 @@ export class ActivitybarPart extends Part {
 		this.compositeBar.activateComposite(viewlet.getId());
 		const viewletDescriptor = this.viewletService.getViewlet(viewlet.getId());
 		const viewContainer = this.getViewContainer(viewletDescriptor.id);
-		if (viewContainer && this.viewsService.getViewDescriptors(viewContainer).activeViewDescriptors.length === 0) {
-			// Update the composite bar by hiding
-			this.removeComposite(viewletDescriptor.id, true);
+		if (viewContainer) {
+			const viewDescriptors = this.viewsService.getViewDescriptors(viewContainer);
+			if (viewDescriptors && viewDescriptors.activeViewDescriptors.length === 0) {
+				// Update the composite bar by hiding
+				this.removeComposite(viewletDescriptor.id, true);
+			}
 		}
 	}
 
@@ -396,8 +401,11 @@ export class ActivitybarPart extends Part {
 			if (viewlet) {
 				const views: { when: string }[] = [];
 				if (viewContainer) {
-					for (const { when } of this.viewsService.getViewDescriptors(viewContainer).allViewDescriptors) {
-						views.push({ when: when ? when.serialize() : undefined });
+					const viewDescriptors = this.viewsService.getViewDescriptors(viewContainer);
+					if (viewDescriptors) {
+						for (const { when } of viewDescriptors.allViewDescriptors) {
+							views.push({ when: when ? when.serialize() : undefined });
+						}
 					}
 				}
 				state.push({ id: compositeItem.id, iconUrl: viewlet.iconUrl, views, pinned: compositeItem && compositeItem.pinned, order: compositeItem ? compositeItem.order : undefined, visible: compositeItem && compositeItem.visible });

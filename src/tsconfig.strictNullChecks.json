@@ -513,7 +513,6 @@
 		"./vs/platform/workspaces/node/workspacesIpc.ts",
 		"./vs/vscode.d.ts",
 		"./vs/vscode.proposed.d.ts",
-		"./vs/workbench/api/browser/viewsContainersExtensionPoint.ts",
 		"./vs/workbench/api/node/extHostExtensionActivator.ts",
 		"./vs/workbench/api/node/extHostSearch.fileIndex.ts",
 		"./vs/workbench/api/node/extHostTypes.ts",
