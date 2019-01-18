@@ -6,45 +6,45 @@
 import * as dom from 'vs/base/browser/dom';
 import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger } from 'vs/base/browser/globalMouseMoveMonitor';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Emitter } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./lightBulbWidget';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { CodeActionsState } from './codeActionModel';
 
-export class LightBulbWidget implements IDisposable, IContentWidget {
+export class LightBulbWidget extends Disposable implements IContentWidget {
 
 	private static readonly _posPref = [ContentWidgetPositionPreference.EXACT];
 
 	private readonly _domNode: HTMLDivElement;
 	private readonly _editor: ICodeEditor;
-	private readonly _disposables: IDisposable[] = [];
-	private readonly _onClick = new Emitter<{ x: number; y: number; state: CodeActionsState.Triggered }>();
 
-	readonly onClick: Event<{ x: number, y: number }> = this._onClick.event;
+	private readonly _onClick = this._register(new Emitter<{ x: number; y: number; state: CodeActionsState.Triggered }>());
+	public readonly onClick = this._onClick.event;
 
 	private _position: IContentWidgetPosition | null;
 	private _state: CodeActionsState.State = CodeActionsState.Empty;
 	private _futureFixes = new CancellationTokenSource();
 
 	constructor(editor: ICodeEditor) {
+		super();
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'lightbulb-glyph';
 
 		this._editor = editor;
 		this._editor.addContentWidget(this);
 
-		this._disposables.push(this._editor.onDidChangeModel(_ => this._futureFixes.cancel()));
-		this._disposables.push(this._editor.onDidChangeModelLanguage(_ => this._futureFixes.cancel()));
-		this._disposables.push(this._editor.onDidChangeModelContent(_ => {
+		this._register(this._editor.onDidChangeModel(_ => this._futureFixes.cancel()));
+		this._register(this._editor.onDidChangeModelLanguage(_ => this._futureFixes.cancel()));
+		this._register(this._editor.onDidChangeModelContent(_ => {
 			// cancel when the line in question has been removed
 			const editorModel = this._editor.getModel();
 			if (this._state.type !== CodeActionsState.Type.Triggered || !editorModel || this._state.position.lineNumber >= editorModel.getLineCount()) {
 				this._futureFixes.cancel();
 			}
 		}));
-		this._disposables.push(dom.addStandardDisposableListener(this._domNode, 'click', e => {
+		this._register(dom.addStandardDisposableListener(this._domNode, 'click', e => {
 			if (this._state.type !== CodeActionsState.Type.Triggered) {
 				return;
 			}
@@ -67,7 +67,7 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 				state: this._state
 			});
 		}));
-		this._disposables.push(dom.addDisposableListener(this._domNode, 'mouseenter', (e: MouseEvent) => {
+		this._register(dom.addDisposableListener(this._domNode, 'mouseenter', (e: MouseEvent) => {
 			if ((e.buttons & 1) !== 1) {
 				return;
 			}
@@ -80,7 +80,7 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 				monitor.dispose();
 			});
 		}));
-		this._disposables.push(this._editor.onDidChangeConfiguration(e => {
+		this._register(this._editor.onDidChangeConfiguration(e => {
 			// hide when told to do so
 			if (e.contribInfo && !this._editor.getConfiguration().contribInfo.lightbulbEnabled) {
 				this.hide();
@@ -89,7 +89,7 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 	}
 
 	dispose(): void {
-		dispose(this._disposables);
+		super.dispose();
 		this._editor.removeContentWidget(this);
 	}
 
