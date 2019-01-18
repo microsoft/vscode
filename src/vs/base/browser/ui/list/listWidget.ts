@@ -734,7 +734,7 @@ export class DefaultStyleController implements IStyleController {
 		}
 
 		if (styles.listMatchesShadow) {
-			content.push(`.monaco-list-type-filter { box-shadow: 1px 1px 2px ${styles.listMatchesShadow}; }`);
+			content.push(`.monaco-list-type-filter { box-shadow: 1px 1px 1px ${styles.listMatchesShadow}; }`);
 		}
 
 		const newStyles = content.join('\n');

@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/tree';
-import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IListOptions, List, IListStyles, mightProducePrintableCharacter } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate, IListRenderer, IListMouseEvent, IListEvent, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/list/list';
-import { append, $, toggleClass, timeout, getDomNodePagePosition } from 'vs/base/browser/dom';
+import { append, $, toggleClass, timeout, getDomNodePagePosition, removeClass, addClass } from 'vs/base/browser/dom';
 import { Event, Relay, Emitter } from 'vs/base/common/event';
 import { StandardKeyboardEvent, IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -331,7 +331,9 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 	private _onDidChangePattern = new Emitter<string>();
 	readonly onDidChangePattern = this._onDidChangePattern.event;
 
+	private positionClassName = 'ne';
 	private domNode: HTMLElement;
+
 	private _pattern = '';
 	private disposables: IDisposable[] = [];
 
@@ -341,7 +343,9 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		private filter: TypeFilter<T>,
 		keyboardNavigationLabelProvider: IKeyboardNavigationLabelProvider<T>
 	) {
-		this.domNode = $('.monaco-list-type-filter');
+		this.domNode = $(`.monaco-list-type-filter.${this.positionClassName}`);
+		this.domNode.draggable = true;
+		domEvent(this.domNode, 'dragstart')(this.onDragStart, this, this.disposables);
 
 		const isPrintableCharEvent = keyboardNavigationLabelProvider.mightProducePrintableCharacter ? (e: IKeyboardEvent) => keyboardNavigationLabelProvider.mightProducePrintableCharacter!(e) : (e: IKeyboardEvent) => mightProducePrintableCharacter(e);
 		const onInput = Event.chain(domEvent(view.getHTMLElement(), 'keydown'))
@@ -369,23 +373,89 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		const container = this.view.getHTMLElement();
 
 		if (pattern && !this.domNode.parentElement) {
-			const { top, left } = getDomNodePagePosition(container);
-
-			this.domNode.style.top = `${top - 22}px`;
-			this.domNode.style.left = `${left + 2}px`;
-			this.domNode.style.maxWidth = `${container.clientWidth}px`;
-			document.body.append(this.domNode);
-
+			container.append(this.domNode);
 		} else if (!pattern && this.domNode.parentElement) {
 			this.domNode.remove();
 		}
 
+		this.domNode.textContent = pattern.length > 16
+			? '…' + pattern.substr(pattern.length - 16)
+			: pattern;
+
 		this._pattern = pattern;
-		this.domNode.textContent = pattern;
 		this.filter.pattern = pattern;
 		this.tree.refilter();
 
 		this._onDidChangePattern.fire(pattern);
+	}
+
+	private onDragStart(event: DragEvent): void {
+		const container = this.view.getHTMLElement();
+		const { top, left } = getDomNodePagePosition(container);
+		const containerWidth = container.clientWidth;
+		const containerHeight = container.clientHeight;
+		const midContainerWidth = containerWidth / 2;
+		const midContainerHeight = containerHeight / 2;
+		const width = this.domNode.clientWidth;
+		const height = this.domNode.clientHeight;
+		const disposables: IDisposable[] = [];
+		let positionClassName = this.positionClassName;
+
+		const updatePosition = () => {
+			switch (positionClassName) {
+				case 'nw':
+					this.domNode.style.top = `4px`;
+					this.domNode.style.left = `4px`;
+					break;
+				case 'ne':
+					this.domNode.style.top = `4px`;
+					this.domNode.style.left = `${containerWidth - width - 6}px`;
+					break;
+				case 'sw':
+					this.domNode.style.top = `${containerHeight - height - 6}px`;
+					this.domNode.style.left = `4px`;
+					break;
+				case 'se':
+					this.domNode.style.top = `${containerHeight - height - 6}px`;
+					this.domNode.style.left = `${containerWidth - width - 6}px`;
+					break;
+			}
+		};
+
+		const onDragOver = (event: DragEvent) => {
+			const x = event.screenX - left;
+			const y = event.screenY - top;
+
+			if (x < midContainerWidth && y < midContainerHeight) {
+				positionClassName = 'nw';
+			} else if (x >= midContainerWidth && y < midContainerHeight) {
+				positionClassName = 'ne';
+			} else if (x < midContainerWidth && y >= midContainerHeight) {
+				positionClassName = 'sw';
+			} else {
+				positionClassName = 'se';
+			}
+
+			updatePosition();
+		};
+
+		const onDragEnd = () => {
+			this.positionClassName = positionClassName;
+			this.domNode.className = `monaco-list-type-filter ${this.positionClassName}`;
+			this.domNode.style.top = null;
+			this.domNode.style.left = null;
+
+			dispose(disposables);
+		};
+
+		updatePosition();
+		removeClass(this.domNode, positionClassName);
+
+		addClass(this.domNode, 'animate');
+		disposables.push(toDisposable(() => removeClass(this.domNode, 'animate')));
+
+		domEvent(document, 'dragover')(onDragOver, null, disposables);
+		domEvent(this.domNode, 'dragend')(onDragEnd, null, disposables);
 	}
 
 	dispose() {

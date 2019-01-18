@@ -71,8 +71,6 @@
 
 .monaco-list-type-filter {
 	position: absolute;
-	/* right: 2px;
-	top: 1px; */
 	border-radius: 2px;
 	border-width: 1px;
 	border-style: solid;
@@ -83,8 +81,33 @@
 	text-align: right;
 	box-sizing: border-box;
 	animation: monaco-list-type-filter-fade-in 150ms linear 0s;
+	cursor: all-scroll;
 	font-size: 13px;
 	line-height: 18px;
 	height: 20px;
-	z-index: 100;
+	z-index: 1;
+}
+
+.monaco-list-type-filter.animate {
+	transition: top 0.2s, left 0.2s;
+}
+
+.monaco-list-type-filter.ne {
+	top: 4px;
+	right: 4px;
+}
+
+.monaco-list-type-filter.nw {
+	top: 4px;
+	left: 4px;
+}
+
+.monaco-list-type-filter.se {
+	bottom: 4px;
+	right: 4px;
+}
+
+.monaco-list-type-filter.sw {
+	bottom: 4px;
+	left: 4px;
 }
