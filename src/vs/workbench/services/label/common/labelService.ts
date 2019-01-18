@@ -87,7 +87,10 @@ class ResourceLabelFormattersHandler implements IWorkbenchContribution {
 				this.formattersDisposables.set(formatter, labelService.registerFormatter(formatter));
 			}));
 			delta.removed.forEach(removed => removed.value.forEach(formatter => {
-				this.formattersDisposables.get(formatter).dispose();
+				const formattersDisposable = this.formattersDisposables.get(formatter);
+				if (formattersDisposable) {
+					formattersDisposable.dispose();
+				}
 			}));
 		});
 	}
