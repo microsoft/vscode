@@ -46,7 +46,7 @@ export class SelectColorThemeAction extends Action {
 		return this.themeService.getColorThemes().then(themes => {
 			const currentTheme = this.themeService.getColorTheme();
 
-			const picks: QuickPickInput[] = [].concat(
+			const picks: QuickPickInput[] = ([] as QuickPickInput[]).concat(
 				toEntries(themes.filter(t => t.type === LIGHT), localize('themes.category.light', "light themes")),
 				toEntries(themes.filter(t => t.type === DARK), localize('themes.category.dark', "dark themes")),
 				toEntries(themes.filter(t => t.type === HIGH_CONTRAST), localize('themes.category.hc', "high contrast themes")),
@@ -60,7 +60,7 @@ export class SelectColorThemeAction extends Action {
 					}
 					theme = currentTheme;
 				}
-				let target = null;
+				let target: ConfigurationTarget | null = null;
 				if (applyTheme) {
 					let confValue = this.configurationService.inspect(COLOR_THEME_SETTING);
 					target = typeof confValue.workspace !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
@@ -121,7 +121,7 @@ class SelectIconThemeAction extends Action {
 					}
 					theme = currentTheme;
 				}
-				let target = null;
+				let target: ConfigurationTarget | undefined = undefined;
 				if (applyTheme) {
 					let confValue = this.configurationService.inspect(ICON_THEME_SETTING);
 					target = typeof confValue.workspace !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
@@ -129,7 +129,7 @@ class SelectIconThemeAction extends Action {
 				this.themeService.setFileIconTheme(theme && theme.id, target).then(undefined,
 					err => {
 						onUnexpectedError(err);
-						this.themeService.setFileIconTheme(currentTheme.id, null);
+						this.themeService.setFileIconTheme(currentTheme.id, undefined);
 					}
 				);
 			};
@@ -164,8 +164,10 @@ function configurationEntries(extensionGalleryService: IExtensionGalleryService,
 
 function openExtensionViewlet(viewletService: IViewletService, query: string) {
 	return viewletService.openViewlet(VIEWLET_ID, true).then(viewlet => {
-		(<IExtensionsViewlet>viewlet).search(query);
-		viewlet.focus();
+		if (viewlet) {
+			(viewlet as IExtensionsViewlet).search(query);
+			viewlet.focus();
+		}
 	});
 }
 

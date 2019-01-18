@@ -282,6 +282,7 @@ export interface CustomCodeAction extends CodeActionDto {
 }
 
 class CodeActionAdapter {
+	private static readonly _maxCodeActionsPerFile: number = 1000;
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
@@ -302,7 +303,10 @@ class CodeActionAdapter {
 
 		for (const diagnostic of this._diagnostics.getDiagnostics(resource)) {
 			if (ran.intersection(diagnostic.range)) {
-				allDiagnostics.push(diagnostic);
+				const newLen = allDiagnostics.push(diagnostic);
+				if (newLen > CodeActionAdapter._maxCodeActionsPerFile) {
+					break;
+				}
 			}
 		}
 
@@ -342,7 +346,8 @@ class CodeActionAdapter {
 						command: candidate.command && this._commands.toInternal(candidate.command),
 						diagnostics: candidate.diagnostics && candidate.diagnostics.map(typeConvert.Diagnostic.from),
 						edit: candidate.edit && typeConvert.WorkspaceEdit.from(candidate.edit),
-						kind: candidate.kind && candidate.kind.value
+						kind: candidate.kind && candidate.kind.value,
+						canAutoApply: candidate.canAutoApply,
 					});
 				}
 			}

@@ -9,22 +9,24 @@ import * as objects from 'vs/base/common/objects';
 import { Action } from 'vs/base/common/actions';
 import * as errors from 'vs/base/common/errors';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { formatPII } from 'vs/workbench/parts/debug/common/debugUtils';
+import { formatPII, isUri } from 'vs/workbench/parts/debug/common/debugUtils';
 import { IDebugAdapter, IConfig, AdapterEndEvent, IDebugger } from 'vs/workbench/parts/debug/common/debug';
 import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
 import * as cp from 'child_process';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
+/**
+ * This interface represents a single command line argument split into a "prefix" and a "path" half.
+ * The optional "prefix" contains arbitrary text and the optional "path" contains a file system path.
+ * Concatenating both results in the original command line argument.
+ */
+export interface ILaunchVSCodeArgument {
+	prefix?: string;
+	path?: string;
+}
+
 export interface ILaunchVSCodeArguments {
-	sessionId: string;
-	debugMode: 'noDebug' | 'break' | 'noBreak';
-	debugPort: number;
-	options: string[];
-	extensionDevelopmentPath: string;
-	pathArgs: {
-		type: 'folder' | 'file';
-		path: string;
-	}[];
+	args: ILaunchVSCodeArgument[];
 	env?: { [key: string]: string | null; };
 }
 
@@ -542,41 +544,26 @@ export class RawDebugSession {
 		}
 	}
 
-	private launchVsCode(args: ILaunchVSCodeArguments): Promise<number> {
+	private launchVsCode(vscodeArgs: ILaunchVSCodeArguments): Promise<number> {
 
 		const spawnOpts: cp.SpawnOptions = {
 			detached: false	// https://github.com/Microsoft/vscode/issues/57018
 		};
 
-		if (args.env) {
+		if (vscodeArgs.env) {
 			// merge environment variables into a copy of the process.env
-			const envArgs = objects.mixin(objects.mixin({}, process.env), args.env);
+			const envArgs = objects.mixin(objects.mixin({}, process.env), vscodeArgs.env);
 			// and delete some if necessary
 			Object.keys(envArgs).filter(k => envArgs[k] === null).forEach(key => delete envArgs[key]);
 			spawnOpts.env = envArgs;
 		}
 
-		let spawnArgs = [].concat(args.options);
-
-		switch (args.debugMode) {
-			case 'noDebug':
-				break;
-			case 'break':
-				spawnArgs.push(`--inspect-brk-extensions=${args.debugPort}`);
-				break;
-			case 'noBreak':
-				spawnArgs.push(`--inspect-extensions=${args.debugPort}`);
-				break;
-		}
-
-		// pass the debug session ID to the EH so that broadcast events know where they come from
-		if (args.sessionId) {
-			spawnArgs.push(`--debugId=${args.sessionId}`);
-		}
-
-		if (args.extensionDevelopmentPath) {
-			spawnArgs.push(`--extensionDevelopmentPath=${args.extensionDevelopmentPath}`);
-		}
+		let spawnArgs = vscodeArgs.args.map(a => {
+			if ((a.prefix === '--file-uri=' || a.prefix === '--folder-uri=') && !isUri(a.path)) {
+				return a.path;
+			}
+			return (a.prefix || '') + (a.path || '');
+		});
 
 		let runtimeExecutable = this.environmentService['execPath'];
 		if (!runtimeExecutable) {
@@ -590,24 +577,11 @@ export class RawDebugSession {
 			const vscodeWorkspacePath = runtimeExecutable.substr(0, electronIdx);
 
 			// only add path if user hasn't already added that path
-			if (args.pathArgs.length === 0 || args.pathArgs[0].path.indexOf(vscodeWorkspacePath) !== 0) {
-				spawnArgs.push(vscodeWorkspacePath);
+			const x = spawnArgs.filter(a => a.indexOf(vscodeWorkspacePath) >= 0);
+			if (x.length === 0) {
+				spawnArgs.unshift(vscodeWorkspacePath);
 			}
 		}
-
-		args.pathArgs.forEach(p => {
-			switch (p.type) {
-				case 'file':
-					spawnArgs.push(`--file-uri=${p.path}`);
-					break;
-				case 'folder':
-					spawnArgs.push(`--folder-uri=${p.path}`);
-					break;
-				default:
-					spawnArgs.push(p.path);
-					break;
-			}
-		});
 
 		// Workaround for bug Microsoft/vscode#45832
 		if (process.platform === 'win32' && runtimeExecutable.indexOf(' ') > 0) {

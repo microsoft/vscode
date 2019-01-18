@@ -428,6 +428,12 @@ export class DebugService implements IDebugService {
 		// this event doesn't go to extensions
 		this._onWillNewSession.fire(session);
 
+		const openDebug = this.configurationService.getValue<IDebugConfiguration>('debug').openDebug;
+		// Open debug viewlet based on the visibility of the side bar and openDebug setting. Do not open for 'run without debug'
+		if (!configuration.resolved.noDebug && (openDebug === 'openOnSessionStart' || (openDebug === 'openOnFirstSessionStart' && this.viewModel.firstSessionStart))) {
+			this.viewletService.openViewlet(VIEWLET_ID).then(undefined, errors.onUnexpectedError);
+		}
+
 		return this.launchOrAttachToSession(session).then(() => {
 
 			// since the initialized response has arrived announce the new Session (including extensions)
@@ -438,11 +444,6 @@ export class DebugService implements IDebugService {
 				this.panelService.openPanel(REPL_ID, false);
 			}
 
-			const openDebug = this.configurationService.getValue<IDebugConfiguration>('debug').openDebug;
-			// Open debug viewlet based on the visibility of the side bar and openDebug setting. Do not open for 'run without debug'
-			if (!configuration.resolved.noDebug && (openDebug === 'openOnSessionStart' || (openDebug === 'openOnFirstSessionStart' && this.viewModel.firstSessionStart))) {
-				this.viewletService.openViewlet(VIEWLET_ID);
-			}
 			this.viewModel.firstSessionStart = false;
 
 			if (this.model.getSessions().length > 1) {
