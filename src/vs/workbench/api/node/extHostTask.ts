@@ -533,8 +533,9 @@ export class ExtHostTask implements ExtHostTaskShape {
 				this._activeExtensionCallbacks.set(execution.id, extensionCallback);
 			}
 
-			extensionCallback.onTaskExecutionComplete(() => {
+			const taskExecutionComplete: IDisposable = extensionCallback.onTaskExecutionComplete(() => {
 				this.terminateExtensionCallbackExecution(execution);
+				taskExecutionComplete.dispose();
 			});
 
 			extensionCallback.startCallback(terminalId);
