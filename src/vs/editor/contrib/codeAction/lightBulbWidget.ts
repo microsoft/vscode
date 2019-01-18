@@ -20,7 +20,7 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 	private readonly _domNode: HTMLDivElement;
 	private readonly _editor: ICodeEditor;
 	private readonly _disposables: IDisposable[] = [];
-	private readonly _onClick = new Emitter<{ x: number, y: number }>();
+	private readonly _onClick = new Emitter<{ x: number; y: number; state: CodeActionsState.Triggered }>();
 
 	readonly onClick: Event<{ x: number, y: number }> = this._onClick.event;
 
@@ -40,11 +40,15 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 		this._disposables.push(this._editor.onDidChangeModelContent(_ => {
 			// cancel when the line in question has been removed
 			const editorModel = this._editor.getModel();
-			if (this.state.type !== CodeActionsState.Type.Triggered || !editorModel || this.state.position.lineNumber >= editorModel.getLineCount()) {
+			if (this._state.type !== CodeActionsState.Type.Triggered || !editorModel || this._state.position.lineNumber >= editorModel.getLineCount()) {
 				this._futureFixes.cancel();
 			}
 		}));
 		this._disposables.push(dom.addStandardDisposableListener(this._domNode, 'click', e => {
+			if (this._state.type !== CodeActionsState.Type.Triggered) {
+				return;
+			}
+
 			// Make sure that focus / cursor location is not lost when clicking widget icon
 			this._editor.focus();
 			// a bit of extra work to make sure the menu
@@ -53,13 +57,14 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 			const { lineHeight } = this._editor.getConfiguration();
 
 			let pad = Math.floor(lineHeight / 3);
-			if (this._position && this._state.type === CodeActionsState.Type.Triggered && this._position.position !== null && this._position.position.lineNumber < this._state.position.lineNumber) {
+			if (this._position && this._position.position !== null && this._position.position.lineNumber < this._state.position.lineNumber) {
 				pad += lineHeight;
 			}
 
 			this._onClick.fire({
 				x: e.posx,
-				y: top + height + pad
+				y: top + height + pad,
+				state: this._state
 			});
 		}));
 		this._disposables.push(dom.addDisposableListener(this._domNode, 'mouseenter', (e: MouseEvent) => {
@@ -100,7 +105,7 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 		return this._position;
 	}
 
-	set state(newState: CodeActionsState.State) {
+	tryShow(newState: CodeActionsState.State) {
 
 		if (newState.type !== CodeActionsState.Type.Triggered || this._position && (!newState.position || this._position.position && this._position.position.lineNumber !== newState.position.lineNumber)) {
 			// hide when getting a 'hide'-request or when currently
@@ -129,10 +134,6 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 		}).catch(() => {
 			this.hide();
 		});
-	}
-
-	get state(): CodeActionsState.State {
-		return this._state;
 	}
 
 	set title(value: string) {

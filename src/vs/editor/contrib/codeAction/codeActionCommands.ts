@@ -117,7 +117,7 @@ export class QuickFixController implements IEditorContribution {
 				if (this._codeActionContextMenu.isVisible) {
 					this._codeActionContextMenu.show(newState.actions, newState.position);
 				} else {
-					this._lightBulbWidget.state = newState;
+					this._lightBulbWidget.tryShow(newState);
 				}
 			}
 		} else {
@@ -129,10 +129,8 @@ export class QuickFixController implements IEditorContribution {
 		return QuickFixController.ID;
 	}
 
-	private _handleLightBulbSelect(coords: { x: number, y: number }): void {
-		if (this._lightBulbWidget.state.type === CodeActionsState.Type.Triggered) {
-			this._codeActionContextMenu.show(this._lightBulbWidget.state.actions, coords);
-		}
+	private _handleLightBulbSelect(e: { x: number, y: number, state: CodeActionsState.Triggered }): void {
+		this._codeActionContextMenu.show(e.state.actions, e);
 	}
 
 	public triggerFromEditorSelection(filter?: CodeActionFilter, autoApply?: CodeActionAutoApply): Promise<CodeAction[] | undefined> {
