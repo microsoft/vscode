@@ -294,7 +294,7 @@ export interface IRevealOptions {
 
 }
 
-export interface ICustomViewDescriptor extends IViewDescriptor {
+export interface ITreeViewDescriptor extends IViewDescriptor {
 
 	readonly treeView: ITreeView;
 	readonly extensionId: ExtensionIdentifier;
