@@ -75,6 +75,9 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	private readonly _onDidChangeExtensionsStatus: Emitter<ExtensionIdentifier[]> = this._register(new Emitter<ExtensionIdentifier[]>());
 	public readonly onDidChangeExtensionsStatus: Event<ExtensionIdentifier[]> = this._onDidChangeExtensionsStatus.event;
 
+	private readonly _onDidChangeExtensions: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onDidChangeExtensions: Event<void> = this._onDidChangeExtensions.event;
+
 	private readonly _onWillActivateByEvent = this._register(new Emitter<IWillActivateEvent>());
 	public readonly onWillActivateByEvent: Event<IWillActivateEvent> = this._onWillActivateByEvent.event;
 
@@ -225,6 +228,8 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		if (this._extensionHostProcessManagers.length > 0) {
 			await this._extensionHostProcessManagers[0].deltaExtensions(toAdd, toRemove.map(e => e.identifier));
 		}
+
+		this._onDidChangeExtensions.fire(undefined);
 
 		for (let i = 0; i < toAdd.length; i++) {
 			this._activateAddedExtensionIfNeeded(toAdd[i]);
