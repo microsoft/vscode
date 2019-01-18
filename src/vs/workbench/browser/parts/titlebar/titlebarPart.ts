@@ -228,15 +228,18 @@ export class TitlebarPart extends Part implements ITitleService {
 	/**
 	 * Possible template values:
 	 *
-	 * {activeEditorLong}: e.g. /Users/Development/myProject/myFolder/myFile.txt
-	 * {activeEditorMedium}: e.g. myFolder/myFile.txt
+	 * {activeEditorLong}: e.g. /Users/Development/myFolder/myFileFolder/myFile.txt
+	 * {activeEditorMedium}: e.g. myFolder/myFileFolder/myFile.txt
 	 * {activeEditorShort}: e.g. myFile.txt
+	 * {activeFolderLong}: e.g. /Users/Development/myFolder/myFileFolder
+	 * {activeFolderMedium}: e.g. myFolder/myFileFolder
+	 * {activeFolderShort}: e.g. myFileFolder
 	 * {rootName}: e.g. myFolder1, myFolder2, myFolder3
-	 * {rootPath}: e.g. /Users/Development/myProject
+	 * {rootPath}: e.g. /Users/Development
 	 * {folderName}: e.g. myFolder
 	 * {folderPath}: e.g. /Users/Development/myFolder
 	 * {appName}: e.g. VS Code
-	 * {dirty}: indiactor
+	 * {dirty}: indicator
 	 * {separator}: conditional separator
 	 */
 	private doGetWindowTitle(): string {
@@ -259,6 +262,9 @@ export class TitlebarPart extends Part implements ITitleService {
 		const activeEditorShort = editor ? editor.getTitle(Verbosity.SHORT) : '';
 		const activeEditorMedium = editor ? editor.getTitle(Verbosity.MEDIUM) : activeEditorShort;
 		const activeEditorLong = editor ? editor.getTitle(Verbosity.LONG) : activeEditorMedium;
+		const activeFolderShort = editor ? (paths.dirname(editor.getTitle(Verbosity.LONG)) === '.' ? '' : paths.basename(paths.dirname(editor.getTitle(Verbosity.LONG)))) : '';
+		const activeFolderMedium = editor ? (paths.dirname(editor.getTitle(Verbosity.MEDIUM)) === '.' ? '' : paths.dirname(editor.getTitle(Verbosity.MEDIUM))) : activeFolderShort;
+		const activeFolderLong = editor ? (paths.dirname(editor.getTitle(Verbosity.LONG)) === '.' ? '' : paths.dirname(editor.getTitle(Verbosity.LONG))) : activeFolderMedium;
 		const rootName = this.labelService.getWorkspaceLabel(workspace);
 		const rootPath = root ? this.labelService.getUriLabel(root) : '';
 		const folderName = folder ? folder.name : '';
@@ -272,6 +278,9 @@ export class TitlebarPart extends Part implements ITitleService {
 			activeEditorShort,
 			activeEditorLong,
 			activeEditorMedium,
+			activeFolderShort,
+			activeFolderMedium,
+			activeFolderLong,
 			rootName,
 			rootPath,
 			folderName,
