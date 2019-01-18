@@ -802,7 +802,7 @@ export class TerminalInstance implements ITerminalInstance {
 				this.title === 'powershell';
 
 			if (isPowerShell && (hasSpace || originalPath.indexOf('\'') !== -1)) {
-				c(`& '${originalPath.replace('\'', '\'\'')}'`);
+				c(`& '${originalPath.replace(/'/g, '\'\'')}'`);
 				return;
 			}
 

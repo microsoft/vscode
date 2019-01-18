@@ -1840,6 +1840,16 @@ export class TextModel extends Disposable implements model.ITextModel {
 		}
 	}
 
+	public flushTokens(): void {
+		this._resetTokenizationState();
+		this.emitModelTokensChangedEvent({
+			ranges: [{
+				fromLineNumber: 1,
+				toLineNumber: this.getLineCount()
+			}]
+		});
+	}
+
 	public forceTokenization(lineNumber: number): void {
 		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
 			throw new Error('Illegal value for lineNumber');

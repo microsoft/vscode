@@ -294,9 +294,9 @@ export class ExplorerView extends ViewletPanel {
 			const selection = e.elements;
 			// Do not react if the user is expanding selection via keyboard.
 			// Check if the item was previously also selected, if yes the user is simply expanding / collapsing current selection #66589.
-			const wasSelectedAndKeyboard = (e.browserEvent instanceof KeyboardEvent) && this.previousSelection.indexOf(selection[0]) >= 0;
+			const wasMultiSelectedAndKeyboard = (e.browserEvent instanceof KeyboardEvent) && this.previousSelection.length > 1 && this.previousSelection.indexOf(selection[0]) >= 0;
 			this.previousSelection = selection;
-			if (selection.length === 1 && !wasSelectedAndKeyboard) {
+			if (selection.length === 1 && !wasMultiSelectedAndKeyboard) {
 				// Do not react if user is clicking on explorer items which are input placeholders
 				if (!selection[0].name) {
 					// Do not react if user is clicking on explorer items which are input placeholders

@@ -15,9 +15,9 @@ export interface IViewletService {
 	_serviceBrand: ServiceIdentifier<any>;
 
 	onDidViewletRegister: Event<ViewletDescriptor>;
+	onDidViewletDeregister: Event<ViewletDescriptor>;
 	onDidViewletOpen: Event<IViewlet>;
 	onDidViewletClose: Event<IViewlet>;
-	onDidViewletEnablementChange: Event<{ id: string, enabled: boolean }>;
 
 	/**
 	 * Opens a viewlet with the given identifier and pass keyboard focus to it if specified.
@@ -40,23 +40,12 @@ export interface IViewletService {
 	getViewlet(id: string): ViewletDescriptor;
 
 	/**
-	 * Returns all enabled viewlets following the default order (Explorer - Search - SCM - Debug - Extensions)
-	 */
-	getAllViewlets(): ViewletDescriptor[];
-
-	/**
 	 * Returns all enabled viewlets
 	 */
 	getViewlets(): ViewletDescriptor[];
 
 	/**
-	 * Enables or disables a viewlet. Disabled viewlets are completly hidden from UI.
-	 * By default all viewlets are enabled.
-	 */
-	setViewletEnablement(id: string, enabled: boolean): void;
-
-	/**
 	 *
 	 */
-	getProgressIndicator(id: string): IProgressService;
+	getProgressIndicator(id: string): IProgressService | null;
 }
