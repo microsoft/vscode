@@ -627,9 +627,14 @@ export interface IAccessibilityProvider<T> {
 	 * Returning null will not disable ARIA for the element. Instead it is up to the screen reader
 	 * to compute a meaningful label based on the contents of the element in the DOM
 	 *
-	 * See also: https://www.w3.org/TR/wai-aria/states_and_properties#aria-label
+	 * See also: https://www.w3.org/TR/wai-aria/#aria-label
 	 */
 	getAriaLabel(element: T): string | null;
+
+	/**
+	 * https://www.w3.org/TR/wai-aria/#aria-level
+	 */
+	getAriaLevel?(element: T): number | undefined;
 }
 
 export class DefaultStyleController implements IStyleController {
@@ -918,9 +923,7 @@ class AccessibiltyRenderer<T> implements IListRenderer<T, HTMLElement> {
 
 	templateId: string = 'a18n';
 
-	constructor(private accessibilityProvider: IAccessibilityProvider<T>) {
-
-	}
+	constructor(private accessibilityProvider: IAccessibilityProvider<T>) { }
 
 	renderTemplate(container: HTMLElement): HTMLElement {
 		return container;
@@ -933,6 +936,14 @@ class AccessibiltyRenderer<T> implements IListRenderer<T, HTMLElement> {
 			container.setAttribute('aria-label', ariaLabel);
 		} else {
 			container.removeAttribute('aria-label');
+		}
+
+		const ariaLevel = this.accessibilityProvider.getAriaLevel && this.accessibilityProvider.getAriaLevel(element);
+
+		if (typeof ariaLevel === 'number') {
+			container.setAttribute('aria-level', `${ariaLevel}`);
+		} else {
+			container.removeAttribute('aria-level');
 		}
 	}
 
