@@ -310,6 +310,7 @@ export class TestExtensionService implements IExtensionService {
 	_serviceBrand: any;
 	onDidRegisterExtensions: Event<void> = Event.None;
 	onDidChangeExtensionsStatus: Event<ExtensionIdentifier[]> = Event.None;
+	onDidChangeExtensions: Event<void> = Event.None;
 	onWillActivateByEvent: Event<IWillActivateEvent> = Event.None;
 	onDidChangeResponsiveChange: Event<IResponsiveStateChangeEvent> = Event.None;
 	activateByEvent(_activationEvent: string): Promise<void> { return Promise.resolve(undefined); }

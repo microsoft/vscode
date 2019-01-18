@@ -306,7 +306,6 @@ export class FileServiceBasedFolderConfiguration extends AbstractFolderConfigura
 
 		// Find changes that affect workspace configuration files
 		for (let i = 0, len = events.length; i < len; i++) {
-
 			const resource = events[i].resource;
 			const basename = resources.basename(resource);
 			const isJson = paths.extname(basename) === '.json';
@@ -324,6 +323,7 @@ export class FileServiceBasedFolderConfiguration extends AbstractFolderConfigura
 			// Handle case where ".vscode" got deleted
 			if (isDeletedSettingsFolder) {
 				affectedByChanges = true;
+				break;
 			}
 
 			// only valid workspace config files
@@ -331,12 +331,8 @@ export class FileServiceBasedFolderConfiguration extends AbstractFolderConfigura
 				continue;
 			}
 
-			switch (events[i].type) {
-				case FileChangeType.DELETED:
-				case FileChangeType.UPDATED:
-				case FileChangeType.ADDED:
-					affectedByChanges = true;
-			}
+			affectedByChanges = true;
+			break;
 		}
 
 		if (affectedByChanges) {

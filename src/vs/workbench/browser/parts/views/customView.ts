@@ -13,7 +13,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ContextAwareMenuItemActionItem, fillInActionBarActions, fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IViewsService, ITreeView, ITreeItem, TreeItemCollapsibleState, ITreeViewDataProvider, TreeViewItemHandleArg, ICustomViewDescriptor, ViewsRegistry, ViewContainer, ITreeItemLabel } from 'vs/workbench/common/views';
+import { IViewsService, ITreeView, ITreeItem, TreeItemCollapsibleState, ITreeViewDataProvider, TreeViewItemHandleArg, ITreeViewDescriptor, ViewsRegistry, ViewContainer, ITreeItemLabel } from 'vs/workbench/common/views';
 import { IViewletViewOptions, FileIconThemableWorkbenchTree } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -58,7 +58,7 @@ export class CustomTreeViewPanel extends ViewletPanel {
 		@IViewsService viewsService: IViewsService,
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: options.title }, keybindingService, contextMenuService, configurationService);
-		const { treeView } = (<ICustomViewDescriptor>ViewsRegistry.getView(options.id));
+		const { treeView } = (<ITreeViewDescriptor>ViewsRegistry.getView(options.id));
 		this.treeView = treeView;
 		this.treeView.onDidChangeActions(() => this.updateActions(), this, this.disposables);
 		this.disposables.push(toDisposable(() => this.treeView.setVisibility(false)));
@@ -210,7 +210,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 
 	constructor(
 		private id: string,
-		private container: ViewContainer,
+		private viewContainer: ViewContainer,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -233,6 +233,11 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		this._register(toDisposable(() => {
 			if (this.markdownResult) {
 				this.markdownResult.dispose();
+			}
+		}));
+		this._register(ViewsRegistry.onDidChangeContainer(({ views, from, to }) => {
+			if (from === this.viewContainer && views.some(v => v.id === this.id)) {
+				this.viewContainer = to;
 			}
 		}));
 		this.create();
@@ -376,7 +381,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		const actionItemProvider = (action: IAction) => action instanceof MenuItemAction ? this.instantiationService.createInstance(ContextAwareMenuItemActionItem, action) : undefined;
 		const menus = this._register(this.instantiationService.createInstance(TreeMenus, this.id));
 		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels, this));
-		const dataSource = this.instantiationService.createInstance(TreeDataSource, this, this.container);
+		const dataSource = this.instantiationService.createInstance(TreeDataSource, this, <T>(task: Promise<T>) => this.progressService.withProgress({ location: this.viewContainer.id }, () => task));
 		const renderer = this.instantiationService.createInstance(TreeRenderer, this.id, menus, this.treeLabels, actionItemProvider);
 		const controller = this.instantiationService.createInstance(TreeController, this.id, menus);
 		this.tree = this._register(this.instantiationService.createInstance(FileIconThemableWorkbenchTree, this.treeContainer, { dataSource, renderer, controller }, {}));
@@ -509,7 +514,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 	private activate() {
 		if (!this.activated) {
 			this.createTree();
-			this.progressService.withProgress({ location: this.container.id }, () => this.extensionService.activateByEvent(`onView:${this.id}`))
+			this.progressService.withProgress({ location: this.viewContainer.id }, () => this.extensionService.activateByEvent(`onView:${this.id}`))
 				.then(() => timeout(2000))
 				.then(() => {
 					this.updateMessage();
@@ -569,8 +574,7 @@ class TreeDataSource implements IDataSource {
 
 	constructor(
 		private treeView: ITreeView,
-		private container: ViewContainer,
-		@IProgressService2 private readonly progressService: IProgressService2
+		private withProgress: <T>(task: Promise<T>) => Promise<T>
 	) {
 	}
 
@@ -584,7 +588,7 @@ class TreeDataSource implements IDataSource {
 
 	getChildren(tree: ITree, node: ITreeItem): Promise<any[]> {
 		if (this.treeView.dataProvider) {
-			return this.progressService.withProgress({ location: this.container.id }, () => this.treeView.dataProvider.getChildren(node));
+			return this.withProgress(this.treeView.dataProvider.getChildren(node));
 		}
 		return Promise.resolve([]);
 	}

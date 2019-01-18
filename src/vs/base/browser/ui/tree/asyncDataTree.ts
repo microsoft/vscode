@@ -558,7 +558,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		let result: Promise<void> | undefined;
 
 		this.currentRefreshCalls.forEach((refreshPromise, refreshNode) => {
-			if (intersects(refreshNode, node)) {
+			if (!result && intersects(refreshNode, node)) {
 				result = refreshPromise.then(() => this.queueRefresh(node, recursive, reason, viewStateContext));
 			}
 		});

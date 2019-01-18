@@ -125,7 +125,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			themeData = ColorThemeData.fromStorageData(persistedThemeData);
 		}
 		let containerBaseTheme = this.getBaseThemeFromContainer();
-		if (!themeData || themeData && themeData.baseTheme !== containerBaseTheme) {
+		if (!themeData || themeData.baseTheme !== containerBaseTheme) {
 			themeData = ColorThemeData.createUnloadedTheme(containerBaseTheme);
 		}
 		themeData.setCustomColors(this.colorCustomizations);

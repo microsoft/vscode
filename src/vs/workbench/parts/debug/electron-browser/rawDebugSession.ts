@@ -9,7 +9,7 @@ import * as objects from 'vs/base/common/objects';
 import { Action } from 'vs/base/common/actions';
 import * as errors from 'vs/base/common/errors';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { formatPII } from 'vs/workbench/parts/debug/common/debugUtils';
+import { formatPII, isUri } from 'vs/workbench/parts/debug/common/debugUtils';
 import { IDebugAdapter, IConfig, AdapterEndEvent, IDebugger } from 'vs/workbench/parts/debug/common/debug';
 import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
 import * as cp from 'child_process';
@@ -558,7 +558,12 @@ export class RawDebugSession {
 			spawnOpts.env = envArgs;
 		}
 
-		let spawnArgs = vscodeArgs.args.map(a => (a.prefix || '') + (a.path || ''));
+		let spawnArgs = vscodeArgs.args.map(a => {
+			if ((a.prefix === '--file-uri=' || a.prefix === '--folder-uri=') && !isUri(a.path)) {
+				return a.path;
+			}
+			return (a.prefix || '') + (a.path || '');
+		});
 
 		let runtimeExecutable = this.environmentService['execPath'];
 		if (!runtimeExecutable) {

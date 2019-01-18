@@ -21,7 +21,7 @@ import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands
 import { ConfigurationTarget, IConfigurationData, IConfigurationModel } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { FileChangeType, FileDeleteOptions, FileOverwriteOptions, FileSystemProviderCapabilities, FileType, FileWriteOptions, IStat, IWatchOptions } from 'vs/platform/files/common/files';
-import { LabelRules } from 'vs/platform/label/common/label';
+import { ResourceLabelFormatter } from 'vs/platform/label/common/label';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
 import { IPickOptions, IQuickInputButton, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
@@ -512,7 +512,7 @@ export interface IFileChangeDto {
 export interface MainThreadFileSystemShape extends IDisposable {
 	$registerFileSystemProvider(handle: number, scheme: string, capabilities: FileSystemProviderCapabilities): void;
 	$unregisterProvider(handle: number): void;
-	$setUriFormatter(scheme: string, formatter: LabelRules): void;
+	$setUriFormatter(formatter: ResourceLabelFormatter): void;
 	$onFileSystemChange(handle: number, resource: IFileChangeDto[]): void;
 }
 
@@ -741,8 +741,7 @@ export interface ExtHostExtensionServiceShape {
 	$activateByEvent(activationEvent: string): Promise<void>;
 	$activate(extensionId: ExtensionIdentifier, activationEvent: string): Promise<void>;
 
-	$addExtension(extension: IExtensionDescription): Promise<void>;
-	$removeExtension(extension: ExtensionIdentifier): Promise<void>;
+	$deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void>;
 
 	$test_latency(n: number): Promise<number>;
 	$test_up(b: Buffer): Promise<number>;

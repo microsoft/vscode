@@ -516,6 +516,11 @@ configurationRegistry.registerConfiguration({
 			],
 			'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'tabSizing' }, "Controls the sizing of editor tabs.")
 		},
+		'workbench.editor.closeTabsInMRUOrder': {
+			'type': 'boolean',
+			'description': nls.localize('closeTabsInMRUOrder', "Controls whether tabs are closed in most recently used order or from left to right."),
+			'default': true
+		},
 		'workbench.editor.showIcons': {
 			'type': 'boolean',
 			'description': nls.localize('showIcons', "Controls whether opened editors should show with an icon or not. This requires an icon theme to be enabled as well."),

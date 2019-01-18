@@ -249,12 +249,8 @@ export class ExtensionHostProcessManager extends Disposable {
 		return this._extensionHostProcessProxy.then(proxy => proxy.value.$startExtensionHost(enabledExtensionIds));
 	}
 
-	public addExtension(extension: IExtensionDescription): Promise<void> {
-		return this._extensionHostProcessProxy.then(proxy => proxy.value.$addExtension(extension));
-	}
-
-	public removeExtension(extensionId: ExtensionIdentifier): Promise<void> {
-		return this._extensionHostProcessProxy.then(proxy => proxy.value.$removeExtension(extensionId));
+	public deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void> {
+		return this._extensionHostProcessProxy.then(proxy => proxy.value.$deltaExtensions(toAdd, toRemove));
 	}
 }
 
