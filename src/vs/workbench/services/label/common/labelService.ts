@@ -28,6 +28,7 @@ import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 const resourceLabelFormattersExtPoint = ExtensionsRegistry.registerExtensionPoint<ResourceLabelFormatter[]>({
 	extensionPoint: 'resourceLabelFormatters',
+	isDynamic: true,
 	jsonSchema: {
 		description: localize('vscode.extension.contributes.resourceLabelFormatters', 'Contributes resource label formatting rules.'),
 		type: 'array',
@@ -78,9 +79,16 @@ function hasDriveLetter(path: string): boolean {
 }
 
 class ResourceLabelFormattersHandler implements IWorkbenchContribution {
+	private formattersDisposables = new Map<ResourceLabelFormatter, IDisposable>();
+
 	constructor(@ILabelService labelService: ILabelService) {
-		resourceLabelFormattersExtPoint.setHandler(extensions => {
-			extensions.forEach(extension => extension.value.forEach(formatter => labelService.registerFormatter(formatter)));
+		resourceLabelFormattersExtPoint.setHandler((extensions, delta) => {
+			delta.added.forEach(added => added.value.forEach(formatter => {
+				this.formattersDisposables.set(formatter, labelService.registerFormatter(formatter));
+			}));
+			delta.removed.forEach(removed => removed.value.forEach(formatter => {
+				this.formattersDisposables.get(formatter).dispose();
+			}));
 		});
 	}
 }
@@ -210,7 +218,10 @@ export class LabelService implements ILabelService {
 		this._onDidRegisterFormatter.fire();
 
 		return {
-			dispose: () => this.formatters = this.formatters.filter(f => f !== formatter)
+			dispose: () => {
+				this.formatters = this.formatters.filter(f => f !== formatter);
+				this._onDidRegisterFormatter.fire();
+			}
 		};
 	}
 
