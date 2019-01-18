@@ -59,7 +59,7 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 		const viewDescriptors = ViewsRegistry.getViews(VIEW_CONTAINER);
 
 		let viewDescriptorsToRegister: IViewDescriptor[] = [];
-		let viewDescriptorsToDeregister: string[] = [];
+		let viewDescriptorsToDeregister: IViewDescriptor[] = [];
 
 		const openEditorsViewDescriptor = this.createOpenEditorsViewDescriptor();
 		const openEditorsViewDescriptorExists = viewDescriptors.some(v => v.id === openEditorsViewDescriptor.id);
@@ -73,14 +73,14 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 		}
 		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY || this.workspaceContextService.getWorkspace().folders.length === 0) {
 			if (explorerViewDescriptorExists) {
-				viewDescriptorsToDeregister.push(explorerViewDescriptor.id);
+				viewDescriptorsToDeregister.push(explorerViewDescriptor);
 			}
 			if (!emptyViewDescriptorExists) {
 				viewDescriptorsToRegister.push(emptyViewDescriptor);
 			}
 		} else {
 			if (emptyViewDescriptorExists) {
-				viewDescriptorsToDeregister.push(emptyViewDescriptor.id);
+				viewDescriptorsToDeregister.push(emptyViewDescriptor);
 			}
 			if (!explorerViewDescriptorExists) {
 				viewDescriptorsToRegister.push(explorerViewDescriptor);

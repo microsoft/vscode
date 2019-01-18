@@ -8,7 +8,7 @@ import { forEach } from 'vs/base/common/collections';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import * as resources from 'vs/base/common/resources';
 import { ExtensionMessageCollector, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { ViewContainer, ViewsRegistry, ITreeViewDescriptor, IViewContainersRegistry, Extensions as ViewContainerExtensions, TEST_VIEW_CONTAINER_ID } from 'vs/workbench/common/views';
+import { ViewContainer, ViewsRegistry, ITreeViewDescriptor, IViewContainersRegistry, Extensions as ViewContainerExtensions, TEST_VIEW_CONTAINER_ID, IViewDescriptor } from 'vs/workbench/common/views';
 import { CustomTreeViewPanel, CustomTreeView } from 'vs/workbench/browser/parts/views/customView';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { coalesce, } from 'vs/base/common/arrays';
@@ -138,12 +138,14 @@ const viewsContribution: IJSONSchema = {
 
 export interface ICustomViewDescriptor extends ITreeViewDescriptor {
 	readonly extensionId: ExtensionIdentifier;
+	readonly originalContainerId: string;
 }
 
 type ViewContainerExtensionPointType = { [loc: string]: IUserFriendlyViewsContainerDescriptor[] };
 const viewsContainersExtensionPoint: IExtensionPoint<ViewContainerExtensionPointType> = ExtensionsRegistry.registerExtensionPoint<ViewContainerExtensionPointType>({
 	extensionPoint: 'viewsContainers',
-	jsonSchema: viewsContainersContribution
+	jsonSchema: viewsContainersContribution,
+	isDynamic: true
 });
 
 type ViewExtensionPointType = { [loc: string]: IUserFriendlyViewDescriptor[] };
@@ -169,23 +171,46 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 
 	private handleAndRegisterCustomViewContainers() {
 		this.registerTestViewContainer();
-
-		let order = TEST_VIEW_CONTAINER_ORDER + 1;
-		viewsContainersExtensionPoint.setHandler((extensions) => {
-			for (let extension of extensions) {
-				const { value, collector } = extension;
-				forEach(value, entry => {
-					if (!this.isValidViewsContainer(entry.value, collector)) {
-						return;
-					}
-					switch (entry.key) {
-						case 'activitybar':
-							order = this.registerCustomViewContainers(entry.value, extension.description, order);
-							break;
-					}
-				});
+		viewsContainersExtensionPoint.setHandler((extensions, { added, removed }) => {
+			if (removed.length) {
+				this.removeCustomViewContainers(removed);
+			}
+			if (added.length) {
+				this.addCustomViewContainers(added, this.viewContainersRegistry.all);
 			}
 		});
+	}
+
+	private addCustomViewContainers(extensionPoints: IExtensionPointUser<ViewContainerExtensionPointType>[], existingViewContainers: ViewContainer[]): void {
+		const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
+		let order = TEST_VIEW_CONTAINER_ORDER + viewContainersRegistry.all.filter(v => !!v.extensionId).length + 1;
+		for (let { value, collector, description } of extensionPoints) {
+			forEach(value, entry => {
+				if (!this.isValidViewsContainer(entry.value, collector)) {
+					return;
+				}
+				switch (entry.key) {
+					case 'activitybar':
+						order = this.registerCustomViewContainers(entry.value, description, order, existingViewContainers);
+						break;
+				}
+			});
+		}
+	}
+
+	private removeCustomViewContainers(extensionPoints: IExtensionPointUser<ViewContainerExtensionPointType>[]): void {
+		const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
+		const removedExtensions: Set<string> = extensionPoints.reduce((result, e) => { result.add(ExtensionIdentifier.toKey(e.description.identifier)); return result; }, new Set<string>());
+		for (const viewContainer of viewContainersRegistry.all) {
+			if (viewContainer.extensionId && removedExtensions.has(ExtensionIdentifier.toKey(viewContainer.extensionId))) {
+				// move only those views that do not belong to the removed extension
+				const views = ViewsRegistry.getViews(viewContainer).filter((view: ICustomViewDescriptor) => !removedExtensions.has(ExtensionIdentifier.toKey(view.extensionId)));
+				if (views.length) {
+					ViewsRegistry.moveViews(views, this.getDefaultViewContainer());
+				}
+				this.deregisterCustomViewContainer(viewContainer);
+			}
+		}
 	}
 
 	private registerTestViewContainer(): void {
@@ -193,7 +218,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 		const cssClass = `extensionViewlet-test`;
 		const icon = URI.parse(require.toUrl('./media/test.svg'));
 
-		this.registerCustomViewlet(TEST_VIEW_CONTAINER_ID, title, icon, TEST_VIEW_CONTAINER_ORDER, cssClass, undefined);
+		this.registerCustomViewContainer(TEST_VIEW_CONTAINER_ID, title, icon, TEST_VIEW_CONTAINER_ORDER, cssClass, undefined);
 	}
 
 	private isValidViewsContainer(viewsContainersDescriptors: IUserFriendlyViewsContainerDescriptor[], collector: ExtensionMessageCollector): boolean {
@@ -224,22 +249,35 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 		return true;
 	}
 
-	private registerCustomViewContainers(containers: IUserFriendlyViewsContainerDescriptor[], extension: IExtensionDescription, order: number): number {
+	private registerCustomViewContainers(containers: IUserFriendlyViewsContainerDescriptor[], extension: IExtensionDescription, order: number, existingViewContainers: ViewContainer[]): number {
 		containers.forEach(descriptor => {
 			const cssClass = `extensionViewlet-${descriptor.id}`;
 			const icon = resources.joinPath(extension.extensionLocation, descriptor.icon);
-			this.registerCustomViewlet(`workbench.view.extension.${descriptor.id}`, descriptor.title, icon, order++, cssClass, extension.identifier);
+			const id = `workbench.view.extension.${descriptor.id}`;
+			const viewContainer = this.registerCustomViewContainer(id, descriptor.title, icon, order++, cssClass, extension.identifier);
+
+			// Move those views that belongs to this container
+			if (existingViewContainers.length) {
+				const viewsToMove: IViewDescriptor[] = [];
+				for (const existingViewContainer of existingViewContainers) {
+					if (viewContainer !== existingViewContainer) {
+						viewsToMove.push(...ViewsRegistry.getViews(existingViewContainer).filter((view: ICustomViewDescriptor) => view.originalContainerId === descriptor.id));
+					}
+				}
+				if (viewsToMove.length) {
+					ViewsRegistry.moveViews(viewsToMove, viewContainer);
+				}
+			}
 		});
 		return order;
 	}
 
-	private registerCustomViewlet(id: string, title: string, icon: URI, order: number, cssClass: string, extensionId: ExtensionIdentifier | undefined): void {
-		const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
-		const viewletRegistry = Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets);
+	private registerCustomViewContainer(id: string, title: string, icon: URI, order: number, cssClass: string, extensionId: ExtensionIdentifier | undefined): ViewContainer {
+		let viewContainer = this.viewContainersRegistry.get(id);
 
-		if (!viewletRegistry.getViewlet(id)) {
+		if (!viewContainer) {
 
-			viewContainersRegistry.registerViewContainer(id, extensionId);
+			viewContainer = this.viewContainersRegistry.registerViewContainer(id, extensionId);
 
 			// Register as viewlet
 			class CustomViewlet extends ViewContainerViewlet {
@@ -267,7 +305,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 				icon
 			);
 
-			viewletRegistry.registerViewlet(viewletDescriptor);
+			Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(viewletDescriptor);
 
 			// Register Action to Open Viewlet
 			class OpenCustomViewletAction extends ShowViewletAction {
@@ -292,6 +330,12 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 			createCSSRule(iconClass, `-webkit-mask: url('${icon}') no-repeat 50% 50%`);
 		}
 
+		return viewContainer;
+	}
+
+	private deregisterCustomViewContainer(viewContainer: ViewContainer): void {
+		this.viewContainersRegistry.deregisterViewContainer(viewContainer);
+		Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).deregisterViewlet(viewContainer.id);
 	}
 
 	private handleAndRegisterCustomViews() {
@@ -317,7 +361,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 				let container = this.getViewContainer(entry.key);
 				if (!container) {
 					collector.warn(localize('ViewContainerDoesnotExist', "View container '{0}' does not exist and all views registered to it will be added to 'Explorer'.", entry.key));
-					container = this.viewContainersRegistry.get(EXPLORER);
+					container = this.getDefaultViewContainer();
 				}
 				const registeredViews = ViewsRegistry.getViews(container);
 				const viewIds: string[] = [];
@@ -332,7 +376,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						return null;
 					}
 
-					const viewDescriptor = <ITreeViewDescriptor>{
+					const viewDescriptor = <ICustomViewDescriptor>{
 						id: item.id,
 						name: item.name,
 						ctor: CustomTreeViewPanel,
@@ -341,7 +385,8 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						collapsed: this.showCollapsed(container),
 						treeView: this.instantiationService.createInstance(CustomTreeView, item.id, container),
 						order: ExtensionIdentifier.equals(extension.description.identifier, container.extensionId) ? index + 1 : undefined,
-						extensionId: extension.description.identifier
+						extensionId: extension.description.identifier,
+						originalContainerId: entry.key
 					};
 
 					viewIds.push(viewDescriptor.id);
@@ -352,12 +397,16 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 		}
 	}
 
+	private getDefaultViewContainer(): ViewContainer {
+		return this.viewContainersRegistry.get(EXPLORER);
+	}
+
 	private removeViews(extensions: IExtensionPointUser<ViewExtensionPointType>[]): void {
 		const removedExtensions: Set<string> = extensions.reduce((result, e) => { result.add(ExtensionIdentifier.toKey(e.description.identifier)); return result; }, new Set<string>());
 		for (const viewContainer of this.viewContainersRegistry.all) {
 			const removedViews = ViewsRegistry.getViews(viewContainer).filter((v: ICustomViewDescriptor) => v.extensionId && removedExtensions.has(ExtensionIdentifier.toKey(v.extensionId)));
 			if (removedViews.length) {
-				ViewsRegistry.deregisterViews(removedViews.map(v => v.id), viewContainer);
+				ViewsRegistry.deregisterViews(removedViews, viewContainer);
 			}
 		}
 	}

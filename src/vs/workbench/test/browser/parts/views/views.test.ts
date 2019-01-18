@@ -46,7 +46,7 @@ suite('ContributableViewsModel', () => {
 	});
 
 	teardown(() => {
-		ViewsRegistry.deregisterViews(ViewsRegistry.getViews(container).map(({ id }) => id), container);
+		ViewsRegistry.deregisterViews(ViewsRegistry.getViews(container), container);
 	});
 
 	test('empty model', function () {
@@ -74,7 +74,7 @@ suite('ContributableViewsModel', () => {
 		assert.deepEqual(model.visibleViewDescriptors[0], viewDescriptor);
 		assert.deepEqual(seq.elements[0], viewDescriptor);
 
-		ViewsRegistry.deregisterViews(['view1'], container);
+		ViewsRegistry.deregisterViews([viewDescriptor], container);
 
 		assert.equal(model.visibleViewDescriptors.length, 0);
 		assert.equal(seq.elements.length, 0);
@@ -114,7 +114,7 @@ suite('ContributableViewsModel', () => {
 		assert.equal(model.visibleViewDescriptors.length, 0, 'view should disappear');
 		assert.equal(seq.elements.length, 0);
 
-		ViewsRegistry.deregisterViews(['view1'], container);
+		ViewsRegistry.deregisterViews([viewDescriptor], container);
 		assert.equal(model.visibleViewDescriptors.length, 0, 'view should not be there anymore');
 		assert.equal(seq.elements.length, 0);
 
@@ -144,7 +144,7 @@ suite('ContributableViewsModel', () => {
 		assert.deepEqual(model.visibleViewDescriptors, [view1, view2], 'both views should be visible');
 		assert.deepEqual(seq.elements, [view1, view2], 'both views should be visible');
 
-		ViewsRegistry.deregisterViews([view1.id, view2.id], container);
+		ViewsRegistry.deregisterViews([view1, view2], container);
 	});
 
 	test('when contexts - multiple 2', async function () {
@@ -167,7 +167,7 @@ suite('ContributableViewsModel', () => {
 		assert.deepEqual(model.visibleViewDescriptors, [view1, view2], 'both views should be visible');
 		assert.deepEqual(seq.elements, [view1, view2], 'both views should be visible');
 
-		ViewsRegistry.deregisterViews([view1.id, view2.id], container);
+		ViewsRegistry.deregisterViews([view1, view2], container);
 	});
 
 	test('setVisible', () => {
@@ -210,7 +210,7 @@ suite('ContributableViewsModel', () => {
 		assert.deepEqual(model.visibleViewDescriptors, [view1, view2, view3], 'view2 should show');
 		assert.deepEqual(seq.elements, [view1, view2, view3]);
 
-		ViewsRegistry.deregisterViews([view1.id, view2.id, view3.id], container);
+		ViewsRegistry.deregisterViews([view1, view2, view3], container);
 		assert.deepEqual(model.visibleViewDescriptors, []);
 		assert.deepEqual(seq.elements, []);
 	});

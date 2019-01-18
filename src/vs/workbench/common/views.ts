@@ -13,7 +13,7 @@ import { IViewlet } from 'vs/workbench/common/viewlet';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { values } from 'vs/base/common/map';
+import { values, keys } from 'vs/base/common/map';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IAction } from 'vs/base/common/actions';
@@ -33,6 +33,11 @@ export interface IViewContainersRegistry {
 	readonly onDidRegister: Event<ViewContainer>;
 
 	/**
+	 * An event that is triggerred when a view container is deregistered.
+	 */
+	readonly onDidDeregister: Event<ViewContainer>;
+
+	/**
 	 * All registered view containers
 	 */
 	readonly all: ViewContainer[];
@@ -46,6 +51,12 @@ export interface IViewContainersRegistry {
 	 * @returns the registered ViewContainer.
 	 */
 	registerViewContainer(id: string, extensionId?: ExtensionIdentifier): ViewContainer;
+
+	/**
+	 * Deregisters the given view container
+	 * No op if the view container is not registered
+	 */
+	deregisterViewContainer(viewContainer: ViewContainer): void;
 
 	/**
 	 * Returns the view container with given id.
@@ -63,6 +74,9 @@ class ViewContainersRegistryImpl implements IViewContainersRegistry {
 
 	private readonly _onDidRegister = new Emitter<ViewContainer>();
 	readonly onDidRegister: Event<ViewContainer> = this._onDidRegister.event;
+
+	private readonly _onDidDeregister = new Emitter<ViewContainer>();
+	readonly onDidDeregister: Event<ViewContainer> = this._onDidDeregister.event;
 
 	private viewContainers: Map<string, ViewContainer> = new Map<string, ViewContainer>();
 
@@ -84,6 +98,14 @@ class ViewContainersRegistryImpl implements IViewContainersRegistry {
 		this.viewContainers.set(id, viewContainer);
 		this._onDidRegister.fire(viewContainer);
 		return viewContainer;
+	}
+
+	deregisterViewContainer(viewContainer: ViewContainer): void {
+		const existing = this.viewContainers.get(viewContainer.id);
+		if (existing) {
+			this.viewContainers.delete(viewContainer.id);
+			this._onDidDeregister.fire(viewContainer);
+		}
 	}
 
 	get(id: string): ViewContainer | undefined {
@@ -118,7 +140,7 @@ export interface IViewDescriptor {
 	readonly focusCommand?: { id: string, keybindings?: IKeybindings };
 }
 
-export interface IViewDescriptorCollection {
+export interface IViewDescriptorCollection extends IDisposable {
 	readonly onDidChangeActiveViews: Event<{ added: IViewDescriptor[], removed: IViewDescriptor[] }>;
 	readonly activeViewDescriptors: IViewDescriptor[];
 	readonly allViewDescriptors: IViewDescriptor[];
@@ -134,9 +156,9 @@ export interface IViewsRegistry {
 
 	registerViews(views: IViewDescriptor[], viewContainer: ViewContainer): void;
 
-	deregisterViews(ids: string[], viewContainer: ViewContainer): void;
+	deregisterViews(views: IViewDescriptor[], viewContainer: ViewContainer): void;
 
-	moveViews(ids: string[], viewContainer: ViewContainer): void;
+	moveViews(views: IViewDescriptor[], viewContainer: ViewContainer): void;
 
 	getViews(viewContainer: ViewContainer): IViewDescriptor[];
 
@@ -159,52 +181,25 @@ export const ViewsRegistry: IViewsRegistry = new class implements IViewsRegistry
 	private _viewContainers: ViewContainer[] = [];
 	private _views: Map<ViewContainer, IViewDescriptor[]> = new Map<ViewContainer, IViewDescriptor[]>();
 
-	registerViews(viewDescriptors: IViewDescriptor[], viewContainer: ViewContainer): void {
-		if (viewDescriptors.length) {
-			let views = this._views.get(viewContainer);
-			if (!views) {
-				views = [];
-				this._views.set(viewContainer, views);
-				this._viewContainers.push(viewContainer);
-			}
-			for (const viewDescriptor of viewDescriptors) {
-				if (views.some(v => v.id === viewDescriptor.id)) {
-					throw new Error(localize('duplicateId', "A view with id '{0}' is already registered in the container '{1}'", viewDescriptor.id, viewContainer.id));
-				}
-				views.push(viewDescriptor);
-			}
-			this._onViewsRegistered.fire({ views: viewDescriptors, viewContainer });
+	registerViews(views: IViewDescriptor[], viewContainer: ViewContainer): void {
+		this.addViews(views, viewContainer);
+		this._onViewsRegistered.fire({ views: views, viewContainer });
+	}
+
+	deregisterViews(viewDescriptors: IViewDescriptor[], viewContainer: ViewContainer): void {
+		const views = this.removeViews(viewDescriptors, viewContainer);
+		if (views.length) {
+			this._onViewsDeregistered.fire({ views, viewContainer });
 		}
 	}
 
-	deregisterViews(ids: string[], viewContainer: ViewContainer): void {
-		const views = this._views.get(viewContainer);
-
-		if (!views) {
-			return;
-		}
-
-		const viewsToDeregister = views.filter(view => ids.indexOf(view.id) !== -1);
-
-		if (viewsToDeregister.length) {
-			const remaningViews = views.filter(view => ids.indexOf(view.id) === -1);
-			if (remaningViews.length) {
-				this._views.set(viewContainer, remaningViews);
-			} else {
-				this._views.delete(viewContainer);
-				this._viewContainers.splice(this._viewContainers.indexOf(viewContainer), 1);
-			}
-			this._onViewsDeregistered.fire({ views: viewsToDeregister, viewContainer });
-		}
-
-	}
-
-	moveViews(ids: string[], viewContainer: ViewContainer): void {
-		this._views.forEach((views, container) => {
+	moveViews(viewsToMove: IViewDescriptor[], viewContainer: ViewContainer): void {
+		keys(this._views).forEach(container => {
 			if (container !== viewContainer) {
-				const movedViews = views.filter(view => ids.indexOf(view.id) !== -1);
-				if (movedViews.length) {
-					this._onDidChangeContainer.fire({ views: movedViews, from: container, to: viewContainer });
+				const views = this.removeViews(viewsToMove, container);
+				if (views.length) {
+					this.addViews(views, viewContainer);
+					this._onDidChangeContainer.fire({ views, from: container, to: viewContainer });
 				}
 			}
 		});
@@ -232,6 +227,46 @@ export const ViewsRegistry: IViewsRegistry = new class implements IViewsRegistry
 			}
 		}
 		return null;
+	}
+
+	private addViews(viewDescriptors: IViewDescriptor[], viewContainer: ViewContainer): void {
+		let views = this._views.get(viewContainer);
+		if (!views) {
+			views = [];
+			this._views.set(viewContainer, views);
+			this._viewContainers.push(viewContainer);
+		}
+		for (const viewDescriptor of viewDescriptors) {
+			if (views.some(v => v.id === viewDescriptor.id)) {
+				throw new Error(localize('duplicateId', "A view with id '{0}' is already registered in the container '{1}'", viewDescriptor.id, viewContainer.id));
+			}
+			views.push(viewDescriptor);
+		}
+	}
+
+	private removeViews(viewDescriptors: IViewDescriptor[], viewContainer: ViewContainer): IViewDescriptor[] {
+		const views = this._views.get(viewContainer);
+		if (!views) {
+			return [];
+		}
+		const viewsToDeregister: IViewDescriptor[] = [];
+		const remaningViews: IViewDescriptor[] = [];
+		for (const view of views) {
+			if (viewDescriptors.indexOf(view) === -1) {
+				remaningViews.push(view);
+			} else {
+				viewsToDeregister.push(view);
+			}
+		}
+		if (viewsToDeregister.length) {
+			if (remaningViews.length) {
+				this._views.set(viewContainer, remaningViews);
+			} else {
+				this._views.delete(viewContainer);
+				this._viewContainers.splice(this._viewContainers.indexOf(viewContainer), 1);
+			}
+		}
+		return viewsToDeregister;
 	}
 };
 
