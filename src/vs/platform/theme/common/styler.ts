@@ -225,6 +225,7 @@ export interface IListStyleOverrides extends IStyleOverrides {
 	listHoverOutline?: ColorIdentifier;
 	listMatchesBackground?: ColorIdentifier;
 	listMatchesOutline?: ColorIdentifier;
+	listMatchesShadow?: ColorIdentifier;
 }
 
 export function attachListStyler(widget: IThemable, themeService: IThemeService, overrides?: IListStyleOverrides): IDisposable {
@@ -248,7 +249,8 @@ export const defaultListStyles: IColorMapping = {
 	listSelectionOutline: activeContrastBorder,
 	listHoverOutline: activeContrastBorder,
 	listMatchesBackground: blend2(editorFindMatchHighlight, editorWidgetBackground),
-	listMatchesOutline: editorFindMatchHighlightBorder
+	listMatchesOutline: focusBorder,
+	listMatchesShadow: widgetShadow
 };
 
 export interface IButtonStyleOverrides extends IStyleOverrides {

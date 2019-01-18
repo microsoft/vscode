@@ -733,6 +733,10 @@ export class DefaultStyleController implements IStyleController {
 			content.push(`.monaco-list-type-filter { border-color: ${styles.listMatchesOutline}; }`);
 		}
 
+		if (styles.listMatchesShadow) {
+			content.push(`.monaco-list-type-filter { box-shadow: 1px 1px 2px ${styles.listMatchesShadow}; }`);
+		}
+
 		const newStyles = content.join('\n');
 		if (newStyles !== this.styleElement.innerHTML) {
 			this.styleElement.innerHTML = newStyles;
@@ -779,6 +783,7 @@ export interface IListStyles {
 	listHoverOutline?: Color;
 	listMatchesBackground?: Color;
 	listMatchesOutline?: Color;
+	listMatchesShadow?: Color;
 }
 
 const defaultStyles: IListStyles = {
