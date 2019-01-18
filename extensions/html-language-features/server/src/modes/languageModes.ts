@@ -66,10 +66,8 @@ export interface LanguageModeRange extends Range {
 }
 
 export function getLanguageModes(supportedLanguages: { [languageId: string]: boolean; }, workspace: Workspace, customData?: HTMLData): LanguageModes {
-
-	const htmlLanguageService = getHTMLLanguageService({
-		customData
-	});
+	const customDataCollections = customData ? [customData] : [];
+	const htmlLanguageService = getHTMLLanguageService({ customDataCollections });
 
 	let documentRegions = getLanguageModelCache<HTMLDocumentRegions>(10, 60, document => getDocumentRegions(htmlLanguageService, document));
 
