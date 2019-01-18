@@ -621,6 +621,7 @@ export interface MainThreadDebugServiceShape extends IDisposable {
 
 export interface MainThreadWindowShape extends IDisposable {
 	$getWindowVisibility(): Promise<boolean>;
+	$openUri(uri: UriComponents): Promise<any>;
 }
 
 // -- extension host

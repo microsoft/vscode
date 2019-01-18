@@ -16,6 +16,17 @@
 
 declare module 'vscode' {
 
+	//#region Joh - vscode.open
+
+	export namespace window {
+		/**
+		 *
+		 */
+		export function open(uri: Uri): void;
+	}
+
+	//#endregion
+
 	//#region Joh - selection range provider
 
 	export class SelectionRangeKind {
