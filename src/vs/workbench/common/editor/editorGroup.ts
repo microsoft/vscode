@@ -334,20 +334,17 @@ export class EditorGroup extends Disposable {
 
 			// More than one editor
 			if (this.mru.length > 1) {
-
 				let newActive: EditorInput;
-
 				if (this.closeTabsInMRUOrder) {
 					newActive = this.mru[1]; // active editor is always first in MRU, so pick second editor after as new active
-				}
-				else {
+				} else {
 					if (index === this.editors.length - 1) {
 						newActive = this.editors[index - 1]; // last editor is closed, pick previous as new active
-					}
-					else {
+					} else {
 						newActive = this.editors[index + 1]; // pick next editor as new active
 					}
 				}
+
 				this.setActive(newActive);
 			}
 

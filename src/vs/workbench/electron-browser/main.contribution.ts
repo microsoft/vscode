@@ -518,7 +518,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'workbench.editor.closeTabsInMRUOrder': {
 			'type': 'boolean',
-			'description': nls.localize('closeTabsInMRUOrder', "Controls whether tabs are closed in most recently used order."),
+			'description': nls.localize('closeTabsInMRUOrder', "Controls whether tabs are closed in most recently used order or from left to right."),
 			'default': true
 		},
 		'workbench.editor.showIcons': {
