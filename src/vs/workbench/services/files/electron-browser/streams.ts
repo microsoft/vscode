@@ -97,8 +97,8 @@ function createReadable(provider: IFileSystemProvider, resource: URI, position: 
 				if (typeof this._fd !== 'number') {
 					this._fd = await provider.open(resource);
 				}
-				let buffer = Buffer.allocUnsafe(64 * 1024);
 				while (this._reading) {
+					let buffer = Buffer.allocUnsafe(64 * 1024);
 					let bytesRead = await provider.read(this._fd, this._pos, buffer, 0, buffer.length);
 					if (bytesRead === 0) {
 						this._reading = false;
