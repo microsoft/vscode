@@ -290,14 +290,17 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		return Promise.resolve(this._fsProvider.get(handle).close(fd));
 	}
 
-	$read(handle: number, fd: number, pos: number, data: Buffer, offset: number, length: number): Promise<number> {
+	$read(handle: number, fd: number, pos: number, length: number): Promise<Buffer> {
 		this._checkProviderExists(handle);
-		return Promise.resolve(this._fsProvider.get(handle).read(fd, pos, data, offset, length));
+		const data = Buffer.allocUnsafe(length);
+		return Promise.resolve(this._fsProvider.get(handle).read(fd, pos, data, 0, length)).then(read => {
+			return data.slice(0, read); // don't send zeros
+		});
 	}
 
-	$write(handle: number, fd: number, pos: number, data: Buffer, offset: number, length: number): Promise<number> {
+	$write(handle: number, fd: number, pos: number, data: Buffer): Promise<number> {
 		this._checkProviderExists(handle);
-		return Promise.resolve(this._fsProvider.get(handle).write(fd, pos, data, offset, length));
+		return Promise.resolve(this._fsProvider.get(handle).write(fd, pos, data, 0, data.length));
 	}
 
 }
