@@ -82,4 +82,6 @@ export interface ITaskService {
 	registerTaskProvider(taskProvider: ITaskProvider): IDisposable;
 
 	registerTaskSystem(scheme: string, taskSystemInfo: TaskSystemInfo): void;
+
+	extensionCallbackTaskComplete(task: Task): Promise<void>;
 }

@@ -28,7 +28,7 @@ import {
 import { ExtHostVariableResolverService } from 'vs/workbench/api/node/extHostDebugService';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
-import { ExtHostTerminalService, ExtHostTerminal, ExtHostTerminalRenderer } from 'vs/workbench/api/node/extHostTerminalService';
+import { ExtHostTerminalService, ExtHostTerminalRenderer } from 'vs/workbench/api/node/extHostTerminalService';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -353,8 +353,8 @@ class ExtensionCallbackExecutionData implements IDisposable {
 		return this._onTaskExecutionComplete.event;
 	}
 
-	private onDidCloseTerminal(terminal: vscode.Terminal): void {
-		if (terminal instanceof ExtHostTerminal && terminal._id === this._terminalId) {
+	private onDidCloseTerminalRenderer(terminalRenderer: vscode.TerminalRenderer): void {
+		if (terminalRenderer instanceof ExtHostTerminalRenderer && terminalRenderer._id === this._terminalId) {
 			this._cancellationSource.cancel();
 		}
 	}
@@ -383,16 +383,14 @@ class ExtensionCallbackExecutionData implements IDisposable {
 			this._cancellationSource = new CancellationTokenSource();
 			this._disposables.push(this._cancellationSource);
 
-			this._disposables.push(this.terminalService.onDidCloseTerminal(this.onDidCloseTerminal.bind(this)));
+			this._disposables.push(this.terminalService.onDidCloseTerminalRenderer(this.onDidCloseTerminalRenderer.bind(this)));
 
 			// Regardless of how the task completes, we are done with this extension callback task execution.
 			return this.callbackData.callback(terminalRenderer, this._cancellationSource.token).then(
 				(success) => {
 					this._onTaskExecutionComplete.fire(this);
-					terminalRenderer.terminal.dispose();
 				}, (rejected) => {
 					this._onTaskExecutionComplete.fire(this);
-					terminalRenderer.terminal.dispose();
 				});
 		}
 
@@ -411,7 +409,7 @@ class ExtensionCallbackExecutionData implements IDisposable {
 		// ever changes, this code continues to function.
 
 		// Check to see if the extension host already knows about this terminal.
-		for (let terminal of this.terminalService.rendererTerminals) {
+		for (let terminal of this.terminalService.terminalRenderers) {
 			if (terminal._id === terminalId) {
 				this.onDidOpenRenderTerminal(terminal);
 				return;
@@ -420,7 +418,7 @@ class ExtensionCallbackExecutionData implements IDisposable {
 
 		// If we get here, then the terminal is unknown to the extension host. Let's wait
 		// for it to be created and the start our extension callback.
-		this._disposables.push(this.terminalService.onDidOpenRendererTerminal(this.onDidOpenRenderTerminal.bind(this)));
+		this._disposables.push(this.terminalService.onDidOpenTerminalRenderer(this.onDidOpenRenderTerminal.bind(this)));
 	}
 }
 
@@ -539,7 +537,7 @@ export class ExtHostTask implements ExtHostTaskShape {
 			}
 
 			const taskExecutionComplete: IDisposable = extensionCallback.onTaskExecutionComplete(() => {
-				this.terminateExtensionCallbackExecution(execution);
+				this.extensionCallbackTaskComplete(execution);
 				taskExecutionComplete.dispose();
 			});
 
@@ -558,7 +556,7 @@ export class ExtHostTask implements ExtHostTaskShape {
 	public $OnDidEndTask(execution: TaskExecutionDTO): void {
 		const _execution = this.getTaskExecution(execution);
 		this._taskExecutions.delete(execution.id);
-		this.terminateExtensionCallbackExecution(execution);
+		this.extensionCallbackTaskComplete(execution);
 		this._onDidTerminateTask.fire({
 			execution: _execution
 		});
@@ -703,11 +701,12 @@ export class ExtHostTask implements ExtHostTaskShape {
 		return result;
 	}
 
-	private terminateExtensionCallbackExecution(execution: TaskExecutionDTO): void {
+	private extensionCallbackTaskComplete(execution: TaskExecutionDTO): void {
 		const extensionCallback: ExtensionCallbackExecutionData | undefined = this._activeExtensionCallbacks.get(execution.id);
 		if (extensionCallback) {
 			extensionCallback.dispose();
 			this._activeExtensionCallbacks.delete(execution.id);
+			this._proxy.$extensionCallbackTaskComplete(execution.id);
 		}
 	}
 }

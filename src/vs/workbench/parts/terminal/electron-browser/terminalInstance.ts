@@ -260,8 +260,6 @@ export class TerminalInstance implements ITerminalInstance {
 		this._logService.trace(`terminalInstance#ctor (id: ${this.id})`, this._shellLaunchConfig);
 
 		this._initDimensions();
-		// There may not be an executable name if a terminal is being used
-		// for rendering as well as input\output
 		if (!this.shellLaunchConfig.isRendererOnly) {
 			this._createProcess();
 		} else {
@@ -723,12 +721,57 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 		if (this._processManager) {
 			this._processManager.dispose(immediate);
+		} else {
+			// In cases where there is no associated process (for example executing an exetnsion callback task)
+			// consumers still expect on onExit event to be fired. An example of this is terminating the extnesion callback
+			// task.
+			this._onExit.fire(this._id);
 		}
+
 		if (!this._isDisposed) {
 			this._isDisposed = true;
 			this._onDisposed.fire(this);
 		}
 		this._disposables = lifecycle.dispose(this._disposables);
+	}
+
+	public finishedWithRenderer(): void {
+		//NOTE: This looks a lot like _onProcessExit, and it should.
+		// The use of this API is for cases where there is no backing process
+		// behind a terminal instance (such as when executiong an extension callback task).
+		// There is no associated string, error text, etc, as the consumer of the renderer
+		// can simply outout the text to the renderer themselves.
+		// All this code does is handle the "wait on exit" condition.
+		if (!this.shellLaunchConfig.isRendererOnly) {
+			return;
+		}
+
+		// Prevent dispose functions being triggered multiple times
+		if (this._isExiting) {
+			return;
+		}
+
+		this._isExiting = true;
+
+		// Only trigger wait on exit when the exit was *not* triggered by the
+		// user (via the `workbench.action.terminal.kill` command).
+		if (this._shellLaunchConfig.waitOnExit) {
+			if (typeof this._shellLaunchConfig.waitOnExit === 'string') {
+				let message = this._shellLaunchConfig.waitOnExit;
+				// Bold the message and add an extra new line to make it stand out from the rest of the output
+				message = `\n\x1b[1m${message}\x1b[0m`;
+				this._xterm.writeln(message);
+			}
+			// Disable all input if the terminal is exiting and listen for next keypress
+			this._xterm.setOption('disableStdin', true);
+			if (this._xterm.textarea) {
+				this._attachPressAnyKeyToCloseListener();
+			}
+
+			this._onExit.fire(this._id);
+		} else {
+			this.dispose();
+		}
 	}
 
 	public forceRedraw(): void {
@@ -1020,15 +1063,19 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	private _attachPressAnyKeyToCloseListener() {
-		this._processManager!.addDisposable(dom.addDisposableListener(this._xterm.textarea, 'keypress', (event: KeyboardEvent) => {
+		const keyPressListener = dom.addDisposableListener(this._xterm.textarea, 'keypress', (event: KeyboardEvent) => {
+			keyPressListener.dispose();
 			this.dispose();
 			event.preventDefault();
-		}));
+		});
 	}
 
 	public reuseTerminal(shell: IShellLaunchConfig): void {
 		// Kill and clear up the process, making the process manager ready for a new process
-		this._processManager!.dispose();
+		if (this._processManager) {
+			this._processManager.dispose();
+			this._processManager = undefined;
+		}
 
 		// Ensure new processes' output starts at start of new line
 		this._xterm.write('\n\x1b[G');
@@ -1047,12 +1094,19 @@ export class TerminalInstance implements ITerminalInstance {
 
 		// Set the new shell launch config
 		this._shellLaunchConfig = shell; // Must be done before calling _createProcess()
-		// Initialize new process
-		this._createProcess();
+
+		// Initialize new process if we have one.
+		if (this._shellLaunchConfig.executable) {
+			this._createProcess();
+		}
+
 		if (oldTitle !== this._title) {
 			this.setTitle(this._title, true);
 		}
-		this._processManager!.onProcessData(data => this._onProcessData(data));
+
+		if (this._processManager) {
+			this._processManager.onProcessData(data => this._onProcessData(data));
+		}
 	}
 
 	private _sendRendererInput(input: string): void {

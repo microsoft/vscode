@@ -136,4 +136,5 @@ export interface ITaskSystem {
 	terminate(task: Task): Promise<TaskTerminateResponse>;
 	terminateAll(): Promise<TaskTerminateResponse[]>;
 	revealTask(task: Task): boolean;
+	extensionCallbackTaskComplete(task: Task): Promise<void>;
 }

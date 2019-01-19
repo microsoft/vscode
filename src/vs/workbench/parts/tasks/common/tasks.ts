@@ -593,7 +593,23 @@ export class CustomTask extends CommonTask {
 		} else {
 			let type: string;
 			if (this.command !== undefined) {
-				type = this.command.runtime === RuntimeType.Shell ? 'shell' : 'process';
+				switch (this.command.runtime) {
+					case RuntimeType.Shell:
+						type = 'shell';
+						break;
+
+					case RuntimeType.Process:
+						type = 'process';
+						break;
+
+					case RuntimeType.ExtensionCallback:
+						type = 'extensionCallback';
+						break;
+
+					default:
+						throw new Error('Unexpected task runtime');
+						break;
+				}
 			} else {
 				type = '$composite';
 			}

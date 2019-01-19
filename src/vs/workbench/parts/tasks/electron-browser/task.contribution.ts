@@ -706,6 +706,13 @@ class TaskService extends Disposable implements ITaskService {
 		this._taskSystemInfos.set(key, info);
 	}
 
+	public extensionCallbackTaskComplete(task: Task): Promise<void> {
+		if (!this._taskSystem) {
+			return Promise.resolve();
+		}
+		return this._taskSystem.extensionCallbackTaskComplete(task);
+	}
+
 	public getTask(folder: IWorkspaceFolder | string, identifier: string | TaskIdentifier, compareId: boolean = false): Promise<Task> {
 		let name = Types.isString(folder) ? folder : folder.name;
 		if (this.ignoredWorkspaceFolders.some(ignored => ignored.name === name)) {

@@ -515,6 +515,24 @@ export class MainThreadTask implements MainThreadTaskShape {
 		});
 	}
 
+	public $extensionCallbackTaskComplete(id: string): Promise<void> {
+		return new Promise<void>((resolve, reject) => {
+			this._taskService.getActiveTasks().then((tasks) => {
+				for (let task of tasks) {
+					if (id === task._id) {
+						this._taskService.extensionCallbackTaskComplete(task).then((value) => {
+							resolve(undefined);
+						}, (error) => {
+							reject(undefined);
+						});
+						return;
+					}
+				}
+				reject(new Error('Task to mark as complete not found'));
+			});
+		});
+	}
+
 	public $terminateTask(id: string): Promise<void> {
 		return new Promise<void>((resolve, reject) => {
 			this._taskService.getActiveTasks().then((tasks) => {

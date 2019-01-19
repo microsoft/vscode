@@ -105,6 +105,10 @@ export class ProcessTaskSystem implements ITaskSystem {
 		return true;
 	}
 
+	public extensionCallbackTaskComplete(task: Task): Promise<void> {
+		return Promise.resolve();
+	}
+
 	public hasErrors(value: boolean): void {
 		this.errorsShown = !value;
 	}

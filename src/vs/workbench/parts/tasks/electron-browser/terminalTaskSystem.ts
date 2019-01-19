@@ -265,6 +265,23 @@ export class TerminalTaskSystem implements ITaskSystem {
 		return Object.keys(this.activeTasks).map(key => this.activeTasks[key].task);
 	}
 
+	public extensionCallbackTaskComplete(task: Task): Promise<void> {
+		const definition = task.getDefinition();
+		if (definition === undefined || definition.type !== 'extensionCallback') {
+			return Promise.resolve();
+		}
+
+		let activeTerminal = this.activeTasks[task.getMapKey()];
+		if (!activeTerminal) {
+			return Promise.resolve();
+		}
+
+		return new Promise<void>((resolve) => {
+			activeTerminal.terminal.finishedWithRenderer();
+			resolve();
+		});
+	}
+
 	public terminate(task: Task): Promise<TaskTerminateResponse> {
 		let activeTerminal = this.activeTasks[task.getMapKey()];
 		if (!activeTerminal) {
@@ -272,11 +289,33 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}
 		return new Promise<TaskTerminateResponse>((resolve, reject) => {
 			let terminal = activeTerminal.terminal;
+
 			const onExit = terminal.onExit(() => {
 				let task = activeTerminal.task;
 				try {
 					onExit.dispose();
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Terminated, task));
+				} catch (error) {
+					// Do nothing.
+				}
+				resolve({ success: true, task: task });
+			});
+			terminal.dispose();
+		});
+	}
+
+	public extensionCallbackTaskEnded(task: Task): Promise<TaskTerminateResponse> {
+		let activeTerminal = this.activeTasks[task.getMapKey()];
+		if (!activeTerminal) {
+			return Promise.resolve<TaskTerminateResponse>({ success: false, task: undefined });
+		}
+		return new Promise<TaskTerminateResponse>((resolve, reject) => {
+			let terminal = activeTerminal.terminal;
+			const onDisposed = terminal.onDisposed(() => {
+				let task = activeTerminal.task;
+				try {
+					onDisposed.dispose();
+					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.End, task));
 				} catch (error) {
 					// Do nothing.
 				}
@@ -908,7 +947,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			return [terminalToReuse.terminal, commandExecutable, undefined];
 		}
 
-		const result = task.command.runtime !== RuntimeType.ExtensionCallback ? this.terminalService.createTerminal(this.currentTask.shellLaunchConfig) : this.terminalService.createTerminalRenderer(this.createTerminalName(task));
+		const result = task.command.runtime !== RuntimeType.ExtensionCallback ? this.terminalService.createTerminal(this.currentTask.shellLaunchConfig) : this.terminalService.createTerminalRenderer(this.createTerminalName(task), waitOnExit);
 		const terminalKey = result.id.toString();
 		result.onDisposed((terminal) => {
 			let terminalData = this.terminals[terminalKey];

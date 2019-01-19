@@ -89,7 +89,7 @@ export abstract class TerminalService implements ITerminalService {
 	protected abstract _showTerminalCloseConfirmation(): Promise<boolean>;
 	protected abstract _showNotEnoughSpaceToast(): void;
 	public abstract createTerminal(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
-	public abstract createTerminalRenderer(name: string): ITerminalInstance;
+	public abstract createTerminalRenderer(name: string, waitOnExit?: string | boolean): ITerminalInstance;
 	public abstract createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement, shellLaunchConfig: IShellLaunchConfig, doCreateProcess: boolean): ITerminalInstance;
 	public abstract getActiveOrCreateInstance(wasNewTerminalAction?: boolean): ITerminalInstance;
 	public abstract selectDefaultWindowsShell(): Promise<string>;

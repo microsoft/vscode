@@ -98,8 +98,8 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		return instance;
 	}
 
-	public createTerminalRenderer(name: string): ITerminalInstance {
-		return this.createTerminal({ name, isRendererOnly: true });
+	public createTerminalRenderer(name: string, waitOnExit?: string | boolean): ITerminalInstance {
+		return this.createTerminal({ name, isRendererOnly: true, waitOnExit });
 	}
 
 	public createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement | undefined, shellLaunchConfig: IShellLaunchConfig, doCreateProcess: boolean): ITerminalInstance {
