@@ -14,8 +14,8 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IRequestService } from 'vs/platform/request/node/request';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
-export function createUpdateURL(platform: string, quality: string): string {
-	return `${product.updateUrl}/api/update/${platform}/${quality}/${product.commit}`;
+export function createUpdateURL(platform: string, quality: string, commit: string): string {
+	return `${product.updateUrl}/api/update/${platform}/${quality}/${commit}`;
 }
 
 export abstract class AbstractUpdateService implements IUpdateService {
@@ -97,7 +97,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	async checkForUpdates(context: any): Promise<void> {
 		this.logService.trace('update#checkForUpdates, state = ', this.state.type);
 
-		if (this.state.type !== StateType.Idle) {
+		if (this.state.type !== StateType.Idle && this.state.type !== StateType.Ready) {
 			return;
 		}
 

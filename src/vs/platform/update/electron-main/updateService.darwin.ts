@@ -15,10 +15,13 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { ILogService } from 'vs/platform/log/common/log';
 import { AbstractUpdateService, createUpdateURL } from 'vs/platform/update/electron-main/abstractUpdateService';
 import { IRequestService } from 'vs/platform/request/node/request';
+import product from 'vs/platform/node/product';
 
 export class DarwinUpdateService extends AbstractUpdateService {
 
 	_serviceBrand: any;
+
+	private commit: string = product.commit;
 
 	private disposables: IDisposable[] = [];
 
@@ -52,7 +55,7 @@ export class DarwinUpdateService extends AbstractUpdateService {
 	}
 
 	protected buildUpdateFeedUrl(quality: string): string | undefined {
-		const url = createUpdateURL('darwin', quality);
+		const url = createUpdateURL('darwin', quality, this.commit);
 		try {
 			electron.autoUpdater.setFeedURL({ url });
 		} catch (e) {
@@ -80,6 +83,8 @@ export class DarwinUpdateService extends AbstractUpdateService {
 		if (this.state.type !== StateType.Downloading) {
 			return;
 		}
+
+		this.commit = update.version;
 
 		/* __GDPR__
 			"update:downloaded" : {

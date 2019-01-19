@@ -96,7 +96,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 			platform += '-user';
 		}
 
-		return createUpdateURL(platform, quality);
+		return createUpdateURL(platform, quality, product.commit);
 	}
 
 	protected doCheckForUpdates(context: any): void {
