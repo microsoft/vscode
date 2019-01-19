@@ -767,6 +767,10 @@ class MenuSeparatorActionItem extends ActionItem {
 	}
 }
 
+/**
+ * TODO: Handle && -> '&' escape sequence
+ * output is human readable format without mnemonics and literal ampersands if escaped
+ */
 export function cleanMnemonic(label: string): string {
 	const regex = MENU_MNEMONIC_REGEX;
 

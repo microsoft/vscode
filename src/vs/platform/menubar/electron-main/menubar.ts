@@ -424,7 +424,7 @@ export class Menubar {
 				this.setMenu(submenu, item.submenu.items);
 				menu.append(submenuItem);
 			} else if (isMenubarMenuItemUriAction(item)) {
-				menu.append(this.createOpenRecentMenuItem(item.uri, item.label, item.id, item.id === 'openRecentFile'));
+				menu.append(this.createOpenRecentMenuItem(item.uri, this.mnemonicLabel(item.label), item.id, item.id === 'openRecentFile'));
 			} else if (isMenubarMenuItemAction(item)) {
 				if (item.id === 'workbench.action.showAboutDialog') {
 					this.insertCheckForUpdatesItems(menu);

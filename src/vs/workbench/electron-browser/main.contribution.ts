@@ -366,7 +366,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 	group: '2_reference',
 	command: {
 		id: 'workbench.action.keybindingsReference',
-		title: nls.localize({ key: 'miKeyboardShortcuts', comment: ['&& denotes a mnemonic'] }, "&&Keyboard Shortcuts Reference")
+		title: nls.localize({ key: 'miKeyboardShortcuts', comment: ['&& denotes a mnemonic'] }, "&Keyboard Shortcuts Reference")
 	},
 	order: 1
 });
@@ -384,7 +384,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 	group: '2_reference',
 	command: {
 		id: 'workbench.action.openTipsAndTricksUrl',
-		title: nls.localize({ key: 'miTipsAndTricks', comment: ['&& denotes a mnemonic'] }, "Tips and Tri&&cks")
+		title: nls.localize({ key: 'miTipsAndTricks', comment: ['&& denotes a mnemonic'] }, "Tips &&& Tri&&cks")
 	},
 	order: 3
 });

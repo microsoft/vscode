@@ -379,11 +379,14 @@ export class MenubarControl extends Disposable {
 			return { id: 'vscode.menubar.separator' };
 		}
 
+		// Escape'&' to '&&&' for menu mnemonics
+		const label = action.label.replace(/&/g, '&&&');
+
 		return {
 			id: action.id,
 			uri: action.uri,
 			enabled: action.enabled,
-			label: action.label
+			label,
 		};
 	}
 
