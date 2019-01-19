@@ -43,7 +43,7 @@ function createSimpleWritable(provider: IFileSystemProvider, resource: URI, opts
 function createWritable(provider: IFileSystemProvider, resource: URI, opts: FileWriteOptions): Writable {
 	return new class extends Writable {
 		_fd: number;
-		_pos: number;
+		_pos: number = 0;
 		constructor(opts?) {
 			super(opts);
 		}

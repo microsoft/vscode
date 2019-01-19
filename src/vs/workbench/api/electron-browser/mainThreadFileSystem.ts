@@ -139,10 +139,13 @@ class RemoteFileSystemProvider implements IFileSystemProvider {
 	}
 
 	read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
-		return this._proxy.$read(this._handle, fd, pos, RemoteFileSystemProvider._asBuffer(data), offset, length);
+		return this._proxy.$read(this._handle, fd, pos, length).then(readData => {
+			data.set(readData, offset);
+			return readData.byteLength;
+		});
 	}
 
 	write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
-		return this._proxy.$write(this._handle, fd, pos, RemoteFileSystemProvider._asBuffer(data), offset, length);
+		return this._proxy.$write(this._handle, fd, pos, Buffer.from(data, offset, length));
 	}
 }
