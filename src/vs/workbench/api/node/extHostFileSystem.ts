@@ -127,6 +127,7 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		this._usedSchemes.add(Schemas.https);
 		this._usedSchemes.add(Schemas.mailto);
 		this._usedSchemes.add(Schemas.data);
+		this._usedSchemes.add(Schemas.command);
 	}
 
 	dispose(): void {
