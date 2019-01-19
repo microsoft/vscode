@@ -21,7 +21,7 @@ export class DarwinUpdateService extends AbstractUpdateService {
 
 	_serviceBrand: any;
 
-	private commit: string = product.commit;
+	private commit?: string = product.commit;
 
 	private disposables: IDisposable[] = [];
 

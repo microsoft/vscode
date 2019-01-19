@@ -14,7 +14,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IRequestService } from 'vs/platform/request/node/request';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
-export function createUpdateURL(platform: string, quality: string, commit: string): string {
+export function createUpdateURL(platform: string, quality: string, commit?: string): string {
 	return `${product.updateUrl}/api/update/${platform}/${quality}/${commit}`;
 }
 
