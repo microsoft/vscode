@@ -5103,6 +5103,7 @@ declare module 'vscode' {
 	 * A task to execute
 	 */
 	export class Task {
+
 		/**
 		 * Creates a new task.
 		 *
