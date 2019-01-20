@@ -1105,7 +1105,12 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 
 		if (this._processManager) {
-			this._processManager.onProcessData(data => this._onProcessData(data));
+			// TODO: Why is this a string-null check failure without the "!"?
+			// The process manager can indeed be undefined when using an extension callback
+			// as a task, and the if check is correct.
+			// The "force assume to be not-null !" operator was there before the addition
+			// of extension callback as task functionality.
+			this._processManager!.onProcessData(data => this._onProcessData(data));
 		}
 	}
 
