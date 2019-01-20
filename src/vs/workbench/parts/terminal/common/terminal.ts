@@ -221,9 +221,8 @@ export interface ITerminalService {
 	/**
 	 * Creates a terminal renderer.
 	 * @param name The name of the terminal.
-	 * @param waitOnExit Indicates whether to wait on exit when a consumer is finished with the terminal.
 	 */
-	createTerminalRenderer(name: string, waitOnExit?: string | boolean): ITerminalInstance;
+	createTerminalRenderer(name: string): ITerminalInstance;
 
 	/**
 	 * Creates a raw terminal instance, this should not be used outside of the terminal part.

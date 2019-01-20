@@ -903,7 +903,13 @@ export class TerminalTaskSystem implements ITaskSystem {
 		let command: CommandString | undefined;
 		let args: CommandString[] | undefined;
 
-		if (task.command.runtime !== RuntimeType.ExtensionCallback) {
+		if (task.command.runtime === RuntimeType.ExtensionCallback) {
+			this.currentTask.shellLaunchConfig = {
+				isRendererOnly: true,
+				waitOnExit,
+				name: this.createTerminalName(task)
+			};
+		} else {
 			let resolvedResult: { command: CommandString, args: CommandString[] } = this.resolveCommandAndArgs(resolver, task.command);
 			command = resolvedResult.command;
 			args = resolvedResult.args;
@@ -933,13 +939,11 @@ export class TerminalTaskSystem implements ITaskSystem {
 			}
 		}
 		if (terminalToReuse) {
-			if (task.command.runtime !== RuntimeType.ExtensionCallback) {
-				if (!this.currentTask.shellLaunchConfig) {
-					throw new Error('Task shell launch configuration should not be undefined here.');
-				}
-
-				terminalToReuse.terminal.reuseTerminal(this.currentTask.shellLaunchConfig);
+			if (!this.currentTask.shellLaunchConfig) {
+				throw new Error('Task shell launch configuration should not be undefined here.');
 			}
+
+			terminalToReuse.terminal.reuseTerminal(this.currentTask.shellLaunchConfig);
 
 			if (task.command.presentation && task.command.presentation.clear) {
 				terminalToReuse.terminal.clear();
@@ -947,7 +951,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			return [terminalToReuse.terminal, commandExecutable, undefined];
 		}
 
-		const result = task.command.runtime !== RuntimeType.ExtensionCallback ? this.terminalService.createTerminal(this.currentTask.shellLaunchConfig) : this.terminalService.createTerminalRenderer(this.createTerminalName(task), waitOnExit);
+		const result = this.terminalService.createTerminal(this.currentTask.shellLaunchConfig);
 		const terminalKey = result.id.toString();
 		result.onDisposed((terminal) => {
 			let terminalData = this.terminals[terminalKey];
