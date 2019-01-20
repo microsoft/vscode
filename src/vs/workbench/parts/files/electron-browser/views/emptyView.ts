@@ -34,11 +34,11 @@ export class EmptyView extends ViewletPanel {
 
 	constructor(
 		options: IViewletViewOptions,
-		@IThemeService private themeService: IThemeService,
-		@IInstantiationService private instantiationService: IInstantiationService,
+		@IThemeService private readonly themeService: IThemeService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService);
@@ -57,6 +57,7 @@ export class EmptyView extends ViewletPanel {
 
 	protected renderBody(container: HTMLElement): void {
 		DOM.addClass(container, 'explorer-empty-view');
+		container.tabIndex = 0;
 
 		const messageContainer = document.createElement('div');
 		DOM.addClass(messageContainer, 'section');

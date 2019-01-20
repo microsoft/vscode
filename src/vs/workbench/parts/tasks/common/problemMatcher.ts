@@ -189,14 +189,14 @@ export function getResource(filename: string, matcher: ProblemMatcher): URI {
 	} else if ((kind === FileLocationKind.Relative) && matcher.filePrefix) {
 		fullPath = Paths.join(matcher.filePrefix, filename);
 	}
-	if (fullPath === void 0) {
+	if (fullPath === undefined) {
 		throw new Error('FileLocationKind is not actionable. Does the matcher have a filePrefix? This should never happen.');
 	}
 	fullPath = fullPath.replace(/\\/g, '/');
 	if (fullPath[0] !== '/') {
 		fullPath = '/' + fullPath;
 	}
-	if (matcher.uriProvider !== void 0) {
+	if (matcher.uriProvider !== undefined) {
 		return matcher.uriProvider(fullPath);
 	} else {
 		return URI.file(fullPath);
@@ -272,7 +272,7 @@ abstract class AbstractLineMatcher implements ILineMatcher {
 		const patternAtProperty = pattern[property];
 		if (Types.isUndefined(data[property]) && !Types.isUndefined(patternAtProperty) && patternAtProperty < matches.length) {
 			let value = matches[patternAtProperty];
-			if (value !== void 0) {
+			if (value !== undefined) {
 				if (trim) {
 					value = Strings.trim(value)!;
 				}
@@ -289,14 +289,14 @@ abstract class AbstractLineMatcher implements ILineMatcher {
 					severity: this.getSeverity(data),
 					startLineNumber: location.startLineNumber,
 					startColumn: location.startCharacter,
-					endLineNumber: location.startLineNumber,
+					endLineNumber: location.endLineNumber,
 					endColumn: location.endCharacter,
 					message: data.message
 				};
-				if (data.code !== void 0) {
+				if (data.code !== undefined) {
 					marker.code = data.code;
 				}
-				if (this.matcher.source !== void 0) {
+				if (this.matcher.source !== undefined) {
 					marker.source = this.matcher.source;
 				}
 				return {
@@ -347,10 +347,10 @@ abstract class AbstractLineMatcher implements ILineMatcher {
 	}
 
 	private createLocation(startLine: number, startColumn: number | undefined, endLine: number | undefined, endColumn: number | undefined): Location {
-		if (startLine && startColumn && endColumn) {
+		if (startColumn !== undefined && endColumn !== undefined) {
 			return { startLineNumber: startLine, startCharacter: startColumn, endLineNumber: endLine || startLine, endCharacter: endColumn };
 		}
-		if (startLine && startColumn) {
+		if (startColumn !== undefined) {
 			return { startLineNumber: startLine, startCharacter: startColumn, endLineNumber: startLine, endCharacter: startColumn };
 		}
 		return { startLineNumber: startLine, startCharacter: 1, endLineNumber: startLine, endCharacter: Number.MAX_VALUE };
@@ -400,7 +400,7 @@ class SingleLineMatcher extends AbstractLineMatcher {
 	public handle(lines: string[], start: number = 0): HandleResult {
 		Assert.ok(lines.length - start === 1);
 		let data: ProblemData = Object.create(null);
-		if (this.pattern.kind !== void 0) {
+		if (this.pattern.kind !== undefined) {
 			data.kind = this.pattern.kind;
 		}
 		let matches = this.pattern.regexp.exec(lines[start]);
@@ -625,16 +625,15 @@ export namespace Config {
 
 	export namespace MultiLineCheckedProblemPattern {
 		export function is(value: any): value is MultiLineCheckedProblemPattern {
-			let is = false;
-			if (value && Types.isArray(value)) {
-				is = true;
-				value.forEach(element => {
-					if (!Config.CheckedProblemPattern.is(element)) {
-						is = false;
-					}
-				});
+			if (!MultiLineProblemPattern.is(value)) {
+				return false;
 			}
-			return is;
+			for (const element of value) {
+				if (!Config.CheckedProblemPattern.is(element)) {
+					return false;
+				}
+			}
+			return true;
 		}
 	}
 
@@ -823,11 +822,6 @@ export class ProblemPatternParser extends Parser {
 	public parse(value: Config.NamedProblemPattern): NamedProblemPattern;
 	public parse(value: Config.NamedMultiLineCheckedProblemPattern): NamedMultiLineProblemPattern;
 	public parse(value: Config.ProblemPattern | Config.MultiLineProblemPattern | Config.NamedProblemPattern | Config.NamedMultiLineCheckedProblemPattern): any {
-		if ((Config.MultiLineProblemPattern.is(value) && !Config.MultiLineCheckedProblemPattern.is(value)) ||
-			(!Config.MultiLineProblemPattern.is(value) && !Config.CheckedProblemPattern.is(value))) {
-			this.error(localize('ProblemPatternParser.problemPattern.missingRegExp', 'The problem pattern is missing a regular expression.'));
-		}
-
 		if (Config.NamedMultiLineCheckedProblemPattern.is(value)) {
 			return this.createNamedMultiLineProblemPattern(value);
 		} else if (Config.MultiLineCheckedProblemPattern.is(value)) {
@@ -839,6 +833,7 @@ export class ProblemPatternParser extends Parser {
 		} else if (Config.CheckedProblemPattern.is(value)) {
 			return this.createSingleProblemPattern(value);
 		} else {
+			this.error(localize('ProblemPatternParser.problemPattern.missingRegExp', 'The problem pattern is missing a regular expression.'));
 			return null;
 		}
 	}
@@ -884,7 +879,7 @@ export class ProblemPatternParser extends Parser {
 
 	private doCreateSingleProblemPattern(value: Config.CheckedProblemPattern, setDefaults: boolean): ProblemPattern {
 		const regexp = this.createRegularExpression(value.regexp);
-		if (regexp === void 0) {
+		if (regexp === undefined) {
 			throw new Error('Invalid regular expression');
 		}
 		let result: ProblemPattern = { regexp };
@@ -1367,23 +1362,23 @@ export class ProblemMatcherParser extends Parser {
 				let base = ProblemMatcherRegistry.get(variableName.substring(1));
 				if (base) {
 					result = Objects.deepClone(base);
-					if (description.owner !== void 0 && owner !== void 0) {
+					if (description.owner !== undefined && owner !== undefined) {
 						result.owner = owner;
 					}
-					if (description.source !== void 0 && source !== void 0) {
+					if (description.source !== undefined && source !== undefined) {
 						result.source = source;
 					}
-					if (description.fileLocation !== void 0 && fileLocation !== void 0) {
+					if (description.fileLocation !== undefined && fileLocation !== undefined) {
 						result.fileLocation = fileLocation;
 						result.filePrefix = filePrefix;
 					}
-					if (description.pattern !== void 0 && pattern !== void 0 && pattern !== null) {
+					if (description.pattern !== undefined && pattern !== undefined && pattern !== null) {
 						result.pattern = pattern;
 					}
-					if (description.severity !== void 0 && severity !== void 0) {
+					if (description.severity !== undefined && severity !== undefined) {
 						result.severity = severity;
 					}
-					if (description.applyTo !== void 0 && applyTo !== void 0) {
+					if (description.applyTo !== undefined && applyTo !== undefined) {
 						result.applyTo = applyTo;
 					}
 				}

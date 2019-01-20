@@ -36,7 +36,7 @@ import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingReso
 import { IKeybindingItem, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
-import { ILabelService, LabelRules, RegisterFormatterEvent } from 'vs/platform/label/common/label';
+import { ILabelService, ResourceLabelFormatter } from 'vs/platform/label/common/label';
 import { INotification, INotificationHandle, INotificationService, IPromptChoice, IPromptOptions, NoOpNotification } from 'vs/platform/notification/common/notification';
 import { IProgressRunner, IProgressService } from 'vs/platform/progress/common/progress';
 import { ITelemetryInfo, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -139,14 +139,14 @@ export class SimpleProgressService implements IProgressService {
 		worked: () => { }
 	};
 
-	show(infinite: boolean, delay?: number): IProgressRunner;
+	show(infinite: true, delay?: number): IProgressRunner;
 	show(total: number, delay?: number): IProgressRunner;
 	show(): IProgressRunner {
 		return SimpleProgressService.NULL_PROGRESS_RUNNER;
 	}
 
 	showWhile(promise: Promise<any>, delay?: number): Promise<void> {
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -340,8 +340,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 
 	private _toNormalizedKeybindingItems(items: IKeybindingItem[], isDefault: boolean): ResolvedKeybindingItem[] {
 		let result: ResolvedKeybindingItem[] = [], resultLen = 0;
-		for (let i = 0, len = items.length; i < len; i++) {
-			const item = items[i];
+		for (const item of items) {
 			const when = (item.when ? item.when.normalize() : null);
 			const keybinding = item.keybinding;
 
@@ -350,8 +349,8 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 				result[resultLen++] = new ResolvedKeybindingItem(null, item.command, item.commandArgs, when, isDefault);
 			} else {
 				const resolvedKeybindings = this.resolveKeybinding(keybinding);
-				for (let j = 0; j < resolvedKeybindings.length; j++) {
-					result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybindings[j], item.command, item.commandArgs, when, isDefault);
+				for (const resolvedKeybinding of resolvedKeybindings) {
+					result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybinding, item.command, item.commandArgs, when, isDefault);
 				}
 			}
 		}
@@ -408,7 +407,7 @@ export class SimpleConfigurationService implements IConfigurationService {
 	getValue<T>(overrides: IConfigurationOverrides): T;
 	getValue<T>(section: string, overrides: IConfigurationOverrides): T;
 	getValue(arg1?: any, arg2?: any): any {
-		const section = typeof arg1 === 'string' ? arg1 : void 0;
+		const section = typeof arg1 === 'string' ? arg1 : undefined;
 		const overrides = isConfigurationOverrides(arg1) ? arg1 : isConfigurationOverrides(arg2) ? arg2 : {};
 		return this.configuration().getValue(section, overrides, null);
 	}
@@ -433,7 +432,7 @@ export class SimpleConfigurationService implements IConfigurationService {
 	}
 
 	public reloadConfiguration(): Promise<void> {
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	public getConfigurationData(): IConfigurationData | null {
@@ -458,7 +457,7 @@ export class SimpleResourceConfigurationService implements ITextResourceConfigur
 	getValue<T>(resource: URI, position?: IPosition, section?: string): T;
 	getValue<T>(resource: any, arg2?: any, arg3?: any) {
 		const position: IPosition | null = Pos.isIPosition(arg2) ? arg2 : null;
-		const section: string | undefined = position ? (typeof arg3 === 'string' ? arg3 : void 0) : (typeof arg2 === 'string' ? arg2 : void 0);
+		const section: string | undefined = position ? (typeof arg3 === 'string' ? arg3 : undefined) : (typeof arg2 === 'string' ? arg2 : undefined);
 		if (typeof section === 'undefined') {
 			return this.configurationService.getValue<T>();
 		}
@@ -471,7 +470,7 @@ export class SimpleResourcePropertiesService implements ITextResourcePropertiesS
 	_serviceBrand: any;
 
 	constructor(
-		@IConfigurationService private configurationService: IConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 	}
 
@@ -492,7 +491,7 @@ export class StandaloneTelemetryService implements ITelemetryService {
 	public isOptedIn = false;
 
 	public publicLog(eventName: string, data?: any): Promise<void> {
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	public getTelemetryInfo(): Promise<ITelemetryInfo> {
@@ -612,8 +611,8 @@ export class SimpleBulkEditService implements IBulkEditService {
 export class SimpleUriLabelService implements ILabelService {
 	_serviceBrand: any;
 
-	private readonly _onDidRegisterFormatter = new Emitter<RegisterFormatterEvent>();
-	public readonly onDidRegisterFormatter: Event<RegisterFormatterEvent> = this._onDidRegisterFormatter.event;
+	private readonly _onDidRegisterFormatter = new Emitter<void>();
+	public readonly onDidChangeFormatters: Event<void> = this._onDidRegisterFormatter.event;
 
 	public getUriLabel(resource: URI, options?: { relative?: boolean, forceNoTildify?: boolean }): string {
 		if (resource.scheme === 'file') {
@@ -626,7 +625,7 @@ export class SimpleUriLabelService implements ILabelService {
 		return '';
 	}
 
-	public registerFormatter(selector: string, formatter: LabelRules): IDisposable {
+	public registerFormatter(formatter: ResourceLabelFormatter): IDisposable {
 		throw new Error('Not implemented');
 	}
 

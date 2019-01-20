@@ -27,13 +27,13 @@ export class TelemetryOptOut implements IWorkbenchContribution {
 	constructor(
 		@IStorageService storageService: IStorageService,
 		@IOpenerService openerService: IOpenerService,
-		@INotificationService private notificationService: INotificationService,
+		@INotificationService private readonly notificationService: INotificationService,
 		@IWindowService windowService: IWindowService,
 		@IWindowsService windowsService: IWindowsService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IExperimentService private experimentService: IExperimentService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IExtensionGalleryService private galleryService: IExtensionGalleryService
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IExperimentService private readonly experimentService: IExperimentService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService
 	) {
 		if (!product.telemetryOptOutUrl || storageService.get(TelemetryOptOut.TELEMETRY_OPT_OUT_SHOWN, StorageScope.GLOBAL)) {
 			return;
@@ -70,7 +70,7 @@ export class TelemetryOptOut implements IWorkbenchContribution {
 				{ sticky: true }
 			);
 		})
-			.then(void 0, onUnexpectedError);
+			.then(undefined, onUnexpectedError);
 	}
 
 	private runExperiment(experimentId: string) {

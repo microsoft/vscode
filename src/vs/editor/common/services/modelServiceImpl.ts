@@ -3,20 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { escape } from 'vs/base/common/strings';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
-import * as network from 'vs/base/common/network';
-import { basename } from 'vs/base/common/paths';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
-import { DefaultEndOfLine, EndOfLinePreference, EndOfLineSequence, IIdentifiedSingleEditOperation, IModelDecorationOptions, IModelDeltaDecoration, ITextBuffer, ITextBufferFactory, ITextModel, ITextModelCreationOptions, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { ClassName } from 'vs/editor/common/model/intervalTree';
+import { DefaultEndOfLine, EndOfLinePreference, EndOfLineSequence, IIdentifiedSingleEditOperation, ITextBuffer, ITextBufferFactory, ITextModel, ITextModelCreationOptions } from 'vs/editor/common/model';
 import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
 import { IModelLanguageChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
@@ -24,10 +18,7 @@ import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegis
 import { ILanguageSelection } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
-import { overviewRulerError, overviewRulerInfo, overviewRulerWarning } from 'vs/editor/common/view/editorColorRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IMarker, IMarkerService, MarkerSeverity, MarkerTag } from 'vs/platform/markers/common/markers';
-import { ThemeColor, themeColorFromId } from 'vs/platform/theme/common/themeService';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -39,7 +30,6 @@ class ModelData implements IDisposable {
 	private _languageSelection: ILanguageSelection | null;
 	private _languageSelectionListener: IDisposable | null;
 
-	private _markerDecorations: string[];
 	private _modelEventListeners: IDisposable[];
 
 	constructor(
@@ -51,8 +41,6 @@ class ModelData implements IDisposable {
 
 		this._languageSelection = null;
 		this._languageSelectionListener = null;
-
-		this._markerDecorations = [];
 
 		this._modelEventListeners = [];
 		this._modelEventListeners.push(model.onWillDispose(() => onWillDispose(model)));
@@ -71,13 +59,8 @@ class ModelData implements IDisposable {
 	}
 
 	public dispose(): void {
-		this._markerDecorations = this.model.deltaDecorations(this._markerDecorations, []);
 		this._modelEventListeners = dispose(this._modelEventListeners);
 		this._disposeLanguageSelection();
-	}
-
-	public acceptMarkerDecorations(newDecorations: IModelDeltaDecoration[]): void {
-		this._markerDecorations = this.model.deltaDecorations(this._markerDecorations, newDecorations);
 	}
 
 	public setLanguage(languageSelection: ILanguageSelection): void {
@@ -85,155 +68,6 @@ class ModelData implements IDisposable {
 		this._languageSelection = languageSelection;
 		this._languageSelectionListener = this._languageSelection.onDidChange(() => this.model.setMode(languageSelection.languageIdentifier));
 		this.model.setMode(languageSelection.languageIdentifier);
-	}
-}
-
-class ModelMarkerHandler {
-
-	public static setMarkers(modelData: ModelData, markerService: IMarkerService): void {
-
-		// Limit to the first 500 errors/warnings
-		const markers = markerService.read({ resource: modelData.model.uri, take: 500 });
-
-		let newModelDecorations: IModelDeltaDecoration[] = markers.map((marker) => {
-			return {
-				range: ModelMarkerHandler._createDecorationRange(modelData.model, marker),
-				options: ModelMarkerHandler._createDecorationOption(marker)
-			};
-		});
-
-		modelData.acceptMarkerDecorations(newModelDecorations);
-	}
-
-	private static _createDecorationRange(model: ITextModel, rawMarker: IMarker): Range {
-
-		let ret = Range.lift(rawMarker);
-
-		if (rawMarker.severity === MarkerSeverity.Hint) {
-			if (!rawMarker.tags || rawMarker.tags.indexOf(MarkerTag.Unnecessary) === -1) {
-				// * never render hints on multiple lines
-				// * make enough space for three dots
-				ret = ret.setEndPosition(ret.startLineNumber, ret.startColumn + 2);
-			}
-		}
-
-		ret = model.validateRange(ret);
-
-		if (ret.isEmpty()) {
-			let word = model.getWordAtPosition(ret.getStartPosition());
-			if (word) {
-				ret = new Range(ret.startLineNumber, word.startColumn, ret.endLineNumber, word.endColumn);
-			} else {
-				let maxColumn = model.getLineLastNonWhitespaceColumn(ret.startLineNumber) ||
-					model.getLineMaxColumn(ret.startLineNumber);
-
-				if (maxColumn === 1) {
-					// empty line
-					// console.warn('marker on empty line:', marker);
-				} else if (ret.endColumn >= maxColumn) {
-					// behind eol
-					ret = new Range(ret.startLineNumber, maxColumn - 1, ret.endLineNumber, maxColumn);
-				} else {
-					// extend marker to width = 1
-					ret = new Range(ret.startLineNumber, ret.startColumn, ret.endLineNumber, ret.endColumn + 1);
-				}
-			}
-		} else if (rawMarker.endColumn === Number.MAX_VALUE && rawMarker.startColumn === 1 && ret.startLineNumber === ret.endLineNumber) {
-			let minColumn = model.getLineFirstNonWhitespaceColumn(rawMarker.startLineNumber);
-			if (minColumn < ret.endColumn) {
-				ret = new Range(ret.startLineNumber, minColumn, ret.endLineNumber, ret.endColumn);
-				rawMarker.startColumn = minColumn;
-			}
-		}
-		return ret;
-	}
-
-	private static _createDecorationOption(marker: IMarker): IModelDecorationOptions {
-
-		let className: string;
-		let color: ThemeColor | undefined = undefined;
-		let zIndex: number;
-		let inlineClassName: string | undefined = undefined;
-
-		switch (marker.severity) {
-			case MarkerSeverity.Hint:
-				if (marker.tags && marker.tags.indexOf(MarkerTag.Unnecessary) >= 0) {
-					className = ClassName.EditorUnnecessaryDecoration;
-				} else {
-					className = ClassName.EditorHintDecoration;
-				}
-				zIndex = 0;
-				break;
-			case MarkerSeverity.Warning:
-				className = ClassName.EditorWarningDecoration;
-				color = themeColorFromId(overviewRulerWarning);
-				zIndex = 20;
-				break;
-			case MarkerSeverity.Info:
-				className = ClassName.EditorInfoDecoration;
-				color = themeColorFromId(overviewRulerInfo);
-				zIndex = 10;
-				break;
-			case MarkerSeverity.Error:
-			default:
-				className = ClassName.EditorErrorDecoration;
-				color = themeColorFromId(overviewRulerError);
-				zIndex = 30;
-				break;
-		}
-
-		if (marker.tags) {
-			if (marker.tags.indexOf(MarkerTag.Unnecessary) !== -1) {
-				inlineClassName = ClassName.EditorUnnecessaryInlineDecoration;
-			}
-		}
-
-		let hoverMessage: MarkdownString | null = null;
-		let { message, source, relatedInformation, code } = marker;
-
-		if (typeof message === 'string') {
-
-			hoverMessage = new MarkdownString();
-			// Disable markdown renderer sanitize to allow html
-			// Hence, escape all input strings
-			hoverMessage.sanitize = false;
-
-			hoverMessage.appendMarkdown(`<div>`);
-			hoverMessage.appendMarkdown(`<span style='font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback"; white-space: pre-wrap;'>${escape(message.trim())}</span>`);
-			if (source) {
-				hoverMessage.appendMarkdown(`<span style='opacity: 0.6; padding-left:6px;'>${escape(source)}</span>`);
-				if (code) {
-					hoverMessage.appendMarkdown(`<span style='opacity: 0.6; padding-left:2px;'>(${escape(code)})</span>`);
-				}
-			} else if (code) {
-				hoverMessage.appendMarkdown(`<span style='opacity: 0.6; padding-left:6px;'>(${escape(code)})</span>`);
-			}
-			hoverMessage.appendMarkdown(`</div>`);
-
-			if (isNonEmptyArray(relatedInformation)) {
-				hoverMessage.appendMarkdown(`<ul>`);
-				for (const { message, resource, startLineNumber, startColumn } of relatedInformation) {
-					hoverMessage.appendMarkdown(`<li>`);
-					hoverMessage.appendMarkdown(`<a href='#' data-href='${resource.toString(false)}#${startLineNumber},${startColumn}'>${escape(basename(resource.path))}(${startLineNumber}, ${startColumn})</a>`);
-					hoverMessage.appendMarkdown(`<span>: ${escape(message)}</span>`);
-					hoverMessage.appendMarkdown(`</li>`);
-				}
-				hoverMessage.appendMarkdown(`</ul>`);
-			}
-		}
-
-		return {
-			stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-			className,
-			hoverMessage,
-			showIfCollapsed: true,
-			overviewRuler: {
-				color,
-				position: OverviewRulerLane.Right
-			},
-			zIndex,
-			inlineClassName,
-		};
 	}
 }
 
@@ -256,8 +90,6 @@ const DEFAULT_EOL = (platform.isLinux || platform.isMacintosh) ? DefaultEndOfLin
 export class ModelServiceImpl extends Disposable implements IModelService {
 	public _serviceBrand: any;
 
-	private _markerService: IMarkerService | null;
-	private _markerServiceSubscription: IDisposable;
 	private _configurationService: IConfigurationService;
 	private _configurationServiceSubscription: IDisposable;
 	private _resourcePropertiesService: ITextResourcePropertiesService;
@@ -281,21 +113,14 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 	private _models: { [modelId: string]: ModelData; };
 
 	constructor(
-		@IMarkerService markerService: IMarkerService | null,
 		@IConfigurationService configurationService: IConfigurationService,
-		@ITextResourcePropertiesService resourcePropertiesService: ITextResourcePropertiesService,
+		@ITextResourcePropertiesService resourcePropertiesService: ITextResourcePropertiesService
 	) {
 		super();
-		this._markerService = markerService;
 		this._configurationService = configurationService;
 		this._resourcePropertiesService = resourcePropertiesService;
 		this._models = {};
 		this._modelCreationOptionsByLanguageAndResource = Object.create(null);
-
-		if (this._markerService) {
-			this._markerServiceSubscription = this._markerService.onMarkerChanged(this._handleMarkerChange, this);
-			this._handleMarkerChange(this._markerService.read().map(m => m.resource));
-		}
 
 		this._configurationServiceSubscription = this._configurationService.onDidChangeConfiguration(e => this._updateModelOptions());
 		this._updateModelOptions();
@@ -406,36 +231,8 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 	}
 
 	public dispose(): void {
-		if (this._markerServiceSubscription) {
-			this._markerServiceSubscription.dispose();
-		}
 		this._configurationServiceSubscription.dispose();
 		super.dispose();
-	}
-
-	private _handleMarkerChange(changedResources: URI[]): void {
-		changedResources.forEach((resource) => {
-			let modelId = MODEL_ID(resource);
-			let modelData = this._models[modelId];
-			if (!modelData) {
-				return;
-			}
-			ModelMarkerHandler.setMarkers(modelData, this._markerService!);
-		});
-	}
-
-	private _cleanUp(model: ITextModel): void {
-		// clean up markers for internal, transient models
-		if (model.uri.scheme === network.Schemas.inMemory
-			|| model.uri.scheme === network.Schemas.internal
-			|| model.uri.scheme === network.Schemas.vscode) {
-			if (this._markerService) {
-				this._markerService.read({ resource: model.uri }).map(marker => marker.owner).forEach(owner => this._markerService!.remove(owner, [model.uri]));
-			}
-		}
-
-		// clean up cache
-		delete this._modelCreationOptionsByLanguageAndResource[model.getLanguageIdentifier().language + model.uri];
 	}
 
 	// --- begin IModelService
@@ -541,11 +338,6 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 			modelData = this._createModelData(value, PLAINTEXT_LANGUAGE_IDENTIFIER, resource, isForSimpleWidget);
 		}
 
-		// handle markers (marker service => model)
-		if (this._markerService) {
-			ModelMarkerHandler.setMarkers(modelData, this._markerService);
-		}
-
 		this._onModelAdded.fire(modelData.model);
 
 		return modelData.model;
@@ -601,7 +393,9 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		delete this._models[modelId];
 		modelData.dispose();
 
-		this._cleanUp(model);
+		// clean up cache
+		delete this._modelCreationOptionsByLanguageAndResource[model.getLanguageIdentifier().language + model.uri];
+
 		this._onModelRemoved.fire(model);
 	}
 

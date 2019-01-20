@@ -77,7 +77,7 @@ export class ExtensionHostMain {
 		this._extHostLogService.info('extension host started');
 		this._extHostLogService.trace('initData', initData);
 
-		this._extHostConfiguration = new ExtHostConfiguration(rpcProtocol.getProxy(MainContext.MainThreadConfiguration), extHostWorkspace, initData.configuration);
+		this._extHostConfiguration = new ExtHostConfiguration(rpcProtocol.getProxy(MainContext.MainThreadConfiguration), extHostWorkspace);
 		this._extensionService = new ExtHostExtensionService(nativeExit, initData, rpcProtocol, extHostWorkspace, this._extHostConfiguration, this._extHostLogService);
 
 		// error forwarding and stack trace scanning

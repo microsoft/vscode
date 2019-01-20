@@ -115,11 +115,11 @@ export class FileWalker {
 		});
 	}
 
-	public cancel(): void {
+	cancel(): void {
 		this.isCanceled = true;
 	}
 
-	public walk(folderQueries: IFolderQuery[], extraFiles: URI[], onResult: (result: IRawFileMatch) => void, onMessage: (message: IProgress) => void, done: (error: Error | null, isLimitHit: boolean) => void): void {
+	walk(folderQueries: IFolderQuery[], extraFiles: URI[], onResult: (result: IRawFileMatch) => void, onMessage: (message: IProgress) => void, done: (error: Error | null, isLimitHit: boolean) => void): void {
 		this.fileWalkSW = StopWatch.create(false);
 
 		// Support that the file pattern is a full path to a file that exists
@@ -176,7 +176,7 @@ export class FileWalker {
 		});
 	}
 
-	private call(fun: Function, that: any, ...args: any[]): void {
+	private call<F extends Function>(fun: F, that: any, ...args: any[]): void {
 		try {
 			fun.apply(that, args);
 		} catch (e) {
@@ -203,7 +203,7 @@ export class FileWalker {
 		const useRipgrep = this.useRipgrep;
 		let noSiblingsClauses: boolean;
 		if (useRipgrep) {
-			const ripgrep = spawnRipgrepCmd(this.config, folderQuery, this.config.includePattern, this.folderExcludePatterns.get(folderQuery.folder.fsPath).expression);
+			const ripgrep = spawnRipgrepCmd(this.config, folderQuery, this.config.includePattern, this.folderExcludePatterns.get(folderQuery.folder.fsPath)!.expression);
 			cmd = ripgrep.cmd;
 			noSiblingsClauses = !Object.keys(ripgrep.siblingClauses).length;
 
@@ -285,11 +285,11 @@ export class FileWalker {
 	/**
 	 * Public for testing.
 	 */
-	public spawnFindCmd(folderQuery: IFolderQuery) {
-		const excludePattern = this.folderExcludePatterns.get(folderQuery.folder.fsPath);
+	spawnFindCmd(folderQuery: IFolderQuery) {
+		const excludePattern = this.folderExcludePatterns.get(folderQuery.folder.fsPath)!;
 		const basenames = excludePattern.getBasenameTerms();
 		const pathTerms = excludePattern.getPathTerms();
-		let args = ['-L', '.'];
+		const args = ['-L', '.'];
 		if (basenames.length || pathTerms.length) {
 			args.push('-not', '(', '(');
 			for (const basename of basenames) {
@@ -310,7 +310,7 @@ export class FileWalker {
 	/**
 	 * Public for testing.
 	 */
-	public readStdout(cmd: childProcess.ChildProcess, encoding: string, isRipgrep: boolean, cb: (err: Error | null, stdout?: string) => void): void {
+	readStdout(cmd: childProcess.ChildProcess, encoding: string, isRipgrep: boolean, cb: (err: Error | null, stdout?: string) => void): void {
 		let all = '';
 		this.collectStdout(cmd, encoding, isRipgrep, () => { }, (err: Error, stdout?: string, last?: boolean) => {
 			if (err) {
@@ -428,7 +428,7 @@ export class FileWalker {
 
 	private matchDirectoryTree({ rootEntries, pathToEntries }: IDirectoryTree, rootFolder: string, onResult: (result: IRawFileMatch) => void) {
 		const self = this;
-		const excludePattern = this.folderExcludePatterns.get(rootFolder);
+		const excludePattern = this.folderExcludePatterns.get(rootFolder)!;
 		const filePattern = this.filePattern;
 		function matchDirectory(entries: IDirectoryEntry[]) {
 			self.directoriesWalked++;
@@ -480,7 +480,7 @@ export class FileWalker {
 		});
 	}
 
-	public getStats(): ISearchEngineStats {
+	getStats(): ISearchEngineStats {
 		return {
 			cmdTime: this.cmdSW && this.cmdSW.elapsed(),
 			fileWalkTime: this.fileWalkSW.elapsed(),
@@ -507,13 +507,13 @@ export class FileWalker {
 			// If the user searches for the exact file name, we adjust the glob matching
 			// to ignore filtering by siblings because the user seems to know what she
 			// is searching for and we want to include the result in that case anyway
-			let currentRelativePath = relativeParentPath ? [relativeParentPath, file].join(path.sep) : file;
-			if (this.folderExcludePatterns.get(folderQuery.folder.fsPath).test(currentRelativePath, file, this.config.filePattern !== file ? hasSibling : undefined)) {
+			const currentRelativePath = relativeParentPath ? [relativeParentPath, file].join(path.sep) : file;
+			if (this.folderExcludePatterns.get(folderQuery.folder.fsPath)!.test(currentRelativePath, file, this.config.filePattern !== file ? hasSibling : undefined)) {
 				return clb(null);
 			}
 
 			// Use lstat to detect links
-			let currentAbsolutePath = [rootFolder.fsPath, currentRelativePath].join(path.sep);
+			const currentAbsolutePath = [rootFolder.fsPath, currentRelativePath].join(path.sep);
 			fs.lstat(currentAbsolutePath, (error, lstat) => {
 				if (error || this.isCanceled || this.isLimitHit) {
 					return clb(null);
@@ -646,7 +646,7 @@ export class Engine implements ISearchEngine<IRawFileMatch> {
 		this.walker = new FileWalker(config);
 	}
 
-	public search(onResult: (result: IRawFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISearchEngineSuccess) => void): void {
+	search(onResult: (result: IRawFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISearchEngineSuccess) => void): void {
 		this.walker.walk(this.folderQueries, this.extraFiles, onResult, onProgress, (err: Error, isLimitHit: boolean) => {
 			done(err, {
 				limitHit: isLimitHit,
@@ -655,7 +655,7 @@ export class Engine implements ISearchEngine<IRawFileMatch> {
 		});
 	}
 
-	public cancel(): void {
+	cancel(): void {
 		this.walker.cancel();
 	}
 }
@@ -695,12 +695,12 @@ class AbsoluteAndRelativeParsedExpression {
 		this.relativeParsedExpr = relativeGlobExpr && glob.parse(relativeGlobExpr, { trimForExclusions: true });
 	}
 
-	public test(_path: string, basename?: string, hasSibling?: (name: string) => boolean | Promise<boolean>): string | Promise<string | null> | undefined | null {
+	test(_path: string, basename?: string, hasSibling?: (name: string) => boolean | Promise<boolean>): string | Promise<string | null> | undefined | null {
 		return (this.relativeParsedExpr && this.relativeParsedExpr(_path, basename, hasSibling)) ||
 			(this.absoluteParsedExpr && this.absoluteParsedExpr(path.join(this.root, _path), basename, hasSibling));
 	}
 
-	public getBasenameTerms(): string[] {
+	getBasenameTerms(): string[] {
 		const basenameTerms: string[] = [];
 		if (this.absoluteParsedExpr) {
 			basenameTerms.push(...glob.getBasenameTerms(this.absoluteParsedExpr));
@@ -713,7 +713,7 @@ class AbsoluteAndRelativeParsedExpression {
 		return basenameTerms;
 	}
 
-	public getPathTerms(): string[] {
+	getPathTerms(): string[] {
 		const pathTerms: string[] = [];
 		if (this.absoluteParsedExpr) {
 			pathTerms.push(...glob.getPathTerms(this.absoluteParsedExpr));

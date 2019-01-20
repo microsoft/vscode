@@ -18,9 +18,9 @@ export class GettingStarted implements IWorkbenchContribution {
 	private appName: string;
 
 	constructor(
-		@IStorageService private storageService: IStorageService,
+		@IStorageService private readonly storageService: IStorageService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		this.appName = product.nameLong;
 

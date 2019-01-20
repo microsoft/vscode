@@ -13,7 +13,7 @@ import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
 import { Event } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
-import { IExtension, IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
+import { IExtension, IExtensionsWorkbenchService, ExtensionContainers } from 'vs/workbench/parts/extensions/common/extensions';
 import { InstallAction, UpdateAction, ManageExtensionAction, ReloadAction, extensionButtonProminentBackground, extensionButtonProminentForeground, MaliciousStatusLabelAction, ExtensionActionItem } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { Label, RatingsWidget, InstallCountWidget } from 'vs/workbench/parts/extensions/browser/extensionsWidgets';
@@ -53,13 +53,13 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 	constructor(
 		private extensionViewState: IExtensionsViewState,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@INotificationService private notificationService: INotificationService,
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IExtensionService private extensionService: IExtensionService,
-		@IExtensionTipsService private extensionTipsService: IExtensionTipsService,
-		@IThemeService private themeService: IThemeService,
-		@IExtensionManagementServerService private extensionManagementServerService: IExtensionManagementServerService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IExtensionTipsService private readonly extensionTipsService: IExtensionTipsService,
+		@IThemeService private readonly themeService: IThemeService,
+		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService
 	) { }
 
 	get templateId() { return 'extension'; }
@@ -99,31 +99,28 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		});
 		actionbar.onDidRun(({ error }) => error && this.notificationService.error(error));
 
-		const versionWidget = this.instantiationService.createInstance(Label, version, (e: IExtension) => e.version);
-		const installCountWidget = this.instantiationService.createInstance(InstallCountWidget, installCount, { small: true });
-		const ratingsWidget = this.instantiationService.createInstance(RatingsWidget, ratings, { small: true });
+		const widgets = [
+			this.instantiationService.createInstance(Label, version, (e: IExtension) => e.version),
+			this.instantiationService.createInstance(InstallCountWidget, installCount, true),
+			this.instantiationService.createInstance(RatingsWidget, ratings, true)
+		];
+		const actions = [
+			this.instantiationService.createInstance(UpdateAction),
+			this.instantiationService.createInstance(ReloadAction),
+			this.instantiationService.createInstance(InstallAction),
+			this.instantiationService.createInstance(MaliciousStatusLabelAction, false),
+			this.instantiationService.createInstance(ManageExtensionAction)
+		];
+		const extensionContainers: ExtensionContainers = this.instantiationService.createInstance(ExtensionContainers, [...actions, ...widgets]);
 
-		const maliciousStatusAction = this.instantiationService.createInstance(MaliciousStatusLabelAction, false);
-		const installAction = this.instantiationService.createInstance(InstallAction);
-		const updateAction = this.instantiationService.createInstance(UpdateAction);
-		const reloadAction = this.instantiationService.createInstance(ReloadAction);
-		const manageAction = this.instantiationService.createInstance(ManageExtensionAction);
-
-		actionbar.push([updateAction, reloadAction, installAction, maliciousStatusAction, manageAction], actionOptions);
-		const disposables = [versionWidget, installCountWidget, ratingsWidget, maliciousStatusAction, updateAction, installAction, reloadAction, manageAction, actionbar, bookmarkStyler];
+		actionbar.push(actions, actionOptions);
+		const disposables = [...actions, ...widgets, actionbar, bookmarkStyler, extensionContainers];
 
 		return {
 			root, element, icon, name, installCount, ratings, author, description, disposables, actionbar,
 			extensionDisposables: [],
 			set extension(extension: IExtension) {
-				versionWidget.extension = extension;
-				installCountWidget.extension = extension;
-				ratingsWidget.extension = extension;
-				maliciousStatusAction.extension = extension;
-				installAction.extension = extension;
-				updateAction.extension = extension;
-				reloadAction.extension = extension;
-				manageAction.extension = extension;
+				extensionContainers.extension = extension;
 			}
 		};
 	}
@@ -146,9 +143,10 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		removeClass(data.element, 'loading');
 
 		data.extensionDisposables = dispose(data.extensionDisposables);
-		const installed = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, extension.identifier))[0];
 
-		this.extensionService.getExtensions().then(runningExtensions => {
+		const updateEnablement = async () => {
+			const runningExtensions = await this.extensionService.getExtensions();
+			const installed = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, extension.identifier))[0];
 			if (installed && installed.local) {
 				const installedExtensionServer = this.extensionManagementServerService.getExtensionManagementServer(installed.local.location);
 				const isSameExtensionRunning = runningExtensions.some(e => {
@@ -165,7 +163,9 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			} else {
 				removeClass(data.root, 'disabled');
 			}
-		});
+		};
+		updateEnablement();
+		this.extensionService.onDidChangeExtensions(() => updateEnablement(), this, data.extensionDisposables);
 
 		const onError = Event.once(domEvent(data.icon, 'error'));
 		onError(() => data.icon.src = extension.iconUrlFallback, null, data.extensionDisposables);

@@ -10,7 +10,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import * as types from 'vs/base/common/types';
 import * as strings from 'vs/base/common/strings';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export const Extensions = {
 	Configuration: 'base.contributions.configuration'
@@ -94,7 +94,7 @@ export interface IConfigurationNode {
 }
 
 export interface IDefaultConfigurationExtension {
-	id: CanonicalExtensionIdentifier;
+	id: ExtensionIdentifier;
 	name: string;
 	defaults: { [key: string]: {} };
 }
@@ -209,7 +209,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 				}
 
 				if (OVERRIDE_PROPERTY_PATTERN.test(key)) {
-					property.scope = void 0; // No scope for overridable properties `[${identifier}]`
+					property.scope = undefined; // No scope for overridable properties `[${identifier}]`
 				} else {
 					property.scope = types.isUndefinedOrNull(property.scope) ? scope : property.scope;
 				}
@@ -361,7 +361,7 @@ export function validateProperty(property: string): string | null {
 	if (OVERRIDE_PROPERTY_PATTERN.test(property)) {
 		return nls.localize('config.property.languageDefault', "Cannot register '{0}'. This matches property pattern '\\\\[.*\\\\]$' for describing language specific editor settings. Use 'configurationDefaults' contribution.", property);
 	}
-	if (configurationRegistry.getConfigurationProperties()[property] !== void 0) {
+	if (configurationRegistry.getConfigurationProperties()[property] !== undefined) {
 		return nls.localize('config.property.duplicate', "Cannot register '{0}'. This property is already registered.", property);
 	}
 	return null;

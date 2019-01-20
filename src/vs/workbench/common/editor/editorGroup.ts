@@ -98,11 +98,12 @@ export class EditorGroup extends Disposable {
 	private active: EditorInput | null;  // editor in active state
 
 	private editorOpenPositioning: 'left' | 'right' | 'first' | 'last';
+	private closeTabsInMRUOrder: boolean;
 
 	constructor(
 		labelOrSerializedGroup: ISerializedEditorGroup,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
@@ -122,6 +123,7 @@ export class EditorGroup extends Disposable {
 
 	private onConfigurationUpdated(event?: IConfigurationChangeEvent): void {
 		this.editorOpenPositioning = this.configurationService.getValue('workbench.editor.openPositioning');
+		this.closeTabsInMRUOrder = this.configurationService.getValue('workbench.editor.closeTabsInMRUOrder');
 	}
 
 	get id(): GroupIdentifier {
@@ -148,8 +150,7 @@ export class EditorGroup extends Disposable {
 			return null; // fast check for resource opened or not
 		}
 
-		for (let i = 0; i < this.editors.length; i++) {
-			const editor = this.editors[i];
+		for (const editor of this.editors) {
 			const editorResource = toResource(editor, { supportSideBySide: true });
 			if (editorResource && editorResource.toString() === resource.toString()) {
 				return editor;
@@ -297,13 +298,13 @@ export class EditorGroup extends Disposable {
 		}));
 	}
 
-	private replaceEditor(toReplace: EditorInput, replaceWidth: EditorInput, replaceIndex: number, openNext = true): void {
+	private replaceEditor(toReplace: EditorInput, replaceWith: EditorInput, replaceIndex: number, openNext = true): void {
 		const event = this.doCloseEditor(toReplace, openNext, true); // optimization to prevent multiple setActive() in one call
 
 		// We want to first add the new editor into our model before emitting the close event because
 		// firing the close event can trigger a dispose on the same editor that is now being added.
 		// This can lead into opening a disposed editor which is not what we want.
-		this.splice(replaceIndex, false, replaceWidth);
+		this.splice(replaceIndex, false, replaceWith);
 
 		if (event) {
 			this._onDidEditorClose.fire(event);
@@ -319,7 +320,7 @@ export class EditorGroup extends Disposable {
 			return event.index;
 		}
 
-		return void 0;
+		return undefined;
 	}
 
 	private doCloseEditor(editor: EditorInput, openNext: boolean, replaced: boolean): EditorCloseEvent | null {
@@ -333,7 +334,18 @@ export class EditorGroup extends Disposable {
 
 			// More than one editor
 			if (this.mru.length > 1) {
-				this.setActive(this.mru[1]); // active editor is always first in MRU, so pick second editor after as new active
+				let newActive: EditorInput;
+				if (this.closeTabsInMRUOrder) {
+					newActive = this.mru[1]; // active editor is always first in MRU, so pick second editor after as new active
+				} else {
+					if (index === this.editors.length - 1) {
+						newActive = this.editors[index - 1]; // last editor is closed, pick previous as new active
+					} else {
+						newActive = this.editors[index + 1]; // pick next editor as new active
+					}
+				}
+
+				this.setActive(newActive);
 			}
 
 			// One Editor
@@ -514,7 +526,7 @@ export class EditorGroup extends Disposable {
 			}
 
 			// Replace
-			else {
+			else if (del && editor) {
 				this.mru.splice(indexInMRU, 1, editor); // replace MRU at location
 				this.updateResourceMap(editor, false /* add */); // add new to resource map
 				this.updateResourceMap(editorToDeleteOrReplace, true /* delete */); // remove replaced from resource map
@@ -528,17 +540,24 @@ export class EditorGroup extends Disposable {
 
 			// It is possible to have the same resource opened twice (once as normal input and once as diff input)
 			// So we need to do ref counting on the resource to provide the correct picture
-			let counter = this.mapResourceToEditorCount.get(resource) || 0;
+			const counter = this.mapResourceToEditorCount.get(resource) || 0;
+
+			// Add
 			let newCounter: number;
-			if (remove) {
-				if (counter > 1) {
-					newCounter = counter - 1;
-				}
-			} else {
+			if (!remove) {
 				newCounter = counter + 1;
 			}
 
-			this.mapResourceToEditorCount.set(resource, newCounter);
+			// Delete
+			else {
+				newCounter = counter - 1;
+			}
+
+			if (newCounter > 0) {
+				this.mapResourceToEditorCount.set(resource, newCounter);
+			} else {
+				this.mapResourceToEditorCount.delete(resource);
+			}
 		}
 	}
 
@@ -600,7 +619,7 @@ export class EditorGroup extends Disposable {
 	}
 
 	clone(): EditorGroup {
-		const group = this.instantiationService.createInstance(EditorGroup, void 0);
+		const group = this.instantiationService.createInstance(EditorGroup, undefined);
 		group.editors = this.editors.slice(0);
 		group.mru = this.mru.slice(0);
 		group.mapResourceToEditorCount = this.mapResourceToEditorCount.clone();

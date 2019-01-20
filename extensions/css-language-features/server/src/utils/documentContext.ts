@@ -19,7 +19,7 @@ export function getDocumentContext(documentUri: string, workspaceFolders: Worksp
 				return folderURI;
 			}
 		}
-		return void 0;
+		return undefined;
 	}
 
 	return {

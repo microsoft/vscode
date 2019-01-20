@@ -60,15 +60,15 @@ export class Menubar {
 	private fallbackMenuHandlers: { [id: string]: (menuItem: MenuItem, browserWindow: BrowserWindow, event: Electron.Event) => void } = {};
 
 	constructor(
-		@IUpdateService private updateService: IUpdateService,
+		@IUpdateService private readonly updateService: IUpdateService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IWindowsMainService private windowsMainService: IWindowsMainService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IHistoryMainService private historyMainService: IHistoryMainService,
-		@IStateService private stateService: IStateService,
-		@ILifecycleService private lifecycleService: ILifecycleService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IHistoryMainService private readonly historyMainService: IHistoryMainService,
+		@IStateService private readonly stateService: IStateService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService
 	) {
 		this.menuUpdater = new RunOnceScheduler(() => this.doUpdateMenu(), 0);
 
@@ -610,7 +610,7 @@ export class Menubar {
 	private createMenuItem(arg1: string, arg2: any, arg3?: boolean, arg4?: boolean): Electron.MenuItem {
 		const label = this.mnemonicLabel(arg1);
 		const click: () => void = (typeof arg2 === 'function') ? arg2 : (menuItem: Electron.MenuItem & IMenuItemWithKeybinding, win: Electron.BrowserWindow, event: Electron.Event) => {
-			const userSettingsLabel = menuItem.userSettingsLabel;
+			const userSettingsLabel = menuItem ? menuItem.userSettingsLabel : null;
 			let commandId = arg2;
 			if (Array.isArray(arg2)) {
 				commandId = this.isOptionClick(event) ? arg2[1] : arg2[0]; // support alternative action if we got multiple action Ids and the option key was pressed while invoking
@@ -748,7 +748,7 @@ export class Menubar {
 
 		// Unset bindings if there is none
 		else {
-			options.accelerator = void 0;
+			options.accelerator = undefined;
 		}
 
 		return options;

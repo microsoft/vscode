@@ -71,11 +71,11 @@ export class CommentsModel {
 
 	public updateCommentThreads(event: ICommentThreadChangedEvent): boolean {
 		const { owner, removed, changed, added } = event;
-		if (!this.commentThreadsMap.has(owner)) {
+
+		const threadsForOwner = this.commentThreadsMap.get(owner);
+		if (!threadsForOwner) {
 			return false;
 		}
-
-		let threadsForOwner = this.commentThreadsMap.get(owner);
 
 		removed.forEach(thread => {
 			// Find resource that has the comment thread

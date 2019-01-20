@@ -42,20 +42,20 @@ export class VariablesView extends ViewletPanel {
 	constructor(
 		options: IViewletViewOptions,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IDebugService private debugService: IDebugService,
+		@IDebugService private readonly debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IListService private listService: IListService,
-		@IThemeService private themeService: IThemeService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IListService private readonly listService: IListService,
+		@IThemeService private readonly themeService: IThemeService
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('variablesSection', "Variables Section") }, keybindingService, contextMenuService, configurationService);
 
 		// Use scheduler to prevent unnecessary flashing
 		this.onFocusStackFrameScheduler = new RunOnceScheduler(() => {
 			this.needsRefresh = false;
-			this.tree.refresh().then(() => {
+			this.tree.updateChildren().then(() => {
 				const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 				if (stackFrame) {
 					stackFrame.getScopes().then(scopes => {
@@ -82,14 +82,13 @@ export class VariablesView extends ViewletPanel {
 				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: e => e }
 			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
 
-		// TODO@isidor this is a promise
-		this.tree.setInput(this.debugService.getViewModel());
+		this.tree.setInput(this.debugService.getViewModel()).then(null, onUnexpectedError);
 
 		CONTEXT_VARIABLES_FOCUSED.bindTo(this.contextKeyService.createScoped(treeContainer));
 
 		const collapseAction = new CollapseAction2(this.tree, true, 'explorer-action collapse-explorer');
 		this.toolbar.setActions([collapseAction])();
-		this.tree.refresh();
+		this.tree.updateChildren();
 
 		this.disposables.push(this.debugService.getViewModel().onDidFocusStackFrame(sf => {
 			if (!this.isBodyVisible()) {
@@ -102,13 +101,18 @@ export class VariablesView extends ViewletPanel {
 			const timeout = sf.explicit ? 0 : undefined;
 			this.onFocusStackFrameScheduler.schedule(timeout);
 		}));
-		this.disposables.push(variableSetEmitter.event(() => this.tree.refresh()));
+		this.disposables.push(variableSetEmitter.event(() => this.tree.updateChildren()));
 		this.disposables.push(this.tree.onMouseDblClick(e => this.onMouseDblClick(e)));
 		this.disposables.push(this.tree.onContextMenu(e => this.onContextMenu(e)));
 
 		this.disposables.push(this.onDidChangeBodyVisibility(visible => {
 			if (visible && this.needsRefresh) {
 				this.onFocusStackFrameScheduler.schedule();
+			}
+		}));
+		this.disposables.push(this.debugService.getViewModel().onDidSelectExpression(e => {
+			if (e instanceof Variable) {
+				this.tree.refresh(e);
 			}
 		}));
 	}

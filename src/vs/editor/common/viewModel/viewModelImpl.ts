@@ -537,8 +537,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 
 	public invalidateOverviewRulerColorCache(): void {
 		const decorations = this.model.getOverviewRulerDecorations();
-		for (let i = 0, len = decorations.length; i < len; i++) {
-			const decoration = decorations[i];
+		for (const decoration of decorations) {
 			const opts = <ModelDecorationOverviewRulerOptions>decoration.options.overviewRuler;
 			if (opts) {
 				opts.invalidateCachedColor();
@@ -611,8 +610,8 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		}
 
 		let result: string[] = [];
-		for (let i = 0; i < nonEmptyRanges.length; i++) {
-			result.push(this.getValueInRange(nonEmptyRanges[i], forceCRLF ? EndOfLinePreference.CRLF : EndOfLinePreference.TextDefined));
+		for (const nonEmptyRange of nonEmptyRanges) {
+			result.push(this.getValueInRange(nonEmptyRange, forceCRLF ? EndOfLinePreference.CRLF : EndOfLinePreference.TextDefined));
 		}
 		return result.length === 1 ? result[0] : result;
 	}

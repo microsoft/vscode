@@ -9,7 +9,7 @@ import { assign } from 'vs/base/common/objects';
 import { Event, Emitter } from 'vs/base/common/event';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { PagedModel, IPagedModel, IPager, DelayedPagedModel } from 'vs/base/common/paging';
-import { SortBy, SortOrder, IQueryOptions, LocalExtensionType, IExtensionTipsService, IExtensionRecommendation } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { SortBy, SortOrder, IQueryOptions, IExtensionTipsService, IExtensionRecommendation } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -42,6 +42,7 @@ import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { getKeywordsForExtension } from 'vs/workbench/parts/extensions/electron-browser/extensionsUtils';
 import { IAction } from 'vs/base/common/actions';
+import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 
 class ExtensionsViewState extends Disposable implements IExtensionsViewState {
 
@@ -74,16 +75,16 @@ export class ExtensionsListView extends ViewletPanel {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
-		@IThemeService private themeService: IThemeService,
-		@IExtensionService private extensionService: IExtensionService,
+		@IThemeService private readonly themeService: IThemeService,
+		@IExtensionService private readonly extensionService: IExtensionService,
 		@IExtensionsWorkbenchService protected extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IEditorService private editorService: IEditorService,
+		@IEditorService private readonly editorService: IEditorService,
 		@IExtensionTipsService protected tipsService: IExtensionTipsService,
-		@IModeService private modeService: IModeService,
-		@ITelemetryService private telemetryService: ITelemetryService,
+		@IModeService private readonly modeService: IModeService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
-		@IExperimentService private experimentService: IExperimentService
+		@IExperimentService private readonly experimentService: IExperimentService
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: options.title }, keybindingService, contextMenuService, configurationService);
 	}
@@ -214,7 +215,7 @@ export class ExtensionsListView extends ViewletPanel {
 			let result = await this.extensionsWorkbenchService.queryLocal();
 
 			result = result
-				.filter(e => e.type === LocalExtensionType.System && (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1));
+				.filter(e => e.type === ExtensionType.System && (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1));
 
 			if (showThemesOnly) {
 				const themesExtensions = result.filter(e => {
@@ -231,7 +232,7 @@ export class ExtensionsListView extends ViewletPanel {
 						&& e.local.manifest.contributes
 						&& Array.isArray(e.local.manifest.contributes.grammars)
 						&& e.local.manifest.contributes.grammars.length
-						&& e.local.identifier.id !== 'git';
+						&& e.local.identifier.id !== 'vscode.git';
 				});
 				return this.getPagedModel(this.sortExtensions(basics, options));
 			}
@@ -239,7 +240,7 @@ export class ExtensionsListView extends ViewletPanel {
 				const others = result.filter(e => {
 					return e.local.manifest
 						&& e.local.manifest.contributes
-						&& (!Array.isArray(e.local.manifest.contributes.grammars) || e.local.identifier.id === 'git')
+						&& (!Array.isArray(e.local.manifest.contributes.grammars) || e.local.identifier.id === 'vscode.git')
 						&& !Array.isArray(e.local.manifest.contributes.themes);
 				});
 				return this.getPagedModel(this.sortExtensions(others, options));
@@ -264,7 +265,7 @@ export class ExtensionsListView extends ViewletPanel {
 			let result = await this.extensionsWorkbenchService.queryLocal();
 
 			result = result
-				.filter(e => e.type === LocalExtensionType.User
+				.filter(e => e.type === ExtensionType.User
 					&& (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1)
 					&& (!categories.length || categories.some(category => (e.local.manifest.categories || []).some(c => c.toLowerCase() === category))));
 
@@ -303,7 +304,7 @@ export class ExtensionsListView extends ViewletPanel {
 		if (/@enabled/i.test(value)) {
 			value = value ? value.replace(/@enabled/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase() : '';
 
-			const local = (await this.extensionsWorkbenchService.queryLocal()).filter(e => e.type === LocalExtensionType.User);
+			const local = (await this.extensionsWorkbenchService.queryLocal()).filter(e => e.type === ExtensionType.User);
 			const runningExtensions = await this.extensionService.getExtensions();
 
 			const result = local
@@ -382,10 +383,10 @@ export class ExtensionsListView extends ViewletPanel {
 			options = assign(options, { text: text.substr(0, 350), source: 'searchText' });
 			if (!hasUserDefinedSortOrder) {
 				const searchExperiments = await this.getSearchExperiments();
-				for (let i = 0; i < searchExperiments.length; i++) {
-					if (text.toLowerCase() === searchExperiments[i].action.properties['searchText'] && Array.isArray(searchExperiments[i].action.properties['preferredResults'])) {
-						preferredResults = searchExperiments[i].action.properties['preferredResults'];
-						options.source += `-experiment-${searchExperiments[i].id}`;
+				for (const experiment of searchExperiments) {
+					if (text.toLowerCase() === experiment.action.properties['searchText'] && Array.isArray(experiment.action.properties['preferredResults'])) {
+						preferredResults = experiment.action.properties['preferredResults'];
+						options.source += `-experiment-${experiment.id}`;
 						break;
 					}
 				}
@@ -397,9 +398,9 @@ export class ExtensionsListView extends ViewletPanel {
 		const pager = await this.extensionsWorkbenchService.queryGallery(options);
 
 		let positionToUpdate = 0;
-		for (let i = 0; i < preferredResults.length; i++) {
+		for (const preferredResult of preferredResults) {
 			for (let j = positionToUpdate; j < pager.firstPage.length; j++) {
-				if (areSameExtensions(pager.firstPage[j].identifier, { id: preferredResults[i] })) {
+				if (areSameExtensions(pager.firstPage[j].identifier, { id: preferredResult })) {
 					if (positionToUpdate !== j) {
 						const preferredExtension = pager.firstPage.splice(j, 1)[0];
 						pager.firstPage.splice(positionToUpdate, 0, preferredExtension);
@@ -445,7 +446,7 @@ export class ExtensionsListView extends ViewletPanel {
 		const value = query.value.replace(/@recommended:all/g, '').replace(/@recommended/g, '').trim().toLowerCase();
 
 		return this.extensionsWorkbenchService.queryLocal()
-			.then(result => result.filter(e => e.type === LocalExtensionType.User))
+			.then(result => result.filter(e => e.type === ExtensionType.User))
 			.then(local => {
 				const fileBasedRecommendations = this.tipsService.getFileBasedRecommendations();
 				const othersPromise = this.tipsService.getOtherRecommendations();
@@ -500,7 +501,7 @@ export class ExtensionsListView extends ViewletPanel {
 		const value = query.value.replace(/@recommended/g, '').trim().toLowerCase();
 
 		return this.extensionsWorkbenchService.queryLocal()
-			.then(result => result.filter(e => e.type === LocalExtensionType.User))
+			.then(result => result.filter(e => e.type === ExtensionType.User))
 			.then(local => {
 				let fileBasedRecommendations = this.tipsService.getFileBasedRecommendations();
 				const othersPromise = this.tipsService.getOtherRecommendations();
@@ -640,7 +641,7 @@ export class ExtensionsListView extends ViewletPanel {
 	}
 
 	private openExtension(extension: IExtension): void {
-		this.extensionsWorkbenchService.open(extension).then(void 0, err => this.onError(err));
+		this.extensionsWorkbenchService.open(extension).then(undefined, err => this.onError(err));
 	}
 
 	private pin(): void {
@@ -790,7 +791,7 @@ export class DefaultRecommendedExtensionsView extends ExtensionsListView {
 			return this.showEmptyModel();
 		}
 		const model = await super.show(this.recommendedExtensionsQuery);
-		if (!this.extensionsWorkbenchService.local.some(e => e.type === LocalExtensionType.User)) {
+		if (!this.extensionsWorkbenchService.local.some(e => e.type === ExtensionType.User)) {
 			// This is part of popular extensions view. Collapse if no installed extensions.
 			this.setExpanded(model.length > 0);
 		}

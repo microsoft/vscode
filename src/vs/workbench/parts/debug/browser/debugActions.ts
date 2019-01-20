@@ -79,8 +79,8 @@ export class ConfigureAction extends AbstractDebugAction {
 	constructor(id: string, label: string,
 		@IDebugService debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@INotificationService private notificationService: INotificationService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@INotificationService private readonly notificationService: INotificationService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
 	) {
 		super(id, label, 'debug-action configure', debugService, keybindingService);
 		this.toDispose.push(debugService.getConfigurationManager().onDidSelectConfiguration(() => this.updateClass()));
@@ -122,8 +122,8 @@ export class StartAction extends AbstractDebugAction {
 	constructor(id: string, label: string,
 		@IDebugService debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IHistoryService private historyService: IHistoryService
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IHistoryService private readonly historyService: IHistoryService
 	) {
 		super(id, label, 'debug-action start', debugService, keybindingService);
 
@@ -156,13 +156,14 @@ export class StartAction extends AbstractDebugAction {
 		return false;
 	}
 
-	public static isEnabled(debugService: IDebugService, contextService: IWorkspaceContextService, configName: string) {
+	public static isEnabled(debugService: IDebugService) {
 		const sessions = debugService.getModel().getSessions();
 
 		if (debugService.state === State.Initializing) {
 			return false;
 		}
-		if (contextService && contextService.getWorkbenchState() === WorkbenchState.EMPTY && sessions.length > 0) {
+		if ((sessions.length > 0) && debugService.getConfigurationManager().getLaunches().every(l => l.getConfigurationNames().length === 0)) {
+			// There is already a debug session running and we do not have any launch configuration selected
 			return false;
 		}
 
@@ -170,8 +171,8 @@ export class StartAction extends AbstractDebugAction {
 	}
 
 	// Disabled if the launch drop down shows the launch config that is already running.
-	protected isEnabled(state: State): boolean {
-		return StartAction.isEnabled(this.debugService, this.contextService, this.debugService.getConfigurationManager().selectedConfiguration.name);
+	protected isEnabled(): boolean {
+		return StartAction.isEnabled(this.debugService);
 	}
 }
 
@@ -194,7 +195,7 @@ export class SelectAndStartAction extends AbstractDebugAction {
 		@ICommandService commandService: ICommandService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IFileService fileService: IFileService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService
+		@IQuickOpenService private readonly quickOpenService: IQuickOpenService
 	) {
 		super(id, label, undefined, debugService, keybindingService);
 	}
@@ -212,8 +213,8 @@ export class RestartAction extends AbstractDebugAction {
 	constructor(id: string, label: string,
 		@IDebugService debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IHistoryService private historyService: IHistoryService
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IHistoryService private readonly historyService: IHistoryService
 	) {
 		super(id, label, 'debug-action restart', debugService, keybindingService, 70);
 		this.setLabel(this.debugService.getViewModel().focusedSession);
@@ -246,7 +247,7 @@ export class RestartAction extends AbstractDebugAction {
 		return super.isEnabled(state) && (
 			state === State.Running ||
 			state === State.Stopped ||
-			StartAction.isEnabled(this.debugService, this.contextService, this.debugService.getConfigurationManager().selectedConfiguration.name)
+			StartAction.isEnabled(this.debugService)
 		);
 	}
 }
@@ -717,7 +718,7 @@ export class FocusReplAction extends Action {
 
 
 	constructor(id: string, label: string,
-		@IPanelService private panelService: IPanelService
+		@IPanelService private readonly panelService: IPanelService
 	) {
 		super(id, label);
 	}
@@ -735,7 +736,7 @@ export class FocusSessionAction extends AbstractDebugAction {
 	constructor(id: string, label: string,
 		@IDebugService debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IEditorService private editorService: IEditorService
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		super(id, label, null, debugService, keybindingService, 100);
 	}

@@ -46,7 +46,7 @@ export class CommentsDataSource implements IDataSource {
 	}
 
 	public getParent(tree: ITree, element: any): Promise<void> {
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	public shouldAutoexpand(tree: ITree, element: any): boolean {
@@ -71,7 +71,7 @@ export class CommentsModelRenderer implements ITreeRenderer {
 
 	constructor(
 		private labels: ResourceLabels,
-		@IOpenerService private openerService: IOpenerService
+		@IOpenerService private readonly openerService: IOpenerService
 	) {
 	}
 

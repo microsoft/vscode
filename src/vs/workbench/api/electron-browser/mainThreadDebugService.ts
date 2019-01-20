@@ -31,7 +31,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IDebugService private debugService: IDebugService
+		@IDebugService private readonly debugService: IDebugService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDebugService);
 		this._toDispose = [];
@@ -141,21 +141,20 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 				this.debugService.addFunctionBreakpoint(dto.functionName, dto.id);
 			}
 		}
-		return void 0;
+		return undefined;
 	}
 
 	public $unregisterBreakpoints(breakpointIds: string[], functionBreakpointIds: string[]): Promise<void> {
 		breakpointIds.forEach(id => this.debugService.removeBreakpoints(id));
 		functionBreakpointIds.forEach(id => this.debugService.removeFunctionBreakpoints(id));
-		return void 0;
+		return undefined;
 	}
 
 
-	public $registerDebugConfigurationProvider(debugType: string, hasProvide: boolean, hasResolve: boolean, hasProvideDebugAdapter: boolean, hasTracker: boolean, handle: number): Promise<void> {
+	public $registerDebugConfigurationProvider(debugType: string, hasProvide: boolean, hasResolve: boolean, hasProvideDebugAdapter: boolean, handle: number): Promise<void> {
 
 		const provider = <IDebugConfigurationProvider>{
-			type: debugType,
-			hasTracker: hasTracker
+			type: debugType
 		};
 		if (hasProvide) {
 			provider.provideDebugConfigurations = (folder) => {

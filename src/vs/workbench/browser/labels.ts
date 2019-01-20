@@ -87,12 +87,12 @@ export class ResourceLabels extends Disposable {
 
 	constructor(
 		container: IResourceLabelsContainer,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IExtensionService private extensionService: IExtensionService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IModelService private modelService: IModelService,
-		@IDecorationsService private decorationsService: IDecorationsService,
-		@IThemeService private themeService: IThemeService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IModelService private readonly modelService: IModelService,
+		@IDecorationsService private readonly decorationsService: IDecorationsService,
+		@IThemeService private readonly themeService: IThemeService
 	) {
 		super();
 
@@ -235,12 +235,12 @@ class ResourceLabelWidget extends IconLabel {
 	constructor(
 		container: HTMLElement,
 		options: IIconLabelCreationOptions,
-		@IModeService private modeService: IModeService,
-		@IModelService private modelService: IModelService,
-		@IDecorationsService private decorationsService: IDecorationsService,
-		@ILabelService private labelService: ILabelService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IModeService private readonly modeService: IModeService,
+		@IModelService private readonly modelService: IModelService,
+		@IDecorationsService private readonly decorationsService: IDecorationsService,
+		@ILabelService private readonly labelService: ILabelService,
+		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
 	) {
 		super(container, options);
 	}
@@ -251,7 +251,7 @@ class ResourceLabelWidget extends IconLabel {
 
 			if (visible && this.needsRedraw) {
 				this.render(this.needsRedraw === Redraw.Basic ? false : true);
-				this.needsRedraw = void 0;
+				this.needsRedraw = undefined;
 			}
 		}
 	}
@@ -297,18 +297,18 @@ class ResourceLabelWidget extends IconLabel {
 		this.options = options;
 
 		if (hasResourceChanged) {
-			this.computedPathLabel = void 0; // reset path label due to resource change
+			this.computedPathLabel = undefined; // reset path label due to resource change
 		}
 
 		this.render(hasResourceChanged);
 	}
 
 	private hasResourceChanged(label: IResourceLabelProps, options: IResourceLabelOptions): boolean {
-		const newResource = label ? label.resource : void 0;
-		const oldResource = this.label ? this.label.resource : void 0;
+		const newResource = label ? label.resource : undefined;
+		const oldResource = this.label ? this.label.resource : undefined;
 
-		const newFileKind = options ? options.fileKind : void 0;
-		const oldFileKind = this.options ? this.options.fileKind : void 0;
+		const newFileKind = options ? options.fileKind : undefined;
+		const oldFileKind = this.options ? this.options.fileKind : undefined;
 
 		if (newFileKind !== oldFileKind) {
 			return true; // same resource but different kind (file, folder)
@@ -363,11 +363,11 @@ class ResourceLabelWidget extends IconLabel {
 	}
 
 	clear(): void {
-		this.label = void 0;
-		this.options = void 0;
-		this.lastKnownConfiguredLangId = void 0;
-		this.computedIconClasses = void 0;
-		this.computedPathLabel = void 0;
+		this.label = undefined;
+		this.options = undefined;
+		this.lastKnownConfiguredLangId = undefined;
+		this.computedIconClasses = undefined;
+		this.computedPathLabel = undefined;
 
 		this.setLabel();
 	}
@@ -394,7 +394,7 @@ class ResourceLabelWidget extends IconLabel {
 		}
 
 		if (clearIconCache) {
-			this.computedIconClasses = void 0;
+			this.computedIconClasses = undefined;
 		}
 
 		if (!this.label) {
@@ -461,10 +461,10 @@ class ResourceLabelWidget extends IconLabel {
 	dispose(): void {
 		super.dispose();
 
-		this.label = void 0;
-		this.options = void 0;
-		this.lastKnownConfiguredLangId = void 0;
-		this.computedIconClasses = void 0;
-		this.computedPathLabel = void 0;
+		this.label = undefined;
+		this.options = undefined;
+		this.lastKnownConfiguredLangId = undefined;
+		this.computedIconClasses = undefined;
+		this.computedPathLabel = undefined;
 	}
 }

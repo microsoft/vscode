@@ -53,13 +53,13 @@ export interface IFileIconTheme extends IIconTheme {
 
 export interface IWorkbenchThemeService extends IThemeService {
 	_serviceBrand: any;
-	setColorTheme(themeId: string, settingsTarget: ConfigurationTarget): Promise<IColorTheme>;
+	setColorTheme(themeId: string, settingsTarget: ConfigurationTarget | null): Promise<IColorTheme>;
 	getColorTheme(): IColorTheme;
 	getColorThemes(): Promise<IColorTheme[]>;
 	onDidColorThemeChange: Event<IColorTheme>;
 	restoreColorTheme();
 
-	setFileIconTheme(iconThemeId: string, settingsTarget: ConfigurationTarget): Promise<IFileIconTheme>;
+	setFileIconTheme(iconThemeId: string, settingsTarget: ConfigurationTarget | undefined): Promise<IFileIconTheme>;
 	getFileIconTheme(): IFileIconTheme;
 	getFileIconThemes(): Promise<IFileIconTheme[]>;
 	onDidFileIconThemeChange: Event<IFileIconTheme>;

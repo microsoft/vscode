@@ -268,7 +268,8 @@ function getNodeCachedDir() {
 		}
 
 		jsFlags() {
-			return this.value ? '--nolazy' : undefined;
+			// return this.value ? '--nolazy' : undefined;
+			return undefined;
 		}
 
 		ensureExists() {
@@ -414,7 +415,7 @@ function rimraf(location) {
 		}
 	}, err => {
 		if (err.code === 'ENOENT') {
-			return void 0;
+			return undefined;
 		}
 		throw err;
 	});
@@ -434,20 +435,16 @@ function getUserDefinedLocale() {
 	}
 
 	const localeConfig = path.join(userDataPath, 'User', 'locale.json');
-	return exists(localeConfig).then((result) => {
-		if (result) {
-			return bootstrap.readFile(localeConfig).then((content) => {
-				content = stripComments(content);
-				try {
-					const value = JSON.parse(content).locale;
-					return value && typeof value === 'string' ? value.toLowerCase() : undefined;
-				} catch (e) {
-					return undefined;
-				}
-			});
-		} else {
+	return bootstrap.readFile(localeConfig).then((content) => {
+		content = stripComments(content);
+		try {
+			const value = JSON.parse(content).locale;
+			return value && typeof value === 'string' ? value.toLowerCase() : undefined;
+		} catch (e) {
 			return undefined;
 		}
+	}, () => {
+		return undefined;
 	});
 }
 

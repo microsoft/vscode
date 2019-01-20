@@ -43,7 +43,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 	private sideBarFocusContextKey: IContextKey<boolean>;
 	private activeViewletContextKey: IContextKey<string>;
 	private blockOpeningViewlet: boolean;
-	private _onDidViewletEnable = new Emitter<{ id: string, enabled: boolean }>();
+	private _onDidViewletDeregister = this._register(new Emitter<ViewletDescriptor>());
 
 	constructor(
 		id: string,
@@ -56,7 +56,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IExtensionService private extensionService: IExtensionService
+		@IExtensionService private readonly extensionService: IExtensionService
 	) {
 		super(
 			notificationService,
@@ -90,10 +90,17 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 				this.activeViewletContextKey.reset();
 			}
 		}));
+		this._register(this.registry.onDidDeregister(async (viewletDescriptor: ViewletDescriptor) => {
+			if (this.getActiveViewlet().getId() === viewletDescriptor.id) {
+				await this.openViewlet(this.getDefaultViewletId());
+			}
+			this.removeComposite(viewletDescriptor.id);
+			this._onDidViewletDeregister.fire(viewletDescriptor);
+		}));
 	}
 
 	get onDidViewletRegister(): Event<ViewletDescriptor> { return <Event<ViewletDescriptor>>this.viewletRegistry.onDidRegister; }
-	get onDidViewletEnablementChange(): Event<{ id: string, enabled: boolean }> { return this._onDidViewletEnable.event; }
+	get onDidViewletDeregister(): Event<ViewletDescriptor> { return this._onDidViewletDeregister.event; }
 
 	get onDidViewletOpen(): Event<IViewlet> {
 		return Event.map(this._onDidCompositeOpen.event, compositeEvent => <IViewlet>compositeEvent.composite);
@@ -167,15 +174,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 		this.hideActiveComposite();
 	}
 
-	setViewletEnablement(id: string, enabled: boolean): void {
-		const descriptor = this.getAllViewlets().filter(desc => desc.id === id).pop();
-		if (descriptor && descriptor.enabled !== enabled) {
-			descriptor.enabled = enabled;
-			this._onDidViewletEnable.fire({ id, enabled });
-		}
-	}
-
-	openViewlet(id: string, focus?: boolean): Promise<IViewlet> {
+	openViewlet(id: string, focus?: boolean): Promise<IViewlet | null> {
 		if (this.getViewlet(id)) {
 			return Promise.resolve(this.doOpenViewlet(id, focus));
 		}
@@ -189,13 +188,8 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 	}
 
 	getViewlets(): ViewletDescriptor[] {
-		return this.getAllViewlets()
-			.filter(v => v.enabled);
-	}
-
-	getAllViewlets(): ViewletDescriptor[] {
 		return this.viewletRegistry.getViewlets()
-			.sort((v1, v2) => v1.order - v2.order);
+			.sort((v1, v2) => v1.order! - v2.order!);
 	}
 
 	getDefaultViewletId(): string {
@@ -206,7 +200,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 		return this.getViewlets().filter(viewlet => viewlet.id === id)[0];
 	}
 
-	private doOpenViewlet(id: string, focus?: boolean): Viewlet {
+	private doOpenViewlet(id: string, focus?: boolean): Viewlet | null {
 		if (this.blockOpeningViewlet) {
 			return null; // Workaround against a potential race condition
 		}
@@ -253,8 +247,8 @@ class FocusSideBarAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IViewletService private viewletService: IViewletService,
-		@IPartService private partService: IPartService
+		@IViewletService private readonly viewletService: IViewletService,
+		@IPartService private readonly partService: IPartService
 	) {
 		super(id, label);
 	}

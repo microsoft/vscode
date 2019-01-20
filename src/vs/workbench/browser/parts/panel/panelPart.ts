@@ -70,7 +70,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ILifecycleService private lifecycleService: ILifecycleService
+		@ILifecycleService private readonly lifecycleService: ILifecycleService
 	) {
 		super(
 			notificationService,
@@ -146,6 +146,10 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		this._register(this.onDidPanelClose(this._onDidPanelClose, this));
 
 		this._register(this.registry.onDidRegister(panelDescriptor => this.compositeBar.addComposite(panelDescriptor)));
+		this._register(this.registry.onDidDeregister(panelDescriptor => {
+			this.compositeBar.hideComposite(panelDescriptor.id);
+			this.removeComposite(panelDescriptor.id);
+		}));
 
 		// Activate panel action on opening of a panel
 		this._register(this.onDidPanelOpen(({ panel }) => {
@@ -220,13 +224,8 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	}
 
 	getPanels(): PanelDescriptor[] {
-		return this.getAllPanels()
-			.filter(p => p.enabled)
+		return Registry.as<PanelRegistry>(PanelExtensions.Panels).getPanels()
 			.sort((v1, v2) => v1.order - v2.order);
-	}
-
-	private getAllPanels() {
-		return Registry.as<PanelRegistry>(PanelExtensions.Panels).getPanels();
 	}
 
 	getPinnedPanels(): PanelDescriptor[] {
@@ -234,18 +233,6 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		return this.getPanels()
 			.filter(p => pinnedCompositeIds.indexOf(p.id) !== -1)
 			.sort((p1, p2) => pinnedCompositeIds.indexOf(p1.id) - pinnedCompositeIds.indexOf(p2.id));
-	}
-
-	setPanelEnablement(id: string, enabled: boolean): void {
-		const descriptor = Registry.as<PanelRegistry>(PanelExtensions.Panels).getPanels().filter(p => p.id === id).pop();
-		if (descriptor && descriptor.enabled !== enabled) {
-			descriptor.enabled = enabled;
-			if (enabled) {
-				this.compositeBar.addComposite(descriptor);
-			} else {
-				this.removeComposite(id);
-			}
-		}
 	}
 
 	protected getActions(): IAction[] {
@@ -324,14 +311,17 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		return compositeActions;
 	}
 
-	private removeComposite(compositeId: string): void {
-		this.compositeBar.hideComposite(compositeId);
-		const compositeActions = this.compositeActions[compositeId];
-		if (compositeActions) {
-			compositeActions.activityAction.dispose();
-			compositeActions.pinnedAction.dispose();
-			delete this.compositeActions[compositeId];
+	protected removeComposite(compositeId: string): boolean {
+		if (super.removeComposite(compositeId)) {
+			const compositeActions = this.compositeActions[compositeId];
+			if (compositeActions) {
+				compositeActions.activityAction.dispose();
+				compositeActions.pinnedAction.dispose();
+				delete this.compositeActions[compositeId];
+			}
+			return true;
 		}
+		return false;
 	}
 
 	private getToolbarWidth(): number {
@@ -378,21 +368,19 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	private saveCachedPanels(): void {
 		const state: ICachedPanel[] = [];
 		const compositeItems = this.compositeBar.getCompositeBarItems();
-		const allPanels = this.getAllPanels();
 		for (const compositeItem of compositeItems) {
-			const panel = allPanels.filter(({ id }) => id === compositeItem.id)[0];
-			if (panel) {
-				state.push({ id: panel.id, pinned: compositeItem && compositeItem.pinned, order: compositeItem ? compositeItem.order : void 0, visible: compositeItem && compositeItem.visible });
-			}
+			state.push({ id: compositeItem.id, pinned: compositeItem.pinned, order: compositeItem.order, visible: compositeItem.visible });
 		}
 		this.cachedPanelsValue = JSON.stringify(state);
 	}
 
 	private getCachedPanels(): ICachedPanel[] {
 		const storedStates = <Array<string | ICachedPanel>>JSON.parse(this.cachedPanelsValue);
+		const registeredPanels = this.getPanels();
 		const cachedPanels = <ICachedPanel[]>storedStates.map(c => {
-			const serialized: ICachedPanel = typeof c === 'string' /* migration from pinned states to composites states */ ? <ICachedPanel>{ id: c, pinned: true, order: void 0, visible: true } : c;
-			serialized.visible = isUndefinedOrNull(serialized.visible) ? true : serialized.visible;
+			const serialized: ICachedPanel = typeof c === 'string' /* migration from pinned states to composites states */ ? <ICachedPanel>{ id: c, pinned: true, order: undefined, visible: true } : c;
+			const registered = registeredPanels.some(p => p.id === serialized.id);
+			serialized.visible = registered ? isUndefinedOrNull(serialized.visible) ? true : serialized.visible : false;
 			return serialized;
 		});
 		return cachedPanels;

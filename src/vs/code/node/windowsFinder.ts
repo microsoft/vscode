@@ -43,8 +43,7 @@ function findWindowOnFilePath<W extends ISimpleWindow>(windows: W[], fileUri: UR
 
 	// First check for windows with workspaces that have a parent folder of the provided path opened
 	const workspaceWindows = windows.filter(window => !!window.openedWorkspace);
-	for (let i = 0; i < workspaceWindows.length; i++) {
-		const window = workspaceWindows[i];
+	for (const window of workspaceWindows) {
 		const resolvedWorkspace = workspaceResolver(window.openedWorkspace!);
 		if (resolvedWorkspace && resolvedWorkspace.folders.some(folder => isEqualOrParent(fileUri, folder.uri))) {
 			return window;

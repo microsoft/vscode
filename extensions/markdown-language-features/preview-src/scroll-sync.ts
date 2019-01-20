@@ -110,7 +110,8 @@ export function scrollToRevealSourceLine(line: number) {
 		const elementOffset = next.element.getBoundingClientRect().top - previousTop;
 		scrollTo = previousTop + betweenProgress * elementOffset;
 	} else {
-		scrollTo = previousTop;
+		const progressInElement = line - Math.floor(line);
+		scrollTo = previousTop + (rect.height * progressInElement);
 	}
 	window.scroll(window.scrollX, Math.max(1, window.scrollY + scrollTo));
 }

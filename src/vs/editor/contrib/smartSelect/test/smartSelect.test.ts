@@ -15,7 +15,6 @@ import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/jav
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
-import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { BracketSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/bracketSelections';
 import { provideSelectionRanges } from 'vs/editor/contrib/smartSelect/smartSelect';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -25,7 +24,7 @@ class TestTextResourcePropertiesService implements ITextResourcePropertiesServic
 	_serviceBrand: any;
 
 	constructor(
-		@IConfigurationService private configurationService: IConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 	}
 
@@ -66,7 +65,7 @@ suite('SmartSelect', () => {
 
 	setup(() => {
 		const configurationService = new TestConfigurationService();
-		modelService = new ModelServiceImpl(new MarkerService(), configurationService, new TestTextResourcePropertiesService(configurationService));
+		modelService = new ModelServiceImpl(configurationService, new TestTextResourcePropertiesService(configurationService));
 		mode = new MockJSMode();
 	});
 

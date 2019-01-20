@@ -348,7 +348,7 @@ export function matchesFuzzy(word: string, wordToMatchAgainst: string, enableSep
  * powerfull than `matchesFuzzy`
  */
 export function matchesFuzzy2(pattern: string, word: string): IMatch[] | null {
-	let score = fuzzyScore(pattern, pattern.toLowerCase(), 0, word, word.toLowerCase(), 0, false);
+	let score = fuzzyScore(pattern, pattern.toLowerCase(), 0, word, word.toLowerCase(), 0, true);
 	return score ? createMatches(score) : null;
 }
 
@@ -386,7 +386,13 @@ export function createMatches(score: undefined | FuzzyScore): IMatch[] {
 		if (mask > matches) {
 			break;
 		} else if (matches & mask) {
-			res.push({ start: pos, end: pos + 1 });
+			const last = res[res.length - 1];
+
+			if (last && last.end === pos) {
+				last.end = pos + 1;
+			} else {
+				res.push({ start: pos, end: pos + 1 });
+			}
 		}
 	}
 	return res;
@@ -456,6 +462,7 @@ function isSeparatorAtPos(value: string, index: number): boolean {
 		case CharCode.SingleQuote:
 		case CharCode.DoubleQuote:
 		case CharCode.Colon:
+		case CharCode.DollarSign:
 			return true;
 		default:
 			return false;

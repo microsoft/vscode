@@ -43,8 +43,8 @@ export class SideBySideEditor extends BaseEditor {
 	get minimumHeight() { return this.minimumMasterHeight + this.minimumDetailsHeight; }
 	get maximumHeight() { return this.maximumMasterHeight + this.maximumDetailsHeight; }
 
-	protected masterEditor: BaseEditor;
-	protected detailsEditor: BaseEditor;
+	protected masterEditor?: BaseEditor;
+	protected detailsEditor?: BaseEditor;
 
 	private masterEditorContainer: HTMLElement;
 	private detailsEditorContainer: HTMLElement;
@@ -52,13 +52,13 @@ export class SideBySideEditor extends BaseEditor {
 	private splitview: SplitView;
 	private dimension: DOM.Dimension = new DOM.Dimension(0, 0);
 
-	private onDidCreateEditors = this._register(new Emitter<{ width: number; height: number; }>());
-	private _onDidSizeConstraintsChange = this._register(new Relay<{ width: number; height: number; }>());
-	readonly onDidSizeConstraintsChange: Event<{ width: number; height: number; }> = Event.any(this.onDidCreateEditors.event, this._onDidSizeConstraintsChange.event);
+	private onDidCreateEditors = this._register(new Emitter<{ width: number; height: number; } | undefined>());
+	private _onDidSizeConstraintsChange = this._register(new Relay<{ width: number; height: number; } | undefined>());
+	readonly onDidSizeConstraintsChange: Event<{ width: number; height: number; } | undefined> = Event.any(this.onDidCreateEditors.event, this._onDidSizeConstraintsChange.event);
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IInstantiationService private instantiationService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService
 	) {
@@ -141,7 +141,7 @@ export class SideBySideEditor extends BaseEditor {
 		this.splitview.layout(dimension.width);
 	}
 
-	getControl(): IEditorControl {
+	getControl(): IEditorControl | null {
 		if (this.masterEditor) {
 			return this.masterEditor.getControl();
 		}
@@ -149,11 +149,11 @@ export class SideBySideEditor extends BaseEditor {
 		return null;
 	}
 
-	getMasterEditor(): IEditor {
+	getMasterEditor(): IEditor | undefined {
 		return this.masterEditor;
 	}
 
-	getDetailsEditor(): IEditor {
+	getDetailsEditor(): IEditor | undefined {
 		return this.detailsEditor;
 	}
 
@@ -165,11 +165,14 @@ export class SideBySideEditor extends BaseEditor {
 
 			return this.setNewInput(newInput, options, token);
 		}
+		if (!this.detailsEditor || !this.masterEditor) {
+			return Promise.resolve();
+		}
 
 		return Promise.all([
 			this.detailsEditor.setInput(newInput.details, null, token),
 			this.masterEditor.setInput(newInput.master, options, token)]
-		).then(() => void 0);
+		).then(() => undefined);
 	}
 
 	private setNewInput(newInput: SideBySideEditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
@@ -181,7 +184,9 @@ export class SideBySideEditor extends BaseEditor {
 
 	private _createEditor(editorInput: EditorInput, container: HTMLElement): BaseEditor {
 		const descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(editorInput);
-
+		if (!descriptor) {
+			throw new Error('No descriptor for editor found');
+		}
 		const editor = descriptor.instantiate(this.instantiationService);
 		editor.create(container);
 		editor.setVisible(this.isVisible(), this.group);
@@ -198,7 +203,7 @@ export class SideBySideEditor extends BaseEditor {
 			Event.map(master.onDidSizeConstraintsChange, () => undefined)
 		);
 
-		this.onDidCreateEditors.fire();
+		this.onDidCreateEditors.fire(undefined);
 
 		return Promise.all([this.detailsEditor.setInput(detailsInput, null, token), this.masterEditor.setInput(masterInput, options, token)]).then(() => this.focus());
 	}
@@ -214,12 +219,12 @@ export class SideBySideEditor extends BaseEditor {
 	private disposeEditors(): void {
 		if (this.detailsEditor) {
 			this.detailsEditor.dispose();
-			this.detailsEditor = null;
+			this.detailsEditor = undefined;
 		}
 
 		if (this.masterEditor) {
 			this.masterEditor.dispose();
-			this.masterEditor = null;
+			this.masterEditor = undefined;
 		}
 
 		this.detailsEditorContainer.innerHTML = '';

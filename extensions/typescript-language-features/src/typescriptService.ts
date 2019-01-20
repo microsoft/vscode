@@ -19,13 +19,12 @@ export class CancelledResponse {
 	) { }
 }
 
-export class NoContentResponse {
-	public readonly type: 'noContent' = 'noContent';
-}
+export const NoContentResponse = new class { readonly type = 'noContent'; };
+export const LanguageServiceDisabledContentResponse = new class { readonly type = 'languageServiceDisabled'; };
 
-export type ServerResponse<T extends Proto.Response> = T | CancelledResponse | NoContentResponse;
+export type ServerResponse<T extends Proto.Response> = T | CancelledResponse | typeof NoContentResponse | typeof LanguageServiceDisabledContentResponse;
 
-interface TypeScriptRequestTypes {
+export interface TypeScriptRequestTypes {
 	'applyCodeActionCommand': [Proto.ApplyCodeActionCommandRequestArgs, Proto.ApplyCodeActionCommandResponse];
 	'completionEntryDetails': [Proto.CompletionDetailsRequestArgs, Proto.CompletionDetailsResponse];
 	'completionInfo': [Proto.CompletionsRequestArgs, Proto.CompletionInfoResponse];
@@ -112,7 +111,7 @@ export interface ITypeScriptServiceClient {
 	executeWithoutWaitingForResponse(command: 'compilerOptionsForInferredProjects', args: Proto.SetCompilerOptionsForInferredProjectsArgs): void;
 	executeWithoutWaitingForResponse(command: 'reloadProjects', args: null): void;
 
-	executeAsync(command: 'geterr', args: Proto.GeterrRequestArgs, token: vscode.CancellationToken): Promise<any>;
+	executeAsync(command: 'geterr', args: Proto.GeterrRequestArgs, token: vscode.CancellationToken): Promise<ServerResponse<Proto.Response>>;
 
 	/**
 	 * Cancel on going geterr requests and re-queue them after `f` has been evaluated.

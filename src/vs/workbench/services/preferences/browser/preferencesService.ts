@@ -55,21 +55,21 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	private _defaultFolderSettingsContentModel: DefaultSettings;
 
 	constructor(
-		@IEditorService private editorService: IEditorService,
-		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
-		@IFileService private fileService: IFileService,
-		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
-		@INotificationService private notificationService: INotificationService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@ITextModelService private textModelResolverService: ITextModelService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
+		@IFileService private readonly fileService: IFileService,
+		@IWorkspaceConfigurationService private readonly configurationService: IWorkspaceConfigurationService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IModelService private modelService: IModelService,
-		@IJSONEditingService private jsonEditingService: IJSONEditingService,
-		@IModeService private modeService: IModeService,
-		@ILabelService private labelService: ILabelService
+		@IModelService private readonly modelService: IModelService,
+		@IJSONEditingService private readonly jsonEditingService: IJSONEditingService,
+		@IModeService private readonly modeService: IModeService,
+		@ILabelService private readonly labelService: ILabelService
 	) {
 		super();
 		// The default keybindings.json updates based on keyboard layouts, so here we make sure
@@ -268,9 +268,9 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 					return Promise.all([
 						this.editorService.openEditor({ resource: this.defaultKeybindingsResource, options: { pinned: true, preserveFocus: true, revealIfOpened: true }, label: nls.localize('defaultKeybindings', "Default Keybindings"), description: '' }),
 						this.editorService.openEditor({ resource: editableKeybindings, options: { pinned: true, revealIfOpened: true } }, sideEditorGroup.id)
-					]).then(editors => void 0);
+					]).then(editors => undefined);
 				} else {
-					return this.editorService.openEditor({ resource: editableKeybindings, options: { pinned: true, revealIfOpened: true } }).then(() => void 0);
+					return this.editorService.openEditor({ resource: editableKeybindings, options: { pinned: true, revealIfOpened: true } }).then(() => undefined);
 				}
 			});
 		}
@@ -514,13 +514,13 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && target === ConfigurationTarget.WORKSPACE) {
 			const workspaceConfig = this.contextService.getWorkspace().configuration;
 			if (!workspaceConfig) {
-				return Promise.resolve(void 0);
+				return Promise.resolve(undefined);
 			}
 
 			return this.fileService.resolveContent(workspaceConfig)
 				.then(content => {
 					if (Object.keys(parse(content.value)).indexOf('settings') === -1) {
-						return this.jsonEditingService.write(resource, { key: 'settings', value: {} }, true).then(void 0, () => { });
+						return this.jsonEditingService.write(resource, { key: 'settings', value: {} }, true).then(undefined, () => { });
 					}
 					return null;
 				});
@@ -529,9 +529,9 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	private createIfNotExists(resource: URI, contents: string): Promise<any> {
-		return this.fileService.resolveContent(resource, { acceptTextOnly: true }).then(void 0, error => {
+		return this.fileService.resolveContent(resource, { acceptTextOnly: true }).then(undefined, error => {
 			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
-				return this.fileService.updateContent(resource, contents).then(void 0, error => {
+				return this.fileService.updateContent(resource, contents).then(undefined, error => {
 					return Promise.reject(new Error(nls.localize('fail.createSettings', "Unable to create '{0}' ({1}).", this.labelService.getUriLabel(resource, { relative: true }), error)));
 				});
 			}

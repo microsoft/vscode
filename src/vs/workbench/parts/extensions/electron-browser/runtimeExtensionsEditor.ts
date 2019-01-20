@@ -23,7 +23,7 @@ import { ActionBar, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { clipboard } from 'electron';
-import { LocalExtensionType, EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { writeFile } from 'vs/base/node/pfs';
@@ -42,7 +42,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { join } from 'path';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, ExtensionType } from 'vs/platform/extensions/common/extensions';
 
 export const IExtensionHostProfileService = createDecorator<IExtensionHostProfileService>('extensionHostProfileService');
 export const CONTEXT_PROFILE_SESSION_STATE = new RawContextKey<string>('profileSessionState', 'none');
@@ -67,8 +67,8 @@ export interface IExtensionHostProfileService {
 	startProfiling(): void;
 	stopProfiling(): void;
 
-	getUnresponsiveProfile(extensionId: CanonicalExtensionIdentifier): IExtensionHostProfile;
-	setUnresponsiveProfile(extensionId: CanonicalExtensionIdentifier, profile: IExtensionHostProfile): void;
+	getUnresponsiveProfile(extensionId: ExtensionIdentifier): IExtensionHostProfile;
+	setUnresponsiveProfile(extensionId: ExtensionIdentifier, profile: IExtensionHostProfile): void;
 }
 
 interface IExtensionProfileInformation {
@@ -164,7 +164,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 	private _resolveExtensions(): IRuntimeExtension[] {
 		let marketplaceMap: { [id: string]: IExtension; } = Object.create(null);
 		for (let extension of this._extensionsWorkbenchService.local) {
-			marketplaceMap[CanonicalExtensionIdentifier.toKey(extension.identifier.id)] = extension;
+			marketplaceMap[ExtensionIdentifier.toKey(extension.identifier.id)] = extension;
 		}
 
 		let statusMap = this._extensionService.getExtensionsStatus();
@@ -178,10 +178,10 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				const id = this._profileInfo.ids[i];
 				const delta = this._profileInfo.deltas[i];
 
-				let extensionSegments = segments[CanonicalExtensionIdentifier.toKey(id)];
+				let extensionSegments = segments[ExtensionIdentifier.toKey(id)];
 				if (!extensionSegments) {
 					extensionSegments = [];
-					segments[CanonicalExtensionIdentifier.toKey(id)] = extensionSegments;
+					segments[ExtensionIdentifier.toKey(id)] = extensionSegments;
 				}
 
 				extensionSegments.push(currentStartTime);
@@ -196,7 +196,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 			let profileInfo: IExtensionProfileInformation | null = null;
 			if (this._profileInfo) {
-				let extensionSegments = segments[CanonicalExtensionIdentifier.toKey(extensionDescription.identifier)] || [];
+				let extensionSegments = segments[ExtensionIdentifier.toKey(extensionDescription.identifier)] || [];
 				let extensionTotalTime = 0;
 				for (let j = 0, lenJ = extensionSegments.length / 2; j < lenJ; j++) {
 					const startTime = extensionSegments[2 * j];
@@ -212,7 +212,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 			result[i] = {
 				originalIndex: i,
 				description: extensionDescription,
-				marketplaceInfo: marketplaceMap[CanonicalExtensionIdentifier.toKey(extensionDescription.identifier)],
+				marketplaceInfo: marketplaceMap[ExtensionIdentifier.toKey(extensionDescription.identifier)],
 				status: statusMap[extensionDescription.identifier.value],
 				profileInfo: profileInfo,
 				unresponsiveProfile: this._extensionHostProfileService.getUnresponsiveProfile(extensionDescription.identifier)
@@ -476,7 +476,7 @@ export class ReportExtensionIssueAction extends Action {
 	}) {
 		super(ReportExtensionIssueAction._id, ReportExtensionIssueAction._label, 'extension-action report-issue');
 		this.enabled = extension.marketplaceInfo
-			&& extension.marketplaceInfo.type === LocalExtensionType.User
+			&& extension.marketplaceInfo.type === ExtensionType.User
 			&& Boolean(extension.description.repository) && Boolean(extension.description.repository.url);
 
 		const { url, task } = ReportExtensionIssueAction._generateNewIssueUrl(extension);
@@ -499,7 +499,7 @@ export class ReportExtensionIssueAction extends Action {
 	}): { url: string, task?: () => Promise<any> } {
 
 		let task: () => Promise<any>;
-		let baseUrl = extension.marketplaceInfo && extension.marketplaceInfo.type === LocalExtensionType.User && extension.description.repository ? extension.description.repository.url : undefined;
+		let baseUrl = extension.marketplaceInfo && extension.marketplaceInfo.type === ExtensionType.User && extension.description.repository ? extension.description.repository.url : undefined;
 		if (!!baseUrl) {
 			baseUrl = `${baseUrl.indexOf('.git') !== -1 ? baseUrl.substr(0, baseUrl.length - 4) : baseUrl}/issues/new/`;
 		} else {

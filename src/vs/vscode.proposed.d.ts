@@ -16,6 +16,17 @@
 
 declare module 'vscode' {
 
+	//#region Joh - vscode.open
+
+	export namespace window {
+		/**
+		 *
+		 */
+		export function open(uri: Uri): void;
+	}
+
+	//#endregion
+
 	//#region Joh - selection range provider
 
 	export class SelectionRangeKind {
@@ -54,9 +65,6 @@ declare module 'vscode' {
 		/**
 		 * Provide selection ranges starting at a given position. The first range must [contain](#Range.contains)
 		 * position and subsequent ranges must contain the previous range.
-		 * @param document
-		 * @param position
-		 * @param token
 		 */
 		provideSelectionRanges(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<SelectionRange[]>;
 	}
@@ -559,34 +567,12 @@ declare module 'vscode' {
 
 	// deprecated
 
-	export interface DebugAdapterTracker {
-		// VS Code -> Debug Adapter
-		startDebugAdapter?(): void;
-		toDebugAdapter?(message: any): void;
-		stopDebugAdapter?(): void;
-
-		// Debug Adapter -> VS Code
-		fromDebugAdapter?(message: any): void;
-		debugAdapterError?(error: Error): void;
-		debugAdapterExit?(code?: number, signal?: string): void;
-	}
-
 	export interface DebugConfigurationProvider {
 		/**
 		 * Deprecated, use DebugAdapterDescriptorFactory.provideDebugAdapter instead.
 		 * @deprecated Use DebugAdapterDescriptorFactory.createDebugAdapterDescriptor instead
 		 */
 		debugAdapterExecutable?(folder: WorkspaceFolder | undefined, token?: CancellationToken): ProviderResult<DebugAdapterExecutable>;
-
-		/**
-		 * Deprecated, use DebugAdapterTrackerFactory.createDebugAdapterTracker instead.
-		 * @deprecated Use DebugAdapterTrackerFactory.createDebugAdapterTracker instead
-		 *
-		 * The optional method 'provideDebugAdapterTracker' is called at the start of a debug session to provide a tracker that gives access to the communication between VS Code and a Debug Adapter.
-		 * @param session The [debug session](#DebugSession) for which the tracker will be used.
-		 * @param token A cancellation token.
-		 */
-		provideDebugAdapterTracker?(session: DebugSession, workspaceFolder: WorkspaceFolder | undefined, config: DebugConfiguration, token?: CancellationToken): ProviderResult<DebugAdapterTracker>;
 	}
 
 	//#endregion
@@ -1113,18 +1099,25 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	//#region Extension Context
-	export interface ExtensionContext {
-
+	//#region SignatureHelpContext active paramters - mjbvz
+	export interface SignatureHelpContext {
 		/**
-		 * An absolute file path in which the extension can store gloabal state.
-		 * The directory might not exist on disk and creation is
-		 * up to the extension. However, the parent directory is guaranteed to be existent.
+		 * The currently active [`SignatureHelp`](#SignatureHelp).
 		 *
-		 * Use [`globalState`](#ExtensionContext.globalState) to store key value data.
+		 * Will have the [`SignatureHelp.activeSignature`] field updated based on user arrowing through sig help
 		 */
-		globalStoragePath: string;
+		readonly activeSignatureHelp?: SignatureHelp;
+	}
+	//#endregion
 
+	//#region CodeAction.canAutoApply - mjbvz
+	export interface CodeAction {
+		/**
+		 * If the action can be safely automatically applied without the user selecting it from a list.
+		 *
+		 * Set this on quick fixes to indicate that the fix properly addresses the underlying error.
+		 */
+		canAutoApply?: boolean;
 	}
 	//#endregion
 
@@ -1136,4 +1129,5 @@ declare module 'vscode' {
 		terminalGroup?: string;
 	}
 	//#endregion
+
 }

@@ -51,7 +51,7 @@ interface IRelatedInformationTemplateData {
 
 export class MarkersTreeAccessibilityProvider implements IAccessibilityProvider<TreeElement> {
 
-	constructor(@ILabelService private labelService: ILabelService) { }
+	constructor(@ILabelService private readonly labelService: ILabelService) { }
 
 	public getAriaLabel(element: TreeElement): string {
 		if (element instanceof ResourceMarkers) {
@@ -132,8 +132,8 @@ export class ResourceMarkersRenderer implements ITreeRenderer<ResourceMarkers, R
 	constructor(
 		private labels: ResourceLabels,
 		onDidChangeRenderNodeCount: Event<ITreeNode<ResourceMarkers, ResourceMarkersFilterData>>,
-		@IThemeService private themeService: IThemeService,
-		@ILabelService private labelService: ILabelService
+		@IThemeService private readonly themeService: IThemeService,
+		@ILabelService private readonly labelService: ILabelService
 	) {
 		onDidChangeRenderNodeCount(this.onDidChangeRenderNodeCount, this, this.disposables);
 	}
@@ -338,7 +338,7 @@ class MarkerWidget extends Disposable {
 export class RelatedInformationRenderer implements ITreeRenderer<RelatedInformation, RelatedInformationFilterData, IRelatedInformationTemplateData> {
 
 	constructor(
-		@ILabelService private labelService: ILabelService
+		@ILabelService private readonly labelService: ILabelService
 	) { }
 
 	templateId = TemplateId.RelatedInformation;
@@ -549,7 +549,7 @@ export class MarkersViewState extends Disposable {
 		});
 		this.bulkUpdate = false;
 		if (changed) {
-			this._onDidChangeViewState.fire();
+			this._onDidChangeViewState.fire(undefined);
 		}
 	}
 

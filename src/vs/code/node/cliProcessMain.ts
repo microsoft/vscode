@@ -16,7 +16,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { IExtensionManagementService, IExtensionGalleryService, IExtensionManifest, IGalleryExtension, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtensionGalleryService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -35,9 +35,10 @@ import { StateService } from 'vs/platform/state/node/stateService';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { ILogService, getLogLevel } from 'vs/platform/log/common/log';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
-import { areSameExtensions, getGalleryExtensionIdFromLocal, adoptToGalleryExtensionId, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { areSameExtensions, adoptToGalleryExtensionId, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { URI } from 'vs/base/common/uri';
 import { getManifest } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
+import { IExtensionManifest, ExtensionType } from 'vs/platform/extensions/common/extensions';
 
 const notFound = (id: string) => localize('notFound', "Extension '{0}' not found.", id);
 const notInstalled = (id: string) => localize('notInstalled', "Extension '{0}' is not installed.", id);
@@ -58,18 +59,16 @@ export function getIdAndVersion(id: string): [string, string | undefined] {
 	if (matches && matches[1]) {
 		return [adoptToGalleryExtensionId(matches[1]), matches[2]];
 	}
-	return [adoptToGalleryExtensionId(id), void 0];
+	return [adoptToGalleryExtensionId(id), undefined];
 }
 
 
-type Task = { (): Promise<void> };
-
-class Main {
+export class Main {
 
 	constructor(
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
-		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
+		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService
 	) { }
 
 	async run(argv: ParsedArgs): Promise<any> {
@@ -82,7 +81,7 @@ class Main {
 		} else if (argv['install-extension']) {
 			const arg = argv['install-extension'];
 			const args: string[] = typeof arg === 'string' ? [arg] : arg;
-			await this.installExtension(args, argv['force']);
+			await this.installExtensions(args, argv['force']);
 
 		} else if (argv['uninstall-extension']) {
 			const arg = argv['uninstall-extension'];
@@ -96,80 +95,87 @@ class Main {
 	}
 
 	private async listExtensions(showVersions: boolean): Promise<any> {
-		const extensions = await this.extensionManagementService.getInstalled(LocalExtensionType.User);
+		const extensions = await this.extensionManagementService.getInstalled(ExtensionType.User);
 		extensions.forEach(e => console.log(getId(e.manifest, showVersions)));
 	}
 
-	private installExtension(extensions: string[], force: boolean): Promise<any> {
-		const vsixTasks: Task[] = extensions
-			.filter(e => /\.vsix$/i.test(e))
-			.map(id => () => {
-				const extension = path.isAbsolute(id) ? id : path.join(process.cwd(), id);
-
-				return this.validate(extension, force)
-					.then(valid => {
-						if (valid) {
-							return this.extensionManagementService.install(URI.file(extension)).then(() => {
-								console.log(localize('successVsixInstall', "Extension '{0}' was successfully installed!", getBaseLabel(extension)));
-							}, error => {
-								if (isPromiseCanceledError(error)) {
-									console.log(localize('cancelVsixInstall', "Cancelled installing Extension '{0}'.", getBaseLabel(extension)));
-									return null;
-								} else {
-									return Promise.reject(error);
-								}
-							});
-						}
-						return null;
-					});
-			});
-
-		const galleryTasks: Task[] = extensions
-			.filter(e => !/\.vsix$/i.test(e))
-			.map(e => () => {
-				const [id, version] = getIdAndVersion(e);
-				return this.extensionManagementService.getInstalled(LocalExtensionType.User)
-					.then(installed => this.extensionGalleryService.getExtension({ id }, version)
-						.then<IGalleryExtension>(null, err => {
-							if (err.responseText) {
-								try {
-									const response = JSON.parse(err.responseText);
-									return Promise.reject(response.message);
-								} catch (e) {
-									// noop
-								}
-							}
-							return Promise.reject(err);
-						})
-						.then(extension => {
-							if (!extension) {
-								return Promise.reject(new Error(`${notFound(version ? `${id}@${version}` : id)}\n${useId}`));
-							}
-
-							const [installedExtension] = installed.filter(e => areSameExtensions({ id: getGalleryExtensionIdFromLocal(e) }, { id }));
-							if (installedExtension) {
-								if (extension.version !== installedExtension.manifest.version) {
-									if (version || force) {
-										console.log(localize('updateMessage', "Updating the Extension '{0}' to the version {1}", id, extension.version));
-										return this.installFromGallery(id, extension);
-									} else {
-										console.log(localize('forceUpdate', "Extension '{0}' v{1} is already installed, but a newer version {2} is available in the marketplace. Use '--force' option to update to newer version.", id, installedExtension.manifest.version, extension.version));
-										return Promise.resolve(null);
-									}
-								} else {
-									console.log(localize('alreadyInstalled', "Extension '{0}' is already installed.", version ? `${id}@${version}` : id));
-									return Promise.resolve(null);
-								}
-							} else {
-								console.log(localize('foundExtension', "Found '{0}' in the marketplace.", id));
-								return this.installFromGallery(id, extension);
-							}
-
-						}));
-			});
-
-		return sequence([...vsixTasks, ...galleryTasks]);
+	private async installExtensions(extensions: string[], force: boolean): Promise<void> {
+		let failed: string[] = [];
+		for (const extension of extensions) {
+			try {
+				await this.installExtension(extension, force);
+			} catch (err) {
+				console.error(err.message || err.stack || err);
+				failed.push(extension);
+			}
+		}
+		return failed.length ? Promise.reject(localize('installation failed', "Failed Installing Extensions: {0}", failed.join(', '))) : Promise.resolve();
 	}
+
+	private installExtension(extension: string, force: boolean): Promise<any> {
+		if (/\.vsix$/i.test(extension)) {
+			extension = path.isAbsolute(extension) ? extension : path.join(process.cwd(), extension);
+
+			return this.validate(extension, force)
+				.then(valid => {
+					if (valid) {
+						return this.extensionManagementService.install(URI.file(extension)).then(() => {
+							console.log(localize('successVsixInstall', "Extension '{0}' was successfully installed!", getBaseLabel(extension)));
+						}, error => {
+							if (isPromiseCanceledError(error)) {
+								console.log(localize('cancelVsixInstall', "Cancelled installing Extension '{0}'.", getBaseLabel(extension)));
+								return null;
+							} else {
+								return Promise.reject(error);
+							}
+						});
+					}
+					return null;
+				});
+		}
+
+		const [id, version] = getIdAndVersion(extension);
+		return this.extensionManagementService.getInstalled(ExtensionType.User)
+			.then(installed => this.extensionGalleryService.getExtension({ id }, version)
+				.then<IGalleryExtension>(null, err => {
+					if (err.responseText) {
+						try {
+							const response = JSON.parse(err.responseText);
+							return Promise.reject(response.message);
+						} catch (e) {
+							// noop
+						}
+					}
+					return Promise.reject(err);
+				})
+				.then(extension => {
+					if (!extension) {
+						return Promise.reject(new Error(`${notFound(version ? `${id}@${version}` : id)}\n${useId}`));
+					}
+
+					const [installedExtension] = installed.filter(e => areSameExtensions(e.identifier, { id }));
+					if (installedExtension) {
+						if (extension.version !== installedExtension.manifest.version) {
+							if (version || force) {
+								console.log(localize('updateMessage', "Updating the Extension '{0}' to the version {1}", id, extension.version));
+								return this.installFromGallery(id, extension);
+							} else {
+								console.log(localize('forceUpdate', "Extension '{0}' v{1} is already installed, but a newer version {2} is available in the marketplace. Use '--force' option to update to newer version.", id, installedExtension.manifest.version, extension.version));
+								return Promise.resolve(null);
+							}
+						} else {
+							console.log(localize('alreadyInstalled', "Extension '{0}' is already installed.", version ? `${id}@${version}` : id));
+							return Promise.resolve(null);
+						}
+					} else {
+						console.log(localize('foundExtension', "Found '{0}' in the marketplace.", id));
+						return this.installFromGallery(id, extension);
+					}
+
+				}));
+	}
+
+
 
 	private async validate(vsix: string, force: boolean): Promise<boolean> {
 		const manifest = await getManifest(vsix);
@@ -179,11 +185,11 @@ class Main {
 		}
 
 		const extensionIdentifier = { id: getGalleryExtensionId(manifest.publisher, manifest.name) };
-		const installedExtensions = await this.extensionManagementService.getInstalled(LocalExtensionType.User);
-		const newer = installedExtensions.filter(local => areSameExtensions(extensionIdentifier, { id: getGalleryExtensionIdFromLocal(local) }) && semver.gt(local.manifest.version, manifest.version))[0];
+		const installedExtensions = await this.extensionManagementService.getInstalled(ExtensionType.User);
+		const newer = installedExtensions.filter(local => areSameExtensions(extensionIdentifier, local.identifier) && semver.gt(local.manifest.version, manifest.version))[0];
 
 		if (newer && !force) {
-			console.log(localize('forceDowngrade', "A newer version of this extension '{0}' v{1} is already installed. Use '--force' option to downgrade to older version.", newer.galleryIdentifier.id, newer.manifest.version, manifest.version));
+			console.log(localize('forceDowngrade', "A newer version of this extension '{0}' v{1} is already installed. Use '--force' option to downgrade to older version.", newer.identifier.id, newer.manifest.version, manifest.version));
 			return false;
 		}
 
@@ -218,8 +224,8 @@ class Main {
 
 		return sequence(extensions.map(extension => () => {
 			return getExtensionId(extension).then(id => {
-				return this.extensionManagementService.getInstalled(LocalExtensionType.User).then(installed => {
-					const [extension] = installed.filter(e => areSameExtensions({ id: getGalleryExtensionIdFromLocal(e) }, { id }));
+				return this.extensionManagementService.getInstalled(ExtensionType.User).then(installed => {
+					const [extension] = installed.filter(e => areSameExtensions(e.identifier, { id }));
 
 					if (!extension) {
 						return Promise.reject(new Error(`${notInstalled(id)}\n${useId}`));

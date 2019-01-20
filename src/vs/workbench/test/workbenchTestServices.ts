@@ -70,7 +70,7 @@ import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
 import { EditorGroup } from 'vs/workbench/common/editor/editorGroup';
 import { Dimension } from 'vs/base/browser/dom';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
-import { ILabelService, LabelService } from 'vs/platform/label/common/label';
+import { ILabelService } from 'vs/platform/label/common/label';
 import { timeout } from 'vs/base/common/async';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
@@ -78,10 +78,11 @@ import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
-import { CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { LabelService } from 'vs/workbench/services/label/common/labelService';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
-	return instantiationService.createInstance(FileEditorInput, resource, void 0);
+	return instantiationService.createInstance(FileEditorInput, resource, undefined);
 }
 
 export const TestEnvironmentService = new EnvironmentService(parseArgs(process.argv), process.execPath);
@@ -302,16 +303,17 @@ export class TestDecorationsService implements IDecorationsService {
 	_serviceBrand: any;
 	onDidChangeDecorations: Event<IResourceDecorationChangeEvent> = Event.None;
 	registerDecorationsProvider(_provider: IDecorationsProvider): IDisposable { return Disposable.None; }
-	getDecoration(_uri: URI, _includeChildren: boolean, _overwrite?: IDecorationData): IDecoration { return void 0; }
+	getDecoration(_uri: URI, _includeChildren: boolean, _overwrite?: IDecorationData): IDecoration { return undefined; }
 }
 
 export class TestExtensionService implements IExtensionService {
 	_serviceBrand: any;
 	onDidRegisterExtensions: Event<void> = Event.None;
-	onDidChangeExtensionsStatus: Event<CanonicalExtensionIdentifier[]> = Event.None;
+	onDidChangeExtensionsStatus: Event<ExtensionIdentifier[]> = Event.None;
+	onDidChangeExtensions: Event<void> = Event.None;
 	onWillActivateByEvent: Event<IWillActivateEvent> = Event.None;
 	onDidChangeResponsiveChange: Event<IResponsiveStateChangeEvent> = Event.None;
-	activateByEvent(_activationEvent: string): Promise<void> { return Promise.resolve(void 0); }
+	activateByEvent(_activationEvent: string): Promise<void> { return Promise.resolve(undefined); }
 	whenInstalledExtensionsRegistered(): Promise<boolean> { return Promise.resolve(true); }
 	getExtensions(): Promise<IExtensionDescription[]> { return Promise.resolve([]); }
 	getExtension() { return Promise.resolve(undefined); }
@@ -332,7 +334,7 @@ export class TestMenuService implements IMenuService {
 	createMenu(_id: MenuId, _scopedKeybindingService: IContextKeyService): IMenu {
 		return {
 			onDidChange: Event.None,
-			dispose: () => void 0,
+			dispose: () => undefined,
 			getActions: () => []
 		};
 	}
@@ -375,7 +377,7 @@ export class TestHistoryService implements IHistoryService {
 	}
 
 	public getLastActiveFile(_schemeFilter: string): URI {
-		return void 0;
+		return undefined;
 	}
 
 	public openLastEditLocation(): void {
@@ -400,13 +402,13 @@ export class TestFileDialogService implements IFileDialogService {
 	public _serviceBrand: any;
 
 	public defaultFilePath(_schemeFilter: string): URI {
-		return void 0;
+		return undefined;
 	}
 	public defaultFolderPath(_schemeFilter: string): URI {
-		return void 0;
+		return undefined;
 	}
 	public defaultWorkspacePath(_schemeFilter: string): URI {
-		return void 0;
+		return undefined;
 	}
 	public pickFileFolderAndOpen(_options: IPickAndOpenOptions): Promise<any> {
 		return Promise.resolve(0);
@@ -518,7 +520,7 @@ export class TestPartService implements IPartService {
 
 	public addClass(_clazz: string): void { }
 	public removeClass(_clazz: string): void { }
-	public getWorkbenchElement(): HTMLElement { return void 0; }
+	public getWorkbenchElement(): HTMLElement { return undefined; }
 
 	public toggleZenMode(): void { }
 
@@ -542,7 +544,7 @@ export class TestEditorGroupsService implements EditorGroupsServiceImpl {
 	onDidMoveGroup: Event<IEditorGroup> = Event.None;
 
 	orientation: any;
-	whenRestored: Promise<void> = Promise.resolve(void 0);
+	whenRestored: Promise<void> = Promise.resolve(undefined);
 
 	get activeGroup(): IEditorGroup {
 		return this.groups[0];
@@ -557,13 +559,13 @@ export class TestEditorGroupsService implements EditorGroupsServiceImpl {
 	}
 
 	getGroup(identifier: number): IEditorGroup {
-		for (let i = 0; i < this.groups.length; i++) {
-			if (this.groups[i].id === identifier) {
-				return this.groups[i];
+		for (const group of this.groups) {
+			if (group.id === identifier) {
+				return group;
 			}
 		}
 
-		return void 0;
+		return undefined;
 	}
 
 	getLabel(_identifier: number): string {
@@ -613,7 +615,7 @@ export class TestEditorGroup implements IEditorGroupView {
 
 	constructor(public id: number) { }
 
-	group: EditorGroup = void 0;
+	group: EditorGroup = undefined;
 	activeControl: IEditor;
 	activeEditor: IEditorInput;
 	previewEditor: IEditorInput;
@@ -621,7 +623,7 @@ export class TestEditorGroup implements IEditorGroupView {
 	disposed: boolean;
 	editors: ReadonlyArray<IEditorInput> = [];
 	label: string;
-	whenRestored: Promise<void> = Promise.resolve(void 0);
+	whenRestored: Promise<void> = Promise.resolve(undefined);
 	element: HTMLElement;
 	minimumWidth: number;
 	maximumWidth: number;
@@ -724,7 +726,7 @@ export class TestEditorService implements EditorServiceImpl {
 	visibleEditors: ReadonlyArray<IEditorInput> = [];
 
 	overrideOpenEditor(_handler: IOpenEditorOverrideHandler): IDisposable {
-		return toDisposable(() => void 0);
+		return toDisposable(() => undefined);
 	}
 
 	openEditor(_editor: any, _options?: any, _group?: any) {
@@ -740,11 +742,11 @@ export class TestEditorService implements EditorServiceImpl {
 	}
 
 	getOpened(_editor: IEditorInput | IResourceInput | IUntitledResourceInput): IEditorInput {
-		return void 0;
+		return undefined;
 	}
 
 	replaceEditors(_editors: any, _group: any) {
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	invokeWithinEditorContext<T>(fn: (accessor: ServicesAccessor) => T): T {
@@ -926,7 +928,7 @@ export class TestBackupFileService implements IBackupFileService {
 				return this.toBackupResource(resource);
 			}
 
-			return void 0;
+			return undefined;
 		});
 	}
 
@@ -1117,11 +1119,11 @@ export class TestWindowService implements IWindowService {
 	}
 
 	showSaveDialog(_options: Electron.SaveDialogOptions): Promise<string> {
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	showOpenDialog(_options: Electron.OpenDialogOptions): Promise<string[]> {
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	updateTouchBar(_items: ISerializableCommandAction[][]): Promise<void> {
@@ -1129,7 +1131,7 @@ export class TestWindowService implements IWindowService {
 	}
 
 	resolveProxy(url: string): Promise<string | undefined> {
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -1394,7 +1396,7 @@ export class TestWindowsService implements IWindowsService {
 	}
 
 	resolveProxy(windowId: number, url: string): Promise<string | undefined> {
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -1411,7 +1413,7 @@ export class TestTextResourceConfigurationService implements ITextResourceConfig
 
 	getValue<T>(resource: URI, arg2?: any, arg3?: any): T {
 		const position: IPosition = EditorPosition.isIPosition(arg2) ? arg2 : null;
-		const section: string = position ? (typeof arg3 === 'string' ? arg3 : void 0) : (typeof arg2 === 'string' ? arg2 : void 0);
+		const section: string = position ? (typeof arg3 === 'string' ? arg3 : undefined) : (typeof arg2 === 'string' ? arg2 : undefined);
 		return this.configurationService.getValue(section, { resource });
 	}
 }
@@ -1421,7 +1423,7 @@ export class TestTextResourcePropertiesService implements ITextResourcePropertie
 	_serviceBrand: any;
 
 	constructor(
-		@IConfigurationService private configurationService: IConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 	}
 
@@ -1450,9 +1452,9 @@ export class TestViewletService implements IViewletService {
 	_serviceBrand: ServiceIdentifier<any>;
 
 	readonly onDidViewletRegister: Event<ViewletDescriptor> = new Emitter<ViewletDescriptor>().event;
+	readonly onDidViewletDeregister: Event<ViewletDescriptor> = new Emitter<ViewletDescriptor>().event;
 	onDidViewletOpen: Event<IViewlet> = new Emitter<IViewlet>().event;
 	onDidViewletClose: Event<IViewlet> = new Emitter<IViewlet>().event;
-	onDidViewletEnablementChange: Event<{ id: string, enabled: boolean }> = new Emitter<{ id: string, enabled: boolean }>().event;
 
 	openViewlet(_id: string, _focus?: boolean): Promise<IViewlet> { return null; }
 
@@ -1465,8 +1467,6 @@ export class TestViewletService implements IViewletService {
 	getAllViewlets(): ViewletDescriptor[] { return null; }
 
 	getViewlets(): ViewletDescriptor[] { return null; }
-
-	setViewletEnablement(_id: string, _enabled: boolean): void { }
 
 	getProgressIndicator(_id: string): IProgressService { return null; }
 

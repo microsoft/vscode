@@ -5,7 +5,7 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ExtHostContext, MainThreadTreeViewsShape, ExtHostTreeViewsShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
-import { ITreeViewDataProvider, ITreeItem, IViewsService, ITreeView, ViewsRegistry, ICustomViewDescriptor, IRevealOptions } from 'vs/workbench/common/views';
+import { ITreeViewDataProvider, ITreeItem, IViewsService, ITreeView, ViewsRegistry, ITreeViewDescriptor, IRevealOptions } from 'vs/workbench/common/views';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { distinct } from 'vs/base/common/arrays';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -20,8 +20,8 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IViewsService private viewsService: IViewsService,
-		@INotificationService private notificationService: INotificationService
+		@IViewsService private readonly viewsService: IViewsService,
+		@INotificationService private readonly notificationService: INotificationService
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTreeViews);
@@ -54,7 +54,7 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		const dataProvider = this._dataProviders.get(treeViewId);
 		if (viewer && dataProvider) {
 			const itemsToRefresh = dataProvider.getItemsToRefresh(itemsToRefreshByHandle);
-			return viewer.refresh(itemsToRefresh.length ? itemsToRefresh : void 0);
+			return viewer.refresh(itemsToRefresh.length ? itemsToRefresh : undefined);
 		}
 		return null;
 	}
@@ -110,7 +110,7 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 	}
 
 	private getTreeView(treeViewId: string): ITreeView {
-		const viewDescriptor: ICustomViewDescriptor = <ICustomViewDescriptor>ViewsRegistry.getView(treeViewId);
+		const viewDescriptor: ITreeViewDescriptor = <ITreeViewDescriptor>ViewsRegistry.getView(treeViewId);
 		return viewDescriptor ? viewDescriptor.treeView : null;
 	}
 
@@ -139,7 +139,7 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 	}
 
 	getChildren(treeItem?: ITreeItem): Promise<ITreeItem[]> {
-		return Promise.resolve(this._proxy.$getChildren(this.treeViewId, treeItem ? treeItem.handle : void 0)
+		return Promise.resolve(this._proxy.$getChildren(this.treeViewId, treeItem ? treeItem.handle : undefined)
 			.then(
 				children => this.postGetChildren(children),
 				err => {

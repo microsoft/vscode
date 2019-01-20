@@ -16,8 +16,8 @@ export class TerminalLauncher implements ITerminalLauncher {
 	private terminalDisposedListener: IDisposable;
 
 	constructor(
-		@ITerminalService private terminalService: ITerminalService,
-		@IExternalTerminalService private nativeTerminalService: IExternalTerminalService
+		@ITerminalService private readonly terminalService: ITerminalService,
+		@IExternalTerminalService private readonly nativeTerminalService: IExternalTerminalService
 	) {
 	}
 

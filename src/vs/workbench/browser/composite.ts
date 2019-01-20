@@ -215,8 +215,6 @@ export abstract class Composite extends Component implements IComposite {
  */
 export abstract class CompositeDescriptor<T extends Composite> {
 
-	public enabled: boolean = true;
-
 	constructor(
 		private readonly ctor: IConstructorSignature0<T>,
 		public readonly id: string,
@@ -236,6 +234,9 @@ export abstract class CompositeRegistry<T extends Composite> extends Disposable 
 	private readonly _onDidRegister: Emitter<CompositeDescriptor<T>> = this._register(new Emitter<CompositeDescriptor<T>>());
 	get onDidRegister(): Event<CompositeDescriptor<T>> { return this._onDidRegister.event; }
 
+	private readonly _onDidDeregister: Emitter<CompositeDescriptor<T>> = this._register(new Emitter<CompositeDescriptor<T>>());
+	get onDidDeregister(): Event<CompositeDescriptor<T>> { return this._onDidDeregister.event; }
+
 	private composites: CompositeDescriptor<T>[] = [];
 
 	protected registerComposite(descriptor: CompositeDescriptor<T>): void {
@@ -247,6 +248,16 @@ export abstract class CompositeRegistry<T extends Composite> extends Disposable 
 		this._onDidRegister.fire(descriptor);
 	}
 
+	protected deregisterComposite(id: string): void {
+		const descriptor = this.compositeById(id);
+		if (descriptor === null) {
+			return;
+		}
+
+		this.composites.splice(this.composites.indexOf(descriptor), 1);
+		this._onDidDeregister.fire(descriptor);
+	}
+
 	getComposite(id: string): CompositeDescriptor<T> | null {
 		return this.compositeById(id);
 	}
@@ -256,9 +267,9 @@ export abstract class CompositeRegistry<T extends Composite> extends Disposable 
 	}
 
 	private compositeById(id: string): CompositeDescriptor<T> | null {
-		for (let i = 0; i < this.composites.length; i++) {
-			if (this.composites[i].id === id) {
-				return this.composites[i];
+		for (const composite of this.composites) {
+			if (composite.id === id) {
+				return composite;
 			}
 		}
 

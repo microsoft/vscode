@@ -318,7 +318,7 @@ export function timeout(millis: number, token?: CancellationToken): CancelablePr
 	});
 }
 
-export function disposableTimeout(handler: Function, timeout = 0): IDisposable {
+export function disposableTimeout(handler: () => void, timeout = 0): IDisposable {
 	const timer = setTimeout(handler, timeout);
 	return {
 		dispose() {
@@ -712,8 +712,8 @@ declare function cancelIdleCallback(handle: number): void;
 			didTimeout: true,
 			timeRemaining() { return 15; }
 		});
-		runWhenIdle = (runner, timeout = 0) => {
-			let handle = setTimeout(() => runner(dummyIdle), timeout);
+		runWhenIdle = (runner) => {
+			let handle = setTimeout(() => runner(dummyIdle));
 			let disposed = false;
 			return {
 				dispose() {

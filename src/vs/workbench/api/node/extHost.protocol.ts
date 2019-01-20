@@ -21,7 +21,7 @@ import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands
 import { ConfigurationTarget, IConfigurationData, IConfigurationModel } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { FileChangeType, FileDeleteOptions, FileOverwriteOptions, FileSystemProviderCapabilities, FileType, FileWriteOptions, IStat, IWatchOptions } from 'vs/platform/files/common/files';
-import { LabelRules } from 'vs/platform/label/common/label';
+import { ResourceLabelFormatter } from 'vs/platform/label/common/label';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
 import { IPickOptions, IQuickInputButton, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
@@ -43,7 +43,7 @@ import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import * as vscode from 'vscode';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { ResolvedAuthority } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -67,7 +67,6 @@ export interface IInitData {
 	environment: IEnvironment;
 	workspace: IWorkspaceData;
 	extensions: IExtensionDescription[];
-	configuration: IConfigurationInitData;
 	telemetryInfo: ITelemetryInfo;
 	logLevel: LogLevel;
 	logsLocation: URI;
@@ -114,7 +113,7 @@ export interface CommentProviderFeatures {
 export interface MainThreadCommentsShape extends IDisposable {
 	$registerDocumentCommentProvider(handle: number, features: CommentProviderFeatures): void;
 	$unregisterDocumentCommentProvider(handle: number): void;
-	$registerWorkspaceCommentProvider(handle: number, extensionId: CanonicalExtensionIdentifier): void;
+	$registerWorkspaceCommentProvider(handle: number, extensionId: ExtensionIdentifier): void;
 	$unregisterWorkspaceCommentProvider(handle: number): void;
 	$onDidCommentThreadsChange(handle: number, event: modes.CommentThreadChangedEvent): void;
 }
@@ -344,7 +343,7 @@ export interface MainThreadProgressShape extends IDisposable {
 }
 
 export interface MainThreadTerminalServiceShape extends IDisposable {
-	$createTerminal(name?: string, shellPath?: string, shellArgs?: string[], cwd?: string | URI, env?: { [key: string]: string }, waitOnExit?: boolean): Promise<{ id: number, name: string }>;
+	$createTerminal(name?: string, shellPath?: string, shellArgs?: string[], cwd?: string | URI, env?: { [key: string]: string }, waitOnExit?: boolean, strictEnv?: boolean): Promise<{ id: number, name: string }>;
 	$createTerminalRenderer(name: string): Promise<number>;
 	$dispose(terminalId: number): void;
 	$hide(terminalId: number): void;
@@ -440,7 +439,7 @@ export interface MainThreadQuickOpenShape extends IDisposable {
 }
 
 export interface MainThreadStatusBarShape extends IDisposable {
-	$setEntry(id: number, extensionId: CanonicalExtensionIdentifier, text: string, tooltip: string, command: string, color: string | ThemeColor, alignment: MainThreadStatusBarAlignment, priority: number): void;
+	$setEntry(id: number, extensionId: ExtensionIdentifier, text: string, tooltip: string, command: string, color: string | ThemeColor, alignment: MainThreadStatusBarAlignment, priority: number): void;
 	$dispose(id: number): void;
 }
 
@@ -461,7 +460,7 @@ export interface WebviewPanelShowOptions {
 }
 
 export interface MainThreadWebviewsShape extends IDisposable {
-	$createWebviewPanel(handle: WebviewPanelHandle, viewType: string, title: string, showOptions: WebviewPanelShowOptions, options: vscode.WebviewPanelOptions & vscode.WebviewOptions, extensionId: CanonicalExtensionIdentifier, extensionLocation: UriComponents): void;
+	$createWebviewPanel(handle: WebviewPanelHandle, viewType: string, title: string, showOptions: WebviewPanelShowOptions, options: vscode.WebviewPanelOptions & vscode.WebviewOptions, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): void;
 	$disposeWebview(handle: WebviewPanelHandle): void;
 	$reveal(handle: WebviewPanelHandle, showOptions: WebviewPanelShowOptions): void;
 	$setTitle(handle: WebviewPanelHandle, value: string): void;
@@ -488,7 +487,7 @@ export interface ExtHostWebviewsShape {
 }
 
 export interface MainThreadUrlsShape extends IDisposable {
-	$registerUriHandler(handle: number, extensionId: CanonicalExtensionIdentifier): Promise<void>;
+	$registerUriHandler(handle: number, extensionId: ExtensionIdentifier): Promise<void>;
 	$unregisterUriHandler(handle: number): Promise<void>;
 }
 
@@ -513,7 +512,7 @@ export interface IFileChangeDto {
 export interface MainThreadFileSystemShape extends IDisposable {
 	$registerFileSystemProvider(handle: number, scheme: string, capabilities: FileSystemProviderCapabilities): void;
 	$unregisterProvider(handle: number): void;
-	$setUriFormatter(scheme: string, formatter: LabelRules): void;
+	$setUriFormatter(formatter: ResourceLabelFormatter): void;
 	$onFileSystemChange(handle: number, resource: IFileChangeDto[]): void;
 }
 
@@ -538,11 +537,11 @@ export interface MainThreadTaskShape extends IDisposable {
 
 export interface MainThreadExtensionServiceShape extends IDisposable {
 	$localShowMessage(severity: Severity, msg: string): void;
-	$onWillActivateExtension(extensionId: CanonicalExtensionIdentifier): void;
-	$onDidActivateExtension(extensionId: CanonicalExtensionIdentifier, startup: boolean, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationEvent: string): void;
-	$onExtensionActivationFailed(extensionId: CanonicalExtensionIdentifier): void;
-	$onExtensionRuntimeError(extensionId: CanonicalExtensionIdentifier, error: SerializedError): void;
-	$addMessage(extensionId: CanonicalExtensionIdentifier, severity: Severity, message: string): void;
+	$onWillActivateExtension(extensionId: ExtensionIdentifier): void;
+	$onDidActivateExtension(extensionId: ExtensionIdentifier, startup: boolean, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationEvent: string): void;
+	$onExtensionActivationFailed(extensionId: ExtensionIdentifier): void;
+	$onExtensionRuntimeError(extensionId: ExtensionIdentifier, error: SerializedError): void;
+	$addMessage(extensionId: ExtensionIdentifier, severity: Severity, message: string): void;
 }
 
 export interface SCMProviderFeatures {
@@ -606,7 +605,7 @@ export interface MainThreadDebugServiceShape extends IDisposable {
 	$acceptDAMessage(handle: number, message: DebugProtocol.ProtocolMessage): void;
 	$acceptDAError(handle: number, name: string, message: string, stack: string): void;
 	$acceptDAExit(handle: number, code: number, signal: string): void;
-	$registerDebugConfigurationProvider(type: string, hasProvideMethod: boolean, hasResolveMethod: boolean, hasProvideDaMethod: boolean, hasProvideTrackerMethod: boolean, handle: number): Promise<void>;
+	$registerDebugConfigurationProvider(type: string, hasProvideMethod: boolean, hasResolveMethod: boolean, hasProvideDaMethod: boolean, handle: number): Promise<void>;
 	$registerDebugAdapterDescriptorFactory(type: string, handle: number): Promise<void>;
 	$registerDebugAdapterTrackerFactory(type: string, handle: number);
 	$unregisterDebugConfigurationProvider(handle: number): void;
@@ -622,6 +621,7 @@ export interface MainThreadDebugServiceShape extends IDisposable {
 
 export interface MainThreadWindowShape extends IDisposable {
 	$getWindowVisibility(): Promise<boolean>;
+	$openUri(uri: UriComponents): Promise<any>;
 }
 
 // -- extension host
@@ -632,7 +632,8 @@ export interface ExtHostCommandsShape {
 }
 
 export interface ExtHostConfigurationShape {
-	$acceptConfigurationChanged(data: IConfigurationData, eventData: IWorkspaceConfigurationChangeEventData): void;
+	$initializeConfiguration(data: IConfigurationInitData): void;
+	$acceptConfigurationChanged(data: IConfigurationInitData, eventData: IWorkspaceConfigurationChangeEventData): void;
 }
 
 export interface ExtHostDiagnosticsShape {
@@ -725,8 +726,8 @@ export interface ExtHostFileSystemShape {
 	$unwatch(handle: number, session: number): void;
 	$open(handle: number, resource: UriComponents): Promise<number>;
 	$close(handle: number, fd: number): Promise<void>;
-	$read(handle: number, fd: number, pos: number, data: Buffer, offset: number, length: number): Promise<number>;
-	$write(handle: number, fd: number, pos: number, data: Buffer, offset: number, length: number): Promise<number>;
+	$read(handle: number, fd: number, pos: number, length: number): Promise<Buffer>;
+	$write(handle: number, fd: number, pos: number, data: Buffer): Promise<number>;
 }
 
 export interface ExtHostSearchShape {
@@ -737,8 +738,15 @@ export interface ExtHostSearchShape {
 
 export interface ExtHostExtensionServiceShape {
 	$resolveAuthority(remoteAuthority: string): Promise<ResolvedAuthority>;
-	$startExtensionHost(enabledExtensionIds: CanonicalExtensionIdentifier[]): Promise<void>;
+	$startExtensionHost(enabledExtensionIds: ExtensionIdentifier[]): Promise<void>;
 	$activateByEvent(activationEvent: string): Promise<void>;
+	$activate(extensionId: ExtensionIdentifier, activationEvent: string): Promise<void>;
+
+	$deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void>;
+
+	$test_latency(n: number): Promise<number>;
+	$test_up(b: Buffer): Promise<number>;
+	$test_down(size: number): Promise<Buffer>;
 }
 
 export interface FileSystemEvents {
@@ -800,10 +808,10 @@ export interface LocationDto {
 }
 
 export interface DefinitionLinkDto {
-	origin?: IRange;
+	originSelectionRange?: IRange;
 	uri: UriComponents;
 	range: IRange;
-	selectionRange?: IRange;
+	targetSelectionRange?: IRange;
 }
 
 export interface WorkspaceSymbolDto extends IdObject {
@@ -856,6 +864,7 @@ export interface CodeActionDto {
 	diagnostics?: IMarkerData[];
 	command?: modes.Command;
 	kind?: string;
+	canAutoApply?: boolean;
 }
 
 export interface ExtHostLanguageFeaturesShape {

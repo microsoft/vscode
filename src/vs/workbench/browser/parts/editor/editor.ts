@@ -30,6 +30,7 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	highlightModifiedTabs: false,
 	tabCloseButton: 'right',
 	tabSizing: 'fit',
+	closeTabsInMRUOrder: true,
 	showIcons: true,
 	enablePreview: true,
 	openPositioning: 'right',
@@ -119,7 +120,7 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 }
 
 export function getActiveTextEditorOptions(group: IEditorGroup, expectedActiveEditor?: IEditorInput, presetOptions?: EditorOptions): EditorOptions {
-	const activeGroupCodeEditor = group.activeControl ? getCodeEditor(group.activeControl.getControl()) : void 0;
+	const activeGroupCodeEditor = group.activeControl ? getCodeEditor(group.activeControl.getControl()) : undefined;
 	if (activeGroupCodeEditor) {
 		if (!expectedActiveEditor || expectedActiveEditor.matches(group.activeEditor)) {
 			return TextEditorOptions.fromEditor(activeGroupCodeEditor, presetOptions);

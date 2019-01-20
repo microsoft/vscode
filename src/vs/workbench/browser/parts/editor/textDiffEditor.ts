@@ -87,12 +87,12 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 
 				// Check for cancellation
 				if (token.isCancellationRequested) {
-					return void 0;
+					return undefined;
 				}
 
 				// Assert Model Instance
 				if (!(resolvedModel instanceof TextDiffEditorModel) && this.openAsBinary(input, options)) {
-					return void 0;
+					return undefined;
 				}
 
 				// Set Editor Model

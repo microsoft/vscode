@@ -119,8 +119,7 @@ export class LanguageFeatureRegistry<T> {
 
 		this._updateScores(model);
 
-		for (let from = 0; from < this._entries.length; from++) {
-			let entry = this._entries[from];
+		for (const entry of this._entries) {
 			if (entry._score > 0) {
 				callback(entry);
 			}

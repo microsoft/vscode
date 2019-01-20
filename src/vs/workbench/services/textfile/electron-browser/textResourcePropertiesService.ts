@@ -19,10 +19,10 @@ export class TextResourcePropertiesService implements ITextResourcePropertiesSer
 	private remoteEnvironment: IRemoteAgentEnvironment | null = null;
 
 	constructor(
-		@IConfigurationService private configurationService: IConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@IWindowService private windowService: IWindowService,
-		@IStorageService private storageService: IStorageService
+		@IWindowService private readonly windowService: IWindowService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		const remoteAgentConnection = remoteAgentService.getConnection();
 		if (remoteAgentConnection) {

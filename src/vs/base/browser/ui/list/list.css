@@ -53,3 +53,12 @@
 .monaco-list.element-focused, .monaco-list.selection-single, .monaco-list.selection-multiple {
 	outline: 0 !important;
 }
+
+/* Dnd */
+.monaco-list-drag-image {
+	display: inline-block;
+	padding: 1px 7px;
+	border-radius: 10px;
+	font-size: 12px;
+	position: absolute;
+}

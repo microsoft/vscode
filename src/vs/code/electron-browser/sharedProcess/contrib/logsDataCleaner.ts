@@ -12,7 +12,7 @@ import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 export class LogsDataCleaner extends Disposable {
 
 	constructor(
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
 		super();
 
@@ -21,7 +21,7 @@ export class LogsDataCleaner extends Disposable {
 
 	private cleanUpOldLogsSoon(): void {
 		let handle: any = setTimeout(() => {
-			handle = void 0;
+			handle = undefined;
 
 			const currentLog = basename(this.environmentService.logsPath);
 			const logsRoot = dirname(this.environmentService.logsPath);

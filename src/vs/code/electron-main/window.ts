@@ -80,13 +80,13 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	constructor(
 		config: IWindowCreationOptions,
-		@ILogService private logService: ILogService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IStateService private stateService: IStateService,
-		@IWorkspacesMainService private workspacesMainService: IWorkspacesMainService,
-		@IBackupMainService private backupMainService: IBackupMainService,
-		@IStorageMainService private storageMainService: IStorageMainService
+		@ILogService private readonly logService: ILogService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IStateService private readonly stateService: IStateService,
+		@IWorkspacesMainService private readonly workspacesMainService: IWorkspacesMainService,
+		@IBackupMainService private readonly backupMainService: IBackupMainService,
+		@IStorageMainService private readonly storageMainService: IStorageMainService
 	) {
 		super();
 
@@ -253,19 +253,19 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	get backupPath(): string {
-		return this.currentConfig ? this.currentConfig.backupPath : void 0;
+		return this.currentConfig ? this.currentConfig.backupPath : undefined;
 	}
 
 	get openedWorkspace(): IWorkspaceIdentifier {
-		return this.currentConfig ? this.currentConfig.workspace : void 0;
+		return this.currentConfig ? this.currentConfig.workspace : undefined;
 	}
 
 	get openedFolderUri(): URI {
-		return this.currentConfig ? this.currentConfig.folderUri : void 0;
+		return this.currentConfig ? this.currentConfig.folderUri : undefined;
 	}
 
 	get remoteAuthority(): string {
-		return this.currentConfig ? this.currentConfig.remoteAuthority : void 0;
+		return this.currentConfig ? this.currentConfig.remoteAuthority : undefined;
 	}
 
 	setReady(): void {
@@ -444,7 +444,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// Make sure to update our workspace config if we detect that it
 		// was deleted
 		if (this.openedWorkspace && this.openedWorkspace.id === workspace.id) {
-			this.currentConfig.workspace = void 0;
+			this.currentConfig.workspace = undefined;
 		}
 	}
 
@@ -602,13 +602,13 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		windowConfiguration.perfEntries = perf.exportEntries();
 
 		// Parts splash
-		windowConfiguration.partsSplashData = this.storageMainService.get('parts-splash-data', void 0);
+		windowConfiguration.partsSplashData = this.storageMainService.get('parts-splash-data', undefined);
 
 		// Config (combination of process.argv and window configuration)
 		const environment = parseArgs(process.argv);
 		const config = objects.assign(environment, windowConfiguration);
 		for (let key in config) {
-			if (config[key] === void 0 || config[key] === null || config[key] === '' || config[key] === false) {
+			if (config[key] === undefined || config[key] === null || config[key] === '' || config[key] === false) {
 				delete config[key]; // only send over properties that have a true value
 			}
 		}
@@ -648,7 +648,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 			const res = {
 				mode: WindowMode.Fullscreen,
-				display: display ? display.id : void 0,
+				display: display ? display.id : undefined,
 
 				// Still carry over window dimensions from previous sessions
 				// if we can compute it in fullscreen state.
@@ -1033,13 +1033,13 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			if (item.iconLocation && item.iconLocation.dark.scheme === 'file') {
 				icon = nativeImage.createFromPath(URI.revive(item.iconLocation.dark).fsPath);
 				if (icon.isEmpty()) {
-					icon = void 0;
+					icon = undefined;
 				}
 			}
 
 			return {
 				id: item.id,
-				label: !icon ? item.title as string : void 0,
+				label: !icon ? item.title as string : undefined,
 				icon
 			};
 		});

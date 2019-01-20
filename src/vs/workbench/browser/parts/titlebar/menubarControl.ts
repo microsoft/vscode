@@ -81,20 +81,20 @@ export class MenubarControl extends Disposable {
 	private static MAX_MENU_RECENT_ENTRIES = 10;
 
 	constructor(
-		@IThemeService private themeService: IThemeService,
-		@IMenubarService private menubarService: IMenubarService,
-		@IMenuService private menuService: IMenuService,
-		@IWindowService private windowService: IWindowService,
-		@IWindowsService private windowsService: IWindowsService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IKeybindingService private keybindingService: IKeybindingService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@ILabelService private labelService: ILabelService,
-		@IUpdateService private updateService: IUpdateService,
-		@IStorageService private storageService: IStorageService,
-		@INotificationService private notificationService: INotificationService,
-		@IPreferencesService private preferencesService: IPreferencesService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IThemeService private readonly themeService: IThemeService,
+		@IMenubarService private readonly menubarService: IMenubarService,
+		@IMenuService private readonly menuService: IMenuService,
+		@IWindowService private readonly windowService: IWindowService,
+		@IWindowsService private readonly windowsService: IWindowsService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ILabelService private readonly labelService: ILabelService,
+		@IUpdateService private readonly updateService: IUpdateService,
+		@IStorageService private readonly storageService: IStorageService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
 
 		super();
@@ -262,6 +262,9 @@ export class MenubarControl extends Disposable {
 				this.menubar.blur();
 			}));
 		}
+
+		// Update recent menu items on formatter registration
+		this._register(this.labelService.onDidChangeFormatters(() => { this.onRecentlyOpenedChange(); }));
 	}
 
 	private doUpdateMenubar(firstTime: boolean): void {

@@ -77,7 +77,7 @@ export abstract class Panel implements IView {
 
 	set minimumBodySize(size: number) {
 		this._minimumBodySize = size;
-		this._onDidChange.fire();
+		this._onDidChange.fire(undefined);
 	}
 
 	get maximumBodySize(): number {
@@ -86,7 +86,7 @@ export abstract class Panel implements IView {
 
 	set maximumBodySize(size: number) {
 		this._maximumBodySize = size;
-		this._onDidChange.fire();
+		this._onDidChange.fire(undefined);
 	}
 
 	private get headerSize(): number {
@@ -145,7 +145,7 @@ export abstract class Panel implements IView {
 
 		this._headerVisible = !!visible;
 		this.updateHeader();
-		this._onDidChange.fire();
+		this._onDidChange.fire(undefined);
 	}
 
 	render(): void {

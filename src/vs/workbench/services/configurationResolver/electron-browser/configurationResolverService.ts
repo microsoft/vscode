@@ -30,10 +30,10 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 		envVariables: platform.IProcessEnvironment,
 		@IEditorService editorService: IEditorService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@ICommandService private commandService: ICommandService,
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
-		@IQuickInputService private quickInputService: IQuickInputService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService
 	) {
 		super({
 			getFolderUri: (folderName: string): uri => {
@@ -132,7 +132,7 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 	 * Please note: this method does not substitute the input or command variables (so the configuration is not modified).
 	 * The returned dictionary can be passed to "resolvePlatform" for the actual substitution.
 	 * See #6569.
-	 * @param configuration
+	 *
 	 * @param variableToCommandMap Aliases for commands
 	 */
 	private async resolveWithInputAndCommands(folder: IWorkspaceFolder, configuration: any, variableToCommandMap: IStringDictionary<string>, section: string): Promise<IStringDictionary<string>> {

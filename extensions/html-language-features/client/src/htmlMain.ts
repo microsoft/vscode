@@ -13,6 +13,7 @@ import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, Re
 import { EMPTY_ELEMENTS } from './htmlEmptyTagsShared';
 import { activateTagClosing } from './tagClosing';
 import TelemetryReporter from 'vscode-extension-telemetry';
+import { getCustomDataPathsInAllWorkspaces } from './customData';
 
 namespace TagCloseRequest {
 	export const type: RequestType<TextDocumentPositionParams, string, any, any> = new RequestType('html/tag');
@@ -49,23 +50,7 @@ export function activate(context: ExtensionContext) {
 	let documentSelector = ['html', 'handlebars', 'razor'];
 	let embeddedLanguages = { css: true, javascript: true };
 
-	let tagPaths: string[] = workspace.getConfiguration('html').get('experimental.custom.tags', []);
-	let attributePaths: string[] = workspace.getConfiguration('html').get('experimental.custom.attributes', []);
-
-	if (tagPaths && tagPaths.length > 0) {
-		if (!workspace.workspaceFolders) {
-			tagPaths = [];
-		} else {
-			try {
-				const workspaceRoot = workspace.workspaceFolders[0].uri.fsPath;
-				tagPaths = tagPaths.map(d => {
-					return path.resolve(workspaceRoot, d);
-				});
-			} catch (err) {
-				tagPaths = [];
-			}
-		}
-	}
+	let { dataPaths } = getCustomDataPathsInAllWorkspaces(workspace.workspaceFolders);
 
 	// Options to control the language client
 	let clientOptions: LanguageClientOptions = {
@@ -75,8 +60,7 @@ export function activate(context: ExtensionContext) {
 		},
 		initializationOptions: {
 			embeddedLanguages,
-			tagPaths,
-			attributePaths
+			dataPaths
 		}
 	};
 

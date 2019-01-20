@@ -171,8 +171,13 @@ export class ExtHostWebviewPanel implements vscode.WebviewPanel {
 		return this._options;
 	}
 
-	get viewColumn(): vscode.ViewColumn {
+	get viewColumn(): vscode.ViewColumn | undefined {
 		this.assertNotDisposed();
+		if (this._viewColumn < 0) {
+			// We are using a symbolic view column
+			// Return undefined instead to indicate that the real view column is currently unknown but will be resolved.
+			return undefined;
+		}
 		return this._viewColumn;
 	}
 
@@ -311,7 +316,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 			panel.dispose();
 			this._webviewPanels.delete(handle);
 		}
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	$deserializeWebviewPanel(

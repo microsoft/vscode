@@ -159,7 +159,7 @@ export abstract class BreadcrumbsPicker {
 			// use proper selection, reveal
 			let selection = this._getInitialSelection(this._tree, input);
 			if (selection) {
-				return this._tree.reveal(selection, .5).then(() => {
+				return this._tree.reveal(selection, 0.5).then(() => {
 					this._tree.setSelection([selection], this._tree);
 					this._tree.setFocus(selection);
 					this._tree.domFocus();

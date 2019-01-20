@@ -54,7 +54,7 @@ export class RemoteExtensionsFileSystemProvider extends Disposable implements IF
 			capabilities |= FileSystemProviderCapabilities.PathCaseSensitive;
 		}
 		this.capabilities = capabilities;
-		this._onDidChangeCapabilities.fire(void 0);
+		this._onDidChangeCapabilities.fire(undefined);
 	}
 
 	watch(resource: URI, opts: IWatchOptions): IDisposable {

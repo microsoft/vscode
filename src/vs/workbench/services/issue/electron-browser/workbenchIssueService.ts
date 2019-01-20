@@ -7,25 +7,26 @@ import { IssueReporterStyles, IIssueService, IssueReporterData, ProcessExplorerD
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { textLinkForeground, inputBackground, inputBorder, inputForeground, buttonBackground, buttonHoverBackground, buttonForeground, inputValidationErrorBorder, foreground, inputActiveOptionBorder, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, editorBackground, editorForeground, listHoverBackground, listHoverForeground, listHighlightForeground, textLinkActiveForeground } from 'vs/platform/theme/common/colorRegistry';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { IExtensionManagementService, IExtensionEnablementService, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { webFrame } from 'electron';
 import { assign } from 'vs/base/common/objects';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 import { IWindowService } from 'vs/platform/windows/common/windows';
+import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 
 export class WorkbenchIssueService implements IWorkbenchIssueService {
 	_serviceBrand: any;
 
 	constructor(
-		@IIssueService private issueService: IIssueService,
-		@IThemeService private themeService: IThemeService,
-		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
-		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
-		@IWindowService private windowService: IWindowService
+		@IIssueService private readonly issueService: IIssueService,
+		@IThemeService private readonly themeService: IThemeService,
+		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
+		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService,
+		@IWindowService private readonly windowService: IWindowService
 	) { }
 
 	openReporter(dataOverrides: Partial<IssueReporterData> = {}): Promise<void> {
-		return this.extensionManagementService.getInstalled(LocalExtensionType.User).then(extensions => {
+		return this.extensionManagementService.getInstalled(ExtensionType.User).then(extensions => {
 			const enabledExtensions = extensions.filter(extension => this.extensionEnablementService.isEnabled(extension));
 			const extensionData: IssueReporterExtensionData[] = enabledExtensions.map(extension => {
 				const { manifest } = extension;

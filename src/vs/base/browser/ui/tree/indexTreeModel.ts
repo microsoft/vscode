@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISpliceable } from 'vs/base/common/sequence';
-import { Iterator, ISequence } from 'vs/base/common/iterator';
-import { Emitter, Event, EventBufferer } from 'vs/base/common/event';
+import { ICollapseStateChangeEvent, ITreeElement, ITreeFilter, ITreeFilterDataResult, ITreeModel, ITreeNode, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 import { tail2 } from 'vs/base/common/arrays';
-import { ITreeFilterDataResult, TreeVisibility, ITreeFilter, ITreeModel, ITreeNode, ITreeElement, ICollapseStateChangeEvent } from 'vs/base/browser/ui/tree/tree';
+import { Emitter, Event, EventBufferer } from 'vs/base/common/event';
+import { ISequence, Iterator } from 'vs/base/common/iterator';
+import { ISpliceable } from 'vs/base/common/sequence';
 
 interface IMutableTreeNode<T, TFilterData> extends ITreeNode<T, TFilterData> {
 	readonly parent: IMutableTreeNode<T, TFilterData> | undefined;
@@ -19,8 +19,16 @@ interface IMutableTreeNode<T, TFilterData> extends ITreeNode<T, TFilterData> {
 	filterData: TFilterData | undefined;
 }
 
-function isFilterResult<T>(obj: any): obj is ITreeFilterDataResult<T> {
+export function isFilterResult<T>(obj: any): obj is ITreeFilterDataResult<T> {
 	return typeof obj === 'object' && 'visibility' in obj && 'data' in obj;
+}
+
+export function getVisibleState(visibility: boolean | TreeVisibility): TreeVisibility {
+	switch (visibility) {
+		case true: return TreeVisibility.Visible;
+		case false: return TreeVisibility.Hidden;
+		default: return visibility;
+	}
 }
 
 function treeNodeToElement<T>(node: IMutableTreeNode<T, any>): ITreeElement<T> {
@@ -30,17 +38,10 @@ function treeNodeToElement<T>(node: IMutableTreeNode<T, any>): ITreeElement<T> {
 	return { element, children, collapsed };
 }
 
-function getVisibleState(visibility: boolean | TreeVisibility): TreeVisibility {
-	switch (visibility) {
-		case true: return TreeVisibility.Visible;
-		case false: return TreeVisibility.Hidden;
-		default: return visibility;
-	}
-}
-
 export interface IIndexTreeModelOptions<T, TFilterData> {
-	collapseByDefault?: boolean; // defaults to false
-	filter?: ITreeFilter<T, TFilterData>;
+	readonly collapseByDefault?: boolean; // defaults to false
+	readonly filter?: ITreeFilter<T, TFilterData>;
+	readonly autoExpandSingleChildren?: boolean;
 }
 
 export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = void> implements ITreeModel<T, TFilterData, number[]> {
@@ -58,10 +59,12 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 
 	private collapseByDefault: boolean;
 	private filter?: ITreeFilter<T, TFilterData>;
+	private autoExpandSingleChildren: boolean;
 
 	constructor(private list: ISpliceable<ITreeNode<T, TFilterData>>, rootElement: T, options: IIndexTreeModelOptions<T, TFilterData> = {}) {
 		this.collapseByDefault = typeof options.collapseByDefault === 'undefined' ? false : options.collapseByDefault;
 		this.filter = options.filter;
+		this.autoExpandSingleChildren = typeof options.autoExpandSingleChildren === 'undefined' ? false : options.autoExpandSingleChildren;
 
 		// this.onDidChangeCollapseState(node => console.log(node.collapsed, node));
 
@@ -123,8 +126,24 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		return Iterator.map(Iterator.fromArray(deletedNodes), treeNodeToElement);
 	}
 
+	refresh(location: number[]): void {
+		if (location.length === 0) {
+			throw new Error('Invalid tree location');
+		}
+
+		const { node, listIndex, revealed } = this.getTreeNodeWithListIndex(location);
+
+		if (revealed) {
+			this.list.splice(listIndex, 1, [node]);
+		}
+	}
+
 	getListIndex(location: number[]): number {
 		return this.getTreeNodeWithListIndex(location).listIndex;
+	}
+
+	getListRenderCount(location: number[]): number {
+		return this.getTreeNode(location).renderNodeCount;
 	}
 
 	isCollapsible(location: number[]): boolean {
@@ -136,18 +155,45 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 	}
 
 	setCollapsed(location: number[], collapsed?: boolean, recursive?: boolean): boolean {
-		const { node, listIndex, revealed } = this.getTreeNodeWithListIndex(location);
+		const node = this.getTreeNode(location);
 
 		if (typeof collapsed === 'undefined') {
 			collapsed = !node.collapsed;
 		}
 
-		return this.eventBufferer.bufferEvents(() => {
-			return this._setCollapsed(node, listIndex, revealed, collapsed!, recursive || false);
-		});
+		return this.eventBufferer.bufferEvents(() => this._setCollapsed(location, collapsed!, recursive));
 	}
 
-	private _setCollapsed(node: IMutableTreeNode<T, TFilterData>, listIndex: number, revealed: boolean, collapsed: boolean, recursive: boolean): boolean {
+	private _setCollapsed(location: number[], collapsed: boolean, recursive?: boolean): boolean {
+		const { node, listIndex, revealed } = this.getTreeNodeWithListIndex(location);
+
+		const result = this._setListNodeCollapsed(node, listIndex, revealed, collapsed!, recursive || false);
+
+		if (this.autoExpandSingleChildren && !collapsed! && !recursive) {
+			let onlyVisibleChildIndex = -1;
+
+			for (let i = 0; i < node.children.length; i++) {
+				const child = node.children[i];
+
+				if (child.visible) {
+					if (onlyVisibleChildIndex > -1) {
+						onlyVisibleChildIndex = -1;
+						break;
+					} else {
+						onlyVisibleChildIndex = i;
+					}
+				}
+			}
+
+			if (onlyVisibleChildIndex > -1) {
+				this._setCollapsed([...location, onlyVisibleChildIndex], false, false);
+			}
+		}
+
+		return result;
+	}
+
+	private _setListNodeCollapsed(node: IMutableTreeNode<T, TFilterData>, listIndex: number, revealed: boolean, collapsed: boolean, recursive: boolean): boolean {
 		const result = this._setNodeCollapsed(node, collapsed, recursive, false);
 
 		if (!revealed || !node.visible) {

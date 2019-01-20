@@ -20,7 +20,6 @@ import 'vs/platform/widget/browser/contextScopedHistoryWidget';
 import 'vs/workbench/services/actions/electron-browser/menusExtensionPoint';
 
 // Views
-import 'vs/workbench/api/browser/viewsContainersExtensionPoint';
 import 'vs/workbench/api/browser/viewsExtensionPoint';
 
 // Localizations

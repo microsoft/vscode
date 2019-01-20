@@ -1954,7 +1954,7 @@ export class EditorOptionsValidator {
 			} else if (<any>renderWhitespace === false) {
 				renderWhitespace = 'none';
 			}
-			renderWhitespace = _stringSet<'none' | 'boundary' | 'all'>(opts.renderWhitespace, defaults.renderWhitespace, ['none', 'boundary', 'all']);
+			renderWhitespace = _stringSet<'none' | 'boundary' | 'all'>(renderWhitespace, defaults.renderWhitespace, ['none', 'boundary', 'all']);
 		}
 
 		let renderLineHighlight = opts.renderLineHighlight;
@@ -1965,7 +1965,7 @@ export class EditorOptionsValidator {
 			} else if (<any>renderLineHighlight === false) {
 				renderLineHighlight = 'none';
 			}
-			renderLineHighlight = _stringSet<'none' | 'gutter' | 'line' | 'all'>(opts.renderLineHighlight, defaults.renderLineHighlight, ['none', 'gutter', 'line', 'all']);
+			renderLineHighlight = _stringSet<'none' | 'gutter' | 'line' | 'all'>(renderLineHighlight, defaults.renderLineHighlight, ['none', 'gutter', 'line', 'all']);
 		}
 
 		let mouseWheelScrollSensitivity = _float(opts.mouseWheelScrollSensitivity, defaults.scrollbar.mouseWheelScrollSensitivity);
@@ -2548,7 +2548,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 	wordWrapMinified: true,
 	wrappingIndent: WrappingIndent.Same,
 	wordWrapBreakBeforeCharacters: '([{‘“〈《「『【〔（［｛｢£¥＄￡￥+＋',
-	wordWrapBreakAfterCharacters: ' \t})]?|&,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻ｧｨｩｪｫｬｭｮｯｰ”〉》」』】〕）］｝｣',
+	wordWrapBreakAfterCharacters: ' \t})]?|/&,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻ｧｨｩｪｫｬｭｮｯｰ”〉》」』】〕）］｝｣',
 	wordWrapBreakObtrusiveCharacters: '.',
 	autoClosingBrackets: 'languageDefined',
 	autoClosingQuotes: 'languageDefined',

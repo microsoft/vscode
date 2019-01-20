@@ -48,14 +48,14 @@ export class Engine implements ISearchEngine<ISerializedFileMatch[]> {
 
 		this.workers.forEach(w => {
 			w.cancel()
-				.then(void 0, onUnexpectedError);
+				.then(undefined, onUnexpectedError);
 		});
 	}
 
 	initializeWorkers(): void {
 		this.workers.forEach(w => {
 			w.initialize()
-				.then(void 0, onUnexpectedError);
+				.then(undefined, onUnexpectedError);
 		});
 	}
 

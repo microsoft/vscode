@@ -47,7 +47,7 @@ suite('Workbench - TextModelResolverService', () => {
 	teardown(() => {
 		if (model) {
 			model.dispose();
-			model = (void 0)!;
+			model = (undefined)!;
 		}
 		(<TextFileEditorModelManager>accessor.textFileService.models).clear();
 		(<TextFileEditorModelManager>accessor.textFileService.models).dispose();

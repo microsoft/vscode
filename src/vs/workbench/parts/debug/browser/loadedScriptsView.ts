@@ -373,15 +373,15 @@ export class LoadedScriptsView extends ViewletPanel {
 		options: IViewletViewOptions,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IInstantiationService private instantiationService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IEditorService private editorService: IEditorService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IDebugService private debugService: IDebugService,
-		@IListService private listService: IListService,
-		@IThemeService private themeService: IThemeService
+		@IEditorService private readonly editorService: IEditorService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IDebugService private readonly debugService: IDebugService,
+		@IListService private readonly listService: IListService,
+		@IThemeService private readonly themeService: IThemeService
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('loadedScriptsSection', "Loaded Scripts Section") }, keybindingService, contextMenuService, configurationService);
 		this.loadedScriptsItemType = CONTEXT_LOADED_SCRIPTS_ITEM_TYPE.bindTo(contextKeyService);
@@ -422,7 +422,7 @@ export class LoadedScriptsView extends ViewletPanel {
 		this.changeScheduler = new RunOnceScheduler(() => {
 			this.treeNeedsRefreshOnVisible = false;
 			if (this.tree) {
-				this.tree.refresh();
+				this.tree.updateChildren();
 			}
 		}, 300);
 		this.disposables.push(this.changeScheduler);

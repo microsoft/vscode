@@ -36,13 +36,13 @@ export abstract class TreeElement {
 			candidateId = `${container.id}/${candidate}`;
 		} else {
 			candidateId = `${container.id}/${candidate.name}`;
-			if (container.children[candidateId] !== void 0) {
+			if (container.children[candidateId] !== undefined) {
 				candidateId = `${container.id}/${candidate.name}_${candidate.range.startLineNumber}_${candidate.range.startColumn}`;
 			}
 		}
 
 		let id = candidateId;
-		for (let i = 0; container.children[id] !== void 0; i++) {
+		for (let i = 0; container.children[id] !== undefined; i++) {
 			id = `${candidateId}_${i}`;
 		}
 
@@ -224,7 +224,7 @@ export class OutlineGroup extends TreeElement {
 
 export class OutlineModel extends TreeElement {
 
-	private static readonly _requests = new LRUCache<string, { promiseCnt: number, source: CancellationTokenSource, promise: Promise<any>, model: OutlineModel }>(9, .75);
+	private static readonly _requests = new LRUCache<string, { promiseCnt: number, source: CancellationTokenSource, promise: Promise<any>, model: OutlineModel }>(9, 0.75);
 	private static readonly _keys = new class {
 
 		private _counter = 1;

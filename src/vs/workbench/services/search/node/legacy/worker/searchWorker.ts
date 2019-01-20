@@ -42,7 +42,7 @@ export class SearchWorker implements ISearchWorker {
 			this.currentSearchEngine.cancel();
 		}
 
-		return Promise.resolve<void>(void 0);
+		return Promise.resolve<void>(undefined);
 	}
 
 	search(args: ISearchWorkerSearchArgs): Promise<ISearchWorkerSearchResult | null> {
@@ -61,8 +61,8 @@ interface IFileSearchResult {
 	limitReached?: boolean;
 }
 
-const LF = 0x0a;
-const CR = 0x0d;
+const LF = 0x0A;
+const CR = 0x0D;
 
 export class SearchWorkerEngine {
 	private nextSearch: Promise<any> = Promise.resolve(null);
@@ -157,7 +157,7 @@ export class SearchWorkerEngine {
 		return new Promise<void>((resolve, reject) => {
 			fs.open(filename, 'r', null, (error: Error, fd: number) => {
 				if (error) {
-					return resolve(void 0);
+					return resolve(undefined);
 				}
 
 				const buffer = Buffer.allocUnsafe(options.bufferLength);
@@ -274,7 +274,7 @@ export class SearchWorkerEngine {
 
 				readFile(/*isFirstRead=*/true, (error: Error) => {
 					if (error) {
-						return resolve(void 0);
+						return resolve(undefined);
 					}
 
 					if (line.length) {
@@ -282,7 +282,7 @@ export class SearchWorkerEngine {
 					}
 
 					fs.close(fd, (error: Error) => {
-						resolve(void 0);
+						resolve(undefined);
 					});
 				});
 			});

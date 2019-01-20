@@ -25,11 +25,11 @@ import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 // --- adapter
 
-class OutlineAdapter {
+class DocumentSymbolAdapter {
 
 	private _documents: ExtHostDocuments;
 	private _provider: vscode.DocumentSymbolProvider;
@@ -44,19 +44,18 @@ class OutlineAdapter {
 		return asPromise(() => this._provider.provideDocumentSymbols(doc, token)).then(value => {
 			if (isFalsyOrEmpty(value)) {
 				return undefined;
-			}
-			if (value[0] instanceof DocumentSymbol) {
+			} else if (value[0] instanceof DocumentSymbol) {
 				return (<DocumentSymbol[]>value).map(typeConvert.DocumentSymbol.from);
 			} else {
-				return OutlineAdapter._asDocumentSymbolTree(resource, <SymbolInformation[]>value);
+				return DocumentSymbolAdapter._asDocumentSymbolTree(<SymbolInformation[]>value);
 			}
 		});
 	}
 
-	private static _asDocumentSymbolTree(resource: URI, info: SymbolInformation[]): modes.DocumentSymbol[] {
+	private static _asDocumentSymbolTree(infos: SymbolInformation[]): modes.DocumentSymbol[] {
 		// first sort by start (and end) and then loop over all elements
 		// and build a tree based on containment.
-		info = info.slice(0).sort((a, b) => {
+		infos = infos.slice(0).sort((a, b) => {
 			let res = a.location.range.start.compareTo(b.location.range.start);
 			if (res === 0) {
 				res = b.location.range.end.compareTo(a.location.range.end);
@@ -65,13 +64,13 @@ class OutlineAdapter {
 		});
 		let res: modes.DocumentSymbol[] = [];
 		let parentStack: modes.DocumentSymbol[] = [];
-		for (let i = 0; i < info.length; i++) {
+		for (const info of infos) {
 			let element = <modes.DocumentSymbol>{
-				name: info[i].name,
-				kind: typeConvert.SymbolKind.from(info[i].kind),
-				containerName: info[i].containerName,
-				range: typeConvert.Range.from(info[i].location.range),
-				selectionRange: typeConvert.Range.from(info[i].location.range),
+				name: info.name || '!!MISSING: name!!',
+				kind: typeConvert.SymbolKind.from(info.kind),
+				containerName: info.containerName,
+				range: typeConvert.Range.from(info.location.range),
+				selectionRange: typeConvert.Range.from(info.location.range),
 				children: []
 			};
 
@@ -96,7 +95,7 @@ class OutlineAdapter {
 
 class CodeLensAdapter {
 
-	private static _badCmd: vscode.Command = { command: 'missing', title: '<<MISSING COMMAND>>' };
+	private static _badCmd: vscode.Command = { command: 'missing', title: '!!MISSING: command!!' };
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
@@ -144,7 +143,7 @@ class CodeLensAdapter {
 	}
 }
 
-function convertToDefinitionLinks(value: vscode.Definition): modes.DefinitionLink[] {
+function convertToLocationLinks(value: vscode.Definition): modes.LocationLink[] {
 	if (Array.isArray(value)) {
 		return (value as (vscode.DefinitionLink | vscode.Location)[]).map(typeConvert.DefinitionLink.from);
 	} else if (value) {
@@ -160,10 +159,10 @@ class DefinitionAdapter {
 		private readonly _provider: vscode.DefinitionProvider
 	) { }
 
-	provideDefinition(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.DefinitionLink[]> {
+	provideDefinition(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.LocationLink[]> {
 		let doc = this._documents.getDocumentData(resource).document;
 		let pos = typeConvert.Position.to(position);
-		return asPromise(() => this._provider.provideDefinition(doc, pos, token)).then(convertToDefinitionLinks);
+		return asPromise(() => this._provider.provideDefinition(doc, pos, token)).then(convertToLocationLinks);
 	}
 }
 
@@ -174,10 +173,10 @@ class DeclarationAdapter {
 		private readonly _provider: vscode.DeclarationProvider
 	) { }
 
-	provideDeclaration(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.DefinitionLink[]> {
+	provideDeclaration(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.LocationLink[]> {
 		let doc = this._documents.getDocumentData(resource).document;
 		let pos = typeConvert.Position.to(position);
-		return asPromise(() => this._provider.provideDeclaration(doc, pos, token)).then(convertToDefinitionLinks);
+		return asPromise(() => this._provider.provideDeclaration(doc, pos, token)).then(convertToLocationLinks);
 	}
 }
 
@@ -188,10 +187,10 @@ class ImplementationAdapter {
 		private readonly _provider: vscode.ImplementationProvider
 	) { }
 
-	provideImplementation(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.DefinitionLink[]> {
+	provideImplementation(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.LocationLink[]> {
 		let doc = this._documents.getDocumentData(resource).document;
 		let pos = typeConvert.Position.to(position);
-		return asPromise(() => this._provider.provideImplementation(doc, pos, token)).then(convertToDefinitionLinks);
+		return asPromise(() => this._provider.provideImplementation(doc, pos, token)).then(convertToLocationLinks);
 	}
 }
 
@@ -202,10 +201,10 @@ class TypeDefinitionAdapter {
 		private readonly _provider: vscode.TypeDefinitionProvider
 	) { }
 
-	provideTypeDefinition(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.DefinitionLink[]> {
+	provideTypeDefinition(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.LocationLink[]> {
 		const doc = this._documents.getDocumentData(resource).document;
 		const pos = typeConvert.Position.to(position);
-		return asPromise(() => this._provider.provideTypeDefinition(doc, pos, token)).then(convertToDefinitionLinks);
+		return asPromise(() => this._provider.provideTypeDefinition(doc, pos, token)).then(convertToLocationLinks);
 	}
 }
 
@@ -283,6 +282,7 @@ export interface CustomCodeAction extends CodeActionDto {
 }
 
 class CodeActionAdapter {
+	private static readonly _maxCodeActionsPerFile: number = 1000;
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
@@ -290,7 +290,7 @@ class CodeActionAdapter {
 		private readonly _diagnostics: ExtHostDiagnostics,
 		private readonly _provider: vscode.CodeActionProvider,
 		private readonly _logService: ILogService,
-		private readonly _extensionId: CanonicalExtensionIdentifier
+		private readonly _extensionId: ExtensionIdentifier
 	) { }
 
 	provideCodeActions(resource: URI, rangeOrSelection: IRange | ISelection, context: modes.CodeActionContext, token: CancellationToken): Promise<CodeActionDto[]> {
@@ -303,7 +303,10 @@ class CodeActionAdapter {
 
 		for (const diagnostic of this._diagnostics.getDiagnostics(resource)) {
 			if (ran.intersection(diagnostic.range)) {
-				allDiagnostics.push(diagnostic);
+				const newLen = allDiagnostics.push(diagnostic);
+				if (newLen > CodeActionAdapter._maxCodeActionsPerFile) {
+					break;
+				}
 			}
 		}
 
@@ -343,7 +346,8 @@ class CodeActionAdapter {
 						command: candidate.command && this._commands.toInternal(candidate.command),
 						diagnostics: candidate.diagnostics && candidate.diagnostics.map(typeConvert.Diagnostic.from),
 						edit: candidate.edit && typeConvert.WorkspaceEdit.from(candidate.edit),
-						kind: candidate.kind && candidate.kind.value
+						kind: candidate.kind && candidate.kind.value,
+						canAutoApply: candidate.canAutoApply,
 					});
 				}
 			}
@@ -731,20 +735,35 @@ class SignatureHelpAdapter {
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.SignatureHelpProvider
+		private readonly _provider: vscode.SignatureHelpProvider,
+		private readonly _heap: ExtHostHeapService,
 	) { }
 
 	provideSignatureHelp(resource: URI, position: IPosition, context: modes.SignatureHelpContext, token: CancellationToken): Promise<modes.SignatureHelp> {
-
 		const doc = this._documents.getDocumentData(resource).document;
 		const pos = typeConvert.Position.to(position);
+		const vscodeContext = this.reviveContext(context);
 
-		return asPromise(() => this._provider.provideSignatureHelp(doc, pos, token, context)).then(value => {
+		return asPromise(() => this._provider.provideSignatureHelp(doc, pos, token, vscodeContext)).then(value => {
 			if (value) {
-				return typeConvert.SignatureHelp.from(value);
+				const id = this._heap.keep(value);
+				return ObjectIdentifier.mixin(typeConvert.SignatureHelp.from(value), id);
 			}
 			return undefined;
 		});
+	}
+
+	private reviveContext(context: modes.SignatureHelpContext): vscode.SignatureHelpContext {
+		let activeSignatureHelp: vscode.SignatureHelp | undefined = undefined;
+		if (context.activeSignatureHelp) {
+			const saved = this._heap.get<vscode.SignatureHelp>(ObjectIdentifier.of(context.activeSignatureHelp));
+			if (saved) {
+				activeSignatureHelp = saved;
+			} else {
+				activeSignatureHelp = typeConvert.SignatureHelp.to(context.activeSignatureHelp);
+			}
+		}
+		return { ...context, activeSignatureHelp };
 	}
 }
 
@@ -840,7 +859,7 @@ class FoldingProviderAdapter {
 		const doc = this._documents.getDocumentData(resource).document;
 		return asPromise(() => this._provider.provideFoldingRanges(doc, context, token)).then(ranges => {
 			if (!Array.isArray(ranges)) {
-				return void 0;
+				return undefined;
 			}
 			return ranges.map(typeConvert.FoldingRange.from);
 		});
@@ -875,7 +894,7 @@ class SelectionRangeAdapter {
 	}
 }
 
-type Adapter = OutlineAdapter | CodeLensAdapter | DefinitionAdapter | HoverAdapter
+type Adapter = DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | HoverAdapter
 	| DocumentHighlightAdapter | ReferenceAdapter | CodeActionAdapter | DocumentFormattingAdapter
 	| RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
 	| SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter | ImplementationAdapter | TypeDefinitionAdapter
@@ -1002,14 +1021,14 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 	// --- outline
 
 	registerDocumentSymbolProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentSymbolProvider, metadata?: vscode.DocumentSymbolProviderMetadata): vscode.Disposable {
-		const handle = this._addNewAdapter(new OutlineAdapter(this._documents, provider), extension);
+		const handle = this._addNewAdapter(new DocumentSymbolAdapter(this._documents, provider), extension);
 		const displayName = (metadata && metadata.label) || (extension && (extension.displayName || extension.name)) || undefined;
 		this._proxy.$registerOutlineSupport(handle, this._transformDocumentSelector(selector), displayName);
 		return this._createDisposable(handle);
 	}
 
 	$provideDocumentSymbols(handle: number, resource: UriComponents, token: CancellationToken): Promise<modes.DocumentSymbol[]> {
-		return this._withAdapter(handle, OutlineAdapter, adapter => adapter.provideDocumentSymbols(URI.revive(resource), token));
+		return this._withAdapter(handle, DocumentSymbolAdapter, adapter => adapter.provideDocumentSymbols(URI.revive(resource), token));
 	}
 
 	// --- code lens
@@ -1046,7 +1065,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideDefinition(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.DefinitionLink[]> {
+	$provideDefinition(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.LocationLink[]> {
 		return this._withAdapter(handle, DefinitionAdapter, adapter => adapter.provideDefinition(URI.revive(resource), position, token));
 	}
 
@@ -1056,7 +1075,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideDeclaration(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.DefinitionLink[]> {
+	$provideDeclaration(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.LocationLink[]> {
 		return this._withAdapter(handle, DeclarationAdapter, adapter => adapter.provideDeclaration(URI.revive(resource), position, token));
 	}
 
@@ -1066,7 +1085,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideImplementation(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.DefinitionLink[]> {
+	$provideImplementation(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.LocationLink[]> {
 		return this._withAdapter(handle, ImplementationAdapter, adapter => adapter.provideImplementation(URI.revive(resource), position, token));
 	}
 
@@ -1076,13 +1095,13 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideTypeDefinition(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.DefinitionLink[]> {
+	$provideTypeDefinition(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.LocationLink[]> {
 		return this._withAdapter(handle, TypeDefinitionAdapter, adapter => adapter.provideTypeDefinition(URI.revive(resource), position, token));
 	}
 
 	// --- extra info
 
-	registerHoverProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.HoverProvider, extensionId?: CanonicalExtensionIdentifier): vscode.Disposable {
+	registerHoverProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.HoverProvider, extensionId?: ExtensionIdentifier): vscode.Disposable {
 		const handle = this._addNewAdapter(new HoverAdapter(this._documents, provider), extension);
 		this._proxy.$registerHoverProvider(handle, this._transformDocumentSelector(selector));
 		return this._createDisposable(handle);
@@ -1224,7 +1243,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 			? { triggerCharacters: metadataOrTriggerChars, retriggerCharacters: [] }
 			: metadataOrTriggerChars;
 
-		const handle = this._addNewAdapter(new SignatureHelpAdapter(this._documents, provider), extension);
+		const handle = this._addNewAdapter(new SignatureHelpAdapter(this._documents, provider, this._heapService), extension);
 		this._proxy.$registerSignatureHelpProvider(handle, this._transformDocumentSelector(selector), metadata);
 		return this._createDisposable(handle);
 	}

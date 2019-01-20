@@ -59,8 +59,8 @@ export class CrashReporterService implements ICrashReporterService {
 	private isEnabled: boolean;
 
 	constructor(
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IWindowsService private windowsService: IWindowsService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IWindowsService private readonly windowsService: IWindowsService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		const config = configurationService.getValue<ICrashReporterConfig>(TELEMETRY_SECTION_ID);
@@ -121,6 +121,6 @@ export class CrashReporterService implements ICrashReporterService {
 			return childProcessOptions;
 		}
 
-		return void 0;
+		return undefined;
 	}
 }

@@ -63,16 +63,16 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	constructor(
 		id: string,
-		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IWindowService private windowService: IWindowService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IWindowsService private windowsService: IWindowsService,
-		@IEditorService private editorService: IEditorService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IInstantiationService private instantiationService: IInstantiationService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IWindowService private readonly windowService: IWindowService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWindowsService private readonly windowsService: IWindowsService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
-		@ILabelService private labelService: ILabelService,
+		@ILabelService private readonly labelService: ILabelService,
 		@IStorageService storageService: IStorageService
 	) {
 		super(id, { hasTitle: false }, themeService, storageService);
@@ -90,7 +90,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.doUpdateTitle()));
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.doUpdateTitle()));
 		this._register(this.contextService.onDidChangeWorkspaceName(() => this.doUpdateTitle()));
-		this._register(this.labelService.onDidRegisterFormatter(() => this.doUpdateTitle()));
+		this._register(this.labelService.onDidChangeFormatters(() => this.doUpdateTitle()));
 	}
 
 	private onBlur(): void {
@@ -529,10 +529,10 @@ export class TitlebarPart extends Part implements ITitleService {
 		if (getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
 			// Only prevent zooming behavior on macOS or when the menubar is not visible
 			if (isMacintosh || this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility') === 'hidden') {
-				this.title.style.zoom = `${1.0 / getZoomFactor()}`;
+				this.title.style.zoom = `${1 / getZoomFactor()}`;
 				if (isWindows || isLinux) {
-					this.appIcon.style.zoom = `${1.0 / getZoomFactor()}`;
-					this.windowControls.style.zoom = `${1.0 / getZoomFactor()}`;
+					this.appIcon.style.zoom = `${1 / getZoomFactor()}`;
+					this.windowControls.style.zoom = `${1 / getZoomFactor()}`;
 				}
 			} else {
 				this.title.style.zoom = null;

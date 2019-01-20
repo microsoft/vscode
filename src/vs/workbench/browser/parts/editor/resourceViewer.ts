@@ -244,7 +244,7 @@ class ZoomStatusbarItem extends Themable implements IStatusbarItem {
 	private onSelectScale?: (scale: Scale) => void;
 
 	constructor(
-		@IContextMenuService private contextMenuService: IContextMenuService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IEditorService editorService: IEditorService,
 		@IThemeService themeService: IThemeService
 	) {
@@ -257,7 +257,7 @@ class ZoomStatusbarItem extends Themable implements IStatusbarItem {
 
 	private onActiveEditorChanged(): void {
 		this.hide();
-		this.onSelectScale = void 0;
+		this.onSelectScale = undefined;
 	}
 
 	show(scale: Scale, onSelectScale: (scale: number) => void) {
@@ -298,12 +298,12 @@ class ZoomStatusbarItem extends Themable implements IStatusbarItem {
 	private get zoomActions(): Action[] {
 		const scales: Scale[] = [10, 5, 2, 1, 0.5, 0.2, 'fit'];
 		return scales.map(scale =>
-			new Action(`zoom.${scale}`, ZoomStatusbarItem.zoomLabel(scale), void 0, void 0, () => {
+			new Action(`zoom.${scale}`, ZoomStatusbarItem.zoomLabel(scale), undefined, undefined, () => {
 				if (this.onSelectScale) {
 					this.onSelectScale(scale);
 				}
 
-				return Promise.resolve(void 0);
+				return Promise.resolve(undefined);
 			}));
 	}
 

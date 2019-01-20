@@ -125,7 +125,7 @@ export function rgErrorMsgForDisplay(msg: string): Maybe<SearchError> {
 		return new SearchError('Regex parse error', SearchErrorCode.regexParseError);
 	}
 
-	let match = firstLine.match(/grep config error: unknown encoding: (.*)/);
+	const match = firstLine.match(/grep config error: unknown encoding: (.*)/);
 	if (match) {
 		return new SearchError(`Unknown encoding: ${match[1]}`, SearchErrorCode.unknownEncoding);
 	}
@@ -156,11 +156,11 @@ export class RipgrepParser extends EventEmitter {
 		this.stringDecoder = new StringDecoder();
 	}
 
-	public cancel(): void {
+	cancel(): void {
 		this.isDone = true;
 	}
 
-	public flush(): void {
+	flush(): void {
 		this.handleDecodedData(this.stringDecoder.end());
 	}
 
@@ -171,7 +171,7 @@ export class RipgrepParser extends EventEmitter {
 		super.on(event, listener);
 	}
 
-	public handleData(data: Buffer | string): void {
+	handleData(data: Buffer | string): void {
 		if (this.isDone) {
 			return;
 		}
@@ -237,7 +237,12 @@ export class RipgrepParser extends EventEmitter {
 
 	private createTextSearchMatch(data: IRgMatch, uri: vscode.Uri): vscode.TextSearchMatch {
 		const lineNumber = data.line_number - 1;
-		const fullText = bytesOrTextToString(data.lines);
+		let isBOMStripped = false;
+		let fullText = bytesOrTextToString(data.lines);
+		if (lineNumber === 0 && startsWithUTF8BOM(fullText)) {
+			isBOMStripped = true;
+			fullText = stripUTF8BOM(fullText);
+		}
 		const fullTextBytes = Buffer.from(fullText);
 
 		let prevMatchEnd = 0;
@@ -255,21 +260,20 @@ export class RipgrepParser extends EventEmitter {
 			}
 
 			let matchText = bytesOrTextToString(match.match);
+			if (lineNumber === 0 && i === 0 && isBOMStripped) {
+				matchText = stripUTF8BOM(matchText);
+				match.start = match.start <= 3 ? 0 : match.start - 3;
+				match.end = match.end <= 3 ? 0 : match.end - 3;
+			}
 			const inBetweenChars = fullTextBytes.slice(prevMatchEnd, match.start).toString().length;
 			let startCol = prevMatchEndCol + inBetweenChars;
 
 			const stats = getNumLinesAndLastNewlineLength(matchText);
-			let startLineNumber = prevMatchEndLine;
-			let endLineNumber = stats.numLines + startLineNumber;
+			const startLineNumber = prevMatchEndLine;
+			const endLineNumber = stats.numLines + startLineNumber;
 			let endCol = stats.numLines > 0 ?
 				stats.lastLineLength :
 				stats.lastLineLength + startCol;
-
-			if (lineNumber === 0 && i === 0 && startsWithUTF8BOM(matchText)) {
-				matchText = stripUTF8BOM(matchText);
-				startCol -= 3;
-				endCol -= 3;
-			}
 
 			prevMatchEnd = match.end;
 			prevMatchEndCol = endCol;

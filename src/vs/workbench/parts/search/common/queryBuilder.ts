@@ -76,9 +76,9 @@ export interface ITextQueryBuilderOptions extends ICommonQueryBuilderOptions {
 export class QueryBuilder {
 
 	constructor(
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) { }
 
 	text(contentPattern: IPatternInfo, folderResources?: uri[], options: ITextQueryBuilderOptions = {}): ITextQuery {
@@ -150,10 +150,10 @@ export class QueryBuilder {
 			folderResources.map(uri => this.getFolderQueryForRoot(uri, options, excludePattern)))
 			.filter(query => !!query) as IFolderQuery[];
 
-		const useRipgrep = !folderResources || folderResources.every(folder => {
-			const folderConfig = this.configurationService.getValue<ISearchConfiguration>({ resource: folder });
-			return !folderConfig.search.useLegacySearch;
-		});
+		// const useRipgrep = !folderResources || folderResources.every(folder => {
+		// 	const folderConfig = this.configurationService.getValue<ISearchConfiguration>({ resource: folder });
+		// 	return !folderConfig.search.useLegacySearch;
+		// });
 
 		const queryProps: ICommonQueryProps<uri> = {
 			_reason: options._reason,
@@ -164,11 +164,11 @@ export class QueryBuilder {
 			excludePattern: excludePattern.pattern,
 			includePattern,
 			maxResults: options.maxResults,
-			useRipgrep
+			useRipgrep: true
 		};
 
 		// Filter extraFileResources against global include/exclude patterns - they are already expected to not belong to a workspace
-		let extraFileResources = options.extraFileResources && options.extraFileResources.filter(extraFile => pathIncludedInQuery(queryProps, extraFile.fsPath));
+		const extraFileResources = options.extraFileResources && options.extraFileResources.filter(extraFile => pathIncludedInQuery(queryProps, extraFile.fsPath));
 		queryProps.extraFileResources = extraFileResources && extraFileResources.length ? extraFileResources : undefined;
 
 		return queryProps;
@@ -214,7 +214,7 @@ export class QueryBuilder {
 	 *
 	 * Public for test.
 	 */
-	public parseSearchPaths(pattern: string): ISearchPathsResult {
+	parseSearchPaths(pattern: string): ISearchPathsResult {
 		const isSearchPath = (segment: string) => {
 			// A segment is a search path if it is an absolute path or starts with ./, ../, .\, or ..\
 			return paths.isAbsolute(segment) || /^\.\.?[\/\\]/.test(segment);
@@ -286,9 +286,9 @@ export class QueryBuilder {
 		const searchPathPatternMap = new Map<string, ISearchPathPattern>();
 		expandedSearchPaths.forEach(oneSearchPathPattern => {
 			const key = oneSearchPathPattern.searchPath.toString();
-			if (searchPathPatternMap.has(key)) {
+			const existing = searchPathPatternMap.get(key);
+			if (existing) {
 				if (oneSearchPathPattern.pattern) {
-					const existing = searchPathPatternMap.get(key);
 					existing.pattern = existing.pattern || {};
 					existing.pattern[oneSearchPathPattern.pattern] = true;
 				}
@@ -399,7 +399,7 @@ export class QueryBuilder {
 
 		const folderConfig = this.configurationService.getValue<ISearchConfiguration>({ resource: folder });
 		const settingExcludes = this.getExcludesForFolder(folderConfig, options);
-		let excludePattern: glob.IExpression = {
+		const excludePattern: glob.IExpression = {
 			...(settingExcludes || {}),
 			...(thisFolderExcludeSearchPathPattern || {})
 		};

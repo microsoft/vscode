@@ -697,7 +697,7 @@ export class OutlinePanel extends ViewletPanel {
 		let top = this._tree.getRelativeTop(item);
 		if (top < 0 || top > 1) {
 			// only when outside view port
-			await this._tree.reveal(item, .5);
+			await this._tree.reveal(item, 0.5);
 		}
 		this._tree.setFocus(item, this);
 		this._tree.setSelection([item], this);

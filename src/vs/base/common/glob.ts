@@ -58,11 +58,8 @@ export function splitGlobAware(pattern: string, splitChar: string): string[] {
 	let inBraces = false;
 	let inBrackets = false;
 
-	let char: string;
 	let curVal = '';
-	for (let i = 0; i < pattern.length; i++) {
-		char = pattern[i];
-
+	for (const char of pattern) {
 		switch (char) {
 			case splitChar:
 				if (!inBraces && !inBrackets) {
@@ -136,10 +133,7 @@ function parseRegExp(pattern: string): string {
 			let inBrackets = false;
 			let bracketVal = '';
 
-			let char: string;
-			for (let i = 0; i < segment.length; i++) {
-				char = segment[i];
-
+			for (const char of segment) {
 				// Support brace expansion
 				if (char !== '}' && inBraces) {
 					braceVal += char;

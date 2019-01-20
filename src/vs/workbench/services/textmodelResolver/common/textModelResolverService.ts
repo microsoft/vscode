@@ -23,9 +23,9 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 	private modelsToDispose = new Set<string>();
 
 	constructor(
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@ITextFileService private textFileService: ITextFileService,
-		@IFileService private fileService: IFileService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		super();
 	}
@@ -122,9 +122,9 @@ export class TextModelResolverService implements ITextModelService {
 	private resourceModelCollection: ResourceModelCollection;
 
 	constructor(
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IModelService private modelService: IModelService
+		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IModelService private readonly modelService: IModelService
 	) {
 		this.resourceModelCollection = instantiationService.createInstance(ResourceModelCollection);
 	}

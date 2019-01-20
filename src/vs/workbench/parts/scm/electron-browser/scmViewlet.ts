@@ -225,9 +225,9 @@ class MainPanel extends ViewletPanel {
 		@IKeybindingService protected keybindingService: IKeybindingService,
 		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@ISCMService protected scmService: ISCMService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IMenuService private menuService: IMenuService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IMenuService private readonly menuService: IMenuService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super({ id: 'scm.mainPanel', title: localize('scm providers', "Source Control Providers") }, keybindingService, contextMenuService, configurationService);
@@ -317,7 +317,7 @@ class MainPanel extends ViewletPanel {
 
 		const repository = e.element;
 		const contextKeyService = this.contextKeyService.createScoped();
-		const scmProviderKey = contextKeyService.createKey<string | undefined>('scmProvider', void 0);
+		const scmProviderKey = contextKeyService.createKey<string | undefined>('scmProvider', undefined);
 		scmProviderKey.set(repository.provider.contextValue);
 
 		const menu = this.menuService.createMenu(MenuId.SCMSourceControl, contextKeyService);
@@ -742,7 +742,7 @@ export class RepositoryPanel extends ViewletPanel {
 		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@IContextViewService protected contextViewService: IContextViewService,
 		@ICommandService protected commandService: ICommandService,
-		@INotificationService private notificationService: INotificationService,
+		@INotificationService private readonly notificationService: INotificationService,
 		@IEditorService protected editorService: IEditorService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IConfigurationService protected configurationService: IConfigurationService,

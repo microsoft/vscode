@@ -38,9 +38,9 @@ import { Action, IAction, ActionRunner } from 'vs/base/common/actions';
 import { IActionBarOptions, ActionsOrientation, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { basename } from 'vs/base/common/paths';
-import { MenuId, IMenuService, IMenu, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { MenuId, IMenuService, IMenu, MenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { MenuItemActionItem, fillInActionBarActions } from 'vs/platform/actions/browser/menuItemActionItem';
-import { IChange, IEditorModel, ScrollType, IEditorContribution } from 'vs/editor/common/editorCommon';
+import { IChange, IEditorModel, ScrollType, IEditorContribution, IDiffEditorModel } from 'vs/editor/common/editorCommon';
 import { OverviewRulerLane, ITextModel, IModelDecorationOptions } from 'vs/editor/common/model';
 import { sortedDiff, firstIndex } from 'vs/base/common/arrays';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
@@ -77,7 +77,7 @@ class DiffActionRunner extends ActionRunner {
 }
 
 export interface IModelRegistry {
-	getModel(editorModel: IEditorModel): DirtyDiffModel;
+	getModel(editorModel: IEditorModel): DirtyDiffModel | null;
 }
 
 export const isDirtyDiffVisible = new RawContextKey<boolean>('dirtyDiffVisible', false);
@@ -156,7 +156,7 @@ function getChangeType(change: IChange): ChangeType {
 	}
 }
 
-function getChangeTypeColor(theme: ITheme, changeType: ChangeType): Color {
+function getChangeTypeColor(theme: ITheme, changeType: ChangeType): Color | null {
 	switch (changeType) {
 		case ChangeType.Modify: return theme.getColor(editorGutterModifiedBackground);
 		case ChangeType.Add: return theme.getColor(editorGutterAddedBackground);
@@ -164,7 +164,7 @@ function getChangeTypeColor(theme: ITheme, changeType: ChangeType): Color {
 	}
 }
 
-function getOuterEditorFromDiffEditor(accessor: ServicesAccessor): ICodeEditor {
+function getOuterEditorFromDiffEditor(accessor: ServicesAccessor): ICodeEditor | null {
 	const diffEditors = accessor.get(ICodeEditorService).listDiffEditors();
 
 	for (const diffEditor of diffEditors) {
@@ -189,13 +189,13 @@ class DirtyDiffWidget extends PeekViewWidget {
 	constructor(
 		editor: ICodeEditor,
 		private model: DirtyDiffModel,
-		@IThemeService private themeService: IThemeService,
-		@IInstantiationService private instantiationService: IInstantiationService,
+		@IThemeService private readonly themeService: IThemeService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IMenuService menuService: IMenuService,
-		@IKeybindingService private keybindingService: IKeybindingService,
-		@INotificationService private notificationService: INotificationService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@INotificationService private readonly notificationService: INotificationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IContextMenuService private contextMenuService: IContextMenuService
+		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) {
 		super(editor, { isResizeable: true, frameWidth: 1, keepEditorSelection: true });
 
@@ -203,11 +203,15 @@ class DirtyDiffWidget extends PeekViewWidget {
 		this._applyTheme(themeService.getTheme());
 
 		this.contextKeyService = contextKeyService.createScoped();
-		this.contextKeyService.createKey('originalResourceScheme', this.model.original.uri.scheme);
+		this.contextKeyService.createKey('originalResourceScheme', this.model.original!.uri.scheme);
 		this.menu = menuService.createMenu(MenuId.SCMChangeContext, this.contextKeyService);
 
 		this.create();
-		this.title = basename(editor.getModel().uri.fsPath);
+		if (editor.hasModel()) {
+			this.title = basename(editor.getModel().uri.fsPath);
+		} else {
+			this.title = '';
+		}
 		this.setTitle(this.title);
 
 		model.onDidChange(this.renderTitle, this, this._disposables);
@@ -230,7 +234,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 		// non-side-by-side diff still hasn't created the view zones
 		onFirstDiffUpdate(() => setTimeout(() => this.revealChange(change), 0));
 
-		this.diffEditor.setModel(this.model);
+		this.diffEditor.setModel(this.model as IDiffEditorModel);
 
 		const position = new Position(getModifiedEndLineNumber(change), 1);
 
@@ -245,7 +249,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 		const changeTypeColor = getChangeTypeColor(this.themeService.getTheme(), changeType);
 		this.style({ frameColor: changeTypeColor, arrowColor: changeTypeColor });
 
-		this._actionbarWidget.context = [this.model.modified.uri, this.model.changes, index];
+		this._actionbarWidget.context = [this.model.modified!.uri, this.model.changes, index];
 		this.show(position, height);
 		this.editor.focus();
 	}
@@ -290,9 +294,9 @@ class DirtyDiffWidget extends PeekViewWidget {
 		};
 	}
 
-	getActionItem(action: IAction): IActionItem {
+	getActionItem(action: IAction): IActionItem | null {
 		if (!(action instanceof MenuItemAction)) {
-			return undefined;
+			return null;
 		}
 
 		return new DiffMenuItemActionItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
@@ -439,6 +443,25 @@ export class ShowNextChangeAction extends EditorAction {
 }
 registerEditorAction(ShowNextChangeAction);
 
+// Go to menu
+MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+	group: '7_change_nav',
+	command: {
+		id: 'editor.action.dirtydiff.next',
+		title: nls.localize({ key: 'miGotoNextChange', comment: ['&& denotes a mnemonic'] }, "Next &&Change")
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+	group: '7_change_nav',
+	command: {
+		id: 'editor.action.dirtydiff.previous',
+		title: nls.localize({ key: 'miGotoPreviousChange', comment: ['&& denotes a mnemonic'] }, "Previous &&Change")
+	},
+	order: 2
+});
+
 export class MoveToPreviousChangeAction extends EditorAction {
 
 	constructor() {
@@ -454,7 +477,7 @@ export class MoveToPreviousChangeAction extends EditorAction {
 	run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const outerEditor = getOuterEditorFromDiffEditor(accessor);
 
-		if (!outerEditor) {
+		if (!outerEditor || !outerEditor.hasModel()) {
 			return;
 		}
 
@@ -467,7 +490,7 @@ export class MoveToPreviousChangeAction extends EditorAction {
 		const lineNumber = outerEditor.getPosition().lineNumber;
 		const model = controller.modelRegistry.getModel(outerEditor.getModel());
 
-		if (model.changes.length === 0) {
+		if (!model || model.changes.length === 0) {
 			return;
 		}
 
@@ -496,7 +519,7 @@ export class MoveToNextChangeAction extends EditorAction {
 	run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const outerEditor = getOuterEditorFromDiffEditor(accessor);
 
-		if (!outerEditor) {
+		if (!outerEditor || !outerEditor.hasModel()) {
 			return;
 		}
 
@@ -509,7 +532,7 @@ export class MoveToNextChangeAction extends EditorAction {
 		const lineNumber = outerEditor.getPosition().lineNumber;
 		const model = controller.modelRegistry.getModel(outerEditor.getModel());
 
-		if (model.changes.length === 0) {
+		if (!model || model.changes.length === 0) {
 			return;
 		}
 
@@ -568,7 +591,7 @@ export class DirtyDiffController implements IEditorContribution {
 	constructor(
 		private editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		this.enabled = !contextKeyService.getContextKeyValue('isInDiffEditor');
 
@@ -585,15 +608,18 @@ export class DirtyDiffController implements IEditorContribution {
 	}
 
 	canNavigate(): boolean {
-		return this.currentIndex === -1 || this.model.changes.length > 1;
+		return this.currentIndex === -1 || (!!this.model && this.model.changes.length > 1);
 	}
 
 	next(lineNumber?: number): void {
 		if (!this.assertWidget()) {
 			return;
 		}
+		if (!this.widget || !this.model) {
+			return;
+		}
 
-		if (typeof lineNumber === 'number' || this.currentIndex === -1) {
+		if (this.editor.hasModel() && (typeof lineNumber === 'number' || this.currentIndex === -1)) {
 			this.currentIndex = this.model.findNextClosestChange(typeof lineNumber === 'number' ? lineNumber : this.editor.getPosition().lineNumber);
 		} else {
 			this.currentIndex = rot(this.currentIndex + 1, this.model.changes.length);
@@ -606,8 +632,11 @@ export class DirtyDiffController implements IEditorContribution {
 		if (!this.assertWidget()) {
 			return;
 		}
+		if (!this.widget || !this.model) {
+			return;
+		}
 
-		if (typeof lineNumber === 'number' || this.currentIndex === -1) {
+		if (this.editor.hasModel() && (typeof lineNumber === 'number' || this.currentIndex === -1)) {
 			this.currentIndex = this.model.findPreviousClosestChange(typeof lineNumber === 'number' ? lineNumber : this.editor.getPosition().lineNumber);
 		} else {
 			this.currentIndex = rot(this.currentIndex - 1, this.model.changes.length);
@@ -627,7 +656,7 @@ export class DirtyDiffController implements IEditorContribution {
 		}
 
 		if (this.widget) {
-			if (this.model.changes.length === 0) {
+			if (!this.model || this.model.changes.length === 0) {
 				this.close();
 				return false;
 			}
@@ -680,6 +709,9 @@ export class DirtyDiffController implements IEditorContribution {
 	}
 
 	private onDidModelChange(splices: ISplice<IChange>[]): void {
+		if (!this.model) {
+			return;
+		}
 		for (const splice of splices) {
 			if (splice.start <= this.currentIndex) {
 				if (this.currentIndex < splice.start + splice.deleteCount) {
@@ -709,7 +741,9 @@ export class DirtyDiffController implements IEditorContribution {
 		if (e.target.type !== MouseTargetType.GUTTER_LINE_DECORATIONS) {
 			return;
 		}
-
+		if (!e.target.element) {
+			return;
+		}
 		if (e.target.element.className.indexOf('dirty-diff-glyph') < 0) {
 			return;
 		}
@@ -777,6 +811,9 @@ export class DirtyDiffController implements IEditorContribution {
 		if (!this.modelRegistry) {
 			return [];
 		}
+		if (!this.editor.hasModel()) {
+			return [];
+		}
 
 		const model = this.modelRegistry.getModel(this.editor.getModel());
 
@@ -841,12 +878,14 @@ class DirtyDiffDecorator {
 	private deletedOptions: ModelDecorationOptions;
 	private decorations: string[] = [];
 	private disposables: IDisposable[] = [];
+	private editorModel: ITextModel | null;
 
 	constructor(
-		private editorModel: ITextModel,
+		editorModel: ITextModel,
 		private model: DirtyDiffModel,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
+		this.editorModel = editorModel;
 		const decorations = configurationService.getValue<string>('scm.diffDecorations');
 		const gutter = decorations === 'all' || decorations === 'gutter';
 		const overview = decorations === 'all' || decorations === 'overview';
@@ -860,6 +899,9 @@ class DirtyDiffDecorator {
 	}
 
 	private onDidChange(): void {
+		if (!this.editorModel) {
+			return;
+		}
 		const decorations = this.model.changes.map((change) => {
 			const changeType = getChangeType(change);
 			const startLineNumber = change.modifiedStartLineNumber;
@@ -932,12 +974,12 @@ function compareChanges(a: IChange, b: IChange): number {
 
 export class DirtyDiffModel {
 
-	private _originalModel: ITextModel;
-	get original(): ITextModel { return this._originalModel; }
-	get modified(): ITextModel { return this._editorModel; }
+	private _originalModel: ITextModel | null;
+	get original(): ITextModel | null { return this._originalModel; }
+	get modified(): ITextModel | null { return this._editorModel; }
 
-	private diffDelayer: ThrottledDelayer<IChange[]>;
-	private _originalURIPromise: Promise<URI>;
+	private diffDelayer: ThrottledDelayer<IChange[] | null> | null;
+	private _originalURIPromise?: Promise<URI | null>;
 	private repositoryDisposables = new Set<IDisposable[]>();
 	private originalModelDisposables: IDisposable[] = [];
 	private disposables: IDisposable[] = [];
@@ -950,15 +992,18 @@ export class DirtyDiffModel {
 		return this._changes;
 	}
 
+	private _editorModel: ITextModel | null;
+
 	constructor(
-		private _editorModel: ITextModel,
-		@ISCMService private scmService: ISCMService,
-		@IEditorWorkerService private editorWorkerService: IEditorWorkerService,
-		@ITextModelService private textModelResolverService: ITextModelService
+		editorModel: ITextModel,
+		@ISCMService private readonly scmService: ISCMService,
+		@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService,
+		@ITextModelService private readonly textModelResolverService: ITextModelService
 	) {
+		this._editorModel = editorModel;
 		this.diffDelayer = new ThrottledDelayer<IChange[]>(200);
 
-		this.disposables.push(_editorModel.onDidChangeContent(() => this.triggerDiff()));
+		this.disposables.push(editorModel.onDidChangeContent(() => this.triggerDiff()));
 		scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
 		scmService.repositories.forEach(r => this.onDidAddRepository(r));
 
@@ -989,7 +1034,7 @@ export class DirtyDiffModel {
 			.trigger(() => this.diff())
 			.then((changes: IChange[]) => {
 				if (!this._editorModel || this._editorModel.isDisposed() || !this._originalModel || this._originalModel.isDisposed()) {
-					return undefined; // disposed
+					return; // disposed
 				}
 
 				if (this._originalModel.getValueLength() === 0) {
@@ -1005,7 +1050,7 @@ export class DirtyDiffModel {
 			});
 	}
 
-	private diff(): Promise<IChange[]> {
+	private diff(): Promise<IChange[] | null> {
 		return this.getOriginalURIPromise().then(originalURI => {
 			if (!this._editorModel || this._editorModel.isDisposed() || !originalURI) {
 				return Promise.resolve([]); // disposed
@@ -1019,7 +1064,7 @@ export class DirtyDiffModel {
 		});
 	}
 
-	private getOriginalURIPromise(): Promise<URI> {
+	private getOriginalURIPromise(): Promise<URI | null> {
 		if (this._originalURIPromise) {
 			return this._originalURIPromise;
 		}
@@ -1056,8 +1101,8 @@ export class DirtyDiffModel {
 			});
 		});
 
-		return always(this._originalURIPromise, () => {
-			this._originalURIPromise = null;
+		return always(this._originalURIPromise!, () => {
+			this._originalURIPromise = undefined;
 		});
 	}
 
@@ -1143,12 +1188,12 @@ export class DirtyDiffWorkbenchController implements ext.IWorkbenchContribution,
 	private disposables: IDisposable[] = [];
 
 	constructor(
-		@IEditorService private editorService: IEditorService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IEditorService private readonly editorService: IEditorService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		this.stylesheet = createStyleSheet();
-		this.disposables.push(toDisposable(() => this.stylesheet.parentElement.removeChild(this.stylesheet)));
+		this.disposables.push(toDisposable(() => this.stylesheet.parentElement!.removeChild(this.stylesheet)));
 
 		const onDidChangeConfiguration = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.diffDecorations'));
 		onDidChangeConfiguration(this.onDidChangeConfiguration, this, this.disposables);
@@ -1219,7 +1264,7 @@ export class DirtyDiffWorkbenchController implements ext.IWorkbenchContribution,
 			})
 
 			// remove nulls and duplicates
-			.filter((m, i, a) => !!m && !!m.uri && a.indexOf(m, i + 1) === -1);
+			.filter((m, i, a) => !!m && !!m.uri && a.indexOf(m, i + 1) === -1) as ITextModel[];
 
 		const newModels = models.filter(o => this.models.every(m => o !== m));
 		const oldModels = this.models.filter(m => models.every(o => o !== m));

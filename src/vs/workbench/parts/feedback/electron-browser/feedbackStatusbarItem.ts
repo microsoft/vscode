@@ -58,11 +58,11 @@ export class FeedbackStatusbarItem extends Themable implements IStatusbarItem {
 	private hideAction: HideAction;
 
 	constructor(
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IContextViewService private contextViewService: IContextViewService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextViewService private readonly contextViewService: IContextViewService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IWorkspaceConfigurationService private readonly configurationService: IWorkspaceConfigurationService,
 		@IThemeService themeService: IThemeService
 	) {
 		super(themeService);
@@ -144,7 +144,7 @@ export class FeedbackStatusbarItem extends Themable implements IStatusbarItem {
 		// Dispose
 		else {
 			dispose(this.dropdown);
-			this.dropdown = void 0;
+			this.dropdown = undefined;
 			clearNode(this.container);
 		}
 
@@ -155,7 +155,7 @@ export class FeedbackStatusbarItem extends Themable implements IStatusbarItem {
 class HideAction extends Action {
 
 	constructor(
-		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService
+		@IWorkspaceConfigurationService private readonly configurationService: IWorkspaceConfigurationService
 	) {
 		super('feedback.hide', localize('hide', "Hide"));
 	}

@@ -30,78 +30,6 @@ import { localize } from 'vs/nls';
 import { IAddedViewDescriptorRef, IViewDescriptorRef, PersistentContributableViewsModel } from 'vs/workbench/browser/parts/views/views';
 import { Registry } from 'vs/platform/registry/common/platform';
 
-export abstract class TreeViewsViewletPanel extends ViewletPanel {
-
-	protected tree: WorkbenchTree;
-
-	setExpanded(expanded: boolean): boolean {
-		const changed = super.setExpanded(expanded);
-		if (changed) {
-			this.updateTreeVisibility(this.tree, expanded);
-		}
-
-		return changed;
-	}
-
-	setVisible(visible: boolean): void {
-		if (this.isVisible() !== visible) {
-			super.setVisible(visible);
-			this.updateTreeVisibility(this.tree, visible && this.isExpanded());
-		}
-	}
-
-	focus(): void {
-		super.focus();
-		this.focusTree();
-	}
-
-	layoutBody(size: number): void {
-		if (this.tree) {
-			this.tree.layout(size);
-		}
-	}
-
-	protected updateTreeVisibility(tree: WorkbenchTree, isVisible: boolean): void {
-		if (!tree) {
-			return;
-		}
-
-		if (isVisible) {
-			DOM.show(tree.getHTMLElement());
-		} else {
-			DOM.hide(tree.getHTMLElement()); // make sure the tree goes out of the tabindex world by hiding it
-		}
-
-		if (isVisible) {
-			tree.onVisible();
-		} else {
-			tree.onHidden();
-		}
-	}
-
-	private focusTree(): void {
-		if (!this.tree) {
-			return; // return early if viewlet has not yet been created
-		}
-
-		// Make sure the current selected element is revealed
-		const selectedElement = this.tree.getSelection()[0];
-		if (selectedElement) {
-			this.tree.reveal(selectedElement);
-		}
-
-		// Pass Focus to Viewer
-		this.tree.domFocus();
-	}
-
-	dispose(): void {
-		if (this.tree) {
-			this.tree.dispose();
-		}
-		super.dispose();
-	}
-}
-
 export interface IViewletViewOptions extends IViewletPanelOptions {
 	viewletState: object;
 }
@@ -286,7 +214,13 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 
 		this.addPanels(panelsToAdd);
 		this.restoreViewSizes();
-		return panelsToAdd.map(({ panel }) => panel);
+
+		const panels: ViewletPanel[] = [];
+		for (const { panel } of panelsToAdd) {
+			panel.setVisible(this.isVisible());
+			panels.push(panel);
+		}
+		return panels;
 	}
 
 	private onDidRemoveViews(removed: IViewDescriptorRef[]): void {

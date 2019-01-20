@@ -231,6 +231,7 @@ export class WebviewElement extends Disposable {
 	private _findStarted: boolean = false;
 	private _contents: string = '';
 	private _state: string | undefined = undefined;
+	private _focused = false;
 
 	private readonly _onDidFocus = this._register(new Emitter<void>());
 	public get onDidFocus(): Event<void> { return this._onDidFocus.event; }
@@ -288,6 +289,12 @@ export class WebviewElement extends Disposable {
 		}));
 		this._register(addDisposableListener(this._webview, 'dom-ready', () => {
 			this.layout();
+
+			// Workaround for https://github.com/electron/electron/issues/14474
+			if (this._focused || document.activeElement === this._webview) {
+				this._webview.blur();
+				this._webview.focus();
+			}
 		}));
 		this._register(addDisposableListener(this._webview, 'crashed', () => {
 			console.error('embedded page crashed');
@@ -437,6 +444,7 @@ export class WebviewElement extends Disposable {
 	}
 
 	private handleFocusChange(isFocused: boolean): void {
+		this._focused = isFocused;
 		if (isFocused) {
 			this._onDidFocus.fire();
 		}
@@ -531,7 +539,6 @@ export class WebviewElement extends Disposable {
 	 * depending on the supplied options.
 	 *
 	 * @param value The string to search for. Empty strings are ignored.
-	 * @param options
 	 */
 	public find(value: string, options?: Electron.FindInPageOptions): void {
 		// Searching with an empty value will throw an exception

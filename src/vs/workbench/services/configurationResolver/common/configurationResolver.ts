@@ -25,8 +25,7 @@ export interface IConfigurationResolverService {
 	/**
 	 * Recursively resolves all variables (including commands and user input) in the given config and returns a copy of it with substituted values.
 	 * If a "variables" dictionary (with names -> command ids) is given, command variables are first mapped through it before being resolved.
-	 * @param folder
-	 * @param config
+	 *
 	 * @param section For example, 'tasks' or 'debug'. Used for resolving inputs.
 	 * @param variables Aliases for commands.
 	 */

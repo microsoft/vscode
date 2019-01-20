@@ -110,7 +110,7 @@ interface ISerializedUntitledEditorInput {
 class UntitledEditorInputFactory implements IEditorInputFactory {
 
 	constructor(
-		@ITextFileService private textFileService: ITextFileService
+		@ITextFileService private readonly textFileService: ITextFileService
 	) { }
 
 	serialize(editorInput: EditorInput): string {
@@ -139,7 +139,7 @@ class UntitledEditorInputFactory implements IEditorInputFactory {
 		return instantiationService.invokeFunction<UntitledEditorInput>(accessor => {
 			const deserialized: ISerializedUntitledEditorInput = JSON.parse(serializedEditorInput);
 			const resource = !!deserialized.resourceJSON ? URI.revive(deserialized.resourceJSON) : URI.parse(deserialized.resource);
-			const filePath = resource.scheme === Schemas.file ? resource.fsPath : void 0;
+			const filePath = resource.scheme === Schemas.file ? resource.fsPath : undefined;
 			const language = deserialized.modeId;
 			const encoding = deserialized.encoding;
 
@@ -230,7 +230,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(ChangeEncodingAction, 
 export class QuickOpenActionContributor extends ActionBarContributor {
 	private openToSideActionInstance: OpenToSideFromQuickOpenAction;
 
-	constructor(@IInstantiationService private instantiationService: IInstantiationService) {
+	constructor(@IInstantiationService private readonly instantiationService: IInstantiationService) {
 		super();
 	}
 
@@ -740,7 +740,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 
 // Forward/Back
 MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
-	group: '1_fwd_back',
+	group: '1_history_nav',
 	command: {
 		id: 'workbench.action.navigateBack',
 		title: nls.localize({ key: 'miBack', comment: ['&& denotes a mnemonic'] }, "&&Back"),
@@ -750,13 +750,23 @@ MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
-	group: '1_fwd_back',
+	group: '1_history_nav',
 	command: {
 		id: 'workbench.action.navigateForward',
 		title: nls.localize({ key: 'miForward', comment: ['&& denotes a mnemonic'] }, "&&Forward"),
 		precondition: ContextKeyExpr.has('canNavigateForward')
 	},
 	order: 2
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+	group: '1_history_nav',
+	command: {
+		id: 'workbench.action.navigateToLastEditLocation',
+		title: nls.localize({ key: 'miLastEditLocation', comment: ['&& denotes a mnemonic'] }, "&&Last Edit Location"),
+		precondition: ContextKeyExpr.has('canNavigateToLastEditLocation')
+	},
+	order: 3
 });
 
 // Switch Editor
@@ -797,7 +807,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarSwitchEditorMenu, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
-	group: '2_switch',
+	group: '2_editor_nav',
 	title: nls.localize({ key: 'miSwitchEditor', comment: ['&& denotes a mnemonic'] }, "Switch &&Editor"),
 	submenu: MenuId.MenubarSwitchEditorMenu,
 	order: 1
@@ -904,7 +914,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
-	group: '2_switch',
+	group: '2_editor_nav',
 	title: nls.localize({ key: 'miSwitchGroup', comment: ['&& denotes a mnemonic'] }, "Switch &&Group"),
 	submenu: MenuId.MenubarSwitchGroupMenu,
 	order: 2

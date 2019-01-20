@@ -38,11 +38,11 @@ export class StartDebugActionItem implements IActionItem {
 	constructor(
 		private context: any,
 		private action: IAction,
-		@IDebugService private debugService: IDebugService,
-		@IThemeService private themeService: IThemeService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@ICommandService private commandService: ICommandService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IDebugService private readonly debugService: IDebugService,
+		@IThemeService private readonly themeService: IThemeService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IContextViewService contextViewService: IContextViewService,
 	) {
 		this.toDispose = [];

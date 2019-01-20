@@ -26,7 +26,7 @@ export class TextSearchManager {
 	constructor(private query: ITextQuery, private provider: vscode.TextSearchProvider, private _extfs: typeof extfs = extfs) {
 	}
 
-	public search(onProgress: (matches: IFileMatch[]) => void, token: CancellationToken): Promise<ISearchCompleteStats> {
+	search(onProgress: (matches: IFileMatch[]) => void, token: CancellationToken): Promise<ISearchCompleteStats> {
 		const folderQueries = this.query.folderQueries || [];
 		const tokenSource = new CancellationTokenSource();
 		token.onCancellationRequested(() => tokenSource.cancel());

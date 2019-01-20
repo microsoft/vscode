@@ -39,8 +39,8 @@ export class DebugViewlet extends ViewContainerViewlet {
 	constructor(
 		@IPartService partService: IPartService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IProgressService private progressService: IProgressService,
-		@IDebugService private debugService: IDebugService,
+		@IProgressService private readonly progressService: IProgressService,
+		@IDebugService private readonly debugService: IDebugService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IStorageService storageService: IStorageService,
@@ -48,8 +48,8 @@ export class DebugViewlet extends ViewContainerViewlet {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IExtensionService extensionService: IExtensionService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService private keybindingService: IKeybindingService,
-		@IContextViewService private contextViewService: IContextViewService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IContextViewService private readonly contextViewService: IContextViewService,
 	) {
 		super(VIEWLET_ID, `${VIEWLET_ID}.state`, false, configurationService, partService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
 

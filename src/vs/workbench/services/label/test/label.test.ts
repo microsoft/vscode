@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { LabelService } from 'vs/platform/label/common/label';
 import { TestEnvironmentService, TestContextService, TestWindowService } from 'vs/workbench/test/workbenchTestServices';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { URI } from 'vs/base/common/uri';
 import { nativeSep } from 'vs/base/common/paths';
 import { isWindows } from 'vs/base/common/platform';
+import { LabelService } from 'vs/workbench/services/label/common/labelService';
 
 suite('URI Label', () => {
 
@@ -20,8 +20,9 @@ suite('URI Label', () => {
 	});
 
 	test('file scheme', function () {
-		labelService.registerFormatter('file://', {
-			uri: {
+		labelService.registerFormatter({
+			scheme: 'file',
+			formatting: {
 				label: '${path}',
 				separator: nativeSep,
 				tildify: !isWindows,
@@ -38,8 +39,9 @@ suite('URI Label', () => {
 	});
 
 	test('custom scheme', function () {
-		labelService.registerFormatter('vscode://', {
-			uri: {
+		labelService.registerFormatter({
+			scheme: 'vscode',
+			formatting: {
 				label: 'LABEL/${path}/${authority}/END',
 				separator: '/',
 				tildify: true,
@@ -49,5 +51,50 @@ suite('URI Label', () => {
 
 		const uri1 = URI.parse('vscode://microsoft.com/1/2/3/4/5');
 		assert.equal(labelService.getUriLabel(uri1, { relative: false }), 'LABEL//1/2/3/4/5/microsoft.com/END');
+	});
+
+	test('custom authority', function () {
+		labelService.registerFormatter({
+			scheme: 'vscode',
+			authority: 'micro*',
+			formatting: {
+				label: 'LABEL/${path}/${authority}/END',
+				separator: '/'
+			}
+		});
+
+		const uri1 = URI.parse('vscode://microsoft.com/1/2/3/4/5');
+		assert.equal(labelService.getUriLabel(uri1, { relative: false }), 'LABEL//1/2/3/4/5/microsoft.com/END');
+	});
+
+	test('mulitple authority', function () {
+		labelService.registerFormatter({
+			scheme: 'vscode',
+			authority: 'not_matching_but_long',
+			formatting: {
+				label: 'first',
+				separator: '/'
+			}
+		});
+		labelService.registerFormatter({
+			scheme: 'vscode',
+			authority: 'microsof*',
+			formatting: {
+				label: 'second',
+				separator: '/'
+			}
+		});
+		labelService.registerFormatter({
+			scheme: 'vscode',
+			authority: 'mi*',
+			formatting: {
+				label: 'third',
+				separator: '/'
+			}
+		});
+
+		// Make sure the most specific authority is picked
+		const uri1 = URI.parse('vscode://microsoft.com/1/2/3/4/5');
+		assert.equal(labelService.getUriLabel(uri1, { relative: false }), 'second');
 	});
 });

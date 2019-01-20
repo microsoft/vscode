@@ -32,22 +32,18 @@ import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IListService, WorkbenchListFocusContextKey, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ISearchConfigurationProperties, VIEW_ID } from 'vs/platform/search/common/search';
-import { Extensions as PanelExtensions, PanelDescriptor, PanelRegistry } from 'vs/workbench/browser/panel';
+import { ISearchConfigurationProperties, VIEW_ID, ISearchConfiguration } from 'vs/platform/search/common/search';
 import { defaultQuickOpenContextKey } from 'vs/workbench/browser/parts/quickopen/quickopen';
 import { Extensions as QuickOpenExtensions, IQuickOpenRegistry, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
-import { Extensions as ViewletExtensions, ViewletDescriptor, ViewletRegistry } from 'vs/workbench/browser/viewlet';
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { getMultiSelectedResources } from 'vs/workbench/parts/files/browser/files';
-import { ExplorerFolderContext, ExplorerRootContext } from 'vs/workbench/parts/files/common/files';
+import { ExplorerFolderContext, ExplorerRootContext, FilesExplorerFocusCondition } from 'vs/workbench/parts/files/common/files';
 import { OpenAnythingHandler } from 'vs/workbench/parts/search/browser/openAnythingHandler';
 import { OpenSymbolHandler } from 'vs/workbench/parts/search/browser/openSymbolHandler';
 import { registerContributions as replaceContributions } from 'vs/workbench/parts/search/browser/replaceContributions';
 import { clearHistoryCommand, ClearSearchResultsAction, CloseReplaceAction, CollapseDeepestExpandedLevelAction, copyAllCommand, copyMatchCommand, copyPathCommand, FindInFilesAction, FocusNextInputAction, FocusNextSearchResultAction, FocusPreviousInputAction, FocusPreviousSearchResultAction, focusSearchListCommand, getSearchView, openSearchView, OpenSearchViewletAction, RefreshAction, RemoveAction, ReplaceAction, ReplaceAllAction, ReplaceAllInFolderAction, ReplaceInFilesAction, toggleCaseSensitiveCommand, toggleRegexCommand, toggleWholeWordCommand } from 'vs/workbench/parts/search/browser/searchActions';
-import { SearchView } from 'vs/workbench/parts/search/browser/searchView';
-import { SearchViewLocationUpdater } from 'vs/workbench/parts/search/browser/searchViewLocationUpdater';
 import { registerContributions as searchWidgetContributions } from 'vs/workbench/parts/search/browser/searchWidget';
 import * as Constants from 'vs/workbench/parts/search/common/constants';
 import { getWorkspaceSymbols } from 'vs/workbench/parts/search/common/search';
@@ -55,6 +51,9 @@ import { FileMatchOrMatch, ISearchWorkbenchService, RenderableMatch, SearchWorkb
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { PanelRegistry, Extensions as PanelExtensions, PanelDescriptor } from 'vs/workbench/browser/panel';
+import { ViewletDescriptor, ViewletRegistry, Extensions as ViewletExtensions } from 'vs/workbench/browser/viewlet';
+import { SearchView } from 'vs/workbench/parts/search/browser/searchView';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService, true);
 replaceContributions();
@@ -362,7 +361,7 @@ const searchInFolderCommand: ICommandHandler = (accessor, resource?: URI) => {
 			});
 		}
 
-		return void 0;
+		return undefined;
 	});
 };
 
@@ -370,7 +369,7 @@ const FIND_IN_FOLDER_ID = 'filesExplorer.findInFolder';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: FIND_IN_FOLDER_ID,
 	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.and(ExplorerFolderContext, ResourceContextKey.Scheme.isEqualTo(Schemas.file)), // todo@remote
+	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerFolderContext, ResourceContextKey.Scheme.isEqualTo(Schemas.file)), // todo@remote
 	primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_F,
 	handler: searchInFolderCommand
 });
@@ -427,17 +426,17 @@ class ShowAllSymbolsAction extends Action {
 
 	constructor(
 		actionId: string, actionLabel: string,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@ICodeEditorService private editorService: ICodeEditorService) {
+		@IQuickOpenService private readonly quickOpenService: IQuickOpenService,
+		@ICodeEditorService private readonly editorService: ICodeEditorService) {
 		super(actionId, actionLabel);
 		this.enabled = !!this.quickOpenService;
 	}
 
-	public run(context?: any): Promise<void> {
+	run(context?: any): Promise<void> {
 
 		let prefix = ShowAllSymbolsAction.ALL_SYMBOLS_PREFIX;
-		let inputSelection: { start: number; end: number; } = void 0;
-		let editor = this.editorService.getFocusedCodeEditor();
+		let inputSelection: { start: number; end: number; } = undefined;
+		const editor = this.editorService.getFocusedCodeEditor();
 		const word = editor && getSelectionSearchString(editor);
 		if (word) {
 			prefix = prefix + word;
@@ -446,29 +445,55 @@ class ShowAllSymbolsAction extends Action {
 
 		this.quickOpenService.show(prefix, { inputSelection });
 
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 }
 
-// Register View in Viewlet and Panel area
-Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new ViewletDescriptor(
-	SearchView,
-	VIEW_ID,
-	nls.localize('name', "Search"),
-	'search',
-	1
-));
+class RegisterSearchViewContribution implements IWorkbenchContribution {
 
-Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(new PanelDescriptor(
-	SearchView,
-	VIEW_ID,
-	nls.localize('name', "Search"),
-	'search',
-	10
-));
+	constructor(
+		@IViewletService viewletService: IViewletService,
+		@IPanelService panelService: IPanelService,
+		@IConfigurationService configurationService: IConfigurationService
+	) {
+		const updateSearchViewLocation = (open: boolean) => {
+			const config = configurationService.getValue<ISearchConfiguration>();
+			if (config.search.location === 'panel') {
+				Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).deregisterViewlet(VIEW_ID);
+				Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(new PanelDescriptor(
+					SearchView,
+					VIEW_ID,
+					nls.localize('name', "Search"),
+					'search',
+					10
+				));
+				if (open) {
+					panelService.openPanel(VIEW_ID);
+				}
+			} else {
+				Registry.as<PanelRegistry>(PanelExtensions.Panels).deregisterPanel(VIEW_ID);
+				Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new ViewletDescriptor(
+					SearchView,
+					VIEW_ID,
+					nls.localize('name', "Search"),
+					'search',
+					1
+				));
+				if (open) {
+					viewletService.openViewlet(VIEW_ID);
+				}
+			}
+		};
+		configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('search.location')) {
+				updateSearchViewLocation(true);
+			}
+		});
 
-// Register view location updater
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(SearchViewLocationUpdater, LifecyclePhase.Starting);
+		updateSearchViewLocation(false);
+	}
+}
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(RegisterSearchViewContribution, LifecyclePhase.Starting);
 
 // Actions
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
@@ -693,7 +718,7 @@ configurationRegistry.registerConfiguration({
 });
 
 registerLanguageCommand('_executeWorkspaceSymbolProvider', function (accessor, args: { query: string; }) {
-	let { query } = args;
+	const { query } = args;
 	if (typeof query !== 'string') {
 		throw illegalArgument();
 	}
@@ -714,10 +739,10 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 // Go to menu
 
 MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
-	group: 'z_go_to',
+	group: '3_global_nav',
 	command: {
 		id: 'workbench.action.showAllSymbols',
 		title: nls.localize({ key: 'miGotoSymbolInWorkspace', comment: ['&& denotes a mnemonic'] }, "Go to Symbol in &&Workspace...")
 	},
-	order: 3
+	order: 2
 });

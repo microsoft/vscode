@@ -83,8 +83,8 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 		const { fontInfo, lineHeight } = this._editor.getConfiguration();
 		this._domNode.style.height = `${Math.round(lineHeight * 1.1)}px`;
 		this._domNode.style.lineHeight = `${lineHeight}px`;
-		this._domNode.style.fontSize = `${Math.round(fontInfo.fontSize * .9)}px`;
-		this._domNode.style.paddingRight = `${Math.round(fontInfo.fontSize * .45)}px`;
+		this._domNode.style.fontSize = `${Math.round(fontInfo.fontSize * 0.9)}px`;
+		this._domNode.style.paddingRight = `${Math.round(fontInfo.fontSize * 0.45)}px`;
 		this._domNode.innerHTML = '&nbsp;';
 	}
 

@@ -34,7 +34,7 @@ const stats: ISearchEngineStats = {
 
 class TestSearchEngine implements ISearchEngine<IRawFileMatch> {
 
-	public static last: TestSearchEngine;
+	static last: TestSearchEngine;
 
 	private isCanceled = false;
 
@@ -42,7 +42,7 @@ class TestSearchEngine implements ISearchEngine<IRawFileMatch> {
 		TestSearchEngine.last = this;
 	}
 
-	public search(onResult: (match: IRawFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISearchEngineSuccess) => void): void {
+	search(onResult: (match: IRawFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISearchEngineSuccess) => void): void {
 		const self = this;
 		(function next() {
 			process.nextTick(() => {
@@ -67,7 +67,7 @@ class TestSearchEngine implements ISearchEngine<IRawFileMatch> {
 		})();
 	}
 
-	public cancel(): void {
+	cancel(): void {
 		this.isCanceled = true;
 	}
 }
@@ -143,7 +143,7 @@ suite('RawSearchService', () => {
 		const service = new RawSearchService();
 
 		function fileSearch(config: IFileQuery, batchSize: number): Event<ISerializedSearchProgressItem | ISerializedSearchComplete> {
-			let promise: CancelablePromise<ISerializedSearchSuccess>;
+			let promise: CancelablePromise<ISerializedSearchSuccess | void>;
 
 			const emitter = new Emitter<ISerializedSearchProgressItem | ISerializedSearchComplete>({
 				onFirstListenerAdd: () => {

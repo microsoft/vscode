@@ -14,7 +14,7 @@ export class CopyValueAction extends Action {
 	static readonly ID = 'workbench.debug.viewlet.action.copyValue';
 	static LABEL = nls.localize('copyValue', "Copy Value");
 
-	constructor(id: string, label: string, private value: any, @IDebugService private debugService: IDebugService) {
+	constructor(id: string, label: string, private value: any, @IDebugService private readonly debugService: IDebugService) {
 		super(id, label, 'debug-action copy-value');
 		this._enabled = typeof this.value === 'string' || (this.value instanceof Variable && !!this.value.evaluateName);
 	}

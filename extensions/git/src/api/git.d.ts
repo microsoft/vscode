@@ -153,9 +153,10 @@ export interface Repository {
 	addRemote(name: string, url: string): Promise<void>;
 	removeRemote(name: string): Promise<void>;
 
-	fetch(remote?: string, ref?: string): Promise<void>;
-	pull(): Promise<void>;
+	fetch(remote?: string, ref?: string, depth?: number): Promise<void>;
+	pull(unshallow?: boolean): Promise<void>;
 	push(remoteName?: string, branchName?: string, setUpstream?: boolean): Promise<void>;
+	blame(path: string): Promise<string>;
 }
 
 export interface API {
@@ -215,5 +216,6 @@ export const enum GitErrorCodes {
 	WrongCase = 'WrongCase',
 	CantLockRef = 'CantLockRef',
 	CantRebaseMultipleBranches = 'CantRebaseMultipleBranches',
-	PatchDoesNotApply = 'PatchDoesNotApply'
+	PatchDoesNotApply = 'PatchDoesNotApply',
+	NoPathFound = 'NoPathFound'
 }

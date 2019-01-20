@@ -48,7 +48,7 @@
 				"git": {
 					"name": "libchromiumcontent",
 					"repositoryUrl": "https://github.com/electron/libchromiumcontent",
-					"commitHash": "d9e39391cfae447a84e276a402342cf8b4b5bcba"
+					"commitHash": "e38e22ed9f48e6e395f2e9faa93d2d7411f52de4"
 				}
 			},
 			"isOnlyProductionDependency": true,
@@ -73,12 +73,12 @@
 				"git": {
 					"name": "electron",
 					"repositoryUrl": "https://github.com/electron/electron",
-					"commitHash": "4305657858592be2b44c95ae7af53c627dcdc5e7"
+					"commitHash": "f26dcaeaf39e9b829aa0d4fb5a5cb59c5c314b33"
 				}
 			},
 			"isOnlyProductionDependency": true,
 			"license": "MIT",
-			"version": "3.0.10"
+			"version": "3.0.13"
 		},
 		{
 			"component": {
@@ -104,6 +104,18 @@
 			"isOnlyProductionDependency": true,
 			"license": "MIT",
 			"version": "0.14.0"
+		},
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "vscode-octicons-font",
+					"repositoryUrl": "https://github.com/Microsoft/vscode-octicons-font",
+					"commitHash": "174697a8d28a65dc6600c44d239bd75f7d157c71"
+				}
+			},
+			"license": "MIT",
+			"version": "1.0.0"
 		},
 		{
 			"component": {

@@ -92,18 +92,18 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 	private disposables: IDisposable[] = [];
 
 	constructor(
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IEditorService private editorService: IEditorService,
-		@IConfigurationService private configurationService: IConfigurationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
-		@IMarkersWorkbenchService private markersWorkbenchService: IMarkersWorkbenchService,
+		@IMarkersWorkbenchService private readonly markersWorkbenchService: IMarkersWorkbenchService,
 		@IStorageService storageService: IStorageService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
-		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IMenuService private menuService: IMenuService,
-		@IKeybindingService private keybindingService: IKeybindingService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IMenuService private readonly menuService: IMenuService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) {
 		super(Constants.MARKERS_PANEL_ID, telemetryService, themeService, storageService);
 		this.panelFoucusContextKey = Constants.MarkerPanelFocusContextKey.bindTo(contextKeyService);
@@ -203,10 +203,15 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		return false;
 	}
 
-	private refreshPanel(): void {
+	private refreshPanel(marker?: Marker): void {
 		if (this.isVisible()) {
 			this.cachedFilterStats = undefined;
-			this.tree.setChildren(null, createModelIterator(this.markersWorkbenchService.markersModel));
+
+			if (marker) {
+				this.tree.refresh(marker);
+			} else {
+				this.tree.setChildren(null, createModelIterator(this.markersWorkbenchService.markersModel));
+			}
 
 			const { total, filtered } = this.getFilterStats();
 			dom.toggleClass(this.treeContainer, 'hidden', total > 0 && filtered === 0);
@@ -216,7 +221,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 	}
 
 	private onDidChangeViewState(marker?: Marker): void {
-		this.refreshPanel();
+		this.refreshPanel(marker);
 	}
 
 	private updateFilter() {
@@ -413,7 +418,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 
 	private setCurrentActiveEditor(): void {
 		const activeEditor = this.editorService.activeEditor;
-		this.currentActiveResource = activeEditor ? activeEditor.getResource() : void 0;
+		this.currentActiveResource = activeEditor ? activeEditor.getResource() : undefined;
 	}
 
 	private onSelected(): void {

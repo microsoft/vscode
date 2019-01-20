@@ -87,7 +87,7 @@ import { NotificationService } from 'vs/workbench/services/notification/common/n
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { DialogService } from 'vs/workbench/services/dialogs/electron-browser/dialogService';
 import { DialogChannel } from 'vs/platform/dialogs/node/dialogIpc';
-import { EventType, addDisposableListener, addClass, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, scheduleAtNextAnimationFrame, addClasses } from 'vs/base/browser/dom';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/node/remoteAgentService';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -96,7 +96,7 @@ import { SearchHistoryService } from 'vs/workbench/services/search/node/searchHi
 import { ExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 import { LogLevelSetterChannel } from 'vs/platform/log/node/logIpc';
-import { ILabelService, LabelService } from 'vs/platform/label/common/label';
+import { ILabelService } from 'vs/platform/label/common/label';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadService } from 'vs/platform/download/node/downloadService';
 import { DownloadServiceChannel } from 'vs/platform/download/node/downloadIpc';
@@ -104,6 +104,9 @@ import { TextResourcePropertiesService } from 'vs/workbench/services/textfile/el
 import { MultiExtensionManagementService } from 'vs/platform/extensionManagement/node/multiExtensionManagement';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-browser/remoteAuthorityResolverService';
+import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
+import { MarkerDecorationsService } from 'vs/editor/common/services/markerDecorationsServiceImpl';
+import { LabelService } from 'vs/workbench/services/label/common/labelService';
 
 /**
  * Services that we require for the Shell
@@ -223,7 +226,7 @@ export class WorkbenchShell extends Disposable {
 		} catch (error) {
 			handleStartupError(this.logService, error);
 
-			return void 0;
+			return undefined;
 		}
 	}
 
@@ -488,6 +491,7 @@ export class WorkbenchShell extends Disposable {
 
 		serviceCollection.set(IMarkerService, new SyncDescriptor(MarkerService, undefined, true));
 
+
 		serviceCollection.set(IModeService, new SyncDescriptor(WorkbenchModeServiceImpl));
 
 		serviceCollection.set(ITextResourceConfigurationService, new SyncDescriptor(TextResourceConfigurationService));
@@ -495,6 +499,8 @@ export class WorkbenchShell extends Disposable {
 		serviceCollection.set(ITextResourcePropertiesService, new SyncDescriptor(TextResourcePropertiesService));
 
 		serviceCollection.set(IModelService, new SyncDescriptor(ModelServiceImpl, undefined, true));
+
+		serviceCollection.set(IMarkerDecorationsService, new SyncDescriptor(MarkerDecorationsService));
 
 		serviceCollection.set(IEditorWorkerService, new SyncDescriptor(EditorWorkerServiceImpl));
 
@@ -538,7 +544,7 @@ export class WorkbenchShell extends Disposable {
 		});
 
 		// Shell Class for CSS Scoping
-		addClass(this.container, 'monaco-shell');
+		addClasses(this.container, 'monaco-shell', platform.isWindows ? 'windows' : platform.isLinux ? 'linux' : 'mac');
 
 		// Create Contents
 		this.renderContents();

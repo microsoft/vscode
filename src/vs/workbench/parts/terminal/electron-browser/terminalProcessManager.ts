@@ -63,7 +63,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		this.ptyProcessReady = new Promise<void>(c => {
 			this.onProcessReady(() => {
 				this._logService.debug(`Terminal process ready (shellProcessId: ${this.shellProcessId})`);
-				c(void 0);
+				c(undefined);
 			});
 		});
 	}
@@ -95,7 +95,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 
 		if (shellLaunchConfig.cwd && typeof shellLaunchConfig.cwd === 'object') {
 			launchRemotely = !!getRemoteAuthority(shellLaunchConfig.cwd);
-			shellLaunchConfig.cwd = shellLaunchConfig.cwd.path;
+			shellLaunchConfig.cwd = shellLaunchConfig.cwd.fsPath;
 		} else {
 			launchRemotely = !!this._windowService.getConfiguration().remoteAuthority;
 		}
@@ -111,26 +111,34 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 			const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.file);
 			this.initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, activeWorkspaceRootUri, this._configHelper.config.cwd);
 
-			// Resolve env vars from config and shell
-			const lastActiveWorkspaceRoot = this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri);
-			const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
-			const envFromConfig = terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, { ...this._configHelper.config.env[platformKey] }, lastActiveWorkspaceRoot);
-			const envFromShell = terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, { ...shellLaunchConfig.env }, lastActiveWorkspaceRoot);
-			shellLaunchConfig.env = envFromShell;
+			// Compel type system as process.env should not have any undefined entries
+			let env: platform.IProcessEnvironment = {};
 
-			// Compell type system as process.env should not have any undefined entries
-			const env: platform.IProcessEnvironment = { ...process.env } as any;
+			if (shellLaunchConfig.strictEnv) {
+				// Only base the terminal process environment on this environment and add the
+				// various mixins when strictEnv is false
+				env = { ...shellLaunchConfig.env } as any;
+			} else {
+				// Merge process env with the env from config and from shellLaunchConfig
+				env = { ...process.env } as any;
 
-			// Merge process env with the env from config and from shellLaunchConfig
-			terminalEnvironment.mergeEnvironments(env, envFromConfig);
-			terminalEnvironment.mergeEnvironments(env, shellLaunchConfig.env);
+				// Resolve env vars from config and shell
+				const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) : null;
+				const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
+				const envFromConfig = terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, { ...this._configHelper.config.env[platformKey] }, lastActiveWorkspaceRoot);
+				const envFromShell = terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, { ...shellLaunchConfig.env }, lastActiveWorkspaceRoot);
+				shellLaunchConfig.env = envFromShell;
 
-			// Sanitize the environment, removing any undesirable VS Code and Electron environment
-			// variables
-			terminalEnvironment.sanitizeEnvironment(env);
+				terminalEnvironment.mergeEnvironments(env, envFromConfig);
+				terminalEnvironment.mergeEnvironments(env, shellLaunchConfig.env);
 
-			// Adding other env keys necessary to create the process
-			terminalEnvironment.addTerminalEnvironmentKeys(env, platform.locale, this._configHelper.config.setLocaleVariables);
+				// Sanitize the environment, removing any undesirable VS Code and Electron environment
+				// variables
+				terminalEnvironment.sanitizeEnvironment(env);
+
+				// Adding other env keys necessary to create the process
+				terminalEnvironment.addTerminalEnvironmentKeys(env, platform.locale, this._configHelper.config.setLocaleVariables);
+			}
 
 			this._logService.debug(`Terminal process launching`, shellLaunchConfig, this.initialCwd, cols, rows, env);
 			this._process = new TerminalProcess(shellLaunchConfig, this.initialCwd, cols, rows, env, this._configHelper.config.windowsEnableConpty);

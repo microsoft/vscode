@@ -41,11 +41,11 @@ export class StartupTimings implements IWorkbenchContribution {
 
 	private async _report() {
 		const isStandardStartup = await this._isStandardStartup();
-		this._reportStartupTimes(isStandardStartup).catch(onUnexpectedError);
+		this._reportStartupTimes().catch(onUnexpectedError);
 		this._appendStartupTimes(isStandardStartup).catch(onUnexpectedError);
 	}
 
-	private async _reportStartupTimes(isStandardStartup: boolean): Promise<void> {
+	private async _reportStartupTimes(): Promise<void> {
 		const metrics = await this._timerService.startupMetrics;
 
 		/* __GDPR__
@@ -56,15 +56,6 @@ export class StartupTimings implements IWorkbenchContribution {
 			}
 		*/
 		this._telemetryService.publicLog('startupTimeVaried', metrics);
-
-		/* __GDPR__
-		"startupTime" : {
-			"${include}": [
-				"${IStartupMetrics}"
-			]
-		}
-		*/
-		this._telemetryService.publicLog('startupTime', metrics);
 	}
 
 	private async _appendStartupTimes(isStandardStartup: boolean) {
@@ -87,7 +78,7 @@ export class StartupTimings implements IWorkbenchContribution {
 			this._timerService.startupMetrics,
 			waitWhenNoCachedData(),
 		]).then(([startupMetrics]) => {
-			return nfcall(appendFile, appendTo, `${startupMetrics.ellapsed}\t${product.nameShort}\t${product.commit.slice(0, 10) || '0000000000'}\t${sessionId}\t${isStandardStartup ? 'standard_start' : 'NO_standard_start'}\n`);
+			return nfcall(appendFile, appendTo, `${startupMetrics.ellapsed}\t${product.nameShort}\t${(product.commit || '').slice(0, 10) || '0000000000'}\t${sessionId}\t${isStandardStartup ? 'standard_start' : 'NO_standard_start'}\n`);
 		}).then(() => {
 			this._windowsService.quit();
 		}).catch(err => {

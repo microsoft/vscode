@@ -71,7 +71,7 @@ export class TabsTitleControl extends TitleControl {
 		group: IEditorGroupView,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
+		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -461,7 +461,7 @@ export class TabsTitleControl extends TitleControl {
 					e.preventDefault(); // required to prevent auto-scrolling (https://github.com/Microsoft/vscode/issues/16690)
 				}
 
-				return void 0; // only for left mouse click
+				return undefined; // only for left mouse click
 			}
 
 			if (this.originatesFromTabActionBar(e)) {
@@ -471,7 +471,7 @@ export class TabsTitleControl extends TitleControl {
 			// Open tabs editor
 			this.group.openEditor(this.group.getEditor(index));
 
-			return void 0;
+			return undefined;
 		};
 
 		const showContextMenu = (e: Event) => {
@@ -889,7 +889,7 @@ export class TabsTitleControl extends TitleControl {
 				tabContainer.style.removeProperty('--tab-border-bottom-color');
 			}
 
-			const activeTabBorderColorTop = allowBorderTop ? this.getColor(isGroupActive ? TAB_ACTIVE_BORDER_TOP : TAB_UNFOCUSED_ACTIVE_BORDER_TOP) : void 0;
+			const activeTabBorderColorTop = allowBorderTop ? this.getColor(isGroupActive ? TAB_ACTIVE_BORDER_TOP : TAB_UNFOCUSED_ACTIVE_BORDER_TOP) : undefined;
 			if (activeTabBorderColorTop) {
 				addClass(tabContainer, 'tab-border-top');
 				tabContainer.style.setProperty('--tab-border-top-color', activeTabBorderColorTop.toString());
@@ -973,7 +973,7 @@ export class TabsTitleControl extends TitleControl {
 		if (!this.layoutScheduled) {
 			this.layoutScheduled = scheduleAtNextAnimationFrame(() => {
 				this.doLayout(this.dimension);
-				this.layoutScheduled = void 0;
+				this.layoutScheduled = undefined;
 			});
 		}
 	}
@@ -1038,7 +1038,7 @@ export class TabsTitleControl extends TitleControl {
 			return this.tabsContainer.children[editorIndex] as HTMLElement;
 		}
 
-		return void 0;
+		return undefined;
 	}
 
 	private blockRevealActiveTabOnce(): void {

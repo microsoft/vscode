@@ -10,7 +10,6 @@ import * as extfs from 'vs/base/node/extfs';
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -246,9 +245,9 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 		this.startOffset = 0;
 		this.endOffset = 0;
 		if (this.model) {
-			return this.loadModel().then(() => void 0);
+			return this.loadModel().then(() => undefined);
 		}
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	private loadFile(): Promise<string> {
@@ -433,17 +432,17 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 	private _outputPanel: OutputPanel;
 
 	constructor(
-		@IStorageService private storageService: IStorageService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IPanelService private panelService: IPanelService,
+		@IStorageService private readonly storageService: IStorageService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IPanelService private readonly panelService: IPanelService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IWindowService windowService: IWindowService,
-		@ILogService private logService: ILogService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
+		@ILogService private readonly logService: ILogService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
 		this.activeChannelIdInStorage = this.storageService.get(OUTPUT_ACTIVE_CHANNEL_KEY, StorageScope.WORKSPACE, null);
@@ -487,7 +486,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 			if (this._outputPanel && !preserveFocus) {
 				this._outputPanel.focus();
 			}
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		this.activeChannel = channel;
@@ -530,23 +529,13 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 				return this.doShowChannel(this.activeChannel, preserveFocus);
 			}
 		}
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	private onDidPanelClose(panel: IPanel): void {
 		if (this._outputPanel && panel.getId() === OUTPUT_PANEL_ID) {
 			CONTEXT_ACTIVE_LOG_OUTPUT.bindTo(this.contextKeyService).set(false);
 			this._outputPanel.clearInput();
-		}
-	}
-
-	private setPrimaryCursorToLastLine(): void {
-		const codeEditor = <ICodeEditor>this._outputPanel.getControl();
-		const model = codeEditor.getModel();
-
-		if (model) {
-			const lastLine = model.getLineCount();
-			codeEditor.setPosition({ lineNumber: lastLine, column: model.getLineMaxColumn(lastLine) });
 		}
 	}
 
@@ -558,7 +547,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 				const panel = this.panelService.getActivePanel();
 				if (panel && panel.getId() === OUTPUT_PANEL_ID && this.isChannelShown(channel)) {
 					let outputPanel = <OutputPanel>panel;
-					outputPanel.revealLastLine(true);
+					outputPanel.revealLastLine();
 				}
 			}
 		}, channelDisposables);
@@ -570,7 +559,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 					this.showChannel(channel.id, true);
 				} else {
 					this.activeChannel = channel;
-					this._onActiveOutputChannel.fire(channel ? channel.id : void 0);
+					this._onActiveOutputChannel.fire(channel ? channel.id : undefined);
 				}
 			}
 			Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).removeChannel(id);
@@ -612,11 +601,9 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 					if (!preserveFocus) {
 						this._outputPanel.focus();
 					}
-				})
-				// Activate smart scroll when switching back to the output panel
-				.then(() => this.setPrimaryCursorToLastLine());
+				});
 		}
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	private isChannelShown(channel: IOutputChannel): boolean {
@@ -645,8 +632,8 @@ export class LogContentProvider {
 	private channels: Map<string, OutputChannel> = new Map<string, OutputChannel>();
 
 	constructor(
-		@IOutputService private outputService: IOutputService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IOutputService private readonly outputService: IOutputService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 	}
 
@@ -692,12 +679,12 @@ class BufferredOutputChannel extends Disposable implements OutputChannel {
 	private modelUpdater: RunOnceScheduler;
 	private model: ITextModel;
 	private readonly bufferredContent: BufferedContent;
-	private lastReadId: number = void 0;
+	private lastReadId: number = undefined;
 
 	constructor(
 		protected readonly outputChannelIdentifier: IOutputChannelDescriptor,
-		@IModelService private modelService: IModelService,
-		@IModeService private modeService: IModeService
+		@IModelService private readonly modelService: IModelService,
+		@IModeService private readonly modeService: IModeService
 	) {
 		super();
 
@@ -728,7 +715,7 @@ class BufferredOutputChannel extends Disposable implements OutputChannel {
 			this.model.setValue('');
 		}
 		this.bufferredContent.clear();
-		this.lastReadId = void 0;
+		this.lastReadId = undefined;
 	}
 
 	loadModel(): Promise<ITextModel> {
@@ -803,7 +790,7 @@ class BufferedContent {
 
 	public getDelta(previousId?: number): { value: string, id: number } {
 		let idx = -1;
-		if (previousId !== void 0) {
+		if (previousId !== undefined) {
 			idx = binarySearch(this.dataIds, previousId, (a, b) => a - b);
 		}
 

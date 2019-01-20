@@ -31,14 +31,14 @@ export class PreferencesContribution implements IWorkbenchContribution {
 	private settingsListener: IDisposable;
 
 	constructor(
-		@IModelService private modelService: IModelService,
-		@ITextModelService private textModelResolverService: ITextModelService,
-		@IPreferencesService private preferencesService: IPreferencesService,
-		@IModeService private modeService: IModeService,
-		@IEditorService private editorService: IEditorService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IWorkspaceContextService private workspaceService: IWorkspaceContextService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IModelService private readonly modelService: IModelService,
+		@ITextModelService private readonly textModelResolverService: ITextModelService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
+		@IModeService private readonly modeService: IModeService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		this.settingsListener = this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(USE_SPLIT_JSON_SETTING)) {
@@ -68,14 +68,14 @@ export class PreferencesContribution implements IWorkbenchContribution {
 			!endsWith(resource.path, 'settings.json') ||								// resource must end in settings.json
 			!this.configurationService.getValue(USE_SPLIT_JSON_SETTING)					// user has not disabled default settings editor
 		) {
-			return void 0;
+			return undefined;
 		}
 
 		// If the resource was already opened before in the group, do not prevent
 		// the opening of that resource. Otherwise we would have the same settings
 		// opened twice (https://github.com/Microsoft/vscode/issues/36447)
 		if (group.isOpened(editor)) {
-			return void 0;
+			return undefined;
 		}
 
 		// Global User Settings File
@@ -95,14 +95,14 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		// Multi Folder Workspace Settings File
 		else if (state === WorkbenchState.WORKSPACE) {
 			const folders = this.workspaceService.getWorkspace().folders;
-			for (let i = 0; i < folders.length; i++) {
-				if (isEqual(resource, folders[i].toResource(FOLDER_SETTINGS_PATH))) {
-					return { override: this.preferencesService.openFolderSettings(folders[i].uri, true, options, group) };
+			for (const folder of folders) {
+				if (isEqual(resource, folder.toResource(FOLDER_SETTINGS_PATH))) {
+					return { override: this.preferencesService.openFolderSettings(folder.uri, true, options, group) };
 				}
 			}
 		}
 
-		return void 0;
+		return undefined;
 	}
 
 	private start(): void {
@@ -130,7 +130,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 			const languageSelection = this.modeService.create('jsonc');
 			const model = this.modelService.createModel(modelContent, languageSelection, uri);
 
-			let disposables: IDisposable[] = [];
+			const disposables: IDisposable[] = [];
 			disposables.push(schemaRegistry.onDidChangeSchema(schemaUri => {
 				if (schemaUri === uri.toString()) {
 					schema = schemaRegistry.getSchemaContributions().schemas[uri.toString()];
@@ -144,7 +144,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		return null;
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this.editorOpeningListener = dispose(this.editorOpeningListener);
 		this.settingsListener = dispose(this.settingsListener);
 	}

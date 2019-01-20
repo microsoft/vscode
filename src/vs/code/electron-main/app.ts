@@ -95,12 +95,12 @@ export class CodeApplication extends Disposable {
 	constructor(
 		private mainIpcServer: Server,
 		private userEnv: IProcessEnvironment,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@ILogService private logService: ILogService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IConfigurationService private configurationService: ConfigurationService,
-		@IStateService private stateService: IStateService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ILogService private readonly logService: ILogService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IConfigurationService private readonly configurationService: ConfigurationService,
+		@IStateService private readonly stateService: IStateService
 	) {
 		super();
 
@@ -474,7 +474,7 @@ export class CodeApplication extends Disposable {
 		this.lifecycleService.onWillShutdown(e => e.join(storageMainService.close()));
 
 		// Initialize storage service
-		return storageMainService.initialize().then(void 0, error => {
+		return storageMainService.initialize().then(undefined, error => {
 			errors.onUnexpectedError(error);
 			this.logService.error(error);
 		}).then(() => {

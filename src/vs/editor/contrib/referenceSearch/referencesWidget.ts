@@ -72,6 +72,9 @@ class DecorationsManager implements IDisposable {
 	}
 
 	private _addDecorations(reference: FileReferences): void {
+		if (!this._editor.hasModel()) {
+			return;
+		}
 		this._callOnModelChange.push(this._editor.getModel().onDidChangeDecorations((event) => this._onDecorationChanged()));
 
 		const newDecorations: IModelDeltaDecoration[] = [];
@@ -98,8 +101,13 @@ class DecorationsManager implements IDisposable {
 	private _onDecorationChanged(): void {
 		const toRemove: string[] = [];
 
+		const model = this._editor.getModel();
+		if (!model) {
+			return;
+		}
+
 		this._decorations.forEach((reference, decorationId) => {
-			const newRange = this._editor.getModel().getDecorationRange(decorationId);
+			const newRange = model.getDecorationRange(decorationId);
 
 			if (!newRange) {
 				return;
@@ -220,7 +228,7 @@ export interface LayoutData {
 export interface SelectionEvent {
 	kind: 'goto' | 'show' | 'side' | 'open';
 	source: 'editor' | 'tree' | 'title';
-	element: Location;
+	element?: Location;
 }
 
 export const ctxReferenceWidgetSearchTreeFocused = new RawContextKey<boolean>('referenceSearchTreeFocused', true);
@@ -332,7 +340,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		this._previewNotAvailableMessage = TextModel.createFromString(nls.localize('missingPreviewMessage', "no preview available"));
 
 		// sash
-		this._sash = new VSash(containerElement, this.layoutData.ratio || .8);
+		this._sash = new VSash(containerElement, this.layoutData.ratio || 0.8);
 		this._sash.onDidChangePercentages(() => {
 			let [left, right] = this._sash.percentages;
 			this._previewContainer.style.width = left;
@@ -390,7 +398,7 @@ export class ReferenceWidget extends PeekViewWidget {
 				goto = true;
 
 			} else if (e.browserEvent instanceof MouseEvent) {
-				aside = e.browserEvent.metaKey || e.browserEvent.metaKey || e.browserEvent.altKey;
+				aside = e.browserEvent.ctrlKey || e.browserEvent.metaKey || e.browserEvent.altKey;
 				goto = e.browserEvent.detail === 2;
 			}
 			if (aside) {
@@ -424,7 +432,7 @@ export class ReferenceWidget extends PeekViewWidget {
 
 		// store layout data
 		this.layoutData = {
-			heightInLines: this._viewZone.heightInLines,
+			heightInLines: this._viewZone ? this._viewZone.heightInLines : 0,
 			ratio: this._sash.ratio
 		};
 	}
@@ -446,7 +454,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		});
 	}
 
-	public setModel(newModel: ReferencesModel | undefined): Promise<any> {
+	public setModel(newModel: ReferencesModel | undefined): Promise<any> | undefined {
 		// clean up
 		this._disposeOnNewModel = dispose(this._disposeOnNewModel);
 		this._model = newModel;
@@ -457,12 +465,15 @@ export class ReferenceWidget extends PeekViewWidget {
 	}
 
 	private _onNewModel(): Promise<any> {
+		if (!this._model) {
+			return Promise.resolve(undefined);
+		}
 
 		if (this._model.empty) {
 			this.setTitle('');
 			this._messageContainer.innerHTML = nls.localize('noResults', "No results");
 			dom.show(this._messageContainer);
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		dom.hide(this._messageContainer);
@@ -483,7 +494,7 @@ export class ReferenceWidget extends PeekViewWidget {
 				return;
 			}
 			this._onDidSelectReference.fire({
-				element: { uri: element.uri, range: target.range },
+				element: { uri: element.uri, range: target.range! },
 				kind: (event.ctrlKey || event.metaKey || event.altKey) ? 'side' : 'open',
 				source: 'editor'
 			});
@@ -501,7 +512,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		return this._tree.setInput(this._model.groups.length === 1 ? this._model.groups[0] : this._model);
 	}
 
-	private _getFocusedReference(): OneReference {
+	private _getFocusedReference(): OneReference | undefined {
 		const [element] = this._tree.getFocus();
 		if (element instanceof OneReference) {
 			return element;
@@ -525,7 +536,7 @@ export class ReferenceWidget extends PeekViewWidget {
 
 		// Update widget header
 		if (reference.uri.scheme !== Schemas.inMemory) {
-			this.setTitle(basenameOrAuthority(reference.uri), this._uriLabel.getUriLabel(dirname(reference.uri)));
+			this.setTitle(basenameOrAuthority(reference.uri), this._uriLabel.getUriLabel(dirname(reference.uri)!));
 		} else {
 			this.setTitle(nls.localize('peekView.alternateTitle', "References"));
 		}

@@ -12,14 +12,16 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { ExtHostCommentsShape, ExtHostContext, IExtHostContext, MainContext, MainThreadCommentsShape, CommentProviderFeatures } from '../node/extHost.protocol';
 
 import { ICommentService } from 'vs/workbench/parts/comments/electron-browser/commentService';
-import { COMMENTS_PANEL_ID } from 'vs/workbench/parts/comments/electron-browser/commentsPanel';
+import { COMMENTS_PANEL_ID, CommentsPanel, COMMENTS_PANEL_TITLE } from 'vs/workbench/parts/comments/electron-browser/commentsPanel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { URI } from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommentsConfiguration } from 'vs/workbench/parts/comments/electron-browser/comments.contribution';
-import { CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { PanelRegistry, Extensions as PanelExtensions, PanelDescriptor } from 'vs/workbench/browser/panel';
 
 export class MainThreadDocumentCommentProvider implements modes.DocumentCommentProvider {
 	private _proxy: ExtHostCommentsShape;
@@ -79,11 +81,11 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IEditorService private _editorService: IEditorService,
-		@ICommentService private _commentService: ICommentService,
-		@IPanelService private _panelService: IPanelService,
-		@ITelemetryService private _telemetryService: ITelemetryService,
-		@IConfigurationService private _configurationService: IConfigurationService
+		@IEditorService private readonly _editorService: IEditorService,
+		@ICommentService private readonly _commentService: ICommentService,
+		@IPanelService private readonly _panelService: IPanelService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();
 		this._disposables = [];
@@ -126,17 +128,22 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		}
 	}
 
-	$registerWorkspaceCommentProvider(handle: number, extensionId: CanonicalExtensionIdentifier): void {
+	$registerWorkspaceCommentProvider(handle: number, extensionId: ExtensionIdentifier): void {
 		this._workspaceProviders.set(handle, undefined);
 
 		const providerId = generateUuid();
 		this._handlers.set(handle, providerId);
 
 		const commentsPanelAlreadyConstructed = this._panelService.getPanels().some(panel => panel.id === COMMENTS_PANEL_ID);
-		this._panelService.setPanelEnablement(COMMENTS_PANEL_ID, true);
+		Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(new PanelDescriptor(
+			CommentsPanel,
+			COMMENTS_PANEL_ID,
+			COMMENTS_PANEL_TITLE,
+			'commentsPanel',
+			10
+		));
 
 		const openPanel = this._configurationService.getValue<ICommentsConfiguration>('comments').openPanel;
-
 
 		if (openPanel === 'neverOpen') {
 			this.registerOpenPanelListener(commentsPanelAlreadyConstructed);
@@ -180,7 +187,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	$unregisterWorkspaceCommentProvider(handle: number): void {
 		this._workspaceProviders.delete(handle);
 		if (this._workspaceProviders.size === 0) {
-			this._panelService.setPanelEnablement(COMMENTS_PANEL_ID, false);
+			Registry.as<PanelRegistry>(PanelExtensions.Panels).deregisterPanel(COMMENTS_PANEL_ID);
 
 			if (this._openPanelListener) {
 				this._openPanelListener.dispose();

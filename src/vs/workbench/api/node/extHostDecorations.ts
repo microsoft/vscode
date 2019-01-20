@@ -8,11 +8,11 @@ import { URI } from 'vs/base/common/uri';
 import { MainContext, IMainContext, ExtHostDecorationsShape, MainThreadDecorationsShape, DecorationData, DecorationRequest, DecorationReply } from 'vs/workbench/api/node/extHost.protocol';
 import { Disposable } from 'vs/workbench/api/node/extHostTypes';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { CanonicalExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 interface ProviderData {
 	provider: vscode.DecorationProvider;
-	extensionId: CanonicalExtensionIdentifier;
+	extensionId: ExtensionIdentifier;
 }
 
 export class ExtHostDecorations implements ExtHostDecorationsShape {
@@ -26,7 +26,7 @@ export class ExtHostDecorations implements ExtHostDecorationsShape {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadDecorations);
 	}
 
-	registerDecorationProvider(provider: vscode.DecorationProvider, extensionId: CanonicalExtensionIdentifier): vscode.Disposable {
+	registerDecorationProvider(provider: vscode.DecorationProvider, extensionId: ExtensionIdentifier): vscode.Disposable {
 		const handle = ExtHostDecorations._handlePool++;
 		this._provider.set(handle, { provider, extensionId });
 		this._proxy.$registerDecorationProvider(handle, extensionId.value);
@@ -48,7 +48,7 @@ export class ExtHostDecorations implements ExtHostDecorationsShape {
 			const { handle, uri, id } = request;
 			if (!this._provider.has(handle)) {
 				// might have been unregistered in the meantime
-				return void 0;
+				return undefined;
 			}
 			const { provider, extensionId } = this._provider.get(handle);
 			return Promise.resolve(provider.provideDecoration(URI.revive(uri), token)).then(data => {

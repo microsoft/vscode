@@ -97,17 +97,17 @@ suite('dom', () => {
 			let div = $('div', { class: 'test' });
 			assert.equal(div.className, 'test');
 
-			div = $('div', void 0);
+			div = $('div', undefined);
 			assert.equal(div.className, '');
 		});
 
 		test('should build nodes with children', () => {
-			let div = $('div', void 0, $('span', { id: 'demospan' }));
+			let div = $('div', undefined, $('span', { id: 'demospan' }));
 			let firstChild = div.firstChild as HTMLElement;
 			assert.equal(firstChild.tagName, 'SPAN');
 			assert.equal(firstChild.id, 'demospan');
 
-			div = $('div', void 0, 'hello');
+			div = $('div', undefined, 'hello');
 
 			assert.equal(div.firstChild && div.firstChild.textContent, 'hello');
 		});

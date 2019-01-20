@@ -133,7 +133,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 						return this.handleDirtyBeforeShutdown(remainingDirty, reason);
 					}
 
-					return void 0;
+					return undefined;
 				});
 			}
 
@@ -245,7 +245,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 					return this.backupFileService.backupResource(model.getResource(), model.createSnapshot(), model.getVersionId());
 				});
 
-				return Promise.all(untitledBackupPromises).then(() => void 0);
+				return Promise.all(untitledBackupPromises).then(() => undefined);
 			});
 		});
 	}
@@ -279,7 +279,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 				return true; // veto
 			}
 
-			return void 0;
+			return undefined;
 		});
 	}
 
@@ -297,7 +297,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 
 	protected cleanupBackupsBeforeShutdown(): Promise<void> {
 		if (this.environmentService.isExtensionDevelopment) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		return this.backupFileService.discardAllWorkspaceBackups();
@@ -316,19 +316,19 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 				break;
 
 			case AutoSaveConfiguration.ON_FOCUS_CHANGE:
-				this.configuredAutoSaveDelay = void 0;
+				this.configuredAutoSaveDelay = undefined;
 				this.configuredAutoSaveOnFocusChange = true;
 				this.configuredAutoSaveOnWindowChange = false;
 				break;
 
 			case AutoSaveConfiguration.ON_WINDOW_CHANGE:
-				this.configuredAutoSaveDelay = void 0;
+				this.configuredAutoSaveDelay = undefined;
 				this.configuredAutoSaveOnFocusChange = false;
 				this.configuredAutoSaveOnWindowChange = true;
 				break;
 
 			default:
-				this.configuredAutoSaveDelay = void 0;
+				this.configuredAutoSaveDelay = undefined;
 				this.configuredAutoSaveOnFocusChange = false;
 				this.configuredAutoSaveOnWindowChange = false;
 				break;
@@ -386,10 +386,6 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		if (options && options.force && this.fileService.canHandleResource(resource) && !this.isDirty(resource)) {
 			const model = this._models.get(resource);
 			if (model) {
-				if (!options) {
-					options = Object.create(null);
-				}
-
 				options.reason = SaveReason.EXPLICIT;
 
 				return model.save(options).then(() => !model.isDirty());
@@ -432,8 +428,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 
 			// Preflight for untitled to handle cancellation from the dialog
 			const targetsForUntitled: URI[] = [];
-			for (let i = 0; i < untitledResources.length; i++) {
-				const untitled = untitledResources[i];
+			for (const untitled of untitledResources) {
 				if (this.untitledEditorService.exists(untitled)) {
 					let targetUri: URI;
 
@@ -477,7 +472,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 	}
 
 	private doSaveAllFiles(resources?: URI[], options: ISaveOptions = Object.create(null)): Promise<ITextFileOperationResult> {
-		const dirtyFileModels = this.getDirtyFileModels(Array.isArray(resources) ? resources : void 0 /* Save All */)
+		const dirtyFileModels = this.getDirtyFileModels(Array.isArray(resources) ? resources : undefined /* Save All */)
 			.filter(model => {
 				if ((model.hasState(ModelState.CONFLICT) || model.hasState(ModelState.ERROR)) && (options.reason === SaveReason.AUTO || options.reason === SaveReason.FOCUS_CHANGE || options.reason === SaveReason.WINDOW_CHANGE)) {
 					return false; // if model is in save conflict or error, do not save unless save reason is explicit or not provided at all
@@ -681,7 +676,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 					return Promise.reject(error);
 				}
 
-				return void 0;
+				return undefined;
 			});
 		})).then(r => ({ results: mapResourceToResult.values() }));
 	}
@@ -699,7 +694,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 				return existingModel.revert();
 			}
 
-			return void 0;
+			return undefined;
 		});
 	}
 
@@ -717,7 +712,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 			oldResource: source,
 			newResource: target,
 			waitUntil(promise: Promise<any>) {
-				waitForPromises.push(promise.then(void 0, errors.onUnexpectedError));
+				waitForPromises.push(promise.then(undefined, errors.onUnexpectedError));
 			}
 		});
 
@@ -774,7 +769,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 						return this.fileService.moveFile(source, target, overwrite).then(() => {
 
 							// Load models that were dirty before
-							return Promise.all(dirtyTargetModels.map(dirtyTargetModel => this.models.loadOrCreate(dirtyTargetModel))).then(() => void 0);
+							return Promise.all(dirtyTargetModels.map(dirtyTargetModel => this.models.loadOrCreate(dirtyTargetModel))).then(() => undefined);
 						}, error => {
 
 							// In case of an error, discard any dirty target backups that were made
@@ -805,7 +800,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 
 	getAutoSaveConfiguration(): IAutoSaveConfiguration {
 		return {
-			autoSaveDelay: this.configuredAutoSaveDelay && this.configuredAutoSaveDelay > 0 ? this.configuredAutoSaveDelay : void 0,
+			autoSaveDelay: this.configuredAutoSaveDelay && this.configuredAutoSaveDelay > 0 ? this.configuredAutoSaveDelay : undefined,
 			autoSaveFocusChange: this.configuredAutoSaveOnFocusChange,
 			autoSaveApplicationChange: this.configuredAutoSaveOnWindowChange
 		};

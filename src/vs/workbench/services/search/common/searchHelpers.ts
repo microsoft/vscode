@@ -63,7 +63,7 @@ export function addContextToEditorMatches(matches: ITextSearchMatch[], model: IT
 		results.push(matches[i]);
 
 		const nextMatch = matches[i + 1];
-		let nextMatchStartLine = nextMatch ? getMatchStartEnd(nextMatch).start : Number.MAX_VALUE;
+		const nextMatchStartLine = nextMatch ? getMatchStartEnd(nextMatch).start : Number.MAX_VALUE;
 		if (typeof query.afterContext === 'number' && query.afterContext > 0) {
 			const afterContextToLine = Math.min(nextMatchStartLine - 1, matchEndLine + query.afterContext, model.getLineCount() - 1);
 			for (let a = matchEndLine + 1; a <= afterContextToLine; a++) {

@@ -34,91 +34,91 @@ suite('Search Actions', () => {
 	});
 
 	test('get next element to focus after removing a match when it has next sibling file', function () {
-		let fileMatch1 = aFileMatch();
-		let fileMatch2 = aFileMatch();
-		let data = [fileMatch1, aMatch(fileMatch1), aMatch(fileMatch1), fileMatch2, aMatch(fileMatch2), aMatch(fileMatch2)];
-		let tree = aTree(data);
-		let target = data[2];
-		let testObject: ReplaceAction = instantiationService.createInstance(ReplaceAction, tree, target, null);
+		const fileMatch1 = aFileMatch();
+		const fileMatch2 = aFileMatch();
+		const data = [fileMatch1, aMatch(fileMatch1), aMatch(fileMatch1), fileMatch2, aMatch(fileMatch2), aMatch(fileMatch2)];
+		const tree = aTree(data);
+		const target = data[2];
+		const testObject: ReplaceAction = instantiationService.createInstance(ReplaceAction, tree, target, null);
 
 		const actual = testObject.getElementToFocusAfterRemoved(tree, target);
 		assert.equal(data[4], actual);
 	});
 
 	test('get next element to focus after removing a match when it does not have next sibling match', function () {
-		let fileMatch1 = aFileMatch();
-		let fileMatch2 = aFileMatch();
-		let data = [fileMatch1, aMatch(fileMatch1), aMatch(fileMatch1), fileMatch2, aMatch(fileMatch2), aMatch(fileMatch2)];
-		let tree = aTree(data);
-		let target = data[5];
-		let testObject: ReplaceAction = instantiationService.createInstance(ReplaceAction, tree, target, null);
+		const fileMatch1 = aFileMatch();
+		const fileMatch2 = aFileMatch();
+		const data = [fileMatch1, aMatch(fileMatch1), aMatch(fileMatch1), fileMatch2, aMatch(fileMatch2), aMatch(fileMatch2)];
+		const tree = aTree(data);
+		const target = data[5];
+		const testObject: ReplaceAction = instantiationService.createInstance(ReplaceAction, tree, target, null);
 
 		const actual = testObject.getElementToFocusAfterRemoved(tree, target);
 		assert.equal(data[4], actual);
 	});
 
 	test('get next element to focus after removing a match when it does not have next sibling match and previous match is file match', function () {
-		let fileMatch1 = aFileMatch();
-		let fileMatch2 = aFileMatch();
-		let data = [fileMatch1, aMatch(fileMatch1), aMatch(fileMatch1), fileMatch2, aMatch(fileMatch2)];
-		let tree = aTree(data);
-		let target = data[4];
-		let testObject: ReplaceAction = instantiationService.createInstance(ReplaceAction, tree, target, null);
+		const fileMatch1 = aFileMatch();
+		const fileMatch2 = aFileMatch();
+		const data = [fileMatch1, aMatch(fileMatch1), aMatch(fileMatch1), fileMatch2, aMatch(fileMatch2)];
+		const tree = aTree(data);
+		const target = data[4];
+		const testObject: ReplaceAction = instantiationService.createInstance(ReplaceAction, tree, target, null);
 
 		const actual = testObject.getElementToFocusAfterRemoved(tree, target);
 		assert.equal(data[2], actual);
 	});
 
 	test('get next element to focus after removing a match when it is the only match', function () {
-		let fileMatch1 = aFileMatch();
-		let data = [fileMatch1, aMatch(fileMatch1)];
-		let tree = aTree(data);
-		let target = data[1];
-		let testObject: ReplaceAction = instantiationService.createInstance(ReplaceAction, tree, target, null);
+		const fileMatch1 = aFileMatch();
+		const data = [fileMatch1, aMatch(fileMatch1)];
+		const tree = aTree(data);
+		const target = data[1];
+		const testObject: ReplaceAction = instantiationService.createInstance(ReplaceAction, tree, target, null);
 
 		const actual = testObject.getElementToFocusAfterRemoved(tree, target);
-		assert.equal(void 0, actual);
+		assert.equal(undefined, actual);
 	});
 
 	test('get next element to focus after removing a file match when it has next sibling', function () {
-		let fileMatch1 = aFileMatch();
-		let fileMatch2 = aFileMatch();
-		let fileMatch3 = aFileMatch();
-		let data = [fileMatch1, aMatch(fileMatch1), fileMatch2, aMatch(fileMatch2), fileMatch3, aMatch(fileMatch3)];
-		let tree = aTree(data);
-		let target = data[2];
-		let testObject: ReplaceAction = instantiationService.createInstance(ReplaceAction, tree, target, null);
+		const fileMatch1 = aFileMatch();
+		const fileMatch2 = aFileMatch();
+		const fileMatch3 = aFileMatch();
+		const data = [fileMatch1, aMatch(fileMatch1), fileMatch2, aMatch(fileMatch2), fileMatch3, aMatch(fileMatch3)];
+		const tree = aTree(data);
+		const target = data[2];
+		const testObject: ReplaceAction = instantiationService.createInstance(ReplaceAction, tree, target, null);
 
 		const actual = testObject.getElementToFocusAfterRemoved(tree, target);
 		assert.equal(data[4], actual);
 	});
 
 	test('get next element to focus after removing a file match when it has no next sibling', function () {
-		let fileMatch1 = aFileMatch();
-		let fileMatch2 = aFileMatch();
-		let fileMatch3 = aFileMatch();
-		let data = [fileMatch1, aMatch(fileMatch1), fileMatch2, aMatch(fileMatch2), fileMatch3, aMatch(fileMatch3)];
-		let tree = aTree(data);
-		let target = data[4];
-		let testObject: ReplaceAction = instantiationService.createInstance(ReplaceAction, tree, target, null);
+		const fileMatch1 = aFileMatch();
+		const fileMatch2 = aFileMatch();
+		const fileMatch3 = aFileMatch();
+		const data = [fileMatch1, aMatch(fileMatch1), fileMatch2, aMatch(fileMatch2), fileMatch3, aMatch(fileMatch3)];
+		const tree = aTree(data);
+		const target = data[4];
+		const testObject: ReplaceAction = instantiationService.createInstance(ReplaceAction, tree, target, null);
 
 		const actual = testObject.getElementToFocusAfterRemoved(tree, target);
 		assert.equal(data[3], actual);
 	});
 
 	test('get next element to focus after removing a file match when it is only match', function () {
-		let fileMatch1 = aFileMatch();
-		let data = [fileMatch1, aMatch(fileMatch1)];
-		let tree = aTree(data);
-		let target = data[0];
-		let testObject: ReplaceAction = instantiationService.createInstance(ReplaceAction, tree, target, null);
+		const fileMatch1 = aFileMatch();
+		const data = [fileMatch1, aMatch(fileMatch1)];
+		const tree = aTree(data);
+		const target = data[0];
+		const testObject: ReplaceAction = instantiationService.createInstance(ReplaceAction, tree, target, null);
 
 		const actual = testObject.getElementToFocusAfterRemoved(tree, target);
-		assert.equal(void 0, actual);
+		assert.equal(undefined, actual);
 	});
 
 	function aFileMatch(): FileMatch {
-		let rawMatch: IFileMatch = {
+		const rawMatch: IFileMatch = {
 			resource: URI.file('somepath' + ++counter),
 			results: []
 		};
@@ -127,7 +127,7 @@ suite('Search Actions', () => {
 
 	function aMatch(fileMatch: FileMatch): Match {
 		const line = ++counter;
-		let match = new Match(
+		const match = new Match(
 			fileMatch,
 			['some match'],
 			{

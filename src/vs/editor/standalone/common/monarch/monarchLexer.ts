@@ -531,7 +531,12 @@ class MonarchTokenizer implements modes.ITokenizationSupport {
 		}
 		let groupMatching: GroupMatching | null = null;
 
-		while (pos < lineLength) {
+		// See https://github.com/Microsoft/monaco-editor/issues/1235:
+		// Evaluate rules at least once for an empty line
+		let forceEvaluation = true;
+
+		while (forceEvaluation || pos < lineLength) {
+
 			const pos0 = pos;
 			const stackLen0 = stack.depth;
 			const groupLen0 = groupMatching ? groupMatching.groups.length : 0;
@@ -559,10 +564,12 @@ class MonarchTokenizer implements modes.ITokenizationSupport {
 			} else {
 				// otherwise we match on the token stream
 
-				if (pos >= lineLength) {
+				if (!forceEvaluation && pos >= lineLength) {
 					// nothing to do
 					break;
 				}
+
+				forceEvaluation = false;
 
 				// get the rules for this state
 				let rules: monarchCommon.IRule[] | null = this._lexer.tokenizer[state];
@@ -606,7 +613,7 @@ class MonarchTokenizer implements modes.ITokenizationSupport {
 				action = this._lexer.defaultToken;
 			}
 
-			if (!matched) {
+			if (matched === null) {
 				// should never happen, needed for strict null checking
 				break;
 			}
@@ -749,11 +756,10 @@ class MonarchTokenizer implements modes.ITokenizationSupport {
 
 				// check progress
 				if (matched.length === 0) {
-					if (stackLen0 !== stack.depth || state !== stack.state || (!groupMatching ? 0 : groupMatching.groups.length) !== groupLen0) {
+					if (lineLength === 0 || stackLen0 !== stack.depth || state !== stack.state || (!groupMatching ? 0 : groupMatching.groups.length) !== groupLen0) {
 						continue;
 					} else {
 						throw monarchCommon.createError(this._lexer, 'no progress in tokenizer in rule: ' + this._safeRuleName(rule));
-						pos = lineLength; // must make progress or editor loops
 					}
 				}
 
@@ -765,7 +771,6 @@ class MonarchTokenizer implements modes.ITokenizationSupport {
 					let bracket = findBracket(this._lexer, matched);
 					if (!bracket) {
 						throw monarchCommon.createError(this._lexer, '@brackets token returned but no bracket defined as: ' + matched);
-						bracket = { token: '', bracketType: monarchCommon.MonarchBracket.None };
 					}
 					tokenType = monarchCommon.sanitize(bracket.token + rest);
 				} else {
@@ -838,8 +843,7 @@ function findBracket(lexer: monarchCommon.ILexer, matched: string) {
 	matched = monarchCommon.fixCase(lexer, matched);
 
 	let brackets = lexer.brackets;
-	for (let i = 0; i < brackets.length; i++) {
-		let bracket = brackets[i];
+	for (const bracket of brackets) {
 		if (bracket.open === matched) {
 			return { token: bracket.token, bracketType: monarchCommon.MonarchBracket.Open };
 		}

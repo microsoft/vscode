@@ -20,7 +20,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@ITerminalService private terminalService: ITerminalService
+		@ITerminalService private readonly terminalService: ITerminalService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTerminalService);
 		this._remoteAuthority = extHostContext.remoteAuthority;
@@ -55,7 +55,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		// when the extension host process goes down ?
 	}
 
-	public $createTerminal(name?: string, shellPath?: string, shellArgs?: string[], cwd?: string, env?: { [key: string]: string }, waitOnExit?: boolean): Promise<{ id: number, name: string }> {
+	public $createTerminal(name?: string, shellPath?: string, shellArgs?: string[], cwd?: string, env?: { [key: string]: string }, waitOnExit?: boolean, strictEnv?: boolean): Promise<{ id: number, name: string }> {
 		const shellLaunchConfig: IShellLaunchConfig = {
 			name,
 			executable: shellPath,
@@ -63,7 +63,8 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			cwd,
 			waitOnExit,
 			ignoreConfigurationCwd: true,
-			env
+			env,
+			strictEnv
 		};
 		const terminal = this.terminalService.createTerminal(shellLaunchConfig);
 		return Promise.resolve({

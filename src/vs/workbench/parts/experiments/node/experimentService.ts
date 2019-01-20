@@ -11,7 +11,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IExtensionManagementService, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IRequestService } from 'vs/platform/request/node/request';
 import { language } from 'vs/base/common/platform';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -23,6 +23,7 @@ import { WorkspaceStats } from 'vs/workbench/parts/stats/node/workspaceStats';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { distinct } from 'vs/base/common/arrays';
 import { lastSessionDateStorageKey } from 'vs/platform/telemetry/node/workbenchCommonProperties';
+import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 
 interface IExperimentStorageState {
 	enabled: boolean;
@@ -118,14 +119,14 @@ export class ExperimentService extends Disposable implements IExperimentService 
 
 	onExperimentEnabled: Event<IExperiment> = this._onExperimentEnabled.event;
 	constructor(
-		@IStorageService private storageService: IStorageService,
-		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
-		@ITextFileService private textFileService: ITextFileService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IRequestService private requestService: IRequestService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IStorageService private readonly storageService: IStorageService,
+		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IRequestService private readonly requestService: IRequestService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
@@ -149,12 +150,12 @@ export class ExperimentService extends Disposable implements IExperimentService 
 
 	public getCuratedExtensionsList(curatedExtensionsKey: string): Promise<string[]> {
 		return this._loadExperimentsPromise.then(() => {
-			for (let i = 0; i < this._experiments.length; i++) {
-				if (this._experiments[i].enabled
-					&& this._experiments[i].state === ExperimentState.Run
-					&& this._curatedMapping[this._experiments[i].id]
-					&& this._curatedMapping[this._experiments[i].id].curatedExtensionsKey === curatedExtensionsKey) {
-					return this._curatedMapping[this._experiments[i].id].curatedExtensionsList;
+			for (const experiment of this._experiments) {
+				if (experiment.enabled
+					&& experiment.state === ExperimentState.Run
+					&& this._curatedMapping[experiment.id]
+					&& this._curatedMapping[experiment.id].curatedExtensionsKey === curatedExtensionsKey) {
+					return this._curatedMapping[experiment.id].curatedExtensionsList;
 				}
 			}
 			return [];
@@ -370,7 +371,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 		let extensionsCheckPromise = Promise.resolve(true);
 		const installedExtensions = condition.installedExtensions;
 		if (installedExtensions) {
-			extensionsCheckPromise = this.extensionManagementService.getInstalled(LocalExtensionType.User).then(locals => {
+			extensionsCheckPromise = this.extensionManagementService.getInstalled(ExtensionType.User).then(locals => {
 				let includesCheck = true;
 				let excludesCheck = true;
 				const localExtensions = locals.map(local => `${local.manifest.publisher.toLowerCase()}.${local.manifest.name.toLowerCase()}`);

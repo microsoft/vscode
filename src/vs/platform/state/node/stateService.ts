@@ -91,7 +91,7 @@ export class FileStorage {
 
 		// Only update if the key is actually present (not undefined)
 		if (!isUndefined(this.database[key])) {
-			this.database[key] = void 0;
+			this.database[key] = undefined;
 			this.saveSync();
 		}
 	}

@@ -65,7 +65,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 
 				// Check for cancellation
 				if (token.isCancellationRequested) {
-					return void 0;
+					return undefined;
 				}
 
 				// Assert Model instance
@@ -90,7 +90,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 					this.restoreTextResourceEditorViewState(input);
 				}
 
-				return void 0;
+				return undefined;
 			});
 		});
 	}
@@ -136,19 +136,14 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 
 	/**
 	 * Reveals the last line of this editor if it has a model set.
-	 * When smart is true only scroll if the cursor is currently on the last line of the output panel.
-	 * This allows users to click on the output panel to stop scrolling when they see something of interest.
-	 * To resume, they should scroll to the end of the output panel again.
 	 */
-	revealLastLine(smart: boolean): void {
+	revealLastLine(): void {
 		const codeEditor = <ICodeEditor>this.getControl();
 		const model = codeEditor.getModel();
 
 		if (model) {
 			const lastLine = model.getLineCount();
-			if (!smart || codeEditor.getPosition().lineNumber === lastLine) {
-				codeEditor.revealPosition({ lineNumber: lastLine, column: model.getLineMaxColumn(lastLine) }, ScrollType.Smooth);
-			}
+			codeEditor.revealPosition({ lineNumber: lastLine, column: model.getLineMaxColumn(lastLine) }, ScrollType.Smooth);
 		}
 	}
 

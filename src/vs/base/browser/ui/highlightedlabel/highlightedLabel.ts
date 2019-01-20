@@ -33,7 +33,7 @@ export class HighlightedLabel implements IDisposable {
 		return this.domNode;
 	}
 
-	set(text: string, highlights: IHighlight[] = [], title: string = '', escapeNewLines?: boolean) {
+	set(text: string | undefined, highlights: IHighlight[] = [], title: string = '', escapeNewLines?: boolean) {
 		if (!text) {
 			text = '';
 		}
@@ -58,12 +58,10 @@ export class HighlightedLabel implements IDisposable {
 	private render() {
 		dom.clearNode(this.domNode);
 
-		let htmlContent: string[] = [],
-			highlight: IHighlight,
-			pos = 0;
+		let htmlContent: string[] = [];
+		let pos = 0;
 
-		for (let i = 0; i < this.highlights.length; i++) {
-			highlight = this.highlights[i];
+		for (const highlight of this.highlights) {
 			if (highlight.end === highlight.start) {
 				continue;
 			}

@@ -36,7 +36,7 @@ abstract class AbstractUpdateService2 implements IUpdateService {
 	}
 
 	constructor(
-		@ILifecycleService private lifecycleService: ILifecycleService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@ILogService protected logService: ILogService,
 	) {
@@ -81,7 +81,7 @@ abstract class AbstractUpdateService2 implements IUpdateService {
 	}
 
 	protected doDownloadUpdate(state: AvailableForDownload): Promise<void> {
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	async applyUpdate(): Promise<void> {
@@ -95,14 +95,14 @@ abstract class AbstractUpdateService2 implements IUpdateService {
 	}
 
 	protected doApplyUpdate(): Promise<void> {
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	quitAndInstall(): Promise<void> {
 		this.logService.trace('update#quitAndInstall, state = ', this.state.type);
 
 		if (this.state.type !== StateType.Ready) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		this.logService.trace('update#quitAndInstall(): before lifecycle quit()');
@@ -117,7 +117,7 @@ abstract class AbstractUpdateService2 implements IUpdateService {
 			this.doQuitAndInstall();
 		});
 
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 
@@ -145,7 +145,7 @@ export class SnapUpdateService extends AbstractUpdateService2 {
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@ILogService logService: ILogService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super(lifecycleService, environmentService, logService);
 

@@ -32,7 +32,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 	static readonly ID = 'workbench.picker.anything';
 
-	private static readonly LINE_COLON_PATTERN = /[#|:|\(](\d*)([#|:|,](\d*))?\)?$/;
+	private static readonly LINE_COLON_PATTERN = /[#:\(](\d*)([#:,](\d*))?\)?$/;
 
 	private static readonly TYPING_SEARCH_DELAY = 200; // This delay accommodates for the user typing a word and then stops typing to start searching
 
@@ -46,9 +46,9 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 	private includeSymbols: boolean;
 
 	constructor(
-		@INotificationService private notificationService: INotificationService,
+		@INotificationService private readonly notificationService: INotificationService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 

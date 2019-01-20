@@ -299,7 +299,8 @@ export const enum Operation {
 	GetObjectDetails = 'GetObjectDetails',
 	SubmoduleUpdate = 'SubmoduleUpdate',
 	RebaseContinue = 'RebaseContinue',
-	Apply = 'Apply'
+	Apply = 'Apply',
+	Blame = 'Blame'
 }
 
 function isReadOnly(operation: Operation): boolean {
@@ -647,18 +648,43 @@ export class Repository implements Disposable {
 			};
 		}
 
+		let lineNumber = 0;
 		let start = 0, end;
 		let match: RegExpExecArray | null;
 		const regex = /\r?\n/g;
 
 		while ((match = regex.exec(text)) && position > match.index) {
 			start = match.index + match[0].length;
+			lineNumber++;
 		}
 
 		end = match ? match.index : text.length;
 
 		const line = text.substring(start, end);
-		const threshold = Math.max(config.get<number>('inputValidationLength') || 72, 0) || 72;
+
+		let threshold = config.get<number>('inputValidationLength', 50);
+
+		if (lineNumber === 0) {
+			const inputValidationSubjectLength = config.get<number | null>('inputValidationSubjectLength', null);
+
+			if (inputValidationSubjectLength !== null) {
+				threshold = inputValidationSubjectLength;
+			}
+		}
+
+
+
+
+
+
+
+
+
+
+		// const subjectThreshold =
+
+
+		// 	Math.max(config.get<number>('inputValidationLength') || 50, config.get<number>('subjectValidationLength') || 50, 0) || 50;
 
 		if (line.length <= threshold) {
 			if (setting !== 'always') {
@@ -908,8 +934,8 @@ export class Repository implements Disposable {
 		await this.run(Operation.Fetch, () => this.repository.fetch({ all: true }));
 	}
 
-	async fetch(remote?: string, ref?: string): Promise<void> {
-		await this.run(Operation.Fetch, () => this.repository.fetch({ remote, ref }));
+	async fetch(remote?: string, ref?: string, depth?: number): Promise<void> {
+		await this.run(Operation.Fetch, () => this.repository.fetch({ remote, ref, depth }));
 	}
 
 	@throttle
@@ -922,18 +948,11 @@ export class Repository implements Disposable {
 			branch = `${head.upstream.name}`;
 		}
 
-		const config = workspace.getConfiguration('git', Uri.file(this.root));
-		const fetchOnPull = config.get<boolean>('fetchOnPull');
-
-		if (fetchOnPull) {
-			await this.run(Operation.Pull, () => this.repository.pull(true));
-		} else {
-			await this.run(Operation.Pull, () => this.repository.pull(true, remote, branch));
-		}
+		return this.pullFrom(true, remote, branch);
 	}
 
 	@throttle
-	async pull(head?: Branch): Promise<void> {
+	async pull(head?: Branch, unshallow?: boolean): Promise<void> {
 		let remote: string | undefined;
 		let branch: string | undefined;
 
@@ -942,25 +961,22 @@ export class Repository implements Disposable {
 			branch = `${head.upstream.name}`;
 		}
 
-		const config = workspace.getConfiguration('git', Uri.file(this.root));
-		const fetchOnPull = config.get<boolean>('fetchOnPull');
-
-		if (fetchOnPull) {
-			await this.run(Operation.Pull, () => this.repository.pull(false));
-		} else {
-			await this.run(Operation.Pull, () => this.repository.pull(false, remote, branch));
-		}
+		return this.pullFrom(false, remote, branch, unshallow);
 	}
 
-	async pullFrom(rebase?: boolean, remote?: string, branch?: string): Promise<void> {
-		const config = workspace.getConfiguration('git', Uri.file(this.root));
-		const fetchOnPull = config.get<boolean>('fetchOnPull');
+	async pullFrom(rebase?: boolean, remote?: string, branch?: string, unshallow?: boolean): Promise<void> {
+		await this.run(Operation.Pull, async () => {
+			await this.maybeAutoStash(async () => {
+				const config = workspace.getConfiguration('git', Uri.file(this.root));
+				const fetchOnPull = config.get<boolean>('fetchOnPull');
 
-		if (fetchOnPull) {
-			await this.run(Operation.Pull, () => this.repository.pull(rebase));
-		} else {
-			await this.run(Operation.Pull, () => this.repository.pull(rebase, remote, branch));
-		}
+				if (fetchOnPull) {
+					await this.repository.pull(rebase, undefined, undefined, { unshallow });
+				} else {
+					await this.repository.pull(rebase, remote, branch, { unshallow });
+				}
+			});
+		});
 	}
 
 	@throttle
@@ -982,6 +998,10 @@ export class Repository implements Disposable {
 
 	async pushTags(remote?: string, forcePushMode?: ForcePushMode): Promise<void> {
 		await this.run(Operation.Push, () => this.repository.push(remote, undefined, false, true, forcePushMode));
+	}
+
+	async blame(path: string): Promise<string> {
+		return await this.run(Operation.Blame, () => this.repository.blame(path));
 	}
 
 	@throttle
@@ -1006,26 +1026,28 @@ export class Repository implements Disposable {
 		}
 
 		await this.run(Operation.Sync, async () => {
-			const config = workspace.getConfiguration('git', Uri.file(this.root));
-			const fetchOnPull = config.get<boolean>('fetchOnPull');
+			await this.maybeAutoStash(async () => {
+				const config = workspace.getConfiguration('git', Uri.file(this.root));
+				const fetchOnPull = config.get<boolean>('fetchOnPull');
 
-			if (fetchOnPull) {
-				await this.repository.pull(rebase);
-			} else {
-				await this.repository.pull(rebase, remoteName, pullBranch);
-			}
+				if (fetchOnPull) {
+					await this.repository.pull(rebase);
+				} else {
+					await this.repository.pull(rebase, remoteName, pullBranch);
+				}
 
-			const remote = this.remotes.find(r => r.name === remoteName);
+				const remote = this.remotes.find(r => r.name === remoteName);
 
-			if (remote && remote.isReadOnly) {
-				return;
-			}
+				if (remote && remote.isReadOnly) {
+					return;
+				}
 
-			const shouldPush = this.HEAD && (typeof this.HEAD.ahead === 'number' ? this.HEAD.ahead > 0 : true);
+				const shouldPush = this.HEAD && (typeof this.HEAD.ahead === 'number' ? this.HEAD.ahead > 0 : true);
 
-			if (shouldPush) {
-				await this.repository.push(remoteName, pushBranch);
-			}
+				if (shouldPush) {
+					await this.repository.push(remoteName, pushBranch);
+				}
+			});
 		});
 	}
 
@@ -1236,7 +1258,7 @@ export class Repository implements Disposable {
 
 	@throttle
 	private async updateModelState(): Promise<void> {
-		const { status, didHitLimit } = await this.repository.getStatus(100);
+		const { status, didHitLimit } = await this.repository.getStatus();
 		const config = workspace.getConfiguration('git');
 		const shouldIgnore = config.get<boolean>('ignoreLimitWarning') === true;
 		const useIcons = !config.get<boolean>('decorations.enabled', true);
@@ -1380,6 +1402,22 @@ export class Repository implements Disposable {
 		} catch (err) {
 			return undefined;
 		}
+	}
+
+	private async maybeAutoStash<T>(runOperation: () => Promise<T>): Promise<T> {
+		const config = workspace.getConfiguration('git', Uri.file(this.root));
+		const shouldAutoStash = config.get<boolean>('autoStash')
+			&& this.workingTreeGroup.resourceStates.some(r => r.type !== Status.UNTRACKED && r.type !== Status.IGNORED);
+
+		if (!shouldAutoStash) {
+			return await runOperation();
+		}
+
+		await this.repository.createStash(undefined, true);
+		const result = await runOperation();
+		await this.repository.popStash();
+
+		return result;
 	}
 
 	private onFSChange(_uri: Uri): void {

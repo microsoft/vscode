@@ -12,6 +12,7 @@ import { Event } from 'vs/base/common/event';
 import { IAction, IActionItem } from 'vs/base/common/actions';
 import { Color } from 'vs/base/common/color';
 import { IItemCollapseEvent, IItemExpandEvent } from 'vs/base/parts/tree/browser/treeModel';
+import { IDragAndDropData } from 'vs/base/browser/dnd';
 
 export interface ITree {
 
@@ -442,7 +443,7 @@ export interface IAccessibilityProvider {
 	 *
 	 * See also: https://www.w3.org/TR/wai-aria/states_and_properties#aria-label
 	 */
-	getAriaLabel(tree: ITree, element: any): string;
+	getAriaLabel(tree: ITree, element: any): string | null;
 
 	/**
 	 * Given an element in the tree return its aria-posinset. Should be between 1 and aria-setsize
@@ -593,18 +594,13 @@ export const DRAG_OVER_ACCEPT_BUBBLE_DOWN = (autoExpand = false) => ({ accept: t
 export const DRAG_OVER_ACCEPT_BUBBLE_UP_COPY: IDragOverReaction = { accept: true, bubble: DragOverBubble.BUBBLE_UP, effect: DragOverEffect.COPY };
 export const DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY = (autoExpand = false) => ({ accept: true, bubble: DragOverBubble.BUBBLE_DOWN, effect: DragOverEffect.COPY, autoExpand });
 
-export interface IDragAndDropData {
-	update(event: Mouse.DragMouseEvent): void;
-	getData(): any;
-}
-
 export interface IDragAndDrop {
 
 	/**
 	 * Returns a uri if the given element should be allowed to drag.
 	 * Returns null, otherwise.
 	 */
-	getDragURI(tree: ITree, element: any): string;
+	getDragURI(tree: ITree, element: any): string | null;
 
 	/**
 	 * Returns a label to display when dragging the element.
@@ -620,7 +616,7 @@ export interface IDragAndDrop {
 	 * Returns a DragOverReaction indicating whether sources can be
 	 * dropped into target or some parent of the target.
 	 */
-	onDragOver(tree: ITree, data: IDragAndDropData, targetElement: any, originalEvent: Mouse.DragMouseEvent): IDragOverReaction;
+	onDragOver(tree: ITree, data: IDragAndDropData, targetElement: any, originalEvent: Mouse.DragMouseEvent): IDragOverReaction | null;
 
 	/**
 	 * Handles the action of dropping sources into target.
@@ -745,5 +741,5 @@ export interface IActionProvider {
 	/**
 	 * Returns an action item to render an action.
 	 */
-	getActionItem(tree: ITree, element: any, action: IAction): IActionItem;
+	getActionItem(tree: ITree, element: any, action: IAction): IActionItem | null;
 }

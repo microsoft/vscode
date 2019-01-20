@@ -38,7 +38,7 @@ export namespace WorkspaceSymbolProviderRegistry {
 		return {
 			dispose() {
 				if (support) {
-					let idx = _supports.indexOf(support);
+					const idx = _supports.indexOf(support);
 					if (idx >= 0) {
 						_supports.splice(idx, 1);
 						support = undefined;

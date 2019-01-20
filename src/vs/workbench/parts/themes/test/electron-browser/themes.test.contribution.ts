@@ -87,9 +87,9 @@ class ThemeDocument {
 class Snapper {
 
 	constructor(
-		@IModeService private modeService: IModeService,
-		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
-		@ITextMateService private textMateService: ITextMateService
+		@IModeService private readonly modeService: IModeService,
+		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
+		@ITextMateService private readonly textMateService: ITextMateService
 	) {
 	}
 
@@ -168,7 +168,7 @@ class Snapper {
 			if (startIdx !== -1) {
 				return id.substring(startIdx + part.length, id.length - 5);
 			}
-			return void 0;
+			return undefined;
 		};
 
 		let result: IThemesResult = {};
@@ -193,16 +193,14 @@ class Snapper {
 	private _enrichResult(result: IToken[], themesResult: IThemesResult): void {
 		let index: { [themeName: string]: number; } = {};
 		let themeNames = Object.keys(themesResult);
-		for (let t = 0; t < themeNames.length; t++) {
-			let themeName = themeNames[t];
+		for (const themeName of themeNames) {
 			index[themeName] = 0;
 		}
 
 		for (let i = 0, len = result.length; i < len; i++) {
 			let token = result[i];
 
-			for (let t = 0; t < themeNames.length; t++) {
-				let themeName = themeNames[t];
+			for (const themeName of themeNames) {
 				let themedToken = themesResult[themeName].tokens[index[themeName]];
 
 				themedToken.text = themedToken.text.substr(token.c.length);
