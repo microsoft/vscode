@@ -1,26 +1,26 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
 	realpath() { [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"; }
-	ROOT=$(dirname $(dirname $(realpath "$0")))
+	ROOT="$(dirname "$(dirname "$(realpath "$0")")")"
 else
-	ROOT=$(dirname $(dirname $(readlink -f $0)))
+	ROOT="$(dirname "$(dirname "$(readlink -f "$0")")")"
 fi
 
-pushd $ROOT
+pushd "$ROOT" || exit
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
-	NAME=`node -p "require('./product.json').nameLong"`
+	NAME=$(node -p "require('./product.json').nameLong")
 	CODE="$ROOT/.build/electron/$NAME.app/Contents/MacOS/Electron"
 else
-	NAME=`node -p "require('./product.json').applicationName"`
+	NAME=$(node -p "require('./product.json').applicationName")
 	CODE="$ROOT/.build/electron/$NAME"
 fi
 
 # Get electron
 node build/lib/electron.js || ./node_modules/.bin/gulp electron
 
-popd
+popd || exit
 
 export VSCODE_DEV=1
 if [[ "$OSTYPE" == "darwin"* ]]; then

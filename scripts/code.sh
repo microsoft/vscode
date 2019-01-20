@@ -8,17 +8,17 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
 	# a freeze so we only enable this flag on macOS
 	export ELECTRON_ENABLE_LOGGING=1
 else
-	ROOT=$(dirname "$(dirname "$(readlink -f $0)")")
+	ROOT=$(dirname "$(dirname "$(readlink -f "$0")")")
 fi
 
 function code() {
-	cd "$ROOT"
+	cd "$ROOT" || exit
 
 	if [[ "$OSTYPE" == "darwin"* ]]; then
-		NAME=`node -p "require('./product.json').nameLong"`
+		NAME=$(node -p "require('./product.json').nameLong")
 		CODE="./.build/electron/$NAME.app/Contents/MacOS/Electron"
 	else
-		NAME=`node -p "require('./product.json').applicationName"`
+		NAME=$(node -p "require('./product.json').applicationName")
 		CODE=".build/electron/$NAME"
 	fi
 
@@ -31,7 +31,7 @@ function code() {
 	# Manage built-in extensions
 	if [[ "$1" == "--builtin" ]]; then
 		exec "$CODE" build/builtin
-		return
+		exit
 	fi
 
 	# Sync built-in extensions
