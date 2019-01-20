@@ -48,7 +48,7 @@
 				"git": {
 					"name": "libchromiumcontent",
 					"repositoryUrl": "https://github.com/electron/libchromiumcontent",
-					"commitHash": "e38e22ed9f48e6e395f2e9faa93d2d7411f52de4"
+					"commitHash": "1b74a92a80c2077fb0848d81b58ee6f0e4db752d"
 				}
 			},
 			"isOnlyProductionDependency": true,
@@ -73,12 +73,12 @@
 				"git": {
 					"name": "electron",
 					"repositoryUrl": "https://github.com/electron/electron",
-					"commitHash": "f26dcaeaf39e9b829aa0d4fb5a5cb59c5c314b33"
+					"commitHash": "f1f8fda78aa41578928d77e0ae0713ebf4384b77"
 				}
 			},
 			"isOnlyProductionDependency": true,
 			"license": "MIT",
-			"version": "3.0.13"
+			"version": "3.0.14"
 		},
 		{
 			"component": {
