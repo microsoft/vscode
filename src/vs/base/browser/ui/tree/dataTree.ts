@@ -38,6 +38,8 @@ export class DataTree<TInput, T, TFilterData = void> extends AbstractTree<T | nu
 		this.identityProvider = options.identityProvider;
 	}
 
+	// Model
+
 	getInput(): TInput | undefined {
 		return this.input;
 	}
@@ -76,13 +78,21 @@ export class DataTree<TInput, T, TFilterData = void> extends AbstractTree<T | nu
 		this.setSelection(selection);
 	}
 
-	refresh(element: TInput | T = this.input!): void {
+	updateChildren(element: TInput | T = this.input!): void {
 		if (typeof this.input === 'undefined') {
 			throw new Error('Tree input not set');
 		}
 
 		this._refresh(element);
 	}
+
+	// View
+
+	refresh(element: T): void {
+		this.model.refresh(element);
+	}
+
+	// Implementation
 
 	private _refresh(element: TInput | T, isCollapsed?: (el: T) => boolean): void {
 		this.model.setChildren((element === this.input ? null : element) as T, this.createIterator(element, isCollapsed));

@@ -44,7 +44,7 @@ export interface IExplorerService {
 	readonly onDidChangeRoots: Event<void>;
 	readonly onDidChangeItem: Event<ExplorerItem | undefined>;
 	readonly onDidChangeEditable: Event<ExplorerItem>;
-	readonly onDidSelectItem: Event<{ item: ExplorerItem, reveal: boolean }>;
+	readonly onDidSelectItem: Event<{ item?: ExplorerItem, reveal?: boolean }>;
 
 	setEditable(stat: ExplorerItem, data: IEditableData): void;
 	getEditableData(stat: ExplorerItem): IEditableData | undefined;

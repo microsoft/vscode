@@ -9,21 +9,25 @@ import * as objects from 'vs/base/common/objects';
 import { Action } from 'vs/base/common/actions';
 import * as errors from 'vs/base/common/errors';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { formatPII } from 'vs/workbench/parts/debug/common/debugUtils';
+import { formatPII, isUri } from 'vs/workbench/parts/debug/common/debugUtils';
 import { IDebugAdapter, IConfig, AdapterEndEvent, IDebugger } from 'vs/workbench/parts/debug/common/debug';
 import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
 import * as cp from 'child_process';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
+/**
+ * This interface represents a single command line argument split into a "prefix" and a "path" half.
+ * The optional "prefix" contains arbitrary text and the optional "path" contains a file system path.
+ * Concatenating both results in the original command line argument.
+ */
+export interface ILaunchVSCodeArgument {
+	prefix?: string;
+	path?: string;
+}
+
 export interface ILaunchVSCodeArguments {
-	sessionId: string;
-	debugMode: 'noDebug' | 'break';
-	debugPort: number;
-	extensionDevelopmentPath: string;
-	options: string[];
-	args: string[];
-	cwd?: string;
-	env: { [key: string]: string | null; };
+	args: ILaunchVSCodeArgument[];
+	env?: { [key: string]: string | null; };
 }
 
 /**
@@ -492,7 +496,10 @@ export class RawDebugSession {
 
 		switch (request.command) {
 			case 'launchVSCode':
-				this.launch(<ILaunchVSCodeArguments>request.arguments).then(_ => {
+				this.launchVsCode(<ILaunchVSCodeArguments>request.arguments).then(pid => {
+					response.body = {
+						processId: pid
+					};
 					safeSendResponse(response);
 				}, err => {
 					response.success = false;
@@ -537,57 +544,44 @@ export class RawDebugSession {
 		}
 	}
 
-	private launch(VSCodeArgs: ILaunchVSCodeArguments): Promise<void> {
-
-		let envArgs = process.env;
-		if (VSCodeArgs.env) {
-			// merge environment variables into a copy of the process.env
-			envArgs = objects.mixin(objects.mixin({}, process.env), VSCodeArgs.env);
-			// and delete some if necessary
-			Object.keys(envArgs).filter(k => envArgs[k] === null).forEach(key => delete envArgs[key]);
-		}
+	private launchVsCode(vscodeArgs: ILaunchVSCodeArguments): Promise<number> {
 
 		const spawnOpts: cp.SpawnOptions = {
-			env: envArgs,
 			detached: false	// https://github.com/Microsoft/vscode/issues/57018
 		};
-		if (VSCodeArgs.cwd) {
-			spawnOpts.cwd = VSCodeArgs.cwd;
+
+		if (vscodeArgs.env) {
+			// merge environment variables into a copy of the process.env
+			const envArgs = objects.mixin(objects.mixin({}, process.env), vscodeArgs.env);
+			// and delete some if necessary
+			Object.keys(envArgs).filter(k => envArgs[k] === null).forEach(key => delete envArgs[key]);
+			spawnOpts.env = envArgs;
 		}
 
-		let spawnArgs = [].concat(VSCodeArgs.options);
-
-		if (VSCodeArgs.debugMode !== 'noDebug') {
-			spawnArgs.push(`--debugBrkPluginHost=${VSCodeArgs.debugPort}`);
-		}
-
-		// pass the debug session ID to the EH so that broadcast events know where they come from
-		if (VSCodeArgs.sessionId) {
-			spawnArgs.push(`--debugId=${VSCodeArgs.sessionId}`);
-		}
-
-		if (VSCodeArgs.extensionDevelopmentPath) {
-			spawnArgs.push(`--extensionDevelopmentPath=${VSCodeArgs.extensionDevelopmentPath}`);
-		}
+		let spawnArgs = vscodeArgs.args.map(a => {
+			if ((a.prefix === '--file-uri=' || a.prefix === '--folder-uri=') && !isUri(a.path)) {
+				return a.path;
+			}
+			return (a.prefix || '') + (a.path || '');
+		});
 
 		let runtimeExecutable = this.environmentService['execPath'];
 		if (!runtimeExecutable) {
 			return Promise.reject(new Error(`VS Code executable unknown`));
 		}
 
-		// if VS Code runs out of sources, add the path to the VS Code workspace as a first argument so that Electron turns into VS Code
+		// if VS Code runs out of sources, add the VS Code workspace path as the first argument so that Electron turns into VS Code
 		const electronIdx = runtimeExecutable.indexOf(process.platform === 'win32' ? '\\.build\\electron\\' : '/.build/electron/');
-		if (electronIdx > 0 && VSCodeArgs.args.length > 0) {
-			// guess the VS Code workspace path
+		if (electronIdx > 0) {
+			// guess the VS Code workspace path from the executable
 			const vscodeWorkspacePath = runtimeExecutable.substr(0, electronIdx);
 
-			// only add path if user hasn't already added path
-			if (VSCodeArgs.args.length === 0 || VSCodeArgs.args[0].indexOf(vscodeWorkspacePath) !== 0) {
-				spawnArgs.push(vscodeWorkspacePath);
+			// only add path if user hasn't already added that path
+			const x = spawnArgs.filter(a => a.indexOf(vscodeWorkspacePath) >= 0);
+			if (x.length === 0) {
+				spawnArgs.unshift(vscodeWorkspacePath);
 			}
 		}
-
-		spawnArgs = spawnArgs.concat(VSCodeArgs.args);
 
 		// Workaround for bug Microsoft/vscode#45832
 		if (process.platform === 'win32' && runtimeExecutable.indexOf(' ') > 0) {
@@ -611,14 +605,14 @@ export class RawDebugSession {
 			}
 		}
 
-		return new Promise<void>((resolve, reject) => {
+		return new Promise((resolve, reject) => {
 			const process = cp.spawn(runtimeExecutable, spawnArgs, spawnOpts);
 			process.on('error', error => {
 				reject(error);
 			});
 			process.on('exit', code => {
 				if (code === 0) {
-					resolve();
+					resolve(process.pid);
 				} else {
 					reject(new Error(`VS Code exited with ${code}`));
 				}

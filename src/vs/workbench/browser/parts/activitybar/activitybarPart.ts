@@ -93,25 +93,19 @@ export class ActivitybarPart extends Part {
 		}));
 
 		this.registerListeners();
-		this.onDidRegisterViewlets(viewletService.getAllViewlets());
+		this.onDidRegisterViewlets(viewletService.getViewlets());
 	}
 
 	private registerListeners(): void {
 
 		this._register(this.viewletService.onDidViewletRegister(viewlet => this.onDidRegisterViewlets([viewlet])));
+		this._register(this.viewletService.onDidViewletDeregister(({ id }) => this.removeComposite(id, true)));
 
 		// Activate viewlet action on opening of a viewlet
 		this._register(this.viewletService.onDidViewletOpen(viewlet => this.onDidViewletOpen(viewlet)));
 
 		// Deactivate viewlet action on close
 		this._register(this.viewletService.onDidViewletClose(viewlet => this.compositeBar.deactivateComposite(viewlet.getId())));
-		this._register(this.viewletService.onDidViewletEnablementChange(({ id, enabled }) => {
-			if (enabled) {
-				this.compositeBar.addComposite(this.viewletService.getViewlet(id));
-			} else {
-				this.removeComposite(id, true);
-			}
-		}));
 
 		let disposables: IDisposable[] = [];
 		this._register(this.extensionService.onDidRegisterExtensions(() => {
@@ -125,13 +119,15 @@ export class ActivitybarPart extends Part {
 
 	private onDidRegisterExtensions(): void {
 		this.removeNotExistingComposites();
-		for (const viewlet of this.viewletService.getAllViewlets()) {
+		for (const viewlet of this.viewletService.getViewlets()) {
 			this.enableCompositeActions(viewlet);
 			const viewContainer = this.getViewContainer(viewlet.id);
 			if (viewContainer) {
 				const viewDescriptors = this.viewsService.getViewDescriptors(viewContainer);
-				this.onDidChangeActiveViews(viewlet, viewDescriptors);
-				viewDescriptors.onDidChangeActiveViews(() => this.onDidChangeActiveViews(viewlet, viewDescriptors));
+				if (viewDescriptors) {
+					this.onDidChangeActiveViews(viewlet, viewDescriptors);
+					viewDescriptors.onDidChangeActiveViews(() => this.onDidChangeActiveViews(viewlet, viewDescriptors));
+				}
 			}
 		}
 		this.saveCachedViewlets();
@@ -151,9 +147,12 @@ export class ActivitybarPart extends Part {
 		this.compositeBar.activateComposite(viewlet.getId());
 		const viewletDescriptor = this.viewletService.getViewlet(viewlet.getId());
 		const viewContainer = this.getViewContainer(viewletDescriptor.id);
-		if (viewContainer && this.viewsService.getViewDescriptors(viewContainer).activeViewDescriptors.length === 0) {
-			// Update the composite bar by hiding
-			this.removeComposite(viewletDescriptor.id, true);
+		if (viewContainer) {
+			const viewDescriptors = this.viewsService.getViewDescriptors(viewContainer);
+			if (viewDescriptors && viewDescriptors.activeViewDescriptors.length === 0) {
+				// Update the composite bar by hiding
+				this.removeComposite(viewletDescriptor.id, true);
+			}
 		}
 	}
 
@@ -299,7 +298,7 @@ export class ActivitybarPart extends Part {
 	}
 
 	private removeNotExistingComposites(): void {
-		const viewlets = this.viewletService.getAllViewlets();
+		const viewlets = this.viewletService.getViewlets();
 		for (const { id } of this.cachedViewlets) {
 			if (viewlets.every(viewlet => viewlet.id !== id)) {
 				this.removeComposite(id, false);
@@ -395,15 +394,18 @@ export class ActivitybarPart extends Part {
 	private saveCachedViewlets(): void {
 		const state: ICachedViewlet[] = [];
 		const compositeItems = this.compositeBar.getCompositeBarItems();
-		const allViewlets = this.viewletService.getAllViewlets();
+		const allViewlets = this.viewletService.getViewlets();
 		for (const compositeItem of compositeItems) {
 			const viewContainer = this.getViewContainer(compositeItem.id);
 			const viewlet = allViewlets.filter(({ id }) => id === compositeItem.id)[0];
 			if (viewlet) {
 				const views: { when: string }[] = [];
 				if (viewContainer) {
-					for (const { when } of this.viewsService.getViewDescriptors(viewContainer).allViewDescriptors) {
-						views.push({ when: when ? when.serialize() : undefined });
+					const viewDescriptors = this.viewsService.getViewDescriptors(viewContainer);
+					if (viewDescriptors) {
+						for (const { when } of viewDescriptors.allViewDescriptors) {
+							views.push({ when: when ? when.serialize() : undefined });
+						}
 					}
 				}
 				state.push({ id: compositeItem.id, iconUrl: viewlet.iconUrl, views, pinned: compositeItem && compositeItem.pinned, order: compositeItem ? compositeItem.order : undefined, visible: compositeItem && compositeItem.visible });

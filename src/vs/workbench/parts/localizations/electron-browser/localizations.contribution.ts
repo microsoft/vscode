@@ -83,7 +83,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 						label: updateAndRestart ? localize('yes', "Yes") : localize('restart now', "Restart Now"),
 						run: () => {
 							const file = URI.file(join(this.environmentService.appSettingsHome, 'locale.json'));
-							const updatePromise = updateAndRestart ? this.jsonEditingService.write(file, { key: 'locale', value: locale }, true) : Promise.resolve(null);
+							const updatePromise = updateAndRestart ? this.jsonEditingService.write(file, { key: 'locale', value: locale }, true) : Promise.resolve(undefined);
 							updatePromise.then(() => this.windowsService.relaunch({}), e => this.notificationService.error(e));
 						}
 					}, {
@@ -105,7 +105,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 		if (!this.galleryService.isEnabled()) {
 			return;
 		}
-		if (language === 'en' || language.indexOf('en-') === 0) {
+		if (!language || !locale || language === 'en' || language.indexOf('en-') === 0) {
 			return;
 		}
 		if (language === locale || languagePackSuggestionIgnoreList.indexOf(language) > -1) {
@@ -211,9 +211,14 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 
 	}
 
-	private isLanguageInstalled(language: string): Promise<boolean> {
+	private isLanguageInstalled(language: string | undefined): Promise<boolean> {
 		return this.extensionManagementService.getInstalled(ExtensionType.User)
-			.then(installed => installed.some(i => i.manifest && i.manifest.contributes && i.manifest.contributes.localizations && i.manifest.contributes.localizations.length && i.manifest.contributes.localizations.some(l => l.languageId.toLowerCase() === language)));
+			.then(installed => installed.some(i =>
+				!!(i.manifest
+					&& i.manifest.contributes
+					&& i.manifest.contributes.localizations
+					&& i.manifest.contributes.localizations.length
+					&& i.manifest.contributes.localizations.some(l => l.languageId.toLowerCase() === language))));
 	}
 
 	private installExtension(extension: IGalleryExtension): Promise<void> {
@@ -221,7 +226,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => viewlet.search(`@id:${extension.identifier.id}`))
 			.then(() => this.extensionManagementService.installFromGallery(extension))
-			.then(() => null, err => this.notificationService.error(err));
+			.then(() => undefined, err => this.notificationService.error(err));
 	}
 }
 
@@ -248,7 +253,7 @@ function registerLocaleDefinitionSchema(languages: string[]): void {
 	});
 }
 
-registerLocaleDefinitionSchema([platform.language]);
+registerLocaleDefinitionSchema(platform.language ? [platform.language] : []);
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(LocalizationWorkbenchContribution, LifecyclePhase.Eventually);
 

@@ -50,7 +50,7 @@ export function activate(context: ExtensionContext) {
 	let documentSelector = ['html', 'handlebars', 'razor'];
 	let embeddedLanguages = { css: true, javascript: true };
 
-	let { tagPaths, attributePaths } = getCustomDataPathsInAllWorkspaces(workspace.workspaceFolders);
+	let { dataPaths } = getCustomDataPathsInAllWorkspaces(workspace.workspaceFolders);
 
 	// Options to control the language client
 	let clientOptions: LanguageClientOptions = {
@@ -60,8 +60,7 @@ export function activate(context: ExtensionContext) {
 		},
 		initializationOptions: {
 			embeddedLanguages,
-			tagPaths,
-			attributePaths
+			dataPaths
 		}
 	};
 

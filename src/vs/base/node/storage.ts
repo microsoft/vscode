@@ -64,7 +64,7 @@ export interface IStorage extends IDisposable {
 	getInteger(key: string, fallbackValue: number): number;
 	getInteger(key: string, fallbackValue?: number): number | undefined;
 
-	set(key: string, value: any): Promise<void>;
+	set(key: string, value: string | boolean | number): Promise<void>;
 	delete(key: string): Promise<void>;
 
 	close(): Promise<void>;
@@ -207,7 +207,7 @@ export class Storage extends Disposable implements IStorage {
 		return parseInt(value, 10);
 	}
 
-	set(key: string, value: any): Promise<void> {
+	set(key: string, value: string | boolean | number): Promise<void> {
 		if (this.state === StorageState.Closed) {
 			return Promise.resolve(); // Return early if we are already closed
 		}

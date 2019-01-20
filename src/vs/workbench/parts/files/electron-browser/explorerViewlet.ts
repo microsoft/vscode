@@ -59,7 +59,7 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 		const viewDescriptors = ViewsRegistry.getViews(VIEW_CONTAINER);
 
 		let viewDescriptorsToRegister: IViewDescriptor[] = [];
-		let viewDescriptorsToDeregister: string[] = [];
+		let viewDescriptorsToDeregister: IViewDescriptor[] = [];
 
 		const openEditorsViewDescriptor = this.createOpenEditorsViewDescriptor();
 		const openEditorsViewDescriptorExists = viewDescriptors.some(v => v.id === openEditorsViewDescriptor.id);
@@ -73,14 +73,14 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 		}
 		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY || this.workspaceContextService.getWorkspace().folders.length === 0) {
 			if (explorerViewDescriptorExists) {
-				viewDescriptorsToDeregister.push(explorerViewDescriptor.id);
+				viewDescriptorsToDeregister.push(explorerViewDescriptor);
 			}
 			if (!emptyViewDescriptorExists) {
 				viewDescriptorsToRegister.push(emptyViewDescriptor);
 			}
 		} else {
 			if (emptyViewDescriptorExists) {
-				viewDescriptorsToDeregister.push(emptyViewDescriptor.id);
+				viewDescriptorsToDeregister.push(emptyViewDescriptor);
 			}
 			if (!explorerViewDescriptorExists) {
 				viewDescriptorsToRegister.push(explorerViewDescriptor);
@@ -88,7 +88,7 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 		}
 
 		if (viewDescriptorsToRegister.length) {
-			ViewsRegistry.registerViews(viewDescriptorsToRegister);
+			ViewsRegistry.registerViews(viewDescriptorsToRegister, VIEW_CONTAINER);
 		}
 		if (viewDescriptorsToDeregister.length) {
 			ViewsRegistry.deregisterViews(viewDescriptorsToDeregister, VIEW_CONTAINER);
@@ -99,7 +99,6 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 		return {
 			id: OpenEditorsView.ID,
 			name: OpenEditorsView.NAME,
-			container: VIEW_CONTAINER,
 			ctor: OpenEditorsView,
 			order: 0,
 			when: OpenEditorsVisibleCondition,
@@ -115,7 +114,6 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 		return {
 			id: EmptyView.ID,
 			name: EmptyView.NAME,
-			container: VIEW_CONTAINER,
 			ctor: EmptyView,
 			order: 1,
 			canToggleVisibility: false
@@ -126,7 +124,6 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 		return {
 			id: ExplorerView.ID,
 			name: localize('folders', "Folders"),
-			container: VIEW_CONTAINER,
 			ctor: ExplorerView,
 			order: 1,
 			canToggleVisibility: false

@@ -85,7 +85,7 @@ export class CallStackView extends ViewletPanel {
 
 			this.needsRefresh = false;
 			this.dataSource.deemphasizedStackFramesToShow = [];
-			this.tree.refresh().then(() => this.updateTreeSelection());
+			this.tree.updateChildren().then(() => this.updateTreeSelection());
 		}, 50);
 	}
 
@@ -179,12 +179,12 @@ export class CallStackView extends ViewletPanel {
 				const thread = session && session.getThread(element.threadId);
 				if (thread) {
 					(<Thread>thread).fetchCallStack()
-						.then(() => this.tree.refresh());
+						.then(() => this.tree.updateChildren());
 				}
 			}
 			if (element instanceof Array) {
 				this.dataSource.deemphasizedStackFramesToShow.push(...element);
-				this.tree.refresh();
+				this.tree.updateChildren();
 			}
 		}));
 
