@@ -18,7 +18,7 @@ export interface TaskPresentationOptionsDTO {
 	panel?: number;
 	showReuseMessage?: boolean;
 	clear?: boolean;
-	terminalGroup?: string;
+	group?: string;
 }
 
 export interface RunOptionsDTO {

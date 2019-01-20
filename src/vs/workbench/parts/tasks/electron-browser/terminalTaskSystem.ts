@@ -42,7 +42,7 @@ import {
 interface TerminalData {
 	terminal: ITerminalInstance;
 	lastTask: string;
-	terminalGroup?: string;
+	group?: string;
 }
 
 interface ActiveTerminalData {
@@ -858,7 +858,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}
 		let prefersSameTerminal = presentationOptions.panel === PanelKind.Dedicated;
 		let allowsSharedTerminal = presentationOptions.panel === PanelKind.Shared;
-		let terminalGroup = presentationOptions.terminalGroup;
+		let group = presentationOptions.group;
 
 		let taskKey = task.getMapKey();
 		let terminalToReuse: TerminalData | undefined;
@@ -873,11 +873,11 @@ export class TerminalTaskSystem implements ITaskSystem {
 			let terminalId = this.idleTaskTerminals.remove(taskKey);
 			if (!terminalId) {
 				// There is no idle terminal which was used by the same task.
-				// Search for any idle terminal used previously by a task of the same terminalGroup
-				// (or, if the task has no terminalGroup, a terminal used by a task without terminalGroup).
+				// Search for any idle terminal used previously by a task of the same group
+				// (or, if the task has no group, a terminal used by a task without group).
 				for (const taskId of this.idleTaskTerminals.keys()) {
 					const idleTerminalId = this.idleTaskTerminals.get(taskId)!;
-					if (this.terminals[idleTerminalId].terminalGroup === terminalGroup) {
+					if (this.terminals[idleTerminalId].group === group) {
 						terminalId = this.idleTaskTerminals.remove(taskId);
 						break;
 					}
@@ -896,11 +896,11 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}
 
 		let result;
-		if (terminalGroup) {
+		if (group) {
 			// Try to find an existing terminal to split.
 			// Even if an existing terminal is found, the split can fail if the terminal width is too small.
 			for (const terminal of values(this.terminals)) {
-				if (terminal.terminalGroup === terminalGroup) {
+				if (terminal.group === group) {
 					const originalInstance = terminal.terminal;
 					const config = this.currentTask.shellLaunchConfig;
 					result = this.terminalService.splitInstance(originalInstance, config);
@@ -911,7 +911,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			}
 		}
 		if (!result) {
-			// Either no terminalGroup is used, no terminal with the terminalGroup exists or splitting an existing terminal failed.
+			// Either no group is used, no terminal with the group exists or splitting an existing terminal failed.
 			result = this.terminalService.createTerminal(this.currentTask.shellLaunchConfig);
 		}
 
@@ -929,7 +929,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 				delete this.activeTasks[task.getMapKey()];
 			}
 		});
-		this.terminals[terminalKey] = { terminal: result, lastTask: taskKey, terminalGroup };
+		this.terminals[terminalKey] = { terminal: result, lastTask: taskKey, group };
 		return [result, commandExecutable, undefined];
 	}
 

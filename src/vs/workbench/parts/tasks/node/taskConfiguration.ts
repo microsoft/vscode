@@ -122,7 +122,7 @@ export interface PresentationOptionsConfig {
 	/**
 	 * Controls whether the task is executed in a specific terminal group using split panes.
 	 */
-	terminalGroup?: string;
+	group?: string;
 }
 
 export interface RunOptionsConfig {
@@ -799,7 +799,7 @@ namespace CommandOptions {
 namespace CommandConfiguration {
 
 	export namespace PresentationOptions {
-		const properties: MetaData<Tasks.PresentationOptions, void>[] = [{ property: 'echo' }, { property: 'reveal' }, { property: 'focus' }, { property: 'panel' }, { property: 'showReuseMessage' }, { property: 'clear' }, { property: 'terminalGroup' }];
+		const properties: MetaData<Tasks.PresentationOptions, void>[] = [{ property: 'echo' }, { property: 'reveal' }, { property: 'focus' }, { property: 'panel' }, { property: 'showReuseMessage' }, { property: 'clear' }, { property: 'group' }];
 
 		interface PresentationOptionsShape extends LegacyCommandProperties {
 			presentation?: PresentationOptionsConfig;
@@ -812,7 +812,7 @@ namespace CommandConfiguration {
 			let panel: Tasks.PanelKind;
 			let showReuseMessage: boolean;
 			let clear: boolean;
-			let terminalGroup: string | undefined;
+			let group: string | undefined;
 			let hasProps = false;
 			if (Types.isBoolean(config.echoCommand)) {
 				echo = config.echoCommand;
@@ -842,15 +842,15 @@ namespace CommandConfiguration {
 				if (Types.isBoolean(presentation.clear)) {
 					clear = presentation.clear;
 				}
-				if (Types.isString(presentation.terminalGroup)) {
-					terminalGroup = presentation.terminalGroup;
+				if (Types.isString(presentation.group)) {
+					group = presentation.group;
 				}
 				hasProps = true;
 			}
 			if (!hasProps) {
 				return undefined;
 			}
-			return { echo: echo!, reveal: reveal!, focus: focus!, panel: panel!, showReuseMessage: showReuseMessage!, clear: clear!, terminalGroup };
+			return { echo: echo!, reveal: reveal!, focus: focus!, panel: panel!, showReuseMessage: showReuseMessage!, clear: clear!, group };
 		}
 
 		export function assignProperties(target: Tasks.PresentationOptions, source: Tasks.PresentationOptions | undefined): Tasks.PresentationOptions | undefined {

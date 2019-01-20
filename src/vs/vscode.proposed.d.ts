@@ -1126,7 +1126,7 @@ declare module 'vscode' {
 		/**
 		 * Controls whether the task is executed in a specific terminal group using split panes.
 		 */
-		terminalGroup?: string;
+		group?: string;
 	}
 	//#endregion
 
