@@ -359,7 +359,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 
 		const isPrintableCharEvent = keyboardNavigationLabelProvider.mightProducePrintableCharacter ? (e: IKeyboardEvent) => keyboardNavigationLabelProvider.mightProducePrintableCharacter!(e) : (e: IKeyboardEvent) => mightProducePrintableCharacter(e);
 		const onInput = Event.chain(domEvent(view.getHTMLElement(), 'keydown'))
-			.filter(e => !isInputElement(e.target as HTMLElement))
+			.filter(e => !isInputElement(e.target as HTMLElement) || e.target === filterOnType)
 			.map(e => new StandardKeyboardEvent(e))
 			.filter(e => e.keyCode === KeyCode.Backspace || e.keyCode === KeyCode.Escape || isPrintableCharEvent(e))
 			.forEach(e => { e.stopPropagation(); e.preventDefault(); })
