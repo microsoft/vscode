@@ -113,6 +113,7 @@ function createScopedContextKeyService(contextKeyService: IContextKeyService, wi
 export const multiSelectModifierSettingKey = 'workbench.list.multiSelectModifier';
 export const openModeSettingKey = 'workbench.list.openMode';
 export const horizontalScrollingKey = 'workbench.tree.horizontalScrolling';
+export const keyboardNavigationSettingKey = 'workbench.list.keyboardNavigation';
 const treeIndentKey = 'workbench.tree.indent';
 
 function useAltAsMultipleSelectionModifier(configurationService: IConfigurationService): boolean {
@@ -905,12 +906,16 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
+		const keyboardNavigation = configurationService.getValue<string>(keyboardNavigationSettingKey);
+
 		super(container, delegate, renderers, {
 			keyboardSupport: false,
 			styleController: new DefaultStyleController(getSharedListStyleSheet()),
 			...computeStyles(themeService.getTheme(), defaultListStyles),
 			...toWorkbenchListOptions(options, configurationService, keybindingService),
-			indent: configurationService.getValue(treeIndentKey)
+			indent: configurationService.getValue(treeIndentKey),
+			simpleKeyboardNavigation: keyboardNavigation === 'simple',
+			filterOnType: keyboardNavigation === 'filter'
 		});
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
@@ -949,6 +954,13 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 				if (e.affectsConfiguration(treeIndentKey)) {
 					const indent = configurationService.getValue<number>(treeIndentKey);
 					this.updateOptions({ indent });
+				}
+				if (e.affectsConfiguration(keyboardNavigationSettingKey)) {
+					const keyboardNavigation = configurationService.getValue<string>(keyboardNavigationSettingKey);
+					this.updateOptions({
+						simpleKeyboardNavigation: keyboardNavigation === 'simple',
+						filterOnType: keyboardNavigation === 'filter'
+					});
 				}
 			})
 		);
@@ -986,12 +998,16 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
+		const keyboardNavigation = configurationService.getValue<string>(keyboardNavigationSettingKey);
+
 		super(container, delegate, renderers, dataSource, {
 			keyboardSupport: false,
 			styleController: new DefaultStyleController(getSharedListStyleSheet()),
 			...computeStyles(themeService.getTheme(), defaultListStyles),
 			...toWorkbenchListOptions(options, configurationService, keybindingService),
-			indent: configurationService.getValue(treeIndentKey)
+			indent: configurationService.getValue(treeIndentKey),
+			simpleKeyboardNavigation: keyboardNavigation === 'simple',
+			filterOnType: keyboardNavigation === 'filter'
 		});
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
@@ -1030,6 +1046,13 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 				if (e.affectsConfiguration(treeIndentKey)) {
 					const indent = configurationService.getValue<number>(treeIndentKey);
 					this.updateOptions({ indent });
+				}
+				if (e.affectsConfiguration(keyboardNavigationSettingKey)) {
+					const keyboardNavigation = configurationService.getValue<string>(keyboardNavigationSettingKey);
+					this.updateOptions({
+						simpleKeyboardNavigation: keyboardNavigation === 'simple',
+						filterOnType: keyboardNavigation === 'filter'
+					});
 				}
 			})
 		);
@@ -1062,12 +1085,16 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
+		const keyboardNavigation = configurationService.getValue<string>(keyboardNavigationSettingKey);
+
 		super(container, delegate, renderers, dataSource, {
 			keyboardSupport: false,
 			styleController: new DefaultStyleController(getSharedListStyleSheet()),
 			...computeStyles(themeService.getTheme(), defaultListStyles),
 			...toWorkbenchListOptions(options, configurationService, keybindingService),
-			indent: configurationService.getValue<number>(treeIndentKey)
+			indent: configurationService.getValue<number>(treeIndentKey),
+			simpleKeyboardNavigation: keyboardNavigation === 'simple',
+			filterOnType: keyboardNavigation === 'filter'
 		});
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
@@ -1106,6 +1133,13 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 				if (e.affectsConfiguration(treeIndentKey)) {
 					const indent = configurationService.getValue<number>(treeIndentKey);
 					this.updateOptions({ indent });
+				}
+				if (e.affectsConfiguration(keyboardNavigationSettingKey)) {
+					const keyboardNavigation = configurationService.getValue<string>(keyboardNavigationSettingKey);
+					this.updateOptions({
+						simpleKeyboardNavigation: keyboardNavigation === 'simple',
+						filterOnType: keyboardNavigation === 'filter'
+					});
 				}
 			})
 		);
@@ -1158,6 +1192,17 @@ configurationRegistry.registerConfiguration({
 			'type': 'number',
 			'default': 8,
 			'description': localize('tree indent setting', "Controls tree indentation in pixels.")
-		}
+		},
+		[keyboardNavigationSettingKey]: {
+			'type': 'string',
+			'enum': ['simple', 'highlight', 'filter'],
+			'enumDescriptions': [
+				localize('keyboardNavigationSettingKey.simple', "Sets simple keyboard navigation for lists and trees."),
+				localize('keyboardNavigationSettingKey.highlight', "Enables highlighting keyboard navigation for lists and trees."),
+				localize('keyboardNavigationSettingKey.filter', "Enables filtering keyboard navigation for lists and trees.")
+			],
+			'default': 'highlight',
+			'description': localize('keyboardNavigationSettingKey', "Controls the keyboard navigation style for lists and trees.")
+		},
 	}
 });

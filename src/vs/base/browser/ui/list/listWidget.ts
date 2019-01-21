@@ -336,7 +336,9 @@ export function mightProducePrintableCharacter(event: IKeyboardEvent): boolean {
 
 class TypeLabelController<T> implements IDisposable {
 
+	private enabled = false;
 	private state: TypeLabelControllerState = TypeLabelControllerState.Idle;
+	private enabledDisposables: IDisposable[] = [];
 	private disposables: IDisposable[] = [];
 
 	constructor(
@@ -344,17 +346,45 @@ class TypeLabelController<T> implements IDisposable {
 		private view: ListView<T>,
 		private keyboardNavigationLabelProvider: IKeyboardNavigationLabelProvider<T>
 	) {
-		const onChar = Event.chain(domEvent(view.domNode, 'keydown'))
+		list.onDidUpdateOptions(this.onDidUpdateListOptions, this, this.disposables);
+		this.onDidUpdateListOptions(list.options);
+	}
+
+	private onDidUpdateListOptions(options: IListOptions<T>): void {
+		if (options.enableKeyboardNavigation) {
+			this.enable();
+		} else {
+			this.disable();
+		}
+	}
+
+	private enable(): void {
+		if (this.enabled) {
+			return;
+		}
+
+		const onChar = Event.chain(domEvent(this.view.domNode, 'keydown'))
 			.filter(e => !isInputElement(e.target as HTMLElement))
 			.map(event => new StandardKeyboardEvent(event))
-			.filter(keyboardNavigationLabelProvider.mightProducePrintableCharacter ? e => keyboardNavigationLabelProvider.mightProducePrintableCharacter!(e) : e => mightProducePrintableCharacter(e))
+			.filter(this.keyboardNavigationLabelProvider.mightProducePrintableCharacter ? e => this.keyboardNavigationLabelProvider.mightProducePrintableCharacter!(e) : e => mightProducePrintableCharacter(e))
 			.map(event => event.browserEvent.key)
 			.event;
 
 		const onClear = Event.debounce<string, null>(onChar, () => null, 800);
 		const onInput = Event.reduce<string | null, string | null>(Event.any(onChar, onClear), (r, i) => i === null ? null : ((r || '') + i));
 
-		onInput(this.onInput, this, this.disposables);
+		onInput(this.onInput, this, this.enabledDisposables);
+
+		this.enabled = true;
+	}
+
+	private disable(): void {
+		if (!this.enabled) {
+			return;
+		}
+
+		this.enabledDisposables = dispose(this.enabledDisposables);
+		this.enabled = false;
 	}
 
 	private onInput(word: string | null): void {
@@ -381,6 +411,7 @@ class TypeLabelController<T> implements IDisposable {
 	}
 
 	dispose() {
+		this.disable();
 		this.disposables = dispose(this.disposables);
 	}
 }
@@ -747,6 +778,7 @@ export class DefaultStyleController implements IStyleController {
 export interface IListOptions<T> extends IListStyles {
 	readonly identityProvider?: IIdentityProvider<T>;
 	readonly dnd?: IListDragAndDrop<T>;
+	readonly enableKeyboardNavigation?: boolean;
 	readonly keyboardNavigationLabelProvider?: IKeyboardNavigationLabelProvider<T>;
 	readonly ariaLabel?: string;
 	readonly keyboardSupport?: boolean;
@@ -1004,6 +1036,10 @@ class ListViewDragAndDrop<T> implements IListViewDragAndDrop<T> {
 	}
 }
 
+export interface IListOptionsUpdate {
+	readonly enableKeyboardNavigation?: boolean;
+}
+
 export class List<T> implements ISpliceable<T>, IDisposable {
 
 	private static InstanceCount = 0;
@@ -1016,6 +1052,9 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	private spliceable: ISpliceable<T>;
 	private styleElement: HTMLStyleElement;
 	private styleController: IStyleController;
+
+	private _onDidUpdateOptions = new Emitter<IListOptions<T>>();
+	readonly onDidUpdateOptions = this._onDidUpdateOptions.event;
 
 	protected disposables: IDisposable[];
 
@@ -1098,24 +1137,24 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		container: HTMLElement,
 		virtualDelegate: IListVirtualDelegate<T>,
 		renderers: IListRenderer<any /* TODO@joao */, any>[],
-		options: IListOptions<T> = DefaultOptions
+		private _options: IListOptions<T> = DefaultOptions
 	) {
 		this.focus = new FocusTrait(i => this.getElementDomId(i));
 		this.selection = new Trait('selected');
 
-		mixin(options, defaultStyles, false);
+		mixin(_options, defaultStyles, false);
 
 		const baseRenderers: IListRenderer<T, ITraitTemplateData>[] = [this.focus.renderer, this.selection.renderer];
 
-		if (options.accessibilityProvider) {
-			baseRenderers.push(new AccessibiltyRenderer<T>(options.accessibilityProvider));
+		if (_options.accessibilityProvider) {
+			baseRenderers.push(new AccessibiltyRenderer<T>(_options.accessibilityProvider));
 		}
 
 		renderers = renderers.map(r => new PipelineRenderer(r.templateId, [...baseRenderers, r]));
 
 		const viewOptions: IListViewOptions<T> = {
-			...options,
-			dnd: options.dnd && new ListViewDragAndDrop(this, options.dnd)
+			..._options,
+			dnd: _options.dnd && new ListViewDragAndDrop(this, _options.dnd)
 		};
 
 		this.view = new ListView(container, virtualDelegate, renderers, viewOptions);
@@ -1125,11 +1164,11 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		this.styleElement = DOM.createStyleSheet(this.view.domNode);
 
-		this.styleController = options.styleController || new DefaultStyleController(this.styleElement, this.idPrefix);
+		this.styleController = _options.styleController || new DefaultStyleController(this.styleElement, this.idPrefix);
 
 		this.spliceable = new CombinedSpliceable([
-			new TraitSpliceable(this.focus, this.view, options.identityProvider),
-			new TraitSpliceable(this.selection, this.view, options.identityProvider),
+			new TraitSpliceable(this.focus, this.view, _options.identityProvider),
+			new TraitSpliceable(this.selection, this.view, _options.identityProvider),
 			this.view
 		]);
 
@@ -1140,28 +1179,37 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		this.disposables.push(new DOMFocusController(this, this.view));
 
-		if (typeof options.keyboardSupport !== 'boolean' || options.keyboardSupport) {
-			const controller = new KeyboardController(this, this.view, options);
+		if (typeof _options.keyboardSupport !== 'boolean' || _options.keyboardSupport) {
+			const controller = new KeyboardController(this, this.view, _options);
 			this.disposables.push(controller);
 		}
 
-		if (options.keyboardNavigationLabelProvider) {
-			const controller = new TypeLabelController(this, this.view, options.keyboardNavigationLabelProvider);
+		if (_options.keyboardNavigationLabelProvider) {
+			const controller = new TypeLabelController(this, this.view, _options.keyboardNavigationLabelProvider);
 			this.disposables.push(controller);
 		}
 
-		if (typeof options.mouseSupport === 'boolean' ? options.mouseSupport : true) {
-			this.disposables.push(new MouseController(this, this.view, options));
+		if (typeof _options.mouseSupport === 'boolean' ? _options.mouseSupport : true) {
+			this.disposables.push(new MouseController(this, this.view, _options));
 		}
 
 		this.onFocusChange(this._onFocusChange, this, this.disposables);
 		this.onSelectionChange(this._onSelectionChange, this, this.disposables);
 
-		if (options.ariaLabel) {
-			this.view.domNode.setAttribute('aria-label', localize('aria list', "{0}. Use the navigation keys to navigate.", options.ariaLabel));
+		if (_options.ariaLabel) {
+			this.view.domNode.setAttribute('aria-label', localize('aria list', "{0}. Use the navigation keys to navigate.", _options.ariaLabel));
 		}
 
-		this.style(options);
+		this.style(_options);
+	}
+
+	updateOptions(optionsUpdate: IListOptionsUpdate = {}): void {
+		this._options = { ...this._options, ...optionsUpdate };
+		this._onDidUpdateOptions.fire(this._options);
+	}
+
+	get options(): IListOptions<T> {
+		return this._options;
 	}
 
 	splice(start: number, deleteCount: number, elements: T[] = []): void {

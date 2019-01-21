@@ -140,7 +140,13 @@ function asListOptions<T, TFilterData, TRef>(modelProvider: () => ITreeModel<T, 
 				return node.depth;
 			}
 		},
-		keyboardNavigationLabelProvider: undefined
+		keyboardNavigationLabelProvider: options.keyboardNavigationLabelProvider && {
+			...options.keyboardNavigationLabelProvider,
+			getKeyboardNavigationLabel(node) {
+				return options.keyboardNavigationLabelProvider!.getKeyboardNavigationLabel(node.element);
+			}
+		},
+		enableKeyboardNavigation: options.simpleKeyboardNavigation
 	};
 }
 
@@ -287,6 +293,11 @@ class TypeFilter<T> implements ITreeFilter<T, FuzzyScore> {
 	filter(element: T, parentVisibility: TreeVisibility): TreeFilterResult<FuzzyScore> {
 		if (this._filter) {
 			const result = this._filter.filter(element, parentVisibility);
+
+			if (this.tree.options.simpleKeyboardNavigation) {
+				return result;
+			}
+
 			let visibility: TreeVisibility;
 
 			if (typeof result === 'boolean') {
@@ -302,7 +313,7 @@ class TypeFilter<T> implements ITreeFilter<T, FuzzyScore> {
 			}
 		}
 
-		if (!this._pattern) {
+		if (this.tree.options.simpleKeyboardNavigation || !this._pattern) {
 			return { data: FuzzyScore.Default, visibility: true };
 		}
 
@@ -310,7 +321,7 @@ class TypeFilter<T> implements ITreeFilter<T, FuzzyScore> {
 		const score = fuzzyScore(this._pattern, this._lowercasePattern, 0, label, label.toLowerCase(), 0, true);
 
 		if (!score) {
-			if (this.tree.configuration.filterOnType) {
+			if (this.tree.options.filterOnType) {
 				return parentVisibility === TreeVisibility.Visible ? true : TreeVisibility.Recurse;
 			} else {
 				return { data: FuzzyScore.Default, visibility: true };
@@ -333,47 +344,70 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 	private _onDidChangePattern = new Emitter<string>();
 	readonly onDidChangePattern = this._onDidChangePattern.event;
 
+	private enabled = false;
 	private positionClassName = 'ne';
 	private domNode: HTMLElement;
-	private label: HTMLElement;
-	private filterOnType: HTMLInputElement;
+	private labelDomNode: HTMLElement;
+	private filterOnTypeDomNode: HTMLInputElement;
+	private clearDomNode: HTMLElement;
 
 	private _pattern = '';
+	private enabledDisposables: IDisposable[] = [];
 	private disposables: IDisposable[] = [];
 
 	constructor(
 		private tree: AbstractTree<T, TFilterData, any>,
 		private view: List<ITreeNode<T, TFilterData>>,
 		private filter: TypeFilter<T>,
-		keyboardNavigationLabelProvider: IKeyboardNavigationLabelProvider<T>
+		private keyboardNavigationLabelProvider: IKeyboardNavigationLabelProvider<T>
 	) {
 		this.domNode = $(`.monaco-list-type-filter.${this.positionClassName}`);
 		this.domNode.draggable = true;
 		domEvent(this.domNode, 'dragstart')(this.onDragStart, this, this.disposables);
 
-		this.label = append(this.domNode, $('span.label'));
+		this.labelDomNode = append(this.domNode, $('span.label'));
 		const controls = append(this.domNode, $('.controls'));
 
-		this.filterOnType = append(controls, $<HTMLInputElement>('input.filter'));
-		this.filterOnType.type = 'checkbox';
-		this.filterOnType.checked = !!tree.configuration.filterOnType;
-		this.filterOnType.tabIndex = -1;
+		this.filterOnTypeDomNode = append(controls, $<HTMLInputElement>('input.filter'));
+		this.filterOnTypeDomNode.type = 'checkbox';
+		this.filterOnTypeDomNode.checked = !!tree.options.filterOnType;
+		this.filterOnTypeDomNode.tabIndex = -1;
 		this.updateFilterOnTypeTitle();
-		domEvent(this.filterOnType, 'input')(this.onDidChangeFilterOnType, this, this.disposables);
+		domEvent(this.filterOnTypeDomNode, 'input')(this.onDidChangeFilterOnType, this, this.disposables);
 
-		const clear = append(controls, $<HTMLInputElement>('button.clear'));
-		clear.tabIndex = -1;
-		clear.title = localize('clear', "Clear");
-		const onClear = domEvent(clear, 'click');
+		this.clearDomNode = append(controls, $<HTMLInputElement>('button.clear'));
+		this.clearDomNode.tabIndex = -1;
+		this.clearDomNode.title = localize('clear', "Clear");
 
-		const isPrintableCharEvent = keyboardNavigationLabelProvider.mightProducePrintableCharacter ? (e: IKeyboardEvent) => keyboardNavigationLabelProvider.mightProducePrintableCharacter!(e) : (e: IKeyboardEvent) => mightProducePrintableCharacter(e);
-		const onKeyDown = Event.chain(domEvent(view.getHTMLElement(), 'keydown'))
-			.filter(e => !isInputElement(e.target as HTMLElement) || e.target === this.filterOnType)
+		tree.onDidUpdateOptions(this.onDidUpdateTreeOptions, this, this.disposables);
+		this.onDidUpdateTreeOptions(tree.options);
+	}
+
+	private onDidUpdateTreeOptions(options: IAbstractTreeOptions<T, TFilterData>): void {
+		if (options.simpleKeyboardNavigation) {
+			this.disable();
+		} else {
+			this.enable();
+		}
+
+		this.filterOnTypeDomNode.checked = !!options.filterOnType;
+		this.tree.refilter();
+	}
+
+	private enable(): void {
+		if (this.enabled) {
+			return;
+		}
+
+		const isPrintableCharEvent = this.keyboardNavigationLabelProvider.mightProducePrintableCharacter ? (e: IKeyboardEvent) => this.keyboardNavigationLabelProvider.mightProducePrintableCharacter!(e) : (e: IKeyboardEvent) => mightProducePrintableCharacter(e);
+		const onKeyDown = Event.chain(domEvent(this.view.getHTMLElement(), 'keydown'))
+			.filter(e => !isInputElement(e.target as HTMLElement) || e.target === this.filterOnTypeDomNode)
 			.map(e => new StandardKeyboardEvent(e))
 			.filter(e => e.keyCode === KeyCode.Backspace || e.keyCode === KeyCode.Escape || isPrintableCharEvent(e))
 			.forEach(e => { e.stopPropagation(); e.preventDefault(); })
 			.event;
 
+		const onClear = domEvent(this.clearDomNode, 'click');
 		const onInput = Event.chain(Event.any<MouseEvent | StandardKeyboardEvent>(onKeyDown, onClear))
 			.reduce((previous: string, e) => {
 				if (e instanceof MouseEvent || e.keyCode === KeyCode.Escape) {
@@ -388,7 +422,20 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 			}, '')
 			.event;
 
-		onInput(this.onInput, this, this.disposables);
+		onInput(this.onInput, this, this.enabledDisposables);
+		this.tree.refilter();
+		this.enabled = true;
+	}
+
+	private disable(): void {
+		if (!this.enabled) {
+			return;
+		}
+
+		this.domNode.remove();
+		this.enabledDisposables = dispose(this.enabledDisposables);
+		this.tree.refilter();
+		this.enabled = false;
 	}
 
 	private onInput(pattern: string): void {
@@ -401,7 +448,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 			this.tree.domFocus();
 		}
 
-		this.label.textContent = pattern.length > 16
+		this.labelDomNode.textContent = pattern.length > 16
 			? '…' + pattern.substr(pattern.length - 16)
 			: pattern;
 
@@ -485,20 +532,22 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 	}
 
 	private onDidChangeFilterOnType(): void {
-		this.tree.updateConfiguration({ filterOnType: this.filterOnType.checked });
+		this.tree.updateOptions({ filterOnType: this.filterOnTypeDomNode.checked });
+		this.tree.refilter();
 		this.tree.domFocus();
 		this.updateFilterOnTypeTitle();
 	}
 
 	private updateFilterOnTypeTitle(): void {
-		if (this.filterOnType.checked) {
-			this.filterOnType.title = localize('disable filter on type', "Disable Filter on Type");
+		if (this.filterOnTypeDomNode.checked) {
+			this.filterOnTypeDomNode.title = localize('disable filter on type', "Disable Filter on Type");
 		} else {
-			this.filterOnType.title = localize('enable filter on type', "Enable Filter on Type");
+			this.filterOnTypeDomNode.title = localize('enable filter on type', "Enable Filter on Type");
 		}
 	}
 
 	dispose() {
+		this.disable();
 		this.disposables = dispose(this.disposables);
 	}
 }
@@ -530,6 +579,7 @@ function asTreeContextMenuEvent<T>(event: IListContextMenuEvent<ITreeNode<T, any
 }
 
 export interface IAbstractTreeOptionsUpdate extends ITreeRendererOptions {
+	readonly simpleKeyboardNavigation?: boolean;
 	readonly filterOnType?: boolean;
 }
 
@@ -540,18 +590,16 @@ export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTr
 	readonly autoExpandSingleChildren?: boolean;
 }
 
-export interface IAbstractTreeConfiguration {
-	readonly filterOnType: boolean;
-}
-
 export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable {
 
 	private view: List<ITreeNode<T, TFilterData>>;
 	private renderers: TreeRenderer<T, TFilterData, any>[];
 	private focusNavigationFilter: ((node: ITreeNode<T, TFilterData>) => boolean) | undefined;
-	private _configuration: IAbstractTreeConfiguration;
 	protected model: ITreeModel<T, TFilterData, TRef>;
 	protected disposables: IDisposable[] = [];
+
+	private _onDidUpdateOptions = new Emitter<IAbstractTreeOptions<T, TFilterData>>();
+	readonly onDidUpdateOptions = this._onDidUpdateOptions.event;
 
 	get onDidChangeFocus(): Event<ITreeEvent<T>> { return Event.map(this.view.onFocusChange, asTreeEvent); }
 	get onDidChangeSelection(): Event<ITreeEvent<T>> { return Event.map(this.view.onSelectionChange, asTreeEvent); }
@@ -577,33 +625,29 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
 		renderers: ITreeRenderer<any /* TODO@joao */, TFilterData, any>[],
-		options: IAbstractTreeOptions<T, TFilterData> = {}
+		private _options: IAbstractTreeOptions<T, TFilterData> = {}
 	) {
 		const treeDelegate = new ComposedTreeDelegate<T, ITreeNode<T, TFilterData>>(delegate);
 
 		const onDidChangeCollapseStateRelay = new Relay<ICollapseStateChangeEvent<T, TFilterData>>();
-		this.renderers = renderers.map(r => new TreeRenderer<T, TFilterData, any>(r, onDidChangeCollapseStateRelay.event, options));
+		this.renderers = renderers.map(r => new TreeRenderer<T, TFilterData, any>(r, onDidChangeCollapseStateRelay.event, _options));
 		this.disposables.push(...this.renderers);
-
-		this._configuration = {
-			filterOnType: typeof options.filterOnType === 'boolean' ? options.filterOnType : false
-		};
 
 		let filter: ITreeFilter<T, TFilterData> | undefined;
 
-		if (options.keyboardNavigationLabelProvider) {
-			filter = new TypeFilter(this, options.keyboardNavigationLabelProvider, options.filter as ITreeFilter<T, FuzzyScore>) as ITreeFilter<T, TFilterData>; // TODO need typescript help here
-			options = { ...options, filter };
+		if (_options.keyboardNavigationLabelProvider) {
+			filter = new TypeFilter(this, _options.keyboardNavigationLabelProvider, _options.filter as ITreeFilter<T, FuzzyScore>) as ITreeFilter<T, TFilterData>; // TODO need typescript help here
+			_options = { ..._options, filter };
 		}
 
-		this.view = new List(container, treeDelegate, this.renderers, asListOptions(() => this.model, options));
+		this.view = new List(container, treeDelegate, this.renderers, asListOptions(() => this.model, _options));
 
-		this.model = this.createModel(this.view, options);
+		this.model = this.createModel(this.view, _options);
 		onDidChangeCollapseStateRelay.input = this.model.onDidChangeCollapseState;
 
 		this.view.onMouseClick(this.reactOnMouseClick, this, this.disposables);
 
-		if (options.keyboardSupport !== false) {
+		if (_options.keyboardSupport !== false) {
 			const onKeyDown = Event.chain(this.view.onKeyDown)
 				.filter(e => !isInputElement(e.target as HTMLElement))
 				.map(e => new StandardKeyboardEvent(e));
@@ -613,8 +657,8 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 			onKeyDown.filter(e => e.keyCode === KeyCode.Space).on(this.onSpace, this, this.disposables);
 		}
 
-		if (options.keyboardNavigationLabelProvider) {
-			const typeFilterController = new TypeFilterController(this, this.view, filter as TypeFilter<T>, options.keyboardNavigationLabelProvider);
+		if (_options.keyboardNavigationLabelProvider) {
+			const typeFilterController = new TypeFilterController(this, this.view, filter as TypeFilter<T>, _options.keyboardNavigationLabelProvider);
 			this.focusNavigationFilter = node => !typeFilterController.pattern || !FuzzyScore.isDefault(node.filterData as any as FuzzyScore); // TODO@joao
 			this.disposables.push(typeFilterController);
 
@@ -622,19 +666,19 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		}
 	}
 
-	updateOptions(options: IAbstractTreeOptionsUpdate = {}): void {
+	updateOptions(optionsUpdate: IAbstractTreeOptionsUpdate = {}): void {
+		this._options = { ...this._options, ...optionsUpdate };
+
 		for (const renderer of this.renderers) {
-			renderer.updateOptions(options);
+			renderer.updateOptions(optionsUpdate);
 		}
+
+		this.view.updateOptions({ enableKeyboardNavigation: this._options.simpleKeyboardNavigation });
+		this._onDidUpdateOptions.fire(this._options);
 	}
 
-	updateConfiguration(update: Partial<IAbstractTreeConfiguration>): void {
-		this._configuration = { ...this._configuration, ...update };
-		this.refilter();
-	}
-
-	get configuration(): IAbstractTreeConfiguration {
-		return this._configuration;
+	get options(): IAbstractTreeOptions<T, TFilterData> {
+		return this._options;
 	}
 
 	// Widget
