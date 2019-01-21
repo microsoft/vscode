@@ -45,7 +45,7 @@ export interface IExplorerService {
 	readonly onDidChangeItem: Event<ExplorerItem | undefined>;
 	readonly onDidChangeEditable: Event<ExplorerItem>;
 	readonly onDidSelectItem: Event<{ item?: ExplorerItem, reveal?: boolean }>;
-	readonly onDidCopyItems: Event<{ items: ExplorerItem[], cut: boolean, previouslyCutItems: ExplorerItem[] }>;
+	readonly onDidCopyItems: Event<{ items: ExplorerItem[], cut: boolean, previouslyCutItems: ExplorerItem[] | undefined }>;
 
 	setEditable(stat: ExplorerItem, data: IEditableData): void;
 	getEditableData(stat: ExplorerItem): IEditableData | undefined;

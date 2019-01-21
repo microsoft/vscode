@@ -34,11 +34,11 @@ export class ExplorerService implements IExplorerService {
 	private _onDidChangeItem = new Emitter<ExplorerItem | undefined>();
 	private _onDidChangeEditable = new Emitter<ExplorerItem>();
 	private _onDidSelectItem = new Emitter<{ item?: ExplorerItem, reveal?: boolean }>();
-	private _onDidCopyItems = new Emitter<{ items: ExplorerItem[], cut: boolean, previouslyCutItems: ExplorerItem[] }>();
+	private _onDidCopyItems = new Emitter<{ items: ExplorerItem[], cut: boolean, previouslyCutItems: ExplorerItem[] | undefined }>();
 	private disposables: IDisposable[] = [];
 	private editableStats = new Map<ExplorerItem, IEditableData>();
 	private _sortOrder: SortOrder;
-	private cutItems: ExplorerItem[];
+	private cutItems: ExplorerItem[] | undefined;
 
 	constructor(
 		@IFileService private fileService: IFileService,
@@ -68,7 +68,7 @@ export class ExplorerService implements IExplorerService {
 		return this._onDidSelectItem.event;
 	}
 
-	get onDidCopyItems(): Event<{ items: ExplorerItem[], cut: boolean, previouslyCutItems: ExplorerItem[] }> {
+	get onDidCopyItems(): Event<{ items: ExplorerItem[], cut: boolean, previouslyCutItems: ExplorerItem[] | undefined }> {
 		return this._onDidCopyItems.event;
 	}
 
@@ -120,7 +120,7 @@ export class ExplorerService implements IExplorerService {
 	}
 
 	isCut(item: ExplorerItem): boolean {
-		return this.cutItems && this.cutItems.indexOf(item) >= 0;
+		return !!this.cutItems && this.cutItems.indexOf(item) >= 0;
 	}
 
 	getEditableData(stat: ExplorerItem): IEditableData | undefined {
