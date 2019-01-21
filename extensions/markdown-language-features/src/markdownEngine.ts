@@ -64,28 +64,7 @@ export class MarkdownEngine {
 	private async getEngine(config: MarkdownItConfig): Promise<MarkdownIt> {
 		if (!this.md) {
 			this.md = import('markdown-it').then(async markdownIt => {
-				const hljs = await import('highlight.js');
-				let md = markdownIt({
-					html: true,
-					highlight: (str: string, lang?: string) => {
-						// Workaround for highlight not supporting tsx: https://github.com/isagalaev/highlight.js/issues/1155
-						if (lang && ['tsx', 'typescriptreact'].indexOf(lang.toLocaleLowerCase()) >= 0) {
-							lang = 'jsx';
-						}
-						if (lang && lang.toLocaleLowerCase() === 'json5') {
-							lang = 'json';
-						}
-						if (lang && lang.toLocaleLowerCase() === 'c#') {
-							lang = 'cs';
-						}
-						if (lang && hljs.getLanguage(lang)) {
-							try {
-								return `<div>${hljs.highlight(lang, str, true).value}</div>`;
-							} catch (error) { }
-						}
-						return `<code><div>${md!.utils.escapeHtml(str)}</div></code>`;
-					}
-				});
+				let md: MarkdownIt = markdownIt(await getMarkdownOptions(() => md));
 
 				for (const plugin of this.extensionPreviewResourceProvider.markdownItPlugins) {
 					try {
@@ -151,7 +130,10 @@ export class MarkdownEngine {
 	public async render(document: SkinnyTextDocument): Promise<string> {
 		const config = this.getConfig(document.uri);
 		const engine = await this.getEngine(config);
-		return engine.renderer.render(this.tokenize(document, config, engine), engine, {});
+		return engine.renderer.render(this.tokenize(document, config, engine), {
+			...(await getMarkdownOptions(() => engine)),
+			...config
+		}, {});
 	}
 
 	public async parse(document: SkinnyTextDocument): Promise<Token[]> {
@@ -294,4 +276,31 @@ export class MarkdownEngine {
 			}
 		};
 	}
+}
+
+async function getMarkdownOptions(md: () => MarkdownIt) {
+	const hljs = await import('highlight.js');
+	return {
+		html: true,
+		highlight: (str: string, lang?: string) => {
+			console.log(123);
+			// Workaround for highlight not supporting tsx: https://github.com/isagalaev/highlight.js/issues/1155
+			if (lang && ['tsx', 'typescriptreact'].indexOf(lang.toLocaleLowerCase()) >= 0) {
+				lang = 'jsx';
+			}
+			if (lang && lang.toLocaleLowerCase() === 'json5') {
+				lang = 'json';
+			}
+			if (lang && lang.toLocaleLowerCase() === 'c#') {
+				lang = 'cs';
+			}
+			if (lang && hljs.getLanguage(lang)) {
+				try {
+					return `<div>${hljs.highlight(lang, str, true).value}</div>`;
+				}
+				catch (error) { }
+			}
+			return `<code><div>${md().utils.escapeHtml(str)}</div></code>`;
+		}
+	};
 }
