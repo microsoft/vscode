@@ -141,7 +141,7 @@ export class ExplorerView extends ViewletPanel {
 		};
 
 		this.disposables.push(this.contextService.onDidChangeWorkspaceName(setHeader));
-		this.disposables.push(this.labelService.onDidRegisterFormatter(setHeader));
+		this.disposables.push(this.labelService.onDidChangeFormatters(setHeader));
 		setHeader();
 	}
 
@@ -158,7 +158,7 @@ export class ExplorerView extends ViewletPanel {
 		}
 
 		this.disposables.push(this.contextService.onDidChangeWorkbenchState(() => this.setTreeInput()));
-		this.disposables.push(this.labelService.onDidRegisterFormatter(() => {
+		this.disposables.push(this.labelService.onDidChangeFormatters(() => {
 			this._onDidChangeTitleArea.fire();
 			this.refresh();
 		}));

@@ -143,9 +143,10 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		removeClass(data.element, 'loading');
 
 		data.extensionDisposables = dispose(data.extensionDisposables);
-		const installed = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, extension.identifier))[0];
 
-		this.extensionService.getExtensions().then(runningExtensions => {
+		const updateEnablement = async () => {
+			const runningExtensions = await this.extensionService.getExtensions();
+			const installed = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, extension.identifier))[0];
 			if (installed && installed.local) {
 				const installedExtensionServer = this.extensionManagementServerService.getExtensionManagementServer(installed.local.location);
 				const isSameExtensionRunning = runningExtensions.some(e => {
@@ -162,7 +163,9 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			} else {
 				removeClass(data.root, 'disabled');
 			}
-		});
+		};
+		updateEnablement();
+		this.extensionService.onDidChangeExtensions(() => updateEnablement(), this, data.extensionDisposables);
 
 		const onError = Event.once(domEvent(data.icon, 'error'));
 		onError(() => data.icon.src = extension.iconUrlFallback, null, data.extensionDisposables);

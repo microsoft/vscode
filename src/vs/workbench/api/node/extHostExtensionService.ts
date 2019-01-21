@@ -669,14 +669,9 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		);
 	}
 
-	public $addExtension(extension: IExtensionDescription): Promise<void> {
-		(<any>extension).extensionLocation = URI.revive(extension.extensionLocation);
-		this._registry.add(extension);
-		return Promise.resolve(undefined);
-	}
-
-	public $removeExtension(extensionId: ExtensionIdentifier): Promise<void> {
-		this._registry.remove(extensionId);
+	public $deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void> {
+		toAdd.forEach((extension) => (<any>extension).extensionLocation = URI.revive(extension.extensionLocation));
+		this._registry.deltaExtensions(toAdd, toRemove);
 		return Promise.resolve(undefined);
 	}
 

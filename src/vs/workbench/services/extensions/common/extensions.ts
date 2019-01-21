@@ -144,6 +144,11 @@ export interface IExtensionService extends ICpuProfilerTarget {
 	onDidChangeExtensionsStatus: Event<ExtensionIdentifier[]>;
 
 	/**
+	 * Fired when the available extensions change (i.e. when extensions are added or removed).
+	 */
+	onDidChangeExtensions: Event<void>;
+
+	/**
 	 * An event that is fired when activation happens.
 	 */
 	onWillActivateByEvent: Event<IWillActivateEvent>;

@@ -1074,6 +1074,7 @@ export class ReloadAction extends ExtensionAction {
 	private static readonly DisabledClass = `${ReloadAction.EnabledClass} disabled`;
 
 	private throttler: Throttler;
+	private disposables: IDisposable[] = [];
 
 	constructor(
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
@@ -1085,7 +1086,7 @@ export class ReloadAction extends ExtensionAction {
 	) {
 		super('extensions.reload', localize('reloadAction', "Reload"), ReloadAction.DisabledClass, false);
 		this.throttler = new Throttler();
-
+		this.extensionService.onDidChangeExtensions(this.update, this, this.disposables);
 		this.update();
 	}
 
@@ -1177,6 +1178,11 @@ export class ReloadAction extends ExtensionAction {
 
 	run(): Promise<any> {
 		return Promise.resolve(this.windowService.reloadWindow());
+	}
+
+	dispose(): void {
+		dispose(this.disposables);
+		super.dispose();
 	}
 }
 

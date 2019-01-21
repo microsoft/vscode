@@ -6,6 +6,7 @@
 import { Event, Emitter } from 'vs/base/common/event';
 import { ExtHostWindowShape, MainContext, MainThreadWindowShape, IMainContext } from './extHost.protocol';
 import { WindowState } from 'vscode';
+import { URI } from 'vs/base/common/uri';
 
 export class ExtHostWindow implements ExtHostWindowShape {
 
@@ -33,5 +34,9 @@ export class ExtHostWindow implements ExtHostWindowShape {
 
 		this._state = { ...this._state, focused };
 		this._onDidChangeWindowState.fire(this._state);
+	}
+
+	openUri(uri: URI): Promise<boolean> {
+		return this._proxy.$openUri(uri);
 	}
 }

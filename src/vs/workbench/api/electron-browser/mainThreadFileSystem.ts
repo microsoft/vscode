@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { FileWriteOptions, FileSystemProviderCapabilities, IFileChange, IFileService, IFileSystemProvider, IStat, IWatchOptions, FileType, FileOverwriteOptions, FileDeleteOptions } from 'vs/platform/files/common/files';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { ExtHostContext, ExtHostFileSystemShape, IExtHostContext, IFileChangeDto, MainContext, MainThreadFileSystemShape } from '../node/extHost.protocol';
-import { LabelRules, ILabelService } from 'vs/platform/label/common/label';
+import { ResourceLabelFormatter, ILabelService } from 'vs/platform/label/common/label';
 
 @extHostNamedCustomer(MainContext.MainThreadFileSystem)
 export class MainThreadFileSystem implements MainThreadFileSystemShape {
@@ -39,8 +39,8 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 		this._fileProvider.delete(handle);
 	}
 
-	$setUriFormatter(selector: string, formatter: LabelRules): void {
-		this._labelService.registerFormatter(selector, formatter);
+	$setUriFormatter(formatter: ResourceLabelFormatter): void {
+		this._labelService.registerFormatter(formatter);
 	}
 
 	$onFileSystemChange(handle: number, changes: IFileChangeDto[]): void {
@@ -139,10 +139,13 @@ class RemoteFileSystemProvider implements IFileSystemProvider {
 	}
 
 	read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
-		return this._proxy.$read(this._handle, fd, pos, RemoteFileSystemProvider._asBuffer(data), offset, length);
+		return this._proxy.$read(this._handle, fd, pos, length).then(readData => {
+			data.set(readData, offset);
+			return readData.byteLength;
+		});
 	}
 
 	write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
-		return this._proxy.$write(this._handle, fd, pos, RemoteFileSystemProvider._asBuffer(data), offset, length);
+		return this._proxy.$write(this._handle, fd, pos, Buffer.from(data, offset, length));
 	}
 }

@@ -433,6 +433,7 @@ class BaseDeleteFileAction extends BaseErrorReportingAction {
 	}
 }
 
+let pasteShouldMove = false;
 // Copy File/Folder
 class CopyFileAction extends BaseErrorReportingAction {
 
@@ -448,6 +449,7 @@ class CopyFileAction extends BaseErrorReportingAction {
 
 		// Write to clipboard as file/folder to copy
 		this.clipboardService.writeResources(this.elements.map(e => e.resource));
+		pasteShouldMove = false;
 
 		return Promise.resolve(null);
 	}
@@ -492,7 +494,8 @@ class PasteFileAction extends BaseErrorReportingAction {
 			const targetFile = findValidPasteFileTarget(target, { resource: fileToPaste, isDirectory: fileToPasteStat.isDirectory });
 
 			// Copy File
-			return this.fileService.copyFile(fileToPaste, targetFile).then(stat => {
+			const promise = pasteShouldMove ? this.fileService.moveFile(fileToPaste, targetFile) : this.fileService.copyFile(fileToPaste, targetFile);
+			return promise.then(stat => {
 				if (!stat.isDirectory) {
 					return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true, preserveFocus: true } });
 				}
@@ -1127,6 +1130,15 @@ export const copyFileHandler = (accessor: ServicesAccessor) => {
 
 	const copyFileAction = instantationService.createInstance(CopyFileAction, stats);
 	return copyFileAction.run();
+};
+
+export const cutFileHandler = (accessor: ServicesAccessor) => {
+	const listService = accessor.get(IListService);
+	const explorerContext = getContext(listService.lastFocusedList);
+	const clipboardService = accessor.get(IClipboardService);
+	const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
+	clipboardService.writeResources(stats.map(s => s.resource));
+	pasteShouldMove = true;
 };
 
 export const pasteFileHandler = (accessor: ServicesAccessor) => {
