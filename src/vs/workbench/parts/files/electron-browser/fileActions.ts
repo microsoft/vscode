@@ -434,27 +434,6 @@ class BaseDeleteFileAction extends BaseErrorReportingAction {
 }
 
 let pasteShouldMove = false;
-// Copy File/Folder
-class CopyFileAction extends BaseErrorReportingAction {
-
-	constructor(
-		private elements: ExplorerItem[],
-		@INotificationService notificationService: INotificationService,
-		@IClipboardService private readonly clipboardService: IClipboardService
-	) {
-		super('filesExplorer.copy', COPY_FILE_LABEL, notificationService);
-	}
-
-	public run(): Promise<any> {
-
-		// Write to clipboard as file/folder to copy
-		this.clipboardService.writeResources(this.elements.map(e => e.resource));
-		pasteShouldMove = false;
-
-		return Promise.resolve(null);
-	}
-}
-
 // Paste File/Folder
 class PasteFileAction extends BaseErrorReportingAction {
 
@@ -1123,13 +1102,14 @@ export const deleteFileHandler = (accessor: ServicesAccessor) => {
 };
 
 export const copyFileHandler = (accessor: ServicesAccessor) => {
-	const instantationService = accessor.get(IInstantiationService);
+	const clipboardService = accessor.get(IClipboardService);
 	const listService = accessor.get(IListService);
 	const explorerContext = getContext(listService.lastFocusedList);
+	const explorerService = accessor.get(IExplorerService);
 	const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
-
-	const copyFileAction = instantationService.createInstance(CopyFileAction, stats);
-	return copyFileAction.run();
+	explorerService.setToCopy(stats, false);
+	clipboardService.writeResources(stats.map(e => e.resource));
+	pasteShouldMove = false;
 };
 
 export const cutFileHandler = (accessor: ServicesAccessor) => {
