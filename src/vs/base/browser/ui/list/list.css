@@ -64,10 +64,6 @@
 }
 
 /* Type filter */
-@keyframes monaco-list-type-filter-fade-in {
-	0% { opacity: 0; }
-	100% { opacity: 1; }
-}
 
 .monaco-list-type-filter {
 	display: flex;
@@ -81,7 +77,6 @@
 	overflow: hidden;
 	text-align: right;
 	box-sizing: border-box;
-	animation: monaco-list-type-filter-fade-in 150ms linear 0s;
 	cursor: all-scroll;
 	font-size: 13px;
 	line-height: 18px;
