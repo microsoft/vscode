@@ -423,6 +423,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 			.event;
 
 		onInput(this.onInput, this, this.enabledDisposables);
+		this.filter.pattern = '';
 		this.tree.refilter();
 		this.enabled = true;
 	}
