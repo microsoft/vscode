@@ -636,6 +636,11 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	private onDragOver(event: IListDragEvent<T>): boolean {
 		this.onDragLeaveTimeout.dispose();
+
+		if (StaticDND.CurrentDragAndDropData && StaticDND.CurrentDragAndDropData.getData() === 'vscode-ui') {
+			return false;
+		}
+
 		this.setupDragAndDropScrollTopAnimation(event.browserEvent);
 
 		if (!event.browserEvent.dataTransfer) {
