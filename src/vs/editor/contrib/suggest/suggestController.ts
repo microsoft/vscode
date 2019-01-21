@@ -268,7 +268,7 @@ export class SuggestController implements IEditorContribution {
 
 		} else {
 			// exec command, done
-			this._commandService.executeCommand(suggestion.command.id, suggestion.command.arguments ? [...suggestion.command.arguments] : []).catch(onUnexpectedError);
+			this._commandService.executeCommand(suggestion.command.id, ...(suggestion.command.arguments ? [...suggestion.command.arguments] : [])).catch(onUnexpectedError);
 			this._model.cancel();
 		}
 
