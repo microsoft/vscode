@@ -115,7 +115,7 @@ const PASTE_FILE_ID = 'filesExplorer.paste';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: PASTE_FILE_ID,
 	weight: KeybindingWeight.WorkbenchContrib + explorerCommandsWeightBonus,
-	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerResourceNotReadonlyContext),
+	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerResourceNotReadonlyContext, FileCopiedContext),
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
 	handler: pasteFileHandler
 });
@@ -441,20 +441,20 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	command: {
 		id: PASTE_FILE_ID,
 		title: PASTE_FILE_LABEL,
-		precondition: FileCopiedContext
+		precondition: ContextKeyExpr.and(ExplorerResourceNotReadonlyContext, FileCopiedContext)
 	},
 	when: ExplorerFolderContext
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
-	group: '5_cutcopypaste',
+	group: '6_copypath',
 	order: 30,
 	command: copyPathCommand,
 	when: ResourceContextKey.IsFileSystemResource
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
-	group: '5_cutcopypaste',
+	group: '6_copypath',
 	order: 30,
 	command: copyRelativePathCommand,
 	when: ResourceContextKey.IsFileSystemResource
