@@ -17,7 +17,6 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { ITextFileService, ISaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { IListService } from 'vs/platform/list/browser/listService';
-import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
@@ -260,13 +259,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const editorService = accessor.get(IEditorService);
 		const listService = accessor.get(IListService);
 		const fileService = accessor.get(IFileService);
-		const tree = listService.lastFocusedList;
 		const resources = getMultiSelectedResources(resource, listService, editorService);
-
-		// Remove highlight
-		if (tree instanceof Tree) {
-			tree.clearHighlight();
-		}
 
 		// Set side input
 		if (resources.length) {
@@ -318,12 +311,6 @@ CommandsRegistry.registerCommand({
 	id: SELECT_FOR_COMPARE_COMMAND_ID,
 	handler: (accessor, resource: URI | object) => {
 		const listService = accessor.get(IListService);
-		const tree = listService.lastFocusedList;
-		// Remove highlight
-		if (tree instanceof Tree) {
-			tree.clearHighlight();
-			tree.domFocus();
-		}
 
 		globalResourceToCompare = getResourceForCommand(resource, listService, accessor.get(IEditorService));
 		if (!resourceSelectedForCompareContext) {
@@ -355,12 +342,6 @@ CommandsRegistry.registerCommand({
 	handler: (accessor, resource: URI | object) => {
 		const editorService = accessor.get(IEditorService);
 		const listService = accessor.get(IListService);
-		const tree = listService.lastFocusedList;
-
-		// Remove highlight
-		if (tree instanceof Tree) {
-			tree.clearHighlight();
-		}
 
 		return editorService.openEditor({
 			leftResource: globalResourceToCompare,
