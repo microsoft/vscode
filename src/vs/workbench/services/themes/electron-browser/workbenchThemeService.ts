@@ -356,8 +356,8 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			if (this.watchedColorThemeLocation) {
 				this.fileService.unwatchFileChanges(this.watchedColorThemeLocation);
 			}
-			this.watchedColorThemeLocation = newTheme.location;
-			if (this.watchedColorThemeLocation) {
+			if (newTheme.location && (newTheme.watch || !!this.environmentService.extensionDevelopmentLocationURI)) {
+				this.watchedColorThemeLocation = newTheme.location;
 				this.fileService.watchFileChanges(this.watchedColorThemeLocation);
 			}
 		}
