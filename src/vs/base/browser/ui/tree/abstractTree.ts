@@ -278,6 +278,7 @@ class TypeFilter<T> implements ITreeFilter<T, FuzzyScore> {
 	}
 
 	constructor(
+		private tree: AbstractTree<T, any, any>,
 		private keyboardNavigationLabelProvider: IKeyboardNavigationLabelProvider<T>,
 		private _filter?: ITreeFilter<T, FuzzyScore>
 	) { }
@@ -308,14 +309,14 @@ class TypeFilter<T> implements ITreeFilter<T, FuzzyScore> {
 		const score = fuzzyScore(this._pattern, this._lowercasePattern, 0, label, label.toLowerCase(), 0, true);
 
 		if (!score) {
-			// DEMO: just highlights
-			return { data: FuzzyScore.Default, visibility: true };
+			if (this.tree.configuration.filterOnType) {
+				return parentVisibility === TreeVisibility.Visible ? true : TreeVisibility.Recurse;
+			} else {
+				return { data: FuzzyScore.Default, visibility: true };
+			}
 
 			// DEMO: filter
 			// return TreeVisibility.Recurse;
-
-			// DEMO: smarter filter
-			// return parentVisibility === TreeVisibility.Visible ? true : TreeVisibility.Recurse;
 		}
 
 		return { data: score, visibility: true };
@@ -333,6 +334,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 
 	private positionClassName = 'ne';
 	private domNode: HTMLElement;
+	private label: HTMLElement;
 
 	private _pattern = '';
 	private disposables: IDisposable[] = [];
@@ -346,6 +348,14 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		this.domNode = $(`.monaco-list-type-filter.${this.positionClassName}`);
 		this.domNode.draggable = true;
 		domEvent(this.domNode, 'dragstart')(this.onDragStart, this, this.disposables);
+
+		this.label = append(this.domNode, $('span.label'));
+
+		const controls = append(this.domNode, $('.controls'));
+		const filterOnType = append(controls, $<HTMLInputElement>('input'));
+		filterOnType.type = 'checkbox';
+		filterOnType.checked = !!tree.configuration.filterOnType;
+		Event.map(domEvent(filterOnType, 'input'), _ => filterOnType.checked)(this.onDidChangeFilterOnType, this, this.disposables);
 
 		const isPrintableCharEvent = keyboardNavigationLabelProvider.mightProducePrintableCharacter ? (e: IKeyboardEvent) => keyboardNavigationLabelProvider.mightProducePrintableCharacter!(e) : (e: IKeyboardEvent) => mightProducePrintableCharacter(e);
 		const onInput = Event.chain(domEvent(view.getHTMLElement(), 'keydown'))
@@ -378,7 +388,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 			this.domNode.remove();
 		}
 
-		this.domNode.textContent = pattern.length > 16
+		this.label.textContent = pattern.length > 16
 			? '…' + pattern.substr(pattern.length - 16)
 			: pattern;
 
@@ -389,7 +399,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		this._onDidChangePattern.fire(pattern);
 	}
 
-	private onDragStart(event: DragEvent): void {
+	private onDragStart(): void {
 		const container = this.view.getHTMLElement();
 		const { top, left } = getDomNodePagePosition(container);
 		const containerWidth = container.clientWidth;
@@ -461,6 +471,10 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		disposables.push(toDisposable(() => StaticDND.CurrentDragAndDropData = undefined));
 	}
 
+	onDidChangeFilterOnType(filterOnType: boolean): void {
+		this.tree.updateConfiguration({ filterOnType });
+	}
+
 	dispose() {
 		this.disposables = dispose(this.disposables);
 	}
@@ -492,7 +506,9 @@ function asTreeContextMenuEvent<T>(event: IListContextMenuEvent<ITreeNode<T, any
 	};
 }
 
-export interface IAbstractTreeOptionsUpdate extends ITreeRendererOptions { }
+export interface IAbstractTreeOptionsUpdate extends ITreeRendererOptions {
+	readonly filterOnType?: boolean;
+}
 
 export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTreeOptionsUpdate, IListOptions<T> {
 	readonly collapseByDefault?: boolean; // defaults to false
@@ -501,8 +517,8 @@ export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTr
 	readonly autoExpandSingleChildren?: boolean;
 }
 
-export interface IAbstractTreeWithTypeFilterOptions<T> extends IAbstractTreeOptions<T, string> {
-	readonly keyboardNavigationLabelProvider: IKeyboardNavigationLabelProvider<T>;
+export interface IAbstractTreeConfiguration {
+	readonly filterOnType: boolean;
 }
 
 export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable {
@@ -510,6 +526,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	private view: List<ITreeNode<T, TFilterData>>;
 	private renderers: TreeRenderer<T, TFilterData, any>[];
 	private focusNavigationFilter: ((node: ITreeNode<T, TFilterData>) => boolean) | undefined;
+	private _configuration: IAbstractTreeConfiguration;
 	protected model: ITreeModel<T, TFilterData, TRef>;
 	protected disposables: IDisposable[] = [];
 
@@ -545,10 +562,14 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		this.renderers = renderers.map(r => new TreeRenderer<T, TFilterData, any>(r, onDidChangeCollapseStateRelay.event, options));
 		this.disposables.push(...this.renderers);
 
+		this._configuration = {
+			filterOnType: typeof options.filterOnType === 'boolean' ? options.filterOnType : false
+		};
+
 		let filter: ITreeFilter<T, TFilterData> | undefined;
 
 		if (options.keyboardNavigationLabelProvider) {
-			filter = new TypeFilter(options.keyboardNavigationLabelProvider, options.filter as ITreeFilter<T, FuzzyScore>) as ITreeFilter<T, TFilterData>; // TODO need typescript help here
+			filter = new TypeFilter(this, options.keyboardNavigationLabelProvider, options.filter as ITreeFilter<T, FuzzyScore>) as ITreeFilter<T, TFilterData>; // TODO need typescript help here
 			options = { ...options, filter };
 		}
 
@@ -582,6 +603,15 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		for (const renderer of this.renderers) {
 			renderer.updateOptions(options);
 		}
+	}
+
+	updateConfiguration(update: Partial<IAbstractTreeConfiguration>): void {
+		this._configuration = { ...this._configuration, ...update };
+		this.refilter();
+	}
+
+	get configuration(): IAbstractTreeConfiguration {
+		return this._configuration;
 	}
 
 	// Widget
