@@ -730,7 +730,7 @@ export class DefaultStyleController implements IStyleController {
 		}
 
 		if (styles.listMatchesOutline) {
-			content.push(`.monaco-list-type-filter { border-color: ${styles.listMatchesOutline}; }`);
+			content.push(`.monaco-list-type-filter { border: 1px solid ${styles.listMatchesOutline}; }`);
 		}
 
 		if (styles.listMatchesShadow) {

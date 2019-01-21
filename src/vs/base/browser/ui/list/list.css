@@ -69,8 +69,6 @@
 	display: flex;
 	position: absolute;
 	border-radius: 2px;
-	border-width: 1px;
-	border-style: solid;
 	padding: 0px 3px;
 	max-width: calc(100% - 10px);
 	text-overflow: ellipsis;

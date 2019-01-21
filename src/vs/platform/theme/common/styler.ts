@@ -249,7 +249,6 @@ export const defaultListStyles: IColorMapping = {
 	listSelectionOutline: activeContrastBorder,
 	listHoverOutline: activeContrastBorder,
 	listMatchesBackground: blend2(editorFindMatchHighlight, editorWidgetBackground),
-	listMatchesOutline: focusBorder,
 	listMatchesShadow: widgetShadow
 };
 
