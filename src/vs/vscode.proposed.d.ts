@@ -18,11 +18,11 @@ declare module 'vscode' {
 
 	//#region Joh - vscode.open
 
-	export namespace window {
+	export namespace env {
 		/**
 		 *
 		 */
-		export function open(uri: Uri): void;
+		export function openItem(uri: Uri): void;
 	}
 
 	//#endregion

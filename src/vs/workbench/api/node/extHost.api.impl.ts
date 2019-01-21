@@ -255,7 +255,10 @@ export function createApiFactory(
 			},
 			get clipboard(): vscode.Clipboard {
 				return extHostClipboard;
-			}
+			},
+			openItem: proposedApiFunction(extension, (uri: URI) => {
+				return extHostWindow.openUri(uri);
+			})
 		});
 
 		// namespace: extensions
@@ -496,10 +499,7 @@ export function createApiFactory(
 			},
 			createInputBox(): vscode.InputBox {
 				return extHostQuickOpen.createInputBox(extension.identifier);
-			},
-			open: proposedApiFunction(extension, (uri: URI) => {
-				return extHostWindow.openUri(uri);
-			})
+			}
 		};
 
 		// namespace: workspace
