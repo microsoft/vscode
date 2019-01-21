@@ -25,6 +25,7 @@ import * as perf from 'vs/base/common/performance';
 import { resolveMarketplaceHeaders } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 import { getBackgroundColor } from 'vs/code/electron-main/theme';
 import { IStorageMainService } from 'vs/platform/storage/node/storageMainService';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 export interface IWindowCreationOptions {
 	state: IWindowState;
@@ -360,17 +361,31 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			this._lastFocusTime = Date.now();
 		});
 
-		// Simple fullscreen doesn't resize automatically when the resolution changes
+		// Simple fullscreen doesn't resize automatically when the resolution changes so as a workaround
+		// we need to detect when display metrics change or displays are added/removed and toggle the
+		// fullscreen manually.
 		if (isMacintosh) {
-			const displayMetricsChangedListener = () => {
-				if (this.isFullScreen() && !this.useNativeFullScreen()) {
+			const simpleFullScreenScheduler = this._register(new RunOnceScheduler(() => {
+				if (!this._win) {
+					return; // disposed
+				}
+
+				if (!this.useNativeFullScreen() && this.isFullScreen()) {
 					this.setFullScreen(false);
 					this.setFullScreen(true);
 				}
-			};
+			}, 100));
 
-			screen.addListener('display-metrics-changed', displayMetricsChangedListener);
-			this._register(toDisposable(() => screen.removeListener('display-metrics-changed', displayMetricsChangedListener)));
+			const displayChangedListener = () => simpleFullScreenScheduler.schedule();
+
+			screen.on('display-metrics-changed', displayChangedListener);
+			this._register(toDisposable(() => screen.removeListener('display-metrics-changed', displayChangedListener)));
+
+			screen.on('display-added', displayChangedListener);
+			this._register(toDisposable(() => screen.removeListener('display-added', displayChangedListener)));
+
+			screen.on('display-removed', displayChangedListener);
+			this._register(toDisposable(() => screen.removeListener('display-removed', displayChangedListener)));
 		}
 
 		// Window (Un)Maximize
