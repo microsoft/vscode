@@ -23,6 +23,7 @@ export class FileIconThemeData implements IFileIconTheme {
 	isLoaded: boolean;
 	location?: URI;
 	extensionData?: ExtensionData;
+	watch: boolean;
 
 	styleSheetContent?: string;
 
@@ -59,6 +60,7 @@ export class FileIconThemeData implements IFileIconTheme {
 		themeData.description = iconTheme.description;
 		themeData.location = iconThemeLocation;
 		themeData.extensionData = extensionData;
+		themeData.watch = iconTheme._watch;
 		themeData.isLoaded = false;
 		return themeData;
 	}
@@ -77,6 +79,7 @@ export class FileIconThemeData implements IFileIconTheme {
 			themeData.hidesExplorerArrows = false;
 			themeData.isLoaded = true;
 			themeData.extensionData = undefined;
+			themeData.watch = false;
 		}
 		return themeData;
 	}
@@ -91,6 +94,7 @@ export class FileIconThemeData implements IFileIconTheme {
 		themeData.hasFolderIcons = false;
 		themeData.hidesExplorerArrows = false;
 		themeData.extensionData = undefined;
+		themeData.watch = false;
 		return themeData;
 	}
 
@@ -109,6 +113,7 @@ export class FileIconThemeData implements IFileIconTheme {
 					case 'hasFileIcons':
 					case 'hidesExplorerArrows':
 					case 'hasFolderIcons':
+					case 'watch':
 						theme[key] = data[key];
 						break;
 					case 'location':
@@ -132,7 +137,8 @@ export class FileIconThemeData implements IFileIconTheme {
 			styleSheetContent: this.styleSheetContent,
 			hasFileIcons: this.hasFileIcons,
 			hasFolderIcons: this.hasFolderIcons,
-			hidesExplorerArrows: this.hidesExplorerArrows
+			hidesExplorerArrows: this.hidesExplorerArrows,
+			watch: this.watch
 		});
 	}
 }
