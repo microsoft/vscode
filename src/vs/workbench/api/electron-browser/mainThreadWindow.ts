@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWindowService } from 'vs/platform/windows/common/windows';
-import { MainThreadWindowShape, ExtHostWindowShape, ExtHostContext, MainContext, IExtHostContext } from '../node/extHost.protocol';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { Event } from 'vs/base/common/event';
-import { UriComponents, URI } from 'vs/base/common/uri';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { URI, UriComponents } from 'vs/base/common/uri';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IWindowService } from 'vs/platform/windows/common/windows';
+import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
+import { ExtHostContext, ExtHostWindowShape, IExtHostContext, MainContext, MainThreadWindowShape } from '../node/extHost.protocol';
 
 @extHostNamedCustomer(MainContext.MainThreadWindow)
 export class MainThreadWindow implements MainThreadWindowShape {
@@ -20,7 +20,7 @@ export class MainThreadWindow implements MainThreadWindowShape {
 	constructor(
 		extHostContext: IExtHostContext,
 		@IWindowService private readonly windowService: IWindowService,
-		@ICommandService private readonly commandService: ICommandService,
+		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		this.proxy = extHostContext.getProxy(ExtHostContext.ExtHostWindow);
 
@@ -39,6 +39,6 @@ export class MainThreadWindow implements MainThreadWindowShape {
 	$openUri(uri: UriComponents): Promise<any> {
 		// todo@joh turn this around and let the command work with
 		// the proper implementation
-		return this.commandService.executeCommand('_workbench.open', URI.revive(uri));
+		return this.openerService.open(URI.revive(uri)).then(() => undefined);
 	}
 }
