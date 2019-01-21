@@ -492,12 +492,12 @@ export class DebugService implements IDebugService {
 		const sessionRunningScheduler = new RunOnceScheduler(() => {
 			// Do not immediatly focus another session or thread if a session is running
 			// Stepping in a session should preserve that session focused even if some continued events happen
-			if (session.state === State.Running && this.viewModel.focusedSession === session) {
+			if (session.state !== State.Running || this.viewModel.focusedSession !== session) {
 				this.focusStackFrame(undefined);
 			}
 		}, 200);
 		this.toDispose.push(session.onDidChangeState(() => {
-			if (session.state === State.Running && this.viewModel.focusedSession === session) {
+			if (session.state !== State.Running || this.viewModel.focusedSession !== session) {
 				sessionRunningScheduler.schedule();
 			}
 			if (session === this.viewModel.focusedSession) {
