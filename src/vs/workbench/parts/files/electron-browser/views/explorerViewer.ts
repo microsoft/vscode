@@ -46,6 +46,7 @@ import { ITask, sequence } from 'vs/base/common/async';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { findValidPasteFileTarget } from 'vs/workbench/parts/files/electron-browser/fileActions';
+import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -98,7 +99,7 @@ export interface IFileTemplateData {
 	container: HTMLElement;
 }
 
-export class FilesRenderer implements ITreeRenderer<ExplorerItem, void, IFileTemplateData>, IDisposable {
+export class FilesRenderer implements ITreeRenderer<ExplorerItem, FuzzyScore, IFileTemplateData>, IDisposable {
 	static readonly ID = 'file';
 
 	private config: IFilesConfiguration;
@@ -125,14 +126,14 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, void, IFileTem
 
 	renderTemplate(container: HTMLElement): IFileTemplateData {
 		const elementDisposable = Disposable.None;
-		const label = this.labels.create(container);
+		const label = this.labels.create(container, { supportHighlights: true });
 
 		return { elementDisposable, label, container };
 	}
 
-	renderElement(element: ITreeNode<ExplorerItem, void>, index: number, templateData: IFileTemplateData): void {
+	renderElement(node: ITreeNode<ExplorerItem, FuzzyScore>, index: number, templateData: IFileTemplateData): void {
 		templateData.elementDisposable.dispose();
-		const stat = element.element;
+		const stat = node.element;
 		const editableData = this.explorerService.getEditableData(stat);
 
 		// File Label
@@ -143,7 +144,8 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, void, IFileTem
 				hidePath: true,
 				fileKind: stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE,
 				extraClasses,
-				fileDecorations: this.config.explorer.decorations
+				fileDecorations: this.config.explorer.decorations,
+				matches: createMatches(node.filterData)
 			});
 
 			templateData.elementDisposable = templateData.label.onDidRender(() => {
@@ -241,7 +243,7 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, void, IFileTem
 		return toDisposable(() => ignoreBlur = true);
 	}
 
-	disposeElement?(element: ITreeNode<ExplorerItem, void>, index: number, templateData: IFileTemplateData): void {
+	disposeElement?(element: ITreeNode<ExplorerItem, FuzzyScore>, index: number, templateData: IFileTemplateData): void {
 		// noop
 	}
 
@@ -266,7 +268,7 @@ interface CachedParsedExpression {
 	parsed: glob.ParsedExpression;
 }
 
-export class FilesFilter implements ITreeFilter<ExplorerItem, void> {
+export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 	private hiddenExpressionPerRoot: Map<string, CachedParsedExpression>;
 	private workspaceFolderChangeListener: IDisposable;
 
@@ -298,7 +300,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, void> {
 		return needsRefresh;
 	}
 
-	filter(stat: ExplorerItem, parentVisibility: TreeVisibility): TreeFilterResult<void> {
+	filter(stat: ExplorerItem, parentVisibility: TreeVisibility): TreeFilterResult<FuzzyScore> {
 		if (parentVisibility === TreeVisibility.Hidden) {
 			return false;
 		}

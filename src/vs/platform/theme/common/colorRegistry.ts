@@ -407,6 +407,21 @@ function lessProminent(colorValue: ColorValue, backgroundColorValue: ColorValue,
 	};
 }
 
+export function blend2(transparentColorValue: ColorValue, opaqueColorValue: ColorValue): ColorFunction {
+	return (theme) => {
+		let transparentColor = resolveColorValue(transparentColorValue, theme);
+		let opaqueColor = resolveColorValue(opaqueColorValue, theme);
+		if (transparentColor && opaqueColor) {
+			return opaqueColor.blend2(transparentColor);
+		} else if (transparentColor) {
+			return transparentColor;
+		} else if (opaqueColor) {
+			return opaqueColor;
+		}
+		return null;
+	};
+}
+
 // ----- implementation
 
 /**
