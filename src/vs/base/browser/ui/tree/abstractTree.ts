@@ -19,6 +19,7 @@ import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { domEvent } from 'vs/base/browser/event';
 import { fuzzyScore, FuzzyScore } from 'vs/base/common/filters';
 import { getVisibleState, isFilterResult } from 'vs/base/browser/ui/tree/indexTreeModel';
+import { localize } from 'vs/nls';
 
 function asTreeDragAndDropData<T, TFilterData>(data: IDragAndDropData): IDragAndDropData {
 	if (data instanceof ElementsDragAndDropData) {
@@ -335,6 +336,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 	private positionClassName = 'ne';
 	private domNode: HTMLElement;
 	private label: HTMLElement;
+	private filterOnType: HTMLInputElement;
 
 	private _pattern = '';
 	private disposables: IDisposable[] = [];
@@ -350,21 +352,31 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		domEvent(this.domNode, 'dragstart')(this.onDragStart, this, this.disposables);
 
 		this.label = append(this.domNode, $('span.label'));
-
 		const controls = append(this.domNode, $('.controls'));
-		const filterOnType = append(controls, $<HTMLInputElement>('input'));
-		filterOnType.type = 'checkbox';
-		filterOnType.checked = !!tree.configuration.filterOnType;
-		Event.map(domEvent(filterOnType, 'input'), _ => filterOnType.checked)(this.onDidChangeFilterOnType, this, this.disposables);
+
+		this.filterOnType = append(controls, $<HTMLInputElement>('input.filter'));
+		this.filterOnType.type = 'checkbox';
+		this.filterOnType.checked = !!tree.configuration.filterOnType;
+		this.filterOnType.tabIndex = -1;
+		this.updateFilterOnTypeTitle();
+		domEvent(this.filterOnType, 'input')(this.onDidChangeFilterOnType, this, this.disposables);
+
+		const clear = append(controls, $<HTMLInputElement>('button.clear'));
+		clear.tabIndex = -1;
+		clear.title = localize('clear', "Clear");
+		const onClear = domEvent(clear, 'click');
 
 		const isPrintableCharEvent = keyboardNavigationLabelProvider.mightProducePrintableCharacter ? (e: IKeyboardEvent) => keyboardNavigationLabelProvider.mightProducePrintableCharacter!(e) : (e: IKeyboardEvent) => mightProducePrintableCharacter(e);
-		const onInput = Event.chain(domEvent(view.getHTMLElement(), 'keydown'))
-			.filter(e => !isInputElement(e.target as HTMLElement) || e.target === filterOnType)
+		const onKeyDown = Event.chain(domEvent(view.getHTMLElement(), 'keydown'))
+			.filter(e => !isInputElement(e.target as HTMLElement) || e.target === this.filterOnType)
 			.map(e => new StandardKeyboardEvent(e))
 			.filter(e => e.keyCode === KeyCode.Backspace || e.keyCode === KeyCode.Escape || isPrintableCharEvent(e))
 			.forEach(e => { e.stopPropagation(); e.preventDefault(); })
+			.event;
+
+		const onInput = Event.chain(Event.any<MouseEvent | StandardKeyboardEvent>(onKeyDown, onClear))
 			.reduce((previous: string, e) => {
-				if (e.keyCode === KeyCode.Escape) {
+				if (e instanceof MouseEvent || e.keyCode === KeyCode.Escape) {
 					return '';
 				}
 
@@ -386,6 +398,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 			container.append(this.domNode);
 		} else if (!pattern && this.domNode.parentElement) {
 			this.domNode.remove();
+			this.tree.domFocus();
 		}
 
 		this.label.textContent = pattern.length > 16
@@ -461,8 +474,8 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		updatePosition();
 		removeClass(this.domNode, positionClassName);
 
-		addClass(this.domNode, 'animate');
-		disposables.push(toDisposable(() => removeClass(this.domNode, 'animate')));
+		addClass(this.domNode, 'dragging');
+		disposables.push(toDisposable(() => removeClass(this.domNode, 'dragging')));
 
 		domEvent(document, 'dragover')(onDragOver, null, disposables);
 		domEvent(this.domNode, 'dragend')(onDragEnd, null, disposables);
@@ -471,8 +484,17 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		disposables.push(toDisposable(() => StaticDND.CurrentDragAndDropData = undefined));
 	}
 
-	onDidChangeFilterOnType(filterOnType: boolean): void {
-		this.tree.updateConfiguration({ filterOnType });
+	private onDidChangeFilterOnType(): void {
+		this.tree.updateConfiguration({ filterOnType: this.filterOnType.checked });
+		this.updateFilterOnTypeTitle();
+	}
+
+	private updateFilterOnTypeTitle(): void {
+		if (this.filterOnType.checked) {
+			this.filterOnType.title = localize('disable filter on type', "Disable Filter on Type");
+		} else {
+			this.filterOnType.title = localize('enable filter on type', "Enable Filter on Type");
+		}
 	}
 
 	dispose() {
