@@ -341,12 +341,10 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		return this._pattern;
 	}
 
-	private _onDidChangePattern = new Emitter<string>();
-	readonly onDidChangePattern = this._onDidChangePattern.event;
-
 	private enabled = false;
 	private positionClassName = 'ne';
 	private domNode: HTMLElement;
+	private messageDomNode: HTMLElement;
 	private labelDomNode: HTMLElement;
 	private filterOnTypeDomNode: HTMLInputElement;
 	private clearDomNode: HTMLElement;
@@ -364,6 +362,8 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		this.domNode = $(`.monaco-list-type-filter.${this.positionClassName}`);
 		this.domNode.draggable = true;
 		domEvent(this.domNode, 'dragstart')(this.onDragStart, this, this.disposables);
+
+		this.messageDomNode = append(view.getHTMLElement(), $(`.monaco-list-type-filter-message`));
 
 		this.labelDomNode = append(this.domNode, $('span.label'));
 		const controls = append(this.domNode, $('.controls'));
@@ -392,6 +392,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 
 		this.filterOnTypeDomNode.checked = !!options.filterOnType;
 		this.tree.refilter();
+		this.updateMessage();
 	}
 
 	private enable(): void {
@@ -425,6 +426,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		onInput(this.onInput, this, this.enabledDisposables);
 		this.filter.pattern = '';
 		this.tree.refilter();
+		this.updateMessage();
 		this.enabled = true;
 	}
 
@@ -436,6 +438,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		this.domNode.remove();
 		this.enabledDisposables = dispose(this.enabledDisposables);
 		this.tree.refilter();
+		this.updateMessage();
 		this.enabled = false;
 	}
 
@@ -456,8 +459,9 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		this._pattern = pattern;
 		this.filter.pattern = pattern;
 		this.tree.refilter();
+		this.tree.focusNext(0, true);
 
-		this._onDidChangePattern.fire(pattern);
+		this.updateMessage();
 	}
 
 	private onDragStart(): void {
@@ -536,6 +540,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		this.tree.updateOptions({ filterOnType: this.filterOnTypeDomNode.checked });
 		this.tree.refilter();
 		this.tree.domFocus();
+		this.updateMessage();
 		this.updateFilterOnTypeTitle();
 	}
 
@@ -544,6 +549,14 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 			this.filterOnTypeDomNode.title = localize('disable filter on type', "Disable Filter on Type");
 		} else {
 			this.filterOnTypeDomNode.title = localize('enable filter on type', "Enable Filter on Type");
+		}
+	}
+
+	private updateMessage(): void {
+		if (this.pattern && this.view.length === 0) {
+			this.messageDomNode.textContent = localize('empty', "No elements found");
+		} else {
+			this.messageDomNode.innerHTML = '';
 		}
 	}
 
@@ -662,8 +675,6 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 			const typeFilterController = new TypeFilterController(this, this.view, filter as TypeFilter<T>, _options.keyboardNavigationLabelProvider);
 			this.focusNavigationFilter = node => !typeFilterController.pattern || !FuzzyScore.isDefault(node.filterData as any as FuzzyScore); // TODO@joao
 			this.disposables.push(typeFilterController);
-
-			typeFilterController.onDidChangePattern(() => this.focusNext(0, true), this, this.disposables);
 		}
 	}
 
