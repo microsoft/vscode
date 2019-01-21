@@ -486,6 +486,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 
 	private onDidChangeFilterOnType(): void {
 		this.tree.updateConfiguration({ filterOnType: this.filterOnType.checked });
+		this.tree.domFocus();
 		this.updateFilterOnTypeTitle();
 	}
 
