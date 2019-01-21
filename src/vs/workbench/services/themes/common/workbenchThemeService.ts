@@ -100,4 +100,5 @@ export interface IThemeExtensionPoint {
 	label?: string;
 	description?: string;
 	path: string;
+	_watch: boolean; // unsupported options to watch location
 }

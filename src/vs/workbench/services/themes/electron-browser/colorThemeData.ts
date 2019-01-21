@@ -43,6 +43,7 @@ export class ColorThemeData implements IColorTheme {
 	description?: string;
 	isLoaded: boolean;
 	location?: URI;
+	watch: boolean;
 	extensionData: ExtensionData;
 
 	get tokenColors(): ITokenColorizationRule[] {
@@ -135,15 +136,21 @@ export class ColorThemeData implements IColorTheme {
 	}
 
 	public ensureLoaded(fileService: IFileService): Promise<void> {
-		if (!this.isLoaded) {
-			if (this.location) {
-				return _loadColorTheme(fileService, this.location, this.themeTokenColors, this.colorMap).then(_ => {
-					this.isLoaded = true;
-					this.sanitizeTokenColors();
-				});
-			}
+		return !this.isLoaded ? this.load(fileService) : Promise.resolve(undefined);
+	}
+
+	public reload(fileService: IFileService): Promise<void> {
+		return this.load(fileService);
+	}
+
+	private load(fileService: IFileService): Promise<void> {
+		if (!this.location) {
+			return Promise.resolve(undefined);
 		}
-		return Promise.resolve(undefined);
+		return _loadColorTheme(fileService, this.location, this.themeTokenColors, this.colorMap).then(_ => {
+			this.isLoaded = true;
+			this.sanitizeTokenColors();
+		});
 	}
 
 	/**
@@ -179,7 +186,8 @@ export class ColorThemeData implements IColorTheme {
 			selector: this.id.split(' ').join('.'), // to not break old clients
 			themeTokenColors: this.themeTokenColors,
 			extensionData: this.extensionData,
-			colorMap: colorMapData
+			colorMap: colorMapData,
+			watch: this.watch
 		});
 	}
 
@@ -208,6 +216,7 @@ export class ColorThemeData implements IColorTheme {
 		themeData.settingsId = null;
 		themeData.isLoaded = false;
 		themeData.themeTokenColors = [{ settings: {} }];
+		themeData.watch = false;
 		return themeData;
 	}
 
@@ -218,6 +227,7 @@ export class ColorThemeData implements IColorTheme {
 		themeData.settingsId = settingsId;
 		themeData.isLoaded = true;
 		themeData.themeTokenColors = [{ settings: {} }];
+		themeData.watch = false;
 		return themeData;
 	}
 
@@ -234,7 +244,7 @@ export class ColorThemeData implements IColorTheme {
 						}
 						break;
 					case 'themeTokenColors':
-					case 'id': case 'label': case 'settingsId': case 'extensionData':
+					case 'id': case 'label': case 'settingsId': case 'extensionData': case 'watch':
 						theme[key] = data[key];
 						break;
 				}
@@ -254,6 +264,7 @@ export class ColorThemeData implements IColorTheme {
 		themeData.label = theme.label || Paths.basename(theme.path);
 		themeData.settingsId = theme.id || themeData.label;
 		themeData.description = theme.description;
+		themeData.watch = theme._watch === true;
 		themeData.location = colorThemeLocation;
 		themeData.extensionData = extensionData;
 		themeData.isLoaded = false;

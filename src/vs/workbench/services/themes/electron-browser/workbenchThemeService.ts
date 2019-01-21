@@ -26,7 +26,9 @@ import { FileIconThemeData } from 'vs/workbench/services/themes/electron-browser
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { removeClasses, addClasses } from 'vs/base/browser/dom';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
+import { IFileService, FileChangeType } from 'vs/platform/files/common/files';
+import { URI } from 'vs/base/common/uri';
+import * as resources from 'vs/base/common/resources';
 
 // implementation
 
@@ -72,10 +74,12 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	private currentColorTheme: ColorThemeData;
 	private container: HTMLElement;
 	private readonly onColorThemeChange: Emitter<IColorTheme>;
+	private watchedColorThemeLocation: URI;
 
 	private iconThemeStore: FileIconThemeStore;
-	private currentIconTheme: IFileIconTheme;
+	private currentIconTheme: FileIconThemeData;
 	private readonly onFileIconThemeChange: Emitter<IFileIconTheme>;
+	private watchedIconThemeLocation: URI;
 
 	private themingParticipantChangeListener: IDisposable;
 	private _configurationWriter: ConfigurationWriter;
@@ -105,16 +109,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		this.iconThemeStore = new FileIconThemeStore(extensionService);
 		this.onColorThemeChange = new Emitter<IColorTheme>();
 
-		this.currentIconTheme = {
-			id: '',
-			label: '',
-			settingsId: null,
-			isLoaded: false,
-			hasFileIcons: false,
-			hasFolderIcons: false,
-			hidesExplorerArrows: false,
-			extensionData: null
-		};
+		this.currentIconTheme = FileIconThemeData.createUnloadedTheme('');
 
 		// In order to avoid paint flashing for tokens, because
 		// themes are loaded asynchronously, we need to initialize
@@ -181,6 +176,20 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 	acquireFileService(fileService: IFileService): void {
 		this.fileService = fileService;
+
+		this.fileService.onFileChanges(async e => {
+			if (this.watchedColorThemeLocation && this.currentColorTheme && e.contains(this.watchedColorThemeLocation, FileChangeType.UPDATED)) {
+				await this.currentColorTheme.reload(this.fileService);
+				this.currentColorTheme.setCustomColors(this.colorCustomizations);
+				this.currentColorTheme.setCustomTokenColors(this.tokenColorCustomizations);
+				this.updateDynamicCSSRules(this.currentColorTheme);
+				this.applyTheme(this.currentColorTheme, null, false);
+			}
+			if (this.watchedIconThemeLocation && this.currentIconTheme && e.contains(this.watchedIconThemeLocation, FileChangeType.UPDATED)) {
+				await this.currentIconTheme.reload(this.fileService);
+				_applyIconTheme(this.currentIconTheme, () => Promise.resolve(this.currentIconTheme));
+			}
+		});
 	}
 
 	public get onDidColorThemeChange(): Event<IColorTheme> {
@@ -282,24 +291,24 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		themeId = validateThemeId(themeId); // migrate theme ids
 
 		return this.colorThemeStore.findThemeData(themeId, DEFAULT_THEME_ID).then(themeData => {
-			if (themeData) {
-				return themeData.ensureLoaded(this.fileService).then(_ => {
-					if (themeId === this.currentColorTheme.id && !this.currentColorTheme.isLoaded && this.currentColorTheme.hasEqualData(themeData)) {
-						// the loaded theme is identical to the perisisted theme. Don't need to send an event.
-						this.currentColorTheme = themeData;
-						themeData.setCustomColors(this.colorCustomizations);
-						themeData.setCustomTokenColors(this.tokenColorCustomizations);
-						return Promise.resolve(themeData);
-					}
+			if (!themeData) {
+				return null;
+			}
+			return themeData.ensureLoaded(this.fileService).then(_ => {
+				if (themeId === this.currentColorTheme.id && !this.currentColorTheme.isLoaded && this.currentColorTheme.hasEqualData(themeData)) {
+					// the loaded theme is identical to the perisisted theme. Don't need to send an event.
+					this.currentColorTheme = themeData;
 					themeData.setCustomColors(this.colorCustomizations);
 					themeData.setCustomTokenColors(this.tokenColorCustomizations);
-					this.updateDynamicCSSRules(themeData);
-					return this.applyTheme(themeData, settingsTarget);
-				}, error => {
-					return Promise.reject(new Error(nls.localize('error.cannotloadtheme', "Unable to load {0}: {1}", themeData.location.toString(), error.message)));
-				});
-			}
-			return null;
+					return Promise.resolve(themeData);
+				}
+				themeData.setCustomColors(this.colorCustomizations);
+				themeData.setCustomTokenColors(this.tokenColorCustomizations);
+				this.updateDynamicCSSRules(themeData);
+				return this.applyTheme(themeData, settingsTarget);
+			}, error => {
+				return Promise.reject(new Error(nls.localize('error.cannotloadtheme', "Unable to load {0}: {1}", themeData.location.toString(), error.message)));
+			});
 		});
 	}
 
@@ -340,7 +349,17 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		}
 		this.currentColorTheme = newTheme;
 		if (!this.themingParticipantChangeListener) {
-			this.themingParticipantChangeListener = themingRegistry.onThemingParticipantAdded(p => this.updateDynamicCSSRules(this.currentColorTheme));
+			this.themingParticipantChangeListener = themingRegistry.onThemingParticipantAdded(_ => this.updateDynamicCSSRules(this.currentColorTheme));
+		}
+
+		if (this.fileService && !resources.isEqual(newTheme.location, this.watchedColorThemeLocation)) {
+			if (this.watchedColorThemeLocation) {
+				this.fileService.unwatchFileChanges(this.watchedColorThemeLocation);
+			}
+			if (newTheme.location && (newTheme.watch || !!this.environmentService.extensionDevelopmentLocationURI)) {
+				this.watchedColorThemeLocation = newTheme.location;
+				this.fileService.watchFileChanges(this.watchedColorThemeLocation);
+			}
 		}
 
 		this.sendTelemetry(newTheme.id, newTheme.extensionData, 'color');
@@ -436,6 +455,17 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 				removeClasses(this.container, fileIconsEnabledClass);
 			}
 		}
+
+		if (this.fileService && !resources.isEqual(iconThemeData.location, this.watchedIconThemeLocation)) {
+			if (this.watchedIconThemeLocation) {
+				this.fileService.unwatchFileChanges(this.watchedIconThemeLocation);
+			}
+			this.watchedIconThemeLocation = iconThemeData.location;
+			if (this.watchedIconThemeLocation) {
+				this.fileService.watchFileChanges(this.watchedIconThemeLocation);
+			}
+		}
+
 		if (iconThemeData.id) {
 			this.sendTelemetry(iconThemeData.id, iconThemeData.extensionData, 'fileIcon');
 		}

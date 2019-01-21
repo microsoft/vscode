@@ -29,20 +29,26 @@ export class FileIconThemeData implements IFileIconTheme {
 	private constructor() { }
 
 	public ensureLoaded(fileService: IFileService): Promise<string> {
-		if (!this.isLoaded) {
-			if (this.location) {
-				return _loadIconThemeDocument(fileService, this.location).then(iconThemeDocument => {
-					let result = _processIconThemeDocument(this.id, this.location!, iconThemeDocument);
-					this.styleSheetContent = result.content;
-					this.hasFileIcons = result.hasFileIcons;
-					this.hasFolderIcons = result.hasFolderIcons;
-					this.hidesExplorerArrows = result.hidesExplorerArrows;
-					this.isLoaded = true;
-					return this.styleSheetContent;
-				});
-			}
+		return !this.isLoaded ? this.load(fileService) : Promise.resolve(this.styleSheetContent);
+	}
+
+	public reload(fileService: IFileService): Promise<string> {
+		return this.load(fileService);
+	}
+
+	private load(fileService: IFileService): Promise<string> {
+		if (!this.location) {
+			return Promise.resolve(this.styleSheetContent);
 		}
-		return Promise.resolve(this.styleSheetContent);
+		return _loadIconThemeDocument(fileService, this.location).then(iconThemeDocument => {
+			const result = _processIconThemeDocument(this.id, this.location!, iconThemeDocument);
+			this.styleSheetContent = result.content;
+			this.hasFileIcons = result.hasFileIcons;
+			this.hasFolderIcons = result.hasFolderIcons;
+			this.hidesExplorerArrows = result.hidesExplorerArrows;
+			this.isLoaded = true;
+			return this.styleSheetContent;
+		});
 	}
 
 	static fromExtensionTheme(iconTheme: IThemeExtensionPoint, iconThemeLocation: URI, extensionData: ExtensionData): FileIconThemeData {
@@ -72,6 +78,19 @@ export class FileIconThemeData implements IFileIconTheme {
 			themeData.isLoaded = true;
 			themeData.extensionData = undefined;
 		}
+		return themeData;
+	}
+
+	static createUnloadedTheme(id: string): FileIconThemeData {
+		let themeData = new FileIconThemeData();
+		themeData.id = '';
+		themeData.label = '';
+		themeData.settingsId = undefined;
+		themeData.isLoaded = false;
+		themeData.hasFileIcons = false;
+		themeData.hasFolderIcons = false;
+		themeData.hidesExplorerArrows = false;
+		themeData.extensionData = undefined;
 		return themeData;
 	}
 
