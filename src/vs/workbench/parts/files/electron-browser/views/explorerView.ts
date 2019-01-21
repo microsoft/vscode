@@ -37,7 +37,6 @@ import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/work
 import { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ExplorerItem } from 'vs/workbench/parts/files/common/explorerModel';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -83,7 +82,6 @@ export class ExplorerView extends ViewletPanel {
 		@IThemeService private readonly themeService: IWorkbenchThemeService,
 		@IListService private readonly listService: IListService,
 		@IMenuService private readonly menuService: IMenuService,
-		@IClipboardService private readonly clipboardService: IClipboardService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IExplorerService private readonly explorerService: IExplorerService,
 		@IStorageService private readonly storageService: IStorageService
@@ -185,6 +183,7 @@ export class ExplorerView extends ViewletPanel {
 			}
 		}));
 		this.disposables.push(this.explorerService.onDidSelectItem(e => this.onSelectItem(e.item, e.reveal)));
+		this.disposables.push(this.explorerService.onDidCopyItems(e => this.onCopyItems(e.items, e.cut, e.previouslyCutItems)));
 
 		// Update configuration
 		const configuration = this.configurationService.getValue<IFilesConfiguration>();
@@ -368,9 +367,6 @@ export class ExplorerView extends ViewletPanel {
 	private onContextMenu(e: ITreeContextMenuEvent<ExplorerItem>): void {
 		const stat = e.element;
 
-		// update dynamic contexts
-		this.fileCopiedContextKey.set(this.clipboardService.hasResources());
-
 		const selection = this.tree.getSelection();
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
@@ -482,6 +478,16 @@ export class ExplorerView extends ViewletPanel {
 
 			this.tree.setFocus([fileStat]);
 		});
+	}
+
+	private onCopyItems(stats: ExplorerItem[], cut: boolean, previousCut: ExplorerItem[]): void {
+		this.fileCopiedContextKey.set(stats.length > 0);
+		if (previousCut) {
+			previousCut.forEach(item => this.tree.refresh(item));
+		}
+		if (cut) {
+			stats.forEach(s => this.tree.refresh(s));
+		}
 	}
 
 	collapseAll(): void {

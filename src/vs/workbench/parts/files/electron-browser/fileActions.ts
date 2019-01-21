@@ -475,6 +475,10 @@ class PasteFileAction extends BaseErrorReportingAction {
 			// Copy File
 			const promise = pasteShouldMove ? this.fileService.moveFile(fileToPaste, targetFile) : this.fileService.copyFile(fileToPaste, targetFile);
 			return promise.then(stat => {
+				if (pasteShouldMove) {
+					// Cut is done. Make sure to clear cut state.
+					this.explorerService.setToCopy([], false);
+				}
 				if (!stat.isDirectory) {
 					return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true, preserveFocus: true } });
 				}
@@ -1102,22 +1106,20 @@ export const deleteFileHandler = (accessor: ServicesAccessor) => {
 };
 
 export const copyFileHandler = (accessor: ServicesAccessor) => {
-	const clipboardService = accessor.get(IClipboardService);
 	const listService = accessor.get(IListService);
 	const explorerContext = getContext(listService.lastFocusedList);
 	const explorerService = accessor.get(IExplorerService);
 	const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
 	explorerService.setToCopy(stats, false);
-	clipboardService.writeResources(stats.map(e => e.resource));
 	pasteShouldMove = false;
 };
 
 export const cutFileHandler = (accessor: ServicesAccessor) => {
 	const listService = accessor.get(IListService);
 	const explorerContext = getContext(listService.lastFocusedList);
-	const clipboardService = accessor.get(IClipboardService);
+	const explorerService = accessor.get(IExplorerService);
 	const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
-	clipboardService.writeResources(stats.map(s => s.resource));
+	explorerService.setToCopy(stats, true);
 	pasteShouldMove = true;
 };
 

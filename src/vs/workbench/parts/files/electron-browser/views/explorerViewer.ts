@@ -140,6 +140,9 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, FuzzyScore, IF
 		if (!editableData) {
 			templateData.label.element.style.display = 'flex';
 			const extraClasses = ['explorer-item'];
+			if (this.explorerService.isCut(stat)) {
+				extraClasses.push('cut');
+			}
 			templateData.label.setFile(stat.resource, {
 				hidePath: true,
 				fileKind: stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE,
