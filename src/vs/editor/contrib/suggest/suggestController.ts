@@ -292,7 +292,8 @@ export class SuggestController implements IEditorContribution {
 	}
 
 	private _alertCompletionItem({ completion: suggestion }: CompletionItem): void {
-		let msg = nls.localize('arai.alert.snippet', "Accepting '{0}' did insert the following text: {1}", suggestion.label, suggestion.insertText);
+		// @todo Remove alert support. Assigning an empty string temporarly to silence alers.
+		let msg = null;
 		alert(msg);
 	}
 
