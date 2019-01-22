@@ -82,14 +82,14 @@ export class OrganizeImportsCodeActionProvider implements vscode.CodeActionProvi
 			return [];
 		}
 
-		if (!context.only || !context.only.contains(vscode.CodeActionKind.SourceOrganizeImports)) {
+		if (!context.only || !(context.only.contains(vscode.CodeActionKind.SourceOrganizeImports) || vscode.CodeActionKind.SourceOrganizeImports.contains(context.only))) {
 			return [];
 		}
 
 		this.fileConfigManager.ensureConfigurationForDocument(document, token);
 
 		const action = new vscode.CodeAction(
-			localize('oraganizeImportsAction.title', "Organize Imports"),
+			localize('organizeImportsAction.title', "Organize Imports"),
 			vscode.CodeActionKind.SourceOrganizeImports);
 		action.command = { title: '', command: OrganizeImportsCommand.Id, arguments: [file] };
 		return [action];

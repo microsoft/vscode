@@ -100,7 +100,7 @@ export class QuickFixController implements IEditorContribution {
 
 						// Or if we have a single preferred action
 						const preferred = fixes.filter(fix => fix.isPreferred);
-						if (preferred.length === 0) {
+						if (preferred.length === 1) {
 							this._onApplyCodeAction(preferred[0]);
 							return;
 						}
