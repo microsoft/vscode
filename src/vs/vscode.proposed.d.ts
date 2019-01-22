@@ -22,7 +22,7 @@ declare module 'vscode' {
 		/**
 		 *
 		 */
-		export function openItem(uri: Uri): void;
+		export function open(uri: Uri): Thenable<boolean>;
 	}
 
 	//#endregion

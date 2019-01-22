@@ -6,8 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { ExtHostContext, ExtHostWindowShape, IExtHostContext, MainContext, MainThreadWindowShape } from '../node/extHost.protocol';
 
@@ -20,7 +19,7 @@ export class MainThreadWindow implements MainThreadWindowShape {
 	constructor(
 		extHostContext: IExtHostContext,
 		@IWindowService private readonly windowService: IWindowService,
-		@IOpenerService private readonly openerService: IOpenerService,
+		@IWindowsService private readonly windowsService: IWindowsService
 	) {
 		this.proxy = extHostContext.getProxy(ExtHostContext.ExtHostWindow);
 
@@ -36,9 +35,7 @@ export class MainThreadWindow implements MainThreadWindowShape {
 		return this.windowService.isFocused();
 	}
 
-	$openUri(uri: UriComponents): Promise<any> {
-		// todo@joh turn this around and let the command work with
-		// the proper implementation
-		return this.openerService.open(URI.revive(uri)).then(() => undefined);
+	$openUri(uri: UriComponents): Promise<boolean> {
+		return this.windowsService.openExternal(URI.revive(uri).toString(true));
 	}
 }

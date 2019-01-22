@@ -256,7 +256,7 @@ export function createApiFactory(
 			get clipboard(): vscode.Clipboard {
 				return extHostClipboard;
 			},
-			openItem: proposedApiFunction(extension, (uri: URI) => {
+			open: proposedApiFunction(extension, (uri: URI) => {
 				return extHostWindow.openUri(uri);
 			})
 		});
