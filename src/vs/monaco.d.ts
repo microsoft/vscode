@@ -2263,6 +2263,7 @@ declare namespace monaco.editor {
 	 * An event describing that some ranges of lines have been tokenized (their tokens have changed).
 	 */
 	export interface IModelTokensChangedEvent {
+		readonly tokenizationSupportChanged: boolean;
 		readonly ranges: {
 			/**
 			 * The start of the range (inclusive)

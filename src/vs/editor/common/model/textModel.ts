@@ -315,6 +315,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 			this._resetTokenizationState();
 			this.emitModelTokensChangedEvent({
+				tokenizationSupportChanged: true,
 				ranges: [{
 					fromLineNumber: 1,
 					toLineNumber: this.getLineCount()
@@ -1841,6 +1842,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 	public flushTokens(): void {
 		this._resetTokenizationState();
 		this.emitModelTokensChangedEvent({
+			tokenizationSupportChanged: false,
 			ranges: [{
 				fromLineNumber: 1,
 				toLineNumber: this.getLineCount()
@@ -1923,6 +1925,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		this._resetTokenizationState();
 
 		this.emitModelTokensChangedEvent({
+			tokenizationSupportChanged: true,
 			ranges: [{
 				fromLineNumber: 1,
 				toLineNumber: this.getLineCount()
