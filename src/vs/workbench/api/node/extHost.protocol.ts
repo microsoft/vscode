@@ -37,13 +37,14 @@ import { IAdapterDescriptor, IConfig, ITerminalSettings } from 'vs/workbench/par
 import { ITextQueryBuilderOptions } from 'vs/workbench/parts/search/common/queryBuilder';
 import { ITerminalDimensions } from 'vs/workbench/parts/terminal/common/terminal';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { IRPCProtocol, ProxyIdentifier, createExtHostContextProxyIdentifier as createExtId, createMainContextProxyIdentifier as createMainId } from 'vs/workbench/services/extensions/node/proxyIdentifier';
+import { IRPCProtocol, createExtHostContextProxyIdentifier as createExtId, createMainContextProxyIdentifier as createMainId } from 'vs/workbench/services/extensions/node/proxyIdentifier';
 import { IProgressOptions, IProgressStep } from 'vs/platform/progress/common/progress';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import * as vscode from 'vscode';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { ResolvedAuthority } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IRemoteConsoleLog } from 'vs/base/node/console';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -230,6 +231,10 @@ export interface MainThreadTreeViewsShape extends IDisposable {
 
 export interface MainThreadErrorsShape extends IDisposable {
 	$onUnexpectedError(err: any | SerializedError): void;
+}
+
+export interface MainThreadConsoleShape extends IDisposable {
+	$logExtensionHostMessage(msg: IRemoteConsoleLog): void;
 }
 
 export interface ISerializedRegExp {
@@ -1068,10 +1073,11 @@ export interface ExtHostStorageShape {
 // --- proxy identifiers
 
 export const MainContext = {
-	MainThreadClipboard: <ProxyIdentifier<MainThreadClipboardShape>>createMainId<MainThreadClipboardShape>('MainThreadClipboard'),
-	MainThreadCommands: <ProxyIdentifier<MainThreadCommandsShape>>createMainId<MainThreadCommandsShape>('MainThreadCommands'),
+	MainThreadClipboard: createMainId<MainThreadClipboardShape>('MainThreadClipboard'),
+	MainThreadCommands: createMainId<MainThreadCommandsShape>('MainThreadCommands'),
 	MainThreadComments: createMainId<MainThreadCommentsShape>('MainThreadComments'),
 	MainThreadConfiguration: createMainId<MainThreadConfigurationShape>('MainThreadConfiguration'),
+	MainThreadConsole: createMainId<MainThreadConsoleShape>('MainThreadConsole'),
 	MainThreadDebugService: createMainId<MainThreadDebugServiceShape>('MainThreadDebugService'),
 	MainThreadDecorations: createMainId<MainThreadDecorationsShape>('MainThreadDecorations'),
 	MainThreadDiagnostics: createMainId<MainThreadDiagnosticsShape>('MainThreadDiagnostics'),
