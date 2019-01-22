@@ -23,7 +23,7 @@ const autoFixableDiagnosticCodes = new Set<number>([
 class TypeScriptAutoFixProvider implements vscode.CodeActionProvider {
 
 	public static readonly metadata: vscode.CodeActionProviderMetadata = {
-		providedCodeActionKinds: [vscode.CodeActionKind.SourceAutoFix]
+		providedCodeActionKinds: [vscode.CodeActionKind.SourceFixAll]
 	};
 
 	constructor(
@@ -38,7 +38,7 @@ class TypeScriptAutoFixProvider implements vscode.CodeActionProvider {
 		context: vscode.CodeActionContext,
 		token: vscode.CancellationToken
 	): Promise<vscode.CodeAction[] | undefined> {
-		if (!context.only || !vscode.CodeActionKind.SourceAutoFix.intersects(context.only)) {
+		if (!context.only || !vscode.CodeActionKind.SourceFixAll.intersects(context.only)) {
 			return undefined;
 		}
 
@@ -82,7 +82,7 @@ class TypeScriptAutoFixProvider implements vscode.CodeActionProvider {
 		const { edit, fixedDiagnostics } = autoFixResponse;
 		const codeAction = new vscode.CodeAction(
 			localize('autoFix.label', 'Auto fix'),
-			vscode.CodeActionKind.SourceAutoFix);
+			vscode.CodeActionKind.SourceFixAll);
 		codeAction.edit = edit;
 		codeAction.diagnostics = fixedDiagnostics;
 

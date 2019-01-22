@@ -1134,9 +1134,12 @@ declare module 'vscode' {
 	//#region Autofix - mjbvz
 	export namespace CodeActionKind {
 		/**
-		 * Base kind for an auto fix source action: `source.autoFix`.
+		 * Base kind for an auto fix source action: `source.fixAll`.
+		 *
+		 * Fix all actions automatically fix errors in the code that have a clear fix that does not require user input.
+		 * They should not suppress errors or perform unsafe fixes such as generating new types or classes.
 		 */
-		export const SourceAutoFix: CodeActionKind;
+		export const SourceFixAll: CodeActionKind;
 	}
 	//#endregion
 }
