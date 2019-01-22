@@ -480,6 +480,21 @@ connection.onFoldingRanges((params, token) => {
 	}, null, `Error while computing folding regions for ${params.textDocument.uri}`, token);
 });
 
+connection.onRequest('$/selection', async (params) => {
+	const document = documents.get(params.textDocument.uri);
+	const position: Position = params.position;
+
+	if (document) {
+		const htmlMode = languageModes.getMode('html');
+		if (htmlMode && htmlMode.doSelection) {
+			return htmlMode.doSelection(document, position);
+		}
+
+		console.log(position.line, position.character);
+	}
+	return Promise.resolve(null);
+});
+
 
 // Listen on the connection
 connection.listen();

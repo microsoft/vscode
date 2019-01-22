@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getLanguageModelCache } from '../languageModelCache';
-import { LanguageService as HTMLLanguageService, HTMLDocument, DocumentContext, FormattingOptions, HTMLFormatConfiguration } from 'vscode-html-languageservice';
+import { LanguageService as HTMLLanguageService, HTMLDocument, DocumentContext, FormattingOptions, HTMLFormatConfiguration, Node } from 'vscode-html-languageservice';
 import { TextDocument, Position, Range, CompletionItem, FoldingRange } from 'vscode-languageserver-types';
 import { LanguageMode, Workspace } from './languageModes';
 import { getPathCompletionParticipant } from './pathCompletion';
@@ -14,6 +14,21 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace:
 	return {
 		getId() {
 			return 'html';
+		},
+		doSelection(document: TextDocument, position: Position): Range[] {
+			const htmlDocument = htmlDocuments.get(document);
+			let currNode = htmlDocument.findNodeAt(document.offsetAt(position));
+			let getNodeRange = (n: Node) => {
+				return Range.create(document.positionAt(n.start), document.positionAt(n.end));
+			};
+			const result = [getNodeRange(currNode)];
+
+			while (currNode.parent) {
+				currNode = currNode.parent;
+				result.push(getNodeRange(currNode));
+			}
+
+			return result;
 		},
 		doComplete(document: TextDocument, position: Position, settings = workspace.settings) {
 			let options = settings && settings.html && settings.html.suggest;
