@@ -151,7 +151,7 @@ export interface IWindowsService {
 	toggleSharedProcess(): Promise<void>;
 
 	// Global methods
-	openWindow(windowId: number, paths: URI[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean, args?: ParsedArgs }): Promise<void>;
+	openWindow(windowId: number, paths: URI[], options?: IOpenSettings): Promise<void>;
 	openNewWindow(options?: INewWindowOptions): Promise<void>;
 	showWindow(windowId: number): Promise<void>;
 	getWindows(): Promise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]>;
@@ -176,6 +176,15 @@ export const IWindowService = createDecorator<IWindowService>('windowService');
 export interface IMessageBoxResult {
 	button: number;
 	checkboxChecked?: boolean;
+}
+
+export interface IOpenSettings {
+	forceNewWindow?: boolean;
+	forceReuseWindow?: boolean;
+	forceOpenWorkspaceAsFile?: boolean;
+	diffMode?: boolean;
+	addMode?: boolean;
+	args?: ParsedArgs;
 }
 
 export interface IWindowService {
@@ -206,7 +215,7 @@ export interface IWindowService {
 	getRecentlyOpened(): Promise<IRecentlyOpened>;
 	focusWindow(): Promise<void>;
 	closeWindow(): Promise<void>;
-	openWindow(paths: URI[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean, args?: ParsedArgs }): Promise<void>;
+	openWindow(paths: URI[], options?: IOpenSettings): Promise<void>;
 	isFocused(): Promise<boolean>;
 	setDocumentEdited(flag: boolean): Promise<void>;
 	isMaximized(): Promise<boolean>;
