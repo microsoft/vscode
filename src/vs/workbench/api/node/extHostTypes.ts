@@ -1000,7 +1000,7 @@ export class CodeAction {
 
 	edit?: WorkspaceEdit;
 
-	dianostics?: Diagnostic[];
+	diagnostics?: Diagnostic[];
 
 	kind?: CodeActionKind;
 
