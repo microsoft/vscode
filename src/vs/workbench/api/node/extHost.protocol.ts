@@ -66,6 +66,7 @@ export interface IInitData {
 	parentPid: number;
 	environment: IEnvironment;
 	workspace: IWorkspaceData;
+	resolvedExtensions: ExtensionIdentifier[];
 	extensions: IExtensionDescription[];
 	telemetryInfo: ITelemetryInfo;
 	logLevel: LogLevel;

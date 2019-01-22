@@ -191,6 +191,7 @@ export type ExtensionActivationReason = ExtensionActivatedByEvent | ExtensionAct
 export class ExtensionsActivator {
 
 	private readonly _registry: ExtensionDescriptionRegistry;
+	private readonly _resolvedExtensionsSet: Set<string>;
 	private readonly _host: IExtensionsActivatorHost;
 	private readonly _activatingExtensions: Map<string, Promise<void>>;
 	private readonly _activatedExtensions: Map<string, ActivatedExtension>;
@@ -199,8 +200,10 @@ export class ExtensionsActivator {
 	 */
 	private readonly _alreadyActivatedEvents: { [activationEvent: string]: boolean; };
 
-	constructor(registry: ExtensionDescriptionRegistry, host: IExtensionsActivatorHost) {
+	constructor(registry: ExtensionDescriptionRegistry, resolvedExtensions: ExtensionIdentifier[], host: IExtensionsActivatorHost) {
 		this._registry = registry;
+		this._resolvedExtensionsSet = new Set<string>();
+		resolvedExtensions.forEach((extensionId) => this._resolvedExtensionsSet.add(ExtensionIdentifier.toKey(extensionId)));
 		this._host = host;
 		this._activatingExtensions = new Map<string, Promise<void>>();
 		this._activatedExtensions = new Map<string, ActivatedExtension>();
@@ -251,8 +254,14 @@ export class ExtensionsActivator {
 		let currentExtensionGetsGreenLight = true;
 
 		for (let j = 0, lenJ = depIds.length; j < lenJ; j++) {
-			let depId = depIds[j];
-			let depDesc = this._registry.getExtensionDescription(depId);
+			const depId = depIds[j];
+
+			if (this._resolvedExtensionsSet.has(ExtensionIdentifier.toKey(depId))) {
+				// This dependency is already resolved
+				continue;
+			}
+
+			const depDesc = this._registry.getExtensionDescription(depId);
 
 			if (!depDesc) {
 				// Error condition 1: unknown dependency
