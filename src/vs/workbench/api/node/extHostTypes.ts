@@ -1032,6 +1032,10 @@ export class CodeActionKind {
 		return new CodeActionKind(this.value ? this.value + CodeActionKind.sep + parts : parts);
 	}
 
+	public intersects(other: CodeActionKind): boolean {
+		return this.contains(other) || other.contains(this);
+	}
+
 	public contains(other: CodeActionKind): boolean {
 		return this.value === other.value || startsWith(other.value, this.value + CodeActionKind.sep);
 	}

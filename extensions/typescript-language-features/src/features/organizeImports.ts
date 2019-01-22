@@ -82,7 +82,7 @@ export class OrganizeImportsCodeActionProvider implements vscode.CodeActionProvi
 			return [];
 		}
 
-		if (!context.only || !(context.only.contains(vscode.CodeActionKind.SourceOrganizeImports) || vscode.CodeActionKind.SourceOrganizeImports.contains(context.only))) {
+		if (!context.only || !vscode.CodeActionKind.SourceOrganizeImports.intersects(context.only)) {
 			return [];
 		}
 
