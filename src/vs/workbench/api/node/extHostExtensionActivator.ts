@@ -256,7 +256,7 @@ export class ExtensionsActivator {
 
 			if (!depDesc) {
 				// Error condition 1: unknown dependency
-				this._host.showMessage(Severity.Error, nls.localize('unknownDep', "Cannot activate extension '{0}' as the depending extension '{1}' is not found. Please install or enable the depending extension and reload the window.", currentExtension.displayName || currentExtension.identifier.value, depId));
+				this._host.showMessage(Severity.Error, nls.localize('unknownDep', "Cannot activate extension '{0}' because it depends on extension '{1}', which is not installed or disabled. Please install or enable '{1}' and reload the window.", currentExtension.displayName || currentExtension.identifier.value, depId));
 				const error = new Error(`Unknown dependency '${depId}'`);
 				this._activatedExtensions.set(ExtensionIdentifier.toKey(currentExtension.identifier), new FailedExtension(error));
 				return;
@@ -266,7 +266,7 @@ export class ExtensionsActivator {
 			if (dep) {
 				if (dep.activationFailed) {
 					// Error condition 2: a dependency has already failed activation
-					this._host.showMessage(Severity.Error, nls.localize('failedDep1', "Cannot activate extension '{0}' as the depending extension '{1}' is failed to activate.", currentExtension.displayName || currentExtension.identifier.value, depId));
+					this._host.showMessage(Severity.Error, nls.localize('failedDep1', "Cannot activate extension '{0}' because it depends on extension '{1}', which failed to activate.", currentExtension.displayName || currentExtension.identifier.value, depId));
 					const error = new Error(`Dependency ${depId} failed to activate`);
 					(<any>error).detail = dep.activationFailedError;
 					this._activatedExtensions.set(ExtensionIdentifier.toKey(currentExtension.identifier), new FailedExtension(error));
