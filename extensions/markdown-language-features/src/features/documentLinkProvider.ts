@@ -51,7 +51,7 @@ function matchAll(
 }
 
 export default class LinkProvider implements vscode.DocumentLinkProvider {
-	private readonly linkPattern = /(\[[^\]]*\]\(\s*)((([^\s\(\)]|\(\S*?\))+))\s*(".*?")?\)/g;
+	private readonly linkPattern = /(\[((!\[(.+)\]\()(.+)\)\]|[^\]]*\])\(\s*)((([^\s\(\)]|\(\S*?\))+))\s*(".*?")?\)/g;
 	private readonly referenceLinkPattern = /(\[([^\]]+)\]\[\s*?)([^\s\]]*?)\]/g;
 	private readonly definitionPattern = /^([\t ]*\[([^\]]+)\]:\s*)(\S+)/gm;
 
@@ -74,7 +74,7 @@ export default class LinkProvider implements vscode.DocumentLinkProvider {
 		const results: vscode.DocumentLink[] = [];
 		for (const match of matchAll(this.linkPattern, text)) {
 			const pre = match[1];
-			const link = match[2];
+			const link = match[6];
 			const offset = (match.index || 0) + pre.length;
 			const linkStart = document.positionAt(offset);
 			const linkEnd = document.positionAt(offset + link.length);
@@ -84,6 +84,20 @@ export default class LinkProvider implements vscode.DocumentLinkProvider {
 					normalizeLink(document, link, base)));
 			} catch (e) {
 				// noop
+			}
+			if (match[5]) {
+				const imagePre = match[3];
+				const imageLink = match[5];
+				const imageOffset = (match.index || 0) + imagePre.length + 1;
+				const imageLinkStart = document.positionAt(imageOffset);
+				const imageLinkEnd = document.positionAt(imageOffset + imageLink.length);
+				try {
+					results.push(new vscode.DocumentLink(
+						new vscode.Range(imageLinkStart, imageLinkEnd),
+						normalizeLink(document, imageLink, base)));
+				} catch (e) {
+					// noop
+				}
 			}
 		}
 
