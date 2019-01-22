@@ -370,7 +370,7 @@ export class CachedFolderConfiguration extends Disposable implements IFolderConf
 		configFolderRelativePath: string,
 		environmentService: IEnvironmentService) {
 		super();
-		this.cachedFolderPath = paths.join(environmentService.appSettingsHome, createHash('md5').update(paths.join(folder.path, configFolderRelativePath)).digest('hex'));
+		this.cachedFolderPath = paths.join(environmentService.userDataPath, 'CachedConfigurations', createHash('md5').update(paths.join(folder.path, configFolderRelativePath)).digest('hex'));
 		this.cachedConfigurationPath = paths.join(this.cachedFolderPath, 'configuration.json');
 		this.configurationModel = new ConfigurationModel();
 	}
