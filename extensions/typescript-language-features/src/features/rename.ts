@@ -91,7 +91,7 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 			findInComments: false
 		};
 
-		return this.client.interuptGetErr(() => {
+		return this.client.interruptGetErr(() => {
 			this.fileConfigurationManager.ensureConfigurationForDocument(document, token);
 			return this.client.execute('rename', args, token);
 		});
