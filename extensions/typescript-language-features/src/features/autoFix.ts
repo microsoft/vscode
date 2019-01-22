@@ -8,7 +8,7 @@ import * as nls from 'vscode-nls';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
-import { VersionDependentRegistration } from '../utils/dependentRegistration';
+import { ConfigurationDependentRegistration, VersionDependentRegistration } from '../utils/dependentRegistration';
 import * as typeConverters from '../utils/typeConverters';
 import { DiagnosticsManager } from './diagnostics';
 import FileConfigurationManager from './fileConfigurationManager';
@@ -126,8 +126,9 @@ export function register(
 	client: ITypeScriptServiceClient,
 	fileConfigurationManager: FileConfigurationManager,
 	diagnosticsManager: DiagnosticsManager) {
-	return new VersionDependentRegistration(client, API.v213, () =>
-		vscode.languages.registerCodeActionsProvider(selector,
-			new TypeScriptAutoFixProvider(client, fileConfigurationManager, diagnosticsManager),
-			TypeScriptAutoFixProvider.metadata));
+	return new VersionDependentRegistration(client, API.v300, () =>
+		new ConfigurationDependentRegistration('typescript', 'experimental.autoFix.enabled', () =>
+			vscode.languages.registerCodeActionsProvider(selector,
+				new TypeScriptAutoFixProvider(client, fileConfigurationManager, diagnosticsManager),
+				TypeScriptAutoFixProvider.metadata)));
 }
