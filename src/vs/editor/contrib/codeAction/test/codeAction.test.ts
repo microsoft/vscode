@@ -116,7 +116,7 @@ suite('CodeAction', () => {
 			testData.tsLint.abc
 		];
 
-		const actions = await getCodeActions(model, new Range(1, 1, 2, 1), undefined, CancellationToken.None);
+		const actions = await getCodeActions(model, new Range(1, 1, 2, 1), { type: 'manual' }, CancellationToken.None);
 		assert.equal(actions.length, 6);
 		assert.deepEqual(actions, expected);
 	});

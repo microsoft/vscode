@@ -18,12 +18,12 @@ import { CodeActionFilter, CodeActionKind, CodeActionTrigger } from './codeActio
 export function getCodeActions(
 	model: ITextModel,
 	rangeOrSelection: Range | Selection,
-	trigger: CodeActionTrigger | undefined,
+	trigger: CodeActionTrigger,
 	token: CancellationToken
 ): Promise<CodeAction[]> {
 	const codeActionContext: CodeActionContext = {
-		only: trigger && trigger.filter && trigger.filter.kind ? trigger.filter.kind.value : undefined,
-		trigger: trigger && trigger.type === 'manual' ? CodeActionTriggerKind.Manual : CodeActionTriggerKind.Automatic
+		only: trigger.filter && trigger.filter.kind ? trigger.filter.kind.value : undefined,
+		trigger: trigger.type === 'manual' ? CodeActionTriggerKind.Manual : CodeActionTriggerKind.Automatic
 	};
 
 	const promises = CodeActionProviderRegistry.all(model)
@@ -36,12 +36,12 @@ export function getCodeActions(
 			return provider.providedCodeActionKinds.some(providedKind => {
 				// Filter out actions by kind
 				// The provided kind can be either a subset of a superset of the filtered kind
-				if (trigger && trigger.filter && trigger.filter.kind && !(trigger.filter.kind.contains(providedKind) || new CodeActionKind(providedKind).contains(trigger.filter.kind.value))) {
+				if (trigger.filter && trigger.filter.kind && !(trigger.filter.kind.contains(providedKind) || new CodeActionKind(providedKind).contains(trigger.filter.kind.value))) {
 					return false;
 				}
 
 				// Don't return source actions unless they are explicitly requested
-				if (trigger && CodeActionKind.Source.contains(providedKind) && (!trigger.filter || !trigger.filter.includeSourceActions)) {
+				if (CodeActionKind.Source.contains(providedKind) && (!trigger.filter || !trigger.filter.includeSourceActions)) {
 					return false;
 				}
 
@@ -53,7 +53,7 @@ export function getCodeActions(
 				if (!Array.isArray(providedCodeActions)) {
 					return [];
 				}
-				return providedCodeActions.filter(action => isValidAction(trigger && trigger.filter, action));
+				return providedCodeActions.filter(action => isValidAction(trigger.filter, action));
 			}, (err): CodeAction[] => {
 				if (isPromiseCanceledError(err)) {
 					throw err;
