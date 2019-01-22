@@ -414,6 +414,10 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		// terminalEnvironment.mergeEnvironments(env, envFromConfig);
 		terminalEnvironment.mergeEnvironments(env, shellLaunchConfig.env);
 
+		// Sanitize the environment, removing any undesirable VS Code and Electron environment
+		// variables
+		terminalEnvironment.sanitizeEnvironment(env);
+
 		// Continue env initialization, merging in the env from the launch
 		// config and adding keys that are needed to create the process
 		terminalEnvironment.addTerminalEnvironmentKeys(env, platform.locale, terminalConfig.get('setLocaleVariables'));
