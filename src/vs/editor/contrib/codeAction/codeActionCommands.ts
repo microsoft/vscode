@@ -302,7 +302,7 @@ export class RefactorAction extends EditorAction {
 		});
 		return showCodeActionsForEditorSelection(editor,
 			nls.localize('editor.action.refactor.noneMessage', "No refactorings available"),
-			{ kind: CodeActionKind.Refactor.contains(args.kind.value) ? args.kind : CodeActionKind.Empty },
+			{ kind: CodeActionKind.Refactor.contains(args.kind) ? args.kind : CodeActionKind.Empty },
 			args.apply);
 	}
 }
@@ -335,7 +335,7 @@ export class SourceAction extends EditorAction {
 		});
 		return showCodeActionsForEditorSelection(editor,
 			nls.localize('editor.action.source.noneMessage', "No source actions available"),
-			{ kind: CodeActionKind.Source.contains(args.kind.value) ? args.kind : CodeActionKind.Empty, includeSourceActions: true },
+			{ kind: CodeActionKind.Source.contains(args.kind) ? args.kind : CodeActionKind.Empty, includeSourceActions: true },
 			args.apply);
 	}
 }

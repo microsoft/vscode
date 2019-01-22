@@ -18,8 +18,12 @@ export class CodeActionKind {
 		public readonly value: string
 	) { }
 
-	public contains(other: string): boolean {
-		return this.value === other || startsWith(other, this.value + CodeActionKind.sep);
+	public contains(other: CodeActionKind): boolean {
+		return this.value === other.value || startsWith(other.value, this.value + CodeActionKind.sep);
+	}
+
+	public intersects(other: CodeActionKind): boolean {
+		return this.contains(other) || other.contains(this);
 	}
 }
 

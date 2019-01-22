@@ -33,10 +33,10 @@ export function getCodeActions(
 			}
 
 			// Avoid calling providers that we know will not return code actions of interest
-			return provider.providedCodeActionKinds.some(providedKind => {
+			return provider.providedCodeActionKinds.map(kind => new CodeActionKind(kind)).some(providedKind => {
 				// Filter out actions by kind
 				// The provided kind can be either a subset of a superset of the filtered kind
-				if (trigger.filter && trigger.filter.kind && !(trigger.filter.kind.contains(providedKind) || new CodeActionKind(providedKind).contains(trigger.filter.kind.value))) {
+				if (trigger.filter && trigger.filter.kind && !trigger.filter.kind.intersects(providedKind)) {
 					return false;
 				}
 
@@ -71,11 +71,11 @@ export function getCodeActions(
 
 function isValidAction(filter: CodeActionFilter | undefined, action: CodeAction): boolean {
 	return action
-		&& isValidActionKind(filter, action.kind)
+		&& isValidActionKind(filter, action.kind ? new CodeActionKind(action.kind) : undefined)
 		&& (filter && filter.onlyIncludePreferredActions ? !!action.isPreferred : true);
 }
 
-function isValidActionKind(filter: CodeActionFilter | undefined, kind: string | undefined): boolean {
+function isValidActionKind(filter: CodeActionFilter | undefined, kind: CodeActionKind | undefined): boolean {
 	// Filter out actions by kind
 	if (filter && filter.kind && (!kind || !filter.kind.contains(kind))) {
 		return false;
