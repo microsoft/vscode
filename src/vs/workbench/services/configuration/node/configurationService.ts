@@ -73,7 +73,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 
 		this.defaultConfiguration = new DefaultConfigurationModel();
 		this.userConfiguration = this._register(new UserConfiguration(environmentService.appSettingsPath));
-		this.workspaceConfiguration = this._register(new WorkspaceConfiguration());
+		this.workspaceConfiguration = this._register(new WorkspaceConfiguration(environmentService));
 		this._register(this.userConfiguration.onDidChangeConfiguration(userConfiguration => this.onUserConfigurationChanged(userConfiguration)));
 		this._register(this.workspaceConfiguration.onDidUpdateConfiguration(() => this.onWorkspaceConfigurationChanged()));
 
@@ -303,14 +303,18 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	acquireFileService(fileService: IFileService): void {
 		this.fileService = fileService;
 		const changedWorkspaceFolders: IWorkspaceFolder[] = [];
-		Promise.all(this.cachedFolderConfigs.values()
+		Promise.all([this.workspaceConfiguration.adopt(fileService), ...this.cachedFolderConfigs.values()
 			.map(folderConfiguration => folderConfiguration.adopt(fileService)
 				.then(result => {
 					if (result) {
 						changedWorkspaceFolders.push(folderConfiguration.workspaceFolder);
 					}
-				})))
-			.then(() => {
+					return result;
+				}))])
+			.then(([workspaceChanged]) => {
+				if (workspaceChanged) {
+					this.onWorkspaceConfigurationChanged();
+				}
 				for (const workspaceFolder of changedWorkspaceFolders) {
 					this.onWorkspaceFolderConfigurationChanged(workspaceFolder);
 				}
@@ -335,9 +339,9 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	}
 
 	private createMultiFolderWorkspace(workspaceIdentifier: IWorkspaceIdentifier): Promise<Workspace> {
-		const workspaceConfigPath = URI.file(workspaceIdentifier.configPath);
-		return this.workspaceConfiguration.load(workspaceConfigPath)
+		return this.workspaceConfiguration.load(workspaceIdentifier)
 			.then(() => {
+				const workspaceConfigPath = URI.file(workspaceIdentifier.configPath);
 				const workspaceFolders = toWorkspaceFolders(this.workspaceConfiguration.getFolders(), URI.file(dirname(workspaceConfigPath.fsPath)));
 				const workspaceId = workspaceIdentifier.id;
 				return new Workspace(workspaceId, workspaceFolders, workspaceConfigPath);
