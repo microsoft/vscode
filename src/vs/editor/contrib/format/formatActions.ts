@@ -491,7 +491,7 @@ CommandsRegistry.registerCommand('editor.action.formatInspect', accessor => {
 
 	const editor = accessor.get(ICodeEditorService).getActiveCodeEditor();
 	if (!editor || !editor.hasModel()) {
-		return undefined;
+		return;
 	}
 	console.log(`Available Formatters for: ${editor.getModel().uri.toString(true)}`);
 	// range formatters

@@ -23,5 +23,5 @@ export interface IOpenerService {
 
 export const NullOpenerService: IOpenerService = Object.freeze({
 	_serviceBrand: undefined,
-	open() { return Promise.resolve(undefined); }
+	open() { return Promise.resolve(false); }
 });
