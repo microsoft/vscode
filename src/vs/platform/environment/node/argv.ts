@@ -144,7 +144,7 @@ export function formatOptions(docOptions: Option[], columns: number): string[] {
 		return docOptions.reduce<string[]>((r, o, i) => r.concat([`  ${usageTexts[i]}`, `      ${o.description}`]), []);
 	}
 	let descriptionColumns = columns - argLength - 1;
-	let result = [];
+	let result: string[] = [];
 	docOptions.forEach((o, i) => {
 		let usage = usageTexts[i];
 		let wrappedDescription = wrapText(o.description!, descriptionColumns);
@@ -162,7 +162,7 @@ function indent(count: number): string {
 }
 
 function wrapText(text: string, columns: number): string[] {
-	let lines = [];
+	let lines: string[] = [];
 	while (text.length) {
 		let index = text.length < columns ? text.length : text.lastIndexOf(' ', columns);
 		let line = text.slice(0, index).trim();
@@ -198,8 +198,8 @@ export function buildHelpMessage(productName: string, executableName: string, ve
 	return help.join('\n');
 }
 
-export function buildVersionMessage(version: string, commit: string) {
-	return `${version || 'Unknown version'}\n${commit || 'Unknown commit'}\n${process.arch}`;
+export function buildVersionMessage(version: string | undefined, commit: string | undefined): string {
+	return `${version || localize('unknownVersion', "Unknown version")}\n${commit || localize('unknownCommit', "Unknown commit")}\n${process.arch}`;
 }
 
 /**
