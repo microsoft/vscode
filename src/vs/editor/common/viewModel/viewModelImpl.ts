@@ -120,6 +120,13 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		this.viewportStartLineTrackedRange = this.model._setTrackedRange(this.viewportStartLineTrackedRange, null, TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges);
 	}
 
+	public tokenizeViewport(): void {
+		const linesViewportData = this.viewLayout.getLinesViewportData();
+		const startPosition = this.coordinatesConverter.convertViewPositionToModelPosition(new Position(linesViewportData.startLineNumber, 1));
+		const endPosition = this.coordinatesConverter.convertViewPositionToModelPosition(new Position(linesViewportData.endLineNumber, 1));
+		this.model.tokenizeViewport(startPosition.lineNumber, endPosition.lineNumber);
+	}
+
 	public setHasFocus(hasFocus: boolean): void {
 		this.hasFocus = hasFocus;
 	}
