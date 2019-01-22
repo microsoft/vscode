@@ -204,8 +204,8 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, FuzzyScore, IF
 		const lastDot = value.lastIndexOf('.');
 
 		inputBox.value = value;
-		inputBox.select({ start: 0, end: lastDot > 0 && !stat.isDirectory ? lastDot : value.length });
 		inputBox.focus();
+		inputBox.select({ start: 0, end: lastDot > 0 && !stat.isDirectory ? lastDot : value.length });
 
 		const done = once(async (success: boolean, blur: boolean) => {
 			label.element.style.display = 'none';
