@@ -18,8 +18,8 @@ import { CodeActionFilter, CodeActionKind, CodeActionTrigger } from './codeActio
 export function getCodeActions(
 	model: ITextModel,
 	rangeOrSelection: Range | Selection,
-	trigger?: CodeActionTrigger,
-	token: CancellationToken = CancellationToken.None
+	trigger: CodeActionTrigger | undefined,
+	token: CancellationToken
 ): Promise<CodeAction[]> {
 	const codeActionContext: CodeActionContext = {
 		only: trigger && trigger.filter && trigger.filter.kind ? trigger.filter.kind.value : undefined,
@@ -114,5 +114,9 @@ registerLanguageCommand('_executeCodeActionProvider', function (accessor, args) 
 		throw illegalArgument();
 	}
 
-	return getCodeActions(model, model.validateRange(range), { type: 'manual', filter: { includeSourceActions: true } });
+	return getCodeActions(
+		model,
+		model.validateRange(range),
+		{ type: 'manual', filter: { includeSourceActions: true } },
+		CancellationToken.None);
 });
