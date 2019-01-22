@@ -115,7 +115,7 @@ export function registerCommands(): void {
 
 			const focus = list.getFocus() ? list.getFocus()[0] : undefined;
 			const selection = list.getSelection();
-			const fakeKeyboardEvent = new KeyboardEvent('keydown');
+			const fakeKeyboardEvent = new KeyboardEvent('keydown', { shiftKey: true });
 
 			if (selection && selection.indexOf(focus) >= 0) {
 				list.setSelection(selection.filter(s => s !== previousFocus), fakeKeyboardEvent);
