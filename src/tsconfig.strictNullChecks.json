@@ -251,6 +251,7 @@
 		"./vs/editor/contrib/rename/renameInputField.ts",
 		"./vs/editor/contrib/suggest/test/suggestMemory.test.ts",
 		"./vs/editor/contrib/toggleTabFocusMode/toggleTabFocusMode.ts",
+		"./vs/editor/contrib/tokenization/tokenization.ts",
 		"./vs/editor/contrib/wordHighlighter/wordHighlighter.ts",
 		"./vs/editor/contrib/wordOperations/test/wordOperations.test.ts",
 		"./vs/editor/contrib/wordOperations/test/wordTestUtils.ts",
