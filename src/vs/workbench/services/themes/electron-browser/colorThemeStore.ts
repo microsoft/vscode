@@ -16,6 +16,7 @@ import { URI } from 'vs/base/common/uri';
 
 const themesExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPoint[]>({
 	extensionPoint: 'themes',
+	isDynamic: true,
 	jsonSchema: {
 		description: nls.localize('vscode.extension.contributes.themes', 'Contributes textmate color themes.'),
 		type: 'array',
@@ -61,6 +62,7 @@ export class ColorThemeStore {
 
 	private initialize() {
 		themesExtPoint.setHandler((extensions) => {
+			this.extensionsColorThemes.length = 1; // remove all but the default theme
 			for (let ext of extensions) {
 				let extensionData = {
 					extensionId: ext.description.identifier.value,
@@ -108,9 +110,9 @@ export class ColorThemeStore {
 		});
 	}
 
-	public findThemeData(themeId: string, defaultId?: string): Promise<ColorThemeData> {
+	public findThemeData(themeId: string, defaultId?: string): Promise<ColorThemeData | undefined> {
 		return this.getColorThemes().then(allThemes => {
-			let defaultTheme: ColorThemeData = undefined;
+			let defaultTheme: ColorThemeData | undefined = undefined;
 			for (let t of allThemes) {
 				if (t.id === themeId) {
 					return <ColorThemeData>t;
@@ -123,9 +125,9 @@ export class ColorThemeStore {
 		});
 	}
 
-	public findThemeDataBySettingsId(settingsId: string, defaultId: string): Promise<ColorThemeData> {
+	public findThemeDataBySettingsId(settingsId: string, defaultId: string | undefined): Promise<ColorThemeData | undefined> {
 		return this.getColorThemes().then(allThemes => {
-			let defaultTheme: ColorThemeData = undefined;
+			let defaultTheme: ColorThemeData | undefined = undefined;
 			for (let t of allThemes) {
 				if (t.settingsId === settingsId) {
 					return <ColorThemeData>t;
@@ -139,7 +141,7 @@ export class ColorThemeStore {
 	}
 
 	public getColorThemes(): Promise<IColorTheme[]> {
-		return this.extensionService.whenInstalledExtensionsRegistered().then(isReady => {
+		return this.extensionService.whenInstalledExtensionsRegistered().then(_ => {
 			return this.extensionsColorThemes;
 		});
 	}

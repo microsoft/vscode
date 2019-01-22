@@ -29,6 +29,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IFileService, FileChangeType } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
+import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 
 // implementation
 
@@ -74,12 +75,12 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	private currentColorTheme: ColorThemeData;
 	private container: HTMLElement;
 	private readonly onColorThemeChange: Emitter<IColorTheme>;
-	private watchedColorThemeLocation: URI;
+	private watchedColorThemeLocation: URI | undefined;
 
 	private iconThemeStore: FileIconThemeStore;
 	private currentIconTheme: FileIconThemeData;
 	private readonly onFileIconThemeChange: Emitter<IFileIconTheme>;
-	private watchedIconThemeLocation: URI;
+	private watchedIconThemeLocation: URI | undefined;
 
 	private themingParticipantChangeListener: IDisposable;
 	private _configurationWriter: ConfigurationWriter;
@@ -114,7 +115,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		// In order to avoid paint flashing for tokens, because
 		// themes are loaded asynchronously, we need to initialize
 		// a color theme document with good defaults until the theme is loaded
-		let themeData: ColorThemeData | null = null;
+		let themeData: ColorThemeData | undefined = undefined;
 		let persistedThemeData = this.storageService.get(PERSISTED_THEME_STORAGE_KEY, StorageScope.GLOBAL);
 		if (persistedThemeData) {
 			themeData = ColorThemeData.fromStorageData(persistedThemeData);
@@ -126,12 +127,11 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		themeData.setCustomColors(this.colorCustomizations);
 		themeData.setCustomTokenColors(this.tokenColorCustomizations);
 		this.updateDynamicCSSRules(themeData);
-		this.applyTheme(themeData, null, true);
+		this.applyTheme(themeData, undefined, true);
 
-		let iconData: FileIconThemeData | null = null;
 		let persistedIconThemeData = this.storageService.get(PERSISTED_ICON_THEME_STORAGE_KEY, StorageScope.GLOBAL);
 		if (persistedIconThemeData) {
-			iconData = FileIconThemeData.fromStorageData(persistedIconThemeData);
+			const iconData = FileIconThemeData.fromStorageData(persistedIconThemeData);
 			if (iconData) {
 				_applyIconTheme(iconData, () => {
 					this.doSetFileIconTheme(iconData);
@@ -144,33 +144,48 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			this.installConfigurationListener();
 		});
 
-		// update settings schema setting
+		// update settings schema setting for theme specific settings
 		this.colorThemeStore.onDidChange(themes => {
-			const enumDescription = themeData.description || '';
+			const themeSpecificWorkbenchColors: IJSONSchema = { properties: {} };
+			const themeSpecificTokenColors: IJSONSchema = { properties: {} };
 
-			colorCustomizationsSchema.properties = colorThemeSchema.colorsSchema.properties;
-			const copyColorCustomizationsSchema = { ...colorCustomizationsSchema };
-			copyColorCustomizationsSchema.properties = { ...colorThemeSchema.colorsSchema.properties };
-
-			customEditorColorSchema.properties = customEditorColorConfigurationProperties;
-			const copyCustomEditorColorSchema = { ...customEditorColorSchema };
-			copyCustomEditorColorSchema.properties = { ...customEditorColorConfigurationProperties };
-
-			themes.forEach(t => {
-				colorThemeSettingSchema.enum.push(t.settingsId);
-				colorThemeSettingSchema.enumDescriptions.push(enumDescription);
+			for (let t of themes) {
+				colorThemeSettingSchema.enum!.push(t.settingsId);
+				colorThemeSettingSchema.enumDescriptions!.push(t.description || '');
 				const themeId = `[${t.settingsId}]`;
-				colorCustomizationsSchema.properties[themeId] = copyColorCustomizationsSchema;
-				customEditorColorSchema.properties[themeId] = copyCustomEditorColorSchema;
-			});
+				themeSpecificWorkbenchColors.properties![themeId] = colorThemeSchema.colorsSchema;
+				themeSpecificTokenColors.properties![themeId] = { properties: tokenColorConfigurationProperties, additionalProperties: false };
+			}
 
-			configurationRegistry.notifyConfigurationSchemaUpdated(themeSettingsConfiguration);
-			configurationRegistry.notifyConfigurationSchemaUpdated(customEditorColorConfiguration);
+			colorCustomizationsSchema.allOf![1] = themeSpecificWorkbenchColors;
+			tokenColorCustomizationSchema.allOf![1] = themeSpecificTokenColors;
+
+			configurationRegistry.notifyConfigurationSchemaUpdated(themeSettingsConfiguration, tokenColorCustomizationConfiguration);
+
+			if (this.currentColorTheme.isLoaded) {
+				this.colorThemeStore.findThemeData(this.currentColorTheme.id).then(theme => {
+					if (!theme) {
+						this.setColorTheme(DEFAULT_THEME_ID, undefined);
+					} else {
+						this.restoreColorTheme();
+					}
+				});
+			}
 		});
 		this.iconThemeStore.onDidChange(themes => {
 			iconThemeSettingSchema.enum = [null, ...themes.map(t => t.settingsId)];
-			iconThemeSettingSchema.enumDescriptions = [iconThemeSettingSchema.enumDescriptions[0], ...themes.map(t => themeData.description || '')];
+			iconThemeSettingSchema.enumDescriptions = [iconThemeSettingSchema.enumDescriptions![0], ...themes.map(t => t.description || '')];
 			configurationRegistry.notifyConfigurationSchemaUpdated(themeSettingsConfiguration);
+
+			if (this.currentIconTheme.isLoaded) {
+				this.iconThemeStore.findThemeData(this.currentIconTheme.id).then(theme => {
+					if (!theme) {
+						this.setFileIconTheme(DEFAULT_ICON_THEME_SETTING_VALUE, undefined);
+					} else {
+						this.restoreFileIconTheme();
+					}
+				});
+			}
 		});
 	}
 
@@ -183,7 +198,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 				this.currentColorTheme.setCustomColors(this.colorCustomizations);
 				this.currentColorTheme.setCustomTokenColors(this.tokenColorCustomizations);
 				this.updateDynamicCSSRules(this.currentColorTheme);
-				this.applyTheme(this.currentColorTheme, null, false);
+				this.applyTheme(this.currentColorTheme, undefined, false);
 			}
 			if (this.watchedIconThemeLocation && this.currentIconTheme && e.contains(this.watchedIconThemeLocation, FileChangeType.UPDATED)) {
 				await this.currentIconTheme.reload(this.fileService);
@@ -208,7 +223,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return this.onColorThemeChange.event;
 	}
 
-	private initialize(): Promise<[IColorTheme, IFileIconTheme]> {
+	private initialize(): Promise<[IColorTheme | null, IFileIconTheme | null]> {
 		let detectHCThemeSetting = this.configurationService.getValue<boolean>(DETECT_HC_SETTING);
 
 		let colorThemeSetting: string;
@@ -218,14 +233,14 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			colorThemeSetting = this.configurationService.getValue<string>(COLOR_THEME_SETTING);
 		}
 
-		let iconThemeSetting = this.configurationService.getValue<string>(ICON_THEME_SETTING) || '';
+		let iconThemeSetting = this.configurationService.getValue<string | null>(ICON_THEME_SETTING);
 
 		return Promise.all([
 			this.colorThemeStore.findThemeDataBySettingsId(colorThemeSetting, DEFAULT_THEME_ID).then(theme => {
-				return this.setColorTheme(theme && theme.id, null);
+				return this.setColorTheme(theme && theme.id, undefined);
 			}),
 			this.iconThemeStore.findThemeBySettingsId(iconThemeSetting).then(theme => {
-				return this.setFileIconTheme(theme && theme.id, null);
+				return this.setFileIconTheme(theme && theme.id, undefined);
 			}),
 		]);
 	}
@@ -235,18 +250,18 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			if (e.affectsConfiguration(COLOR_THEME_SETTING)) {
 				let colorThemeSetting = this.configurationService.getValue<string>(COLOR_THEME_SETTING);
 				if (colorThemeSetting !== this.currentColorTheme.settingsId) {
-					this.colorThemeStore.findThemeDataBySettingsId(colorThemeSetting, null).then(theme => {
+					this.colorThemeStore.findThemeDataBySettingsId(colorThemeSetting, undefined).then(theme => {
 						if (theme) {
-							this.setColorTheme(theme.id, null);
+							this.setColorTheme(theme.id, undefined);
 						}
 					});
 				}
 			}
 			if (e.affectsConfiguration(ICON_THEME_SETTING)) {
-				let iconThemeSetting = this.configurationService.getValue<string>(ICON_THEME_SETTING) || '';
+				let iconThemeSetting = this.configurationService.getValue<string | null>(ICON_THEME_SETTING);
 				if (iconThemeSetting !== this.currentIconTheme.settingsId) {
 					this.iconThemeStore.findThemeBySettingsId(iconThemeSetting).then(theme => {
-						this.setFileIconTheme(theme && theme.id, null);
+						this.setFileIconTheme(theme && theme.id, undefined);
 					});
 				}
 			}
@@ -280,7 +295,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return this.getColorTheme();
 	}
 
-	public setColorTheme(themeId: string, settingsTarget: ConfigurationTarget | null): Promise<IColorTheme | null> {
+	public setColorTheme(themeId: string | undefined, settingsTarget: ConfigurationTarget | undefined): Promise<IColorTheme | null> {
 		if (!themeId) {
 			return Promise.resolve(null);
 		}
@@ -290,10 +305,11 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 		themeId = validateThemeId(themeId); // migrate theme ids
 
-		return this.colorThemeStore.findThemeData(themeId, DEFAULT_THEME_ID).then(themeData => {
-			if (!themeData) {
+		return this.colorThemeStore.findThemeData(themeId, DEFAULT_THEME_ID).then(data => {
+			if (!data) {
 				return null;
 			}
+			const themeData = data;
 			return themeData.ensureLoaded(this.fileService).then(_ => {
 				if (themeId === this.currentColorTheme.id && !this.currentColorTheme.isLoaded && this.currentColorTheme.hasEqualData(themeData)) {
 					// the loaded theme is identical to the perisisted theme. Don't need to send an event.
@@ -307,7 +323,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 				this.updateDynamicCSSRules(themeData);
 				return this.applyTheme(themeData, settingsTarget);
 			}, error => {
-				return Promise.reject(new Error(nls.localize('error.cannotloadtheme', "Unable to load {0}: {1}", themeData.location.toString(), error.message)));
+				return Promise.reject(new Error(nls.localize('error.cannotloadtheme', "Unable to load {0}: {1}", themeData.location!.toString(), error.message)));
 			});
 		});
 	}
@@ -315,9 +331,9 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	public restoreColorTheme() {
 		let colorThemeSetting = this.configurationService.getValue<string>(COLOR_THEME_SETTING);
 		if (colorThemeSetting !== this.currentColorTheme.settingsId) {
-			this.colorThemeStore.findThemeDataBySettingsId(colorThemeSetting, null).then(theme => {
+			this.colorThemeStore.findThemeDataBySettingsId(colorThemeSetting, undefined).then(theme => {
 				if (theme) {
-					this.setColorTheme(theme.id, null);
+					this.setColorTheme(theme.id, undefined);
 				}
 			});
 		}
@@ -338,7 +354,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		_applyRules(cssRules.join('\n'), colorThemeRulesClassName);
 	}
 
-	private applyTheme(newTheme: ColorThemeData, settingsTarget: ConfigurationTarget, silent = false): Promise<IColorTheme | null> {
+	private applyTheme(newTheme: ColorThemeData, settingsTarget: ConfigurationTarget | undefined, silent = false): Promise<IColorTheme | null> {
 		if (this.container) {
 			if (this.currentColorTheme) {
 				removeClasses(this.container, this.currentColorTheme.id);
@@ -355,7 +371,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		if (this.fileService && !resources.isEqual(newTheme.location, this.watchedColorThemeLocation)) {
 			if (this.watchedColorThemeLocation) {
 				this.fileService.unwatchFileChanges(this.watchedColorThemeLocation);
-				this.watchedColorThemeLocation = null;
+				this.watchedColorThemeLocation = undefined;
 			}
 			if (newTheme.location && (newTheme.watch || !!this.environmentService.extensionDevelopmentLocationURI)) {
 				this.watchedColorThemeLocation = newTheme.location;
@@ -377,7 +393,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return this.writeColorThemeConfiguration(settingsTarget);
 	}
 
-	private writeColorThemeConfiguration(settingsTarget: ConfigurationTarget): Promise<IColorTheme> {
+	private writeColorThemeConfiguration(settingsTarget: ConfigurationTarget | undefined): Promise<IColorTheme> {
 		if (!types.isUndefinedOrNull(settingsTarget)) {
 			return this.configurationWriter.writeConfiguration(COLOR_THEME_SETTING, this.currentColorTheme.settingsId, settingsTarget).then(_ => this.currentColorTheme);
 		}
@@ -385,7 +401,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	}
 
 	private themeExtensionsActivated = new Map<string, boolean>();
-	private sendTelemetry(themeId: string, themeData: ExtensionData, themeType: string) {
+	private sendTelemetry(themeId: string, themeData: ExtensionData | undefined, themeType: string) {
 		if (themeData) {
 			let key = themeType + themeData.extensionId;
 			if (!this.themeExtensionsActivated.get(key)) {
@@ -422,7 +438,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return this.currentIconTheme;
 	}
 
-	public setFileIconTheme(iconTheme: string, settingsTarget: ConfigurationTarget): Promise<IFileIconTheme> {
+	public setFileIconTheme(iconTheme: string | undefined, settingsTarget: ConfigurationTarget | undefined): Promise<IFileIconTheme> {
 		iconTheme = iconTheme || '';
 		if (iconTheme === this.currentIconTheme.id && this.currentIconTheme.isLoaded) {
 			return this.writeFileIconConfiguration(settingsTarget);
@@ -436,14 +452,23 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			return this.writeFileIconConfiguration(settingsTarget);
 		};
 
-		return this.iconThemeStore.findThemeData(iconTheme).then(iconThemeData => {
-			if (!iconThemeData) {
-				iconThemeData = FileIconThemeData.noIconTheme();
-			}
+		return this.iconThemeStore.findThemeData(iconTheme).then(data => {
+			const iconThemeData = data || FileIconThemeData.noIconTheme();
 			return iconThemeData.ensureLoaded(this.fileService).then(_ => {
 				return _applyIconTheme(iconThemeData, onApply);
 			});
 		});
+	}
+
+	public restoreFileIconTheme() {
+		let fileIconThemeSetting = this.configurationService.getValue<string | null>(ICON_THEME_SETTING);
+		if (fileIconThemeSetting !== this.currentIconTheme.settingsId) {
+			this.iconThemeStore.findThemeBySettingsId(fileIconThemeSetting).then(theme => {
+				if (theme) {
+					this.setFileIconTheme(theme.id, undefined);
+				}
+			});
+		}
 	}
 
 	private doSetFileIconTheme(iconThemeData: FileIconThemeData): void {
@@ -460,7 +485,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		if (this.fileService && !resources.isEqual(iconThemeData.location, this.watchedIconThemeLocation)) {
 			if (this.watchedIconThemeLocation) {
 				this.fileService.unwatchFileChanges(this.watchedIconThemeLocation);
-				this.watchedIconThemeLocation = null;
+				this.watchedIconThemeLocation = undefined;
 			}
 			if (iconThemeData.location && (iconThemeData.watch || !!this.environmentService.extensionDevelopmentLocationURI)) {
 				this.watchedIconThemeLocation = iconThemeData.location;
@@ -475,7 +500,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 	}
 
-	private writeFileIconConfiguration(settingsTarget: ConfigurationTarget): Promise<IFileIconTheme> {
+	private writeFileIconConfiguration(settingsTarget: ConfigurationTarget | undefined): Promise<IFileIconTheme> {
 		if (!types.isUndefinedOrNull(settingsTarget)) {
 			return this.configurationWriter.writeConfiguration(ICON_THEME_SETTING, this.currentIconTheme.settingsId, settingsTarget).then(_ => this.currentIconTheme);
 		}
@@ -504,7 +529,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 }
 
 function _applyIconTheme(data: FileIconThemeData, onApply: (theme: FileIconThemeData) => Promise<IFileIconTheme>): Promise<IFileIconTheme> {
-	_applyRules(data.styleSheetContent, iconThemeRulesClassName);
+	_applyRules(data.styleSheetContent!, iconThemeRulesClassName);
 	return onApply(data);
 }
 
@@ -571,14 +596,10 @@ const iconThemeSettingSchema: IConfigurationPropertySchema = {
 const colorCustomizationsSchema: IConfigurationPropertySchema = {
 	type: 'object',
 	description: nls.localize('workbenchColors', "Overrides colors from the currently selected color theme."),
-	properties: {},
-	additionalProperties: false,
+	allOf: [{ properties: colorThemeSchema.colorsSchema.properties }],
 	default: {},
 	defaultSnippets: [{
 		body: {
-			'statusBar.background': '#666666',
-			'panel.background': '#555555',
-			'sideBar.background': '#444444'
 		}
 	}]
 };
@@ -609,7 +630,7 @@ function tokenGroupSettings(description: string) {
 	};
 }
 
-const customEditorColorConfigurationProperties = {
+const tokenColorConfigurationProperties: IJSONSchemaMap = {
 	comments: tokenGroupSettings(nls.localize('editorColors.comments', "Sets the colors and styles for comments")),
 	strings: tokenGroupSettings(nls.localize('editorColors.strings', "Sets the colors and styles for strings literals.")),
 	keywords: tokenGroupSettings(nls.localize('editorColors.keywords', "Sets the colors and styles for keywords.")),
@@ -619,19 +640,18 @@ const customEditorColorConfigurationProperties = {
 	variables: tokenGroupSettings(nls.localize('editorColors.variables', "Sets the colors and styles for variables declarations and references.")),
 	[CUSTOM_EDITOR_SCOPE_COLORS_SETTING]: colorThemeSchema.tokenColorsSchema(nls.localize('editorColors.textMateRules', 'Sets colors and styles using textmate theming rules (advanced).'))
 };
-const customEditorColorSchema: IConfigurationPropertySchema = {
+const tokenColorCustomizationSchema: IConfigurationPropertySchema = {
 	description: nls.localize('editorColors', "Overrides editor colors and font style from the currently selected color theme."),
 	default: {},
-	additionalProperties: false,
-	properties: {}
+	allOf: [{ properties: tokenColorConfigurationProperties }]
 };
-const customEditorColorConfiguration: IConfigurationNode = {
+const tokenColorCustomizationConfiguration: IConfigurationNode = {
 	id: 'editor',
 	order: 7.2,
 	type: 'object',
 	properties: {
-		[CUSTOM_EDITOR_COLORS_SETTING]: customEditorColorSchema
+		[CUSTOM_EDITOR_COLORS_SETTING]: tokenColorCustomizationSchema
 	}
 };
-configurationRegistry.registerConfiguration(customEditorColorConfiguration);
+configurationRegistry.registerConfiguration(tokenColorCustomizationConfiguration);
 

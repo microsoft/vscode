@@ -57,8 +57,8 @@ export class ColorThemeData implements IColorTheme {
 	private colorMap: IColorMap = {};
 	private customColorMap: IColorMap = {};
 
-	public getColor(colorId: ColorIdentifier, useDefault?: boolean): Color {
-		let color = this.customColorMap[colorId];
+	public getColor(colorId: ColorIdentifier, useDefault?: boolean): Color | null {
+		let color: Color | null = this.customColorMap[colorId];
 		if (color) {
 			return color;
 		}
@@ -69,7 +69,7 @@ export class ColorThemeData implements IColorTheme {
 		return color;
 	}
 
-	public getDefault(colorId: ColorIdentifier): Color {
+	public getDefault(colorId: ColorIdentifier): Color | null {
 		return colorRegistry.resolveDefaultColor(colorId, this);
 	}
 
@@ -213,7 +213,7 @@ export class ColorThemeData implements IColorTheme {
 		let themeData = new ColorThemeData();
 		themeData.id = id;
 		themeData.label = '';
-		themeData.settingsId = null;
+		themeData.settingsId = '__' + id;
 		themeData.isLoaded = false;
 		themeData.themeTokenColors = [{ settings: {} }];
 		themeData.watch = false;
@@ -231,7 +231,7 @@ export class ColorThemeData implements IColorTheme {
 		return themeData;
 	}
 
-	static fromStorageData(input: string): ColorThemeData {
+	static fromStorageData(input: string): ColorThemeData | undefined {
 		try {
 			let data = JSON.parse(input);
 			let theme = new ColorThemeData();
@@ -251,7 +251,7 @@ export class ColorThemeData implements IColorTheme {
 			}
 			return theme;
 		} catch (e) {
-			return null;
+			return undefined;
 		}
 	}
 
@@ -292,7 +292,7 @@ function _loadColorTheme(fileService: IFileService, themeLocation: URI, resultRu
 			}
 			let includeCompletes: Promise<any> = Promise.resolve(null);
 			if (contentValue.include) {
-				includeCompletes = _loadColorTheme(fileService, resources.joinPath(resources.dirname(themeLocation), contentValue.include), resultRules, resultColors);
+				includeCompletes = _loadColorTheme(fileService, resources.joinPath(resources.dirname(themeLocation)!, contentValue.include), resultRules, resultColors);
 			}
 			return includeCompletes.then(_ => {
 				if (Array.isArray(contentValue.settings)) {
@@ -318,7 +318,7 @@ function _loadColorTheme(fileService: IFileService, themeLocation: URI, resultRu
 						resultRules.push(...tokenColors);
 						return null;
 					} else if (typeof tokenColors === 'string') {
-						return _loadSyntaxTokens(fileService, resources.joinPath(resources.dirname(themeLocation), tokenColors), resultRules, {});
+						return _loadSyntaxTokens(fileService, resources.joinPath(resources.dirname(themeLocation)!, tokenColors), resultRules, {});
 					} else {
 						return Promise.reject(new Error(nls.localize({ key: 'error.invalidformat.tokenColors', comment: ['{0} will be replaced by a path. Values in quotes should not be translated.'] }, "Problem parsing color theme file: {0}. Property 'tokenColors' should be either an array specifying colors or a path to a TextMate theme file", themeLocation.toString())));
 					}
@@ -360,8 +360,8 @@ function _loadSyntaxTokens(fileService: IFileService, themeLocation: URI, result
 }
 
 function updateDefaultRuleSettings(defaultRule: ITokenColorizationRule, theme: ColorThemeData): ITokenColorizationRule {
-	const foreground = theme.getColor(editorForeground) || theme.getDefault(editorForeground);
-	const background = theme.getColor(editorBackground) || theme.getDefault(editorBackground);
+	const foreground = theme.getColor(editorForeground) || theme.getDefault(editorForeground)!;
+	const background = theme.getColor(editorBackground) || theme.getDefault(editorBackground)!;
 	defaultRule.settings.foreground = Color.Format.CSS.formatHexA(foreground);
 	defaultRule.settings.background = Color.Format.CSS.formatHexA(background);
 	return defaultRule;
