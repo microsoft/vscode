@@ -57,16 +57,15 @@ export class OpenExplorerViewletAction extends ShowViewletAction {
 class FileUriLabelContribution implements IWorkbenchContribution {
 
 	constructor(@ILabelService labelService: ILabelService) {
-		labelService.registerFormatter('file://', {
-			uri: {
+		labelService.registerFormatter({
+			scheme: 'file',
+			formatting: {
 				label: '${authority}${path}',
 				separator: nativeSep,
 				tildify: !platform.isWindows,
 				normalizeDriveLetter: platform.isWindows,
-				authorityPrefix: nativeSep + nativeSep
-			},
-			workspace: {
-				suffix: ''
+				authorityPrefix: nativeSep + nativeSep,
+				workspaceSuffix: ''
 			}
 		});
 	}

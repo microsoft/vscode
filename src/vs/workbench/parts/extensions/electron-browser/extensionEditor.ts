@@ -999,7 +999,7 @@ export class ExtensionEditor extends BaseEditor {
 
 		const renderKeybinding = (keybinding: ResolvedKeybinding): HTMLElement => {
 			const element = $('');
-			new KeybindingLabel(element, OS).set(keybinding, null);
+			new KeybindingLabel(element, OS).set(keybinding);
 			return element;
 		};
 

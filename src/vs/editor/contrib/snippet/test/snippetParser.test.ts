@@ -748,4 +748,10 @@ suite('SnippetParser', () => {
 		let [, , clone] = snippet.children;
 		assertParent(clone);
 	});
+
+	test('Backspace can\'t be escaped in snippet variable transforms #65412', function () {
+
+		let snippet = new SnippetParser().parse('namespace ${TM_DIRECTORY/[\\/]/\\\\/g};');
+		assertMarker(snippet, Text, Variable, Text);
+	});
 });

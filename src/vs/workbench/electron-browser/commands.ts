@@ -62,14 +62,14 @@ export function registerCommands(): void {
 
 		// ObjectTree
 		else if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
-			const list = focused;
+			const tree = focused;
 
 			const fakeKeyboardEvent = new KeyboardEvent('keydown');
-			list.focusNext(count, false, fakeKeyboardEvent);
+			tree.focusNext(count, true, fakeKeyboardEvent);
 
-			const listFocus = list.getFocus();
+			const listFocus = tree.getFocus();
 			if (listFocus.length) {
-				list.reveal(listFocus[0]);
+				tree.reveal(listFocus[0]);
 			}
 		}
 
@@ -115,7 +115,7 @@ export function registerCommands(): void {
 
 			const focus = list.getFocus() ? list.getFocus()[0] : undefined;
 			const selection = list.getSelection();
-			const fakeKeyboardEvent = new KeyboardEvent('keydown');
+			const fakeKeyboardEvent = new KeyboardEvent('keydown', { shiftKey: true });
 
 			if (selection && selection.indexOf(focus) >= 0) {
 				list.setSelection(selection.filter(s => s !== previousFocus), fakeKeyboardEvent);
@@ -192,14 +192,14 @@ export function registerCommands(): void {
 
 		// ObjectTree
 		else if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
-			const list = focused;
+			const tree = focused;
 
 			const fakeKeyboardEvent = new KeyboardEvent('keydown');
-			list.focusPrevious(count, false, fakeKeyboardEvent);
+			tree.focusPrevious(count, true, fakeKeyboardEvent);
 
-			const listFocus = list.getFocus();
+			const listFocus = tree.getFocus();
 			if (listFocus.length) {
-				list.reveal(listFocus[0]);
+				tree.reveal(listFocus[0]);
 			}
 		}
 
@@ -464,16 +464,15 @@ export function registerCommands(): void {
 
 		// ObjectTree
 		else if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
-			const list = focused;
-			const first = list.getFirstElementChild(null);
-
-			if (!first) {
-				return;
-			}
-
+			const tree = focused;
 			const fakeKeyboardEvent = new KeyboardEvent('keydown');
-			list.setFocus([first], fakeKeyboardEvent);
-			list.reveal(first);
+			tree.focusFirst(fakeKeyboardEvent);
+
+			const focus = tree.getFocus();
+
+			if (focus.length > 0) {
+				tree.reveal(focus[0]);
+			}
 		}
 
 		// Tree
@@ -517,16 +516,15 @@ export function registerCommands(): void {
 
 		// ObjectTree
 		else if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
-			const list = focused;
-			const last = list.getLastElementAncestor();
-
-			if (!last) {
-				return;
-			}
-
+			const tree = focused;
 			const fakeKeyboardEvent = new KeyboardEvent('keydown');
-			list.setFocus([last], fakeKeyboardEvent);
-			list.reveal(last);
+			tree.focusLast(fakeKeyboardEvent);
+
+			const focus = tree.getFocus();
+
+			if (focus.length > 0) {
+				tree.reveal(focus[0]);
+			}
 		}
 
 		// Tree

@@ -25,7 +25,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { RemoveAction, ReplaceAction, ReplaceAllAction, ReplaceAllInFolderAction } from 'vs/workbench/parts/search/browser/searchActions';
 import { SearchView } from 'vs/workbench/parts/search/browser/searchView';
-import { FileMatch, FolderMatch, Match, RenderableMatch, SearchModel } from 'vs/workbench/parts/search/common/searchModel';
+import { FileMatch, FolderMatch, Match, RenderableMatch, SearchModel, BaseFolderMatch } from 'vs/workbench/parts/search/common/searchModel';
 
 interface IFolderMatchTemplate {
 	label: IResourceLabel;
@@ -57,7 +57,7 @@ export class SearchDelegate implements IListVirtualDelegate<RenderableMatch> {
 	}
 
 	getTemplateId(element: RenderableMatch): string {
-		if (element instanceof FolderMatch) {
+		if (element instanceof BaseFolderMatch) {
 			return FolderMatchRenderer.TEMPLATE_ID;
 		} else if (element instanceof FileMatch) {
 			return FileMatchRenderer.TEMPLATE_ID;

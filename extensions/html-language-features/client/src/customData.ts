@@ -8,21 +8,17 @@ import { workspace, WorkspaceFolder } from 'vscode';
 
 interface ExperimentalConfig {
 	experimental?: {
-		custom?: {
-			tags?: string[];
-			attributes?: string[];
-		}
+		customData?: string[];
 	};
 }
 
 export function getCustomDataPathsInAllWorkspaces(workspaceFolders: WorkspaceFolder[] | undefined) {
-	const tagPaths: string[] = [];
-	const attributePaths: string[] = [];
+	const dataPaths: string[] = [];
+
 
 	if (!workspaceFolders) {
 		return {
-			tagPaths,
-			attributePaths
+			dataPaths
 		};
 	}
 
@@ -33,24 +29,17 @@ export function getCustomDataPathsInAllWorkspaces(workspaceFolders: WorkspaceFol
 		if (
 			wfHtmlConfig &&
 			wfHtmlConfig.workspaceFolderValue &&
-			wfHtmlConfig.workspaceFolderValue.experimental &&
-			wfHtmlConfig.workspaceFolderValue.experimental.custom
+			wfHtmlConfig.workspaceFolderValue.experimental
 		) {
-			if (wfHtmlConfig.workspaceFolderValue.experimental.custom.tags) {
-				wfHtmlConfig.workspaceFolderValue.experimental.custom.tags.forEach(t => {
-					tagPaths.push(path.resolve(wf.uri.fsPath, t));
-				});
-			}
-			if (wfHtmlConfig.workspaceFolderValue.experimental.custom.attributes) {
-				wfHtmlConfig.workspaceFolderValue.experimental.custom.attributes.forEach(a => {
-					attributePaths.push(path.resolve(wf.uri.fsPath, a));
+			if (wfHtmlConfig.workspaceFolderValue.experimental.customData) {
+				wfHtmlConfig.workspaceFolderValue.experimental.customData.forEach(t => {
+					dataPaths.push(path.resolve(wf.uri.fsPath, t));
 				});
 			}
 		}
 	});
 
 	return {
-		tagPaths,
-		attributePaths
+		dataPaths
 	};
 }

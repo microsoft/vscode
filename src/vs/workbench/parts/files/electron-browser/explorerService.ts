@@ -16,6 +16,7 @@ import { ResourceGlobMatcher } from 'vs/workbench/electron-browser/resources';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IExpression } from 'vs/base/common/glob';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 function getFileEventsExcludes(configurationService: IConfigurationService, root?: URI): IExpression {
 	const scope = root ? { resource: root } : undefined;
@@ -33,15 +34,18 @@ export class ExplorerService implements IExplorerService {
 	private _onDidChangeItem = new Emitter<ExplorerItem | undefined>();
 	private _onDidChangeEditable = new Emitter<ExplorerItem>();
 	private _onDidSelectItem = new Emitter<{ item?: ExplorerItem, reveal?: boolean }>();
+	private _onDidCopyItems = new Emitter<{ items: ExplorerItem[], cut: boolean, previouslyCutItems: ExplorerItem[] | undefined }>();
 	private disposables: IDisposable[] = [];
 	private editableStats = new Map<ExplorerItem, IEditableData>();
 	private _sortOrder: SortOrder;
+	private cutItems: ExplorerItem[] | undefined;
 
 	constructor(
 		@IFileService private fileService: IFileService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IClipboardService private clipboardService: IClipboardService
 	) { }
 
 	get roots(): ExplorerItem[] {
@@ -62,6 +66,10 @@ export class ExplorerService implements IExplorerService {
 
 	get onDidSelectItem(): Event<{ item?: ExplorerItem, reveal?: boolean }> {
 		return this._onDidSelectItem.event;
+	}
+
+	get onDidCopyItems(): Event<{ items: ExplorerItem[], cut: boolean, previouslyCutItems: ExplorerItem[] | undefined }> {
+		return this._onDidCopyItems.event;
 	}
 
 	get sortOrder(): SortOrder {
@@ -103,6 +111,18 @@ export class ExplorerService implements IExplorerService {
 		this._onDidChangeEditable.fire(stat);
 	}
 
+	setToCopy(items: ExplorerItem[], cut: boolean): void {
+		const previouslyCutItems = this.cutItems;
+		this.cutItems = cut ? items : undefined;
+		this.clipboardService.writeResources(items.map(s => s.resource));
+
+		this._onDidCopyItems.fire({ items, cut, previouslyCutItems });
+	}
+
+	isCut(item: ExplorerItem): boolean {
+		return !!this.cutItems && this.cutItems.indexOf(item) >= 0;
+	}
+
 	getEditableData(stat: ExplorerItem): IEditableData | undefined {
 		return this.editableStats.get(stat);
 	}
@@ -125,6 +145,7 @@ export class ExplorerService implements IExplorerService {
 			const modelStat = ExplorerItem.create(stat, undefined, options.resolveTo);
 			// Update Input with disk Stat
 			ExplorerItem.mergeLocalWithDisk(modelStat, root);
+			this._onDidChangeItem.fire(root);
 
 			// Select and Reveal
 			this._onDidSelectItem.fire({ item: root.find(resource) || undefined, reveal });

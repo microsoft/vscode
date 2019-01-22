@@ -55,7 +55,7 @@ export class OpenFolderAPICommand {
 			uri = correctedUri;
 		}
 
-		return executor.executeCommand('_files.windowOpen', [uri], forceNewWindow);
+		return executor.executeCommand('_files.windowOpen', { folderURIs: [uri], forceNewWindow });
 	}
 }
 CommandsRegistry.registerCommand(OpenFolderAPICommand.ID, adjustHandler(OpenFolderAPICommand.execute));

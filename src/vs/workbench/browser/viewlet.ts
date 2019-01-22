@@ -87,6 +87,16 @@ export class ViewletRegistry extends CompositeRegistry<Viewlet> {
 	}
 
 	/**
+	 * Deregisters a viewlet to the platform.
+	 */
+	deregisterViewlet(id: string): void {
+		if (id === this.defaultViewletId) {
+			throw new Error('Cannot deregister default viewlet');
+		}
+		super.deregisterComposite(id);
+	}
+
+	/**
 	 * Returns the viewlet descriptor for the given id or null if none.
 	 */
 	getViewlet(id: string): ViewletDescriptor {
@@ -186,7 +196,7 @@ export class CollapseAction extends Action {
 
 // Collapse All action for the new tree
 export class CollapseAction2 extends Action {
-	constructor(tree: AsyncDataTree<any, any>, enabled: boolean, clazz: string) {
+	constructor(tree: AsyncDataTree<any, any, any>, enabled: boolean, clazz: string) {
 		super('workbench.action.collapse', nls.localize('collapse', "Collapse All"), clazz, enabled, () => {
 			tree.collapseAll();
 			return Promise.resolve(undefined);

@@ -433,26 +433,7 @@ class BaseDeleteFileAction extends BaseErrorReportingAction {
 	}
 }
 
-// Copy File/Folder
-class CopyFileAction extends BaseErrorReportingAction {
-
-	constructor(
-		private elements: ExplorerItem[],
-		@INotificationService notificationService: INotificationService,
-		@IClipboardService private readonly clipboardService: IClipboardService
-	) {
-		super('filesExplorer.copy', COPY_FILE_LABEL, notificationService);
-	}
-
-	public run(): Promise<any> {
-
-		// Write to clipboard as file/folder to copy
-		this.clipboardService.writeResources(this.elements.map(e => e.resource));
-
-		return Promise.resolve(null);
-	}
-}
-
+let pasteShouldMove = false;
 // Paste File/Folder
 class PasteFileAction extends BaseErrorReportingAction {
 
@@ -492,7 +473,12 @@ class PasteFileAction extends BaseErrorReportingAction {
 			const targetFile = findValidPasteFileTarget(target, { resource: fileToPaste, isDirectory: fileToPasteStat.isDirectory });
 
 			// Copy File
-			return this.fileService.copyFile(fileToPaste, targetFile).then(stat => {
+			const promise = pasteShouldMove ? this.fileService.moveFile(fileToPaste, targetFile) : this.fileService.copyFile(fileToPaste, targetFile);
+			return promise.then(stat => {
+				if (pasteShouldMove) {
+					// Cut is done. Make sure to clear cut state.
+					this.explorerService.setToCopy([], false);
+				}
 				if (!stat.isDirectory) {
 					return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true, preserveFocus: true } });
 				}
@@ -1120,13 +1106,21 @@ export const deleteFileHandler = (accessor: ServicesAccessor) => {
 };
 
 export const copyFileHandler = (accessor: ServicesAccessor) => {
-	const instantationService = accessor.get(IInstantiationService);
 	const listService = accessor.get(IListService);
 	const explorerContext = getContext(listService.lastFocusedList);
+	const explorerService = accessor.get(IExplorerService);
 	const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
+	explorerService.setToCopy(stats, false);
+	pasteShouldMove = false;
+};
 
-	const copyFileAction = instantationService.createInstance(CopyFileAction, stats);
-	return copyFileAction.run();
+export const cutFileHandler = (accessor: ServicesAccessor) => {
+	const listService = accessor.get(IListService);
+	const explorerContext = getContext(listService.lastFocusedList);
+	const explorerService = accessor.get(IExplorerService);
+	const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
+	explorerService.setToCopy(stats, true);
+	pasteShouldMove = true;
 };
 
 export const pasteFileHandler = (accessor: ServicesAccessor) => {

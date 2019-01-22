@@ -14,6 +14,10 @@
 	height: 100%;
 }
 
+.explorer-folders-view .monaco-list-row {
+	padding-left: 4px; /* align top level twistie with `Explorer` title label */
+}
+
 .explorer-viewlet .monaco-list.highlight .explorer-item:not(.explorer-item-edited),
 .explorer-viewlet .monaco-list.highlight .monaco-tl-twistie {
 	opacity: 0.3;
@@ -41,6 +45,10 @@
 .explorer-viewlet .explorer-item,
 .explorer-viewlet .explorer-item .monaco-inputbox {
 	flex: 1;
+}
+
+.explorer-viewlet .explorer-item.cut {
+	opacity: 0.3;
 }
 
 .explorer-viewlet .explorer-item.explorer-item-edited .label-name {
@@ -117,12 +125,7 @@
 	height: 22px;
 }
 
-.explorer-viewlet .explorer-item .monaco-inputbox > .wrapper > .input {
-	padding: 1px 2px;
-}
-
-.linux > .monaco-workbench .explorer-viewlet .explorer-item .monaco-inputbox > .wrapper > .input,
-.mac > .monaco-workbench .explorer-viewlet .explorer-item .monaco-inputbox > .wrapper > .input {
+.monaco-workbench .explorer-viewlet .explorer-item .monaco-inputbox > .wrapper > .input {
 	padding: 0;
 	height: 20px;
 }

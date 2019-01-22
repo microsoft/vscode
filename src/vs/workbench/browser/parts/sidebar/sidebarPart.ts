@@ -44,7 +44,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements ISerializable
 	private sideBarFocusContextKey: IContextKey<boolean>;
 	private activeViewletContextKey: IContextKey<string>;
 	private blockOpeningViewlet: boolean;
-	private _onDidViewletEnable = new Emitter<{ id: string, enabled: boolean }>();
+	private _onDidViewletDeregister = this._register(new Emitter<ViewletDescriptor>());
 
 	element: HTMLElement;
 	minimumWidth: number = 170;
@@ -101,10 +101,17 @@ export class SidebarPart extends CompositePart<Viewlet> implements ISerializable
 				this.activeViewletContextKey.reset();
 			}
 		}));
+		this._register(this.registry.onDidDeregister(async (viewletDescriptor: ViewletDescriptor) => {
+			if (this.getActiveViewlet().getId() === viewletDescriptor.id) {
+				await this.openViewlet(this.getDefaultViewletId());
+			}
+			this.removeComposite(viewletDescriptor.id);
+			this._onDidViewletDeregister.fire(viewletDescriptor);
+		}));
 	}
 
 	get onDidViewletRegister(): Event<ViewletDescriptor> { return <Event<ViewletDescriptor>>this.viewletRegistry.onDidRegister; }
-	get onDidViewletEnablementChange(): Event<{ id: string, enabled: boolean }> { return this._onDidViewletEnable.event; }
+	get onDidViewletDeregister(): Event<ViewletDescriptor> { return this._onDidViewletDeregister.event; }
 
 	get onDidViewletOpen(): Event<IViewlet> {
 		return Event.map(this._onDidCompositeOpen.event, compositeEvent => <IViewlet>compositeEvent.composite);
@@ -158,20 +165,6 @@ export class SidebarPart extends CompositePart<Viewlet> implements ISerializable
 		container.style.borderLeftColor = !isPositionLeft ? borderColor : null;
 	}
 
-	// Viewlet service
-
-	getActiveViewlet(): IViewlet {
-		return <IViewlet>this.getActiveComposite();
-	}
-
-	getLastActiveViewletId(): string {
-		return this.getLastActiveCompositetId();
-	}
-
-	hideActiveViewlet(): void {
-		this.hideActiveComposite();
-	}
-
 	layout(dimension: Dimension): Dimension[];
 	layout(width: number, height: number): void;
 	layout(dim1: Dimension | number, dim2?: number): Dimension[] | void {
@@ -190,12 +183,18 @@ export class SidebarPart extends CompositePart<Viewlet> implements ISerializable
 		super.layout(dim1, dim2!);
 	}
 
-	setViewletEnablement(id: string, enabled: boolean): void {
-		const descriptor = this.getAllViewlets().filter(desc => desc.id === id).pop();
-		if (descriptor && descriptor.enabled !== enabled) {
-			descriptor.enabled = enabled;
-			this._onDidViewletEnable.fire({ id, enabled });
-		}
+	// Viewlet service
+
+	getActiveViewlet(): IViewlet {
+		return <IViewlet>this.getActiveComposite();
+	}
+
+	getLastActiveViewletId(): string {
+		return this.getLastActiveCompositetId();
+	}
+
+	hideActiveViewlet(): void {
+		this.hideActiveComposite();
 	}
 
 	openViewlet(id: string, focus?: boolean): Promise<IViewlet | null> {
@@ -212,11 +211,6 @@ export class SidebarPart extends CompositePart<Viewlet> implements ISerializable
 	}
 
 	getViewlets(): ViewletDescriptor[] {
-		return this.getAllViewlets()
-			.filter(v => v.enabled);
-	}
-
-	getAllViewlets(): ViewletDescriptor[] {
 		return this.viewletRegistry.getViewlets()
 			.sort((v1, v2) => v1.order! - v2.order!);
 	}

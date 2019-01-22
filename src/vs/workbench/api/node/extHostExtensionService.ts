@@ -192,7 +192,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		this._registry = new ExtensionDescriptionRegistry(initData.extensions);
 		this._storage = new ExtHostStorage(this._extHostContext);
 		this._storagePath = new ExtensionStoragePath(initData.workspace, initData.environment);
-		this._activator = new ExtensionsActivator(this._registry, {
+		this._activator = new ExtensionsActivator(this._registry, initData.resolvedExtensions, {
 			showMessage: (severity: Severity, message: string): void => {
 				this._mainThreadExtensionsProxy.$localShowMessage(severity, message);
 
@@ -669,14 +669,9 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		);
 	}
 
-	public $addExtension(extension: IExtensionDescription): Promise<void> {
-		(<any>extension).extensionLocation = URI.revive(extension.extensionLocation);
-		this._registry.add(extension);
-		return Promise.resolve(undefined);
-	}
-
-	public $removeExtension(extensionId: ExtensionIdentifier): Promise<void> {
-		this._registry.remove(extensionId);
+	public $deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void> {
+		toAdd.forEach((extension) => (<any>extension).extensionLocation = URI.revive(extension.extensionLocation));
+		this._registry.deltaExtensions(toAdd, toRemove);
 		return Promise.resolve(undefined);
 	}
 

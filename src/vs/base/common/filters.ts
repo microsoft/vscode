@@ -386,7 +386,13 @@ export function createMatches(score: undefined | FuzzyScore): IMatch[] {
 		if (mask > matches) {
 			break;
 		} else if (matches & mask) {
-			res.push({ start: pos, end: pos + 1 });
+			const last = res[res.length - 1];
+
+			if (last && last.end === pos) {
+				last.end = pos + 1;
+			} else {
+				res.push({ start: pos, end: pos + 1 });
+			}
 		}
 	}
 	return res;
@@ -456,6 +462,7 @@ function isSeparatorAtPos(value: string, index: number): boolean {
 		case CharCode.SingleQuote:
 		case CharCode.DoubleQuote:
 		case CharCode.Colon:
+		case CharCode.DollarSign:
 			return true;
 		default:
 			return false;
@@ -505,6 +512,10 @@ export namespace FuzzyScore {
 	 * No matches and value `-100`
 	 */
 	export const Default: [-100, 0, 0] = [-100, 0, 0];
+
+	export function isDefault(score?: FuzzyScore): score is [-100, 0, 0] {
+		return !score || (score[0] === -100 && score[1] === 0 && score[2] === 0);
+	}
 }
 
 export interface FuzzyScorer {

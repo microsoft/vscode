@@ -398,7 +398,7 @@ export class ReferenceWidget extends PeekViewWidget {
 				goto = true;
 
 			} else if (e.browserEvent instanceof MouseEvent) {
-				aside = e.browserEvent.metaKey || e.browserEvent.metaKey || e.browserEvent.altKey;
+				aside = e.browserEvent.ctrlKey || e.browserEvent.metaKey || e.browserEvent.altKey;
 				goto = e.browserEvent.detail === 2;
 			}
 			if (aside) {

@@ -318,13 +318,22 @@ class CodeActionOnParticipant implements ISaveParticipant {
 
 		const timeout = this._configurationService.getValue<number>('editor.codeActionsOnSaveTimeout', settingsOverrides);
 
-		return new Promise<CodeAction[]>((resolve, reject) => {
-			setTimeout(() => reject(localize('codeActionsOnSave.didTimeout', "Aborted codeActionsOnSave after {0}ms", timeout)), timeout);
-			this.getActionsToRun(model, codeActionsOnSave).then(resolve);
-		}).then(actionsToRun => {
-			// Failure to apply a code action should not block other on save actions
-			return this.applyCodeActions(actionsToRun).catch(() => undefined);
-		});
+		return Promise.race([
+			new Promise<void>((_resolve, reject) =>
+				setTimeout(() => reject(localize('codeActionsOnSave.didTimeout', "Aborted codeActionsOnSave after {0}ms", timeout)), timeout)),
+			this.applyOnSaveActions(model, codeActionsOnSave)
+		]).then(() => undefined);
+	}
+
+	private async applyOnSaveActions(model: ITextModel, codeActionsOnSave: CodeActionKind[]): Promise<void> {
+		for (const codeActionKind of codeActionsOnSave) {
+			const actionsToRun = await this.getActionsToRun(model, codeActionKind);
+			try {
+				await this.applyCodeActions(actionsToRun);
+			} catch {
+				// Failure to apply a code action should not block other on save actions
+			}
+		}
 	}
 
 	private async applyCodeActions(actionsToRun: CodeAction[]) {
@@ -333,13 +342,11 @@ class CodeActionOnParticipant implements ISaveParticipant {
 		}
 	}
 
-	private async getActionsToRun(model: ITextModel, codeActionsOnSave: CodeActionKind[]) {
-		const actions = await getCodeActions(model, model.getFullModelRange(), {
+	private getActionsToRun(model: ITextModel, codeActionKind: CodeActionKind) {
+		return getCodeActions(model, model.getFullModelRange(), {
 			type: 'auto',
-			filter: { kind: CodeActionKind.Source, includeSourceActions: true },
+			filter: { kind: codeActionKind, includeSourceActions: true },
 		});
-		const actionsToRun = actions.filter(returnedAction => returnedAction.kind && codeActionsOnSave.some(onSaveKind => onSaveKind.contains(returnedAction.kind)));
-		return actionsToRun;
 	}
 }
 

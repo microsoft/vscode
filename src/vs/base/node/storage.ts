@@ -12,6 +12,7 @@ import { mapToString, setToString } from 'vs/base/common/map';
 import { basename } from 'path';
 import { mark } from 'vs/base/common/performance';
 import { copy, renameIgnoreError, unlink } from 'vs/base/node/pfs';
+import { fill } from 'vs/base/common/arrays';
 
 export enum StorageHint {
 
@@ -328,6 +329,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 	private static measuredRequireDuration: boolean; // TODO@Ben remove me after a while
 
 	private static BUSY_OPEN_TIMEOUT = 2000; // timeout in ms to retry when opening DB fails with SQLITE_BUSY
+	private static MAX_HOST_PARAMETERS = 256; // maximum number of parameters within a statement
 
 	private path: string;
 	private name: string;
@@ -383,35 +385,71 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 		}
 
 		return this.transaction(connection, () => {
-			if (request.insert && request.insert.size > 0) {
-				this.prepare(connection, 'INSERT INTO ItemTable VALUES (?,?)', stmt => {
-					request.insert!.forEach((value, key) => {
-						stmt.run([key, value]);
-					});
-				}, () => {
-					const keys: string[] = [];
-					let length = 0;
-					request.insert!.forEach((value, key) => {
-						keys.push(key);
-						length += value.length;
-					});
 
-					return `Keys: ${keys.join(', ')} Length: ${length}`;
+			// INSERT
+			if (request.insert && request.insert.size > 0) {
+				const keysValuesChunks: (string[])[] = [];
+				keysValuesChunks.push([]); // seed with initial empty chunk
+
+				// Split key/values into chunks of SQLiteStorageDatabase.MAX_HOST_PARAMETERS
+				// so that we can efficiently run the INSERT with as many HOST parameters as possible
+				let currentChunkIndex = 0;
+				request.insert.forEach((value, key) => {
+					let keyValueChunk = keysValuesChunks[currentChunkIndex];
+
+					if (keyValueChunk.length > SQLiteStorageDatabase.MAX_HOST_PARAMETERS) {
+						currentChunkIndex++;
+						keyValueChunk = [];
+						keysValuesChunks.push(keyValueChunk);
+					}
+
+					keyValueChunk.push(key, value);
+				});
+
+				keysValuesChunks.forEach(keysValuesChunk => {
+					this.prepare(connection, `INSERT INTO ItemTable VALUES ${fill(keysValuesChunk.length / 2, '(?,?)').join(',')}`, stmt => stmt.run(keysValuesChunk), () => {
+						const keys: string[] = [];
+						let length = 0;
+						request.insert!.forEach((value, key) => {
+							keys.push(key);
+							length += value.length;
+						});
+
+						return `Keys: ${keys.join(', ')} Length: ${length}`;
+					});
 				});
 			}
 
+			// DELETE
 			if (request.delete && request.delete.size) {
-				this.prepare(connection, 'DELETE FROM ItemTable WHERE key=?', stmt => {
-					request.delete!.forEach(key => {
-						stmt.run(key);
-					});
-				}, () => {
-					const keys: string[] = [];
-					request.delete!.forEach(key => {
-						keys.push(key);
-					});
+				const keysChunks: (string[])[] = [];
+				keysChunks.push([]); // seed with initial empty chunk
 
-					return `Keys: ${keys.join(', ')}`;
+				// Split keys into chunks of SQLiteStorageDatabase.MAX_HOST_PARAMETERS
+				// so that we can efficiently run the DELETE with as many HOST parameters
+				// as possible
+				let currentChunkIndex = 0;
+				request.delete.forEach(key => {
+					let keyChunk = keysChunks[currentChunkIndex];
+
+					if (keyChunk.length > SQLiteStorageDatabase.MAX_HOST_PARAMETERS) {
+						currentChunkIndex++;
+						keyChunk = [];
+						keysChunks.push(keyChunk);
+					}
+
+					keyChunk.push(key);
+				});
+
+				keysChunks.forEach(keysChunk => {
+					this.prepare(connection, `DELETE FROM ItemTable WHERE key IN (${fill(keysChunk.length, '?').join(',')})`, stmt => stmt.run(keysChunk), () => {
+						const keys: string[] = [];
+						request.delete!.forEach(key => {
+							keys.push(key);
+						});
+
+						return `Keys: ${keys.join(', ')}`;
+					});
 				});
 			}
 		});

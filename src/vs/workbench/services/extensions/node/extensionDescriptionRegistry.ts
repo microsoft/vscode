@@ -55,13 +55,11 @@ export class ExtensionDescriptionRegistry {
 		this._initialize();
 	}
 
-	public remove(extensionId: ExtensionIdentifier): void {
-		this._extensionDescriptions = this._extensionDescriptions.filter(extension => !ExtensionIdentifier.equals(extension.identifier, extensionId));
-		this._initialize();
-	}
-
-	public add(extension: IExtensionDescription): void {
-		this._extensionDescriptions.push(extension);
+	public deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]) {
+		this._extensionDescriptions = this._extensionDescriptions.concat(toAdd);
+		const toRemoveSet = new Set<string>();
+		toRemove.forEach(extensionId => toRemoveSet.add(ExtensionIdentifier.toKey(extensionId)));
+		this._extensionDescriptions = this._extensionDescriptions.filter(extension => !toRemoveSet.has(ExtensionIdentifier.toKey(extension.identifier)));
 		this._initialize();
 	}
 

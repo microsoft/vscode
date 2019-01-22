@@ -214,7 +214,13 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 
 		this.addPanels(panelsToAdd);
 		this.restoreViewSizes();
-		return panelsToAdd.map(({ panel }) => panel);
+
+		const panels: ViewletPanel[] = [];
+		for (const { panel } of panelsToAdd) {
+			panel.setVisible(this.isVisible());
+			panels.push(panel);
+		}
+		return panels;
 	}
 
 	private onDidRemoveViews(removed: IViewDescriptorRef[]): void {

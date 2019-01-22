@@ -27,38 +27,36 @@ export class CodeActionContextMenu {
 		private readonly _onApplyCodeAction: (action: CodeAction) => Promise<any>
 	) { }
 
-	show(fixes: Promise<CodeAction[]>, at?: { x: number; y: number } | Position) {
-		const actionsPromise = fixes.then(value => {
-			return value.map(action => {
-				return new Action(action.command ? action.command.id : action.title, action.title, undefined, true, () => {
-					return always(
-						this._onApplyCodeAction(action),
-						() => this._onDidExecuteCodeAction.fire(undefined));
-				});
-			});
-		}).then(actions => {
-			if (!this._editor.getDomNode()) {
-				// cancel when editor went off-dom
-				return Promise.reject(canceled());
-			}
-			return actions;
+	async show(actionsToShow: Promise<CodeAction[]>, at?: { x: number; y: number } | Position): Promise<void> {
+		const codeActions = await actionsToShow;
+		if (!this._editor.getDomNode()) {
+			// cancel when editor went off-dom
+			return Promise.reject(canceled());
+		}
+		const actions = codeActions.map(action => this.codeActionToAction(action));
+		this._contextMenuService.showContextMenu({
+			getAnchor: () => {
+				if (Position.isIPosition(at)) {
+					at = this._toCoords(at);
+				}
+				return at || { x: 0, y: 0 };
+			},
+			getActions: () => actions,
+			onHide: () => {
+				this._visible = false;
+				this._editor.focus();
+			},
+			autoSelectFirstItem: true
 		});
+	}
 
-		actionsPromise.then(actions => {
-			this._contextMenuService.showContextMenu({
-				getAnchor: () => {
-					if (Position.isIPosition(at)) {
-						at = this._toCoords(at);
-					}
-					return at || { x: 0, y: 0 };
-				},
-				getActions: () => actions,
-				onHide: () => {
-					this._visible = false;
-					this._editor.focus();
-				},
-				autoSelectFirstItem: true
-			});
+	private codeActionToAction(action: CodeAction): Action {
+		const id = action.command ? action.command.id : action.title;
+		const title = action.isPreferred ? `${action.title} ★` : action.title;
+		return new Action(id, title, undefined, true, () => {
+			return always(
+				this._onApplyCodeAction(action),
+				() => this._onDidExecuteCodeAction.fire(undefined));
 		});
 	}
 

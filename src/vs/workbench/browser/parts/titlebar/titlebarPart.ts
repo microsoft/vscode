@@ -100,7 +100,7 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.doUpdateTitle()));
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.doUpdateTitle()));
 		this._register(this.contextService.onDidChangeWorkspaceName(() => this.doUpdateTitle()));
-		this._register(this.labelService.onDidRegisterFormatter(() => this.doUpdateTitle()));
+		this._register(this.labelService.onDidChangeFormatters(() => this.doUpdateTitle()));
 	}
 
 	private onBlur(): void {

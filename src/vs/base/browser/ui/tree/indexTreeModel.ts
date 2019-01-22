@@ -19,8 +19,16 @@ interface IMutableTreeNode<T, TFilterData> extends ITreeNode<T, TFilterData> {
 	filterData: TFilterData | undefined;
 }
 
-function isFilterResult<T>(obj: any): obj is ITreeFilterDataResult<T> {
+export function isFilterResult<T>(obj: any): obj is ITreeFilterDataResult<T> {
 	return typeof obj === 'object' && 'visibility' in obj && 'data' in obj;
+}
+
+export function getVisibleState(visibility: boolean | TreeVisibility): TreeVisibility {
+	switch (visibility) {
+		case true: return TreeVisibility.Visible;
+		case false: return TreeVisibility.Hidden;
+		default: return visibility;
+	}
 }
 
 function treeNodeToElement<T>(node: IMutableTreeNode<T, any>): ITreeElement<T> {
@@ -28,14 +36,6 @@ function treeNodeToElement<T>(node: IMutableTreeNode<T, any>): ITreeElement<T> {
 	const children = Iterator.map(Iterator.fromArray(node.children), treeNodeToElement);
 
 	return { element, children, collapsed };
-}
-
-function getVisibleState(visibility: boolean | TreeVisibility): TreeVisibility {
-	switch (visibility) {
-		case true: return TreeVisibility.Visible;
-		case false: return TreeVisibility.Hidden;
-		default: return visibility;
-	}
 }
 
 export interface IIndexTreeModelOptions<T, TFilterData> {

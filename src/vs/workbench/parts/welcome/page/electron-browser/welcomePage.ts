@@ -322,7 +322,7 @@ class WelcomePage {
 				ul.append(...listEntries, moreRecent);
 			};
 			updateEntries();
-			this.disposables.push(this.labelService.onDidRegisterFormatter(updateEntries));
+			this.disposables.push(this.labelService.onDidChangeFormatters(updateEntries));
 		}).then(undefined, onUnexpectedError);
 
 		this.addExtensionList(container, '.extensionPackList', extensionPacks, extensionPackStrings);

@@ -113,6 +113,8 @@ function createScopedContextKeyService(contextKeyService: IContextKeyService, wi
 export const multiSelectModifierSettingKey = 'workbench.list.multiSelectModifier';
 export const openModeSettingKey = 'workbench.list.openMode';
 export const horizontalScrollingKey = 'workbench.tree.horizontalScrolling';
+export const keyboardNavigationSettingKey = 'workbench.list.keyboardNavigation';
+const treeIndentKey = 'workbench.tree.indent';
 
 function useAltAsMultipleSelectionModifier(configurationService: IConfigurationService): boolean {
 	return configurationService.getValue(multiSelectModifierSettingKey) === 'alt';
@@ -904,11 +906,16 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
+		const keyboardNavigation = configurationService.getValue<string>(keyboardNavigationSettingKey);
+
 		super(container, delegate, renderers, {
 			keyboardSupport: false,
 			styleController: new DefaultStyleController(getSharedListStyleSheet()),
 			...computeStyles(themeService.getTheme(), defaultListStyles),
-			...toWorkbenchListOptions(options, configurationService, keybindingService)
+			...toWorkbenchListOptions(options, configurationService, keybindingService),
+			indent: configurationService.getValue(treeIndentKey),
+			simpleKeyboardNavigation: keyboardNavigation === 'simple',
+			filterOnType: keyboardNavigation === 'filter'
 		});
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
@@ -943,6 +950,17 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 			configurationService.onDidChangeConfiguration(e => {
 				if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
 					this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
+				}
+				if (e.affectsConfiguration(treeIndentKey)) {
+					const indent = configurationService.getValue<number>(treeIndentKey);
+					this.updateOptions({ indent });
+				}
+				if (e.affectsConfiguration(keyboardNavigationSettingKey)) {
+					const keyboardNavigation = configurationService.getValue<string>(keyboardNavigationSettingKey);
+					this.updateOptions({
+						simpleKeyboardNavigation: keyboardNavigation === 'simple',
+						filterOnType: keyboardNavigation === 'filter'
+					});
 				}
 			})
 		);
@@ -980,11 +998,16 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
+		const keyboardNavigation = configurationService.getValue<string>(keyboardNavigationSettingKey);
+
 		super(container, delegate, renderers, dataSource, {
 			keyboardSupport: false,
 			styleController: new DefaultStyleController(getSharedListStyleSheet()),
 			...computeStyles(themeService.getTheme(), defaultListStyles),
-			...toWorkbenchListOptions(options, configurationService, keybindingService)
+			...toWorkbenchListOptions(options, configurationService, keybindingService),
+			indent: configurationService.getValue(treeIndentKey),
+			simpleKeyboardNavigation: keyboardNavigation === 'simple',
+			filterOnType: keyboardNavigation === 'filter'
 		});
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
@@ -1020,6 +1043,17 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 				if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
 					this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
 				}
+				if (e.affectsConfiguration(treeIndentKey)) {
+					const indent = configurationService.getValue<number>(treeIndentKey);
+					this.updateOptions({ indent });
+				}
+				if (e.affectsConfiguration(keyboardNavigationSettingKey)) {
+					const keyboardNavigation = configurationService.getValue<string>(keyboardNavigationSettingKey);
+					this.updateOptions({
+						simpleKeyboardNavigation: keyboardNavigation === 'simple',
+						filterOnType: keyboardNavigation === 'filter'
+					});
+				}
 			})
 		);
 	}
@@ -1051,11 +1085,16 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
+		const keyboardNavigation = configurationService.getValue<string>(keyboardNavigationSettingKey);
+
 		super(container, delegate, renderers, dataSource, {
 			keyboardSupport: false,
 			styleController: new DefaultStyleController(getSharedListStyleSheet()),
 			...computeStyles(themeService.getTheme(), defaultListStyles),
-			...toWorkbenchListOptions(options, configurationService, keybindingService)
+			...toWorkbenchListOptions(options, configurationService, keybindingService),
+			indent: configurationService.getValue<number>(treeIndentKey),
+			simpleKeyboardNavigation: keyboardNavigation === 'simple',
+			filterOnType: keyboardNavigation === 'filter'
 		});
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
@@ -1090,6 +1129,17 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 			configurationService.onDidChangeConfiguration(e => {
 				if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
 					this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
+				}
+				if (e.affectsConfiguration(treeIndentKey)) {
+					const indent = configurationService.getValue<number>(treeIndentKey);
+					this.updateOptions({ indent });
+				}
+				if (e.affectsConfiguration(keyboardNavigationSettingKey)) {
+					const keyboardNavigation = configurationService.getValue<string>(keyboardNavigationSettingKey);
+					this.updateOptions({
+						simpleKeyboardNavigation: keyboardNavigation === 'simple',
+						filterOnType: keyboardNavigation === 'filter'
+					});
 				}
 			})
 		);
@@ -1137,6 +1187,22 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': false,
 			'description': localize('horizontalScrolling setting', "Controls whether trees support horizontal scrolling in the workbench.")
-		}
+		},
+		[treeIndentKey]: {
+			'type': 'number',
+			'default': 8,
+			'description': localize('tree indent setting', "Controls tree indentation in pixels.")
+		},
+		[keyboardNavigationSettingKey]: {
+			'type': 'string',
+			'enum': ['simple', 'highlight', 'filter'],
+			'enumDescriptions': [
+				localize('keyboardNavigationSettingKey.simple', "Sets simple keyboard navigation for lists and trees."),
+				localize('keyboardNavigationSettingKey.highlight', "Enables highlighting keyboard navigation for lists and trees."),
+				localize('keyboardNavigationSettingKey.filter', "Enables filtering keyboard navigation for lists and trees.")
+			],
+			'default': 'highlight',
+			'description': localize('keyboardNavigationSettingKey', "Controls the keyboard navigation style for lists and trees.")
+		},
 	}
 });

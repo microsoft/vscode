@@ -1649,7 +1649,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	}
 
 	private onFilesChanged(e: FileChangesEvent): void {
-		if (!this.viewModel) {
+		if (!this.viewModel || !e.gotDeleted()) {
 			return;
 		}
 

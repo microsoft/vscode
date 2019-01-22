@@ -315,6 +315,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 			this._resetTokenizationState();
 			this.emitModelTokensChangedEvent({
+				tokenizationSupportChanged: true,
 				ranges: [{
 					fromLineNumber: 1,
 					toLineNumber: this.getLineCount()
@@ -1760,42 +1761,41 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 	public tokenizeViewport(startLineNumber: number, endLineNumber: number): void {
 		if (!this._tokens.tokenizationSupport) {
+			// nothing to do
 			return;
 		}
 
-		// we tokenize `this._tokens.inValidLineStartIndex` lines in around 20ms so it's a good baseline.
-		const contextBefore = Math.floor(this._tokens.inValidLineStartIndex * 0.3);
-		startLineNumber = Math.max(1, startLineNumber - contextBefore);
+		startLineNumber = Math.max(1, startLineNumber);
+		endLineNumber = Math.min(this.getLineCount(), endLineNumber);
+
+		if (endLineNumber <= this._tokens.inValidLineStartIndex) {
+			// nothing to do
+			return;
+		}
 
 		if (startLineNumber <= this._tokens.inValidLineStartIndex) {
+			// tokenization has reached the viewport start...
 			this.forceTokenization(endLineNumber);
 			return;
 		}
 
-		const eventBuilder = new ModelTokensChangedEventBuilder();
 		let nonWhitespaceColumn = this.getLineFirstNonWhitespaceColumn(startLineNumber);
 		let fakeLines: string[] = [];
-		let i = startLineNumber - 1;
 		let initialState: IState | null = null;
-		if (nonWhitespaceColumn > 0) {
-			while (nonWhitespaceColumn > 0 && i >= 1) {
-				let newNonWhitespaceIndex = this.getLineFirstNonWhitespaceColumn(i);
+		for (let i = startLineNumber - 1; nonWhitespaceColumn > 0 && i >= 1; i--) {
+			let newNonWhitespaceIndex = this.getLineFirstNonWhitespaceColumn(i);
 
-				if (newNonWhitespaceIndex === 0) {
-					i--;
-					continue;
+			if (newNonWhitespaceIndex === 0) {
+				continue;
+			}
+
+			if (newNonWhitespaceIndex < nonWhitespaceColumn) {
+				initialState = this._tokens._getState(i - 1);
+				if (initialState) {
+					break;
 				}
-
-				if (newNonWhitespaceIndex < nonWhitespaceColumn) {
-					initialState = this._tokens._getState(i - 1);
-					if (initialState) {
-						break;
-					}
-					fakeLines.push(this.getLineContent(i));
-					nonWhitespaceColumn = newNonWhitespaceIndex;
-				}
-
-				i--;
+				fakeLines.push(this.getLineContent(i));
+				nonWhitespaceColumn = newNonWhitespaceIndex;
 			}
 		}
 
@@ -1813,8 +1813,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 			}
 		}
 
-		const contextAfter = Math.floor(this._tokens.inValidLineStartIndex * 0.4);
-		endLineNumber = Math.min(this.getLineCount(), endLineNumber + contextAfter);
+		const eventBuilder = new ModelTokensChangedEventBuilder();
 		for (let i = startLineNumber; i <= endLineNumber; i++) {
 			let text = this.getLineContent(i);
 			let r = this._tokens._tokenizeText(this._buffer, text, state);
@@ -1838,6 +1837,17 @@ export class TextModel extends Disposable implements model.ITextModel {
 		if (e) {
 			this._onDidChangeTokens.fire(e);
 		}
+	}
+
+	public flushTokens(): void {
+		this._resetTokenizationState();
+		this.emitModelTokensChangedEvent({
+			tokenizationSupportChanged: false,
+			ranges: [{
+				fromLineNumber: 1,
+				toLineNumber: this.getLineCount()
+			}]
+		});
 	}
 
 	public forceTokenization(lineNumber: number): void {
@@ -1915,6 +1925,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		this._resetTokenizationState();
 
 		this.emitModelTokensChangedEvent({
+			tokenizationSupportChanged: true,
 			ranges: [{
 				fromLineNumber: 1,
 				toLineNumber: this.getLineCount()
