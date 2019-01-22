@@ -18,14 +18,21 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace:
 		doSelection(document: TextDocument, position: Position): Range[] {
 			const htmlDocument = htmlDocuments.get(document);
 			let currNode = htmlDocument.findNodeAt(document.offsetAt(position));
-			let getNodeRange = (n: Node) => {
-				return Range.create(document.positionAt(n.start), document.positionAt(n.end));
+			let getNodeRanges = (n: Node) => {
+				if (n.startTagEnd && n.endTagStart && n.startTagEnd < n.endTagStart) {
+					return [
+						Range.create(document.positionAt(n.startTagEnd), document.positionAt(n.endTagStart)),
+						Range.create(document.positionAt(n.start), document.positionAt(n.end)),
+					];
+				}
+
+				return [Range.create(document.positionAt(n.start), document.positionAt(n.end))];
 			};
-			const result = [getNodeRange(currNode)];
+			const result = [...getNodeRanges(currNode)];
 
 			while (currNode.parent) {
 				currNode = currNode.parent;
-				result.push(getNodeRange(currNode));
+				getNodeRanges(currNode).forEach(r => result.push(r));
 			}
 
 			return result;
