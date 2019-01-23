@@ -468,7 +468,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	layout(width: number, height: number): void;
 	layout(dim1: Dimension | number, dim2?: number): Dimension[] | void {
 		// Pass to super
-		const sizes = dim1 instanceof Dimension ? super.layout(dim1) : this.partLayout.layout(new Dimension(dim1, dim2!));
+		const sizes = super.layout(dim1 instanceof Dimension ? dim1 : new Dimension(dim1, dim2!));
 
 		// Pass Contentsize to composite
 		this.contentAreaSize = sizes[1];

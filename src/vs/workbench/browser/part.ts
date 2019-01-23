@@ -22,7 +22,7 @@ export abstract class Part extends Component {
 	private parent: HTMLElement;
 	private titleArea: HTMLElement | null;
 	private contentArea: HTMLElement | null;
-	protected partLayout: PartLayout;
+	private partLayout: PartLayout;
 
 	constructor(
 		id: string,

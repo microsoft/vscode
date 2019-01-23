@@ -1038,7 +1038,7 @@ export class Workbench extends Disposable implements IPartService {
 	}
 
 	private createWorkbenchLayout(): void {
-		if (this.configurationService.getValue('workbench.useGridLayout')) {
+		if (this.configurationService.getValue('workbench.useExperimentalGridLayout')) {
 			const serializedWorkbenchGridString = this.storageService.get(Workbench.workbenchGridUIStateStorageKey, StorageScope.GLOBAL, undefined);
 
 			if (serializedWorkbenchGridString) {

@@ -362,7 +362,7 @@ export class ActivitybarPart extends Part implements ISerializableView {
 		}
 
 		// Pass to super
-		const sizes = dim1 instanceof Dimension ? super.layout(dim1) : this.partLayout.layout(new Dimension(dim1, dim2));
+		const sizes = super.layout(dim1 instanceof Dimension ? dim1 : new Dimension(dim1, dim2));
 
 		this.dimension = sizes[1];
 

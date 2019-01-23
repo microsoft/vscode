@@ -958,7 +958,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	layout(dimension: Dimension): Dimension[];
 	layout(width: number, height: number): void;
 	layout(dim1: Dimension | number, dim2?: number): Dimension[] | void {
-		const sizes = dim1 instanceof Dimension ? super.layout(dim1) : this.partLayout.layout(new Dimension(dim1, dim2));
+		const sizes = super.layout(dim1 instanceof Dimension ? dim1 : new Dimension(dim1, dim2));
 
 		this.doLayout(sizes[1]);
 

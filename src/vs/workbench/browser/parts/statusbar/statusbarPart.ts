@@ -239,7 +239,7 @@ export class StatusbarPart extends Part implements IStatusbarService, ISerializa
 		if (dim1 instanceof Dimension) {
 			return super.layout(dim1);
 		} else {
-			this.partLayout.layout(new Dimension(dim1, dim2!));
+			super.layout(new Dimension(dim1, dim2!));
 		}
 	}
 

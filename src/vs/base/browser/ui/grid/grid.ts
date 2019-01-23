@@ -189,7 +189,7 @@ export interface IGridOptions {
 	proportionalLayout?: boolean;
 }
 
-export class Grid<T extends IView=IView> implements IDisposable {
+export class Grid<T extends IView> implements IDisposable {
 
 	protected gridview: GridView;
 	private views = new Map<T, HTMLElement>();

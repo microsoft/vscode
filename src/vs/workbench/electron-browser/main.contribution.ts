@@ -690,9 +690,9 @@ configurationRegistry.registerConfiguration({
 			'default': true,
 			'tags': ['usesOnlineServices']
 		},
-		'workbench.useGridLayout': {
+		'workbench.useExperimentalGridLayout': {
 			'type': 'boolean',
-			'description': nls.localize('workbench.useGridLayout', "Enables the grid layout for the workbench. This setting may enable additional layout options for workbench components."),
+			'description': nls.localize('workbench.useExperimentalGridLayout', "Enables the grid layout for the workbench. This setting may enable additional layout options for workbench components."),
 			'default': false,
 			'scope': ConfigurationScope.APPLICATION
 		}

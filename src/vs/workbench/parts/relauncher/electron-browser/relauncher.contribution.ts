@@ -24,7 +24,7 @@ interface IConfiguration extends IWindowsConfiguration {
 	update: { channel: string; };
 	telemetry: { enableCrashReporter: boolean };
 	keyboard: { touchbar: { enabled: boolean } };
-	workbench: { tree: { horizontalScrolling: boolean }, useGridLayout: boolean };
+	workbench: { tree: { horizontalScrolling: boolean }, useExperimentalGridLayout: boolean };
 	files: { useExperimentalFileWatcher: boolean, watcherExclude: object };
 }
 
@@ -146,8 +146,8 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		}
 
 		// Workbench Grid Layout
-		if (config.workbench && typeof config.workbench.useGridLayout === 'boolean' && config.workbench.useGridLayout !== this.useGridLayout) {
-			this.useGridLayout = config.workbench.useGridLayout;
+		if (config.workbench && typeof config.workbench.useExperimentalGridLayout === 'boolean' && config.workbench.useExperimentalGridLayout !== this.useGridLayout) {
+			this.useGridLayout = config.workbench.useExperimentalGridLayout;
 			changed = true;
 		}
 

@@ -573,7 +573,7 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 		const dimensions = new Dimension(dim1, dim2);
 		this.updateLayout(dimensions);
 
-		this.partLayout.layout(dimensions);
+		super.layout(dimensions);
 	}
 
 	toJSON(): object {
