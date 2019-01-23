@@ -59,7 +59,7 @@ class Extension implements IExtension {
 	}
 
 	get name(): string {
-		return this.gallery ? this.gallery.name : this.local.manifest.name;
+		return this.gallery ? this.gallery.name : this.local!.manifest.name;
 	}
 
 	get displayName(): string {
@@ -67,22 +67,22 @@ class Extension implements IExtension {
 			return this.gallery.displayName || this.gallery.name;
 		}
 
-		return this.local.manifest.displayName || this.local.manifest.name;
+		return this.local!.manifest.displayName || this.local!.manifest.name;
 	}
 
 	get identifier(): IExtensionIdentifier {
 		if (this.gallery) {
 			return this.gallery.identifier;
 		}
-		return this.local.identifier;
+		return this.local!.identifier;
 	}
 
 	get uuid(): string | undefined {
-		return this.gallery ? this.gallery.identifier.uuid : this.local.identifier.uuid;
+		return this.gallery ? this.gallery.identifier.uuid : this.local!.identifier.uuid;
 	}
 
 	get publisher(): string {
-		return this.gallery ? this.gallery.publisher : this.local.manifest.publisher;
+		return this.gallery ? this.gallery.publisher : this.local!.manifest.publisher;
 	}
 
 	get publisherDisplayName(): string {
@@ -90,11 +90,11 @@ class Extension implements IExtension {
 			return this.gallery.publisherDisplayName || this.gallery.publisher;
 		}
 
-		if (this.local.metadata && this.local.metadata.publisherDisplayName) {
-			return this.local.metadata.publisherDisplayName;
+		if (this.local!.metadata && this.local!.metadata.publisherDisplayName) {
+			return this.local!.metadata.publisherDisplayName;
 		}
 
-		return this.local.manifest.publisher;
+		return this.local!.manifest.publisher;
 	}
 
 	get version(): string {
@@ -102,11 +102,11 @@ class Extension implements IExtension {
 	}
 
 	get latestVersion(): string {
-		return this.gallery ? this.gallery.version : this.local.manifest.version;
+		return this.gallery ? this.gallery.version : this.local!.manifest.version;
 	}
 
 	get description(): string {
-		return this.gallery ? this.gallery.description : this.local.manifest.description || '';
+		return this.gallery ? this.gallery.description : this.local!.manifest.description || '';
 	}
 
 	get url(): string | undefined {
@@ -141,7 +141,7 @@ class Extension implements IExtension {
 	}
 
 	private get defaultIconUrl(): string {
-		if (this.type === ExtensionType.System) {
+		if (this.type === ExtensionType.System && this.local) {
 			if (this.local.manifest && this.local.manifest.contributes) {
 				if (Array.isArray(this.local.manifest.contributes.themes) && this.local.manifest.contributes.themes.length) {
 					return require.toUrl('../electron-browser/media/theme-icon.png');
@@ -190,7 +190,7 @@ class Extension implements IExtension {
 		if (gallery) {
 			return getGalleryExtensionTelemetryData(gallery);
 		} else {
-			return getLocalExtensionTelemetryData(local);
+			return getLocalExtensionTelemetryData(local!);
 		}
 	}
 
@@ -211,7 +211,7 @@ class Extension implements IExtension {
 			return Promise.resolve(null);
 		}
 
-		return Promise.resolve(this.local.manifest);
+		return Promise.resolve(this.local!.manifest);
 	}
 
 	hasReadme(): boolean {
@@ -655,12 +655,8 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 	}
 
 	uninstall(extension: IExtension): Promise<void> {
-		if (!(extension instanceof Extension)) {
-			return Promise.resolve();
-		}
-
-		const ext = extension as Extension;
-		const toUninstall: ILocalExtension = ext.local ? ext.local : this.installed.filter(e => areSameExtensions(e.identifier, extension.identifier))[0].local;
+		const ext = extension.local ? extension : this.installed.filter(e => areSameExtensions(e.identifier, extension.identifier))[0];
+		const toUninstall: ILocalExtension | null = ext && ext.local ? ext.local : null;
 
 		if (!toUninstall) {
 			return Promise.reject(new Error('Missing local'));
@@ -700,12 +696,8 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 	}
 
 	reinstall(extension: IExtension): Promise<void> {
-		if (!(extension instanceof Extension)) {
-			return Promise.resolve();
-		}
-
-		const ext = extension as Extension;
-		const toReinstall: ILocalExtension = ext.local ? ext.local : this.installed.filter(e => areSameExtensions(e.identifier, extension.identifier))[0].local;
+		const ext = extension.local ? extension : this.installed.filter(e => areSameExtensions(e.identifier, extension.identifier))[0];
+		const toReinstall: ILocalExtension | null = ext && ext.local ? ext.local : null;
 
 		if (!toReinstall) {
 			return Promise.reject(new Error('Missing local'));
