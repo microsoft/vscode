@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { startsWith } from 'vs/base/common/strings';
+import { CodeAction } from 'vs/editor/common/modes';
 
 export class CodeActionKind {
 	private static readonly sep = '.';
@@ -38,6 +39,47 @@ export interface CodeActionFilter {
 	readonly kind?: CodeActionKind;
 	readonly includeSourceActions?: boolean;
 	readonly onlyIncludePreferredActions?: boolean;
+}
+
+export function mayIncludeActionsOfKind(filter: CodeActionFilter, providedKind: CodeActionKind): boolean {
+	// A provided kind may be a subset or superset of our filtered kind.
+	if (filter.kind && !filter.kind.intersects(providedKind)) {
+		return false;
+	}
+
+	// Don't return source actions unless they are explicitly requested
+	if (CodeActionKind.Source.contains(providedKind) && !filter.includeSourceActions) {
+		return false;
+	}
+
+	return true;
+}
+
+
+export function filtersAction(filter: CodeActionFilter, action: CodeAction): boolean {
+	const actionKind = action.kind ? new CodeActionKind(action.kind) : undefined;
+
+	// Filter out actions by kind
+	if (filter.kind) {
+		if (!actionKind || !filter.kind.contains(actionKind)) {
+			return false;
+		}
+	}
+
+	// Don't return source actions unless they are explicitly requested
+	if (!filter.includeSourceActions) {
+		if (actionKind && CodeActionKind.Source.contains(actionKind)) {
+			return false;
+		}
+	}
+
+	if (filter.onlyIncludePreferredActions) {
+		if (!action.isPreferred) {
+			return false;
+		}
+	}
+
+	return true;
 }
 
 export interface CodeActionTrigger {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { flatten, mergeSort, isNonEmptyArray } from 'vs/base/common/arrays';
+import { flatten, isNonEmptyArray, mergeSort } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { illegalArgument, isPromiseCanceledError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
@@ -13,7 +13,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel } from 'vs/editor/common/model';
 import { CodeAction, CodeActionContext, CodeActionProviderRegistry, CodeActionTrigger as CodeActionTriggerKind } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { CodeActionFilter, CodeActionKind, CodeActionTrigger } from './codeActionTrigger';
+import { CodeActionKind, CodeActionTrigger, filtersAction, mayIncludeActionsOfKind } from './codeActionTrigger';
 
 export function getCodeActions(
 	model: ITextModel,
@@ -21,39 +21,29 @@ export function getCodeActions(
 	trigger: CodeActionTrigger,
 	token: CancellationToken
 ): Promise<CodeAction[]> {
+	const filter = trigger.filter || {};
+
 	const codeActionContext: CodeActionContext = {
-		only: trigger.filter && trigger.filter.kind ? trigger.filter.kind.value : undefined,
+		only: filter.kind ? filter.kind.value : undefined,
 		trigger: trigger.type === 'manual' ? CodeActionTriggerKind.Manual : CodeActionTriggerKind.Automatic
 	};
 
 	const promises = CodeActionProviderRegistry.all(model)
+		// Avoid calling providers that we know will not return code actions of interest
 		.filter(provider => {
 			if (!provider.providedCodeActionKinds) {
+				// We don't know what type of actions this provider will return.
 				return true;
 			}
 
-			// Avoid calling providers that we know will not return code actions of interest
-			return provider.providedCodeActionKinds.map(kind => new CodeActionKind(kind)).some(providedKind => {
-				// Filter out actions by kind
-				// The provided kind can be either a subset of a superset of the filtered kind
-				if (trigger.filter && trigger.filter.kind && !trigger.filter.kind.intersects(providedKind)) {
-					return false;
-				}
-
-				// Don't return source actions unless they are explicitly requested
-				if (CodeActionKind.Source.contains(providedKind) && (!trigger.filter || !trigger.filter.includeSourceActions)) {
-					return false;
-				}
-
-				return true;
-			});
+			return provider.providedCodeActionKinds.some(kind => mayIncludeActionsOfKind(filter, new CodeActionKind(kind)));
 		})
 		.map(support => {
 			return Promise.resolve(support.provideCodeActions(model, rangeOrSelection, codeActionContext, token)).then(providedCodeActions => {
 				if (!Array.isArray(providedCodeActions)) {
 					return [];
 				}
-				return providedCodeActions.filter(action => isValidAction(trigger.filter, action));
+				return providedCodeActions.filter(action => action && filtersAction(filter, action));
 			}, (err): CodeAction[] => {
 				if (isPromiseCanceledError(err)) {
 					throw err;
@@ -67,26 +57,6 @@ export function getCodeActions(
 	return Promise.all(promises)
 		.then(flatten)
 		.then(allCodeActions => mergeSort(allCodeActions, codeActionsComparator));
-}
-
-function isValidAction(filter: CodeActionFilter | undefined, action: CodeAction): boolean {
-	return action
-		&& isValidActionKind(filter, action.kind ? new CodeActionKind(action.kind) : undefined)
-		&& (filter && filter.onlyIncludePreferredActions ? !!action.isPreferred : true);
-}
-
-function isValidActionKind(filter: CodeActionFilter | undefined, kind: CodeActionKind | undefined): boolean {
-	// Filter out actions by kind
-	if (filter && filter.kind && (!kind || !filter.kind.contains(kind))) {
-		return false;
-	}
-
-	// Don't return source actions unless they are explicitly requested
-	if (kind && CodeActionKind.Source.contains(kind) && (!filter || !filter.includeSourceActions)) {
-		return false;
-	}
-
-	return true;
 }
 
 function codeActionsComparator(a: CodeAction, b: CodeAction): number {
