@@ -21,7 +21,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { Color } from 'vs/base/common/color';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { LIGHT, DARK, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
-import { schemaId } from 'vs/workbench/services/themes/common/colorThemeSchema';
+import { colorThemeSchemaId } from 'vs/workbench/services/themes/common/colorThemeSchema';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 
@@ -216,7 +216,7 @@ class GenerateColorThemeAction extends Action {
 			}
 		}
 		let contents = JSON.stringify({
-			'$schema': schemaId,
+			'$schema': colorThemeSchemaId,
 			type: theme.type,
 			colors: resultingColors,
 			tokenColors: theme.tokenColors.filter(t => !!t.scope)

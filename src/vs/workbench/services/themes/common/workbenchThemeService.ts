@@ -22,7 +22,6 @@ export const DETECT_HC_SETTING = 'window.autoDetectHighContrast';
 export const ICON_THEME_SETTING = 'workbench.iconTheme';
 export const CUSTOM_WORKBENCH_COLORS_SETTING = 'workbench.colorCustomizations';
 export const CUSTOM_EDITOR_COLORS_SETTING = 'editor.tokenColorCustomizations';
-export const CUSTOM_EDITOR_SCOPE_COLORS_SETTING = 'textMateRules';
 
 export interface IColorTheme extends ITheme {
 	readonly id: string;

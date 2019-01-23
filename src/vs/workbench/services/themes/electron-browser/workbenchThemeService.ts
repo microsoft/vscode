@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IWorkbenchThemeService, IColorTheme, ITokenColorCustomizations, IFileIconTheme, ExtensionData, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, COLOR_THEME_SETTING, ICON_THEME_SETTING, CUSTOM_WORKBENCH_COLORS_SETTING, CUSTOM_EDITOR_COLORS_SETTING, CUSTOM_EDITOR_SCOPE_COLORS_SETTING, DETECT_HC_SETTING, HC_THEME_ID } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IWorkbenchThemeService, IColorTheme, ITokenColorCustomizations, IFileIconTheme, ExtensionData, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, COLOR_THEME_SETTING, ICON_THEME_SETTING, CUSTOM_WORKBENCH_COLORS_SETTING, CUSTOM_EDITOR_COLORS_SETTING, DETECT_HC_SETTING, HC_THEME_ID } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -17,8 +17,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ColorThemeData } from './colorThemeData';
 import { ITheme, Extensions as ThemingExtensions, IThemingRegistry } from 'vs/platform/theme/common/themeService';
 import { Event, Emitter } from 'vs/base/common/event';
-import * as colorThemeSchema from 'vs/workbench/services/themes/common/colorThemeSchema';
-import * as fileIconThemeSchema from 'vs/workbench/services/themes/common/fileIconThemeSchema';
+import { registerFileIconThemeSchemas } from 'vs/workbench/services/themes/common/fileIconThemeSchema';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ColorThemeStore } from 'vs/workbench/services/themes/electron-browser/colorThemeStore';
 import { FileIconThemeStore } from 'vs/workbench/services/themes/electron-browser/fileIconThemeStore';
@@ -29,7 +28,9 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IFileService, FileChangeType } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
-import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { textmateColorsSchemaId, registerColorThemeSchemas, textmateColorSettingsSchemaId } from 'vs/workbench/services/themes/common/colorThemeSchema';
+import { workbenchColorsSchemaId } from 'vs/platform/theme/common/colorRegistry';
 
 // implementation
 
@@ -149,12 +150,17 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			const themeSpecificWorkbenchColors: IJSONSchema = { properties: {} };
 			const themeSpecificTokenColors: IJSONSchema = { properties: {} };
 
+			const workbenchColors = { $ref: workbenchColorsSchemaId, additionalProperties: false };
+			const tokenColors = { properties: tokenColorSchema.properties, additionalProperties: false };
 			for (let t of themes) {
+				// add a enum value to the 'workbench.colorTheme` setting
 				colorThemeSettingSchema.enum!.push(t.settingsId);
 				colorThemeSettingSchema.enumDescriptions!.push(t.description || '');
+
+				// add theme specific color customization ("[Abyss]":{ ... })
 				const themeId = `[${t.settingsId}]`;
-				themeSpecificWorkbenchColors.properties![themeId] = colorThemeSchema.colorsSchema;
-				themeSpecificTokenColors.properties![themeId] = { properties: tokenColorConfigurationProperties, additionalProperties: false };
+				themeSpecificWorkbenchColors.properties![themeId] = workbenchColors;
+				themeSpecificTokenColors.properties![themeId] = tokenColors;
 			}
 
 			colorCustomizationsSchema.allOf![1] = themeSpecificWorkbenchColors;
@@ -546,8 +552,8 @@ function _applyRules(styleSheetContent: string, rulesClassName: string) {
 	}
 }
 
-colorThemeSchema.register();
-fileIconThemeSchema.register();
+registerColorThemeSchemas();
+registerFileIconThemeSchemas();
 
 class ConfigurationWriter {
 	constructor(@IConfigurationService private readonly configurationService: IConfigurationService) {
@@ -596,7 +602,7 @@ const iconThemeSettingSchema: IConfigurationPropertySchema = {
 const colorCustomizationsSchema: IConfigurationPropertySchema = {
 	type: 'object',
 	description: nls.localize('workbenchColors', "Overrides colors from the currently selected color theme."),
-	allOf: [{ properties: colorThemeSchema.colorsSchema.properties }],
+	allOf: [{ $ref: workbenchColorsSchemaId }],
 	default: {},
 	defaultSnippets: [{
 		body: {
@@ -625,25 +631,32 @@ function tokenGroupSettings(description: string) {
 				type: 'string',
 				format: 'color-hex'
 			},
-			colorThemeSchema.tokenColorizationSettingSchema
+			{
+				$ref: textmateColorSettingsSchemaId
+			}
 		]
 	};
 }
 
-const tokenColorConfigurationProperties: IJSONSchemaMap = {
-	comments: tokenGroupSettings(nls.localize('editorColors.comments', "Sets the colors and styles for comments")),
-	strings: tokenGroupSettings(nls.localize('editorColors.strings', "Sets the colors and styles for strings literals.")),
-	keywords: tokenGroupSettings(nls.localize('editorColors.keywords', "Sets the colors and styles for keywords.")),
-	numbers: tokenGroupSettings(nls.localize('editorColors.numbers', "Sets the colors and styles for number literals.")),
-	types: tokenGroupSettings(nls.localize('editorColors.types', "Sets the colors and styles for type declarations and references.")),
-	functions: tokenGroupSettings(nls.localize('editorColors.functions', "Sets the colors and styles for functions declarations and references.")),
-	variables: tokenGroupSettings(nls.localize('editorColors.variables', "Sets the colors and styles for variables declarations and references.")),
-	[CUSTOM_EDITOR_SCOPE_COLORS_SETTING]: colorThemeSchema.tokenColorsSchema(nls.localize('editorColors.textMateRules', 'Sets colors and styles using textmate theming rules (advanced).'))
+const tokenColorSchema: IJSONSchema = {
+	properties: {
+		comments: tokenGroupSettings(nls.localize('editorColors.comments', "Sets the colors and styles for comments")),
+		strings: tokenGroupSettings(nls.localize('editorColors.strings', "Sets the colors and styles for strings literals.")),
+		keywords: tokenGroupSettings(nls.localize('editorColors.keywords', "Sets the colors and styles for keywords.")),
+		numbers: tokenGroupSettings(nls.localize('editorColors.numbers', "Sets the colors and styles for number literals.")),
+		types: tokenGroupSettings(nls.localize('editorColors.types', "Sets the colors and styles for type declarations and references.")),
+		functions: tokenGroupSettings(nls.localize('editorColors.functions', "Sets the colors and styles for functions declarations and references.")),
+		variables: tokenGroupSettings(nls.localize('editorColors.variables', "Sets the colors and styles for variables declarations and references.")),
+		textMateRules: {
+			description: nls.localize('editorColors.textMateRules', 'Sets colors and styles using textmate theming rules (advanced).'),
+			$ref: textmateColorsSchemaId
+		}
+	}
 };
 const tokenColorCustomizationSchema: IConfigurationPropertySchema = {
 	description: nls.localize('editorColors', "Overrides editor colors and font style from the currently selected color theme."),
 	default: {},
-	allOf: [{ properties: tokenColorConfigurationProperties }]
+	allOf: [tokenColorSchema]
 };
 const tokenColorCustomizationConfiguration: IConfigurationNode = {
 	id: 'editor',

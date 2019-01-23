@@ -9,6 +9,7 @@ import { Color, RGBA } from 'vs/base/common/color';
 import { ITheme } from 'vs/platform/theme/common/themeService';
 
 import * as nls from 'vs/nls';
+import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 
 //  ------ API types
 
@@ -79,7 +80,7 @@ export interface IColorRegistry {
 
 class ColorRegistry implements IColorRegistry {
 	private colorsById: { [key: string]: ColorContribution };
-	private colorSchema: IJSONSchema = { type: 'object', description: nls.localize('schema.colors', "Colors used in the workbench."), properties: {}, additionalProperties: false };
+	private colorSchema: IJSONSchema = { type: 'object', properties: {} };
 	private colorReferenceSchema: IJSONSchema = { type: 'string', enum: [], enumDescriptions: [] };
 
 	constructor() {
@@ -442,6 +443,11 @@ function resolveColorValue(colorValue: ColorValue | null, theme: ITheme): Color 
 	}
 	return null;
 }
+
+export const workbenchColorsSchemaId = 'vscode://schemas/workbench-colors';
+
+let schemaRegistry = platform.Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
+schemaRegistry.registerSchema(workbenchColorsSchemaId, colorRegistry.getColorSchema());
 
 // setTimeout(_ => console.log(colorRegistry.toString()), 5000);
 
