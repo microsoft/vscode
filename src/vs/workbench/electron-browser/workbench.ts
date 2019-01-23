@@ -179,7 +179,7 @@ interface IWorkbenchUIState {
 
 export class Workbench extends Disposable implements IPartService {
 
-	private static readonly workbenchGridUIStateStorageKey = 'workbench.grid.state';
+	private static readonly workbenchGridUIStateStorageKey = 'workbench.layout.state';
 	private static readonly sidebarHiddenStorageKey = 'workbench.sidebar.hidden';
 	private static readonly menubarVisibilityConfigurationKey = 'window.menuBarVisibility';
 	private static readonly panelHiddenStorageKey = 'workbench.panel.hidden';
