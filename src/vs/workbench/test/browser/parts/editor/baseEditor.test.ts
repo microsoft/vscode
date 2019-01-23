@@ -18,7 +18,6 @@ import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService
 import { URI } from 'vs/base/common/uri';
 import { IEditorRegistry, Extensions, EditorDescriptor } from 'vs/workbench/browser/editor';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 
 const NullThemeService = new TestThemeService();
@@ -268,7 +267,7 @@ suite('Workbench base editor', () => {
 				super();
 			}
 			public getTypeId() { return 'testEditorInput'; }
-			public resolve(): TPromise<IEditorModel> { return null; }
+			public resolve(): Promise<IEditorModel> { return Promise.resolve(null!); }
 
 			public matches(other: TestEditorInput): boolean {
 				return other && this.id === other.id && other instanceof TestEditorInput;

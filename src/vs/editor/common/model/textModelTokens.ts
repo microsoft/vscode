@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IState, FontStyle, StandardTokenType, MetadataConsts, ColorId, LanguageId, ITokenizationSupport, LanguageIdentifier } from 'vs/editor/common/modes';
-import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import * as arrays from 'vs/base/common/arrays';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { IModelTokensChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
-import { nullTokenize2 } from 'vs/editor/common/modes/nullMode';
 import { ITextBuffer } from 'vs/editor/common/model';
+import { IModelTokensChangedEvent } from 'vs/editor/common/model/textModelEvents';
+import { ColorId, FontStyle, IState, ITokenizationSupport, LanguageId, LanguageIdentifier, MetadataConsts, StandardTokenType, TokenMetadata } from 'vs/editor/common/modes';
+import { nullTokenize2 } from 'vs/editor/common/modes/nullMode';
 
 function getDefaultMetadata(topLevelLanguageId: LanguageId): number {
 	return (
@@ -154,7 +154,7 @@ class ModelLineTokens {
 
 		let fromTokenIndex = LineTokens.findIndexInTokensArray(tokens, chIndex);
 		if (fromTokenIndex > 0) {
-			const fromTokenStartOffset = (fromTokenIndex > 0 ? tokens[(fromTokenIndex - 1) << 1] : 0);
+			const fromTokenStartOffset = tokens[(fromTokenIndex - 1) << 1];
 			if (fromTokenStartOffset === chIndex) {
 				fromTokenIndex--;
 			}
@@ -262,8 +262,15 @@ export class ModelLinesTokens {
 		}
 
 		if (lineTextLength === 0) {
-			target._lineTokens = EMPTY_LINE_TOKENS;
-			return;
+			let hasDifferentLanguageId = false;
+			if (tokens && tokens.length > 1) {
+				hasDifferentLanguageId = (TokenMetadata.getLanguageId(tokens[1]) !== topLevelLanguageId);
+			}
+
+			if (!hasDifferentLanguageId) {
+				target._lineTokens = EMPTY_LINE_TOKENS;
+				return;
+			}
 		}
 
 		if (!tokens || tokens.length === 0) {
@@ -493,6 +500,7 @@ export class ModelTokensChangedEventBuilder {
 			return null;
 		}
 		return {
+			tokenizationSupportChanged: false,
 			ranges: this._ranges
 		};
 	}

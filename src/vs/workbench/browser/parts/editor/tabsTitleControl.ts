@@ -10,7 +10,7 @@ import { toResource, GroupIdentifier, IEditorInput, Verbosity, EditorCommandsCon
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { ResourceLabel } from 'vs/workbench/browser/labels';
+import { ResourceLabels, IResourceLabel, DEFAULT_LABELS_CONTAINER } from 'vs/workbench/browser/labels';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -39,6 +39,7 @@ import { IEditorGroupsAccessor, IEditorPartOptions, IEditorGroupView } from 'vs/
 import { CloseOneEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { BreadcrumbsControl } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
+import { IFileService } from 'vs/platform/files/common/files';
 
 interface IEditorInputLabel {
 	name: string;
@@ -53,10 +54,10 @@ export class TabsTitleControl extends TitleControl {
 	private titleContainer: HTMLElement;
 	private tabsContainer: HTMLElement;
 	private editorToolbarContainer: HTMLElement;
-	private scrollbar: ScrollableElement;
+	private tabsScrollbar: ScrollableElement;
 	private closeOneEditorAction: CloseOneEditorAction;
 
-	private tabLabelWidgets: ResourceLabel[] = [];
+	private tabResourceLabels: ResourceLabels;
 	private tabLabels: IEditorInputLabel[] = [];
 	private tabDisposeables: IDisposable[] = [];
 
@@ -70,7 +71,7 @@ export class TabsTitleControl extends TitleControl {
 		group: IEditorGroupView,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
+		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -79,13 +80,19 @@ export class TabsTitleControl extends TitleControl {
 		@IQuickOpenService quickOpenService: IQuickOpenService,
 		@IThemeService themeService: IThemeService,
 		@IExtensionService extensionService: IExtensionService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IFileService fileService: IFileService,
 	) {
-		super(parent, accessor, group, contextMenuService, instantiationService, contextKeyService, keybindingService, telemetryService, notificationService, menuService, quickOpenService, themeService, extensionService, configurationService);
+		super(parent, accessor, group, contextMenuService, instantiationService, contextKeyService, keybindingService, telemetryService, notificationService, menuService, quickOpenService, themeService, extensionService, configurationService, fileService);
 	}
 
 	protected create(parent: HTMLElement): void {
 		this.titleContainer = parent;
+
+		// Tabs and Actions Container (are on a single row with flex side-by-side)
+		const tabsAndActionsContainer = document.createElement('div');
+		addClass(tabsAndActionsContainer, 'tabs-and-actions-container');
+		this.titleContainer.appendChild(tabsAndActionsContainer);
 
 		// Tabs Container
 		this.tabsContainer = document.createElement('div');
@@ -94,15 +101,16 @@ export class TabsTitleControl extends TitleControl {
 		addClass(this.tabsContainer, 'tabs-container');
 
 		// Tabs Container listeners
-		this.registerContainerListeners();
+		this.registerTabsContainerListeners();
 
-		// Scrollbar
-		this.createScrollbar();
+		// Tabs Scrollbar
+		this.tabsScrollbar = this.createTabsScrollbar(this.tabsContainer);
+		tabsAndActionsContainer.appendChild(this.tabsScrollbar.getDomNode());
 
 		// Editor Toolbar Container
 		this.editorToolbarContainer = document.createElement('div');
 		addClass(this.editorToolbarContainer, 'editor-actions');
-		this.titleContainer.appendChild(this.editorToolbarContainer);
+		tabsAndActionsContainer.appendChild(this.editorToolbarContainer);
 
 		// Editor Actions Toolbar
 		this.createEditorActionsToolBar(this.editorToolbarContainer);
@@ -110,17 +118,18 @@ export class TabsTitleControl extends TitleControl {
 		// Close Action
 		this.closeOneEditorAction = this._register(this.instantiationService.createInstance(CloseOneEditorAction, CloseOneEditorAction.ID, CloseOneEditorAction.LABEL));
 
-		// Breadcrumbs
+		// Breadcrumbs (are on a separate row below tabs and actions)
 		const breadcrumbsContainer = document.createElement('div');
 		addClass(breadcrumbsContainer, 'tabs-breadcrumbs');
 		this.titleContainer.appendChild(breadcrumbsContainer);
 		this.createBreadcrumbsControl(breadcrumbsContainer, { showFileIcons: true, showSymbolIcons: true, showDecorationColors: false, breadcrumbsBackground: breadcrumbsBackground });
+
+		// Tab Labels
+		this.tabResourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
 	}
 
-	private createScrollbar(): void {
-
-		// Custom Scrollbar
-		this.scrollbar = new ScrollableElement(this.tabsContainer, {
+	private createTabsScrollbar(scrollable: HTMLElement): ScrollableElement {
+		const tabsScrollbar = new ScrollableElement(scrollable, {
 			horizontal: ScrollbarVisibility.Auto,
 			vertical: ScrollbarVisibility.Hidden,
 			scrollYToX: true,
@@ -128,11 +137,11 @@ export class TabsTitleControl extends TitleControl {
 			horizontalScrollbarSize: 3
 		});
 
-		this.scrollbar.onScroll(e => {
-			this.tabsContainer.scrollLeft = e.scrollLeft;
+		tabsScrollbar.onScroll(e => {
+			scrollable.scrollLeft = e.scrollLeft;
 		});
 
-		this.titleContainer.appendChild(this.scrollbar.getDomNode());
+		return tabsScrollbar;
 	}
 
 	private updateBreadcrumbsControl(): void {
@@ -148,7 +157,7 @@ export class TabsTitleControl extends TitleControl {
 		this.group.relayout();
 	}
 
-	private registerContainerListeners(): void {
+	private registerTabsContainerListeners(): void {
 
 		// Group dragging
 		this.enableGroupDragging(this.tabsContainer);
@@ -156,7 +165,7 @@ export class TabsTitleControl extends TitleControl {
 		// Forward scrolling inside the container to our custom scrollbar
 		this._register(addDisposableListener(this.tabsContainer, EventType.SCROLL, () => {
 			if (hasClass(this.tabsContainer, 'scroll')) {
-				this.scrollbar.setScrollPosition({
+				this.tabsScrollbar.setScrollPosition({
 					scrollLeft: this.tabsContainer.scrollLeft // during DND the  container gets scrolled so we need to update the custom scrollbar
 				});
 			}
@@ -289,7 +298,6 @@ export class TabsTitleControl extends TitleControl {
 				(this.tabsContainer.lastChild as HTMLElement).remove();
 
 				// Remove associated tab label and widget
-				this.tabLabelWidgets.pop();
 				this.tabDisposeables.pop().dispose();
 			}
 
@@ -305,7 +313,7 @@ export class TabsTitleControl extends TitleControl {
 			clearNode(this.tabsContainer);
 
 			this.tabDisposeables = dispose(this.tabDisposeables);
-			this.tabLabelWidgets = [];
+			this.tabResourceLabels.clear();
 			this.tabLabels = [];
 
 			this.clearEditorActionsToolbar();
@@ -389,12 +397,12 @@ export class TabsTitleControl extends TitleControl {
 		this.redraw();
 	}
 
-	private withTab(editor: IEditorInput, fn: (tabContainer: HTMLElement, tabLabelWidget: ResourceLabel, tabLabel: IEditorInputLabel) => void): void {
+	private withTab(editor: IEditorInput, fn: (tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel) => void): void {
 		const editorIndex = this.group.getIndexOfEditor(editor);
 
 		const tabContainer = this.tabsContainer.children[editorIndex] as HTMLElement;
 		if (tabContainer) {
-			fn(tabContainer, this.tabLabelWidgets[editorIndex], this.tabLabels[editorIndex]);
+			fn(tabContainer, this.tabResourceLabels.get(editorIndex), this.tabLabels[editorIndex]);
 		}
 	}
 
@@ -416,8 +424,7 @@ export class TabsTitleControl extends TitleControl {
 		tabContainer.appendChild(tabBorderTopContainer);
 
 		// Tab Editor Label
-		const editorLabel = this.instantiationService.createInstance(ResourceLabel, tabContainer, void 0);
-		this.tabLabelWidgets.push(editorLabel);
+		const editorLabel = this.tabResourceLabels.create(tabContainer);
 
 		// Tab Close Button
 		const tabCloseContainer = document.createElement('div');
@@ -454,7 +461,7 @@ export class TabsTitleControl extends TitleControl {
 					e.preventDefault(); // required to prevent auto-scrolling (https://github.com/Microsoft/vscode/issues/16690)
 				}
 
-				return void 0; // only for left mouse click
+				return undefined; // only for left mouse click
 			}
 
 			if (this.originatesFromTabActionBar(e)) {
@@ -464,7 +471,7 @@ export class TabsTitleControl extends TitleControl {
 			// Open tabs editor
 			this.group.openEditor(this.group.getEditor(index));
 
-			return void 0;
+			return undefined;
 		};
 
 		const showContextMenu = (e: Event) => {
@@ -479,7 +486,7 @@ export class TabsTitleControl extends TitleControl {
 
 		// Touch Scroll Support
 		disposables.push(addDisposableListener(tab, TouchEventType.Change, (e: GestureEvent) => {
-			this.scrollbar.setScrollPosition({ scrollLeft: this.scrollbar.getScrollPosition().scrollLeft - e.translationX });
+			this.tabsScrollbar.setScrollPosition({ scrollLeft: this.tabsScrollbar.getScrollPosition().scrollLeft - e.translationX });
 		}));
 
 		// Close on mouse middle click
@@ -488,7 +495,7 @@ export class TabsTitleControl extends TitleControl {
 
 			tab.blur();
 
-			if (e.button === 1 /* Middle Button*/ && !this.originatesFromTabActionBar(e)) {
+			if (e.button === 1 /* Middle Button*/) {
 				e.stopPropagation(); // for https://github.com/Microsoft/vscode/issues/56715
 
 				this.blockRevealActiveTabOnce();
@@ -546,7 +553,7 @@ export class TabsTitleControl extends TitleControl {
 			}
 
 			// moving in the tabs container can have an impact on scrolling position, so we need to update the custom scrollbar
-			this.scrollbar.setScrollPosition({
+			this.tabsScrollbar.setScrollPosition({
 				scrollLeft: this.tabsContainer.scrollLeft
 			});
 		}));
@@ -800,16 +807,16 @@ export class TabsTitleControl extends TitleControl {
 		this.layout(this.dimension);
 	}
 
-	private forEachTab(fn: (editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: ResourceLabel, tabLabel: IEditorInputLabel) => void): void {
+	private forEachTab(fn: (editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel) => void): void {
 		this.group.editors.forEach((editor, index) => {
 			const tabContainer = this.tabsContainer.children[index] as HTMLElement;
 			if (tabContainer) {
-				fn(editor, index, tabContainer, this.tabLabelWidgets[index], this.tabLabels[index]);
+				fn(editor, index, tabContainer, this.tabResourceLabels.get(index), this.tabLabels[index]);
 			}
 		});
 	}
 
-	private redrawTab(editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: ResourceLabel, tabLabel: IEditorInputLabel): void {
+	private redrawTab(editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel): void {
 
 		// Label
 		this.redrawLabel(editor, tabContainer, tabLabelWidget, tabLabel);
@@ -842,7 +849,7 @@ export class TabsTitleControl extends TitleControl {
 		this.redrawEditorActiveAndDirty(this.accessor.activeGroup === this.group, editor, tabContainer, tabLabelWidget);
 	}
 
-	private redrawLabel(editor: IEditorInput, tabContainer: HTMLElement, tabLabelWidget: ResourceLabel, tabLabel: IEditorInputLabel): void {
+	private redrawLabel(editor: IEditorInput, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel): void {
 		const name = tabLabel.name;
 		const description = tabLabel.description || '';
 		const title = tabLabel.title || '';
@@ -852,10 +859,10 @@ export class TabsTitleControl extends TitleControl {
 		tabContainer.title = title;
 
 		// Label
-		tabLabelWidget.setLabel({ name, description, resource: toResource(editor, { supportSideBySide: true }) }, { title, extraClasses: ['tab-label'], italic: !this.group.isPinned(editor) });
+		tabLabelWidget.setResource({ name, description, resource: toResource(editor, { supportSideBySide: true }) }, { title, extraClasses: ['tab-label'], italic: !this.group.isPinned(editor) });
 	}
 
-	private redrawEditorActiveAndDirty(isGroupActive: boolean, editor: IEditorInput, tabContainer: HTMLElement, tabLabelWidget: ResourceLabel): void {
+	private redrawEditorActiveAndDirty(isGroupActive: boolean, editor: IEditorInput, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel): void {
 		const isTabActive = this.group.isActive(editor);
 
 		const hasModifiedBorderTop = this.doRedrawEditorDirty(isGroupActive, isTabActive, editor, tabContainer);
@@ -863,7 +870,7 @@ export class TabsTitleControl extends TitleControl {
 		this.doRedrawEditorActive(isGroupActive, !hasModifiedBorderTop, editor, tabContainer, tabLabelWidget);
 	}
 
-	private doRedrawEditorActive(isGroupActive: boolean, allowBorderTop: boolean, editor: IEditorInput, tabContainer: HTMLElement, tabLabelWidget: ResourceLabel): void {
+	private doRedrawEditorActive(isGroupActive: boolean, allowBorderTop: boolean, editor: IEditorInput, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel): void {
 
 		// Tab is active
 		if (this.group.isActive(editor)) {
@@ -882,7 +889,7 @@ export class TabsTitleControl extends TitleControl {
 				tabContainer.style.removeProperty('--tab-border-bottom-color');
 			}
 
-			const activeTabBorderColorTop = allowBorderTop ? this.getColor(isGroupActive ? TAB_ACTIVE_BORDER_TOP : TAB_UNFOCUSED_ACTIVE_BORDER_TOP) : void 0;
+			const activeTabBorderColorTop = allowBorderTop ? this.getColor(isGroupActive ? TAB_ACTIVE_BORDER_TOP : TAB_UNFOCUSED_ACTIVE_BORDER_TOP) : undefined;
 			if (activeTabBorderColorTop) {
 				addClass(tabContainer, 'tab-border-top');
 				tabContainer.style.setProperty('--tab-border-top-color', activeTabBorderColorTop.toString());
@@ -966,7 +973,7 @@ export class TabsTitleControl extends TitleControl {
 		if (!this.layoutScheduled) {
 			this.layoutScheduled = scheduleAtNextAnimationFrame(() => {
 				this.doLayout(this.dimension);
-				this.layoutScheduled = void 0;
+				this.layoutScheduled = undefined;
 			});
 		}
 	}
@@ -979,7 +986,7 @@ export class TabsTitleControl extends TitleControl {
 
 		if (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden()) {
 			this.breadcrumbsControl.layout({ width: dimension.width, height: BreadcrumbsControl.HEIGHT });
-			this.scrollbar.getDomNode().style.height = `${dimension.height - BreadcrumbsControl.HEIGHT}px`;
+			this.tabsScrollbar.getDomNode().style.height = `${dimension.height - BreadcrumbsControl.HEIGHT}px`;
 		}
 
 		const visibleContainerWidth = this.tabsContainer.offsetWidth;
@@ -994,7 +1001,7 @@ export class TabsTitleControl extends TitleControl {
 		}
 
 		// Update scrollbar
-		this.scrollbar.setScrollDimensions({
+		this.tabsScrollbar.setScrollDimensions({
 			width: visibleContainerWidth,
 			scrollWidth: totalContainerWidth
 		});
@@ -1006,20 +1013,20 @@ export class TabsTitleControl extends TitleControl {
 		}
 
 		// Reveal the active one
-		const containerScrollPosX = this.scrollbar.getScrollPosition().scrollLeft;
+		const containerScrollPosX = this.tabsScrollbar.getScrollPosition().scrollLeft;
 		const activeTabFits = activeTabWidth <= visibleContainerWidth;
 
 		// Tab is overflowing to the right: Scroll minimally until the element is fully visible to the right
 		// Note: only try to do this if we actually have enough width to give to show the tab fully!
 		if (activeTabFits && containerScrollPosX + visibleContainerWidth < activeTabPosX + activeTabWidth) {
-			this.scrollbar.setScrollPosition({
+			this.tabsScrollbar.setScrollPosition({
 				scrollLeft: containerScrollPosX + ((activeTabPosX + activeTabWidth) /* right corner of tab */ - (containerScrollPosX + visibleContainerWidth) /* right corner of view port */)
 			});
 		}
 
 		// Tab is overlflowng to the left or does not fit: Scroll it into view to the left
 		else if (containerScrollPosX > activeTabPosX || !activeTabFits) {
-			this.scrollbar.setScrollPosition({
+			this.tabsScrollbar.setScrollPosition({
 				scrollLeft: activeTabPosX
 			});
 		}
@@ -1031,7 +1038,7 @@ export class TabsTitleControl extends TitleControl {
 			return this.tabsContainer.children[editorIndex] as HTMLElement;
 		}
 
-		return void 0;
+		return undefined;
 	}
 
 	private blockRevealActiveTabOnce(): void {
@@ -1052,7 +1059,7 @@ export class TabsTitleControl extends TitleControl {
 			element = (e as GestureEvent).initialTarget as HTMLElement;
 		}
 
-		return !!findParentWithClass(element, 'monaco-action-bar', 'tab');
+		return !!findParentWithClass(element, 'action-item', 'tab');
 	}
 
 	private onDrop(e: DragEvent, targetIndex: number): void {

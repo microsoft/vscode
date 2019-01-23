@@ -14,7 +14,6 @@ import { encode, encodeStream } from 'vs/base/node/encoding';
 import * as flow from 'vs/base/node/flow';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable, toDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
 
 const loop = flow.loop;
 
@@ -28,13 +27,13 @@ export function readdirSync(path: string): string[] {
 	return fs.readdirSync(path);
 }
 
-export function readdir(path: string, callback: (error: Error, files: string[]) => void): void {
+export function readdir(path: string, callback: (error: Error | null, files: string[]) => void): void {
 	// Mac: uses NFD unicode form on disk, but we want NFC
 	// See also https://github.com/nodejs/node/issues/2165
 	if (platform.isMacintosh) {
 		return fs.readdir(path, (error, children) => {
 			if (error) {
-				return callback(error, null);
+				return callback(error, []);
 			}
 
 			return callback(null, children.map(c => normalizeNFC(c)));
@@ -49,7 +48,7 @@ export interface IStatAndLink {
 	isSymbolicLink: boolean;
 }
 
-export function statLink(path: string, callback: (error: Error, statAndIsLink: IStatAndLink) => void): void {
+export function statLink(path: string, callback: (error: Error | null, statAndIsLink: IStatAndLink | null) => void): void {
 	fs.lstat(path, (error, lstat) => {
 		if (error || lstat.isSymbolicLink()) {
 			fs.stat(path, (error, stat) => {
@@ -65,10 +64,8 @@ export function statLink(path: string, callback: (error: Error, statAndIsLink: I
 	});
 }
 
-export function copy(source: string, target: string, callback: (error: Error) => void, copiedSources?: { [path: string]: boolean }): void {
-	if (!copiedSources) {
-		copiedSources = Object.create(null);
-	}
+export function copy(source: string, target: string, callback: (error: Error | null) => void, copiedSourcesIn?: { [path: string]: boolean }): void {
+	const copiedSources = copiedSourcesIn ? copiedSourcesIn : Object.create(null);
 
 	fs.stat(source, (error, stat) => {
 		if (error) {
@@ -87,8 +84,8 @@ export function copy(source: string, target: string, callback: (error: Error) =>
 
 		const proceed = function () {
 			readdir(source, (err, files) => {
-				loop(files, (file: string, clb: (error: Error, result: string[]) => void) => {
-					copy(paths.join(source, file), paths.join(target, file), (error: Error) => clb(error, void 0), copiedSources);
+				loop(files, (file: string, clb: (error: Error | null, result: string[]) => void) => {
+					copy(paths.join(source, file), paths.join(target, file), (error: Error) => clb(error, []), copiedSources);
 				}, callback);
 			});
 		};
@@ -129,40 +126,40 @@ function doCopyFile(source: string, target: string, mode: number, callback: (err
 	reader.pipe(writer);
 }
 
-export function mkdirp(path: string, mode?: number, token?: CancellationToken): TPromise<boolean> {
-	const mkdir = () => {
-		return nfcall(fs.mkdir, path, mode).then(null, (mkdirErr: NodeJS.ErrnoException) => {
+export function mkdirp(path: string, mode?: number, token?: CancellationToken): Promise<boolean> {
+	const mkdir = (): Promise<null> => {
+		return nfcall(fs.mkdir, path, mode).then(undefined, (mkdirErr: NodeJS.ErrnoException) => {
 
 			// ENOENT: a parent folder does not exist yet
 			if (mkdirErr.code === 'ENOENT') {
-				return TPromise.wrapError(mkdirErr);
+				return Promise.reject(mkdirErr);
 			}
 
 			// Any other error: check if folder exists and
 			// return normally in that case if its a folder
 			return nfcall(fs.stat, path).then((stat: fs.Stats) => {
 				if (!stat.isDirectory()) {
-					return TPromise.wrapError(new Error(`'${path}' exists and is not a directory.`));
+					return Promise.reject(new Error(`'${path}' exists and is not a directory.`));
 				}
 
 				return null;
 			}, statErr => {
-				return TPromise.wrapError(mkdirErr); // bubble up original mkdir error
+				return Promise.reject(mkdirErr); // bubble up original mkdir error
 			});
 		});
 	};
 
 	// stop at root
 	if (path === paths.dirname(path)) {
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 
 	// recursively mkdir
-	return mkdir().then(null, (err: NodeJS.ErrnoException) => {
+	return mkdir().then(undefined, (err: NodeJS.ErrnoException) => {
 
 		// Respect cancellation
 		if (token && token.isCancellationRequested) {
-			return TPromise.as(false);
+			return Promise.resolve(false);
 		}
 
 		// ENOENT: a parent folder does not exist yet, continue
@@ -172,7 +169,7 @@ export function mkdirp(path: string, mode?: number, token?: CancellationToken): 
 		}
 
 		// Any other error
-		return TPromise.wrapError(err);
+		return Promise.reject(err);
 	});
 }
 
@@ -180,7 +177,7 @@ export function mkdirp(path: string, mode?: number, token?: CancellationToken): 
 // after the rename, the contents are out of the workspace although not yet deleted. The greater benefit however is that this operation
 // will fail in case any file is used by another process. fs.unlink() in node will not bail if a file unlinked is used by another process.
 // However, the consequences are bad as outlined in all the related bugs from https://github.com/joyent/node/issues/7164
-export function del(path: string, tmpFolder: string, callback: (error: Error) => void, done?: (error: Error) => void): void {
+export function del(path: string, tmpFolder: string, callback: (error: Error | null) => void, done?: (error: Error | null) => void): void {
 	fs.exists(path, exists => {
 		if (!exists) {
 			return callback(null);
@@ -198,7 +195,7 @@ export function del(path: string, tmpFolder: string, callback: (error: Error) =>
 			}
 
 			const pathInTemp = paths.join(tmpFolder, uuid.generateUuid());
-			fs.rename(path, pathInTemp, (error: Error) => {
+			fs.rename(path, pathInTemp, (error: Error | null) => {
 				if (error) {
 					return rmRecursive(path, callback); // if rename fails, delete without tmp dir
 				}
@@ -221,7 +218,7 @@ export function del(path: string, tmpFolder: string, callback: (error: Error) =>
 	});
 }
 
-function rmRecursive(path: string, callback: (error: Error) => void): void {
+function rmRecursive(path: string, callback: (error: Error | null) => void): void {
 	if (path === '\\' || path === '/') {
 		return callback(new Error('Will not delete root!'));
 	}
@@ -297,12 +294,12 @@ export function delSync(path: string): void {
 	}
 }
 
-export function mv(source: string, target: string, callback: (error: Error) => void): void {
+export function mv(source: string, target: string, callback: (error: Error | null) => void): void {
 	if (source === target) {
 		return callback(null);
 	}
 
-	function updateMtime(err: Error): void {
+	function updateMtime(err: Error | null): void {
 		if (err) {
 			return callback(err);
 		}
@@ -393,7 +390,7 @@ function doWriteFileStreamAndFlush(path: string, reader: NodeJS.ReadableStream, 
 			if (error) {
 				if (isOpen) {
 					writer.once('close', () => callback(error));
-					writer.close();
+					writer.destroy();
 				} else {
 					callback(error);
 				}
@@ -453,10 +450,10 @@ function doWriteFileStreamAndFlush(path: string, reader: NodeJS.ReadableStream, 
 					canFlush = false;
 				}
 
-				writer.close();
+				writer.destroy();
 			});
 		} else {
-			writer.close();
+			writer.destroy();
 		}
 	});
 
@@ -481,7 +478,7 @@ function doWriteFileAndFlush(path: string, data: string | Buffer, options: IWrit
 	}
 
 	// Open the file with same flags and mode as fs.writeFile()
-	fs.open(path, options.flag, options.mode, (openError, fd) => {
+	fs.open(path, typeof options.flag === 'string' ? options.flag : 'r', options.mode, (openError, fd) => {
 		if (openError) {
 			return callback(openError);
 		}
@@ -520,7 +517,7 @@ export function writeFileAndFlushSync(path: string, data: string | Buffer, optio
 	}
 
 	// Open the file with same flags and mode as fs.writeFile()
-	const fd = fs.openSync(path, options.flag, options.mode);
+	const fd = fs.openSync(path, typeof options.flag === 'string' ? options.flag : 'r', options.mode);
 
 	try {
 
@@ -566,7 +563,7 @@ function ensureOptions(options?: IWriteFileOptions): IWriteFileOptions {
  * In case of errors, null is returned. But you cannot use this function to verify that a path exists.
  * realcaseSync does not handle '..' or '.' path segments and it does not take the locale into account.
  */
-export function realcaseSync(path: string): string {
+export function realcaseSync(path: string): string | null {
 	const dir = paths.dirname(path);
 	if (path === dir) {	// end recursion
 		return path;
@@ -616,7 +613,7 @@ export function realpathSync(path: string): string {
 	}
 }
 
-export function realpath(path: string, callback: (error: Error, realpath: string) => void): void {
+export function realpath(path: string, callback: (error: Error | null, realpath: string) => void): void {
 	return fs.realpath(path, (error, realpath) => {
 		if (!error) {
 			return callback(null, realpath);
@@ -644,7 +641,7 @@ export function watch(path: string, onChange: (type: string, path?: string) => v
 		const watcher = fs.watch(path);
 
 		watcher.on('change', (type, raw) => {
-			let file: string | null = null;
+			let file: string | undefined;
 			if (raw) { // https://github.com/Microsoft/vscode/issues/38191
 				file = raw.toString();
 				if (platform.isMacintosh) {

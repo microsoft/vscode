@@ -96,6 +96,24 @@ export class TerminalPanel extends Panel {
 		this._updateFont();
 		this._updateTheme();
 
+		this._register(this.onDidChangeVisibility(visible => {
+			if (visible) {
+				if (this._terminalService.terminalInstances.length > 0) {
+					this._updateFont();
+					this._updateTheme();
+				} else {
+					// Check if instances were already restored as part of workbench restore
+					if (this._terminalService.terminalInstances.length === 0) {
+						this._terminalService.createTerminal();
+					}
+					if (this._terminalService.terminalInstances.length > 0) {
+						this._updateFont();
+						this._updateTheme();
+					}
+				}
+			}
+		}));
+
 		// Force another layout (first is setContainers) since config has changed
 		this.layout(new dom.Dimension(this._terminalContainer.offsetWidth, this._terminalContainer.offsetHeight));
 	}
@@ -105,28 +123,6 @@ export class TerminalPanel extends Panel {
 			return;
 		}
 		this._terminalService.terminalTabs.forEach(t => t.layout(dimension.width, dimension.height));
-	}
-
-	public setVisible(visible: boolean): Promise<void> {
-		if (visible) {
-			if (this._terminalService.terminalInstances.length > 0) {
-				this._updateFont();
-				this._updateTheme();
-			} else {
-				return super.setVisible(visible).then(() => {
-					// Check if instances were already restored as part of workbench restore
-					if (this._terminalService.terminalInstances.length === 0) {
-						this._terminalService.createTerminal();
-					}
-					if (this._terminalService.terminalInstances.length > 0) {
-						this._updateFont();
-						this._updateTheme();
-					}
-					return Promise.resolve(void 0);
-				});
-			}
-		}
-		return super.setVisible(visible);
 	}
 
 	public getActions(): IAction[] {
@@ -259,9 +255,11 @@ export class TerminalPanel extends Panel {
 				const anchor: { x: number, y: number } = { x: standardEvent.posx, y: standardEvent.posy };
 				this._contextMenuService.showContextMenu({
 					getAnchor: () => anchor,
-					getActions: () => Promise.resolve(this._getContextMenuActions()),
+					getActions: () => this._getContextMenuActions(),
 					getActionsContext: () => this._parentDomElement
 				});
+			} else {
+				event.stopImmediatePropagation();
 			}
 			this._cancelContextMenu = false;
 		}));

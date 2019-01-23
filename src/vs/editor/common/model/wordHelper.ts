@@ -16,11 +16,11 @@ export const USUAL_WORD_SEPARATORS = '`~!@#$%^&*()-=+[{]}\\|;:\'",.<>/?';
  */
 function createWordRegExp(allowInWords: string = ''): RegExp {
 	let source = '(-?\\d*\\.\\d\\w*)|([^';
-	for (let i = 0; i < USUAL_WORD_SEPARATORS.length; i++) {
-		if (allowInWords.indexOf(USUAL_WORD_SEPARATORS[i]) >= 0) {
+	for (const sep of USUAL_WORD_SEPARATORS) {
+		if (allowInWords.indexOf(sep) >= 0) {
 			continue;
 		}
-		source += '\\' + USUAL_WORD_SEPARATORS[i];
+		source += '\\' + sep;
 	}
 	source += '\\s]+)';
 	return new RegExp(source, 'g');
@@ -41,6 +41,9 @@ export function ensureValidWordDefinition(wordDefinition?: RegExp | null): RegEx
 			if (wordDefinition.multiline) {
 				flags += 'm';
 			}
+			if ((wordDefinition as any).unicode) {
+				flags += 'u';
+			}
 			result = new RegExp(wordDefinition.source, flags);
 		} else {
 			result = wordDefinition;
@@ -57,10 +60,6 @@ function getWordAtPosFast(column: number, wordDefinition: RegExp, text: string, 
 
 	let pos = column - 1 - textOffset;
 	let start = text.lastIndexOf(' ', pos - 1) + 1;
-	let end = text.indexOf(' ', pos);
-	if (end === -1) {
-		end = text.length;
-	}
 
 	wordDefinition.lastIndex = start;
 	let match: RegExpMatchArray | null;

@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ChordKeybinding, KeyCode, Keybinding, ResolvedKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { OperatingSystem } from 'vs/base/common/platform';
-import { ResolvedKeybinding, SimpleKeybinding, Keybinding, KeyCode, ChordKeybinding } from 'vs/base/common/keyCodes';
-import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
+import { IMMUTABLE_CODE_TO_KEY_CODE, ScanCode, ScanCodeBinding } from 'vs/base/common/scanCode';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
-import { ScanCodeBinding, ScanCode, IMMUTABLE_CODE_TO_KEY_CODE } from 'vs/base/common/scanCode';
+import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
 
 /**
  * A keyboard mapper to be used when reading the keymap from the OS fails.

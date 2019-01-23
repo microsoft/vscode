@@ -2,16 +2,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import * as assert from 'assert';
-import { BracketElectricCharacterSupport, IElectricAction } from 'vs/editor/common/modes/supports/electricCharacter';
-import { createFakeScopedLineTokens, TokenText } from 'vs/editor/test/common/modesTestUtils';
-import { RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
 import { LanguageIdentifier, StandardTokenType } from 'vs/editor/common/modes';
+import { BracketElectricCharacterSupport, IElectricAction } from 'vs/editor/common/modes/supports/electricCharacter';
+import { RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
+import { TokenText, createFakeScopedLineTokens } from 'vs/editor/test/common/modesTestUtils';
 
 const fakeLanguageIdentifier = new LanguageIdentifier('test', 3);
 
 suite('Editor Modes - Auto Indentation', () => {
-	function _testOnElectricCharacter(electricCharacterSupport: BracketElectricCharacterSupport, line: TokenText[], character: string, offset: number): IElectricAction {
+	function _testOnElectricCharacter(electricCharacterSupport: BracketElectricCharacterSupport, line: TokenText[], character: string, offset: number): IElectricAction | null {
 		return electricCharacterSupport.onElectricCharacter(character, createFakeScopedLineTokens(line), offset);
 	}
 

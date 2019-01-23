@@ -10,7 +10,6 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ShowAllCommandsAction } from 'vs/workbench/parts/quickopen/browser/commandsHandler';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Parts, IPartService } from 'vs/workbench/services/part/common/partService';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
@@ -117,17 +116,17 @@ export class WelcomeOverlayAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super(id, label);
 	}
 
-	public run(): TPromise<void> {
+	public run(): Promise<void> {
 		if (!welcomeOverlay) {
 			welcomeOverlay = this.instantiationService.createInstance(WelcomeOverlay);
 		}
 		welcomeOverlay.show();
-		return null;
+		return Promise.resolve();
 	}
 }
 
@@ -143,11 +142,11 @@ export class HideWelcomeOverlayAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<void> {
+	public run(): Promise<void> {
 		if (welcomeOverlay) {
 			welcomeOverlay.hide();
 		}
-		return null;
+		return Promise.resolve();
 	}
 }
 
@@ -158,11 +157,11 @@ class WelcomeOverlay {
 	private _overlay: HTMLElement;
 
 	constructor(
-		@IPartService private partService: IPartService,
-		@IEditorService private editorService: IEditorService,
-		@ICommandService private commandService: ICommandService,
+		@IPartService private readonly partService: IPartService,
+		@IEditorService private readonly editorService: IEditorService,
+		@ICommandService private readonly commandService: ICommandService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IKeybindingService private keybindingService: IKeybindingService
+		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
 		this._overlayVisible = OVERLAY_VISIBLE.bindTo(this._contextKeyService);
 		this.create();

@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { HoverOperation, IHoverComputer, HoverStartMode } from './hoverOperation';
-import { GlyphHoverWidget } from './hoverWidgets';
 import { $ } from 'vs/base/browser/dom';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 import { IMarkdownString, isEmptyMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/hoverOperation';
+import { GlyphHoverWidget } from 'vs/editor/contrib/hover/hoverWidgets';
+import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 
 export interface IHoverMessage {
 	value: IMarkdownString;
@@ -43,24 +43,25 @@ class MarginComputer implements IHoverComputer<IHoverMessage[]> {
 			};
 		};
 
-		let lineDecorations = this._editor.getLineDecorations(this._lineNumber);
+		const lineDecorations = this._editor.getLineDecorations(this._lineNumber);
 
-		let result: IHoverMessage[] = [];
-		for (let i = 0, len = lineDecorations.length; i < len; i++) {
-			let d = lineDecorations[i];
+		const result: IHoverMessage[] = [];
+		if (!lineDecorations) {
+			return result;
+		}
 
+		for (const d of lineDecorations) {
 			if (!d.options.glyphMarginClassName) {
 				continue;
 			}
 
-			let hoverMessage = d.options.glyphMarginHoverMessage;
-
-			if (isEmptyMarkdownString(hoverMessage)) {
+			const hoverMessage = d.options.glyphMarginHoverMessage;
+			if (!hoverMessage || isEmptyMarkdownString(hoverMessage)) {
 				continue;
 			}
 
 			if (Array.isArray(hoverMessage)) {
-				result = result.concat(hoverMessage.map(toHoverMessage));
+				result.push(...hoverMessage.map(toHoverMessage));
 			} else {
 				result.push(toHoverMessage(hoverMessage));
 			}
@@ -104,8 +105,9 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 		this._hoverOperation = new HoverOperation(
 			this._computer,
 			(result: IHoverMessage[]) => this._withResult(result),
-			null,
-			(result: any) => this._withResult(result)
+			undefined,
+			(result: any) => this._withResult(result),
+			300
 		);
 
 	}
@@ -166,7 +168,7 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 		messages.forEach((msg) => {
 			const renderedContents = this._markdownRenderer.render(msg.value);
 			this._renderDisposeables.push(renderedContents);
-			fragment.appendChild($('div.hover-row', null, renderedContents.element));
+			fragment.appendChild($('div.hover-row', undefined, renderedContents.element));
 		});
 
 		this.updateContents(fragment);

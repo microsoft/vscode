@@ -37,13 +37,13 @@ export class WinTerminalService implements ITerminalService {
 		this.spawnTerminal(cp, configuration, processes.getWindowsShell(), cwd);
 	}
 
-	public runInTerminal(title: string, dir: string, args: string[], envVars: IProcessEnvironment): Promise<void> {
+	public runInTerminal(title: string, dir: string, args: string[], envVars: IProcessEnvironment): Promise<number | undefined> {
 
 		const configuration = this._configurationService.getValue<ITerminalConfiguration>();
 		const terminalConfig = configuration.terminal.external;
 		const exec = terminalConfig.windowsExec || getDefaultTerminalWindows();
 
-		return new Promise<void>((c, e) => {
+		return new Promise<number | undefined>((c, e) => {
 
 			const title = `"${dir} - ${TERMINAL_TITLE}"`;
 			const command = `""${args.join('" "')}" & pause"`; // use '|' to only pause on non-zero exit code
@@ -67,7 +67,7 @@ export class WinTerminalService implements ITerminalService {
 			const cmd = cp.spawn(WinTerminalService.CMD, cmdArgs, options);
 			cmd.on('error', e);
 
-			c(null);
+			c(undefined);
 		});
 	}
 
@@ -85,7 +85,7 @@ export class WinTerminalService implements ITerminalService {
 		// unless otherwise specified
 		if (spawnType === WinSpawnType.CMDER) {
 			spawner.spawn(exec, [cwd]);
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		const cmdArgs = ['/c', 'start', '/wait'];
@@ -97,10 +97,10 @@ export class WinTerminalService implements ITerminalService {
 		cmdArgs.push(exec);
 
 		return new Promise<void>((c, e) => {
-			const env = cwd ? { cwd: cwd } : void 0;
+			const env = cwd ? { cwd: cwd } : undefined;
 			const child = spawner.spawn(command, cmdArgs, env);
 			child.on('error', e);
-			child.on('exit', () => c(null));
+			child.on('exit', () => c());
 		});
 	}
 
@@ -128,13 +128,13 @@ export class MacTerminalService implements ITerminalService {
 		this.spawnTerminal(cp, configuration, cwd);
 	}
 
-	public runInTerminal(title: string, dir: string, args: string[], envVars: IProcessEnvironment): Promise<void> {
+	public runInTerminal(title: string, dir: string, args: string[], envVars: IProcessEnvironment): Promise<number | undefined> {
 
 		const configuration = this._configurationService.getValue<ITerminalConfiguration>();
 		const terminalConfig = configuration.terminal.external;
 		const terminalApp = terminalConfig.osxExec || DEFAULT_TERMINAL_OSX;
 
-		return new Promise<void>((c, e) => {
+		return new Promise<number | undefined>((c, e) => {
 
 			if (terminalApp === DEFAULT_TERMINAL_OSX || terminalApp === 'iTerm.app') {
 
@@ -176,7 +176,7 @@ export class MacTerminalService implements ITerminalService {
 				});
 				osa.on('exit', (code: number) => {
 					if (code === 0) {	// OK
-						c(null);
+						c(undefined);
 					} else {
 						if (stderr) {
 							const lines = stderr.split('\n', 1);
@@ -199,7 +199,7 @@ export class MacTerminalService implements ITerminalService {
 		return new Promise<void>((c, e) => {
 			const child = spawner.spawn('/usr/bin/open', ['-a', terminalApp, cwd]);
 			child.on('error', e);
-			child.on('exit', () => c(null));
+			child.on('exit', () => c());
 		});
 	}
 }
@@ -220,13 +220,13 @@ export class LinuxTerminalService implements ITerminalService {
 		this.spawnTerminal(cp, configuration, cwd);
 	}
 
-	public runInTerminal(title: string, dir: string, args: string[], envVars: IProcessEnvironment): Promise<void> {
+	public runInTerminal(title: string, dir: string, args: string[], envVars: IProcessEnvironment): Promise<number | undefined> {
 
 		const configuration = this._configurationService.getValue<ITerminalConfiguration>();
 		const terminalConfig = configuration.terminal.external;
 		const execPromise = terminalConfig.linuxExec ? Promise.resolve(terminalConfig.linuxExec) : getDefaultTerminalLinuxReady();
 
-		return new Promise<void>((c, e) => {
+		return new Promise<number | undefined>((c, e) => {
 
 			let termArgs: string[] = [];
 			//termArgs.push('--title');
@@ -262,7 +262,7 @@ export class LinuxTerminalService implements ITerminalService {
 				});
 				cmd.on('exit', (code: number) => {
 					if (code === 0) {	// OK
-						c(null);
+						c(undefined);
 					} else {
 						if (stderr) {
 							const lines = stderr.split('\n', 1);
@@ -279,13 +279,13 @@ export class LinuxTerminalService implements ITerminalService {
 	private spawnTerminal(spawner, configuration: ITerminalConfiguration, cwd?: string): Promise<void> {
 		const terminalConfig = configuration.terminal.external;
 		const execPromise = terminalConfig.linuxExec ? Promise.resolve(terminalConfig.linuxExec) : getDefaultTerminalLinuxReady();
-		const env = cwd ? { cwd: cwd } : void 0;
+		const env = cwd ? { cwd: cwd } : undefined;
 
 		return new Promise<void>((c, e) => {
 			execPromise.then(exec => {
 				const child = spawner.spawn(exec, [], env);
 				child.on('error', e);
-				child.on('exit', () => c(null));
+				child.on('exit', () => c());
 			});
 		});
 	}

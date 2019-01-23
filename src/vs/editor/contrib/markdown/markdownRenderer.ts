@@ -48,7 +48,8 @@ export class MarkdownRenderer {
 					}
 				}
 
-				return this._modeService.getOrCreateMode(modeId || '').then(_ => {
+				this._modeService.triggerMode(modeId || '');
+				return Promise.resolve(true).then(_ => {
 					const promise = TokenizationRegistry.getPromise(modeId || '');
 					if (promise) {
 						return promise.then(support => tokenizeToString(value, support));
@@ -76,7 +77,7 @@ export class MarkdownRenderer {
 		};
 	}
 
-	render(markdown: IMarkdownString): IMarkdownRenderResult {
+	render(markdown: IMarkdownString | undefined): IMarkdownRenderResult {
 		let disposeables: IDisposable[] = [];
 
 		let element: HTMLElement;

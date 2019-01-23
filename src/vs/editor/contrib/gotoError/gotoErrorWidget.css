@@ -6,7 +6,7 @@
 /* marker zone */
 
 .monaco-editor .marker-widget {
-	padding: 6px 12px;
+	padding: 3px 12px;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
@@ -33,7 +33,21 @@
 	user-select: text;
 }
 
+.monaco-editor .marker-widget .descriptioncontainer .message {
+	display: flex;
+	flex-direction: column;
+}
+
+.monaco-editor .marker-widget .descriptioncontainer .message .details {
+	padding-left: 6px;
+}
+
+.monaco-editor .marker-widget .descriptioncontainer .message .source,
+.monaco-editor .marker-widget .descriptioncontainer .message .code,
+.monaco-editor .marker-widget .descriptioncontainer .filename {
+	opacity: 0.6;
+}
+
 .monaco-editor .marker-widget .descriptioncontainer .filename {
 	cursor: pointer;
-	opacity: 0.6;
 }

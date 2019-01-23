@@ -6,11 +6,12 @@
 import * as paths from 'vs/base/common/paths';
 import { URI } from 'vs/base/common/uri';
 import { Range, IRange } from 'vs/editor/common/core/range';
-import { IMarker, MarkerSeverity, IRelatedInformation } from 'vs/platform/markers/common/markers';
-import { groupBy, flatten, isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { IMarker, MarkerSeverity, IRelatedInformation, IMarkerData } from 'vs/platform/markers/common/markers';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { values } from 'vs/base/common/map';
 import { memoize } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
+import { Hasher } from 'vs/base/common/hash';
 
 function compareUris(a: URI, b: URI) {
 	const astr = a.toString();
@@ -48,6 +49,13 @@ export class ResourceMarkers {
 	@memoize
 	get name(): string { return paths.basename(this.resource.fsPath); }
 
+	@memoize
+	get hash(): string {
+		const hasher = new Hasher();
+		hasher.hash(this.resource.toString());
+		return `${hasher.value}`;
+	}
+
 	constructor(readonly resource: URI, readonly markers: Marker[]) { }
 }
 
@@ -55,6 +63,19 @@ export class Marker {
 
 	get resource(): URI { return this.marker.resource; }
 	get range(): IRange { return this.marker; }
+
+	private _lines: string[];
+	get lines(): string[] {
+		if (!this._lines) {
+			this._lines = this.marker.message.split(/\r\n|\r|\n/g);
+		}
+		return this._lines;
+	}
+
+	@memoize
+	get hash(): string {
+		return IMarkerData.makeKey(this.marker);
+	}
 
 	constructor(
 		readonly marker: IMarker,
@@ -65,21 +86,41 @@ export class Marker {
 		return JSON.stringify({
 			...this.marker,
 			resource: this.marker.resource.path,
-			relatedInformation: this.relatedInformation.length ? this.relatedInformation.map(r => ({ ...r.raw, resource: r.raw.resource.path })) : void 0
+			relatedInformation: this.relatedInformation.length ? this.relatedInformation.map(r => ({ ...r.raw, resource: r.raw.resource.path })) : undefined
 		}, null, '\t');
 	}
 }
 
 export class RelatedInformation {
 
-	constructor(readonly raw: IRelatedInformation) { }
+	@memoize
+	get hash(): string {
+		const hasher = new Hasher();
+		hasher.hash(this.resource.toString());
+		hasher.hash(this.marker.startLineNumber);
+		hasher.hash(this.marker.startColumn);
+		hasher.hash(this.marker.endLineNumber);
+		hasher.hash(this.marker.endColumn);
+		hasher.hash(this.raw.resource.toString());
+		hasher.hash(this.raw.startLineNumber);
+		hasher.hash(this.raw.startColumn);
+		hasher.hash(this.raw.endLineNumber);
+		hasher.hash(this.raw.endColumn);
+		return `${hasher.value}`;
+	}
+
+	constructor(
+		private resource: URI,
+		private marker: IMarker,
+		readonly raw: IRelatedInformation
+	) { }
 }
 
 export class MarkersModel {
 
 	private cachedSortedResources: ResourceMarkers[] | undefined = undefined;
 
-	private readonly _onDidChange: Emitter<URI> = new Emitter<URI>();
+	private readonly _onDidChange = new Emitter<URI>();
 	readonly onDidChange: Event<URI> = this._onDidChange.event;
 
 	get resourceMarkers(): ResourceMarkers[] {
@@ -108,9 +149,7 @@ export class MarkersModel {
 				let relatedInformation: RelatedInformation[] | undefined = undefined;
 
 				if (rawMarker.relatedInformation) {
-					const groupedByResource = groupBy(rawMarker.relatedInformation, compareMarkersByUri);
-					groupedByResource.sort((a, b) => compareUris(a[0].resource, b[0].resource));
-					relatedInformation = flatten(groupedByResource).map(r => new RelatedInformation(r));
+					relatedInformation = rawMarker.relatedInformation.map(r => new RelatedInformation(resource, rawMarker, r));
 				}
 
 				return new Marker(rawMarker, relatedInformation);

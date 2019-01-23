@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Action, IAction } from 'vs/base/common/actions';
 import { BaseActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -46,7 +45,7 @@ export class ActionBarContributor {
 	/**
 	 * Can return a specific IActionItem to render the given action.
 	 */
-	getActionItem(context: any, action: Action): BaseActionItem {
+	getActionItem(context: any, action: Action): BaseActionItem | null {
 		return null;
 	}
 }
@@ -82,8 +81,7 @@ export class ContributableActionProvider implements IActionProvider {
 		const context = this.toContext(tree, element);
 
 		const contributors = this.registry.getActionBarContributors(Scope.VIEWER);
-		for (let i = 0; i < contributors.length; i++) {
-			const contributor = contributors[i];
+		for (const contributor of contributors) {
 			if (contributor.hasActions(context)) {
 				return true;
 			}
@@ -92,28 +90,26 @@ export class ContributableActionProvider implements IActionProvider {
 		return false;
 	}
 
-	getActions(tree: ITree, element: any): TPromise<IAction[]> {
+	getActions(tree: ITree, element: any): IAction[] {
 		const actions: IAction[] = [];
 		const context = this.toContext(tree, element);
 
 		// Collect Actions
 		const contributors = this.registry.getActionBarContributors(Scope.VIEWER);
-		for (let i = 0; i < contributors.length; i++) {
-			const contributor = contributors[i];
+		for (const contributor of contributors) {
 			if (contributor.hasActions(context)) {
 				actions.push(...contributor.getActions(context));
 			}
 		}
 
-		return Promise.resolve(prepareActions(actions));
+		return prepareActions(actions);
 	}
 
 	hasSecondaryActions(tree: ITree, element: any): boolean {
 		const context = this.toContext(tree, element);
 
 		const contributors = this.registry.getActionBarContributors(Scope.VIEWER);
-		for (let i = 0; i < contributors.length; i++) {
-			const contributor = contributors[i];
+		for (const contributor of contributors) {
 			if (contributor.hasSecondaryActions(context)) {
 				return true;
 			}
@@ -122,23 +118,22 @@ export class ContributableActionProvider implements IActionProvider {
 		return false;
 	}
 
-	getSecondaryActions(tree: ITree, element: any): TPromise<IAction[]> {
+	getSecondaryActions(tree: ITree, element: any): IAction[] {
 		const actions: IAction[] = [];
 		const context = this.toContext(tree, element);
 
 		// Collect Actions
 		const contributors = this.registry.getActionBarContributors(Scope.VIEWER);
-		for (let i = 0; i < contributors.length; i++) {
-			const contributor = contributors[i];
+		for (const contributor of contributors) {
 			if (contributor.hasSecondaryActions(context)) {
 				actions.push(...contributor.getSecondaryActions(context));
 			}
 		}
 
-		return Promise.resolve(prepareActions(actions));
+		return prepareActions(actions);
 	}
 
-	getActionItem(tree: ITree, element: any, action: Action): BaseActionItem {
+	getActionItem(tree: ITree, element: any, action: Action): BaseActionItem | null {
 		const contributors = this.registry.getActionBarContributors(Scope.VIEWER);
 		const context = this.toContext(tree, element);
 
@@ -226,7 +221,7 @@ export interface IActionBarRegistry {
 	 * Goes through all action bar contributors and asks them for contributed action item for
 	 * the provided scope and context.
 	 */
-	getActionItemForContext(scope: string, context: any, action: Action): BaseActionItem;
+	getActionItemForContext(scope: string, context: any, action: Action): BaseActionItem | null;
 
 	/**
 	 * Registers an Actionbar contributor. It will be called to contribute actions to all the action bars
@@ -251,7 +246,7 @@ class ActionBarRegistry implements IActionBarRegistry {
 		this.instantiationService = service;
 
 		while (this.actionBarContributorConstructors.length > 0) {
-			const entry = this.actionBarContributorConstructors.shift();
+			const entry = this.actionBarContributorConstructors.shift()!;
 			this.createActionBarContributor(entry.scope, entry.ctor);
 		}
 	}
@@ -299,10 +294,9 @@ class ActionBarRegistry implements IActionBarRegistry {
 		return actions;
 	}
 
-	getActionItemForContext(scope: string, context: any, action: Action): BaseActionItem {
+	getActionItemForContext(scope: string, context: any, action: Action): BaseActionItem | null {
 		const contributors = this.getContributors(scope);
-		for (let i = 0; i < contributors.length; i++) {
-			const contributor = contributors[i];
+		for (const contributor of contributors) {
 			const item = contributor.getActionItem(context, action);
 			if (item) {
 				return item;

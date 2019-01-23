@@ -24,13 +24,14 @@ export class ClosePanelAction extends Action {
 	constructor(
 		id: string,
 		name: string,
-		@IPartService private partService: IPartService
+		@IPartService private readonly partService: IPartService
 	) {
 		super(id, name, 'hide-panel-action');
 	}
 
-	run(): Thenable<any> {
-		return this.partService.setPanelHidden(true);
+	run(): Promise<any> {
+		this.partService.setPanelHidden(true);
+		return Promise.resolve(null);
 	}
 }
 
@@ -42,13 +43,14 @@ export class TogglePanelAction extends Action {
 	constructor(
 		id: string,
 		name: string,
-		@IPartService private partService: IPartService
+		@IPartService private readonly partService: IPartService
 	) {
 		super(id, name, partService.isVisible(Parts.PANEL_PART) ? 'panel expanded' : 'panel');
 	}
 
-	run(): Thenable<any> {
-		return this.partService.setPanelHidden(this.partService.isVisible(Parts.PANEL_PART));
+	run(): Promise<any> {
+		this.partService.setPanelHidden(this.partService.isVisible(Parts.PANEL_PART));
+		return Promise.resolve(null);
 	}
 }
 
@@ -60,17 +62,18 @@ class FocusPanelAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IPanelService private panelService: IPanelService,
-		@IPartService private partService: IPartService
+		@IPanelService private readonly panelService: IPanelService,
+		@IPartService private readonly partService: IPartService
 	) {
 		super(id, label);
 	}
 
-	run(): Thenable<any> {
+	run(): Promise<any> {
 
 		// Show panel
 		if (!this.partService.isVisible(Parts.PANEL_PART)) {
-			return this.partService.setPanelHidden(false);
+			this.partService.setPanelHidden(false);
+			return Promise.resolve(null);
 		}
 
 		// Focus into active panel
@@ -79,7 +82,7 @@ class FocusPanelAction extends Action {
 			panel.focus();
 		}
 
-		return Promise.resolve(true);
+		return Promise.resolve(null);
 	}
 }
 
@@ -96,7 +99,7 @@ export class TogglePanelPositionAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IPartService private partService: IPartService,
+		@IPartService private readonly partService: IPartService,
 	) {
 		super(id, label, partService.getPanelPosition() === Position.RIGHT ? 'move-panel-to-bottom' : 'move-panel-to-right');
 
@@ -113,10 +116,11 @@ export class TogglePanelPositionAction extends Action {
 		setClassAndLabel();
 	}
 
-	run(): Thenable<any> {
+	run(): Promise<any> {
 		const position = this.partService.getPanelPosition();
 
-		return this.partService.setPanelPosition(position === Position.BOTTOM ? Position.RIGHT : Position.BOTTOM);
+		this.partService.setPanelPosition(position === Position.BOTTOM ? Position.RIGHT : Position.BOTTOM);
+		return Promise.resolve(null);
 	}
 
 	dispose(): void {
@@ -139,7 +143,7 @@ export class ToggleMaximizedPanelAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IPartService private partService: IPartService
+		@IPartService private readonly partService: IPartService
 	) {
 		super(id, label, partService.isPanelMaximized() ? 'minimize-panel-action' : 'maximize-panel-action');
 
@@ -152,10 +156,13 @@ export class ToggleMaximizedPanelAction extends Action {
 		}));
 	}
 
-	run(): Thenable<any> {
-		const promise: Thenable<void> = !this.partService.isVisible(Parts.PANEL_PART) ? this.partService.setPanelHidden(false) : Promise.resolve(null);
+	run(): Promise<any> {
+		if (!this.partService.isVisible(Parts.PANEL_PART)) {
+			this.partService.setPanelHidden(false);
+		}
 
-		return promise.then(() => this.partService.toggleMaximizedPanel());
+		this.partService.toggleMaximizedPanel();
+		return Promise.resolve(null);
 	}
 
 	dispose(): void {
@@ -169,13 +176,15 @@ export class PanelActivityAction extends ActivityAction {
 
 	constructor(
 		activity: IActivity,
-		@IPanelService private panelService: IPanelService
+		@IPanelService private readonly panelService: IPanelService
 	) {
 		super(activity);
 	}
 
-	run(event: any): Thenable<any> {
-		return this.panelService.openPanel(this.activity.id, true).then(() => this.activate());
+	run(event: any): Promise<any> {
+		this.panelService.openPanel(this.activity.id, true);
+		this.activate();
+		return Promise.resolve(null);
 	}
 }
 
@@ -184,12 +193,12 @@ export class SwitchPanelViewAction extends Action {
 	constructor(
 		id: string,
 		name: string,
-		@IPanelService private panelService: IPanelService
+		@IPanelService private readonly panelService: IPanelService
 	) {
 		super(id, name);
 	}
 
-	run(offset: number): Thenable<any> {
+	run(offset: number): Promise<any> {
 		const pinnedPanels = this.panelService.getPinnedPanels();
 		const activePanel = this.panelService.getActivePanel();
 		if (!activePanel) {
@@ -202,7 +211,8 @@ export class SwitchPanelViewAction extends Action {
 				break;
 			}
 		}
-		return this.panelService.openPanel(targetPanelId, true);
+		this.panelService.openPanel(targetPanelId, true);
+		return Promise.resolve(null);
 	}
 }
 
@@ -219,7 +229,7 @@ export class PreviousPanelViewAction extends SwitchPanelViewAction {
 		super(id, name, panelService);
 	}
 
-	run(): Thenable<any> {
+	run(): Promise<any> {
 		return super.run(-1);
 	}
 }
@@ -237,7 +247,7 @@ export class NextPanelViewAction extends SwitchPanelViewAction {
 		super(id, name, panelService);
 	}
 
-	public run(): Thenable<any> {
+	public run(): Promise<any> {
 		return super.run(1);
 	}
 }

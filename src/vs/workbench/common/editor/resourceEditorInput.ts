@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorInput, ITextEditorModel } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { IReference } from 'vs/base/common/lifecycle';
@@ -20,7 +19,7 @@ export class ResourceEditorInput extends EditorInput {
 
 	static readonly ID: string = 'workbench.editors.resourceEditorInput';
 
-	private modelReference: TPromise<IReference<ITextEditorModel>>;
+	private modelReference: Promise<IReference<ITextEditorModel>>;
 	private resource: URI;
 	private name: string;
 	private description: string;
@@ -29,8 +28,8 @@ export class ResourceEditorInput extends EditorInput {
 		name: string,
 		description: string,
 		resource: URI,
-		@ITextModelService private textModelResolverService: ITextModelService,
-		@IHashService private hashService: IHashService
+		@ITextModelService private readonly textModelResolverService: ITextModelService,
+		@IHashService private readonly hashService: IHashService
 	) {
 		super();
 
@@ -81,7 +80,7 @@ export class ResourceEditorInput extends EditorInput {
 		return descriptor;
 	}
 
-	resolve(): TPromise<ITextEditorModel> {
+	resolve(): Promise<ITextEditorModel> {
 		if (!this.modelReference) {
 			this.modelReference = this.textModelResolverService.createModelReference(this.resource);
 		}
@@ -93,7 +92,7 @@ export class ResourceEditorInput extends EditorInput {
 				ref.dispose();
 				this.modelReference = null;
 
-				return TPromise.wrapError<ITextEditorModel>(new Error(`Unexpected model for ResourceInput: ${this.resource}`));
+				return Promise.reject(new Error(`Unexpected model for ResourceInput: ${this.resource}`));
 			}
 
 			return model;

@@ -6,7 +6,6 @@
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
@@ -16,11 +15,13 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { ExtHostContext, ExtHostDocumentContentProvidersShape, IExtHostContext, MainContext, MainThreadDocumentContentProvidersShape } from '../node/extHost.protocol';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 @extHostNamedCustomer(MainContext.MainThreadDocumentContentProviders)
 export class MainThreadDocumentContentProviders implements MainThreadDocumentContentProvidersShape {
 
-	private _resourceContentProvider: { [handle: number]: IDisposable } = Object.create(null);
+	private readonly _resourceContentProvider = new Map<number, IDisposable>();
+	private readonly _pendingUpdate = new Map<string, CancellationTokenSource>();
 	private readonly _proxy: ExtHostDocumentContentProvidersShape;
 
 	constructor(
@@ -28,38 +29,37 @@ export class MainThreadDocumentContentProviders implements MainThreadDocumentCon
 		@ITextModelService private readonly _textModelResolverService: ITextModelService,
 		@IModeService private readonly _modeService: IModeService,
 		@IModelService private readonly _modelService: IModelService,
-		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
-		@ICodeEditorService codeEditorService: ICodeEditorService
+		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocumentContentProviders);
 	}
 
-	public dispose(): void {
-		for (let handle in this._resourceContentProvider) {
-			this._resourceContentProvider[handle].dispose();
-		}
+	dispose(): void {
+		this._resourceContentProvider.forEach(p => p.dispose());
+		this._pendingUpdate.forEach(source => source.dispose());
 	}
 
 	$registerTextContentProvider(handle: number, scheme: string): void {
-		this._resourceContentProvider[handle] = this._textModelResolverService.registerTextModelContentProvider(scheme, {
-			provideTextContent: (uri: URI): Thenable<ITextModel> => {
+		const registration = this._textModelResolverService.registerTextModelContentProvider(scheme, {
+			provideTextContent: (uri: URI): Promise<ITextModel> => {
 				return this._proxy.$provideTextDocumentContent(handle, uri).then(value => {
 					if (typeof value === 'string') {
 						const firstLineText = value.substr(0, 1 + value.search(/\r?\n/));
-						const mode = this._modeService.getOrCreateModeByFilepathOrFirstLine(uri.fsPath, firstLineText);
-						return this._modelService.createModel(value, mode, uri);
+						const languageSelection = this._modeService.createByFilepathOrFirstLine(uri.fsPath, firstLineText);
+						return this._modelService.createModel(value, languageSelection, uri);
 					}
 					return undefined;
 				});
 			}
 		});
+		this._resourceContentProvider.set(handle, registration);
 	}
 
 	$unregisterTextContentProvider(handle: number): void {
-		const registration = this._resourceContentProvider[handle];
+		const registration = this._resourceContentProvider.get(handle);
 		if (registration) {
 			registration.dispose();
-			delete this._resourceContentProvider[handle];
+			this._resourceContentProvider.delete(handle);
 		}
 	}
 
@@ -69,11 +69,27 @@ export class MainThreadDocumentContentProviders implements MainThreadDocumentCon
 			return;
 		}
 
+		// cancel and dispose an existing update
+		if (this._pendingUpdate.has(model.id)) {
+			this._pendingUpdate.get(model.id).cancel();
+		}
+
+		// create and keep update token
+		const myToken = new CancellationTokenSource();
+		this._pendingUpdate.set(model.id, myToken);
+
 		this._editorWorkerService.computeMoreMinimalEdits(model.uri, [{ text: value, range: model.getFullModelRange() }]).then(edits => {
+			// remove token
+			this._pendingUpdate.delete(model.id);
+
+			if (myToken.token.isCancellationRequested) {
+				// ignore this
+				return;
+			}
 			if (edits.length > 0) {
 				// use the evil-edit as these models show in readonly-editor only
 				model.applyEdits(edits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
 			}
-		}, onUnexpectedError);
+		}).catch(onUnexpectedError);
 	}
 }

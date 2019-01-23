@@ -11,9 +11,10 @@ import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostC
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { once } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { dispose } from 'vs/base/common/lifecycle';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 @extHostNamedCustomer(MainContext.MainThreadMessageService)
 export class MainThreadMessageService implements MainThreadMessageServiceShape {
@@ -31,7 +32,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 		//
 	}
 
-	$showMessage(severity: Severity, message: string, options: MainThreadMessageOptions, commands: { title: string; isCloseAffordance: boolean; handle: number; }[]): Thenable<number> {
+	$showMessage(severity: Severity, message: string, options: MainThreadMessageOptions, commands: { title: string; isCloseAffordance: boolean; handle: number; }[]): Promise<number> {
 		if (options.modal) {
 			return this._showModalMessage(severity, message, commands);
 		} else {
@@ -39,7 +40,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 		}
 	}
 
-	private _showMessage(severity: Severity, message: string, commands: { title: string; isCloseAffordance: boolean; handle: number; }[], extension: IExtensionDescription): Thenable<number> {
+	private _showMessage(severity: Severity, message: string, commands: { title: string; isCloseAffordance: boolean; handle: number; }[], extension: IExtensionDescription): Promise<number> {
 
 		return new Promise<number>(resolve => {
 
@@ -55,9 +56,9 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 			}
 
 			class ManageExtensionAction extends Action {
-				constructor(id: string, label: string, commandService: ICommandService) {
-					super(id, label, undefined, true, () => {
-						return commandService.executeCommand('_extensions.manage', id);
+				constructor(id: ExtensionIdentifier, label: string, commandService: ICommandService) {
+					super(id.value, label, undefined, true, () => {
+						return commandService.executeCommand('_extensions.manage', id.value);
 					});
 				}
 			}
@@ -77,7 +78,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 
 			const secondaryActions: IAction[] = [];
 			if (extension && !extension.isUnderDevelopment) {
-				secondaryActions.push(new ManageExtensionAction(extension.id, nls.localize('manageExtension', "Manage Extension"), this._commandService));
+				secondaryActions.push(new ManageExtensionAction(extension.identifier, nls.localize('manageExtension', "Manage Extension"), this._commandService));
 			}
 
 			const messageHandle = this._notificationService.notify({
@@ -89,15 +90,15 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 
 			// if promise has not been resolved yet, now is the time to ensure a return value
 			// otherwise if already resolved it means the user clicked one of the buttons
-			once(messageHandle.onDidClose)(() => {
+			Event.once(messageHandle.onDidClose)(() => {
 				dispose(...primaryActions, ...secondaryActions);
 				resolve(undefined);
 			});
 		});
 	}
 
-	private _showModalMessage(severity: Severity, message: string, commands: { title: string; isCloseAffordance: boolean; handle: number; }[]): Thenable<number> {
-		let cancelId: number | undefined = void 0;
+	private _showModalMessage(severity: Severity, message: string, commands: { title: string; isCloseAffordance: boolean; handle: number; }[]): Promise<number> {
+		let cancelId: number | undefined = undefined;
 
 		const buttons = commands.map((command, index) => {
 			if (command.isCloseAffordance === true) {
@@ -107,7 +108,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 			return command.title;
 		});
 
-		if (cancelId === void 0) {
+		if (cancelId === undefined) {
 			if (buttons.length > 0) {
 				buttons.push(nls.localize('cancel', "Cancel"));
 			} else {

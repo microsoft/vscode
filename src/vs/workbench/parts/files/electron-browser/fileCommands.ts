@@ -5,20 +5,18 @@
 
 import * as nls from 'vs/nls';
 import * as paths from 'vs/base/common/paths';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { URI } from 'vs/base/common/uri';
 import { toResource, IEditorCommandsContext } from 'vs/workbench/common/editor';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ExplorerFocusCondition, FileOnDiskContentProvider, VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
+import { ExplorerFocusCondition, FileOnDiskContentProvider, VIEWLET_ID, IExplorerService } from 'vs/workbench/parts/files/common/files';
 import { ExplorerViewlet } from 'vs/workbench/parts/files/electron-browser/explorerViewlet';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ITextFileService, ISaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { IListService } from 'vs/platform/list/browser/listService';
-import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
@@ -40,6 +38,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 // Commands
 
@@ -77,9 +76,18 @@ export const ResourceSelectedForCompareContext = new RawContextKey<boolean>('res
 export const REMOVE_ROOT_FOLDER_COMMAND_ID = 'removeRootFolder';
 export const REMOVE_ROOT_FOLDER_LABEL = nls.localize('removeFolderFromWorkspace', "Remove Folder from Workspace");
 
-export const openWindowCommand = (accessor: ServicesAccessor, paths: (string | URI)[], forceNewWindow: boolean) => {
+export const openWindowCommand = (accessor: ServicesAccessor, input: Array<string | URI> | { fileURIs: URI[], folderURIs: URI[], forceNewWindow: boolean, forceReuseWindow?: boolean, diffMode?: boolean, addMode?: boolean }, forceNewWindow: boolean) => {
 	const windowService = accessor.get(IWindowService);
-	windowService.openWindow(paths.map(p => typeof p === 'string' ? URI.file(p) : p), { forceNewWindow });
+	if (Array.isArray(input)) {
+		windowService.openWindow(input.map(p => typeof p === 'string' ? URI.file(p) : p), { forceNewWindow });
+	} else if (input) {
+		if (Array.isArray(input.folderURIs) && input.folderURIs.length) {
+			windowService.openWindow(input.folderURIs, { forceNewWindow: input.forceNewWindow, diffMode: input.diffMode, addMode: input.addMode, forceReuseWindow: input.forceReuseWindow });
+		}
+		if (Array.isArray(input.fileURIs) && input.fileURIs.length) {
+			windowService.openWindow(input.fileURIs, { forceNewWindow: input.forceNewWindow, forceOpenWorkspaceAsFile: true, diffMode: input.diffMode, addMode: input.addMode, forceReuseWindow: input.forceReuseWindow });
+		}
+	}
 };
 
 function save(
@@ -91,7 +99,7 @@ function save(
 	untitledEditorService: IUntitledEditorService,
 	textFileService: ITextFileService,
 	editorGroupService: IEditorGroupsService
-): TPromise<any> {
+): Promise<any> {
 
 	function ensureForcedSave(options?: ISaveOptions): ISaveOptions {
 		if (!options) {
@@ -125,7 +133,7 @@ function save(
 			}
 
 			// Special case: an untitled file with associated path gets saved directly unless "saveAs" is true
-			let savePromise: TPromise<URI>;
+			let savePromise: Promise<URI>;
 			if (!isSaveAs && resource.scheme === Schemas.untitled && untitledEditorService.hasAssociatedFilePath(resource)) {
 				savePromise = textFileService.save(resource, options).then((result) => {
 					if (result) {
@@ -143,12 +151,12 @@ function save(
 				// fixes https://github.com/Microsoft/vscode/issues/59655
 				options = ensureForcedSave(options);
 
-				savePromise = textFileService.saveAs(resource, void 0, options);
+				savePromise = textFileService.saveAs(resource, undefined, options);
 			}
 
 			return savePromise.then((target) => {
 				if (!target || target.toString() === resource.toString()) {
-					return void 0; // save canceled or same resource used
+					return undefined; // save canceled or same resource used
 				}
 
 				const replacement: IResourceInput = {
@@ -185,7 +193,7 @@ function save(
 }
 
 function saveAll(saveAllArguments: any, editorService: IEditorService, untitledEditorService: IUntitledEditorService,
-	textFileService: ITextFileService, editorGroupService: IEditorGroupsService): TPromise<any> {
+	textFileService: ITextFileService, editorGroupService: IEditorGroupsService): Promise<any> {
 
 	// Store some properties per untitled file to restore later after save is completed
 	const groupIdToUntitledResourceInput = new Map<number, IResourceInput[]>();
@@ -240,7 +248,7 @@ CommandsRegistry.registerCommand({
 			.filter(resource => resource.scheme !== Schemas.untitled);
 
 		if (resources.length) {
-			return textFileService.revertAll(resources, { force: true }).then(null, error => {
+			return textFileService.revertAll(resources, { force: true }).then(undefined, error => {
 				notificationService.error(nls.localize('genericRevertError', "Failed to revert '{0}': {1}", resources.map(r => paths.basename(r.fsPath)).join(', '), toErrorMessage(error, false)));
 			});
 		}
@@ -260,13 +268,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const editorService = accessor.get(IEditorService);
 		const listService = accessor.get(IListService);
 		const fileService = accessor.get(IFileService);
-		const tree = listService.lastFocusedList;
 		const resources = getMultiSelectedResources(resource, listService, editorService);
-
-		// Remove highlight
-		if (tree instanceof Tree) {
-			tree.clearHighlight();
-		}
 
 		// Set side input
 		if (resources.length) {
@@ -305,7 +307,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			const name = paths.basename(uri.fsPath);
 			const editorLabel = nls.localize('modifiedLabel', "{0} (on disk) ↔ {1}", name, name);
 
-			return editorService.openEditor({ leftResource: uri.with({ scheme: COMPARE_WITH_SAVED_SCHEMA }), rightResource: uri, label: editorLabel }).then(() => void 0);
+			return editorService.openEditor({ leftResource: uri.with({ scheme: COMPARE_WITH_SAVED_SCHEMA }), rightResource: uri, label: editorLabel }).then(() => undefined);
 		}
 
 		return Promise.resolve(true);
@@ -318,12 +320,6 @@ CommandsRegistry.registerCommand({
 	id: SELECT_FOR_COMPARE_COMMAND_ID,
 	handler: (accessor, resource: URI | object) => {
 		const listService = accessor.get(IListService);
-		const tree = listService.lastFocusedList;
-		// Remove highlight
-		if (tree instanceof Tree) {
-			tree.clearHighlight();
-			tree.domFocus();
-		}
 
 		globalResourceToCompare = getResourceForCommand(resource, listService, accessor.get(IEditorService));
 		if (!resourceSelectedForCompareContext) {
@@ -355,17 +351,11 @@ CommandsRegistry.registerCommand({
 	handler: (accessor, resource: URI | object) => {
 		const editorService = accessor.get(IEditorService);
 		const listService = accessor.get(IListService);
-		const tree = listService.lastFocusedList;
-
-		// Remove highlight
-		if (tree instanceof Tree) {
-			tree.clearHighlight();
-		}
 
 		return editorService.openEditor({
 			leftResource: globalResourceToCompare,
 			rightResource: getResourceForCommand(resource, listService, editorService)
-		}).then(() => void 0);
+		}).then(() => undefined);
 	}
 });
 
@@ -437,7 +427,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: EditorContextKeys.focus.toNegated(),
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_C,
 	win: {
-		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_C)
+		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C)
 	},
 	id: COPY_RELATIVE_PATH_COMMAND_ID,
 	handler: (accessor, resource: URI | object) => {
@@ -464,6 +454,7 @@ CommandsRegistry.registerCommand({
 	handler: (accessor, resource: URI | object) => {
 		const viewletService = accessor.get(IViewletService);
 		const contextService = accessor.get(IWorkspaceContextService);
+		const explorerService = accessor.get(IExplorerService);
 		const uri = getResourceForCommand(resource, accessor.get(IListService), accessor.get(IEditorService));
 
 		viewletService.openViewlet(VIEWLET_ID, false).then((viewlet: ExplorerViewlet) => {
@@ -472,7 +463,7 @@ CommandsRegistry.registerCommand({
 				const explorerView = viewlet.getExplorerView();
 				if (explorerView) {
 					explorerView.setExpanded(true);
-					explorerView.select(uri, true);
+					explorerService.select(uri, true).then(undefined, onUnexpectedError);
 				}
 			} else {
 				const openEditorsView = viewlet.getOpenEditorsView();
@@ -498,7 +489,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			resource = getResourceForCommand(resourceOrObject, accessor.get(IListService), editorService);
 		}
 
-		return save(resource, true, void 0, editorService, accessor.get(IFileService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupsService));
+		return save(resource, true, undefined, editorService, accessor.get(IFileService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupsService));
 	}
 });
 
@@ -513,7 +504,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 		if (resources.length === 1) {
 			// If only one resource is selected explictly call save since the behavior is a bit different than save all #41841
-			return save(resources[0], false, void 0, editorService, accessor.get(IFileService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupsService));
+			return save(resources[0], false, undefined, editorService, accessor.get(IFileService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupsService));
 		}
 		return saveAll(resources, editorService, accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupsService));
 	}
@@ -533,7 +524,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			return save(resource, false, { skipSaveParticipants: true }, editorService, accessor.get(IFileService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupsService));
 		}
 
-		return void 0;
+		return undefined;
 	}
 });
 

@@ -7,10 +7,9 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService, IConfigurationChangeEvent, IConfigurationOverrides, ConfigurationTarget, compare, isConfigurationOverrides, IConfigurationData } from 'vs/platform/configuration/common/configuration';
-import { DefaultConfigurationModel, Configuration, ConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
+import { DefaultConfigurationModel, Configuration, ConfigurationChangeEvent, ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { equals } from 'vs/base/common/objects';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { UserConfiguration } from 'vs/platform/configuration/node/configuration';
 
@@ -31,11 +30,14 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 
 		this.userConfiguration = this._register(new UserConfiguration(environmentService.appSettingsPath));
 
-		this.reset();
+		// Initialize
+		const defaults = new DefaultConfigurationModel();
+		const user = this.userConfiguration.initializeSync();
+		this._configuration = new Configuration(defaults, user);
 
 		// Listeners
-		this._register(this.userConfiguration.onDidChangeConfiguration(() => this.onDidChangeUserConfiguration()));
-		this._register(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidRegisterConfiguration(configurationProperties => this.onDidRegisterConfiguration(configurationProperties)));
+		this._register(this.userConfiguration.onDidChangeConfiguration(userConfigurationModel => this.onDidChangeUserConfiguration(userConfigurationModel)));
+		this._register(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidUpdateConfiguration(configurationProperties => this.onDidDefaultConfigurationChange(configurationProperties)));
 	}
 
 	get configuration(): Configuration {
@@ -51,7 +53,7 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 	getValue<T>(overrides: IConfigurationOverrides): T;
 	getValue<T>(section: string, overrides: IConfigurationOverrides): T;
 	getValue(arg1?: any, arg2?: any): any {
-		const section = typeof arg1 === 'string' ? arg1 : void 0;
+		const section = typeof arg1 === 'string' ? arg1 : undefined;
 		const overrides = isConfigurationOverrides(arg1) ? arg1 : isConfigurationOverrides(arg2) ? arg2 : {};
 		return this.configuration.getValue(section, overrides, null);
 	}
@@ -67,8 +69,8 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 	inspect<T>(key: string): {
 		default: T,
 		user: T,
-		workspace: T,
-		workspaceFolder: T
+		workspace?: T,
+		workspaceFolder?: T
 		value: T
 	} {
 		return this.configuration.inspect<T>(key, {}, null);
@@ -84,33 +86,22 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 	}
 
 	reloadConfiguration(folder?: IWorkspaceFolder): Promise<void> {
-		return folder ? Promise.resolve(null) :
-			this.userConfiguration.reload().then(() => this.onDidChangeUserConfiguration());
+		return folder ? Promise.resolve(undefined) :
+			this.userConfiguration.reload().then(userConfigurationModel => this.onDidChangeUserConfiguration(userConfigurationModel));
 	}
 
-	private onDidChangeUserConfiguration(): void {
-		let changedKeys: string[] = [];
-		const { added, updated, removed } = compare(this._configuration.user, this.userConfiguration.configurationModel);
-		changedKeys = [...added, ...updated, ...removed];
+	private onDidChangeUserConfiguration(userConfigurationModel: ConfigurationModel): void {
+		const { added, updated, removed } = compare(this._configuration.user, userConfigurationModel);
+		const changedKeys = [...added, ...updated, ...removed];
 		if (changedKeys.length) {
-			const oldConfiguartion = this._configuration;
-			this.reset();
-			changedKeys = changedKeys.filter(key => !equals(oldConfiguartion.getValue(key, {}, null), this._configuration.getValue(key, {}, null)));
-			if (changedKeys.length) {
-				this.trigger(changedKeys, ConfigurationTarget.USER);
-			}
+			this._configuration.updateUserConfiguration(userConfigurationModel);
+			this.trigger(changedKeys, ConfigurationTarget.USER);
 		}
 	}
 
-	private onDidRegisterConfiguration(keys: string[]): void {
-		this.reset(); // reset our caches
+	private onDidDefaultConfigurationChange(keys: string[]): void {
+		this._configuration.updateDefaultConfiguration(new DefaultConfigurationModel());
 		this.trigger(keys, ConfigurationTarget.DEFAULT);
-	}
-
-	private reset(): void {
-		const defaults = new DefaultConfigurationModel();
-		const user = this.userConfiguration.configurationModel;
-		this._configuration = new Configuration(defaults, user);
 	}
 
 	private trigger(keys: string[], source: ConfigurationTarget): void {

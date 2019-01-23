@@ -2,15 +2,16 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import * as assert from 'assert';
-import { renderViewLine2 as renderViewLine, RenderLineInput, CharacterMapping } from 'vs/editor/common/viewLayout/viewLineRenderer';
-import { ViewLineToken, ViewLineTokens } from 'vs/editor/test/common/core/viewLineToken';
 import { CharCode } from 'vs/base/common/charCode';
+import * as strings from 'vs/base/common/strings';
+import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
 import { MetadataConsts } from 'vs/editor/common/modes';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
+import { CharacterMapping, RenderLineInput, renderViewLine2 as renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
-import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
-import * as strings from 'vs/base/common/strings';
+import { ViewLineToken, ViewLineTokens } from 'vs/editor/test/common/core/viewLineToken';
 
 function createViewLineTokens(viewLineTokens: ViewLineToken[]): IViewLineTokens {
 	return new ViewLineTokens(viewLineTokens);
@@ -652,8 +653,7 @@ suite('viewLineRenderer.renderLine', () => {
 		for (let partIndex = 0; partIndex < expectedCharPartOffsets.length; partIndex++) {
 			const part = expectedCharPartOffsets[partIndex];
 
-			for (let i = 0; i < part.length; i++) {
-				const charIndex = part[i];
+			for (const charIndex of part) {
 				expectedCharAbsoluteOffset.push(currentPartAbsoluteOffset + charIndex);
 			}
 
@@ -673,8 +673,7 @@ suite('viewLineRenderer.renderLine', () => {
 		let charOffset = 0;
 		for (let partIndex = 0; partIndex < expected.length; partIndex++) {
 			let part = expected[partIndex];
-			for (let i = 0; i < part.length; i++) {
-				let charIndex = part[i];
+			for (const charIndex of part) {
 				// here
 				let _actualPartData = actual.charOffsetToPartData(charOffset);
 				let actualPartIndex = CharacterMapping.getPartIndex(_actualPartData);

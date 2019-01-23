@@ -27,12 +27,12 @@ class MarkersDecorationsProvider implements IDecorationsProvider {
 		this.onDidChange = _markerService.onMarkerChanged;
 	}
 
-	provideDecorations(resource: URI): IDecorationData {
+	provideDecorations(resource: URI): IDecorationData | undefined {
 		let markers = this._markerService.read({
 			resource,
 			severities: MarkerSeverity.Error | MarkerSeverity.Warning
 		});
-		let first: IMarker;
+		let first: IMarker | undefined;
 		for (const marker of markers) {
 			if (!first || marker.severity > first.severity) {
 				first = marker;
@@ -92,8 +92,6 @@ class MarkersFileDecorations implements IWorkbenchContribution {
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(MarkersFileDecorations, LifecyclePhase.Running);
-
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	'id': 'problems',
 	'order': 101,
@@ -106,3 +104,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		}
 	}
 });
+
+// register file decorations
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
+	.registerWorkbenchContribution(MarkersFileDecorations, LifecyclePhase.Restored);

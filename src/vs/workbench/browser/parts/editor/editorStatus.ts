@@ -5,7 +5,6 @@
 
 import 'vs/css!./media/editorstatus';
 import * as nls from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { $, append, runAtThisOrScheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import * as strings from 'vs/base/common/strings';
 import * as paths from 'vs/base/common/paths';
@@ -15,7 +14,6 @@ import { IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { Action } from 'vs/base/common/actions';
 import { language, LANGUAGE_DEFAULT, AccessibilitySupport } from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
-import { IMode } from 'vs/editor/common/modes';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { IFileEditorInput, EncodingMode, IEncodingSupport, toResource, SideBySideEditorInput, IEditor as IBaseEditor, IEditorInput } from 'vs/workbench/common/editor';
 import { IDisposable, combinedDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -32,7 +30,7 @@ import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { SUPPORTED_ENCODINGS, IFileService, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { IModeService, ILanguageSelection } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -52,7 +50,7 @@ import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { timeout } from 'vs/base/common/async';
 import { INotificationHandle, INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { once } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private master: IEncodingSupport, private details: IEncodingSupport) { }
@@ -289,12 +287,12 @@ export class EditorStatus implements IStatusbarItem {
 	private screenReaderNotification: INotificationHandle;
 
 	constructor(
-		@IEditorService private editorService: IEditorService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IModeService private modeService: IModeService,
-		@ITextFileService private textFileService: ITextFileService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IQuickOpenService private readonly quickOpenService: IQuickOpenService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService,
+		@IModeService private readonly modeService: IModeService,
+		@ITextFileService private readonly textFileService: ITextFileService,
 		@IWorkspaceConfigurationService private readonly configurationService: IWorkspaceConfigurationService,
 		@INotificationService private readonly notificationService: INotificationService
 	) {
@@ -516,7 +514,7 @@ export class EditorStatus implements IStatusbarItem {
 				{ sticky: true }
 			);
 
-			once(this.screenReaderNotification.onDidClose)(() => {
+			Event.once(this.screenReaderNotification.onDidClose)(() => {
 				this.screenReaderNotification = null;
 			});
 		}
@@ -546,7 +544,7 @@ export class EditorStatus implements IStatusbarItem {
 
 	private updateStatusBar(): void {
 		const activeControl = this.editorService.activeControl;
-		const activeCodeEditor = activeControl ? getCodeEditor(activeControl.getControl()) : void 0;
+		const activeCodeEditor = activeControl ? getCodeEditor(activeControl.getControl()) : undefined;
 
 		// Update all states
 		this.onScreenReaderModeChange(activeCodeEditor);
@@ -585,8 +583,8 @@ export class EditorStatus implements IStatusbarItem {
 				this.onEOLChange(activeCodeEditor);
 
 				let selections = activeCodeEditor.getSelections();
-				for (let i = 0; i < e.changes.length; i++) {
-					if (selections.some(selection => Range.areIntersecting(selection, e.changes[i].range))) {
+				for (const change of e.changes) {
+					if (selections.some(selection => Range.areIntersecting(selection, change.range))) {
 						this.onSelectionChange(activeCodeEditor);
 						break;
 					}
@@ -818,7 +816,7 @@ export class ShowLanguageExtensionsAction extends Action {
 
 	constructor(
 		private fileExtension: string,
-		@ICommandService private commandService: ICommandService,
+		@ICommandService private readonly commandService: ICommandService,
 		@IExtensionGalleryService galleryService: IExtensionGalleryService
 	) {
 		super(ShowLanguageExtensionsAction.ID, nls.localize('showLanguageExtensions', "Search Marketplace Extensions for '{0}'...", fileExtension));
@@ -826,8 +824,8 @@ export class ShowLanguageExtensionsAction extends Action {
 		this.enabled = galleryService.isEnabled();
 	}
 
-	run(): TPromise<void> {
-		return this.commandService.executeCommand('workbench.extensions.action.showExtensionsForLanguage', this.fileExtension).then(() => void 0);
+	run(): Promise<void> {
+		return this.commandService.executeCommand('workbench.extensions.action.showExtensionsForLanguage', this.fileExtension).then(() => undefined);
 	}
 }
 
@@ -839,19 +837,19 @@ export class ChangeModeAction extends Action {
 	constructor(
 		actionId: string,
 		actionLabel: string,
-		@IModeService private modeService: IModeService,
-		@IModelService private modelService: IModelService,
-		@IEditorService private editorService: IEditorService,
-		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
-		@IQuickInputService private quickInputService: IQuickInputService,
-		@IPreferencesService private preferencesService: IPreferencesService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
+		@IModeService private readonly modeService: IModeService,
+		@IModelService private readonly modelService: IModelService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IWorkspaceConfigurationService private readonly configurationService: IWorkspaceConfigurationService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService
 	) {
 		super(actionId, actionLabel);
 	}
 
-	run(): TPromise<any> {
+	run(): Promise<any> {
 		const activeTextEditorWidget = getCodeEditor(this.editorService.activeTextEditorWidget);
 		if (!activeTextEditorWidget) {
 			return this.quickInputService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
@@ -977,16 +975,16 @@ export class ChangeModeAction extends Action {
 			}
 
 			// Find mode
-			let mode: Promise<IMode>;
+			let languageSelection: ILanguageSelection;
 			if (pick === autoDetectMode) {
-				mode = this.modeService.getOrCreateModeByFilepathOrFirstLine(toResource(activeEditor, { supportSideBySide: true }).fsPath, textModel.getLineContent(1));
+				languageSelection = this.modeService.createByFilepathOrFirstLine(toResource(activeEditor, { supportSideBySide: true }).fsPath, textModel.getLineContent(1));
 			} else {
-				mode = this.modeService.getOrCreateModeByLanguageName(pick.label);
+				languageSelection = this.modeService.createByLanguageName(pick.label);
 			}
 
 			// Change mode
 			models.forEach(textModel => {
-				this.modelService.setMode(textModel, mode);
+				this.modelService.setMode(textModel, languageSelection);
 			});
 		});
 	}
@@ -1003,7 +1001,7 @@ export class ChangeModeAction extends Action {
 			return <IQuickPickItem>{
 				id,
 				label: lang,
-				description: (id === currentAssociation) ? nls.localize('currentAssociation', "Current Association") : void 0
+				description: (id === currentAssociation) ? nls.localize('currentAssociation', "Current Association") : undefined
 			};
 		});
 
@@ -1052,13 +1050,13 @@ class ChangeIndentationAction extends Action {
 	constructor(
 		actionId: string,
 		actionLabel: string,
-		@IEditorService private editorService: IEditorService,
-		@IQuickInputService private quickInputService: IQuickInputService
+		@IEditorService private readonly editorService: IEditorService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService
 	) {
 		super(actionId, actionLabel);
 	}
 
-	run(): TPromise<any> {
+	run(): Promise<any> {
 		const activeTextEditorWidget = getCodeEditor(this.editorService.activeTextEditorWidget);
 		if (!activeTextEditorWidget) {
 			return this.quickInputService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
@@ -1102,13 +1100,13 @@ export class ChangeEOLAction extends Action {
 	constructor(
 		actionId: string,
 		actionLabel: string,
-		@IEditorService private editorService: IEditorService,
-		@IQuickInputService private quickInputService: IQuickInputService
+		@IEditorService private readonly editorService: IEditorService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService
 	) {
 		super(actionId, actionLabel);
 	}
 
-	run(): TPromise<any> {
+	run(): Promise<any> {
 		const activeTextEditorWidget = getCodeEditor(this.editorService.activeTextEditorWidget);
 		if (!activeTextEditorWidget) {
 			return this.quickInputService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
@@ -1147,15 +1145,15 @@ export class ChangeEncodingAction extends Action {
 	constructor(
 		actionId: string,
 		actionLabel: string,
-		@IEditorService private editorService: IEditorService,
-		@IQuickInputService private quickInputService: IQuickInputService,
-		@ITextResourceConfigurationService private textResourceConfigurationService: ITextResourceConfigurationService,
-		@IFileService private fileService: IFileService
+		@IEditorService private readonly editorService: IEditorService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@ITextResourceConfigurationService private readonly textResourceConfigurationService: ITextResourceConfigurationService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		super(actionId, actionLabel);
 	}
 
-	run(): TPromise<any> {
+	run(): Promise<any> {
 		if (!getCodeEditor(this.editorService.activeTextEditorWidget)) {
 			return this.quickInputService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
 		}
@@ -1165,8 +1163,6 @@ export class ChangeEncodingAction extends Action {
 		if (!encodingSupport) {
 			return this.quickInputService.pick([{ label: nls.localize('noFileEditor', "No file active at this time") }]);
 		}
-
-		let pickActionPromise: TPromise<IQuickPickItem>;
 
 		let saveWithEncodingPick: IQuickPickItem;
 		let reopenWithEncodingPick: IQuickPickItem;
@@ -1178,17 +1174,18 @@ export class ChangeEncodingAction extends Action {
 			reopenWithEncodingPick = { label: nls.localize('reopenWithEncoding', "Reopen with Encoding"), detail: 'Reopen with Encoding' };
 		}
 
+		let pickActionPromise: Promise<IQuickPickItem>;
 		if (encodingSupport instanceof UntitledEditorInput) {
-			pickActionPromise = TPromise.as(saveWithEncodingPick);
+			pickActionPromise = Promise.resolve(saveWithEncodingPick);
 		} else if (!isWritableBaseEditor(activeControl)) {
-			pickActionPromise = TPromise.as(reopenWithEncodingPick);
+			pickActionPromise = Promise.resolve(reopenWithEncodingPick);
 		} else {
 			pickActionPromise = this.quickInputService.pick([reopenWithEncodingPick, saveWithEncodingPick], { placeHolder: nls.localize('pickAction', "Select Action"), matchOnDetail: true });
 		}
 
 		return pickActionPromise.then(action => {
 			if (!action) {
-				return void 0;
+				return undefined;
 			}
 
 			const resource = toResource(activeControl.input, { supportSideBySide: true });
@@ -1196,7 +1193,7 @@ export class ChangeEncodingAction extends Action {
 			return timeout(50 /* quick open is sensitive to being opened so soon after another */)
 				.then(() => {
 					if (!resource || !this.fileService.canHandleResource(resource)) {
-						return TPromise.as(null); // encoding detection only possible for resources the file service can handle
+						return Promise.resolve(null); // encoding detection only possible for resources the file service can handle
 					}
 
 					return this.fileService.resolveContent(resource, { autoGuessEncoding: true, acceptTextOnly: true }).then(content => content.encoding, err => null);
@@ -1237,13 +1234,14 @@ export class ChangeEncodingAction extends Action {
 							return { id: key, label: SUPPORTED_ENCODINGS[key].labelLong, description: key };
 						});
 
+					const items = picks.slice() as IQuickPickItem[];
+
 					// If we have a guessed encoding, show it first unless it matches the configured encoding
 					if (guessedEncoding && configuredEncoding !== guessedEncoding && SUPPORTED_ENCODINGS[guessedEncoding]) {
 						picks.unshift({ type: 'separator' });
 						picks.unshift({ id: guessedEncoding, label: SUPPORTED_ENCODINGS[guessedEncoding].labelLong, description: nls.localize('guessedEncoding', "Guessed from content") });
 					}
 
-					const items = picks.filter(p => p.type !== 'separator') as IQuickPickItem[];
 					return this.quickInputService.pick(picks, {
 						placeHolder: isReopenWithEncoding ? nls.localize('pickEncodingForReopen', "Select File Encoding to Reopen File") : nls.localize('pickEncodingForSave', "Select File Encoding to Save with"),
 						activeItem: items[typeof directMatchIndex === 'number' ? directMatchIndex : typeof aliasMatchIndex === 'number' ? aliasMatchIndex : -1]

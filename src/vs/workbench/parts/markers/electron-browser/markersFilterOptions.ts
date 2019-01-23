@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import Messages from 'vs/workbench/parts/markers/electron-browser/messages';
-import { IFilter, or, matchesPrefix, matchesContiguousSubString, matchesFuzzy } from 'vs/base/common/filters';
+import { IFilter, matchesPrefix, matchesFuzzy, matchesFuzzy2 } from 'vs/base/common/filters';
 import { ParsedExpression, IExpression, splitGlobAware, getEmptyExpression, parse } from 'vs/base/common/glob';
 import * as strings from 'vs/base/common/strings';
 
 export class FilterOptions {
 
-	static readonly _filter: IFilter = or(matchesPrefix, matchesContiguousSubString);
-	static readonly _fuzzyFilter: IFilter = or(matchesPrefix, matchesContiguousSubString, matchesFuzzy);
+	static readonly _filter: IFilter = matchesFuzzy2;
+	static readonly _messageFilter: IFilter = matchesFuzzy;
 
 	readonly filterErrors: boolean = false;
 	readonly filterWarnings: boolean = false;

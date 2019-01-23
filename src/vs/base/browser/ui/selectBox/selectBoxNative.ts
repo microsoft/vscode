@@ -8,25 +8,33 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import * as dom from 'vs/base/browser/dom';
 import * as arrays from 'vs/base/common/arrays';
-import { ISelectBoxDelegate, ISelectBoxOptions, ISelectBoxStyles, ISelectData } from 'vs/base/browser/ui/selectBox/selectBox';
+import { ISelectBoxDelegate, ISelectOptionItem, ISelectBoxOptions, ISelectBoxStyles, ISelectData } from 'vs/base/browser/ui/selectBox/selectBox';
 import { isMacintosh } from 'vs/base/common/platform';
 
 export class SelectBoxNative implements ISelectBoxDelegate {
 
 	private selectElement: HTMLSelectElement;
 	private selectBoxOptions: ISelectBoxOptions;
-	private options: string[];
+	private options: ISelectOptionItem[];
 	private selected: number;
 	private readonly _onDidSelect: Emitter<ISelectData>;
 	private toDispose: IDisposable[];
 	private styles: ISelectBoxStyles;
 
-	constructor(options: string[], selected: number, styles: ISelectBoxStyles, selectBoxOptions?: ISelectBoxOptions) {
-
+	constructor(options: ISelectOptionItem[], selected: number, styles: ISelectBoxStyles, selectBoxOptions?: ISelectBoxOptions) {
 		this.toDispose = [];
 		this.selectBoxOptions = selectBoxOptions || Object.create(null);
 
+		this.options = [];
+
 		this.selectElement = document.createElement('select');
+
+		// Workaround for Electron 2.x
+		// Native select should not require explicit role attribute, however, Electron 2.x
+		// incorrectly exposes select as menuItem which interferes with labeling and results
+		// in the unlabeled not been read.  Electron 3 appears to fix.
+		this.selectElement.setAttribute('role', 'combobox');
+
 		this.selectElement.className = 'monaco-select-box';
 
 		if (typeof this.selectBoxOptions.ariaLabel === 'string') {
@@ -76,15 +84,14 @@ export class SelectBoxNative implements ISelectBoxDelegate {
 		return this._onDidSelect.event;
 	}
 
-	public setOptions(options: string[], selected?: number, disabled?: number): void {
+	public setOptions(options: ISelectOptionItem[], selected?: number): void {
 
 		if (!this.options || !arrays.equals(this.options, options)) {
 			this.options = options;
 			this.selectElement.options.length = 0;
 
-			let i = 0;
-			this.options.forEach((option) => {
-				this.selectElement.add(this.createOption(option, i, disabled === i++));
+			this.options.forEach((option, index) => {
+				this.selectElement.add(this.createOption(option.text, index, option.isDisabled));
 			});
 
 		}
@@ -95,7 +102,9 @@ export class SelectBoxNative implements ISelectBoxDelegate {
 	}
 
 	public select(index: number): void {
-		if (index >= 0 && index < this.options.length) {
+		if (this.options.length === 0) {
+			this.selected = 0;
+		} else if (index >= 0 && index < this.options.length) {
 			this.selected = index;
 		} else if (index > this.options.length - 1) {
 			// Adjust index to end of list
@@ -106,16 +115,16 @@ export class SelectBoxNative implements ISelectBoxDelegate {
 		}
 
 		this.selectElement.selectedIndex = this.selected;
-		this.selectElement.title = this.options[this.selected];
+		if ((this.selected < this.options.length) && typeof this.options[this.selected].text === 'string') {
+			this.selectElement.title = this.options[this.selected].text;
+		} else {
+			this.selectElement.title = '';
+		}
 	}
 
 	public setAriaLabel(label: string): void {
 		this.selectBoxOptions.ariaLabel = label;
 		this.selectElement.setAttribute('aria-label', label);
-	}
-
-	public setDetailsProvider(provider: any): void {
-		console.error('details are not available for native select boxes');
 	}
 
 	public focus(): void {
@@ -158,10 +167,10 @@ export class SelectBoxNative implements ISelectBoxDelegate {
 	}
 
 	private createOption(value: string, index: number, disabled?: boolean): HTMLOptionElement {
-		let option = document.createElement('option');
+		const option = document.createElement('option');
 		option.value = value;
 		option.text = value;
-		option.disabled = disabled;
+		option.disabled = !!disabled;
 
 		return option;
 	}

@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Position } from 'vs/editor/common/core/position';
 import { CharCode } from 'vs/base/common/charCode';
+import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { ITextSnapshot } from 'vs/platform/files/common/files';
-import { leftest, righttest, updateTreeMetadata, rbDelete, fixInsert, NodeColor, SENTINEL, TreeNode } from 'vs/editor/common/model/pieceTreeTextBuffer/rbTreeBase';
-import { SearchData, isValidMatch, Searcher, createFindMatch } from 'vs/editor/common/model/textModelSearch';
 import { FindMatch } from 'vs/editor/common/model';
+import { NodeColor, SENTINEL, TreeNode, fixInsert, leftest, rbDelete, righttest, updateTreeMetadata } from 'vs/editor/common/model/pieceTreeTextBuffer/rbTreeBase';
+import { SearchData, Searcher, createFindMatch, isValidMatch } from 'vs/editor/common/model/textModelSearch';
+import { ITextSnapshot } from 'vs/platform/files/common/files';
 
 // const lfRegex = new RegExp(/\r\n|\r|\n/g);
 export const AverageBufferSize = 65535;
@@ -242,7 +242,7 @@ class PieceTreeSearchCache {
 
 	public valdiate(offset: number) {
 		let hasInvalidVal = false;
-		let tmp: (CacheEntry | null)[] = this._cache;
+		let tmp: Array<CacheEntry | null> = this._cache;
 		for (let i = 0; i < tmp.length; i++) {
 			let nodePos = tmp[i]!;
 			if (nodePos.node.parent === null || nodePos.nodeStartOffset >= offset) {
@@ -254,8 +254,7 @@ class PieceTreeSearchCache {
 
 		if (hasInvalidVal) {
 			let newArr: CacheEntry[] = [];
-			for (let i = 0; i < tmp.length; i++) {
-				const entry = tmp[i];
+			for (const entry of tmp) {
 				if (entry !== null) {
 					newArr.push(entry);
 				}
@@ -1042,7 +1041,7 @@ export class PieceTreeBase {
 			while (text.length > AverageBufferSize) {
 				const lastChar = text.charCodeAt(AverageBufferSize - 1);
 				let splitText;
-				if (lastChar === CharCode.CarriageReturn || (lastChar >= 0xd800 && lastChar <= 0xdbff)) {
+				if (lastChar === CharCode.CarriageReturn || (lastChar >= 0xD800 && lastChar <= 0xDBFF)) {
 					// last character is \r or a high surrogate => keep it back
 					splitText = text.substring(0, AverageBufferSize - 1);
 					text = text.substring(AverageBufferSize - 1);

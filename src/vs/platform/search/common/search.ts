@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { mapArrayOrNot } from 'vs/base/common/arrays';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import * as glob from 'vs/base/common/glob';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as paths from 'vs/base/common/paths';
-import { URI as uri, UriComponents } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { getNLines } from 'vs/base/common/strings';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { IFilesConfiguration } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { getNLines } from 'vs/base/common/strings';
 
 export const VIEW_ID = 'workbench.view.search';
 
@@ -25,10 +25,10 @@ export const ISearchService = createDecorator<ISearchService>('searchService');
  */
 export interface ISearchService {
 	_serviceBrand: any;
-	textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): TPromise<ISearchComplete>;
-	fileSearch(query: IFileQuery, token?: CancellationToken): TPromise<ISearchComplete>;
+	textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete>;
+	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete>;
 	extendQuery(query: ITextQuery | IFileQuery): void;
-	clearCache(cacheKey: string): TPromise<void>;
+	clearCache(cacheKey: string): Promise<void>;
 	registerSearchResultProvider(scheme: string, type: SearchProviderType, provider: ISearchResultProvider): IDisposable;
 }
 
@@ -57,12 +57,12 @@ export const enum SearchProviderType {
 }
 
 export interface ISearchResultProvider {
-	textSearch(query: ITextQuery, onProgress?: (p: ISearchProgressItem) => void, token?: CancellationToken): TPromise<ISearchComplete>;
-	fileSearch(query: IFileQuery, token?: CancellationToken): TPromise<ISearchComplete>;
-	clearCache(cacheKey: string): TPromise<void>;
+	textSearch(query: ITextQuery, onProgress?: (p: ISearchProgressItem) => void, token?: CancellationToken): Promise<ISearchComplete>;
+	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete>;
+	clearCache(cacheKey: string): Promise<void>;
 }
 
-export interface IFolderQuery<U extends UriComponents=uri> {
+export interface IFolderQuery<U extends UriComponents=URI> {
 	folder: U;
 	excludePattern?: glob.IExpression;
 	includePattern?: glob.IExpression;
@@ -73,7 +73,10 @@ export interface IFolderQuery<U extends UriComponents=uri> {
 }
 
 export interface ICommonQueryProps<U extends UriComponents> {
-	folderQueries?: IFolderQuery<U>[];
+	/** For telemetry - indicates what is triggering the source */
+	_reason?: string;
+
+	folderQueries: IFolderQuery<U>[];
 	includePattern?: glob.IExpression;
 	excludePattern?: glob.IExpression;
 	extraFileResources?: U[];
@@ -101,17 +104,20 @@ export interface IFileQueryProps<U extends UriComponents> extends ICommonQueryPr
 
 export interface ITextQueryProps<U extends UriComponents> extends ICommonQueryProps<U> {
 	type: QueryType.Text;
-	contentPattern?: IPatternInfo;
+	contentPattern: IPatternInfo;
 
 	previewOptions?: ITextSearchPreviewOptions;
-	fileEncoding?: string;
 	maxFileSize?: number;
 	usePCRE2?: boolean;
+	afterContext?: number;
+	beforeContext?: number;
+
+	userDisabledExcludesAndIgnoreFiles?: boolean;
 }
 
-export type IFileQuery = IFileQueryProps<uri>;
+export type IFileQuery = IFileQueryProps<URI>;
 export type IRawFileQuery = IFileQueryProps<UriComponents>;
-export type ITextQuery = ITextQueryProps<uri>;
+export type ITextQuery = ITextQueryProps<URI>;
 export type IRawTextQuery = ITextQueryProps<UriComponents>;
 
 export type IRawQuery = IRawTextQuery | IRawFileQuery;
@@ -140,16 +146,15 @@ export interface IPatternInfo {
 	wordSeparators?: string;
 	isMultiline?: boolean;
 	isCaseSensitive?: boolean;
-	isSmartCase?: boolean;
 }
 
 export interface IExtendedExtensionSearchOptions {
 	usePCRE2?: boolean;
 }
 
-export interface IFileMatch<U extends UriComponents = uri> {
-	resource?: U;
-	matches?: ITextSearchResult[];
+export interface IFileMatch<U extends UriComponents = URI> {
+	resource: U;
+	results?: ITextSearchResult[];
 }
 
 export type IRawFileMatch2 = IFileMatch<UriComponents>;
@@ -168,13 +173,25 @@ export interface ISearchRange {
 
 export interface ITextSearchResultPreview {
 	text: string;
-	match: ISearchRange;
+	matches: ISearchRange | ISearchRange[];
 }
 
-export interface ITextSearchResult {
-	uri?: uri;
-	range: ISearchRange;
+export interface ITextSearchMatch {
+	uri?: URI;
+	ranges: ISearchRange | ISearchRange[];
 	preview: ITextSearchResultPreview;
+}
+
+export interface ITextSearchContext {
+	uri?: URI;
+	text: string;
+	lineNumber: number;
+}
+
+export type ITextSearchResult = ITextSearchMatch | ITextSearchContext;
+
+export function resultIsMatch(result: ITextSearchResult): result is ITextSearchMatch {
+	return !!(<ITextSearchMatch>result).preview;
 }
 
 export interface IProgress {
@@ -183,9 +200,7 @@ export interface IProgress {
 	message?: string;
 }
 
-export interface ISearchProgressItem extends IFileMatch, IProgress {
-	// Marker interface to indicate the possible values for progress calls from the engine
-}
+export type ISearchProgressItem = IFileMatch | IProgress;
 
 export interface ISearchCompleteStats {
 	limitHit?: boolean;
@@ -239,20 +254,20 @@ export interface IFileIndexProviderStats {
 }
 
 export class FileMatch implements IFileMatch {
-	public matches: ITextSearchResult[] = [];
-	constructor(public resource: uri) {
+	results: ITextSearchResult[] = [];
+	constructor(public resource: URI) {
 		// empty
 	}
 }
 
-export class TextSearchResult implements ITextSearchResult {
-	range: ISearchRange;
+export class TextSearchMatch implements ITextSearchMatch {
+	ranges: ISearchRange | ISearchRange[];
 	preview: ITextSearchResultPreview;
 
-	constructor(text: string, range: ISearchRange, previewOptions?: ITextSearchPreviewOptions) {
-		this.range = range;
+	constructor(text: string, range: ISearchRange | ISearchRange[], previewOptions?: ITextSearchPreviewOptions) {
+		this.ranges = range;
 
-		if (previewOptions && previewOptions.matchLines === 1) {
+		if (previewOptions && previewOptions.matchLines === 1 && !Array.isArray(range)) {
 			// 1 line preview requested
 			text = getNLines(text, previewOptions.matchLines);
 			const leadingChars = Math.floor(previewOptions.charsPerLine / 5);
@@ -265,13 +280,15 @@ export class TextSearchResult implements ITextSearchResult {
 
 			this.preview = {
 				text: previewText,
-				match: new OneLineRange(0, range.startColumn - previewStart, endColInPreview)
+				matches: new OneLineRange(0, range.startColumn - previewStart, endColInPreview)
 			};
 		} else {
-			// n line or no preview requested
+			const firstMatchLine = Array.isArray(range) ? range[0].startLineNumber : range.startLineNumber;
+
+			// n line, no preview requested, or multiple matches in the preview
 			this.preview = {
 				text,
-				match: new SearchRange(0, range.startColumn, range.endLineNumber - range.startLineNumber, range.endColumn)
+				matches: mapArrayOrNot(range, r => new SearchRange(r.startLineNumber - firstMatchLine, r.startColumn, r.endLineNumber - firstMatchLine, r.endColumn))
 			};
 		}
 	}
@@ -300,6 +317,7 @@ export class OneLineRange extends SearchRange {
 export interface ISearchConfigurationProperties {
 	exclude: glob.IExpression;
 	useRipgrep: boolean;
+	useLegacySearch: boolean;
 	/**
 	 * Use ignore file for file search.
 	 */
@@ -312,6 +330,8 @@ export interface ISearchConfigurationProperties {
 	useReplacePreview: boolean;
 	showLineNumbers: boolean;
 	usePCRE2: boolean;
+	actionsPosition: 'auto' | 'right';
+	collapseResults: 'auto' | 'alwaysCollapse' | 'alwaysExpand';
 }
 
 export interface ISearchConfiguration extends IFilesConfiguration {
@@ -341,7 +361,7 @@ export function getExcludes(configuration: ISearchConfiguration): glob.IExpressi
 	return allExcludes;
 }
 
-export function pathIncludedInQuery(queryProps: ICommonQueryProps<uri>, fsPath: string): boolean {
+export function pathIncludedInQuery(queryProps: ICommonQueryProps<URI>, fsPath: string): boolean {
 	if (queryProps.excludePattern && glob.match(queryProps.excludePattern, fsPath)) {
 		return false;
 	}
@@ -363,4 +383,33 @@ export function pathIncludedInQuery(queryProps: ICommonQueryProps<uri>, fsPath: 
 	}
 
 	return true;
+}
+
+export enum SearchErrorCode {
+	unknownEncoding = 1,
+	regexParseError,
+	globParseError,
+	invalidLiteral,
+	rgProcessError,
+	other
+}
+
+export class SearchError extends Error {
+	constructor(message: string, readonly code?: SearchErrorCode) {
+		super(message);
+	}
+}
+
+export function deserializeSearchError(errorMsg: string): SearchError {
+	try {
+		const details = JSON.parse(errorMsg);
+		return new SearchError(details.message, details.code);
+	} catch (e) {
+		return new SearchError(errorMsg, SearchErrorCode.other);
+	}
+}
+
+export function serializeSearchError(searchError: SearchError): Error {
+	const details = { message: searchError.message, code: searchError.code };
+	return new Error(JSON.stringify(details));
 }

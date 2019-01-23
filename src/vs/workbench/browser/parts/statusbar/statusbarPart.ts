@@ -6,7 +6,6 @@
 import 'vs/css!./media/statusbarpart';
 import * as nls from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -43,9 +42,9 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 	constructor(
 		id: string,
-		@IInstantiationService private instantiationService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IStorageService storageService: IStorageService
 	) {
 		super(id, { hasTitle: false }, themeService, storageService);
@@ -60,7 +59,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	addEntry(entry: IStatusbarEntry, alignment: StatusbarAlignment, priority: number = 0): IDisposable {
 
 		// Render entry in status bar
-		const el = this.doCreateStatusItem(alignment, priority, entry.showBeak ? 'has-beak' : void 0);
+		const el = this.doCreateStatusItem(alignment, priority, entry.showBeak ? 'has-beak' : undefined);
 		const item = this.instantiationService.createInstance(StatusBarEntryItem, entry);
 		const toDispose = item.render(el);
 
@@ -68,8 +67,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		const container = this.statusItemsContainer;
 		const neighbours = this.getEntries(alignment);
 		let inserted = false;
-		for (let i = 0; i < neighbours.length; i++) {
-			const neighbour = neighbours[i];
+		for (const neighbour of neighbours) {
 			const nPriority = Number(neighbour.getAttribute(StatusbarPart.PRIORITY_PROP));
 			if (
 				alignment === StatusbarAlignment.LEFT && nPriority < priority ||
@@ -192,7 +190,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 		// Create new
 		let statusDispose: IDisposable;
-		let showHandle = setTimeout(() => {
+		let showHandle: any = setTimeout(() => {
 			statusDispose = this.addEntry({ text: message }, StatusbarAlignment.LEFT, -Number.MAX_VALUE /* far right on left hand side */);
 			showHandle = null;
 		}, delayBy);
@@ -229,13 +227,13 @@ class StatusBarEntryItem implements IStatusbarItem {
 
 	constructor(
 		private entry: IStatusbarEntry,
-		@ICommandService private commandService: ICommandService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@INotificationService private notificationService: INotificationService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IEditorService private editorService: IEditorService,
-		@IThemeService private themeService: IThemeService
+		@ICommandService private readonly commandService: ICommandService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IThemeService private readonly themeService: IThemeService
 	) {
 		this.entry = entry;
 
@@ -253,7 +251,7 @@ class StatusBarEntryItem implements IStatusbarItem {
 		if (this.entry.command) {
 			textContainer = document.createElement('a');
 
-			toDispose.push(addDisposableListener(textContainer, 'click', () => this.executeCommand(this.entry.command, this.entry.arguments)));
+			toDispose.push(addDisposableListener(textContainer, 'click', () => this.executeCommand(this.entry.command!, this.entry.arguments)));
 		} else {
 			textContainer = document.createElement('span');
 		}
@@ -287,8 +285,8 @@ class StatusBarEntryItem implements IStatusbarItem {
 
 				this.contextMenuService.showContextMenu({
 					getAnchor: () => el,
-					getActionsContext: () => this.entry.extensionId,
-					getActions: () => Promise.resolve([manageExtensionAction])
+					getActionsContext: () => this.entry.extensionId!.value,
+					getActions: () => [manageExtensionAction]
 				});
 			}));
 		}
@@ -325,12 +323,12 @@ class StatusBarEntryItem implements IStatusbarItem {
 class ManageExtensionAction extends Action {
 
 	constructor(
-		@ICommandService private commandService: ICommandService
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super('statusbar.manage.extension', nls.localize('manageExtension', "Manage Extension"));
 	}
 
-	run(extensionId: string): TPromise<any> {
+	run(extensionId: string): Promise<any> {
 		return this.commandService.executeCommand('_extensions.manage', extensionId);
 	}
 }

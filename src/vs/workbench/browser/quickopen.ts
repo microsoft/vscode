@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as objects from 'vs/base/common/objects';
 import * as arrays from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
@@ -44,14 +43,14 @@ export class QuickOpenHandler {
 	 * As such, returning the same model instance across multiple searches will yield best
 	 * results in terms of performance when many items are shown.
 	 */
-	getResults(searchValue: string, token: CancellationToken): TPromise<IModel<any>> {
+	getResults(searchValue: string, token: CancellationToken): Promise<IModel<any> | null> {
 		return Promise.resolve(null);
 	}
 
 	/**
 	 * The ARIA label to apply when this quick open handler is active in quick open.
 	 */
-	getAriaLabel(): string {
+	getAriaLabel() {
 		return null;
 	}
 
@@ -318,7 +317,7 @@ export class QuickOpenAction extends Action {
 		id: string,
 		label: string,
 		prefix: string,
-		@IQuickOpenService private quickOpenService: IQuickOpenService
+		@IQuickOpenService private readonly quickOpenService: IQuickOpenService
 	) {
 		super(id, label);
 
@@ -326,11 +325,11 @@ export class QuickOpenAction extends Action {
 		this.enabled = !!this.quickOpenService;
 	}
 
-	run(context?: any): TPromise<void> {
+	run(context?: any): Promise<void> {
 
 		// Show with prefix
 		this.quickOpenService.show(this.prefix);
 
-		return Promise.resolve(null);
+		return Promise.resolve(undefined);
 	}
 }

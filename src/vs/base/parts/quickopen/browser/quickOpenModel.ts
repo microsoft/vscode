@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as types from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { ITree, IActionProvider } from 'vs/base/parts/tree/browser/tree';
@@ -12,7 +11,7 @@ import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/
 import { IQuickNavigateConfiguration, IModel, IDataSource, IFilter, IAccessiblityProvider, IRenderer, IRunner, Mode } from 'vs/base/parts/quickopen/common/quickOpen';
 import { Action, IAction, IActionRunner } from 'vs/base/common/actions';
 import { compareAnything } from 'vs/base/common/comparers';
-import { ActionBar, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import * as DOM from 'vs/base/browser/dom';
 import { IQuickOpenStyles } from 'vs/base/parts/quickopen/browser/quickOpenWidget';
@@ -20,6 +19,7 @@ import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLa
 import { OS } from 'vs/base/common/platform';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { IItemAccessor } from 'vs/base/parts/quickopen/common/quickOpenScorer';
+import { coalesce } from 'vs/base/common/arrays';
 
 export interface IContext {
 	event: any;
@@ -46,7 +46,7 @@ export class QuickOpenItemAccessorClass implements IItemAccessor<QuickOpenEntry>
 	getItemPath(entry: QuickOpenEntry): string {
 		const resource = entry.getResource();
 
-		return resource ? resource.fsPath : void 0;
+		return resource ? resource.fsPath : undefined;
 	}
 }
 
@@ -90,8 +90,7 @@ export class QuickOpenEntry {
 	 * The label of the entry to use when a screen reader wants to read about the entry
 	 */
 	getAriaLabel(): string {
-		return [this.getLabel(), this.getDescription(), this.getDetail()]
-			.filter(s => !!s)
+		return coalesce([this.getLabel(), this.getDescription(), this.getDetail()])
 			.join(', ');
 	}
 
@@ -289,19 +288,19 @@ class NoActionProvider implements IActionProvider {
 		return false;
 	}
 
-	getActions(tree: ITree, element: any): TPromise<IAction[]> {
-		return TPromise.as(null);
+	getActions(tree: ITree, element: any): IAction[] {
+		return null;
 	}
 
 	hasSecondaryActions(tree: ITree, element: any): boolean {
 		return false;
 	}
 
-	getSecondaryActions(tree: ITree, element: any): TPromise<IAction[]> {
-		return TPromise.as(null);
+	getSecondaryActions(tree: ITree, element: any): IAction[] {
+		return null;
 	}
 
-	getActionItem(tree: ITree, element: any, action: Action): IActionItem {
+	getActionItem(tree: ITree, element: any, action: Action) {
 		return null;
 	}
 }
@@ -377,7 +376,7 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		const detailContainer = document.createElement('div');
 		row2.appendChild(detailContainer);
 		DOM.addClass(detailContainer, 'quick-open-entry-meta');
-		const detail = new HighlightedLabel(detailContainer);
+		const detail = new HighlightedLabel(detailContainer, true);
 
 		// Entry Group
 		let group: HTMLDivElement;
@@ -421,13 +420,12 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 
 		data.actionBar.context = entry; // make sure the context is the current element
 
-		this.actionProvider.getActions(null, entry).then((actions) => {
-			if (data.actionBar.isEmpty() && actions && actions.length > 0) {
-				data.actionBar.push(actions, { icon: true, label: false });
-			} else if (!data.actionBar.isEmpty() && (!actions || actions.length === 0)) {
-				data.actionBar.clear();
-			}
-		});
+		const actions = this.actionProvider.getActions(null, entry);
+		if (data.actionBar.isEmpty() && actions && actions.length > 0) {
+			data.actionBar.push(actions, { icon: true, label: false });
+		} else if (!data.actionBar.isEmpty() && (!actions || actions.length === 0)) {
+			data.actionBar.clear();
+		}
 
 		// Entry group class
 		if (entry instanceof QuickOpenEntryGroup && entry.getGroupLabel()) {
@@ -470,13 +468,13 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 			options.title = entry.getTooltip();
 			options.descriptionTitle = entry.getDescriptionTooltip() || entry.getDescription(); // tooltip over description because it could overflow
 			options.descriptionMatches = descriptionHighlights || [];
-			data.label.setValue(entry.getLabel(), entry.getDescription(), options);
+			data.label.setLabel(entry.getLabel(), entry.getDescription(), options);
 
 			// Meta
 			data.detail.set(entry.getDetail(), detailHighlights);
 
 			// Keybinding
-			data.keybinding.set(entry.getKeybinding(), null);
+			data.keybinding.set(entry.getKeybinding());
 		}
 	}
 
@@ -486,7 +484,6 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		data.actionBar = null;
 		data.container = null;
 		data.entry = null;
-		data.keybinding.dispose();
 		data.keybinding = null;
 		data.detail.dispose();
 		data.detail = null;

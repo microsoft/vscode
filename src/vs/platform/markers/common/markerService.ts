@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { isFalsyOrEmpty, isNonEmptyArray } from 'vs/base/common/arrays';
 import { Schemas } from 'vs/base/common/network';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { isEmptyObject } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { Event, Emitter, debounceEvent } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IMarkerService, IMarkerData, IResourceMarker, IMarker, MarkerStatistics, MarkerSeverity } from './markers';
 
 interface MapMap<V> {
@@ -50,7 +50,7 @@ class MarkerStats implements MarkerStatistics {
 	warnings: number = 0;
 	unknowns: number = 0;
 
-	private _data: { [resource: string]: MarkerStatistics } = Object.create(null);
+	private _data?: { [resource: string]: MarkerStatistics } = Object.create(null);
 	private _service: IMarkerService;
 	private _subscription: IDisposable;
 
@@ -65,6 +65,10 @@ class MarkerStats implements MarkerStatistics {
 	}
 
 	private _update(resources: URI[]): void {
+		if (!this._data) {
+			return;
+		}
+
 		for (const resource of resources) {
 			const key = resource.toString();
 			const oldStats = this._data[key];
@@ -120,7 +124,7 @@ export class MarkerService implements IMarkerService {
 	_serviceBrand: any;
 
 	private _onMarkerChanged = new Emitter<URI[]>();
-	private _onMarkerChangedEvent: Event<URI[]> = debounceEvent(this._onMarkerChanged.event, MarkerService._debouncer, 0);
+	private _onMarkerChangedEvent: Event<URI[]> = Event.debounce(this._onMarkerChanged.event, MarkerService._debouncer, 0);
 	private _byResource: MapMap<IMarker[]> = Object.create(null);
 	private _byOwner: MapMap<IMarker[]> = Object.create(null);
 	private _stats: MarkerStats;
@@ -142,10 +146,8 @@ export class MarkerService implements IMarkerService {
 	}
 
 	remove(owner: string, resources: URI[]): void {
-		if (!isFalsyOrEmpty(resources)) {
-			for (const resource of resources) {
-				this.changeOne(owner, resource, []);
-			}
+		for (const resource of resources || []) {
+			this.changeOne(owner, resource, []);
 		}
 	}
 
@@ -191,7 +193,6 @@ export class MarkerService implements IMarkerService {
 		}
 
 		// santize data
-		code = code || null;
 		startLineNumber = startLineNumber > 0 ? startLineNumber : 1;
 		startColumn = startColumn > 0 ? startColumn : 1;
 		endLineNumber = endLineNumber >= startLineNumber ? endLineNumber : startLineNumber;
@@ -200,7 +201,7 @@ export class MarkerService implements IMarkerService {
 		return {
 			resource,
 			owner,
-			code,
+			code: code || undefined,
 			severity,
 			message,
 			source,
@@ -221,18 +222,21 @@ export class MarkerService implements IMarkerService {
 		if (map) {
 			delete this._byOwner[owner];
 			for (const resource in map) {
-				// remeber what we remove
-				const [first] = MapMap.get(this._byResource, resource, owner);
-				if (first) {
-					changes.push(first.resource);
+				const entry = MapMap.get(this._byResource, resource, owner);
+				if (entry) {
+					// remeber what we remove
+					const [first] = entry;
+					if (first) {
+						changes.push(first.resource);
+					}
+					// actual remove
+					MapMap.remove(this._byResource, resource, owner);
 				}
-				// actual remove
-				MapMap.remove(this._byResource, resource, owner);
 			}
 		}
 
 		// add new markers
-		if (!isFalsyOrEmpty(data)) {
+		if (isNonEmptyArray(data)) {
 
 			// group by resource
 			const groups: { [resource: string]: IMarker[] } = Object.create(null);
@@ -308,9 +312,9 @@ export class MarkerService implements IMarkerService {
 
 		} else {
 			// of one resource OR owner
-			const map: { [key: string]: IMarker[] } = owner
+			const map: { [key: string]: IMarker[] } | undefined = owner
 				? this._byOwner[owner]
-				: this._byResource[resource.toString()];
+				: resource ? this._byResource[resource.toString()] : undefined;
 
 			if (!map) {
 				return [];
@@ -332,7 +336,7 @@ export class MarkerService implements IMarkerService {
 	}
 
 	private static _accept(marker: IMarker, severities?: number): boolean {
-		return severities === void 0 || (severities & marker.severity) === marker.severity;
+		return severities === undefined || (severities & marker.severity) === marker.severity;
 	}
 
 	// --- event debounce logic
@@ -345,7 +349,7 @@ export class MarkerService implements IMarkerService {
 			last = [];
 		}
 		for (const uri of event) {
-			if (MarkerService._dedupeMap[uri.toString()] === void 0) {
+			if (MarkerService._dedupeMap[uri.toString()] === undefined) {
 				MarkerService._dedupeMap[uri.toString()] = true;
 				last.push(uri);
 			}

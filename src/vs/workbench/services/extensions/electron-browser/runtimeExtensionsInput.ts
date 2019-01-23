@@ -6,7 +6,6 @@
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { EditorInput } from 'vs/workbench/common/editor';
-import { TPromise } from 'vs/base/common/winjs.base';
 
 export class RuntimeExtensionsInput extends EditorInput {
 
@@ -31,8 +30,8 @@ export class RuntimeExtensionsInput extends EditorInput {
 		return true;
 	}
 
-	resolve(): TPromise<any> {
-		return TPromise.as(null);
+	resolve(): Promise<any> {
+		return Promise.resolve(null);
 	}
 
 	supportsSplitEditor(): boolean {

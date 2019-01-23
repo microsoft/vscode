@@ -24,7 +24,7 @@ export function isConfigurationOverrides(thing: any): thing is IConfigurationOve
 
 export interface IConfigurationOverrides {
 	overrideIdentifier?: string | null;
-	resource?: URI;
+	resource?: URI | null;
 }
 
 export const enum ConfigurationTarget {
@@ -63,7 +63,7 @@ export interface IConfigurationService {
 
 	onDidChangeConfiguration: Event<IConfigurationChangeEvent>;
 
-	getConfigurationData(): IConfigurationData;
+	getConfigurationData(): IConfigurationData | null;
 
 	/**
 	 * Fetches the value of the section for the given overrides.
@@ -89,8 +89,8 @@ export interface IConfigurationService {
 	inspect<T>(key: string, overrides?: IConfigurationOverrides): {
 		default: T,
 		user: T,
-		workspace: T,
-		workspaceFolder: T,
+		workspace?: T,
+		workspaceFolder?: T,
 		memory?: T,
 		value: T,
 	};
@@ -227,11 +227,11 @@ function doRemoveFromValueTree(valueTree: any, segments: string[]): void {
 export function getConfigurationValue<T>(config: any, settingPath: string, defaultValue?: T): T {
 	function accessSetting(config: any, path: string[]): any {
 		let current = config;
-		for (let i = 0; i < path.length; i++) {
+		for (const component of path) {
 			if (typeof current !== 'object' || current === null) {
 				return undefined;
 			}
-			current = current[path[i]];
+			current = current[component];
 		}
 		return <T>current;
 	}

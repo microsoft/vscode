@@ -27,54 +27,53 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
 	get onDidContextMenu(): Event<void> { return this._onDidContextMenu.event; }
 
 	constructor(
-		@INotificationService private notificationService: INotificationService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IKeybindingService private keybindingService: IKeybindingService
+		@INotificationService private readonly notificationService: INotificationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
 		super();
 	}
 
 	showContextMenu(delegate: IContextMenuDelegate): void {
-		delegate.getActions().then(actions => {
-			if (actions.length) {
-				const onHide = once(() => {
-					if (delegate.onHide) {
-						delegate.onHide(undefined);
-					}
-
-					this._onDidContextMenu.fire();
-				});
-
-				const menu = this.createMenu(delegate, actions, onHide);
-				const anchor = delegate.getAnchor();
-				let x: number, y: number;
-
-				if (dom.isHTMLElement(anchor)) {
-					let elementPosition = dom.getDomNodePagePosition(anchor);
-
-					x = elementPosition.left;
-					y = elementPosition.top + elementPosition.height;
-				} else {
-					const pos = <{ x: number; y: number; }>anchor;
-					x = pos.x + 1; /* prevent first item from being selected automatically under mouse */
-					y = pos.y;
+		const actions = delegate.getActions();
+		if (actions.length) {
+			const onHide = once(() => {
+				if (delegate.onHide) {
+					delegate.onHide(false);
 				}
 
-				let zoom = webFrame.getZoomFactor();
-				x *= zoom;
-				y *= zoom;
+				this._onDidContextMenu.fire();
+			});
 
-				popup(menu, {
-					x: Math.floor(x),
-					y: Math.floor(y),
-					positioningItem: delegate.autoSelectFirstItem ? 0 : void 0,
-					onHide: () => onHide()
-				});
+			const menu = this.createMenu(delegate, actions, onHide);
+			const anchor = delegate.getAnchor();
+			let x: number, y: number;
+
+			if (dom.isHTMLElement(anchor)) {
+				let elementPosition = dom.getDomNodePagePosition(anchor);
+
+				x = elementPosition.left;
+				y = elementPosition.top + elementPosition.height;
+			} else {
+				const pos = <{ x: number; y: number; }>anchor;
+				x = pos.x + 1; /* prevent first item from being selected automatically under mouse */
+				y = pos.y;
 			}
-		});
+
+			let zoom = webFrame.getZoomFactor();
+			x *= zoom;
+			y *= zoom;
+
+			popup(menu, {
+				x: Math.floor(x),
+				y: Math.floor(y),
+				positioningItem: delegate.autoSelectFirstItem ? 0 : undefined,
+				onHide: () => onHide()
+			});
+		}
 	}
 
-	private createMenu(delegate: IContextMenuDelegate, entries: (IAction | ContextSubMenu)[], onHide: () => void): IContextMenuItem[] {
+	private createMenu(delegate: IContextMenuDelegate, entries: Array<IAction | ContextSubMenu>, onHide: () => void): IContextMenuItem[] {
 		const actionRunner = delegate.actionRunner || new ActionRunner();
 
 		return entries.map(entry => this.createMenuItem(delegate, entry, actionRunner, onHide));
@@ -100,7 +99,7 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
 			const item: IContextMenuItem = {
 				label: unmnemonicLabel(entry.label),
 				checked: !!entry.checked || !!entry.radio,
-				type: !!entry.checked ? 'checkbox' : !!entry.radio ? 'radio' : void 0,
+				type: !!entry.checked ? 'checkbox' : !!entry.radio ? 'radio' : undefined,
 				enabled: !!entry.enabled,
 				click: event => {
 
@@ -143,6 +142,6 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
 		const context = delegate.getActionsContext ? delegate.getActionsContext(event) : event;
 		const res = actionRunner.run(actionToRun, context) || Promise.resolve(null);
 
-		res.then(null, e => this.notificationService.error(e));
+		res.then(undefined, e => this.notificationService.error(e));
 	}
 }

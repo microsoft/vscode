@@ -136,8 +136,7 @@ suite('window namespace tests', () => {
 			}).then(() => {
 				assert.equal(actualEvents.length, 2);
 
-				for (let i = 0; i < actualEvents.length; i++) {
-					const event = actualEvents[i];
+				for (const event of actualEvents) {
 					assert.equal(event.viewColumn, event.textEditor.viewColumn);
 				}
 
@@ -384,6 +383,7 @@ suite('window namespace tests', () => {
 
 	test('showQuickPick, accept first', async function () {
 		const pick = window.showQuickPick(['eins', 'zwei', 'drei']);
+		await new Promise(resolve => setTimeout(resolve, 10)); // Allow UI to update.
 		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
 		assert.equal(await pick, 'eins');
 	});
@@ -421,6 +421,7 @@ suite('window namespace tests', () => {
 			canPickMany: true
 		});
 		const first = new Promise(resolve => resolves.push(resolve));
+		await new Promise(resolve => setTimeout(resolve, 10)); // Allow UI to update.
 		await commands.executeCommand('workbench.action.quickOpenSelectNext');
 		assert.equal(await first, 'eins');
 		await commands.executeCommand('workbench.action.quickPickManyToggle');
@@ -442,6 +443,7 @@ suite('window namespace tests', () => {
 		], {
 				canPickMany: true
 			});
+		await new Promise(resolve => setTimeout(resolve, 10)); // Allow UI to update.
 		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
 		assert.deepStrictEqual((await picks)!.map(pick => pick.label), ['zwei', 'drei']);
 	});
@@ -518,6 +520,7 @@ suite('window namespace tests', () => {
 	test('showWorkspaceFolderPick', async function () {
 		const p = window.showWorkspaceFolderPick(undefined);
 
+		await timeout(10);
 		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
 		try {
 			await p;
@@ -694,3 +697,7 @@ suite('window namespace tests', () => {
 		});
 	});
 });
+
+async function timeout(ms = 0): Promise<void> {
+	return new Promise<void>(resolve => setTimeout(() => resolve(), ms));
+}

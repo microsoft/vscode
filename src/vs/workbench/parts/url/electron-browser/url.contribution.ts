@@ -10,7 +10,6 @@ import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/wor
 import { IURLService } from 'vs/platform/url/common/url';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 
 export class OpenUrlAction extends Action {
@@ -21,13 +20,13 @@ export class OpenUrlAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IURLService private urlService: IURLService,
-		@IQuickInputService private quickInputService: IQuickInputService,
+		@IURLService private readonly urlService: IURLService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
 	) {
 		super(id, label);
 	}
 
-	run(): TPromise<any> {
+	run(): Promise<any> {
 		return this.quickInputService.input({ prompt: 'URL to open' }).then(input => {
 			const uri = URI.parse(input);
 			this.urlService.open(uri);

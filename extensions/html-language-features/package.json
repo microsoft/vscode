@@ -14,7 +14,6 @@
     "onLanguage:handlebars",
     "onLanguage:razor"
   ],
-  "enableProposedApi": true,
   "main": "./client/out/htmlMain",
   "scripts": {
     "compile": "gulp compile-extension:html-language-features-client compile-extension:html-language-features-server",
@@ -32,6 +31,10 @@
       "type": "object",
       "title": "HTML",
       "properties": {
+        "html.experimental.customData": {
+          "type": "array",
+          "description": "A list of JSON file paths that define custom tags, properties and other HTML syntax constructs. Only workspace folder setting will be read."
+        },
         "html.format.enable": {
           "type": "boolean",
           "scope": "window",
@@ -125,12 +128,14 @@
           "description": "%html.format.wrapAttributes.desc%"
         },
         "html.suggest.angular1": {
+          "deprecationMessage": "Angular 1 is obsolete and Angular completion will be removed.",
           "type": "boolean",
           "scope": "resource",
           "default": false,
           "description": "%html.suggest.angular1.desc%"
         },
         "html.suggest.ionic": {
+          "deprecationMessage": "Ionic 1 is obsolete and Ionic completion will be removed.",
           "type": "boolean",
           "scope": "resource",
           "default": false,
@@ -175,7 +180,7 @@
     }
   },
   "dependencies": {
-    "vscode-extension-telemetry": "0.1.0",
+    "vscode-extension-telemetry": "0.1.1",
     "vscode-languageclient": "^5.1.0",
     "vscode-nls": "^4.0.0"
   },

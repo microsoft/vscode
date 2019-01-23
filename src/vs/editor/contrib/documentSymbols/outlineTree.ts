@@ -146,13 +146,13 @@ export class OutlineRenderer implements IRenderer {
 			const decoration = dom.$('.outline-element-decoration');
 			dom.addClass(container, 'outline-element');
 			dom.append(container, icon, labelContainer, detail, decoration);
-			return { icon, labelContainer, label: new HighlightedLabel(labelContainer), detail, decoration };
+			return { icon, labelContainer, label: new HighlightedLabel(labelContainer, true), detail, decoration };
 		}
 		if (templateId === 'outline-group') {
 			const labelContainer = dom.$('.outline-element-label');
 			dom.addClass(container, 'outline-element');
 			dom.append(container, labelContainer);
-			return { labelContainer, label: new HighlightedLabel(labelContainer) };
+			return { labelContainer, label: new HighlightedLabel(labelContainer, true) };
 		}
 
 		throw new Error(templateId);
@@ -161,7 +161,7 @@ export class OutlineRenderer implements IRenderer {
 	renderElement(tree: ITree, element: OutlineGroup | OutlineElement, templateId: string, template: OutlineTemplate): void {
 		if (element instanceof OutlineElement) {
 			template.icon.className = `outline-element-icon ${symbolKindToCssClass(element.symbol.kind)}`;
-			template.label.set(element.symbol.name, element.score ? createMatches(element.score[1]) : undefined, localize('title.template', "{0} ({1})", element.symbol.name, OutlineRenderer._symbolKindNames[element.symbol.kind]));
+			template.label.set(element.symbol.name, element.score ? createMatches(element.score) : undefined, localize('title.template', "{0} ({1})", element.symbol.name, OutlineRenderer._symbolKindNames[element.symbol.kind]));
 			template.detail.innerText = element.symbol.detail || '';
 			this._renderMarkerInfo(element, template);
 

@@ -24,13 +24,13 @@ const getCodeLineElements = (() => {
 	let elements: CodeLineElement[];
 	return () => {
 		if (!elements) {
-			elements = Array.prototype.map.call(
+			elements = ([{ element: document.body, line: 0 }]).concat(Array.prototype.map.call(
 				document.getElementsByClassName('code-line'),
 				(element: any) => {
 					const line = +element.getAttribute('data-line');
 					return { element, line };
 				})
-				.filter((x: any) => !isNaN(x.line));
+				.filter((x: any) => !isNaN(x.line)));
 		}
 		return elements;
 	};
@@ -49,8 +49,7 @@ export function getElementsForSourceLine(targetLine: number): { previous: CodeLi
 	for (const entry of lines) {
 		if (entry.line === lineNumber) {
 			return { previous: entry, next: undefined };
-		}
-		else if (entry.line > lineNumber) {
+		} else if (entry.line > lineNumber) {
 			return { previous, next: entry };
 		}
 		previous = entry;
@@ -89,22 +88,32 @@ export function getLineElementsAtPageOffset(offset: number): { previous: CodeLin
  * Attempt to reveal the element for a source line in the editor.
  */
 export function scrollToRevealSourceLine(line: number) {
-	const { previous, next } = getElementsForSourceLine(line);
-	if (previous && getSettings().scrollPreviewWithEditor) {
-		let scrollTo = 0;
-		const rect = previous.element.getBoundingClientRect();
-		const previousTop = rect.top;
-		if (next && next.line !== previous.line) {
-			// Between two elements. Go to percentage offset between them.
-			const betweenProgress = (line - previous.line) / (next.line - previous.line);
-			const elementOffset = next.element.getBoundingClientRect().top - previousTop;
-			scrollTo = previousTop + betweenProgress * elementOffset;
-		}
-		else {
-			scrollTo = previousTop;
-		}
-		window.scroll(0, Math.max(1, window.scrollY + scrollTo));
+	if (!getSettings().scrollPreviewWithEditor) {
+		return;
 	}
+
+	if (line <= 0) {
+		window.scroll(window.scrollX, 0);
+		return;
+	}
+
+	const { previous, next } = getElementsForSourceLine(line);
+	if (!previous) {
+		return;
+	}
+	let scrollTo = 0;
+	const rect = previous.element.getBoundingClientRect();
+	const previousTop = rect.top;
+	if (next && next.line !== previous.line) {
+		// Between two elements. Go to percentage offset between them.
+		const betweenProgress = (line - previous.line) / (next.line - previous.line);
+		const elementOffset = next.element.getBoundingClientRect().top - previousTop;
+		scrollTo = previousTop + betweenProgress * elementOffset;
+	} else {
+		const progressInElement = line - Math.floor(line);
+		scrollTo = previousTop + (rect.height * progressInElement);
+	}
+	window.scroll(window.scrollX, Math.max(1, window.scrollY + scrollTo));
 }
 
 export function getEditorLineNumberForPageOffset(offset: number) {

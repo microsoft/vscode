@@ -2,12 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import * as assert from 'assert';
-import { Position } from 'vs/editor/common/core/position';
-import { DeleteWordPartLeft, DeleteWordPartRight, CursorWordPartLeft, CursorWordPartLeftSelect, CursorWordPartRight, CursorWordPartRightSelect } from 'vs/editor/contrib/wordPartOperations/wordPartOperations';
-import { EditorCommand } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { deserializePipePositions, testRepeatedActionAndExtractPositions, serializePipePositions } from 'vs/editor/contrib/wordOperations/test/wordTestUtils';
+import { EditorCommand } from 'vs/editor/browser/editorExtensions';
+import { Position } from 'vs/editor/common/core/position';
+import { deserializePipePositions, serializePipePositions, testRepeatedActionAndExtractPositions } from 'vs/editor/contrib/wordOperations/test/wordTestUtils';
+import { CursorWordPartLeft, CursorWordPartLeftSelect, CursorWordPartRight, CursorWordPartRightSelect, DeleteWordPartLeft, DeleteWordPartRight } from 'vs/editor/contrib/wordPartOperations/wordPartOperations';
 
 suite('WordPartOperations', () => {
 	const _deleteWordPartLeft = new DeleteWordPartLeft();
@@ -44,8 +45,8 @@ suite('WordPartOperations', () => {
 			text,
 			new Position(1000, 1000),
 			ed => cursorWordPartLeft(ed),
-			ed => ed.getPosition(),
-			ed => ed.getPosition().equals(new Position(1, 1))
+			ed => ed.getPosition()!,
+			ed => ed.getPosition()!.equals(new Position(1, 1))
 		);
 		const actual = serializePipePositions(text, actualStops);
 		assert.deepEqual(actual, EXPECTED);
@@ -58,8 +59,8 @@ suite('WordPartOperations', () => {
 			text,
 			new Position(1000, 1000),
 			ed => cursorWordPartLeft(ed),
-			ed => ed.getPosition(),
-			ed => ed.getPosition().equals(new Position(1, 1))
+			ed => ed.getPosition()!,
+			ed => ed.getPosition()!.equals(new Position(1, 1))
 		);
 		const actual = serializePipePositions(text, actualStops);
 		assert.deepEqual(actual, EXPECTED);
@@ -72,8 +73,8 @@ suite('WordPartOperations', () => {
 			text,
 			new Position(1000, 1000),
 			ed => cursorWordPartLeft(ed),
-			ed => ed.getPosition(),
-			ed => ed.getPosition().equals(new Position(1, 1))
+			ed => ed.getPosition()!,
+			ed => ed.getPosition()!.equals(new Position(1, 1))
 		);
 		const actual = serializePipePositions(text, actualStops);
 		assert.deepEqual(actual, EXPECTED);
@@ -90,8 +91,8 @@ suite('WordPartOperations', () => {
 			text,
 			new Position(1, 1),
 			ed => cursorWordPartRight(ed),
-			ed => ed.getPosition(),
-			ed => ed.getPosition().equals(new Position(3, 9))
+			ed => ed.getPosition()!,
+			ed => ed.getPosition()!.equals(new Position(3, 9))
 		);
 		const actual = serializePipePositions(text, actualStops);
 		assert.deepEqual(actual, EXPECTED);
@@ -104,8 +105,8 @@ suite('WordPartOperations', () => {
 			text,
 			new Position(1, 1),
 			ed => cursorWordPartRight(ed),
-			ed => ed.getPosition(),
-			ed => ed.getPosition().equals(new Position(1, 52))
+			ed => ed.getPosition()!,
+			ed => ed.getPosition()!.equals(new Position(1, 52))
 		);
 		const actual = serializePipePositions(text, actualStops);
 		assert.deepEqual(actual, EXPECTED);
@@ -118,8 +119,8 @@ suite('WordPartOperations', () => {
 			text,
 			new Position(1, 1),
 			ed => cursorWordPartRight(ed),
-			ed => ed.getPosition(),
-			ed => ed.getPosition().equals(new Position(1, 52))
+			ed => ed.getPosition()!,
+			ed => ed.getPosition()!.equals(new Position(1, 52))
 		);
 		const actual = serializePipePositions(text, actualStops);
 		assert.deepEqual(actual, EXPECTED);
@@ -137,8 +138,8 @@ suite('WordPartOperations', () => {
 			text,
 			new Position(1, 1),
 			ed => cursorWordPartRight(ed),
-			ed => ed.getPosition(),
-			ed => ed.getPosition().equals(new Position(4, 7))
+			ed => ed.getPosition()!,
+			ed => ed.getPosition()!.equals(new Position(4, 7))
 		);
 		const actual = serializePipePositions(text, actualStops);
 		assert.deepEqual(actual, EXPECTED);
@@ -151,7 +152,7 @@ suite('WordPartOperations', () => {
 			text,
 			new Position(1, 1000),
 			ed => deleteWordPartLeft(ed),
-			ed => ed.getPosition(),
+			ed => ed.getPosition()!,
 			ed => ed.getValue().length === 0
 		);
 		const actual = serializePipePositions(text, actualStops);

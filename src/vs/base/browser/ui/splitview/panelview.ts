@@ -5,7 +5,7 @@
 
 import 'vs/css!./panelview';
 import { IDisposable, dispose, combinedDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { Event, Emitter, chain, filterEvent } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -46,6 +46,7 @@ export abstract class Panel implements IView {
 	protected _expanded: boolean;
 	protected disposables: IDisposable[] = [];
 
+	private expandedSize: number | undefined = undefined;
 	private _headerVisible = true;
 	private _minimumBodySize: number;
 	private _maximumBodySize: number;
@@ -53,9 +54,6 @@ export abstract class Panel implements IView {
 	private styles: IPanelStyles = {};
 
 	private header: HTMLElement;
-
-	private cachedExpandedSize: number | undefined = undefined;
-	private cachedBodySize: number | undefined = undefined;
 
 	private _onDidChange = new Emitter<number | undefined>();
 	readonly onDidChange: Event<number | undefined> = this._onDidChange.event;
@@ -79,7 +77,7 @@ export abstract class Panel implements IView {
 
 	set minimumBodySize(size: number) {
 		this._minimumBodySize = size;
-		this._onDidChange.fire();
+		this._onDidChange.fire(undefined);
 	}
 
 	get maximumBodySize(): number {
@@ -88,7 +86,7 @@ export abstract class Panel implements IView {
 
 	set maximumBodySize(size: number) {
 		this._maximumBodySize = size;
-		this._onDidChange.fire();
+		this._onDidChange.fire(undefined);
 	}
 
 	private get headerSize(): number {
@@ -124,14 +122,16 @@ export abstract class Panel implements IView {
 		return this._expanded;
 	}
 
-	setExpanded(expanded: boolean): void {
+	setExpanded(expanded: boolean): boolean {
 		if (this._expanded === !!expanded) {
-			return;
+			return false;
 		}
 
 		this._expanded = !!expanded;
 		this.updateHeader();
-		this._onDidChange.fire(expanded ? this.cachedExpandedSize : undefined);
+		this._onDidChange.fire(expanded ? this.expandedSize : undefined);
+
+		return true;
 	}
 
 	get headerVisible(): boolean {
@@ -145,7 +145,7 @@ export abstract class Panel implements IView {
 
 		this._headerVisible = !!visible;
 		this.updateHeader();
-		this._onDidChange.fire();
+		this._onDidChange.fire(undefined);
 	}
 
 	render(): void {
@@ -162,7 +162,7 @@ export abstract class Panel implements IView {
 
 		this.updateHeader();
 
-		const onHeaderKeyDown = chain(domEvent(this.header, 'keydown'))
+		const onHeaderKeyDown = Event.chain(domEvent(this.header, 'keydown'))
 			.map(e => new StandardKeyboardEvent(e));
 
 		onHeaderKeyDown.filter(e => e.keyCode === KeyCode.Enter || e.keyCode === KeyCode.Space)
@@ -192,14 +192,8 @@ export abstract class Panel implements IView {
 		const headerSize = this.headerVisible ? Panel.HEADER_SIZE : 0;
 
 		if (this.isExpanded()) {
-			const bodySize = size - headerSize;
-
-			if (bodySize !== this.cachedBodySize) {
-				this.layoutBody(bodySize);
-				this.cachedBodySize = bodySize;
-			}
-
-			this.cachedExpandedSize = size;
+			this.layoutBody(size - headerSize);
+			this.expandedSize = size;
 		}
 	}
 
@@ -399,7 +393,7 @@ export class PanelView extends Disposable {
 		let shouldAnimate = false;
 		disposables.push(scheduleAtNextAnimationFrame(() => shouldAnimate = true));
 
-		filterEvent(panel.onDidChange, () => shouldAnimate)
+		Event.filter(panel.onDidChange, () => shouldAnimate)
 			(this.setupAnimation, this, disposables);
 
 		const panelItem = { panel, disposable: combinedDisposable(disposables) };

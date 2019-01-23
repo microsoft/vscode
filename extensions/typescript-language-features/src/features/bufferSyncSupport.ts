@@ -55,7 +55,7 @@ class SyncedBuffer {
 		}
 
 		if (this.client.apiVersion.gte(API.v240)) {
-			const tsPluginsForDocument = this.client.plugins
+			const tsPluginsForDocument = this.client.pluginManager.plugins
 				.filter(x => x.languages.indexOf(this.document.languageId) >= 0);
 
 			if (tsPluginsForDocument.length) {
@@ -124,7 +124,7 @@ class PendingDiagnostics extends ResourceMap<number> {
 
 		const map = new ResourceMap<void>();
 		for (const resource of orderedResources) {
-			map.set(resource, void 0);
+			map.set(resource, undefined);
 		}
 		return map;
 	}
@@ -355,7 +355,7 @@ export default class BufferSyncSupport extends Disposable {
 
 		// Add all open TS buffers to the geterr request. They might be visible
 		for (const buffer of this.syncedBuffers.values) {
-			orderedFileSet.set(buffer.resource, void 0);
+			orderedFileSet.set(buffer.resource, undefined);
 		}
 
 		if (orderedFileSet.size) {
@@ -363,7 +363,7 @@ export default class BufferSyncSupport extends Disposable {
 				this.pendingGetErr.cancel();
 
 				for (const file of this.pendingGetErr.files.entries) {
-					orderedFileSet.set(file.resource, void 0);
+					orderedFileSet.set(file.resource, undefined);
 				}
 			}
 

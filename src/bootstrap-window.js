@@ -51,9 +51,8 @@ exports.load = function (modulePaths, resultCallback, options) {
 	// Enable ASAR support
 	bootstrap.enableASARSupport(path.join(configuration.appRoot, 'node_modules'));
 
-	// disable pinch zoom & apply zoom level early to avoid glitches
+	// Apply zoom level early to avoid glitches
 	const zoomLevel = configuration.zoomLevel;
-	webFrame.setVisualZoomLevelLimits(1, 1);
 	if (typeof zoomLevel === 'number' && zoomLevel !== 0) {
 		webFrame.setZoomLevel(zoomLevel);
 	}
@@ -91,9 +90,16 @@ exports.load = function (modulePaths, resultCallback, options) {
 	const loaderConfig = {
 		baseUrl: bootstrap.uriFromPath(configuration.appRoot) + '/out',
 		'vs/nls': nlsConfig,
-		nodeCachedDataDir: configuration.nodeCachedDataDir,
 		nodeModules: [/*BUILD->INSERT_NODE_MODULES*/]
 	};
+
+	// cached data config
+	if (configuration.nodeCachedDataDir) {
+		loaderConfig.nodeCachedData = {
+			path: configuration.nodeCachedDataDir,
+			seed: modulePaths.join('')
+		};
+	}
 
 	if (options && typeof options.beforeLoaderConfig === 'function') {
 		options.beforeLoaderConfig(configuration, loaderConfig);
@@ -162,11 +168,12 @@ function registerDeveloperKeybindings() {
 
 	// Devtools & reload support
 	const TOGGLE_DEV_TOOLS_KB = (process.platform === 'darwin' ? 'meta-alt-73' : 'ctrl-shift-73'); // mac: Cmd-Alt-I, rest: Ctrl-Shift-I
+	const TOGGLE_DEV_TOOLS_KB_ALT = '123'; // F12
 	const RELOAD_KB = (process.platform === 'darwin' ? 'meta-82' : 'ctrl-82'); // mac: Cmd-R, rest: Ctrl-R
 
 	let listener = function (e) {
 		const key = extractKey(e);
-		if (key === TOGGLE_DEV_TOOLS_KB) {
+		if (key === TOGGLE_DEV_TOOLS_KB || key === TOGGLE_DEV_TOOLS_KB_ALT) {
 			ipc.send('vscode:toggleDevTools');
 		} else if (key === RELOAD_KB) {
 			ipc.send('vscode:reloadWindow');
@@ -178,7 +185,7 @@ function registerDeveloperKeybindings() {
 	return function () {
 		if (listener) {
 			window.removeEventListener('keydown', listener);
-			listener = void 0;
+			listener = undefined;
 		}
 	};
 }

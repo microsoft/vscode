@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Position } from 'vs/editor/common/core/position';
 import { CharCode } from 'vs/base/common/charCode';
-import * as strings from 'vs/base/common/strings';
-import { ICommand, IConfiguration, ScrollType } from 'vs/editor/common/editorCommon';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { Selection, ISelection } from 'vs/editor/common/core/selection';
-import { Range } from 'vs/editor/common/core/range';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import * as strings from 'vs/base/common/strings';
+import { EditorAutoClosingStrategy, EditorAutoSurroundStrategy, IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
+import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import { ISelection, Selection } from 'vs/editor/common/core/selection';
+import { ICommand, IConfiguration, ScrollType } from 'vs/editor/common/editorCommon';
+import { ITextModel, TextModelResolvedOptions } from 'vs/editor/common/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { IAutoClosingPair } from 'vs/editor/common/modes/languageConfiguration';
-import { IConfigurationChangedEvent, EditorAutoClosingStrategy, EditorAutoSurroundStrategy } from 'vs/editor/common/config/editorOptions';
-import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
-import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
-import { TextModelResolvedOptions, ITextModel } from 'vs/editor/common/model';
+import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 
 export interface IColumnSelectData {
 	toViewLineNumber: number;
@@ -148,16 +148,16 @@ export class CursorConfiguration {
 
 		let autoClosingPairs = CursorConfiguration._getAutoClosingPairs(languageIdentifier);
 		if (autoClosingPairs) {
-			for (let i = 0; i < autoClosingPairs.length; i++) {
-				this.autoClosingPairsOpen[autoClosingPairs[i].open] = autoClosingPairs[i].close;
-				this.autoClosingPairsClose[autoClosingPairs[i].close] = autoClosingPairs[i].open;
+			for (const pair of autoClosingPairs) {
+				this.autoClosingPairsOpen[pair.open] = pair.close;
+				this.autoClosingPairsClose[pair.close] = pair.open;
 			}
 		}
 
 		let surroundingPairs = CursorConfiguration._getSurroundingPairs(languageIdentifier);
 		if (surroundingPairs) {
-			for (let i = 0; i < surroundingPairs.length; i++) {
-				this.surroundingPairs[surroundingPairs[i].open] = surroundingPairs[i].close;
+			for (const pair of surroundingPairs) {
+				this.surroundingPairs[pair.open] = pair.close;
 			}
 		}
 	}
@@ -167,8 +167,8 @@ export class CursorConfiguration {
 			this._electricChars = {};
 			let electricChars = CursorConfiguration._getElectricCharacters(this._languageIdentifier);
 			if (electricChars) {
-				for (let i = 0; i < electricChars.length; i++) {
-					this._electricChars[electricChars[i]] = true;
+				for (const char of electricChars) {
+					this._electricChars[char] = true;
 				}
 			}
 		}
@@ -464,13 +464,13 @@ export class EditOperationResult {
 	_editOperationResultBrand: void;
 
 	readonly type: EditOperationType;
-	readonly commands: (ICommand | null)[];
+	readonly commands: Array<ICommand | null>;
 	readonly shouldPushStackElementBefore: boolean;
 	readonly shouldPushStackElementAfter: boolean;
 
 	constructor(
 		type: EditOperationType,
-		commands: (ICommand | null)[],
+		commands: Array<ICommand | null>,
 		opts: {
 			shouldPushStackElementBefore: boolean;
 			shouldPushStackElementAfter: boolean;

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as os from 'os';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import * as platform from 'vs/base/common/platform';
 import * as terminalEnvironment from 'vs/workbench/parts/terminal/node/terminalEnvironment';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -14,6 +14,10 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { EXT_HOST_CREATION_DELAY } from 'vs/workbench/parts/terminal/common/terminal';
 import { TerminalProcess } from 'vs/workbench/parts/terminal/node/terminalProcess';
 import { timeout } from 'vs/base/common/async';
+import { generateRandomPipeName } from 'vs/base/parts/ipc/node/ipc.net';
+import * as http from 'http';
+import * as fs from 'fs';
+import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 
 const RENDERER_NO_PROCESS_ID = -1;
 
@@ -74,7 +78,7 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 	private _pidPromise: Promise<number>;
 	private _pidPromiseComplete: (value: number) => any;
 
-	private readonly _onData: Emitter<string> = new Emitter<string>();
+	private readonly _onData = new Emitter<string>();
 	public get onDidWriteData(): Event<string> {
 		// Tell the main side to start sending data if it's not already
 		this._idPromise.then(c => {
@@ -102,12 +106,14 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 	public create(
 		shellPath?: string,
 		shellArgs?: string[],
-		cwd?: string,
+		cwd?: string | URI,
 		env?: { [key: string]: string },
-		waitOnExit?: boolean
+		waitOnExit?: boolean,
+		strictEnv?: boolean
 	): void {
-		this._proxy.$createTerminal(this._name, shellPath, shellArgs, cwd, env, waitOnExit).then((id) => {
-			this._runQueuedRequests(id);
+		this._proxy.$createTerminal(this._name, shellPath, shellArgs, cwd, env, waitOnExit, strictEnv).then(terminal => {
+			this._name = terminal.name;
+			this._runQueuedRequests(terminal.id);
 		});
 	}
 
@@ -119,7 +125,7 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 		this._name = name;
 	}
 
-	public get processId(): Thenable<number> {
+	public get processId(): Promise<number> {
 		return this._pidPromise;
 	}
 
@@ -143,6 +149,13 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 		if (this._pidPromiseComplete) {
 			this._pidPromiseComplete(processId);
 			this._pidPromiseComplete = null;
+		} else {
+			// Recreate the promise if this is the nth processId set (eg. reused task terminals)
+			this._pidPromise.then(pid => {
+				if (pid !== processId) {
+					this._pidPromise = Promise.resolve(processId);
+				}
+			});
 		}
 	}
 
@@ -159,7 +172,7 @@ export class ExtHostTerminalRenderer extends BaseExtHostTerminal implements vsco
 		this._queueApiRequest(this._proxy.$terminalRendererSetName, [this._name]);
 	}
 
-	private readonly _onInput: Emitter<string> = new Emitter<string>();
+	private readonly _onInput = new Emitter<string>();
 	public get onDidAcceptInput(): Event<string> {
 		this._checkDisposed();
 		this._queueApiRequest(this._proxy.$terminalRendererRegisterOnInputListener, [this._id]);
@@ -233,6 +246,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	private _terminalProcesses: { [id: number]: TerminalProcess } = {};
 	private _terminalRenderers: ExtHostTerminalRenderer[] = [];
 	private _getTerminalPromises: { [id: number]: Promise<ExtHostTerminal> } = {};
+	private _cliServer: CLIServer | undefined;
 
 	public get activeTerminal(): ExtHostTerminal { return this._activeTerminal; }
 	public get terminals(): ExtHostTerminal[] { return this._terminals; }
@@ -247,7 +261,8 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	constructor(
 		mainContext: IMainContext,
 		private _extHostConfiguration: ExtHostConfiguration,
-		private _logService: ILogService
+		private _logService: ILogService,
+		private _commands: ExtHostCommands
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadTerminalService);
 	}
@@ -261,7 +276,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 
 	public createTerminalFromOptions(options: vscode.TerminalOptions): vscode.Terminal {
 		const terminal = new ExtHostTerminal(this._proxy, options.name);
-		terminal.create(options.shellPath, options.shellArgs, options.cwd, options.env /*, options.waitOnExit*/);
+		terminal.create(options.shellPath, options.shellArgs, options.cwd, options.env, /*options.waitOnExit*/ undefined, options.strictEnv);
 		this._terminals.push(terminal);
 		return terminal;
 	}
@@ -365,11 +380,11 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		}
 	}
 
-	public $createProcess(id: number, shellLaunchConfig: ShellLaunchConfigDto, cols: number, rows: number): void {
+	public async $createProcess(id: number, shellLaunchConfig: ShellLaunchConfigDto, activeWorkspaceRootUriComponents: UriComponents, cols: number, rows: number): Promise<void> {
 		// TODO: This function duplicates a lot of TerminalProcessManager.createProcess, ideally
 		// they would be merged into a single implementation.
-
-		const terminalConfig = this._extHostConfiguration.getConfiguration('terminal.integrated');
+		const configProvider = await this._extHostConfiguration.getConfigProvider();
+		const terminalConfig = configProvider.getConfiguration('terminal.integrated');
 
 		if (!shellLaunchConfig.executable) {
 			// TODO: This duplicates some of TerminalConfigHelper.mergeDefaultShellPathAndArgs and should be merged
@@ -383,10 +398,9 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 			shellLaunchConfig.args = shellArgsConfigValue;
 		}
 
-		// TODO: Base the cwd on the last active workspace root
-		// const lastActiveWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.file);
-		// this.initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, lastActiveWorkspaceRootUri, this._configHelper);
-		const initialCwd = os.homedir();
+		// TODO: @daniel
+		const activeWorkspaceRootUri = URI.revive(activeWorkspaceRootUriComponents);
+		const initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, activeWorkspaceRootUri, terminalConfig.cwd);
 
 		// TODO: Pull in and resolve config settings
 		// // Resolve env vars from config and shell
@@ -400,19 +414,28 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		// terminalEnvironment.mergeEnvironments(env, envFromConfig);
 		terminalEnvironment.mergeEnvironments(env, shellLaunchConfig.env);
 
+		// Sanitize the environment, removing any undesirable VS Code and Electron environment
+		// variables
+		terminalEnvironment.sanitizeEnvironment(env);
+
 		// Continue env initialization, merging in the env from the launch
 		// config and adding keys that are needed to create the process
-		const locale = terminalConfig.get('setLocaleVariables') ? platform.locale : undefined;
-		terminalEnvironment.addTerminalEnvironmentKeys(env, locale);
+		terminalEnvironment.addTerminalEnvironmentKeys(env, platform.locale, terminalConfig.get('setLocaleVariables'));
+
+		if (!this._cliServer) {
+			this._cliServer = new CLIServer(this._commands);
+		}
+		env['VSCODE_IPC_HOOK_CLI'] = this._cliServer.ipcHandlePath;
 
 		// Fork the process and listen for messages
 		this._logService.debug(`Terminal process launching on ext host`, shellLaunchConfig, initialCwd, cols, rows, env);
-		this._terminalProcesses[id] = new TerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env);
+		this._terminalProcesses[id] = new TerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, terminalConfig.get('windowsEnableConpty'));
 		this._terminalProcesses[id].onProcessIdReady(pid => this._proxy.$sendProcessPid(id, pid));
 		this._terminalProcesses[id].onProcessTitleChanged(title => this._proxy.$sendProcessTitle(id, title));
 		this._terminalProcesses[id].onProcessData(data => this._proxy.$sendProcessData(id, data));
 		this._terminalProcesses[id].onProcessExit((exitCode) => this._onProcessExit(id, exitCode));
 	}
+
 
 	public $acceptProcessInput(id: number, data: string): void {
 		this._terminalProcesses[id].input(data);
@@ -442,6 +465,12 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 
 		// Send exit event to main side
 		this._proxy.$sendProcessExit(id, exitCode);
+
+		if (this._cliServer && !Object.keys(this._terminalProcesses).length) {
+			this._cliServer.dispose();
+			this._cliServer = undefined;
+		}
+
 	}
 
 	private _getTerminalByIdEventually(id: number, retries: number = 5): Promise<ExtHostTerminal> {
@@ -511,5 +540,72 @@ class ApiRequest {
 
 	public run(proxy: MainThreadTerminalServiceShape, id: number) {
 		this._callback.apply(proxy, [id].concat(this._args));
+	}
+}
+
+
+class CLIServer {
+
+	private _server: http.Server;
+	private _ipcHandlePath: string | undefined;
+
+	constructor(private _commands: ExtHostCommands) {
+		this._server = http.createServer((req, res) => this.onRequest(req, res));
+		this.setup().catch(err => {
+			console.error(err);
+			return '';
+		});
+	}
+
+	public get ipcHandlePath() {
+		return this._ipcHandlePath;
+	}
+
+	private async setup(): Promise<string> {
+		this._ipcHandlePath = generateRandomPipeName();
+
+		try {
+			this._server.listen(this.ipcHandlePath);
+			this._server.on('error', err => console.error(err));
+		} catch (err) {
+			console.error('Could not start open from terminal server.');
+		}
+
+		return this.ipcHandlePath;
+	}
+	private toURIs(strs: string[]): URI[] {
+		const result: URI[] = [];
+		if (Array.isArray(strs)) {
+			for (const s of strs) {
+				try {
+					result.push(URI.parse(s));
+				} catch (e) {
+					// ignore
+				}
+			}
+		}
+		return result;
+	}
+
+	private onRequest(req: http.IncomingMessage, res: http.ServerResponse): void {
+		const chunks: string[] = [];
+		req.setEncoding('utf8');
+		req.on('data', (d: string) => chunks.push(d));
+		req.on('end', () => {
+			const { fileURIs, folderURIs, forceNewWindow, diffMode, addMode, forceReuseWindow } = JSON.parse(chunks.join(''));
+			if (folderURIs && folderURIs.length || fileURIs && fileURIs.length) {
+				this._commands.executeCommand('_files.windowOpen', { folderURIs: this.toURIs(folderURIs), fileURIs: this.toURIs(fileURIs), forceNewWindow, diffMode, addMode, forceReuseWindow });
+			}
+			res.writeHead(200);
+			res.end();
+		});
+	}
+
+	dispose(): void {
+		this._server.close();
+
+		if (this._ipcHandlePath && process.platform !== 'win32' && fs.existsSync(this._ipcHandlePath)) {
+			fs.unlinkSync(this._ipcHandlePath);
+		}
 	}
 }

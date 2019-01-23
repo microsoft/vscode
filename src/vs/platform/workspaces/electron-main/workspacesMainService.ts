@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWorkspacesMainService, IWorkspaceIdentifier, WORKSPACE_EXTENSION, IWorkspaceSavedEvent, UNTITLED_WORKSPACE_NAME, IResolvedWorkspace, IStoredWorkspaceFolder, isRawFileWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { isParent } from 'vs/platform/files/common/files';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { extname, join, dirname, isAbsolute, resolve } from 'path';
 import { mkdirp, writeFile, readFile } from 'vs/base/node/pfs';
-import { readFileSync, existsSync, mkdirSync } from 'fs';
+import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'fs';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { delSync, readdirSync, writeFileAndFlushSync } from 'vs/base/node/extfs';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -23,47 +22,42 @@ import { massageFolderPathForWorkspace } from 'vs/platform/workspaces/node/works
 import { toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 export interface IStoredWorkspace {
 	folders: IStoredWorkspaceFolder[];
 }
 
-export class WorkspacesMainService implements IWorkspacesMainService {
+export class WorkspacesMainService extends Disposable implements IWorkspacesMainService {
 
 	_serviceBrand: any;
 
-	protected workspacesHome: string;
+	private workspacesHome: string;
 
-	private readonly _onWorkspaceSaved: Emitter<IWorkspaceSavedEvent>;
-	private readonly _onUntitledWorkspaceDeleted: Emitter<IWorkspaceIdentifier>;
+	private readonly _onWorkspaceSaved = this._register(new Emitter<IWorkspaceSavedEvent>());
+	get onWorkspaceSaved(): Event<IWorkspaceSavedEvent> { return this._onWorkspaceSaved.event; }
+
+	private readonly _onUntitledWorkspaceDeleted = this._register(new Emitter<IWorkspaceIdentifier>());
+	get onUntitledWorkspaceDeleted(): Event<IWorkspaceIdentifier> { return this._onUntitledWorkspaceDeleted.event; }
 
 	constructor(
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@ILogService private logService: ILogService
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@ILogService private readonly logService: ILogService
 	) {
+		super();
+
 		this.workspacesHome = environmentService.workspacesHome;
-
-		this._onWorkspaceSaved = new Emitter<IWorkspaceSavedEvent>();
-		this._onUntitledWorkspaceDeleted = new Emitter<IWorkspaceIdentifier>();
 	}
 
-	get onWorkspaceSaved(): Event<IWorkspaceSavedEvent> {
-		return this._onWorkspaceSaved.event;
-	}
-
-	get onUntitledWorkspaceDeleted(): Event<IWorkspaceIdentifier> {
-		return this._onUntitledWorkspaceDeleted.event;
-	}
-
-	resolveWorkspace(path: string): TPromise<IResolvedWorkspace> {
+	resolveWorkspace(path: string): Promise<IResolvedWorkspace | null> {
 		if (!this.isWorkspacePath(path)) {
-			return TPromise.as(null); // does not look like a valid workspace config file
+			return Promise.resolve(null); // does not look like a valid workspace config file
 		}
 
 		return readFile(path, 'utf8').then(contents => this.doResolveWorkspace(path, contents));
 	}
 
-	resolveWorkspaceSync(path: string): IResolvedWorkspace {
+	resolveWorkspaceSync(path: string): IResolvedWorkspace | null {
 		if (!this.isWorkspacePath(path)) {
 			return null; // does not look like a valid workspace config file
 		}
@@ -82,7 +76,7 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 		return this.isInsideWorkspacesHome(path) || extname(path) === `.${WORKSPACE_EXTENSION}`;
 	}
 
-	private doResolveWorkspace(path: string, contents: string): IResolvedWorkspace {
+	private doResolveWorkspace(path: string, contents: string): IResolvedWorkspace | null {
 		try {
 			const workspace = this.doParseStoredWorkspace(path, contents);
 
@@ -120,7 +114,7 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 		return isParent(path, this.environmentService.workspacesHome, !isLinux /* ignore case */);
 	}
 
-	createWorkspace(folders?: IWorkspaceFolderCreationData[]): TPromise<IWorkspaceIdentifier> {
+	createWorkspace(folders?: IWorkspaceFolderCreationData[]): Promise<IWorkspaceIdentifier> {
 		const { workspace, configParent, storedWorkspace } = this.createUntitledWorkspace(folders);
 
 		return mkdirp(configParent).then(() => {
@@ -192,11 +186,11 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 		return this.isInsideWorkspacesHome(workspace.configPath);
 	}
 
-	saveWorkspace(workspace: IWorkspaceIdentifier, targetConfigPath: string): TPromise<IWorkspaceIdentifier> {
+	saveWorkspace(workspace: IWorkspaceIdentifier, targetConfigPath: string): Promise<IWorkspaceIdentifier> {
 
 		// Return early if target is same as source
 		if (isEqual(workspace.configPath, targetConfigPath, !isLinux)) {
-			return TPromise.as(workspace);
+			return Promise.resolve(workspace);
 		}
 
 		// Read the contents of the workspace file and resolve it
@@ -206,7 +200,7 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 			try {
 				storedWorkspace = this.doParseStoredWorkspace(workspace.configPath, rawWorkspaceContents);
 			} catch (error) {
-				return TPromise.wrapError(error);
+				return Promise.reject(error);
 			}
 
 			const sourceConfigFolder = dirname(workspace.configPath);
@@ -261,7 +255,15 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 
 	private doDeleteUntitledWorkspaceSync(configPath: string): void {
 		try {
+
+			// Delete Workspace
 			delSync(dirname(configPath));
+
+			// Mark Workspace Storage to be deleted
+			const workspaceStoragePath = join(this.environmentService.workspaceStorageHome, this.getWorkspaceId(configPath));
+			if (existsSync(workspaceStoragePath)) {
+				writeFileSync(join(workspaceStoragePath, 'obsolete'), '');
+			}
 		} catch (error) {
 			this.logService.warn(`Unable to delete untitled workspace ${configPath} (${error}).`);
 		}

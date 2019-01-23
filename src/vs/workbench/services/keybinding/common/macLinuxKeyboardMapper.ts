@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { OperatingSystem } from 'vs/base/common/platform';
-import { KeyCode, ResolvedKeybinding, KeyCodeUtils, SimpleKeybinding, Keybinding, KeybindingType, ResolvedKeybindingPart } from 'vs/base/common/keyCodes';
-import { ScanCode, ScanCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE, IMMUTABLE_KEY_CODE_TO_CODE, ScanCodeBinding } from 'vs/base/common/scanCode';
 import { CharCode } from 'vs/base/common/charCode';
-import { UILabelProvider, AriaLabelProvider, UserSettingsLabelProvider, ElectronAcceleratorLabelProvider } from 'vs/base/common/keybindingLabels';
-import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
+import { KeyCode, KeyCodeUtils, Keybinding, KeybindingType, ResolvedKeybinding, ResolvedKeybindingPart, SimpleKeybinding } from 'vs/base/common/keyCodes';
+import { AriaLabelProvider, ElectronAcceleratorLabelProvider, UILabelProvider, UserSettingsLabelProvider } from 'vs/base/common/keybindingLabels';
+import { OperatingSystem } from 'vs/base/common/platform';
+import { IMMUTABLE_CODE_TO_KEY_CODE, IMMUTABLE_KEY_CODE_TO_CODE, ScanCode, ScanCodeBinding, ScanCodeUtils } from 'vs/base/common/scanCode';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
+import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
 
 export interface IMacLinuxKeyMapping {
 	value: string;
@@ -445,11 +445,11 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 	/**
 	 * UI label for a ScanCode.
 	 */
-	private readonly _scanCodeToLabel: (string | null)[] = [];
+	private readonly _scanCodeToLabel: Array<string | null> = [];
 	/**
 	 * Dispatching string for a ScanCode.
 	 */
-	private readonly _scanCodeToDispatch: (string | null)[] = [];
+	private readonly _scanCodeToDispatch: Array<string | null> = [];
 
 	constructor(isUSStandard: boolean, rawMappings: IMacLinuxKeyboardMapping, OS: OperatingSystem) {
 		this._isUSStandard = isUSStandard;
@@ -800,7 +800,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 					for (let i = 0, len = kbCombos.length; i < len; i++) {
 						const kbCombo = kbCombos[i];
 						// find out the priority of this scan code for this key code
-						let colPriority = '-';
+						let colPriority: string;
 
 						const scanCodeCombos = this._scanCodeKeyCodeMapper.lookupKeyCodeCombo(kbCombo);
 						if (scanCodeCombos.length === 1) {

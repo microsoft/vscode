@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CharCode } from 'vs/base/common/charCode';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { CharCode } from 'vs/base/common/charCode';
-import { ITextModel, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 
 export class BlockCommentCommand implements editorCommon.ICommand {
 
@@ -113,8 +113,8 @@ export class BlockCommentCommand implements editorCommon.ICommand {
 			this._usedEndToken = ops.length === 1 ? endToken : null;
 		}
 
-		for (let i = 0; i < ops.length; i++) {
-			builder.addTrackedEditOperation(ops[i].range, ops[i].text);
+		for (const op of ops) {
+			builder.addTrackedEditOperation(op.range, op.text);
 		}
 	}
 

@@ -6,16 +6,15 @@
 import 'vs/css!./media/panel';
 import * as dom from 'vs/base/browser/dom';
 import { IAction } from 'vs/base/common/actions';
-import { debounceEvent } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { CollapseAllAction, DefaultAccessibilityProvider, DefaultController, DefaultDragAndDrop } from 'vs/base/parts/tree/browser/treeDefaults';
 import { isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { CommentThreadChangedEvent } from 'vs/editor/common/modes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TreeResourceNavigator, WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Panel } from 'vs/workbench/browser/panel';
-import { CommentNode, CommentsModel, ResourceWithCommentThreads } from 'vs/workbench/parts/comments/common/commentModel';
+import { CommentNode, CommentsModel, ResourceWithCommentThreads, ICommentThreadChangedEvent } from 'vs/workbench/parts/comments/common/commentModel';
 import { ReviewController } from 'vs/workbench/parts/comments/electron-browser/commentsEditorContribution';
 import { CommentsDataFilter, CommentsDataSource, CommentsModelRenderer } from 'vs/workbench/parts/comments/electron-browser/commentsTreeViewer';
 import { ICommentService, IWorkspaceCommentThreadsEvent } from 'vs/workbench/parts/comments/electron-browser/commentService';
@@ -24,11 +23,13 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { textLinkForeground, textLinkActiveForeground, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { ResourceLabels } from 'vs/workbench/browser/labels';
 
 export const COMMENTS_PANEL_ID = 'workbench.panel.comments';
 export const COMMENTS_PANEL_TITLE = 'Comments';
 
 export class CommentsPanel extends Panel {
+	private treeLabels: ResourceLabels;
 	private tree: WorkbenchTree;
 	private treeContainer: HTMLElement;
 	private messageBoxContainer: HTMLElement;
@@ -37,11 +38,11 @@ export class CommentsPanel extends Panel {
 	private collapseAllAction: IAction;
 
 	constructor(
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@ICommentService private commentService: ICommentService,
-		@IEditorService private editorService: IEditorService,
-		@ICommandService private commandService: ICommandService,
-		@IOpenerService private openerService: IOpenerService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ICommentService private readonly commentService: ICommentService,
+		@IEditorService private readonly editorService: IEditorService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IOpenerService private readonly openerService: IOpenerService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService
@@ -61,14 +62,18 @@ export class CommentsPanel extends Panel {
 		this.createTree();
 		this.createMessageBox(container);
 
-		this.commentService.onDidSetAllCommentThreads(this.onAllCommentsChanged, this);
-		this.commentService.onDidUpdateCommentThreads(this.onCommentsUpdated, this);
+		this._register(this.commentService.onDidSetAllCommentThreads(this.onAllCommentsChanged, this));
+		this._register(this.commentService.onDidUpdateCommentThreads(this.onCommentsUpdated, this));
 
 		const styleElement = dom.createStyleSheet(parent);
 		this.applyStyles(styleElement);
-		this.themeService.onThemeChange(_ => {
-			this.applyStyles(styleElement);
-		});
+		this._register(this.themeService.onThemeChange(_ => this.applyStyles(styleElement)));
+
+		this._register(this.onDidChangeVisibility(visible => {
+			if (visible) {
+				this.refresh();
+			}
+		}));
 
 		this.render();
 	}
@@ -130,9 +135,11 @@ export class CommentsPanel extends Panel {
 	}
 
 	private createTree(): void {
-		this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
+		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels, this));
+
+		this.tree = this._register(this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
 			dataSource: new CommentsDataSource(),
-			renderer: new CommentsModelRenderer(this.instantiationService, this.openerService),
+			renderer: new CommentsModelRenderer(this.treeLabels, this.openerService),
 			accessibilityProvider: new DefaultAccessibilityProvider,
 			controller: new DefaultController(),
 			dnd: new DefaultDragAndDrop(),
@@ -140,10 +147,10 @@ export class CommentsPanel extends Panel {
 		}, {
 				twistiePixels: 20,
 				ariaLabel: COMMENTS_PANEL_TITLE
-			});
+			}));
 
 		const commentsNavigator = this._register(new TreeResourceNavigator(this.tree, { openOnFocus: true }));
-		this._register(debounceEvent(commentsNavigator.openResource, (last, event) => event, 100, true)(options => {
+		this._register(Event.debounce(commentsNavigator.openResource, (last, event) => event, 100, true)(options => {
 			this.openFile(options.element, options.editorOptions.pinned, options.editorOptions.preserveFocus, options.sideBySide);
 		}));
 	}
@@ -160,36 +167,24 @@ export class CommentsPanel extends Panel {
 		const range = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].range : element.range;
 
 		const activeEditor = this.editorService.activeEditor;
-		let currentActiveResource = activeEditor ? activeEditor.getResource() : void 0;
+		let currentActiveResource = activeEditor ? activeEditor.getResource() : undefined;
 		if (currentActiveResource && currentActiveResource.toString() === element.resource.toString()) {
 			const threadToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].threadId : element.threadId;
 			const commentToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].comment.commentId : element.comment.commentId;
 			const control = this.editorService.activeTextEditorWidget;
 			if (threadToReveal && isCodeEditor(control)) {
 				const controller = ReviewController.get(control);
-				controller.revealCommentThread(threadToReveal, commentToReveal);
+				controller.revealCommentThread(threadToReveal, commentToReveal, false);
 			}
 
 			return true;
 		}
 
-
-		let setCommentsForFile = new Promise((resolve, reject) => {
-			this.commentService.onDidSetResourceCommentInfos(e => {
-				if (e.resource.toString() === element.resource.toString()) {
-					resolve();
-				}
-			});
-		});
-
 		const threadToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].threadId : element.threadId;
 		const commentToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].comment : element.comment;
 
 		if (commentToReveal.command) {
-			Promise.all([
-				this.commandService.executeCommand(commentToReveal.command.id, ...commentToReveal.command.arguments),
-				setCommentsForFile
-			]).then(_ => {
+			this.commandService.executeCommand(commentToReveal.command.id, ...commentToReveal.command.arguments).then(_ => {
 				let activeWidget = this.editorService.activeTextEditorWidget;
 				if (isDiffEditor(activeWidget)) {
 					const originalEditorWidget = activeWidget.getOriginalEditor();
@@ -203,16 +198,16 @@ export class CommentsPanel extends Panel {
 					}
 
 					if (controller) {
-						controller.revealCommentThread(threadToReveal, commentToReveal.commentId);
+						controller.revealCommentThread(threadToReveal, commentToReveal.commentId, true);
 					}
 				} else {
 					let activeEditor = this.editorService.activeEditor;
-					let currentActiveResource = activeEditor ? activeEditor.getResource() : void 0;
+					let currentActiveResource = activeEditor ? activeEditor.getResource() : undefined;
 					if (currentActiveResource && currentActiveResource.toString() === element.resource.toString()) {
 						const control = this.editorService.activeTextEditorWidget;
 						if (threadToReveal && isCodeEditor(control)) {
 							const controller = ReviewController.get(control);
-							controller.revealCommentThread(threadToReveal, commentToReveal.commentId);
+							controller.revealCommentThread(threadToReveal, commentToReveal.commentId, true);
 						}
 					}
 				}
@@ -220,38 +215,25 @@ export class CommentsPanel extends Panel {
 				return true;
 			});
 		} else {
-			Promise.all([this.editorService.openEditor({
+			this.editorService.openEditor({
 				resource: element.resource,
 				options: {
 					pinned: pinned,
 					preserveFocus: preserveFocus,
 					selection: range
 				}
-			}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP), setCommentsForFile]).then(vals => {
-				let editor = vals[0];
-				const control = editor.getControl();
-				if (threadToReveal && isCodeEditor(control)) {
-					const controller = ReviewController.get(control);
-					controller.revealCommentThread(threadToReveal, commentToReveal.commentId);
-				}
-				setCommentsForFile = null;
-			});
-		}
-
-
-		return true;
-	}
-
-	public setVisible(visible: boolean): Promise<void> {
-		const wasVisible = this.isVisible();
-		return super.setVisible(visible)
-			.then(() => {
-				if (this.isVisible()) {
-					if (!wasVisible) {
-						this.refresh();
+			}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(editor => {
+				if (editor) {
+					const control = editor.getControl();
+					if (threadToReveal && isCodeEditor(control)) {
+						const controller = ReviewController.get(control);
+						controller.revealCommentThread(threadToReveal, commentToReveal.commentId, true);
 					}
 				}
 			});
+		}
+
+		return true;
 	}
 
 	private refresh(): void {
@@ -272,7 +254,7 @@ export class CommentsPanel extends Panel {
 		this.refresh();
 	}
 
-	private onCommentsUpdated(e: CommentThreadChangedEvent): void {
+	private onCommentsUpdated(e: ICommentThreadChangedEvent): void {
 		const didUpdate = this.commentsModel.updateCommentThreads(e);
 		if (didUpdate) {
 			this.refresh();

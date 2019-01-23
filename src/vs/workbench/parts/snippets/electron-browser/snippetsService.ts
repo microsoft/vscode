@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { basename, extname, join } from 'path';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { combinedDisposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { values } from 'vs/base/common/map';
@@ -40,7 +39,7 @@ namespace snippetExt {
 		location: URI;
 	}
 
-	export function toValidSnippet(extension: IExtensionPointUser<ISnippetsExtensionPoint[]>, snippet: ISnippetsExtensionPoint, modeService: IModeService): IValidSnippetsExtensionPoint {
+	export function toValidSnippet(extension: IExtensionPointUser<ISnippetsExtensionPoint[]>, snippet: ISnippetsExtensionPoint, modeService: IModeService): IValidSnippetsExtensionPoint | null {
 
 		if (isFalsyOrWhitespace(snippet.path)) {
 			extension.collector.error(localize(
@@ -107,7 +106,12 @@ namespace snippetExt {
 		}
 	};
 
-	export const point = ExtensionsRegistry.registerExtensionPoint<snippetExt.ISnippetsExtensionPoint[]>('snippets', [languagesExtPoint], snippetExt.snippetsContribution);
+	export const point = ExtensionsRegistry.registerExtensionPoint<snippetExt.ISnippetsExtensionPoint[]>({
+		isDynamic: true,
+		extensionPoint: 'snippets',
+		deps: [languagesExtPoint],
+		jsonSchema: snippetExt.snippetsContribution
+	});
 }
 
 function watch(service: IFileService, resource: URI, callback: (type: FileChangeType, resource: URI) => any): IDisposable {
@@ -132,7 +136,7 @@ class SnippetsService implements ISnippetsService {
 	readonly _serviceBrand: any;
 
 	private readonly _disposables: IDisposable[] = [];
-	private readonly _pendingWork: Thenable<any>[] = [];
+	private readonly _pendingWork: Promise<any>[] = [];
 	private readonly _files = new Map<string, SnippetFile>();
 
 	constructor(
@@ -143,7 +147,7 @@ class SnippetsService implements ISnippetsService {
 		@IFileService private readonly _fileService: IFileService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 	) {
-		this._pendingWork.push(Promise.resolve(lifecycleService.when(LifecyclePhase.Running).then(() => {
+		this._pendingWork.push(Promise.resolve(lifecycleService.when(LifecyclePhase.Restored).then(() => {
 			this._initExtensionSnippets();
 			this._initUserSnippets();
 			this._initWorkspaceSnippets();
@@ -168,28 +172,35 @@ class SnippetsService implements ISnippetsService {
 
 	getSnippets(languageId: LanguageId): Promise<Snippet[]> {
 		return this._joinSnippets().then(() => {
-			const langName = this._modeService.getLanguageIdentifier(languageId).language;
 			const result: Snippet[] = [];
 			const promises: Promise<any>[] = [];
-			this._files.forEach(file => {
-				promises.push(file.load()
-					.then(file => file.select(langName, result))
-					.catch(err => this._logService.error(err, file.location.toString()))
-				);
-			});
+
+			const languageIdentifier = this._modeService.getLanguageIdentifier(languageId);
+			if (languageIdentifier) {
+				const langName = languageIdentifier.language;
+				this._files.forEach(file => {
+					promises.push(file.load()
+						.then(file => file.select(langName, result))
+						.catch(err => this._logService.error(err, file.location.toString()))
+					);
+				});
+			}
 			return Promise.all(promises).then(() => result);
 		});
 	}
 
 	getSnippetsSync(languageId: LanguageId): Snippet[] {
-		const langName = this._modeService.getLanguageIdentifier(languageId).language;
 		const result: Snippet[] = [];
-		this._files.forEach(file => {
-			// kick off loading (which is a noop in case it's already loaded)
-			// and optimistically collect snippets
-			file.load().catch(err => { /*ignore*/ });
-			file.select(langName, result);
-		});
+		const languageIdentifier = this._modeService.getLanguageIdentifier(languageId);
+		if (languageIdentifier) {
+			const langName = languageIdentifier.language;
+			this._files.forEach(file => {
+				// kick off loading (which is a noop in case it's already loaded)
+				// and optimistically collect snippets
+				file.load().catch(err => { /*ignore*/ });
+				file.select(langName, result);
+			});
+		}
 		return result;
 	}
 
@@ -197,6 +208,13 @@ class SnippetsService implements ISnippetsService {
 
 	private _initExtensionSnippets(): void {
 		snippetExt.point.setHandler(extensions => {
+
+			this._files.forEach((value, key) => {
+				if (value.source === SnippetSource.Extension) {
+					this._files.delete(key);
+				}
+			});
+
 			for (const extension of extensions) {
 				for (const contribution of extension.value) {
 					const validContribution = snippetExt.toValidSnippet(extension, contribution, this._modeService);
@@ -204,9 +222,14 @@ class SnippetsService implements ISnippetsService {
 						continue;
 					}
 
-					if (this._files.has(validContribution.location.toString())) {
-						this._files.get(validContribution.location.toString()).defaultScopes.push(validContribution.language);
-
+					const resource = validContribution.location.toString();
+					const file = this._files.get(resource);
+					if (file) {
+						if (file.defaultScopes) {
+							file.defaultScopes.push(validContribution.language);
+						} else {
+							file.defaultScopes = [];
+						}
 					} else {
 						const file = new SnippetFile(SnippetSource.Extension, validContribution.location, validContribution.language ? [validContribution.language] : undefined, extension.description, this._fileService);
 						this._files.set(file.location.toString(), file);
@@ -252,7 +275,7 @@ class SnippetsService implements ISnippetsService {
 		updateWorkspaceSnippets();
 	}
 
-	private _initWorkspaceFolderSnippets(workspace: IWorkspace, bucket: IDisposable[]): Thenable<any> {
+	private _initWorkspaceFolderSnippets(workspace: IWorkspace, bucket: IDisposable[]): Promise<any> {
 		let promises = workspace.folders.map(folder => {
 			const snippetFolder = folder.toResource('.vscode');
 			return this._fileService.existsFile(snippetFolder).then(value => {
@@ -271,20 +294,18 @@ class SnippetsService implements ISnippetsService {
 		return Promise.all(promises);
 	}
 
-	private _initUserSnippets(): Thenable<any> {
+	private _initUserSnippets(): Promise<any> {
 		const userSnippetsFolder = URI.file(join(this._environmentService.appSettingsHome, 'snippets'));
 		return this._fileService.createFolder(userSnippetsFolder).then(() => this._initFolderSnippets(SnippetSource.User, userSnippetsFolder, this._disposables));
 	}
 
-	private _initFolderSnippets(source: SnippetSource, folder: URI, bucket: IDisposable[]): Thenable<any> {
+	private _initFolderSnippets(source: SnippetSource, folder: URI, bucket: IDisposable[]): Promise<any> {
 		let disposables: IDisposable[] = [];
 		let addFolderSnippets = () => {
 			disposables = dispose(disposables);
 			return this._fileService.resolveFile(folder).then(stat => {
-				if (!isFalsyOrEmpty(stat.children)) {
-					for (const entry of stat.children) {
-						disposables.push(this._addSnippetFile(entry.resource, source));
-					}
+				for (const entry of stat.children || []) {
+					disposables.push(this._addSnippetFile(entry.resource, source));
 				}
 			}, err => {
 				this._logService.error(`Failed snippets from folder '${folder.toString()}'`, err);
@@ -311,7 +332,7 @@ class SnippetsService implements ISnippetsService {
 	}
 }
 
-registerSingleton(ISnippetsService, SnippetsService);
+registerSingleton(ISnippetsService, SnippetsService, true);
 
 export interface ISimpleModel {
 	getLineContent(lineNumber: number): string;

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { binarySearch, isFalsyOrEmpty, coalesceInPlace } from 'vs/base/common/arrays';
+import { binarySearch, coalesceInPlace } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { first, forEach, size } from 'vs/base/common/collections';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
@@ -36,20 +36,20 @@ export abstract class TreeElement {
 			candidateId = `${container.id}/${candidate}`;
 		} else {
 			candidateId = `${container.id}/${candidate.name}`;
-			if (container.children[candidateId] !== void 0) {
+			if (container.children[candidateId] !== undefined) {
 				candidateId = `${container.id}/${candidate.name}_${candidate.range.startLineNumber}_${candidate.range.startColumn}`;
 			}
 		}
 
 		let id = candidateId;
-		for (let i = 0; container.children[id] !== void 0; i++) {
+		for (let i = 0; container.children[id] !== undefined; i++) {
 			id = `${candidateId}_${i}`;
 		}
 
 		return id;
 	}
 
-	static getElementById(id: string, element: TreeElement): TreeElement {
+	static getElementById(id: string, element: TreeElement): TreeElement | undefined {
 		if (!id) {
 			return undefined;
 		}
@@ -88,7 +88,7 @@ export abstract class TreeElement {
 export class OutlineElement extends TreeElement {
 
 	children: { [id: string]: OutlineElement; } = Object.create(null);
-	score: FuzzyScore = [0, []];
+	score: FuzzyScore = FuzzyScore.Default;
 	marker: { count: number, topSev: MarkerSeverity };
 
 	constructor(
@@ -136,7 +136,7 @@ export class OutlineGroup extends TreeElement {
 
 		item.score = pattern
 			? fuzzyScore(pattern, pattern.toLowerCase(), 0, item.symbol.name, item.symbol.name.toLowerCase(), 0, true)
-			: [-100, []];
+			: FuzzyScore.Default;
 
 		if (item.score && (!topMatch || item.score[0] > topMatch.score[0])) {
 			topMatch = item;
@@ -146,7 +146,7 @@ export class OutlineGroup extends TreeElement {
 			topMatch = this._updateMatches(pattern, child, topMatch);
 			if (!item.score && child.score) {
 				// don't filter parents with unfiltered children
-				item.score = [-100, []];
+				item.score = FuzzyScore.Default;
 			}
 		}
 		return topMatch;
@@ -224,7 +224,7 @@ export class OutlineGroup extends TreeElement {
 
 export class OutlineModel extends TreeElement {
 
-	private static readonly _requests = new LRUCache<string, { promiseCnt: number, source: CancellationTokenSource, promise: Promise<any>, model: OutlineModel }>(9, .75);
+	private static readonly _requests = new LRUCache<string, { promiseCnt: number, source: CancellationTokenSource, promise: Promise<any>, model: OutlineModel }>(9, 0.75);
 	private static readonly _keys = new class {
 
 		private _counter = 1;
@@ -301,10 +301,8 @@ export class OutlineModel extends TreeElement {
 			let group = new OutlineGroup(id, result, provider, index);
 
 			return Promise.resolve(provider.provideDocumentSymbols(result.textModel, token)).then(result => {
-				if (!isFalsyOrEmpty(result)) {
-					for (const info of result) {
-						OutlineModel._makeOutlineElement(info, group);
-					}
+				for (const info of result || []) {
+					OutlineModel._makeOutlineElement(info, group);
 				}
 				return group;
 			}, err => {

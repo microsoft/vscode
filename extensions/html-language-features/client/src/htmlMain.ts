@@ -8,11 +8,12 @@ import * as fs from 'fs';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-import { languages, ExtensionContext, IndentAction, Position, TextDocument, Range, CompletionItem, CompletionItemKind, SnippetString } from 'vscode';
+import { languages, ExtensionContext, IndentAction, Position, TextDocument, Range, CompletionItem, CompletionItemKind, SnippetString, workspace } from 'vscode';
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, TextDocumentPositionParams } from 'vscode-languageclient';
 import { EMPTY_ELEMENTS } from './htmlEmptyTagsShared';
 import { activateTagClosing } from './tagClosing';
 import TelemetryReporter from 'vscode-extension-telemetry';
+import { getCustomDataPathsInAllWorkspaces } from './customData';
 
 namespace TagCloseRequest {
 	export const type: RequestType<TextDocumentPositionParams, string, any, any> = new RequestType('html/tag');
@@ -49,6 +50,8 @@ export function activate(context: ExtensionContext) {
 	let documentSelector = ['html', 'handlebars', 'razor'];
 	let embeddedLanguages = { css: true, javascript: true };
 
+	let { dataPaths } = getCustomDataPathsInAllWorkspaces(workspace.workspaceFolders);
+
 	// Options to control the language client
 	let clientOptions: LanguageClientOptions = {
 		documentSelector,
@@ -56,7 +59,8 @@ export function activate(context: ExtensionContext) {
 			configurationSection: ['html', 'css', 'javascript'], // the settings to synchronize
 		},
 		initializationOptions: {
-			embeddedLanguages
+			embeddedLanguages,
+			dataPaths
 		}
 	};
 

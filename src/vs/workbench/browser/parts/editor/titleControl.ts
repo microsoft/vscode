@@ -37,6 +37,8 @@ import { EditorCommandsContextActionRunner, IEditorCommandsContext, IEditorInput
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { Themable } from 'vs/workbench/common/theme';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
+import { IFileService } from 'vs/platform/files/common/files';
 
 export interface IToolbarActions {
 	primary: IAction[];
@@ -63,21 +65,22 @@ export abstract class TitleControl extends Themable {
 		parent: HTMLElement,
 		protected accessor: IEditorGroupsAccessor,
 		protected group: IEditorGroupView,
-		@IContextMenuService private contextMenuService: IContextMenuService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IKeybindingService private keybindingService: IKeybindingService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@INotificationService private notificationService: INotificationService,
-		@IMenuService private menuService: IMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IMenuService private readonly menuService: IMenuService,
 		@IQuickOpenService protected quickOpenService: IQuickOpenService,
 		@IThemeService themeService: IThemeService,
-		@IExtensionService private extensionService: IExtensionService,
-		@IConfigurationService protected configurationService: IConfigurationService
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IConfigurationService protected configurationService: IConfigurationService,
+		@IFileService private readonly fileService: IFileService,
 	) {
 		super(themeService);
 
-		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
+		this.resourceContext = this._register(instantiationService.createInstance(ResourceContextKey));
 		this.contextMenu = this._register(this.menuService.createMenu(MenuId.EditorTitleContext, this.contextKeyService));
 
 		this.create(parent);
@@ -107,6 +110,12 @@ export abstract class TitleControl extends Themable {
 		if (config.getValue()) {
 			this.breadcrumbsControl = this.instantiationService.createInstance(BreadcrumbsControl, container, options, this.group);
 		}
+
+		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(() => {
+			if (this.breadcrumbsControl && this.breadcrumbsControl.update()) {
+				this.handleBreadcrumbsEnablementChange();
+			}
+		}));
 	}
 
 	protected abstract handleBreadcrumbsEnablementChange(): void;
@@ -119,7 +128,8 @@ export abstract class TitleControl extends Themable {
 			orientation: ActionsOrientation.HORIZONTAL,
 			ariaLabel: localize('araLabelEditorActions', "Editor actions"),
 			getKeyBinding: action => this.getKeybinding(action),
-			actionRunner: this._register(new EditorCommandsContextActionRunner(context))
+			actionRunner: this._register(new EditorCommandsContextActionRunner(context)),
+			anchorAlignmentProvider: () => AnchorAlignment.RIGHT
 		}));
 
 		// Context
@@ -288,7 +298,7 @@ export abstract class TitleControl extends Themable {
 		// Show it
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => Promise.resolve(actions),
+			getActions: () => actions,
 			getActionsContext: () => ({ groupId: this.group.id, editorIndex: this.group.getIndexOfEditor(editor) } as IEditorCommandsContext),
 			getKeyBinding: (action) => this.getKeybinding(action),
 			onHide: () => {
@@ -309,10 +319,8 @@ export abstract class TitleControl extends Themable {
 	protected getKeybindingLabel(action: IAction): string {
 		const keybinding = this.getKeybinding(action);
 
-		return keybinding ? keybinding.getLabel() : void 0;
+		return keybinding ? keybinding.getLabel() : undefined;
 	}
-
-	//#region ITitleAreaControl
 
 	abstract openEditor(editor: IEditorInput): void;
 
@@ -337,8 +345,6 @@ export abstract class TitleControl extends Themable {
 	abstract updateStyles(): void;
 
 	layout(dimension: Dimension): void {
-		// Optionally implemented in subclasses
-
 		if (this.breadcrumbsControl) {
 			this.breadcrumbsControl.layout(undefined);
 		}
@@ -354,8 +360,6 @@ export abstract class TitleControl extends Themable {
 
 		super.dispose();
 	}
-
-	//#endregion
 }
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {

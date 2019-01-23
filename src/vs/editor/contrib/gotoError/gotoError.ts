@@ -23,6 +23,7 @@ import { compare } from 'vs/base/common/strings';
 import { binarySearch } from 'vs/base/common/arrays';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 
 class MarkerModel {
 
@@ -31,12 +32,12 @@ class MarkerModel {
 	private _nextIdx: number;
 	private _toUnbind: IDisposable[];
 	private _ignoreSelectionChange: boolean;
-	private readonly _onCurrentMarkerChanged: Emitter<IMarker>;
+	private readonly _onCurrentMarkerChanged: Emitter<IMarker | undefined>;
 	private readonly _onMarkerSetChanged: Emitter<MarkerModel>;
 
 	constructor(editor: ICodeEditor, markers: IMarker[]) {
 		this._editor = editor;
-		this._markers = null;
+		this._markers = [];
 		this._nextIdx = -1;
 		this._toUnbind = [];
 		this._ignoreSelectionChange = false;
@@ -50,7 +51,7 @@ class MarkerModel {
 			if (this._ignoreSelectionChange) {
 				return;
 			}
-			if (this.currentMarker && Range.containsPosition(this.currentMarker, this._editor.getPosition())) {
+			if (this.currentMarker && this._editor.getPosition() && Range.containsPosition(this.currentMarker, this._editor.getPosition()!)) {
 				return;
 			}
 			this._nextIdx = -1;
@@ -93,14 +94,14 @@ class MarkerModel {
 		for (let i = 0; i < this._markers.length; i++) {
 			let range = Range.lift(this._markers[i]);
 
-			if (range.isEmpty()) {
-				const word = this._editor.getModel().getWordAtPosition(range.getStartPosition());
+			if (range.isEmpty() && this._editor.getModel()) {
+				const word = this._editor.getModel()!.getWordAtPosition(range.getStartPosition());
 				if (word) {
 					range = new Range(range.startLineNumber, word.startColumn, range.startLineNumber, word.endColumn);
 				}
 			}
 
-			if (range.containsPosition(position) || position.isBeforeOrEqual(range.getStartPosition())) {
+			if (position && (range.containsPosition(position) || position.isBeforeOrEqual(range.getStartPosition()))) {
 				this._nextIdx = i;
 				found = true;
 				break;
@@ -115,7 +116,7 @@ class MarkerModel {
 		}
 	}
 
-	get currentMarker(): IMarker {
+	get currentMarker(): IMarker | undefined {
 		return this.canNavigate() ? this._markers[this._nextIdx] : undefined;
 	}
 
@@ -158,7 +159,7 @@ class MarkerModel {
 		return this._markers.length > 0;
 	}
 
-	public findMarkerAtPosition(pos: Position): IMarker {
+	public findMarkerAtPosition(pos: Position): IMarker | undefined {
 		for (const marker of this._markers) {
 			if (Range.containsPosition(marker, pos)) {
 				return marker;
@@ -189,8 +190,8 @@ class MarkerController implements editorCommon.IEditorContribution {
 	}
 
 	private _editor: ICodeEditor;
-	private _model: MarkerModel;
-	private _widget: MarkerNavigationWidget;
+	private _model: MarkerModel | null;
+	private _widget: MarkerNavigationWidget | null;
 	private _widgetVisible: IContextKey<boolean>;
 	private _disposeOnClose: IDisposable[] = [];
 
@@ -245,15 +246,22 @@ class MarkerController implements editorCommon.IEditorContribution {
 		this._disposeOnClose.push(this._editor.onDidChangeModel(() => this._cleanUp()));
 
 		this._disposeOnClose.push(this._model.onCurrentMarkerChanged(marker => {
-			if (!marker) {
+			if (!marker || !this._model) {
 				this._cleanUp();
 			} else {
 				this._model.withoutWatchingEditorPosition(() => {
+					if (!this._widget || !this._model) {
+						return;
+					}
 					this._widget.showAtMarker(marker, this._model.indexOf(marker), this._model.total);
 				});
 			}
 		}));
 		this._disposeOnClose.push(this._model.onMarkerSetChanged(() => {
+			if (!this._widget || !this._widget.position || !this._model) {
+				return;
+			}
+
 			const marker = this._model.findMarkerAtPosition(this._widget.position);
 			if (marker) {
 				this._widget.updateMarker(marker);
@@ -273,15 +281,29 @@ class MarkerController implements editorCommon.IEditorContribution {
 	}
 
 	private _onMarkerChanged(changedResources: URI[]): void {
-		if (!changedResources.some(r => this._editor.getModel().uri.toString() === r.toString())) {
+		let editorModel = this._editor.getModel();
+		if (!editorModel) {
+			return;
+		}
+
+		if (!this._model) {
+			return;
+		}
+
+		if (!changedResources.some(r => editorModel!.uri.toString() === r.toString())) {
 			return;
 		}
 		this._model.setMarkers(this._getMarkers());
 	}
 
 	private _getMarkers(): IMarker[] {
+		let model = this._editor.getModel();
+		if (!model) {
+			return [];
+		}
+
 		return this._markerService.read({
-			resource: this._editor.getModel().uri,
+			resource: model.uri,
 			severities: MarkerSeverity.Error | MarkerSeverity.Warning | MarkerSeverity.Info
 		});
 	}
@@ -299,28 +321,33 @@ class MarkerNavigationAction extends EditorAction {
 		this._multiFile = multiFile;
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): Thenable<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 
 		const markerService = accessor.get(IMarkerService);
 		const editorService = accessor.get(ICodeEditorService);
 		const controller = MarkerController.get(editor);
 		if (!controller) {
-			return undefined;
+			return Promise.resolve(undefined);
 		}
 
 		const model = controller.getOrCreateModel();
 		const atEdge = model.move(this._isNext, !this._multiFile);
 		if (!atEdge || !this._multiFile) {
-			return undefined;
+			return Promise.resolve(undefined);
 		}
 
 		// try with the next/prev file
 		let markers = markerService.read({ severities: MarkerSeverity.Error | MarkerSeverity.Warning | MarkerSeverity.Info }).sort(MarkerNavigationAction.compareMarker);
 		if (markers.length === 0) {
-			return undefined;
+			return Promise.resolve(undefined);
 		}
 
-		let oldMarker = model.currentMarker || <IMarker>{ resource: editor.getModel().uri, severity: MarkerSeverity.Error, startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 };
+		let editorModel = editor.getModel();
+		if (!editorModel) {
+			return Promise.resolve(undefined);
+		}
+
+		let oldMarker = model.currentMarker || <IMarker>{ resource: editorModel!.uri, severity: MarkerSeverity.Error, startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 };
 		let idx = binarySearch(markers, oldMarker, MarkerNavigationAction.compareMarker);
 		if (idx < 0) {
 			// find best match...
@@ -333,11 +360,11 @@ class MarkerNavigationAction extends EditorAction {
 		}
 
 		let newMarker = markers[idx];
-		if (newMarker.resource.toString() === editor.getModel().uri.toString()) {
+		if (newMarker.resource.toString() === editorModel!.uri.toString()) {
 			// the next `resource` is this resource which
 			// means we cycle within this file
 			model.move(this._isNext, true);
-			return undefined;
+			return Promise.resolve(undefined);
 		}
 
 		// close the widget for this editor-instance, open the resource
@@ -442,3 +469,22 @@ registerEditorCommand(new MarkerCommand({
 		secondary: [KeyMod.Shift | KeyCode.Escape]
 	}
 }));
+
+// Go to menu
+MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+	group: '6_problem_nav',
+	command: {
+		id: 'editor.action.marker.nextInFiles',
+		title: nls.localize({ key: 'miGotoNextProblem', comment: ['&& denotes a mnemonic'] }, "Next &&Problem")
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+	group: '6_problem_nav',
+	command: {
+		id: 'editor.action.marker.prevInFiles',
+		title: nls.localize({ key: 'miGotoPreviousProblem', comment: ['&& denotes a mnemonic'] }, "Previous &&Problem")
+	},
+	order: 2
+});

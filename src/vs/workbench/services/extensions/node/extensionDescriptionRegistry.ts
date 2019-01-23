@@ -4,66 +4,80 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-
-const hasOwnProperty = Object.hasOwnProperty;
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export class ExtensionDescriptionRegistry {
-	private _extensionsMap: { [extensionId: string]: IExtensionDescription; };
+	private _extensionDescriptions: IExtensionDescription[];
+	private _extensionsMap: Map<string, IExtensionDescription>;
 	private _extensionsArr: IExtensionDescription[];
-	private _activationMap: { [activationEvent: string]: IExtensionDescription[]; };
+	private _activationMap: Map<string, IExtensionDescription[]>;
 
 	constructor(extensionDescriptions: IExtensionDescription[]) {
-		this._extensionsMap = {};
+		this._extensionDescriptions = extensionDescriptions;
+		this._initialize();
+	}
+
+	private _initialize(): void {
+		this._extensionsMap = new Map<string, IExtensionDescription>();
 		this._extensionsArr = [];
-		this._activationMap = {};
+		this._activationMap = new Map<string, IExtensionDescription[]>();
 
-		for (let i = 0, len = extensionDescriptions.length; i < len; i++) {
-			let extensionDescription = extensionDescriptions[i];
-
-			if (hasOwnProperty.call(this._extensionsMap, extensionDescription.id)) {
+		for (const extensionDescription of this._extensionDescriptions) {
+			if (this._extensionsMap.has(ExtensionIdentifier.toKey(extensionDescription.identifier))) {
 				// No overwriting allowed!
-				console.error('Extension `' + extensionDescription.id + '` is already registered');
+				console.error('Extension `' + extensionDescription.identifier.value + '` is already registered');
 				continue;
 			}
 
-			this._extensionsMap[extensionDescription.id] = extensionDescription;
+			this._extensionsMap.set(ExtensionIdentifier.toKey(extensionDescription.identifier), extensionDescription);
 			this._extensionsArr.push(extensionDescription);
 
 			if (Array.isArray(extensionDescription.activationEvents)) {
-				for (let j = 0, lenJ = extensionDescription.activationEvents.length; j < lenJ; j++) {
-					let activationEvent = extensionDescription.activationEvents[j];
-
+				for (let activationEvent of extensionDescription.activationEvents) {
 					// TODO@joao: there's no easy way to contribute this
 					if (activationEvent === 'onUri') {
-						activationEvent = `onUri:${extensionDescription.id}`;
+						activationEvent = `onUri:${ExtensionIdentifier.toKey(extensionDescription.identifier)}`;
 					}
 
-					this._activationMap[activationEvent] = this._activationMap[activationEvent] || [];
-					this._activationMap[activationEvent].push(extensionDescription);
+					if (!this._activationMap.has(activationEvent)) {
+						this._activationMap.set(activationEvent, []);
+					}
+					this._activationMap.get(activationEvent)!.push(extensionDescription);
 				}
 			}
 		}
 	}
 
+	public keepOnly(extensionIds: ExtensionIdentifier[]): void {
+		const toKeep = new Set<string>();
+		extensionIds.forEach(extensionId => toKeep.add(ExtensionIdentifier.toKey(extensionId)));
+		this._extensionDescriptions = this._extensionDescriptions.filter(extension => toKeep.has(ExtensionIdentifier.toKey(extension.identifier)));
+		this._initialize();
+	}
+
+	public deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]) {
+		this._extensionDescriptions = this._extensionDescriptions.concat(toAdd);
+		const toRemoveSet = new Set<string>();
+		toRemove.forEach(extensionId => toRemoveSet.add(ExtensionIdentifier.toKey(extensionId)));
+		this._extensionDescriptions = this._extensionDescriptions.filter(extension => !toRemoveSet.has(ExtensionIdentifier.toKey(extension.identifier)));
+		this._initialize();
+	}
+
 	public containsActivationEvent(activationEvent: string): boolean {
-		return hasOwnProperty.call(this._activationMap, activationEvent);
+		return this._activationMap.has(activationEvent);
 	}
 
 	public getExtensionDescriptionsForActivationEvent(activationEvent: string): IExtensionDescription[] {
-		if (!hasOwnProperty.call(this._activationMap, activationEvent)) {
-			return [];
-		}
-		return this._activationMap[activationEvent].slice(0);
+		const extensions = this._activationMap.get(activationEvent);
+		return extensions ? extensions.slice(0) : [];
 	}
 
 	public getAllExtensionDescriptions(): IExtensionDescription[] {
 		return this._extensionsArr.slice(0);
 	}
 
-	public getExtensionDescription(extensionId: string): IExtensionDescription | null {
-		if (!hasOwnProperty.call(this._extensionsMap, extensionId)) {
-			return null;
-		}
-		return this._extensionsMap[extensionId];
+	public getExtensionDescription(extensionId: ExtensionIdentifier | string): IExtensionDescription | null {
+		const extension = this._extensionsMap.get(ExtensionIdentifier.toKey(extensionId));
+		return extension ? extension : null;
 	}
 }

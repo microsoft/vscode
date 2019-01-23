@@ -5,7 +5,6 @@
 
 import { URI as uri } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { guessMimeTypes, MIME_TEXT } from 'vs/base/common/mime';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -14,6 +13,10 @@ import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/s
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { DEBUG_SCHEME, IDebugService, IDebugSession } from 'vs/workbench/parts/debug/common/debug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { Range } from 'vs/editor/common/core/range';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 /**
  * Debug URI format
@@ -30,16 +33,49 @@ import { Source } from 'vs/workbench/parts/debug/common/debugSource';
  */
 export class DebugContentProvider implements IWorkbenchContribution, ITextModelContentProvider {
 
+	private static INSTANCE: DebugContentProvider;
+
+	private readonly pendingUpdates = new Map<string, CancellationTokenSource>();
+
 	constructor(
 		@ITextModelService textModelResolverService: ITextModelService,
-		@IDebugService private debugService: IDebugService,
-		@IModelService private modelService: IModelService,
-		@IModeService private modeService: IModeService
+		@IDebugService private readonly debugService: IDebugService,
+		@IModelService private readonly modelService: IModelService,
+		@IModeService private readonly modeService: IModeService,
+		@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService
 	) {
 		textModelResolverService.registerTextModelContentProvider(DEBUG_SCHEME, this);
+		DebugContentProvider.INSTANCE = this;
 	}
 
-	public provideTextContent(resource: uri): TPromise<ITextModel> {
+	dispose(): void {
+		this.pendingUpdates.forEach(cancellationSource => cancellationSource.dispose());
+	}
+
+	provideTextContent(resource: uri): Promise<ITextModel> {
+		return this.createOrUpdateContentModel(resource, true);
+	}
+
+	/**
+	 * Reload the model content of the given resource.
+	 * If there is no model for the given resource, this method does nothing.
+	 */
+	static refreshDebugContent(resource: uri): void {
+		if (DebugContentProvider.INSTANCE) {
+			DebugContentProvider.INSTANCE.createOrUpdateContentModel(resource, false);
+		}
+	}
+
+	/**
+	 * Create or reload the model content of the given resource.
+	 */
+	private createOrUpdateContentModel(resource: uri, createIfNotExists: boolean): Promise<ITextModel> {
+
+		const model = this.modelService.getModel(resource);
+		if (!model && !createIfNotExists) {
+			// nothing to do
+			return undefined;
+		}
 
 		let session: IDebugSession;
 
@@ -58,19 +94,49 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 		}
 		const createErrModel = (errMsg?: string) => {
 			this.debugService.sourceIsNotAvailable(resource);
-			const modePromise = this.modeService.getOrCreateMode(MIME_TEXT);
+			const languageSelection = this.modeService.create(MIME_TEXT);
 			const message = errMsg
 				? localize('canNotResolveSourceWithError', "Could not load source '{0}': {1}.", resource.path, errMsg)
 				: localize('canNotResolveSource', "Could not load source '{0}'.", resource.path);
-			return this.modelService.createModel(message, modePromise, resource);
+			return this.modelService.createModel(message, languageSelection, resource);
 		};
 
 		return session.loadSource(resource).then(response => {
 
 			if (response && response.body) {
-				const mime = response.body.mimeType || guessMimeTypes(resource.path)[0];
-				const modePromise = this.modeService.getOrCreateMode(mime);
-				return this.modelService.createModel(response.body.content, modePromise, resource);
+
+				if (model) {
+
+					const newContent = response.body.content;
+
+					// cancel and dispose an existing update
+					const cancellationSource = this.pendingUpdates.get(model.id);
+					if (cancellationSource) {
+						cancellationSource.cancel();
+					}
+
+					// create and keep update token
+					const myToken = new CancellationTokenSource();
+					this.pendingUpdates.set(model.id, myToken);
+
+					// update text model
+					return this.editorWorkerService.computeMoreMinimalEdits(model.uri, [{ text: newContent, range: model.getFullModelRange() }]).then(edits => {
+
+						// remove token
+						this.pendingUpdates.delete(model.id);
+
+						if (!myToken.token.isCancellationRequested && edits.length > 0) {
+							// use the evil-edit as these models show in readonly-editor only
+							model.applyEdits(edits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
+						}
+						return model;
+					});
+				} else {
+					// create text model
+					const mime = response.body.mimeType || guessMimeTypes(resource.path)[0];
+					const languageSelection = this.modeService.create(mime);
+					return this.modelService.createModel(response.body.content, languageSelection, resource);
+				}
 			}
 
 			return createErrModel();

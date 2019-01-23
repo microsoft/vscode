@@ -9,7 +9,7 @@ import { List } from 'vs/base/browser/ui/list/listWidget';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IDebugService, IEnablement, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution, CONTEXT_IN_DEBUG_MODE, CONTEXT_EXPRESSION_SELECTED, CONTEXT_BREAKPOINT_SELECTED } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, IEnablement, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution, CONTEXT_IN_DEBUG_MODE, CONTEXT_EXPRESSION_SELECTED, CONTEXT_BREAKPOINT_SELECTED, IConfig } from 'vs/workbench/parts/debug/common/debug';
 import { Expression, Variable, Breakpoint, FunctionBreakpoint } from 'vs/workbench/parts/debug/common/debugModel';
 import { IExtensionsViewlet, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/parts/extensions/common/extensions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -22,11 +22,22 @@ import { openBreakpointSource } from 'vs/workbench/parts/debug/browser/breakpoin
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { InputFocusedContext } from 'vs/platform/workbench/common/contextkeys';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { PanelFocusContext } from 'vs/workbench/browser/parts/panel/panelPart';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 export const ADD_CONFIGURATION_ID = 'debug.addConfiguration';
 export const TOGGLE_INLINE_BREAKPOINT_ID = 'editor.debug.action.toggleInlineBreakpoint';
 
 export function registerCommands(): void {
+
+	CommandsRegistry.registerCommand({
+		id: 'debug.startFromConfig',
+		handler: (accessor, config: IConfig) => {
+			const debugService = accessor.get(IDebugService);
+			debugService.startDebugging(undefined, config).then(undefined, onUnexpectedError);
+		}
+	});
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: 'debug.toggleBreakpoint',
@@ -180,7 +191,7 @@ export function registerCommands(): void {
 			const manager = accessor.get(IDebugService).getConfigurationManager();
 			if (accessor.get(IWorkspaceContextService).getWorkbenchState() === WorkbenchState.EMPTY) {
 				accessor.get(INotificationService).info(nls.localize('noFolderDebugConfig', "Please first open a folder in order to do advanced debug configuration."));
-				return Promise.resolve(null);
+				return undefined;
 			}
 			const launch = manager.getLaunches().filter(l => l.uri.toString() === launchUri).pop() || manager.selectedConfiguration.launch;
 
@@ -208,14 +219,14 @@ export function registerCommands(): void {
 				.filter(bp => (bp.column === position.column || !bp.column && position.column <= 1)).pop();
 
 			if (bp) {
-				return Promise.resolve(null);
+				return undefined;
 			}
 			if (debugService.getConfigurationManager().canSetBreakpointsIn(widget.getModel())) {
-				return debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber, column: position.column > 1 ? position.column : undefined }]);
+				return debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber, column: position.column > 1 ? position.column : undefined }], 'debugCommands.inlineBreakpointCommand');
 			}
 		}
 
-		return Promise.resolve(null);
+		return undefined;
 	};
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		weight: KeybindingWeight.WorkbenchContrib,
@@ -237,7 +248,7 @@ export function registerCommands(): void {
 			id: TOGGLE_INLINE_BREAKPOINT_ID,
 			title: nls.localize('addInlineBreakpoint', "Add Inline Breakpoint")
 		},
-		when: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, EditorContextKeys.writable, EditorContextKeys.editorTextFocus),
+		when: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, PanelFocusContext.toNegated(), EditorContextKeys.editorTextFocus),
 		group: 'debug',
 		order: 1
 	});
@@ -258,7 +269,7 @@ export function registerCommands(): void {
 				}
 			}
 
-			return Promise.resolve(undefined);
+			return undefined;
 		}
 	});
 }

@@ -8,9 +8,8 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import * as arrays from 'vs/base/common/arrays';
 import { INavigator } from 'vs/base/common/iterator';
-import * as WinJS from 'vs/base/common/winjs.base';
 import * as _ from './tree';
-import { Event, Emitter, once, EventMultiplexer, Relay } from 'vs/base/common/event';
+import { Event, Emitter, EventMultiplexer, Relay } from 'vs/base/common/event';
 
 interface IMap<T> { [id: string]: T; }
 interface IItemMap extends IMap<Item> { }
@@ -19,8 +18,8 @@ interface ITraitMap extends IMap<IItemMap> { }
 export class LockData {
 
 	private _item: Item;
-	private _onDispose = new Emitter<void>();
-	readonly onDispose: Event<void> = this._onDispose.event;
+	private _onDispose?= new Emitter<void>();
+	readonly onDispose: Event<void> = this._onDispose!.event;
 
 	constructor(item: Item) {
 		this._item = item;
@@ -34,7 +33,7 @@ export class LockData {
 		if (this._onDispose) {
 			this._onDispose.fire();
 			this._onDispose.dispose();
-			this._onDispose = null;
+			this._onDispose = undefined;
 		}
 	}
 }
@@ -79,26 +78,26 @@ export class Lock {
 		return !!this.locks[item.id];
 	}
 
-	public run(item: Item, fn: () => WinJS.Promise): WinJS.Promise {
-		var lock = this.getLock(item);
+	public run(item: Item, fn: () => Promise<any>): Promise<any> {
+		const lock = this.getLock(item);
 
 		if (lock) {
-			return new WinJS.TPromise((c, e) => {
-				once(lock.onDispose)(() => {
+			return new Promise((c, e) => {
+				Event.once(lock.onDispose)(() => {
 					return this.run(item, fn).then(c, e);
 				});
 			});
 		}
 
-		var result: WinJS.Promise;
+		let result: Promise<any>;
 
-		return new WinJS.TPromise((c, e) => {
+		return new Promise((c, e) => {
 
 			if (item.isDisposed()) {
 				return e(new Error('Item is disposed.'));
 			}
 
-			var lock = this.locks[item.id] = new LockData(item);
+			let lock = this.locks[item.id] = new LockData(item);
 
 			result = fn().then((r) => {
 				delete this.locks[item.id];
@@ -111,11 +110,11 @@ export class Lock {
 		});
 	}
 
-	private getLock(item: Item): LockData {
-		var key: string;
+	private getLock(item: Item): LockData | null {
+		let key: string;
 
 		for (key in this.locks) {
-			var lock = this.locks[key];
+			let lock = this.locks[key];
 
 			if (item.intersects(lock.item)) {
 				return lock;
@@ -188,13 +187,13 @@ export class ItemRegistry {
 		return this.items.hasOwnProperty(id);
 	}
 
-	public getItem(id: string): Item {
+	public getItem(id: string): Item | null {
 		const result = this.items[id];
 		return result ? result.item : null;
 	}
 
 	public dispose(): void {
-		this.items = null;
+		this.items = null!; // StrictNullOverride: nulling out ok in dispose
 
 		this._onDidRevealItem.dispose();
 		this._onExpandItem.dispose();
@@ -228,7 +227,7 @@ export interface IItemTraitEvent extends IBaseItemEvent {
 }
 
 export interface IItemRevealEvent extends IBaseItemEvent {
-	relativeTop: number;
+	relativeTop: number | null;
 }
 
 export interface IItemChildrenRefreshEvent extends IBaseItemEvent {
@@ -247,11 +246,11 @@ export class Item {
 	private needsChildrenRefresh: boolean;
 	private doesHaveChildren: boolean;
 
-	public parent: Item;
-	public previous: Item;
-	public next: Item;
-	public firstChild: Item;
-	public lastChild: Item;
+	public parent: Item | null;
+	public previous: Item | null;
+	public next: Item | null;
+	public firstChild: Item | null;
+	public lastChild: Item | null;
 
 	private height: number;
 	private depth: number;
@@ -308,7 +307,7 @@ export class Item {
 
 		this.traits = {};
 		this.depth = 0;
-		this.expanded = this.context.dataSource.shouldAutoexpand && this.context.dataSource.shouldAutoexpand(this.context.tree, element);
+		this.expanded = !!(this.context.dataSource.shouldAutoexpand && this.context.dataSource.shouldAutoexpand(this.context.tree, element));
 
 		this._onDidCreate.fire(this);
 
@@ -347,28 +346,28 @@ export class Item {
 	}
 
 	public reveal(relativeTop: number | null = null): void {
-		var eventData: IItemRevealEvent = { item: this, relativeTop: relativeTop };
+		let eventData: IItemRevealEvent = { item: this, relativeTop: relativeTop };
 		this._onDidReveal.fire(eventData);
 	}
 
-	public expand(): WinJS.Promise {
+	public expand(): Promise<any> {
 		if (this.isExpanded() || !this.doesHaveChildren || this.lock.isLocked(this)) {
-			return WinJS.TPromise.as(false);
+			return Promise.resolve(false);
 		}
 
-		var result = this.lock.run(this, () => {
+		let result = this.lock.run(this, () => {
 			if (this.isExpanded() || !this.doesHaveChildren) {
-				return WinJS.TPromise.as(false);
+				return Promise.resolve(false);
 			}
 
-			var eventData: IItemExpandEvent = { item: this };
-			var result: WinJS.Promise;
+			let eventData: IItemExpandEvent = { item: this };
+			let result: Promise<any>;
 			this._onExpand.fire(eventData);
 
 			if (this.needsChildrenRefresh) {
 				result = this.refreshChildren(false, true, true);
 			} else {
-				result = WinJS.TPromise.as(null);
+				result = Promise.resolve(null);
 			}
 
 			return result.then(() => {
@@ -392,9 +391,9 @@ export class Item {
 		});
 	}
 
-	public collapse(recursive: boolean = false): WinJS.Promise {
+	public collapse(recursive: boolean = false): Promise<any> {
 		if (recursive) {
-			var collapseChildrenPromise = WinJS.TPromise.as(null);
+			let collapseChildrenPromise = Promise.resolve(null);
 			this.forEachChild((child) => {
 				collapseChildrenPromise = collapseChildrenPromise.then(() => child.collapse(true));
 			});
@@ -403,28 +402,28 @@ export class Item {
 			});
 		} else {
 			if (!this.isExpanded() || this.lock.isLocked(this)) {
-				return WinJS.TPromise.as(false);
+				return Promise.resolve(false);
 			}
 
 			return this.lock.run(this, () => {
-				var eventData: IItemCollapseEvent = { item: this };
+				let eventData: IItemCollapseEvent = { item: this };
 				this._onCollapse.fire(eventData);
 				this._setExpanded(false);
 				this._onDidCollapse.fire(eventData);
 
-				return WinJS.TPromise.as(true);
+				return Promise.resolve(true);
 			});
 		}
 	}
 
 	public addTrait(trait: string): void {
-		var eventData: IItemTraitEvent = { item: this, trait: trait };
+		let eventData: IItemTraitEvent = { item: this, trait: trait };
 		this.traits[trait] = true;
 		this._onDidAddTrait.fire(eventData);
 	}
 
 	public removeTrait(trait: string): void {
-		var eventData: IItemTraitEvent = { item: this, trait: trait };
+		let eventData: IItemTraitEvent = { item: this, trait: trait };
 		delete this.traits[trait];
 		this._onDidRemoveTrait.fire(eventData);
 	}
@@ -434,8 +433,8 @@ export class Item {
 	}
 
 	public getAllTraits(): string[] {
-		var result: string[] = [];
-		var trait: string;
+		let result: string[] = [];
+		let trait: string;
 		for (trait in this.traits) {
 			if (this.traits.hasOwnProperty(trait) && this.traits[trait]) {
 				result.push(trait);
@@ -448,7 +447,7 @@ export class Item {
 		return this.height;
 	}
 
-	private refreshChildren(recursive: boolean, safe: boolean = false, force: boolean = false): WinJS.Promise {
+	private refreshChildren(recursive: boolean, safe: boolean = false, force: boolean = false): Promise<any> {
 		if (!force && !this.isExpanded()) {
 			const setNeedsChildrenRefresh = (item: Item) => {
 				item.needsChildrenRefresh = true;
@@ -457,44 +456,44 @@ export class Item {
 
 			setNeedsChildrenRefresh(this);
 
-			return WinJS.TPromise.as(this);
+			return Promise.resolve(this);
 		}
 
 		this.needsChildrenRefresh = false;
 
-		var doRefresh = () => {
-			var eventData: IItemChildrenRefreshEvent = { item: this, isNested: safe };
+		let doRefresh = () => {
+			let eventData: IItemChildrenRefreshEvent = { item: this, isNested: safe };
 			this._onRefreshChildren.fire(eventData);
 
-			var childrenPromise: WinJS.Promise;
+			let childrenPromise: Promise<any>;
 			if (this.doesHaveChildren) {
 				childrenPromise = this.context.dataSource.getChildren(this.context.tree, this.element);
 			} else {
-				childrenPromise = WinJS.TPromise.as([]);
+				childrenPromise = Promise.resolve([]);
 			}
 
 			const result = childrenPromise.then((elements: any[]) => {
 				if (this.isDisposed() || this.registry.isDisposed()) {
-					return WinJS.TPromise.as(null);
+					return Promise.resolve(null);
 				}
 
 				if (!Array.isArray(elements)) {
-					return WinJS.TPromise.wrapError(new Error('Please return an array of children.'));
+					return Promise.reject(new Error('Please return an array of children.'));
 				}
 
 				elements = !elements ? [] : elements.slice(0);
 				elements = this.sort(elements);
 
-				var staleItems: IItemMap = {};
+				let staleItems: IItemMap = {};
 				while (this.firstChild !== null) {
 					staleItems[this.firstChild.id] = this.firstChild;
 					this.removeChild(this.firstChild);
 				}
 
-				for (var i = 0, len = elements.length; i < len; i++) {
-					var element = elements[i];
-					var id = this.context.dataSource.getId(this.context.tree, element);
-					var item = staleItems[id] || new Item(id, this.registry, this.context, this.lock, element);
+				for (let i = 0, len = elements.length; i < len; i++) {
+					let element = elements[i];
+					let id = this.context.dataSource.getId(this.context.tree, element);
+					let item = staleItems[id] || new Item(id, this.registry, this.context, this.lock, element);
 					item.element = element;
 					if (recursive) {
 						item.needsChildrenRefresh = recursive;
@@ -503,37 +502,37 @@ export class Item {
 					this.addChild(item);
 				}
 
-				for (var staleItemId in staleItems) {
+				for (let staleItemId in staleItems) {
 					if (staleItems.hasOwnProperty(staleItemId)) {
 						staleItems[staleItemId].dispose();
 					}
 				}
 
 				if (recursive) {
-					return WinJS.Promise.join(this.mapEachChild((child) => {
+					return Promise.all(this.mapEachChild((child) => {
 						return child.doRefresh(recursive, true);
 					}));
 				} else {
-					return WinJS.Promise.join(this.mapEachChild((child) => {
+					return Promise.all(this.mapEachChild((child) => {
 						if (child.isExpanded() && child.needsChildrenRefresh) {
 							return child.doRefresh(recursive, true);
 						} else {
 							child.updateVisibility();
-							return WinJS.TPromise.as(null);
+							return Promise.resolve(null);
 						}
 					}));
 				}
 			});
 
 			return result
-				.then(null, onUnexpectedError)
+				.then(undefined, onUnexpectedError)
 				.then(() => this._onDidRefreshChildren.fire(eventData));
 		};
 
 		return safe ? doRefresh() : this.lock.run(this, doRefresh);
 	}
 
-	private doRefresh(recursive: boolean, safe: boolean = false): WinJS.Promise {
+	private doRefresh(recursive: boolean, safe: boolean = false): Promise<any> {
 		this.doesHaveChildren = this.context.dataSource.hasChildren(this.context.tree, this.element);
 		this.height = this._getHeight();
 		this.updateVisibility();
@@ -547,7 +546,7 @@ export class Item {
 		this.setVisible(this._isVisible());
 	}
 
-	public refresh(recursive: boolean): WinJS.Promise {
+	public refresh(recursive: boolean): Promise<any> {
 		return this.doRefresh(recursive);
 	}
 
@@ -560,8 +559,8 @@ export class Item {
 	}
 
 	public getHierarchy(): Item[] {
-		var result: Item[] = [];
-		var node: Item = this;
+		let result: Item[] = [];
+		let node: Item | null = this;
 
 		do {
 			result.push(node);
@@ -572,7 +571,8 @@ export class Item {
 		return result;
 	}
 
-	private isAncestorOf(item: Item): boolean {
+	private isAncestorOf(startItem: Item): boolean {
+		let item: Item | null = startItem;
 		while (item) {
 			if (item.id === this.id) {
 				return true;
@@ -582,27 +582,39 @@ export class Item {
 		return false;
 	}
 
-	private addChild(item: Item, afterItem: Item = this.lastChild): void {
-		var isEmpty = this.firstChild === null;
-		var atHead = afterItem === null;
-		var atTail = afterItem === this.lastChild;
+	private addChild(item: Item, afterItem: Item | null = this.lastChild): void {
+		let isEmpty = this.firstChild === null;
+		let atHead = afterItem === null;
+		let atTail = afterItem === this.lastChild;
 
 		if (isEmpty) {
 			this.firstChild = this.lastChild = item;
 			item.next = item.previous = null;
 		} else if (atHead) {
+			if (!this.firstChild) {
+				throw new Error('Invalid tree state');
+			}
 			this.firstChild.previous = item;
 			item.next = this.firstChild;
 			item.previous = null;
 			this.firstChild = item;
 		} else if (atTail) {
+			if (!this.lastChild) {
+				throw new Error('Invalid tree state');
+			}
 			this.lastChild.next = item;
 			item.next = null;
 			item.previous = this.lastChild;
 			this.lastChild = item;
 		} else {
 			item.previous = afterItem;
+			if (!afterItem) {
+				throw new Error('Invalid tree state');
+			}
 			item.next = afterItem.next;
+			if (!afterItem.next) {
+				throw new Error('Invalid tree state');
+			}
 			afterItem.next.previous = item;
 			afterItem.next = item;
 		}
@@ -612,28 +624,41 @@ export class Item {
 	}
 
 	private removeChild(item: Item): void {
-		var isFirstChild = this.firstChild === item;
-		var isLastChild = this.lastChild === item;
+		let isFirstChild = this.firstChild === item;
+		let isLastChild = this.lastChild === item;
 
 		if (isFirstChild && isLastChild) {
 			this.firstChild = this.lastChild = null;
 		} else if (isFirstChild) {
+			if (!item.next) {
+				throw new Error('Invalid tree state');
+			}
 			item.next.previous = null;
 			this.firstChild = item.next;
 		} else if (isLastChild) {
+			if (!item.previous) {
+				throw new Error('Invalid tree state');
+			}
 			item.previous.next = null;
 			this.lastChild = item.previous;
 		} else {
+			if (!item.next) {
+				throw new Error('Invalid tree state');
+			}
 			item.next.previous = item.previous;
+			if (!item.previous) {
+				throw new Error('Invalid tree state');
+			}
 			item.previous.next = item.next;
 		}
 
 		item.parent = null;
-		item.depth = null;
+		item.depth = NaN;
 	}
 
 	private forEachChild(fn: (child: Item) => void): void {
-		var child = this.firstChild, next: Item;
+		let child = this.firstChild;
+		let next: Item | null;
 		while (child) {
 			next = child.next;
 			fn(child);
@@ -642,7 +667,7 @@ export class Item {
 	}
 
 	private mapEachChild<T>(fn: (child: Item) => T): T[] {
-		var result: T[] = [];
+		let result: T[] = [];
 		this.forEachChild((child) => {
 			result.push(fn(child));
 		});
@@ -650,9 +675,10 @@ export class Item {
 	}
 
 	private sort(elements: any[]): any[] {
-		if (this.context.sorter) {
+		const sorter = this.context.sorter;
+		if (sorter) {
 			return elements.sort((element, otherElement) => {
-				return this.context.sorter.compare(this.context.tree, element, otherElement);
+				return sorter.compare(this.context.tree, element, otherElement);
 			});
 		}
 
@@ -660,10 +686,16 @@ export class Item {
 	}
 
 	/* protected */ public _getHeight(): number {
+		if (!this.context.renderer) {
+			return 0;
+		}
 		return this.context.renderer.getHeight(this.context.tree, this.element);
 	}
 
 	/* protected */ public _isVisible(): boolean {
+		if (!this.context.filter) {
+			return false;
+		}
 		return this.context.filter.isVisible(this.context.tree, this.element);
 	}
 
@@ -738,10 +770,10 @@ class RootItem extends Item {
 
 export class TreeNavigator implements INavigator<Item> {
 
-	private start: Item;
-	private item: Item;
+	private start: Item | null;
+	private item: Item | null;
 
-	static lastDescendantOf(item: Item): Item {
+	static lastDescendantOf(item: Item | null): Item | null {
 		if (!item) {
 			return null;
 		}
@@ -761,16 +793,16 @@ export class TreeNavigator implements INavigator<Item> {
 		return TreeNavigator.lastDescendantOf(item.lastChild);
 	}
 
-	constructor(item: Item, subTreeOnly: boolean = true) {
+	constructor(item: Item | null, subTreeOnly: boolean = true) {
 		this.item = item;
 		this.start = subTreeOnly ? item : null;
 	}
 
-	public current(): Item {
+	public current(): Item | null {
 		return this.item || null;
 	}
 
-	public next(): Item {
+	public next(): Item | null {
 		if (this.item) {
 			do {
 				if ((this.item instanceof RootItem || (this.item.isVisible() && this.item.isExpanded())) && this.item.firstChild) {
@@ -792,10 +824,10 @@ export class TreeNavigator implements INavigator<Item> {
 		return this.item || null;
 	}
 
-	public previous(): Item {
+	public previous(): Item | null {
 		if (this.item) {
 			do {
-				var previous = TreeNavigator.lastDescendantOf(this.item.previous);
+				let previous = TreeNavigator.lastDescendantOf(this.item.previous);
 				if (previous) {
 					this.item = previous;
 				} else if (this.item.parent && this.item.parent !== this.start && this.item.parent.isVisible()) {
@@ -808,9 +840,9 @@ export class TreeNavigator implements INavigator<Item> {
 		return this.item || null;
 	}
 
-	public parent(): Item {
+	public parent(): Item | null {
 		if (this.item) {
-			var parent = this.item.parent;
+			let parent = this.item.parent;
 			if (parent && parent !== this.start && parent.isVisible()) {
 				this.item = parent;
 			} else {
@@ -820,29 +852,29 @@ export class TreeNavigator implements INavigator<Item> {
 		return this.item || null;
 	}
 
-	public first(): Item {
+	public first(): Item | null {
 		this.item = this.start;
 		this.next();
 		return this.item || null;
 	}
 
-	public last(): Item {
+	public last(): Item | null {
 		return TreeNavigator.lastDescendantOf(this.start);
 	}
 }
 
 function getRange(one: Item, other: Item): Item[] {
-	var oneHierarchy = one.getHierarchy();
-	var otherHierarchy = other.getHierarchy();
-	var length = arrays.commonPrefixLength(oneHierarchy, otherHierarchy);
-	var item = oneHierarchy[length - 1];
-	var nav = item.getNavigator();
+	let oneHierarchy = one.getHierarchy();
+	let otherHierarchy = other.getHierarchy();
+	let length = arrays.commonPrefixLength(oneHierarchy, otherHierarchy);
+	let item: Item | null = oneHierarchy[length - 1];
+	let nav = item.getNavigator();
 
-	var oneIndex: number | null = null;
-	var otherIndex: number | null = null;
+	let oneIndex: number | null = null;
+	let otherIndex: number | null = null;
 
-	var index = 0;
-	var result: Item[] = [];
+	let index = 0;
+	let result: Item[] = [];
 
 	while (item && (oneIndex === null || otherIndex === null)) {
 		result.push(item);
@@ -862,13 +894,13 @@ function getRange(one: Item, other: Item): Item[] {
 		return [];
 	}
 
-	var min = Math.min(oneIndex, otherIndex);
-	var max = Math.max(oneIndex, otherIndex);
+	let min = Math.min(oneIndex, otherIndex);
+	let max = Math.max(oneIndex, otherIndex);
 	return result.slice(min, max + 1);
 }
 
 export interface IBaseEvent {
-	item: Item;
+	item: Item | null;
 }
 
 export interface IInputEvent extends IBaseEvent { }
@@ -881,7 +913,7 @@ export class TreeModel {
 
 	private context: _.ITreeContext;
 	private lock: Lock;
-	private input: Item;
+	private input: Item | null;
 	private registry: ItemRegistry;
 	private registryDisposable: IDisposable;
 	private traitsToItems: ITraitMap;
@@ -930,8 +962,8 @@ export class TreeModel {
 		this.traitsToItems = {};
 	}
 
-	public setInput(element: any): WinJS.Promise {
-		var eventData: IInputEvent = { item: this.input };
+	public setInput(element: any): Promise<any> {
+		let eventData: IInputEvent = { item: this.input };
 		this._onSetInput.fire(eventData);
 
 		this.setSelection([]);
@@ -966,7 +998,7 @@ export class TreeModel {
 		this.registryDisposable = this.registry
 			.onDidDisposeItem(item => item.getAllTraits().forEach(trait => delete this.traitsToItems[trait][item.id]));
 
-		var id = this.context.dataSource.getId(this.context.tree, element);
+		let id = this.context.dataSource.getId(this.context.tree, element);
 		this.input = new RootItem(id, this.registry, this.context, this.lock, element);
 		eventData = { item: this.input };
 		this._onDidSetInput.fire(eventData);
@@ -977,85 +1009,115 @@ export class TreeModel {
 		return this.input ? this.input.getElement() : null;
 	}
 
-	public refresh(element: any = null, recursive: boolean = true): WinJS.Promise {
-		var item = this.getItem(element);
+	public refresh(element: any = null, recursive: boolean = true): Promise<any> {
+		let item = this.getItem(element);
 
 		if (!item) {
-			return WinJS.TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
-		var eventData: IRefreshEvent = { item: item, recursive: recursive };
+		let eventData: IRefreshEvent = { item: item, recursive: recursive };
 		this._onRefresh.fire(eventData);
 		return item.refresh(recursive).then(() => {
 			this._onDidRefresh.fire(eventData);
 		});
 	}
 
-	public expand(element: any): WinJS.Promise {
-		var item = this.getItem(element);
+	public expand(element: any): Promise<any> {
+		let item = this.getItem(element);
 
 		if (!item) {
-			return WinJS.TPromise.as(false);
+			return Promise.resolve(false);
 		}
 
 		return item.expand();
 	}
 
-	public expandAll(elements?: any[]): WinJS.Promise {
+	public expandAll(elements?: any[]): Promise<any> {
 		if (!elements) {
 			elements = [];
 
-			var item: Item;
-			var nav = this.getNavigator();
+			let item: Item | null;
+			let nav = this.getNavigator();
 
 			while (item = nav.next()) {
 				elements.push(item);
 			}
 		}
 
-		var promises = [];
-		for (var i = 0, len = elements.length; i < len; i++) {
-			promises.push(this.expand(elements[i]));
-		}
-		return WinJS.Promise.join(promises);
+		return this._expandAll(elements);
 	}
 
-	public collapse(element: any, recursive: boolean = false): WinJS.Promise {
-		var item = this.getItem(element);
+	private _expandAll(elements: any[]): Promise<any> {
+		if (elements.length === 0) {
+			return Promise.resolve(null);
+		}
+
+		const elementsToExpand: any[] = [];
+		const elementsToDelay: any[] = [];
+
+		for (const element of elements) {
+			let item = this.getItem(element);
+
+			if (item) {
+				elementsToExpand.push(element);
+			} else {
+				elementsToDelay.push(element);
+			}
+		}
+
+		if (elementsToExpand.length === 0) {
+			return Promise.resolve(null);
+		}
+
+		return this.__expandAll(elementsToExpand)
+			.then(() => this._expandAll(elementsToDelay));
+	}
+
+	private __expandAll(elements: any[]): Promise<any> {
+		const promises: Array<Promise<any>> = [];
+		for (let i = 0, len = elements.length; i < len; i++) {
+			promises.push(this.expand(elements[i]));
+		}
+		return Promise.all(promises);
+	}
+
+	public collapse(element: any, recursive: boolean = false): Promise<any> {
+		const item = this.getItem(element);
 
 		if (!item) {
-			return WinJS.TPromise.as(false);
+			return Promise.resolve(false);
 		}
 
 		return item.collapse(recursive);
 	}
 
-	public collapseAll(elements: any[] | null = null, recursive: boolean = false): WinJS.Promise {
+	public collapseAll(elements: any[] | null = null, recursive: boolean = false): Promise<any> {
 		if (!elements) {
 			elements = [this.input];
 			recursive = true;
 		}
-		var promises = [];
-		for (var i = 0, len = elements.length; i < len; i++) {
+		let promises: Array<Promise<any>> = [];
+		for (let i = 0, len = elements.length; i < len; i++) {
 			promises.push(this.collapse(elements[i], recursive));
 		}
-		return WinJS.Promise.join(promises);
+		return Promise.all(promises);
 	}
 
-	public toggleExpansion(element: any, recursive: boolean = false): WinJS.Promise {
+	public toggleExpansion(element: any, recursive: boolean = false): Promise<any> {
 		return this.isExpanded(element) ? this.collapse(element, recursive) : this.expand(element);
 	}
 
-	public toggleExpansionAll(elements: any[]): WinJS.Promise {
-		var promises = [];
-		for (var i = 0, len = elements.length; i < len; i++) {
+	public toggleExpansionAll(elements: any[]): Promise<any> {
+		let promises: Array<Promise<any>> = [];
+		for (let i = 0, len = elements.length; i < len; i++) {
 			promises.push(this.toggleExpansion(elements[i]));
 		}
-		return WinJS.Promise.join(promises);
+		return Promise.all(promises);
 	}
 
 	public isExpanded(element: any): boolean {
-		var item = this.getItem(element);
+		let item = this.getItem(element);
 
 		if (!item) {
 			return false;
@@ -1065,9 +1127,9 @@ export class TreeModel {
 	}
 
 	public getExpandedElements(): any[] {
-		var result: any[] = [];
-		var item: Item;
-		var nav = this.getNavigator();
+		let result: any[] = [];
+		let item: Item | null;
+		let nav = this.getNavigator();
 
 		while (item = nav.next()) {
 			if (item.isExpanded()) {
@@ -1078,9 +1140,9 @@ export class TreeModel {
 		return result;
 	}
 
-	public reveal(element: any, relativeTop: number | null = null): WinJS.Promise {
+	public reveal(element: any, relativeTop: number | null = null): Promise<any> {
 		return this.resolveUnknownParentChain(element).then((chain: any[]) => {
-			var result = WinJS.TPromise.as(null);
+			let result = Promise.resolve(null);
 
 			chain.forEach((e) => {
 				result = result.then(() => this.expand(e));
@@ -1088,7 +1150,7 @@ export class TreeModel {
 
 			return result;
 		}).then(() => {
-			var item = this.getItem(element);
+			let item = this.getItem(element);
 
 			if (item) {
 				return item.reveal(relativeTop);
@@ -1096,10 +1158,10 @@ export class TreeModel {
 		});
 	}
 
-	private resolveUnknownParentChain(element: any): WinJS.Promise {
+	private resolveUnknownParentChain(element: any): Promise<any> {
 		return this.context.dataSource.getParent(this.context.tree, element).then((parent) => {
 			if (!parent) {
-				return WinJS.TPromise.as([]);
+				return Promise.resolve([]);
 			}
 
 			return this.resolveUnknownParentChain(parent).then((result) => {
@@ -1111,17 +1173,17 @@ export class TreeModel {
 
 	public setHighlight(element?: any, eventPayload?: any): void {
 		this.setTraits('highlighted', element ? [element] : []);
-		var eventData: _.IHighlightEvent = { highlight: this.getHighlight(), payload: eventPayload };
+		let eventData: _.IHighlightEvent = { highlight: this.getHighlight(), payload: eventPayload };
 		this._onDidHighlight.fire(eventData);
 	}
 
-	public getHighlight(includeHidden?: boolean): any {
-		var result = this.getElementsWithTrait('highlighted', includeHidden);
+	public getHighlight(includeHidden: boolean = false): any {
+		let result = this.getElementsWithTrait('highlighted', includeHidden);
 		return result.length === 0 ? null : result[0];
 	}
 
 	public isHighlighted(element: any): boolean {
-		var item = this.getItem(element);
+		let item = this.getItem(element);
 
 		if (!item) {
 			return false;
@@ -1135,8 +1197,8 @@ export class TreeModel {
 	}
 
 	public selectRange(fromElement: any, toElement: any, eventPayload?: any): void {
-		var fromItem = this.getItem(fromElement);
-		var toItem = this.getItem(toElement);
+		let fromItem = this.getItem(fromElement);
+		let toItem = this.getItem(toElement);
 
 		if (!fromItem || !toItem) {
 			return;
@@ -1146,8 +1208,8 @@ export class TreeModel {
 	}
 
 	public deselectRange(fromElement: any, toElement: any, eventPayload?: any): void {
-		var fromItem = this.getItem(fromElement);
-		var toItem = this.getItem(toElement);
+		let fromItem = this.getItem(fromElement);
+		let toItem = this.getItem(toElement);
 
 		if (!fromItem || !toItem) {
 			return;
@@ -1158,7 +1220,7 @@ export class TreeModel {
 
 	public selectAll(elements: any[], eventPayload?: any): void {
 		this.addTraits('selected', elements);
-		var eventData: _.ISelectionEvent = { selection: this.getSelection(), payload: eventPayload };
+		let eventData: _.ISelectionEvent = { selection: this.getSelection(), payload: eventPayload };
 		this._onDidSelect.fire(eventData);
 	}
 
@@ -1168,24 +1230,24 @@ export class TreeModel {
 
 	public deselectAll(elements: any[], eventPayload?: any): void {
 		this.removeTraits('selected', elements);
-		var eventData: _.ISelectionEvent = { selection: this.getSelection(), payload: eventPayload };
+		let eventData: _.ISelectionEvent = { selection: this.getSelection(), payload: eventPayload };
 		this._onDidSelect.fire(eventData);
 	}
 
 	public setSelection(elements: any[], eventPayload?: any): void {
 		this.setTraits('selected', elements);
-		var eventData: _.ISelectionEvent = { selection: this.getSelection(), payload: eventPayload };
+		let eventData: _.ISelectionEvent = { selection: this.getSelection(), payload: eventPayload };
 		this._onDidSelect.fire(eventData);
 	}
 
 	public toggleSelection(element: any, eventPayload?: any): void {
 		this.toggleTrait('selected', element);
-		var eventData: _.ISelectionEvent = { selection: this.getSelection(), payload: eventPayload };
+		let eventData: _.ISelectionEvent = { selection: this.getSelection(), payload: eventPayload };
 		this._onDidSelect.fire(eventData);
 	}
 
 	public isSelected(element: any): boolean {
-		var item = this.getItem(element);
+		let item = this.getItem(element);
 
 		if (!item) {
 			return false;
@@ -1194,17 +1256,17 @@ export class TreeModel {
 		return item.hasTrait('selected');
 	}
 
-	public getSelection(includeHidden?: boolean): any[] {
+	public getSelection(includeHidden: boolean = false): any[] {
 		return this.getElementsWithTrait('selected', includeHidden);
 	}
 
 	public selectNext(count: number = 1, clearSelection: boolean = true, eventPayload?: any): void {
-		var selection = this.getSelection();
-		var item: Item = selection.length > 0 ? selection[0] : this.input;
-		var nextItem: Item;
-		var nav = this.getNavigator(item, false);
+		let selection = this.getSelection();
+		let item: Item = selection.length > 0 ? selection[0] : this.input;
+		let nextItem: Item | null;
+		let nav = this.getNavigator(item, false);
 
-		for (var i = 0; i < count; i++) {
+		for (let i = 0; i < count; i++) {
 			nextItem = nav.next();
 			if (!nextItem) {
 				break;
@@ -1220,7 +1282,7 @@ export class TreeModel {
 	}
 
 	public selectPrevious(count: number = 1, clearSelection: boolean = true, eventPayload?: any): void {
-		var selection = this.getSelection(),
+		let selection = this.getSelection(),
 			item: Item | null = null,
 			previousItem: Item | null = null;
 
@@ -1237,7 +1299,7 @@ export class TreeModel {
 			item = selection[0];
 			let nav = this.getNavigator(item, false);
 
-			for (var i = 0; i < count; i++) {
+			for (let i = 0; i < count; i++) {
 				previousItem = nav.previous();
 				if (!previousItem) {
 					break;
@@ -1254,10 +1316,10 @@ export class TreeModel {
 	}
 
 	public selectParent(eventPayload?: any, clearSelection: boolean = true): void {
-		var selection = this.getSelection();
-		var item: Item = selection.length > 0 ? selection[0] : this.input;
-		var nav = this.getNavigator(item, false);
-		var parent = nav.parent();
+		let selection = this.getSelection();
+		let item: Item = selection.length > 0 ? selection[0] : this.input;
+		let nav = this.getNavigator(item, false);
+		let parent = nav.parent();
 
 		if (parent) {
 			if (clearSelection) {
@@ -1270,12 +1332,12 @@ export class TreeModel {
 
 	public setFocus(element?: any, eventPayload?: any): void {
 		this.setTraits('focused', element ? [element] : []);
-		var eventData: _.IFocusEvent = { focus: this.getFocus(), payload: eventPayload };
+		let eventData: _.IFocusEvent = { focus: this.getFocus(), payload: eventPayload };
 		this._onDidFocus.fire(eventData);
 	}
 
 	public isFocused(element: any): boolean {
-		var item = this.getItem(element);
+		let item = this.getItem(element);
 
 		if (!item) {
 			return false;
@@ -1284,17 +1346,17 @@ export class TreeModel {
 		return item.hasTrait('focused');
 	}
 
-	public getFocus(includeHidden?: boolean): any {
-		var result = this.getElementsWithTrait('focused', includeHidden);
+	public getFocus(includeHidden: boolean = false): any {
+		let result = this.getElementsWithTrait('focused', includeHidden);
 		return result.length === 0 ? null : result[0];
 	}
 
 	public focusNext(count: number = 1, eventPayload?: any): void {
-		var item: Item = this.getFocus() || this.input;
-		var nextItem: Item;
-		var nav = this.getNavigator(item, false);
+		let item: Item = this.getFocus() || this.input;
+		let nextItem: Item | null;
+		let nav = this.getNavigator(item, false);
 
-		for (var i = 0; i < count; i++) {
+		for (let i = 0; i < count; i++) {
 			nextItem = nav.next();
 			if (!nextItem) {
 				break;
@@ -1306,11 +1368,11 @@ export class TreeModel {
 	}
 
 	public focusPrevious(count: number = 1, eventPayload?: any): void {
-		var item: Item = this.getFocus() || this.input;
-		var previousItem: Item;
-		var nav = this.getNavigator(item, false);
+		let item: Item = this.getFocus() || this.input;
+		let previousItem: Item | null;
+		let nav = this.getNavigator(item, false);
 
-		for (var i = 0; i < count; i++) {
+		for (let i = 0; i < count; i++) {
 			previousItem = nav.previous();
 			if (!previousItem) {
 				break;
@@ -1322,9 +1384,9 @@ export class TreeModel {
 	}
 
 	public focusParent(eventPayload?: any): void {
-		var item: Item = this.getFocus() || this.input;
-		var nav = this.getNavigator(item, false);
-		var parent = nav.parent();
+		let item: Item = this.getFocus() || this.input;
+		let nav = this.getNavigator(item, false);
+		let parent = nav.parent();
 
 		if (parent) {
 			this.setFocus(parent, eventPayload);
@@ -1347,10 +1409,10 @@ export class TreeModel {
 	}
 
 	public focusNth(index: number, eventPayload?: any, from?: any): void {
-		var navItem = this.getParent(from);
-		var nav = this.getNavigator(navItem);
-		var item = nav.first();
-		for (var i = 0; i < index; i++) {
+		let navItem = this.getParent(from);
+		let nav = this.getNavigator(navItem);
+		let item = nav.first();
+		for (let i = 0; i < index; i++) {
 			item = nav.next();
 		}
 
@@ -1360,12 +1422,12 @@ export class TreeModel {
 	}
 
 	public focusLast(eventPayload?: any, from?: any): void {
-		var navItem = this.getParent(from);
-		var item: Item;
-		if (from) {
+		const navItem = this.getParent(from);
+		let item: Item | null;
+		if (from && navItem) {
 			item = navItem.lastChild;
 		} else {
-			var nav = this.getNavigator(navItem);
+			const nav = this.getNavigator(navItem);
 			item = nav.last();
 		}
 
@@ -1374,9 +1436,9 @@ export class TreeModel {
 		}
 	}
 
-	private getParent(from?: any): Item {
+	private getParent(from?: any): Item | null {
 		if (from) {
-			var fromItem = this.getItem(from);
+			const fromItem = this.getItem(from);
 			if (fromItem && fromItem.parent) {
 				return fromItem.parent;
 			}
@@ -1389,7 +1451,7 @@ export class TreeModel {
 		return new TreeNavigator(this.getItem(element), subTreeOnly);
 	}
 
-	public getItem(element: any = null): Item {
+	public getItem(element: any = null): Item | null {
 		if (element === null) {
 			return this.input;
 		} else if (element instanceof Item) {
@@ -1402,9 +1464,9 @@ export class TreeModel {
 	}
 
 	public addTraits(trait: string, elements: any[]): void {
-		var items: IItemMap = this.traitsToItems[trait] || <IItemMap>{};
-		var item: Item;
-		for (var i = 0, len = elements.length; i < len; i++) {
+		let items: IItemMap = this.traitsToItems[trait] || <IItemMap>{};
+		let item: Item | null;
+		for (let i = 0, len = elements.length; i < len; i++) {
 			item = this.getItem(elements[i]);
 
 			if (item) {
@@ -1416,9 +1478,9 @@ export class TreeModel {
 	}
 
 	public removeTraits(trait: string, elements: any[]): void {
-		var items: IItemMap = this.traitsToItems[trait] || <IItemMap>{};
-		var item: Item;
-		var id: string;
+		let items: IItemMap = this.traitsToItems[trait] || <IItemMap>{};
+		let item: Item | null;
+		let id: string;
 
 		if (elements.length === 0) {
 			for (id in items) {
@@ -1431,7 +1493,7 @@ export class TreeModel {
 			delete this.traitsToItems[trait];
 
 		} else {
-			for (var i = 0, len = elements.length; i < len; i++) {
+			for (let i = 0, len = elements.length; i < len; i++) {
 				item = this.getItem(elements[i]);
 
 				if (item) {
@@ -1443,12 +1505,12 @@ export class TreeModel {
 	}
 
 	public hasTrait(trait: string, element: any): boolean {
-		var item = this.getItem(element);
-		return item && item.hasTrait(trait);
+		const item = this.getItem(element);
+		return !!(item && item.hasTrait(trait));
 	}
 
 	private toggleTrait(trait: string, element: any): void {
-		var item = this.getItem(element);
+		let item = this.getItem(element);
 
 		if (!item) {
 			return;
@@ -1465,8 +1527,8 @@ export class TreeModel {
 		if (elements.length === 0) {
 			this.removeTraits(trait, elements);
 		} else {
-			var items: { [id: string]: Item; } = {};
-			var item: Item;
+			let items: { [id: string]: Item; } = {};
+			let item: Item | null;
 
 			for (let i = 0, len = elements.length; i < len; i++) {
 				item = this.getItem(elements[i]);
@@ -1476,9 +1538,9 @@ export class TreeModel {
 				}
 			}
 
-			var traitItems: IItemMap = this.traitsToItems[trait] || <IItemMap>{};
-			var itemsToRemoveTrait: Item[] = [];
-			var id: string;
+			let traitItems: IItemMap = this.traitsToItems[trait] || <IItemMap>{};
+			let itemsToRemoveTrait: Item[] = [];
+			let id: string;
 
 			for (id in traitItems) {
 				if (traitItems.hasOwnProperty(id)) {
@@ -1509,9 +1571,9 @@ export class TreeModel {
 	}
 
 	private getElementsWithTrait(trait: string, includeHidden: boolean): any[] {
-		var elements = [];
-		var items = this.traitsToItems[trait] || {};
-		var id: string;
+		let elements: any[] = [];
+		let items = this.traitsToItems[trait] || {};
+		let id: string;
 		for (id in items) {
 			if (items.hasOwnProperty(id) && (items[id].isVisible() || includeHidden)) {
 				elements.push(items[id].getElement());
@@ -1523,7 +1585,7 @@ export class TreeModel {
 	public dispose(): void {
 		if (this.registry) {
 			this.registry.dispose();
-			this.registry = null;
+			this.registry = null!; // StrictNullOverride: nulling out ok in dispose
 		}
 
 		this._onSetInput.dispose();

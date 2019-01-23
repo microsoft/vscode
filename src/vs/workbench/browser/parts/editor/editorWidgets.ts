@@ -34,7 +34,7 @@ export class FloatingClickWidget extends Widget implements IOverlayWidget {
 		private label: string,
 		keyBindingAction: string,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IThemeService private themeService: IThemeService
+		@IThemeService private readonly themeService: IThemeService
 	) {
 		super();
 
@@ -64,8 +64,15 @@ export class FloatingClickWidget extends Widget implements IOverlayWidget {
 		this._domNode = $('.floating-click-widget');
 
 		this._register(attachStylerCallback(this.themeService, { buttonBackground, buttonForeground, editorBackground, editorForeground, contrastBorder }, colors => {
-			this._domNode.style.backgroundColor = colors.buttonBackground ? colors.buttonBackground.toString() : colors.editorBackground.toString();
-			this._domNode.style.color = colors.buttonForeground ? colors.buttonForeground.toString() : colors.editorForeground.toString();
+			const backgroundColor = colors.buttonBackground ? colors.buttonBackground : colors.editorBackground;
+			if (backgroundColor) {
+				this._domNode.style.backgroundColor = backgroundColor.toString();
+			}
+
+			const foregroundColor = colors.buttonForeground ? colors.buttonForeground : colors.editorForeground;
+			if (foregroundColor) {
+				this._domNode.style.color = foregroundColor.toString();
+			}
 
 			const borderColor = colors.contrastBorder ? colors.contrastBorder.toString() : null;
 			this._domNode.style.borderWidth = borderColor ? '1px' : null;
@@ -99,9 +106,9 @@ export class OpenWorkspaceButtonContribution extends Disposable implements IEdit
 
 	constructor(
 		private editor: ICodeEditor,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IWindowService private windowService: IWindowService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IWindowService private readonly windowService: IWindowService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
 	) {
 		super();
 
@@ -149,7 +156,12 @@ export class OpenWorkspaceButtonContribution extends Disposable implements IEdit
 	private createOpenWorkspaceWidgetRenderer(): void {
 		if (!this.openWorkspaceButton) {
 			this.openWorkspaceButton = this.instantiationService.createInstance(FloatingClickWidget, this.editor, localize('openWorkspace', "Open Workspace"), null);
-			this._register(this.openWorkspaceButton.onClick(() => this.windowService.openWindow([this.editor.getModel().uri])));
+			this._register(this.openWorkspaceButton.onClick(() => {
+				const model = this.editor.getModel();
+				if (model) {
+					this.windowService.openWindow([model.uri]);
+				}
+			}));
 
 			this.openWorkspaceButton.render();
 		}

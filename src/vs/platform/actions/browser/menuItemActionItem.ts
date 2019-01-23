@@ -83,13 +83,13 @@ export function fillInContextMenuActions(menu: IMenu, options: IMenuActionOption
 	fillInActions(groups, target, getAlternativeActions, isPrimaryGroup);
 }
 
-export function fillInActionBarActions(menu: IMenu, options: IMenuActionOptions, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, isPrimaryGroup?: (group: string) => boolean): void {
+export function fillInActionBarActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, isPrimaryGroup?: (group: string) => boolean): void {
 	const groups = menu.getActions(options);
 	// Action bars handle alternative actions on their own so the alternative actions should be ignored
 	fillInActions(groups, target, false, isPrimaryGroup);
 }
 
-function fillInActions(groups: [string, (MenuItemAction | SubmenuItemAction)[]][], target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, getAlternativeActions, isPrimaryGroup: (group: string) => boolean = group => group === 'navigation'): void {
+function fillInActions(groups: [string, Array<MenuItemAction | SubmenuItemAction>][], target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, getAlternativeActions, isPrimaryGroup: (group: string) => boolean = group => group === 'navigation'): void {
 	for (let tuple of groups) {
 		let [group, actions] = tuple;
 		if (getAlternativeActions) {
@@ -113,7 +113,7 @@ function fillInActions(groups: [string, (MenuItemAction | SubmenuItemAction)[]][
 }
 
 
-export function createActionItem(action: IAction, keybindingService: IKeybindingService, notificationService: INotificationService, contextMenuService: IContextMenuService): ActionItem {
+export function createActionItem(action: IAction, keybindingService: IKeybindingService, notificationService: INotificationService, contextMenuService: IContextMenuService): ActionItem | undefined {
 	if (action instanceof MenuItemAction) {
 		return new MenuItemActionItem(action, keybindingService, notificationService, contextMenuService);
 	}
@@ -127,15 +127,17 @@ export class MenuItemActionItem extends ActionItem {
 	static readonly ICON_PATH_TO_CSS_RULES: Map<string /* path*/, string /* CSS rule */> = new Map<string, string>();
 
 	private _wantsAltCommand: boolean;
-	private _itemClassDispose: IDisposable;
+	private _itemClassDispose?: IDisposable;
+	private readonly _altKey: AlternativeKeyEmitter;
 
 	constructor(
-		public _action: MenuItemAction,
+		readonly _action: MenuItemAction,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@INotificationService protected _notificationService: INotificationService,
-		@IContextMenuService private readonly _contextMenuService: IContextMenuService
+		@IContextMenuService _contextMenuService: IContextMenuService
 	) {
 		super(undefined, _action, { icon: !!(_action.class || _action.item.iconLocation), label: !_action.class && !_action.item.iconLocation });
+		this._altKey = AlternativeKeyEmitter.getInstance(_contextMenuService);
 	}
 
 	protected get _commandAction(): IAction {
@@ -146,9 +148,8 @@ export class MenuItemActionItem extends ActionItem {
 		event.preventDefault();
 		event.stopPropagation();
 
-		const altKey = AlternativeKeyEmitter.getInstance(this._contextMenuService);
-		if (altKey.isPressed) {
-			altKey.suppressAltKeyUp();
+		if (this._altKey.isPressed) {
+			this._altKey.suppressAltKeyUp();
 		}
 
 		this.actionRunner.run(this._commandAction)
@@ -161,8 +162,8 @@ export class MenuItemActionItem extends ActionItem {
 		this._updateItemClass(this._action.item);
 
 		let mouseOver = false;
-		const alternativeKeyEmitter = AlternativeKeyEmitter.getInstance(this._contextMenuService);
-		let alternativeKeyDown = alternativeKeyEmitter.isPressed;
+
+		let alternativeKeyDown = this._altKey.isPressed;
 
 		const updateAltState = () => {
 			const wantsAltCommand = mouseOver && alternativeKeyDown;
@@ -174,10 +175,12 @@ export class MenuItemActionItem extends ActionItem {
 			}
 		};
 
-		this._register(alternativeKeyEmitter.event(value => {
-			alternativeKeyDown = value;
-			updateAltState();
-		}));
+		if (this._action.alt) {
+			this._register(this._altKey.event(value => {
+				alternativeKeyDown = value;
+				updateAltState();
+			}));
+		}
 
 		this._register(domEvent(container, 'mouseleave')(_ => {
 			mouseOver = false;
@@ -209,7 +212,9 @@ export class MenuItemActionItem extends ActionItem {
 	updateClass(): void {
 		if (this.options.icon) {
 			if (this._commandAction !== this._action) {
-				this._updateItemClass(this._action.alt.item);
+				if (this._action.alt) {
+					this._updateItemClass(this._action.alt.item);
+				}
 			} else if ((<MenuItemAction>this._action).alt) {
 				this._updateItemClass(this._action.item);
 			}
@@ -226,7 +231,7 @@ export class MenuItemActionItem extends ActionItem {
 			const iconPathMapKey = item.iconLocation.dark.toString();
 
 			if (MenuItemActionItem.ICON_PATH_TO_CSS_RULES.has(iconPathMapKey)) {
-				iconClass = MenuItemActionItem.ICON_PATH_TO_CSS_RULES.get(iconPathMapKey);
+				iconClass = MenuItemActionItem.ICON_PATH_TO_CSS_RULES.get(iconPathMapKey)!;
 			} else {
 				iconClass = ids.nextId();
 				createCSSRule(`.icon.${iconClass}`, `background-image: url("${(item.iconLocation.light || item.iconLocation.dark).toString()}")`);

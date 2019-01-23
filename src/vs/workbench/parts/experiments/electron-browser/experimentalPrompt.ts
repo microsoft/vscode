@@ -10,15 +10,16 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IExtensionsViewlet } from 'vs/workbench/parts/extensions/common/extensions';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { language } from 'vs/base/common/platform';
 
 export class ExperimentalPrompts extends Disposable implements IWorkbenchContribution {
 	private _disposables: IDisposable[] = [];
 
 	constructor(
-		@IExperimentService private experimentService: IExperimentService,
-		@IViewletService private viewletService: IViewletService,
-		@INotificationService private notificationService: INotificationService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@IExperimentService private readonly experimentService: IExperimentService,
+		@IViewletService private readonly viewletService: IViewletService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 
 	) {
 		super();
@@ -50,7 +51,8 @@ export class ExperimentalPrompts extends Disposable implements IWorkbenchContrib
 		};
 
 		const actionProperties = (<IExperimentActionPromptProperties>experiment.action.properties);
-		if (!actionProperties || !actionProperties.promptText) {
+		const promptText = ExperimentalPrompts.getLocalizedText(actionProperties.promptText, language || '');
+		if (!actionProperties || !promptText) {
 			return;
 		}
 		if (!actionProperties.commands) {
@@ -58,10 +60,11 @@ export class ExperimentalPrompts extends Disposable implements IWorkbenchContrib
 		}
 
 		const choices: IPromptChoice[] = actionProperties.commands.map((command: IExperimentActionPromptCommand) => {
+			const commandText = ExperimentalPrompts.getLocalizedText(command.text, language || '');
 			return {
-				label: command.text,
+				label: commandText,
 				run: () => {
-					logTelemetry(command.text);
+					logTelemetry(commandText);
 					if (command.externalLink) {
 						window.open(command.externalLink);
 					} else if (command.curatedExtensionsKey && Array.isArray(command.curatedExtensionsList)) {
@@ -80,7 +83,7 @@ export class ExperimentalPrompts extends Disposable implements IWorkbenchContrib
 			};
 		});
 
-		this.notificationService.prompt(Severity.Info, actionProperties.promptText, choices, {
+		this.notificationService.prompt(Severity.Info, promptText, choices, {
 			onCancel: () => {
 				logTelemetry();
 				this.experimentService.markAsCompleted(experiment.id);
@@ -90,5 +93,17 @@ export class ExperimentalPrompts extends Disposable implements IWorkbenchContrib
 
 	dispose() {
 		this._disposables = dispose(this._disposables);
+	}
+
+	static getLocalizedText(text: string | { [key: string]: string }, displayLanguage: string): string {
+		if (typeof text === 'string') {
+			return text;
+		}
+		const msgInEnglish = text['en'] || text['en-us'];
+		displayLanguage = displayLanguage.toLowerCase();
+		if (!text[displayLanguage] && displayLanguage.indexOf('-') === 2) {
+			displayLanguage = displayLanguage.substr(0, 2);
+		}
+		return text[displayLanguage] || msgInEnglish;
 	}
 }

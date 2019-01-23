@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Keybinding, ResolvedKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
-import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { ScanCodeBinding } from 'vs/base/common/scanCode';
+import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 
 export interface IKeyboardMapper {
 	dumpDebugInfo(): string;
@@ -29,13 +29,14 @@ export class CachedKeyboardMapper implements IKeyboardMapper {
 	}
 
 	public resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding[] {
-		let hashCode = keybinding.getHashCode();
-		if (!this._cache.has(hashCode)) {
-			let r = this._actual.resolveKeybinding(keybinding);
+		const hashCode = keybinding.getHashCode();
+		const resolved = this._cache.get(hashCode);
+		if (!resolved) {
+			const r = this._actual.resolveKeybinding(keybinding);
 			this._cache.set(hashCode, r);
 			return r;
 		}
-		return this._cache.get(hashCode);
+		return resolved;
 	}
 
 	public resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding {

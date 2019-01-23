@@ -21,11 +21,11 @@ export function setUriThrowOnMissingScheme(value: boolean): boolean {
 	return old;
 }
 
-function _validateUri(ret: URI): void {
+function _validateUri(ret: URI, _strict?: boolean): void {
 
 	// scheme, must be set
 	if (!ret.scheme) {
-		if (_throwOnMissingSchema) {
+		if (_strict || _throwOnMissingSchema) {
 			throw new Error(`[UriError]: Scheme is missing: {scheme: "", authority: "${ret.authority}", path: "${ret.path}", query: "${ret.query}", fragment: "${ret.fragment}"}`);
 		} else {
 			console.warn(`[UriError]: Scheme is missing: {scheme: "", authority: "${ret.authority}", path: "${ret.path}", query: "${ret.query}", fragment: "${ret.fragment}"}`);
@@ -108,7 +108,10 @@ export class URI implements UriComponents {
 			&& typeof (<URI>thing).fragment === 'string'
 			&& typeof (<URI>thing).path === 'string'
 			&& typeof (<URI>thing).query === 'string'
-			&& typeof (<URI>thing).scheme === 'string';
+			&& typeof (<URI>thing).scheme === 'string'
+			&& typeof (<URI>thing).fsPath === 'function'
+			&& typeof (<URI>thing).with === 'function'
+			&& typeof (<URI>thing).toString === 'function';
 	}
 
 	/**
@@ -141,7 +144,7 @@ export class URI implements UriComponents {
 	/**
 	 * @internal
 	 */
-	protected constructor(scheme: string, authority?: string, path?: string, query?: string, fragment?: string);
+	protected constructor(scheme: string, authority?: string, path?: string, query?: string, fragment?: string, _strict?: boolean);
 
 	/**
 	 * @internal
@@ -151,7 +154,7 @@ export class URI implements UriComponents {
 	/**
 	 * @internal
 	 */
-	protected constructor(schemeOrData: string | UriComponents, authority?: string, path?: string, query?: string, fragment?: string) {
+	protected constructor(schemeOrData: string | UriComponents, authority?: string, path?: string, query?: string, fragment?: string, _strict?: boolean) {
 
 		if (typeof schemeOrData === 'object') {
 			this.scheme = schemeOrData.scheme || _empty;
@@ -169,7 +172,7 @@ export class URI implements UriComponents {
 			this.query = query || _empty;
 			this.fragment = fragment || _empty;
 
-			_validateUri(this);
+			_validateUri(this, _strict);
 		}
 	}
 
@@ -215,27 +218,27 @@ export class URI implements UriComponents {
 		}
 
 		let { scheme, authority, path, query, fragment } = change;
-		if (scheme === void 0) {
+		if (scheme === undefined) {
 			scheme = this.scheme;
 		} else if (scheme === null) {
 			scheme = _empty;
 		}
-		if (authority === void 0) {
+		if (authority === undefined) {
 			authority = this.authority;
 		} else if (authority === null) {
 			authority = _empty;
 		}
-		if (path === void 0) {
+		if (path === undefined) {
 			path = this.path;
 		} else if (path === null) {
 			path = _empty;
 		}
-		if (query === void 0) {
+		if (query === undefined) {
 			query = this.query;
 		} else if (query === null) {
 			query = _empty;
 		}
-		if (fragment === void 0) {
+		if (fragment === undefined) {
 			fragment = this.fragment;
 		} else if (fragment === null) {
 			fragment = _empty;
@@ -261,7 +264,7 @@ export class URI implements UriComponents {
 	 *
 	 * @param value A string which represents an URI (see `URI#toString`).
 	 */
-	public static parse(value: string): URI {
+	public static parse(value: string, _strict: boolean = false): URI {
 		const match = _regexp.exec(value);
 		if (!match) {
 			return new _URI(_empty, _empty, _empty, _empty, _empty);
@@ -272,6 +275,7 @@ export class URI implements UriComponents {
 			decodeURIComponent(match[5] || _empty),
 			decodeURIComponent(match[7] || _empty),
 			decodeURIComponent(match[9] || _empty),
+			_strict
 		);
 	}
 
@@ -336,7 +340,7 @@ export class URI implements UriComponents {
 	// ---- printing/externalize ---------------------------
 
 	/**
-	 * Creates a string presentation for this URI. It's guardeed that calling
+	 * Creates a string representation for this URI. It's guaranteed that calling
 	 * `URI.parse` with the result of this function creates an URI which is equal
 	 * to this URI.
 	 *
@@ -361,10 +365,8 @@ export class URI implements UriComponents {
 			return data;
 		} else {
 			let result = new _URI(data);
-			if ((<UriState>data).$mid === 100) {
-				result._fsPath = (<UriState>data).fsPath;
-				result._formatted = (<UriState>data).external;
-			}
+			result._fsPath = (<UriState>data).fsPath;
+			result._formatted = (<UriState>data).external;
 			return result;
 		}
 	}
@@ -379,7 +381,7 @@ export interface UriComponents {
 }
 
 interface UriState extends UriComponents {
-	$mid: 100;
+	$mid: number;
 	fsPath: string;
 	external: string;
 }
@@ -412,7 +414,7 @@ class _URI extends URI {
 
 	toJSON(): object {
 		const res = <UriState>{
-			$mid: 100
+			$mid: 1
 		};
 		// cached state
 		if (this._fsPath) {
@@ -466,11 +468,11 @@ const encodeTable: { [ch: number]: string } = {
 	[CharCode.Space]: '%20',
 };
 
-function encodeURIComponentFast(uriComponent: string, allowSlash: boolean, firstPos: number = 0): string {
+function encodeURIComponentFast(uriComponent: string, allowSlash: boolean): string {
 	let res: string | undefined = undefined;
 	let nativeEncodePos = -1;
 
-	for (let pos = firstPos; pos < uriComponent.length; pos++) {
+	for (let pos = 0; pos < uriComponent.length; pos++) {
 		let code = uriComponent.charCodeAt(pos);
 
 		// unreserved characters: https://tools.ietf.org/html/rfc3986#section-2.3
@@ -547,7 +549,6 @@ function encodeURIComponentMinimal(path: string): string {
 
 /**
  * Compute `fsPath` for the given uri
- * @param uri
  */
 function _makeFsPath(uri: URI): string {
 
@@ -620,31 +621,19 @@ function _asFormatted(uri: URI, skipEncoding: boolean): string {
 	}
 	if (path) {
 		// lower-case windows drive letters in /C:/fff or C:/fff
-		let encodeOffset = 0;
 		if (path.length >= 3 && path.charCodeAt(0) === CharCode.Slash && path.charCodeAt(2) === CharCode.Colon) {
 			let code = path.charCodeAt(1);
 			if (code >= CharCode.A && code <= CharCode.Z) {
 				path = `/${String.fromCharCode(code + 32)}:${path.substr(3)}`; // "/c:".length === 3
-				encodeOffset = 3;
-			} else if (code >= CharCode.a && code <= CharCode.z) {
-				encodeOffset = 3;
 			}
-
 		} else if (path.length >= 2 && path.charCodeAt(1) === CharCode.Colon) {
 			let code = path.charCodeAt(0);
 			if (code >= CharCode.A && code <= CharCode.Z) {
 				path = `${String.fromCharCode(code + 32)}:${path.substr(2)}`; // "/c:".length === 3
-				encodeOffset = 2;
-			} else if (code >= CharCode.a && code <= CharCode.z) {
-				encodeOffset = 2;
 			}
 		}
-		if (scheme !== 'file' || path.length > encodeOffset && path.charCodeAt(encodeOffset) !== CharCode.Slash) {
-			encodeOffset = 0;
-		}
-
 		// encode the rest of the path
-		res += encoder(path, true, encodeOffset);
+		res += encoder(path, true);
 	}
 	if (query) {
 		res += '?';

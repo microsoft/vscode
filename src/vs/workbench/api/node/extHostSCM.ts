@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { Event, Emitter, once } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { debounce } from 'vs/base/common/decorators';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { asThenable } from 'vs/base/common/async';
+import { asPromise } from 'vs/base/common/async';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceSplice, SCMRawResourceSplices, IMainContext, ExtHostSCMShape } from './extHost.protocol';
@@ -18,6 +17,7 @@ import * as vscode from 'vscode';
 import { ISplice } from 'vs/base/common/sequence';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 type ProviderHandle = number;
 type GroupHandle = number;
@@ -179,7 +179,7 @@ export class ExtHostSCMInputBox implements vscode.SourceControlInputBox {
 
 	get validateInput(): IValidateInput {
 		if (!this._extension.enableProposedApi) {
-			throw new Error(`[${this._extension.id}]: Proposed API is only available when running out of dev or with the following command line switch: --enable-proposed-api ${this._extension.id}`);
+			throw new Error(`[${this._extension.identifier.value}]: Proposed API is only available when running out of dev or with the following command line switch: --enable-proposed-api ${this._extension.identifier.value}`);
 		}
 
 		return this._validateInput;
@@ -187,7 +187,7 @@ export class ExtHostSCMInputBox implements vscode.SourceControlInputBox {
 
 	set validateInput(fn: IValidateInput) {
 		if (!this._extension.enableProposedApi) {
-			throw new Error(`[${this._extension.id}]: Proposed API is only available when running out of dev or with the following command line switch: --enable-proposed-api ${this._extension.id}`);
+			throw new Error(`[${this._extension.identifier.value}]: Proposed API is only available when running out of dev or with the following command line switch: --enable-proposed-api ${this._extension.identifier.value}`);
 		}
 
 		if (fn && typeof fn !== 'function') {
@@ -197,6 +197,18 @@ export class ExtHostSCMInputBox implements vscode.SourceControlInputBox {
 
 		this._validateInput = fn;
 		this._proxy.$setValidationProviderIsEnabled(this._sourceControlHandle, !!fn);
+	}
+
+	private _visible: boolean = true;
+
+	get visible(): boolean {
+		return this._visible;
+	}
+
+	set visible(visible: boolean | undefined) {
+		visible = !!visible;
+		this._visible = visible;
+		this._proxy.$setInputBoxVisibility(this._sourceControlHandle, visible);
 	}
 
 	constructor(private _extension: IExtensionDescription, private _proxy: MainThreadSCMShape, private _sourceControlHandle: number) {
@@ -268,14 +280,14 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 		return this._resourceStatesMap.get(handle);
 	}
 
-	$executeResourceCommand(handle: number): Thenable<void> {
+	$executeResourceCommand(handle: number): Promise<void> {
 		const command = this._resourceStatesCommandsMap.get(handle);
 
 		if (!command) {
-			return Promise.resolve(null);
+			return Promise.resolve(undefined);
 		}
 
-		return asThenable(() => this._commands.executeCommand(command.command, ...command.arguments));
+		return asPromise(() => this._commands.executeCommand(command.command, ...command.arguments));
 	}
 
 	_takeResourceStateSnapshot(): SCMRawResourceSplice[] {
@@ -467,7 +479,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 			this.eventuallyUpdateResourceStates();
 		});
 
-		once(group.onDidDispose)(() => {
+		Event.once(group.onDidDispose)(() => {
 			this.updatedResourceGroups.delete(group);
 			updateListener.dispose();
 			this._groups.delete(group.handle);
@@ -529,7 +541,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 	constructor(
 		mainContext: IMainContext,
 		private _commands: ExtHostCommands,
-		@ILogService private logService: ILogService
+		@ILogService private readonly logService: ILogService
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadSCM);
 
@@ -573,97 +585,97 @@ export class ExtHostSCM implements ExtHostSCMShape {
 	}
 
 	createSourceControl(extension: IExtensionDescription, id: string, label: string, rootUri: vscode.Uri | undefined): vscode.SourceControl {
-		this.logService.trace('ExtHostSCM#createSourceControl', extension.id, id, label, rootUri);
+		this.logService.trace('ExtHostSCM#createSourceControl', extension.identifier.value, id, label, rootUri);
 
 		const handle = ExtHostSCM._handlePool++;
 		const sourceControl = new ExtHostSourceControl(extension, this._proxy, this._commands, id, label, rootUri);
 		this._sourceControls.set(handle, sourceControl);
 
-		const sourceControls = this._sourceControlsByExtension.get(extension.id) || [];
+		const sourceControls = this._sourceControlsByExtension.get(ExtensionIdentifier.toKey(extension.identifier)) || [];
 		sourceControls.push(sourceControl);
-		this._sourceControlsByExtension.set(extension.id, sourceControls);
+		this._sourceControlsByExtension.set(ExtensionIdentifier.toKey(extension.identifier), sourceControls);
 
 		return sourceControl;
 	}
 
 	// Deprecated
 	getLastInputBox(extension: IExtensionDescription): ExtHostSCMInputBox {
-		this.logService.trace('ExtHostSCM#getLastInputBox', extension.id);
+		this.logService.trace('ExtHostSCM#getLastInputBox', extension.identifier.value);
 
-		const sourceControls = this._sourceControlsByExtension.get(extension.id);
+		const sourceControls = this._sourceControlsByExtension.get(ExtensionIdentifier.toKey(extension.identifier));
 		const sourceControl = sourceControls && sourceControls[sourceControls.length - 1];
 		const inputBox = sourceControl && sourceControl.inputBox;
 
 		return inputBox;
 	}
 
-	$provideOriginalResource(sourceControlHandle: number, uriComponents: UriComponents, token: CancellationToken): Thenable<UriComponents> {
+	$provideOriginalResource(sourceControlHandle: number, uriComponents: UriComponents, token: CancellationToken): Promise<UriComponents | null> {
 		const uri = URI.revive(uriComponents);
 		this.logService.trace('ExtHostSCM#$provideOriginalResource', sourceControlHandle, uri.toString());
 
 		const sourceControl = this._sourceControls.get(sourceControlHandle);
 
 		if (!sourceControl || !sourceControl.quickDiffProvider) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
-		return asThenable(() => sourceControl.quickDiffProvider.provideOriginalResource(uri, token));
+		return asPromise(() => sourceControl.quickDiffProvider.provideOriginalResource(uri, token));
 	}
 
-	$onInputBoxValueChange(sourceControlHandle: number, value: string): TPromise<void> {
+	$onInputBoxValueChange(sourceControlHandle: number, value: string): Promise<void> {
 		this.logService.trace('ExtHostSCM#$onInputBoxValueChange', sourceControlHandle);
 
 		const sourceControl = this._sourceControls.get(sourceControlHandle);
 
 		if (!sourceControl) {
-			return TPromise.as(null);
+			return Promise.resolve(undefined);
 		}
 
 		sourceControl.inputBox.$onInputBoxValueChange(value);
-		return TPromise.as(null);
+		return Promise.resolve(undefined);
 	}
 
-	$executeResourceCommand(sourceControlHandle: number, groupHandle: number, handle: number): Thenable<void> {
+	$executeResourceCommand(sourceControlHandle: number, groupHandle: number, handle: number): Promise<void> {
 		this.logService.trace('ExtHostSCM#$executeResourceCommand', sourceControlHandle, groupHandle, handle);
 
 		const sourceControl = this._sourceControls.get(sourceControlHandle);
 
 		if (!sourceControl) {
-			return TPromise.as(null);
+			return Promise.resolve(undefined);
 		}
 
 		const group = sourceControl.getResourceGroup(groupHandle);
 
 		if (!group) {
-			return TPromise.as(null);
+			return Promise.resolve(undefined);
 		}
 
 		return group.$executeResourceCommand(handle);
 	}
 
-	$validateInput(sourceControlHandle: number, value: string, cursorPosition: number): Thenable<[string, number] | undefined> {
+	$validateInput(sourceControlHandle: number, value: string, cursorPosition: number): Promise<[string, number] | undefined> {
 		this.logService.trace('ExtHostSCM#$validateInput', sourceControlHandle);
 
 		const sourceControl = this._sourceControls.get(sourceControlHandle);
 
 		if (!sourceControl) {
-			return TPromise.as(undefined);
+			return Promise.resolve(undefined);
 		}
 
 		if (!sourceControl.inputBox.validateInput) {
-			return TPromise.as(undefined);
+			return Promise.resolve(undefined);
 		}
 
-		return asThenable(() => sourceControl.inputBox.validateInput(value, cursorPosition)).then(result => {
+		return asPromise(() => sourceControl.inputBox.validateInput(value, cursorPosition)).then(result => {
 			if (!result) {
-				return TPromise.as(undefined);
+				return Promise.resolve(undefined);
 			}
 
-			return TPromise.as<[string, number]>([result.message, result.type]);
+			return Promise.resolve<[string, number]>([result.message, result.type]);
 		});
 	}
 
-	$setSelectedSourceControls(selectedSourceControlHandles: number[]): Thenable<void> {
+	$setSelectedSourceControls(selectedSourceControlHandles: number[]): Promise<void> {
 		this.logService.trace('ExtHostSCM#$setSelectedSourceControls', selectedSourceControlHandles);
 
 		const set = new Set<number>();
@@ -697,6 +709,6 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		});
 
 		this._selectedSourceControlHandles = set;
-		return TPromise.as(null);
+		return Promise.resolve(undefined);
 	}
 }

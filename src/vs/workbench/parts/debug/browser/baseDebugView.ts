@@ -4,23 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { IExpression, IDebugService, IEnablement } from 'vs/workbench/parts/debug/common/debug';
+import { IExpression, IDebugService } from 'vs/workbench/parts/debug/common/debug';
 import { Expression, Variable } from 'vs/workbench/parts/debug/common/debugModel';
-import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ITree, ContextMenuEvent, IActionProvider } from 'vs/base/parts/tree/browser/tree';
-import { InputBox, IInputValidationOptions } from 'vs/base/browser/ui/inputbox/inputBox';
-import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IInputValidationOptions, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
+import { ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { once } from 'vs/base/common/functional';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
-import { IControllerOptions } from 'vs/base/parts/tree/browser/treeDefaults';
-import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { WorkbenchTreeController } from 'vs/platform/list/browser/listService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
 export const twistiePixels = 20;
@@ -114,129 +107,108 @@ export function renderVariable(variable: Variable, data: IVariableTemplateData, 
 	}
 }
 
-export interface IRenameBoxOptions {
+export interface IInputBoxOptions {
 	initialValue: string;
 	ariaLabel: string;
 	placeholder?: string;
 	validationOptions?: IInputValidationOptions;
+	onFinish: (value: string, success: boolean) => void;
 }
 
-export function renderRenameBox(debugService: IDebugService, contextViewService: IContextViewService, themeService: IThemeService, tree: ITree, element: any, container: HTMLElement, options: IRenameBoxOptions): void {
-	let inputBoxContainer = dom.append(container, $('.inputBoxContainer'));
-	let inputBox = new InputBox(inputBoxContainer, contextViewService, {
-		validationOptions: options.validationOptions,
-		placeholder: options.placeholder,
-		ariaLabel: options.ariaLabel
-	});
-	const styler = attachInputBoxStyler(inputBox, themeService);
-
-	inputBox.value = options.initialValue ? options.initialValue : '';
-	inputBox.focus();
-	inputBox.select();
-	tree.clearFocus();
-	tree.clearSelection();
-
-	let disposed = false;
-	const toDispose: IDisposable[] = [inputBox, styler];
-
-	const wrapUp = once((renamed: boolean) => {
-		if (!disposed) {
-			disposed = true;
-			debugService.getViewModel().setSelectedExpression(undefined);
-			if (element instanceof Expression && renamed && inputBox.value) {
-				debugService.renameWatchExpression(element.getId(), inputBox.value);
-			} else if (element instanceof Expression && !element.name) {
-				debugService.removeWatchExpressions(element.getId());
-			} else if (element instanceof Variable) {
-				element.errorMessage = null;
-				if (renamed && element.value !== inputBox.value) {
-					element.setVariable(inputBox.value)
-						// if everything went fine we need to refresh ui elements since the variable update can change watch and variables view
-						.then(() => {
-							tree.refresh(element, false);
-							// Need to force watch expressions to update since a variable change can have an effect on watches
-							debugService.focusStackFrame(debugService.getViewModel().focusedStackFrame);
-						});
-				}
-			}
-
-			tree.domFocus();
-			tree.setFocus(element);
-
-			// need to remove the input box since this template will be reused.
-			container.removeChild(inputBoxContainer);
-			dispose(toDispose);
-		}
-	});
-
-	toDispose.push(dom.addStandardDisposableListener(inputBox.inputElement, 'keydown', (e: IKeyboardEvent) => {
-		const isEscape = e.equals(KeyCode.Escape);
-		const isEnter = e.equals(KeyCode.Enter);
-		if (isEscape || isEnter) {
-			e.preventDefault();
-			e.stopPropagation();
-			wrapUp(isEnter);
-		}
-	}));
-	toDispose.push(dom.addDisposableListener(inputBox.inputElement, 'blur', () => {
-		wrapUp(true);
-	}));
+export interface IExpressionTemplateData {
+	expression: HTMLElement;
+	name: HTMLSpanElement;
+	value: HTMLSpanElement;
+	inputBoxContainer: HTMLElement;
+	enableInputBox(expression: IExpression, options: IInputBoxOptions);
+	toDispose: IDisposable[];
 }
 
-export class BaseDebugController extends WorkbenchTreeController {
-
-	private contributedContextMenu: IMenu;
+export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpression, void, IExpressionTemplateData> {
 
 	constructor(
-		private actionProvider: IActionProvider,
-		menuId: MenuId,
-		options: IControllerOptions,
 		@IDebugService protected debugService: IDebugService,
-		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IMenuService menuService: IMenuService,
-		@IConfigurationService configurationService: IConfigurationService
-	) {
-		super(options, configurationService);
+		@IContextViewService private readonly contextViewService: IContextViewService,
+		@IThemeService private readonly themeService: IThemeService
+	) { }
 
-		this.contributedContextMenu = menuService.createMenu(menuId, contextKeyService);
-	}
+	abstract get templateId(): string;
 
-	public onContextMenu(tree: ITree, element: IEnablement, event: ContextMenuEvent, focusElement = true): boolean {
-		if (event.target && event.target.tagName && event.target.tagName.toLowerCase() === 'input') {
-			return false;
-		}
+	renderTemplate(container: HTMLElement): IExpressionTemplateData {
+		const data: IExpressionTemplateData = Object.create(null);
+		data.expression = dom.append(container, $('.expression'));
+		data.name = dom.append(data.expression, $('span.name'));
+		data.value = dom.append(data.expression, $('span.value'));
+		data.inputBoxContainer = dom.append(data.expression, $('.inputBoxContainer'));
 
-		event.preventDefault();
-		event.stopPropagation();
+		data.enableInputBox = (expression: IExpression, options: IInputBoxOptions) => {
+			data.name.style.display = 'none';
+			data.value.style.display = 'none';
+			data.inputBoxContainer.style.display = 'initial';
 
-		if (focusElement) {
-			tree.setFocus(element);
-		}
-
-		if (this.actionProvider.hasSecondaryActions(tree, element)) {
-			const anchor = { x: event.posx, y: event.posy };
-			this.contextMenuService.showContextMenu({
-				getAnchor: () => anchor,
-				getActions: () => this.actionProvider.getSecondaryActions(tree, element).then(actions => {
-					fillInContextMenuActions(this.contributedContextMenu, { arg: this.getContext(element) }, actions, this.contextMenuService);
-					return actions;
-				}),
-				onHide: (wasCancelled?: boolean) => {
-					if (wasCancelled) {
-						tree.domFocus();
-					}
-				},
-				getActionsContext: () => element
+			const inputBox = new InputBox(data.inputBoxContainer, this.contextViewService, {
+				placeholder: options.placeholder,
+				ariaLabel: options.ariaLabel
 			});
+			const styler = attachInputBoxStyler(inputBox, this.themeService);
 
-			return true;
-		}
+			inputBox.value = options.initialValue;
+			inputBox.focus();
+			inputBox.select();
 
-		return false;
+			let disposed = false;
+			data.toDispose = [inputBox, styler];
+
+			const wrapUp = (renamed: boolean) => {
+				if (!disposed) {
+					disposed = true;
+					this.debugService.getViewModel().setSelectedExpression(undefined);
+					options.onFinish(inputBox.value, renamed);
+
+					// need to remove the input box since this template will be reused.
+					data.inputBoxContainer.removeChild(inputBox.element);
+					data.name.style.display = 'initial';
+					data.value.style.display = 'initial';
+					data.inputBoxContainer.style.display = 'none';
+					dispose(data.toDispose);
+				}
+			};
+
+			data.toDispose.push(dom.addStandardDisposableListener(inputBox.inputElement, 'keydown', (e: IKeyboardEvent) => {
+				const isEscape = e.equals(KeyCode.Escape);
+				const isEnter = e.equals(KeyCode.Enter);
+				if (isEscape || isEnter) {
+					e.preventDefault();
+					e.stopPropagation();
+					wrapUp(isEnter);
+				}
+			}));
+			data.toDispose.push(dom.addDisposableListener(inputBox.inputElement, 'blur', () => {
+				wrapUp(true);
+			}));
+			data.toDispose.push(dom.addDisposableListener(inputBox.inputElement, 'click', e => {
+				// Do not expand / collapse selected elements
+				e.preventDefault();
+				e.stopPropagation();
+			}));
+		};
+
+		return data;
 	}
 
-	protected getContext(element: any): any {
-		return undefined;
+	renderElement(node: ITreeNode<IExpression>, index: number, data: IExpressionTemplateData): void {
+		const { element } = node;
+		if (element === this.debugService.getViewModel().getSelectedExpression()) {
+			data.enableInputBox(element, this.getInputBoxOptions(element));
+		} else {
+			this.renderExpression(element, data);
+		}
+	}
+
+	protected abstract renderExpression(expression: IExpression, data: IExpressionTemplateData): void;
+	protected abstract getInputBoxOptions(expression: IExpression): IInputBoxOptions;
+
+	disposeTemplate(templateData: IExpressionTemplateData): void {
+		dispose(templateData.toDispose);
 	}
 }

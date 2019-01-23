@@ -20,14 +20,14 @@ export class ResourceGlobMatcher extends Disposable {
 	private readonly _onExpressionChange: Emitter<void> = this._register(new Emitter<void>());
 	get onExpressionChange(): Event<void> { return this._onExpressionChange.event; }
 
-	private mapRootToParsedExpression: Map<string, ParsedExpression>;
-	private mapRootToExpressionConfig: Map<string, IExpression>;
+	private mapRootToParsedExpression: Map<string | null, ParsedExpression>;
+	private mapRootToExpressionConfig: Map<string | null, IExpression>;
 
 	constructor(
 		private globFn: (root?: URI) => IExpression,
 		private shouldUpdate: (event: IConfigurationChangeEvent) => boolean,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
@@ -69,7 +69,7 @@ export class ResourceGlobMatcher extends Disposable {
 				return; // always keep this one
 			}
 
-			if (!this.contextService.getWorkspaceFolder(URI.parse(root))) {
+			if (root && !this.contextService.getWorkspaceFolder(URI.parse(root))) {
 				this.mapRootToParsedExpression.delete(root);
 				this.mapRootToExpressionConfig.delete(root);
 
@@ -96,9 +96,9 @@ export class ResourceGlobMatcher extends Disposable {
 
 		let expressionForRoot: ParsedExpression;
 		if (folder && this.mapRootToParsedExpression.has(folder.uri.toString())) {
-			expressionForRoot = this.mapRootToParsedExpression.get(folder.uri.toString());
+			expressionForRoot = this.mapRootToParsedExpression.get(folder.uri.toString())!;
 		} else {
-			expressionForRoot = this.mapRootToParsedExpression.get(ResourceGlobMatcher.NO_ROOT);
+			expressionForRoot = this.mapRootToParsedExpression.get(ResourceGlobMatcher.NO_ROOT)!;
 		}
 
 		// If the resource if from a workspace, convert its absolute path to a relative

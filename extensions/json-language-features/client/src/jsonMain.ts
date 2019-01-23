@@ -8,8 +8,8 @@ import * as fs from 'fs';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-import { workspace, languages, ExtensionContext, extensions, Uri, LanguageConfiguration } from 'vscode';
-import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification } from 'vscode-languageclient';
+import { workspace, window, languages, commands, ExtensionContext, extensions, Uri, LanguageConfiguration, Diagnostic, StatusBarAlignment, TextEditor } from 'vscode';
+import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification, HandleDiagnosticsSignature } from 'vscode-languageclient';
 import TelemetryReporter from 'vscode-extension-telemetry';
 
 import { hash } from './utils/hash';
@@ -20,6 +20,10 @@ namespace VSCodeContentRequest {
 
 namespace SchemaContentChangeNotification {
 	export const type: NotificationType<string, any> = new NotificationType('json/schemaContent');
+}
+
+namespace ForceValidateRequest {
+	export const type: RequestType<string, Diagnostic[], any, any> = new RequestType('json/validate');
 }
 
 export interface ISchemaAssociations {
@@ -77,6 +81,14 @@ export function activate(context: ExtensionContext) {
 
 	let documentSelector = ['json', 'jsonc'];
 
+	let schemaResolutionErrorStatusBarItem = window.createStatusBarItem(StatusBarAlignment.Right, 0);
+	schemaResolutionErrorStatusBarItem.command = '_json.retryResolveSchema';
+	schemaResolutionErrorStatusBarItem.tooltip = localize('json.schemaResolutionErrorMessage', 'Unable to resolve schema.') + ' ' + localize('json.clickToRetry', 'Click to retry.');
+	schemaResolutionErrorStatusBarItem.text = '$(alert)';
+	toDispose.push(schemaResolutionErrorStatusBarItem);
+
+	let fileSchemaErrors = new Map<string, string>();
+
 	// Options to control the language client
 	let clientOptions: LanguageClientOptions = {
 		// Register the server for json documents
@@ -89,6 +101,23 @@ export function activate(context: ExtensionContext) {
 		middleware: {
 			workspace: {
 				didChangeConfiguration: () => client.sendNotification(DidChangeConfigurationNotification.type, { settings: getSettings() })
+			},
+			handleDiagnostics: (uri: Uri, diagnostics: Diagnostic[], next: HandleDiagnosticsSignature) => {
+				const schemaErrorIndex = diagnostics.findIndex(candidate => candidate.code === /* SchemaResolveError */ 0x300);
+
+				if (schemaErrorIndex === -1) {
+					fileSchemaErrors.delete(uri.toString());
+					return next(uri, diagnostics);
+				}
+
+				const schemaResolveDiagnostic = diagnostics[schemaErrorIndex];
+				fileSchemaErrors.set(uri.toString(), schemaResolveDiagnostic.message);
+
+				if (window.activeTextEditor && window.activeTextEditor.document.uri.toString() === uri.toString()) {
+					schemaResolutionErrorStatusBarItem.show();
+				}
+
+				next(uri, diagnostics);
 			}
 		}
 	};
@@ -121,8 +150,47 @@ export function activate(context: ExtensionContext) {
 				client.sendNotification(SchemaContentChangeNotification.type, uri.toString());
 			}
 		};
+
+		let handleActiveEditorChange = (activeEditor?: TextEditor) => {
+			if (!activeEditor) {
+				return;
+			}
+
+			const activeDocUri = activeEditor.document.uri.toString();
+
+			if (activeDocUri && fileSchemaErrors.has(activeDocUri)) {
+				schemaResolutionErrorStatusBarItem.show();
+			} else {
+				schemaResolutionErrorStatusBarItem.hide();
+			}
+		};
+
 		toDispose.push(workspace.onDidChangeTextDocument(e => handleContentChange(e.document.uri)));
-		toDispose.push(workspace.onDidCloseTextDocument(d => handleContentChange(d.uri)));
+		toDispose.push(workspace.onDidCloseTextDocument(d => {
+			handleContentChange(d.uri);
+			fileSchemaErrors.delete(d.uri.toString());
+		}));
+		toDispose.push(window.onDidChangeActiveTextEditor(handleActiveEditorChange));
+
+		let handleRetryResolveSchemaCommand = () => {
+			if (window.activeTextEditor) {
+				schemaResolutionErrorStatusBarItem.text = '$(watch)';
+				const activeDocUri = window.activeTextEditor.document.uri.toString();
+				client.sendRequest(ForceValidateRequest.type, activeDocUri).then((diagnostics) => {
+					const schemaErrorIndex = diagnostics.findIndex(candidate => candidate.code === /* SchemaResolveError */ 0x300);
+					if (schemaErrorIndex !== -1) {
+						// Show schema resolution errors in status bar only; ref: #51032
+						const schemaResolveDiagnostic = diagnostics[schemaErrorIndex];
+						fileSchemaErrors.set(activeDocUri, schemaResolveDiagnostic.message);
+					} else {
+						schemaResolutionErrorStatusBarItem.hide();
+					}
+					schemaResolutionErrorStatusBarItem.text = '$(alert)';
+				});
+			}
+		};
+
+		toDispose.push(commands.registerCommand('_json.retryResolveSchema', handleRetryResolveSchemaCommand));
 
 		client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociation(context));
 	});
@@ -270,7 +338,7 @@ function getPackageInfo(context: ExtensionContext): IPackageInfo | undefined {
 			aiKey: extensionPackage.aiKey
 		};
 	}
-	return void 0;
+	return undefined;
 }
 
 function readJSONFile(location: string) {

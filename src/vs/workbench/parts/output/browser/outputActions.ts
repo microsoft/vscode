@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IAction, Action } from 'vs/base/common/actions';
@@ -22,6 +21,7 @@ import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/commo
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { LogViewerInput } from 'vs/workbench/parts/output/browser/logViewer';
+import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
 
 export class ToggleOutputAction extends TogglePanelAction {
 
@@ -44,20 +44,23 @@ export class ClearOutputAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@IOutputService private outputService: IOutputService
+		@IOutputService private readonly outputService: IOutputService
 	) {
 		super(id, label, 'output-action clear-output');
 	}
 
-	public run(): TPromise<boolean> {
+	public run(): Promise<boolean> {
 		this.outputService.getActiveChannel().clear();
 		aria.status(nls.localize('outputCleared', "Output was cleared"));
 
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 }
 
-export class ToggleOutputScrollLockAction extends Action {
+// this action can be triggered in two ways:
+// 1. user clicks the action icon, In which case the action toggles the lock state
+// 2. user clicks inside the output panel, which sets the lock, Or unsets it if they click the last line.
+export class ToggleOrSetOutputScrollLockAction extends Action {
 
 	public static readonly ID = 'workbench.output.action.toggleOutputScrollLock';
 	public static readonly LABEL = nls.localize({ key: 'toggleOutputScrollLock', comment: ['Turn on / off automatic output scrolling'] }, "Toggle Output Scroll Lock");
@@ -65,19 +68,25 @@ export class ToggleOutputScrollLockAction extends Action {
 	private toDispose: IDisposable[] = [];
 
 	constructor(id: string, label: string,
-		@IOutputService private outputService: IOutputService) {
+		@IOutputService private readonly outputService: IOutputService) {
 		super(id, label, 'output-action output-scroll-unlock');
 		this.toDispose.push(this.outputService.onActiveOutputChannel(channel => this.setClass(this.outputService.getActiveChannel().scrollLock)));
 	}
 
-	public run(): TPromise<boolean> {
+	public run(newLockState?: boolean): Promise<boolean> {
+
 		const activeChannel = this.outputService.getActiveChannel();
 		if (activeChannel) {
-			activeChannel.scrollLock = !activeChannel.scrollLock;
+			if (typeof (newLockState) === 'boolean') {
+				activeChannel.scrollLock = newLockState;
+			}
+			else {
+				activeChannel.scrollLock = !activeChannel.scrollLock;
+			}
 			this.setClass(activeChannel.scrollLock);
 		}
 
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 
 	private setClass(locked: boolean) {
@@ -98,13 +107,13 @@ export class SwitchOutputAction extends Action {
 
 	public static readonly ID = 'workbench.output.action.switchBetweenOutputs';
 
-	constructor(@IOutputService private outputService: IOutputService) {
+	constructor(@IOutputService private readonly outputService: IOutputService) {
 		super(SwitchOutputAction.ID, nls.localize('switchToOutput.label', "Switch to Output"));
 
 		this.class = 'output-action switch-to-output';
 	}
 
-	public run(channelId?: string): TPromise<any> {
+	public run(channelId?: string): Promise<any> {
 		return this.outputService.showChannel(channelId);
 	}
 }
@@ -118,11 +127,11 @@ export class SwitchOutputActionItem extends SelectActionItem {
 
 	constructor(
 		action: IAction,
-		@IOutputService private outputService: IOutputService,
+		@IOutputService private readonly outputService: IOutputService,
 		@IThemeService themeService: IThemeService,
 		@IContextViewService contextViewService: IContextViewService
 	) {
-		super(null, action, [], 0, contextViewService, { ariaLabel: nls.localize('outputs', 'Outputs') });
+		super(null, action, [], 0, contextViewService, { ariaLabel: nls.localize('outputChannels', 'Output Channels.') });
 
 		let outputChannelRegistry = Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels);
 		this.toDispose.push(outputChannelRegistry.onDidRegisterChannel(() => this.updateOtions(this.outputService.getActiveChannel().id)));
@@ -161,7 +170,7 @@ export class SwitchOutputActionItem extends SelectActionItem {
 				selected = logChannelIndex !== -1 ? separatorIndex + 1 + logChannelIndex : 0;
 			}
 		}
-		this.setOptions(options, Math.max(0, selected), separatorIndex !== -1 ? separatorIndex : void 0);
+		this.setOptions(options.map((label, index) => <ISelectOptionItem>{ text: label, isDisabled: (index === separatorIndex ? true : undefined) }), Math.max(0, selected));
 	}
 }
 
@@ -173,9 +182,9 @@ export class OpenLogOutputFile extends Action {
 	private disposables: IDisposable[] = [];
 
 	constructor(
-		@IOutputService private outputService: IOutputService,
-		@IEditorService private editorService: IEditorService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IOutputService private readonly outputService: IOutputService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super(OpenLogOutputFile.ID, OpenLogOutputFile.LABEL, 'output-action open-log-file');
 		this.outputService.onActiveOutputChannel(this.update, this, this.disposables);
@@ -187,8 +196,8 @@ export class OpenLogOutputFile extends Action {
 		this.enabled = outputChannelDescriptor && outputChannelDescriptor.file && outputChannelDescriptor.log;
 	}
 
-	public run(): TPromise<any> {
-		return this.enabled ? this.editorService.openEditor(this.instantiationService.createInstance(LogViewerInput, this.getOutputChannelDescriptor())).then(() => null) : TPromise.as(null);
+	public run(): Promise<any> {
+		return this.enabled ? this.editorService.openEditor(this.instantiationService.createInstance(LogViewerInput, this.getOutputChannelDescriptor())).then(() => null) : Promise.resolve(null);
 	}
 
 	private getOutputChannelDescriptor(): IOutputChannelDescriptor {
@@ -203,13 +212,13 @@ export class ShowLogsOutputChannelAction extends Action {
 	static LABEL = nls.localize('showLogs', "Show Logs...");
 
 	constructor(id: string, label: string,
-		@IQuickInputService private quickInputService: IQuickInputService,
-		@IOutputService private outputService: IOutputService
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IOutputService private readonly outputService: IOutputService
 	) {
 		super(id, label);
 	}
 
-	run(): TPromise<void> {
+	run(): Promise<void> {
 		const entries: IQuickPickItem[] = this.outputService.getChannelDescriptors().filter(c => c.file && c.log)
 			.map(({ id, label }) => (<IQuickPickItem>{ id, label }));
 
@@ -233,15 +242,15 @@ export class OpenOutputLogFileAction extends Action {
 	static LABEL = nls.localize('openLogFile', "Open Log File...");
 
 	constructor(id: string, label: string,
-		@IQuickInputService private quickInputService: IQuickInputService,
-		@IOutputService private outputService: IOutputService,
-		@IEditorService private editorService: IEditorService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IOutputService private readonly outputService: IOutputService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super(id, label);
 	}
 
-	run(): TPromise<void> {
+	run(): Promise<void> {
 		const entries: IOutputChannelQuickPickItem[] = this.outputService.getChannelDescriptors().filter(c => c.file && c.log)
 			.map(channel => (<IOutputChannelQuickPickItem>{ id: channel.id, label: channel.label, channel }));
 

@@ -4,22 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as strings from 'vs/base/common/strings';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
+import * as strings from 'vs/base/common/strings';
 import { CursorCollection } from 'vs/editor/common/controller/cursorCollection';
+import { CursorColumns, CursorConfiguration, CursorContext, CursorState, EditOperationResult, EditOperationType, IColumnSelectData, ICursors, PartialCursorState, RevealTarget } from 'vs/editor/common/controller/cursorCommon';
+import { DeleteOperations } from 'vs/editor/common/controller/cursorDeleteOperations';
+import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
+import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { Selection, SelectionDirection, ISelection } from 'vs/editor/common/core/selection';
+import { ISelection, Selection, SelectionDirection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { CursorColumns, CursorConfiguration, EditOperationResult, CursorContext, CursorState, RevealTarget, IColumnSelectData, ICursors, EditOperationType, PartialCursorState } from 'vs/editor/common/controller/cursorCommon';
-import { DeleteOperations } from 'vs/editor/common/controller/cursorDeleteOperations';
-import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
+import { IIdentifiedSingleEditOperation, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { RawContentChangedType } from 'vs/editor/common/model/textModelEvents';
-import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
-import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { Event, Emitter } from 'vs/base/common/event';
-import { ITextModel, IIdentifiedSingleEditOperation, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 
 function containsLineMappingChanged(events: viewEvents.ViewEvent[]): boolean {
 	for (let i = 0, len = events.length; i < len; i++) {
@@ -194,7 +194,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 	public setStates(source: string, reason: CursorChangeReason, states: PartialCursorState[] | null): void {
 		if (states !== null && states.length > Cursor.MAX_CURSOR_COUNT) {
 			states = states.slice(0, Cursor.MAX_CURSOR_COUNT);
-			this._onDidReachMaxCursorCount.fire(void 0);
+			this._onDidReachMaxCursorCount.fire(undefined);
 		}
 
 		const oldState = new CursorModelState(this._model, this);
@@ -467,7 +467,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		if (this._configuration.editor.readOnly) {
 			// All the remaining handlers will try to edit the model,
 			// but we cannot edit when read only...
-			this._onDidAttemptReadOnlyEdit.fire(void 0);
+			this._onDidAttemptReadOnlyEdit.fire(undefined);
 			return;
 		}
 
@@ -675,8 +675,7 @@ class CommandExecutor {
 			for (let i = 0; i < ctx.selectionsBefore.length; i++) {
 				groupedInverseEditOperations[i] = [];
 			}
-			for (let i = 0; i < inverseEditOperations.length; i++) {
-				const op = inverseEditOperations[i];
+			for (const op of inverseEditOperations) {
 				if (!op.identifier) {
 					// perhaps auto whitespace trim edits
 					continue;
@@ -728,8 +727,8 @@ class CommandExecutor {
 		});
 
 		// Remove losing cursors
-		for (let i = 0; i < losingCursors.length; i++) {
-			selectionsAfter.splice(losingCursors[i], 1);
+		for (const losingCursor of losingCursors) {
+			selectionsAfter.splice(losingCursor, 1);
 		}
 
 		return selectionsAfter;

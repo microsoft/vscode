@@ -18,6 +18,7 @@ import 'vs/workbench/api/node/apiCommands';
 import './mainThreadClipboard';
 import './mainThreadCommands';
 import './mainThreadConfiguration';
+import './mainThreadConsole';
 import './mainThreadDebugService';
 import './mainThreadDecorations';
 import './mainThreadDiagnostics';
@@ -57,7 +58,7 @@ import './mainThreadWorkspace';
 export class ExtensionPoints implements IWorkbenchContribution {
 
 	constructor(
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		// Classes that handle extension points...
 		this.instantiationService.createInstance(JSONValidationExtensionPoint);

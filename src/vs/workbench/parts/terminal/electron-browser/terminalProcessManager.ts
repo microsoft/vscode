@@ -16,7 +16,9 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TerminalProcess } from 'vs/workbench/parts/terminal/node/terminalProcess';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 import { Schemas } from 'vs/base/common/network';
+import { REMOTE_HOST_SCHEME, getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -35,17 +37,17 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	public shellProcessId: number;
 	public initialCwd: string;
 
-	private _process: ITerminalChildProcess;
+	private _process: ITerminalChildProcess | null = null;
 	private _preLaunchInputQueue: string[] = [];
 	private _disposables: IDisposable[] = [];
 
-	private readonly _onProcessReady: Emitter<void> = new Emitter<void>();
+	private readonly _onProcessReady = new Emitter<void>();
 	public get onProcessReady(): Event<void> { return this._onProcessReady.event; }
-	private readonly _onProcessData: Emitter<string> = new Emitter<string>();
+	private readonly _onProcessData = new Emitter<string>();
 	public get onProcessData(): Event<string> { return this._onProcessData.event; }
-	private readonly _onProcessTitle: Emitter<string> = new Emitter<string>();
+	private readonly _onProcessTitle = new Emitter<string>();
 	public get onProcessTitle(): Event<string> { return this._onProcessTitle.event; }
-	private readonly _onProcessExit: Emitter<number> = new Emitter<number>();
+	private readonly _onProcessExit = new Emitter<number>();
 	public get onProcessExit(): Event<number> { return this._onProcessExit.event; }
 
 	constructor(
@@ -55,17 +57,18 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
-		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService
+		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService,
+		@IWindowService private readonly _windowService: IWindowService
 	) {
 		this.ptyProcessReady = new Promise<void>(c => {
 			this.onProcessReady(() => {
 				this._logService.debug(`Terminal process ready (shellProcessId: ${this.shellProcessId})`);
-				c(void 0);
+				c(undefined);
 			});
 		});
 	}
 
-	public dispose(immediate?: boolean): void {
+	public dispose(immediate: boolean = false): void {
 		if (this._process) {
 			// If the process was still connected this dispose came from
 			// within VS Code, not the process, so mark the process as
@@ -87,59 +90,81 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		cols: number,
 		rows: number
 	): void {
-		const extensionHostOwned = (<any>this._configHelper.config).extHostProcess;
-		if (extensionHostOwned) {
-			this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId, shellLaunchConfig, cols, rows);
+
+		let launchRemotely = false;
+
+		if (shellLaunchConfig.cwd && typeof shellLaunchConfig.cwd === 'object') {
+			launchRemotely = !!getRemoteAuthority(shellLaunchConfig.cwd);
+			shellLaunchConfig.cwd = shellLaunchConfig.cwd.fsPath;
+		} else {
+			launchRemotely = !!this._windowService.getConfiguration().remoteAuthority;
+		}
+
+		if (launchRemotely) {
+			const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(REMOTE_HOST_SCHEME);
+			this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows);
 		} else {
 			if (!shellLaunchConfig.executable) {
 				this._configHelper.mergeDefaultShellPathAndArgs(shellLaunchConfig);
 			}
+			// TODO: @daniel
+			const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.file);
+			this.initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, activeWorkspaceRootUri, this._configHelper.config.cwd);
 
-			const lastActiveWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.file);
-			this.initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, lastActiveWorkspaceRootUri, this._configHelper);
+			// Compel type system as process.env should not have any undefined entries
+			let env: platform.IProcessEnvironment = {};
 
-			// Resolve env vars from config and shell
-			const lastActiveWorkspaceRoot = this._workspaceContextService.getWorkspaceFolder(lastActiveWorkspaceRootUri);
-			const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
-			const envFromConfig = terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, { ...this._configHelper.config.env[platformKey] }, lastActiveWorkspaceRoot);
-			const envFromShell = terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, { ...shellLaunchConfig.env }, lastActiveWorkspaceRoot);
-			shellLaunchConfig.env = envFromShell;
+			if (shellLaunchConfig.strictEnv) {
+				// Only base the terminal process environment on this environment and add the
+				// various mixins when strictEnv is false
+				env = { ...shellLaunchConfig.env } as any;
+			} else {
+				// Merge process env with the env from config and from shellLaunchConfig
+				env = { ...process.env } as any;
 
-			// Merge process env with the env from config and from shellLaunchConfig
-			const env = { ...process.env };
-			terminalEnvironment.mergeEnvironments(env, envFromConfig);
-			terminalEnvironment.mergeEnvironments(env, shellLaunchConfig.env);
+				// Resolve env vars from config and shell
+				const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) : null;
+				const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
+				const envFromConfig = terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, { ...this._configHelper.config.env[platformKey] }, lastActiveWorkspaceRoot);
+				const envFromShell = terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, { ...shellLaunchConfig.env }, lastActiveWorkspaceRoot);
+				shellLaunchConfig.env = envFromShell;
 
-			// Sanitize the environment, removing any undesirable VS Code and Electron environment
-			// variables
-			terminalEnvironment.sanitizeEnvironment(env);
+				terminalEnvironment.mergeEnvironments(env, envFromConfig);
+				terminalEnvironment.mergeEnvironments(env, shellLaunchConfig.env);
 
-			// Adding other env keys necessary to create the process
-			const locale = this._configHelper.config.setLocaleVariables ? platform.locale : undefined;
-			terminalEnvironment.addTerminalEnvironmentKeys(env, locale);
+				// Sanitize the environment, removing any undesirable VS Code and Electron environment
+				// variables
+				terminalEnvironment.sanitizeEnvironment(env);
+
+				// Adding other env keys necessary to create the process
+				terminalEnvironment.addTerminalEnvironmentKeys(env, platform.locale, this._configHelper.config.setLocaleVariables);
+			}
 
 			this._logService.debug(`Terminal process launching`, shellLaunchConfig, this.initialCwd, cols, rows, env);
-			this._process = new TerminalProcess(shellLaunchConfig, this.initialCwd, cols, rows, env);
+			this._process = new TerminalProcess(shellLaunchConfig, this.initialCwd, cols, rows, env, this._configHelper.config.windowsEnableConpty);
 		}
 		this.processState = ProcessState.LAUNCHING;
 
-		this._process.onProcessData(data => {
+		// The process is non-null, but TS isn't clever enough to know
+		const p = this._process!;
+
+		p.onProcessData(data => {
 			this._onProcessData.fire(data);
 		});
 
-		this._process.onProcessIdReady(pid => {
+		p.onProcessIdReady(pid => {
 			this.shellProcessId = pid;
 			this._onProcessReady.fire();
 
 			// Send any queued data that's waiting
 			if (this._preLaunchInputQueue.length > 0) {
-				this._process.input(this._preLaunchInputQueue.join(''));
+				p.input(this._preLaunchInputQueue.join(''));
 				this._preLaunchInputQueue.length = 0;
 			}
 		});
 
-		this._process.onProcessTitleChanged(title => this._onProcessTitle.fire(title));
-		this._process.onProcessExit(exitCode => this._onExit(exitCode));
+		p.onProcessTitleChanged(title => this._onProcessTitle.fire(title));
+		p.onProcessExit(exitCode => this._onExit(exitCode));
 
 		setTimeout(() => {
 			if (this.processState === ProcessState.LAUNCHING) {

@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
+import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IOverviewRuler } from 'vs/editor/browser/editorBrowser';
+import { OverviewRulerPosition } from 'vs/editor/common/config/editorOptions';
+import { ColorZone, OverviewRulerZone, OverviewZoneManager } from 'vs/editor/common/view/overviewZoneManager';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { OverviewRulerPosition } from 'vs/editor/common/config/editorOptions';
-import { OverviewRulerZone, OverviewZoneManager, ColorZone } from 'vs/editor/common/view/overviewZoneManager';
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
+import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 
 export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
 
@@ -132,8 +132,7 @@ export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
 		let currentFrom = 0;
 		let currentTo = 0;
 
-		for (let i = 0, len = colorZones.length; i < len; i++) {
-			const zone = colorZones[i];
+		for (const zone of colorZones) {
 
 			const zoneColorId = zone.colorId;
 			const zoneFrom = zone.from;

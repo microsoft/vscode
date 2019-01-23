@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as arrays from 'vs/base/common/arrays';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import * as types from 'vs/base/common/types';
@@ -33,7 +32,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 	static readonly ID = 'workbench.picker.anything';
 
-	private static readonly LINE_COLON_PATTERN = /[#|:|\(](\d*)([#|:|,](\d*))?\)?$/;
+	private static readonly LINE_COLON_PATTERN = /[#:\(](\d*)([#:,](\d*))?\)?$/;
 
 	private static readonly TYPING_SEARCH_DELAY = 200; // This delay accommodates for the user typing a word and then stops typing to start searching
 
@@ -47,9 +46,9 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 	private includeSymbols: boolean;
 
 	constructor(
-		@INotificationService private notificationService: INotificationService,
+		@INotificationService private readonly notificationService: INotificationService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
@@ -84,7 +83,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		});
 	}
 
-	getResults(searchValue: string, token: CancellationToken): TPromise<QuickOpenModel> {
+	getResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel> {
 		this.isClosed = false; // Treat this call as the handler being in use
 
 		// Find a suitable range from the pattern looking for ":" and "#"
@@ -96,12 +95,12 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		// Prepare search for scoring
 		const query = prepareQuery(searchValue);
 		if (!query.value) {
-			return TPromise.as(new QuickOpenModel()); // Respond directly to empty search
+			return Promise.resolve(new QuickOpenModel()); // Respond directly to empty search
 		}
 
 		// The throttler needs a factory for its promises
 		const resultsPromise = () => {
-			const resultPromises: TPromise<QuickOpenModel | FileQuickOpenModel>[] = [];
+			const resultPromises: Promise<QuickOpenModel | FileQuickOpenModel>[] = [];
 
 			// File Results
 			const filePromise = this.openFileHandler.getResults(query.original, token, OpenAnythingHandler.MAX_DISPLAYED_RESULTS);
@@ -113,11 +112,11 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 			}
 
 			// Join and sort unified
-			return TPromise.join(resultPromises).then(results => {
+			return Promise.all(resultPromises).then(results => {
 
 				// If the quick open widget has been closed meanwhile, ignore the result
 				if (this.isClosed || token.isCancellationRequested) {
-					return TPromise.as<QuickOpenModel>(new QuickOpenModel());
+					return Promise.resolve<QuickOpenModel>(new QuickOpenModel());
 				}
 
 				// Combine results.
@@ -137,14 +136,17 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 					}
 				});
 
-				return TPromise.as<QuickOpenModel>(new QuickOpenModel(viewResults));
+				return Promise.resolve<QuickOpenModel>(new QuickOpenModel(viewResults));
 			}, error => {
 				if (!isPromiseCanceledError(error)) {
-					if (error && error[0] && error[0].message) {
-						this.notificationService.error(error[0].message.replace(/[\*_\[\]]/g, '\\$&'));
+					let message: Error | string;
+					if (error.message) {
+						message = error.message.replace(/[\*_\[\]]/g, '\\$&');
 					} else {
-						this.notificationService.error(error);
+						message = error;
 					}
+
+					this.notificationService.error(message);
 				}
 
 				return null;

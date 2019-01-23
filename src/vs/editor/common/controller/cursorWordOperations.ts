@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SingleCursorState, CursorConfiguration, ICursorSimpleModel } from 'vs/editor/common/controller/cursorCommon';
-import { Position } from 'vs/editor/common/core/position';
-import { WordCharacterClassifier, WordCharacterClass, getMapForWordSeparators } from 'vs/editor/common/controller/wordCharacterClassifier';
+import { CharCode } from 'vs/base/common/charCode';
 import * as strings from 'vs/base/common/strings';
+import { CursorConfiguration, ICursorSimpleModel, SingleCursorState } from 'vs/editor/common/controller/cursorCommon';
+import { WordCharacterClass, WordCharacterClassifier, getMapForWordSeparators } from 'vs/editor/common/controller/wordCharacterClassifier';
+import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { CharCode } from 'vs/base/common/charCode';
 
 interface IFindWordResult {
 	/**
@@ -252,8 +252,10 @@ export class WordOperations {
 		let lineNumber = position.lineNumber;
 		let column = position.column;
 
+		let movedDown = false;
 		if (column === model.getLineMaxColumn(lineNumber)) {
 			if (lineNumber < model.getLineCount()) {
+				movedDown = true;
 				lineNumber = lineNumber + 1;
 				column = 1;
 			}
@@ -274,7 +276,7 @@ export class WordOperations {
 				column = model.getLineMaxColumn(lineNumber);
 			}
 		} else {
-			if (nextWordOnLine && column >= nextWordOnLine.start + 1) {
+			if (nextWordOnLine && !movedDown && column >= nextWordOnLine.start + 1) {
 				nextWordOnLine = WordOperations._findNextWordOnLine(wordSeparators, model, new Position(lineNumber, nextWordOnLine.end + 1));
 			}
 			if (nextWordOnLine) {
@@ -613,6 +615,6 @@ export class WordPartOperations extends WordOperations {
 	}
 }
 
-function enforceDefined<T>(arr: (T | undefined | null)[]): T[] {
+function enforceDefined<T>(arr: Array<T | undefined | null>): T[] {
 	return <T[]>arr.filter(el => Boolean(el));
 }

@@ -3,25 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CharCode } from 'vs/base/common/charCode';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { ReplaceCommand, ReplaceCommandWithoutChangingPosition, ReplaceCommandWithOffsetCursorState } from 'vs/editor/common/commands/replaceCommand';
-import { CursorColumns, CursorConfiguration, ICursorSimpleModel, EditOperationResult, EditOperationType, isQuote } from 'vs/editor/common/controller/cursorCommon';
+import * as strings from 'vs/base/common/strings';
+import { ReplaceCommand, ReplaceCommandWithOffsetCursorState, ReplaceCommandWithoutChangingPosition } from 'vs/editor/common/commands/replaceCommand';
+import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
+import { SurroundSelectionCommand } from 'vs/editor/common/commands/surroundSelectionCommand';
+import { CursorColumns, CursorConfiguration, EditOperationResult, EditOperationType, ICursorSimpleModel, isQuote } from 'vs/editor/common/controller/cursorCommon';
+import { WordCharacterClass, getMapForWordSeparators } from 'vs/editor/common/controller/wordCharacterClassifier';
 import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import { ICommand } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import * as strings from 'vs/base/common/strings';
-import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
-import { Selection } from 'vs/editor/common/core/selection';
+import { EnterAction, IndentAction } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { IndentAction, EnterAction } from 'vs/editor/common/modes/languageConfiguration';
-import { SurroundSelectionCommand } from 'vs/editor/common/commands/surroundSelectionCommand';
 import { IElectricAction } from 'vs/editor/common/modes/supports/electricCharacter';
-import { getMapForWordSeparators, WordCharacterClass } from 'vs/editor/common/controller/wordCharacterClassifier';
-import { CharCode } from 'vs/base/common/charCode';
 
 export class TypeOperations {
 
-	public static indent(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[]): ICommand[] {
+	public static indent(config: CursorConfiguration, model: ICursorSimpleModel | null, selections: Selection[] | null): ICommand[] {
+		if (model === null || selections === null) {
+			return [];
+		}
+
 		let commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
 			commands[i] = new ShiftCommand(selections[i], {
@@ -155,7 +159,7 @@ export class TypeOperations {
 			action = expectedIndentAction.action;
 			indentation = expectedIndentAction.indentation;
 		} else if (lineNumber > 1) {
-			let lastLineNumber = lineNumber - 1;
+			let lastLineNumber: number;
 			for (lastLineNumber = lineNumber - 1; lastLineNumber >= 1; lastLineNumber--) {
 				let lineText = model.getLineContent(lastLineNumber);
 				let nonWhitespaceIdx = strings.lastNonWhitespaceIndex(lineText);
@@ -259,7 +263,7 @@ export class TypeOperations {
 	}
 
 	public static replacePreviousChar(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], txt: string, replaceCharCnt: number): EditOperationResult {
-		let commands: (ICommand | null)[] = [];
+		let commands: Array<ICommand | null> = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
 			if (!selection.isEmpty()) {
@@ -821,7 +825,7 @@ export class TypeOperations {
 		}
 
 		if (this._isAutoIndentType(config, model, selections)) {
-			let commands: (ICommand | null)[] = [];
+			let commands: Array<ICommand | null> = [];
 			let autoIndentFails = false;
 			for (let i = 0, len = selections.length; i < len; i++) {
 				commands[i] = this._runAutoIndentType(config, model, selections[i], ch);
@@ -885,7 +889,11 @@ export class TypeOperations {
 		});
 	}
 
-	public static lineInsertBefore(config: CursorConfiguration, model: ITextModel, selections: Selection[]): ICommand[] {
+	public static lineInsertBefore(config: CursorConfiguration, model: ITextModel | null, selections: Selection[] | null): ICommand[] {
+		if (model === null || selections === null) {
+			return [];
+		}
+
 		let commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
 			let lineNumber = selections[i].positionLineNumber;
@@ -902,7 +910,11 @@ export class TypeOperations {
 		return commands;
 	}
 
-	public static lineInsertAfter(config: CursorConfiguration, model: ITextModel, selections: Selection[]): ICommand[] {
+	public static lineInsertAfter(config: CursorConfiguration, model: ITextModel | null, selections: Selection[] | null): ICommand[] {
+		if (model === null || selections === null) {
+			return [];
+		}
+
 		let commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const lineNumber = selections[i].positionLineNumber;

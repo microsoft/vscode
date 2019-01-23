@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/Microsoft/vscode-mssql/commit/68d4b740b6a9e12592a32f1c0c8a0dd987f19da8",
+	"version": "https://github.com/Microsoft/vscode-mssql/commit/3aa44d04b04d219ad5fa8f411ca9dd32294a7a06",
 	"name": "SQL",
 	"scopeName": "source.sql",
 	"patterns": [
@@ -223,7 +223,7 @@
 			"name": "support.function.mathematical.sql"
 		},
 		{
-			"match": "(?i)\\b(app_name|applock_mode|applock_test|assemblyproperty|col_length|col_name|columnproperty|database_principal_id|databasepropertyex|db_id|db_name|file_id|file_idex|file_name|filegroup_id|filegroup_name|filegroupproperty|fileproperty|fulltextcatalogproperty|fulltextserviceproperty|index_col|indexkey_property|indexproperty|object_definition|object_id|object_name|object_schema_name|objectproperty|objectpropertyex|original_db_name|parsename|schema_id|schema_name|scope_identity|severeproperty|stats_date|type_id|type_name|typeproperty)\\b",
+			"match": "(?i)\\b(app_name|applock_mode|applock_test|assemblyproperty|col_length|col_name|columnproperty|database_principal_id|databasepropertyex|db_id|db_name|file_id|file_idex|file_name|filegroup_id|filegroup_name|filegroupproperty|fileproperty|fulltextcatalogproperty|fulltextserviceproperty|index_col|indexkey_property|indexproperty|object_definition|object_id|object_name|object_schema_name|objectproperty|objectpropertyex|original_db_name|parsename|schema_id|schema_name|scope_identity|serverproperty|stats_date|type_id|type_name|typeproperty)\\b",
 			"name": "support.function.metadata.sql"
 		},
 		{

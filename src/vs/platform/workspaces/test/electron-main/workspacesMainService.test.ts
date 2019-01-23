@@ -40,11 +40,11 @@ suite('WorkspacesMainService', () => {
 	}
 
 	function createWorkspace(folders: string[], names?: string[]) {
-		return service.createWorkspace(folders.map((folder, index) => ({ uri: URI.file(folder), name: names ? names[index] : void 0 } as IWorkspaceFolderCreationData)));
+		return service.createWorkspace(folders.map((folder, index) => ({ uri: URI.file(folder), name: names ? names[index] : undefined } as IWorkspaceFolderCreationData)));
 	}
 
 	function createWorkspaceSync(folders: string[], names?: string[]) {
-		return service.createWorkspaceSync(folders.map((folder, index) => ({ uri: URI.file(folder), name: names ? names[index] : void 0 } as IWorkspaceFolderCreationData)));
+		return service.createWorkspaceSync(folders.map((folder, index) => ({ uri: URI.file(folder), name: names ? names[index] : undefined } as IWorkspaceFolderCreationData)));
 	}
 
 	const environmentService = new TestEnvironmentService(parseArgs(process.argv), process.execPath);
@@ -177,9 +177,9 @@ suite('WorkspacesMainService', () => {
 			workspace.configPath = newPath;
 
 			const resolved = service.resolveWorkspaceSync(workspace.configPath);
-			assert.equal(2, resolved.folders.length);
-			assert.equal(resolved.configPath, workspace.configPath);
-			assert.ok(resolved.id);
+			assert.equal(2, resolved!.folders.length);
+			assert.equal(resolved!.configPath, workspace.configPath);
+			assert.ok(resolved!.id);
 
 			fs.writeFileSync(workspace.configPath, JSON.stringify({ something: 'something' })); // invalid workspace
 			const resolvedInvalid = service.resolveWorkspaceSync(workspace.configPath);
@@ -192,7 +192,7 @@ suite('WorkspacesMainService', () => {
 			fs.writeFileSync(workspace.configPath, JSON.stringify({ folders: [{ path: './ticino-playground/lib' }] }));
 
 			const resolved = service.resolveWorkspaceSync(workspace.configPath);
-			assert.equal(resolved.folders[0].uri.fsPath, URI.file(path.join(path.dirname(workspace.configPath), 'ticino-playground', 'lib')).fsPath);
+			assert.equal(resolved!.folders[0].uri.fsPath, URI.file(path.join(path.dirname(workspace.configPath), 'ticino-playground', 'lib')).fsPath);
 		});
 	});
 
@@ -201,7 +201,7 @@ suite('WorkspacesMainService', () => {
 			fs.writeFileSync(workspace.configPath, JSON.stringify({ folders: [{ path: './ticino-playground/lib/../other' }] }));
 
 			const resolved = service.resolveWorkspaceSync(workspace.configPath);
-			assert.equal(resolved.folders[0].uri.fsPath, URI.file(path.join(path.dirname(workspace.configPath), 'ticino-playground', 'other')).fsPath);
+			assert.equal(resolved!.folders[0].uri.fsPath, URI.file(path.join(path.dirname(workspace.configPath), 'ticino-playground', 'other')).fsPath);
 		});
 	});
 
@@ -210,7 +210,7 @@ suite('WorkspacesMainService', () => {
 			fs.writeFileSync(workspace.configPath, JSON.stringify({ folders: [{ path: 'ticino-playground/lib' }] }));
 
 			const resolved = service.resolveWorkspaceSync(workspace.configPath);
-			assert.equal(resolved.folders[0].uri.fsPath, URI.file(path.join(path.dirname(workspace.configPath), 'ticino-playground', 'lib')).fsPath);
+			assert.equal(resolved!.folders[0].uri.fsPath, URI.file(path.join(path.dirname(workspace.configPath), 'ticino-playground', 'lib')).fsPath);
 		});
 	});
 
@@ -219,7 +219,7 @@ suite('WorkspacesMainService', () => {
 			fs.writeFileSync(workspace.configPath, '{ "folders": [ { "path": "./ticino-playground/lib" } , ] }'); // trailing comma
 
 			const resolved = service.resolveWorkspaceSync(workspace.configPath);
-			assert.equal(resolved.folders[0].uri.fsPath, URI.file(path.join(path.dirname(workspace.configPath), 'ticino-playground', 'lib')).fsPath);
+			assert.equal(resolved!.folders[0].uri.fsPath, URI.file(path.join(path.dirname(workspace.configPath), 'ticino-playground', 'lib')).fsPath);
 		});
 	});
 

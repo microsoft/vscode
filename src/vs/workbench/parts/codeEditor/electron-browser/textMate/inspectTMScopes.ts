@@ -6,26 +6,25 @@
 import 'vs/css!./inspectTMScopes';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
+import { CharCode } from 'vs/base/common/charCode';
+import { Color } from 'vs/base/common/color';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { escape } from 'vs/base/common/strings';
-import { KeyCode } from 'vs/base/common/keyCodes';
+import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
+import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { registerEditorAction, registerEditorContribution, EditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditor, ContentWidgetPositionPreference, IContentWidget, IContentWidgetPosition, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { IGrammar, StackElement, IToken } from 'vscode-textmate';
-import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
+import { FontStyle, LanguageIdentifier, StandardTokenType, TokenMetadata, TokenizationRegistry } from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { TokenizationRegistry, LanguageIdentifier, FontStyle, StandardTokenType, TokenMetadata } from 'vs/editor/common/modes';
-import { CharCode } from 'vs/base/common/charCode';
-import { findMatchingThemeRule } from 'vs/workbench/services/textMate/electron-browser/TMHelper';
-import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { Color } from 'vs/base/common/color';
-import { registerThemingParticipant, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
-import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
+import { HIGH_CONTRAST, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { findMatchingThemeRule } from 'vs/workbench/services/textMate/electron-browser/TMHelper';
+import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
+import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IGrammar, IToken, StackElement } from 'vscode-textmate';
 
 class InspectTMScopesController extends Disposable implements IEditorContribution {
 
@@ -117,7 +116,7 @@ class InspectTMScopes extends EditorAction {
 }
 
 interface ICompleteLineTokenization {
-	startState: StackElement;
+	startState: StackElement | null;
 	tokens1: IToken[];
 	tokens2: Uint32Array;
 	endState: StackElement;
@@ -180,7 +179,7 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 	private readonly _notificationService: INotificationService;
 	private readonly _model: ITextModel;
 	private readonly _domNode: HTMLElement;
-	private readonly _grammar: TPromise<IGrammar>;
+	private readonly _grammar: Promise<IGrammar>;
 
 	constructor(
 		editor: IActiveCodeEditor,
@@ -262,11 +261,16 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 
 		let metadata = this._decodeMetadata(data.tokens2[(token2Index << 1) + 1]);
 		result += `<table class="tm-metadata-table"><tbody>`;
-		result += `<tr><td class="tm-metadata-key">language</td><td class="tm-metadata-value">${escape(metadata.languageIdentifier.language)}</td>`;
-		result += `<tr><td class="tm-metadata-key">token type</td><td class="tm-metadata-value">${this._tokenTypeToString(metadata.tokenType)}</td>`;
-		result += `<tr><td class="tm-metadata-key">font style</td><td class="tm-metadata-value">${this._fontStyleToString(metadata.fontStyle)}</td>`;
-		result += `<tr><td class="tm-metadata-key">foreground</td><td class="tm-metadata-value">${Color.Format.CSS.formatHexA(metadata.foreground)}</td>`;
-		result += `<tr><td class="tm-metadata-key">background</td><td class="tm-metadata-value">${Color.Format.CSS.formatHexA(metadata.background)}</td>`;
+		result += `<tr><td class="tm-metadata-key">language</td><td class="tm-metadata-value">${escape(metadata.languageIdentifier.language)}</td></tr>`;
+		result += `<tr><td class="tm-metadata-key">token type</td><td class="tm-metadata-value">${this._tokenTypeToString(metadata.tokenType)}</td></tr>`;
+		result += `<tr><td class="tm-metadata-key">font style</td><td class="tm-metadata-value">${this._fontStyleToString(metadata.fontStyle)}</td></tr>`;
+		result += `<tr><td class="tm-metadata-key">foreground</td><td class="tm-metadata-value">${Color.Format.CSS.formatHexA(metadata.foreground)}</td></tr>`;
+		result += `<tr><td class="tm-metadata-key">background</td><td class="tm-metadata-value">${Color.Format.CSS.formatHexA(metadata.background)}</td></tr>`;
+		if (metadata.background.isOpaque() && metadata.foreground.isOpaque()) {
+			result += `<tr><td class="tm-metadata-key">contrast ratio</td><td class="tm-metadata-value">${metadata.background.getContrastRatio(metadata.foreground).toFixed(2)}</td></tr>`;
+		} else {
+			result += '<tr><td class="tm-metadata-key">Contrast ratio cannot be precise for colors that use transparency</td><td class="tm-metadata-value"></td></tr>';
+		}
 		result += `</tbody></table>`;
 
 		let theme = this._themeService.getColorTheme();
@@ -348,7 +352,7 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 		};
 	}
 
-	private _getStateBeforeLine(grammar: IGrammar, lineNumber: number): StackElement {
+	private _getStateBeforeLine(grammar: IGrammar, lineNumber: number): StackElement | null {
 		let state: StackElement | null = null;
 
 		for (let i = 1; i < lineNumber; i++) {

@@ -2,9 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import * as assert from 'assert';
-import { LanguagesRegistry } from 'vs/editor/common/services/languagesRegistry';
 import { URI } from 'vs/base/common/uri';
+import { LanguagesRegistry } from 'vs/editor/common/services/languagesRegistry';
 
 suite('LanguagesRegistry', () => {
 
@@ -14,7 +15,7 @@ suite('LanguagesRegistry', () => {
 		registry._registerLanguages([{
 			id: 'outputModeId',
 			extensions: [],
-			aliases: [null],
+			aliases: [],
 			mimetypes: ['outputModeMimeType'],
 		}]);
 

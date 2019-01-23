@@ -32,8 +32,16 @@ suite('Arrays', () => {
 	});
 
 	test('stableSort', () => {
+		function fill<T>(num: number, valueFn: () => T, arr: T[] = []): T[] {
+			for (let i = 0; i < num; i++) {
+				arr[i] = valueFn();
+			}
+
+			return arr;
+		}
+
 		let counter = 0;
-		let data = arrays.fill(10000, () => ({ n: 1, m: counter++ }));
+		let data = fill(10000, () => ({ n: 1, m: counter++ }));
 
 		arrays.mergeSort(data, (a, b) => a.n - b.n);
 
@@ -262,13 +270,13 @@ suite('Arrays', () => {
 	}
 
 	test('coalesce', () => {
-		let a = arrays.coalesce([null, 1, null, 2, 3]);
+		let a: Array<number | undefined | null> = arrays.coalesce([null, 1, null, 2, 3]);
 		assert.equal(a.length, 3);
 		assert.equal(a[0], 1);
 		assert.equal(a[1], 2);
 		assert.equal(a[2], 3);
 
-		arrays.coalesce([null, 1, null, void 0, undefined, 2, 3]);
+		arrays.coalesce([null, 1, null, undefined, undefined, 2, 3]);
 		assert.equal(a.length, 3);
 		assert.equal(a[0], 1);
 		assert.equal(a[1], 2);
@@ -298,14 +306,14 @@ suite('Arrays', () => {
 	});
 
 	test('coalesce - inplace', function () {
-		let a = [null, 1, null, 2, 3];
+		let a: Array<number | undefined | null> = [null, 1, null, 2, 3];
 		arrays.coalesceInPlace(a);
 		assert.equal(a.length, 3);
 		assert.equal(a[0], 1);
 		assert.equal(a[1], 2);
 		assert.equal(a[2], 3);
 
-		a = [null, 1, null, void 0, undefined, 2, 3];
+		a = [null, 1, null, undefined!, undefined!, 2, 3];
 		arrays.coalesceInPlace(a);
 		assert.equal(a.length, 3);
 		assert.equal(a[0], 1);

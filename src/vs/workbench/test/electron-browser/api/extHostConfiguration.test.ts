@@ -6,9 +6,8 @@
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
-import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
+import { ExtHostConfigProvider } from 'vs/workbench/api/node/extHostConfiguration';
 import { MainThreadConfigurationShape, IConfigurationInitData } from 'vs/workbench/api/node/extHost.protocol';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { TestRPCProtocol } from './testRPCProtocol';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
@@ -22,9 +21,9 @@ suite('ExtHostConfiguration', function () {
 
 	class RecordingShape extends mock<MainThreadConfigurationShape>() {
 		lastArgs: [ConfigurationTarget, string, any];
-		$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any): TPromise<void> {
+		$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any): Promise<void> {
 			this.lastArgs = [target, key, value];
-			return TPromise.as(void 0);
+			return Promise.resolve(undefined);
 		}
 	}
 
@@ -32,7 +31,7 @@ suite('ExtHostConfiguration', function () {
 		if (!shape) {
 			shape = new class extends mock<MainThreadConfigurationShape>() { };
 		}
-		return new ExtHostConfiguration(shape, new ExtHostWorkspace(new TestRPCProtocol(), null, new NullLogService(), new Counter()), createConfigurationData(contents));
+		return new ExtHostConfigProvider(shape, new ExtHostWorkspace(new TestRPCProtocol(), null, new NullLogService(), new Counter()), createConfigurationData(contents));
 	}
 
 	function createConfigurationData(contents: any): IConfigurationInitData {
@@ -264,7 +263,7 @@ suite('ExtHostConfiguration', function () {
 	});
 
 	test('inspect in no workspace context', function () {
-		const testObject = new ExtHostConfiguration(
+		const testObject = new ExtHostConfigProvider(
 			new class extends mock<MainThreadConfigurationShape>() { },
 			new ExtHostWorkspace(new TestRPCProtocol(), null, new NullLogService(), new Counter()),
 			{
@@ -307,7 +306,7 @@ suite('ExtHostConfiguration', function () {
 			}
 		}, ['editor.wordWrap']);
 		folders[workspaceUri.toString()] = workspace;
-		const testObject = new ExtHostConfiguration(
+		const testObject = new ExtHostConfigProvider(
 			new class extends mock<MainThreadConfigurationShape>() { },
 			new ExtHostWorkspace(new TestRPCProtocol(), {
 				'id': 'foo',
@@ -381,7 +380,7 @@ suite('ExtHostConfiguration', function () {
 		}, ['editor.wordWrap']);
 		folders[thirdRoot.toString()] = new ConfigurationModel({}, []);
 
-		const testObject = new ExtHostConfiguration(
+		const testObject = new ExtHostConfigProvider(
 			new class extends mock<MainThreadConfigurationShape>() { },
 			new ExtHostWorkspace(new TestRPCProtocol(), {
 				'id': 'foo',
@@ -576,8 +575,8 @@ suite('ExtHostConfiguration', function () {
 	test('update/error-state not OK', function () {
 
 		const shape = new class extends mock<MainThreadConfigurationShape>() {
-			$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any): TPromise<any> {
-				return TPromise.wrapError(new Error('Unknown Key')); // something !== OK
+			$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any): Promise<any> {
+				return Promise.reject(new Error('Unknown Key')); // something !== OK
 			}
 		};
 
@@ -590,7 +589,7 @@ suite('ExtHostConfiguration', function () {
 	test('configuration change event', (done) => {
 
 		const workspaceFolder = aWorkspaceFolder(URI.file('folder1'), 0);
-		const testObject = new ExtHostConfiguration(
+		const testObject = new ExtHostConfigProvider(
 			new class extends mock<MainThreadConfigurationShape>() { },
 			new ExtHostWorkspace(new TestRPCProtocol(), {
 				'id': 'foo',

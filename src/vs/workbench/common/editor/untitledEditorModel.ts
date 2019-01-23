@@ -3,15 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IEncodingSupport } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { URI } from 'vs/base/common/uri';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { CONTENT_CHANGE_EVENT_BUFFER_DELAY } from 'vs/platform/files/common/files';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { IModeService, ILanguageSelection } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IMode } from 'vs/editor/common/modes';
 import { Event, Emitter } from 'vs/base/common/event';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -45,8 +43,8 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 		private preferredEncoding: string,
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
-		@IBackupFileService private backupFileService: IBackupFileService,
-		@ITextResourceConfigurationService private configurationService: ITextResourceConfigurationService
+		@IBackupFileService private readonly backupFileService: IBackupFileService,
+		@ITextResourceConfigurationService private readonly configurationService: ITextResourceConfigurationService
 	) {
 		super(modelService, modeService);
 
@@ -58,9 +56,9 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 		this.registerListeners();
 	}
 
-	protected getOrCreateMode(modeService: IModeService, modeId: string, firstLineText?: string): Promise<IMode> {
+	protected getOrCreateMode(modeService: IModeService, modeId: string, firstLineText?: string): ILanguageSelection {
 		if (!modeId || modeId === PLAINTEXT_MODE_ID) {
-			return modeService.getOrCreateModeByFilepathOrFirstLine(this.resource.fsPath, firstLineText); // lookup mode via resource path if the provided modeId is unspecific
+			return modeService.createByFilepathOrFirstLine(this.resource.fsPath, firstLineText); // lookup mode via resource path if the provided modeId is unspecific
 		}
 
 		return super.getOrCreateMode(modeService, modeId, firstLineText);
@@ -134,7 +132,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 		this.contentChangeEventScheduler.schedule();
 	}
 
-	load(): TPromise<UntitledEditorModel> {
+	load(): Promise<UntitledEditorModel> {
 
 		// Check for backups first
 		return this.backupFileService.loadBackupResource(this.resource).then(backupResource => {
@@ -156,34 +154,27 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 				untitledContents = createTextBufferFactory(this.initialValue || '');
 			}
 
-			return this.doLoad(untitledContents).then(model => {
-				// Encoding
-				this.configuredEncoding = this.configurationService.getValue<string>(this.resource, 'files.encoding');
+			// Create text editor model if not yet done
+			if (!this.textEditorModel) {
+				this.createTextEditorModel(untitledContents, this.resource, this.modeId);
+			}
 
-				// Listen to content changes
-				this._register(this.textEditorModel.onDidChangeContent(() => this.onModelContentChanged()));
+			// Otherwise update
+			else {
+				this.updateTextEditorModel(untitledContents);
+			}
 
-				// Listen to mode changes
-				this._register(this.textEditorModel.onDidChangeLanguage(() => this.onConfigurationChange())); // mode change can have impact on config
+			// Encoding
+			this.configuredEncoding = this.configurationService.getValue<string>(this.resource, 'files.encoding');
 
-				return model;
-			});
+			// Listen to content changes
+			this._register(this.textEditorModel.onDidChangeContent(() => this.onModelContentChanged()));
+
+			// Listen to mode changes
+			this._register(this.textEditorModel.onDidChangeLanguage(() => this.onConfigurationChange())); // mode change can have impact on config
+
+			return this;
 		});
-	}
-
-	private doLoad(content: ITextBufferFactory): TPromise<UntitledEditorModel> {
-
-		// Create text editor model if not yet done
-		if (!this.textEditorModel) {
-			return this.createTextEditorModel(content, this.resource, this.modeId).then(model => this);
-		}
-
-		// Otherwise update
-		else {
-			this.updateTextEditorModel(content);
-		}
-
-		return TPromise.as<UntitledEditorModel>(this);
 	}
 
 	private onModelContentChanged(): void {

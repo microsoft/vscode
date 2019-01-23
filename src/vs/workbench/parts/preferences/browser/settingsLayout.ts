@@ -11,7 +11,7 @@ export interface ITOCEntry {
 	label: string;
 
 	children?: ITOCEntry[];
-	settings?: (string | ISetting)[];
+	settings?: Array<string | ISetting>;
 }
 
 export const commonlyUsedData: ITOCEntry = {
@@ -127,7 +127,7 @@ export const tocData: ITOCEntry = {
 				{
 					id: 'features/search',
 					label: localize('search', "Search"),
-					settings: ['search.*']
+					settings: ['search.*', 'searchRipgrep.*']
 				}
 				,
 				{
@@ -154,6 +154,11 @@ export const tocData: ITOCEntry = {
 					id: 'features/problems',
 					label: localize('problems', "Problems"),
 					settings: ['problems.*']
+				},
+				{
+					id: 'features/comments',
+					label: localize('comments', "Comments"),
+					settings: ['comments.*']
 				}
 			]
 		},

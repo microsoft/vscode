@@ -4,18 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
+import { ParseError, parse } from 'vs/base/common/json';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import * as types from 'vs/base/common/types';
-import { parse, ParseError } from 'vs/base/common/json';
-import { CharacterPair, LanguageConfiguration, IAutoClosingPair, IAutoClosingPairConditional, IndentationRule, CommentRule, FoldingRules } from 'vs/editor/common/modes/languageConfiguration';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { URI } from 'vs/base/common/uri';
+import { LanguageIdentifier } from 'vs/editor/common/modes';
+import { CharacterPair, CommentRule, FoldingRules, IAutoClosingPair, IAutoClosingPairConditional, IndentationRule, LanguageConfiguration } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { IFileService } from 'vs/platform/files/common/files';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { LanguageIdentifier } from 'vs/editor/common/modes';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
-import { URI } from 'vs/base/common/uri';
-import { IFileService } from 'vs/platform/files/common/files';
 
 interface IRegExp {
 	pattern: string;
@@ -32,15 +33,15 @@ interface IIndentationRules {
 interface ILanguageConfiguration {
 	comments?: CommentRule;
 	brackets?: CharacterPair[];
-	autoClosingPairs?: (CharacterPair | IAutoClosingPairConditional)[];
-	surroundingPairs?: (CharacterPair | IAutoClosingPair)[];
+	autoClosingPairs?: Array<CharacterPair | IAutoClosingPairConditional>;
+	surroundingPairs?: Array<CharacterPair | IAutoClosingPair>;
 	wordPattern?: string | IRegExp;
 	indentationRules?: IIndentationRules;
 	folding?: FoldingRules;
 	autoCloseBefore?: string;
 }
 
-function isStringArr(something: string[]): boolean {
+function isStringArr(something: string[] | null): something is string[] {
 	if (!Array.isArray(something)) {
 		return false;
 	}
@@ -53,7 +54,7 @@ function isStringArr(something: string[]): boolean {
 
 }
 
-function isCharacterPair(something: CharacterPair): boolean {
+function isCharacterPair(something: CharacterPair | null): boolean {
 	return (
 		isStringArr(something)
 		&& something.length === 2
@@ -67,14 +68,21 @@ export class LanguageConfigurationFileHandler {
 	constructor(
 		@ITextMateService textMateService: ITextMateService,
 		@IModeService private readonly _modeService: IModeService,
-		@IFileService private readonly _fileService: IFileService
+		@IFileService private readonly _fileService: IFileService,
+		@IExtensionService private readonly _extensionService: IExtensionService
 	) {
 		this._done = [];
 
 		// Listen for hints that a language configuration is needed/usefull and then load it once
-		this._modeService.onDidCreateMode((mode) => this._loadConfigurationsForMode(mode.getLanguageIdentifier()));
+		this._modeService.onDidCreateMode((mode) => {
+			const languageIdentifier = mode.getLanguageIdentifier();
+			// Modes can be instantiated before the extension points have finished registering
+			this._extensionService.whenInstalledExtensionsRegistered().then(() => {
+				this._loadConfigurationsForMode(languageIdentifier);
+			});
+		});
 		textMateService.onDidEncounterLanguage((languageId) => {
-			this._loadConfigurationsForMode(this._modeService.getLanguageIdentifier(languageId));
+			this._loadConfigurationsForMode(this._modeService.getLanguageIdentifier(languageId)!);
 		});
 	}
 
@@ -101,7 +109,7 @@ export class LanguageConfigurationFileHandler {
 		});
 	}
 
-	private _extractValidCommentRule(languageIdentifier: LanguageIdentifier, configuration: ILanguageConfiguration): CommentRule {
+	private _extractValidCommentRule(languageIdentifier: LanguageIdentifier, configuration: ILanguageConfiguration): CommentRule | null {
 		const source = configuration.comments;
 		if (typeof source === 'undefined') {
 			return null;
@@ -131,7 +139,7 @@ export class LanguageConfigurationFileHandler {
 		return result;
 	}
 
-	private _extractValidBrackets(languageIdentifier: LanguageIdentifier, configuration: ILanguageConfiguration): CharacterPair[] {
+	private _extractValidBrackets(languageIdentifier: LanguageIdentifier, configuration: ILanguageConfiguration): CharacterPair[] | null {
 		const source = configuration.brackets;
 		if (typeof source === 'undefined') {
 			return null;
@@ -155,7 +163,7 @@ export class LanguageConfigurationFileHandler {
 		return result;
 	}
 
-	private _extractValidAutoClosingPairs(languageIdentifier: LanguageIdentifier, configuration: ILanguageConfiguration): IAutoClosingPairConditional[] {
+	private _extractValidAutoClosingPairs(languageIdentifier: LanguageIdentifier, configuration: ILanguageConfiguration): IAutoClosingPairConditional[] | null {
 		const source = configuration.autoClosingPairs;
 		if (typeof source === 'undefined') {
 			return null;
@@ -201,7 +209,7 @@ export class LanguageConfigurationFileHandler {
 		return result;
 	}
 
-	private _extractValidSurroundingPairs(languageIdentifier: LanguageIdentifier, configuration: ILanguageConfiguration): IAutoClosingPair[] {
+	private _extractValidSurroundingPairs(languageIdentifier: LanguageIdentifier, configuration: ILanguageConfiguration): IAutoClosingPair[] | null {
 		const source = configuration.surroundingPairs;
 		if (typeof source === 'undefined') {
 			return null;
@@ -241,7 +249,7 @@ export class LanguageConfigurationFileHandler {
 		return result;
 	}
 
-	// private _mapCharacterPairs(pairs: (CharacterPair | IAutoClosingPairConditional)[]): IAutoClosingPairConditional[] {
+	// private _mapCharacterPairs(pairs: Array<CharacterPair | IAutoClosingPairConditional>): IAutoClosingPairConditional[] {
 	// 	return pairs.map(pair => {
 	// 		if (Array.isArray(pair)) {
 	// 			return { open: pair[0], close: pair[1] };
@@ -302,7 +310,7 @@ export class LanguageConfigurationFileHandler {
 
 			richEditConfig.folding = {
 				offSide: configuration.folding.offSide,
-				markers: markers ? { start: new RegExp(markers.start), end: new RegExp(markers.end) } : void 0
+				markers: markers ? { start: new RegExp(markers.start), end: new RegExp(markers.end) } : undefined
 			};
 		}
 
@@ -319,7 +327,7 @@ export class LanguageConfigurationFileHandler {
 		return null;
 	}
 
-	private _mapIndentationRules(indentationRules: IIndentationRules): IndentationRule {
+	private _mapIndentationRules(indentationRules: IIndentationRules): IndentationRule | null {
 		try {
 			let increaseIndentPattern = this._parseRegex(indentationRules.increaseIndentPattern);
 			let decreaseIndentPattern = this._parseRegex(indentationRules.decreaseIndentPattern);
@@ -465,7 +473,7 @@ const schema: IJSONSchema = {
 		},
 		wordPattern: {
 			default: '',
-			description: nls.localize('schema.wordPattern', 'The word definition for the language.'),
+			description: nls.localize('schema.wordPattern', 'Defines what is considered to be a word in the programming language.'),
 			type: ['string', 'object'],
 			properties: {
 				pattern: {
@@ -510,7 +518,7 @@ const schema: IJSONSchema = {
 				},
 				decreaseIndentPattern: {
 					type: ['string', 'object'],
-					description: nls.localize('schema.indentationRules.decreaseIndentPattern', 'If a line matches this pattern, then all the lines after it should be unindendented once (until another rule matches).'),
+					description: nls.localize('schema.indentationRules.decreaseIndentPattern', 'If a line matches this pattern, then all the lines after it should be unindented once (until another rule matches).'),
 					properties: {
 						pattern: {
 							type: 'string',

@@ -43,7 +43,7 @@ configurationRegistry.registerConfiguration({
 
 export interface ICrashReporterService {
 	_serviceBrand: any;
-	getChildProcessStartOptions(processName: string): Electron.CrashReporterStartOptions; // TODO
+	getChildProcessStartOptions(processName: string): Electron.CrashReporterStartOptions | undefined; // TODO
 }
 
 export const NullCrashReporterService: ICrashReporterService = {
@@ -59,8 +59,8 @@ export class CrashReporterService implements ICrashReporterService {
 	private isEnabled: boolean;
 
 	constructor(
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IWindowsService private windowsService: IWindowsService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IWindowsService private readonly windowsService: IWindowsService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		const config = configurationService.getValue<ICrashReporterConfig>(TELEMETRY_SECTION_ID);
@@ -100,19 +100,17 @@ export class CrashReporterService implements ICrashReporterService {
 	}
 
 	private getSubmitURL(): string {
-		let submitURL: string;
 		if (isWindows) {
-			submitURL = product.hockeyApp[`win32-${process.arch}`];
+			return product.hockeyApp[`win32-${process.arch}`];
 		} else if (isMacintosh) {
-			submitURL = product.hockeyApp.darwin;
+			return product.hockeyApp.darwin;
 		} else if (isLinux) {
-			submitURL = product.hockeyApp[`linux-${process.arch}`];
+			return product.hockeyApp[`linux-${process.arch}`];
 		}
-
-		return submitURL;
+		throw new Error('Unknown platform');
 	}
 
-	getChildProcessStartOptions(name: string): Electron.CrashReporterStartOptions {
+	getChildProcessStartOptions(name: string): Electron.CrashReporterStartOptions | undefined {
 
 		// Experimental crash reporting support for child processes on Mac only for now
 		if (this.isEnabled && isMacintosh) {
@@ -123,6 +121,6 @@ export class CrashReporterService implements ICrashReporterService {
 			return childProcessOptions;
 		}
 
-		return void 0;
+		return undefined;
 	}
 }

@@ -36,9 +36,9 @@ export interface IProblemMatcher {
 export class AbstractProblemCollector implements IDisposable {
 
 	private matchers: INumberDictionary<ILineMatcher[]>;
-	private activeMatcher: ILineMatcher;
+	private activeMatcher: ILineMatcher | null;
 	private _numberOfMatches: number;
-	private _maxMarkerSeverity: MarkerSeverity;
+	private _maxMarkerSeverity?: MarkerSeverity;
 	private buffer: string[];
 	private bufferLength: number;
 	private openModels: IStringDictionary<boolean>;
@@ -79,7 +79,7 @@ export class AbstractProblemCollector implements IDisposable {
 		this.applyToByOwner = new Map<string, ApplyToKind>();
 		for (let problemMatcher of problemMatchers) {
 			let current = this.applyToByOwner.get(problemMatcher.owner);
-			if (current === void 0) {
+			if (current === undefined) {
 				this.applyToByOwner.set(problemMatcher.owner, problemMatcher.applyTo);
 			} else {
 				this.applyToByOwner.set(problemMatcher.owner, this.mergeApplyTo(current, problemMatcher.applyTo));
@@ -111,11 +111,11 @@ export class AbstractProblemCollector implements IDisposable {
 		return this._numberOfMatches;
 	}
 
-	public get maxMarkerSeverity(): MarkerSeverity {
+	public get maxMarkerSeverity(): MarkerSeverity | undefined {
 		return this._maxMarkerSeverity;
 	}
 
-	protected tryFindMarker(line: string): ProblemMatch {
+	protected tryFindMarker(line: string): ProblemMatch | null {
 		let result: ProblemMatch | null = null;
 		if (this.activeMatcher) {
 			result = this.activeMatcher.next(line);
@@ -163,7 +163,7 @@ export class AbstractProblemCollector implements IDisposable {
 		return ApplyToKind.allDocuments;
 	}
 
-	private tryMatchers(): ProblemMatch {
+	private tryMatchers(): ProblemMatch | null {
 		this.activeMatcher = null;
 		let length = this.buffer.length;
 		for (let startIndex = 0; startIndex < length; startIndex++) {
@@ -171,8 +171,7 @@ export class AbstractProblemCollector implements IDisposable {
 			if (!candidates) {
 				continue;
 			}
-			for (let i = 0; i < candidates.length; i++) {
-				let matcher = candidates[i];
+			for (const matcher of candidates) {
 				let result = matcher.handle(this.buffer, startIndex);
 				if (result.match) {
 					this.captureMatch(result.match);
@@ -188,7 +187,7 @@ export class AbstractProblemCollector implements IDisposable {
 
 	private captureMatch(match: ProblemMatch): void {
 		this._numberOfMatches++;
-		if (this._maxMarkerSeverity === void 0 || match.marker.severity > this._maxMarkerSeverity) {
+		if (this._maxMarkerSeverity === undefined || match.marker.severity > this._maxMarkerSeverity) {
 			this._maxMarkerSeverity = match.marker.severity;
 		}
 	}
@@ -384,8 +383,8 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 	private _activeBackgroundMatchers: Set<string>;
 
 	// Current State
-	private currentOwner: string;
-	private currentResource: string;
+	private currentOwner: string | null;
+	private currentResource: string | null;
 
 	constructor(problemMatchers: ProblemMatcher[], markerService: IMarkerService, modelService: IModelService) {
 		super(problemMatchers, markerService, modelService);
@@ -445,8 +444,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 
 	private tryBegin(line: string): boolean {
 		let result = false;
-		for (let i = 0; i < this.backgroundPatterns.length; i++) {
-			let background = this.backgroundPatterns[i];
+		for (const background of this.backgroundPatterns) {
 			let matches = background.begin.regexp.exec(line);
 			if (matches) {
 				if (this._activeBackgroundMatchers.has(background.key)) {
@@ -458,7 +456,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 				this.cleanMarkerCaches();
 				this.resetCurrentResource();
 				let owner = background.matcher.owner;
-				let file = matches[background.begin.file];
+				let file = matches[background.begin.file!];
 				if (file) {
 					let resource = getResource(file, background.matcher);
 					this.recordResourceToClean(owner, resource);
@@ -472,8 +470,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 
 	private tryFinish(line: string): boolean {
 		let result = false;
-		for (let i = 0; i < this.backgroundPatterns.length; i++) {
-			let background = this.backgroundPatterns[i];
+		for (const background of this.backgroundPatterns) {
 			let matches = background.end.regexp.exec(line);
 			if (matches) {
 				if (this._activeBackgroundMatchers.has(background.key)) {

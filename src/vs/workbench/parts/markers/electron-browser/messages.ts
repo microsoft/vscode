@@ -42,7 +42,7 @@ export default class Messages {
 	public static MARKERS_PANEL_SINGLE_UNKNOWN_LABEL: string = nls.localize('markers.panel.single.unknown.label', "1 Unknown");
 	public static readonly MARKERS_PANEL_MULTIPLE_UNKNOWNS_LABEL = (noOfUnknowns: number): string => { return nls.localize('markers.panel.multiple.unknowns.label', "{0} Unknowns", '' + noOfUnknowns); };
 
-	public static readonly MARKERS_PANEL_AT_LINE_COL_NUMBER = (ln: number, col: number): string => { return nls.localize('markers.panel.at.ln.col.number', "({0}, {1})", '' + ln, '' + col); };
+	public static readonly MARKERS_PANEL_AT_LINE_COL_NUMBER = (ln: number, col: number): string => { return nls.localize('markers.panel.at.ln.col.number', "[{0}, {1}]", '' + ln, '' + col); };
 
 	public static readonly MARKERS_TREE_ARIA_LABEL_RESOURCE = (noOfProblems: number, fileName: string, folder: string): string => { return nls.localize('problems.tree.aria.label.resource', "{0} problems in file {1} of folder {2}", noOfProblems, fileName, folder); };
 	public static readonly MARKERS_TREE_ARIA_LABEL_MARKER = (marker: Marker): string => {

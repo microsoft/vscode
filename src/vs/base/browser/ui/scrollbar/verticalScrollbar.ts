@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AbstractScrollbar, ScrollbarHost, ISimplifiedMouseEvent } from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
-import { StandardMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { StandardWheelEvent } from 'vs/base/browser/mouseEvent';
+import { AbstractScrollbar, ISimplifiedMouseEvent, ScrollbarHost } from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
 import { ScrollableElementResolvedOptions } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
-import { Scrollable, ScrollEvent, ScrollbarVisibility, INewScrollPosition } from 'vs/base/common/scrollable';
-import { ScrollbarState } from 'vs/base/browser/ui/scrollbar/scrollbarState';
 import { ARROW_IMG_SIZE } from 'vs/base/browser/ui/scrollbar/scrollbarArrow';
+import { ScrollbarState } from 'vs/base/browser/ui/scrollbar/scrollbarState';
+import { INewScrollPosition, ScrollEvent, Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
 
 export class VerticalScrollbar extends AbstractScrollbar {
 
@@ -35,22 +35,22 @@ export class VerticalScrollbar extends AbstractScrollbar {
 				className: 'up-arrow',
 				top: arrowDelta,
 				left: scrollbarDelta,
-				bottom: void 0,
-				right: void 0,
+				bottom: undefined,
+				right: undefined,
 				bgWidth: options.verticalScrollbarSize,
 				bgHeight: options.arrowSize,
-				onActivate: () => this._host.onMouseWheel(new StandardMouseWheelEvent(null, 0, 1)),
+				onActivate: () => this._host.onMouseWheel(new StandardWheelEvent(null, 0, 1)),
 			});
 
 			this._createArrow({
 				className: 'down-arrow',
-				top: void 0,
+				top: undefined,
 				left: scrollbarDelta,
 				bottom: arrowDelta,
-				right: void 0,
+				right: undefined,
 				bgWidth: options.verticalScrollbarSize,
 				bgHeight: options.arrowSize,
-				onActivate: () => this._host.onMouseWheel(new StandardMouseWheelEvent(null, 0, -1)),
+				onActivate: () => this._host.onMouseWheel(new StandardWheelEvent(null, 0, -1)),
 			});
 		}
 

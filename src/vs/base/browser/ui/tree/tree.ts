@@ -5,7 +5,8 @@
 
 import { Event } from 'vs/base/common/event';
 import { Iterator } from 'vs/base/common/iterator';
-import { IListRenderer } from 'vs/base/browser/ui/list/list';
+import { IListRenderer, IListDragOverReaction, IListDragAndDrop, ListDragOverEffect } from 'vs/base/browser/ui/list/list';
+import { IDragAndDropData } from 'vs/base/browser/dnd';
 
 export const enum TreeVisibility {
 
@@ -64,7 +65,11 @@ export interface ITreeFilter<T, TFilterData = void> {
 	 *
 	 * @param element The tree element.
 	 */
-	filter(element: T): TreeFilterResult<TFilterData>;
+	filter(element: T, parentVisibility: TreeVisibility): TreeFilterResult<TFilterData>;
+}
+
+export interface ITreeSorter<T> {
+	compare(element: T, otherElement: T): number;
 }
 
 export interface ITreeElement<T> {
@@ -85,28 +90,89 @@ export interface ITreeNode<T, TFilterData = void> {
 	readonly filterData: TFilterData | undefined;
 }
 
+export interface ICollapseStateChangeEvent<T, TFilterData> {
+	node: ITreeNode<T, TFilterData>;
+	deep: boolean;
+}
+
 export interface ITreeModel<T, TFilterData, TRef> {
-	readonly onDidChangeCollapseState: Event<ITreeNode<T, TFilterData>>;
+	readonly rootRef: TRef;
+	readonly onDidChangeCollapseState: Event<ICollapseStateChangeEvent<T, TFilterData>>;
 	readonly onDidChangeRenderNodeCount: Event<ITreeNode<T, TFilterData>>;
 
 	getListIndex(location: TRef): number;
+	getListRenderCount(location: TRef): number;
 	getNode(location?: TRef): ITreeNode<T, any>;
 	getNodeLocation(node: ITreeNode<T, any>): TRef;
-	getParentNodeLocation(location: TRef): TRef | null;
+	getParentNodeLocation(location: TRef): TRef;
 
-	getParentElement(location: TRef): T | null;
-	getFirstChildElement(location: TRef): T | null;
-	getLastAncestorElement(location: TRef): T | null;
+	getParentElement(location: TRef): T;
+	getFirstElementChild(location: TRef): T | undefined;
+	getLastElementAncestor(location?: TRef): T | undefined;
 
+	isCollapsible(location: TRef): boolean;
 	isCollapsed(location: TRef): boolean;
-	setCollapsed(location: TRef, collapsed: boolean): boolean;
-	toggleCollapsed(location: TRef): void;
-	collapseAll(): void;
+	setCollapsed(location: TRef, collapsed?: boolean, recursive?: boolean): boolean;
 
 	refilter(): void;
 }
 
-export interface ITreeRenderer<T, TFilterData, TTemplateData> extends IListRenderer<ITreeNode<T, TFilterData>, TTemplateData> {
-	renderTwistie?(element: T, twistieElement: HTMLElement): boolean;
+export interface ITreeRenderer<T, TFilterData = void, TTemplateData = void> extends IListRenderer<ITreeNode<T, TFilterData>, TTemplateData> {
+	renderTwistie?(element: T, twistieElement: HTMLElement): void;
 	onDidChangeTwistieState?: Event<T>;
+}
+
+export interface ITreeEvent<T> {
+	elements: T[];
+	browserEvent?: UIEvent;
+}
+
+export interface ITreeMouseEvent<T> {
+	browserEvent: MouseEvent;
+	element: T | null;
+}
+
+export interface ITreeContextMenuEvent<T> {
+	browserEvent: UIEvent;
+	element: T | null;
+	anchor: HTMLElement | { x: number; y: number; } | undefined;
+}
+
+export interface ITreeNavigator<T> {
+	current(): T | null;
+	previous(): T | null;
+	parent(): T | null;
+	first(): T | null;
+	last(): T | null;
+	next(): T | null;
+}
+
+export interface IDataSource<TInput, T> {
+	getChildren(element: TInput | T): T[];
+}
+
+export interface IAsyncDataSource<TInput, T> {
+	hasChildren(element: TInput | T): boolean;
+	getChildren(element: TInput | T): T[] | Promise<T[]>;
+}
+
+export const enum TreeDragOverBubble {
+	Down,
+	Up
+}
+
+export interface ITreeDragOverReaction extends IListDragOverReaction {
+	bubble?: TreeDragOverBubble;
+	autoExpand?: boolean;
+}
+
+export const TreeDragOverReactions = {
+	acceptBubbleUp(): ITreeDragOverReaction { return { accept: true, bubble: TreeDragOverBubble.Up }; },
+	acceptBubbleDown(autoExpand = false): ITreeDragOverReaction { return { accept: true, bubble: TreeDragOverBubble.Down, autoExpand }; },
+	acceptCopyBubbleUp(): ITreeDragOverReaction { return { accept: true, bubble: TreeDragOverBubble.Up, effect: ListDragOverEffect.Copy }; },
+	acceptCopyBubbleDown(autoExpand = false): ITreeDragOverReaction { return { accept: true, bubble: TreeDragOverBubble.Down, effect: ListDragOverEffect.Copy, autoExpand }; }
+};
+
+export interface ITreeDragAndDrop<T> extends IListDragAndDrop<T> {
+	onDragOver(data: IDragAndDropData, targetElement: T | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean | ITreeDragOverReaction;
 }

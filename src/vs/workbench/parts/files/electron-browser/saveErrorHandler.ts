@@ -29,8 +29,9 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ExecuteCommandAction } from 'vs/platform/actions/common/actions';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { once } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { isWindows } from 'vs/base/common/platform';
 
 export const CONFLICT_RESOLUTION_CONTEXT = 'saveConflictResolutionContext';
 export const CONFLICT_RESOLUTION_SCHEME = 'conflictResolution';
@@ -46,13 +47,13 @@ export class SaveErrorHandler extends Disposable implements ISaveErrorHandler, I
 	private activeConflictResolutionResource: URI;
 
 	constructor(
-		@INotificationService private notificationService: INotificationService,
-		@ITextFileService private textFileService: ITextFileService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@ITextFileService private readonly textFileService: ITextFileService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IEditorService private editorService: IEditorService,
+		@IEditorService private readonly editorService: IEditorService,
 		@ITextModelService textModelService: ITextModelService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IStorageService private storageService: IStorageService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		super();
 
@@ -158,12 +159,12 @@ export class SaveErrorHandler extends Disposable implements ISaveErrorHandler, I
 
 			if (isReadonly) {
 				if (triedToMakeWriteable) {
-					message = nls.localize('readonlySaveErrorAdmin', "Failed to save '{0}': File is write protected. Select 'Overwrite as Admin' to retry as administrator.", paths.basename(resource.fsPath));
+					message = isWindows ? nls.localize('readonlySaveErrorAdmin', "Failed to save '{0}': File is write protected. Select 'Overwrite as Admin' to retry as administrator.", paths.basename(resource.fsPath)) : nls.localize('readonlySaveErrorSudo', "Failed to save '{0}': File is write protected. Select 'Overwrite as Sudo' to retry as superuser.", paths.basename(resource.fsPath));
 				} else {
 					message = nls.localize('readonlySaveError', "Failed to save '{0}': File is write protected. Select 'Overwrite' to attempt to remove protection.", paths.basename(resource.fsPath));
 				}
 			} else if (isPermissionDenied) {
-				message = nls.localize('permissionDeniedSaveError', "Failed to save '{0}': Insufficient permissions. Select 'Retry as Admin' to retry as administrator.", paths.basename(resource.fsPath));
+				message = isWindows ? nls.localize('permissionDeniedSaveError', "Failed to save '{0}': Insufficient permissions. Select 'Retry as Admin' to retry as administrator.", paths.basename(resource.fsPath)) : nls.localize('permissionDeniedSaveErrorSudo', "Failed to save '{0}': Insufficient permissions. Select 'Retry as Sudo' to retry as superuser.", paths.basename(resource.fsPath));
 			} else {
 				message = nls.localize('genericSaveError', "Failed to save '{0}': {1}", paths.basename(resource.fsPath), toErrorMessage(error, false));
 			}
@@ -171,7 +172,7 @@ export class SaveErrorHandler extends Disposable implements ISaveErrorHandler, I
 
 		// Show message and keep function to hide in case the file gets saved/reverted
 		const handle = this.notificationService.notify({ severity: Severity.Error, message, actions });
-		once(handle.onDidClose)(() => dispose(...actions.primary, ...actions.secondary));
+		Event.once(handle.onDidClose)(() => dispose(...actions.primary, ...actions.secondary));
 		this.messages.set(model.getResource(), handle);
 	}
 
@@ -192,7 +193,7 @@ function clearPendingResolveSaveConflictMessages(): void {
 class ResolveConflictLearnMoreAction extends Action {
 
 	constructor(
-		@IOpenerService private openerService: IOpenerService
+		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		super('workbench.files.action.resolveConflictLearnMore', nls.localize('learnMore', "Learn More"));
 	}
@@ -205,7 +206,7 @@ class ResolveConflictLearnMoreAction extends Action {
 class DoNotShowResolveConflictLearnMoreAction extends Action {
 
 	constructor(
-		@IStorageService private storageService: IStorageService
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		super('workbench.files.action.resolveConflictLearnMoreDoNotShowAgain', nls.localize('dontShowAgain', "Don't Show Again"));
 	}
@@ -216,7 +217,7 @@ class DoNotShowResolveConflictLearnMoreAction extends Action {
 		// Hide notification
 		notification.dispose();
 
-		return Promise.resolve(void 0);
+		return Promise.resolve();
 	}
 }
 
@@ -224,16 +225,16 @@ class ResolveSaveConflictAction extends Action {
 
 	constructor(
 		private model: ITextFileEditorModel,
-		@IEditorService private editorService: IEditorService,
-		@INotificationService private notificationService: INotificationService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IStorageService private storageService: IStorageService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEditorService private readonly editorService: IEditorService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IStorageService private readonly storageService: IStorageService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
 		super('workbench.files.action.resolveConflict', nls.localize('compareChanges', "Compare"));
 	}
 
-	run(): Thenable<any> {
+	run(): Promise<any> {
 		if (!this.model.isDisposed()) {
 			const resource = this.model.getResource();
 			const name = paths.basename(resource.fsPath);
@@ -257,7 +258,7 @@ class ResolveSaveConflictAction extends Action {
 				actions.secondary.push(this.instantiationService.createInstance(DoNotShowResolveConflictLearnMoreAction));
 
 				const handle = this.notificationService.notify({ severity: Severity.Info, message: conflictEditorHelp, actions });
-				once(handle.onDidClose)(() => dispose(...actions.primary, ...actions.secondary));
+				Event.once(handle.onDidClose)(() => dispose(...actions.primary, ...actions.secondary));
 				pendingResolveSaveConflictMessages.push(handle);
 			});
 		}
@@ -272,7 +273,7 @@ class SaveElevatedAction extends Action {
 		private model: ITextFileEditorModel,
 		private triedToMakeWriteable: boolean
 	) {
-		super('workbench.files.action.saveElevated', triedToMakeWriteable ? nls.localize('overwriteElevated', "Overwrite as Admin...") : nls.localize('saveElevated', "Retry as Admin..."));
+		super('workbench.files.action.saveElevated', triedToMakeWriteable ? isWindows ? nls.localize('overwriteElevated', "Overwrite as Admin...") : nls.localize('overwriteElevatedSudo', "Overwrite as Sudo...") : isWindows ? nls.localize('saveElevated', "Retry as Admin...") : nls.localize('saveElevatedSudo', "Retry as Sudo..."));
 	}
 
 	run(): Promise<any> {

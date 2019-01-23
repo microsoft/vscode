@@ -46,6 +46,7 @@ export class CommentNode extends Disposable {
 	private _commentEditorModel: ITextModel;
 	private _updateCommentButton: Button;
 	private _errorEditingContainer: HTMLElement;
+	private _isPendingLabel: HTMLElement;
 
 	private _deleteAction: Action;
 	private _onDidDelete = new Emitter<CommentNode>();
@@ -56,7 +57,7 @@ export class CommentNode extends Disposable {
 
 	constructor(
 		public comment: modes.Comment,
-		private owner: number,
+		private owner: string,
 		private resource: URI,
 		private markdownRenderer: MarkdownRenderer,
 		private themeService: IThemeService,
@@ -75,6 +76,7 @@ export class CommentNode extends Disposable {
 		if (comment.userIconPath) {
 			const img = <HTMLImageElement>dom.append(avatar, dom.$('img.avatar'));
 			img.src = comment.userIconPath.toString();
+			img.onerror = _ => img.remove();
 		}
 		const commentDetailsContainer = dom.append(this._domNode, dom.$('.review-comment-contents'));
 
@@ -97,6 +99,12 @@ export class CommentNode extends Disposable {
 		const header = dom.append(commentDetailsContainer, dom.$('div.comment-title'));
 		const author = dom.append(header, dom.$('strong.author'));
 		author.innerText = this.comment.userName;
+
+		this._isPendingLabel = dom.append(header, dom.$('span.isPending'));
+
+		if (this.comment.isDraft) {
+			this._isPendingLabel.innerText = 'Pending';
+		}
 
 		const actions: Action[] = [];
 		if (this.comment.canEdit) {
@@ -123,7 +131,7 @@ export class CommentNode extends Disposable {
 		const container = dom.append(this._commentEditContainer, dom.$('.edit-textarea'));
 		this._commentEditor = this.instantiationService.createInstance(SimpleCommentEditor, container, SimpleCommentEditor.getEditorOptions());
 		const resource = URI.parse(`comment:commentinput-${this.comment.commentId}-${Date.now()}.md`);
-		this._commentEditorModel = this.modelService.createModel('', this.modeService.getOrCreateModeByFilepathOrFirstLine(resource.path), resource, true);
+		this._commentEditorModel = this.modelService.createModel('', this.modeService.createByFilepathOrFirstLine(resource.path), resource, false);
 
 		this._commentEditor.setModel(this._commentEditorModel);
 		this._commentEditor.setValue(this.comment.body.value);
@@ -185,7 +193,6 @@ export class CommentNode extends Disposable {
 	private createDeleteAction(): Action {
 		return new Action('comment.delete', nls.localize('label.delete', "Delete"), 'octicon octicon-x', true, () => {
 			return this.dialogService.confirm({
-				title: nls.localize('deleteCommentTitle', "Delete Comment"),
 				message: nls.localize('confirmDelete', "Delete comment?"),
 				type: 'question',
 				primaryButton: nls.localize('label.delete', "Delete")
@@ -220,7 +227,7 @@ export class CommentNode extends Disposable {
 
 			const cancelEditButton = new Button(formActions);
 			cancelEditButton.label = nls.localize('label.cancel', "Cancel");
-			attachButtonStyler(cancelEditButton, this.themeService);
+			this._toDispose.push(attachButtonStyler(cancelEditButton, this.themeService));
 
 			this._toDispose.push(cancelEditButton.onDidClick(_ => {
 				this.removeCommentEditor();
@@ -228,7 +235,7 @@ export class CommentNode extends Disposable {
 
 			this._updateCommentButton = new Button(formActions);
 			this._updateCommentButton.label = UPDATE_COMMENT_LABEL;
-			attachButtonStyler(this._updateCommentButton, this.themeService);
+			this._toDispose.push(attachButtonStyler(this._updateCommentButton, this.themeService));
 
 			this._toDispose.push(this._updateCommentButton.onDidClick(_ => {
 				this.editComment();
@@ -274,6 +281,12 @@ export class CommentNode extends Disposable {
 			this._body.removeChild(this._md);
 			this._md = this.markdownRenderer.render(newComment.body).element;
 			this._body.appendChild(this._md);
+		}
+
+		if (newComment.isDraft) {
+			this._isPendingLabel.innerText = 'Pending';
+		} else {
+			this._isPendingLabel.innerText = '';
 		}
 
 		this.comment = newComment;

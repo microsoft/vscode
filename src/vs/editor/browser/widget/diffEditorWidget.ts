@@ -5,41 +5,41 @@
 
 import 'vs/css!./media/diffEditor';
 import * as nls from 'vs/nls';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Disposable } from 'vs/base/common/lifecycle';
-import * as objects from 'vs/base/common/objects';
 import * as dom from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { ISashEvent, IVerticalSashLayoutProvider, Sash, SashState } from 'vs/base/browser/ui/sash/sash';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { Range, IRange } from 'vs/editor/common/core/range';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { IEditorWorkerService, IDiffComputationResult } from 'vs/editor/common/services/editorWorkerService';
-import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
-import { renderViewLine, RenderLineInput } from 'vs/editor/common/viewLayout/viewLineRenderer';
-import * as editorBrowser from 'vs/editor/browser/editorBrowser';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { Configuration } from 'vs/editor/browser/config/configuration';
-import { Position, IPosition } from 'vs/editor/common/core/position';
-import { Selection, ISelection } from 'vs/editor/common/core/selection';
-import { InlineDecoration, InlineDecorationType, ViewLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { Event, Emitter } from 'vs/base/common/event';
-import * as editorOptions from 'vs/editor/common/config/editorOptions';
-import { registerThemingParticipant, IThemeService, ITheme, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
-import { scrollbarShadow, diffInserted, diffRemoved, defaultInsertColor, defaultRemoveColor, diffInsertedOutline, diffRemovedOutline, diffBorder } from 'vs/platform/theme/common/colorRegistry';
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { Color } from 'vs/base/common/color';
-import { OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
-import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { DiffReview } from 'vs/editor/browser/widget/diffReview';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
+import * as objects from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
-import { IStringBuilder, createStringBuilder } from 'vs/editor/common/core/stringBuilder';
-import { IModelDeltaDecoration, IModelDecorationsChangeAccessor, ITextModel } from 'vs/editor/common/model';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { Configuration } from 'vs/editor/browser/config/configuration';
 import { StableEditorScrollState } from 'vs/editor/browser/core/editorState';
+import * as editorBrowser from 'vs/editor/browser/editorBrowser';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { DiffReview } from 'vs/editor/browser/widget/diffReview';
+import * as editorOptions from 'vs/editor/common/config/editorOptions';
+import { IPosition, Position } from 'vs/editor/common/core/position';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import { ISelection, Selection } from 'vs/editor/common/core/selection';
+import { IStringBuilder, createStringBuilder } from 'vs/editor/common/core/stringBuilder';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import { IDiffComputationResult, IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
+import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
+import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
+import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
+import { InlineDecoration, InlineDecorationType, ViewLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { defaultInsertColor, defaultRemoveColor, diffBorder, diffInserted, diffInsertedOutline, diffRemoved, diffRemovedOutline, scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
+import { ITheme, IThemeService, getThemeTypeSelector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
 interface IEditorDiffDecorations {
 	decorations: IModelDeltaDecoration[];
@@ -369,15 +369,19 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			this._overviewDomElement.removeChild(this._originalOverviewRuler.getDomNode());
 			this._originalOverviewRuler.dispose();
 		}
-		this._originalOverviewRuler = this.originalEditor.createOverviewRuler('original diffOverviewRuler');
-		this._overviewDomElement.appendChild(this._originalOverviewRuler.getDomNode());
+		if (this.originalEditor.hasModel()) {
+			this._originalOverviewRuler = this.originalEditor.createOverviewRuler('original diffOverviewRuler')!;
+			this._overviewDomElement.appendChild(this._originalOverviewRuler.getDomNode());
+		}
 
 		if (this._modifiedOverviewRuler) {
 			this._overviewDomElement.removeChild(this._modifiedOverviewRuler.getDomNode());
 			this._modifiedOverviewRuler.dispose();
 		}
-		this._modifiedOverviewRuler = this.modifiedEditor.createOverviewRuler('modified diffOverviewRuler');
-		this._overviewDomElement.appendChild(this._modifiedOverviewRuler.getDomNode());
+		if (this.modifiedEditor.hasModel()) {
+			this._modifiedOverviewRuler = this.modifiedEditor.createOverviewRuler('modified diffOverviewRuler')!;
+			this._overviewDomElement.appendChild(this._modifiedOverviewRuler.getDomNode());
+		}
 
 		this._layoutOverviewRulers();
 	}
@@ -597,8 +601,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 	public getModel(): editorCommon.IDiffEditorModel {
 		return {
-			original: this.originalEditor.getModel(),
-			modified: this.modifiedEditor.getModel()
+			original: this.originalEditor.getModel()!,
+			modified: this.modifiedEditor.getModel()!
 		};
 	}
 
@@ -739,7 +743,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	}
 
 	public restoreViewState(s: editorCommon.IDiffEditorViewState): void {
-		if (s.original && s.original) {
+		if (s.original && s.modified) {
 			let diffEditorState = <editorCommon.IDiffEditorViewState>s;
 			this.originalEditor.restoreViewState(diffEditorState.original);
 			this.modifiedEditor.restoreViewState(diffEditorState.modified);
@@ -964,7 +968,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	private _adjustOptionsForRightHandSide(options: editorOptions.IDiffEditorOptions): editorOptions.IEditorOptions {
 		let result = this._adjustOptionsForSubEditor(options);
 		result.revealHorizontalRightPadding = editorOptions.EDITOR_DEFAULTS.viewInfo.revealHorizontalRightPadding + DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH;
-		result.scrollbar.verticalHasArrows = false;
+		result.scrollbar!.verticalHasArrows = false;
 		result.extraEditorClassName = 'modified-in-monaco-diff-editor';
 		return result;
 	}
@@ -1446,16 +1450,19 @@ abstract class ViewZonesComputer {
 			// ---------------------------- END EMIT MINIMAL VIEW ZONES
 		}
 
-		let ensureDomNode = (z: IMyViewZone) => {
+		return {
+			original: ViewZonesComputer._ensureDomNodes(result.original),
+			modified: ViewZonesComputer._ensureDomNodes(result.modified),
+		};
+	}
+
+	private static _ensureDomNodes(zones: IMyViewZone[]): editorBrowser.IViewZone[] {
+		return zones.map((z) => {
 			if (!z.domNode) {
 				z.domNode = createFakeLinesDiv();
 			}
-		};
-
-		result.original.forEach(ensureDomNode);
-		result.modified.forEach(ensureDomNode);
-
-		return result;
+			return <editorBrowser.IViewZone>z;
+		});
 	}
 
 	protected abstract _createOriginalMarginDomNodeForModifiedForeignViewZoneInAddedRegion(): HTMLDivElement | null;
@@ -1526,8 +1533,8 @@ class DiffEdtorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEd
 
 	private _disableSash: boolean;
 	private _sash: Sash;
-	private _sashRatio: number;
-	private _sashPosition: number;
+	private _sashRatio: number | null;
+	private _sashPosition: number | null;
 	private _startSashPosition: number;
 
 	constructor(dataSource: IDataSource, enableSplitViewResizing: boolean) {
@@ -1556,7 +1563,7 @@ class DiffEdtorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEd
 		}
 	}
 
-	public layout(sashRatio: number = this._sashRatio): number {
+	public layout(sashRatio: number | null = this._sashRatio): number {
 		let w = this._dataSource.getWidth();
 		let contentWidth = w - DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH;
 
@@ -1586,7 +1593,7 @@ class DiffEdtorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEd
 	}
 
 	private onSashDragStart(): void {
-		this._startSashPosition = this._sashPosition;
+		this._startSashPosition = this._sashPosition!;
 	}
 
 	private onSashDrag(e: ISashEvent): void {
@@ -1614,7 +1621,7 @@ class DiffEdtorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEd
 	}
 
 	public getVerticalSashLeft(sash: Sash): number {
-		return this._sashPosition;
+		return this._sashPosition!;
 	}
 
 	public getVerticalSashHeight(sash: Sash): number {
@@ -1634,7 +1641,7 @@ class DiffEdtorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEd
 			overviewZones: []
 		};
 
-		let originalModel = originalEditor.getModel();
+		let originalModel = originalEditor.getModel()!;
 
 		for (let i = 0, length = lineChanges.length; i < length; i++) {
 			let lineChange = lineChanges[i];
@@ -1694,7 +1701,7 @@ class DiffEdtorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEd
 			overviewZones: []
 		};
 
-		let modifiedModel = modifiedEditor.getModel();
+		let modifiedModel = modifiedEditor.getModel()!;
 
 		for (let i = 0, length = lineChanges.length; i < length; i++) {
 			let lineChange = lineChanges[i];
@@ -1843,7 +1850,7 @@ class DiffEdtorWidgetInline extends DiffEditorWidgetStyle implements IDiffEditor
 			overviewZones: []
 		};
 
-		let modifiedModel = modifiedEditor.getModel();
+		let modifiedModel = modifiedEditor.getModel()!;
 
 		for (let i = 0, length = lineChanges.length; i < length; i++) {
 			let lineChange = lineChanges[i];
@@ -1911,9 +1918,9 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 
 	constructor(lineChanges: editorCommon.ILineChange[], originalForeignVZ: IEditorWhitespace[], modifiedForeignVZ: IEditorWhitespace[], originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor, renderIndicators: boolean) {
 		super(lineChanges, originalForeignVZ, modifiedForeignVZ);
-		this.originalModel = originalEditor.getModel();
+		this.originalModel = originalEditor.getModel()!;
 		this.modifiedEditorConfiguration = modifiedEditor.getConfiguration();
-		this.modifiedEditorTabSize = modifiedEditor.getModel().getOptions().tabSize;
+		this.modifiedEditorTabSize = modifiedEditor.getModel()!.getOptions().tabSize;
 		this.renderIndicators = renderIndicators;
 	}
 

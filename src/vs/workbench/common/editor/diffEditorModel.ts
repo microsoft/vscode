@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorModel } from 'vs/workbench/common/editor';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 
@@ -30,13 +29,11 @@ export class DiffEditorModel extends EditorModel {
 		return this._modifiedModel as EditorModel;
 	}
 
-	load(): TPromise<EditorModel> {
-		return TPromise.join([
+	load(): Promise<EditorModel> {
+		return Promise.all([
 			this._originalModel.load(),
 			this._modifiedModel.load()
-		]).then(() => {
-			return this;
-		});
+		]).then(() => this);
 	}
 
 	isResolved(): boolean {

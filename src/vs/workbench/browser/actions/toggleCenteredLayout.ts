@@ -18,7 +18,7 @@ class ToggleCenteredLayout extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IPartService private partService: IPartService
+		@IPartService private readonly partService: IPartService
 	) {
 		super(id, label);
 		this.enabled = !!this.partService;
@@ -41,13 +41,4 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 		title: nls.localize('miToggleCenteredLayout', "Toggle Centered Layout")
 	},
 	order: 3
-});
-
-MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
-	group: '2_layouts',
-	command: {
-		id: 'workbench.action.editorLayoutCentered',
-		title: nls.localize({ key: 'miCenteredEditorLayout', comment: ['&& denotes a mnemonic'] }, "&&Centered")
-	},
-	order: 2
 });

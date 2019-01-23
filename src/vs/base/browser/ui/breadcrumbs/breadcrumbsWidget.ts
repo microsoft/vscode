@@ -119,7 +119,7 @@ export class BreadcrumbsWidget {
 	}
 
 	layout(dim: dom.Dimension | undefined): void {
-		if (dom.Dimension.equals(dim, this._dimension)) {
+		if (dim && dom.Dimension.equals(dim, this._dimension)) {
 			return;
 		}
 		if (this._pendingLayout) {
@@ -146,9 +146,11 @@ export class BreadcrumbsWidget {
 
 	private _updateScrollbar(): IDisposable {
 		return dom.measure(() => {
-			this._scrollable.setRevealOnScroll(false);
-			this._scrollable.scanDomNode();
-			this._scrollable.setRevealOnScroll(true);
+			dom.measure(() => { // double RAF
+				this._scrollable.setRevealOnScroll(false);
+				this._scrollable.scanDomNode();
+				this._scrollable.setRevealOnScroll(true);
+			});
 		});
 	}
 

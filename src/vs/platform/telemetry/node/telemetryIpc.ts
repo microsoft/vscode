@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
-import { IChannel } from 'vs/base/parts/ipc/node/ipc';
+import { IChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
 import { ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 import { Event } from 'vs/base/common/event';
 
@@ -13,34 +12,29 @@ export interface ITelemetryLog {
 	data?: any;
 }
 
-export interface ITelemetryAppenderChannel extends IChannel {
-	call(command: 'log', data: ITelemetryLog): Thenable<void>;
-	call(command: string, arg: any): Thenable<any>;
-}
-
-export class TelemetryAppenderChannel implements ITelemetryAppenderChannel {
+export class TelemetryAppenderChannel implements IServerChannel {
 
 	constructor(private appender: ITelemetryAppender) { }
 
-	listen<T>(event: string, arg?: any): Event<T> {
-		throw new Error('No events');
+	listen<T>(_, event: string): Event<T> {
+		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(command: string, { eventName, data }: ITelemetryLog): Thenable<any> {
+	call(_, command: string, { eventName, data }: ITelemetryLog): Promise<any> {
 		this.appender.log(eventName, data);
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }
 
 export class TelemetryAppenderClient implements ITelemetryAppender {
 
-	constructor(private channel: ITelemetryAppenderChannel) { }
+	constructor(private channel: IChannel) { }
 
 	log(eventName: string, data?: any): any {
 		this.channel.call('log', { eventName, data })
-			.then(null, err => `Failed to log telemetry: ${console.warn(err)}`);
+			.then(undefined, err => `Failed to log telemetry: ${console.warn(err)}`);
 
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	dispose(): any {

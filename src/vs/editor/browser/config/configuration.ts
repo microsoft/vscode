@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
+import * as browser from 'vs/base/browser/browser';
+import { FastDomNode } from 'vs/base/browser/fastDomNode';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
-import * as browser from 'vs/base/browser/browser';
-import { CommonEditorConfiguration, IEnvConfiguration } from 'vs/editor/common/config/commonEditorConfig';
-import { IDimension } from 'vs/editor/common/editorCommon';
-import { FontInfo, BareFontInfo } from 'vs/editor/common/config/fontInfo';
-import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
-import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { CharWidthRequest, CharWidthRequestType, readCharWidths } from 'vs/editor/browser/config/charWidthReader';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
+import { CommonEditorConfiguration, IEnvConfiguration } from 'vs/editor/common/config/commonEditorConfig';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
+import { IDimension } from 'vs/editor/common/editorCommon';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 class CSSBasedConfigurationCache {
 
@@ -76,7 +76,9 @@ export function restoreFontInfo(storageService: IStorageService): void {
 
 export function saveFontInfo(storageService: IStorageService): void {
 	let knownFontInfo = CSSBasedConfiguration.INSTANCE.saveFontInfo();
-	storageService.store('editorFontInfo', JSON.stringify(knownFontInfo), StorageScope.GLOBAL);
+	if (knownFontInfo.length > 0) {
+		storageService.store('editorFontInfo', JSON.stringify(knownFontInfo), StorageScope.GLOBAL);
+	}
 }
 
 export interface ISerializedFontInfo {
@@ -343,14 +345,9 @@ export class Configuration extends CommonEditorConfiguration {
 
 	private _getExtraEditorClassName(): string {
 		let extra = '';
-		if (browser.isIE) {
-			extra += 'ie ';
-		} else if (browser.isFirefox) {
-			extra += 'ff ';
-		} else if (browser.isEdge) {
-			extra += 'edge ';
-		} else if (browser.isSafari) {
-			extra += 'safari ';
+		if (!browser.isSafari && !browser.isWebkitWebView) {
+			// Use user-select: none in all browsers except Safari and native macOS WebView
+			extra += 'no-user-select ';
 		}
 		if (platform.isMacintosh) {
 			extra += 'mac ';

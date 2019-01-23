@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharacterPairSupport } from 'vs/editor/common/modes/supports/characterPair';
-import { BracketElectricCharacterSupport, IElectricAction } from 'vs/editor/common/modes/supports/electricCharacter';
-import { IOnEnterSupportOptions, OnEnterSupport } from 'vs/editor/common/modes/supports/onEnter';
-import { IndentRulesSupport, IndentConsts } from 'vs/editor/common/modes/supports/indentRules';
-import { RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
-import { Event, Emitter } from 'vs/base/common/event';
-import { ITextModel } from 'vs/editor/common/model';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import * as strings from 'vs/base/common/strings';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { DEFAULT_WORD_REGEXP, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
-import { createScopedLineTokens } from 'vs/editor/common/modes/supports';
+import * as strings from 'vs/base/common/strings';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { Range } from 'vs/editor/common/core/range';
-import { IndentAction, EnterAction, IAutoClosingPair, LanguageConfiguration, IndentationRule, FoldingRules, IAutoClosingPairConditional } from 'vs/editor/common/modes/languageConfiguration';
-import { LanguageIdentifier, LanguageId } from 'vs/editor/common/modes';
+import { ITextModel } from 'vs/editor/common/model';
+import { DEFAULT_WORD_REGEXP, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
+import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
+import { EnterAction, FoldingRules, IAutoClosingPair, IAutoClosingPairConditional, IndentAction, IndentationRule, LanguageConfiguration } from 'vs/editor/common/modes/languageConfiguration';
+import { createScopedLineTokens } from 'vs/editor/common/modes/supports';
+import { CharacterPairSupport } from 'vs/editor/common/modes/supports/characterPair';
+import { BracketElectricCharacterSupport, IElectricAction } from 'vs/editor/common/modes/supports/electricCharacter';
+import { IndentConsts, IndentRulesSupport } from 'vs/editor/common/modes/supports/indentRules';
+import { IOnEnterSupportOptions, OnEnterSupport } from 'vs/editor/common/modes/supports/onEnter';
+import { RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
 
 /**
  * Interface used to support insertion of mode specific comments.
@@ -177,7 +177,7 @@ export class LanguageConfigurationRegistryImpl {
 
 	private _entries: RichEditSupport[];
 
-	private readonly _onDidChange: Emitter<LanguageConfigurationChangeEvent> = new Emitter<LanguageConfigurationChangeEvent>();
+	private readonly _onDidChange = new Emitter<LanguageConfigurationChangeEvent>();
 	public readonly onDidChange: Event<LanguageConfigurationChangeEvent> = this._onDidChange.event;
 
 	constructor() {
@@ -332,7 +332,7 @@ export class LanguageConfigurationRegistryImpl {
 	private getPrecedingValidLine(model: IVirtualModel, lineNumber: number, indentRulesSupport: IndentRulesSupport) {
 		let languageID = model.getLanguageIdAtPosition(lineNumber, 0);
 		if (lineNumber > 1) {
-			let lastLineNumber = lineNumber - 1;
+			let lastLineNumber: number;
 			let resultLineNumber = -1;
 
 			for (lastLineNumber = lineNumber - 1; lastLineNumber >= 1; lastLineNumber--) {

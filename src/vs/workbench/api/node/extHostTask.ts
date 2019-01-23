@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as path from 'path';
+
 import { URI, UriComponents } from 'vs/base/common/uri';
-import * as nls from 'vs/nls';
 import * as Objects from 'vs/base/common/objects';
-import { asThenable } from 'vs/base/common/async';
+import { asPromise } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
+import { win32 } from 'vs/base/node/processes';
 
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import * as tasks from 'vs/workbench/parts/tasks/common/tasks';
 
 import { MainContext, MainThreadTaskShape, ExtHostTaskShape, IMainContext } from 'vs/workbench/api/node/extHost.protocol';
 
@@ -19,7 +20,7 @@ import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import * as vscode from 'vscode';
 import {
 	TaskDefinitionDTO, TaskExecutionDTO, TaskPresentationOptionsDTO, ProcessExecutionOptionsDTO, ProcessExecutionDTO,
-	ShellExecutionOptionsDTO, ShellExecutionDTO, TaskDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO, TaskSystemInfoDTO
+	ShellExecutionOptionsDTO, ShellExecutionDTO, TaskDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO, TaskSystemInfoDTO, TaskSetDTO
 } from '../shared/tasks';
 import { ExtHostVariableResolverService } from 'vs/workbench/api/node/extHostDebugService';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
@@ -27,441 +28,15 @@ import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
-/*
-namespace ProblemPattern {
-	export function from(value: vscode.ProblemPattern | vscode.MultiLineProblemPattern): Problems.ProblemPattern | Problems.MultiLineProblemPattern {
-		if (value === void 0 || value === null) {
-			return undefined;
-		}
-		if (Array.isArray(value)) {
-			let result: Problems.ProblemPattern[] = [];
-			for (let pattern of value) {
-				let converted = fromSingle(pattern);
-				if (!converted) {
-					return undefined;
-				}
-				result.push(converted);
-			}
-			return result;
-		} else {
-			return fromSingle(value);
-		}
-	}
-
-	function copyProperty(target: Problems.ProblemPattern, source: vscode.ProblemPattern, tk: keyof Problems.ProblemPattern) {
-		let sk: keyof vscode.ProblemPattern = tk;
-		let value = source[sk];
-		if (typeof value === 'number') {
-			target[tk] = value;
-		}
-	}
-
-	function getValue(value: number, defaultValue: number): number {
-		if (value !== void 0 && value === null) {
-			return value;
-		}
-		return defaultValue;
-	}
-
-	function fromSingle(problemPattern: vscode.ProblemPattern): Problems.ProblemPattern {
-		if (problemPattern === void 0 || problemPattern === null || !(problemPattern.regexp instanceof RegExp)) {
-			return undefined;
-		}
-		let result: Problems.ProblemPattern = {
-			regexp: problemPattern.regexp
-		};
-		copyProperty(result, problemPattern, 'file');
-		copyProperty(result, problemPattern, 'location');
-		copyProperty(result, problemPattern, 'line');
-		copyProperty(result, problemPattern, 'character');
-		copyProperty(result, problemPattern, 'endLine');
-		copyProperty(result, problemPattern, 'endCharacter');
-		copyProperty(result, problemPattern, 'severity');
-		copyProperty(result, problemPattern, 'code');
-		copyProperty(result, problemPattern, 'message');
-		if (problemPattern.loop === true || problemPattern.loop === false) {
-			result.loop = problemPattern.loop;
-		}
-		if (result.location) {
-			result.file = getValue(result.file, 1);
-			result.message = getValue(result.message, 0);
-		} else {
-			result.file = getValue(result.file, 1);
-			result.line = getValue(result.line, 2);
-			result.character = getValue(result.character, 3);
-			result.message = getValue(result.message, 0);
-		}
-		return result;
-	}
-}
-
-namespace ApplyTo {
-	export function from(value: vscode.ApplyToKind): Problems.ApplyToKind {
-		if (value === void 0 || value === null) {
-			return Problems.ApplyToKind.allDocuments;
-		}
-		switch (value) {
-			case types.ApplyToKind.OpenDocuments:
-				return Problems.ApplyToKind.openDocuments;
-			case types.ApplyToKind.ClosedDocuments:
-				return Problems.ApplyToKind.closedDocuments;
-		}
-		return Problems.ApplyToKind.allDocuments;
-	}
-}
-
-namespace FileLocation {
-	export function from(value: vscode.FileLocationKind | string): { kind: Problems.FileLocationKind; prefix?: string } {
-		if (value === void 0 || value === null) {
-			return { kind: Problems.FileLocationKind.Auto };
-		}
-		if (typeof value === 'string') {
-			return { kind: Problems.FileLocationKind.Relative, prefix: value };
-		}
-		switch (value) {
-			case types.FileLocationKind.Absolute:
-				return { kind: Problems.FileLocationKind.Absolute };
-			case types.FileLocationKind.Relative:
-				return { kind: Problems.FileLocationKind.Relative, prefix: '${workspaceFolder}' };
-		}
-		return { kind: Problems.FileLocationKind.Auto };
-	}
-}
-
-namespace WatchingPattern {
-	export function from(value: RegExp | vscode.BackgroundPattern): Problems.WatchingPattern {
-		if (value === void 0 || value === null) {
-			return undefined;
-		}
-		if (value instanceof RegExp) {
-			return { regexp: value };
-		}
-		if (!(value.regexp instanceof RegExp)) {
-			return undefined;
-		}
-		let result: Problems.WatchingPattern = {
-			regexp: value.regexp
-		};
-		if (typeof value.file === 'number') {
-			result.file = value.file;
-		}
-		return result;
-	}
-}
-
-namespace BackgroundMonitor {
-	export function from(value: vscode.BackgroundMonitor): Problems.WatchingMatcher {
-		if (value === void 0 || value === null) {
-			return undefined;
-		}
-		let result: Problems.WatchingMatcher = {
-			activeOnStart: !!value.activeOnStart,
-			beginsPattern: WatchingPattern.from(value.beginsPattern),
-			endsPattern: WatchingPattern.from(value.endsPattern)
-		};
-		return result;
-	}
-}
-
-namespace ProblemMatcher {
-	export function from(values: (string | vscode.ProblemMatcher)[]): (string | Problems.ProblemMatcher)[] {
-		if (values === void 0 || values === null) {
-			return undefined;
-		}
-		let result: (string | Problems.ProblemMatcher)[] = [];
-		for (let value of values) {
-			let converted = typeof value === 'string' ? value : fromSingle(value);
-			if (converted) {
-				result.push(converted);
-			}
-		}
-		return result;
-	}
-
-	function fromSingle(problemMatcher: vscode.ProblemMatcher): Problems.ProblemMatcher {
-		if (problemMatcher === void 0 || problemMatcher === null) {
-			return undefined;
-		}
-
-		let location = FileLocation.from(problemMatcher.fileLocation);
-		let result: Problems.ProblemMatcher = {
-			owner: typeof problemMatcher.owner === 'string' ? problemMatcher.owner : UUID.generateUuid(),
-			applyTo: ApplyTo.from(problemMatcher.applyTo),
-			fileLocation: location.kind,
-			filePrefix: location.prefix,
-			pattern: ProblemPattern.from(problemMatcher.pattern),
-			severity: fromDiagnosticSeverity(problemMatcher.severity),
-		};
-		return result;
-	}
-}
-*/
-
-namespace TaskRevealKind {
-	export function from(value: vscode.TaskRevealKind): tasks.RevealKind {
-		if (value === void 0 || value === null) {
-			return tasks.RevealKind.Always;
-		}
-		switch (value) {
-			case types.TaskRevealKind.Silent:
-				return tasks.RevealKind.Silent;
-			case types.TaskRevealKind.Never:
-				return tasks.RevealKind.Never;
-		}
-		return tasks.RevealKind.Always;
-	}
-}
-
-namespace TaskPanelKind {
-	export function from(value: vscode.TaskPanelKind): tasks.PanelKind {
-		if (value === void 0 || value === null) {
-			return tasks.PanelKind.Shared;
-		}
-		switch (value) {
-			case types.TaskPanelKind.Dedicated:
-				return tasks.PanelKind.Dedicated;
-			case types.TaskPanelKind.New:
-				return tasks.PanelKind.New;
-			default:
-				return tasks.PanelKind.Shared;
-		}
-	}
-}
-
-namespace PresentationOptions {
-	export function from(value: vscode.TaskPresentationOptions): tasks.PresentationOptions {
-		if (value === void 0 || value === null) {
-			return { reveal: tasks.RevealKind.Always, echo: true, focus: false, panel: tasks.PanelKind.Shared, showReuseMessage: true };
-		}
-		return {
-			reveal: TaskRevealKind.from(value.reveal),
-			echo: value.echo === void 0 ? true : !!value.echo,
-			focus: !!value.focus,
-			panel: TaskPanelKind.from(value.panel),
-			showReuseMessage: value.showReuseMessage === void 0 ? true : !!value.showReuseMessage
-		};
-	}
-}
-
-namespace Strings {
-	export function from(value: string[]): string[] {
-		if (value === void 0 || value === null) {
-			return undefined;
-		}
-		for (let element of value) {
-			if (typeof element !== 'string') {
-				return [];
-			}
-		}
-		return value;
-	}
-}
-
-namespace CommandOptions {
-	function isShellConfiguration(value: any): value is { executable: string; shellArgs?: string[] } {
-		return value && typeof value.executable === 'string';
-	}
-	export function from(value: vscode.ShellExecutionOptions | vscode.ProcessExecutionOptions): tasks.CommandOptions {
-		if (value === void 0 || value === null) {
-			return undefined;
-		}
-		let result: tasks.CommandOptions = {
-		};
-		if (typeof value.cwd === 'string') {
-			result.cwd = value.cwd;
-		}
-		if (value.env) {
-			result.env = Object.create(null);
-			Object.keys(value.env).forEach(key => {
-				let envValue = value.env[key];
-				if (typeof envValue === 'string') {
-					result.env[key] = envValue;
-				}
-			});
-		}
-		if (isShellConfiguration(value)) {
-			result.shell = ShellConfiguration.from(value);
-		}
-		return result;
-	}
-}
-
-namespace ShellQuoteOptions {
-	export function from(value: vscode.ShellQuotingOptions): tasks.ShellQuotingOptions {
-		if (value === void 0 || value === null) {
-			return undefined;
-		}
-		return {
-			escape: value.escape,
-			strong: value.strong,
-			weak: value.strong
-		};
-	}
-}
-
-namespace ShellConfiguration {
-	export function from(value: { executable?: string, shellArgs?: string[], quotes?: vscode.ShellQuotingOptions }): tasks.ShellConfiguration {
-		if (value === void 0 || value === null || !value.executable) {
-			return undefined;
-		}
-
-		let result: tasks.ShellConfiguration = {
-			executable: value.executable,
-			args: Strings.from(value.shellArgs),
-			quoting: ShellQuoteOptions.from(value.quotes)
-		};
-		return result;
-	}
-}
-
-namespace ShellString {
-	export function from(value: (string | vscode.ShellQuotedString)[]): tasks.CommandString[] {
-		if (value === void 0 || value === null) {
-			return undefined;
-		}
-		return value.slice(0);
-	}
-}
-
-namespace Tasks {
-
-	export function from(tasks: vscode.Task[], rootFolder: vscode.WorkspaceFolder, extension: IExtensionDescription): tasks.ContributedTask[] {
-		if (tasks === void 0 || tasks === null) {
-			return [];
-		}
-		let result: tasks.ContributedTask[] = [];
-		for (let task of tasks) {
-			let converted = fromSingle(task, rootFolder, extension);
-			if (converted) {
-				result.push(converted);
-			}
-		}
-		return result;
-	}
-
-	function fromSingle(task: vscode.Task, rootFolder: vscode.WorkspaceFolder, extension: IExtensionDescription): tasks.ContributedTask {
-		if (typeof task.name !== 'string') {
-			return undefined;
-		}
-		let command: tasks.CommandConfiguration;
-		let execution = task.execution;
-		if (execution instanceof types.ProcessExecution) {
-			command = getProcessCommand(execution);
-		} else if (execution instanceof types.ShellExecution) {
-			command = getShellCommand(execution);
-		} else {
-			return undefined;
-		}
-		if (command === void 0) {
-			return undefined;
-		}
-		command.presentation = PresentationOptions.from(task.presentationOptions);
-
-		let taskScope: types.TaskScope.Global | types.TaskScope.Workspace | vscode.WorkspaceFolder | undefined = task.scope;
-		let workspaceFolder: vscode.WorkspaceFolder | undefined;
-		let scope: tasks.TaskScope;
-		// For backwards compatibility
-		if (taskScope === void 0) {
-			scope = tasks.TaskScope.Folder;
-			workspaceFolder = rootFolder;
-		} else if (taskScope === types.TaskScope.Global) {
-			scope = tasks.TaskScope.Global;
-		} else if (taskScope === types.TaskScope.Workspace) {
-			scope = tasks.TaskScope.Workspace;
-		} else {
-			scope = tasks.TaskScope.Folder;
-			workspaceFolder = taskScope;
-		}
-		let source: tasks.ExtensionTaskSource = {
-			kind: tasks.TaskSourceKind.Extension,
-			label: typeof task.source === 'string' ? task.source : extension.name,
-			extension: extension.id,
-			scope: scope,
-			workspaceFolder: undefined
-		};
-		// We can't transfer a workspace folder object from the extension host to main since they differ
-		// in shape and we don't have backwards converting function. So transfer the URI and resolve the
-		// workspace folder on the main side.
-		(source as any as tasks.ExtensionTaskSourceTransfer).__workspaceFolder = workspaceFolder ? workspaceFolder.uri as URI : undefined;
-		(source as any as tasks.ExtensionTaskSourceTransfer).__definition = task.definition;
-		let label = nls.localize('task.label', '{0}: {1}', source.label, task.name);
-		// The definition id will be prefix on the main side since we compute it there.
-		let id = `${extension.id}`;
-		let result: tasks.ContributedTask = {
-			_id: id,
-			_source: source,
-			_label: label,
-			type: task.definition.type,
-			defines: undefined,
-			name: task.name,
-			identifier: label,
-			group: task.group ? (task.group as types.TaskGroup).id : undefined,
-			command: command,
-			isBackground: !!task.isBackground,
-			problemMatchers: task.problemMatchers.slice(),
-			hasDefinedMatchers: (task as types.Task).hasDefinedMatchers
-		};
-		return result;
-	}
-
-	function getProcessCommand(value: vscode.ProcessExecution): tasks.CommandConfiguration {
-		if (typeof value.process !== 'string') {
-			return undefined;
-		}
-		let result: tasks.CommandConfiguration = {
-			name: value.process,
-			args: Strings.from(value.args),
-			runtime: tasks.RuntimeType.Process,
-			suppressTaskName: true,
-			presentation: undefined
-		};
-		if (value.options) {
-			result.options = CommandOptions.from(value.options);
-		}
-		return result;
-	}
-
-	function getShellCommand(value: vscode.ShellExecution): tasks.CommandConfiguration {
-		if (value.args) {
-			if (typeof value.command !== 'string' && typeof value.command.value !== 'string') {
-				return undefined;
-			}
-			let result: tasks.CommandConfiguration = {
-				name: value.command,
-				args: ShellString.from(value.args),
-				runtime: tasks.RuntimeType.Shell,
-				presentation: undefined
-			};
-			if (value.options) {
-				result.options = CommandOptions.from(value.options);
-			}
-			return result;
-		} else {
-			if (typeof value.commandLine !== 'string') {
-				return undefined;
-			}
-			let result: tasks.CommandConfiguration = {
-				name: value.commandLine,
-				runtime: tasks.RuntimeType.Shell,
-				presentation: undefined
-			};
-			if (value.options) {
-				result.options = CommandOptions.from(value.options);
-			}
-			return result;
-		}
-	}
-}
-
 namespace TaskDefinitionDTO {
 	export function from(value: vscode.TaskDefinition): TaskDefinitionDTO {
-		if (value === void 0 || value === null) {
+		if (value === undefined || value === null) {
 			return undefined;
 		}
 		return value;
 	}
 	export function to(value: TaskDefinitionDTO): vscode.TaskDefinition {
-		if (value === void 0 || value === null) {
+		if (value === undefined || value === null) {
 			return undefined;
 		}
 		return value;
@@ -470,13 +45,13 @@ namespace TaskDefinitionDTO {
 
 namespace TaskPresentationOptionsDTO {
 	export function from(value: vscode.TaskPresentationOptions): TaskPresentationOptionsDTO {
-		if (value === void 0 || value === null) {
+		if (value === undefined || value === null) {
 			return undefined;
 		}
 		return value;
 	}
 	export function to(value: TaskPresentationOptionsDTO): vscode.TaskPresentationOptions {
-		if (value === void 0 || value === null) {
+		if (value === undefined || value === null) {
 			return undefined;
 		}
 		return value;
@@ -485,13 +60,13 @@ namespace TaskPresentationOptionsDTO {
 
 namespace ProcessExecutionOptionsDTO {
 	export function from(value: vscode.ProcessExecutionOptions): ProcessExecutionOptionsDTO {
-		if (value === void 0 || value === null) {
+		if (value === undefined || value === null) {
 			return undefined;
 		}
 		return value;
 	}
 	export function to(value: ProcessExecutionOptionsDTO): vscode.ProcessExecutionOptions {
-		if (value === void 0 || value === null) {
+		if (value === undefined || value === null) {
 			return undefined;
 		}
 		return value;
@@ -504,7 +79,7 @@ namespace ProcessExecutionDTO {
 		return candidate && !!candidate.process;
 	}
 	export function from(value: vscode.ProcessExecution): ProcessExecutionDTO {
-		if (value === void 0 || value === null) {
+		if (value === undefined || value === null) {
 			return undefined;
 		}
 		let result: ProcessExecutionDTO = {
@@ -517,7 +92,7 @@ namespace ProcessExecutionDTO {
 		return result;
 	}
 	export function to(value: ProcessExecutionDTO): types.ProcessExecution {
-		if (value === void 0 || value === null) {
+		if (value === undefined || value === null) {
 			return undefined;
 		}
 		return new types.ProcessExecution(value.process, value.args, value.options);
@@ -526,13 +101,13 @@ namespace ProcessExecutionDTO {
 
 namespace ShellExecutionOptionsDTO {
 	export function from(value: vscode.ShellExecutionOptions): ShellExecutionOptionsDTO {
-		if (value === void 0 || value === null) {
+		if (value === undefined || value === null) {
 			return undefined;
 		}
 		return value;
 	}
 	export function to(value: ShellExecutionOptionsDTO): vscode.ShellExecutionOptions {
-		if (value === void 0 || value === null) {
+		if (value === undefined || value === null) {
 			return undefined;
 		}
 		return value;
@@ -545,12 +120,12 @@ namespace ShellExecutionDTO {
 		return candidate && (!!candidate.commandLine || !!candidate.command);
 	}
 	export function from(value: vscode.ShellExecution): ShellExecutionDTO {
-		if (value === void 0 || value === null) {
+		if (value === undefined || value === null) {
 			return undefined;
 		}
 		let result: ShellExecutionDTO = {
 		};
-		if (value.commandLine !== void 0) {
+		if (value.commandLine !== undefined) {
 			result.commandLine = value.commandLine;
 		} else {
 			result.command = value.command;
@@ -562,7 +137,7 @@ namespace ShellExecutionDTO {
 		return result;
 	}
 	export function to(value: ShellExecutionDTO): types.ShellExecution {
-		if (value === void 0 || value === null) {
+		if (value === undefined || value === null) {
 			return undefined;
 		}
 		if (value.commandLine) {
@@ -576,7 +151,7 @@ namespace ShellExecutionDTO {
 namespace TaskHandleDTO {
 	export function from(value: types.Task): TaskHandleDTO {
 		let folder: UriComponents;
-		if (value.scope !== void 0 && typeof value.scope !== 'number') {
+		if (value.scope !== undefined && typeof value.scope !== 'number') {
 			folder = value.scope.uri;
 		}
 		return {
@@ -588,8 +163,22 @@ namespace TaskHandleDTO {
 
 namespace TaskDTO {
 
+	export function fromMany(tasks: vscode.Task[], extension: IExtensionDescription): TaskDTO[] {
+		if (tasks === undefined || tasks === null) {
+			return [];
+		}
+		let result: TaskDTO[] = [];
+		for (let task of tasks) {
+			let converted = from(task, extension);
+			if (converted) {
+				result.push(converted);
+			}
+		}
+		return result;
+	}
+
 	export function from(value: vscode.Task, extension: IExtensionDescription): TaskDTO {
-		if (value === void 0 || value === null) {
+		if (value === undefined || value === null) {
 			return undefined;
 		}
 		let execution: ShellExecutionDTO | ProcessExecutionDTO;
@@ -604,7 +193,7 @@ namespace TaskDTO {
 			if (typeof value.scope === 'number') {
 				scope = value.scope;
 			} else {
-				scope = value.scope.uri.toJSON();
+				scope = value.scope.uri;
 			}
 		}
 		if (!definition || !scope) {
@@ -616,7 +205,7 @@ namespace TaskDTO {
 			definition,
 			name: value.name,
 			source: {
-				extensionId: extension.id,
+				extensionId: extension.identifier.value,
 				label: value.source,
 				scope: scope
 			},
@@ -625,12 +214,13 @@ namespace TaskDTO {
 			group: group,
 			presentationOptions: TaskPresentationOptionsDTO.from(value.presentationOptions),
 			problemMatchers: value.problemMatchers,
-			hasDefinedMatchers: (value as types.Task).hasDefinedMatchers
+			hasDefinedMatchers: (value as types.Task).hasDefinedMatchers,
+			runOptions: (<vscode.Task>value).runOptions ? (<vscode.Task>value).runOptions : { reevaluateOnRerun: true },
 		};
 		return result;
 	}
 	export function to(value: TaskDTO, workspace: ExtHostWorkspace): types.Task {
-		if (value === void 0 || value === null) {
+		if (value === undefined || value === null) {
 			return undefined;
 		}
 		let execution: types.ShellExecution | types.ProcessExecution;
@@ -642,7 +232,7 @@ namespace TaskDTO {
 		let definition: vscode.TaskDefinition = TaskDefinitionDTO.to(value.definition);
 		let scope: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder;
 		if (value.source) {
-			if (value.source.scope !== void 0) {
+			if (value.source.scope !== undefined) {
 				if (typeof value.source.scope === 'number') {
 					scope = value.source.scope;
 				} else {
@@ -656,10 +246,10 @@ namespace TaskDTO {
 			return undefined;
 		}
 		let result = new types.Task(definition, scope, value.name, value.source.label, execution, value.problemMatchers);
-		if (value.isBackground !== void 0) {
+		if (value.isBackground !== undefined) {
 			result.isBackground = value.isBackground;
 		}
-		if (value.group !== void 0) {
+		if (value.group !== undefined) {
 			result.group = types.TaskGroup.from(value.group);
 		}
 		if (value.presentationOptions) {
@@ -769,7 +359,7 @@ export class ExtHostTask implements ExtHostTaskShape {
 		this._proxy.$registerTaskSystem(scheme, info);
 	}
 
-	public fetchTasks(filter?: vscode.TaskFilter): Thenable<vscode.Task[]> {
+	public fetchTasks(filter?: vscode.TaskFilter): Promise<vscode.Task[]> {
 		return this._proxy.$fetchTasks(TaskFilterDTO.from(filter)).then((values) => {
 			let result: vscode.Task[] = [];
 			for (let value of values) {
@@ -782,14 +372,14 @@ export class ExtHostTask implements ExtHostTaskShape {
 		});
 	}
 
-	public executeTask(extension: IExtensionDescription, task: vscode.Task): Thenable<vscode.TaskExecution> {
+	public executeTask(extension: IExtensionDescription, task: vscode.Task): Promise<vscode.TaskExecution> {
 		let tTask = (task as types.Task);
 		// We have a preserved ID. So the task didn't change.
-		if (tTask._id !== void 0) {
+		if (tTask._id !== undefined) {
 			return this._proxy.$executeTask(TaskHandleDTO.from(tTask)).then(value => this.getTaskExecution(value, task));
 		} else {
 			let dto = TaskDTO.from(task, extension);
-			if (dto === void 0) {
+			if (dto === undefined) {
 				return Promise.reject(new Error('Task is not valid'));
 			}
 			return this._proxy.$executeTask(dto).then(value => this.getTaskExecution(value, task));
@@ -802,7 +392,7 @@ export class ExtHostTask implements ExtHostTaskShape {
 		return result;
 	}
 
-	public terminateTask(execution: vscode.TaskExecution): Thenable<void> {
+	public terminateTask(execution: vscode.TaskExecution): Promise<void> {
 		if (!(execution instanceof TaskExecutionImpl)) {
 			throw new Error('No valid task execution provided');
 		}
@@ -859,12 +449,12 @@ export class ExtHostTask implements ExtHostTaskShape {
 		}
 	}
 
-	public $provideTasks(handle: number, validTypes: { [key: string]: boolean; }): Thenable<tasks.TaskSet> {
+	public $provideTasks(handle: number, validTypes: { [key: string]: boolean; }): Thenable<TaskSetDTO> {
 		let handler = this._handlers.get(handle);
 		if (!handler) {
 			return Promise.reject(new Error('no handler found'));
 		}
-		return asThenable(() => handler.provider.provideTasks(CancellationToken.None)).then(value => {
+		return asPromise(() => handler.provider.provideTasks(CancellationToken.None)).then(value => {
 			let sanitized: vscode.Task[] = [];
 			for (let task of value) {
 				if (task.definition && validTypes[task.definition.type] === true) {
@@ -874,19 +464,22 @@ export class ExtHostTask implements ExtHostTaskShape {
 					console.warn(`The task [${task.source}, ${task.name}] uses an undefined task type. The task will be ignored in the future.`);
 				}
 			}
-			let workspaceFolders = this._workspaceService.getWorkspaceFolders();
 			return {
-				tasks: Tasks.from(sanitized, workspaceFolders && workspaceFolders.length > 0 ? workspaceFolders[0] : undefined, handler.extension),
+				tasks: TaskDTO.fromMany(sanitized, handler.extension),
 				extension: handler.extension
 			};
 		});
 	}
 
-	public $resolveVariables(uriComponents: UriComponents, variables: string[]): any {
+	public async $resolveVariables(uriComponents: UriComponents, toResolve: { process?: { name: string; cwd?: string; path?: string }, variables: string[] }): Promise<{ process?: string, variables: { [key: string]: string; } }> {
+		const configProvider = await this._configurationService.getConfigProvider();
 		let uri: URI = URI.revive(uriComponents);
-		let result: { [key: string]: string; } = Object.create(null);
+		let result = {
+			process: undefined as string,
+			variables: Object.create(null)
+		};
 		let workspaceFolder = this._workspaceService.resolveWorkspaceFolder(uri);
-		let resolver = new ExtHostVariableResolverService(this._workspaceService, this._editorService, this._configurationService);
+		let resolver = new ExtHostVariableResolverService(this._workspaceService, this._editorService, configProvider);
 		let ws: IWorkspaceFolder = {
 			uri: workspaceFolder.uri,
 			name: workspaceFolder.name,
@@ -895,8 +488,22 @@ export class ExtHostTask implements ExtHostTaskShape {
 				throw new Error('Not implemented');
 			}
 		};
-		for (let variable of variables) {
-			result[variable] = resolver.resolve(ws, variable);
+		for (let variable of toResolve.variables) {
+			result.variables[variable] = resolver.resolve(ws, variable);
+		}
+		if (toResolve.process !== undefined) {
+			let paths: string[] | undefined = undefined;
+			if (toResolve.process.path !== undefined) {
+				paths = toResolve.process.path.split(path.delimiter);
+				for (let i = 0; i < paths.length; i++) {
+					paths[i] = resolver.resolve(ws, paths[i]);
+				}
+			}
+			result.process = win32.findExecutable(
+				resolver.resolve(ws, toResolve.process.name),
+				toResolve.process.cwd !== undefined ? resolver.resolve(ws, toResolve.process.cwd) : undefined,
+				paths
+			);
 		}
 		return result;
 	}

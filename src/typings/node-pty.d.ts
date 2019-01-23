@@ -11,7 +11,7 @@ declare module 'node-pty' {
 	 * escaped properly.
 	 * @param options The options of the terminal.
 	 * @see CommandLineToArgvW https://msdn.microsoft.com/en-us/library/windows/desktop/bb776391(v=vs.85).aspx
-	 * @see Parsing C++ Comamnd-Line Arguments https://msdn.microsoft.com/en-us/library/17w5ykft.aspx
+	 * @see Parsing C++ Command-Line Arguments https://msdn.microsoft.com/en-us/library/17w5ykft.aspx
 	 * @see GetCommandLine https://msdn.microsoft.com/en-us/library/windows/desktop/ms683156.aspx
 	 */
 	export function spawn(file: string, args: string[] | string, options: IPtyForkOptions): IPty;
@@ -25,6 +25,11 @@ declare module 'node-pty' {
 	  uid?: number;
 	  gid?: number;
 	  encoding?: string;
+	  /**
+	   * Whether to use the experimental ConPTY system on Windows. This setting will be ignored on
+	   * non-Windows.
+	   */
+	  experimentalUseConpty?: boolean;
 	}
 
 	/**
@@ -58,7 +63,7 @@ declare module 'node-pty' {
 
 	  /**
 	   * Resizes the dimensions of the pty.
-	   * @param columns THe number of columns to use.
+	   * @param columns The number of columns to use.
 	   * @param rows The number of rows to use.
 	   */
 	  resize(columns: number, rows: number): void;

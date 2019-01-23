@@ -35,6 +35,13 @@ export class PanelRegistry extends CompositeRegistry<Panel> {
 	}
 
 	/**
+	 * Deregisters a panel to the platform.
+	 */
+	deregisterPanel(id: string): void {
+		super.deregisterComposite(id);
+	}
+
+	/**
 	 * Returns an array of registered panels known to the platform.
 	 */
 	getPanels(): PanelDescriptor[] {
@@ -75,12 +82,14 @@ export abstract class TogglePanelAction extends Action {
 		this.panelId = panelId;
 	}
 
-	run(): Thenable<any> {
+	run(): Promise<any> {
 		if (this.isPanelFocused()) {
-			return this.partService.setPanelHidden(true);
+			this.partService.setPanelHidden(true);
+		} else {
+			this.panelService.openPanel(this.panelId, true);
 		}
 
-		return this.panelService.openPanel(this.panelId, true);
+		return Promise.resolve(null);
 	}
 
 	private isPanelActive(): boolean {
@@ -92,7 +101,7 @@ export abstract class TogglePanelAction extends Action {
 	private isPanelFocused(): boolean {
 		const activeElement = document.activeElement;
 
-		return this.isPanelActive() && activeElement && isAncestor(activeElement, this.partService.getContainer(Parts.PANEL_PART));
+		return !!(this.isPanelActive() && activeElement && isAncestor(activeElement, this.partService.getContainer(Parts.PANEL_PART)));
 	}
 }
 

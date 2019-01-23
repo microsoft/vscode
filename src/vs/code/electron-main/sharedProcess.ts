@@ -6,8 +6,6 @@
 import { assign } from 'vs/base/common/objects';
 import { memoize } from 'vs/base/common/decorators';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { IProcessEnvironment } from 'vs/base/common/platform';
 import { BrowserWindow, ipcMain } from 'electron';
 import { ISharedProcess } from 'vs/platform/windows/electron-main/windows';
 import { Barrier } from 'vs/base/common/async';
@@ -15,25 +13,25 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { IStateService } from 'vs/platform/state/common/state';
 import { getBackgroundColor } from 'vs/code/electron-main/theme';
+import { dispose, toDisposable, IDisposable } from 'vs/base/common/lifecycle';
 
 export class SharedProcess implements ISharedProcess {
 
 	private barrier = new Barrier();
 
-	private window: Electron.BrowserWindow;
+	private window: Electron.BrowserWindow | null;
 
 	constructor(
 		private readonly machineId: string,
-		private readonly userEnv: IProcessEnvironment,
+		private userEnv: NodeJS.ProcessEnv,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IStateService private readonly stateService: IStateService,
 		@ILogService private readonly logService: ILogService
-	) {
-	}
+	) { }
 
 	@memoize
-	private get _whenReady(): TPromise<void> {
+	private get _whenReady(): Promise<void> {
 		this.window = new BrowserWindow({
 			show: false,
 			backgroundColor: getBackgroundColor(this.stateService),
@@ -62,26 +60,34 @@ export class SharedProcess implements ISharedProcess {
 			e.preventDefault();
 
 			// Still hide the window though if visible
-			if (this.window.isVisible()) {
+			if (this.window && this.window.isVisible()) {
 				this.window.hide();
 			}
 		};
 
 		this.window.on('close', onClose);
 
-		this.lifecycleService.onShutdown(() => {
+		const disposables: IDisposable[] = [];
+
+		this.lifecycleService.onWillShutdown(() => {
+			dispose(disposables);
+
 			// Shut the shared process down when we are quitting
 			//
 			// Note: because we veto the window close, we must first remove our veto.
 			// Otherwise the application would never quit because the shared process
 			// window is refusing to close!
 			//
-			this.window.removeListener('close', onClose);
+			if (this.window) {
+				this.window.removeListener('close', onClose);
+			}
 
 			// Electron seems to crash on Windows without this setTimeout :|
 			setTimeout(() => {
 				try {
-					this.window.close();
+					if (this.window) {
+						this.window.close();
+					}
 				} catch (err) {
 					// ignore, as electron is already shutting down
 				}
@@ -90,7 +96,7 @@ export class SharedProcess implements ISharedProcess {
 			}, 0);
 		});
 
-		return new TPromise<void>((c, e) => {
+		return new Promise<void>(c => {
 			ipcMain.once('handshake:hello', ({ sender }: { sender: any }) => {
 				sender.send('handshake:hey there', {
 					sharedIPCHandle: this.environmentService.sharedIPCHandle,
@@ -98,21 +104,24 @@ export class SharedProcess implements ISharedProcess {
 					logLevel: this.logService.getLevel()
 				});
 
-				ipcMain.once('handshake:im ready', () => c(null));
+				disposables.push(toDisposable(() => sender.send('handshake:goodbye')));
+				ipcMain.once('handshake:im ready', () => c(undefined));
 			});
 		});
 	}
 
-	spawn(): void {
+	spawn(userEnv: NodeJS.ProcessEnv): void {
+		this.userEnv = { ...this.userEnv, ...userEnv };
 		this.barrier.open();
 	}
 
-	whenReady(): TPromise<void> {
-		return this.barrier.wait().then(() => this._whenReady);
+	async whenReady(): Promise<void> {
+		await this.barrier.wait();
+		await this._whenReady;
 	}
 
 	toggle(): void {
-		if (this.window.isVisible()) {
+		if (!this.window || this.window.isVisible()) {
 			this.hide();
 		} else {
 			this.show();
@@ -120,12 +129,16 @@ export class SharedProcess implements ISharedProcess {
 	}
 
 	show(): void {
-		this.window.show();
-		this.window.webContents.openDevTools();
+		if (this.window) {
+			this.window.show();
+			this.window.webContents.openDevTools();
+		}
 	}
 
 	hide(): void {
-		this.window.webContents.closeDevTools();
-		this.window.hide();
+		if (this.window) {
+			this.window.webContents.closeDevTools();
+			this.window.hide();
+		}
 	}
 }

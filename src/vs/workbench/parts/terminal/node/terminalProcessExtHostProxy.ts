@@ -7,39 +7,41 @@ import { ITerminalChildProcess } from 'vs/workbench/parts/terminal/node/terminal
 import { Event, Emitter } from 'vs/base/common/event';
 import { ITerminalService, ITerminalProcessExtHostProxy, IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export class TerminalProcessExtHostProxy implements ITerminalChildProcess, ITerminalProcessExtHostProxy {
 	private _disposables: IDisposable[] = [];
 
-	private readonly _onProcessData: Emitter<string> = new Emitter<string>();
+	private readonly _onProcessData = new Emitter<string>();
 	public get onProcessData(): Event<string> { return this._onProcessData.event; }
-	private readonly _onProcessExit: Emitter<number> = new Emitter<number>();
+	private readonly _onProcessExit = new Emitter<number>();
 	public get onProcessExit(): Event<number> { return this._onProcessExit.event; }
-	private readonly _onProcessIdReady: Emitter<number> = new Emitter<number>();
+	private readonly _onProcessIdReady = new Emitter<number>();
 	public get onProcessIdReady(): Event<number> { return this._onProcessIdReady.event; }
-	private readonly _onProcessTitleChanged: Emitter<string> = new Emitter<string>();
+	private readonly _onProcessTitleChanged = new Emitter<string>();
 	public get onProcessTitleChanged(): Event<string> { return this._onProcessTitleChanged.event; }
 
-	private readonly _onInput: Emitter<string> = new Emitter<string>();
+	private readonly _onInput = new Emitter<string>();
 	public get onInput(): Event<string> { return this._onInput.event; }
 	private readonly _onResize: Emitter<{ cols: number, rows: number }> = new Emitter<{ cols: number, rows: number }>();
 	public get onResize(): Event<{ cols: number, rows: number }> { return this._onResize.event; }
-	private readonly _onShutdown: Emitter<boolean> = new Emitter<boolean>();
+	private readonly _onShutdown = new Emitter<boolean>();
 	public get onShutdown(): Event<boolean> { return this._onShutdown.event; }
 
 	constructor(
 		public terminalId: number,
 		shellLaunchConfig: IShellLaunchConfig,
+		activeWorkspaceRootUri: URI,
 		cols: number,
 		rows: number,
-		@ITerminalService private _terminalService: ITerminalService,
+		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IExtensionService private readonly _extensionService: IExtensionService
 	) {
 		this._extensionService.whenInstalledExtensionsRegistered().then(() => {
 			// TODO: MainThreadTerminalService is not ready at this point, fix this
 			setTimeout(() => {
-				this._terminalService.requestExtHostProcess(this, shellLaunchConfig, cols, rows);
+				this._terminalService.requestExtHostProcess(this, shellLaunchConfig, activeWorkspaceRootUri, cols, rows);
 			}, 0);
 		});
 	}

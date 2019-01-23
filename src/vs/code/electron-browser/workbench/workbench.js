@@ -35,12 +35,14 @@ bootstrapWindow.load([
 			showPartsSplash(windowConfig);
 		},
 		beforeLoaderConfig: function (windowConfig, loaderConfig) {
-			const onNodeCachedData = window['MonacoEnvironment'].onNodeCachedData = [];
-			loaderConfig.onNodeCachedData = function () {
-				onNodeCachedData.push(arguments);
-			};
+			loaderConfig.recordStats = !!windowConfig['prof-modules'];
+			if (loaderConfig.nodeCachedData) {
+				const onNodeCachedData = window['MonacoEnvironment'].onNodeCachedData = [];
+				loaderConfig.nodeCachedData.onData = function () {
+					onNodeCachedData.push(arguments);
+				};
+			}
 
-			loaderConfig.recordStats = !!windowConfig.performance;
 		},
 		beforeRequire: function () {
 			perf.mark('willLoadWorkbenchMain');
@@ -53,17 +55,9 @@ bootstrapWindow.load([
 function showPartsSplash(configuration) {
 	perf.mark('willShowPartsSplash');
 
-	// TODO@Ben remove me after a while
-	perf.mark('willAccessLocalStorage');
-	let storage = window.localStorage;
-	perf.mark('didAccessLocalStorage');
-
 	let data;
 	try {
-		perf.mark('willReadLocalStorage');
-		let raw = storage.getItem('storage://global/parts-splash-data');
-		perf.mark('didReadLocalStorage');
-		data = JSON.parse(raw);
+		data = JSON.parse(configuration.partsSplashData);
 	} catch (e) {
 		// ignore
 	}
@@ -87,7 +81,6 @@ function showPartsSplash(configuration) {
 	document.head.appendChild(style);
 	document.body.className = `monaco-shell ${baseTheme}`;
 	style.innerHTML = `.monaco-shell { background-color: ${shellBackground}; color: ${shellForeground}; }`;
-
 
 	if (data && data.layoutInfo) {
 		// restore parts if possible (we might not always store layout info)

@@ -26,5 +26,9 @@ export function provideSignatureHelp(model: ITextModel, position: Position, cont
 	}));
 }
 
-registerDefaultLanguageCommand('_executeSignatureHelpProvider', (model, position) =>
-	provideSignatureHelp(model, position, { triggerReason: modes.SignatureHelpTriggerReason.Invoke }, CancellationToken.None));
+registerDefaultLanguageCommand('_executeSignatureHelpProvider', (model, position, args) =>
+	provideSignatureHelp(model, position, {
+		triggerKind: modes.SignatureHelpTriggerKind.Invoke,
+		isRetrigger: false,
+		triggerCharacter: args['triggerCharacter']
+	}, CancellationToken.None));

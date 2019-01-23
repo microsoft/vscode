@@ -19,7 +19,6 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IDisposable, Disposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { memoize } from 'vs/base/common/decorators';
@@ -126,7 +125,7 @@ class ImageView {
 			return InlineImageView.create(container, descriptor, fileService, scrollbar, metadataClb);
 		}
 
-		return LargeImageView.create(container, descriptor, openExternalClb);
+		return LargeImageView.create(container, descriptor, openExternalClb, metadataClb);
 	}
 
 	private static shouldShowImageInline(descriptor: IResourceDescriptor): boolean {
@@ -153,14 +152,18 @@ class LargeImageView {
 	static create(
 		container: HTMLElement,
 		descriptor: IResourceDescriptor,
-		openExternalClb: (uri: URI) => void
+		openExternalClb: (uri: URI) => void,
+		metadataClb: (meta: string) => void
 	) {
+		const size = BinarySize.formatSize(descriptor.size);
+		metadataClb(size);
+
 		DOM.clearNode(container);
 
 		const disposables: IDisposable[] = [];
 
 		const label = document.createElement('p');
-		label.textContent = nls.localize('largeImageError', "The image is not displayed in the editor because it is too large ({0}).", BinarySize.formatSize(descriptor.size));
+		label.textContent = nls.localize('largeImageError', "The image is not displayed in the editor because it is too large ({0}).", size);
 		container.appendChild(label);
 
 		if (descriptor.resource.scheme !== Schemas.data) {
@@ -182,17 +185,14 @@ class FileTooLargeFileView {
 		scrollbar: DomScrollableElement,
 		metadataClb: (meta: string) => void
 	) {
-		DOM.clearNode(container);
-
 		const size = BinarySize.formatSize(descriptor.size);
+		metadataClb(size);
+
+		DOM.clearNode(container);
 
 		const label = document.createElement('span');
 		label.textContent = nls.localize('nativeFileTooLargeError', "The file is not displayed in the editor because it is too large ({0}).", size);
 		container.appendChild(label);
-
-		if (metadataClb) {
-			metadataClb(size);
-		}
 
 		scrollbar.scanDomNode();
 
@@ -208,6 +208,8 @@ class FileSeemsBinaryFileView {
 		openInternalClb: (uri: URI) => void,
 		metadataClb: (meta: string) => void
 	) {
+		metadataClb(typeof descriptor.size === 'number' ? BinarySize.formatSize(descriptor.size) : '');
+
 		DOM.clearNode(container);
 
 		const disposables: IDisposable[] = [];
@@ -222,10 +224,6 @@ class FileSeemsBinaryFileView {
 			link.textContent = nls.localize('openAsText', "Do you want to open it anyway?");
 
 			disposables.push(DOM.addDisposableListener(link, DOM.EventType.CLICK, () => openInternalClb(descriptor.resource)));
-		}
-
-		if (metadataClb) {
-			metadataClb(typeof descriptor.size === 'number' ? BinarySize.formatSize(descriptor.size) : '');
 		}
 
 		scrollbar.scanDomNode();
@@ -246,7 +244,7 @@ class ZoomStatusbarItem extends Themable implements IStatusbarItem {
 	private onSelectScale?: (scale: Scale) => void;
 
 	constructor(
-		@IContextMenuService private contextMenuService: IContextMenuService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IEditorService editorService: IEditorService,
 		@IThemeService themeService: IThemeService
 	) {
@@ -259,7 +257,7 @@ class ZoomStatusbarItem extends Themable implements IStatusbarItem {
 
 	private onActiveEditorChanged(): void {
 		this.hide();
-		this.onSelectScale = void 0;
+		this.onSelectScale = undefined;
 	}
 
 	show(scale: Scale, onSelectScale: (scale: number) => void) {
@@ -284,7 +282,7 @@ class ZoomStatusbarItem extends Themable implements IStatusbarItem {
 			DOM.addDisposableListener(this.statusBarItem, DOM.EventType.CLICK, () => {
 				this.contextMenuService.showContextMenu({
 					getAnchor: () => container,
-					getActions: () => Promise.resolve(this.zoomActions)
+					getActions: () => this.zoomActions
 				});
 			});
 		}
@@ -300,12 +298,12 @@ class ZoomStatusbarItem extends Themable implements IStatusbarItem {
 	private get zoomActions(): Action[] {
 		const scales: Scale[] = [10, 5, 2, 1, 0.5, 0.2, 'fit'];
 		return scales.map(scale =>
-			new Action(`zoom.${scale}`, ZoomStatusbarItem.zoomLabel(scale), void 0, void 0, () => {
+			new Action(`zoom.${scale}`, ZoomStatusbarItem.zoomLabel(scale), undefined, undefined, () => {
 				if (this.onSelectScale) {
 					this.onSelectScale(scale);
 				}
 
-				return void 0;
+				return Promise.resolve(undefined);
 			}));
 	}
 
@@ -396,7 +394,7 @@ class InlineImageView {
 				DOM.removeClass(image, 'pixelated');
 				image.style.minWidth = 'auto';
 				image.style.width = 'auto';
-				InlineImageView.imageStateCache.set(cacheKey, null);
+				InlineImageView.imageStateCache.delete(cacheKey);
 			} else {
 				const oldWidth = image.width;
 				const oldHeight = image.height;
@@ -434,11 +432,15 @@ class InlineImageView {
 		}
 
 		function firstZoom() {
+			if (!image) {
+				return;
+			}
+
 			scale = image.clientWidth / image.naturalWidth;
 			updateScale(scale);
 		}
 
-		disposables.push(DOM.addDisposableListener(container, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+		disposables.push(DOM.addDisposableListener(window, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			if (!image) {
 				return;
 			}
@@ -451,7 +453,7 @@ class InlineImageView {
 			}
 		}));
 
-		disposables.push(DOM.addDisposableListener(container, DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
+		disposables.push(DOM.addDisposableListener(window, DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
 			if (!image) {
 				return;
 			}
@@ -539,17 +541,18 @@ class InlineImageView {
 		DOM.clearNode(container);
 		DOM.addClasses(container, 'image', 'zoom-in');
 
-		image = DOM.append(container, DOM.$('img.scale-to-fit'));
+		image = DOM.append(container, DOM.$<HTMLImageElement>('img.scale-to-fit'));
 		image.style.visibility = 'hidden';
 
 		disposables.push(DOM.addDisposableListener(image, DOM.EventType.LOAD, e => {
-			let metadata: string;
+			if (!image) {
+				return;
+			}
 			if (typeof descriptor.size === 'number') {
 				metadataClb(nls.localize('imgMeta', '{0}x{1} {2}', image.naturalWidth, image.naturalHeight, BinarySize.formatSize(descriptor.size)));
 			} else {
 				metadataClb(nls.localize('imgMetaNoSize', '{0}x{1}', image.naturalWidth, image.naturalHeight));
 			}
-			metadataClb(metadata);
 
 			scrollbar.scanDomNode();
 			image.style.visibility = 'visible';
@@ -572,7 +575,7 @@ class InlineImageView {
 		return context;
 	}
 
-	private static imageSrc(descriptor: IResourceDescriptor, fileService: IFileService): TPromise<string> {
+	private static imageSrc(descriptor: IResourceDescriptor, fileService: IFileService): Promise<string> {
 		if (descriptor.resource.scheme === Schemas.data) {
 			return Promise.resolve(descriptor.resource.toString(true /* skip encoding */));
 		}
@@ -586,9 +589,10 @@ class InlineImageView {
 }
 
 function getMime(descriptor: IResourceDescriptor) {
-	let mime = descriptor.mime;
+	let mime: string | undefined = descriptor.mime;
 	if (!mime && descriptor.resource.scheme !== Schemas.data) {
 		mime = mimes.getMediaMime(descriptor.resource.path);
 	}
+
 	return mime || mimes.MIME_BINARY;
 }

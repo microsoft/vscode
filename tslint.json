@@ -3,11 +3,22 @@
 		"build/lib/tslint"
 	],
 	"rules": {
-		"no-string-throw": true,
-		"no-unused-expression": true,
+		"no-arg": true,
+		"no-construct": true,
+		"no-duplicate-super": true,
+		"no-duplicate-switch-case": true,
 		"no-duplicate-variable": true,
+		"no-eval": true,
+		"no-redundant-jsdoc": true,
+		"no-sparse-arrays": true,
+		"no-string-throw": true,
+		"no-unsafe-finally": true,
+		"no-unused-expression": true,
+		"no-var-keyword": true,
+		"number-literal-format": true,
 		"curly": true,
 		"class-name": true,
+		"label-position": true,
 		"semicolon": [
 			true,
 			"always"
@@ -523,6 +534,7 @@
 			}
 		],
 		"duplicate-imports": true,
+		"no-new-buffer": true,
 		"translation-remind": true,
 		"no-standalone-editor": true
 	},

@@ -3,36 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { Event, Emitter } from 'vs/base/common/event';
-import * as model from 'vs/editor/common/model';
-import { LanguageIdentifier, TokenizationRegistry, LanguageId, IState } from 'vs/editor/common/modes';
-import { EditStack } from 'vs/editor/common/model/editStack';
-import { Range, IRange } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ModelRawContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelTokensChangedEvent, IModelOptionsChangedEvent, IModelContentChangedEvent, InternalModelContentChangeEvent, ModelRawFlush, ModelRawEOLChanged, ModelRawChange, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/model/textModelEvents';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import * as strings from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
-import { ThemeColor, ITheme } from 'vs/platform/theme/common/themeService';
-import { IntervalNode, IntervalTree, recomputeMaxEnd, getNodeIsInOverviewRuler } from 'vs/editor/common/model/intervalTree';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
+import * as strings from 'vs/base/common/strings';
+import { URI } from 'vs/base/common/uri';
+import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
+import { LineTokens } from 'vs/editor/common/core/lineTokens';
+import { IPosition, Position } from 'vs/editor/common/core/position';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
+import * as model from 'vs/editor/common/model';
+import { EditStack } from 'vs/editor/common/model/editStack';
+import { guessIndentation } from 'vs/editor/common/model/indentationGuesser';
+import { IntervalNode, IntervalTree, getNodeIsInOverviewRuler, recomputeMaxEnd } from 'vs/editor/common/model/intervalTree';
+import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
+import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, ModelRawChange, ModelRawContentChangedEvent, ModelRawEOLChanged, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/model/textModelEvents';
+import { SearchData, SearchParams, TextModelSearch } from 'vs/editor/common/model/textModelSearch';
+import { ModelLinesTokens, ModelTokensChangedEventBuilder } from 'vs/editor/common/model/textModelTokens';
+import { getWordAtText } from 'vs/editor/common/model/wordHelper';
+import { IState, LanguageId, LanguageIdentifier, TokenizationRegistry } from 'vs/editor/common/modes';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { NULL_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/nullMode';
 import { ignoreBracketsInToken } from 'vs/editor/common/modes/supports';
-import { BracketsUtils, RichEditBrackets, RichEditBracket } from 'vs/editor/common/modes/supports/richEditBrackets';
-import { Position, IPosition } from 'vs/editor/common/core/position';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { LineTokens } from 'vs/editor/common/core/lineTokens';
-import { getWordAtText } from 'vs/editor/common/model/wordHelper';
-import { ModelLinesTokens, ModelTokensChangedEventBuilder } from 'vs/editor/common/model/textModelTokens';
-import { guessIndentation } from 'vs/editor/common/model/indentationGuesser';
-import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
-import { TextModelSearch, SearchParams, SearchData } from 'vs/editor/common/model/textModelSearch';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { BracketsUtils, RichEditBracket, RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
 import { IStringStream, ITextSnapshot } from 'vs/platform/files/common/files';
-import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
+import { ITheme, ThemeColor } from 'vs/platform/theme/common/themeService';
 
 const CHEAP_TOKENIZATION_LENGTH_LIMIT = 2048;
 
@@ -46,8 +45,8 @@ export function createTextBufferFactory(text: string): model.ITextBufferFactory 
 	return builder.finish();
 }
 
-export function createTextBufferFactoryFromStream(stream: IStringStream, filter?: (chunk: string) => string): TPromise<model.ITextBufferFactory> {
-	return new TPromise<model.ITextBufferFactory>((c, e) => {
+export function createTextBufferFactoryFromStream(stream: IStringStream, filter?: (chunk: string) => string): Promise<model.ITextBufferFactory> {
+	return new Promise<model.ITextBufferFactory>((c, e) => {
 		let done = false;
 		let builder = createTextBufferBuilder();
 
@@ -316,6 +315,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 			this._resetTokenizationState();
 			this.emitModelTokensChangedEvent({
+				tokenizationSupportChanged: true,
 				ranges: [{
 					fromLineNumber: 1,
 					toLineNumber: this.getLineCount()
@@ -1167,7 +1167,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		}
 	}
 
-	public pushEditOperations(beforeCursorState: Selection[], editOperations: model.IIdentifiedSingleEditOperation[], cursorStateComputer: model.ICursorStateComputer): Selection[] | null {
+	public pushEditOperations(beforeCursorState: Selection[], editOperations: model.IIdentifiedSingleEditOperation[], cursorStateComputer: model.ICursorStateComputer | null): Selection[] | null {
 		try {
 			this._onDidChangeDecorations.beginDeferredEmit();
 			this._eventEmitter.beginDeferredEmit();
@@ -1178,7 +1178,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		}
 	}
 
-	private _pushEditOperations(beforeCursorState: Selection[], editOperations: model.IIdentifiedSingleEditOperation[], cursorStateComputer: model.ICursorStateComputer): Selection[] | null {
+	private _pushEditOperations(beforeCursorState: Selection[], editOperations: model.IIdentifiedSingleEditOperation[], cursorStateComputer: model.ICursorStateComputer | null): Selection[] | null {
 		if (this._options.trimAutoWhitespace && this._trimAutoWhitespaceLines) {
 			// Go through each saved line number and insert a trim whitespace edit
 			// if it is safe to do so (no conflicts with other edits).
@@ -1761,42 +1761,41 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 	public tokenizeViewport(startLineNumber: number, endLineNumber: number): void {
 		if (!this._tokens.tokenizationSupport) {
+			// nothing to do
 			return;
 		}
 
-		// we tokenize `this._tokens.inValidLineStartIndex` lines in around 20ms so it's a good baseline.
-		const contextBefore = Math.floor(this._tokens.inValidLineStartIndex * 0.3);
-		startLineNumber = Math.max(1, startLineNumber - contextBefore);
+		startLineNumber = Math.max(1, startLineNumber);
+		endLineNumber = Math.min(this.getLineCount(), endLineNumber);
+
+		if (endLineNumber <= this._tokens.inValidLineStartIndex) {
+			// nothing to do
+			return;
+		}
 
 		if (startLineNumber <= this._tokens.inValidLineStartIndex) {
+			// tokenization has reached the viewport start...
 			this.forceTokenization(endLineNumber);
 			return;
 		}
 
-		const eventBuilder = new ModelTokensChangedEventBuilder();
 		let nonWhitespaceColumn = this.getLineFirstNonWhitespaceColumn(startLineNumber);
 		let fakeLines: string[] = [];
-		let i = startLineNumber - 1;
 		let initialState: IState | null = null;
-		if (nonWhitespaceColumn > 0) {
-			while (nonWhitespaceColumn > 0 && i >= 1) {
-				let newNonWhitespaceIndex = this.getLineFirstNonWhitespaceColumn(i);
+		for (let i = startLineNumber - 1; nonWhitespaceColumn > 0 && i >= 1; i--) {
+			let newNonWhitespaceIndex = this.getLineFirstNonWhitespaceColumn(i);
 
-				if (newNonWhitespaceIndex === 0) {
-					i--;
-					continue;
+			if (newNonWhitespaceIndex === 0) {
+				continue;
+			}
+
+			if (newNonWhitespaceIndex < nonWhitespaceColumn) {
+				initialState = this._tokens._getState(i - 1);
+				if (initialState) {
+					break;
 				}
-
-				if (newNonWhitespaceIndex < nonWhitespaceColumn) {
-					initialState = this._tokens._getState(i - 1);
-					if (initialState) {
-						break;
-					}
-					fakeLines.push(this.getLineContent(i));
-					nonWhitespaceColumn = newNonWhitespaceIndex;
-				}
-
-				i--;
+				fakeLines.push(this.getLineContent(i));
+				nonWhitespaceColumn = newNonWhitespaceIndex;
 			}
 		}
 
@@ -1814,8 +1813,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 			}
 		}
 
-		const contextAfter = Math.floor(this._tokens.inValidLineStartIndex * 0.4);
-		endLineNumber = Math.min(this.getLineCount(), endLineNumber + contextAfter);
+		const eventBuilder = new ModelTokensChangedEventBuilder();
 		for (let i = startLineNumber; i <= endLineNumber; i++) {
 			let text = this.getLineContent(i);
 			let r = this._tokens._tokenizeText(this._buffer, text, state);
@@ -1839,6 +1837,17 @@ export class TextModel extends Disposable implements model.ITextModel {
 		if (e) {
 			this._onDidChangeTokens.fire(e);
 		}
+	}
+
+	public flushTokens(): void {
+		this._resetTokenizationState();
+		this.emitModelTokensChangedEvent({
+			tokenizationSupportChanged: false,
+			ranges: [{
+				fromLineNumber: 1,
+				toLineNumber: this.getLineCount()
+			}]
+		});
 	}
 
 	public forceTokenization(lineNumber: number): void {
@@ -1916,6 +1925,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		this._resetTokenizationState();
 
 		this.emitModelTokensChangedEvent({
+			tokenizationSupportChanged: true,
 			ranges: [{
 				fromLineNumber: 1,
 				toLineNumber: this.getLineCount()
@@ -2005,7 +2015,8 @@ export class TextModel extends Disposable implements model.ITextModel {
 			lineContent.substring(rbStartOffset, rbEndOffset),
 			rbStartOffset
 		);
-		if (rightBiasedWord) {
+		// Make sure the result touches the original passed in position
+		if (rightBiasedWord && rightBiasedWord.startColumn <= _position.column && _position.column <= rightBiasedWord.endColumn) {
 			return rightBiasedWord;
 		}
 
@@ -2019,7 +2030,8 @@ export class TextModel extends Disposable implements model.ITextModel {
 				lineContent.substring(lbStartOffset, lbEndOffset),
 				lbStartOffset
 			);
-			if (leftBiasedWord) {
+			// Make sure the result touches the original passed in position
+			if (leftBiasedWord && leftBiasedWord.startColumn <= _position.column && _position.column <= leftBiasedWord.endColumn) {
 				return leftBiasedWord;
 			}
 		}

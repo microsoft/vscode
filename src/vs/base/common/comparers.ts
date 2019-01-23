@@ -5,24 +5,23 @@
 
 import * as strings from 'vs/base/common/strings';
 import * as paths from 'vs/base/common/paths';
+import { IdleValue } from 'vs/base/common/async';
 
-let intlFileNameCollator: Intl.Collator;
-let intlFileNameCollatorIsNumeric: boolean;
+let intlFileNameCollator: IdleValue<{ collator: Intl.Collator, collatorIsNumeric: boolean }>;
 
-export function setFileNameComparer(collator: Intl.Collator): void {
+export function setFileNameComparer(collator: IdleValue<{ collator: Intl.Collator, collatorIsNumeric: boolean }>): void {
 	intlFileNameCollator = collator;
-	intlFileNameCollatorIsNumeric = collator.resolvedOptions().numeric;
 }
 
-export function compareFileNames(one: string, other: string, caseSensitive = false): number {
+export function compareFileNames(one: string | null, other: string | null, caseSensitive = false): number {
 	if (intlFileNameCollator) {
 		const a = one || '';
 		const b = other || '';
-		const result = intlFileNameCollator.compare(a, b);
+		const result = intlFileNameCollator.getValue().collator.compare(a, b);
 
 		// Using the numeric option in the collator will
 		// make compare(`foo1`, `foo01`) === 0. We must disambiguate.
-		if (intlFileNameCollatorIsNumeric && result === 0 && a !== b) {
+		if (intlFileNameCollator.getValue().collatorIsNumeric && result === 0 && a !== b) {
 			return a < b ? -1 : 1;
 		}
 
@@ -34,7 +33,7 @@ export function compareFileNames(one: string, other: string, caseSensitive = fal
 
 const FileNameMatch = /^(.*?)(\.([^.]*))?$/;
 
-export function noIntlCompareFileNames(one: string, other: string, caseSensitive = false): number {
+export function noIntlCompareFileNames(one: string | null, other: string | null, caseSensitive = false): number {
 	if (!caseSensitive) {
 		one = one && one.toLowerCase();
 		other = other && other.toLowerCase();
@@ -54,24 +53,24 @@ export function noIntlCompareFileNames(one: string, other: string, caseSensitive
 	return oneExtension < otherExtension ? -1 : 1;
 }
 
-export function compareFileExtensions(one: string, other: string): number {
+export function compareFileExtensions(one: string | null, other: string | null): number {
 	if (intlFileNameCollator) {
 		const [oneName, oneExtension] = extractNameAndExtension(one);
 		const [otherName, otherExtension] = extractNameAndExtension(other);
 
-		let result = intlFileNameCollator.compare(oneExtension, otherExtension);
+		let result = intlFileNameCollator.getValue().collator.compare(oneExtension, otherExtension);
 
 		if (result === 0) {
 			// Using the numeric option in the collator will
 			// make compare(`foo1`, `foo01`) === 0. We must disambiguate.
-			if (intlFileNameCollatorIsNumeric && oneExtension !== otherExtension) {
+			if (intlFileNameCollator.getValue().collatorIsNumeric && oneExtension !== otherExtension) {
 				return oneExtension < otherExtension ? -1 : 1;
 			}
 
 			// Extensions are equal, compare filenames
-			result = intlFileNameCollator.compare(oneName, otherName);
+			result = intlFileNameCollator.getValue().collator.compare(oneName, otherName);
 
-			if (intlFileNameCollatorIsNumeric && result === 0 && oneName !== otherName) {
+			if (intlFileNameCollator.getValue().collatorIsNumeric && result === 0 && oneName !== otherName) {
 				return oneName < otherName ? -1 : 1;
 			}
 		}
@@ -82,7 +81,7 @@ export function compareFileExtensions(one: string, other: string): number {
 	return noIntlCompareFileExtensions(one, other);
 }
 
-function noIntlCompareFileExtensions(one: string, other: string): number {
+function noIntlCompareFileExtensions(one: string | null, other: string | null): number {
 	const [oneName, oneExtension] = extractNameAndExtension(one && one.toLowerCase());
 	const [otherName, otherExtension] = extractNameAndExtension(other && other.toLowerCase());
 
@@ -97,7 +96,7 @@ function noIntlCompareFileExtensions(one: string, other: string): number {
 	return oneName < otherName ? -1 : 1;
 }
 
-function extractNameAndExtension(str?: string): [string, string] {
+function extractNameAndExtension(str?: string | null): [string, string] {
 	const match = str ? FileNameMatch.exec(str) as Array<string> : ([] as Array<string>);
 
 	return [(match && match[1]) || '', (match && match[3]) || ''];

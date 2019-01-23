@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { memoize } from 'vs/base/common/decorators';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
@@ -29,7 +28,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 	private preferredEncoding: string;
 	private forceOpenAsBinary: boolean;
 	private forceOpenAsText: boolean;
-	private textModelReference: TPromise<IReference<ITextEditorModel>>;
+	private textModelReference: Promise<IReference<ITextEditorModel>>;
 	private name: string;
 
 	/**
@@ -38,11 +37,11 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 	constructor(
 		private resource: URI,
 		preferredEncoding: string,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@ITextFileService private textFileService: ITextFileService,
-		@ITextModelService private textModelResolverService: ITextModelService,
-		@IHashService private hashService: IHashService,
-		@ILabelService private labelService: ILabelService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@ITextModelService private readonly textModelResolverService: ITextModelService,
+		@IHashService private readonly hashService: IHashService,
+		@ILabelService private readonly labelService: ILabelService
 	) {
 		super();
 
@@ -223,15 +222,15 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		return model.isDirty();
 	}
 
-	confirmSave(): TPromise<ConfirmResult> {
+	confirmSave(): Promise<ConfirmResult> {
 		return this.textFileService.confirmSave([this.resource]);
 	}
 
-	save(): TPromise<boolean> {
+	save(): Promise<boolean> {
 		return this.textFileService.save(this.resource);
 	}
 
-	revert(options?: IRevertOptions): TPromise<boolean> {
+	revert(options?: IRevertOptions): Promise<boolean> {
 		return this.textFileService.revert(this.resource, options);
 	}
 
@@ -239,7 +238,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		return this.forceOpenAsBinary ? BINARY_FILE_EDITOR_ID : TEXT_FILE_EDITOR_ID;
 	}
 
-	resolve(): TPromise<TextFileEditorModel | BinaryEditorModel> {
+	resolve(): Promise<TextFileEditorModel | BinaryEditorModel> {
 
 		// Resolve as binary
 		if (this.forceOpenAsBinary) {
@@ -250,7 +249,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		return this.doResolveAsText();
 	}
 
-	private doResolveAsText(): TPromise<TextFileEditorModel | BinaryEditorModel> {
+	private doResolveAsText(): Promise<TextFileEditorModel | BinaryEditorModel> {
 
 		// Resolve as text
 		return this.textFileService.models.loadOrCreate(this.resource, {
@@ -281,7 +280,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		});
 	}
 
-	private doResolveAsBinary(): TPromise<BinaryEditorModel> {
+	private doResolveAsBinary(): Promise<BinaryEditorModel> {
 		return this.instantiationService.createInstance(BinaryEditorModel, this.resource, this.getName()).load().then(m => m as BinaryEditorModel);
 	}
 

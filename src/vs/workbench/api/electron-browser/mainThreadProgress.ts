@@ -3,16 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IProgress } from 'vs/platform/progress/common/progress';
+import { IProgress, IProgressService2, IProgressStep, IProgressOptions } from 'vs/platform/progress/common/progress';
 import { MainThreadProgressShape, MainContext, IExtHostContext, ExtHostProgressShape, ExtHostContext } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
-import { IProgressService2, IProgressStep, IProgressOptions } from 'vs/workbench/services/progress/common/progress';
 
 @extHostNamedCustomer(MainContext.MainThreadProgress)
 export class MainThreadProgress implements MainThreadProgressShape {
 
 	private _progressService: IProgressService2;
-	private _progress = new Map<number, { resolve: Function, progress: IProgress<IProgressStep> }>();
+	private _progress = new Map<number, { resolve: () => void, progress: IProgress<IProgressStep> }>();
 	private _proxy: ExtHostProgressShape;
 
 	constructor(

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 
 export interface IEditorZoom {
 	onDidChangeZoomLevel: Event<number>;
@@ -15,7 +15,7 @@ export const EditorZoom: IEditorZoom = new class implements IEditorZoom {
 
 	private _zoomLevel: number = 0;
 
-	private readonly _onDidChangeZoomLevel: Emitter<number> = new Emitter<number>();
+	private readonly _onDidChangeZoomLevel = new Emitter<number>();
 	public readonly onDidChangeZoomLevel: Event<number> = this._onDidChangeZoomLevel.event;
 
 	public getZoomLevel(): number {

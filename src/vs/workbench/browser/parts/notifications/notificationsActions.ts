@@ -21,7 +21,7 @@ export class ClearNotificationAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@ICommandService private commandService: ICommandService
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super(id, label, 'clear-notification-action');
 	}
@@ -29,7 +29,7 @@ export class ClearNotificationAction extends Action {
 	run(notification: INotificationViewItem): Promise<any> {
 		this.commandService.executeCommand(CLEAR_NOTIFICATION, notification);
 
-		return Promise.resolve(void 0);
+		return Promise.resolve();
 	}
 }
 
@@ -41,7 +41,7 @@ export class ClearAllNotificationsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@ICommandService private commandService: ICommandService
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super(id, label, 'clear-all-notifications-action');
 	}
@@ -49,7 +49,7 @@ export class ClearAllNotificationsAction extends Action {
 	run(notification: INotificationViewItem): Promise<any> {
 		this.commandService.executeCommand(CLEAR_ALL_NOTIFICATIONS);
 
-		return Promise.resolve(void 0);
+		return Promise.resolve();
 	}
 }
 
@@ -61,7 +61,7 @@ export class HideNotificationsCenterAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@ICommandService private commandService: ICommandService
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super(id, label, 'hide-all-notifications-action');
 	}
@@ -69,7 +69,7 @@ export class HideNotificationsCenterAction extends Action {
 	run(notification: INotificationViewItem): Promise<any> {
 		this.commandService.executeCommand(HIDE_NOTIFICATIONS_CENTER);
 
-		return Promise.resolve(void 0);
+		return Promise.resolve();
 	}
 }
 
@@ -81,7 +81,7 @@ export class ExpandNotificationAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@ICommandService private commandService: ICommandService
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super(id, label, 'expand-notification-action');
 	}
@@ -89,7 +89,7 @@ export class ExpandNotificationAction extends Action {
 	run(notification: INotificationViewItem): Promise<any> {
 		this.commandService.executeCommand(EXPAND_NOTIFICATION, notification);
 
-		return Promise.resolve(void 0);
+		return Promise.resolve();
 	}
 }
 
@@ -101,7 +101,7 @@ export class CollapseNotificationAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@ICommandService private commandService: ICommandService
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super(id, label, 'collapse-notification-action');
 	}
@@ -109,7 +109,7 @@ export class CollapseNotificationAction extends Action {
 	run(notification: INotificationViewItem): Promise<any> {
 		this.commandService.executeCommand(COLLAPSE_NOTIFICATION, notification);
 
-		return Promise.resolve(void 0);
+		return Promise.resolve();
 	}
 }
 
@@ -139,7 +139,7 @@ export class CopyNotificationMessageAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IClipboardService private clipboardService: IClipboardService
+		@IClipboardService private readonly clipboardService: IClipboardService
 	) {
 		super(id, label);
 	}
@@ -147,15 +147,15 @@ export class CopyNotificationMessageAction extends Action {
 	run(notification: INotificationViewItem): Promise<any> {
 		this.clipboardService.writeText(notification.message.raw);
 
-		return Promise.resolve(void 0);
+		return Promise.resolve();
 	}
 }
 
 export class NotificationActionRunner extends ActionRunner {
 
 	constructor(
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@INotificationService private notificationService: INotificationService
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@INotificationService private readonly notificationService: INotificationService
 	) {
 		super();
 	}
@@ -171,8 +171,8 @@ export class NotificationActionRunner extends ActionRunner {
 		this.telemetryService.publicLog('workbenchActionExecuted', { id: action.id, from: 'message' });
 
 		// Run and make sure to notify on any error again
-		super.runAction(action, context).then(null, error => this.notificationService.error(error));
+		super.runAction(action, context).then(undefined, error => this.notificationService.error(error));
 
-		return Promise.resolve(void 0);
+		return Promise.resolve();
 	}
 }

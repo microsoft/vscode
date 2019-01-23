@@ -8,7 +8,6 @@ import { Action } from 'vs/base/common/actions';
 import * as paths from 'vs/base/common/paths';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ILogService, LogLevel, DEFAULT_LOG_LEVEL } from 'vs/platform/log/common/log';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 
@@ -18,13 +17,13 @@ export class OpenLogsFolderAction extends Action {
 	static LABEL = nls.localize('openLogsFolder', "Open Logs Folder");
 
 	constructor(id: string, label: string,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IWindowsService private windowsService: IWindowsService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IWindowsService private readonly windowsService: IWindowsService,
 	) {
 		super(id, label);
 	}
 
-	run(): TPromise<void> {
+	run(): Promise<void> {
 		return this.windowsService.showItemInFolder(paths.join(this.environmentService.logsPath, 'main.log'));
 	}
 }
@@ -35,13 +34,13 @@ export class SetLogLevelAction extends Action {
 	static LABEL = nls.localize('setLogLevel', "Set Log Level...");
 
 	constructor(id: string, label: string,
-		@IQuickInputService private quickInputService: IQuickInputService,
-		@ILogService private logService: ILogService
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super(id, label);
 	}
 
-	run(): TPromise<void> {
+	run(): Promise<void> {
 		const current = this.logService.getLevel();
 		const entries = [
 			{ label: nls.localize('trace', "Trace"), level: LogLevel.Trace, description: this.getDescription(LogLevel.Trace, current) },
@@ -60,7 +59,7 @@ export class SetLogLevelAction extends Action {
 		});
 	}
 
-	private getDescription(level: LogLevel, current: LogLevel): string {
+	private getDescription(level: LogLevel, current: LogLevel): string | undefined {
 		if (DEFAULT_LOG_LEVEL === level && current === level) {
 			return nls.localize('default and current', "Default & Current");
 		}
@@ -70,6 +69,6 @@ export class SetLogLevelAction extends Action {
 		if (current === level) {
 			return nls.localize('current', "Current");
 		}
-		return void 0;
+		return undefined;
 	}
 }

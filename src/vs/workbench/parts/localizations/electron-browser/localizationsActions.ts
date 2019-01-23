@@ -7,7 +7,6 @@ import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IEditor } from 'vs/workbench/common/editor';
 import { join } from 'vs/base/common/paths';
 import { URI } from 'vs/base/common/uri';
@@ -29,19 +28,19 @@ export class ConfigureLocaleAction extends Action {
 	].join('\n');
 
 	constructor(id: string, label: string,
-		@IFileService private fileService: IFileService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IEditorService private editorService: IEditorService,
-		@ILabelService private labelService: ILabelService
+		@IFileService private readonly fileService: IFileService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IEditorService private readonly editorService: IEditorService,
+		@ILabelService private readonly labelService: ILabelService
 	) {
 		super(id, label);
 	}
 
-	public run(event?: any): TPromise<IEditor> {
+	public run(event?: any): Promise<IEditor | undefined> {
 		const file = URI.file(join(this.environmentService.appSettingsHome, 'locale.json'));
-		return this.fileService.resolveFile(file).then(null, (error) => {
+		return this.fileService.resolveFile(file).then(undefined, (error) => {
 			return this.fileService.createFile(file, ConfigureLocaleAction.DEFAULT_CONTENT);
-		}).then((stat) => {
+		}).then((stat): Promise<IEditor | undefined> | undefined => {
 			if (!stat) {
 				return undefined;
 			}

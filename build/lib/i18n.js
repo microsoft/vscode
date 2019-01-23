@@ -37,7 +37,7 @@ exports.extraLanguages = [
     { id: 'tr', folderName: 'trk' }
 ];
 // non built-in extensions also that are transifex and need to be part of the language packs
-const externalExtensionsWithTranslations = {
+exports.externalExtensionsWithTranslations = {
     'vscode-chrome-debug': 'msjsdiag.debugger-for-chrome',
     'vscode-node-debug': 'ms-vscode.node-debug',
     'vscode-node-debug2': 'ms-vscode.node-debug2'
@@ -229,12 +229,15 @@ XLF.parse = function (xlfString) {
                         if (!unit.target) {
                             return; // No translation available
                         }
-                        const val = unit.target.toString();
+                        let val = unit.target[0];
+                        if (typeof val !== 'string') {
+                            val = val._;
+                        }
                         if (key && val) {
                             messages[key] = decodeEntities(val);
                         }
                         else {
-                            reject(new Error(`XLF parsing error: XLIFF file does not contain full localization data. ID or target translation for one of the trans-unit nodes is not present.`));
+                            reject(new Error(`XLF parsing error: XLIFF file ${originalFilePath} does not contain full localization data. ID or target translation for one of the trans-unit nodes is not present.`));
                         }
                     });
                     files.push({ messages: messages, originalFilePath: originalFilePath, language: language.toLowerCase() });
@@ -743,7 +746,7 @@ function getAllResources(project, apiHostname, username, password) {
 }
 function findObsoleteResources(apiHostname, username, password) {
     let resourcesByProject = Object.create(null);
-    resourcesByProject[extensionsProject] = [].concat(externalExtensionsWithTranslations); // clone
+    resourcesByProject[extensionsProject] = [].concat(exports.externalExtensionsWithTranslations); // clone
     return event_stream_1.through(function (file) {
         const project = path.dirname(file.relative);
         const fileName = path.basename(file.path);
@@ -1019,17 +1022,18 @@ function createI18nFile(originalFilePath, messages) {
 }
 const i18nPackVersion = "1.0.0";
 function pullI18nPackFiles(apiHostname, username, password, language, resultingTranslationPaths) {
-    return pullCoreAndExtensionsXlfFiles(apiHostname, username, password, language, externalExtensionsWithTranslations)
-        .pipe(prepareI18nPackFiles(externalExtensionsWithTranslations, resultingTranslationPaths, language.id === 'ps'));
+    return pullCoreAndExtensionsXlfFiles(apiHostname, username, password, language, exports.externalExtensionsWithTranslations)
+        .pipe(prepareI18nPackFiles(exports.externalExtensionsWithTranslations, resultingTranslationPaths, language.id === 'ps'));
 }
 exports.pullI18nPackFiles = pullI18nPackFiles;
 function prepareI18nPackFiles(externalExtensions, resultingTranslationPaths, pseudo = false) {
     let parsePromises = [];
     let mainPack = { version: i18nPackVersion, contents: {} };
     let extensionsPacks = {};
+    let errors = [];
     return event_stream_1.through(function (xlf) {
-        let project = path.dirname(xlf.path);
-        let resource = path.basename(xlf.path, '.xlf');
+        let project = path.dirname(xlf.relative);
+        let resource = path.basename(xlf.relative, '.xlf');
         let contents = xlf.contents.toString();
         let parsePromise = pseudo ? XLF.parsePseudo(contents) : XLF.parse(contents);
         parsePromises.push(parsePromise);
@@ -1055,10 +1059,15 @@ function prepareI18nPackFiles(externalExtensions, resultingTranslationPaths, pse
                     mainPack.contents[path.substr(firstSlash + 1)] = file.messages;
                 }
             });
+        }).catch(reason => {
+            errors.push(reason);
         });
     }, function () {
         Promise.all(parsePromises)
             .then(() => {
+            if (errors.length > 0) {
+                throw errors;
+            }
             const translatedMainFile = createI18nFile('./main', mainPack);
             resultingTranslationPaths.push({ id: 'vscode', resourceName: 'main.i18n.json' });
             this.queue(translatedMainFile);
@@ -1075,7 +1084,9 @@ function prepareI18nPackFiles(externalExtensions, resultingTranslationPaths, pse
             }
             this.queue(null);
         })
-            .catch(reason => { throw new Error(reason); });
+            .catch((reason) => {
+            this.emit('error', reason);
+        });
     });
 }
 exports.prepareI18nPackFiles = prepareI18nPackFiles;
@@ -1093,11 +1104,15 @@ function prepareIslFiles(language, innoSetupConfig) {
                 let translatedFile = createIslFile(file.originalFilePath, file.messages, language, innoSetupConfig);
                 stream.queue(translatedFile);
             });
+        }).catch(reason => {
+            this.emit('error', reason);
         });
     }, function () {
         Promise.all(parsePromises)
             .then(() => { this.queue(null); })
-            .catch(reason => { throw new Error(reason); });
+            .catch(reason => {
+            this.emit('error', reason);
+        });
     });
 }
 exports.prepareIslFiles = prepareIslFiles;

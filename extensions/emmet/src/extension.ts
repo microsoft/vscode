@@ -17,7 +17,7 @@ import { fetchEditPoint } from './editPoint';
 import { fetchSelectItem } from './selectItem';
 import { evaluateMathExpression } from './evaluateMathExpression';
 import { incrementDecrement } from './incrementDecrement';
-import { LANGUAGE_MODES, getMappingForIncludedLanguages, resolveUpdateExtensionsPath } from './util';
+import { LANGUAGE_MODES, getMappingForIncludedLanguages, updateEmmetExtensionsPath } from './util';
 import { updateImageSize } from './updateImageSize';
 import { reflectCssValue } from './reflectCssValue';
 
@@ -98,7 +98,7 @@ export function activate(context: vscode.ExtensionContext) {
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.incrementNumberByOneTenth', () => {
-		return incrementDecrement(.1);
+		return incrementDecrement(0.1);
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.incrementNumberByOne', () => {
@@ -129,11 +129,15 @@ export function activate(context: vscode.ExtensionContext) {
 		return reflectCssValue();
 	}));
 
-	resolveUpdateExtensionsPath();
+	updateEmmetExtensionsPath();
 
-	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(() => {
-		registerCompletionProviders(context);
-		resolveUpdateExtensionsPath();
+	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => {
+		if (e.affectsConfiguration('emmet.includeLanguages')) {
+			registerCompletionProviders(context);
+		}
+		if (e.affectsConfiguration('emmet.extensionsPath')) {
+			updateEmmetExtensionsPath();
+		}
 	}));
 }
 

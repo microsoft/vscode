@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as dom from 'vs/base/browser/dom';
+import { IDisposable, dispose as disposeAll } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
-import * as dom from 'vs/base/browser/dom';
-import { IDecorationRenderOptions, IThemeDecorationRenderOptions, IContentDecorationRenderOptions, isThemeColor } from 'vs/editor/common/editorCommon';
-import { IModelDecorationOptions, IModelDecorationOverviewRulerOptions, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { AbstractCodeEditorService } from 'vs/editor/browser/services/abstractCodeEditorService';
-import { IDisposable, dispose as disposeAll } from 'vs/base/common/lifecycle';
-import { IThemeService, ITheme, ThemeColor } from 'vs/platform/theme/common/themeService';
-import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { AbstractCodeEditorService } from 'vs/editor/browser/services/abstractCodeEditorService';
+import { IContentDecorationRenderOptions, IDecorationRenderOptions, IThemeDecorationRenderOptions, isThemeColor } from 'vs/editor/common/editorCommon';
+import { IModelDecorationOptions, IModelDecorationOverviewRulerOptions, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { IResourceInput } from 'vs/platform/editor/common/editor';
+import { ITheme, IThemeService, ThemeColor } from 'vs/platform/theme/common/themeService';
 
 export abstract class CodeEditorServiceImpl extends AbstractCodeEditorService {
 
@@ -67,7 +67,7 @@ export abstract class CodeEditorServiceImpl extends AbstractCodeEditorService {
 	}
 
 	abstract getActiveCodeEditor(): ICodeEditor | null;
-	abstract openCodeEditor(input: IResourceInput, source: ICodeEditor | null, sideBySide?: boolean): Thenable<ICodeEditor | null>;
+	abstract openCodeEditor(input: IResourceInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null>;
 }
 
 interface IModelDecorationOptionsProvider extends IDisposable {
@@ -141,18 +141,18 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 		this.refCount = 0;
 		this._disposables = [];
 
-		let createCSSRules = (type: ModelDecorationCSSRuleType) => {
-			let rules = new DecorationCSSRules(type, providerArgs, themeService);
+		const createCSSRules = (type: ModelDecorationCSSRuleType) => {
+			const rules = new DecorationCSSRules(type, providerArgs, themeService);
+			this._disposables.push(rules);
 			if (rules.hasContent) {
-				this._disposables.push(rules);
 				return rules.className;
 			}
-			return void 0;
+			return undefined;
 		};
-		let createInlineCSSRules = (type: ModelDecorationCSSRuleType) => {
-			let rules = new DecorationCSSRules(type, providerArgs, themeService);
+		const createInlineCSSRules = (type: ModelDecorationCSSRuleType) => {
+			const rules = new DecorationCSSRules(type, providerArgs, themeService);
+			this._disposables.push(rules);
 			if (rules.hasContent) {
-				this._disposables.push(rules);
 				return { className: rules.className, hasLetterSpacing: rules.hasLetterSpacing };
 			}
 			return null;
@@ -210,7 +210,7 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 
 const _CSS_MAP: { [prop: string]: string; } = {
 	color: 'color:{0} !important;',
-	opacity: 'opacity:{0}; will-change: opacity;', // TODO@Ben: 'will-change: opacity' is a workaround for https://github.com/Microsoft/vscode/issues/52196
+	opacity: 'opacity:{0};',
 	backgroundColor: 'background-color:{0};',
 
 	outline: 'outline:{0};',
@@ -401,11 +401,7 @@ class DecorationCSSRules {
 		if (typeof opts !== 'undefined') {
 			this.collectBorderSettingsCSSText(opts, cssTextArr);
 			if (typeof opts.contentIconPath !== 'undefined') {
-				if (typeof opts.contentIconPath === 'string') {
-					cssTextArr.push(strings.format(_CSS_MAP.contentIconPath, URI.file(opts.contentIconPath).toString().replace(/'/g, '%27')));
-				} else {
-					cssTextArr.push(strings.format(_CSS_MAP.contentIconPath, URI.revive(opts.contentIconPath).toString(true).replace(/'/g, '%27')));
-				}
+				cssTextArr.push(strings.format(_CSS_MAP.contentIconPath, URI.revive(opts.contentIconPath).toString(true).replace(/'/g, '%27')));
 			}
 			if (typeof opts.contentText === 'string') {
 				const truncated = opts.contentText.match(/^.*$/m)![0]; // only take first line
@@ -432,11 +428,7 @@ class DecorationCSSRules {
 		let cssTextArr: string[] = [];
 
 		if (typeof opts.gutterIconPath !== 'undefined') {
-			if (typeof opts.gutterIconPath === 'string') {
-				cssTextArr.push(strings.format(_CSS_MAP.gutterIconPath, URI.file(opts.gutterIconPath).toString()));
-			} else {
-				cssTextArr.push(strings.format(_CSS_MAP.gutterIconPath, URI.revive(opts.gutterIconPath).toString(true).replace(/'/g, '%27')));
-			}
+			cssTextArr.push(strings.format(_CSS_MAP.gutterIconPath, URI.revive(opts.gutterIconPath).toString(true).replace(/'/g, '%27')));
 			if (typeof opts.gutterIconSize !== 'undefined') {
 				cssTextArr.push(strings.format(_CSS_MAP.gutterIconSize, opts.gutterIconSize));
 			}

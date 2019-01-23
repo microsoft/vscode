@@ -50,7 +50,7 @@ export class LanguagePackCachedDataCleaner {
 	}
 
 	private _manageCachedDataSoon(): void {
-		let handle = setTimeout(async () => {
+		let handle: any = setTimeout(async () => {
 			handle = undefined;
 			this._logService.info('Starting to clean up unused language packs.');
 			const maxAge = product.nameLong.indexOf('Insiders') >= 0
@@ -103,7 +103,7 @@ export class LanguagePackCachedDataCleaner {
 
 		this._disposables.push({
 			dispose() {
-				if (handle !== void 0) {
+				if (handle !== undefined) {
 					clearTimeout(handle);
 				}
 			}

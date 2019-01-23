@@ -155,13 +155,13 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 		this._register(DOM.addDisposableListener(this.element, DOM.EventType.FOCUS, e => this.gainingFocus(), true));
 		this._register(DOM.addDisposableListener(this.element, DOM.EventType.BLUR, e => this.loosingFocus(e), true));
 		this._register(DOM.addDisposableListener(this.element, DOM.EventType.KEY_DOWN, e => {
-			const keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e as KeyboardEvent);
+			const keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
 			if (keyboardEvent.keyCode === KeyCode.Escape) {
 				DOM.EventHelper.stop(e, true);
 
 				this.hide(HideReason.CANCELED);
 			} else if (keyboardEvent.keyCode === KeyCode.Tab && !keyboardEvent.altKey && !keyboardEvent.ctrlKey && !keyboardEvent.metaKey) {
-				const stops = e.currentTarget.querySelectorAll('input, .monaco-tree, .monaco-tree-row.focused .action-label.icon');
+				const stops = (e.currentTarget as HTMLElement).querySelectorAll('input, .monaco-tree, .monaco-tree-row.focused .action-label.icon') as NodeListOf<HTMLElement>;
 				if (keyboardEvent.shiftKey && keyboardEvent.target === stops[0]) {
 					DOM.EventHelper.stop(e, true);
 					stops[stops.length - 1].focus();
@@ -277,7 +277,7 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 
 		this._register(this.tree.onDidChangeSelection(event => {
 			if (event.selection && event.selection.length > 0) {
-				const mouseEvent: StandardMouseEvent = event.payload && event.payload.originalEvent instanceof StandardMouseEvent ? event.payload.originalEvent : void 0;
+				const mouseEvent: StandardMouseEvent = event.payload && event.payload.originalEvent instanceof StandardMouseEvent ? event.payload.originalEvent : undefined;
 				const shouldOpenInBackground = mouseEvent ? this.shouldOpenInBackground(mouseEvent) : false;
 
 				this.elementSelected(event.selection[0], event, shouldOpenInBackground ? Mode.OPEN_IN_BACKGROUND : Mode.OPEN);
@@ -285,7 +285,7 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 		}));
 
 		this._register(DOM.addDisposableListener(this.treeContainer, DOM.EventType.KEY_DOWN, e => {
-			const keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e as KeyboardEvent);
+			const keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
 
 			// Only handle when in quick navigation mode
 			if (!this.quickNavigateConfiguration) {
@@ -301,7 +301,7 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 		}));
 
 		this._register(DOM.addDisposableListener(this.treeContainer, DOM.EventType.KEY_UP, e => {
-			const keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e as KeyboardEvent);
+			const keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
 			const keyCode = keyboardEvent.keyCode;
 
 			// Only handle when in quick navigation mode
@@ -574,7 +574,7 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 	show(param: any, options?: IShowOptions): void {
 		this.visible = true;
 		this.isLoosingFocus = false;
-		this.quickNavigateConfiguration = options ? options.quickNavigateConfiguration : void 0;
+		this.quickNavigateConfiguration = options ? options.quickNavigateConfiguration : undefined;
 
 		// Adjust UI for quick navigate mode
 		if (this.quickNavigateConfiguration) {
@@ -675,8 +675,7 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 			let caseInsensitiveMatch: any;
 			const prefix = autoFocus.autoFocusPrefixMatch;
 			const lowerCasePrefix = prefix.toLowerCase();
-			for (let i = 0; i < entries.length; i++) {
-				const entry = entries[i];
+			for (const entry of entries) {
 				const label = input.dataSource.getLabel(entry);
 
 				if (!caseSensitiveMatch && label.indexOf(prefix) === 0) {
@@ -773,7 +772,7 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 
 		let preferredItemsHeight: number;
 		if (this.layoutDimensions && this.layoutDimensions.height) {
-			preferredItemsHeight = (this.layoutDimensions.height - 50 /* subtract height of input field (30px) and some spacing (drop shadow) to fit */) * 0.40 /* max 40% of screen */;
+			preferredItemsHeight = (this.layoutDimensions.height - 50 /* subtract height of input field (30px) and some spacing (drop shadow) to fit */) * 0.4 /* max 40% of screen */;
 		}
 
 		if (!preferredItemsHeight || preferredItemsHeight > QuickOpenWidget.MAX_ITEMS_HEIGHT) {

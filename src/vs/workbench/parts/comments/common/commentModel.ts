@@ -10,6 +10,10 @@ import { groupBy, firstIndex, flatten } from 'vs/base/common/arrays';
 import { localize } from 'vs/nls';
 import { values } from 'vs/base/common/map';
 
+export interface ICommentThreadChangedEvent extends CommentThreadChangedEvent {
+	owner: string;
+}
+
 export class CommentNode {
 	threadId: string;
 	range: IRange;
@@ -53,25 +57,25 @@ export class ResourceWithCommentThreads {
 
 export class CommentsModel {
 	resourceCommentThreads: ResourceWithCommentThreads[];
-	commentThreadsMap: Map<number, ResourceWithCommentThreads[]>;
+	commentThreadsMap: Map<string, ResourceWithCommentThreads[]>;
 
 	constructor() {
 		this.resourceCommentThreads = [];
-		this.commentThreadsMap = new Map<number, ResourceWithCommentThreads[]>();
+		this.commentThreadsMap = new Map<string, ResourceWithCommentThreads[]>();
 	}
 
-	public setCommentThreads(owner: number, commentThreads: CommentThread[]): void {
+	public setCommentThreads(owner: string, commentThreads: CommentThread[]): void {
 		this.commentThreadsMap.set(owner, this.groupByResource(commentThreads));
 		this.resourceCommentThreads = flatten(values(this.commentThreadsMap));
 	}
 
-	public updateCommentThreads(event: CommentThreadChangedEvent): boolean {
+	public updateCommentThreads(event: ICommentThreadChangedEvent): boolean {
 		const { owner, removed, changed, added } = event;
-		if (!this.commentThreadsMap.has(owner)) {
+
+		const threadsForOwner = this.commentThreadsMap.get(owner);
+		if (!threadsForOwner) {
 			return false;
 		}
-
-		let threadsForOwner = this.commentThreadsMap.get(owner);
 
 		removed.forEach(thread => {
 			// Find resource that has the comment thread

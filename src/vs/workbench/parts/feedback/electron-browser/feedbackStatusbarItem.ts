@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { FeedbackDropdown, IFeedback, IFeedbackDelegate, FEEDBACK_VISIBLE_CONFIG, IFeedbackDropdownOptions } from 'vs/workbench/parts/feedback/electron-browser/feedback';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -52,17 +52,17 @@ class TwitterFeedbackService implements IFeedbackDelegate {
 }
 
 export class FeedbackStatusbarItem extends Themable implements IStatusbarItem {
-	private dropdown: FeedbackDropdown;
+	private dropdown: FeedbackDropdown | undefined;
 	private enabled: boolean;
 	private container: HTMLElement;
 	private hideAction: HideAction;
 
 	constructor(
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IContextViewService private contextViewService: IContextViewService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextViewService private readonly contextViewService: IContextViewService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IWorkspaceConfigurationService private readonly configurationService: IWorkspaceConfigurationService,
 		@IThemeService themeService: IThemeService
 	) {
 		super(themeService);
@@ -89,7 +89,7 @@ export class FeedbackStatusbarItem extends Themable implements IStatusbarItem {
 	protected updateStyles(): void {
 		super.updateStyles();
 
-		if (this.dropdown) {
+		if (this.dropdown && this.dropdown.label) {
 			this.dropdown.label.style.backgroundColor = (this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_FOREGROUND : STATUS_BAR_NO_FOLDER_FOREGROUND));
 		}
 	}
@@ -110,7 +110,7 @@ export class FeedbackStatusbarItem extends Themable implements IStatusbarItem {
 
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => this.container,
-				getActions: () => Promise.resolve([this.hideAction])
+				getActions: () => [this.hideAction]
 			});
 		}));
 
@@ -144,18 +144,18 @@ export class FeedbackStatusbarItem extends Themable implements IStatusbarItem {
 		// Dispose
 		else {
 			dispose(this.dropdown);
-			this.dropdown = void 0;
+			this.dropdown = undefined;
 			clearNode(this.container);
 		}
 
-		return null;
+		return Disposable.None;
 	}
 }
 
 class HideAction extends Action {
 
 	constructor(
-		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService
+		@IWorkspaceConfigurationService private readonly configurationService: IWorkspaceConfigurationService
 	) {
 		super('feedback.hide', localize('hide', "Hide"));
 	}

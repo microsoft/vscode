@@ -5,26 +5,26 @@
 
 import { ExtHostContext, IExtHostContext, MainContext, MainThreadUrlsShape, ExtHostUrlsShape } from 'vs/workbench/api/node/extHost.protocol';
 import { extHostNamedCustomer } from './extHostCustomers';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IExtensionUrlHandler } from 'vs/workbench/services/extensions/electron-browser/inactiveExtensionUrlHandler';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 class ExtensionUrlHandler implements IURLHandler {
 
 	constructor(
 		private readonly proxy: ExtHostUrlsShape,
 		private readonly handle: number,
-		readonly extensionId: string
+		readonly extensionId: ExtensionIdentifier
 	) { }
 
-	handleURL(uri: URI): TPromise<boolean> {
-		if (uri.authority !== this.extensionId) {
-			return TPromise.as(false);
+	handleURL(uri: URI): Promise<boolean> {
+		if (!ExtensionIdentifier.equals(this.extensionId, uri.authority)) {
+			return Promise.resolve(false);
 		}
 
-		return TPromise.wrap(this.proxy.$handleExternalUri(this.handle, uri)).then(() => true);
+		return Promise.resolve(this.proxy.$handleExternalUri(this.handle, uri)).then(() => true);
 	}
 }
 
@@ -32,31 +32,31 @@ class ExtensionUrlHandler implements IURLHandler {
 export class MainThreadUrls implements MainThreadUrlsShape {
 
 	private readonly proxy: ExtHostUrlsShape;
-	private handlers = new Map<number, { extensionId: string, disposable: IDisposable }>();
+	private handlers = new Map<number, { extensionId: ExtensionIdentifier, disposable: IDisposable }>();
 
 	constructor(
 		context: IExtHostContext,
-		@IURLService private urlService: IURLService,
-		@IExtensionUrlHandler private inactiveExtensionUrlHandler: IExtensionUrlHandler
+		@IURLService private readonly urlService: IURLService,
+		@IExtensionUrlHandler private readonly inactiveExtensionUrlHandler: IExtensionUrlHandler
 	) {
 		this.proxy = context.getProxy(ExtHostContext.ExtHostUrls);
 	}
 
-	$registerUriHandler(handle: number, extensionId: string): Thenable<void> {
+	$registerUriHandler(handle: number, extensionId: ExtensionIdentifier): Promise<void> {
 		const handler = new ExtensionUrlHandler(this.proxy, handle, extensionId);
 		const disposable = this.urlService.registerHandler(handler);
 
 		this.handlers.set(handle, { extensionId, disposable });
 		this.inactiveExtensionUrlHandler.registerExtensionHandler(extensionId, handler);
 
-		return TPromise.as(null);
+		return Promise.resolve(undefined);
 	}
 
-	$unregisterUriHandler(handle: number): Thenable<void> {
+	$unregisterUriHandler(handle: number): Promise<void> {
 		const tuple = this.handlers.get(handle);
 
 		if (!tuple) {
-			return TPromise.as(null);
+			return Promise.resolve(undefined);
 		}
 
 		const { extensionId, disposable } = tuple;
@@ -65,7 +65,7 @@ export class MainThreadUrls implements MainThreadUrlsShape {
 		this.handlers.delete(handle);
 		disposable.dispose();
 
-		return TPromise.as(null);
+		return Promise.resolve(undefined);
 	}
 
 	dispose(): void {

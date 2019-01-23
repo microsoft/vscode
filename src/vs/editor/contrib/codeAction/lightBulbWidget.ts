@@ -6,45 +6,49 @@
 import * as dom from 'vs/base/browser/dom';
 import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger } from 'vs/base/browser/globalMouseMoveMonitor';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Emitter } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./lightBulbWidget';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
-import { CodeActionsComputeEvent } from './codeActionModel';
+import { CodeActionsState } from './codeActionModel';
 
-export class LightBulbWidget implements IDisposable, IContentWidget {
+export class LightBulbWidget extends Disposable implements IContentWidget {
 
 	private static readonly _posPref = [ContentWidgetPositionPreference.EXACT];
 
 	private readonly _domNode: HTMLDivElement;
 	private readonly _editor: ICodeEditor;
-	private readonly _disposables: IDisposable[] = [];
-	private readonly _onClick = new Emitter<{ x: number, y: number }>();
 
-	readonly onClick: Event<{ x: number, y: number }> = this._onClick.event;
+	private readonly _onClick = this._register(new Emitter<{ x: number; y: number; state: CodeActionsState.Triggered }>());
+	public readonly onClick = this._onClick.event;
 
-	private _position: IContentWidgetPosition;
-	private _model: CodeActionsComputeEvent;
+	private _position: IContentWidgetPosition | null;
+	private _state: CodeActionsState.State = CodeActionsState.Empty;
 	private _futureFixes = new CancellationTokenSource();
 
 	constructor(editor: ICodeEditor) {
+		super();
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'lightbulb-glyph';
 
 		this._editor = editor;
 		this._editor.addContentWidget(this);
 
-		this._disposables.push(this._editor.onDidChangeModel(_ => this._futureFixes.cancel()));
-		this._disposables.push(this._editor.onDidChangeModelLanguage(_ => this._futureFixes.cancel()));
-		this._disposables.push(this._editor.onDidChangeModelContent(_ => {
+		this._register(this._editor.onDidChangeModel(_ => this._futureFixes.cancel()));
+		this._register(this._editor.onDidChangeModelLanguage(_ => this._futureFixes.cancel()));
+		this._register(this._editor.onDidChangeModelContent(_ => {
 			// cancel when the line in question has been removed
-			if (this._model && this.model.position.lineNumber >= this._editor.getModel().getLineCount()) {
+			const editorModel = this._editor.getModel();
+			if (this._state.type !== CodeActionsState.Type.Triggered || !editorModel || this._state.position.lineNumber >= editorModel.getLineCount()) {
 				this._futureFixes.cancel();
 			}
 		}));
-		this._disposables.push(dom.addStandardDisposableListener(this._domNode, 'click', e => {
+		this._register(dom.addStandardDisposableListener(this._domNode, 'click', e => {
+			if (this._state.type !== CodeActionsState.Type.Triggered) {
+				return;
+			}
+
 			// Make sure that focus / cursor location is not lost when clicking widget icon
 			this._editor.focus();
 			// a bit of extra work to make sure the menu
@@ -53,16 +57,17 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 			const { lineHeight } = this._editor.getConfiguration();
 
 			let pad = Math.floor(lineHeight / 3);
-			if (this._position && this._position.position.lineNumber < this._model.position.lineNumber) {
+			if (this._position && this._position.position !== null && this._position.position.lineNumber < this._state.position.lineNumber) {
 				pad += lineHeight;
 			}
 
 			this._onClick.fire({
 				x: e.posx,
-				y: top + height + pad
+				y: top + height + pad,
+				state: this._state
 			});
 		}));
-		this._disposables.push(dom.addDisposableListener(this._domNode, 'mouseenter', (e: MouseEvent) => {
+		this._register(dom.addDisposableListener(this._domNode, 'mouseenter', (e: MouseEvent) => {
 			if ((e.buttons & 1) !== 1) {
 				return;
 			}
@@ -75,7 +80,7 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 				monitor.dispose();
 			});
 		}));
-		this._disposables.push(this._editor.onDidChangeConfiguration(e => {
+		this._register(this._editor.onDidChangeConfiguration(e => {
 			// hide when told to do so
 			if (e.contribInfo && !this._editor.getConfiguration().contribInfo.lightbulbEnabled) {
 				this.hide();
@@ -84,7 +89,7 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 	}
 
 	dispose(): void {
-		dispose(this._disposables);
+		super.dispose();
 		this._editor.removeContentWidget(this);
 	}
 
@@ -96,13 +101,13 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 		return this._domNode;
 	}
 
-	getPosition(): IContentWidgetPosition {
+	getPosition(): IContentWidgetPosition | null {
 		return this._position;
 	}
 
-	set model(value: CodeActionsComputeEvent) {
+	tryShow(newState: CodeActionsState.State) {
 
-		if (this._position && (!value.position || this._position.position.lineNumber !== value.position.lineNumber)) {
+		if (newState.type !== CodeActionsState.Type.Triggered || this._position && (!newState.position || this._position.position && this._position.position.lineNumber !== newState.position.lineNumber)) {
 			// hide when getting a 'hide'-request or when currently
 			// showing on another line
 			this.hide();
@@ -113,26 +118,22 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 
 		this._futureFixes = new CancellationTokenSource();
 		const { token } = this._futureFixes;
-		this._model = value;
+		this._state = newState;
 
-		const selection = this._model.rangeOrSelection;
-		this._model.actions.then(fixes => {
-			if (!token.isCancellationRequested && fixes && fixes.length > 0) {
-				if (selection.isEmpty() && fixes.every(fix => fix.kind && CodeActionKind.Refactor.contains(fix.kind))) {
-					this.hide();
-				} else {
-					this._show();
-				}
+		if (this._state.type === CodeActionsState.Empty.type) {
+			return;
+		}
+
+		const selection = this._state.rangeOrSelection;
+		this._state.actions.then(fixes => {
+			if (!token.isCancellationRequested && fixes && fixes.length > 0 && selection) {
+				this._show();
 			} else {
 				this.hide();
 			}
-		}).catch(err => {
+		}).catch(() => {
 			this.hide();
 		});
-	}
-
-	get model(): CodeActionsComputeEvent {
-		return this._model;
 	}
 
 	set title(value: string) {
@@ -148,7 +149,10 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 		if (!config.contribInfo.lightbulbEnabled) {
 			return;
 		}
-		const { lineNumber, column } = this._model.position;
+		if (this._state.type !== CodeActionsState.Type.Triggered) {
+			return;
+		}
+		const { lineNumber, column } = this._state.position;
 		const model = this._editor.getModel();
 		if (!model) {
 			return;
@@ -185,7 +189,7 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 
 	hide(): void {
 		this._position = null;
-		this._model = null;
+		this._state = CodeActionsState.Empty;
 		this._futureFixes.cancel();
 		this._editor.layoutContentWidget(this);
 	}

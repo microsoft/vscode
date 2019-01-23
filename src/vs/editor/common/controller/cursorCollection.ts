@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CursorContext, CursorState, PartialCursorState } from 'vs/editor/common/controller/cursorCommon';
 import { OneCursor } from 'vs/editor/common/controller/oneCursor';
-import { Selection, ISelection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
-import { CursorState, CursorContext, PartialCursorState } from 'vs/editor/common/controller/cursorCommon';
+import { ISelection, Selection } from 'vs/editor/common/core/selection';
 
 export class CursorCollection {
 
@@ -254,9 +254,9 @@ export class CursorCollection {
 					cursors[winnerIndex].setState(this.context, resultingState.modelState, resultingState.viewState);
 				}
 
-				for (let j = 0; j < sortedCursors.length; j++) {
-					if (sortedCursors[j].index > looserIndex) {
-						sortedCursors[j].index--;
+				for (const sortedCursor of sortedCursors) {
+					if (sortedCursor.index > looserIndex) {
+						sortedCursor.index--;
 					}
 				}
 

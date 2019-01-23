@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { URI } from 'vs/base/common/uri';
 import { suggestFilename } from 'vs/base/common/mime';
 import { memoize } from 'vs/base/common/decorators';
@@ -28,7 +27,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 
 	private _hasAssociatedFilePath: boolean;
 	private cachedModel: UntitledEditorModel;
-	private modelResolve: TPromise<UntitledEditorModel>;
+	private modelResolve: Promise<UntitledEditorModel>;
 
 	private readonly _onDidModelChangeContent: Emitter<void> = this._register(new Emitter<void>());
 	get onDidModelChangeContent(): Event<void> { return this._onDidModelChangeContent.event; }
@@ -42,10 +41,10 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		private modeId: string,
 		private initialValue: string,
 		private preferredEncoding: string,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@ITextFileService private textFileService: ITextFileService,
-		@IHashService private hashService: IHashService,
-		@ILabelService private labelService: ILabelService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@IHashService private readonly hashService: IHashService,
+		@ILabelService private readonly labelService: ILabelService
 	) {
 		super();
 
@@ -163,22 +162,22 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		return this.hasAssociatedFilePath;
 	}
 
-	confirmSave(): TPromise<ConfirmResult> {
+	confirmSave(): Promise<ConfirmResult> {
 		return this.textFileService.confirmSave([this.resource]);
 	}
 
-	save(): TPromise<boolean> {
+	save(): Promise<boolean> {
 		return this.textFileService.save(this.resource);
 	}
 
-	revert(): TPromise<boolean> {
+	revert(): Promise<boolean> {
 		if (this.cachedModel) {
 			this.cachedModel.revert();
 		}
 
 		this.dispose(); // a reverted untitled editor is no longer valid, so we dispose it
 
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 
 	suggestFileName(): string {
@@ -210,7 +209,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		}
 	}
 
-	resolve(): TPromise<UntitledEditorModel> {
+	resolve(): Promise<UntitledEditorModel> {
 
 		// Join a model resolve if we have had one before
 		if (this.modelResolve) {
@@ -263,7 +262,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 	}
 
 	dispose(): void {
-		this.modelResolve = void 0;
+		this.modelResolve = undefined;
 
 		super.dispose();
 	}

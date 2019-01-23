@@ -3,23 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
+import { Schemas } from 'vs/base/common/network';
+import { DataUri, basenameOrAuthority } from 'vs/base/common/resources';
 import { URI as uri } from 'vs/base/common/uri';
+import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { Schemas } from 'vs/base/common/network';
 import { FileKind } from 'vs/platform/files/common/files';
-import { basenameOrAuthority, DataUri } from 'vs/base/common/resources';
-import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 
-export function getIconClasses(modelService: IModelService, modeService: IModeService, resource: uri, fileKind?: FileKind): string[] {
+export function getIconClasses(modelService: IModelService, modeService: IModeService, resource: uri | undefined, fileKind?: FileKind): string[] {
 	// we always set these base classes even if we do not have a path
 	const classes = fileKind === FileKind.ROOT_FOLDER ? ['rootfolder-icon'] : fileKind === FileKind.FOLDER ? ['folder-icon'] : ['file-icon'];
 	if (resource) {
 		// Get the path and name of the resource. For data-URIs, we need to parse specially
-		let name: string;
-		let path: string;
+		let name: string | undefined;
+		let path: string | undefined;
 		if (resource.scheme === Schemas.data) {
 			const metadata = DataUri.parseMetaData(resource);
 			name = metadata.get(DataUri.META_DATA_LABEL);
@@ -46,7 +44,7 @@ export function getIconClasses(modelService: IModelService, modeService: IModeSe
 			}
 			// Configured Language
 			let configuredLangId: string | null = getConfiguredLangId(modelService, resource);
-			configuredLangId = configuredLangId || modeService.getModeIdByFilepathOrFirstLine(path);
+			configuredLangId = configuredLangId || (path ? modeService.getModeIdByFilepathOrFirstLine(path) : null);
 			if (configuredLangId) {
 				classes.push(`${cssEscape(configuredLangId)}-lang-file-icon`);
 			}

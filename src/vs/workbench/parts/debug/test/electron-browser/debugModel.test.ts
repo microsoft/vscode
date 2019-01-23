@@ -91,7 +91,7 @@ suite('Debug - Model', () => {
 		assert.equal(model.getBreakpoints().length, 0);
 	});
 
-	test('function brekapoints', () => {
+	test('function breakpoints', () => {
 		model.addFunctionBreakpoint('foo', '1');
 		model.addFunctionBreakpoint('bar', '2');
 		model.renameFunctionBreakpoint('1', 'fooUpdated');
@@ -418,7 +418,7 @@ suite('Debug - Model', () => {
 		assert.equal(elements[4].severity, severity.Warning);
 
 		const keyValueObject = { 'key1': 2, 'key2': 'value' };
-		repl.appendToRepl(new RawObjectReplElement('fake', keyValueObject), null);
+		repl.appendToRepl(new RawObjectReplElement('fakeid', 'fake', keyValueObject), null);
 		const element = <RawObjectReplElement>repl.getReplElements()[5];
 		assert.equal(element.value, 'Object');
 		assert.deepEqual(element.valueObj, keyValueObject);

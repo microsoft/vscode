@@ -167,6 +167,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/services/commands",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/configuration",
 			"project": "vscode-workbench"
 		},
@@ -211,6 +215,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/services/remote",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/textfile",
 			"project": "vscode-workbench"
 		},
@@ -228,6 +236,10 @@
 		},
 		{
 			"name": "vs/workbench/services/decorations",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/label",
 			"project": "vscode-workbench"
 		},
 		{

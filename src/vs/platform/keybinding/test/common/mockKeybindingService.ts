@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ResolvedKeybinding, Keybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { Event } from 'vs/base/common/event';
-import { IKeybindingService, IKeybindingEvent, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
-import { IContextKey, IContextKeyService, IContextKeyServiceTarget, ContextKeyExpr, IContextKeyChangeEvent } from 'vs/platform/contextkey/common/contextkey';
-import { IResolveResult } from 'vs/platform/keybinding/common/keybindingResolver';
-import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
+import { Keybinding, ResolvedKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { OS } from 'vs/base/common/platform';
+import { ContextKeyExpr, IContextKey, IContextKeyChangeEvent, IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
+import { IKeybindingEvent, IKeybindingService, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
+import { IResolveResult } from 'vs/platform/keybinding/common/keybindingResolver';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
+import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 
 class MockKeybindingContextKey<T> implements IContextKey<T> {
 	private _defaultValue: T | undefined;
@@ -54,8 +54,9 @@ export class MockContextKeyService implements IContextKeyService {
 		return Event.None;
 	}
 	public getContextKeyValue(key: string) {
-		if (this._keys.has(key)) {
-			return this._keys.get(key).get();
+		const value = this._keys.get(key);
+		if (value) {
+			return value.get();
 		}
 	}
 	public getContext(domNode: HTMLElement): any {
@@ -108,8 +109,8 @@ export class MockKeybindingService implements IKeybindingService {
 		return [];
 	}
 
-	public lookupKeybinding(commandId: string): ResolvedKeybinding | null {
-		return null;
+	public lookupKeybinding(commandId: string): ResolvedKeybinding | undefined {
+		return undefined;
 	}
 
 	public customKeybindingsCount(): number {
@@ -120,11 +121,15 @@ export class MockKeybindingService implements IKeybindingService {
 		return null;
 	}
 
-	dispatchEvent(e: IKeyboardEvent, target: IContextKeyServiceTarget): boolean {
+	public dispatchByUserSettingsLabel(userSettingsLabel: string, target: IContextKeyServiceTarget): void {
+
+	}
+
+	public dispatchEvent(e: IKeyboardEvent, target: IContextKeyServiceTarget): boolean {
 		return false;
 	}
 
-	mightProducePrintableCharacter(e: IKeyboardEvent): boolean {
+	public mightProducePrintableCharacter(e: IKeyboardEvent): boolean {
 		return false;
 	}
 }

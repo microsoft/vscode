@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ColorId, TokenizationRegistry } from 'vs/editor/common/modes';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { RGBA8 } from 'vs/editor/common/core/rgba';
+import { ColorId, TokenizationRegistry } from 'vs/editor/common/modes';
 
 export class MinimapTokensColorTracker {
 	private static _INSTANCE: MinimapTokensColorTracker | null = null;
@@ -46,7 +46,7 @@ export class MinimapTokensColorTracker {
 		}
 		let backgroundLuminosity = colorMap[ColorId.DefaultBackground].getRelativeLuminance();
 		this._backgroundIsLight = (backgroundLuminosity >= 0.5);
-		this._onDidChange.fire(void 0);
+		this._onDidChange.fire(undefined);
 	}
 
 	public getColor(colorId: ColorId): RGBA8 {

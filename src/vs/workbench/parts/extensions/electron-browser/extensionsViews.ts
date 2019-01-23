@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { dispose } from 'vs/base/common/lifecycle';
+import { dispose, Disposable } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
-import { chain, Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { PagedModel, IPagedModel, IPager, DelayedPagedModel } from 'vs/base/common/paging';
-import { SortBy, SortOrder, IQueryOptions, LocalExtensionType, IExtensionTipsService, EnablementState, IExtensionRecommendation } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { SortBy, SortOrder, IQueryOptions, IExtensionTipsService, IExtensionRecommendation } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { append, $, toggleClass } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Delegate, Renderer, IExtensionWithFocus as IExtension } from 'vs/workbench/parts/extensions/electron-browser/extensionsList';
-import { IExtension as IExtensionBase, IExtensionsWorkbenchService } from '../common/extensions';
+import { Delegate, Renderer, IExtensionsViewState } from 'vs/workbench/parts/extensions/electron-browser/extensionsList';
+import { IExtension, IExtensionsWorkbenchService } from '../common/extensions';
 import { Query } from '../common/extensionQuery';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -27,7 +27,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { InstallWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction, ManageExtensionAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { WorkbenchPagedList } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -37,9 +37,29 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { distinct } from 'vs/base/common/arrays';
 import { IExperimentService, IExperiment, ExperimentActionType } from 'vs/workbench/parts/experiments/node/experimentService';
 import { alert } from 'vs/base/browser/ui/aria/aria';
-import { IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list';
+import { IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
 import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { getKeywordsForExtension } from 'vs/workbench/parts/extensions/electron-browser/extensionsUtils';
+import { IAction } from 'vs/base/common/actions';
+import { ExtensionType } from 'vs/platform/extensions/common/extensions';
+
+class ExtensionsViewState extends Disposable implements IExtensionsViewState {
+
+	private readonly _onFocus: Emitter<IExtension> = this._register(new Emitter<IExtension>());
+	readonly onFocus: Event<IExtension> = this._onFocus.event;
+
+	private readonly _onBlur: Emitter<IExtension> = this._register(new Emitter<IExtension>());
+	readonly onBlur: Event<IExtension> = this._onBlur.event;
+
+	private currentlyFocusedItems: IExtension[] = [];
+
+	onFocusChange(extensions: IExtension[]): void {
+		this.currentlyFocusedItems.forEach(extension => this._onBlur.fire(extension));
+		this.currentlyFocusedItems = extensions;
+		this.currentlyFocusedItems.forEach(extension => this._onFocus.fire(extension));
+	}
+}
 
 export class ExtensionsListView extends ViewletPanel {
 
@@ -48,7 +68,6 @@ export class ExtensionsListView extends ViewletPanel {
 	private badge: CountBadge;
 	protected badgeContainer: HTMLElement;
 	private list: WorkbenchPagedList<IExtension>;
-	private searchExperiments: IExperiment[] = [];
 
 	constructor(
 		private options: IViewletViewOptions,
@@ -56,19 +75,18 @@ export class ExtensionsListView extends ViewletPanel {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
-		@IThemeService private themeService: IThemeService,
-		@IExtensionService private extensionService: IExtensionService,
+		@IThemeService private readonly themeService: IThemeService,
+		@IExtensionService private readonly extensionService: IExtensionService,
 		@IExtensionsWorkbenchService protected extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IEditorService private editorService: IEditorService,
+		@IEditorService private readonly editorService: IEditorService,
 		@IExtensionTipsService protected tipsService: IExtensionTipsService,
-		@IModeService private modeService: IModeService,
-		@ITelemetryService private telemetryService: ITelemetryService,
+		@IModeService private readonly modeService: IModeService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
-		@IExperimentService private experimentService: IExperimentService
+		@IExperimentService private readonly experimentService: IExperimentService
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: options.title }, keybindingService, contextMenuService, configurationService);
-		this.experimentService.getExperimentsByType(ExperimentActionType.ExtensionSearchResults).then(result => this.searchExperiments = result);
 	}
 
 	protected renderHeader(container: HTMLElement): void {
@@ -87,22 +105,24 @@ export class ExtensionsListView extends ViewletPanel {
 		this.extensionsList = append(container, $('.extensions-list'));
 		this.messageBox = append(container, $('.message'));
 		const delegate = new Delegate();
-		const renderer = this.instantiationService.createInstance(Renderer);
+		const extensionsViewState = new ExtensionsViewState();
+		const renderer = this.instantiationService.createInstance(Renderer, extensionsViewState);
 		this.list = this.instantiationService.createInstance(WorkbenchPagedList, this.extensionsList, delegate, [renderer], {
 			ariaLabel: localize('extensions', "Extensions"),
 			multipleSelectionSupport: false,
 			setRowLineHeight: false
 		}) as WorkbenchPagedList<IExtension>;
 		this.list.onContextMenu(e => this.onContextMenu(e), this, this.disposables);
-		this.list.onFocusChange(e => this.onFocusChange(e), this, this.disposables);
+		this.list.onFocusChange(e => extensionsViewState.onFocusChange(e.elements), this, this.disposables);
 		this.disposables.push(this.list);
+		this.disposables.push(extensionsViewState);
 
-		chain(this.list.onOpen)
+		Event.chain(this.list.onOpen)
 			.map(e => e.elements[0])
 			.filter(e => !!e)
 			.on(this.openExtension, this, this.disposables);
 
-		chain(this.list.onPin)
+		Event.chain(this.list.onPin)
 			.map(e => e.elements[0])
 			.filter(e => !!e)
 			.on(this.pin, this, this.disposables);
@@ -124,9 +144,6 @@ export class ExtensionsListView extends ViewletPanel {
 			case 'installs': options = assign(options, { sortBy: SortBy.InstallCount }); break;
 			case 'rating': options = assign(options, { sortBy: SortBy.WeightedRating }); break;
 			case 'name': options = assign(options, { sortBy: SortBy.Title }); break;
-		}
-		if (!query || !query.trim()) {
-			options.sortBy = SortBy.InstallCount;
 		}
 
 		const successCallback = model => {
@@ -157,23 +174,24 @@ export class ExtensionsListView extends ViewletPanel {
 		return Promise.resolve(emptyModel);
 	}
 
-	private currentlyFocusedItems: IExtension[] = [];
-	private onFocusChange(e: IListEvent<IExtension>): void {
-		this.currentlyFocusedItems.forEach(item => item.onFocusChangeEventEmitter.fire(false));
-		this.currentlyFocusedItems = e.elements;
-		this.currentlyFocusedItems.forEach(item => item.onFocusChangeEventEmitter.fire(true));
-	}
-
 	private onContextMenu(e: IListContextMenuEvent<IExtension>): void {
 		if (e.element) {
-			const manageExtensionAction = this.instantiationService.createInstance(ManageExtensionAction);
-			manageExtensionAction.extension = e.element;
-			if (manageExtensionAction.enabled) {
-				this.contextMenuService.showContextMenu({
-					getAnchor: () => e.anchor,
-					getActions: () => Promise.resolve(manageExtensionAction.actionItem.getActions())
+			this.extensionService.getExtensions()
+				.then(runningExtensions => {
+					const manageExtensionAction = this.instantiationService.createInstance(ManageExtensionAction);
+					manageExtensionAction.extension = e.element;
+					const groups = manageExtensionAction.getActionGroups(runningExtensions);
+					let actions: IAction[] = [];
+					for (const menuActions of groups) {
+						actions = [...actions, ...menuActions, new Separator()];
+					}
+					if (manageExtensionAction.enabled) {
+						this.contextMenuService.showContextMenu({
+							getAnchor: () => e.anchor,
+							getActions: () => actions.slice(0, actions.length - 1)
+						});
+					}
 				});
-			}
 		}
 	}
 
@@ -197,7 +215,7 @@ export class ExtensionsListView extends ViewletPanel {
 			let result = await this.extensionsWorkbenchService.queryLocal();
 
 			result = result
-				.filter(e => e.type === LocalExtensionType.System && (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1));
+				.filter(e => e.type === ExtensionType.System && (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1));
 
 			if (showThemesOnly) {
 				const themesExtensions = result.filter(e => {
@@ -214,7 +232,7 @@ export class ExtensionsListView extends ViewletPanel {
 						&& e.local.manifest.contributes
 						&& Array.isArray(e.local.manifest.contributes.grammars)
 						&& e.local.manifest.contributes.grammars.length
-						&& e.local.identifier.id !== 'git';
+						&& e.local.identifier.id !== 'vscode.git';
 				});
 				return this.getPagedModel(this.sortExtensions(basics, options));
 			}
@@ -222,7 +240,7 @@ export class ExtensionsListView extends ViewletPanel {
 				const others = result.filter(e => {
 					return e.local.manifest
 						&& e.local.manifest.contributes
-						&& (!Array.isArray(e.local.manifest.contributes.grammars) || e.local.identifier.id === 'git')
+						&& (!Array.isArray(e.local.manifest.contributes.grammars) || e.local.identifier.id === 'vscode.git')
 						&& !Array.isArray(e.local.manifest.contributes.themes);
 				});
 				return this.getPagedModel(this.sortExtensions(others, options));
@@ -247,7 +265,7 @@ export class ExtensionsListView extends ViewletPanel {
 			let result = await this.extensionsWorkbenchService.queryLocal();
 
 			result = result
-				.filter(e => e.type === LocalExtensionType.User
+				.filter(e => e.type === ExtensionType.User
 					&& (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1)
 					&& (!categories.length || categories.some(category => (e.local.manifest.categories || []).some(c => c.toLowerCase() === category))));
 
@@ -276,7 +294,7 @@ export class ExtensionsListView extends ViewletPanel {
 
 			const result = local
 				.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
-				.filter(e => runningExtensions.every(r => !areSameExtensions(r, e))
+				.filter(e => runningExtensions.every(r => !areSameExtensions({ id: r.identifier.value }, e.identifier))
 					&& (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1)
 					&& (!categories.length || categories.some(category => (e.local.manifest.categories || []).some(c => c.toLowerCase() === category))));
 
@@ -286,15 +304,14 @@ export class ExtensionsListView extends ViewletPanel {
 		if (/@enabled/i.test(value)) {
 			value = value ? value.replace(/@enabled/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase() : '';
 
-			const local = await this.extensionsWorkbenchService.queryLocal();
+			const local = (await this.extensionsWorkbenchService.queryLocal()).filter(e => e.type === ExtensionType.User);
+			const runningExtensions = await this.extensionService.getExtensions();
 
-			let result = local
+			const result = local
 				.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
-				.filter(e => e.type === LocalExtensionType.User &&
-					(e.enablementState === EnablementState.Enabled || e.enablementState === EnablementState.WorkspaceEnabled) &&
-					(e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1) &&
-					(!categories.length || categories.some(category => (e.local.manifest.categories || []).some(c => c.toLowerCase() === category)))
-				);
+				.filter(e => runningExtensions.some(r => areSameExtensions({ id: r.identifier.value }, e.identifier))
+					&& (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1)
+					&& (!categories.length || categories.some(category => (e.local.manifest.categories || []).some(c => c.toLowerCase() === category))));
 
 			return this.getPagedModel(this.sortExtensions(result, options));
 		}
@@ -303,6 +320,11 @@ export class ExtensionsListView extends ViewletPanel {
 	}
 
 	private async queryGallery(query: Query, options: IQueryOptions): Promise<IPagedModel<IExtension>> {
+		const hasUserDefinedSortOrder = options.sortBy !== undefined;
+		if (!hasUserDefinedSortOrder && !query.value.trim()) {
+			options.sortBy = SortBy.InstallCount;
+		}
+
 		let value = query.value;
 
 		const idRegex = /@id:(([a-z0-9A-Z][a-z0-9\-A-Z]*)\.([a-z0-9A-Z][a-z0-9\-A-Z]*))/g;
@@ -339,7 +361,7 @@ export class ExtensionsListView extends ViewletPanel {
 			text = query.value.replace(extensionRegex, (m, ext) => {
 
 				// Get curated keywords
-				const keywords = this.tipsService.getKeywordsForExtension(ext);
+				const keywords = getKeywordsForExtension(ext);
 
 				// Get mode name
 				const modeId = this.modeService.getModeIdByFilepathOrFirstLine(`.${ext}`);
@@ -359,11 +381,14 @@ export class ExtensionsListView extends ViewletPanel {
 		let preferredResults: string[] = [];
 		if (text) {
 			options = assign(options, { text: text.substr(0, 350), source: 'searchText' });
-			for (let i = 0; i < this.searchExperiments.length; i++) {
-				if (text.toLowerCase() === this.searchExperiments[i].action.properties['searchText'] && Array.isArray(this.searchExperiments[i].action.properties['preferredResults'])) {
-					preferredResults = this.searchExperiments[i].action.properties['preferredResults'];
-					options.source += `-experiment-${this.searchExperiments[i].id}`;
-					break;
+			if (!hasUserDefinedSortOrder) {
+				const searchExperiments = await this.getSearchExperiments();
+				for (const experiment of searchExperiments) {
+					if (text.toLowerCase() === experiment.action.properties['searchText'] && Array.isArray(experiment.action.properties['preferredResults'])) {
+						preferredResults = experiment.action.properties['preferredResults'];
+						options.source += `-experiment-${experiment.id}`;
+						break;
+					}
 				}
 			}
 		} else {
@@ -373,9 +398,9 @@ export class ExtensionsListView extends ViewletPanel {
 		const pager = await this.extensionsWorkbenchService.queryGallery(options);
 
 		let positionToUpdate = 0;
-		for (let i = 0; i < preferredResults.length; i++) {
+		for (const preferredResult of preferredResults) {
 			for (let j = positionToUpdate; j < pager.firstPage.length; j++) {
-				if (pager.firstPage[j].id === preferredResults[i]) {
+				if (areSameExtensions(pager.firstPage[j].identifier, { id: preferredResult })) {
 					if (positionToUpdate !== j) {
 						const preferredExtension = pager.firstPage.splice(j, 1)[0];
 						pager.firstPage.splice(positionToUpdate, 0, preferredExtension);
@@ -387,6 +412,14 @@ export class ExtensionsListView extends ViewletPanel {
 		}
 		return this.getPagedModel(pager);
 
+	}
+
+	private _searchExperiments: Promise<IExperiment[]>;
+	private getSearchExperiments(): Promise<IExperiment[]> {
+		if (!this._searchExperiments) {
+			this._searchExperiments = this.experimentService.getExperimentsByType(ExperimentActionType.ExtensionSearchResults);
+		}
+		return this._searchExperiments;
 	}
 
 	private sortExtensions(extensions: IExtension[], options: IQueryOptions): IExtension[] {
@@ -408,11 +441,12 @@ export class ExtensionsListView extends ViewletPanel {
 		return extensions;
 	}
 
+	// Get All types of recommendations, trimmed to show a max of 8 at any given time
 	private getAllRecommendationsModel(query: Query, options: IQueryOptions): Promise<IPagedModel<IExtension>> {
 		const value = query.value.replace(/@recommended:all/g, '').replace(/@recommended/g, '').trim().toLowerCase();
 
 		return this.extensionsWorkbenchService.queryLocal()
-			.then(result => result.filter(e => e.type === LocalExtensionType.User))
+			.then(result => result.filter(e => e.type === ExtensionType.User))
 			.then(local => {
 				const fileBasedRecommendations = this.tipsService.getFileBasedRecommendations();
 				const othersPromise = this.tipsService.getOtherRecommendations();
@@ -462,11 +496,12 @@ export class ExtensionsListView extends ViewletPanel {
 		return new PagedModel([]);
 	}
 
+	// Get All types of recommendations other than Workspace recommendations, trimmed to show a max of 8 at any given time
 	private getRecommendationsModel(query: Query, options: IQueryOptions): Promise<IPagedModel<IExtension>> {
 		const value = query.value.replace(/@recommended/g, '').trim().toLowerCase();
 
 		return this.extensionsWorkbenchService.queryLocal()
-			.then(result => result.filter(e => e.type === LocalExtensionType.User))
+			.then(result => result.filter(e => e.type === ExtensionType.User))
 			.then(local => {
 				let fileBasedRecommendations = this.tipsService.getFileBasedRecommendations();
 				const othersPromise = this.tipsService.getOtherRecommendations();
@@ -539,7 +574,7 @@ export class ExtensionsListView extends ViewletPanel {
 	}
 
 	private isRecommendationInstalled(recommendation: IExtensionRecommendation, installed: IExtension[]): boolean {
-		return installed.some(i => areSameExtensions({ id: i.id }, { id: recommendation.extensionId }));
+		return installed.some(i => areSameExtensions(i.identifier, { id: recommendation.extensionId }));
 	}
 
 	private getWorkspaceRecommendationsModel(query: Query, options: IQueryOptions): Promise<IPagedModel<IExtension>> {
@@ -576,11 +611,11 @@ export class ExtensionsListView extends ViewletPanel {
 			.then(result => this.getPagedModel(result));
 	}
 
-	// Sorts the firsPage of the pager in the same order as given array of extension ids
+	// Sorts the firstPage of the pager in the same order as given array of extension ids
 	private sortFirstPage(pager: IPager<IExtension>, ids: string[]) {
 		ids = ids.map(x => x.toLowerCase());
 		pager.firstPage.sort((a, b) => {
-			return ids.indexOf(a.id.toLowerCase()) < ids.indexOf(b.id.toLowerCase()) ? -1 : 1;
+			return ids.indexOf(a.identifier.id.toLowerCase()) < ids.indexOf(b.identifier.id.toLowerCase()) ? -1 : 1;
 		});
 	}
 
@@ -594,7 +629,7 @@ export class ExtensionsListView extends ViewletPanel {
 			toggleClass(this.messageBox, 'hidden', count > 0);
 			this.badge.setCount(count);
 
-			if (count === 0 && this.isVisible()) {
+			if (count === 0 && this.isBodyVisible()) {
 				this.messageBox.textContent = isGalleryError ? localize('galleryError', "We cannot connect to the Extensions Marketplace at this time, please try again later.") : localize('no extensions found', "No extensions found.");
 				if (isGalleryError) {
 					alert(this.messageBox.textContent);
@@ -606,7 +641,7 @@ export class ExtensionsListView extends ViewletPanel {
 	}
 
 	private openExtension(extension: IExtension): void {
-		this.extensionsWorkbenchService.open(extension).then(null, err => this.onError(err));
+		this.extensionsWorkbenchService.open(extension).then(undefined, err => this.onError(err));
 	}
 
 	private pin(): void {
@@ -638,28 +673,15 @@ export class ExtensionsListView extends ViewletPanel {
 		this.notificationService.error(err);
 	}
 
-	private getPagedModel(arg: IPager<IExtensionBase> | IExtensionBase[]): IPagedModel<IExtension> {
-		const convert = (ext: IExtension): IExtension => {
-			const eventEmitter = new Emitter<boolean>();
-			const extFocus: IExtension = ext;
-			extFocus.onFocusChangeEventEmitter = eventEmitter;
-			extFocus.onDidFocusChange = eventEmitter.event;
-			return extFocus;
-		};
-
+	private getPagedModel(arg: IPager<IExtension> | IExtension[]): IPagedModel<IExtension> {
 		if (Array.isArray(arg)) {
-			return new PagedModel(arg.map(ext => convert(ext)));
+			return new PagedModel(arg);
 		}
-
 		const pager = {
 			total: arg.total,
 			pageSize: arg.pageSize,
-			firstPage: arg.firstPage.map(ext => convert(ext)),
-			getPage: (pageIndex: number, cancellationToken: CancellationToken) => {
-				return arg.getPage(pageIndex, cancellationToken).then(extensions => {
-					return extensions.map(ext => convert(ext));
-				});
-			}
+			firstPage: arg.firstPage,
+			getPage: (pageIndex: number, cancellationToken: CancellationToken) => arg.getPage(pageIndex, cancellationToken)
 		};
 		return new PagedModel(pager);
 	}
@@ -769,7 +791,7 @@ export class DefaultRecommendedExtensionsView extends ExtensionsListView {
 			return this.showEmptyModel();
 		}
 		const model = await super.show(this.recommendedExtensionsQuery);
-		if (!this.extensionsWorkbenchService.local.some(e => e.type === LocalExtensionType.User)) {
+		if (!this.extensionsWorkbenchService.local.some(e => e.type === ExtensionType.User)) {
 			// This is part of popular extensions view. Collapse if no installed extensions.
 			this.setExpanded(model.length > 0);
 		}
@@ -848,6 +870,6 @@ export class WorkspaceRecommendedExtensionsView extends ExtensionsListView {
 
 	private getRecommendationsToInstall(): Promise<IExtensionRecommendation[]> {
 		return this.tipsService.getWorkspaceRecommendations()
-			.then(recommendations => recommendations.filter(({ extensionId }) => !this.extensionsWorkbenchService.local.some(i => areSameExtensions({ id: extensionId }, { id: i.id }))));
+			.then(recommendations => recommendations.filter(({ extensionId }) => !this.extensionsWorkbenchService.local.some(i => areSameExtensions({ id: extensionId }, i.identifier))));
 	}
 }

@@ -18,20 +18,19 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IExtensionService, IExtensionDescription, IExtensionsStatus, IExtensionHostProfile } from 'vs/workbench/services/extensions/common/extensions';
 import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
-import { append, $, addClass, toggleClass, Dimension } from 'vs/base/browser/dom';
+import { append, $, addClass, toggleClass, Dimension, clearNode } from 'vs/base/browser/dom';
 import { ActionBar, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { clipboard } from 'electron';
-import { LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { writeFile } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { memoize } from 'vs/base/common/decorators';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Event } from 'vs/base/common/event';
-import { DisableForWorkspaceAction, DisableGloballyAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { RuntimeExtensionsInput } from 'vs/workbench/services/extensions/electron-browser/runtimeExtensionsInput';
 import { IDebugService } from 'vs/workbench/parts/debug/common/debug';
@@ -39,6 +38,11 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { randomPort } from 'vs/base/node/ports';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
+import { join } from 'path';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { ExtensionIdentifier, ExtensionType } from 'vs/platform/extensions/common/extensions';
 
 export const IExtensionHostProfileService = createDecorator<IExtensionHostProfileService>('extensionHostProfileService');
 export const CONTEXT_PROFILE_SESSION_STATE = new RawContextKey<string>('profileSessionState', 'none');
@@ -63,7 +67,8 @@ export interface IExtensionHostProfileService {
 	startProfiling(): void;
 	stopProfiling(): void;
 
-	clearLastProfile(): void;
+	getUnresponsiveProfile(extensionId: ExtensionIdentifier): IExtensionHostProfile;
+	setUnresponsiveProfile(extensionId: ExtensionIdentifier, profile: IExtensionHostProfile): void;
 }
 
 interface IExtensionProfileInformation {
@@ -86,6 +91,7 @@ interface IRuntimeExtension {
 	marketplaceInfo: IExtension;
 	status: IExtensionsStatus;
 	profileInfo: IExtensionProfileInformation;
+	unresponsiveProfile?: IExtensionHostProfile;
 }
 
 export class RuntimeExtensionsEditor extends BaseEditor {
@@ -99,7 +105,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 	private _extensionsDescriptions: IExtensionDescription[];
 	private _updateSoon: RunOnceScheduler;
 	private _profileSessionState: IContextKey<string>;
-	private _extensionsHostRecoded: IContextKey<boolean>;
+	private _extensionsHostRecorded: IContextKey<boolean>;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -111,7 +117,8 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IExtensionHostProfileService private readonly _extensionHostProfileService: IExtensionHostProfileService,
-		@IStorageService storageService: IStorageService
+		@IStorageService storageService: IStorageService,
+		@ILabelService private readonly _labelService: ILabelService
 	) {
 		super(RuntimeExtensionsEditor.ID, telemetryService, themeService, storageService);
 
@@ -119,14 +126,13 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		this._profileInfo = this._extensionHostProfileService.lastProfile;
 		this._register(this._extensionHostProfileService.onDidChangeLastProfile(() => {
 			this._profileInfo = this._extensionHostProfileService.lastProfile;
-			this._extensionsHostRecoded.set(!!this._profileInfo);
+			this._extensionsHostRecorded.set(!!this._profileInfo);
 			this._updateExtensions();
 		}));
-		this._extensionHostProfileService.onDidChangeState(() => {
+		this._register(this._extensionHostProfileService.onDidChangeState(() => {
 			const state = this._extensionHostProfileService.state;
-
 			this._profileSessionState.set(ProfileSessionState[state].toLowerCase());
-		});
+		}));
 
 		this._elements = null;
 
@@ -134,7 +140,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		this._updateExtensions();
 
 		this._profileSessionState = CONTEXT_PROFILE_SESSION_STATE.bindTo(contextKeyService);
-		this._extensionsHostRecoded = CONTEXT_EXTENSION_HOST_PROFILE_RECORDED.bindTo(contextKeyService);
+		this._extensionsHostRecorded = CONTEXT_EXTENSION_HOST_PROFILE_RECORDED.bindTo(contextKeyService);
 
 		this._updateSoon = this._register(new RunOnceScheduler(() => this._updateExtensions(), 200));
 
@@ -158,7 +164,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 	private _resolveExtensions(): IRuntimeExtension[] {
 		let marketplaceMap: { [id: string]: IExtension; } = Object.create(null);
 		for (let extension of this._extensionsWorkbenchService.local) {
-			marketplaceMap[extension.id] = extension;
+			marketplaceMap[ExtensionIdentifier.toKey(extension.identifier.id)] = extension;
 		}
 
 		let statusMap = this._extensionService.getExtensionsStatus();
@@ -172,10 +178,10 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				const id = this._profileInfo.ids[i];
 				const delta = this._profileInfo.deltas[i];
 
-				let extensionSegments = segments[id];
+				let extensionSegments = segments[ExtensionIdentifier.toKey(id)];
 				if (!extensionSegments) {
 					extensionSegments = [];
-					segments[id] = extensionSegments;
+					segments[ExtensionIdentifier.toKey(id)] = extensionSegments;
 				}
 
 				extensionSegments.push(currentStartTime);
@@ -190,7 +196,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 			let profileInfo: IExtensionProfileInformation | null = null;
 			if (this._profileInfo) {
-				let extensionSegments = segments[extensionDescription.id] || [];
+				let extensionSegments = segments[ExtensionIdentifier.toKey(extensionDescription.identifier)] || [];
 				let extensionTotalTime = 0;
 				for (let j = 0, lenJ = extensionSegments.length / 2; j < lenJ; j++) {
 					const startTime = extensionSegments[2 * j];
@@ -206,23 +212,24 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 			result[i] = {
 				originalIndex: i,
 				description: extensionDescription,
-				marketplaceInfo: marketplaceMap[extensionDescription.id],
-				status: statusMap[extensionDescription.id],
-				profileInfo: profileInfo
+				marketplaceInfo: marketplaceMap[ExtensionIdentifier.toKey(extensionDescription.identifier)],
+				status: statusMap[extensionDescription.identifier.value],
+				profileInfo: profileInfo,
+				unresponsiveProfile: this._extensionHostProfileService.getUnresponsiveProfile(extensionDescription.identifier)
 			};
 		}
 
-		result = result.filter((element) => element.status.activationTimes);
+		result = result.filter(element => element.status.activationTimes);
 
-		if (this._profileInfo) {
-			// sort descending by time spent in the profiler
-			result = result.sort((a, b) => {
-				if (a.profileInfo.totalTime === b.profileInfo.totalTime) {
-					return a.originalIndex - b.originalIndex;
-				}
-				return b.profileInfo.totalTime - a.profileInfo.totalTime;
-			});
-		}
+		// bubble up extensions that have caused slowness
+		result = result.sort((a, b) => {
+			if (a.unresponsiveProfile === this._profileInfo && !b.unresponsiveProfile) {
+				return -1;
+			} else if (!a.unresponsiveProfile && b.unresponsiveProfile === this._profileInfo) {
+				return 1;
+			}
+			return a.originalIndex - b.originalIndex;
+		});
 
 		return result;
 	}
@@ -245,16 +252,10 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 			root: HTMLElement;
 			element: HTMLElement;
 			name: HTMLElement;
-
+			msgContainer: HTMLElement;
+			actionbar: ActionBar;
 			activationTime: HTMLElement;
 			profileTime: HTMLElement;
-
-			profileTimeline: HTMLElement;
-
-			msgIcon: HTMLElement;
-			msgLabel: HTMLElement;
-
-			actionbar: ActionBar;
 			disposables: IDisposable[];
 			elementDisposables: IDisposable[];
 		}
@@ -268,20 +269,14 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				const name = append(desc, $('div.name'));
 
 				const msgContainer = append(desc, $('div.msg'));
-				const msgIcon = append(msgContainer, $('.'));
-				const msgLabel = append(msgContainer, $('span.msg-label'));
+
+				const actionbar = new ActionBar(desc, { animated: false });
+				actionbar.onDidRun(({ error }) => error && this._notificationService.error(error));
+
 
 				const timeContainer = append(element, $('.time'));
 				const activationTime = append(timeContainer, $('div.activation-time'));
 				const profileTime = append(timeContainer, $('div.profile-time'));
-
-				const profileTimeline = append(element, $('div.profile-timeline'));
-
-				const actionbar = new ActionBar(element, {
-					animated: false
-				});
-				actionbar.onDidRun(({ error }) => error && this._notificationService.error(error));
-				actionbar.push(new ReportExtensionIssueAction(), { icon: true, label: true });
 
 				const disposables = [actionbar];
 
@@ -292,9 +287,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 					actionbar,
 					activationTime,
 					profileTime,
-					profileTimeline,
-					msgIcon,
-					msgLabel,
+					msgContainer,
 					disposables,
 					elementDisposables: []
 				};
@@ -311,8 +304,11 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				const activationTimes = element.status.activationTimes;
 				let syncTime = activationTimes.codeLoadingTime + activationTimes.activateCallTime;
 				data.activationTime.textContent = activationTimes.startup ? `Startup Activation: ${syncTime}ms` : `Activation: ${syncTime}ms`;
-				data.actionbar.context = element;
-				toggleClass(data.actionbar.getContainer(), 'hidden', element.marketplaceInfo && element.marketplaceInfo.type === LocalExtensionType.User && (!element.description.repository || !element.description.repository.url));
+
+				data.actionbar.clear();
+				if (element.unresponsiveProfile || isNonEmptyArray(element.status.runtimeErrors)) {
+					data.actionbar.push(new ReportExtensionIssueAction(element), { icon: true, label: true });
+				}
 
 				let title: string;
 				if (activationTimes.activationEvent === '*') {
@@ -354,46 +350,46 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 					}, "Activated on {0}", activationTimes.activationEvent);
 				}
 				data.activationTime.title = title;
-				if (!isFalsyOrEmpty(element.status.runtimeErrors)) {
-					data.msgIcon.className = 'octicon octicon-bug';
-					data.msgLabel.textContent = nls.localize('errors', "{0} uncaught errors", element.status.runtimeErrors.length);
-				} else if (element.status.messages && element.status.messages.length > 0) {
-					data.msgIcon.className = 'octicon octicon-alert';
-					data.msgLabel.textContent = element.status.messages[0].message;
-				} else {
-					data.msgIcon.className = '';
-					data.msgLabel.textContent = '';
+
+				clearNode(data.msgContainer);
+
+				if (this._extensionHostProfileService.getUnresponsiveProfile(element.description.identifier)) {
+					const el = $('span');
+					el.innerHTML = renderOcticons(` $(alert) Unresponsive`);
+					el.title = nls.localize('unresponsive.title', "Extension has caused the extension host to freeze.");
+					data.msgContainer.appendChild(el);
+				}
+
+				if (isNonEmptyArray(element.status.runtimeErrors)) {
+					const el = $('span');
+					el.innerHTML = renderOcticons(`$(bug) ${nls.localize('errors', "{0} uncaught errors", element.status.runtimeErrors.length)}`);
+					data.msgContainer.appendChild(el);
+				}
+
+				if (element.status.messages && element.status.messages.length > 0) {
+					const el = $('span');
+					el.innerHTML = renderOcticons(`$(alert) ${element.status.messages[0].message}`);
+					data.msgContainer.appendChild(el);
+				}
+
+				if (element.description.extensionLocation.scheme !== 'file') {
+					const el = $('span');
+					el.innerHTML = renderOcticons(`$(rss) ${element.description.extensionLocation.authority}`);
+					data.msgContainer.appendChild(el);
+
+					const hostLabel = this._labelService.getHostLabel();
+					if (hostLabel) {
+						el.innerHTML = renderOcticons(`$(rss) ${hostLabel}`);
+					}
 				}
 
 				if (this._profileInfo) {
 					data.profileTime.textContent = `Profile: ${(element.profileInfo.totalTime / 1000).toFixed(2)}ms`;
-					const elementSegments = element.profileInfo.segments;
-					let inner = '<rect x="0" y="99" width="100" height="1" />';
-					for (let i = 0, len = elementSegments.length / 2; i < len; i++) {
-						const absoluteStart = elementSegments[2 * i];
-						const absoluteEnd = elementSegments[2 * i + 1];
-
-						const start = absoluteStart - this._profileInfo.startTime;
-						const end = absoluteEnd - this._profileInfo.startTime;
-
-						const absoluteDuration = this._profileInfo.endTime - this._profileInfo.startTime;
-
-						const xStart = start / absoluteDuration * 100;
-						const xEnd = end / absoluteDuration * 100;
-
-						inner += `<rect x="${xStart}" y="0" width="${xEnd - xStart}" height="100" />`;
-					}
-					let svg = `<svg class="profile-timeline-svg" preserveAspectRatio="none" height="16" viewBox="0 0 100 100">${inner}</svg>`;
-
-					data.profileTimeline.innerHTML = svg;
-					data.profileTimeline.style.display = 'inherit';
 				} else {
 					data.profileTime.textContent = '';
-					data.profileTimeline.innerHTML = '';
 				}
-			},
 
-			disposeElement: () => null,
+			},
 
 			disposeTemplate: (data: IRuntimeExtensionTemplateData): void => {
 				data.disposables = dispose(data.disposables);
@@ -408,12 +404,18 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		this._list.splice(0, this._list.length, this._elements);
 
 		this._list.onContextMenu((e) => {
+			if (!e.element) {
+				return;
+			}
+
 			const actions: IAction[] = [];
 
-			if (e.element.marketplaceInfo && e.element.marketplaceInfo.type === LocalExtensionType.User) {
-				actions.push(this._instantiationService.createInstance(DisableForWorkspaceAction, DisableForWorkspaceAction.LABEL));
-				actions.push(this._instantiationService.createInstance(DisableGloballyAction, DisableGloballyAction.LABEL));
-				actions.forEach((a: DisableForWorkspaceAction | DisableGloballyAction) => a.extension = e.element.marketplaceInfo);
+			actions.push(new ReportExtensionIssueAction(e.element));
+			actions.push(new Separator());
+
+			if (e.element.marketplaceInfo) {
+				actions.push(new Action('runtimeExtensionsEditor.action.disableWorkspace', nls.localize('disable workspace', "Disable (Workspace)"), null, true, () => this._extensionsWorkbenchService.setEnablement(e.element.marketplaceInfo, EnablementState.WorkspaceDisabled)));
+				actions.push(new Action('runtimeExtensionsEditor.action.disable', nls.localize('disable', "Disable"), null, true, () => this._extensionsWorkbenchService.setEnablement(e.element.marketplaceInfo, EnablementState.Disabled)));
 				actions.push(new Separator());
 			}
 			const state = this._extensionHostProfileService.state;
@@ -426,7 +428,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 			this._contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,
-				getActions: () => Promise.resolve(actions)
+				getActions: () => actions
 			});
 		});
 	}
@@ -458,41 +460,89 @@ export class ShowRuntimeExtensionsAction extends Action {
 	}
 }
 
-class ReportExtensionIssueAction extends Action {
-	static readonly ID = 'workbench.extensions.action.reportExtensionIssue';
-	static LABEL = nls.localize('reportExtensionIssue', "Report Issue");
+export class ReportExtensionIssueAction extends Action {
 
-	constructor(
-		id: string = ReportExtensionIssueAction.ID, label: string = ReportExtensionIssueAction.LABEL
-	) {
-		super(id, label, 'extension-action report-issue');
+	private static readonly _id = 'workbench.extensions.action.reportExtensionIssue';
+	private static _label = nls.localize('reportExtensionIssue', "Report Issue");
+
+	private readonly _url: string;
+	private readonly _task: () => Promise<any>;
+
+	constructor(extension: {
+		description: IExtensionDescription;
+		marketplaceInfo: IExtension;
+		status: IExtensionsStatus;
+		unresponsiveProfile?: IExtensionHostProfile
+	}) {
+		super(ReportExtensionIssueAction._id, ReportExtensionIssueAction._label, 'extension-action report-issue');
+		this.enabled = extension.marketplaceInfo
+			&& extension.marketplaceInfo.type === ExtensionType.User
+			&& Boolean(extension.description.repository) && Boolean(extension.description.repository.url);
+
+		const { url, task } = ReportExtensionIssueAction._generateNewIssueUrl(extension);
+		this._url = url;
+		this._task = task;
 	}
 
-	run(extension: IRuntimeExtension): Promise<any> {
-		clipboard.writeText('```json \n' + JSON.stringify(extension.status, null, '\t') + '\n```');
-		window.open(this.generateNewIssueUrl(extension));
-
-		return Promise.resolve(null);
+	async run(): Promise<void> {
+		if (this._task) {
+			await this._task();
+		}
+		window.open(this._url);
 	}
 
-	private generateNewIssueUrl(extension: IRuntimeExtension): string {
-		let baseUrl = extension.marketplaceInfo && extension.marketplaceInfo.type === LocalExtensionType.User && extension.description.repository ? extension.description.repository.url : undefined;
+	private static _generateNewIssueUrl(extension: {
+		description: IExtensionDescription;
+		marketplaceInfo: IExtension;
+		status: IExtensionsStatus;
+		unresponsiveProfile?: IExtensionHostProfile
+	}): { url: string, task?: () => Promise<any> } {
+
+		let task: () => Promise<any>;
+		let baseUrl = extension.marketplaceInfo && extension.marketplaceInfo.type === ExtensionType.User && extension.description.repository ? extension.description.repository.url : undefined;
 		if (!!baseUrl) {
 			baseUrl = `${baseUrl.indexOf('.git') !== -1 ? baseUrl.substr(0, baseUrl.length - 4) : baseUrl}/issues/new/`;
 		} else {
 			baseUrl = product.reportIssueUrl;
 		}
 
+		let title: string;
+		let message: string;
+		let reason: string;
+		if (extension.unresponsiveProfile) {
+			// unresponsive extension host caused
+			reason = 'Performance';
+			title = 'Extension causes high cpu load';
+			let path = join(os.homedir(), `${extension.description.identifier.value}-unresponsive.cpuprofile.txt`);
+			task = async () => {
+				const profiler = await import('v8-inspect-profiler');
+				const data = profiler.rewriteAbsolutePaths({ profile: <any>extension.unresponsiveProfile.data }, 'pii_removed');
+				profiler.writeProfile(data, path).then(undefined, onUnexpectedError);
+			};
+			message = `:warning: Make sure to **attach** this file from your *home*-directory: \`${path}\` :warning:\n\nFind more details here: https://github.com/Microsoft/vscode/wiki/Explain:-extension-causes-high-cpu-load`;
+
+		} else {
+			// generic
+			reason = 'Bug';
+			title = 'Extension issue';
+			message = ':warning: We have written the needed data into your clipboard. Please paste! :warning:';
+			clipboard.writeText('```json \n' + JSON.stringify(extension.status, null, '\t') + '\n```');
+		}
+
 		const osVersion = `${os.type()} ${os.arch()} ${os.release()}`;
 		const queryStringPrefix = baseUrl.indexOf('?') === -1 ? '?' : '&';
 		const body = encodeURIComponent(
-			`- Extension Name: ${extension.description.name}
-- Extension Version: ${extension.description.version}
-- OS Version: ${osVersion}
-- VSCode version: ${pkg.version}` + '\n\n We have written the needed data into your clipboard. Please paste:'
+			`- Issue Type: \`${reason}\`
+- Extension Name: \`${extension.description.name}\`
+- Extension Version: \`${extension.description.version}\`
+- OS Version: \`${osVersion}\`
+- VSCode version: \`${pkg.version}\`\n\n${message}`
 		);
 
-		return `${baseUrl}${queryStringPrefix}body=${body}`;
+		return {
+			url: `${baseUrl}${queryStringPrefix}body=${body}&title=${encodeURIComponent(title)}`,
+			task
+		};
 	}
 }
 
@@ -528,6 +578,7 @@ export class DebugExtensionHostAction extends Action {
 
 		return this._debugService.startDebugging(null, {
 			type: 'node',
+			name: nls.localize('debugExtensionHost.launch.name', "Attach Extension Host"),
 			request: 'attach',
 			port: inspectPort
 		});
@@ -614,7 +665,7 @@ export class SaveExtensionHostProfileAction extends Action {
 			// about users. We also append the `.txt` suffix to make it
 			// easier to attach these files to GH issues
 
-			let tmp = profiler.rewriteAbsolutePaths({ profile: dataToWrite }, 'piiRemoved');
+			let tmp = profiler.rewriteAbsolutePaths({ profile: dataToWrite as any }, 'piiRemoved');
 			dataToWrite = tmp.profile;
 
 			picked = picked + '.txt';

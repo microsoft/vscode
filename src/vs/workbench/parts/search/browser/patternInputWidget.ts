@@ -29,87 +29,69 @@ export class PatternInputWidget extends Widget {
 
 	static OPTION_CHANGE: string = 'optionChange';
 
-	public inputFocusTracker: dom.IFocusTracker;
+	inputFocusTracker: dom.IFocusTracker;
 
-	protected onOptionChange: (event: Event) => void;
 	private width: number;
 	private placeholder: string;
 	private ariaLabel: string;
 
 	private domNode: HTMLElement;
-	protected inputBox: HistoryInputBox;
+	inputBox: HistoryInputBox;
 
 	private _onSubmit = this._register(new Emitter<boolean>());
-	public onSubmit: CommonEvent<boolean> = this._onSubmit.event;
+	onSubmit: CommonEvent<boolean> = this._onSubmit.event;
 
 	private _onCancel = this._register(new Emitter<boolean>());
-	public onCancel: CommonEvent<boolean> = this._onCancel.event;
+	onCancel: CommonEvent<boolean> = this._onCancel.event;
 
 	constructor(parent: HTMLElement, private contextViewProvider: IContextViewProvider, options: IOptions = Object.create(null),
 		@IThemeService protected themeService: IThemeService,
-		@IContextKeyService private contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
-		this.onOptionChange = null;
 		this.width = options.width || 100;
 		this.placeholder = options.placeholder || '';
 		this.ariaLabel = options.ariaLabel || nls.localize('defaultLabel', "input");
-
-		this.domNode = null;
-		this.inputBox = null;
 
 		this.render(options);
 
 		parent.appendChild(this.domNode);
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		super.dispose();
 		if (this.inputFocusTracker) {
 			this.inputFocusTracker.dispose();
 		}
 	}
 
-	public on(eventType: string, handler: (event: Event) => void): PatternInputWidget {
-		switch (eventType) {
-			case 'keydown':
-			case 'keyup':
-				this._register(dom.addDisposableListener(this.inputBox.inputElement, eventType, handler));
-				break;
-			case PatternInputWidget.OPTION_CHANGE:
-				this.onOptionChange = handler;
-				break;
-		}
-		return this;
-	}
-
-	public setWidth(newWidth: number): void {
+	setWidth(newWidth: number): void {
 		this.width = newWidth;
 		this.domNode.style.width = this.width + 'px';
 		this.contextViewProvider.layout();
 		this.setInputWidth();
 	}
 
-	public getValue(): string {
+	getValue(): string {
 		return this.inputBox.value;
 	}
 
-	public setValue(value: string): void {
+	setValue(value: string): void {
 		if (this.inputBox.value !== value) {
 			this.inputBox.value = value;
 		}
 	}
 
 
-	public select(): void {
+	select(): void {
 		this.inputBox.select();
 	}
 
-	public focus(): void {
+	focus(): void {
 		this.inputBox.focus();
 	}
 
-	public inputHasFocus(): boolean {
+	inputHasFocus(): boolean {
 		return this.inputBox.hasFocus();
 	}
 
@@ -121,23 +103,23 @@ export class PatternInputWidget extends Widget {
 		return 0;
 	}
 
-	public getHistory(): string[] {
+	getHistory(): string[] {
 		return this.inputBox.getHistory();
 	}
 
-	public clearHistory(): void {
+	clearHistory(): void {
 		this.inputBox.clearHistory();
 	}
 
-	public onSearchSubmit(): void {
+	onSearchSubmit(): void {
 		this.inputBox.addToHistory();
 	}
 
-	public showNextTerm() {
+	showNextTerm() {
 		this.inputBox.showNextValue();
 	}
 
-	public showPreviousTerm() {
+	showPreviousTerm() {
 		this.inputBox.showPreviousValue();
 	}
 
@@ -150,7 +132,7 @@ export class PatternInputWidget extends Widget {
 			placeholder: this.placeholder || '',
 			ariaLabel: this.ariaLabel || '',
 			validationOptions: {
-				validation: null
+				validation: undefined
 			},
 			history: options.history || []
 		}, this.contextKeyService);
@@ -158,7 +140,7 @@ export class PatternInputWidget extends Widget {
 		this.inputFocusTracker = dom.trackFocus(this.inputBox.inputElement);
 		this.onkeyup(this.inputBox.inputElement, (keyboardEvent) => this.onInputKeyUp(keyboardEvent));
 
-		let controls = document.createElement('div');
+		const controls = document.createElement('div');
 		controls.className = 'controls';
 		this.renderSubcontrols(controls);
 
@@ -172,10 +154,10 @@ export class PatternInputWidget extends Widget {
 	private onInputKeyUp(keyboardEvent: IKeyboardEvent) {
 		switch (keyboardEvent.keyCode) {
 			case KeyCode.Enter:
-				this._onSubmit.fire();
+				this._onSubmit.fire(false);
 				return;
 			case KeyCode.Escape:
-				this._onCancel.fire();
+				this._onCancel.fire(false);
 				return;
 			default:
 				return;
@@ -194,16 +176,16 @@ export class ExcludePatternInputWidget extends PatternInputWidget {
 
 	private useExcludesAndIgnoreFilesBox: Checkbox;
 
-	public dispose(): void {
+	dispose(): void {
 		super.dispose();
 		this.useExcludesAndIgnoreFilesBox.dispose();
 	}
 
-	public useExcludesAndIgnoreFiles(): boolean {
+	useExcludesAndIgnoreFiles(): boolean {
 		return this.useExcludesAndIgnoreFilesBox.checked;
 	}
 
-	public setUseExcludesAndIgnoreFiles(value: boolean) {
+	setUseExcludesAndIgnoreFiles(value: boolean) {
 		this.useExcludesAndIgnoreFilesBox.checked = value;
 	}
 
@@ -218,7 +200,6 @@ export class ExcludePatternInputWidget extends PatternInputWidget {
 			isChecked: true,
 		}));
 		this._register(this.useExcludesAndIgnoreFilesBox.onChange(viaKeyboard => {
-			this.onOptionChange(null);
 			if (!viaKeyboard) {
 				this.inputBox.focus();
 			}

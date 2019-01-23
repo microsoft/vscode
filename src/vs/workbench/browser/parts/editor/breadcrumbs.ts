@@ -48,7 +48,7 @@ export class BreadcrumbsService implements IBreadcrumbsService {
 	}
 }
 
-registerSingleton(IBreadcrumbsService, BreadcrumbsService);
+registerSingleton(IBreadcrumbsService, BreadcrumbsService, true);
 
 
 //#region config
@@ -59,7 +59,7 @@ export abstract class BreadcrumbsConfig<T> {
 	onDidChange: Event<void>;
 
 	abstract getValue(overrides?: IConfigurationOverrides): T;
-	abstract updateValue(value: T, overrides?: IConfigurationOverrides): Thenable<void>;
+	abstract updateValue(value: T, overrides?: IConfigurationOverrides): Promise<void>;
 	abstract dispose(): void;
 
 	private constructor() {
@@ -70,6 +70,7 @@ export abstract class BreadcrumbsConfig<T> {
 	static UseQuickPick = BreadcrumbsConfig._stub<boolean>('breadcrumbs.useQuickPick');
 	static FilePath = BreadcrumbsConfig._stub<'on' | 'off' | 'last'>('breadcrumbs.filePath');
 	static SymbolPath = BreadcrumbsConfig._stub<'on' | 'off' | 'last'>('breadcrumbs.symbolPath');
+	static SymbolSortOrder = BreadcrumbsConfig._stub<'position' | 'name' | 'type'>('breadcrumbs.symbolSortOrder');
 	static FilterOnType = BreadcrumbsConfig._stub<boolean>('breadcrumbs.filterOnType');
 
 	static FileExcludes = BreadcrumbsConfig._stub<glob.IExpression>('files.exclude');
@@ -91,7 +92,7 @@ export abstract class BreadcrumbsConfig<T> {
 					getValue(overrides?: IConfigurationOverrides): T {
 						return service.getValue(name, overrides);
 					}
-					updateValue(newValue: T, overrides?: IConfigurationOverrides): Thenable<void> {
+					updateValue(newValue: T, overrides?: IConfigurationOverrides): Promise<void> {
 						return service.updateValue(name, newValue, overrides);
 					}
 					dispose(): void {
@@ -111,7 +112,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 	type: 'object',
 	properties: {
 		'breadcrumbs.enabled': {
-			description: localize('enabled', "Enable/disable navigation breadcrumbs"),
+			description: localize('enabled', "Enable/disable navigation breadcrumbs."),
 			type: 'boolean',
 			default: false
 		},
@@ -140,6 +141,17 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				localize('symbolpath.on', "Show all symbols in the breadcrumbs view."),
 				localize('symbolpath.off', "Do not show symbols in the breadcrumbs view."),
 				localize('symbolpath.last', "Only show the current symbol in the breadcrumbs view."),
+			]
+		},
+		'breadcrumbs.symbolSortOrder': {
+			description: localize('symbolSortOrder', "Controls how symbols are sorted in the breadcrumbs outline view."),
+			type: 'string',
+			default: 'position',
+			enum: ['position', 'name', 'type'],
+			enumDescriptions: [
+				localize('symbolSortOrder.position', "Show symbol outline in file position order."),
+				localize('symbolSortOrder.name', "Show symbol outline in alphabetical order."),
+				localize('symbolSortOrder.type', "Show symbol outline in symbol type order."),
 			]
 		},
 		// 'breadcrumbs.filterOnType': {

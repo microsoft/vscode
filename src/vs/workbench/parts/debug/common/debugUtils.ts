@@ -7,6 +7,7 @@ import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { IConfig } from 'vs/workbench/parts/debug/common/debug';
 import { URI as uri } from 'vs/base/common/uri';
 import { isAbsolute_posix, isAbsolute_win32 } from 'vs/base/common/paths';
+import { deepClone } from 'vs/base/common/objects';
 
 const _formatPIIRegexp = /{([^}]+)}/g;
 
@@ -106,23 +107,38 @@ export function uriToString(source: DebugProtocol.Source): void {
 
 // path hooks helpers
 
-export function convertToDAPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePaths: (source: DebugProtocol.Source) => void): void {
+export function convertToDAPaths(message: DebugProtocol.ProtocolMessage, fixSourcePaths: (source: DebugProtocol.Source) => void): DebugProtocol.ProtocolMessage {
+
+	// since we modify Source.paths in the message in place, we need to make a copy of it (see #61129)
+	const msg = deepClone(message);
+
 	convertPaths(msg, (toDA: boolean, source: DebugProtocol.Source | undefined) => {
 		if (toDA && source) {
 			fixSourcePaths(source);
 		}
 	});
+	return msg;
 }
 
-export function convertToVSCPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePaths: (source: DebugProtocol.Source) => void): void {
+export function convertToVSCPaths(message: DebugProtocol.ProtocolMessage, fixSourcePaths: (source: DebugProtocol.Source) => void): DebugProtocol.ProtocolMessage {
+
+	// since we modify Source.paths in the message in place, we need to make a copy of it (see #61129)
+	const msg = deepClone(message);
+
 	convertPaths(msg, (toDA: boolean, source: DebugProtocol.Source | undefined) => {
 		if (!toDA && source) {
 			fixSourcePaths(source);
 		}
 	});
+	return msg;
 }
 
 function convertPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePaths: (toDA: boolean, source: DebugProtocol.Source | undefined) => void): void {
+
+	const tmpSource: DebugProtocol.Source = {
+		path: ''
+	};
+
 	switch (msg.type) {
 		case 'event':
 			const event = <DebugProtocol.Event>msg;
@@ -151,6 +167,15 @@ function convertPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePaths: (toDA:
 					break;
 				case 'gotoTargets':
 					fixSourcePaths(true, (<DebugProtocol.GotoTargetsArguments>request.arguments).source);
+					break;
+				case 'launchVSCode':
+					request.arguments.args.forEach(a => {
+						if (a.path) {
+							tmpSource.path = a.path;
+							fixSourcePaths(false, tmpSource);
+							a.path = tmpSource.path;
+						}
+					});
 					break;
 				default:
 					break;

@@ -2,22 +2,23 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import * as assert from 'assert';
+import { Delayer } from 'vs/base/common/async';
+import { Event } from 'vs/base/common/event';
+import * as platform from 'vs/base/common/platform';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
-import { Selection } from 'vs/editor/common/core/selection';
 import { Range } from 'vs/editor/common/core/range';
-import * as platform from 'vs/base/common/platform';
-import { CommonFindController, FindStartFocusAction, IFindStartOptions, NextMatchFindAction, StartFindAction, NextSelectionMatchFindAction, StartFindReplaceAction } from 'vs/editor/contrib/find/findController';
+import { Selection } from 'vs/editor/common/core/selection';
+import { CommonFindController, FindStartFocusAction, IFindStartOptions, NextMatchFindAction, NextSelectionMatchFindAction, StartFindAction, StartFindReplaceAction } from 'vs/editor/contrib/find/findController';
 import { CONTEXT_FIND_INPUT_FOCUSED } from 'vs/editor/contrib/find/findModel';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { Event } from 'vs/base/common/event';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { Delayer } from 'vs/base/common/async';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export class TestFindController extends CommonFindController {
 
@@ -50,8 +51,8 @@ export class TestFindController extends CommonFindController {
 	}
 }
 
-function fromRange(rng: Range): number[] {
-	return [rng.startLineNumber, rng.startColumn, rng.endLineNumber, rng.endColumn];
+function fromSelection(slc: Selection): number[] {
+	return [slc.startLineNumber, slc.startColumn, slc.endLineNumber, slc.endColumn];
 }
 
 suite('FindController', () => {
@@ -66,8 +67,8 @@ suite('FindController', () => {
 		getBoolean: (key: string) => !!queryState[key],
 		getInteger: (key: string) => undefined,
 		store: (key: string, value: any) => { queryState[key] = value; return Promise.resolve(); },
-		remove: (key) => void 0
-	} as IStorageService);
+		remove: (key) => undefined
+	} as any);
 
 	if (platform.isMacintosh) {
 		serviceCollection.set(IClipboardService, <any>{
@@ -121,7 +122,7 @@ suite('FindController', () => {
 			nextMatchFindAction.run(null, editor);
 			assert.equal(findState.searchString, 'ABC');
 
-			assert.deepEqual(fromRange(editor.getSelection()), [1, 1, 1, 4]);
+			assert.deepEqual(fromSelection(editor.getSelection()!), [1, 1, 1, 4]);
 
 			findController.dispose();
 		});
@@ -174,14 +175,14 @@ suite('FindController', () => {
 			findState.change({ searchString: 'ABC' }, true);
 
 			// The first ABC is highlighted.
-			assert.deepEqual(fromRange(editor.getSelection()), [1, 1, 1, 4]);
+			assert.deepEqual(fromSelection(editor.getSelection()!), [1, 1, 1, 4]);
 
 			// I hit Esc to exit the Find dialog.
 			findController.closeFindWidget();
 			findController.hasFocus = false;
 
 			// The cursor is now at end of the first line, with ABC on that line highlighted.
-			assert.deepEqual(fromRange(editor.getSelection()), [1, 1, 1, 4]);
+			assert.deepEqual(fromSelection(editor.getSelection()!), [1, 1, 1, 4]);
 
 			// I hit delete to remove it and change the text to XYZ.
 			editor.pushUndoStop();
@@ -194,10 +195,10 @@ suite('FindController', () => {
 			//   ABC
 			//   XYZ
 			//   ABC
-			assert.equal(editor.getModel().getLineContent(1), 'XYZ');
+			assert.equal(editor.getModel()!.getLineContent(1), 'XYZ');
 
 			// The cursor is at end of the first line.
-			assert.deepEqual(fromRange(editor.getSelection()), [1, 4, 1, 4]);
+			assert.deepEqual(fromSelection(editor.getSelection()!), [1, 4, 1, 4]);
 
 			// I hit F3 to "Find Next" to find the next occurrence of ABC, but instead it searches for XYZ.
 			nextMatchFindAction.run(null, editor);
@@ -223,10 +224,10 @@ suite('FindController', () => {
 			});
 
 			nextMatchFindAction.run(null, editor);
-			assert.deepEqual(fromRange(editor.getSelection()), [1, 26, 1, 29]);
+			assert.deepEqual(fromSelection(editor.getSelection()!), [1, 26, 1, 29]);
 
 			nextMatchFindAction.run(null, editor);
-			assert.deepEqual(fromRange(editor.getSelection()), [1, 8, 1, 11]);
+			assert.deepEqual(fromSelection(editor.getSelection()!), [1, 8, 1, 11]);
 
 			findController.dispose();
 		});
@@ -249,10 +250,10 @@ suite('FindController', () => {
 			startFindAction.run(null, editor);
 
 			nextMatchFindAction.run(null, editor);
-			assert.deepEqual(fromRange(editor.getSelection()), [2, 9, 2, 13]);
+			assert.deepEqual(fromSelection(editor.getSelection()!), [2, 9, 2, 13]);
 
 			nextMatchFindAction.run(null, editor);
-			assert.deepEqual(fromRange(editor.getSelection()), [1, 9, 1, 13]);
+			assert.deepEqual(fromSelection(editor.getSelection()!), [1, 9, 1, 13]);
 
 			findController.dispose();
 		});
@@ -329,7 +330,7 @@ suite('FindController', () => {
 			findController.getState().change({ searchString: '\\b\\s{3}\\b', replaceString: ' ', isRegex: true }, false);
 			findController.moveToNextMatch();
 
-			assert.deepEqual(editor.getSelections().map(fromRange), [
+			assert.deepEqual(editor.getSelections()!.map(fromSelection), [
 				[1, 39, 1, 42]
 			]);
 
@@ -356,7 +357,7 @@ suite('FindController', () => {
 			findController.getState().change({ searchString: '^', replaceString: 'x', isRegex: true }, false);
 			findController.moveToNextMatch();
 
-			assert.deepEqual(editor.getSelections().map(fromRange), [
+			assert.deepEqual(editor.getSelections()!.map(fromSelection), [
 				[2, 1, 2, 1]
 			]);
 
@@ -387,7 +388,7 @@ suite('FindController', () => {
 			// cmd+f3
 			nextSelectionMatchFindAction.run(null, editor);
 
-			assert.deepEqual(editor.getSelections().map(fromRange), [
+			assert.deepEqual(editor.getSelections()!.map(fromSelection), [
 				[3, 1, 3, 9]
 			]);
 
@@ -418,7 +419,7 @@ suite('FindController', () => {
 			// cmd+f3
 			nextSelectionMatchFindAction.run(null, editor);
 
-			assert.deepEqual(editor.getSelections().map(fromRange), [
+			assert.deepEqual(editor.getSelections()!.map(fromSelection), [
 				[3, 1, 3, 9]
 			]);
 
@@ -441,8 +442,8 @@ suite('FindController query options persistence', () => {
 		getBoolean: (key: string) => !!queryState[key],
 		getInteger: (key: string) => undefined,
 		store: (key: string, value: any) => { queryState[key] = value; return Promise.resolve(); },
-		remove: (key) => void 0
-	} as IStorageService);
+		remove: (key) => undefined
+	} as any);
 
 	test('matchCase', () => {
 		withTestCodeEditor([
@@ -463,7 +464,7 @@ suite('FindController query options persistence', () => {
 			// I type ABC.
 			findState.change({ searchString: 'ABC' }, true);
 			// The second ABC is highlighted as matchCase is true.
-			assert.deepEqual(fromRange(editor.getSelection()), [2, 1, 2, 4]);
+			assert.deepEqual(fromSelection(editor.getSelection()!), [2, 1, 2, 4]);
 
 			findController.dispose();
 		});
@@ -490,7 +491,7 @@ suite('FindController query options persistence', () => {
 			// I type AB.
 			findState.change({ searchString: 'AB' }, true);
 			// The second AB is highlighted as wholeWord is true.
-			assert.deepEqual(fromRange(editor.getSelection()), [2, 1, 2, 3]);
+			assert.deepEqual(fromSelection(editor.getSelection()!), [2, 1, 2, 3]);
 
 			findController.dispose();
 		});

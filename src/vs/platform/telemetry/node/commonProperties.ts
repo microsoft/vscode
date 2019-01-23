@@ -5,12 +5,11 @@
 
 import * as Platform from 'vs/base/common/platform';
 import * as os from 'os';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as uuid from 'vs/base/common/uuid';
 import { readFile } from 'vs/base/node/pfs';
 
-export function resolveCommonProperties(commit: string, version: string, machineId: string, installSourcePath: string): TPromise<{ [name: string]: string; }> {
-	const result: { [name: string]: string; } = Object.create(null);
+export function resolveCommonProperties(commit: string | undefined, version: string, machineId: string | undefined, installSourcePath: string): Promise<{ [name: string]: string | undefined; }> {
+	const result: { [name: string]: string | undefined; } = Object.create(null);
 	// __GDPR__COMMON__ "common.machineId" : { "endPoint": "MacAddressHash", "classification": "EndUserPseudonymizedInformation", "purpose": "FeatureInsight" }
 	result['common.machineId'] = machineId;
 	// __GDPR__COMMON__ "sessionID" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }

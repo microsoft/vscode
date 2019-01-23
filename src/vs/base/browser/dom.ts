@@ -3,20 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as platform from 'vs/base/common/platform';
-import { TimeoutTimer } from 'vs/base/common/async';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as browser from 'vs/base/browser/browser';
+import { domEvent } from 'vs/base/browser/event';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { TimeoutTimer } from 'vs/base/common/async';
 import { CharCode } from 'vs/base/common/charCode';
-import { Event, Emitter } from 'vs/base/common/event';
-import { domEvent } from 'vs/base/browser/event';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import * as platform from 'vs/base/common/platform';
+import { coalesce } from 'vs/base/common/arrays';
 
 export function clearNode(node: HTMLElement): void {
 	while (node.firstChild) {
 		node.removeChild(node.firstChild);
+	}
+}
+
+export function removeNode(node: HTMLElement): void {
+	if (node.parentNode) {
+		node.parentNode.removeChild(node);
 	}
 }
 
@@ -140,10 +147,10 @@ const _manualClassList = new class implements IDomClassList {
 
 	toggleClass(node: HTMLElement, className: string, shouldHaveIt?: boolean): void {
 		this._findClassName(node, className);
-		if (this._lastStart !== -1 && (shouldHaveIt === void 0 || !shouldHaveIt)) {
+		if (this._lastStart !== -1 && (shouldHaveIt === undefined || !shouldHaveIt)) {
 			this.removeClass(node, className);
 		}
-		if (this._lastStart === -1 && (shouldHaveIt === void 0 || shouldHaveIt)) {
+		if (this._lastStart === -1 && (shouldHaveIt === undefined || shouldHaveIt)) {
 			this.addClass(node, className);
 		}
 	}
@@ -220,6 +227,8 @@ class DomListener implements IDisposable {
 	}
 }
 
+export function addDisposableListener<K extends keyof GlobalEventHandlersEventMap>(node: Element | Window | Document, type: K, handler: (event: GlobalEventHandlersEventMap[K]) => void, useCapture?: boolean): IDisposable;
+export function addDisposableListener(node: Element | Window | Document, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;
 export function addDisposableListener(node: Element | Window | Document, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable {
 	return new DomListener(node, type, handler, useCapture);
 }
@@ -257,7 +266,7 @@ export let addStandardDisposableListener: IAddStandardDisposableListenerSignatur
 export function addDisposableNonBubblingMouseOutListener(node: Element, handler: (event: MouseEvent) => void): IDisposable {
 	return addDisposableListener(node, 'mouseout', (e: MouseEvent) => {
 		// Mouse out bubbles, so this is an attempt to ignore faux mouse outs coming from children elements
-		let toElement: Node | null = <Node>(e.relatedTarget || e.toElement);
+		let toElement: Node | null = <Node>(e.relatedTarget || e.target);
 		while (toElement && toElement !== node) {
 			toElement = toElement.parentNode;
 		}
@@ -827,48 +836,48 @@ export function isHTMLElement(o: any): o is HTMLElement {
 
 export const EventType = {
 	// Mouse
-	CLICK: 'click',
-	DBLCLICK: 'dblclick',
-	MOUSE_UP: 'mouseup',
-	MOUSE_DOWN: 'mousedown',
-	MOUSE_OVER: 'mouseover',
-	MOUSE_MOVE: 'mousemove',
-	MOUSE_OUT: 'mouseout',
-	MOUSE_ENTER: 'mouseenter',
-	MOUSE_LEAVE: 'mouseleave',
-	CONTEXT_MENU: 'contextmenu',
-	WHEEL: 'wheel',
+	CLICK: 'click' as 'click',
+	DBLCLICK: 'dblclick' as 'dblclick',
+	MOUSE_UP: 'mouseup' as 'mouseup',
+	MOUSE_DOWN: 'mousedown' as 'mousedown',
+	MOUSE_OVER: 'mouseover' as 'mouseover',
+	MOUSE_MOVE: 'mousemove' as 'mousemove',
+	MOUSE_OUT: 'mouseout' as 'mouseout',
+	MOUSE_ENTER: 'mouseenter' as 'mouseenter',
+	MOUSE_LEAVE: 'mouseleave' as 'mouseleave',
+	CONTEXT_MENU: 'contextmenu' as 'contextmenu',
+	WHEEL: 'wheel' as 'wheel',
 	// Keyboard
-	KEY_DOWN: 'keydown',
-	KEY_PRESS: 'keypress',
-	KEY_UP: 'keyup',
+	KEY_DOWN: 'keydown' as 'keydown',
+	KEY_PRESS: 'keypress' as 'keypress',
+	KEY_UP: 'keyup' as 'keyup',
 	// HTML Document
-	LOAD: 'load',
-	UNLOAD: 'unload',
-	ABORT: 'abort',
-	ERROR: 'error',
-	RESIZE: 'resize',
-	SCROLL: 'scroll',
+	LOAD: 'load' as 'load',
+	UNLOAD: 'unload' as 'unload',
+	ABORT: 'abort' as 'abort',
+	ERROR: 'error' as 'error',
+	RESIZE: 'resize' as 'resize',
+	SCROLL: 'scroll' as 'scroll',
 	// Form
-	SELECT: 'select',
-	CHANGE: 'change',
-	SUBMIT: 'submit',
-	RESET: 'reset',
-	FOCUS: 'focus',
-	FOCUS_IN: 'focusin',
-	FOCUS_OUT: 'focusout',
-	BLUR: 'blur',
-	INPUT: 'input',
+	SELECT: 'select' as 'select',
+	CHANGE: 'change' as 'change',
+	SUBMIT: 'submit' as 'submit',
+	RESET: 'reset' as 'reset',
+	FOCUS: 'focus' as 'focus',
+	FOCUS_IN: 'focusin' as 'focusin',
+	FOCUS_OUT: 'focusout' as 'focusout',
+	BLUR: 'blur' as 'blur',
+	INPUT: 'input' as 'input',
 	// Local Storage
-	STORAGE: 'storage',
+	STORAGE: 'storage' as 'storage',
 	// Drag
-	DRAG_START: 'dragstart',
-	DRAG: 'drag',
-	DRAG_ENTER: 'dragenter',
-	DRAG_LEAVE: 'dragleave',
-	DRAG_OVER: 'dragover',
-	DROP: 'drop',
-	DRAG_END: 'dragend',
+	DRAG_START: 'dragstart' as 'dragstart',
+	DRAG: 'drag' as 'drag',
+	DRAG_ENTER: 'dragenter' as 'dragenter',
+	DRAG_LEAVE: 'dragleave' as 'dragleave',
+	DRAG_OVER: 'dragover' as 'dragover',
+	DROP: 'drop' as 'drop',
+	DRAG_END: 'dragend' as 'dragend',
 	// Animation
 	ANIMATION_START: browser.isWebKit ? 'webkitAnimationStart' : 'animationstart',
 	ANIMATION_END: browser.isWebKit ? 'webkitAnimationEnd' : 'animationend',
@@ -986,7 +995,7 @@ export function prepend<T extends Node>(parent: HTMLElement, child: T): T {
 
 const SELECTOR_REGEX = /([\w\-]+)?(#([\w\-]+))?((.([\w\-]+))*)/;
 
-export function $<T extends HTMLElement>(description: string, attrs?: { [key: string]: any; }, ...children: (Node | string)[]): T {
+export function $<T extends HTMLElement>(description: string, attrs?: { [key: string]: any; }, ...children: Array<Node | string>): T {
 	let match = SELECTOR_REGEX.exec(description);
 
 	if (!match) {
@@ -1017,8 +1026,7 @@ export function $<T extends HTMLElement>(description: string, attrs?: { [key: st
 		}
 	});
 
-	children
-		.filter(child => !!child)
+	coalesce(children)
 		.forEach(child => {
 			if (child instanceof Node) {
 				result.appendChild(child);
@@ -1148,4 +1156,14 @@ export function windowOpenNoOpener(url: string): void {
 			newTab.location.href = url;
 		}
 	}
+}
+
+export function animate(fn: () => void): IDisposable {
+	const step = () => {
+		fn();
+		stepDisposable = scheduleAtNextAnimationFrame(step);
+	};
+
+	let stepDisposable = scheduleAtNextAnimationFrame(step);
+	return toDisposable(() => stepDisposable.dispose());
 }

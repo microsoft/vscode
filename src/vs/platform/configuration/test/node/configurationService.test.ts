@@ -95,6 +95,21 @@ suite('ConfigurationService - Node', () => {
 		service.dispose();
 	});
 
+	test('trigger configuration change event', async () => {
+		const res = await testFile('config', 'config.json');
+
+		const service = new ConfigurationService(new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, res.testFile));
+		return new Promise((c, e) => {
+			service.onDidChangeConfiguration(() => {
+				assert.equal(service.getValue('foo'), 'bar');
+				service.dispose();
+				c();
+			});
+			fs.writeFileSync(res.testFile, '{ "foo": "bar" }');
+		});
+
+	});
+
 	test('reloadConfiguration', async () => {
 		const res = await testFile('config', 'config.json');
 
@@ -192,14 +207,14 @@ suite('ConfigurationService - Node', () => {
 		const r = await testFile('config', 'config.json');
 		const service = new ConfigurationService(new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, r.testFile));
 		let res = service.inspect('something.missing');
-		assert.strictEqual(res.value, void 0);
-		assert.strictEqual(res.default, void 0);
-		assert.strictEqual(res.user, void 0);
+		assert.strictEqual(res.value, undefined);
+		assert.strictEqual(res.default, undefined);
+		assert.strictEqual(res.user, undefined);
 
 		res = service.inspect('lookup.service.testSetting');
 		assert.strictEqual(res.default, 'isSet');
 		assert.strictEqual(res.value, 'isSet');
-		assert.strictEqual(res.user, void 0);
+		assert.strictEqual(res.user, undefined);
 
 		fs.writeFileSync(r.testFile, '{ "lookup.service.testSetting": "bar" }');
 
@@ -230,7 +245,7 @@ suite('ConfigurationService - Node', () => {
 		let res = service.inspect('lookup.service.testNullSetting');
 		assert.strictEqual(res.default, null);
 		assert.strictEqual(res.value, null);
-		assert.strictEqual(res.user, void 0);
+		assert.strictEqual(res.user, undefined);
 
 		fs.writeFileSync(r.testFile, '{ "lookup.service.testNullSetting": null }');
 

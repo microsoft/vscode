@@ -2,9 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import * as assert from 'assert';
-import { EditorSimpleWorkerImpl, ICommonModel } from 'vs/editor/common/services/editorSimpleWorker';
 import { Range } from 'vs/editor/common/core/range';
+import { EditorSimpleWorkerImpl, ICommonModel } from 'vs/editor/common/services/editorSimpleWorker';
 
 suite('EditorSimpleWorker', () => {
 
@@ -161,6 +162,10 @@ suite('EditorSimpleWorker', () => {
 		]);
 
 		return worker.textualSuggest(model.uri.toString(), { lineNumber: 2, column: 2 }, '[a-z]+', 'img').then((result) => {
+			if (!result) {
+				assert.ok(false);
+				return;
+			}
 			const { suggestions } = result;
 			assert.equal(suggestions.length, 1);
 			assert.equal(suggestions[0].label, 'foobar');

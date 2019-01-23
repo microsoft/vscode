@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IAutoClosingPairConditional, IBracketElectricCharacterContribution, StandardAutoClosingPairConditional } from 'vs/editor/common/modes/languageConfiguration';
 import { ScopedLineTokens, ignoreBracketsInToken } from 'vs/editor/common/modes/supports';
 import { BracketsUtils, RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
-import { IAutoClosingPairConditional, IBracketElectricCharacterContribution, StandardAutoClosingPairConditional } from 'vs/editor/common/modes/languageConfiguration';
 
 /**
  * Interface used to support electric characters
@@ -27,7 +27,7 @@ export class BracketElectricCharacterSupport {
 	private readonly _richEditBrackets: RichEditBrackets | null;
 	private readonly _complexAutoClosePairs: StandardAutoClosingPairConditional[];
 
-	constructor(richEditBrackets: RichEditBrackets | null, autoClosePairs: IAutoClosingPairConditional[], contribution: IBracketElectricCharacterContribution | undefined) {
+	constructor(richEditBrackets: RichEditBrackets | null, autoClosePairs: IAutoClosingPairConditional[], contribution: IBracketElectricCharacterContribution | null | undefined) {
 		contribution = contribution || {};
 		this._richEditBrackets = richEditBrackets;
 		this._complexAutoClosePairs = autoClosePairs.filter(pair => pair.open.length > 1 && !!pair.close).map(el => new StandardAutoClosingPairConditional(el));

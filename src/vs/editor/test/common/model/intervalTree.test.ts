@@ -2,9 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import * as assert from 'assert';
-import { IntervalTree, IntervalNode, getNodeColor, NodeColor, SENTINEL, intervalCompare, setNodeStickiness, nodeAcceptEdit } from 'vs/editor/common/model/intervalTree';
 import { TrackedRangeStickiness } from 'vs/editor/common/model';
+import { IntervalNode, IntervalTree, NodeColor, SENTINEL, getNodeColor, intervalCompare, nodeAcceptEdit, setNodeStickiness } from 'vs/editor/common/model/intervalTree';
 
 const GENERATE_TESTS = false;
 let TEST_COUNT = GENERATE_TESTS ? 10000 : 0;
@@ -73,8 +74,8 @@ suite('IntervalTree', () => {
 		private _oracle: Oracle = new Oracle();
 		private _tree: IntervalTree = new IntervalTree();
 		private _lastNodeId = -1;
-		private _treeNodes: IntervalNode[] = [];
-		private _oracleNodes: Interval[] = [];
+		private _treeNodes: Array<IntervalNode | null> = [];
+		private _oracleNodes: Array<Interval | null> = [];
 
 		public acceptOp(op: IOperation): void {
 
@@ -83,28 +84,28 @@ suite('IntervalTree', () => {
 					console.log(`insert: {${JSON.stringify(new Interval(op.begin, op.end))}}`);
 				}
 				let nodeId = (++this._lastNodeId);
-				this._treeNodes[nodeId] = new IntervalNode(null, op.begin, op.end);
-				this._tree.insert(this._treeNodes[nodeId]);
+				this._treeNodes[nodeId] = new IntervalNode(null!, op.begin, op.end);
+				this._tree.insert(this._treeNodes[nodeId]!);
 				this._oracleNodes[nodeId] = this._oracle.insert(new Interval(op.begin, op.end));
 			} else if (op.type === 'delete') {
 				if (PRINT_TREE) {
 					console.log(`delete: {${JSON.stringify(this._oracleNodes[op.id])}}`);
 				}
-				this._tree.delete(this._treeNodes[op.id]);
-				this._oracle.delete(this._oracleNodes[op.id]);
+				this._tree.delete(this._treeNodes[op.id]!);
+				this._oracle.delete(this._oracleNodes[op.id]!);
 
 				this._treeNodes[op.id] = null;
 				this._oracleNodes[op.id] = null;
 			} else if (op.type === 'change') {
 
-				this._tree.delete(this._treeNodes[op.id]);
-				this._treeNodes[op.id].reset(0, op.begin, op.end, null);
-				this._tree.insert(this._treeNodes[op.id]);
+				this._tree.delete(this._treeNodes[op.id]!);
+				this._treeNodes[op.id]!.reset(0, op.begin, op.end, null!);
+				this._tree.insert(this._treeNodes[op.id]!);
 
-				this._oracle.delete(this._oracleNodes[op.id]);
-				this._oracleNodes[op.id].start = op.begin;
-				this._oracleNodes[op.id].end = op.end;
-				this._oracle.insert(this._oracleNodes[op.id]);
+				this._oracle.delete(this._oracleNodes[op.id]!);
+				this._oracleNodes[op.id]!.start = op.begin;
+				this._oracleNodes[op.id]!.end = op.end;
+				this._oracle.insert(this._oracleNodes[op.id]!);
 
 			} else {
 				let actualNodes = this._tree.intervalSearch(op.begin, op.end, 0, false, 0);
@@ -488,7 +489,7 @@ suite('IntervalTree', () => {
 				[19, 20]
 			];
 			data.forEach((int) => {
-				let node = new IntervalNode(null, int[0], int[1]);
+				let node = new IntervalNode(null!, int[0], int[1]);
 				r.insert(node);
 			});
 			return r;

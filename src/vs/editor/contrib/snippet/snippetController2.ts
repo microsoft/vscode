@@ -34,10 +34,10 @@ export class SnippetController2 implements IEditorContribution {
 	private readonly _hasNextTabstop: IContextKey<boolean>;
 	private readonly _hasPrevTabstop: IContextKey<boolean>;
 
-	private _session: SnippetSession;
+	private _session?: SnippetSession;
 	private _snippetListener: IDisposable[] = [];
 	private _modelVersionId: number;
-	private _currentChoice: Choice;
+	private _currentChoice?: Choice;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -87,6 +87,9 @@ export class SnippetController2 implements IEditorContribution {
 		undoStopBefore: boolean = true, undoStopAfter: boolean = true,
 		adjustWhitespace: boolean = true,
 	): void {
+		if (!this._editor.hasModel()) {
+			return;
+		}
 
 		// don't listen while inserting the snippet
 		// as that is the inflight state causing cancelation
@@ -118,7 +121,7 @@ export class SnippetController2 implements IEditorContribution {
 	}
 
 	private _updateState(): void {
-		if (!this._session) {
+		if (!this._session || !this._editor.hasModel()) {
 			// canceled in the meanwhile
 			return;
 		}
@@ -147,6 +150,11 @@ export class SnippetController2 implements IEditorContribution {
 	}
 
 	private _handleChoice(): void {
+		if (!this._session || !this._editor.hasModel()) {
+			this._currentChoice = undefined;
+			return;
+		}
+
 		const { choice } = this._session;
 		if (!choice) {
 			this._currentChoice = undefined;
@@ -173,7 +181,7 @@ export class SnippetController2 implements IEditorContribution {
 					// insertText: `\${1|${after.concat(before).join(',')}|}$0`,
 					// snippetType: 'textmate',
 					sortText: repeat('a', i),
-					overwriteAfter: first.value.length
+					range: Range.fromPositions(this._editor.getPosition()!, this._editor.getPosition()!.delta(0, first.value.length))
 				};
 			}));
 		}
@@ -196,20 +204,24 @@ export class SnippetController2 implements IEditorContribution {
 	}
 
 	prev(): void {
-		this._session.prev();
+		if (this._session) {
+			this._session.prev();
+		}
 		this._updateState();
 	}
 
 	next(): void {
-		this._session.next();
+		if (this._session) {
+			this._session.next();
+		}
 		this._updateState();
 	}
 
 	isInSnippet(): boolean {
-		return this._inSnippet.get();
+		return Boolean(this._inSnippet.get());
 	}
 
-	getSessionEnclosingRange(): Range {
+	getSessionEnclosingRange(): Range | undefined {
 		if (this._session) {
 			return this._session.getEnclosingRange();
 		}

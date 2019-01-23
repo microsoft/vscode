@@ -14,11 +14,10 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { join } from 'vs/base/common/paths';
 import { basename, dirname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IDataSource, IFilter, IRenderer, ISorter, ITree } from 'vs/base/parts/tree/browser/tree';
 import 'vs/css!./media/breadcrumbscontrol';
 import { OutlineElement, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
-import { OutlineDataSource, OutlineItemComparator, OutlineRenderer } from 'vs/editor/contrib/documentSymbols/outlineTree';
+import { OutlineDataSource, OutlineItemComparator, OutlineRenderer, OutlineItemCompareType } from 'vs/editor/contrib/documentSymbols/outlineTree';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { FileKind, IFileService, IFileStat } from 'vs/platform/files/common/files';
@@ -26,7 +25,7 @@ import { IConstructorSignature1, IInstantiationService } from 'vs/platform/insta
 import { HighlightingWorkbenchTree, IHighlighter, IHighlightingTreeConfiguration, IHighlightingTreeOptions } from 'vs/platform/list/browser/listService';
 import { breadcrumbsPickerBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { FileLabel } from 'vs/workbench/browser/labels';
+import { ResourceLabels, IResourceLabel, DEFAULT_LABELS_CONTAINER } from 'vs/workbench/browser/labels';
 import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 import { BreadcrumbElement, FileElement } from 'vs/workbench/browser/parts/editor/breadcrumbsModel';
 import { IFileIconTheme, IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
@@ -52,6 +51,7 @@ export abstract class BreadcrumbsPicker {
 	protected readonly _treeContainer: HTMLDivElement;
 	protected readonly _tree: HighlightingWorkbenchTree;
 	protected readonly _focus: dom.IFocusTracker;
+	protected readonly _symbolSortOrder: BreadcrumbsConfig<'position' | 'name' | 'type'>;
 	private _layoutInfo: ILayoutInfo;
 
 	private readonly _onDidPickElement = new Emitter<{ target: any, payload: any }>();
@@ -88,14 +88,16 @@ export abstract class BreadcrumbsPicker {
 		this._treeContainer.style.boxShadow = `0px 5px 8px ${this._themeService.getTheme().getColor(widgetShadow)}`;
 		this._domNode.appendChild(this._treeContainer);
 
+		this._symbolSortOrder = BreadcrumbsConfig.SymbolSortOrder.bindTo(this._configurationService);
+
 		const filterConfig = BreadcrumbsConfig.FilterOnType.bindTo(this._configurationService);
 		this._disposables.push(filterConfig);
 
-		const treeConifg = this._completeTreeConfiguration({ dataSource: undefined, renderer: undefined, highlighter: undefined });
+		const treeConfig = this._completeTreeConfiguration({ dataSource: undefined, renderer: undefined, highlighter: undefined });
 		this._tree = this._instantiationService.createInstance(
 			HighlightingWorkbenchTree,
 			this._treeContainer,
-			treeConifg,
+			treeConfig,
 			<IHighlightingTreeOptions>{ useShadows: false, filterOnType: filterConfig.getValue(), showTwistie: false, twistiePixels: 12 },
 			{ placeholder: localize('placeholder', "Find") }
 		);
@@ -144,6 +146,7 @@ export abstract class BreadcrumbsPicker {
 		this._onDidPickElement.dispose();
 		this._tree.dispose();
 		this._focus.dispose();
+		this._symbolSortOrder.dispose();
 	}
 
 	setInput(input: any, maxHeight: number, width: number, arrowSize: number, arrowOffset: number): void {
@@ -156,7 +159,7 @@ export abstract class BreadcrumbsPicker {
 			// use proper selection, reveal
 			let selection = this._getInitialSelection(this._tree, input);
 			if (selection) {
-				return this._tree.reveal(selection, .5).then(() => {
+				return this._tree.reveal(selection, 0.5).then(() => {
 					this._tree.setSelection([selection], this._tree);
 					this._tree.setFocus(selection);
 					this._tree.domFocus();
@@ -224,7 +227,7 @@ export class FileDataSource implements IDataSource {
 		return URI.isUri(element) || IWorkspace.isIWorkspace(element) || IWorkspaceFolder.isIWorkspaceFolder(element) || element.isDirectory;
 	}
 
-	getChildren(tree: ITree, element: IWorkspace | IWorkspaceFolder | IFileStat | URI): TPromise<IWorkspaceFolder[] | IFileStat[]> {
+	getChildren(tree: ITree, element: IWorkspace | IWorkspaceFolder | IFileStat | URI): Promise<IWorkspaceFolder[] | IFileStat[]> {
 		if (IWorkspace.isIWorkspace(element)) {
 			return Promise.resolve(element.folders).then(folders => {
 				for (let child of folders) {
@@ -249,7 +252,7 @@ export class FileDataSource implements IDataSource {
 		});
 	}
 
-	getParent(tree: ITree, element: IWorkspace | URI | IWorkspaceFolder | IFileStat): TPromise<IWorkspaceFolder | IFileStat> {
+	getParent(tree: ITree, element: IWorkspace | URI | IWorkspaceFolder | IFileStat): Promise<IWorkspaceFolder | IFileStat> {
 		return Promise.resolve(this._parents.get(element));
 	}
 }
@@ -326,7 +329,7 @@ export class FileHighlighter implements IHighlighter {
 export class FileRenderer implements IRenderer {
 
 	constructor(
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		private readonly _labels: ResourceLabels,
 		@IConfigurationService private readonly _configService: IConfigurationService,
 	) { }
 
@@ -339,10 +342,10 @@ export class FileRenderer implements IRenderer {
 	}
 
 	renderTemplate(tree: ITree, templateId: string, container: HTMLElement) {
-		return this._instantiationService.createInstance(FileLabel, container, { supportHighlights: true });
+		return this._labels.create(container, { supportHighlights: true });
 	}
 
-	renderElement(tree: ITree, element: IFileStat | IWorkspaceFolder, templateId: string, templateData: FileLabel): void {
+	renderElement(tree: ITree, element: IFileStat | IWorkspaceFolder, templateId: string, templateData: IResourceLabel): void {
 		let fileDecorations = this._configService.getValue<{ colors: boolean, badges: boolean }>('explorer.decorations');
 		let resource: URI;
 		let fileKind: FileKind;
@@ -362,7 +365,7 @@ export class FileRenderer implements IRenderer {
 		});
 	}
 
-	disposeTemplate(tree: ITree, templateId: string, templateData: FileLabel): void {
+	disposeTemplate(tree: ITree, templateId: string, templateData: IResourceLabel): void {
 		templateData.dispose();
 	}
 }
@@ -424,7 +427,9 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 		this._disposables.push(filter);
 
 		config.dataSource = this._instantiationService.createInstance(FileDataSource);
-		config.renderer = this._instantiationService.createInstance(FileRenderer);
+		const labels = this._instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER /* TODO@Jo visibility propagation */);
+		this._disposables.push(labels);
+		config.renderer = this._instantiationService.createInstance(FileRenderer, labels);
 		config.sorter = new FileSorter();
 		config.highlighter = new FileHighlighter();
 		config.filter = filter;
@@ -464,7 +469,7 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 	protected _completeTreeConfiguration(config: IHighlightingTreeConfiguration): IHighlightingTreeConfiguration {
 		config.dataSource = this._instantiationService.createInstance(OutlineDataSource);
 		config.renderer = this._instantiationService.createInstance(OutlineRenderer);
-		config.sorter = new OutlineItemComparator();
+		config.sorter = new OutlineItemComparator(this._getOutlineItemComparator());
 		config.highlighter = new OutlineHighlighter();
 		return config;
 	}
@@ -475,6 +480,18 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 		}
 		if (element instanceof OutlineElement) {
 			return element;
+		}
+	}
+
+	private _getOutlineItemComparator(): OutlineItemCompareType {
+		switch (this._symbolSortOrder.getValue()) {
+			case 'name':
+				return OutlineItemCompareType.ByName;
+			case 'type':
+				return OutlineItemCompareType.ByKind;
+			case 'position':
+			default:
+				return OutlineItemCompareType.ByPosition;
 		}
 	}
 }

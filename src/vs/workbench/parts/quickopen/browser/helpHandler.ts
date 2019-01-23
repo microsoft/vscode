@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -62,11 +61,11 @@ export class HelpHandler extends QuickOpenHandler {
 
 	static readonly ID = 'workbench.picker.help';
 
-	constructor(@IQuickOpenService private quickOpenService: IQuickOpenService) {
+	constructor(@IQuickOpenService private readonly quickOpenService: IQuickOpenService) {
 		super();
 	}
 
-	getResults(searchValue: string, token: CancellationToken): TPromise<QuickOpenModel> {
+	getResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel> {
 		searchValue = searchValue.trim();
 
 		const registry = (Registry.as<IQuickOpenRegistry>(Extensions.Quickopen));
@@ -80,15 +79,13 @@ export class HelpHandler extends QuickOpenHandler {
 		const workbenchScoped: HelpEntry[] = [];
 		const editorScoped: HelpEntry[] = [];
 
-		const matchingHandlers: (QuickOpenHandlerHelpEntry | QuickOpenHandlerDescriptor)[] = [];
+		const matchingHandlers: Array<QuickOpenHandlerHelpEntry | QuickOpenHandlerDescriptor> = [];
 		handlerDescriptors.sort((h1, h2) => h1.prefix.localeCompare(h2.prefix)).forEach(handlerDescriptor => {
 			if (handlerDescriptor.prefix !== HELP_PREFIX) {
 
 				// Descriptor has multiple help entries
 				if (types.isArray(handlerDescriptor.helpEntries)) {
-					for (let j = 0; j < handlerDescriptor.helpEntries.length; j++) {
-						const helpEntry = handlerDescriptor.helpEntries[j];
-
+					for (const helpEntry of handlerDescriptor.helpEntries) {
 						if (helpEntry.prefix.indexOf(searchValue) === 0) {
 							matchingHandlers.push(helpEntry);
 						}
@@ -128,7 +125,7 @@ export class HelpHandler extends QuickOpenHandler {
 			}
 		}
 
-		return TPromise.as(new QuickOpenModel([...workbenchScoped, ...editorScoped]));
+		return Promise.resolve(new QuickOpenModel([...workbenchScoped, ...editorScoped]));
 	}
 
 	getAutoFocus(searchValue: string): IAutoFocus {

@@ -26,10 +26,10 @@ export interface IBestWindowOrFolderOptions<W extends ISimpleWindow> {
 	fileUri?: URI;
 	userHome?: string;
 	codeSettingsFolder?: string;
-	workspaceResolver: (workspace: IWorkspaceIdentifier) => IResolvedWorkspace;
+	workspaceResolver: (workspace: IWorkspaceIdentifier) => IResolvedWorkspace | null;
 }
 
-export function findBestWindowOrFolderForFile<W extends ISimpleWindow>({ windows, newWindow, reuseWindow, context, fileUri, workspaceResolver }: IBestWindowOrFolderOptions<W>): W {
+export function findBestWindowOrFolderForFile<W extends ISimpleWindow>({ windows, newWindow, reuseWindow, context, fileUri, workspaceResolver }: IBestWindowOrFolderOptions<W>): W | null {
 	if (!newWindow && fileUri && (context === OpenContext.DESKTOP || context === OpenContext.CLI || context === OpenContext.DOCK)) {
 		const windowOnFilePath = findWindowOnFilePath(windows, fileUri, workspaceResolver);
 		if (windowOnFilePath) {
@@ -39,13 +39,12 @@ export function findBestWindowOrFolderForFile<W extends ISimpleWindow>({ windows
 	return !newWindow ? getLastActiveWindow(windows) : null;
 }
 
-function findWindowOnFilePath<W extends ISimpleWindow>(windows: W[], fileUri: URI, workspaceResolver: (workspace: IWorkspaceIdentifier) => IResolvedWorkspace): W {
+function findWindowOnFilePath<W extends ISimpleWindow>(windows: W[], fileUri: URI, workspaceResolver: (workspace: IWorkspaceIdentifier) => IResolvedWorkspace | null): W | null {
 
 	// First check for windows with workspaces that have a parent folder of the provided path opened
 	const workspaceWindows = windows.filter(window => !!window.openedWorkspace);
-	for (let i = 0; i < workspaceWindows.length; i++) {
-		const window = workspaceWindows[i];
-		const resolvedWorkspace = workspaceResolver(window.openedWorkspace);
+	for (const window of workspaceWindows) {
+		const resolvedWorkspace = workspaceResolver(window.openedWorkspace!);
 		if (resolvedWorkspace && resolvedWorkspace.folders.some(folder => isEqualOrParent(fileUri, folder.uri))) {
 			return window;
 		}
@@ -54,7 +53,7 @@ function findWindowOnFilePath<W extends ISimpleWindow>(windows: W[], fileUri: UR
 	// Then go with single folder windows that are parent of the provided file path
 	const singleFolderWindowsOnFilePath = windows.filter(window => window.openedFolderUri && isEqualOrParent(fileUri, window.openedFolderUri));
 	if (singleFolderWindowsOnFilePath.length) {
-		return singleFolderWindowsOnFilePath.sort((a, b) => -(a.openedFolderUri.path.length - b.openedFolderUri.path.length))[0];
+		return singleFolderWindowsOnFilePath.sort((a, b) => -(a.openedFolderUri!.path.length - b.openedFolderUri!.path.length))[0];
 	}
 
 	return null;
@@ -66,7 +65,7 @@ export function getLastActiveWindow<W extends ISimpleWindow>(windows: W[]): W {
 	return windows.filter(window => window.lastFocusTime === lastFocusedDate)[0];
 }
 
-export function findWindowOnWorkspace<W extends ISimpleWindow>(windows: W[], workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)): W {
+export function findWindowOnWorkspace<W extends ISimpleWindow>(windows: W[], workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)): W | null {
 	if (isSingleFolderWorkspaceIdentifier(workspace)) {
 		for (const window of windows) {
 			// match on folder
@@ -87,17 +86,17 @@ export function findWindowOnWorkspace<W extends ISimpleWindow>(windows: W[], wor
 	return null;
 }
 
-export function findWindowOnExtensionDevelopmentPath<W extends ISimpleWindow>(windows: W[], extensionDevelopmentPath: string): W {
+export function findWindowOnExtensionDevelopmentPath<W extends ISimpleWindow>(windows: W[], extensionDevelopmentPath: string): W | null {
 	for (const window of windows) {
 		// match on extension development path. The path can be a path or uri string, using paths.isEqual is not 100% correct but good enough
-		if (paths.isEqual(window.extensionDevelopmentPath, extensionDevelopmentPath, !platform.isLinux /* ignorecase */)) {
+		if (window.extensionDevelopmentPath && paths.isEqual(window.extensionDevelopmentPath, extensionDevelopmentPath, !platform.isLinux /* ignorecase */)) {
 			return window;
 		}
 	}
 	return null;
 }
 
-export function findWindowOnWorkspaceOrFolderUri<W extends ISimpleWindow>(windows: W[], uri: URI): W {
+export function findWindowOnWorkspaceOrFolderUri<W extends ISimpleWindow>(windows: W[], uri: URI): W | null {
 	if (!uri) {
 		return null;
 	}

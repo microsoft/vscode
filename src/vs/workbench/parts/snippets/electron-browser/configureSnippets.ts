@@ -57,11 +57,13 @@ async function computePicks(snippetService: ISnippetsService, envService: IEnvir
 			outer: for (const snippet of file.data) {
 				for (const scope of snippet.scopes) {
 					const name = modeService.getLanguageName(scope);
-					if (names.size >= 4) {
-						names.add(`${name}...`);
-						break outer;
-					} else {
-						names.add(name);
+					if (name) {
+						if (names.size >= 4) {
+							names.add(`${name}...`);
+							break outer;
+						} else {
+							names.add(name);
+						}
 					}
 				}
 			}
@@ -158,6 +160,7 @@ async function createGlobalSnippetFile(defaultPath: URI, windowService: IWindowS
 	].join('\n'));
 
 	await opener.open(resource);
+	return undefined;
 }
 
 async function createLanguageSnippetFile(pick: ISnippetPick, fileService: IFileService) {
@@ -184,7 +187,7 @@ async function createLanguageSnippetFile(pick: ISnippetPick, fileService: IFileS
 	await fileService.updateContent(URI.file(pick.filepath), contents);
 }
 
-CommandsRegistry.registerCommand(id, async accessor => {
+CommandsRegistry.registerCommand(id, async (accessor): Promise<any> => {
 
 	const snippetService = accessor.get(ISnippetsService);
 	const quickInputService = accessor.get(IQuickInputService);
@@ -218,7 +221,7 @@ CommandsRegistry.registerCommand(id, async accessor => {
 		existing.push({ type: 'separator', label: nls.localize('new.global.sep', "New Snippets") });
 	}
 
-	const pick = await quickInputService.pick(<(IQuickPickItem | ISnippetPick | GlobalSnippetPick)[]>[].concat(existing, globalSnippetPicks, picks.future), {
+	const pick = await quickInputService.pick(([] as QuickPickInput[]).concat(existing, globalSnippetPicks, picks.future), {
 		placeHolder: nls.localize('openSnippet.pickLanguage', "Select Snippets File or Create Snippets"),
 		matchOnDescription: true
 	});

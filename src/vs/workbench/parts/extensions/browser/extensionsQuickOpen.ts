@@ -42,7 +42,7 @@ export class ExtensionsHandler extends QuickOpenHandler {
 
 	public static readonly ID = 'workbench.picker.extensions';
 
-	constructor(@IViewletService private viewletService: IViewletService) {
+	constructor(@IViewletService private readonly viewletService: IViewletService) {
 		super();
 	}
 
@@ -74,10 +74,10 @@ export class GalleryExtensionsHandler extends QuickOpenHandler {
 	public static readonly ID = 'workbench.picker.gallery';
 
 	constructor(
-		@IViewletService private viewletService: IViewletService,
-		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
-		@IExtensionManagementService private extensionsService: IExtensionManagementService,
-		@INotificationService private notificationService: INotificationService
+		@IViewletService private readonly viewletService: IViewletService,
+		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
+		@IExtensionManagementService private readonly extensionsService: IExtensionManagementService,
+		@INotificationService private readonly notificationService: INotificationService
 	) {
 		super();
 	}
@@ -100,7 +100,7 @@ export class GalleryExtensionsHandler extends QuickOpenHandler {
 								.then(viewlet => viewlet as IExtensionsViewlet)
 								.then(viewlet => viewlet.search(`@id:${text}`))
 								.then(() => this.extensionsService.installFromGallery(galleryExtension))
-								.then(null, err => this.notificationService.error(err));
+								.then(undefined, err => this.notificationService.error(err));
 						};
 
 						entries.push(new SimpleEntry(label, action));

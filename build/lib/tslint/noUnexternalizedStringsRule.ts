@@ -81,9 +81,16 @@ class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
 		}
 	}
 
+	private static IDENTIFIER = /^[_a-zA-Z0-9][ .\-_a-zA-Z0-9]*$/;
 	protected visitSourceFile(node: ts.SourceFile): void {
 		super.visitSourceFile(node);
 		Object.keys(this.usedKeys).forEach(key => {
+			// Keys are quoted.
+			let identifier = key.substr(1, key.length - 2);
+			if (!NoUnexternalizedStringsRuleWalker.IDENTIFIER.test(identifier)) {
+				let occurrence = this.usedKeys[key][0];
+				this.addFailure(this.createFailure(occurrence.key.getStart(), occurrence.key.getWidth(), `The key ${occurrence.key.getText()} doesn't conform to a valid localize identifier`));
+			}
 			const occurrences = this.usedKeys[key];
 			if (occurrences.length > 1) {
 				occurrences.forEach(occurrence => {
@@ -141,8 +148,7 @@ class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
 			if (isStringLiteral(keyArg)) {
 				this.recordKey(keyArg, this.messageIndex && callInfo ? callInfo.callExpression.arguments[this.messageIndex] : undefined);
 			} else if (isObjectLiteral(keyArg)) {
-				for (let i = 0; i < keyArg.properties.length; i++) {
-					const property = keyArg.properties[i];
+				for (const property of keyArg.properties) {
 					if (isPropertyAssignment(property)) {
 						const name = property.name.getText();
 						if (name === 'key') {

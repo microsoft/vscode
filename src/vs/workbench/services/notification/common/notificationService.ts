@@ -6,7 +6,7 @@
 import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice, IPromptOptions } from 'vs/platform/notification/common/notification';
 import { INotificationsModel, NotificationsModel, ChoiceAction } from 'vs/workbench/common/notifications';
 import { dispose, Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { once } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 
 export class NotificationService extends Disposable implements INotificationService {
 
@@ -63,8 +63,14 @@ export class NotificationService extends Disposable implements INotificationServ
 		choices.forEach((choice, index) => {
 			const action = new ChoiceAction(`workbench.dialog.choice.${index}`, choice);
 			if (!choice.isSecondary) {
+				if (!actions.primary) {
+					actions.primary = [];
+				}
 				actions.primary.push(action);
 			} else {
+				if (!actions.secondary) {
+					actions.secondary = [];
+				}
 				actions.secondary.push(action);
 			}
 
@@ -82,9 +88,9 @@ export class NotificationService extends Disposable implements INotificationServ
 		});
 
 		// Show notification with actions
-		handle = this.notify({ severity, message, actions, sticky: options && options.sticky });
+		handle = this.notify({ severity, message, actions, sticky: options && options.sticky, silent: options && options.silent });
 
-		once(handle.onDidClose)(() => {
+		Event.once(handle.onDidClose)(() => {
 
 			// Cleanup when notification gets disposed
 			dispose(toDispose);

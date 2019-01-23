@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { SimpleConfigurationService, SimpleNotificationService, StandaloneCommandService, StandaloneKeybindingService } from 'vs/editor/standalone/browser/simpleServices';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
-import { SimpleConfigurationService, StandaloneKeybindingService, StandaloneCommandService, SimpleNotificationService } from 'vs/editor/standalone/browser/simpleServices';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { KeyCode } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 
@@ -15,7 +15,7 @@ suite('StandaloneKeybindingService', () => {
 
 	class TestStandaloneKeybindingService extends StandaloneKeybindingService {
 		public testDispatch(e: IKeyboardEvent): void {
-			super._dispatch(e, null);
+			super._dispatch(e, null!);
 		}
 	}
 
@@ -47,7 +47,7 @@ suite('StandaloneKeybindingService', () => {
 			altKey: false,
 			metaKey: false,
 			keyCode: KeyCode.F9,
-			code: null
+			code: null!
 		});
 
 		assert.ok(commandInvoked, 'command invoked');

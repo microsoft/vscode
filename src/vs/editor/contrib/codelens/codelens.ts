@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { illegalArgument, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { mergeSort } from 'vs/base/common/arrays';
-import { URI } from 'vs/base/common/uri';
-import { ITextModel } from 'vs/editor/common/model';
-import { registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
-import { CodeLensProviderRegistry, CodeLensProvider, ICodeLensSymbol } from 'vs/editor/common/modes';
-import { IModelService } from 'vs/editor/common/services/modelService';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { illegalArgument, onUnexpectedExternalError } from 'vs/base/common/errors';
+import { URI } from 'vs/base/common/uri';
+import { registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
+import { ITextModel } from 'vs/editor/common/model';
+import { CodeLensProvider, CodeLensProviderRegistry, ICodeLensSymbol } from 'vs/editor/common/modes';
+import { IModelService } from 'vs/editor/common/services/modelService';
 
 export interface ICodeLensData {
 	symbol: ICodeLensSymbol;
@@ -68,13 +68,13 @@ registerLanguageCommand('_executeCodeLensProvider', function (accessor, args) {
 	const result: ICodeLensSymbol[] = [];
 	return getCodeLensData(model, CancellationToken.None).then(value => {
 
-		let resolve: Thenable<any>[] = [];
+		let resolve: Promise<any>[] = [];
 
 		for (const item of value) {
 			if (typeof itemResolveCount === 'undefined' || Boolean(item.symbol.command)) {
 				result.push(item.symbol);
-			} else if (itemResolveCount-- > 0) {
-				resolve.push(Promise.resolve(item.provider.resolveCodeLens(model, item.symbol, CancellationToken.None)).then(symbol => result.push(symbol)));
+			} else if (itemResolveCount-- > 0 && item.provider.resolveCodeLens) {
+				resolve.push(Promise.resolve(item.provider.resolveCodeLens(model, item.symbol, CancellationToken.None)).then(symbol => result.push(symbol || item.symbol)));
 			}
 		}
 

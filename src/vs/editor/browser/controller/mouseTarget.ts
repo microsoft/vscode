@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as browser from 'vs/base/browser/browser';
+import { IPointerHandlerHelper } from 'vs/editor/browser/controller/mouseHandler';
+import { IMouseTarget, MouseTargetType } from 'vs/editor/browser/editorBrowser';
+import { ClientCoordinates, EditorMouseEvent, EditorPagePosition, PageCoordinates } from 'vs/editor/browser/editorDom';
+import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
+import { ViewLine } from 'vs/editor/browser/viewParts/lines/viewLine';
+import { IViewCursorRenderData } from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
+import { EditorLayoutInfo } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range as EditorRange } from 'vs/editor/common/core/range';
-import { MouseTargetType, IMouseTarget } from 'vs/editor/browser/editorBrowser';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { IPointerHandlerHelper } from 'vs/editor/browser/controller/mouseHandler';
-import { EditorMouseEvent, PageCoordinates, ClientCoordinates, EditorPagePosition } from 'vs/editor/browser/editorDom';
-import * as browser from 'vs/base/browser/browser';
-import { IViewCursorRenderData } from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
-import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
-import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
-import { EditorLayoutInfo } from 'vs/editor/common/config/editorOptions';
-import { ViewLine } from 'vs/editor/browser/viewParts/lines/viewLine';
 import { HorizontalRange } from 'vs/editor/common/view/renderingContext';
+import { ViewContext } from 'vs/editor/common/view/viewContext';
+import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 
 export interface IViewZoneData {
 	viewZoneId: number;
@@ -539,8 +539,7 @@ export class MouseTargetFactory {
 			// Check if we've hit a painted cursor
 			const lastViewCursorsRenderData = ctx.lastViewCursorsRenderData;
 
-			for (let i = 0, len = lastViewCursorsRenderData.length; i < len; i++) {
-				const d = lastViewCursorsRenderData[i];
+			for (const d of lastViewCursorsRenderData) {
 
 				if (request.target === d.domNode) {
 					return request.fulfill(MouseTargetType.CONTENT_TEXT, d.position);
@@ -558,8 +557,7 @@ export class MouseTargetFactory {
 			const mouseContentHorizontalOffset = request.mouseContentHorizontalOffset;
 			const mouseVerticalOffset = request.mouseVerticalOffset;
 
-			for (let i = 0, len = lastViewCursorsRenderData.length; i < len; i++) {
-				const d = lastViewCursorsRenderData[i];
+			for (const d of lastViewCursorsRenderData) {
 
 				if (mouseContentHorizontalOffset < d.contentLeft) {
 					// mouse position is to the left of the cursor
@@ -645,7 +643,7 @@ export class MouseTargetFactory {
 			// This most likely indicates it happened after the last view-line
 			const lineCount = ctx.model.getLineCount();
 			const maxLineColumn = ctx.model.getLineMaxColumn(lineCount);
-			return request.fulfill(MouseTargetType.CONTENT_EMPTY, new Position(lineCount, maxLineColumn), void 0, EMPTY_CONTENT_AFTER_LINES);
+			return request.fulfill(MouseTargetType.CONTENT_EMPTY, new Position(lineCount, maxLineColumn), undefined, EMPTY_CONTENT_AFTER_LINES);
 		}
 
 		if (domHitTestExecuted) {
@@ -656,7 +654,7 @@ export class MouseTargetFactory {
 				if (ctx.model.getLineLength(lineNumber) === 0) {
 					const lineWidth = ctx.getLineWidth(lineNumber);
 					const detail = createEmptyContentDataInLines(request.mouseContentHorizontalOffset - lineWidth);
-					return request.fulfill(MouseTargetType.CONTENT_EMPTY, new Position(lineNumber, 1), void 0, detail);
+					return request.fulfill(MouseTargetType.CONTENT_EMPTY, new Position(lineNumber, 1), undefined, detail);
 				}
 			}
 
@@ -731,10 +729,10 @@ export class MouseTargetFactory {
 			if (browser.isEdge && pos.column === 1) {
 				// See https://github.com/Microsoft/vscode/issues/10875
 				const detail = createEmptyContentDataInLines(request.mouseContentHorizontalOffset - lineWidth);
-				return request.fulfill(MouseTargetType.CONTENT_EMPTY, new Position(lineNumber, ctx.model.getLineMaxColumn(lineNumber)), void 0, detail);
+				return request.fulfill(MouseTargetType.CONTENT_EMPTY, new Position(lineNumber, ctx.model.getLineMaxColumn(lineNumber)), undefined, detail);
 			}
 			const detail = createEmptyContentDataInLines(request.mouseContentHorizontalOffset - lineWidth);
-			return request.fulfill(MouseTargetType.CONTENT_EMPTY, pos, void 0, detail);
+			return request.fulfill(MouseTargetType.CONTENT_EMPTY, pos, undefined, detail);
 		}
 
 		const visibleRange = ctx.visibleRangeForPosition2(lineNumber, column);

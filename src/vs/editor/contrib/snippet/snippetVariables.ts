@@ -8,6 +8,7 @@ import { basename, dirname } from 'vs/base/common/paths';
 import { ITextModel } from 'vs/editor/common/model';
 import { Selection } from 'vs/editor/common/core/selection';
 import { VariableResolver, Variable, Text } from 'vs/editor/contrib/snippet/snippetParser';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { getLeadingWhitespace, commonPrefixLength, isFalsyOrWhitespace, pad } from 'vs/base/common/strings';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
@@ -34,6 +35,9 @@ export const KnownSnippetVariableNames = Object.freeze({
 	'TM_FILENAME_BASE': true,
 	'TM_DIRECTORY': true,
 	'TM_FILEPATH': true,
+	'BLOCK_COMMENT_START': true,
+	'BLOCK_COMMENT_END': true,
+	'LINE_COMMENT': true,
 });
 
 export class CompositeSnippetVariableResolver implements VariableResolver {
@@ -45,7 +49,7 @@ export class CompositeSnippetVariableResolver implements VariableResolver {
 	resolve(variable: Variable): string | undefined {
 		for (const delegate of this._delegates) {
 			let value = delegate.resolve(variable);
-			if (value !== void 0) {
+			if (value !== undefined) {
 				return value;
 			}
 		}
@@ -68,7 +72,7 @@ export class SelectionBasedVariableResolver implements VariableResolver {
 
 		if (name === 'SELECTION' || name === 'TM_SELECTED_TEXT') {
 			let value = this._model.getValueInRange(this._selection) || undefined;
-			if (value && this._selection.startLineNumber !== this._selection.endLineNumber) {
+			if (value && this._selection.startLineNumber !== this._selection.endLineNumber && variable.snippet) {
 				// Selection is a multiline string which we indentation we now
 				// need to adjust. We compare the indentation of this variable
 				// with the indentation at the editor position and add potential
@@ -83,7 +87,7 @@ export class SelectionBasedVariableResolver implements VariableResolver {
 						return false;
 					}
 					if (marker instanceof Text) {
-						varLeadingWhitespace = getLeadingWhitespace(marker.value.split(/\r\n|\r|\n/).pop());
+						varLeadingWhitespace = getLeadingWhitespace(marker.value.split(/\r\n|\r|\n/).pop()!);
 					}
 					return true;
 				});
@@ -180,7 +184,29 @@ export class ClipboardBasedVariableResolver implements VariableResolver {
 		}
 	}
 }
-
+export class CommentBasedVariableResolver implements VariableResolver {
+	constructor(
+		private readonly _model: ITextModel
+	) {
+		//
+	}
+	resolve(variable: Variable): string | undefined {
+		const { name } = variable;
+		const language = this._model.getLanguageIdentifier();
+		const config = LanguageConfigurationRegistry.getComments(language.id);
+		if (!config) {
+			return undefined;
+		}
+		if (name === 'LINE_COMMENT') {
+			return config.lineCommentToken || undefined;
+		} else if (name === 'BLOCK_COMMENT_START') {
+			return config.blockCommentStartToken || undefined;
+		} else if (name === 'BLOCK_COMMENT_END') {
+			return config.blockCommentEndToken || undefined;
+		}
+		return undefined;
+	}
+}
 export class TimeBasedVariableResolver implements VariableResolver {
 
 	private static readonly dayNames = [nls.localize('Sunday', "Sunday"), nls.localize('Monday', "Monday"), nls.localize('Tuesday', "Tuesday"), nls.localize('Wednesday', "Wednesday"), nls.localize('Thursday', "Thursday"), nls.localize('Friday', "Friday"), nls.localize('Saturday', "Saturday")];

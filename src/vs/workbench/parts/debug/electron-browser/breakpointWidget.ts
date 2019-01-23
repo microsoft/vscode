@@ -6,10 +6,10 @@
 import 'vs/css!../browser/media/breakpointWidget';
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
+import { SelectBox, ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
-import { Position } from 'vs/editor/common/core/position';
+import { Position, IPosition } from 'vs/editor/common/core/position';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/zoneWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -34,7 +34,7 @@ import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { getSimpleCodeEditorWidgetOptions } from 'vs/workbench/parts/codeEditor/electron-browser/simpleEditorOptions';
 import { getSimpleEditorOptions } from 'vs/workbench/parts/codeEditor/browser/simpleEditorOptions';
-import { Range } from 'vs/editor/common/core/range';
+import { IRange, Range } from 'vs/editor/common/core/range';
 
 const $ = dom.$;
 const IPrivateBreakpointWidgetService = createDecorator<IPrivateBreakpointWidgetService>('privateBreakopintWidgetService');
@@ -56,13 +56,13 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 	private breakpoint: IBreakpoint;
 
 	constructor(editor: ICodeEditor, private lineNumber: number, private context: Context,
-		@IContextViewService private contextViewService: IContextViewService,
-		@IDebugService private debugService: IDebugService,
-		@IThemeService private themeService: IThemeService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IModelService private modelService: IModelService,
-		@ICodeEditorService private codeEditorService: ICodeEditorService,
+		@IContextViewService private readonly contextViewService: IContextViewService,
+		@IDebugService private readonly debugService: IDebugService,
+		@IThemeService private readonly themeService: IThemeService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IModelService private readonly modelService: IModelService,
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 	) {
 		super(editor, { showFrame: true, showArrow: false, frameWidth: 1 });
 
@@ -127,9 +127,19 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		}
 	}
 
+	public show(rangeOrPos: IRange | IPosition, heightInLines: number) {
+		const lineNum = this.input.getModel().getLineCount();
+		super.show(rangeOrPos, lineNum + 1);
+	}
+
+	public fitHeightToContent() {
+		const lineNum = this.input.getModel().getLineCount();
+		this._relayout(lineNum + 1);
+	}
+
 	protected _fillContainer(container: HTMLElement): void {
 		this.setCssClass('breakpoint-widget');
-		const selectBox = new SelectBox([nls.localize('expression', "Expression"), nls.localize('hitCount', "Hit Count"), nls.localize('logMessage', "Log Message")], this.context, this.contextViewService, null, { ariaLabel: nls.localize('breakpointType', 'Breakpoint Type') });
+		const selectBox = new SelectBox(<ISelectOptionItem[]>[{ text: nls.localize('expression', "Expression") }, { text: nls.localize('hitCount', "Hit Count") }, { text: nls.localize('logMessage', "Log Message") }], this.context, this.contextViewService, null, { ariaLabel: nls.localize('breakpointType', 'Breakpoint Type') });
 		this.toDispose.push(attachSelectBoxStyler(selectBox, this.themeService));
 		this.selectContainer = $('.breakpoint-select-container');
 		selectBox.render(dom.append(container, this.selectContainer));
@@ -144,6 +154,9 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		this.createBreakpointInput(dom.append(container, $('.inputContainer')));
 
 		this.input.getModel().setValue(this.getInputValue(this.breakpoint));
+		this.toDispose.push(this.input.getModel().onDidChangeContent(() => {
+			this.fitHeightToContent();
+		}));
 		this.input.setPosition({ lineNumber: 1, column: this.input.getModel().getLineMaxColumn(1) });
 		// Due to an electron bug we have to do the timeout, otherwise we do not get focus
 		setTimeout(() => this.input.focus(), 100);
@@ -183,7 +196,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 					condition,
 					hitCondition,
 					logMessage
-				}]);
+				}], `breakpointWidget`);
 			}
 		}
 
@@ -191,7 +204,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 	}
 
 	protected _doLayout(heightInPixel: number, widthInPixel: number): void {
-		this.input.layout({ height: 18, width: widthInPixel - 113 });
+		this.input.layout({ height: heightInPixel, width: widthInPixel - 113 });
 	}
 
 	private createBreakpointInput(container: HTMLElement): void {
@@ -217,7 +230,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		this.themeService.onThemeChange(() => setDecorations());
 
 		this.toDispose.push(CompletionProviderRegistry.register({ scheme: DEBUG_SCHEME, hasAccessToAllModels: true }, {
-			provideCompletionItems: (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken): Thenable<CompletionList> => {
+			provideCompletionItems: (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken): Promise<CompletionList> => {
 				let suggestionsPromise: Promise<CompletionList>;
 				if (this.context === Context.CONDITION || this.context === Context.LOG_MESSAGE && this.isCurlyBracketOpen()) {
 					suggestionsPromise = provideSuggestionItems(this.editor.getModel(), new Position(this.lineNumber, 1), 'none', undefined, _context, token).then(suggestions => {
@@ -235,8 +248,8 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 
 						return {
 							suggestions: suggestions.map(s => {
-								s.suggestion.range = Range.fromPositions(position.delta(0, -overwriteBefore), position);
-								return s.suggestion;
+								s.completion.range = Range.fromPositions(position.delta(0, -overwriteBefore), position);
+								return s.completion;
 							})
 						};
 					});

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
 import { append, $, addClass, removeClass, toggleClass } from 'vs/base/browser/dom';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Action } from 'vs/base/common/actions';
@@ -11,20 +10,19 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
-import { once, Emitter, Event } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
-import { IExtension, IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
-import { InstallAction, UpdateAction, ManageExtensionAction, ReloadAction, extensionButtonProminentBackground, extensionButtonProminentForeground, MaliciousStatusLabelAction, DisabledStatusLabelAction, ExtensionActionItem } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
+import { IExtension, IExtensionsWorkbenchService, ExtensionContainers } from 'vs/workbench/parts/extensions/common/extensions';
+import { InstallAction, UpdateAction, ManageExtensionAction, ReloadAction, MaliciousStatusLabelAction, ExtensionActionItem } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { Label, RatingsWidget, InstallCountWidget } from 'vs/workbench/parts/extensions/browser/extensionsWidgets';
+import { Label, RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteBadgeWidget } from 'vs/workbench/parts/extensions/electron-browser/extensionsWidgets';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IExtensionTipsService, IExtensionManagementServerService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IExtensionManagementServerService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 
-export interface IExtensionWithFocus extends IExtension {
-	onDidFocusChange?: Event<boolean>;
-	onFocusChangeEventEmitter?: Emitter<boolean>;
+export interface IExtensionsViewState {
+	onFocus: Event<IExtension>;
+	onBlur: Event<IExtension>;
 }
 
 export interface ITemplateData {
@@ -52,31 +50,22 @@ const actionOptions = { icon: true, label: true, tabOnlyOnFocus: true };
 export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 	constructor(
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@INotificationService private notificationService: INotificationService,
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IExtensionService private extensionService: IExtensionService,
-		@IExtensionTipsService private extensionTipsService: IExtensionTipsService,
-		@IThemeService private themeService: IThemeService,
-		@IExtensionManagementServerService private extensionManagementServerService: IExtensionManagementServerService
+		private extensionViewState: IExtensionsViewState,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService
 	) { }
 
 	get templateId() { return 'extension'; }
 
 	renderTemplate(root: HTMLElement): ITemplateData {
-		const bookmark = append(root, $('span.bookmark'));
-		append(bookmark, $('span.octicon.octicon-star'));
-		const applyBookmarkStyle = (theme) => {
-			const bgColor = theme.getColor(extensionButtonProminentBackground);
-			const fgColor = theme.getColor(extensionButtonProminentForeground);
-			bookmark.style.borderTopColor = bgColor ? bgColor.toString() : 'transparent';
-			bookmark.style.color = fgColor ? fgColor.toString() : 'white';
-		};
-		applyBookmarkStyle(this.themeService.getTheme());
-		const bookmarkStyler = this.themeService.onThemeChange(applyBookmarkStyle.bind(this));
-
+		const recommendationWidget = this.instantiationService.createInstance(RecommendationWidget, root);
 		const element = append(root, $('.extension'));
-		const icon = append(element, $<HTMLImageElement>('img.icon'));
+		const iconContainer = append(element, $('.icon-container'));
+		const icon = append(iconContainer, $<HTMLImageElement>('img.icon'));
+		const badgeWidget = this.instantiationService.createInstance(RemoteBadgeWidget, iconContainer);
 		const details = append(element, $('.details'));
 		const headerContainer = append(details, $('.header-container'));
 		const header = append(headerContainer, $('.header'));
@@ -91,40 +80,37 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			animated: false,
 			actionItemProvider: (action: Action) => {
 				if (action.id === ManageExtensionAction.ID) {
-					return (<ManageExtensionAction>action).actionItem;
+					return (<ManageExtensionAction>action).createActionItem();
 				}
 				return new ExtensionActionItem(null, action, actionOptions);
 			}
 		});
 		actionbar.onDidRun(({ error }) => error && this.notificationService.error(error));
 
-		const versionWidget = this.instantiationService.createInstance(Label, version, (e: IExtension) => e.version);
-		const installCountWidget = this.instantiationService.createInstance(InstallCountWidget, installCount, { small: true });
-		const ratingsWidget = this.instantiationService.createInstance(RatingsWidget, ratings, { small: true });
+		const widgets = [
+			recommendationWidget,
+			badgeWidget,
+			this.instantiationService.createInstance(Label, version, (e: IExtension) => e.version),
+			this.instantiationService.createInstance(InstallCountWidget, installCount, true),
+			this.instantiationService.createInstance(RatingsWidget, ratings, true)
+		];
+		const actions = [
+			this.instantiationService.createInstance(UpdateAction),
+			this.instantiationService.createInstance(ReloadAction),
+			this.instantiationService.createInstance(InstallAction),
+			this.instantiationService.createInstance(MaliciousStatusLabelAction, false),
+			this.instantiationService.createInstance(ManageExtensionAction)
+		];
+		const extensionContainers: ExtensionContainers = this.instantiationService.createInstance(ExtensionContainers, [...actions, ...widgets]);
 
-		const maliciousStatusAction = this.instantiationService.createInstance(MaliciousStatusLabelAction, false);
-		const disabledStatusAction = this.instantiationService.createInstance(DisabledStatusLabelAction);
-		const installAction = this.instantiationService.createInstance(InstallAction);
-		const updateAction = this.instantiationService.createInstance(UpdateAction);
-		const reloadAction = this.instantiationService.createInstance(ReloadAction, false);
-		const manageAction = this.instantiationService.createInstance(ManageExtensionAction);
-
-		actionbar.push([updateAction, reloadAction, installAction, disabledStatusAction, maliciousStatusAction, manageAction], actionOptions);
-		const disposables = [versionWidget, installCountWidget, ratingsWidget, maliciousStatusAction, disabledStatusAction, updateAction, installAction, reloadAction, manageAction, actionbar, bookmarkStyler];
+		actionbar.push(actions, actionOptions);
+		const disposables = [...actions, ...widgets, actionbar, extensionContainers];
 
 		return {
 			root, element, icon, name, installCount, ratings, author, description, disposables, actionbar,
 			extensionDisposables: [],
 			set extension(extension: IExtension) {
-				versionWidget.extension = extension;
-				installCountWidget.extension = extension;
-				ratingsWidget.extension = extension;
-				maliciousStatusAction.extension = extension;
-				disabledStatusAction.extension = extension;
-				installAction.extension = extension;
-				updateAction.extension = extension;
-				reloadAction.extension = extension;
-				manageAction.extension = extension;
+				extensionContainers.extension = extension;
 			}
 		};
 	}
@@ -143,23 +129,35 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		data.extension = null;
 	}
 
-	renderElement(extension: IExtensionWithFocus, index: number, data: ITemplateData): void {
+	renderElement(extension: IExtension, index: number, data: ITemplateData): void {
 		removeClass(data.element, 'loading');
 
 		data.extensionDisposables = dispose(data.extensionDisposables);
-		const installed = this.extensionsWorkbenchService.local.filter(e => e.id === extension.id)[0];
 
-		this.extensionService.getExtensions().then(runningExtensions => {
+		const updateEnablement = async () => {
+			const runningExtensions = await this.extensionService.getExtensions();
+			const installed = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, extension.identifier))[0];
 			if (installed && installed.local) {
 				const installedExtensionServer = this.extensionManagementServerService.getExtensionManagementServer(installed.local.location);
-				const isSameExtensionRunning = runningExtensions.some(e => areSameExtensions(e, extension) && installedExtensionServer.authority === this.extensionManagementServerService.getExtensionManagementServer(e.extensionLocation).authority);
+				const isSameExtensionRunning = runningExtensions.some(e => {
+					if (!areSameExtensions({ id: e.identifier.value }, extension.identifier)) {
+						return false;
+					}
+					const runningExtensionServer = this.extensionManagementServerService.getExtensionManagementServer(e.extensionLocation);
+					if (!installedExtensionServer || !runningExtensionServer) {
+						return false;
+					}
+					return installedExtensionServer.authority === runningExtensionServer.authority;
+				});
 				toggleClass(data.root, 'disabled', !isSameExtensionRunning);
 			} else {
 				removeClass(data.root, 'disabled');
 			}
-		});
+		};
+		updateEnablement();
+		this.extensionService.onDidChangeExtensions(() => updateEnablement(), this, data.extensionDisposables);
 
-		const onError = once(domEvent(data.icon, 'error'));
+		const onError = Event.once(domEvent(data.icon, 'error'));
 		onError(() => data.icon.src = extension.iconUrlFallback, null, data.extensionDisposables);
 		data.icon.src = extension.iconUrl;
 
@@ -169,13 +167,6 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		} else {
 			data.icon.style.visibility = 'inherit';
 		}
-
-		this.updateRecommendationStatus(extension, data);
-		data.extensionDisposables.push(this.extensionTipsService.onRecommendationChange(change => {
-			if (change.extensionId.toLowerCase() === extension.id.toLowerCase()) {
-				this.updateRecommendationStatus(extension, data);
-			}
-		}));
 
 		data.name.textContent = extension.displayName;
 		data.author.textContent = extension.publisherDisplayName;
@@ -188,35 +179,17 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			data.description.textContent = extension.gallery.properties.localizedLanguages.map(name => name[0].toLocaleUpperCase() + name.slice(1)).join(', ');
 		}
 
-		if (extension.onDidFocusChange) {
-			data.extensionDisposables.push(extension.onDidFocusChange(hasFocus => {
-				data.actionbar.items.forEach(item => {
-					(<ExtensionActionItem>item).setFocus(hasFocus);
-				});
-			}));
-		}
-	}
+		this.extensionViewState.onFocus(e => {
+			if (areSameExtensions(extension.identifier, e.identifier)) {
+				data.actionbar.items.forEach(item => (<ExtensionActionItem>item).setFocus(true));
+			}
+		}, this, data.extensionDisposables);
 
-	disposeElement(): void {
-		// noop
-	}
-
-	private updateRecommendationStatus(extension: IExtension, data: ITemplateData) {
-		const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
-		let ariaLabel = extension.displayName + '. ';
-
-		if (!extRecommendations[extension.id.toLowerCase()]) {
-			removeClass(data.root, 'recommended');
-			data.root.title = '';
-		} else {
-			addClass(data.root, 'recommended');
-			ariaLabel += extRecommendations[extension.id.toLowerCase()].reasonText + ' ';
-			data.root.title = extRecommendations[extension.id.toLowerCase()].reasonText;
-		}
-
-		ariaLabel += localize('viewExtensionDetailsAria', "Press enter for extension details.");
-		data.root.setAttribute('aria-label', ariaLabel);
-
+		this.extensionViewState.onBlur(e => {
+			if (areSameExtensions(extension.identifier, e.identifier)) {
+				data.actionbar.items.forEach(item => (<ExtensionActionItem>item).setFocus(false));
+			}
+		}, this, data.extensionDisposables);
 	}
 
 	disposeTemplate(data: ITemplateData): void {

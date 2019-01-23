@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as paths from 'vs/base/common/paths';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { URI } from 'vs/base/common/uri';
@@ -27,10 +26,18 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { timeout } from 'vs/base/common/async';
 
 export class TestEditorControl extends BaseEditor {
 
 	constructor(@ITelemetryService telemetryService: ITelemetryService) { super('MyTestEditorForEditorService', NullTelemetryService, new TestThemeService(), new TestStorageService()); }
+
+	setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
+		super.setInput(input, options, token);
+
+		return input.resolve().then(() => undefined);
+	}
 
 	getId(): string { return 'MyTestEditorForEditorService'; }
 	layout(): void { }
@@ -39,16 +46,20 @@ export class TestEditorControl extends BaseEditor {
 
 export class TestEditorInput extends EditorInput implements IFileEditorInput {
 	public gotDisposed: boolean;
+	private fails: boolean;
 	constructor(private resource: URI) { super(); }
 
 	getTypeId() { return 'testEditorInputForEditorService'; }
-	resolve(): TPromise<IEditorModel> { return null; }
+	resolve(): Promise<IEditorModel> { return !this.fails ? Promise.resolve(null) : Promise.reject(new Error('fails')); }
 	matches(other: TestEditorInput): boolean { return other && other.resource && this.resource.toString() === other.resource.toString() && other instanceof TestEditorInput; }
 	setEncoding(encoding: string) { }
 	getEncoding(): string { return null; }
 	setPreferredEncoding(encoding: string) { }
 	getResource(): URI { return this.resource; }
 	setForceOpenAsBinary(): void { }
+	setFailToOpen(): void {
+		this.fails = true;
+	}
 	dispose(): void {
 		super.dispose();
 		this.gotDisposed = true;
@@ -92,41 +103,45 @@ suite('Editor service', () => {
 			didCloseEditorListenerCounter++;
 		});
 
-		// Open input
-		return service.openEditor(input, { pinned: true }).then(editor => {
-			assert.ok(editor instanceof TestEditorControl);
-			assert.equal(editor, service.activeControl);
-			assert.equal(input, service.activeEditor);
-			assert.equal(service.visibleControls.length, 1);
-			assert.equal(service.visibleControls[0], editor);
-			assert.ok(!service.activeTextEditorWidget);
-			assert.equal(service.visibleTextEditorWidgets.length, 0);
-			assert.equal(service.isOpen(input), true);
-			assert.equal(service.getOpened({ resource: input.getResource() }), input);
-			assert.equal(service.isOpen(input, part.activeGroup), true);
-			assert.equal(activeEditorChangeEventCounter, 1);
-			assert.equal(visibleEditorChangeEventCounter, 1);
+		return part.whenRestored.then(() => {
 
-			// Close input
-			editor.group.closeEditor(input);
-			assert.equal(didCloseEditorListenerCounter, 1);
-			assert.equal(activeEditorChangeEventCounter, 2);
-			assert.equal(visibleEditorChangeEventCounter, 2);
-			assert.ok(input.gotDisposed);
-
-			// Open again 2 inputs
+			// Open input
 			return service.openEditor(input, { pinned: true }).then(editor => {
-				return service.openEditor(otherInput, { pinned: true }).then(editor => {
-					assert.equal(service.visibleControls.length, 1);
-					assert.equal(service.isOpen(input), true);
-					assert.equal(service.isOpen(otherInput), true);
+				assert.ok(editor instanceof TestEditorControl);
+				assert.equal(editor, service.activeControl);
+				assert.equal(input, service.activeEditor);
+				assert.equal(service.visibleControls.length, 1);
+				assert.equal(service.visibleControls[0], editor);
+				assert.ok(!service.activeTextEditorWidget);
+				assert.equal(service.visibleTextEditorWidgets.length, 0);
+				assert.equal(service.isOpen(input), true);
+				assert.equal(service.getOpened({ resource: input.getResource() }), input);
+				assert.equal(service.isOpen(input, part.activeGroup), true);
+				assert.equal(activeEditorChangeEventCounter, 1);
+				assert.equal(visibleEditorChangeEventCounter, 1);
 
-					assert.equal(activeEditorChangeEventCounter, 4);
-					assert.equal(visibleEditorChangeEventCounter, 4);
+				// Close input
+				return editor.group.closeEditor(input).then(() => {
+					assert.equal(didCloseEditorListenerCounter, 1);
+					assert.equal(activeEditorChangeEventCounter, 2);
+					assert.equal(visibleEditorChangeEventCounter, 2);
+					assert.ok(input.gotDisposed);
 
-					activeEditorChangeListener.dispose();
-					visibleEditorChangeListener.dispose();
-					didCloseEditorListener.dispose();
+					// Open again 2 inputs
+					return service.openEditor(input, { pinned: true }).then(editor => {
+						return service.openEditor(otherInput, { pinned: true }).then(editor => {
+							assert.equal(service.visibleControls.length, 1);
+							assert.equal(service.isOpen(input), true);
+							assert.equal(service.isOpen(otherInput), true);
+
+							assert.equal(activeEditorChangeEventCounter, 4);
+							assert.equal(visibleEditorChangeEventCounter, 4);
+
+							activeEditorChangeListener.dispose();
+							visibleEditorChangeListener.dispose();
+							didCloseEditorListener.dispose();
+						});
+					});
 				});
 			});
 		});
@@ -147,13 +162,16 @@ suite('Editor service', () => {
 		const otherInput = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2-openEditors'));
 		const replaceInput = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource3-openEditors'));
 
-		// Open editors
-		return service.openEditors([{ editor: input }, { editor: otherInput }]).then(() => {
-			assert.equal(part.activeGroup.count, 2);
+		return part.whenRestored.then(() => {
 
-			return service.replaceEditors([{ editor: input, replacement: replaceInput }], part.activeGroup).then(() => {
+			// Open editors
+			return service.openEditors([{ editor: input }, { editor: otherInput }]).then(() => {
 				assert.equal(part.activeGroup.count, 2);
-				assert.equal(part.activeGroup.getIndexOfEditor(replaceInput), 0);
+
+				return service.replaceEditors([{ editor: input, replacement: replaceInput }], part.activeGroup).then(() => {
+					assert.equal(part.activeGroup.count, 2);
+					assert.equal(part.activeGroup.getIndexOfEditor(replaceInput), 0);
+				});
 			});
 		});
 	});
@@ -264,7 +282,7 @@ suite('Editor service', () => {
 
 			done();
 
-			return TPromise.as(ed);
+			return Promise.resolve(ed);
 		});
 
 		delegate.openEditor(inp);
@@ -286,20 +304,23 @@ suite('Editor service', () => {
 		const rootGroup = part.activeGroup;
 		const rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
 
-		// Open input
-		return service.openEditor(input, { pinned: true }).then(editor => {
-			return service.openEditor(input, { pinned: true }, rightGroup).then(editor => {
-				const editors = service.editors;
-				assert.equal(editors.length, 2);
-				assert.equal(editors[0], input);
-				assert.equal(editors[1], input);
+		return part.whenRestored.then(() => {
 
-				// Close input
-				return rootGroup.closeEditor(input).then(() => {
-					assert.equal(input.isDisposed(), false);
+			// Open input
+			return service.openEditor(input, { pinned: true }).then(editor => {
+				return service.openEditor(input, { pinned: true }, rightGroup).then(editor => {
+					const editors = service.editors;
+					assert.equal(editors.length, 2);
+					assert.equal(editors[0], input);
+					assert.equal(editors[1], input);
 
-					return rightGroup.closeEditor(input).then(() => {
-						assert.equal(input.isDisposed(), true);
+					// Close input
+					return rootGroup.closeEditor(input).then(() => {
+						assert.equal(input.isDisposed(), false);
+
+						return rightGroup.closeEditor(input).then(() => {
+							assert.equal(input.isDisposed(), true);
+						});
 					});
 				});
 			});
@@ -322,17 +343,19 @@ suite('Editor service', () => {
 
 		const rootGroup = part.activeGroup;
 
-		return service.openEditor(input1, { pinned: true }, rootGroup).then(editor => {
-			return service.openEditor(input1, { pinned: true, preserveFocus: true }, SIDE_GROUP).then(editor => {
-				assert.equal(part.activeGroup, rootGroup);
-				assert.equal(part.count, 2);
-				assert.equal(editor.group, part.groups[1]);
-
-				// Open to the side uses existing neighbour group if any
-				return service.openEditor(input2, { pinned: true, preserveFocus: true }, SIDE_GROUP).then(editor => {
+		return part.whenRestored.then(() => {
+			return service.openEditor(input1, { pinned: true }, rootGroup).then(editor => {
+				return service.openEditor(input1, { pinned: true, preserveFocus: true }, SIDE_GROUP).then(editor => {
 					assert.equal(part.activeGroup, rootGroup);
 					assert.equal(part.count, 2);
 					assert.equal(editor.group, part.groups[1]);
+
+					// Open to the side uses existing neighbour group if any
+					return service.openEditor(input2, { pinned: true, preserveFocus: true }, SIDE_GROUP).then(editor => {
+						assert.equal(part.activeGroup, rootGroup);
+						assert.equal(part.count, 2);
+						assert.equal(editor.group, part.groups[1]);
+					});
 				});
 			});
 		});
@@ -372,8 +395,16 @@ suite('Editor service', () => {
 			visibleEditorChangeEventFired = false;
 		}
 
+		async function closeEditorAndWaitForNextToOpen(group: IEditorGroup, input: EditorInput): Promise<void> {
+			await group.closeEditor(input);
+			await timeout(0); // closing an editor will not immediately open the next one, so we need to wait
+		}
+
+		await part.whenRestored;
+
 		// 1.) open, open same, open other, close
 		let editor = await service.openEditor(input, { pinned: true });
+		const group = editor.group;
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
 
@@ -385,11 +416,11 @@ suite('Editor service', () => {
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
 
-		await editor.group.closeEditor(otherInput);
+		await closeEditorAndWaitForNextToOpen(group, otherInput);
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
 
-		await editor.group.closeEditor(input);
+		await closeEditorAndWaitForNextToOpen(group, input);
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
 
@@ -402,7 +433,7 @@ suite('Editor service', () => {
 		assertActiveEditorChangedEvent(false);
 		assertVisibleEditorsChangedEvent(false);
 
-		await editor.group.closeEditor(input);
+		await closeEditorAndWaitForNextToOpen(group, input);
 
 		// 3.) open, open inactive, close
 		editor = await service.openEditor(input, { pinned: true });
@@ -413,7 +444,7 @@ suite('Editor service', () => {
 		assertActiveEditorChangedEvent(false);
 		assertVisibleEditorsChangedEvent(false);
 
-		editor.group.closeAllEditors();
+		await group.closeAllEditors();
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
 
@@ -426,11 +457,11 @@ suite('Editor service', () => {
 		assertActiveEditorChangedEvent(false);
 		assertVisibleEditorsChangedEvent(false);
 
-		editor.group.closeEditor(otherInput);
+		await closeEditorAndWaitForNextToOpen(group, otherInput);
 		assertActiveEditorChangedEvent(false);
 		assertVisibleEditorsChangedEvent(false);
 
-		editor.group.closeAllEditors();
+		await group.closeAllEditors();
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
 
@@ -451,7 +482,7 @@ suite('Editor service', () => {
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(false);
 
-		editor.group.closeAllEditors();
+		await group.closeAllEditors();
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
 
@@ -464,15 +495,15 @@ suite('Editor service', () => {
 		assertActiveEditorChangedEvent(false);
 		assertVisibleEditorsChangedEvent(false);
 
-		rightGroup.openEditor(otherInput);
+		await rightGroup.openEditor(otherInput);
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
 
-		rightGroup.closeEditor(otherInput);
+		await closeEditorAndWaitForNextToOpen(rightGroup, otherInput);
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
 
-		editor.group.closeAllEditors();
+		await group.closeAllEditors();
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
 
@@ -485,19 +516,19 @@ suite('Editor service', () => {
 		assertActiveEditorChangedEvent(false);
 		assertVisibleEditorsChangedEvent(false);
 
-		rightGroup.openEditor(otherInput);
+		await rightGroup.openEditor(otherInput);
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
 
-		editor.group.focus();
+		group.focus();
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(false);
 
-		rightGroup.closeEditor(otherInput);
+		await closeEditorAndWaitForNextToOpen(rightGroup, otherInput);
 		assertActiveEditorChangedEvent(false);
 		assertVisibleEditorsChangedEvent(true);
 
-		editor.group.closeAllEditors();
+		await group.closeAllEditors();
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
 
@@ -510,11 +541,11 @@ suite('Editor service', () => {
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
 
-		editor.group.moveEditor(otherInput, editor.group, { index: 0 });
+		group.moveEditor(otherInput, group, { index: 0 });
 		assertActiveEditorChangedEvent(false);
 		assertVisibleEditorsChangedEvent(false);
 
-		editor.group.closeAllEditors();
+		await group.closeAllEditors();
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
 
@@ -527,17 +558,45 @@ suite('Editor service', () => {
 		assertActiveEditorChangedEvent(false);
 		assertVisibleEditorsChangedEvent(false);
 
-		rightGroup.openEditor(otherInput);
+		await rightGroup.openEditor(otherInput);
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
 
-		editor.group.closeEditor(input);
+		await closeEditorAndWaitForNextToOpen(group, input);
 		assertActiveEditorChangedEvent(false);
 		assertVisibleEditorsChangedEvent(true);
 
 		// cleanup
 		activeEditorChangeListener.dispose();
 		visibleEditorChangeListener.dispose();
+	});
+
+	test('openEditor returns NULL when opening fails or is inactive', async function () {
+		const partInstantiator = workbenchInstantiationService();
+
+		const part = partInstantiator.createInstance(EditorPart, 'id', false);
+		part.create(document.createElement('div'));
+		part.layout(new Dimension(400, 300));
+
+		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([IEditorGroupsService, part]));
+
+		const service: EditorServiceImpl = testInstantiationService.createInstance(EditorService);
+
+		const input = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource-active'));
+		const otherInput = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2-inactive'));
+		const failingInput = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource3-failing'));
+		failingInput.setFailToOpen();
+
+		await part.whenRestored;
+
+		let editor = await service.openEditor(input, { pinned: true });
+		assert.ok(editor);
+
+		let otherEditor = await service.openEditor(otherInput, { inactive: true });
+		assert.ok(!otherEditor);
+
+		let failingEditor = await service.openEditor(failingInput);
+		assert.ok(!failingEditor);
 	});
 });
 

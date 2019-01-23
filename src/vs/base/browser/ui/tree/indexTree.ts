@@ -3,22 +3,39 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./tree';
+import 'vs/css!./media/tree';
 import { Iterator, ISequence } from 'vs/base/common/iterator';
-import { AbstractTree, ITreeOptions } from 'vs/base/browser/ui/tree/abstractTree';
+import { AbstractTree, IAbstractTreeOptions } from 'vs/base/browser/ui/tree/abstractTree';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { IndexTreeModel } from 'vs/base/browser/ui/tree/indexTreeModel';
-import { ITreeElement, ITreeModel, ITreeNode } from 'vs/base/browser/ui/tree/tree';
+import { ITreeElement, ITreeModel, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
+import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+
+export interface IIndexTreeOptions<T, TFilterData = void> extends IAbstractTreeOptions<T, TFilterData> { }
 
 export class IndexTree<T, TFilterData = void> extends AbstractTree<T, TFilterData, number[]> {
 
 	protected model: IndexTreeModel<T, TFilterData>;
 
+	constructor(
+		container: HTMLElement,
+		delegate: IListVirtualDelegate<T>,
+		renderers: ITreeRenderer<any /* TODO@joao */, TFilterData, any>[],
+		private rootElement: T,
+		options: IIndexTreeOptions<T, TFilterData> = {}
+	) {
+		super(container, delegate, renderers, options);
+	}
+
 	splice(location: number[], deleteCount: number, toInsert: ISequence<ITreeElement<T>> = Iterator.empty()): Iterator<ITreeElement<T>> {
 		return this.model.splice(location, deleteCount, toInsert);
 	}
 
-	protected createModel(view: ISpliceable<ITreeNode<T, TFilterData>>, options: ITreeOptions<T, TFilterData>): ITreeModel<T, TFilterData, number[]> {
-		return new IndexTreeModel(view, options);
+	refresh(location: number[]): void {
+		this.model.refresh(location);
+	}
+
+	protected createModel(view: ISpliceable<ITreeNode<T, TFilterData>>, options: IIndexTreeOptions<T, TFilterData>): ITreeModel<T, TFilterData, number[]> {
+		return new IndexTreeModel(view, this.rootElement, options);
 	}
 }

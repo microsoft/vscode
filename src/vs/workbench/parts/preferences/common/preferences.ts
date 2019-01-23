@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { join } from 'vs/base/common/paths';
@@ -41,7 +40,7 @@ export interface IPreferencesSearchService {
 }
 
 export interface ISearchProvider {
-	searchModel(preferencesModel: ISettingsEditorModel, token?: CancellationToken): TPromise<ISearchResult>;
+	searchModel(preferencesModel: ISettingsEditorModel, token?: CancellationToken): Promise<ISearchResult>;
 }
 
 export interface IKeybindingsEditor extends IEditor {
@@ -54,15 +53,16 @@ export interface IKeybindingsEditor extends IEditor {
 	focusKeybindings(): void;
 	recordSearchKeys(): void;
 	toggleSortByPrecedence(): void;
-	defineKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
-	removeKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
-	resetKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
-	copyKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
-	copyKeybindingCommand(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
-	showSimilarKeybindings(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
+	defineKeybinding(keybindingEntry: IKeybindingItemEntry): Promise<any>;
+	removeKeybinding(keybindingEntry: IKeybindingItemEntry): Promise<any>;
+	resetKeybinding(keybindingEntry: IKeybindingItemEntry): Promise<any>;
+	copyKeybinding(keybindingEntry: IKeybindingItemEntry): void;
+	copyKeybindingCommand(keybindingEntry: IKeybindingItemEntry): void;
+	showSimilarKeybindings(keybindingEntry: IKeybindingItemEntry): void;
 }
 
 export const CONTEXT_SETTINGS_EDITOR = new RawContextKey<boolean>('inSettingsEditor', false);
+export const CONTEXT_SETTINGS_JSON_EDITOR = new RawContextKey<boolean>('inSettingsJSONEditor', false);
 export const CONTEXT_SETTINGS_SEARCH_FOCUS = new RawContextKey<boolean>('inSettingsSearch', false);
 export const CONTEXT_TOC_ROW_FOCUS = new RawContextKey<boolean>('settingsTocRowFocus', false);
 export const CONTEXT_KEYBINDINGS_EDITOR = new RawContextKey<boolean>('inKeybindings', false);
@@ -78,6 +78,10 @@ export const SETTINGS_EDITOR_COMMAND_EDIT_FOCUSED_SETTING = 'settings.action.edi
 export const SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_FROM_SEARCH = 'settings.action.focusSettingsFromSearch';
 export const SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_LIST = 'settings.action.focusSettingsList';
 export const SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU = 'settings.action.showContextMenu';
+
+export const SETTINGS_EDITOR_COMMAND_SWITCH_TO_JSON = 'settings.switchToJSON';
+export const SETTINGS_EDITOR_COMMAND_FILTER_MODIFIED = 'settings.filterByModified';
+export const SETTINGS_EDITOR_COMMAND_FILTER_ONLINE = 'settings.filterByOnline';
 
 export const KEYBINDINGS_EDITOR_COMMAND_SEARCH = 'keybindings.editor.searchKeybindings';
 export const KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS = 'keybindings.editor.clearSearchResults';
@@ -96,3 +100,7 @@ export const KEYBINDINGS_EDITOR_SHOW_USER_KEYBINDINGS = 'keybindings.editor.show
 
 export const FOLDER_SETTINGS_PATH = join('.vscode', 'settings.json');
 export const DEFAULT_SETTINGS_EDITOR_SETTING = 'workbench.settings.openDefaultSettings';
+
+export const MODIFIED_SETTING_TAG = 'modified';
+
+export const SETTINGS_COMMAND_OPEN_SETTINGS = 'workbench.action.openSettings';

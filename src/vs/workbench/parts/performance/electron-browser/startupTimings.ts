@@ -3,22 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { appendFile } from 'fs';
+import { nfcall, timeout } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ILifecycleService, LifecyclePhase, StartupKind } from 'vs/platform/lifecycle/common/lifecycle';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ILifecycleService, StartupKind } from 'vs/platform/lifecycle/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
-import { Registry } from 'vs/platform/registry/common/platform';
+import product from 'vs/platform/node/product';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUpdateService } from 'vs/platform/update/common/update';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { Extensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import * as files from 'vs/workbench/parts/files/common/files';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { ITimerService, didUseCachedData } from 'vs/workbench/services/timer/electron-browser/timerService';
+import { didUseCachedData, ITimerService } from 'vs/workbench/services/timer/electron-browser/timerService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 
-class StartupTimings implements IWorkbenchContribution {
+export class StartupTimings implements IWorkbenchContribution {
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -30,13 +33,21 @@ class StartupTimings implements IWorkbenchContribution {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@IUpdateService private readonly _updateService: IUpdateService,
+		@IEnvironmentService private readonly _envService: IEnvironmentService,
 	) {
-
-		this._reportVariedStartupTimes().then(undefined, onUnexpectedError);
-		this._reportStandardStartupTimes().then(undefined, onUnexpectedError);
+		//
+		this._report().catch(onUnexpectedError);
 	}
 
-	private async _reportVariedStartupTimes(): Promise<void> {
+	private async _report() {
+		const isStandardStartup = await this._isStandardStartup();
+		this._reportStartupTimes().catch(onUnexpectedError);
+		this._appendStartupTimes(isStandardStartup).catch(onUnexpectedError);
+	}
+
+	private async _reportStartupTimes(): Promise<void> {
+		const metrics = await this._timerService.startupMetrics;
+
 		/* __GDPR__
 			"startupTimeVaried" : {
 				"${include}": [
@@ -44,10 +55,39 @@ class StartupTimings implements IWorkbenchContribution {
 				]
 			}
 		*/
-		this._telemetryService.publicLog('startupTimeVaried', await this._timerService.startupMetrics);
+		this._telemetryService.publicLog('startupTimeVaried', metrics);
 	}
 
-	private async _reportStandardStartupTimes(): Promise<void> {
+	private async _appendStartupTimes(isStandardStartup: boolean) {
+		let appendTo = this._envService.args['prof-append-timers'];
+		if (!appendTo) {
+			// nothing to do
+			return;
+		}
+
+		const waitWhenNoCachedData: () => Promise<void> = () => {
+			// wait 15s for cached data to be produced
+			return !didUseCachedData()
+				? timeout(15000)
+				: Promise.resolve<void>();
+		};
+
+		const { sessionId } = await this._telemetryService.getTelemetryInfo();
+
+		Promise.all([
+			this._timerService.startupMetrics,
+			waitWhenNoCachedData(),
+		]).then(([startupMetrics]) => {
+			return nfcall(appendFile, appendTo, `${startupMetrics.ellapsed}\t${product.nameShort}\t${(product.commit || '').slice(0, 10) || '0000000000'}\t${sessionId}\t${isStandardStartup ? 'standard_start' : 'NO_standard_start'}\n`);
+		}).then(() => {
+			this._windowsService.quit();
+		}).catch(err => {
+			console.error(err);
+			this._windowsService.quit();
+		});
+	}
+
+	private async _isStandardStartup(): Promise<boolean> {
 		// check for standard startup:
 		// * new window (no reload)
 		// * just one window
@@ -56,46 +96,35 @@ class StartupTimings implements IWorkbenchContribution {
 		// * cached data present (not rejected, not created)
 		if (this._lifecycleService.startupKind !== StartupKind.NewWindow) {
 			this._logService.info('no standard startup: not a new window');
-			return;
+			return false;
 		}
 		if (await this._windowsService.getWindowCount() !== 1) {
 			this._logService.info('no standard startup: not just one window');
-			return;
+			return false;
 		}
 		if (!this._viewletService.getActiveViewlet() || this._viewletService.getActiveViewlet().getId() !== files.VIEWLET_ID) {
 			this._logService.info('no standard startup: not the explorer viewlet');
-			return;
+			return false;
 		}
 		const visibleControls = this._editorService.visibleControls;
 		if (visibleControls.length !== 1 || !isCodeEditor(visibleControls[0].getControl())) {
 			this._logService.info('no standard startup: not just one text editor');
-			return;
+			return false;
 		}
 		if (this._panelService.getActivePanel()) {
 			this._logService.info('no standard startup: panel is active');
-			return;
+			return false;
 		}
 		if (!didUseCachedData()) {
 			this._logService.info('no standard startup: not using cached data');
-			return;
+			return false;
 		}
 		if (!await this._updateService.isLatestVersion()) {
 			this._logService.info('no standard startup: not running latest version');
-			return;
+			return false;
 		}
-
-		/* __GDPR__
-		"startupTime" : {
-			"${include}": [
-				"${IStartupMetrics}"
-			]
-		}
-		*/
-		const metrics = await this._timerService.startupMetrics;
-		this._telemetryService.publicLog('startupTime', metrics);
-		this._logService.info('standard startup', metrics);
+		this._logService.info('standard startup');
+		return true;
 	}
 }
 
-const registry = Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);
-registry.registerWorkbenchContribution(StartupTimings, LifecyclePhase.Running);

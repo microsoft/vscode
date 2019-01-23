@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
 import { CharCode } from 'vs/base/common/charCode';
-import { LineDecoration, LineDecorationsNormalizer } from 'vs/editor/common/viewLayout/lineDecorations';
 import * as strings from 'vs/base/common/strings';
+import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
 import { IStringBuilder, createStringBuilder } from 'vs/editor/common/core/stringBuilder';
+import { LineDecoration, LineDecorationsNormalizer } from 'vs/editor/common/viewLayout/lineDecorations';
 import { InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
 
 export const enum RenderWhitespace {
@@ -735,7 +735,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 						if (!canUseHalfwidthRightwardsArrow || insertSpacesCount > 1) {
 							sb.write1(0x2192); // RIGHTWARDS ARROW
 						} else {
-							sb.write1(0xffeb); // HALFWIDTH RIGHTWARDS ARROW
+							sb.write1(0xFFEB); // HALFWIDTH RIGHTWARDS ARROW
 						}
 						insertSpacesCount--;
 					}
@@ -745,7 +745,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 					}
 				} else {
 					// must be CharCode.Space
-					sb.write1(0xb7); // &middot;
+					sb.write1(0xB7); // &middot;
 				}
 
 				charOffsetInPart++;
@@ -805,7 +805,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 
 					case CharCode.UTF8_BOM:
 					case CharCode.LINE_SEPARATOR_2028:
-						sb.write1(0xfffd);
+						sb.write1(0xFFFD);
 						partContentCnt++;
 						break;
 

@@ -51,7 +51,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 	public configFontIsMonospace(): boolean {
 		this._createCharMeasureElementIfNecessary();
 		const fontSize = 15;
-		const fontFamily = this.config.fontFamily || this._configurationService.getValue<IEditorOptions>('editor').fontFamily;
+		const fontFamily = this.config.fontFamily || this._configurationService.getValue<IEditorOptions>('editor').fontFamily || EDITOR_FONT_DEFAULTS.fontFamily;
 		const i_rect = this._getBoundingRectFor('i', fontFamily, fontSize);
 		const w_rect = this._getBoundingRectFor('w', fontFamily, fontSize);
 
@@ -113,7 +113,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 	public getFont(xterm?: XTermTerminal, excludeDimensions?: boolean): ITerminalFont {
 		const editorConfig = this._configurationService.getValue<IEditorOptions>('editor');
 
-		let fontFamily = this.config.fontFamily || editorConfig.fontFamily;
+		let fontFamily = this.config.fontFamily || editorConfig.fontFamily || EDITOR_FONT_DEFAULTS.fontFamily;
 		let fontSize = this._toInteger(this.config.fontSize, MINIMUM_FONT_SIZE, MAXIMUM_FONT_SIZE, EDITOR_FONT_DEFAULTS.fontSize);
 
 		// Work around bad font on Fedora/Ubuntu
@@ -170,7 +170,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		const shellArgsConfigValue = this._workspaceConfigurationService.inspect<string[]>(`terminal.integrated.shellArgs.${platformKey}`);
 
 		// Check if workspace setting exists and whether it's whitelisted
-		let isWorkspaceShellAllowed = false;
+		let isWorkspaceShellAllowed: boolean | undefined = false;
 		if (shellConfigValue.workspace !== undefined || shellArgsConfigValue.workspace !== undefined) {
 			isWorkspaceShellAllowed = this._storageService.getBoolean(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, StorageScope.WORKSPACE, undefined);
 		}
@@ -183,18 +183,18 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		// Check if the value is neither blacklisted (false) or whitelisted (true) and ask for
 		// permission
 		if (isWorkspaceShellAllowed === undefined) {
-			let shellString: string;
+			let shellString: string | undefined;
 			if (shellConfigValue.workspace) {
 				shellString = `"${shellConfigValue.workspace}"`;
 			}
-			let argsString: string;
+			let argsString: string | undefined;
 			if (shellArgsConfigValue.workspace) {
 				argsString = `[${shellArgsConfigValue.workspace.map(v => '"' + v + '"').join(', ')}]`;
 			}
 			// Should not be localized as it's json-like syntax referencing settings keys
 			let changeString: string;
-			if (shellConfigValue.workspace !== undefined) {
-				if (shellArgsConfigValue.workspace !== undefined) {
+			if (shellString) {
+				if (argsString) {
 					changeString = `shell: ${shellString}, shellArgs: ${argsString}`;
 				} else {
 					changeString = `shell: ${shellString}`;
@@ -220,11 +220,16 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		// Change Sysnative to System32 if the OS is Windows but NOT WoW64. It's
 		// safe to assume that this was used by accident as Sysnative does not
 		// exist and will break the terminal in non-WoW64 environments.
-		if (platform.isWindows && !process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432')) {
+		if (platform.isWindows && !process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432') && process.env.windir) {
 			const sysnativePath = path.join(process.env.windir, 'Sysnative').toLowerCase();
 			if (shell.executable.toLowerCase().indexOf(sysnativePath) === 0) {
 				shell.executable = path.join(process.env.windir, 'System32', shell.executable.substr(sysnativePath.length));
 			}
+		}
+
+		// Convert / to \ on Windows for convenience
+		if (platform.isWindows) {
+			shell.executable = shell.executable.replace(/\//g, '\\');
 		}
 	}
 

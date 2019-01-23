@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* Title Label */
+
 .monaco-workbench > .part.editor > .content .editor-group-container > .title > .label-container {
+	height: 35px;
 	display: flex;
 	justify-content: flex-start;
 	align-items: center;
 	overflow: hidden;
 	flex: auto;
 }
-
-/* Title Label */
 
 .monaco-workbench > .part.editor > .content .editor-group-container > .title .title-label {
 	line-height: 35px;
@@ -53,7 +54,7 @@
 	background-image: none;
 }
 
-.monaco-workbench.windows > .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item::before  {
+.windows > .monaco-workbench > .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item::before  {
 	content: '\\';
 }
 

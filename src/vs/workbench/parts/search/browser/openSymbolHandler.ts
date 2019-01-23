@@ -5,7 +5,6 @@
 
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { QuickOpenHandler, EditorQuickOpenEntry } from 'vs/workbench/browser/quickopen';
@@ -28,15 +27,15 @@ import { Schemas } from 'vs/base/common/network';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 class SymbolEntry extends EditorQuickOpenEntry {
-	private bearingResolve: Thenable<this>;
+	private bearingResolve: Promise<this>;
 
 	constructor(
 		private bearing: IWorkspaceSymbol,
 		private provider: IWorkspaceSymbolProvider,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorService editorService: IEditorService,
-		@ILabelService private labelService: ILabelService,
-		@IOpenerService private openerService: IOpenerService
+		@ILabelService private readonly labelService: ILabelService,
+		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		super(editorService);
 	}
@@ -82,10 +81,12 @@ class SymbolEntry extends EditorQuickOpenEntry {
 		}
 
 		// open after resolving
-		TPromise.as(this.bearingResolve).then(() => {
-			const scheme = this.bearing.location.uri ? this.bearing.location.uri.scheme : void 0;
+		Promise.resolve(this.bearingResolve).then(() => {
+			const scheme = this.bearing.location.uri ? this.bearing.location.uri.scheme : undefined;
 			if (scheme === Schemas.http || scheme === Schemas.https) {
-				this.openerService.open(this.bearing.location.uri); // support http/https resources (https://github.com/Microsoft/vscode/issues/58924))
+				if (mode === Mode.OPEN || mode === Mode.OPEN_IN_BACKGROUND) {
+					this.openerService.open(this.bearing.location.uri); // support http/https resources (https://github.com/Microsoft/vscode/issues/58924))
+				}
 			} else {
 				super.run(mode, context);
 			}
@@ -140,7 +141,7 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 	private delayer: ThrottledDelayer<QuickOpenEntry[]>;
 	private options: IOpenSymbolOptions;
 
-	constructor(@IInstantiationService private instantiationService: IInstantiationService) {
+	constructor(@IInstantiationService private readonly instantiationService: IInstantiationService) {
 		super();
 
 		this.delayer = new ThrottledDelayer<QuickOpenEntry[]>(OpenSymbolHandler.TYPING_SEARCH_DELAY);
@@ -155,14 +156,14 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 		return true;
 	}
 
-	getResults(searchValue: string, token: CancellationToken): TPromise<QuickOpenModel> {
+	getResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel> {
 		searchValue = searchValue.trim();
 
-		let promise: TPromise<QuickOpenEntry[]>;
+		let promise: Promise<QuickOpenEntry[]>;
 		if (!this.options.skipDelay) {
 			promise = this.delayer.trigger(() => {
 				if (token.isCancellationRequested) {
-					return TPromise.wrap([]);
+					return Promise.resolve([]);
 				}
 
 				return this.doGetResults(searchValue, token);
@@ -174,7 +175,7 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 		return promise.then(e => new QuickOpenModel(e));
 	}
 
-	private doGetResults(searchValue: string, token: CancellationToken): TPromise<SymbolEntry[]> {
+	private doGetResults(searchValue: string, token: CancellationToken): Promise<SymbolEntry[]> {
 		return getWorkspaceSymbols(searchValue, token).then(tuples => {
 			if (token.isCancellationRequested) {
 				return [];
@@ -205,7 +206,7 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 			}
 
 			const entry = this.instantiationService.createInstance(SymbolEntry, element, provider);
-			entry.setHighlights(filters.matchesFuzzy(searchValue, entry.getLabel()));
+			entry.setHighlights(filters.matchesFuzzy2(searchValue, entry.getLabel()));
 			bucket.push(entry);
 		}
 	}

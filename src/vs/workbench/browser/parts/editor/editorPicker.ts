@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/editorpicker';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
@@ -26,8 +25,8 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 	constructor(
 		private editor: EditorInput,
 		private _group: IEditorGroup,
-		@IModeService private modeService: IModeService,
-		@IModelService private modelService: IModelService
+		@IModeService private readonly modeService: IModeService,
+		@IModelService private readonly modelService: IModelService
 	) {
 		super();
 	}
@@ -91,10 +90,10 @@ export abstract class BaseEditorPicker extends QuickOpenHandler {
 		this.scorerCache = Object.create(null);
 	}
 
-	getResults(searchValue: string, token: CancellationToken): TPromise<QuickOpenModel> {
+	getResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel | null> {
 		const editorEntries = this.getEditorEntries();
 		if (!editorEntries.length) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		// Prepare search for scoring
@@ -139,7 +138,7 @@ export abstract class BaseEditorPicker extends QuickOpenHandler {
 			});
 		}
 
-		return TPromise.as(new QuickOpenModel(entries));
+		return Promise.resolve(new QuickOpenModel(entries));
 	}
 
 	onClose(canceled: boolean): void {

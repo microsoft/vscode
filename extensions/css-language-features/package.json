@@ -5,7 +5,7 @@
   "version": "1.0.0",
   "publisher": "vscode",
   "engines": {
-    "vscode": "0.10.x"
+    "vscode": "^1.29.0"
   },
   "icon": "icons/css.png",
   "activationEvents": [
@@ -14,7 +14,6 @@
     "onLanguage:scss",
     "onCommand:_css.applyCodeAction"
   ],
-  "enableProposedApi": true,
   "main": "./client/out/cssMain",
   "scripts": {
     "compile": "gulp compile-extension:css-language-features-client compile-extension:css-language-features-server",
@@ -33,18 +32,17 @@
         "id": "css",
         "title": "%css.title%",
         "properties": {
+          "css.experimental.customData": {
+            "type": "array",
+            "description": "A list of JSON file paths that define custom CSS data that loads custom properties, at directives, pseudo classes / elements.",
+            "default": [],
+            "scope": "resource"
+          },
           "css.validate": {
             "type": "boolean",
             "scope": "resource",
             "default": true,
             "description": "%css.validate.desc%"
-          },
-          "css.colorDecorators.enable": {
-            "type": "boolean",
-            "scope": "window",
-            "default": true,
-            "description": "%css.colorDecorators.enable.desc%",
-            "deprecationMessage": "%css.colorDecorators.enable.deprecationMessage%"
           },
           "css.lint.compatibleVendorPrefixes": {
             "type": "string",
@@ -143,7 +141,7 @@
               "error"
             ],
             "default": "warning",
-            "description": "%css.lint.fontFaceProperties.desc%"
+            "markdownDescription": "%css.lint.fontFaceProperties.desc%"
           },
           "css.lint.hexColorLength": {
             "type": "string",
@@ -177,6 +175,16 @@
             ],
             "default": "warning",
             "description": "%css.lint.unknownProperties.desc%"
+          },
+          "css.lint.validProperties": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string"
+            },
+            "scope": "resource",
+            "default": [],
+            "description": "%css.lint.validProperties.desc%"
           },
           "css.lint.ieHack": {
             "type": "string",
@@ -220,7 +228,7 @@
               "error"
             ],
             "default": "ignore",
-            "description": "%css.lint.important.desc%"
+            "markdownDescription": "%css.lint.important.desc%"
           },
           "css.lint.float": {
             "type": "string",
@@ -278,13 +286,6 @@
             "scope": "resource",
             "default": true,
             "description": "%scss.validate.desc%"
-          },
-          "scss.colorDecorators.enable": {
-            "type": "boolean",
-            "scope": "window",
-            "default": true,
-            "description": "%scss.colorDecorators.enable.desc%",
-            "deprecationMessage": "%scss.colorDecorators.enable.deprecationMessage%"
           },
           "scss.lint.compatibleVendorPrefixes": {
             "type": "string",
@@ -418,6 +419,16 @@
             "default": "warning",
             "description": "%scss.lint.unknownProperties.desc%"
           },
+          "scss.lint.validProperties": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string"
+            },
+            "scope": "resource",
+            "default": [],
+            "description": "%scss.lint.validProperties.desc%"
+          },
           "scss.lint.ieHack": {
             "type": "string",
             "scope": "resource",
@@ -497,13 +508,6 @@
             "scope": "resource",
             "default": true,
             "description": "%less.validate.desc%"
-          },
-          "less.colorDecorators.enable": {
-            "type": "boolean",
-            "scope": "window",
-            "default": true,
-            "description": "%less.colorDecorators.enable.desc%",
-            "deprecationMessage": "%less.colorDecorators.enable.deprecationMessage%"
           },
           "less.lint.compatibleVendorPrefixes": {
             "type": "string",
@@ -637,6 +641,16 @@
             "default": "warning",
             "description": "%less.lint.unknownProperties.desc%"
           },
+          "less.lint.validProperties": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string"
+            },
+            "scope": "resource",
+            "default": [],
+            "description": "%less.lint.validProperties.desc%"
+          },
           "less.lint.ieHack": {
             "type": "string",
             "scope": "resource",
@@ -679,7 +693,7 @@
               "error"
             ],
             "default": "ignore",
-            "description": "%less.lint.important.desc%"
+            "markdownDescription": "%less.lint.important.desc%"
           },
           "less.lint.float": {
             "type": "string",

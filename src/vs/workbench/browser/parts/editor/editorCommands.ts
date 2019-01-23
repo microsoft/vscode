@@ -22,7 +22,6 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -268,16 +267,9 @@ function registerDiffEditorCommands(): void {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: TOGGLE_DIFF_SIDE_BY_SIDE,
 		weight: KeybindingWeight.WorkbenchContrib,
-		when: void 0,
-		primary: void 0,
+		when: undefined,
+		primary: undefined,
 		handler: accessor => toggleDiffSideBySide(accessor)
-	});
-
-	// TODO@Ben remove me after a while
-	CommandsRegistry.registerCommand('toggle.diff.editorMode', accessor => {
-		toggleDiffSideBySide(accessor);
-
-		accessor.get(INotificationService).warn(nls.localize('diffCommandDeprecation', "Command 'toggle.diff.editorMode' has been deprecated. Please use '{0}' instead.", TOGGLE_DIFF_SIDE_BY_SIDE));
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
@@ -295,8 +287,8 @@ function registerDiffEditorCommands(): void {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE,
 		weight: KeybindingWeight.WorkbenchContrib,
-		when: void 0,
-		primary: void 0,
+		when: undefined,
+		primary: undefined,
 		handler: accessor => toggleDiffIgnoreTrimWhitespace(accessor)
 	});
 }
@@ -327,7 +319,7 @@ function registerOpenEditorAtIndexCommands(): void {
 		KeybindingsRegistry.registerCommandAndKeybindingRule({
 			id: OPEN_EDITOR_AT_INDEX_COMMAND_ID + visibleIndex,
 			weight: KeybindingWeight.WorkbenchContrib,
-			when: void 0,
+			when: undefined,
 			primary: KeyMod.Alt | toKeyCode(visibleIndex),
 			mac: { primary: KeyMod.WinCtrl | toKeyCode(visibleIndex) },
 			handler: accessor => openEditorAtIndex(accessor, editorIndex)
@@ -348,7 +340,7 @@ function registerOpenEditorAtIndexCommands(): void {
 			case 9: return KeyCode.KEY_9;
 		}
 
-		return void 0;
+		return undefined;
 	}
 }
 
@@ -359,7 +351,7 @@ function registerFocusEditorGroupAtIndexCommands(): void {
 		KeybindingsRegistry.registerCommandAndKeybindingRule({
 			id: toCommandId(groupIndex),
 			weight: KeybindingWeight.WorkbenchContrib,
-			when: void 0,
+			when: undefined,
 			primary: KeyMod.CtrlCmd | toKeyCode(groupIndex),
 			handler: accessor => {
 				const editorGroupService = accessor.get(IEditorGroupsService);
@@ -400,7 +392,7 @@ function registerFocusEditorGroupAtIndexCommands(): void {
 			case 7: return 'workbench.action.focusEighthEditorGroup';
 		}
 
-		return void 0;
+		return undefined;
 	}
 
 	function toKeyCode(index: number): KeyCode {
@@ -414,7 +406,7 @@ function registerFocusEditorGroupAtIndexCommands(): void {
 			case 7: return KeyCode.KEY_8;
 		}
 
-		return void 0;
+		return undefined;
 	}
 }
 
@@ -463,7 +455,7 @@ function registerCloseEditorCommands() {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: CLOSE_SAVED_EDITORS_COMMAND_ID,
 		weight: KeybindingWeight.WorkbenchContrib,
-		when: void 0,
+		when: undefined,
 		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_U),
 		handler: (accessor, resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
 			const editorGroupService = accessor.get(IEditorGroupsService);
@@ -483,7 +475,7 @@ function registerCloseEditorCommands() {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
 		weight: KeybindingWeight.WorkbenchContrib,
-		when: void 0,
+		when: undefined,
 		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_W),
 		handler: (accessor, resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
 			const editorGroupService = accessor.get(IEditorGroupsService);
@@ -503,7 +495,7 @@ function registerCloseEditorCommands() {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: CLOSE_EDITOR_COMMAND_ID,
 		weight: KeybindingWeight.WorkbenchContrib,
-		when: void 0,
+		when: undefined,
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_W,
 		win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KEY_W] },
 		handler: (accessor, resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
@@ -552,8 +544,8 @@ function registerCloseEditorCommands() {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID,
 		weight: KeybindingWeight.WorkbenchContrib,
-		when: void 0,
-		primary: void 0,
+		when: undefined,
+		primary: undefined,
 		mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_T },
 		handler: (accessor, resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
 			const editorGroupService = accessor.get(IEditorGroupsService);
@@ -581,8 +573,8 @@ function registerCloseEditorCommands() {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: CLOSE_EDITORS_TO_THE_RIGHT_COMMAND_ID,
 		weight: KeybindingWeight.WorkbenchContrib,
-		when: void 0,
-		primary: void 0,
+		when: undefined,
+		primary: undefined,
 		handler: (accessor, resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
 			const editorGroupService = accessor.get(IEditorGroupsService);
 
@@ -598,7 +590,7 @@ function registerCloseEditorCommands() {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: KEEP_EDITOR_COMMAND_ID,
 		weight: KeybindingWeight.WorkbenchContrib,
-		when: void 0,
+		when: undefined,
 		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.Enter),
 		handler: (accessor, resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
 			const editorGroupService = accessor.get(IEditorGroupsService);
@@ -615,8 +607,8 @@ function registerCloseEditorCommands() {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: SHOW_EDITORS_IN_GROUP,
 		weight: KeybindingWeight.WorkbenchContrib,
-		when: void 0,
-		primary: void 0,
+		when: undefined,
+		primary: undefined,
 		handler: (accessor, resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
 			const editorGroupService = accessor.get(IEditorGroupsService);
 			const quickOpenService = accessor.get(IQuickOpenService);
@@ -646,7 +638,7 @@ function registerCloseEditorCommands() {
 			});
 		}
 
-		return void 0;
+		return undefined;
 	});
 }
 
@@ -663,7 +655,7 @@ function getCommandsContext(resourceOrContext: URI | IEditorCommandsContext, con
 		return context;
 	}
 
-	return void 0;
+	return undefined;
 }
 
 function resolveCommandsContext(editorGroupService: IEditorGroupsService, context?: IEditorCommandsContext): { group: IEditorGroup, editor: IEditorInput, control: IEditor } {
@@ -690,7 +682,7 @@ export function getMultiSelectedEditorContexts(editorContext: IEditorCommandsCon
 	if (list instanceof List && list.getHTMLElement() === document.activeElement) {
 		const elementToContext = (element: IEditorIdentifier | IEditorGroup) => {
 			if (isEditorGroup(element)) {
-				return { groupId: element.id, editorIndex: void 0 };
+				return { groupId: element.id, editorIndex: undefined };
 			}
 
 			return { groupId: element.groupId, editorIndex: editorGroupService.getGroup(element.groupId).getIndexOfEditor(element.editor) };
@@ -698,11 +690,11 @@ export function getMultiSelectedEditorContexts(editorContext: IEditorCommandsCon
 
 		const onlyEditorGroupAndEditor = (e: IEditorIdentifier | IEditorGroup) => isEditorGroup(e) || isEditorIdentifier(e);
 
-		const focusedElements: (IEditorIdentifier | IEditorGroup)[] = list.getFocusedElements().filter(onlyEditorGroupAndEditor);
-		const focus = editorContext ? editorContext : focusedElements.length ? focusedElements.map(elementToContext)[0] : void 0; // need to take into account when editor context is { group: group }
+		const focusedElements: Array<IEditorIdentifier | IEditorGroup> = list.getFocusedElements().filter(onlyEditorGroupAndEditor);
+		const focus = editorContext ? editorContext : focusedElements.length ? focusedElements.map(elementToContext)[0] : undefined; // need to take into account when editor context is { group: group }
 
 		if (focus) {
-			const selection: (IEditorIdentifier | IEditorGroup)[] = list.getSelectedElements().filter(onlyEditorGroupAndEditor);
+			const selection: Array<IEditorIdentifier | IEditorGroup> = list.getSelectedElements().filter(onlyEditorGroupAndEditor);
 
 			// Only respect selection if it contains focused element
 			if (selection && selection.some(s => isEditorGroup(s) ? s.id === focus.groupId : s.groupId === focus.groupId && editorGroupService.getGroup(s.groupId).getIndexOfEditor(s.editor) === focus.editorIndex)) {

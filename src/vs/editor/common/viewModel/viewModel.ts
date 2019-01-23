@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { INewScrollPosition } from 'vs/editor/common/editorCommon';
-import { EndOfLinePreference, IModelDecorationOptions, IActiveIndentGuideInfo } from 'vs/editor/common/model';
-import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
-import { Position, IPosition } from 'vs/editor/common/core/position';
-import { Range, IRange } from 'vs/editor/common/core/range';
-import { IViewEventListener } from 'vs/editor/common/view/viewEvents';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { Scrollable, IScrollPosition } from 'vs/base/common/scrollable';
+import { IScrollPosition, Scrollable } from 'vs/base/common/scrollable';
+import * as strings from 'vs/base/common/strings';
+import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
+import { IPosition, Position } from 'vs/editor/common/core/position';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import { INewScrollPosition } from 'vs/editor/common/editorCommon';
+import { EndOfLinePreference, IActiveIndentGuideInfo, IModelDecorationOptions } from 'vs/editor/common/model';
+import { IViewEventListener } from 'vs/editor/common/view/viewEvents';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
 import { ITheme } from 'vs/platform/theme/common/themeService';
-import * as strings from 'vs/base/common/strings';
 
 export interface IViewWhitespaceViewportData {
 	readonly id: number;
@@ -119,6 +119,7 @@ export interface IViewModel {
 	 * Gives a hint that a lot of requests are about to come in for these line numbers.
 	 */
 	setViewport(startLineNumber: number, endLineNumber: number, centeredLineNumber: number): void;
+	tokenizeViewport(): void;
 	setHasFocus(hasFocus: boolean): void;
 
 	getDecorationsInViewport(visibleRange: Range): ViewModelDecoration[];
@@ -154,11 +155,11 @@ export interface IViewModel {
 
 export class MinimapLinesRenderingData {
 	public readonly tabSize: number;
-	public readonly data: (ViewLineData | null)[];
+	public readonly data: Array<ViewLineData | null>;
 
 	constructor(
 		tabSize: number,
-		data: (ViewLineData | null)[]
+		data: Array<ViewLineData | null>
 	) {
 		this.tabSize = tabSize;
 		this.data = data;

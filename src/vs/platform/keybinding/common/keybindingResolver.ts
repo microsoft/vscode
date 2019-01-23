@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
-import { ContextKeyExpr, IContext, ContextKeyAndExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
-import { CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
+import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { MenuRegistry } from 'vs/platform/actions/common/actions';
+import { CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
+import { ContextKeyAndExpr, ContextKeyExpr, IContext } from 'vs/platform/contextkey/common/contextkey';
+import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 
 export interface IResolveResult {
 	enterChord: boolean;
@@ -77,8 +77,7 @@ export class KeybindingResolver {
 	public static combine(defaults: ResolvedKeybindingItem[], rawOverrides: ResolvedKeybindingItem[]): ResolvedKeybindingItem[] {
 		defaults = defaults.slice(0);
 		let overrides: ResolvedKeybindingItem[] = [];
-		for (let i = 0, len = rawOverrides.length; i < len; i++) {
-			const override = rawOverrides[i];
+		for (const override of rawOverrides) {
 			if (!override.command || override.command.length === 0 || override.command.charAt(0) !== '-') {
 				overrides.push(override);
 				continue;
@@ -180,8 +179,7 @@ export class KeybindingResolver {
 		const bExpressions: ContextKeyExpr[] = ((b instanceof ContextKeyAndExpr) ? b.expr : [b]);
 
 		let aIndex = 0;
-		for (let bIndex = 0; bIndex < bExpressions.length; bIndex++) {
-			let bExpr = bExpressions[bIndex];
+		for (const bExpr of bExpressions) {
 			let bExprMatched = false;
 			while (!bExprMatched && aIndex < aExpressions.length) {
 				let aExpr = aExpressions[aIndex];
@@ -322,7 +320,7 @@ export class KeybindingResolver {
 			}
 			const command = CommandsRegistry.getCommand(id);
 			if (command && typeof command.description === 'object'
-				&& !isFalsyOrEmpty((<ICommandHandlerDescription>command.description).args)) { // command with args
+				&& isNonEmptyArray((<ICommandHandlerDescription>command.description).args)) { // command with args
 				return;
 			}
 			unboundCommands.push(id);

@@ -7,7 +7,6 @@ import { localize } from 'vs/nls';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Action } from 'vs/base/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { URI } from 'vs/base/common/uri';
 import { WalkThroughInput, WalkThroughInputOptions } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughInput';
 import { Schemas } from 'vs/base/common/network';
@@ -30,13 +29,13 @@ export class EditorWalkThroughAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IEditorService private editorService: IEditorService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IEditorService private readonly editorService: IEditorService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super(id, label);
 	}
 
-	public run(): TPromise<void> {
+	public run(): Promise<void> {
 		const input = this.instantiationService.createInstance(WalkThroughInput, inputOptions);
 		return this.editorService.openEditor(input, { pinned: true })
 			.then(() => void (0));

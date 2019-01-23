@@ -5,7 +5,7 @@
 
 import * as electron from 'electron';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { Event, fromNodeEventEmitter } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { memoize } from 'vs/base/common/decorators';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
@@ -22,15 +22,15 @@ export class DarwinUpdateService extends AbstractUpdateService {
 
 	private disposables: IDisposable[] = [];
 
-	@memoize private get onRawError(): Event<string> { return fromNodeEventEmitter(electron.autoUpdater, 'error', (_, message) => message); }
-	@memoize private get onRawUpdateNotAvailable(): Event<void> { return fromNodeEventEmitter<void>(electron.autoUpdater, 'update-not-available'); }
-	@memoize private get onRawUpdateAvailable(): Event<IUpdate> { return fromNodeEventEmitter(electron.autoUpdater, 'update-available', (_, url, version) => ({ url, version, productVersion: version })); }
-	@memoize private get onRawUpdateDownloaded(): Event<IUpdate> { return fromNodeEventEmitter(electron.autoUpdater, 'update-downloaded', (_, releaseNotes, version, date) => ({ releaseNotes, version, productVersion: version, date })); }
+	@memoize private get onRawError(): Event<string> { return Event.fromNodeEventEmitter(electron.autoUpdater, 'error', (_, message) => message); }
+	@memoize private get onRawUpdateNotAvailable(): Event<void> { return Event.fromNodeEventEmitter<void>(electron.autoUpdater, 'update-not-available'); }
+	@memoize private get onRawUpdateAvailable(): Event<IUpdate> { return Event.fromNodeEventEmitter(electron.autoUpdater, 'update-available', (_, url, version) => ({ url, version, productVersion: version })); }
+	@memoize private get onRawUpdateDownloaded(): Event<IUpdate> { return Event.fromNodeEventEmitter(electron.autoUpdater, 'update-downloaded', (_, releaseNotes, version, date) => ({ releaseNotes, version, productVersion: version, date })); }
 
 	constructor(
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@ITelemetryService private telemetryService: ITelemetryService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IRequestService requestService: IRequestService,
 		@ILogService logService: ILogService
@@ -44,7 +44,11 @@ export class DarwinUpdateService extends AbstractUpdateService {
 
 	private onError(err: string): void {
 		this.logService.error('UpdateService error:', err);
-		this.setState(State.Idle(UpdateType.Archive, err));
+
+		// only show message when explicitly checking for updates
+		const shouldShowMessage = this.state.type === StateType.CheckingForUpdates ? !!this.state.context : true;
+		const message: string | undefined = shouldShowMessage ? err : undefined;
+		this.setState(State.Idle(UpdateType.Archive, message));
 	}
 
 	protected buildUpdateFeedUrl(quality: string): string | undefined {
@@ -103,12 +107,6 @@ export class DarwinUpdateService extends AbstractUpdateService {
 	}
 
 	protected doQuitAndInstall(): void {
-		// for some reason updating on Mac causes the local storage not to be flushed.
-		// we workaround this issue by forcing an explicit flush of the storage data.
-		// see also https://github.com/Microsoft/vscode/issues/172
-		this.logService.trace('update#quitAndInstall(): calling flushStorageData()');
-		electron.session.defaultSession.flushStorageData();
-
 		this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
 		electron.autoUpdater.quitAndInstall();
 	}

@@ -7,8 +7,8 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as cp from 'child_process';
 import * as vscode from 'vscode';
-
 import * as nls from 'vscode-nls';
+
 const localize = nls.loadMessageBundle();
 
 type AutoDetect = 'on' | 'off';
@@ -60,6 +60,13 @@ function getOutputChannel(): vscode.OutputChannel {
 	return _channel;
 }
 
+function showError() {
+	vscode.window.showWarningMessage(localize('gulpTaskDetectError', 'Problem finding gulp tasks. See the output for more information.'),
+		localize('gulpShowOutput', 'Go to output')).then(() => {
+			_channel.show(true);
+		});
+}
+
 interface GulpTaskDefinition extends vscode.TaskDefinition {
 	task: string;
 	file?: string;
@@ -82,7 +89,7 @@ class FolderDetector {
 	}
 
 	public start(): void {
-		let pattern = path.join(this._workspaceFolder.uri.fsPath, 'gulpfile{.babel.js,.js,.ts}');
+		let pattern = path.join(this._workspaceFolder.uri.fsPath, '{node_modules,gulpfile{.babel.js,.js,.ts}}');
 		this.fileWatcher = vscode.workspace.createFileSystemWatcher(pattern);
 		this.fileWatcher.onDidChange(() => this.promise = undefined);
 		this.fileWatcher.onDidCreate(() => this.promise = undefined);
@@ -113,7 +120,12 @@ class FolderDetector {
 		let gulpCommand: string;
 		let platform = process.platform;
 		if (platform === 'win32' && await exists(path.join(rootPath!, 'node_modules', '.bin', 'gulp.cmd'))) {
-			gulpCommand = path.join('.', 'node_modules', '.bin', 'gulp.cmd');
+			const globalGulp = path.join(process.env.APPDATA ? process.env.APPDATA : '', 'npm', 'gulp.cmd');
+			if (await exists(globalGulp)) {
+				gulpCommand = globalGulp;
+			} else {
+				gulpCommand = path.join('.', 'node_modules', '.bin', 'gulp.cmd');
+			}
 		} else if ((platform === 'linux' || platform === 'darwin') && await exists(path.join(rootPath!, 'node_modules', '.bin', 'gulp'))) {
 			gulpCommand = path.join('.', 'node_modules', '.bin', 'gulp');
 		} else {
@@ -125,7 +137,7 @@ class FolderDetector {
 			let { stdout, stderr } = await exec(commandLine, { cwd: rootPath });
 			if (stderr && stderr.length > 0) {
 				getOutputChannel().appendLine(stderr);
-				getOutputChannel().show(true);
+				showError();
 			}
 			let result: vscode.Task[] = [];
 			if (stdout) {
@@ -159,7 +171,7 @@ class FolderDetector {
 				channel.appendLine(err.stdout);
 			}
 			channel.appendLine(localize('execFailed', 'Auto detecting gulp for folder {0} failed with error: {1}', this.workspaceFolder.name, err.error ? err.error.toString() : 'unknown'));
-			channel.show(true);
+			showError();
 			return emptyTasks;
 		}
 	}

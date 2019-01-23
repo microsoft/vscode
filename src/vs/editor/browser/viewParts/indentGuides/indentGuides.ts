@@ -5,12 +5,12 @@
 
 import 'vs/css!./indentGuides';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
+import { Position } from 'vs/editor/common/core/position';
+import { editorActiveIndentGuides, editorIndentGuides } from 'vs/editor/common/view/editorColorRegistry';
 import { RenderingContext } from 'vs/editor/common/view/renderingContext';
+import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { editorIndentGuides, editorActiveIndentGuides } from 'vs/editor/common/view/editorColorRegistry';
-import { Position } from 'vs/editor/common/core/position';
 
 export class IndentGuidesOverlay extends DynamicViewOverlay {
 

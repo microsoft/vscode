@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as Platform from 'vs/base/common/platform';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import * as platform from 'vs/base/common/platform';
 
 class WindowManager {
 
@@ -14,7 +14,7 @@ class WindowManager {
 	// --- Zoom Level
 	private _zoomLevel: number = 0;
 	private _lastZoomLevelChangeTime: number = 0;
-	private readonly _onDidChangeZoomLevel: Emitter<number> = new Emitter<number>();
+	private readonly _onDidChangeZoomLevel = new Emitter<number>();
 
 	public readonly onDidChangeZoomLevel: Event<number> = this._onDidChangeZoomLevel.event;
 	public getZoomLevel(): number {
@@ -58,7 +58,7 @@ class WindowManager {
 
 	// --- Fullscreen
 	private _fullscreen: boolean;
-	private readonly _onDidChangeFullscreen: Emitter<void> = new Emitter<void>();
+	private readonly _onDidChangeFullscreen = new Emitter<void>();
 
 	public readonly onDidChangeFullscreen: Event<void> = this._onDidChangeFullscreen.event;
 	public setFullscreen(fullscreen: boolean): void {
@@ -74,11 +74,11 @@ class WindowManager {
 	}
 
 	// --- Accessibility
-	private _accessibilitySupport = Platform.AccessibilitySupport.Unknown;
-	private readonly _onDidChangeAccessibilitySupport: Emitter<void> = new Emitter<void>();
+	private _accessibilitySupport = platform.AccessibilitySupport.Unknown;
+	private readonly _onDidChangeAccessibilitySupport = new Emitter<void>();
 
 	public readonly onDidChangeAccessibilitySupport: Event<void> = this._onDidChangeAccessibilitySupport.event;
-	public setAccessibilitySupport(accessibilitySupport: Platform.AccessibilitySupport): void {
+	public setAccessibilitySupport(accessibilitySupport: platform.AccessibilitySupport): void {
 		if (this._accessibilitySupport === accessibilitySupport) {
 			return;
 		}
@@ -86,7 +86,7 @@ class WindowManager {
 		this._accessibilitySupport = accessibilitySupport;
 		this._onDidChangeAccessibilitySupport.fire();
 	}
-	public getAccessibilitySupport(): Platform.AccessibilitySupport {
+	public getAccessibilitySupport(): platform.AccessibilitySupport {
 		return this._accessibilitySupport;
 	}
 }
@@ -126,10 +126,10 @@ export function isFullscreen(): boolean {
 }
 export const onDidChangeFullscreen = WindowManager.INSTANCE.onDidChangeFullscreen;
 
-export function setAccessibilitySupport(accessibilitySupport: Platform.AccessibilitySupport): void {
+export function setAccessibilitySupport(accessibilitySupport: platform.AccessibilitySupport): void {
 	WindowManager.INSTANCE.setAccessibilitySupport(accessibilitySupport);
 }
-export function getAccessibilitySupport(): Platform.AccessibilitySupport {
+export function getAccessibilitySupport(): platform.AccessibilitySupport {
 	return WindowManager.INSTANCE.getAccessibilitySupport();
 }
 export function onDidChangeAccessibilitySupport(callback: () => void): IDisposable {
@@ -146,7 +146,8 @@ export const isOpera = (userAgent.indexOf('Opera') >= 0);
 export const isFirefox = (userAgent.indexOf('Firefox') >= 0);
 export const isWebKit = (userAgent.indexOf('AppleWebKit') >= 0);
 export const isChrome = (userAgent.indexOf('Chrome') >= 0);
-export const isSafari = (userAgent.indexOf('Chrome') === -1) && (userAgent.indexOf('Safari') >= 0);
+export const isSafari = (!isChrome && (userAgent.indexOf('Safari') >= 0));
+export const isWebkitWebView = (!isChrome && !isSafari && isWebKit);
 export const isIPad = (userAgent.indexOf('iPad') >= 0);
 export const isEdgeWebView = isEdge && (userAgent.indexOf('WebView/') >= 0);
 

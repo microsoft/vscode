@@ -18,36 +18,51 @@
 	font-size: 10px;
 	text-align: right;
 	margin-right: 6px;
+	flex-shrink: 0;
+	width: 16px;
 }
 
 .monaco-tl-contents {
 	flex: 1;
+	overflow: hidden;
 }
 
 .monaco-tl-twistie.collapsible {
 	background-size: 16px;
-	background-position: 100% 50%;
+	background-position: 3px 50%;
 	background-repeat: no-repeat;
 	background-image: url("expanded.svg");
 }
 
-.monaco-tl-twistie.collapsible.collapsed {
+.monaco-tl-twistie.collapsible.collapsed:not(.loading) {
 	display: inline-block;
 	background-image: url("collapsed.svg");
 }
 
-.vs-dark .monaco-tl-twistie.collapsible {
+.vs-dark .monaco-tl-twistie.collapsible:not(.loading) {
 	background-image: url("expanded-dark.svg");
 }
 
-.vs-dark .monaco-tl-twistie.collapsible.collapsed {
+.vs-dark .monaco-tl-twistie.collapsible.collapsed:not(.loading) {
 	background-image: url("collapsed-dark.svg");
 }
 
-.hc-black .monaco-tl-twistie.collapsible {
+.hc-black .monaco-tl-twistie.collapsible:not(.loading) {
 	background-image: url("expanded-hc.svg");
 }
 
-.hc-black .monaco-tl-twistie.collapsible.collapsed {
+.hc-black .monaco-tl-twistie.collapsible.collapsed:not(.loading) {
 	background-image: url("collapsed-hc.svg");
+}
+
+.monaco-tl-twistie.loading {
+	background-image: url("loading.svg");
+}
+
+.vs-dark .monaco-tl-twistie.loading {
+	background-image: url("loading-dark.svg");
+}
+
+.hc-black .monaco-tl-twistie.loading {
+	background-image: url("loading-hc.svg");
 }

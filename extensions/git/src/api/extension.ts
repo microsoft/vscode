@@ -6,6 +6,8 @@
 import { Model } from '../model';
 import { GitExtension, Repository, API } from './git';
 import { ApiRepository, ApiImpl } from './api1';
+import { Event, EventEmitter } from 'vscode';
+import { latchEvent } from '../util';
 
 export function deprecated(_target: any, key: string, descriptor: any): void {
 	if (typeof descriptor.value !== 'function') {
@@ -19,50 +21,56 @@ export function deprecated(_target: any, key: string, descriptor: any): void {
 	};
 }
 
-class NoModelGitExtension implements GitExtension {
+export class GitExtensionImpl implements GitExtension {
+
+	enabled: boolean = false;
+
+	private _onDidChangeEnablement = new EventEmitter<boolean>();
+	readonly onDidChangeEnablement: Event<boolean> = latchEvent(this._onDidChangeEnablement.event);
+
+	private _model: Model | undefined = undefined;
+
+	set model(model: Model | undefined) {
+		this._model = model;
+
+		this.enabled = !!model;
+		this._onDidChangeEnablement.fire(this.enabled);
+	}
+
+	constructor(model?: Model) {
+		if (model) {
+			this.enabled = true;
+			this._model = model;
+		}
+	}
 
 	@deprecated
 	async getGitPath(): Promise<string> {
-		throw new Error('Git model not found');
-	}
+		if (!this._model) {
+			throw new Error('Git model not found');
+		}
 
-	@deprecated
-	async getRepositories(): Promise<Repository[]> {
-		throw new Error('Git model not found');
-	}
-
-	getAPI(): API {
-		throw new Error('Git model not found');
-	}
-}
-
-class GitExtensionImpl implements GitExtension {
-
-	constructor(private _model: Model) { }
-
-	@deprecated
-	async getGitPath(): Promise<string> {
 		return this._model.git.path;
 	}
 
 	@deprecated
 	async getRepositories(): Promise<Repository[]> {
+		if (!this._model) {
+			throw new Error('Git model not found');
+		}
+
 		return this._model.repositories.map(repository => new ApiRepository(repository));
 	}
 
 	getAPI(version: number): API {
+		if (!this._model) {
+			throw new Error('Git model not found');
+		}
+
 		if (version !== 1) {
 			throw new Error(`No API version ${version} found.`);
 		}
 
 		return new ApiImpl(this._model);
 	}
-}
-
-export function createGitExtension(model?: Model): GitExtension {
-	if (!model) {
-		return new NoModelGitExtension();
-	}
-
-	return new GitExtensionImpl(model);
 }

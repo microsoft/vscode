@@ -123,13 +123,13 @@
 .monaco-workbench > .part.editor > .content .walkThroughContent .linux-only {
 	display: none;
 }
-.monaco-workbench.mac > .part.editor > .content .walkThroughContent .mac-only {
+.mac > .monaco-workbench > .part.editor > .content .walkThroughContent .mac-only {
 	display: initial;
 }
-.monaco-workbench.windows > .part.editor > .content .walkThroughContent .windows-only {
+.windows > .monaco-workbench > .part.editor > .content .walkThroughContent .windows-only {
 	display: initial;
 }
-.monaco-workbench.linux > .part.editor > .content .walkThroughContent .linux-only {
+.linux > .monaco-workbench > .part.editor > .content .walkThroughContent .linux-only {
 	display: initial;
 }
 

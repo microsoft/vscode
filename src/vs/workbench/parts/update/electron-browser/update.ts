@@ -5,7 +5,6 @@
 
 import * as nls from 'vs/nls';
 import severity from 'vs/base/common/severity';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction, Action } from 'vs/base/common/actions';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -42,17 +41,17 @@ function showReleaseNotes(instantiationService: IInstantiationService, version: 
 export class OpenLatestReleaseNotesInBrowserAction extends Action {
 
 	constructor(
-		@IOpenerService private openerService: IOpenerService
+		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		super('update.openLatestReleaseNotes', nls.localize('releaseNotes', "Release Notes"), null, true);
 	}
 
-	run(): TPromise<any> {
+	run(): Promise<any> {
 		if (product.releaseNotesUrl) {
 			const uri = URI.parse(product.releaseNotesUrl);
 			return this.openerService.open(uri);
 		}
-		return TPromise.as(void 0);
+		return Promise.resolve(false);
 	}
 }
 
@@ -62,23 +61,23 @@ export abstract class AbstractShowReleaseNotesAction extends Action {
 		id: string,
 		label: string,
 		private version: string,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super(id, label, null, true);
 	}
 
-	run(): TPromise<boolean> {
+	run(): Promise<boolean> {
 		if (!this.enabled) {
-			return TPromise.as(false);
+			return Promise.resolve(false);
 		}
 
 		this.enabled = false;
 
-		return TPromise.wrap(showReleaseNotes(this.instantiationService, this.version)
-			.then(null, () => {
+		return showReleaseNotes(this.instantiationService, this.version)
+			.then(undefined, () => {
 				const action = this.instantiationService.createInstance(OpenLatestReleaseNotesInBrowserAction);
 				return action.run().then(() => false);
-			}));
+			});
 	}
 }
 
@@ -158,10 +157,12 @@ class NeverShowAgain {
 		// Hide notification
 		notification.close();
 
-		return TPromise.wrap(this.storageService.store(this.key, true, StorageScope.GLOBAL));
+		this.storageService.store(this.key, true, StorageScope.GLOBAL);
+
+		return Promise.resolve(true);
 	});
 
-	constructor(key: string, @IStorageService private storageService: IStorageService) {
+	constructor(key: string, @IStorageService private readonly storageService: IStorageService) {
 		this.key = `neverShowAgain:${key}`;
 	}
 
@@ -241,14 +242,14 @@ export class UpdateContribution implements IGlobalActivity {
 	private disposables: IDisposable[] = [];
 
 	constructor(
-		@IStorageService private storageService: IStorageService,
-		@ICommandService private commandService: ICommandService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@INotificationService private notificationService: INotificationService,
-		@IDialogService private dialogService: IDialogService,
-		@IUpdateService private updateService: IUpdateService,
-		@IActivityService private activityService: IActivityService,
-		@IWindowService private windowService: IWindowService
+		@IStorageService private readonly storageService: IStorageService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@IUpdateService private readonly updateService: IUpdateService,
+		@IActivityService private readonly activityService: IActivityService,
+		@IWindowService private readonly windowService: IWindowService
 	) {
 		this.state = updateService.state;
 
@@ -424,24 +425,31 @@ export class UpdateContribution implements IGlobalActivity {
 			return;
 		}
 
-		// windows user fast updates and mac
-		this.notificationService.prompt(
-			severity.Info,
-			nls.localize('updateAvailableAfterRestart', "Restart {0} to apply the latest update.", product.nameLong),
-			[{
-				label: nls.localize('updateNow', "Update Now"),
-				run: () => this.updateService.quitAndInstall()
-			}, {
-				label: nls.localize('later', "Later"),
-				run: () => { }
-			}, {
+		const actions = [{
+			label: nls.localize('updateNow', "Update Now"),
+			run: () => this.updateService.quitAndInstall()
+		}, {
+			label: nls.localize('later', "Later"),
+			run: () => { }
+		}];
+
+		// TODO@joao check why snap updates send `update` as falsy
+		if (update.productVersion) {
+			actions.push({
 				label: nls.localize('releaseNotes', "Release Notes"),
 				run: () => {
 					const action = this.instantiationService.createInstance(ShowReleaseNotesAction, update.productVersion);
 					action.run();
 					action.dispose();
 				}
-			}],
+			});
+		}
+
+		// windows user fast updates and mac
+		this.notificationService.prompt(
+			severity.Info,
+			nls.localize('updateAvailableAfterRestart', "Restart {0} to apply the latest update.", product.nameLong),
+			actions,
 			{ sticky: true }
 		);
 	}

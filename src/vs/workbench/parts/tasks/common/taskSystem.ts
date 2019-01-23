@@ -5,13 +5,10 @@
 
 import { URI } from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { TerminateResponse } from 'vs/base/common/processes';
 import { Event } from 'vs/base/common/event';
 import { Platform } from 'vs/base/common/platform';
-
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-
 import { Task, TaskEvent, KeyedTaskIdentifier } from './tasks';
 
 export const enum TaskErrors {
@@ -84,7 +81,8 @@ export const enum TaskExecuteKind {
 
 export interface ITaskExecuteResult {
 	kind: TaskExecuteKind;
-	promise: TPromise<ITaskSummary>;
+	promise: Promise<ITaskSummary>;
+	task: Task;
 	started?: {
 		restartOnFileChanges?: string;
 	};
@@ -102,11 +100,25 @@ export interface TaskTerminateResponse extends TerminateResponse {
 	task: Task | undefined;
 }
 
+export interface ResolveSet {
+	process?: {
+		name: string;
+		cwd?: string;
+		path?: string;
+	};
+	variables: Set<string>;
+}
+
+export interface ResolvedVariables {
+	process?: string;
+	variables: Map<string, string>;
+}
+
 export interface TaskSystemInfo {
 	platform: Platform;
 	context: any;
 	uriProvider: (this: void, path: string) => URI;
-	resolveVariables(workspaceFolder: IWorkspaceFolder, variables: Set<string>): TPromise<Map<string, string>>;
+	resolveVariables(workspaceFolder: IWorkspaceFolder, toResolve: ResolveSet): Promise<ResolvedVariables>;
 }
 
 export interface TaskSystemInfoResovler {
@@ -116,11 +128,12 @@ export interface TaskSystemInfoResovler {
 export interface ITaskSystem {
 	onDidStateChange: Event<TaskEvent>;
 	run(task: Task, resolver: ITaskResolver): ITaskExecuteResult;
-	isActive(): TPromise<boolean>;
+	rerun(): ITaskExecuteResult | undefined;
+	isActive(): Promise<boolean>;
 	isActiveSync(): boolean;
 	getActiveTasks(): Task[];
 	canAutoTerminate(): boolean;
-	terminate(task: Task): TPromise<TaskTerminateResponse>;
-	terminateAll(): TPromise<TaskTerminateResponse[]>;
+	terminate(task: Task): Promise<TaskTerminateResponse>;
+	terminateAll(): Promise<TaskTerminateResponse[]>;
 	revealTask(task: Task): boolean;
 }

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import { Mode, IEntryRunContext, IAutoFocus, IQuickNavigateConfiguration, IModel } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenModel, QuickOpenEntryGroup, QuickOpenEntry } from 'vs/base/parts/quickopen/browser/quickOpenModel';
@@ -69,17 +68,17 @@ export class ViewPickerHandler extends QuickOpenHandler {
 	static readonly ID = 'workbench.picker.views';
 
 	constructor(
-		@IViewletService private viewletService: IViewletService,
-		@IViewsService private viewsService: IViewsService,
-		@IOutputService private outputService: IOutputService,
-		@ITerminalService private terminalService: ITerminalService,
-		@IPanelService private panelService: IPanelService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
+		@IViewletService private readonly viewletService: IViewletService,
+		@IViewsService private readonly viewsService: IViewsService,
+		@IOutputService private readonly outputService: IOutputService,
+		@ITerminalService private readonly terminalService: ITerminalService,
+		@IPanelService private readonly panelService: IPanelService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
 	}
 
-	getResults(searchValue: string, token: CancellationToken): TPromise<QuickOpenModel> {
+	getResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel> {
 		searchValue = searchValue.trim();
 		const normalizedSearchValueLowercase = stripWildcards(searchValue).toLowerCase();
 
@@ -102,6 +101,13 @@ export class ViewPickerHandler extends QuickOpenHandler {
 			return true;
 		});
 
+		const entryToCategory = {};
+		entries.forEach(e => {
+			if (!entryToCategory[e.getLabel()]) {
+				entryToCategory[e.getLabel()] = e.getCategory();
+			}
+		});
+
 		let lastCategory: string;
 		entries.forEach((e, index) => {
 			if (lastCategory !== e.getCategory()) {
@@ -109,13 +115,18 @@ export class ViewPickerHandler extends QuickOpenHandler {
 
 				e.setShowBorder(index > 0);
 				e.setGroupLabel(lastCategory);
+
+				// When the entry category has a parent category, set group label as Parent / Child. For example, Views / Explorer.
+				if (entryToCategory[lastCategory]) {
+					e.setGroupLabel(`${entryToCategory[lastCategory]} / ${lastCategory}`);
+				}
 			} else {
 				e.setShowBorder(false);
-				e.setGroupLabel(void 0);
+				e.setGroupLabel(undefined);
 			}
 		});
 
-		return TPromise.as(new QuickOpenModel(entries));
+		return Promise.resolve(new QuickOpenModel(entries));
 	}
 
 	private getViewEntries(): ViewEntry[] {
@@ -136,11 +147,11 @@ export class ViewPickerHandler extends QuickOpenHandler {
 
 		// Viewlets
 		const viewlets = this.viewletService.getViewlets();
-		viewlets.forEach((viewlet, index) => viewEntries.push(new ViewEntry(viewlet.name, nls.localize('views', "Views"), () => this.viewletService.openViewlet(viewlet.id, true))));
+		viewlets.forEach((viewlet, index) => viewEntries.push(new ViewEntry(viewlet.name, nls.localize('views', "Side Bar"), () => this.viewletService.openViewlet(viewlet.id, true))));
 
 		// Panels
 		const panels = this.panelService.getPanels();
-		panels.forEach((panel, index) => viewEntries.push(new ViewEntry(panel.name, nls.localize('panels', "Panels"), () => this.panelService.openPanel(panel.id, true))));
+		panels.forEach((panel, index) => viewEntries.push(new ViewEntry(panel.name, nls.localize('panels', "Panel"), () => this.panelService.openPanel(panel.id, true))));
 
 		// Viewlet Views
 		viewlets.forEach((viewlet, index) => {
@@ -170,7 +181,7 @@ export class ViewPickerHandler extends QuickOpenHandler {
 		const channels = this.outputService.getChannelDescriptors();
 		channels.forEach((channel, index) => {
 			const outputCategory = nls.localize('channels', "Output");
-			const entry = new ViewEntry(channel.label, outputCategory, () => this.outputService.showChannel(channel.id));
+			const entry = new ViewEntry(channel.log ? nls.localize('logChannel', "Log ({0})", channel.label) : channel.label, outputCategory, () => this.outputService.showChannel(channel.id));
 
 			viewEntries.push(entry);
 		});
@@ -207,17 +218,17 @@ export class QuickOpenViewPickerAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IKeybindingService private keybindingService: IKeybindingService
+		@IQuickOpenService private readonly quickOpenService: IQuickOpenService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
 		super(id, label);
 	}
 
-	run(): TPromise<boolean> {
+	run(): Promise<boolean> {
 		const keys = this.keybindingService.lookupKeybindings(this.id);
 
 		this.quickOpenService.show(VIEW_PICKER_PREFIX, { quickNavigateConfiguration: { keybindings: keys } });
 
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 }

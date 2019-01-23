@@ -58,16 +58,16 @@ export class DebugToolbar extends Themable implements IWorkbenchContribution {
 	private isBuilt: boolean;
 
 	constructor(
-		@INotificationService private notificationService: INotificationService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IDebugService private debugService: IDebugService,
-		@IPartService private partService: IPartService,
-		@IStorageService private storageService: IStorageService,
-		@IConfigurationService private configurationService: IConfigurationService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IDebugService private readonly debugService: IDebugService,
+		@IPartService private readonly partService: IPartService,
+		@IStorageService private readonly storageService: IStorageService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IThemeService themeService: IThemeService,
-		@IKeybindingService private keybindingService: IKeybindingService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IContextViewService contextViewService: IContextViewService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super(themeService);
 
@@ -93,7 +93,7 @@ export class DebugToolbar extends Themable implements IWorkbenchContribution {
 		this.updateScheduler = this._register(new RunOnceScheduler(() => {
 			const state = this.debugService.state;
 			const toolBarLocation = this.configurationService.getValue<IDebugConfiguration>('debug').toolBarLocation;
-			if (state === State.Inactive || state === State.Initializing || toolBarLocation === 'docked' || toolBarLocation === 'hidden') {
+			if (state === State.Inactive || toolBarLocation === 'docked' || toolBarLocation === 'hidden') {
 				return this.hide();
 			}
 

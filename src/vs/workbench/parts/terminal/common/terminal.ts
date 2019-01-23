@@ -8,6 +8,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { RawContextKey, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 
 export const TERMINAL_PANEL_ID = 'workbench.panel.terminal';
@@ -58,7 +59,7 @@ export const TERMINAL_CONFIG_SECTION = 'terminal.integrated';
 
 export const DEFAULT_LETTER_SPACING = 0;
 export const MINIMUM_LETTER_SPACING = -5;
-export const DEFAULT_LINE_HEIGHT = 1.0;
+export const DEFAULT_LINE_HEIGHT = 1;
 
 export type FontWeight = 'normal' | 'bold' | '100' | '200' | '300' | '400' | '500' | '600' | '700' | '800' | '900';
 
@@ -100,7 +101,8 @@ export interface ITerminalConfiguration {
 	};
 	showExitAlert: boolean;
 	experimentalBufferImpl: 'JsArray' | 'TypedArray';
-	splitCwd: 'workspaceRoot' | 'sourceInitialCwd' | 'sourceCwd';
+	splitCwd: 'workspaceRoot' | 'initial' | 'inherited';
+	windowsEnableConpty: boolean;
 }
 
 export interface ITerminalConfigHelper {
@@ -121,6 +123,10 @@ export interface ITerminalFont {
 	lineHeight: number;
 	charWidth?: number;
 	charHeight?: number;
+}
+
+export interface ITerminalEnvironment {
+	[key: string]: string | null;
 }
 
 export interface IShellLaunchConfig {
@@ -145,13 +151,13 @@ export interface IShellLaunchConfig {
 	 * The current working directory of the terminal, this overrides the `terminal.integrated.cwd`
 	 * settings key.
 	 */
-	cwd?: string;
+	cwd?: string | URI;
 
 	/**
 	 * A custom environment for the terminal, if this is not set the environment will be inherited
 	 * from the VS Code process.
 	 */
-	env?: { [key: string]: string };
+	env?: ITerminalEnvironment;
 
 	/**
 	 * Whether to ignore a custom cwd from the `terminal.integrated.cwd` settings key (eg. if the
@@ -175,6 +181,15 @@ export interface IShellLaunchConfig {
 	 * extensions full control over the terminal.
 	 */
 	isRendererOnly?: boolean;
+
+	/**
+	 * Whether the terminal process environment should be exactly as provided in
+	 * `TerminalOptions.env`. When this is false (default), the environment will be based on the
+	 * window's environment and also apply configured platform settings like
+	 * `terminal.integrated.windows.env` on top. When this is true, the complete environment must be
+	 * provided as nothing will be inherited from the process or any configuration.
+	 */
+	strictEnv?: boolean;
 }
 
 export interface ITerminalService {
@@ -191,7 +206,7 @@ export interface ITerminalService {
 	onInstanceRequestExtHostProcess: Event<ITerminalProcessExtHostRequest>;
 	onInstancesChanged: Event<void>;
 	onInstanceTitleChanged: Event<ITerminalInstance>;
-	onActiveInstanceChanged: Event<ITerminalInstance>;
+	onActiveInstanceChanged: Event<ITerminalInstance | undefined>;
 	terminalInstances: ITerminalInstance[];
 	terminalTabs: ITerminalTab[];
 
@@ -211,17 +226,17 @@ export interface ITerminalService {
 	/**
 	 * Creates a raw terminal instance, this should not be used outside of the terminal part.
 	 */
-	createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement, shellLaunchConfig: IShellLaunchConfig, doCreateProcess: boolean): ITerminalInstance;
+	createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement | undefined, shellLaunchConfig: IShellLaunchConfig, doCreateProcess: boolean): ITerminalInstance;
 	getInstanceFromId(terminalId: number): ITerminalInstance;
 	getInstanceFromIndex(terminalIndex: number): ITerminalInstance;
 	getTabLabels(): string[];
-	getActiveInstance(): ITerminalInstance;
+	getActiveInstance(): ITerminalInstance | null;
 	setActiveInstance(terminalInstance: ITerminalInstance): void;
 	setActiveInstanceByIndex(terminalIndex: number): void;
 	getActiveOrCreateInstance(wasNewTerminalAction?: boolean): ITerminalInstance;
 	splitInstance(instance: ITerminalInstance, shell?: IShellLaunchConfig): void;
 
-	getActiveTab(): ITerminalTab;
+	getActiveTab(): ITerminalTab | null;
 	setActiveTabToNext(): void;
 	setActiveTabToPrevious(): void;
 	setActiveTabByIndex(tabIndex: number): void;
@@ -238,7 +253,7 @@ export interface ITerminalService {
 	selectDefaultWindowsShell(): Promise<string>;
 	setWorkspaceShellAllowed(isAllowed: boolean): void;
 
-	requestExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number): void;
+	requestExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI, cols: number, rows: number): void;
 }
 
 export const enum Direction {
@@ -249,7 +264,7 @@ export const enum Direction {
 }
 
 export interface ITerminalTab {
-	activeInstance: ITerminalInstance;
+	activeInstance: ITerminalInstance | null;
 	terminalInstances: ITerminalInstance[];
 	title: string;
 	onDisposed: Event<ITerminalTab>;
@@ -263,7 +278,7 @@ export interface ITerminalTab {
 	setVisible(visible: boolean): void;
 	layout(width: number, height: number): void;
 	addDisposable(disposable: IDisposable): void;
-	split(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, shellLaunchConfig: IShellLaunchConfig): ITerminalInstance;
+	split(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, shellLaunchConfig: IShellLaunchConfig): ITerminalInstance | undefined;
 }
 
 export interface ITerminalDimensions {
@@ -291,6 +306,10 @@ interface ISearchOptions {
 	 * Whether find should pay attention to case.
 	 */
 	caseSensitive?: boolean;
+	/**
+	 * Whether the search should start at the current search position (not the next row)
+	 */
+	incremental?: boolean;
 }
 
 export interface ITerminalInstance {
@@ -366,17 +385,13 @@ export interface ITerminalInstance {
 	/**
 	 * The title of the terminal. This is either title or the process currently running or an
 	 * explicit name given to the terminal instance through the extension API.
-	 *
-	 * @readonly
 	 */
-	title: string;
+	readonly title: string;
 
 	/**
 	 * The focus state of the terminal before exiting.
-	 *
-	 * @readonly
 	 */
-	hadFocusOnExit: boolean;
+	readonly hadFocusOnExit: boolean;
 
 	/**
 	 * False when the title is set by an API or the user. We check this to make sure we
@@ -410,10 +425,17 @@ export interface ITerminalInstance {
 	/**
 	 * Dispose the terminal instance, removing it from the panel/service and freeing up resources.
 	 *
-	 * @param isShuttingDown Whether VS Code is shutting down, if so kill any terminal processes
-	 * immediately.
+	 * @param immediate Whether the kill should be immediate or not. Immediate should only be used
+	 * when VS Code is shutting down or in cases where the terminal dispose was user initiated.
+	 * The immediate===false exists to cover an edge case where the final output of the terminal can
+	 * get cut off. If immediate kill any terminal processes immediately.
 	 */
-	dispose(isShuttingDown?: boolean): void;
+	dispose(immediate?: boolean): void;
+
+	/**
+	 * Forces the terminal to redraw its viewport.
+	 */
+	forceRedraw(): void;
 
 	/**
 	 * Registers a link matcher, allowing custom link patterns to be matched and handled.
@@ -577,7 +599,7 @@ export interface ITerminalInstance {
 	 *
 	 * @param shell The new launch configuration.
 	 */
-	reuseTerminal(shell?: IShellLaunchConfig): void;
+	reuseTerminal(shell: IShellLaunchConfig): void;
 
 	/**
 	 * Sets the title of the terminal instance.
@@ -658,6 +680,7 @@ export interface ITerminalProcessExtHostProxy extends IDisposable {
 export interface ITerminalProcessExtHostRequest {
 	proxy: ITerminalProcessExtHostProxy;
 	shellLaunchConfig: IShellLaunchConfig;
+	activeWorkspaceRootUri: URI;
 	cols: number;
 	rows: number;
 }

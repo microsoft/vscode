@@ -56,8 +56,39 @@ export interface Remote {
 	readonly isReadOnly: boolean;
 }
 
+export const enum Status {
+	INDEX_MODIFIED,
+	INDEX_ADDED,
+	INDEX_DELETED,
+	INDEX_RENAMED,
+	INDEX_COPIED,
+
+	MODIFIED,
+	DELETED,
+	UNTRACKED,
+	IGNORED,
+	INTENT_TO_ADD,
+
+	ADDED_BY_US,
+	ADDED_BY_THEM,
+	DELETED_BY_US,
+	DELETED_BY_THEM,
+	BOTH_ADDED,
+	BOTH_DELETED,
+	BOTH_MODIFIED
+}
+
 export interface Change {
-	// TODO
+
+	/**
+	 * Returns either `originalUri` or `renameUri`, depending
+	 * on whether this change is a rename change. When
+	 * in doubt always use `uri` over the other two alternatives.
+	 */
+	readonly uri: Uri;
+	readonly originalUri: Uri;
+	readonly renameUri: Uri | undefined;
+	readonly status: Status;
 }
 
 export interface RepositoryState {
@@ -90,10 +121,16 @@ export interface Repository {
 	getConfig(key: string): Promise<string>;
 	setConfig(key: string, value: string): Promise<string>;
 
+	getObjectDetails(treeish: string, path: string): Promise<{ mode: string, object: string, size: number }>;
+	detectObjectType(object: string): Promise<{ mimetype: string, encoding?: string }>;
+	buffer(ref: string, path: string): Promise<Buffer>;
 	show(ref: string, path: string): Promise<string>;
 	getCommit(ref: string): Promise<Commit>;
-	getObjectDetails(treeish: string, path: string): Promise<{ mode: string, object: string, size: number }>;
 
+	clean(paths: string[]): Promise<void>;
+
+	apply(patch: string, reverse?: boolean): Promise<void>;
+	diff(cached?: boolean): Promise<string>;
 	diffWithHEAD(path: string): Promise<string>;
 	diffWith(ref: string, path: string): Promise<string>;
 	diffIndexWithHEAD(path: string): Promise<string>;
@@ -104,7 +141,7 @@ export interface Repository {
 	hashObject(data: string): Promise<string>;
 
 	createBranch(name: string, checkout: boolean, ref?: string): Promise<void>;
-	deleteBranch(name: string): Promise<void>;
+	deleteBranch(name: string, force?: boolean): Promise<void>;
 	getBranch(name: string): Promise<Branch>;
 	setBranchUpstream(name: string, upstream: string): Promise<void>;
 
@@ -116,8 +153,10 @@ export interface Repository {
 	addRemote(name: string, url: string): Promise<void>;
 	removeRemote(name: string): Promise<void>;
 
-	fetch(remote?: string, ref?: string): Promise<void>;
-	pull(): Promise<void>;
+	fetch(remote?: string, ref?: string, depth?: number): Promise<void>;
+	pull(unshallow?: boolean): Promise<void>;
+	push(remoteName?: string, branchName?: string, setUpstream?: boolean): Promise<void>;
+	blame(path: string): Promise<string>;
 }
 
 export interface API {
@@ -129,8 +168,15 @@ export interface API {
 
 export interface GitExtension {
 
+	readonly enabled: boolean;
+	readonly onDidChangeEnablement: Event<boolean>;
+
 	/**
 	 * Returns a specific API version.
+	 *
+	 * Throws error if git extension is disabled. You can listed to the
+	 * [GitExtension.onDidChangeEnablement](#GitExtension.onDidChangeEnablement) event
+	 * to know when the extension becomes enabled/disabled.
 	 *
 	 * @param version Version number.
 	 * @returns API instance
@@ -170,4 +216,6 @@ export const enum GitErrorCodes {
 	WrongCase = 'WrongCase',
 	CantLockRef = 'CantLockRef',
 	CantRebaseMultipleBranches = 'CantRebaseMultipleBranches',
+	PatchDoesNotApply = 'PatchDoesNotApply',
+	NoPathFound = 'NoPathFound'
 }

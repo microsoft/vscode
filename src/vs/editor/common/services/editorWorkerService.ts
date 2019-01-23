@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IRange } from 'vs/editor/common/core/range';
 import { IChange, ILineChange } from 'vs/editor/common/editorCommon';
 import { IInplaceReplaceSupportResult, TextEdit } from 'vs/editor/common/modes';
-import { IRange } from 'vs/editor/common/core/range';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const ID_EDITOR_WORKER_SERVICE = 'editorWorkerService';
 export const IEditorWorkerService = createDecorator<IEditorWorkerService>(ID_EDITOR_WORKER_SERVICE);
@@ -26,7 +26,7 @@ export interface IEditorWorkerService {
 	canComputeDirtyDiff(original: URI, modified: URI): boolean;
 	computeDirtyDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<IChange[] | null>;
 
-	computeMoreMinimalEdits(resource: URI, edits: TextEdit[]): Promise<TextEdit[]>;
+	computeMoreMinimalEdits(resource: URI, edits: TextEdit[] | null | undefined): Promise<TextEdit[] | null | undefined>;
 
 	canComputeWordRanges(resource: URI): boolean;
 	computeWordRanges(resource: URI, range: IRange): Promise<{ [word: string]: IRange[] } | null>;

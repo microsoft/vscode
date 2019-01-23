@@ -15,14 +15,44 @@ export interface IProgressService {
 	/**
 	 * Show progress customized with the provided flags.
 	 */
-	show(infinite: boolean, delay?: number): IProgressRunner;
+	show(infinite: true, delay?: number): IProgressRunner;
 	show(total: number, delay?: number): IProgressRunner;
 
 	/**
 	 * Indicate progress for the duration of the provided promise. Progress will stop in
 	 * any case of promise completion, error or cancellation.
 	 */
-	showWhile(promise: Thenable<any>, delay?: number): Thenable<void>;
+	showWhile(promise: Promise<any>, delay?: number): Promise<void>;
+}
+
+export const enum ProgressLocation {
+	Explorer = 1,
+	Scm = 3,
+	Extensions = 5,
+	Window = 10,
+	Notification = 15
+}
+
+export interface IProgressOptions {
+	location: ProgressLocation | string;
+	title?: string;
+	source?: string;
+	total?: number;
+	cancellable?: boolean;
+}
+
+export interface IProgressStep {
+	message?: string;
+	increment?: number;
+}
+
+export const IProgressService2 = createDecorator<IProgressService2>('progressService2');
+
+export interface IProgressService2 {
+
+	_serviceBrand: any;
+
+	withProgress<P extends Promise<R>, R=any>(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => P, onDidCancel?: () => void): P;
 }
 
 export interface IProgressRunner {
@@ -100,7 +130,7 @@ export class LongRunningOperation {
 		this.currentOperationDisposables.push(
 			toDisposable(() => clearTimeout(this.currentProgressTimeout)),
 			toDisposable(() => newOperationToken.cancel()),
-			toDisposable(() => this.currentProgressRunner ? this.currentProgressRunner.done() : void 0)
+			toDisposable(() => this.currentProgressRunner ? this.currentProgressRunner.done() : undefined)
 		);
 
 		return {

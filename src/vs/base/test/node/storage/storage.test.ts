@@ -3,12 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Storage, SQLiteStorageImpl, IStorageOptions } from 'vs/base/node/storage';
+import { Storage, SQLiteStorageDatabase, IStorageDatabase, ISQLiteStorageDatabaseOptions, IStorageItemsChangeEvent } from 'vs/base/node/storage';
 import { generateUuid } from 'vs/base/common/uuid';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { equal, ok } from 'assert';
-import { mkdirp, del } from 'vs/base/node/pfs';
+import { mkdirp, del, writeFile, exists, unlink } from 'vs/base/node/pfs';
+import { timeout } from 'vs/base/common/async';
+import { Event, Emitter } from 'vs/base/common/event';
+import { isWindows } from 'vs/base/common/platform';
 
 suite('Storage Library', () => {
 
@@ -22,7 +25,7 @@ suite('Storage Library', () => {
 		const storageDir = uniqueStorageDir();
 		await mkdirp(storageDir);
 
-		const storage = new Storage({ path: join(storageDir, 'storage.db') });
+		const storage = new Storage(new SQLiteStorageDatabase(join(storageDir, 'storage.db')));
 
 		await storage.init();
 
@@ -92,11 +95,67 @@ suite('Storage Library', () => {
 		await del(storageDir, tmpdir());
 	});
 
+	test('external changes', async () => {
+		const storageDir = uniqueStorageDir();
+		await mkdirp(storageDir);
+
+		class TestSQLiteStorageDatabase extends SQLiteStorageDatabase {
+			private _onDidChangeItemsExternal = new Emitter<IStorageItemsChangeEvent>();
+			get onDidChangeItemsExternal(): Event<IStorageItemsChangeEvent> { return this._onDidChangeItemsExternal.event; }
+
+			fireDidChangeItemsExternal(event: IStorageItemsChangeEvent): void {
+				this._onDidChangeItemsExternal.fire(event);
+			}
+		}
+
+		const database = new TestSQLiteStorageDatabase(join(storageDir, 'storage.db'));
+		const storage = new Storage(database);
+
+		let changes = new Set<string>();
+		storage.onDidChangeStorage(key => {
+			changes.add(key);
+		});
+
+		await storage.init();
+
+		await storage.set('foo', 'bar');
+		ok(changes.has('foo'));
+		changes.clear();
+
+		// Nothing happens if changing to same value
+		const change = new Map<string, string>();
+		change.set('foo', 'bar');
+		database.fireDidChangeItemsExternal({ items: change });
+		equal(changes.size, 0);
+
+		// Change is accepted if valid
+		change.set('foo', 'bar1');
+		database.fireDidChangeItemsExternal({ items: change });
+		ok(changes.has('foo'));
+		equal(storage.get('foo'), 'bar1');
+		changes.clear();
+
+		// Delete is accepted
+		change.set('foo', undefined);
+		database.fireDidChangeItemsExternal({ items: change });
+		ok(changes.has('foo'));
+		equal(storage.get('foo', null!), null);
+		changes.clear();
+
+		// Nothing happens if changing to same value
+		change.set('foo', undefined);
+		database.fireDidChangeItemsExternal({ items: change });
+		equal(changes.size, 0);
+
+		await storage.close();
+		await del(storageDir, tmpdir());
+	});
+
 	test('close flushes data', async () => {
 		const storageDir = uniqueStorageDir();
 		await mkdirp(storageDir);
 
-		let storage = new Storage({ path: join(storageDir, 'storage.db') });
+		let storage = new Storage(new SQLiteStorageDatabase(join(storageDir, 'storage.db')));
 		await storage.init();
 
 		const set1Promise = storage.set('foo', 'bar');
@@ -112,7 +171,7 @@ suite('Storage Library', () => {
 
 		equal(setPromiseResolved, true);
 
-		storage = new Storage({ path: join(storageDir, 'storage.db') });
+		storage = new Storage(new SQLiteStorageDatabase(join(storageDir, 'storage.db')));
 		await storage.init();
 
 		equal(storage.get('foo'), 'bar');
@@ -120,7 +179,7 @@ suite('Storage Library', () => {
 
 		await storage.close();
 
-		storage = new Storage({ path: join(storageDir, 'storage.db') });
+		storage = new Storage(new SQLiteStorageDatabase(join(storageDir, 'storage.db')));
 		await storage.init();
 
 		const delete1Promise = storage.delete('foo');
@@ -136,7 +195,7 @@ suite('Storage Library', () => {
 
 		equal(deletePromiseResolved, true);
 
-		storage = new Storage({ path: join(storageDir, 'storage.db') });
+		storage = new Storage(new SQLiteStorageDatabase(join(storageDir, 'storage.db')));
 		await storage.init();
 
 		ok(!storage.get('foo'));
@@ -150,7 +209,7 @@ suite('Storage Library', () => {
 		const storageDir = uniqueStorageDir();
 		await mkdirp(storageDir);
 
-		let storage = new Storage({ path: join(storageDir, 'storage.db') });
+		let storage = new Storage(new SQLiteStorageDatabase(join(storageDir, 'storage.db')));
 		await storage.init();
 
 		let changes = new Set<string>();
@@ -187,6 +246,36 @@ suite('Storage Library', () => {
 		await storage.close();
 		await del(storageDir, tmpdir());
 	});
+
+	test('corrupt DB recovers', async () => {
+		const storageDir = uniqueStorageDir();
+		await mkdirp(storageDir);
+
+		const storageFile = join(storageDir, 'storage.db');
+
+		let storage = new Storage(new SQLiteStorageDatabase(storageFile));
+		await storage.init();
+
+		await storage.set('bar', 'foo');
+
+		await writeFile(storageFile, 'This is a broken DB');
+
+		await storage.set('foo', 'bar');
+
+		equal(storage.get('bar'), 'foo');
+		equal(storage.get('foo'), 'bar');
+
+		await storage.close();
+
+		storage = new Storage(new SQLiteStorageDatabase(storageFile));
+		await storage.init();
+
+		equal(storage.get('bar'), 'foo');
+		equal(storage.get('foo'), 'bar');
+
+		await storage.close();
+		await del(storageDir, tmpdir());
+	});
 });
 
 suite('SQLite Storage Library', () => {
@@ -204,15 +293,17 @@ suite('SQLite Storage Library', () => {
 		return set;
 	}
 
-	async function testDBBasics(path, errorLogger?: (error) => void) {
-		const options: IStorageOptions = { path };
-		if (errorLogger) {
-			options.logging = {
-				errorLogger
+	async function testDBBasics(path, logError?: (error) => void) {
+		let options!: ISQLiteStorageDatabaseOptions;
+		if (logError) {
+			options = {
+				logging: {
+					logError
+				}
 			};
 		}
 
-		const storage = new SQLiteStorageImpl(options);
+		const storage = new SQLiteStorageDatabase(path, options);
 
 		const items = new Map<string, string>();
 		items.set('foo', 'bar');
@@ -264,7 +355,14 @@ suite('SQLite Storage Library', () => {
 		storedItems = await storage.getItems();
 		equal(storedItems.size, 0);
 
-		await storage.close();
+		let recoveryCalled = false;
+		await storage.close(() => {
+			recoveryCalled = true;
+
+			return new Map();
+		});
+
+		equal(recoveryCalled, false);
 	}
 
 	test('basics', async () => {
@@ -272,7 +370,7 @@ suite('SQLite Storage Library', () => {
 
 		await mkdirp(storageDir);
 
-		testDBBasics(join(storageDir, 'storage.db'));
+		await testDBBasics(join(storageDir, 'storage.db'));
 
 		await del(storageDir, tmpdir());
 	});
@@ -288,14 +386,157 @@ suite('SQLite Storage Library', () => {
 		await del(storageDir, tmpdir());
 	});
 
-	test('basics (broken DB falls back to in-memory)', async () => {
-		let expectedError: any;
+	test('basics (corrupt DB falls back to empty DB)', async () => {
+		const storageDir = uniqueStorageDir();
 
-		await testDBBasics(join(__dirname, 'broken.db'), error => {
+		await mkdirp(storageDir);
+
+		const corruptDBPath = join(storageDir, 'broken.db');
+		await writeFile(corruptDBPath, 'This is a broken DB');
+
+		let expectedError: any;
+		await testDBBasics(corruptDBPath, error => {
 			expectedError = error;
 		});
 
 		ok(expectedError);
+
+		await del(storageDir, tmpdir());
+	});
+
+	test('basics (corrupt DB restores from previous backup)', async () => {
+		const storageDir = uniqueStorageDir();
+
+		await mkdirp(storageDir);
+
+		const storagePath = join(storageDir, 'storage.db');
+		let storage = new SQLiteStorageDatabase(storagePath);
+
+		const items = new Map<string, string>();
+		items.set('foo', 'bar');
+		items.set('some/foo/path', 'some/bar/path');
+		items.set(JSON.stringify({ foo: 'bar' }), JSON.stringify({ bar: 'foo' }));
+
+		await storage.updateItems({ insert: items });
+		await storage.close();
+
+		await writeFile(storagePath, 'This is now a broken DB');
+
+		storage = new SQLiteStorageDatabase(storagePath);
+
+		const storedItems = await storage.getItems();
+		equal(storedItems.size, items.size);
+		equal(storedItems.get('foo'), 'bar');
+		equal(storedItems.get('some/foo/path'), 'some/bar/path');
+		equal(storedItems.get(JSON.stringify({ foo: 'bar' })), JSON.stringify({ bar: 'foo' }));
+
+		let recoveryCalled = false;
+		await storage.close(() => {
+			recoveryCalled = true;
+
+			return new Map();
+		});
+
+		equal(recoveryCalled, false);
+
+		await del(storageDir, tmpdir());
+	});
+
+	test('basics (corrupt DB falls back to empty DB if backup is corrupt)', async () => {
+		const storageDir = uniqueStorageDir();
+
+		await mkdirp(storageDir);
+
+		const storagePath = join(storageDir, 'storage.db');
+		let storage = new SQLiteStorageDatabase(storagePath);
+
+		const items = new Map<string, string>();
+		items.set('foo', 'bar');
+		items.set('some/foo/path', 'some/bar/path');
+		items.set(JSON.stringify({ foo: 'bar' }), JSON.stringify({ bar: 'foo' }));
+
+		await storage.updateItems({ insert: items });
+		await storage.close();
+
+		await writeFile(storagePath, 'This is now a broken DB');
+		await writeFile(`${storagePath}.backup`, 'This is now also a broken DB');
+
+		storage = new SQLiteStorageDatabase(storagePath);
+
+		const storedItems = await storage.getItems();
+		equal(storedItems.size, 0);
+
+		await testDBBasics(storagePath);
+
+		await del(storageDir, tmpdir());
+	});
+
+	test('basics (DB that becomes corrupt during runtime stores all state from cache on close)', async () => {
+		if (isWindows) {
+			await Promise.resolve(); // Windows will fail to write to open DB due to locking
+
+			return;
+		}
+
+		const storageDir = uniqueStorageDir();
+
+		await mkdirp(storageDir);
+
+		const storagePath = join(storageDir, 'storage.db');
+		let storage = new SQLiteStorageDatabase(storagePath);
+
+		const items = new Map<string, string>();
+		items.set('foo', 'bar');
+		items.set('some/foo/path', 'some/bar/path');
+		items.set(JSON.stringify({ foo: 'bar' }), JSON.stringify({ bar: 'foo' }));
+
+		await storage.updateItems({ insert: items });
+		await storage.close();
+
+		const backupPath = `${storagePath}.backup`;
+		equal(await exists(backupPath), true);
+
+		storage = new SQLiteStorageDatabase(storagePath);
+		await storage.getItems();
+
+		await writeFile(storagePath, 'This is now a broken DB');
+
+		// we still need to trigger a check to the DB so that we get to know that
+		// the DB is corrupt. We have no extra code on shutdown that checks for the
+		// health of the DB. This is an optimization to not perform too many tasks
+		// on shutdown.
+		await storage.checkIntegrity(true).then(null, error => { } /* error is expected here but we do not want to fail */);
+
+		await unlink(backupPath); // also test that the recovery DB is backed up properly
+
+		let recoveryCalled = false;
+		await storage.close(() => {
+			recoveryCalled = true;
+
+			return items;
+		});
+
+		equal(recoveryCalled, true);
+		equal(await exists(backupPath), true);
+
+		storage = new SQLiteStorageDatabase(storagePath);
+
+		const storedItems = await storage.getItems();
+		equal(storedItems.size, items.size);
+		equal(storedItems.get('foo'), 'bar');
+		equal(storedItems.get('some/foo/path'), 'some/bar/path');
+		equal(storedItems.get(JSON.stringify({ foo: 'bar' })), JSON.stringify({ bar: 'foo' }));
+
+		recoveryCalled = false;
+		await storage.close(() => {
+			recoveryCalled = true;
+
+			return new Map();
+		});
+
+		equal(recoveryCalled, false);
+
+		await del(storageDir, tmpdir());
 	});
 
 	test('real world example', async () => {
@@ -303,9 +544,7 @@ suite('SQLite Storage Library', () => {
 
 		await mkdirp(storageDir);
 
-		let storage = new SQLiteStorageImpl({
-			path: join(storageDir, 'storage.db')
-		});
+		let storage = new SQLiteStorageDatabase(join(storageDir, 'storage.db'));
 
 		const items1 = new Map<string, string>();
 		items1.set('colorthemedata', '{"id":"vs vscode-theme-defaults-themes-light_plus-json","label":"Light+ (default light)","settingsId":"Default Light+","selector":"vs.vscode-theme-defaults-themes-light_plus-json","themeTokenColors":[{"settings":{"foreground":"#000000ff","background":"#ffffffff"}},{"scope":["meta.embedded","source.groovy.embedded"],"settings":{"foreground":"#000000ff"}},{"scope":"emphasis","settings":{"fontStyle":"italic"}},{"scope":"strong","settings":{"fontStyle":"bold"}},{"scope":"meta.diff.header","settings":{"foreground":"#000080"}},{"scope":"comment","settings":{"foreground":"#008000"}},{"scope":"constant.language","settings":{"foreground":"#0000ff"}},{"scope":["constant.numeric"],"settings":{"foreground":"#09885a"}},{"scope":"constant.regexp","settings":{"foreground":"#811f3f"}},{"name":"css tags in selectors, xml tags","scope":"entity.name.tag","settings":{"foreground":"#800000"}},{"scope":"entity.name.selector","settings":{"foreground":"#800000"}},{"scope":"entity.other.attribute-name","settings":{"foreground":"#ff0000"}},{"scope":["entity.other.attribute-name.class.css","entity.other.attribute-name.class.mixin.css","entity.other.attribute-name.id.css","entity.other.attribute-name.parent-selector.css","entity.other.attribute-name.pseudo-class.css","entity.other.attribute-name.pseudo-element.css","source.css.less entity.other.attribute-name.id","entity.other.attribute-name.attribute.scss","entity.other.attribute-name.scss"],"settings":{"foreground":"#800000"}},{"scope":"invalid","settings":{"foreground":"#cd3131"}},{"scope":"markup.underline","settings":{"fontStyle":"underline"}},{"scope":"markup.bold","settings":{"fontStyle":"bold","foreground":"#000080"}},{"scope":"markup.heading","settings":{"fontStyle":"bold","foreground":"#800000"}},{"scope":"markup.italic","settings":{"fontStyle":"italic"}},{"scope":"markup.inserted","settings":{"foreground":"#09885a"}},{"scope":"markup.deleted","settings":{"foreground":"#a31515"}},{"scope":"markup.changed","settings":{"foreground":"#0451a5"}},{"scope":["punctuation.definition.quote.begin.markdown","punctuation.definition.list.begin.markdown"],"settings":{"foreground":"#0451a5"}},{"scope":"markup.inline.raw","settings":{"foreground":"#800000"}},{"name":"brackets of XML/HTML tags","scope":"punctuation.definition.tag","settings":{"foreground":"#800000"}},{"scope":"meta.preprocessor","settings":{"foreground":"#0000ff"}},{"scope":"meta.preprocessor.string","settings":{"foreground":"#a31515"}},{"scope":"meta.preprocessor.numeric","settings":{"foreground":"#09885a"}},{"scope":"meta.structure.dictionary.key.python","settings":{"foreground":"#0451a5"}},{"scope":"storage","settings":{"foreground":"#0000ff"}},{"scope":"storage.type","settings":{"foreground":"#0000ff"}},{"scope":"storage.modifier","settings":{"foreground":"#0000ff"}},{"scope":"string","settings":{"foreground":"#a31515"}},{"scope":["string.comment.buffered.block.pug","string.quoted.pug","string.interpolated.pug","string.unquoted.plain.in.yaml","string.unquoted.plain.out.yaml","string.unquoted.block.yaml","string.quoted.single.yaml","string.quoted.double.xml","string.quoted.single.xml","string.unquoted.cdata.xml","string.quoted.double.html","string.quoted.single.html","string.unquoted.html","string.quoted.single.handlebars","string.quoted.double.handlebars"],"settings":{"foreground":"#0000ff"}},{"scope":"string.regexp","settings":{"foreground":"#811f3f"}},{"name":"String interpolation","scope":["punctuation.definition.template-expression.begin","punctuation.definition.template-expression.end","punctuation.section.embedded"],"settings":{"foreground":"#0000ff"}},{"name":"Reset JavaScript string interpolation expression","scope":["meta.template.expression"],"settings":{"foreground":"#000000"}},{"scope":["support.constant.property-value","support.constant.font-name","support.constant.media-type","support.constant.media","constant.other.color.rgb-value","constant.other.rgb-value","support.constant.color"],"settings":{"foreground":"#0451a5"}},{"scope":["support.type.vendored.property-name","support.type.property-name","variable.css","variable.scss","variable.other.less","source.coffee.embedded"],"settings":{"foreground":"#ff0000"}},{"scope":["support.type.property-name.json"],"settings":{"foreground":"#0451a5"}},{"scope":"keyword","settings":{"foreground":"#0000ff"}},{"scope":"keyword.control","settings":{"foreground":"#0000ff"}},{"scope":"keyword.operator","settings":{"foreground":"#000000"}},{"scope":["keyword.operator.new","keyword.operator.expression","keyword.operator.cast","keyword.operator.sizeof","keyword.operator.instanceof","keyword.operator.logical.python"],"settings":{"foreground":"#0000ff"}},{"scope":"keyword.other.unit","settings":{"foreground":"#09885a"}},{"scope":["punctuation.section.embedded.begin.php","punctuation.section.embedded.end.php"],"settings":{"foreground":"#800000"}},{"scope":"support.function.git-rebase","settings":{"foreground":"#0451a5"}},{"scope":"constant.sha.git-rebase","settings":{"foreground":"#09885a"}},{"name":"coloring of the Java import and package identifiers","scope":["storage.modifier.import.java","variable.language.wildcard.java","storage.modifier.package.java"],"settings":{"foreground":"#000000"}},{"name":"this.self","scope":"variable.language","settings":{"foreground":"#0000ff"}},{"name":"Function declarations","scope":["entity.name.function","support.function","support.constant.handlebars"],"settings":{"foreground":"#795E26"}},{"name":"Types declaration and references","scope":["meta.return-type","support.class","support.type","entity.name.type","entity.name.class","storage.type.numeric.go","storage.type.byte.go","storage.type.boolean.go","storage.type.string.go","storage.type.uintptr.go","storage.type.error.go","storage.type.rune.go","storage.type.cs","storage.type.generic.cs","storage.type.modifier.cs","storage.type.variable.cs","storage.type.annotation.java","storage.type.generic.java","storage.type.java","storage.type.object.array.java","storage.type.primitive.array.java","storage.type.primitive.java","storage.type.token.java","storage.type.groovy","storage.type.annotation.groovy","storage.type.parameters.groovy","storage.type.generic.groovy","storage.type.object.array.groovy","storage.type.primitive.array.groovy","storage.type.primitive.groovy"],"settings":{"foreground":"#267f99"}},{"name":"Types declaration and references, TS grammar specific","scope":["meta.type.cast.expr","meta.type.new.expr","support.constant.math","support.constant.dom","support.constant.json","entity.other.inherited-class"],"settings":{"foreground":"#267f99"}},{"name":"Control flow keywords","scope":"keyword.control","settings":{"foreground":"#AF00DB"}},{"name":"Variable and parameter name","scope":["variable","meta.definition.variable.name","support.variable","entity.name.variable"],"settings":{"foreground":"#001080"}},{"name":"Object keys, TS grammar specific","scope":["meta.object-literal.key"],"settings":{"foreground":"#001080"}},{"name":"CSS property value","scope":["support.constant.property-value","support.constant.font-name","support.constant.media-type","support.constant.media","constant.other.color.rgb-value","constant.other.rgb-value","support.constant.color"],"settings":{"foreground":"#0451a5"}},{"name":"Regular expression groups","scope":["punctuation.definition.group.regexp","punctuation.definition.group.assertion.regexp","punctuation.definition.character-class.regexp","punctuation.character.set.begin.regexp","punctuation.character.set.end.regexp","keyword.operator.negation.regexp","support.other.parenthesis.regexp"],"settings":{"foreground":"#d16969"}},{"scope":["constant.character.character-class.regexp","constant.other.character-class.set.regexp","constant.other.character-class.regexp","constant.character.set.regexp"],"settings":{"foreground":"#811f3f"}},{"scope":"keyword.operator.quantifier.regexp","settings":{"foreground":"#000000"}},{"scope":["keyword.operator.or.regexp","keyword.control.anchor.regexp"],"settings":{"foreground":"#ff0000"}},{"scope":"constant.character","settings":{"foreground":"#0000ff"}},{"scope":"constant.character.escape","settings":{"foreground":"#ff0000"}},{"scope":"token.info-token","settings":{"foreground":"#316bcd"}},{"scope":"token.warn-token","settings":{"foreground":"#cd9731"}},{"scope":"token.error-token","settings":{"foreground":"#cd3131"}},{"scope":"token.debug-token","settings":{"foreground":"#800080"}}],"extensionData":{"extensionId":"vscode.theme-defaults","extensionPublisher":"vscode","extensionName":"theme-defaults","extensionIsBuiltin":true},"colorMap":{"editor.background":"#ffffff","editor.foreground":"#000000","editor.inactiveSelectionBackground":"#e5ebf1","editorIndentGuide.background":"#d3d3d3","editorIndentGuide.activeBackground":"#939393","editor.selectionHighlightBackground":"#add6ff4d","editorSuggestWidget.background":"#f3f3f3","activityBarBadge.background":"#007acc","sideBarTitle.foreground":"#6f6f6f","list.hoverBackground":"#e8e8e8","input.placeholderForeground":"#767676","settings.textInputBorder":"#cecece","settings.numberInputBorder":"#cecece"}}');
@@ -379,9 +618,7 @@ suite('SQLite Storage Library', () => {
 
 		await storage.close();
 
-		storage = new SQLiteStorageImpl({
-			path: join(storageDir, 'storage.db')
-		});
+		storage = new SQLiteStorageDatabase(join(storageDir, 'storage.db'));
 
 		storedItems = await storage.getItems();
 		equal(storedItems.size, items1.size + items2.size + items3.size);
@@ -396,9 +633,7 @@ suite('SQLite Storage Library', () => {
 
 		await mkdirp(storageDir);
 
-		let storage = new SQLiteStorageImpl({
-			path: join(storageDir, 'storage.db')
-		});
+		let storage = new SQLiteStorageDatabase(join(storageDir, 'storage.db'));
 
 		const items = new Map<string, string>();
 		items.set('colorthemedata', '{"id":"vs vscode-theme-defaults-themes-light_plus-json","label":"Light+ (default light)","settingsId":"Default Light+","selector":"vs.vscode-theme-defaults-themes-light_plus-json","themeTokenColors":[{"settings":{"foreground":"#000000ff","background":"#ffffffff"}},{"scope":["meta.embedded","source.groovy.embedded"],"settings":{"foreground":"#000000ff"}},{"scope":"emphasis","settings":{"fontStyle":"italic"}},{"scope":"strong","settings":{"fontStyle":"bold"}},{"scope":"meta.diff.header","settings":{"foreground":"#000080"}},{"scope":"comment","settings":{"foreground":"#008000"}},{"scope":"constant.language","settings":{"foreground":"#0000ff"}},{"scope":["constant.numeric"],"settings":{"foreground":"#09885a"}},{"scope":"constant.regexp","settings":{"foreground":"#811f3f"}},{"name":"css tags in selectors, xml tags","scope":"entity.name.tag","settings":{"foreground":"#800000"}},{"scope":"entity.name.selector","settings":{"foreground":"#800000"}},{"scope":"entity.other.attribute-name","settings":{"foreground":"#ff0000"}},{"scope":["entity.other.attribute-name.class.css","entity.other.attribute-name.class.mixin.css","entity.other.attribute-name.id.css","entity.other.attribute-name.parent-selector.css","entity.other.attribute-name.pseudo-class.css","entity.other.attribute-name.pseudo-element.css","source.css.less entity.other.attribute-name.id","entity.other.attribute-name.attribute.scss","entity.other.attribute-name.scss"],"settings":{"foreground":"#800000"}},{"scope":"invalid","settings":{"foreground":"#cd3131"}},{"scope":"markup.underline","settings":{"fontStyle":"underline"}},{"scope":"markup.bold","settings":{"fontStyle":"bold","foreground":"#000080"}},{"scope":"markup.heading","settings":{"fontStyle":"bold","foreground":"#800000"}},{"scope":"markup.italic","settings":{"fontStyle":"italic"}},{"scope":"markup.inserted","settings":{"foreground":"#09885a"}},{"scope":"markup.deleted","settings":{"foreground":"#a31515"}},{"scope":"markup.changed","settings":{"foreground":"#0451a5"}},{"scope":["punctuation.definition.quote.begin.markdown","punctuation.definition.list.begin.markdown"],"settings":{"foreground":"#0451a5"}},{"scope":"markup.inline.raw","settings":{"foreground":"#800000"}},{"name":"brackets of XML/HTML tags","scope":"punctuation.definition.tag","settings":{"foreground":"#800000"}},{"scope":"meta.preprocessor","settings":{"foreground":"#0000ff"}},{"scope":"meta.preprocessor.string","settings":{"foreground":"#a31515"}},{"scope":"meta.preprocessor.numeric","settings":{"foreground":"#09885a"}},{"scope":"meta.structure.dictionary.key.python","settings":{"foreground":"#0451a5"}},{"scope":"storage","settings":{"foreground":"#0000ff"}},{"scope":"storage.type","settings":{"foreground":"#0000ff"}},{"scope":"storage.modifier","settings":{"foreground":"#0000ff"}},{"scope":"string","settings":{"foreground":"#a31515"}},{"scope":["string.comment.buffered.block.pug","string.quoted.pug","string.interpolated.pug","string.unquoted.plain.in.yaml","string.unquoted.plain.out.yaml","string.unquoted.block.yaml","string.quoted.single.yaml","string.quoted.double.xml","string.quoted.single.xml","string.unquoted.cdata.xml","string.quoted.double.html","string.quoted.single.html","string.unquoted.html","string.quoted.single.handlebars","string.quoted.double.handlebars"],"settings":{"foreground":"#0000ff"}},{"scope":"string.regexp","settings":{"foreground":"#811f3f"}},{"name":"String interpolation","scope":["punctuation.definition.template-expression.begin","punctuation.definition.template-expression.end","punctuation.section.embedded"],"settings":{"foreground":"#0000ff"}},{"name":"Reset JavaScript string interpolation expression","scope":["meta.template.expression"],"settings":{"foreground":"#000000"}},{"scope":["support.constant.property-value","support.constant.font-name","support.constant.media-type","support.constant.media","constant.other.color.rgb-value","constant.other.rgb-value","support.constant.color"],"settings":{"foreground":"#0451a5"}},{"scope":["support.type.vendored.property-name","support.type.property-name","variable.css","variable.scss","variable.other.less","source.coffee.embedded"],"settings":{"foreground":"#ff0000"}},{"scope":["support.type.property-name.json"],"settings":{"foreground":"#0451a5"}},{"scope":"keyword","settings":{"foreground":"#0000ff"}},{"scope":"keyword.control","settings":{"foreground":"#0000ff"}},{"scope":"keyword.operator","settings":{"foreground":"#000000"}},{"scope":["keyword.operator.new","keyword.operator.expression","keyword.operator.cast","keyword.operator.sizeof","keyword.operator.instanceof","keyword.operator.logical.python"],"settings":{"foreground":"#0000ff"}},{"scope":"keyword.other.unit","settings":{"foreground":"#09885a"}},{"scope":["punctuation.section.embedded.begin.php","punctuation.section.embedded.end.php"],"settings":{"foreground":"#800000"}},{"scope":"support.function.git-rebase","settings":{"foreground":"#0451a5"}},{"scope":"constant.sha.git-rebase","settings":{"foreground":"#09885a"}},{"name":"coloring of the Java import and package identifiers","scope":["storage.modifier.import.java","variable.language.wildcard.java","storage.modifier.package.java"],"settings":{"foreground":"#000000"}},{"name":"this.self","scope":"variable.language","settings":{"foreground":"#0000ff"}},{"name":"Function declarations","scope":["entity.name.function","support.function","support.constant.handlebars"],"settings":{"foreground":"#795E26"}},{"name":"Types declaration and references","scope":["meta.return-type","support.class","support.type","entity.name.type","entity.name.class","storage.type.numeric.go","storage.type.byte.go","storage.type.boolean.go","storage.type.string.go","storage.type.uintptr.go","storage.type.error.go","storage.type.rune.go","storage.type.cs","storage.type.generic.cs","storage.type.modifier.cs","storage.type.variable.cs","storage.type.annotation.java","storage.type.generic.java","storage.type.java","storage.type.object.array.java","storage.type.primitive.array.java","storage.type.primitive.java","storage.type.token.java","storage.type.groovy","storage.type.annotation.groovy","storage.type.parameters.groovy","storage.type.generic.groovy","storage.type.object.array.groovy","storage.type.primitive.array.groovy","storage.type.primitive.groovy"],"settings":{"foreground":"#267f99"}},{"name":"Types declaration and references, TS grammar specific","scope":["meta.type.cast.expr","meta.type.new.expr","support.constant.math","support.constant.dom","support.constant.json","entity.other.inherited-class"],"settings":{"foreground":"#267f99"}},{"name":"Control flow keywords","scope":"keyword.control","settings":{"foreground":"#AF00DB"}},{"name":"Variable and parameter name","scope":["variable","meta.definition.variable.name","support.variable","entity.name.variable"],"settings":{"foreground":"#001080"}},{"name":"Object keys, TS grammar specific","scope":["meta.object-literal.key"],"settings":{"foreground":"#001080"}},{"name":"CSS property value","scope":["support.constant.property-value","support.constant.font-name","support.constant.media-type","support.constant.media","constant.other.color.rgb-value","constant.other.rgb-value","support.constant.color"],"settings":{"foreground":"#0451a5"}},{"name":"Regular expression groups","scope":["punctuation.definition.group.regexp","punctuation.definition.group.assertion.regexp","punctuation.definition.character-class.regexp","punctuation.character.set.begin.regexp","punctuation.character.set.end.regexp","keyword.operator.negation.regexp","support.other.parenthesis.regexp"],"settings":{"foreground":"#d16969"}},{"scope":["constant.character.character-class.regexp","constant.other.character-class.set.regexp","constant.other.character-class.regexp","constant.character.set.regexp"],"settings":{"foreground":"#811f3f"}},{"scope":"keyword.operator.quantifier.regexp","settings":{"foreground":"#000000"}},{"scope":["keyword.operator.or.regexp","keyword.control.anchor.regexp"],"settings":{"foreground":"#ff0000"}},{"scope":"constant.character","settings":{"foreground":"#0000ff"}},{"scope":"constant.character.escape","settings":{"foreground":"#ff0000"}},{"scope":"token.info-token","settings":{"foreground":"#316bcd"}},{"scope":"token.warn-token","settings":{"foreground":"#cd9731"}},{"scope":"token.error-token","settings":{"foreground":"#cd3131"}},{"scope":"token.debug-token","settings":{"foreground":"#800080"}}],"extensionData":{"extensionId":"vscode.theme-defaults","extensionPublisher":"vscode","extensionName":"theme-defaults","extensionIsBuiltin":true},"colorMap":{"editor.background":"#ffffff","editor.foreground":"#000000","editor.inactiveSelectionBackground":"#e5ebf1","editorIndentGuide.background":"#d3d3d3","editorIndentGuide.activeBackground":"#939393","editor.selectionHighlightBackground":"#add6ff4d","editorSuggestWidget.background":"#f3f3f3","activityBarBadge.background":"#007acc","sideBarTitle.foreground":"#6f6f6f","list.hoverBackground":"#e8e8e8","input.placeholderForeground":"#767676","settings.textInputBorder":"#cecece","settings.numberInputBorder":"#cecece"}}');
@@ -440,6 +675,127 @@ suite('SQLite Storage Library', () => {
 		equal(items.get('colorthemedata'), storedItems.get('colorthemedata'));
 		equal(items.get('commandpalette.mru.cache'), storedItems.get('commandpalette.mru.cache'));
 		ok(!storedItems.get('super.large.string'));
+
+		await storage.close();
+
+		await del(storageDir, tmpdir());
+	});
+
+	test('multiple concurrent writes execute in sequence', async () => {
+		const storageDir = uniqueStorageDir();
+		await mkdirp(storageDir);
+
+		class TestStorage extends Storage {
+			getStorage(): IStorageDatabase {
+				return this.database;
+			}
+		}
+
+		const storage = new TestStorage(new SQLiteStorageDatabase(join(storageDir, 'storage.db')));
+
+		await storage.init();
+
+		storage.set('foo', 'bar');
+		storage.set('some/foo/path', 'some/bar/path');
+
+		await timeout(10);
+
+		storage.set('foo1', 'bar');
+		storage.set('some/foo1/path', 'some/bar/path');
+
+		await timeout(10);
+
+		storage.set('foo2', 'bar');
+		storage.set('some/foo2/path', 'some/bar/path');
+
+		await timeout(10);
+
+		storage.delete('foo1');
+		storage.delete('some/foo1/path');
+
+		await timeout(10);
+
+		storage.delete('foo4');
+		storage.delete('some/foo4/path');
+
+		await timeout(70);
+
+		storage.set('foo3', 'bar');
+		await storage.set('some/foo3/path', 'some/bar/path');
+
+		const items = await storage.getStorage().getItems();
+		equal(items.get('foo'), 'bar');
+		equal(items.get('some/foo/path'), 'some/bar/path');
+		equal(items.has('foo1'), false);
+		equal(items.has('some/foo1/path'), false);
+		equal(items.get('foo2'), 'bar');
+		equal(items.get('some/foo2/path'), 'some/bar/path');
+		equal(items.get('foo3'), 'bar');
+		equal(items.get('some/foo3/path'), 'some/bar/path');
+
+		await storage.close();
+
+		await del(storageDir, tmpdir());
+	});
+
+	test('lots of INSERT & DELETE (below inline max)', async () => {
+		const storageDir = uniqueStorageDir();
+
+		await mkdirp(storageDir);
+
+		const storage = new SQLiteStorageDatabase(join(storageDir, 'storage.db'));
+
+		const items = new Map<string, string>();
+		const keys: Set<string> = new Set<string>();
+		for (let i = 0; i < 200; i++) {
+			const uuid = generateUuid();
+			const key = `key: ${uuid}`;
+
+			items.set(key, `value: ${uuid}`);
+			keys.add(key);
+		}
+
+		await storage.updateItems({ insert: items });
+
+		let storedItems = await storage.getItems();
+		equal(storedItems.size, items.size);
+
+		await storage.updateItems({ delete: keys });
+
+		storedItems = await storage.getItems();
+		equal(storedItems.size, 0);
+
+		await storage.close();
+
+		await del(storageDir, tmpdir());
+	});
+
+	test('lots of INSERT & DELETE (above inline max)', async () => {
+		const storageDir = uniqueStorageDir();
+
+		await mkdirp(storageDir);
+
+		const storage = new SQLiteStorageDatabase(join(storageDir, 'storage.db'));
+
+		const items = new Map<string, string>();
+		const keys: Set<string> = new Set<string>();
+		for (let i = 0; i < 400; i++) {
+			const uuid = generateUuid();
+			const key = `key: ${uuid}`;
+
+			items.set(key, `value: ${uuid}`);
+			keys.add(key);
+		}
+
+		await storage.updateItems({ insert: items });
+
+		let storedItems = await storage.getItems();
+		equal(storedItems.size, items.size);
+
+		await storage.updateItems({ delete: keys });
+
+		storedItems = await storage.getItems();
+		equal(storedItems.size, 0);
 
 		await storage.close();
 

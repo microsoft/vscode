@@ -63,7 +63,7 @@ export interface IWorkspaceContextService {
 	 * Returns the folder for the given resource from the workspace.
 	 * Can be null if there is no workspace or the resource is not inside the workspace.
 	 */
-	getWorkspaceFolder(resource: URI): IWorkspaceFolder;
+	getWorkspaceFolder(resource: URI): IWorkspaceFolder | null;
 
 	/**
 	 * Return `true` if the current workspace has the given identifier otherwise `false`.
@@ -145,8 +145,7 @@ export class Workspace implements IWorkspace {
 	constructor(
 		private _id: string,
 		folders: WorkspaceFolder[] = [],
-		private _configuration: URI | null = null,
-		private _ctime?: number
+		private _configuration: URI | null = null
 	) {
 		this.folders = folders;
 	}
@@ -154,7 +153,6 @@ export class Workspace implements IWorkspace {
 	update(workspace: Workspace) {
 		this._id = workspace.id;
 		this._configuration = workspace.configuration;
-		this._ctime = workspace.ctime;
 		this.folders = workspace.folders;
 	}
 
@@ -169,10 +167,6 @@ export class Workspace implements IWorkspace {
 
 	get id(): string {
 		return this._id;
-	}
-
-	get ctime(): number | undefined {
-		return this._ctime;
 	}
 
 	get configuration(): URI | null {
@@ -231,7 +225,7 @@ export function toWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], 
 		.map(({ uri, raw, name }, index) => new WorkspaceFolder({ uri, name: name || resources.basenameOrAuthority(uri), index }, raw));
 }
 
-function parseWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], relativeTo: URI | undefined): (WorkspaceFolder | undefined)[] {
+function parseWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], relativeTo: URI | undefined): Array<WorkspaceFolder | undefined> {
 	return configuredFolders.map((configuredFolder, index) => {
 		let uri: URI | null = null;
 		if (isRawFileWorkspaceFolder(configuredFolder)) {
@@ -249,7 +243,7 @@ function parseWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], rela
 			}
 		}
 		if (!uri) {
-			return void 0;
+			return undefined;
 		}
 		return new WorkspaceFolder({ uri, name: configuredFolder.name! /*is ensured in caller*/, index }, configuredFolder);
 	});

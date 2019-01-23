@@ -5,7 +5,6 @@
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import * as map from 'vs/base/common/map';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { localize } from 'vs/nls';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -19,6 +18,9 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import * as vscode from 'vscode';
 import { extHostNamedCustomer } from './extHostCustomers';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 @extHostNamedCustomer(MainContext.MainThreadWebviews)
 export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviver {
@@ -45,7 +47,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		@IWebviewEditorService private readonly _webviewService: IWebviewEditorService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
-
+		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
 		this._proxy = context.getProxy(ExtHostContext.ExtHostWebviews);
 		_editorService.onDidActiveEditorChange(this.onActiveEditorChanged, this, this._toDispose);
@@ -53,8 +55,8 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 
 		this._toDispose.push(_webviewService.registerReviver(MainThreadWebviews.viewType, this));
 
-		lifecycleService.onWillShutdown(e => {
-			e.veto(this._onWillShutdown());
+		lifecycleService.onBeforeShutdown(e => {
+			e.veto(this._onBeforeShutdown());
 		}, this, this._toDispose);
 	}
 
@@ -68,6 +70,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		title: string,
 		showOptions: { viewColumn: EditorViewColumn | null, preserveFocus: boolean },
 		options: WebviewInputOptions,
+		extensionId: ExtensionIdentifier,
 		extensionLocation: UriComponents
 	): void {
 		const mainThreadShowOptions: ICreateWebViewShowOptions = Object.create(null);
@@ -84,6 +87,13 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 
 		this._webviews.set(handle, webview);
 		this._activeWebview = handle;
+
+		/* __GDPR__
+			"webviews:createWebviewPanel" : {
+				"extensionId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
+		this._telemetryService.publicLog('webviews:createWebviewPanel', { extensionId: extensionId.value });
 	}
 
 	public $disposeWebview(handle: WebviewPanelHandle): void {
@@ -122,7 +132,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		this._webviewService.revealWebview(webview, targetGroup || this._editorGroupService.activeGroup, showOptions.preserveFocus);
 	}
 
-	public $postMessage(handle: WebviewPanelHandle, message: any): Thenable<boolean> {
+	public $postMessage(handle: WebviewPanelHandle, message: any): Promise<boolean> {
 		const webview = this.getWebview(handle);
 		const editors = this._editorService.visibleControls
 			.filter(e => e instanceof WebviewEditor)
@@ -133,7 +143,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 			editor.sendMessage(message);
 		}
 
-		return TPromise.as(editors.length > 0);
+		return Promise.resolve(editors.length > 0);
 	}
 
 	public $registerSerializer(viewType: string): void {
@@ -144,9 +154,9 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		this._revivers.delete(viewType);
 	}
 
-	public reviveWebview(webview: WebviewEditorInput): TPromise<void> {
+	public reviveWebview(webview: WebviewEditorInput): Promise<void> {
 		const viewType = webview.state.viewType;
-		return this._extensionService.activateByEvent(`onWebviewPanel:${viewType}`).then(() => {
+		return Promise.resolve(this._extensionService.activateByEvent(`onWebviewPanel:${viewType}`).then(() => {
 			const handle = 'revival-' + MainThreadWebviews.revivalPool++;
 			this._webviews.set(handle, webview);
 			webview._events = this.createWebviewEventDelegate(handle);
@@ -161,10 +171,12 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 			}
 
 			return this._proxy.$deserializeWebviewPanel(handle, webview.state.viewType, webview.getTitle(), state, editorGroupToViewColumn(this._editorGroupService, webview.group), webview.options)
-				.then(undefined, () => {
+				.then(undefined, error => {
+					onUnexpectedError(error);
+
 					webview.html = MainThreadWebviews.getDeserializationFailedContents(viewType);
 				});
-		});
+		}));
 	}
 
 	public canRevive(webview: WebviewEditorInput): boolean {
@@ -175,14 +187,13 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		return this._revivers.has(webview.state.viewType) || !!webview.reviver;
 	}
 
-	private _onWillShutdown(): TPromise<boolean> {
+	private _onBeforeShutdown(): boolean {
 		this._webviews.forEach((view) => {
 			if (this.canRevive(view)) {
 				view.state.state = view.webviewState;
 			}
 		});
-
-		return TPromise.as(false); // Don't veto shutdown
+		return false; // Don't veto shutdown
 	}
 
 	private createWebviewEventDelegate(handle: WebviewPanelHandle) {

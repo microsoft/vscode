@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ISearchConfiguration, ISearchConfigurationProperties } from 'vs/platform/search/common/search';
@@ -30,8 +29,8 @@ export namespace WorkspaceSymbolProviderRegistry {
 
 	const _supports: IWorkspaceSymbolProvider[] = [];
 
-	export function register(support: IWorkspaceSymbolProvider): IDisposable {
-
+	export function register(provider: IWorkspaceSymbolProvider): IDisposable {
+		let support: IWorkspaceSymbolProvider | undefined = provider;
 		if (support) {
 			_supports.push(support);
 		}
@@ -39,7 +38,7 @@ export namespace WorkspaceSymbolProviderRegistry {
 		return {
 			dispose() {
 				if (support) {
-					let idx = _supports.indexOf(support);
+					const idx = _supports.indexOf(support);
 					if (idx >= 0) {
 						_supports.splice(idx, 1);
 						support = undefined;
@@ -54,7 +53,7 @@ export namespace WorkspaceSymbolProviderRegistry {
 	}
 }
 
-export function getWorkspaceSymbols(query: string, token: CancellationToken = CancellationToken.None): TPromise<[IWorkspaceSymbolProvider, IWorkspaceSymbol[]][]> {
+export function getWorkspaceSymbols(query: string, token: CancellationToken = CancellationToken.None): Promise<[IWorkspaceSymbolProvider, IWorkspaceSymbol[]][]> {
 
 	const result: [IWorkspaceSymbolProvider, IWorkspaceSymbol[]][] = [];
 
@@ -66,7 +65,7 @@ export function getWorkspaceSymbols(query: string, token: CancellationToken = Ca
 		}, onUnexpectedError);
 	});
 
-	return TPromise.join(promises).then(_ => result);
+	return Promise.all(promises).then(_ => result);
 }
 
 export interface IWorkbenchSearchConfigurationProperties extends ISearchConfigurationProperties {

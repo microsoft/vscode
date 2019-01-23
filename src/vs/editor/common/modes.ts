@@ -15,7 +15,7 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
 import * as model from 'vs/editor/common/model';
-import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
+import { LanguageFeatureRegistry } from 'vs/editor/common/modes/languageFeatureRegistry';
 import { TokenizationRegistryImpl } from 'vs/editor/common/modes/tokenizationRegistry';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
 
@@ -254,7 +254,7 @@ export interface HoverProvider {
 	provideHover(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<Hover>;
 }
 
-export enum CompletionItemKind {
+export const enum CompletionItemKind {
 	Method,
 	Function,
 	Constructor,
@@ -357,7 +357,7 @@ export let completionKindFromLegacyString = (function () {
 	};
 })();
 
-export enum CompletionItemInsertTextRule {
+export const enum CompletionItemInsertTextRule {
 	/**
 	 * Adjust whitespace/indentation of multiline insert texts to
 	 * match the current line indentation.
@@ -415,7 +415,7 @@ export interface CompletionItem {
 	preselect?: boolean;
 	/**
 	 * A string or snippet that should be inserted in a document when selecting
-	 * this completion. When `falsy` the [label](#CompletionItem.label)
+	 * this completion.
 	 * is used.
 	 */
 	insertText: string;
@@ -433,7 +433,7 @@ export interface CompletionItem {
 	 * *Note:* The range must be a [single line](#Range.isSingleLine) and it must
 	 * [contain](#Range.contains) the position at which completion has been [requested](#CompletionItemProvider.provideCompletionItems).
 	 */
-	range?: IRange;
+	range: IRange;
 	/**
 	 * An optional set of characters that when pressed while this completion is active will accept it first and
 	 * then type that character. *Note* that all commit characters should have `length=1` and that superfluous
@@ -450,13 +450,6 @@ export interface CompletionItem {
 	 * A command that should be run upon acceptance of this item.
 	 */
 	command?: Command;
-
-	/**@internal*/
-	_labelLow?: string;
-	/**@internal*/
-	_sortTextLow?: string;
-	/**@internal*/
-	_filterTextLow?: string;
 }
 
 export interface CompletionList {
@@ -468,7 +461,7 @@ export interface CompletionList {
 /**
  * How a suggest provider was triggered.
  */
-export enum CompletionTriggerKind {
+export const enum CompletionTriggerKind {
 	Invoke = 0,
 	TriggerCharacter = 1,
 	TriggerForIncompleteCompletions = 2
@@ -523,6 +516,7 @@ export interface CodeAction {
 	edit?: WorkspaceEdit;
 	diagnostics?: IMarkerData[];
 	kind?: string;
+	isPreferred?: boolean;
 }
 
 /**
@@ -553,7 +547,7 @@ export interface CodeActionProvider {
 	provideCodeActions(model: model.ITextModel, range: Range | Selection, context: CodeActionContext, token: CancellationToken): ProviderResult<CodeAction[]>;
 
 	/**
-	 * Optional list of of CodeActionKinds that this provider returns.
+	 * Optional list of CodeActionKinds that this provider returns.
 	 */
 	providedCodeActionKinds?: ReadonlyArray<string>;
 }
@@ -615,15 +609,17 @@ export interface SignatureHelp {
 	activeParameter: number;
 }
 
-export enum SignatureHelpTriggerReason {
+export enum SignatureHelpTriggerKind {
 	Invoke = 1,
 	TriggerCharacter = 2,
-	Retrigger = 3,
+	ContentChange = 3,
 }
 
 export interface SignatureHelpContext {
-	triggerReason: SignatureHelpTriggerReason;
-	triggerCharacter?: string;
+	readonly triggerKind: SignatureHelpTriggerKind;
+	readonly triggerCharacter?: string;
+	readonly isRetrigger: boolean;
+	readonly activeSignatureHelp?: SignatureHelp;
 }
 
 /**
@@ -632,8 +628,8 @@ export interface SignatureHelpContext {
  */
 export interface SignatureHelpProvider {
 
-	readonly signatureHelpTriggerCharacters: ReadonlyArray<string>;
-	readonly signatureHelpRetriggerCharacters: ReadonlyArray<string>;
+	readonly signatureHelpTriggerCharacters?: ReadonlyArray<string>;
+	readonly signatureHelpRetriggerCharacters?: ReadonlyArray<string>;
 
 	/**
 	 * Provide help for the signature at the given position and document.
@@ -720,19 +716,41 @@ export interface Location {
 	 */
 	range: IRange;
 }
-/**
- * The definition of a symbol represented as one or many [locations](#Location).
- * For most programming languages there is only one location at which a symbol is
- * defined.
- */
-export type Definition = Location | Location[];
 
-export interface DefinitionLink {
-	origin?: IRange;
+export interface LocationLink {
+	/**
+	 * A range to select where this link originates from.
+	 */
+	originSelectionRange?: IRange;
+
+	/**
+	 * The target uri this link points to.
+	 */
 	uri: URI;
+
+	/**
+	 * The full range this link points to.
+	 */
 	range: IRange;
-	selectionRange?: IRange;
+
+	/**
+	 * A range to select this link points to. Must be contained
+	 * in `LocationLink.range`.
+	 */
+	targetSelectionRange?: IRange;
 }
+
+/**
+ * @internal
+ */
+export function isLocationLink(thing: any): thing is LocationLink {
+	return thing
+		&& URI.isUri((thing as LocationLink).uri)
+		&& Range.isIRange((thing as LocationLink).range)
+		&& (Range.isIRange((thing as LocationLink).originSelectionRange) || Range.isIRange((thing as LocationLink).targetSelectionRange));
+}
+
+export type Definition = Location | Location[] | LocationLink[];
 
 /**
  * The definition provider interface defines the contract between extensions and
@@ -743,7 +761,19 @@ export interface DefinitionProvider {
 	/**
 	 * Provide the definition of the symbol at the given position and document.
 	 */
-	provideDefinition(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | DefinitionLink[]>;
+	provideDefinition(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | LocationLink[]>;
+}
+
+/**
+ * The definition provider interface defines the contract between extensions and
+ * the [go to definition](https://code.visualstudio.com/docs/editor/editingevolved#_go-to-definition)
+ * and peek definition features.
+ */
+export interface DeclarationProvider {
+	/**
+	 * Provide the declaration of the symbol at the given position and document.
+	 */
+	provideDeclaration(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | LocationLink[]>;
 }
 
 /**
@@ -754,7 +784,7 @@ export interface ImplementationProvider {
 	/**
 	 * Provide the implementation of the symbol at the given position and document.
 	 */
-	provideImplementation(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | DefinitionLink[]>;
+	provideImplementation(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | LocationLink[]>;
 }
 
 /**
@@ -765,13 +795,13 @@ export interface TypeDefinitionProvider {
 	/**
 	 * Provide the type definition of the symbol at the given position and document.
 	 */
-	provideTypeDefinition(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | DefinitionLink[]>;
+	provideTypeDefinition(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | LocationLink[]>;
 }
 
 /**
  * A symbol kind.
  */
-export enum SymbolKind {
+export const enum SymbolKind {
 	File = 0,
 	Module = 1,
 	Namespace = 2,
@@ -863,7 +893,7 @@ export interface DocumentSymbolProvider {
 	provideDocumentSymbols(model: model.ITextModel, token: CancellationToken): ProviderResult<DocumentSymbol[]>;
 }
 
-export type TextEdit = { range: IRange; text: string; eol?: model.EndOfLineSequence; } | { range: undefined; text: undefined; eol: model.EndOfLineSequence; };
+export type TextEdit = { range: IRange; text: string; eol?: model.EndOfLineSequence; };
 
 /**
  * Interface used to format a model
@@ -883,6 +913,9 @@ export interface FormattingOptions {
  * the formatting-feature.
  */
 export interface DocumentFormattingEditProvider {
+
+	displayName?: string;
+
 	/**
 	 * Provide formatting edits for a whole document.
 	 */
@@ -893,6 +926,9 @@ export interface DocumentFormattingEditProvider {
  * the formatting-feature.
  */
 export interface DocumentRangeFormattingEditProvider {
+
+	displayName?: string;
+
 	/**
 	 * Provide formatting edits for a range in a document.
 	 *
@@ -1018,6 +1054,19 @@ export interface DocumentColorProvider {
 	 */
 	provideColorPresentations(model: model.ITextModel, colorInfo: IColorInformation, token: CancellationToken): ProviderResult<IColorPresentation[]>;
 }
+
+export interface SelectionRange {
+	kind: string;
+	range: IRange;
+}
+
+export interface SelectionRangeProvider {
+	/**
+	 * Provide ranges that should be selected from the given position.
+	 */
+	provideSelectionRanges(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<SelectionRange[]>;
+}
+
 export interface FoldingContext {
 }
 /**
@@ -1129,10 +1178,20 @@ export interface Command {
  * @internal
  */
 export interface CommentInfo {
-	owner: number;
+	extensionId: string;
 	threads: CommentThread[];
 	commentingRanges?: IRange[];
 	reply?: Command;
+	draftMode: DraftMode;
+}
+
+/**
+ * @internal
+ */
+export enum DraftMode {
+	NotSupported,
+	InDraft,
+	NotInDraft
 }
 
 /**
@@ -1153,6 +1212,7 @@ export enum CommentThreadCollapsibleState {
  * @internal
  */
 export interface CommentThread {
+	extensionId: string;
 	threadId: string;
 	resource: string;
 	range: IRange;
@@ -1180,13 +1240,13 @@ export interface Comment {
 	readonly canEdit?: boolean;
 	readonly canDelete?: boolean;
 	readonly command?: Command;
+	readonly isDraft?: boolean;
 }
 
 /**
  * @internal
  */
 export interface CommentThreadChangedEvent {
-	readonly owner: number;
 	/**
 	 * Added comment threads.
 	 */
@@ -1201,6 +1261,11 @@ export interface CommentThreadChangedEvent {
 	 * Changed comment threads.
 	 */
 	readonly changed: CommentThread[];
+
+	/**
+	 * changed draft mode.
+	 */
+	readonly draftMode: DraftMode;
 }
 
 /**
@@ -1212,6 +1277,13 @@ export interface DocumentCommentProvider {
 	replyToCommentThread(resource: URI, range: Range, thread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread>;
 	editComment(resource: URI, comment: Comment, text: string, token: CancellationToken): Promise<void>;
 	deleteComment(resource: URI, comment: Comment, token: CancellationToken): Promise<void>;
+	startDraft?(resource: URI, token: CancellationToken): Promise<void>;
+	deleteDraft?(resource: URI, token: CancellationToken): Promise<void>;
+	finishDraft?(resource: URI, token: CancellationToken): Promise<void>;
+
+	startDraftLabel?: string;
+	deleteDraftLabel?: string;
+	finishDraftLabel?: string;
 	onDidChangeCommentThreads(): Event<CommentThreadChangedEvent>;
 }
 
@@ -1279,6 +1351,11 @@ export const DefinitionProviderRegistry = new LanguageFeatureRegistry<Definition
 /**
  * @internal
  */
+export const DeclarationProviderRegistry = new LanguageFeatureRegistry<DeclarationProvider>();
+
+/**
+ * @internal
+ */
 export const ImplementationProviderRegistry = new LanguageFeatureRegistry<ImplementationProvider>();
 
 /**
@@ -1324,6 +1401,11 @@ export const ColorProviderRegistry = new LanguageFeatureRegistry<DocumentColorPr
 /**
  * @internal
  */
+export const SelectionRangeRegistry = new LanguageFeatureRegistry<SelectionRangeProvider>();
+
+/**
+ * @internal
+ */
 export const FoldingRangeProviderRegistry = new LanguageFeatureRegistry<FoldingRangeProvider>();
 
 /**
@@ -1360,7 +1442,7 @@ export interface ITokenizationRegistry {
 	/**
 	 * Register a promise for a tokenization support.
 	 */
-	registerPromise(language: string, promise: Thenable<ITokenizationSupport>): Thenable<IDisposable>;
+	registerPromise(language: string, promise: Thenable<ITokenizationSupport>): IDisposable;
 
 	/**
 	 * Get the tokenization support for a language.
