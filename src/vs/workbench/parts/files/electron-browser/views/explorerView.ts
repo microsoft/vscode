@@ -371,7 +371,10 @@ export class ExplorerView extends ViewletPanel {
 			getAnchor: () => e.anchor,
 			getActions: () => {
 				const actions: IAction[] = [];
-				fillInContextMenuActions(this.contributedContextMenu, { arg: stat instanceof ExplorerItem ? stat.resource : {}, shouldForwardArgs: true }, actions, this.contextMenuService);
+				// If the click is outside of the elements pass the root resource if there is only one root. If there are multiple roots pass empty object.
+				const roots = this.explorerService.roots;
+				const arg = stat instanceof ExplorerItem ? stat.resource : roots.length === 1 ? roots[0].resource : {};
+				fillInContextMenuActions(this.contributedContextMenu, { arg, shouldForwardArgs: true }, actions, this.contextMenuService);
 				return actions;
 			},
 			onHide: (wasCancelled?: boolean) => {
