@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench > .activitybar > .content .monaco-action-bar .action-label.scm {
+.monaco-workbench .activitybar > .content .monaco-action-bar .action-label.scm {
 	-webkit-mask: url('icon-dark.svg') no-repeat 50% 50%;
 }
 
