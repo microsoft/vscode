@@ -1463,6 +1463,14 @@ export class Workbench extends Disposable implements IPartService {
 		return this.workbenchLayout.isPanelMaximized();
 	}
 
+	toggleMinimizedPanel(): void {
+		this.workbenchLayout.layout({ toggleMinimizedPanel: true, source: Parts.PANEL_PART });
+	}
+
+	isPanelMinimized(): boolean {
+		return this.workbenchLayout.isPanelMinimized();
+	}
+
 	getSideBarPosition(): Position {
 		return this.sideBarPosition;
 	}

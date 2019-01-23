@@ -32,6 +32,7 @@ export function PositionToString(position: Position): string {
 
 export interface ILayoutOptions {
 	toggleMaximizedPanel?: boolean;
+	toggleMinimizedPanel?: boolean;
 	source?: Parts;
 }
 
@@ -106,6 +107,17 @@ export interface IPartService {
 	 * Returns true if the panel is maximized.
 	 */
 	isPanelMaximized(): boolean;
+
+	/**
+	 * Minimize the panel height if the panel is not already minimized.
+	 * Restores the panel to the default starting size if the panel is minimised.
+	 */
+	toggleMinimizedPanel(): void;
+
+	/**
+	 * Returns true if the panel is minimized.
+	 */
+	isPanelMinimized(): boolean;
 
 	/**
 	 * Gets the current side bar position. Note that the sidebar can be hidden too.

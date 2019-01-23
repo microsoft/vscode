@@ -34,11 +34,12 @@ const MIN_SIDEBAR_PART_WIDTH = 170;
 const DEFAULT_SIDEBAR_PART_WIDTH = 300;
 const HIDE_SIDEBAR_WIDTH_THRESHOLD = 50;
 
-const MIN_PANEL_PART_HEIGHT = 77;
+const MIN_PANEL_PART_HEIGHT = 35;
 const MIN_PANEL_PART_WIDTH = 300;
 const DEFAULT_PANEL_PART_SIZE = 350;
 const DEFAULT_PANEL_SIZE_COEFFICIENT = 0.4;
 const PANEL_SIZE_BEFORE_MAXIMIZED_BOUNDARY = 0.7;
+const PANEL_SIZE_BEFORE_MINIMIZED_BOUNDARY = 0.3;
 const HIDE_PANEL_HEIGHT_THRESHOLD = 50;
 const HIDE_PANEL_WIDTH_THRESHOLD = 100;
 
@@ -50,7 +51,7 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 	private static readonly sashXOneWidthSettingsKey = 'workbench.sidebar.width';
 	private static readonly sashXTwoWidthSettingsKey = 'workbench.panel.width';
 	private static readonly sashYHeightSettingsKey = 'workbench.panel.height';
-	private static readonly panelSizeBeforeMaximizedKey = 'workbench.panel.sizeBeforeMaximized';
+	private static readonly restoredPanelSizeKey = 'workbench.panel.restoredSize';
 
 	private workbenchSize: Dimension;
 
@@ -62,8 +63,9 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 	private sidebarHeight: number;
 	private titlebarHeight: number;
 	private statusbarHeight: number;
-	private panelSizeBeforeMaximized: number;
+	private restoredPanelSize: number;
 	private panelMaximized: boolean;
+	private panelMinimized: boolean;
 	private _panelHeight: number;
 	private _panelWidth: number;
 
@@ -109,7 +111,8 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 		this._panelHeight = Math.max(this.partLayoutInfo.panel.minHeight, this.storageService.getInteger(WorkbenchLayout.sashYHeightSettingsKey, StorageScope.GLOBAL, DEFAULT_PANEL_PART_SIZE));
 
 		this.panelMaximized = false;
-		this.panelSizeBeforeMaximized = this.storageService.getInteger(WorkbenchLayout.panelSizeBeforeMaximizedKey, StorageScope.GLOBAL, 0);
+		this.panelMinimized = false;
+		this.restoredPanelSize = this.storageService.getInteger(WorkbenchLayout.restoredPanelSizeKey, StorageScope.GLOBAL, 0);
 	}
 
 	private registerListeners(): void {
@@ -449,12 +452,18 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 			panelWidth = this.workbenchSize.width - sidebarSize.width - activityBarSize.width;
 
 			if (options && options.toggleMaximizedPanel) {
-				panelHeight = this.panelMaximized ? Math.max(this.partLayoutInfo.panel.minHeight, Math.min(this.panelSizeBeforeMaximized, maxPanelHeight)) : maxPanelHeight;
+				panelHeight = this.panelMaximized ? Math.max(this.partLayoutInfo.panel.minHeight, Math.min(this.restoredPanelSize, maxPanelHeight)) : maxPanelHeight;
+			}
+
+			if (options && options.toggleMinimizedPanel) {
+				panelHeight = this.panelMinimized ? Math.min(maxPanelHeight, Math.max(this.restoredPanelSize, this.partLayoutInfo.panel.minHeight)) : this.partLayoutInfo.panel.minHeight;
 			}
 
 			this.panelMaximized = panelHeight === maxPanelHeight;
-			if (panelHeight / maxPanelHeight < PANEL_SIZE_BEFORE_MAXIMIZED_BOUNDARY) {
-				this.panelSizeBeforeMaximized = panelHeight;
+			this.panelMinimized = panelHeight === this.partLayoutInfo.panel.minHeight;
+			if (panelHeight / maxPanelHeight < PANEL_SIZE_BEFORE_MAXIMIZED_BOUNDARY
+				&& panelHeight / maxPanelHeight > PANEL_SIZE_BEFORE_MINIMIZED_BOUNDARY) {
+				this.restoredPanelSize = panelHeight;
 			}
 		} else {
 			panelHeight = sidebarSize.height;
@@ -465,16 +474,16 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 			}
 
 			if (options && options.toggleMaximizedPanel) {
-				panelWidth = this.panelMaximized ? Math.max(this.partLayoutInfo.panel.minWidth, Math.min(this.panelSizeBeforeMaximized, maxPanelWidth)) : maxPanelWidth;
+				panelWidth = this.panelMaximized ? Math.max(this.partLayoutInfo.panel.minWidth, Math.min(this.restoredPanelSize, maxPanelWidth)) : maxPanelWidth;
 			}
 
 			this.panelMaximized = panelWidth === maxPanelWidth;
 			if (panelWidth / maxPanelWidth < PANEL_SIZE_BEFORE_MAXIMIZED_BOUNDARY) {
-				this.panelSizeBeforeMaximized = panelWidth;
+				this.restoredPanelSize = panelWidth;
 			}
 		}
 
-		this.storageService.store(WorkbenchLayout.panelSizeBeforeMaximizedKey, this.panelSizeBeforeMaximized, StorageScope.GLOBAL);
+		this.storageService.store(WorkbenchLayout.restoredPanelSizeKey, this.restoredPanelSize, StorageScope.GLOBAL);
 
 		const panelDimension = new Dimension(panelWidth, panelHeight);
 
@@ -704,6 +713,10 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 
 	isPanelMaximized(): boolean {
 		return this.panelMaximized;
+	}
+
+	isPanelMinimized(): boolean {
+		return this.panelMinimized;
 	}
 
 	resizePart(part: Parts, sizeChange: number): void {

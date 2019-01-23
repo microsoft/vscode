@@ -135,8 +135,8 @@ export class ToggleMaximizedPanelAction extends Action {
 	static readonly ID = 'workbench.action.toggleMaximizedPanel';
 	static readonly LABEL = nls.localize('toggleMaximizedPanel', "Toggle Maximized Panel");
 
-	private static readonly MAXIMIZE_LABEL = nls.localize('maximizePanel', "Maximize Panel Size");
-	private static readonly RESTORE_LABEL = nls.localize('minimizePanel', "Restore Panel Size");
+	static readonly MAXIMIZE_LABEL = nls.localize('maximizePanel', "Maximize Panel Size");
+	static readonly RESTORE_LABEL = nls.localize('restorePanel', "Restore Panel Size");
 
 	private toDispose: IDisposable[];
 
@@ -162,6 +162,48 @@ export class ToggleMaximizedPanelAction extends Action {
 		}
 
 		this.partService.toggleMaximizedPanel();
+		return Promise.resolve(null);
+	}
+
+	dispose(): void {
+		super.dispose();
+
+		this.toDispose = dispose(this.toDispose);
+	}
+}
+
+export class ToggleMinimizedPanelAction extends Action {
+
+	static readonly ID = 'workbench.action.toggleMinimizedPanel';
+	static readonly LABEL = nls.localize('toggleMaximizedPanel', "Toggle Maximized Panel");
+
+	static readonly MINIMIZE_LABEL = nls.localize('minimizePanel', "Minimize Panel Size");
+	static readonly RESTORE_LABEL = nls.localize('restorePanel', "Restore Panel Size");
+
+	private toDispose: IDisposable[];
+
+	constructor(
+		id: string,
+		label: string,
+		@IPartService private readonly partService: IPartService
+	) {
+		super(id, label, partService.isPanelMinimized() ? 'maximize-panel-action' : 'minimize-panel-action');
+
+		this.toDispose = [];
+
+		this.toDispose.push(partService.onEditorLayout(() => {
+			const minimized = this.partService.isPanelMinimized();
+			this.class = minimized ? 'maximize-panel-action' : 'minimize-panel-action';
+			this.label = minimized ? ToggleMinimizedPanelAction.RESTORE_LABEL : ToggleMinimizedPanelAction.MINIMIZE_LABEL;
+		}));
+	}
+
+	run(): Promise<any> {
+		if (!this.partService.isVisible(Parts.PANEL_PART)) {
+			this.partService.setPanelHidden(false);
+		}
+
+		this.partService.toggleMinimizedPanel();
 		return Promise.resolve(null);
 	}
 
@@ -256,6 +298,7 @@ const actionRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchExtensions
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(TogglePanelAction, TogglePanelAction.ID, TogglePanelAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_J }), 'View: Toggle Panel', nls.localize('view', "View"));
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusPanelAction, FocusPanelAction.ID, FocusPanelAction.LABEL), 'View: Focus into Panel', nls.localize('view', "View"));
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleMaximizedPanelAction, ToggleMaximizedPanelAction.ID, ToggleMaximizedPanelAction.LABEL), 'View: Toggle Maximized Panel', nls.localize('view', "View"));
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleMinimizedPanelAction, ToggleMinimizedPanelAction.ID, ToggleMinimizedPanelAction.LABEL), 'View: Toggle Minimized Panel', nls.localize('view', "View"));
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ClosePanelAction, ClosePanelAction.ID, ClosePanelAction.LABEL), 'View: Close Panel', nls.localize('view', "View"));
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(TogglePanelPositionAction, TogglePanelPositionAction.ID, TogglePanelPositionAction.LABEL), 'View: Toggle Panel Position', nls.localize('view', "View"));
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleMaximizedPanelAction, ToggleMaximizedPanelAction.ID, undefined), 'View: Toggle Panel Position', nls.localize('view', "View"));

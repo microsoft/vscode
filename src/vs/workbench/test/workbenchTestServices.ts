@@ -498,7 +498,13 @@ export class TestPartService implements IPartService {
 
 	public toggleMaximizedPanel(): void { }
 
+	public toggleMinimizedPanel(): void { }
+
 	public isPanelMaximized(): boolean {
+		return false;
+	}
+
+	public isPanelMinimized(): boolean {
 		return false;
 	}
 
