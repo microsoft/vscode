@@ -45,7 +45,6 @@ import { DebugSession } from 'vs/workbench/parts/debug/electron-browser/debugSes
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IDebugService, State, IDebugSession, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_MODE, IThread, IDebugConfiguration, VIEWLET_ID, REPL_ID, IConfig, ILaunch, IViewModel, IConfigurationManager, IDebugModel, IEnablement, IBreakpoint, IBreakpointData, ICompound, IGlobalConfig, IStackFrame, AdapterEndEvent, getStateLabel } from 'vs/workbench/parts/debug/common/debug';
 import { isExtensionHostDebugging } from 'vs/workbench/parts/debug/common/debugUtils';
-import { RunOnceScheduler } from 'vs/base/common/async';
 import { isErrorWithActions, createErrorWithActions } from 'vs/base/common/errorsWithActions';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
