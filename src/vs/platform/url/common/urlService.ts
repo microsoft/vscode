@@ -7,10 +7,7 @@ import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { first } from 'vs/base/common/async';
-
-declare module Array {
-	function from<T>(set: Set<T>): T[];
-}
+import { values } from 'vs/base/common/map';
 
 export class URLService implements IURLService {
 
@@ -19,7 +16,7 @@ export class URLService implements IURLService {
 	private handlers = new Set<IURLHandler>();
 
 	open(uri: URI): Promise<boolean> {
-		const handlers = Array.from(this.handlers);
+		const handlers = values(this.handlers);
 		return first(handlers.map(h => () => h.handleURL(uri)), undefined, false).then(val => val || false);
 	}
 
