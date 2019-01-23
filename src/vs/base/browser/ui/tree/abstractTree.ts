@@ -467,13 +467,10 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 
 	private onDragStart(): void {
 		const container = this.view.getHTMLElement();
-		const { top, left } = getDomNodePagePosition(container);
+		const { left } = getDomNodePagePosition(container);
 		const containerWidth = container.clientWidth;
-		const containerHeight = container.clientHeight;
 		const midContainerWidth = containerWidth / 2;
-		const midContainerHeight = containerHeight / 2;
 		const width = this.domNode.clientWidth;
-		const height = this.domNode.clientHeight;
 		const disposables: IDisposable[] = [];
 		let positionClassName = this.positionClassName;
 
@@ -487,29 +484,16 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 					this.domNode.style.top = `4px`;
 					this.domNode.style.left = `${containerWidth - width - 6}px`;
 					break;
-				case 'sw':
-					this.domNode.style.top = `${containerHeight - height - 6}px`;
-					this.domNode.style.left = `4px`;
-					break;
-				case 'se':
-					this.domNode.style.top = `${containerHeight - height - 6}px`;
-					this.domNode.style.left = `${containerWidth - width - 6}px`;
-					break;
 			}
 		};
 
 		const onDragOver = (event: DragEvent) => {
 			const x = event.screenX - left;
-			const y = event.screenY - top;
 
-			if (x < midContainerWidth && y < midContainerHeight) {
+			if (x < midContainerWidth) {
 				positionClassName = 'nw';
-			} else if (x >= midContainerWidth && y < midContainerHeight) {
-				positionClassName = 'ne';
-			} else if (x < midContainerWidth && y >= midContainerHeight) {
-				positionClassName = 'sw';
 			} else {
-				positionClassName = 'se';
+				positionClassName = 'ne';
 			}
 
 			updatePosition();

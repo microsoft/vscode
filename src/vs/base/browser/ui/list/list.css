@@ -80,6 +80,7 @@
 	line-height: 18px;
 	height: 20px;
 	z-index: 1;
+	top: 4px;
 }
 
 .monaco-list-type-filter.dragging {
@@ -87,22 +88,10 @@
 }
 
 .monaco-list-type-filter.ne {
-	top: 4px;
 	right: 4px;
 }
 
 .monaco-list-type-filter.nw {
-	top: 4px;
-	left: 4px;
-}
-
-.monaco-list-type-filter.se {
-	bottom: 4px;
-	right: 4px;
-}
-
-.monaco-list-type-filter.sw {
-	bottom: 4px;
 	left: 4px;
 }
 
