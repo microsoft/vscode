@@ -103,6 +103,14 @@ suite('markdown.DocumentLinkProvider', () => {
 		assertRangeEqual(link1.range, new vscode.Range(0, 10, 0, 14));
 		assertRangeEqual(link2.range, new vscode.Range(0, 23, 0, 28));
 	});
+
+	test('should handle hyperlinked images', () => {
+		const links = getLinksForFile('[![alt text](image.jpg)](https://example.com)');
+		assert.strictEqual(links.length, 2);
+		const [link1, link2] = links;
+		assertRangeEqual(link1.range, new vscode.Range(0,25,0,44));
+		assertRangeEqual(link2.range, new vscode.Range(0,13,0,22));
+	});
 });
 
 
