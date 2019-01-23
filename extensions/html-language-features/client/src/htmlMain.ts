@@ -89,7 +89,7 @@ export function activate(context: ExtensionContext) {
 	languages.registerSelectionRangeProvider('html', {
 		async provideSelectionRanges(document: TextDocument, position: Position): Promise<SelectionRange[]> {
 			const textDocument = TextDocumentIdentifier.create(document.uri.toString());
-			const rawRanges: Range[] = await client.sendRequest('$/selection', { textDocument, position });
+			const rawRanges: Range[] = await client.sendRequest('$/textDocument/selectionRange', { textDocument, position });
 
 			return rawRanges.map(r => {
 				const actualRange = new Range(new Position(r.start.line, r.start.character), new Position(r.end.line, r.end.character));

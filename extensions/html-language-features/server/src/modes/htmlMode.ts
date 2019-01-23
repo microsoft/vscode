@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getLanguageModelCache } from '../languageModelCache';
-import { LanguageService as HTMLLanguageService, HTMLDocument, DocumentContext, FormattingOptions, HTMLFormatConfiguration, Node } from 'vscode-html-languageservice';
+import { LanguageService as HTMLLanguageService, HTMLDocument, DocumentContext, FormattingOptions, HTMLFormatConfiguration } from 'vscode-html-languageservice';
 import { TextDocument, Position, Range, CompletionItem, FoldingRange } from 'vscode-languageserver-types';
 import { LanguageMode, Workspace } from './languageModes';
 import { getPathCompletionParticipant } from './pathCompletion';
@@ -16,26 +16,7 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace:
 			return 'html';
 		},
 		doSelection(document: TextDocument, position: Position): Range[] {
-			const htmlDocument = htmlDocuments.get(document);
-			let currNode = htmlDocument.findNodeAt(document.offsetAt(position));
-			let getNodeRanges = (n: Node) => {
-				if (n.startTagEnd && n.endTagStart && n.startTagEnd < n.endTagStart) {
-					return [
-						Range.create(document.positionAt(n.startTagEnd), document.positionAt(n.endTagStart)),
-						Range.create(document.positionAt(n.start), document.positionAt(n.end)),
-					];
-				}
-
-				return [Range.create(document.positionAt(n.start), document.positionAt(n.end))];
-			};
-			const result = [...getNodeRanges(currNode)];
-
-			while (currNode.parent) {
-				currNode = currNode.parent;
-				getNodeRanges(currNode).forEach(r => result.push(r));
-			}
-
-			return result;
+			return htmlLanguageService.getSelectionRanges(document, position);
 		},
 		doComplete(document: TextDocument, position: Position, settings = workspace.settings) {
 			let options = settings && settings.html && settings.html.suggest;
