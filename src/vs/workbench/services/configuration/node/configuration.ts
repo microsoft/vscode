@@ -18,7 +18,7 @@ import { isLinux } from 'vs/base/common/platform';
 import { ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { WorkspaceConfigurationModelParser, FolderSettingsModelParser, StandaloneConfigurationModelParser } from 'vs/workbench/services/configuration/common/configurationModels';
 import { FOLDER_SETTINGS_PATH, TASKS_CONFIGURATION_KEY, FOLDER_SETTINGS_NAME, LAUNCH_CONFIGURATION_KEY } from 'vs/workbench/services/configuration/common/configuration';
-import { IStoredWorkspaceFolder, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import * as extfs from 'vs/base/node/extfs';
 import { JSONEditingService } from 'vs/workbench/services/configuration/node/jsonEditingService';
 import { WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -28,6 +28,11 @@ import { equals } from 'vs/base/common/objects';
 import { Schemas } from 'vs/base/common/network';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationModel } from 'vs/platform/configuration/common/configuration';
+
+export interface IWorkspaceIdentifier {
+	id: string;
+	configPath: URI;
+}
 
 export class WorkspaceConfiguration extends Disposable {
 
@@ -75,7 +80,7 @@ export class WorkspaceConfiguration extends Disposable {
 
 	setFolders(folders: IStoredWorkspaceFolder[], jsonEditingService: JSONEditingService): Promise<void> {
 		if (this._workspaceIdentifier) {
-			return jsonEditingService.write(URI.file(this._workspaceIdentifier.configPath), { key: 'folders', value: folders }, true)
+			return jsonEditingService.write(this._workspaceIdentifier.configPath, { key: 'folders', value: folders }, true)
 				.then(() => this.reload());
 		}
 		return Promise.resolve();
@@ -102,7 +107,7 @@ export class WorkspaceConfiguration extends Disposable {
 				}
 				return false;
 			}
-			if (URI.file(this._workspaceIdentifier.configPath).scheme === Schemas.file) {
+			if (this._workspaceIdentifier.configPath.scheme === Schemas.file) {
 				if (!(this._workspaceConfiguration instanceof NodeBasedWorkspaceConfiguration)) {
 					dispose(this._workspaceConfiguration);
 					this._workspaceConfiguration = new NodeBasedWorkspaceConfiguration();
@@ -120,7 +125,7 @@ export class WorkspaceConfiguration extends Disposable {
 	}
 
 	private updateCache(): Promise<void> {
-		if (this._workspaceIdentifier && URI.file(this._workspaceIdentifier.configPath).scheme !== Schemas.file && this._workspaceConfiguration instanceof FileServiceBasedWorkspaceConfiguration) {
+		if (this._workspaceIdentifier && this._workspaceIdentifier.configPath.scheme !== Schemas.file && this._workspaceConfiguration instanceof FileServiceBasedWorkspaceConfiguration) {
 			return this._workspaceConfiguration.load(this._workspaceIdentifier)
 				.then(() => this._cachedConfiguration.updateWorkspace(this._workspaceIdentifier, this._workspaceConfiguration.getConfigurationModel()));
 		}
@@ -195,7 +200,7 @@ abstract class AbstractWorkspaceConfiguration extends Disposable implements IWor
 class NodeBasedWorkspaceConfiguration extends AbstractWorkspaceConfiguration {
 
 	protected loadWorkspaceConfigurationContents(workspaceIdentifier: IWorkspaceIdentifier): Promise<string> {
-		return pfs.readFile(workspaceIdentifier.configPath)
+		return pfs.readFile(workspaceIdentifier.configPath.fsPath)
 			.then(contents => contents.toString(), e => {
 				errors.onUnexpectedError(e);
 				return '';
@@ -211,13 +216,13 @@ class FileServiceBasedWorkspaceConfiguration extends AbstractWorkspaceConfigurat
 
 	constructor(private fileService: IFileService, from?: AbstractWorkspaceConfiguration) {
 		super(from);
-		this.workspaceConfig = from ? URI.file(from.workspaceIdentifier.configPath) : null;
+		this.workspaceConfig = from ? from.workspaceIdentifier.configPath : null;
 		this._register(fileService.onFileChanges(e => this.handleWorkspaceFileEvents(e)));
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this._onDidChange.fire(), 50));
 	}
 
 	protected loadWorkspaceConfigurationContents(workspaceIdentifier: IWorkspaceIdentifier): Promise<string> {
-		this.workspaceConfig = URI.file(workspaceIdentifier.configPath);
+		this.workspaceConfig = workspaceIdentifier.configPath;
 		return this.fileService.resolveContent(this.workspaceConfig)
 			.then(content => content.value, e => {
 				errors.onUnexpectedError(e);

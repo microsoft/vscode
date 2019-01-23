@@ -339,7 +339,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	}
 
 	private createMultiFolderWorkspace(workspaceIdentifier: IWorkspaceIdentifier): Promise<Workspace> {
-		return this.workspaceConfiguration.load(workspaceIdentifier)
+		return this.workspaceConfiguration.load({ id: workspaceIdentifier.id, configPath: URI.file(workspaceIdentifier.configPath) })
 			.then(() => {
 				const workspaceConfigPath = URI.file(workspaceIdentifier.configPath);
 				const workspaceFolders = toWorkspaceFolders(this.workspaceConfiguration.getFolders(), URI.file(dirname(workspaceConfigPath.fsPath)));
