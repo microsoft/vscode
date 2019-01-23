@@ -23,7 +23,7 @@ export interface IBreadcrumbsService {
 
 	register(group: GroupIdentifier, widget: BreadcrumbsWidget): IDisposable;
 
-	getWidget(group: GroupIdentifier): BreadcrumbsWidget;
+	getWidget(group: GroupIdentifier): BreadcrumbsWidget | undefined;
 }
 
 
@@ -43,7 +43,7 @@ export class BreadcrumbsService implements IBreadcrumbsService {
 		};
 	}
 
-	getWidget(group: number): BreadcrumbsWidget {
+	getWidget(group: number): BreadcrumbsWidget | undefined {
 		return this._map.get(group);
 	}
 }
