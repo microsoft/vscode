@@ -13,7 +13,6 @@ import { IExtensionManagementServerService, IExtensionTipsService } from 'vs/pla
 import { ILabelService } from 'vs/platform/label/common/label';
 import { extensionButtonProminentBackground, extensionButtonProminentForeground } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { STATUS_BAR_HOST_NAME_BACKGROUND } from 'vs/workbench/parts/remote/electron-browser/remote.contribution';
 
 export abstract class ExtensionWidget extends Disposable implements IExtensionContainer {
 	private _extension: IExtension;
@@ -202,7 +201,6 @@ export class RemoteBadgeWidget extends ExtensionWidget {
 	constructor(
 		private parent: HTMLElement,
 		@ILabelService private readonly labelService: ILabelService,
-		@IThemeService private readonly themeService: IThemeService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 	) {
 		super();
@@ -228,12 +226,7 @@ export class RemoteBadgeWidget extends ExtensionWidget {
 			this.element = append(this.parent, $('div.extension-remote-badge'));
 			append(this.element, $('span.octicon.octicon-file-symlink-directory'));
 
-			const applyBadgeStyle = (theme) => {
-				const bgColor = this.themeService.getTheme().getColor(STATUS_BAR_HOST_NAME_BACKGROUND);
-				this.element.style.backgroundColor = bgColor ? bgColor.toString() : '';
-			};
-			applyBadgeStyle(this.themeService.getTheme());
-			this.themeService.onThemeChange(applyBadgeStyle, this, this.disposables);
+			this.element.style.backgroundColor = 'rgb(56, 138, 52)';
 
 			const updateTitle = () => this.element.title = this.labelService.getHostLabel();
 			this.labelService.onDidChangeFormatters(() => updateTitle(), this, this.disposables);
