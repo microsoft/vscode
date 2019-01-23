@@ -5,7 +5,6 @@
 
 import { getDomNodePagePosition } from 'vs/base/browser/dom';
 import { Action } from 'vs/base/common/actions';
-import { always } from 'vs/base/common/async';
 import { canceled } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -53,11 +52,9 @@ export class CodeActionContextMenu {
 	private codeActionToAction(action: CodeAction): Action {
 		const id = action.command ? action.command.id : action.title;
 		const title = action.isPreferred ? `${action.title} ★` : action.title;
-		return new Action(id, title, undefined, true, () => {
-			return always(
-				this._onApplyCodeAction(action),
-				() => this._onDidExecuteCodeAction.fire(undefined));
-		});
+		return new Action(id, title, undefined, true, () =>
+			this._onApplyCodeAction(action)
+				.finally(() => this._onDidExecuteCodeAction.fire(undefined)));
 	}
 
 	get isVisible(): boolean {
