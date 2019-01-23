@@ -28,6 +28,10 @@ export function getCodeActions(
 		trigger: trigger.type === 'manual' ? CodeActionTriggerKind.Manual : CodeActionTriggerKind.Automatic
 	};
 
+	if (filter.kind && CodeActionKind.Source.contains(filter.kind) && rangeOrSelection.isEmpty()) {
+		rangeOrSelection = model.getFullModelRange();
+	}
+
 	const promises = CodeActionProviderRegistry.all(model)
 		// Avoid calling providers that we know will not return code actions of interest
 		.filter(provider => {
