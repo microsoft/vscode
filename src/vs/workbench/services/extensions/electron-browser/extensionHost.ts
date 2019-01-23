@@ -430,6 +430,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 						id: workspace.id,
 						name: this._labelService.getWorkspaceLabel(workspace)
 					},
+					resolvedExtensions: [],
 					extensions: extensionDescriptions,
 					telemetryInfo,
 					logLevel: this._logService.getLevel(),

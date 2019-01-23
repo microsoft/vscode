@@ -192,7 +192,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		this._registry = new ExtensionDescriptionRegistry(initData.extensions);
 		this._storage = new ExtHostStorage(this._extHostContext);
 		this._storagePath = new ExtensionStoragePath(initData.workspace, initData.environment);
-		this._activator = new ExtensionsActivator(this._registry, {
+		this._activator = new ExtensionsActivator(this._registry, initData.resolvedExtensions, {
 			showMessage: (severity: Severity, message: string): void => {
 				this._mainThreadExtensionsProxy.$localShowMessage(severity, message);
 

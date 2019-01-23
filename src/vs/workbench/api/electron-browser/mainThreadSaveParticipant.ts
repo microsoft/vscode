@@ -5,7 +5,7 @@
 
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { IdleValue, sequence } from 'vs/base/common/async';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 import * as strings from 'vs/base/common/strings';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
@@ -316,15 +316,34 @@ class CodeActionOnParticipant implements ISaveParticipant {
 			return undefined;
 		}
 
+		const tokenSource = new CancellationTokenSource();
+
 		const timeout = this._configurationService.getValue<number>('editor.codeActionsOnSaveTimeout', settingsOverrides);
 
-		return new Promise<CodeAction[]>((resolve, reject) => {
-			setTimeout(() => reject(localize('codeActionsOnSave.didTimeout', "Aborted codeActionsOnSave after {0}ms", timeout)), timeout);
-			this.getActionsToRun(model, codeActionsOnSave).then(resolve);
-		}).then(actionsToRun => {
-			// Failure to apply a code action should not block other on save actions
-			return this.applyCodeActions(actionsToRun).catch(() => undefined);
+		return Promise.race([
+			new Promise<void>((_resolve, reject) =>
+				setTimeout(() => {
+					tokenSource.cancel();
+					reject(localize('codeActionsOnSave.didTimeout', "Aborted codeActionsOnSave after {0}ms", timeout));
+				}, timeout)),
+			this.applyOnSaveActions(model, codeActionsOnSave, tokenSource.token)
+		]).then(() => {
+			tokenSource.cancel();
+		}, (e) => {
+			tokenSource.cancel();
+			return Promise.reject(e);
 		});
+	}
+
+	private async applyOnSaveActions(model: ITextModel, codeActionsOnSave: CodeActionKind[], token: CancellationToken): Promise<void> {
+		for (const codeActionKind of codeActionsOnSave) {
+			const actionsToRun = await this.getActionsToRun(model, codeActionKind, token);
+			try {
+				await this.applyCodeActions(actionsToRun);
+			} catch {
+				// Failure to apply a code action should not block other on save actions
+			}
+		}
 	}
 
 	private async applyCodeActions(actionsToRun: CodeAction[]) {
@@ -333,13 +352,11 @@ class CodeActionOnParticipant implements ISaveParticipant {
 		}
 	}
 
-	private async getActionsToRun(model: ITextModel, codeActionsOnSave: CodeActionKind[]) {
-		const actions = await getCodeActions(model, model.getFullModelRange(), {
+	private getActionsToRun(model: ITextModel, codeActionKind: CodeActionKind, token: CancellationToken) {
+		return getCodeActions(model, model.getFullModelRange(), {
 			type: 'auto',
-			filter: { kind: CodeActionKind.Source, includeSourceActions: true },
-		});
-		const actionsToRun = actions.filter(returnedAction => returnedAction.kind && codeActionsOnSave.some(onSaveKind => onSaveKind.contains(returnedAction.kind)));
-		return actionsToRun;
+			filter: { kind: codeActionKind, includeSourceActions: true },
+		}, token);
 	}
 }
 

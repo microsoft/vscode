@@ -500,6 +500,7 @@ export class ModelTokensChangedEventBuilder {
 			return null;
 		}
 		return {
+			tokenizationSupportChanged: false,
 			ranges: this._ranges
 		};
 	}

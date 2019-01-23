@@ -116,7 +116,7 @@ export abstract class Command {
 //#region EditorCommand
 
 export interface IContributionCommandOptions<T> extends ICommandOptions {
-	handler: (controller: T) => void;
+	handler: (controller: T, args: any) => void;
 }
 export interface EditorControllerCommand<T extends IEditorContribution> {
 	new(opts: IContributionCommandOptions<T>): EditorCommand;
@@ -128,7 +128,7 @@ export abstract class EditorCommand extends Command {
 	 */
 	public static bindToContribution<T extends IEditorContribution>(controllerGetter: (editor: ICodeEditor) => T): EditorControllerCommand<T> {
 		return class EditorControllerCommandImpl extends EditorCommand {
-			private _callback: (controller: T) => void;
+			private _callback: (controller: T, args: any) => void;
 
 			constructor(opts: IContributionCommandOptions<T>) {
 				super(opts);
@@ -139,7 +139,7 @@ export abstract class EditorCommand extends Command {
 			public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
 				let controller = controllerGetter(editor);
 				if (controller) {
-					this._callback(controllerGetter(editor));
+					this._callback(controllerGetter(editor), args);
 				}
 			}
 		};

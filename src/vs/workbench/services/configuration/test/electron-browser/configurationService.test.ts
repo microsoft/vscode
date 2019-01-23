@@ -19,7 +19,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, Configur
 import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
 import { ISingleFolderWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 import { ConfigurationEditingErrorCode } from 'vs/workbench/services/configuration/node/configurationEditingService';
-import { IFileService } from 'vs/platform/files/common/files';
+import { IFileService, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationTarget, IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { workbenchInstantiationService, TestTextResourceConfigurationService, TestTextFileService, TestLifecycleService, TestEnvironmentService, TestStorageService } from 'vs/workbench/test/workbenchTestServices';
@@ -34,6 +34,7 @@ import { JSONEditingService } from 'vs/workbench/services/configuration/node/jso
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { Uri } from 'vscode';
 import { createHash } from 'crypto';
+import { Emitter, Event } from 'vs/base/common/event';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 
@@ -140,7 +141,7 @@ suite('WorkspaceContextService - Folder', () => {
 
 suite('WorkspaceContextService - Workspace', () => {
 
-	let parentResource: string, testObject: WorkspaceService;
+	let parentResource: string, testObject: WorkspaceService, instantiationService: TestInstantiationService, fileChangeEvent: Emitter<FileChangesEvent> = new Emitter<FileChangesEvent>();
 
 	setup(() => {
 		return setUpWorkspace(['a', 'b'])
@@ -151,14 +152,16 @@ suite('WorkspaceContextService - Workspace', () => {
 				const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, path.join(parentDir, 'settings.json'));
 				const workspaceService = new WorkspaceService(environmentService);
 
-				const instantiationService = <TestInstantiationService>workbenchInstantiationService();
+				instantiationService = <TestInstantiationService>workbenchInstantiationService();
 				instantiationService.stub(IWorkspaceContextService, workspaceService);
 				instantiationService.stub(IConfigurationService, workspaceService);
 				instantiationService.stub(IEnvironmentService, environmentService);
 
 				return workspaceService.initialize({ id: configPath, configPath }).then(() => {
 
-					const fileService = new FileService(<IWorkspaceContextService>workspaceService, TestEnvironmentService, new TestTextResourceConfigurationService(), workspaceService, new TestLifecycleService(), new TestStorageService(), new TestNotificationService(), { disableWatcher: true });
+					const fileService = new (class TestFileService extends FileService {
+						get onFileChanges(): Event<FileChangesEvent> { return fileChangeEvent.event; }
+					})(<IWorkspaceContextService>workspaceService, TestEnvironmentService, new TestTextResourceConfigurationService(), workspaceService, new TestLifecycleService(), new TestStorageService(), new TestNotificationService(), { disableWatcher: true });
 					instantiationService.stub(IFileService, fileService);
 					instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 					instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
@@ -293,7 +296,15 @@ suite('WorkspaceContextService - Workspace', () => {
 					done();
 				});
 				const workspace = { folders: [{ path: folders[0].uri.fsPath }, { path: folders[1].uri.fsPath }] };
-				fs.writeFileSync(testObject.getWorkspace().configuration!.fsPath, JSON.stringify(workspace, null, '\t'));
+				instantiationService.get(IFileService).updateContent(testObject.getWorkspace().configuration, JSON.stringify(workspace, null, '\t'))
+					.then(() => {
+						fileChangeEvent.fire(new FileChangesEvent([
+							{
+								resource: testObject.getWorkspace().configuration,
+								type: FileChangeType.UPDATED
+							}
+						]));
+					}, done);
 			}, done);
 	});
 

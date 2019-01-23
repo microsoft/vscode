@@ -47,13 +47,14 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 			shellName = 'xterm-256color';
 		}
 
+		const useConpty = windowsEnableConpty && process.platform === 'win32' && this._getWindowsBuildNumber() >= 18309;
 		const options: pty.IPtyForkOptions = {
 			name: shellName,
 			cwd,
 			env,
 			cols,
 			rows,
-			experimentalUseConpty: windowsEnableConpty
+			experimentalUseConpty: useConpty
 		};
 
 		try {
@@ -99,6 +100,15 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 		this._onProcessExit.dispose();
 		this._onProcessIdReady.dispose();
 		this._onProcessTitleChanged.dispose();
+	}
+
+	private _getWindowsBuildNumber(): number {
+		const osVersion = (/(\d+)\.(\d+)\.(\d+)/g).exec(os.release());
+		let buildNumber: number = 0;
+		if (osVersion && osVersion.length === 4) {
+			buildNumber = parseInt(osVersion[3]);
+		}
+		return buildNumber;
 	}
 
 	private _setupTitlePolling() {

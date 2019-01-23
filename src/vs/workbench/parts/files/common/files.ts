@@ -45,11 +45,14 @@ export interface IExplorerService {
 	readonly onDidChangeItem: Event<ExplorerItem | undefined>;
 	readonly onDidChangeEditable: Event<ExplorerItem>;
 	readonly onDidSelectItem: Event<{ item?: ExplorerItem, reveal?: boolean }>;
+	readonly onDidCopyItems: Event<{ items: ExplorerItem[], cut: boolean, previouslyCutItems: ExplorerItem[] | undefined }>;
 
 	setEditable(stat: ExplorerItem, data: IEditableData): void;
 	getEditableData(stat: ExplorerItem): IEditableData | undefined;
 	findClosest(resource: URI): ExplorerItem | null;
 	refresh(): void;
+	setToCopy(stats: ExplorerItem[], cut: boolean): void;
+	isCut(stat: ExplorerItem): boolean;
 
 	/**
 	 * Selects and reveal the file element provided by the given resource if its found in the explorer. Will try to

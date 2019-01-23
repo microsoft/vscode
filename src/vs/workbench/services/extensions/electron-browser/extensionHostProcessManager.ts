@@ -242,6 +242,17 @@ export class ExtensionHostProcessManager extends Disposable {
 	}
 
 	public resolveAuthority(remoteAuthority: string): Promise<ResolvedAuthority> {
+		const authorityPlusIndex = remoteAuthority.indexOf('+');
+		if (authorityPlusIndex === -1) {
+			// This authority does not need to be resolved, simply parse the port number
+			const pieces = remoteAuthority.split(':');
+			return Promise.resolve({
+				authority: remoteAuthority,
+				host: pieces[0],
+				port: parseInt(pieces[1], 10),
+				syncExtensions: false
+			});
+		}
 		return this._extensionHostProcessProxy.then(proxy => proxy.value.$resolveAuthority(remoteAuthority));
 	}
 
