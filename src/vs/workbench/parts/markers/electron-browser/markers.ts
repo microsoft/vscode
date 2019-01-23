@@ -24,6 +24,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
 import { timeout } from 'vs/base/common/async';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const IMarkersWorkbenchService = createDecorator<IMarkersWorkbenchService>('markersWorkbenchService');
 
@@ -159,8 +160,7 @@ export class MarkersWorkbenchService extends Disposable implements IMarkersWorkb
 	private async _getFixes(uri: URI, range?: Range): Promise<CodeAction[]> {
 		const model = this.modelService.getModel(uri);
 		if (model) {
-			const codeActions = await getCodeActions(model, range ? range : model.getFullModelRange(), { type: 'manual', filter: { kind: CodeActionKind.QuickFix } });
-			return codeActions;
+			return getCodeActions(model, range ? range : model.getFullModelRange(), { type: 'manual', filter: { kind: CodeActionKind.QuickFix } }, CancellationToken.None /* TODO: use cancellation here */);
 		}
 		return [];
 	}

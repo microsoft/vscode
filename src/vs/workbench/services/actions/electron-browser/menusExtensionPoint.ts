@@ -230,6 +230,7 @@ namespace schema {
 
 	const commandType: IJSONSchema = {
 		type: 'object',
+		required: ['command', 'title'],
 		properties: {
 			command: {
 				description: localize('vscode.extension.contributes.commandType.command', 'Identifier of the command to execute'),

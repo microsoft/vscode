@@ -37,7 +37,7 @@ export interface TypeScriptRequestTypes {
 	'format': [Proto.FormatRequestArgs, Proto.FormatResponse];
 	'formatonkey': [Proto.FormatOnKeyRequestArgs, Proto.FormatResponse];
 	'getApplicableRefactors': [Proto.GetApplicableRefactorsRequestArgs, Proto.GetApplicableRefactorsResponse];
-	'getCodeFixes': [Proto.CodeFixRequestArgs, Proto.GetCodeFixesResponse];
+	'getCodeFixes': [Proto.CodeFixRequestArgs, Proto.CodeFixResponse];
 	'getCombinedCodeFix': [Proto.GetCombinedCodeFixRequestArgs, Proto.GetCombinedCodeFixResponse];
 	'getEditsForFileRename': [Proto.GetEditsForFileRenameRequestArgs, Proto.GetEditsForFileRenameResponse];
 	'getEditsForRefactor': [Proto.GetEditsForRefactorRequestArgs, Proto.GetEditsForRefactorResponse];
@@ -116,5 +116,5 @@ export interface ITypeScriptServiceClient {
 	/**
 	 * Cancel on going geterr requests and re-queue them after `f` has been evaluated.
 	 */
-	interuptGetErr<R>(f: () => R): R;
+	interruptGetErr<R>(f: () => R): R;
 }

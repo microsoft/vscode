@@ -838,6 +838,10 @@ const editorConfiguration: IConfigurationNode = {
 				'source.organizeImports': {
 					'type': 'boolean',
 					'description': nls.localize('codeActionsOnSave.organizeImports', "Controls whether organize imports action should be run on file save.")
+				},
+				'source.fixAll': {
+					'type': 'boolean',
+					'description': nls.localize('codeActionsOnSave.fixAll', "Controls whether auto fix action should be run on file save.")
 				}
 			},
 			'additionalProperties': {

@@ -23,4 +23,5 @@ export interface IRemoteAuthorityResolverService {
 	resolveAuthority(authority: string): Promise<ResolvedAuthority>;
 
 	setResolvedAuthority(resolvedAuthority: ResolvedAuthority): void;
+	setResolvedAuthorityError(authority: string, err: any): void;
 }

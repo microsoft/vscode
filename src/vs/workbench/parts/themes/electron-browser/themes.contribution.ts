@@ -60,7 +60,7 @@ export class SelectColorThemeAction extends Action {
 					}
 					theme = currentTheme;
 				}
-				let target: ConfigurationTarget | null = null;
+				let target: ConfigurationTarget | undefined = undefined;
 				if (applyTheme) {
 					let confValue = this.configurationService.inspect(COLOR_THEME_SETTING);
 					target = typeof confValue.workspace !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
@@ -69,7 +69,7 @@ export class SelectColorThemeAction extends Action {
 				this.themeService.setColorTheme(theme.id, target).then(undefined,
 					err => {
 						onUnexpectedError(err);
-						this.themeService.setColorTheme(currentTheme.id, null);
+						this.themeService.setColorTheme(currentTheme.id, undefined);
 					}
 				);
 			};

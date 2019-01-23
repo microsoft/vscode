@@ -138,7 +138,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 		}
 
 		const args: Proto.GetApplicableRefactorsRequestArgs = typeConverters.Range.toFileRangeRequestArgs(file, rangeOrSelection);
-		const response = await this.client.interuptGetErr(() => {
+		const response = await this.client.interruptGetErr(() => {
 			this.formattingOptionsManager.ensureConfigurationForDocument(document, token);
 
 			return this.client.execute('getApplicableRefactors', args, token);

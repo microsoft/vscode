@@ -737,4 +737,68 @@ suite('SQLite Storage Library', () => {
 
 		await del(storageDir, tmpdir());
 	});
+
+	test('lots of INSERT & DELETE (below inline max)', async () => {
+		const storageDir = uniqueStorageDir();
+
+		await mkdirp(storageDir);
+
+		const storage = new SQLiteStorageDatabase(join(storageDir, 'storage.db'));
+
+		const items = new Map<string, string>();
+		const keys: Set<string> = new Set<string>();
+		for (let i = 0; i < 200; i++) {
+			const uuid = generateUuid();
+			const key = `key: ${uuid}`;
+
+			items.set(key, `value: ${uuid}`);
+			keys.add(key);
+		}
+
+		await storage.updateItems({ insert: items });
+
+		let storedItems = await storage.getItems();
+		equal(storedItems.size, items.size);
+
+		await storage.updateItems({ delete: keys });
+
+		storedItems = await storage.getItems();
+		equal(storedItems.size, 0);
+
+		await storage.close();
+
+		await del(storageDir, tmpdir());
+	});
+
+	test('lots of INSERT & DELETE (above inline max)', async () => {
+		const storageDir = uniqueStorageDir();
+
+		await mkdirp(storageDir);
+
+		const storage = new SQLiteStorageDatabase(join(storageDir, 'storage.db'));
+
+		const items = new Map<string, string>();
+		const keys: Set<string> = new Set<string>();
+		for (let i = 0; i < 400; i++) {
+			const uuid = generateUuid();
+			const key = `key: ${uuid}`;
+
+			items.set(key, `value: ${uuid}`);
+			keys.add(key);
+		}
+
+		await storage.updateItems({ insert: items });
+
+		let storedItems = await storage.getItems();
+		equal(storedItems.size, items.size);
+
+		await storage.updateItems({ delete: keys });
+
+		storedItems = await storage.getItems();
+		equal(storedItems.size, 0);
+
+		await storage.close();
+
+		await del(storageDir, tmpdir());
+	});
 });

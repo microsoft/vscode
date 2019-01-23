@@ -1167,8 +1167,3 @@ export function animate(fn: () => void): IDisposable {
 	let stepDisposable = scheduleAtNextAnimationFrame(step);
 	return toDisposable(() => stepDisposable.dispose());
 }
-
-export function timeout(fn: () => void, millis: number): IDisposable {
-	const timer = setTimeout(fn, millis);
-	return toDisposable(() => clearTimeout(timer));
-}

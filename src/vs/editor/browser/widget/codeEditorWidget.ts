@@ -842,10 +842,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			}
 
 			const reducedState = this._modelData.viewModel.reduceRestoreState(codeEditorState.viewState);
-			const linesViewportData = this._modelData.viewModel.viewLayout.getLinesViewportDataAtScrollTop(reducedState.scrollTop);
-			const startPosition = this._modelData.viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(linesViewportData.startLineNumber, 1));
-			const endPosition = this._modelData.viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(linesViewportData.endLineNumber, 1));
-			this._modelData.model.tokenizeViewport(startPosition.lineNumber, endPosition.lineNumber);
 			this._modelData.view.restoreState(reducedState);
 		}
 	}

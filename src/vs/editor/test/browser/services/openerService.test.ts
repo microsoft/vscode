@@ -79,12 +79,6 @@ suite('OpenerService', function () {
 
 		const openerService = new OpenerService(editorService, commandService);
 
-		// unknown command
-		openerService.open(URI.parse('command:foobar'));
-		assert.equal(lastCommand, undefined);
-		assert.equal(editorService.lastInput.resource.toString(), 'command:foobar');
-		assert.equal(editorService.lastInput.options!.selection, undefined);
-
 		const id = `aCommand${Math.random()}`;
 		CommandsRegistry.registerCommand(id, function () { });
 

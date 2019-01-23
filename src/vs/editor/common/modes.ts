@@ -516,7 +516,7 @@ export interface CodeAction {
 	edit?: WorkspaceEdit;
 	diagnostics?: IMarkerData[];
 	kind?: string;
-	canAutoApply?: boolean;
+	isPreferred?: boolean;
 }
 
 /**
@@ -913,6 +913,9 @@ export interface FormattingOptions {
  * the formatting-feature.
  */
 export interface DocumentFormattingEditProvider {
+
+	displayName?: string;
+
 	/**
 	 * Provide formatting edits for a whole document.
 	 */
@@ -923,6 +926,9 @@ export interface DocumentFormattingEditProvider {
  * the formatting-feature.
  */
 export interface DocumentRangeFormattingEditProvider {
+
+	displayName?: string;
+
 	/**
 	 * Provide formatting edits for a range in a document.
 	 *
