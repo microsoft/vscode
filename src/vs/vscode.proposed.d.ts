@@ -924,7 +924,7 @@ declare module 'vscode' {
 	/**
 	 * Represents a terminal without a process where all interaction and output in the terminal is
 	 * controlled by an extension. This is similar to an output window but has the same VT sequence
-	 * compatility as the regular terminal.
+	 * compatibility as the regular terminal.
 	 *
 	 * Note that an instance of [Terminal](#Terminal) will be created when a TerminalRenderer is
 	 * created with all its APIs available for use by extensions. When using the Terminal object
@@ -972,7 +972,7 @@ declare module 'vscode' {
 		readonly maximumDimensions: TerminalDimensions | undefined;
 
 		/**
-		 * The corressponding [Terminal](#Terminal) for this TerminalRenderer.
+		 * The corresponding [Terminal](#Terminal) for this TerminalRenderer.
 		 */
 		readonly terminal: Terminal;
 
@@ -1012,7 +1012,7 @@ declare module 'vscode' {
 		readonly onDidAcceptInput: Event<string>;
 
 		/**
-		 * An event which fires when the [maximum dimensions](#TerminalRenderer.maimumDimensions) of
+		 * An event which fires when the [maximum dimensions](#TerminalRenderer.maximumDimensions) of
 		 * the terminal renderer change.
 		 */
 		readonly onDidChangeMaximumDimensions: Event<TerminalDimensions>;
@@ -1107,7 +1107,7 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	//#region SignatureHelpContext active paramters - mjbvz
+	//#region SignatureHelpContext active parameters - mjbvz
 	export interface SignatureHelpContext {
 		/**
 		 * The currently active [`SignatureHelp`](#SignatureHelp).
@@ -1119,18 +1119,55 @@ declare module 'vscode' {
 	//#endregion
 
 	/**
+	 * Interface used to render ANSI output (typically to a [terminal](TerminalRenderer).
+	 */
+	export interface AnsiRenderer {
+		/**
+		 * The dimensions of the renderer, the rows and columns of the renderer can only be set to
+		 * a value smaller than the maximum value, if this is undefined the renderer will auto fit
+		 * to the maximum value [maximumDimensions](AnsiRenderer.maximumDimensions).
+		*/
+		dimensions: TerminalDimensions | undefined;
+
+		/**
+		 * The maximum dimensions of the renderer, this will be undefined immediately after a
+		 * renderer is created and also until the renderer becomes visible in the UI.
+		 * Listen to [onDidChangeMaximumDimensions](AnsiRenderer.onDidChangeMaximumDimensions)
+		 * to get notified when this value changes.
+		 */
+		readonly maximumDimensions: TerminalDimensions | undefined;
+
+		/**
+		 * Write text to the terminal.
+		 * @param text The text to write.
+		 */
+		write(text: string): void;
+
+		/**
+		 * An event which fires on keystrokes entered in the renderer.
+		 */
+		readonly onDidAcceptInput: Event<string>;
+
+		/**
+		 * An event which fires when the [maximum dimensions](#AnsiRenderer.maximumDimensions) of
+		 * the renderer change.
+		 */
+		readonly onDidChangeMaximumDimensions: Event<TerminalDimensions>;
+	}
+
+	/**
 	 * Class used to execute an extension callback as a task.
 	 */
 	export class ExtensionCallbackExecution {
 		/**
 		 * @param callback The callback that will be called when the extension callback task is executed.
 		 */
-		constructor(callback: (terminalRenderer: TerminalRenderer, cancellationToken: CancellationToken, thisArg?: any) => Thenable<void>);
+		constructor(callback: (ansiRenderer: AnsiRenderer, cancellationToken: CancellationToken, thisArg?: any) => Thenable<void>);
 
 		/**
 		 * The callback used to execute the task.
 		 */
-		callback: (terminalRenderer: TerminalRenderer, cancellationToken: CancellationToken, thisArg?: any) => Thenable<void>;
+		callback: (ansiRenderer: AnsiRenderer, cancellationToken: CancellationToken, thisArg?: any) => Thenable<void>;
 	}
 
 	/**

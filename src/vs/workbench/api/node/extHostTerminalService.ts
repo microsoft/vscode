@@ -164,7 +164,7 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 	}
 }
 
-export class ExtHostTerminalRenderer extends BaseExtHostTerminal implements vscode.TerminalRenderer {
+export class ExtHostTerminalRenderer extends BaseExtHostTerminal implements vscode.TerminalRenderer, vscode.AnsiRenderer {
 	public get name(): string { return this._name; }
 	public set name(newName: string) {
 		this._name = newName;
@@ -361,11 +361,11 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	}
 
 	public $acceptTerminalOpened(id: number, name: string, isRendererOnly: boolean): void {
-		// If this is a terminal created by one of the public createrTerminal* APIs
+		// If this is a terminal created by one of the public createTerminal* APIs
 		// then @acceptTerminalOpened was called from the main thread task
 		// to indicate that the terminal is ready for use.
 		// In those cases, we don't need to create the extension host objects
-		// as they alrady exist, but, we do still need to fire the events
+		// as they already exist, but, we do still need to fire the events
 		// to our consumers.
 		const index = this._getTerminalObjectIndexById(this._terminals, id);
 		if (index !== null) {
