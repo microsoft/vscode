@@ -21,6 +21,7 @@ import { memoize } from 'vs/base/common/decorators';
 import { Range, IRange } from 'vs/base/common/range';
 import { equals, distinct } from 'vs/base/common/arrays';
 import { DataTransfers, StaticDND, IDragAndDropData } from 'vs/base/browser/dnd';
+import { disposableTimeout } from 'vs/base/common/async';
 
 function canUseTranslate3d(): boolean {
 	if (browser.isFirefox) {
@@ -731,7 +732,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	private onDragLeave(): void {
 		this.onDragLeaveTimeout.dispose();
-		this.onDragLeaveTimeout = DOM.timeout(() => this.clearDragOverFeedback(), 100);
+		this.onDragLeaveTimeout = disposableTimeout(() => this.clearDragOverFeedback(), 100);
 	}
 
 	private onDrop(event: IListDragEvent<T>): void {
@@ -777,7 +778,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		}
 
 		this.dragOverAnimationStopDisposable.dispose();
-		this.dragOverAnimationStopDisposable = DOM.timeout(() => {
+		this.dragOverAnimationStopDisposable = disposableTimeout(() => {
 			if (this.dragOverAnimationDisposable) {
 				this.dragOverAnimationDisposable.dispose();
 				this.dragOverAnimationDisposable = undefined;
