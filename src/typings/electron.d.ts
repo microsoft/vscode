@@ -1,4 +1,4 @@
-// Type definitions for Electron 4.0.0
+// Type definitions for Electron 4.0.2
 // Project: http://electronjs.org/
 // Definitions by: The Electron Team <https://github.com/electron/electron>
 // Definitions: https://github.com/electron/electron-typescript-definitions
@@ -86,7 +86,7 @@ declare namespace Electron {
 		webviewTag: WebviewTag;
 	}
 
-  interface AllElectron extends MainInterface, RendererInterface {}
+	interface AllElectron extends MainInterface, RendererInterface { }
 
 	const app: App;
 	const autoUpdater: AutoUpdater;
@@ -106,7 +106,7 @@ declare namespace Electron {
 	const powerMonitor: PowerMonitor;
 	const powerSaveBlocker: PowerSaveBlocker;
 	const protocol: Protocol;
-	// const remote: Remote; ### VSCODE CHANGE (we do not want to use remote)
+	const remote: Remote;
 	const screen: Screen;
 	type session = Session;
 	const session: typeof Session;
@@ -891,9 +891,9 @@ declare namespace Electron {
 		setAboutPanelOptions(options: AboutPanelOptionsOptions): void;
 		/**
 		 * Manually enables Chrome's accessibility support, allowing to expose
-		 * accessibility switch to users in application settings.
-		 * https://www.chromium.org/developers/design-documents/accessibility for more
-		 * details. Disabled by default. Note: Rendering accessibility tree can
+		 * accessibility switch to users in application settings. See Chromium's
+		 * accessibility docs for more details. Disabled by default. This API must be
+		 * called after the ready event is emitted. Note: Rendering accessibility tree can
 		 * significantly affect the performance of your app. It should not be enabled by
 		 * default.
 		 */
@@ -2316,20 +2316,9 @@ declare namespace Electron {
 		 * Start recording on all processes. Recording begins immediately locally and
 		 * asynchronously on child processes as soon as they receive the EnableRecording
 		 * request. The callback will be called once all child processes have acknowledged
-		 * the startRecording request. categoryFilter is a filter to control what category
-		 * groups should be traced. A filter can have an optional - prefix to exclude
-		 * category groups that contain a matching category. Having both included and
-		 * excluded category patterns in the same list is not supported. Examples:
-		 * traceOptions controls what kind of tracing is enabled, it is a comma-delimited
-		 * list. Possible options are: The first 3 options are trace recording modes and
-		 * hence mutually exclusive. If more than one trace recording modes appear in the
-		 * traceOptions string, the last one takes precedence. If none of the trace
-		 * recording modes are specified, recording mode is record-until-full. The trace
-		 * option will first be reset to the default option (record_mode set to
-		 * record-until-full, enable_sampling and enable_systrace set to false) before
-		 * options parsed from traceOptions are applied on it.
+		 * the startRecording request.
 		 */
-		startRecording(options: StartRecordingOptions, callback: Function): void;
+		startRecording(options: (TraceCategoriesAndOptions) | (TraceConfig), callback: Function): void;
 		/**
 		 * Stop monitoring on all processes. Once all child processes have acknowledged the
 		 * stopMonitoring request the callback is called.
@@ -2942,7 +2931,9 @@ declare namespace Electron {
 		 * registered shortcut is pressed by the user. When the accelerator is already
 		 * taken by other applications, this call will silently fail. This behavior is
 		 * intended by operating systems, since they don't want applications to fight for
-		 * global shortcuts.
+		 * global shortcuts. The following accelerators will not be registered successfully
+		 * on macOS 10.14 Mojave unless the app has been authorized as a trusted
+		 * accessibility client:
 		 */
 		register(accelerator: Accelerator, callback: Function): void;
 		/**
@@ -3215,7 +3206,7 @@ declare namespace Electron {
 		 * event.returnValue. Note: Sending a synchronous message will block the whole
 		 * renderer process, unless you know what you are doing you should never use it.
 		 */
-		// sendSync(channel: string, ...args: any[]): any; ### VSCODE CHANGE (we do not want to use sendSync)
+		sendSync(channel: string, ...args: any[]): any;
 		/**
 		 * Sends a message to a window with webContentsId via channel.
 		 */
@@ -4471,6 +4462,7 @@ declare namespace Electron {
 		isDarkMode(): boolean;
 		isInvertedColorScheme(): boolean;
 		isSwipeTrackingFromScrollEventsEnabled(): boolean;
+		isTrustedAccessibilityClient(prompt: boolean): boolean;
 		/**
 		 * Posts event as native notifications of macOS. The userInfo is an Object that
 		 * contains the user information dictionary sent along with the notification.
@@ -4696,6 +4688,42 @@ declare namespace Electron {
 		static TouchBarSegmentedControl: typeof TouchBarSegmentedControl;
 		static TouchBarSlider: typeof TouchBarSlider;
 		static TouchBarSpacer: typeof TouchBarSpacer;
+	}
+
+	interface TraceCategoriesAndOptions {
+
+		// Docs: http://electronjs.org/docs/api/structures/trace-categories-and-options
+
+		/**
+		 * – is a filter to control what category groups should be traced. A filter can
+		 * have an optional prefix to exclude category groups that contain a matching
+		 * category. Having both included and excluded category patterns in the same list
+		 * is not supported. Examples: test_MyTest*, test_MyTest*,test_OtherStuff,
+		 * -excluded_category1,-excluded_category2.
+		 */
+		categoryFilter: string;
+		/**
+		 * Controls what kind of tracing is enabled, it is a comma-delimited sequence of
+		 * the following strings: record-until-full, record-continuously, trace-to-console,
+		 * enable-sampling, enable-systrace, e.g. 'record-until-full,enable-sampling'. The
+		 * first 3 options are trace recording modes and hence mutually exclusive. If more
+		 * than one trace recording modes appear in the traceOptions string, the last one
+		 * takes precedence. If none of the trace recording modes are specified, recording
+		 * mode is record-until-full. The trace option will first be reset to the default
+		 * option (record_mode set to record-until-full, enable_sampling and
+		 * enable_systrace set to false) before options parsed from traceOptions are
+		 * applied on it.
+		 */
+		traceOptions: string;
+	}
+
+	interface TraceConfig {
+
+		// Docs: http://electronjs.org/docs/api/structures/trace-config
+
+		excluded_categories?: string[];
+		included_categories?: string[];
+		memory_dump_config?: MemoryDumpConfig;
 	}
 
 	interface Transaction {
@@ -7053,7 +7081,7 @@ declare namespace Electron {
 		 * When this attribute is present the guest page will be allowed to open new
 		 * windows. Popups are disabled by default.
 		 */
-		// allowpopups?: string; ### VSCODE CHANGE (https://github.com/electron/electron/blob/master/docs/tutorial/security.md) ###
+		allowpopups?: string;
 		/**
 		 * When this attribute is present the webview container will automatically resize
 		 * within the bounds specified by the attributes minwidth, minheight, maxwidth, and
@@ -7072,7 +7100,7 @@ declare namespace Electron {
 		 * When this attribute is present the guest page will have web security disabled.
 		 * Web security is enabled by default.
 		 */
-		// disablewebsecurity?: string; ### VSCODE CHANGE(https://github.com/electron/electron/blob/master/docs/tutorial/security.md) ###
+		disablewebsecurity?: string;
 		/**
 		 * A list of strings which specifies the blink features to be enabled separated by
 		 * ,. The full list of supported feature strings can be found in the
@@ -8153,6 +8181,9 @@ declare namespace Electron {
 		args?: string[];
 	}
 
+	interface MemoryDumpConfig {
+	}
+
 	interface MenuItemConstructorOptions {
 		/**
 		 * Will be called with click(menuItem, browserWindow, event) when the menu item is
@@ -8915,11 +8946,6 @@ declare namespace Electron {
 		traceOptions: string;
 	}
 
-	interface StartRecordingOptions {
-		categoryFilter: string;
-		traceOptions: string;
-	}
-
 	interface SystemMemoryInfo {
 		/**
 		 * The total amount of physical memory in Kilobytes available to the system.
@@ -9351,12 +9377,12 @@ declare namespace Electron {
 		 * websites by people), and set allowRunningInsecureContent to true if this options
 		 * has not been set by user. Default is true.
 		 */
-		// webSecurity?: boolean; ### VSCODE CHANGE (https://github.com/electron/electron/blob/master/docs/tutorial/security.md) ###
+		webSecurity?: boolean;
 		/**
 		 * Allow an https page to run JavaScript, CSS or plugins from http URLs. Default is
 		 * false.
 		 */
-		// allowRunningInsecureContent?: boolean; ### VSCODE CHANGE (https://github.com/electron/electron/blob/master/docs/tutorial/security.md) ###
+		allowRunningInsecureContent?: boolean;
 		/**
 		 * Enables image support. Default is true.
 		 */
@@ -9380,7 +9406,7 @@ declare namespace Electron {
 		/**
 		 * Enables Chromium's experimental features. Default is false.
 		 */
-		// experimentalFeatures?: boolean; ### VSCODE CHANGE (https://github.com/electron/electron/blob/master/docs/tutorial/security.md) ###
+		experimentalFeatures?: boolean;
 		/**
 		 * Enables scroll bounce (rubber banding) effect on macOS. Default is false.
 		 */
@@ -9536,19 +9562,16 @@ declare namespace NodeJS {
 
 		// Docs: http://electronjs.org/docs/api/process
 
-		// ### BEGIN VSCODE MODIFICATION ###
-		// /**
-		//  * Emitted when Electron has loaded its internal initialization script and is
-		//  * beginning to load the web page or the main script. It can be used by the preload
-		//  * script to add removed Node global symbols back to the global scope when node
-		//  * integration is turned off:
-		//  */
-		// on(event: 'loaded', listener: Function): this;
-		// once(event: 'loaded', listener: Function): this;
-		// addListener(event: 'loaded', listener: Function): this;
-		// removeListener(event: 'loaded', listener: Function): this;
-		// ### END VSCODE MODIFICATION ###
-
+		/**
+		 * Emitted when Electron has loaded its internal initialization script and is
+		 * beginning to load the web page or the main script. It can be used by the preload
+		 * script to add removed Node global symbols back to the global scope when node
+		 * integration is turned off:
+		 */
+		on(event: 'loaded', listener: Function): this;
+		once(event: 'loaded', listener: Function): this;
+		addListener(event: 'loaded', listener: Function): this;
+		removeListener(event: 'loaded', listener: Function): this;
 		/**
 		 * Causes the main thread of the current process crash.
 		 */
