@@ -46,6 +46,7 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IDebugService, State, IDebugSession, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_MODE, IThread, IDebugConfiguration, VIEWLET_ID, REPL_ID, IConfig, ILaunch, IViewModel, IConfigurationManager, IDebugModel, IEnablement, IBreakpoint, IBreakpointData, ICompound, IGlobalConfig, IStackFrame, AdapterEndEvent, getStateLabel } from 'vs/workbench/parts/debug/common/debug';
 import { isExtensionHostDebugging } from 'vs/workbench/parts/debug/common/debugUtils';
 import { isErrorWithActions, createErrorWithActions } from 'vs/base/common/errorsWithActions';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_BREAKPOINTS_ACTIVATED_KEY = 'debug.breakpointactivated';
@@ -488,7 +489,16 @@ export class DebugService implements IDebugService {
 	}
 
 	private registerSessionListeners(session: IDebugSession): void {
+		const sessionRunningScheduler = new RunOnceScheduler(() => {
+			// Do not immediatly defocus the stack frame if the session is running
+			if (session.state === State.Running && this.viewModel.focusedSession === session) {
+				this.viewModel.setFocus(undefined, this.viewModel.focusedThread, session, false);
+			}
+		}, 200);
 		this.toDispose.push(session.onDidChangeState(() => {
+			if (session.state === State.Running && this.viewModel.focusedSession === session) {
+				sessionRunningScheduler.schedule();
+			}
 			if (session === this.viewModel.focusedSession) {
 				this.onStateChange();
 			}
