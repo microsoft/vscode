@@ -6,7 +6,7 @@
 import 'vs/css!./media/extensionActions';
 import { localize } from 'vs/nls';
 import { IAction, Action } from 'vs/base/common/actions';
-import { Throttler } from 'vs/base/common/async';
+import { ThrottledDelayer } from 'vs/base/common/async';
 import * as DOM from 'vs/base/browser/dom';
 import * as paths from 'vs/base/common/paths';
 import { Event } from 'vs/base/common/event';
@@ -956,7 +956,8 @@ export class ReloadAction extends ExtensionAction {
 	private static readonly EnabledClass = 'extension-action reload';
 	private static readonly DisabledClass = `${ReloadAction.EnabledClass} disabled`;
 
-	private throttler: Throttler;
+	// Use delayer to wait for more updates
+	private throttler: ThrottledDelayer<void>;
 	private disposables: IDisposable[] = [];
 
 	constructor(
@@ -966,13 +967,13 @@ export class ReloadAction extends ExtensionAction {
 		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService
 	) {
 		super('extensions.reload', localize('reloadAction', "Reload"), ReloadAction.DisabledClass, false);
-		this.throttler = new Throttler();
+		this.throttler = new ThrottledDelayer(50);
 		this.extensionService.onDidChangeExtensions(this.update, this, this.disposables);
 		this.update();
 	}
 
-	update(): void {
-		this.throttler.queue(() => {
+	update(): Promise<void> {
+		return this.throttler.trigger(() => {
 			this.enabled = false;
 			this.tooltip = '';
 			if (!this.extension) {
