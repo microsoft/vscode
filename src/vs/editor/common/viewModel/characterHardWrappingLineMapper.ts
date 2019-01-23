@@ -114,6 +114,11 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 					wrappedTextIndent = '';
 					wrappedTextIndentVisibleColumn = 0;
 				}
+
+				// Markdown wrapped text indent
+				if (strings.startsWith(lineText, `${wrappedTextIndent}- `)) {
+					wrappedTextIndent += '  ';
+				}
 			}
 		}
 
