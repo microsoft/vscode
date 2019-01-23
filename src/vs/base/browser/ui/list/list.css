@@ -187,3 +187,13 @@
 .monaco-list-type-filter-message:empty {
 	display: none;
 }
+
+/* Electron */
+
+.monaco-list-type-filter {
+	cursor: -webkit-grab;
+}
+
+.monaco-list-type-filter.dragging {
+	cursor: -webkit-grabbing;
+}
