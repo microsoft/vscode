@@ -176,8 +176,6 @@ export class OutlineGroup extends TreeElement {
 	}
 
 	private _updateMarker(markers: IMarker[], item: OutlineElement): void {
-		let filteredMarkers: Array<IMarker | undefined> = markers;
-
 		item.marker = undefined;
 
 		// find the proper start index to check for item/marker overlap.
@@ -200,7 +198,7 @@ export class OutlineGroup extends TreeElement {
 			// and store them in a 'private' array.
 			let marker = markers[start];
 			myMarkers.push(marker);
-			filteredMarkers[start] = undefined;
+			(markers as Array<IMarker | undefined>)[start] = undefined;
 			if (!myTopSev || marker.severity > myTopSev) {
 				myTopSev = marker.severity;
 			}
@@ -221,7 +219,7 @@ export class OutlineGroup extends TreeElement {
 			};
 		}
 
-		coalesceInPlace(filteredMarkers);
+		coalesceInPlace(markers);
 	}
 }
 
