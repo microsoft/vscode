@@ -21,18 +21,7 @@ import { memoize } from 'vs/base/common/decorators';
 import { Range, IRange } from 'vs/base/common/range';
 import { equals, distinct } from 'vs/base/common/arrays';
 import { DataTransfers, StaticDND, IDragAndDropData } from 'vs/base/browser/dnd';
-
-function canUseTranslate3d(): boolean {
-	if (browser.isFirefox) {
-		return false;
-	}
-
-	if (browser.getZoomLevel() !== 0) {
-		return false;
-	}
-
-	return true;
-}
+import { disposableTimeout } from 'vs/base/common/async';
 
 interface IItem<T> {
 	readonly id: string;
@@ -171,6 +160,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	private dragOverMouseY: number;
 	private setRowLineHeight: boolean;
 	private supportDynamicHeights: boolean;
+	private canUseTranslate3d: boolean | undefined = undefined;
 
 	private dnd: IListViewDragAndDrop<T>;
 	private canDrop: boolean = false;
@@ -433,14 +423,26 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			}
 		}
 
-		if (canUseTranslate3d() && !isWindows /* Windows: translate3d breaks subpixel-antialias (ClearType) unless a background is defined */) {
+		const canUseTranslate3d = !isWindows && !browser.isFirefox && browser.getZoomLevel() === 0;
+
+		if (canUseTranslate3d) {
 			const transform = `translate3d(0px, -${renderTop}px, 0px)`;
 			this.rowsContainer.style.transform = transform;
 			this.rowsContainer.style.webkitTransform = transform;
+
+			if (canUseTranslate3d !== this.canUseTranslate3d) {
+				this.rowsContainer.style.top = '0';
+			}
 		} else {
 			this.rowsContainer.style.top = `-${renderTop}px`;
+
+			if (canUseTranslate3d !== this.canUseTranslate3d) {
+				this.rowsContainer.style.transform = '';
+				this.rowsContainer.style.webkitTransform = '';
+			}
 		}
 
+		this.canUseTranslate3d = canUseTranslate3d;
 		this.lastRenderTop = renderTop;
 		this.lastRenderHeight = renderHeight;
 	}
@@ -636,6 +638,11 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	private onDragOver(event: IListDragEvent<T>): boolean {
 		this.onDragLeaveTimeout.dispose();
+
+		if (StaticDND.CurrentDragAndDropData && StaticDND.CurrentDragAndDropData.getData() === 'vscode-ui') {
+			return false;
+		}
+
 		this.setupDragAndDropScrollTopAnimation(event.browserEvent);
 
 		if (!event.browserEvent.dataTransfer) {
@@ -726,7 +733,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	private onDragLeave(): void {
 		this.onDragLeaveTimeout.dispose();
-		this.onDragLeaveTimeout = DOM.timeout(() => this.clearDragOverFeedback(), 100);
+		this.onDragLeaveTimeout = disposableTimeout(() => this.clearDragOverFeedback(), 100);
 	}
 
 	private onDrop(event: IListDragEvent<T>): void {
@@ -772,7 +779,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		}
 
 		this.dragOverAnimationStopDisposable.dispose();
-		this.dragOverAnimationStopDisposable = DOM.timeout(() => {
+		this.dragOverAnimationStopDisposable = disposableTimeout(() => {
 			if (this.dragOverAnimationDisposable) {
 				this.dragOverAnimationDisposable.dispose();
 				this.dragOverAnimationDisposable = undefined;

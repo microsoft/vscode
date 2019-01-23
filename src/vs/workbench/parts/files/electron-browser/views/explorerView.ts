@@ -37,7 +37,6 @@ import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/work
 import { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ExplorerItem } from 'vs/workbench/parts/files/common/explorerModel';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -45,12 +44,13 @@ import { ResourceLabels, IResourceLabelsContainer } from 'vs/workbench/browser/l
 import { createFileIconThemableTreeContainerScope } from 'vs/workbench/browser/parts/views/views';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IAsyncDataTreeViewState } from 'vs/base/browser/ui/tree/asyncDataTree';
+import { FuzzyScore } from 'vs/base/common/filters';
 
 export class ExplorerView extends ViewletPanel {
 	static readonly ID: string = 'workbench.explorer.fileView';
 	static readonly TREE_VIEW_STATE_STORAGE_KEY: string = 'workbench.explorer.treeViewState';
 
-	private tree: WorkbenchAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem>;
+	private tree: WorkbenchAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>;
 	private filter: FilesFilter;
 
 	private resourceContext: ResourceContextKey;
@@ -64,7 +64,6 @@ export class ExplorerView extends ViewletPanel {
 	private decorationProvider: ExplorerDecorationsProvider;
 	private autoReveal = false;
 	private ignoreActiveEditorChange;
-	private previousSelection: ExplorerItem[] = [];
 
 	constructor(
 		options: IViewletPanelOptions,
@@ -82,7 +81,6 @@ export class ExplorerView extends ViewletPanel {
 		@IThemeService private readonly themeService: IWorkbenchThemeService,
 		@IListService private readonly listService: IListService,
 		@IMenuService private readonly menuService: IMenuService,
-		@IClipboardService private readonly clipboardService: IClipboardService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IExplorerService private readonly explorerService: IExplorerService,
 		@IStorageService private readonly storageService: IStorageService
@@ -184,6 +182,7 @@ export class ExplorerView extends ViewletPanel {
 			}
 		}));
 		this.disposables.push(this.explorerService.onDidSelectItem(e => this.onSelectItem(e.item, e.reveal)));
+		this.disposables.push(this.explorerService.onDidCopyItems(e => this.onCopyItems(e.items, e.cut, e.previouslyCutItems)));
 
 		// Update configuration
 		const configuration = this.configurationService.getValue<IFilesConfiguration>();
@@ -294,9 +293,9 @@ export class ExplorerView extends ViewletPanel {
 			const selection = e.elements;
 			// Do not react if the user is expanding selection via keyboard.
 			// Check if the item was previously also selected, if yes the user is simply expanding / collapsing current selection #66589.
-			const wasMultiSelectedAndKeyboard = (e.browserEvent instanceof KeyboardEvent) && this.previousSelection.length > 1 && this.previousSelection.indexOf(selection[0]) >= 0;
-			this.previousSelection = selection;
-			if (selection.length === 1 && !wasMultiSelectedAndKeyboard) {
+
+			const shiftDown = e.browserEvent instanceof KeyboardEvent && e.browserEvent.shiftKey;
+			if (selection.length === 1 && !shiftDown) {
 				// Do not react if user is clicking on explorer items which are input placeholders
 				if (!selection[0].name) {
 					// Do not react if user is clicking on explorer items which are input placeholders
@@ -367,15 +366,15 @@ export class ExplorerView extends ViewletPanel {
 	private onContextMenu(e: ITreeContextMenuEvent<ExplorerItem>): void {
 		const stat = e.element;
 
-		// update dynamic contexts
-		this.fileCopiedContextKey.set(this.clipboardService.hasResources());
-
 		const selection = this.tree.getSelection();
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
 			getActions: () => {
 				const actions: IAction[] = [];
-				fillInContextMenuActions(this.contributedContextMenu, { arg: stat instanceof ExplorerItem ? stat.resource : {}, shouldForwardArgs: true }, actions, this.contextMenuService);
+				// If the click is outside of the elements pass the root resource if there is only one root. If there are multiple roots pass empty object.
+				const roots = this.explorerService.roots;
+				const arg = stat instanceof ExplorerItem ? stat.resource : roots.length === 1 ? roots[0].resource : {};
+				fillInContextMenuActions(this.contributedContextMenu, { arg, shouldForwardArgs: true }, actions, this.contextMenuService);
 				return actions;
 			},
 			onHide: (wasCancelled?: boolean) => {
@@ -481,6 +480,16 @@ export class ExplorerView extends ViewletPanel {
 
 			this.tree.setFocus([fileStat]);
 		});
+	}
+
+	private onCopyItems(stats: ExplorerItem[], cut: boolean, previousCut: ExplorerItem[]): void {
+		this.fileCopiedContextKey.set(stats.length > 0);
+		if (previousCut) {
+			previousCut.forEach(item => this.tree.refresh(item));
+		}
+		if (cut) {
+			stats.forEach(s => this.tree.refresh(s));
+		}
 	}
 
 	collapseAll(): void {

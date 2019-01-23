@@ -90,13 +90,23 @@ export class QuickFixController implements IEditorContribution {
 
 			if (newState.trigger.filter && newState.trigger.filter.kind) {
 				// Triggered for specific scope
-				// Apply if we only have one action or requested autoApply, otherwise show menu
 				newState.actions.then(fixes => {
-					if (fixes.length > 0 && newState.trigger.autoApply === CodeActionAutoApply.First || (newState.trigger.autoApply === CodeActionAutoApply.IfSingle && fixes.length === 1)) {
-						this._onApplyCodeAction(fixes[0]);
-					} else {
-						this._codeActionContextMenu.show(newState.actions, newState.position);
+					if (fixes.length > 0) {
+						// Apply if we only have one action or requested autoApply
+						if (newState.trigger.autoApply === CodeActionAutoApply.First || (newState.trigger.autoApply === CodeActionAutoApply.IfSingle && fixes.length === 1)) {
+							this._onApplyCodeAction(fixes[0]);
+							return;
+						}
+
+						// Or if we have a single preferred action
+						const preferred = fixes.filter(fix => fix.isPreferred);
+						if (preferred.length === 1) {
+							this._onApplyCodeAction(preferred[0]);
+							return;
+						}
 					}
+					this._codeActionContextMenu.show(newState.actions, newState.position);
+
 				}).catch(onUnexpectedError);
 			} else if (newState.trigger.type === 'manual') {
 				this._codeActionContextMenu.show(newState.actions, newState.position);
@@ -107,7 +117,7 @@ export class QuickFixController implements IEditorContribution {
 				if (this._codeActionContextMenu.isVisible) {
 					this._codeActionContextMenu.show(newState.actions, newState.position);
 				} else {
-					this._lightBulbWidget.state = newState;
+					this._lightBulbWidget.tryShow(newState);
 				}
 			}
 		} else {
@@ -119,10 +129,8 @@ export class QuickFixController implements IEditorContribution {
 		return QuickFixController.ID;
 	}
 
-	private _handleLightBulbSelect(coords: { x: number, y: number }): void {
-		if (this._lightBulbWidget.state.type === CodeActionsState.Type.Triggered) {
-			this._codeActionContextMenu.show(this._lightBulbWidget.state.actions, coords);
-		}
+	private _handleLightBulbSelect(e: { x: number, y: number, state: CodeActionsState.Triggered }): void {
+		this._codeActionContextMenu.show(e.state.actions, e);
 	}
 
 	public triggerFromEditorSelection(filter?: CodeActionFilter, autoApply?: CodeActionAutoApply): Promise<CodeAction[] | undefined> {
@@ -221,6 +229,7 @@ class CodeActionCommandArgs {
 			case 'first': return CodeActionAutoApply.First;
 			case 'never': return CodeActionAutoApply.Never;
 			case 'ifsingle': return CodeActionAutoApply.IfSingle;
+			case 'preferred': return CodeActionAutoApply.Preferred;
 			default: return defaultAutoApply;
 		}
 	}
@@ -293,7 +302,7 @@ export class RefactorAction extends EditorAction {
 		});
 		return showCodeActionsForEditorSelection(editor,
 			nls.localize('editor.action.refactor.noneMessage', "No refactorings available"),
-			{ kind: CodeActionKind.Refactor.contains(args.kind.value) ? args.kind : CodeActionKind.Empty },
+			{ kind: CodeActionKind.Refactor.contains(args.kind) ? args.kind : CodeActionKind.Empty },
 			args.apply);
 	}
 }
@@ -326,7 +335,7 @@ export class SourceAction extends EditorAction {
 		});
 		return showCodeActionsForEditorSelection(editor,
 			nls.localize('editor.action.source.noneMessage', "No source actions available"),
-			{ kind: CodeActionKind.Source.contains(args.kind.value) ? args.kind : CodeActionKind.Empty, includeSourceActions: true },
+			{ kind: CodeActionKind.Source.contains(args.kind) ? args.kind : CodeActionKind.Empty, includeSourceActions: true },
 			args.apply);
 	}
 }
@@ -382,7 +391,7 @@ export class AutoFixAction extends EditorAction {
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 		return showCodeActionsForEditorSelection(editor,
 			nls.localize('editor.action.autoFix.noneMessage', "No auto fixes available"),
-			{ kind: CodeActionKind.QuickFix, autoFixesOnly: true },
+			{ kind: CodeActionKind.QuickFix, onlyIncludePreferredActions: true },
 			CodeActionAutoApply.IfSingle);
 	}
 }

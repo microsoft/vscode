@@ -439,9 +439,9 @@ export function range(arg: number, to?: number): number[] {
 	return result;
 }
 
-export function fill<T>(num: number, valueFn: () => T, arr: T[] = []): T[] {
+export function fill<T>(num: number, value: T, arr: T[] = []): T[] {
 	for (let i = 0; i < num; i++) {
-		arr[i] = valueFn();
+		arr[i] = value;
 	}
 
 	return arr;

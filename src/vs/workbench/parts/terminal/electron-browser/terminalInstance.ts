@@ -1242,16 +1242,15 @@ export class TerminalInstance implements ITerminalInstance {
 		let cols = this._cols;
 		let rows = this._rows;
 		if (this._dimensionsOverride && this._dimensionsOverride.cols && this._dimensionsOverride.rows) {
-			cols = Math.min(Math.max(this._dimensionsOverride.cols, 2), this._cols);
-			rows = Math.min(Math.max(this._dimensionsOverride.rows, 2), this._rows);
+			cols = Math.min(Math.max(this._dimensionsOverride.cols, 2), cols);
+			rows = Math.min(Math.max(this._dimensionsOverride.rows, 2), rows);
 		}
 
 		if (this._xterm) {
-			const font = this._configHelper.getFont(this._xterm);
-
 			// Only apply these settings when the terminal is visible so that
 			// the characters are measured correctly.
 			if (this._isVisible) {
+				const font = this._configHelper.getFont(this._xterm);
 				const config = this._configHelper.config;
 				this._safeSetOption('letterSpacing', font.letterSpacing);
 				this._safeSetOption('lineHeight', font.lineHeight);

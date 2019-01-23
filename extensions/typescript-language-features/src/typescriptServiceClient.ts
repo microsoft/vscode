@@ -641,7 +641,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		return runningServerState.server.executeImpl(command, args, executeInfo);
 	}
 
-	public interuptGetErr<R>(f: () => R): R {
+	public interruptGetErr<R>(f: () => R): R {
 		return this.bufferSyncSupport.interuptGetErr(f);
 	}
 
