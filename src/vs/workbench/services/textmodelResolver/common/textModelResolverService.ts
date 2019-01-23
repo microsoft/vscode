@@ -23,9 +23,9 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 	private modelsToDispose = new Set<string>();
 
 	constructor(
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@ITextFileService private textFileService: ITextFileService,
-		@IFileService private fileService: IFileService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		super();
 	}
@@ -96,6 +96,10 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 		});
 	}
 
+	hasTextModelContentProvider(scheme: string): boolean {
+		return this.providers[scheme] !== undefined;
+	}
+
 	private resolveTextModelContent(key: string): Promise<ITextModel> {
 		const resource = URI.parse(key);
 		const providers = this.providers[resource.scheme] || [];
@@ -118,9 +122,9 @@ export class TextModelResolverService implements ITextModelService {
 	private resourceModelCollection: ResourceModelCollection;
 
 	constructor(
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IModelService private modelService: IModelService
+		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IModelService private readonly modelService: IModelService
 	) {
 		this.resourceModelCollection = instantiationService.createInstance(ResourceModelCollection);
 	}
@@ -161,5 +165,9 @@ export class TextModelResolverService implements ITextModelService {
 
 	registerTextModelContentProvider(scheme: string, provider: ITextModelContentProvider): IDisposable {
 		return this.resourceModelCollection.registerTextModelContentProvider(scheme, provider);
+	}
+
+	hasTextModelContentProvider(scheme: string): boolean {
+		return this.resourceModelCollection.hasTextModelContentProvider(scheme);
 	}
 }

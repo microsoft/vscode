@@ -141,7 +141,7 @@ suite('Config', () => {
 		testFile('config', 'config.json').then(res => {
 			fs.writeFileSync(res.testFile, '// my comment\n{ "foo": "bar" }');
 
-			let watcher = new ConfigWatcher<{ foo: string; }>(res.testFile, { changeBufferDelay: 100, onError: console.error, defaultConfig: void 0 });
+			let watcher = new ConfigWatcher<{ foo: string; }>(res.testFile, { changeBufferDelay: 100, onError: console.error, defaultConfig: { foo: 'bar' } });
 			watcher.getConfig(); // ensure we are in sync
 
 			fs.writeFileSync(res.testFile, '// my comment\n{ "foo": "changed" }');

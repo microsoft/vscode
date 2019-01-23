@@ -26,7 +26,7 @@ export class OpenFileAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IFileDialogService private dialogService: IFileDialogService
+		@IFileDialogService private readonly dialogService: IFileDialogService
 	) {
 		super(id, label);
 	}
@@ -44,7 +44,7 @@ export class OpenFolderAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IFileDialogService private dialogService: IFileDialogService
+		@IFileDialogService private readonly dialogService: IFileDialogService
 	) {
 		super(id, label);
 	}
@@ -62,7 +62,7 @@ export class OpenFileFolderAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IFileDialogService private dialogService: IFileDialogService
+		@IFileDialogService private readonly dialogService: IFileDialogService
 	) {
 		super(id, label);
 	}
@@ -80,7 +80,7 @@ export class AddRootFolderAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@ICommandService private commandService: ICommandService
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super(id, label);
 	}
@@ -98,9 +98,9 @@ export class GlobalRemoveRootFolderAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@ICommandService private commandService: ICommandService
+		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super(id, label);
 	}
@@ -131,16 +131,16 @@ export class SaveWorkspaceAsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
-		@IFileDialogService private dialogService: IFileDialogService
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
+		@IFileDialogService private readonly dialogService: IFileDialogService
 
 	) {
 		super(id, label);
 	}
 
 	run(): Promise<any> {
-		return this.getNewWorkspaceConfigPath().then(configPathUri => {
+		return this.getNewWorkspaceConfigPath().then((configPathUri): Promise<void> | void => {
 			if (configPathUri) {
 				const configPath = configPathUri.fsPath;
 				switch (this.contextService.getWorkbenchState()) {
@@ -153,12 +153,10 @@ export class SaveWorkspaceAsAction extends Action {
 						return this.workspaceEditingService.saveAndEnterWorkspace(configPath);
 				}
 			}
-
-			return null;
 		});
 	}
 
-	private getNewWorkspaceConfigPath(): Promise<URI> {
+	private getNewWorkspaceConfigPath(): Promise<URI | undefined> {
 		return this.dialogService.showSaveDialog({
 			saveLabel: mnemonicButtonLabel(nls.localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save")),
 			title: nls.localize('saveWorkspace', "Save Workspace"),
@@ -176,7 +174,7 @@ export class OpenWorkspaceAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IFileDialogService private dialogService: IFileDialogService
+		@IFileDialogService private readonly dialogService: IFileDialogService
 	) {
 		super(id, label);
 	}
@@ -194,8 +192,8 @@ export class OpenWorkspaceConfigFileAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
-		@IEditorService private editorService: IEditorService
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		super(id, label);
 
@@ -203,7 +201,11 @@ export class OpenWorkspaceConfigFileAction extends Action {
 	}
 
 	run(): Promise<any> {
-		return this.editorService.openEditor({ resource: this.workspaceContextService.getWorkspace().configuration });
+		const configuration = this.workspaceContextService.getWorkspace().configuration;
+		if (configuration) {
+			return this.editorService.openEditor({ resource: configuration });
+		}
+		return Promise.resolve();
 	}
 }
 
@@ -215,10 +217,10 @@ export class DuplicateWorkspaceInNewWindowAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
-		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
-		@IWindowService private windowService: IWindowService,
-		@IWorkspacesService private workspacesService: IWorkspacesService
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
+		@IWindowService private readonly windowService: IWindowService,
+		@IWorkspacesService private readonly workspacesService: IWorkspacesService
 	) {
 		super(id, label);
 	}

@@ -338,7 +338,7 @@ function getPackageInfo(context: ExtensionContext): IPackageInfo | undefined {
 			aiKey: extensionPackage.aiKey
 		};
 	}
-	return void 0;
+	return undefined;
 }
 
 function readJSONFile(location: string) {

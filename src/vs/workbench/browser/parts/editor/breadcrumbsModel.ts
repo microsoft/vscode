@@ -115,7 +115,11 @@ export class EditorBreadcrumbsModel {
 				break;
 			}
 			info.path.unshift(new FileElement(uriPrefix, info.path.length === 0 ? FileKind.FILE : FileKind.FOLDER));
+			let prevPathLength = uriPrefix.path.length;
 			uriPrefix = dirname(uriPrefix);
+			if (uriPrefix.path.length === prevPathLength) {
+				break;
+			}
 		}
 
 		if (info.folder && workspaceService.getWorkbenchState() === WorkbenchState.WORKSPACE) {

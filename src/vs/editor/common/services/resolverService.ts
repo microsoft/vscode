@@ -24,6 +24,11 @@ export interface ITextModelService {
 	 * Registers a specific `scheme` content provider.
 	 */
 	registerTextModelContentProvider(scheme: string, provider: ITextModelContentProvider): IDisposable;
+
+	/**
+	 * Check if a provider for the given `scheme` exists
+	 */
+	hasTextModelContentProvider(scheme: string): boolean;
 }
 
 export interface ITextModelContentProvider {
@@ -31,7 +36,7 @@ export interface ITextModelContentProvider {
 	/**
 	 * Given a resource, return the content of the resource as `ITextModel`.
 	 */
-	provideTextContent(resource: URI): Promise<ITextModel>;
+	provideTextContent(resource: URI): Promise<ITextModel> | null;
 }
 
 export interface ITextEditorModel extends IEditorModel {
@@ -39,7 +44,7 @@ export interface ITextEditorModel extends IEditorModel {
 	/**
 	 * Provides access to the underlying `ITextModel`.
 	 */
-	textEditorModel: ITextModel;
+	readonly textEditorModel: ITextModel;
 
 	isReadonly(): boolean;
 }

@@ -38,11 +38,11 @@ abstract class AbstractCopyLinesAction extends EditorAction {
 
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 
-		let commands: ICommand[] = [];
-		let selections = editor.getSelections() || [];
+		const commands: ICommand[] = [];
+		const selections = editor.getSelections() || [];
 
-		for (let i = 0; i < selections.length; i++) {
-			commands.push(new CopyLinesCommand(selections[i], this.down));
+		for (const selection of selections) {
+			commands.push(new CopyLinesCommand(selection, this.down));
 		}
 
 		editor.pushUndoStop();
@@ -114,8 +114,8 @@ abstract class AbstractMoveLinesAction extends EditorAction {
 		let selections = editor.getSelections() || [];
 		let autoIndent = editor.getConfiguration().autoIndent;
 
-		for (let i = 0; i < selections.length; i++) {
-			commands.push(new MoveLinesCommand(selections[i], this.down, autoIndent));
+		for (const selection of selections) {
+			commands.push(new MoveLinesCommand(selection, this.down, autoIndent));
 		}
 
 		editor.pushUndoStop();
@@ -181,8 +181,7 @@ export abstract class AbstractSortLinesAction extends EditorAction {
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const selections = editor.getSelections() || [];
 
-		for (let i = 0, len = selections.length; i < len; i++) {
-			const selection = selections[i];
+		for (const selection of selections) {
 			if (!SortLinesCommand.canRun(editor.getModel(), selection, this.descending)) {
 				return;
 			}

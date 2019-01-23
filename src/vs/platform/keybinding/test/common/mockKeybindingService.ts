@@ -54,8 +54,9 @@ export class MockContextKeyService implements IContextKeyService {
 		return Event.None;
 	}
 	public getContextKeyValue(key: string) {
-		if (this._keys.has(key)) {
-			return this._keys.get(key).get();
+		const value = this._keys.get(key);
+		if (value) {
+			return value.get();
 		}
 	}
 	public getContext(domNode: HTMLElement): any {
@@ -108,8 +109,8 @@ export class MockKeybindingService implements IKeybindingService {
 		return [];
 	}
 
-	public lookupKeybinding(commandId: string): ResolvedKeybinding | null {
-		return null;
+	public lookupKeybinding(commandId: string): ResolvedKeybinding | undefined {
+		return undefined;
 	}
 
 	public customKeybindingsCount(): number {
@@ -118,6 +119,10 @@ export class MockKeybindingService implements IKeybindingService {
 
 	public softDispatch(keybinding: IKeyboardEvent, target: IContextKeyServiceTarget): IResolveResult | null {
 		return null;
+	}
+
+	public dispatchByUserSettingsLabel(userSettingsLabel: string, target: IContextKeyServiceTarget): void {
+
 	}
 
 	public dispatchEvent(e: IKeyboardEvent, target: IContextKeyServiceTarget): boolean {

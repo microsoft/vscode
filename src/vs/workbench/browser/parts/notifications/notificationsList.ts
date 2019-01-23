@@ -26,9 +26,9 @@ export class NotificationsList extends Themable {
 	constructor(
 		private container: HTMLElement,
 		private options: IListOptions<INotificationViewItem>,
-		@IInstantiationService private instantiationService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
-		@IContextMenuService private contextMenuService: IContextMenuService
+		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) {
 		super(themeService);
 
@@ -89,7 +89,7 @@ export class NotificationsList extends Themable {
 			}
 
 			this.contextMenuService.showContextMenu({
-				getAnchor: () => e.anchor,
+				getAnchor: () => e.anchor!,
 				getActions: () => [copyAction],
 				getActionsContext: () => e.element,
 				actionRunner
@@ -133,7 +133,7 @@ export class NotificationsList extends Themable {
 		const focusedIndex = this.list.getFocus()[0];
 		const focusedItem = this.viewModel[focusedIndex];
 
-		let focusRelativeTop: number;
+		let focusRelativeTop: number | null = null;
 		if (typeof focusedIndex === 'number') {
 			focusRelativeTop = this.list.getRelativeTop(focusedIndex);
 		}

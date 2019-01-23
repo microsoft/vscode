@@ -10,7 +10,7 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { KeybindingWeight, IKeybindings, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingWeight, IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchActionRegistryExtensions } from 'vs/workbench/common/actions';
 import { ShowViewletAction, Extensions as ViewletExtensions, ViewletRegistry, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
@@ -24,7 +24,7 @@ import { CallStackView } from 'vs/workbench/parts/debug/electron-browser/callSta
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import {
 	IDebugService, VIEWLET_ID, REPL_ID, CONTEXT_IN_DEBUG_MODE, INTERNAL_CONSOLE_OPTIONS_SCHEMA,
-	CONTEXT_DEBUG_STATE, VARIABLES_VIEW_ID, CALLSTACK_VIEW_ID, WATCH_VIEW_ID, BREAKPOINTS_VIEW_ID, VIEW_CONTAINER, LOADED_SCRIPTS_VIEW_ID, CONTEXT_LOADED_SCRIPTS_SUPPORTED
+	CONTEXT_DEBUG_STATE, VARIABLES_VIEW_ID, CALLSTACK_VIEW_ID, WATCH_VIEW_ID, BREAKPOINTS_VIEW_ID, VIEW_CONTAINER, LOADED_SCRIPTS_VIEW_ID, CONTEXT_LOADED_SCRIPTS_SUPPORTED, CONTEXT_IN_DEBUG_REPL
 } from 'vs/workbench/parts/debug/common/debug';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -49,13 +49,11 @@ import { DebugViewlet } from 'vs/workbench/parts/debug/browser/debugViewlet';
 import { Repl, ClearReplAction } from 'vs/workbench/parts/debug/electron-browser/repl';
 import { DebugQuickOpenHandler } from 'vs/workbench/parts/debug/browser/debugQuickOpen';
 import { DebugStatus } from 'vs/workbench/parts/debug/browser/debugStatus';
-import { LifecyclePhase, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { LoadedScriptsView } from 'vs/workbench/parts/debug/browser/loadedScriptsView';
 import { TOGGLE_LOG_POINT_ID, TOGGLE_CONDITIONAL_BREAKPOINT_ID, TOGGLE_BREAKPOINT_ID } from 'vs/workbench/parts/debug/browser/debugEditorActions';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 class OpenDebugViewletAction extends ShowViewletAction {
 	public static readonly ID = VIEWLET_ID;
@@ -114,11 +112,11 @@ Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(new PanelDescri
 Registry.as<PanelRegistry>(PanelExtensions.Panels).setDefaultPanelId(REPL_ID);
 
 // Register default debug views
-ViewsRegistry.registerViews([{ id: VARIABLES_VIEW_ID, name: nls.localize('variables', "Variables"), ctor: VariablesView, order: 10, weight: 40, container: VIEW_CONTAINER, canToggleVisibility: true, focusCommand: { id: 'workbench.debug.action.focusVariablesView' } }]);
-ViewsRegistry.registerViews([{ id: WATCH_VIEW_ID, name: nls.localize('watch', "Watch"), ctor: WatchExpressionsView, order: 20, weight: 10, container: VIEW_CONTAINER, canToggleVisibility: true, focusCommand: { id: 'workbench.debug.action.focusWatchView' } }]);
-ViewsRegistry.registerViews([{ id: CALLSTACK_VIEW_ID, name: nls.localize('callStack', "Call Stack"), ctor: CallStackView, order: 30, weight: 30, container: VIEW_CONTAINER, canToggleVisibility: true, focusCommand: { id: 'workbench.debug.action.focusCallStackView' } }]);
-ViewsRegistry.registerViews([{ id: BREAKPOINTS_VIEW_ID, name: nls.localize('breakpoints', "Breakpoints"), ctor: BreakpointsView, order: 40, weight: 20, container: VIEW_CONTAINER, canToggleVisibility: true, focusCommand: { id: 'workbench.debug.action.focusBreakpointsView' } }]);
-ViewsRegistry.registerViews([{ id: LOADED_SCRIPTS_VIEW_ID, name: nls.localize('loadedScripts', "Loaded Scripts"), ctor: LoadedScriptsView, order: 35, weight: 5, container: VIEW_CONTAINER, canToggleVisibility: true, collapsed: true, when: CONTEXT_LOADED_SCRIPTS_SUPPORTED }]);
+ViewsRegistry.registerViews([{ id: VARIABLES_VIEW_ID, name: nls.localize('variables', "Variables"), ctor: VariablesView, order: 10, weight: 40, canToggleVisibility: true, focusCommand: { id: 'workbench.debug.action.focusVariablesView' } }], VIEW_CONTAINER);
+ViewsRegistry.registerViews([{ id: WATCH_VIEW_ID, name: nls.localize('watch', "Watch"), ctor: WatchExpressionsView, order: 20, weight: 10, canToggleVisibility: true, focusCommand: { id: 'workbench.debug.action.focusWatchView' } }], VIEW_CONTAINER);
+ViewsRegistry.registerViews([{ id: CALLSTACK_VIEW_ID, name: nls.localize('callStack', "Call Stack"), ctor: CallStackView, order: 30, weight: 30, canToggleVisibility: true, focusCommand: { id: 'workbench.debug.action.focusCallStackView' } }], VIEW_CONTAINER);
+ViewsRegistry.registerViews([{ id: BREAKPOINTS_VIEW_ID, name: nls.localize('breakpoints', "Breakpoints"), ctor: BreakpointsView, order: 40, weight: 20, canToggleVisibility: true, focusCommand: { id: 'workbench.debug.action.focusBreakpointsView' } }], VIEW_CONTAINER);
+ViewsRegistry.registerViews([{ id: LOADED_SCRIPTS_VIEW_ID, name: nls.localize('loadedScripts', "Loaded Scripts"), ctor: LoadedScriptsView, order: 35, weight: 5, canToggleVisibility: true, collapsed: true, when: CONTEXT_LOADED_SCRIPTS_SUPPORTED }], VIEW_CONTAINER);
 
 // register action to open viewlet
 const registry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionRegistryExtensions.WorkbenchActions);
@@ -132,58 +130,7 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 
 const debugCategory = nls.localize('debugCategory', "Debug");
 
-const startDebugDescriptor = new SyncActionDescriptor(StartAction, StartAction.ID, StartAction.LABEL, { primary: KeyCode.F5 }, CONTEXT_IN_DEBUG_MODE.toNegated());
-
-function startDebugHandler(accessor, args): Promise<void> {
-	const notificationService = accessor.get(INotificationService);
-	const instantiationService = accessor.get(IInstantiationService);
-	const lifecycleService = accessor.get(ILifecycleService);
-
-	return Promise.resolve(lifecycleService.when(LifecyclePhase.Ready).then(() => {
-		const actionInstance = instantiationService.createInstance(startDebugDescriptor.syncDescriptor);
-		try {
-			// don't run the action when not enabled
-			if (!actionInstance.enabled) {
-				actionInstance.dispose();
-
-				return void 0;
-			}
-
-			const from = args && args.from || 'keybinding';
-
-			if (args) {
-				delete args.from;
-			}
-
-			return Promise.resolve(actionInstance.run(args, { from })).then(() => {
-				actionInstance.dispose();
-			}, err => {
-				actionInstance.dispose();
-
-				return Promise.reject(err);
-			});
-		} catch (err) {
-			actionInstance.dispose();
-
-			return Promise.reject(err);
-		}
-	})).then(void 0, err => notificationService.error(err));
-}
-
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: StartAction.ID,
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: CONTEXT_IN_DEBUG_MODE.toNegated(),
-	primary: KeyCode.F5,
-	handler: startDebugHandler
-});
-
-MenuRegistry.addCommand({
-	id: StartAction.ID,
-	title: StartAction.LABEL,
-	category: debugCategory
-});
-
+registry.registerWorkbenchAction(new SyncActionDescriptor(StartAction, StartAction.ID, StartAction.LABEL, { primary: KeyCode.F5 }, CONTEXT_IN_DEBUG_MODE.toNegated()), 'Debug: Start Debugging', debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(StepOverAction, StepOverAction.ID, StepOverAction.LABEL, { primary: KeyCode.F10 }, CONTEXT_IN_DEBUG_MODE), 'Debug: Step Over', debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(StepIntoAction, StepIntoAction.ID, StepIntoAction.LABEL, { primary: KeyCode.F11 }, CONTEXT_IN_DEBUG_MODE, KeybindingWeight.WorkbenchContrib + 1), 'Debug: Step Into', debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(StepOutAction, StepOutAction.ID, StepOutAction.LABEL, { primary: KeyMod.Shift | KeyCode.F11 }, CONTEXT_IN_DEBUG_MODE), 'Debug: Step Out', debugCategory);
@@ -202,7 +149,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(EnableAllBreakpointsAc
 registry.registerWorkbenchAction(new SyncActionDescriptor(DisableAllBreakpointsAction, DisableAllBreakpointsAction.ID, DisableAllBreakpointsAction.LABEL), 'Debug: Disable All Breakpoints', debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(FocusReplAction, FocusReplAction.ID, FocusReplAction.LABEL), 'Debug: Focus on Debug Console View', debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(SelectAndStartAction, SelectAndStartAction.ID, SelectAndStartAction.LABEL), 'Debug: Select and Start Debugging', debugCategory);
-registry.registerWorkbenchAction(new SyncActionDescriptor(ClearReplAction, ClearReplAction.ID, ClearReplAction.LABEL), 'Debug: Clear Console', debugCategory);
+registry.registerWorkbenchAction(new SyncActionDescriptor(ClearReplAction, ClearReplAction.ID, ClearReplAction.LABEL, { primary: KeyMod.WinCtrl | KeyCode.KEY_L }, CONTEXT_IN_DEBUG_REPL), 'Debug: Clear Console', debugCategory);
 
 // Register Quick Open
 (Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen)).registerQuickOpenHandler(
@@ -233,7 +180,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'debug.openExplorerOnEnd': {
 			type: 'boolean',
-			description: nls.localize({ comment: ['This is the description for a setting'], key: 'openExplorerOnEnd' }, "Automatically open the explorer view at the end of a debug session"),
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'openExplorerOnEnd' }, "Automatically open the explorer view at the end of a debug session."),
 			default: false
 		},
 		'debug.inlineValues': {
@@ -243,7 +190,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'debug.toolBarLocation': {
 			enum: ['floating', 'docked', 'hidden'],
-			markdownDescription: nls.localize({ comment: ['This is the description for a setting'], key: 'toolBarLocation' }, "Controls the location of the debug toolbar. Either `floating` in all views, `docked` in the debug view, or `hidden`"),
+			markdownDescription: nls.localize({ comment: ['This is the description for a setting'], key: 'toolBarLocation' }, "Controls the location of the debug toolbar. Either `floating` in all views, `docked` in the debug view, or `hidden`."),
 			default: 'floating'
 		},
 		'debug.showInStatusBar': {
@@ -265,7 +212,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'launch': {
 			type: 'object',
-			description: nls.localize({ comment: ['This is the description for a setting'], key: 'launch' }, "Global debug launch configuration. Should be used as an alternative to 'launch.json' that is shared across workspaces"),
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'launch' }, "Global debug launch configuration. Should be used as an alternative to 'launch.json' that is shared across workspaces."),
 			default: { configurations: [], compounds: [] },
 			$ref: launchSchemaId
 		}

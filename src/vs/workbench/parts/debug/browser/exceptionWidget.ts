@@ -28,7 +28,7 @@ export class ExceptionWidget extends ZoneWidget {
 
 	constructor(editor: ICodeEditor, private exceptionInfo: IExceptionInfo,
 		@IThemeService themeService: IThemeService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super(editor, { showFrame: true, showArrow: true, frameWidth: 1, className: 'exception-widget-container' });
 
@@ -81,7 +81,7 @@ export class ExceptionWidget extends ZoneWidget {
 			let stackTrace = $('.stack-trace');
 			const linkDetector = this.instantiationService.createInstance(LinkDetector);
 			const linkedStackTrace = linkDetector.handleLinks(this.exceptionInfo.details.stackTrace);
-			typeof linkedStackTrace === 'string' ? stackTrace.textContent = linkedStackTrace : stackTrace.appendChild(linkedStackTrace);
+			stackTrace.appendChild(linkedStackTrace);
 			dom.append(container, stackTrace);
 		}
 	}

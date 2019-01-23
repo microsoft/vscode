@@ -78,18 +78,18 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	constructor(
 		resource: URI,
 		preferredEncoding: string,
-		@INotificationService private notificationService: INotificationService,
+		@INotificationService private readonly notificationService: INotificationService,
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
-		@IFileService private fileService: IFileService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@ITextFileService private textFileService: ITextFileService,
-		@IBackupFileService private backupFileService: IBackupFileService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IHashService private hashService: IHashService,
-		@ILogService private logService: ILogService
+		@IFileService private readonly fileService: IFileService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@IBackupFileService private readonly backupFileService: IBackupFileService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IHashService private readonly hashService: IHashService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super(modelService, modeService);
 
@@ -186,7 +186,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		const autoSaveAfterMilliesEnabled = (typeof config.autoSaveDelay === 'number') && config.autoSaveDelay > 0;
 
 		this.autoSaveAfterMilliesEnabled = autoSaveAfterMilliesEnabled;
-		this.autoSaveAfterMillies = autoSaveAfterMilliesEnabled ? config.autoSaveDelay : void 0;
+		this.autoSaveAfterMillies = autoSaveAfterMilliesEnabled ? config.autoSaveDelay : undefined;
 	}
 
 	private onFilesAssociationChange(): void {
@@ -195,7 +195,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		const firstLineText = this.getFirstLineText(this.textEditorModel);
-		const languageSelection = this.getOrCreateMode(this.modeService, void 0, firstLineText);
+		const languageSelection = this.getOrCreateMode(this.modeService, undefined, firstLineText);
 
 		this.modelService.setMode(this.textEditorModel, languageSelection);
 	}
@@ -206,7 +206,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	revert(soft?: boolean): Promise<void> {
 		if (!this.isResolved()) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		// Cancel any running auto-save
@@ -270,7 +270,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 					resource: this.resource,
 					name: path.basename(this.resource.fsPath),
 					mtime: Date.now(),
-					etag: void 0,
+					etag: undefined,
 					value: createTextBufferFactory(''), /* will be filled later from backup */
 					encoding: this.fileService.encoding.getWriteEncoding(this.resource, this.preferredEncoding),
 					isReadonly: false
@@ -291,7 +291,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// Decide on etag
 		let etag: string;
 		if (forceReadFromDisk) {
-			etag = void 0; // reset ETag if we enforce to read from disk
+			etag = undefined; // reset ETag if we enforce to read from disk
 		} else if (this.lastResolvedDiskStat) {
 			etag = this.lastResolvedDiskStat.etag; // otherwise respect etag to support caching
 		}
@@ -384,7 +384,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			etag: content.etag,
 			isDirectory: false,
 			isSymbolicLink: false,
-			children: void 0,
+			children: undefined,
 			isReadonly: content.isReadonly
 		} as IFileStat);
 
@@ -577,13 +577,13 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private cancelPendingAutoSave(): void {
 		if (this.autoSaveDisposable) {
 			this.autoSaveDisposable.dispose();
-			this.autoSaveDisposable = void 0;
+			this.autoSaveDisposable = undefined;
 		}
 	}
 
 	save(options: ISaveOptions = Object.create(null)): Promise<void> {
 		if (!this.isResolved()) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		this.logService.trace('save() - enter', this.resource);
@@ -622,7 +622,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		if ((!options.force && !this.dirty) || versionId !== this.versionId) {
 			this.logService.trace(`doSave(${versionId}) - exit - because not dirty and/or versionId is different (this.isDirty: ${this.dirty}, this.versionId: ${this.versionId})`, this.resource);
 
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		// Return if currently saving by storing this save request as the next save that should happen.
@@ -672,7 +672,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// saving contents to disk that are stale (see https://github.com/Microsoft/vscode/issues/50942).
 			// To fix this issue, we will not store the contents to disk when we got disposed.
 			if (this.disposed) {
-				return void 0;
+				return undefined;
 			}
 
 			// Under certain conditions we do a short-cut of flushing contents to disk when we can assume that
@@ -795,8 +795,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// Check for workspace settings file
 		const folders = this.contextService.getWorkspace().folders;
-		for (let i = 0; i < folders.length; i++) {
-			if (isEqualOrParent(this.resource, folders[i].toResource('.vscode'))) {
+		for (const folder of folders) {
+			if (isEqualOrParent(this.resource, folder.toResource('.vscode'))) {
 				const filename = path.basename(this.resource.fsPath);
 				if (TextFileEditorModel.WHITELIST_WORKSPACE_JSON.indexOf(filename) > -1) {
 					return `.vscode/${filename}`;
@@ -1062,7 +1062,7 @@ export class SaveSequentializer {
 	}
 
 	get pendingSave(): Promise<void> {
-		return this._pendingSave ? this._pendingSave.promise : void 0;
+		return this._pendingSave ? this._pendingSave.promise : undefined;
 	}
 
 	setPending(versionId: number, promise: Promise<void>): Promise<void> {
@@ -1077,7 +1077,7 @@ export class SaveSequentializer {
 		if (this._pendingSave && versionId === this._pendingSave.versionId) {
 
 			// only set pending to done if the promise finished that is associated with that versionId
-			this._pendingSave = void 0;
+			this._pendingSave = undefined;
 
 			// schedule the next save now that we are free if we have any
 			this.triggerNextSave();
@@ -1087,7 +1087,7 @@ export class SaveSequentializer {
 	private triggerNextSave(): void {
 		if (this._nextSave) {
 			const saveOperation = this._nextSave;
-			this._nextSave = void 0;
+			this._nextSave = undefined;
 
 			// Run next save and complete on the associated promise
 			saveOperation.run().then(saveOperation.promiseResolve, saveOperation.promiseReject);
@@ -1126,7 +1126,7 @@ export class SaveSequentializer {
 
 class DefaultSaveErrorHandler implements ISaveErrorHandler {
 
-	constructor(@INotificationService private notificationService: INotificationService) { }
+	constructor(@INotificationService private readonly notificationService: INotificationService) { }
 
 	onSaveError(error: any, model: TextFileEditorModel): void {
 		this.notificationService.error(nls.localize('genericSaveError', "Failed to save '{0}': {1}", path.basename(model.getResource().fsPath), toErrorMessage(error, false)));

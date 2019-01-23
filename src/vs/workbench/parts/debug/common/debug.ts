@@ -393,7 +393,7 @@ export interface IDebugModel extends ITreeElement {
 	getWatchExpressions(): ReadonlyArray<IExpression & IEvaluate>;
 
 	onDidChangeBreakpoints: Event<IBreakpointsChangeEvent>;
-	onDidChangeCallStack: Event<void>;
+	onDidChangeCallStack: Event<IThread | undefined>;
 	onDidChangeWatchExpressions: Event<IExpression>;
 }
 
@@ -538,7 +538,6 @@ export interface IDebugConfigurationProvider {
 	resolveDebugConfiguration?(folderUri: uri | undefined, debugConfiguration: IConfig): Promise<IConfig>;
 	provideDebugConfigurations?(folderUri: uri | undefined): Promise<IConfig[]>;
 	debugAdapterExecutable?(folderUri: uri | undefined): Promise<IAdapterDescriptor>;		// TODO@AW legacy
-	hasTracker: boolean;
 }
 
 export interface IDebugAdapterDescriptorFactory {

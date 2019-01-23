@@ -54,7 +54,7 @@ function limitRanges(ranges: FoldingRange[], maxRanges: number) {
 
 	// compute each range's nesting level in 'nestingLevels'.
 	// count the number of ranges for each level in 'nestingLevelCounts'
-	let top: FoldingRange | undefined = void 0;
+	let top: FoldingRange | undefined = undefined;
 	let previous: FoldingRange[] = [];
 	let nestingLevels: number[] = [];
 	let nestingLevelCounts: number[] = [];

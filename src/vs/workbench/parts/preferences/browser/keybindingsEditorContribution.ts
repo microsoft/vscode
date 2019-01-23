@@ -38,7 +38,7 @@ export class DefineKeybindingController extends Disposable implements editorComm
 
 	private static readonly ID = 'editor.contrib.defineKeybinding';
 
-	public static get(editor: ICodeEditor): DefineKeybindingController {
+	static get(editor: ICodeEditor): DefineKeybindingController {
 		return editor.getContribution<DefineKeybindingController>(DefineKeybindingController.ID);
 	}
 
@@ -58,15 +58,15 @@ export class DefineKeybindingController extends Disposable implements editorComm
 		this._update();
 	}
 
-	public getId(): string {
+	getId(): string {
 		return DefineKeybindingController.ID;
 	}
 
-	public get keybindingWidgetRenderer(): KeybindingWidgetRenderer {
+	get keybindingWidgetRenderer(): KeybindingWidgetRenderer {
 		return this._keybindingWidgetRenderer;
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this._disposeKeybindingWidgetRenderer();
 		this._disposeKeybindingDecorationRenderer();
 		super.dispose();
@@ -134,15 +134,15 @@ export class KeybindingWidgetRenderer extends Disposable {
 		this._launchWidget.render();
 	}
 
-	public showDefineKeybindingWidget(): void {
+	showDefineKeybindingWidget(): void {
 		this._defineWidget.start().then(keybinding => this._onAccepted(keybinding));
 	}
 
 	private _onAccepted(keybinding: string): void {
 		this._editor.focus();
 		if (keybinding) {
-			let regexp = new RegExp(/\\/g);
-			let backslash = regexp.test(keybinding);
+			const regexp = new RegExp(/\\/g);
+			const backslash = regexp.test(keybinding);
 			if (backslash) {
 				keybinding = keybinding.slice(0, -1) + '\\\\';
 			}
@@ -154,7 +154,7 @@ export class KeybindingWidgetRenderer extends Disposable {
 				'}$0'
 			].join('\n');
 
-			let smartInsertInfo = SmartSnippetInserter.insertSnippet(this._editor.getModel(), this._editor.getPosition());
+			const smartInsertInfo = SmartSnippetInserter.insertSnippet(this._editor.getModel(), this._editor.getPosition());
 			snippetText = smartInsertInfo.prepend + snippetText + smartInsertInfo.append;
 			this._editor.setPosition(smartInsertInfo.position);
 
@@ -176,7 +176,7 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 
 		this._updateDecorations = this._register(new RunOnceScheduler(() => this._updateDecorationsNow(), 500));
 
-		let model = this._editor.getModel();
+		const model = this._editor.getModel();
 		this._register(model.onDidChangeContent(() => this._updateDecorations.schedule()));
 		this._register(this._keybindingService.onDidUpdateKeybindings((e) => this._updateDecorations.schedule()));
 		this._register({
@@ -191,7 +191,7 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 	private _updateDecorationsNow(): void {
 		const model = this._editor.getModel();
 
-		let newDecorations: IModelDeltaDecoration[] = [];
+		const newDecorations: IModelDeltaDecoration[] = [];
 
 		const root = parseTree(model.getValue());
 		if (root && Array.isArray(root.children)) {
@@ -374,11 +374,11 @@ class DefineKeybindingCommand extends EditorCommand {
 		});
 	}
 
-	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		if (!isInterestingEditorModel(editor) || editor.getConfiguration().readOnly) {
 			return;
 		}
-		let controller = DefineKeybindingController.get(editor);
+		const controller = DefineKeybindingController.get(editor);
 		if (controller && controller.keybindingWidgetRenderer) {
 			controller.keybindingWidgetRenderer.showDefineKeybindingWidget();
 		}
@@ -386,11 +386,11 @@ class DefineKeybindingCommand extends EditorCommand {
 }
 
 function isInterestingEditorModel(editor: ICodeEditor): boolean {
-	let model = editor.getModel();
+	const model = editor.getModel();
 	if (!model) {
 		return false;
 	}
-	let url = model.uri.toString();
+	const url = model.uri.toString();
 	return INTERESTING_FILE.test(url);
 }
 

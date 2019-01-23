@@ -27,8 +27,8 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IFileService fileService: IFileService,
-		@IWindowsService private windowsService: IWindowsService,
-		@IEditorService private editorService: IEditorService,
+		@IWindowsService private readonly windowsService: IWindowsService,
+		@IEditorService private readonly editorService: IEditorService,
 		@IStorageService storageService: IStorageService
 	) {
 		super(
@@ -48,7 +48,7 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 		if (input instanceof FileEditorInput) {
 			input.setForceOpenAsText();
 
-			return this.editorService.openEditor(input, options, this.group).then(() => void 0);
+			return this.editorService.openEditor(input, options, this.group).then(() => undefined);
 		}
 
 		return Promise.resolve();
@@ -60,7 +60,7 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 				return this.windowsService.showItemInFolder(resource.fsPath);
 			}
 
-			return void 0;
+			return undefined;
 		});
 	}
 

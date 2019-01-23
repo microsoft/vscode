@@ -56,14 +56,17 @@ export class ExtensionHostProfiler {
 			} else if (segmentId === 'self' && node.callFrame.url) {
 				let extension = searchTree.findSubstr(node.callFrame.url);
 				if (extension) {
-					segmentId = extension.id;
+					segmentId = extension.identifier.value;
 				}
 			}
 			idsToSegmentId.set(node.id, segmentId);
 
 			if (node.children) {
-				for (let child of node.children) {
-					visit(idsToNodes.get(child), segmentId);
+				for (const child of node.children) {
+					const childNode = idsToNodes.get(child);
+					if (childNode) {
+						visit(childNode, segmentId);
+					}
 				}
 			}
 		}

@@ -32,8 +32,8 @@ suite('SearchResult', () => {
 	});
 
 	test('Line Match', function () {
-		let fileMatch = aFileMatch('folder/file.txt', null);
-		let lineMatch = new Match(fileMatch, ['foo bar'], new OneLineRange(0, 0, 3), new OneLineRange(1, 0, 3));
+		const fileMatch = aFileMatch('folder/file.txt', null!);
+		const lineMatch = new Match(fileMatch, ['foo bar'], new OneLineRange(0, 0, 3), new OneLineRange(1, 0, 3));
 		assert.equal(lineMatch.text(), 'foo bar');
 		assert.equal(lineMatch.range().startLineNumber, 2);
 		assert.equal(lineMatch.range().endLineNumber, 2);
@@ -43,8 +43,8 @@ suite('SearchResult', () => {
 	});
 
 	test('Line Match - Remove', function () {
-		let fileMatch = aFileMatch('folder/file.txt', aSearchResult(), new TextSearchMatch('foo bar', new OneLineRange(1, 0, 3)));
-		let lineMatch = fileMatch.matches()[0];
+		const fileMatch = aFileMatch('folder/file.txt', aSearchResult(), new TextSearchMatch('foo bar', new OneLineRange(1, 0, 3)));
+		const lineMatch = fileMatch.matches()[0];
 		fileMatch.remove(lineMatch);
 		assert.equal(fileMatch.matches().length, 0);
 	});
@@ -62,7 +62,7 @@ suite('SearchResult', () => {
 	});
 
 	test('File Match: Select an existing match', function () {
-		let testObject = aFileMatch(
+		const testObject = aFileMatch(
 			'folder/file.txt',
 			aSearchResult(),
 			new TextSearchMatch('foo', new OneLineRange(1, 0, 3)),
@@ -74,12 +74,12 @@ suite('SearchResult', () => {
 	});
 
 	test('File Match: Select non existing match', function () {
-		let testObject = aFileMatch(
+		const testObject = aFileMatch(
 			'folder/file.txt',
 			aSearchResult(),
 			new TextSearchMatch('foo', new OneLineRange(1, 0, 3)),
 			new TextSearchMatch('bar', new OneLineRange(1, 5, 3)));
-		let target = testObject.matches()[0];
+		const target = testObject.matches()[0];
 		testObject.remove(target);
 
 		testObject.setSelectedMatch(target);
@@ -88,19 +88,19 @@ suite('SearchResult', () => {
 	});
 
 	test('File Match: isSelected return true for selected match', function () {
-		let testObject = aFileMatch(
+		const testObject = aFileMatch(
 			'folder/file.txt',
 			aSearchResult(),
 			new TextSearchMatch('foo', new OneLineRange(1, 0, 3)),
 			new TextSearchMatch('bar', new OneLineRange(1, 5, 3)));
-		let target = testObject.matches()[0];
+		const target = testObject.matches()[0];
 		testObject.setSelectedMatch(target);
 
 		assert.ok(testObject.isMatchSelected(target));
 	});
 
 	test('File Match: isSelected return false for un-selected match', function () {
-		let testObject = aFileMatch('folder/file.txt',
+		const testObject = aFileMatch('folder/file.txt',
 			aSearchResult(),
 			new TextSearchMatch('foo', new OneLineRange(1, 0, 3)),
 			new TextSearchMatch('bar', new OneLineRange(1, 5, 3)));
@@ -109,7 +109,7 @@ suite('SearchResult', () => {
 	});
 
 	test('File Match: unselect', function () {
-		let testObject = aFileMatch(
+		const testObject = aFileMatch(
 			'folder/file.txt',
 			aSearchResult(),
 			new TextSearchMatch('foo', new OneLineRange(1, 0, 3)),
@@ -121,7 +121,7 @@ suite('SearchResult', () => {
 	});
 
 	test('File Match: unselect when not selected', function () {
-		let testObject = aFileMatch(
+		const testObject = aFileMatch(
 			'folder/file.txt',
 			aSearchResult(),
 			new TextSearchMatch('foo', new OneLineRange(1, 0, 3)),
@@ -132,17 +132,17 @@ suite('SearchResult', () => {
 	});
 
 	test('Alle Drei Zusammen', function () {
-		let searchResult = instantiationService.createInstance(SearchResult, null);
-		let fileMatch = aFileMatch('far/boo', searchResult);
-		let lineMatch = new Match(fileMatch, ['foo bar'], new OneLineRange(0, 0, 3), new OneLineRange(1, 0, 3));
+		const searchResult = instantiationService.createInstance(SearchResult, null);
+		const fileMatch = aFileMatch('far/boo', searchResult);
+		const lineMatch = new Match(fileMatch, ['foo bar'], new OneLineRange(0, 0, 3), new OneLineRange(1, 0, 3));
 
 		assert(lineMatch.parent() === fileMatch);
 		assert(fileMatch.parent() === searchResult);
 	});
 
 	test('Adding a raw match will add a file match with line matches', function () {
-		let testObject = aSearchResult();
-		let target = [aRawMatch('file://c:/',
+		const testObject = aSearchResult();
+		const target = [aRawMatch('file://c:/',
 			new TextSearchMatch('preview 1', new OneLineRange(1, 1, 4)),
 			new TextSearchMatch('preview 1', new OneLineRange(1, 4, 11)),
 			new TextSearchMatch('preview 2', lineOneRange))];
@@ -151,11 +151,11 @@ suite('SearchResult', () => {
 
 		assert.equal(3, testObject.count());
 
-		let actual = testObject.matches();
+		const actual = testObject.matches();
 		assert.equal(1, actual.length);
 		assert.equal('file://c:/', actual[0].resource().toString());
 
-		let actuaMatches = actual[0].matches();
+		const actuaMatches = actual[0].matches();
 		assert.equal(3, actuaMatches.length);
 
 		assert.equal('preview 1', actuaMatches[0].text());
@@ -169,8 +169,8 @@ suite('SearchResult', () => {
 	});
 
 	test('Adding multiple raw matches', function () {
-		let testObject = aSearchResult();
-		let target = [
+		const testObject = aSearchResult();
+		const target = [
 			aRawMatch('file://c:/1',
 				new TextSearchMatch('preview 1', new OneLineRange(1, 1, 4)),
 				new TextSearchMatch('preview 1', new OneLineRange(1, 4, 11))),
@@ -181,7 +181,7 @@ suite('SearchResult', () => {
 
 		assert.equal(3, testObject.count());
 
-		let actual = testObject.matches();
+		const actual = testObject.matches();
 		assert.equal(2, actual.length);
 		assert.equal('file://c:/1', actual[0].resource().toString());
 
@@ -199,10 +199,10 @@ suite('SearchResult', () => {
 	});
 
 	test('Dispose disposes matches', function () {
-		let target1 = sinon.spy();
-		let target2 = sinon.spy();
+		const target1 = sinon.spy();
+		const target2 = sinon.spy();
 
-		let testObject = aSearchResult();
+		const testObject = aSearchResult();
 		testObject.add([
 			aRawMatch('file://c:/1',
 				new TextSearchMatch('preview 1', lineOneRange)),
@@ -220,12 +220,12 @@ suite('SearchResult', () => {
 	});
 
 	test('remove triggers change event', function () {
-		let target = sinon.spy();
-		let testObject = aSearchResult();
+		const target = sinon.spy();
+		const testObject = aSearchResult();
 		testObject.add([
 			aRawMatch('file://c:/1',
 				new TextSearchMatch('preview 1', lineOneRange))]);
-		let objectRoRemove = testObject.matches()[0];
+		const objectRoRemove = testObject.matches()[0];
 		testObject.onChange(target);
 
 		testObject.remove(objectRoRemove);
@@ -235,12 +235,12 @@ suite('SearchResult', () => {
 	});
 
 	test('remove triggers change event', function () {
-		let target = sinon.spy();
-		let testObject = aSearchResult();
+		const target = sinon.spy();
+		const testObject = aSearchResult();
 		testObject.add([
 			aRawMatch('file://c:/1',
 				new TextSearchMatch('preview 1', lineOneRange))]);
-		let objectRoRemove = testObject.matches()[0];
+		const objectRoRemove = testObject.matches()[0];
 		testObject.onChange(target);
 
 		testObject.remove(objectRoRemove);
@@ -250,12 +250,12 @@ suite('SearchResult', () => {
 	});
 
 	test('Removing all line matches and adding back will add file back to result', function () {
-		let testObject = aSearchResult();
+		const testObject = aSearchResult();
 		testObject.add([
 			aRawMatch('file://c:/1',
 				new TextSearchMatch('preview 1', lineOneRange))]);
-		let target = testObject.matches()[0];
-		let matchToRemove = target.matches()[0];
+		const target = testObject.matches()[0];
+		const matchToRemove = target.matches()[0];
 		target.remove(matchToRemove);
 
 		assert.ok(testObject.isEmpty());
@@ -268,7 +268,7 @@ suite('SearchResult', () => {
 	test('replace should remove the file match', function () {
 		const voidPromise = Promise.resolve(null);
 		instantiationService.stub(IReplaceService, 'replace', voidPromise);
-		let testObject = aSearchResult();
+		const testObject = aSearchResult();
 		testObject.add([
 			aRawMatch('file://c:/1',
 				new TextSearchMatch('preview 1', lineOneRange))]);
@@ -279,15 +279,15 @@ suite('SearchResult', () => {
 	});
 
 	test('replace should trigger the change event', function () {
-		let target = sinon.spy();
+		const target = sinon.spy();
 		const voidPromise = Promise.resolve(null);
 		instantiationService.stub(IReplaceService, 'replace', voidPromise);
-		let testObject = aSearchResult();
+		const testObject = aSearchResult();
 		testObject.add([
 			aRawMatch('file://c:/1',
 				new TextSearchMatch('preview 1', lineOneRange))]);
 		testObject.onChange(target);
-		let objectRoRemove = testObject.matches()[0];
+		const objectRoRemove = testObject.matches()[0];
 
 		testObject.replace(objectRoRemove);
 
@@ -300,14 +300,14 @@ suite('SearchResult', () => {
 	test('replaceAll should remove all file matches', function () {
 		const voidPromise = Promise.resolve(null);
 		instantiationService.stubPromise(IReplaceService, 'replace', voidPromise);
-		let testObject = aSearchResult();
+		const testObject = aSearchResult();
 		testObject.add([
 			aRawMatch('file://c:/1',
 				new TextSearchMatch('preview 1', lineOneRange)),
 			aRawMatch('file://c:/2',
 				new TextSearchMatch('preview 2', lineOneRange))]);
 
-		testObject.replaceAll(null);
+		testObject.replaceAll(null!);
 
 		return voidPromise.then(() => assert.ok(testObject.isEmpty()));
 	});
@@ -357,7 +357,7 @@ suite('SearchResult', () => {
 	//});
 
 	function aFileMatch(path: string, searchResult?: SearchResult, ...lineMatches: ITextSearchMatch[]): FileMatch {
-		let rawMatch: IFileMatch = {
+		const rawMatch: IFileMatch = {
 			resource: URI.file('/' + path),
 			results: lineMatches
 		};
@@ -365,7 +365,7 @@ suite('SearchResult', () => {
 	}
 
 	function aSearchResult(): SearchResult {
-		let searchModel = instantiationService.createInstance(SearchModel);
+		const searchModel = instantiationService.createInstance(SearchModel);
 		searchModel.searchResult.query = { type: 1, folderQueries: [{ folder: URI.parse('file://c:/') }] };
 		return searchModel.searchResult;
 	}

@@ -16,6 +16,7 @@ import { URI } from 'vs/base/common/uri';
 
 const iconThemeExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPoint[]>({
 	extensionPoint: 'iconThemes',
+	isDynamic: true,
 	jsonSchema: {
 		description: nls.localize('vscode.extension.contributes.iconThemes', 'Contributes file icon themes.'),
 		type: 'array',
@@ -48,7 +49,7 @@ export class FileIconThemeStore {
 
 	public get onDidChange(): Event<FileIconThemeData[]> { return this.onDidChangeEmitter.event; }
 
-	constructor(@IExtensionService private extensionService: IExtensionService) {
+	constructor(@IExtensionService private readonly extensionService: IExtensionService) {
 		this.knownIconThemes = [];
 		this.onDidChangeEmitter = new Emitter<FileIconThemeData[]>();
 		this.initialize();
@@ -56,9 +57,10 @@ export class FileIconThemeStore {
 
 	private initialize() {
 		iconThemeExtPoint.setHandler((extensions) => {
+			this.knownIconThemes.length = 0;
 			for (let ext of extensions) {
 				let extensionData = {
-					extensionId: ext.description.id,
+					extensionId: ext.description.identifier.value,
 					extensionPublisher: ext.description.publisher,
 					extensionName: ext.description.name,
 					extensionIsBuiltin: ext.description.isBuiltin
@@ -109,25 +111,31 @@ export class FileIconThemeStore {
 
 	}
 
-	public findThemeData(iconTheme: string): Promise<FileIconThemeData | null> {
+	public findThemeData(iconTheme: string): Promise<FileIconThemeData | undefined> {
+		if (iconTheme.length === 0) {
+			return Promise.resolve(FileIconThemeData.noIconTheme());
+		}
 		return this.getFileIconThemes().then(allIconSets => {
 			for (let iconSet of allIconSets) {
 				if (iconSet.id === iconTheme) {
 					return iconSet;
 				}
 			}
-			return null;
+			return undefined;
 		});
 	}
 
-	public findThemeBySettingsId(settingsId: string): Promise<FileIconThemeData | null> {
+	public findThemeBySettingsId(settingsId: string | null): Promise<FileIconThemeData | undefined> {
+		if (!settingsId) {
+			return Promise.resolve(FileIconThemeData.noIconTheme());
+		}
 		return this.getFileIconThemes().then(allIconSets => {
 			for (let iconSet of allIconSets) {
 				if (iconSet.settingsId === settingsId) {
 					return iconSet;
 				}
 			}
-			return null;
+			return undefined;
 		});
 	}
 

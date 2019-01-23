@@ -30,7 +30,7 @@ export class ProxyAuthHandler {
 	private disposables: IDisposable[] = [];
 
 	constructor(
-		@IWindowsMainService private windowsMainService: IWindowsMainService
+		@IWindowsMainService private readonly windowsMainService: IWindowsMainService
 	) {
 		const onLogin = Event.fromNodeEventEmitter<LoginEvent>(app, 'login', (event, webContents, req, authInfo, cb) => ({ event, webContents, req, authInfo, cb }));
 		onLogin(this.onLogin, this, this.disposables);

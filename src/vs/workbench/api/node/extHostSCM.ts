@@ -17,6 +17,7 @@ import * as vscode from 'vscode';
 import { ISplice } from 'vs/base/common/sequence';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 type ProviderHandle = number;
 type GroupHandle = number;
@@ -178,7 +179,7 @@ export class ExtHostSCMInputBox implements vscode.SourceControlInputBox {
 
 	get validateInput(): IValidateInput {
 		if (!this._extension.enableProposedApi) {
-			throw new Error(`[${this._extension.id}]: Proposed API is only available when running out of dev or with the following command line switch: --enable-proposed-api ${this._extension.id}`);
+			throw new Error(`[${this._extension.identifier.value}]: Proposed API is only available when running out of dev or with the following command line switch: --enable-proposed-api ${this._extension.identifier.value}`);
 		}
 
 		return this._validateInput;
@@ -186,7 +187,7 @@ export class ExtHostSCMInputBox implements vscode.SourceControlInputBox {
 
 	set validateInput(fn: IValidateInput) {
 		if (!this._extension.enableProposedApi) {
-			throw new Error(`[${this._extension.id}]: Proposed API is only available when running out of dev or with the following command line switch: --enable-proposed-api ${this._extension.id}`);
+			throw new Error(`[${this._extension.identifier.value}]: Proposed API is only available when running out of dev or with the following command line switch: --enable-proposed-api ${this._extension.identifier.value}`);
 		}
 
 		if (fn && typeof fn !== 'function') {
@@ -283,7 +284,7 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 		const command = this._resourceStatesCommandsMap.get(handle);
 
 		if (!command) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		return asPromise(() => this._commands.executeCommand(command.command, ...command.arguments));
@@ -540,7 +541,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 	constructor(
 		mainContext: IMainContext,
 		private _commands: ExtHostCommands,
-		@ILogService private logService: ILogService
+		@ILogService private readonly logService: ILogService
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadSCM);
 
@@ -584,24 +585,24 @@ export class ExtHostSCM implements ExtHostSCMShape {
 	}
 
 	createSourceControl(extension: IExtensionDescription, id: string, label: string, rootUri: vscode.Uri | undefined): vscode.SourceControl {
-		this.logService.trace('ExtHostSCM#createSourceControl', extension.id, id, label, rootUri);
+		this.logService.trace('ExtHostSCM#createSourceControl', extension.identifier.value, id, label, rootUri);
 
 		const handle = ExtHostSCM._handlePool++;
 		const sourceControl = new ExtHostSourceControl(extension, this._proxy, this._commands, id, label, rootUri);
 		this._sourceControls.set(handle, sourceControl);
 
-		const sourceControls = this._sourceControlsByExtension.get(extension.id) || [];
+		const sourceControls = this._sourceControlsByExtension.get(ExtensionIdentifier.toKey(extension.identifier)) || [];
 		sourceControls.push(sourceControl);
-		this._sourceControlsByExtension.set(extension.id, sourceControls);
+		this._sourceControlsByExtension.set(ExtensionIdentifier.toKey(extension.identifier), sourceControls);
 
 		return sourceControl;
 	}
 
 	// Deprecated
 	getLastInputBox(extension: IExtensionDescription): ExtHostSCMInputBox {
-		this.logService.trace('ExtHostSCM#getLastInputBox', extension.id);
+		this.logService.trace('ExtHostSCM#getLastInputBox', extension.identifier.value);
 
-		const sourceControls = this._sourceControlsByExtension.get(extension.id);
+		const sourceControls = this._sourceControlsByExtension.get(ExtensionIdentifier.toKey(extension.identifier));
 		const sourceControl = sourceControls && sourceControls[sourceControls.length - 1];
 		const inputBox = sourceControl && sourceControl.inputBox;
 
@@ -627,11 +628,11 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		const sourceControl = this._sourceControls.get(sourceControlHandle);
 
 		if (!sourceControl) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		sourceControl.inputBox.$onInputBoxValueChange(value);
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	$executeResourceCommand(sourceControlHandle: number, groupHandle: number, handle: number): Promise<void> {
@@ -640,13 +641,13 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		const sourceControl = this._sourceControls.get(sourceControlHandle);
 
 		if (!sourceControl) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		const group = sourceControl.getResourceGroup(groupHandle);
 
 		if (!group) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		return group.$executeResourceCommand(handle);
@@ -708,6 +709,6 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		});
 
 		this._selectedSourceControlHandles = set;
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 }

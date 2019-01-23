@@ -35,7 +35,8 @@ interface ILegacySerializedRecentlyOpened {
 export class HistoryMainService implements IHistoryMainService {
 
 	private static readonly MAX_TOTAL_RECENT_ENTRIES = 100;
-	private static readonly MAX_MACOS_DOCK_RECENT_ENTRIES = 10;
+	private static readonly MAX_MACOS_DOCK_RECENT_FOLDERS = 10;
+	private static readonly MAX_MACOS_DOCK_RECENT_FILES = 5;
 
 	private static readonly recentlyOpenedStorageKey = 'openedPathsList';
 
@@ -47,10 +48,10 @@ export class HistoryMainService implements IHistoryMainService {
 	private macOSRecentDocumentsUpdater: RunOnceScheduler;
 
 	constructor(
-		@IStateService private stateService: IStateService,
-		@ILogService private logService: ILogService,
-		@IWorkspacesMainService private workspacesMainService: IWorkspacesMainService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IStateService private readonly stateService: IStateService,
+		@ILogService private readonly logService: ILogService,
+		@IWorkspacesMainService private readonly workspacesMainService: IWorkspacesMainService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
 		this.macOSRecentDocumentsUpdater = new RunOnceScheduler(() => this.updateMacOSRecentDocuments(), 800);
 
@@ -179,34 +180,32 @@ export class HistoryMainService implements IHistoryMainService {
 		// out of sync quickly over time. the attempted fix is to always set the list fresh
 		// from our MRU history data. So we clear the documents first and then set the documents
 		// again.
-
 		app.clearRecentDocuments();
 
 		const mru = this.getRecentlyOpened();
 
-		let maxEntries = HistoryMainService.MAX_MACOS_DOCK_RECENT_ENTRIES;
-
-		// Take up to maxEntries/2 workspaces
-		let nEntries = 0;
-		for (let i = 0; i < mru.workspaces.length && nEntries < HistoryMainService.MAX_MACOS_DOCK_RECENT_ENTRIES / 2; i++) {
+		// Fill in workspaces
+		let entries = 0;
+		for (let i = 0; i < mru.workspaces.length && entries < HistoryMainService.MAX_MACOS_DOCK_RECENT_FOLDERS; i++) {
 			const workspace = mru.workspaces[i];
 			if (isSingleFolderWorkspaceIdentifier(workspace)) {
 				if (workspace.scheme === Schemas.file) {
 					app.addRecentDocument(workspace.fsPath);
-					nEntries++;
+					entries++;
 				}
 			} else {
 				app.addRecentDocument(workspace.configPath);
-				nEntries++;
+				entries++;
 			}
 		}
 
-		// Take up to maxEntries files
-		for (let i = 0; i < mru.files.length && nEntries < maxEntries; i++) {
+		// Fill in files
+		entries = 0;
+		for (let i = 0; i < mru.files.length && entries < HistoryMainService.MAX_MACOS_DOCK_RECENT_FILES; i++) {
 			const file = mru.files[i];
 			if (file.scheme === Schemas.file) {
 				app.addRecentDocument(file.fsPath);
-				nEntries++;
+				entries++;
 			}
 		}
 	}
@@ -257,6 +256,7 @@ export class HistoryMainService implements IHistoryMainService {
 		if (workspaceOrFile instanceof URI) {
 			return getComparisonKey(workspaceOrFile);
 		}
+
 		return workspaceOrFile.id;
 	}
 
@@ -286,6 +286,7 @@ export class HistoryMainService implements IHistoryMainService {
 					}
 				}
 			}
+
 			if (Array.isArray(storedRecents.files2)) {
 				for (const file of storedRecents.files2) {
 					if (typeof file === 'string') {
@@ -300,11 +301,13 @@ export class HistoryMainService implements IHistoryMainService {
 				}
 			}
 		}
+
 		return result;
 	}
 
 	private saveRecentlyOpened(recent: IRecentlyOpened): void {
 		const serialized: ISerializedRecentlyOpened = { workspaces2: [], files2: [] };
+
 		for (const workspace of recent.workspaces) {
 			if (isSingleFolderWorkspaceIdentifier(workspace)) {
 				serialized.workspaces2.push(workspace.toString());
@@ -312,9 +315,11 @@ export class HistoryMainService implements IHistoryMainService {
 				serialized.workspaces2.push(workspace);
 			}
 		}
+
 		for (const file of recent.files) {
 			serialized.files2.push(file.toString());
 		}
+
 		this.stateService.setItem(HistoryMainService.recentlyOpenedStorageKey, serialized);
 	}
 

@@ -41,6 +41,14 @@
 				"fileMatch": "*color-theme.json",
 				"url": "vscode://schemas/color-theme"
 			}
+		],
+		"languages": [
+			{
+				"id": "ignore",
+				"filenames": [
+					".vscodeignore"
+				]
+			}
 		]
 	},
 	"devDependencies": {

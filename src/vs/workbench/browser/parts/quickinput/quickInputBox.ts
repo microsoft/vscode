@@ -24,7 +24,7 @@ export class QuickInputBox {
 		private parent: HTMLElement
 	) {
 		this.container = dom.append(this.parent, $('.quick-input-box'));
-		this.inputBox = new InputBox(this.container, void 0);
+		this.inputBox = new InputBox(this.container, undefined);
 		this.disposables.push(this.inputBox);
 	}
 

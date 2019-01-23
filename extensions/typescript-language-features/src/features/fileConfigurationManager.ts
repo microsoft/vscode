@@ -13,8 +13,7 @@ import { ResourceMap } from '../utils/resourceMap';
 
 function objsAreEqual<T>(a: T, b: T): boolean {
 	let keys = Object.keys(a);
-	for (let i = 0; i < keys.length; i++) {
-		let key = keys[i];
+	for (const key of keys) {
 		if ((a as any)[key] !== (b as any)[key]) {
 			return false;
 		}
@@ -187,8 +186,10 @@ export default class FileConfigurationManager {
 		return {
 			quotePreference: getQuoteStylePreference(preferences),
 			importModuleSpecifierPreference: getImportModuleSpecifierPreference(preferences),
-			allowTextChangesInNewFiles: document.uri.scheme === 'file'
-		};
+			allowTextChangesInNewFiles: document.uri.scheme === 'file',
+			providePrefixAndSuffixTextForRename: true,
+			allowRenameOfImportPath: true,
+		} as Proto.UserPreferences;
 	}
 }
 

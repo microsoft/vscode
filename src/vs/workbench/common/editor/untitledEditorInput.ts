@@ -41,10 +41,10 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		private modeId: string,
 		private initialValue: string,
 		private preferredEncoding: string,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@ITextFileService private textFileService: ITextFileService,
-		@IHashService private hashService: IHashService,
-		@ILabelService private labelService: ILabelService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@IHashService private readonly hashService: IHashService,
+		@ILabelService private readonly labelService: ILabelService
 	) {
 		super();
 
@@ -262,7 +262,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 	}
 
 	dispose(): void {
-		this.modelResolve = void 0;
+		this.modelResolve = undefined;
 
 		super.dispose();
 	}

@@ -46,7 +46,7 @@ export class QuickOpenItemAccessorClass implements IItemAccessor<QuickOpenEntry>
 	getItemPath(entry: QuickOpenEntry): string {
 		const resource = entry.getResource();
 
-		return resource ? resource.fsPath : void 0;
+		return resource ? resource.fsPath : undefined;
 	}
 }
 
@@ -468,13 +468,13 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 			options.title = entry.getTooltip();
 			options.descriptionTitle = entry.getDescriptionTooltip() || entry.getDescription(); // tooltip over description because it could overflow
 			options.descriptionMatches = descriptionHighlights || [];
-			data.label.setValue(entry.getLabel(), entry.getDescription(), options);
+			data.label.setLabel(entry.getLabel(), entry.getDescription(), options);
 
 			// Meta
 			data.detail.set(entry.getDetail(), detailHighlights);
 
 			// Keybinding
-			data.keybinding.set(entry.getKeybinding(), null);
+			data.keybinding.set(entry.getKeybinding());
 		}
 	}
 
@@ -484,7 +484,6 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		data.actionBar = null;
 		data.container = null;
 		data.entry = null;
-		data.keybinding.dispose();
 		data.keybinding = null;
 		data.detail.dispose();
 		data.detail = null;

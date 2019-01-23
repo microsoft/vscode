@@ -10,12 +10,6 @@
 	padding-top: 11px;
 }
 
-.preferences-editor > .preferences-header > .new-settings-ad > .open-settings2-button {
-	padding: 0;
-	text-decoration: underline;
-	display: inline;
-}
-
 .preferences-editor > .preferences-editors-container.side-by-side-preferences-editor {
 	position: relative;
 }
@@ -96,12 +90,6 @@
 	align-self: stretch;
 }
 
-.settings-header-widget > .settings-header-container {
-	padding-top: 8px;
-	padding-left: 27px;
-	padding-right: 32px;
-}
-
 .settings-header-widget > .settings-search-controls > .settings-count-widget {
 	margin: 6px 0px;
 	padding: 0px 8px;
@@ -116,21 +104,6 @@
 
 .settings-header-widget > .settings-search-controls > .settings-count-widget.hide {
 	display: none;
-}
-
-.settings-header-widget > .settings-search-controls > .prefs-natural-language-search-toggle {
-	margin: 5px 3px 5px 0px;
-}
-
-.settings-header-widget > .settings-search-controls > .prefs-natural-language-search-toggle.hidden {
-	display: none;
-}
-
-.settings-header-widget > .settings-search-controls > .prefs-natural-language-search-toggle > .octicon {
-	text-align: center;
-	vertical-align: top;
-	font-size: 16px;
-	width: 100%;
 }
 
 .settings-header-widget > .settings-search-container {
@@ -181,16 +154,6 @@
 
 .monaco-editor .settings-header-widget .title-container .message {
 	white-space: nowrap;
-}
-
-.monaco-editor .settings-header-widget .title-container .settings-header-natural-language-link {
-	margin-left: 4px;
-	text-decoration: underline;
-	cursor: pointer;
-}
-
-.monaco-editor .settings-header-widget .title-container .settings-header-natural-language-link.hidden {
-	display: none;
 }
 
 .monaco-editor .settings-group-title-widget {

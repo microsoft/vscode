@@ -71,7 +71,6 @@ const PyModulesToLookFor = [
 	'azure-storage-blob',
 	'azure-storage-file',
 	'azure-storage-queue',
-	'azure-mgmt',
 	'azure-shell',
 	'azure-cosmos',
 	'azure-devtools',
@@ -79,17 +78,22 @@ const PyModulesToLookFor = [
 	'azure-eventgrid',
 	'azure-functions',
 	'azure-graphrbac',
-	'azure-keybault',
+	'azure-keyvault',
 	'azure-loganalytics',
 	'azure-monitor',
 	'azure-servicebus',
 	'azure-servicefabric',
 	'azure-storage',
 	'azure-translator',
-	'azure-iothub-device-client'
+	'azure-iothub-device-client',
+	'adal',
+	'pydocumentdb',
+	'botbuilder-core',
+	'botbuilder-schema',
+	'botframework-connector'
 ];
 
-type Tags = { [index: string]: boolean | number | string };
+type Tags = { [index: string]: boolean | number | string | undefined };
 
 function stripLowLevelDomains(domain: string): string | null {
 	const match = domain.match(SecondLevelDomainMatcher);
@@ -143,7 +147,7 @@ function stripPort(authority: string): string | null {
 	return match ? match[2] : null;
 }
 
-function normalizeRemote(host: string, path: string, stripEndingDotGit: boolean): string | null {
+function normalizeRemote(host: string | null, path: string, stripEndingDotGit: boolean): string | null {
 	if (host && path) {
 		if (stripEndingDotGit && endsWith(path, '.git')) {
 			path = path.substr(0, path.length - 4);
@@ -207,14 +211,14 @@ export class WorkspaceStats implements IWorkbenchContribution {
 	private static DISABLE_WORKSPACE_PROMPT_KEY = 'workspaces.dontPromptToOpen';
 
 	constructor(
-		@IFileService private fileService: IFileService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IWindowService private windowService: IWindowService,
-		@INotificationService private notificationService: INotificationService,
-		@IQuickInputService private quickInputService: IQuickInputService,
-		@IStorageService private storageService: IStorageService
+		@IFileService private readonly fileService: IFileService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IWindowService private readonly windowService: IWindowService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		this.report();
 	}
@@ -231,7 +235,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		this.reportProxyStats();
 	}
 
-	private static searchArray(arr: string[], regEx: RegExp): boolean {
+	private static searchArray(arr: string[], regEx: RegExp): boolean | undefined {
 		return arr.some(v => v.search(regEx) > -1) || undefined;
 	}
 
@@ -299,7 +303,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			"workspace.py.azure-eventgrid" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.azure-functions" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.azure-graphrbac" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-keybault" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-keyvault" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.azure-loganalytics" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.azure-monitor" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.azure-servicebus" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -307,7 +311,14 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			"workspace.py.azure-storage" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.azure-translator" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.azure-iothub-device-client" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-ml" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 			"workspace.py.azure-cognitiveservices" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+			"workspace.py.adal" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+			"workspace.py.pydocumentdb" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+			"workspace.py.botbuilder-core" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+			"workspace.py.botbuilder-schema" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+			"workspace.py.botframework-connector" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+
 		}
 	*/
 	private resolveWorkspaceTags(configuration: IWindowConfiguration, participant?: (rootFiles: string[]) => void): Promise<Tags> {
@@ -316,16 +327,18 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		const state = this.contextService.getWorkbenchState();
 		const workspace = this.contextService.getWorkspace();
 
-		let workspaceId: string;
+		let workspaceId: string | undefined;
 		switch (state) {
 			case WorkbenchState.EMPTY:
-				workspaceId = void 0;
+				workspaceId = undefined;
 				break;
 			case WorkbenchState.FOLDER:
 				workspaceId = crypto.createHash('sha1').update(workspace.folders[0].uri.scheme === Schemas.file ? workspace.folders[0].uri.fsPath : workspace.folders[0].uri.toString()).digest('hex');
 				break;
 			case WorkbenchState.WORKSPACE:
-				workspaceId = crypto.createHash('sha1').update(workspace.configuration.fsPath).digest('hex');
+				if (workspace.configuration) {
+					workspaceId = crypto.createHash('sha1').update(workspace.configuration.fsPath).digest('hex');
+				}
 		}
 
 		tags['workspace.id'] = workspaceId;
@@ -415,7 +428,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			}
 
 			function getFilePromises(filename, fileService, contentHandler): Promise<void>[] {
-				return !nameSet.has(filename) ? [] : folders.map(workspaceUri => {
+				return !nameSet.has(filename) ? [] : (folders as URI[]).map(workspaceUri => {
 					const uri = workspaceUri.with({ path: `${workspaceUri.path !== '/' ? workspaceUri.path : ''}/${filename}` });
 					return fileService.resolveFile(uri).then(() => {
 						return fileService.resolveContent(uri, { acceptTextOnly: true }).then(contentHandler);
@@ -431,7 +444,13 @@ export class WorkspaceStats implements IWorkbenchContribution {
 				}
 				// cognitive services has a lot of tiny packages. eg. 'azure-cognitiveservices-search-autosuggest'
 				if (packageName.indexOf('azure-cognitiveservices') > -1) {
-					tags['workspace.py.cognitiveservices'] = true;
+					tags['workspace.py.azure-cognitiveservices'] = true;
+				}
+				if (packageName.indexOf('azure-mgmt') > -1) {
+					tags['workspace.py.azure-mgmt'] = true;
+				}
+				if (packageName.indexOf('azure-ml') > -1) {
+					tags['workspace.py.azure-ml'] = true;
 				}
 				if (!tags['workspace.py.any-azure']) {
 					tags['workspace.py.any-azure'] = /azure/i.test(packageName);
@@ -439,7 +458,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			}
 
 			const requirementsTxtPromises = getFilePromises('requirements.txt', this.fileService, content => {
-				const dependencies: string[] = content.value.split('\r\n|\n');
+				const dependencies: string[] = content.value.split(/\r\n|\r|\n/);
 				for (let dependency of dependencies) {
 					// Dependencies in requirements.txt can have 3 formats: `foo==3.1, foo>=3.1, foo`
 					const format1 = dependency.split('==');
@@ -450,7 +469,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			});
 
 			const pipfilePromises = getFilePromises('pipfile', this.fileService, content => {
-				let dependencies: string[] = content.value.split(/\r\n|\n/);
+				let dependencies: string[] = content.value.split(/\r\n|\r|\n/);
 
 				// We're only interested in the '[packages]' section of the Pipfile
 				dependencies = dependencies.slice(dependencies.indexOf('[packages]') + 1);
@@ -565,7 +584,10 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		return undefined;
 	}
 
-	private parentURI(uri: URI): URI | undefined {
+	private parentURI(uri: URI | undefined): URI | undefined {
+		if (!uri) {
+			return undefined;
+		}
 		const path = uri.path;
 		const i = path.lastIndexOf('/');
 		return i !== -1 ? uri.with({ path: path.substr(0, i) }) : undefined;
@@ -682,7 +704,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 				*/
 				this.telemetryService.publicLog('workspace.azure', tags);
 			}
-		}).then(void 0, onUnexpectedError);
+		}).then(undefined, onUnexpectedError);
 	}
 
 	private reportCloudStats(): void {
@@ -707,6 +729,6 @@ export class WorkspaceStats implements IWorkbenchContribution {
 					}
 				*/
 				this.telemetryService.publicLog('resolveProxy.stats', { type });
-			}).then(void 0, onUnexpectedError);
+			}).then(undefined, onUnexpectedError);
 	}
 }

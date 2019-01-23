@@ -21,7 +21,7 @@ export class ClearNotificationAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@ICommandService private commandService: ICommandService
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super(id, label, 'clear-notification-action');
 	}
@@ -41,7 +41,7 @@ export class ClearAllNotificationsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@ICommandService private commandService: ICommandService
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super(id, label, 'clear-all-notifications-action');
 	}
@@ -61,7 +61,7 @@ export class HideNotificationsCenterAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@ICommandService private commandService: ICommandService
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super(id, label, 'hide-all-notifications-action');
 	}
@@ -81,7 +81,7 @@ export class ExpandNotificationAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@ICommandService private commandService: ICommandService
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super(id, label, 'expand-notification-action');
 	}
@@ -101,7 +101,7 @@ export class CollapseNotificationAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@ICommandService private commandService: ICommandService
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super(id, label, 'collapse-notification-action');
 	}
@@ -139,7 +139,7 @@ export class CopyNotificationMessageAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IClipboardService private clipboardService: IClipboardService
+		@IClipboardService private readonly clipboardService: IClipboardService
 	) {
 		super(id, label);
 	}
@@ -154,8 +154,8 @@ export class CopyNotificationMessageAction extends Action {
 export class NotificationActionRunner extends ActionRunner {
 
 	constructor(
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@INotificationService private notificationService: INotificationService
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@INotificationService private readonly notificationService: INotificationService
 	) {
 		super();
 	}
@@ -171,7 +171,7 @@ export class NotificationActionRunner extends ActionRunner {
 		this.telemetryService.publicLog('workbenchActionExecuted', { id: action.id, from: 'message' });
 
 		// Run and make sure to notify on any error again
-		super.runAction(action, context).then(void 0, error => this.notificationService.error(error));
+		super.runAction(action, context).then(undefined, error => this.notificationService.error(error));
 
 		return Promise.resolve();
 	}

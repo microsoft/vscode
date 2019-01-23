@@ -348,7 +348,7 @@ export function matchesFuzzy(word: string, wordToMatchAgainst: string, enableSep
  * powerfull than `matchesFuzzy`
  */
 export function matchesFuzzy2(pattern: string, word: string): IMatch[] | null {
-	let score = fuzzyScore(pattern, pattern.toLowerCase(), 0, word, word.toLowerCase(), 0, false);
+	let score = fuzzyScore(pattern, pattern.toLowerCase(), 0, word, word.toLowerCase(), 0, true);
 	return score ? createMatches(score) : null;
 }
 
@@ -386,7 +386,13 @@ export function createMatches(score: undefined | FuzzyScore): IMatch[] {
 		if (mask > matches) {
 			break;
 		} else if (matches & mask) {
-			res.push({ start: pos, end: pos + 1 });
+			const last = res[res.length - 1];
+
+			if (last && last.end === pos) {
+				last.end = pos + 1;
+			} else {
+				res.push({ start: pos, end: pos + 1 });
+			}
 		}
 	}
 	return res;
@@ -456,6 +462,7 @@ function isSeparatorAtPos(value: string, index: number): boolean {
 		case CharCode.SingleQuote:
 		case CharCode.DoubleQuote:
 		case CharCode.Colon:
+		case CharCode.DollarSign:
 			return true;
 		default:
 			return false;
@@ -474,6 +481,10 @@ function isWhitespaceAtPos(value: string, index: number): boolean {
 		default:
 			return false;
 	}
+}
+
+function isUpperCaseAtPos(pos: number, word: string, wordLow: string): boolean {
+	return word[pos] !== wordLow[pos];
 }
 
 function isPatternInWord(patternLow: string, patternPos: number, patternLen: number, wordLow: string, wordPos: number, wordLen: number): boolean {
@@ -501,6 +512,10 @@ export namespace FuzzyScore {
 	 * No matches and value `-100`
 	 */
 	export const Default: [-100, 0, 0] = [-100, 0, 0];
+
+	export function isDefault(score?: FuzzyScore): score is [-100, 0, 0] {
+		return !score || (score[0] === -100 && score[1] === 0 && score[2] === 0);
+	}
 }
 
 export interface FuzzyScorer {
@@ -532,18 +547,19 @@ export function fuzzyScore(pattern: string, patternLow: string, patternPos: numb
 		for (wordPos = 1; wordPos <= wordLen; wordPos++) {
 
 			let score = -1;
-			let lowWordChar = wordLow[wordPos - 1];
-			if (patternLow[patternPos - 1] === lowWordChar) {
+			if (patternLow[patternPos - 1] === wordLow[wordPos - 1]) {
 
 				if (wordPos === (patternPos - patternStartPos)) {
 					// common prefix: `foobar <-> foobaz`
+					//                            ^^^^^
 					if (pattern[patternPos - 1] === word[wordPos - 1]) {
 						score = 7;
 					} else {
 						score = 5;
 					}
-				} else if (lowWordChar !== word[wordPos - 1] && (wordPos === 1 || wordLow[wordPos - 2] === word[wordPos - 2])) {
+				} else if (isUpperCaseAtPos(wordPos - 1, word, wordLow) && (wordPos === 1 || !isUpperCaseAtPos(wordPos - 2, word, wordLow))) {
 					// hitting upper-case: `foo <-> forOthers`
+					//                              ^^ ^
 					if (pattern[patternPos - 1] === word[wordPos - 1]) {
 						score = 7;
 					} else {
@@ -551,6 +567,7 @@ export function fuzzyScore(pattern: string, patternLow: string, patternPos: numb
 					}
 				} else if (isSeparatorAtPos(wordLow, wordPos - 2) || isWhitespaceAtPos(wordLow, wordPos - 2)) {
 					// post separator: `foo <-> bar_foo`
+					//                              ^^^
 					score = 5;
 
 				} else {

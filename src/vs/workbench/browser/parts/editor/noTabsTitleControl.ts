@@ -6,7 +6,7 @@
 import 'vs/css!./media/notabstitlecontrol';
 import { toResource, Verbosity, IEditorInput } from 'vs/workbench/common/editor';
 import { TitleControl, IToolbarActions } from 'vs/workbench/browser/parts/editor/titleControl';
-import { ResourceLabel } from 'vs/workbench/browser/labels';
+import { ResourceLabel, IResourceLabel } from 'vs/workbench/browser/labels';
 import { TAB_ACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
 import { addDisposableListener, EventType, addClass, EventHelper, removeClass, toggleClass } from 'vs/base/browser/dom';
@@ -22,7 +22,7 @@ interface IRenderedEditorLabel {
 
 export class NoTabsTitleControl extends TitleControl {
 	private titleContainer: HTMLElement;
-	private editorLabel: ResourceLabel;
+	private editorLabel: IResourceLabel;
 	private activeLabel: IRenderedEditorLabel = Object.create(null);
 
 	protected create(parent: HTMLElement): void {
@@ -40,8 +40,8 @@ export class NoTabsTitleControl extends TitleControl {
 		this.titleContainer.appendChild(labelContainer);
 
 		// Editor Label
-		this.editorLabel = this._register(this.instantiationService.createInstance(ResourceLabel, labelContainer, void 0));
-		this._register(this.editorLabel.onClick(e => this.onTitleLabelClick(e)));
+		this.editorLabel = this._register(this.instantiationService.createInstance(ResourceLabel, labelContainer, undefined)).element;
+		this._register(addDisposableListener(this.editorLabel.element, EventType.CLICK, e => this.onTitleLabelClick(e)));
 
 		// Breadcrumbs
 		this.createBreadcrumbsControl(labelContainer, { showFileIcons: false, showSymbolIcons: true, showDecorationColors: false, breadcrumbsBackground: () => Color.transparent });
@@ -244,7 +244,7 @@ export class NoTabsTitleControl extends TitleControl {
 				title = ''; // dont repeat what is already shown
 			}
 
-			this.editorLabel.setLabel({ name, description, resource }, { title, italic: !isEditorPinned, extraClasses: ['no-tabs', 'title-label'] });
+			this.editorLabel.setResource({ name, description, resource }, { title, italic: !isEditorPinned, extraClasses: ['no-tabs', 'title-label'] });
 			if (isGroupActive) {
 				this.editorLabel.element.style.color = this.getColor(TAB_ACTIVE_FOREGROUND);
 			} else {

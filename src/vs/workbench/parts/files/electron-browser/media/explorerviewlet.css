@@ -9,8 +9,18 @@
 }
 
 /* --- Explorer viewlet --- */
-.explorer-viewlet {
+.explorer-viewlet,
+.explorer-folders-view {
 	height: 100%;
+}
+
+.explorer-folders-view .monaco-list-row {
+	padding-left: 4px; /* align top level twistie with `Explorer` title label */
+}
+
+.explorer-viewlet .monaco-list.highlight .explorer-item:not(.explorer-item-edited),
+.explorer-viewlet .monaco-list.highlight .monaco-tl-twistie {
+	opacity: 0.3;
 }
 
 .explorer-viewlet .explorer-item,
@@ -35,6 +45,10 @@
 .explorer-viewlet .explorer-item,
 .explorer-viewlet .explorer-item .monaco-inputbox {
 	flex: 1;
+}
+
+.explorer-viewlet .explorer-item.cut {
+	opacity: 0.3;
 }
 
 .explorer-viewlet .explorer-item.explorer-item-edited .label-name {
@@ -106,17 +120,12 @@
 	line-height: normal;
 }
 
-.monaco-workbench.linux .explorer-viewlet .explorer-item .monaco-inputbox,
-.monaco-workbench.mac .explorer-viewlet .explorer-item .monaco-inputbox {
+.linux > .monaco-workbench .explorer-viewlet .explorer-item .monaco-inputbox,
+.mac > .monaco-workbench .explorer-viewlet .explorer-item .monaco-inputbox {
 	height: 22px;
 }
 
-.explorer-viewlet .explorer-item .monaco-inputbox > .wrapper > .input {
-	padding: 1px 2px;
-}
-
-.monaco-workbench.linux .explorer-viewlet .explorer-item .monaco-inputbox > .wrapper > .input,
-.monaco-workbench.mac .explorer-viewlet .explorer-item .monaco-inputbox > .wrapper > .input {
+.monaco-workbench .explorer-viewlet .explorer-item .monaco-inputbox > .wrapper > .input {
 	padding: 0;
 	height: 20px;
 }

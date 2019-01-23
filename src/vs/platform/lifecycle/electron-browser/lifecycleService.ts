@@ -42,10 +42,10 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 	private shutdownReason: ShutdownReason;
 
 	constructor(
-		@INotificationService private notificationService: INotificationService,
-		@IWindowService private windowService: IWindowService,
-		@IStorageService private storageService: IStorageService,
-		@ILogService private logService: ILogService
+		@INotificationService private readonly notificationService: INotificationService,
+		@IWindowService private readonly windowService: IWindowService,
+		@IStorageService private readonly storageService: IStorageService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 
@@ -143,7 +143,7 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 			reason
 		});
 
-		return Promise.all(joiners).then(() => void 0, err => {
+		return Promise.all(joiners).then(() => undefined, err => {
 			this.notificationService.error(toErrorMessage(err));
 			onUnexpectedError(err);
 		});
@@ -163,8 +163,9 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 		this._phase = value;
 		mark(`LifecyclePhase/${LifecyclePhaseToString(value)}`);
 
-		if (this.phaseWhen.has(this._phase)) {
-			this.phaseWhen.get(this._phase).open();
+		const barrier = this.phaseWhen.get(this._phase);
+		if (barrier) {
+			barrier.open();
 			this.phaseWhen.delete(this._phase);
 		}
 	}

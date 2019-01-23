@@ -103,7 +103,7 @@ export class PieceTreeTextBufferBuilder implements ITextBufferBuilder {
 		}
 
 		const lastChar = chunk.charCodeAt(chunk.length - 1);
-		if (lastChar === CharCode.CarriageReturn || (lastChar >= 0xd800 && lastChar <= 0xdbff)) {
+		if (lastChar === CharCode.CarriageReturn || (lastChar >= 0xD800 && lastChar <= 0xDBFF)) {
 			// last character is \r or a high surrogate => keep it back
 			this._acceptChunk1(chunk.substr(0, chunk.length - 1), false);
 			this._hasPreviousChar = true;

@@ -32,47 +32,45 @@ export class Debugger implements IDebugger {
 	private mergedExtensionDescriptions: IExtensionDescription[];
 
 	constructor(private configurationManager: IConfigurationManager, private debuggerContribution: IDebuggerContribution, public extensionDescription: IExtensionDescription,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@ITextResourcePropertiesService private resourcePropertiesService: ITextResourcePropertiesService,
-		@ICommandService private commandService: ICommandService,
-		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService,
-		@ITelemetryService private telemetryService: ITelemetryService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ITextResourcePropertiesService private readonly resourcePropertiesService: ITextResourcePropertiesService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IConfigurationResolverService private readonly configurationResolverService: IConfigurationResolverService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		this.mergedExtensionDescriptions = [extensionDescription];
 	}
 
 	public createDebugAdapter(session: IDebugSession, outputService: IOutputService): Promise<IDebugAdapter> {
-		return new Promise<IDebugAdapter>((resolve, reject) => {
-			this.configurationManager.activateDebuggers('onDebugAdapterProtocolTracker', this.type).then(_ => {
-				resolve(this._createDebugAdapter(session, outputService));
-			}, reject);
+		return this.configurationManager.activateDebuggers('onDebugAdapterProtocolTracker', this.type).then(_ => {
+			if (this.inExtHost()) {
+				const da = this.configurationManager.createDebugAdapter(session);
+				if (da) {
+					return Promise.resolve(da);
+				}
+				throw new Error(nls.localize('cannot.find.da', "Cannot find debug adapter for type '{0}'.", this.type));
+			} else {
+				return this.getAdapterDescriptor(session).then(adapterDescriptor => {
+					switch (adapterDescriptor.type) {
+						case 'executable':
+							return new ExecutableDebugAdapter(adapterDescriptor, this.type, outputService);
+						case 'server':
+							return new SocketDebugAdapter(adapterDescriptor);
+						case 'implementation':
+							// TODO@AW: this.inExtHost() should now return true
+							return Promise.resolve(this.configurationManager.createDebugAdapter(session));
+						default:
+							throw new Error('unknown descriptor type');
+					}
+				}).catch(err => {
+					if (err && err.message) {
+						throw new Error(nls.localize('cannot.create.da.with.err', "Cannot create debug adapter ({0}).", err.message));
+					} else {
+						throw new Error(nls.localize('cannot.create.da', "Cannot create debug adapter."));
+					}
+				});
+			}
 		});
-	}
-
-	private _createDebugAdapter(session: IDebugSession, outputService: IOutputService): Promise<IDebugAdapter> {
-		if (this.inExtHost()) {
-			return Promise.resolve(this.configurationManager.createDebugAdapter(session));
-		} else {
-			return this.getAdapterDescriptor(session).then(adapterDescriptor => {
-				switch (adapterDescriptor.type) {
-					case 'executable':
-						return new ExecutableDebugAdapter(adapterDescriptor, this.type, outputService);
-					case 'server':
-						return new SocketDebugAdapter(adapterDescriptor);
-					case 'implementation':
-						// TODO@AW: this.inExtHost() should now return true
-						return Promise.resolve(this.configurationManager.createDebugAdapter(session));
-					default:
-						throw new Error('unknown type');
-				}
-			}).catch(err => {
-				if (err && err.message) {
-					throw new Error(nls.localize('cannot.create.da.with.err', "Cannot create debug adapter ({0}).", err.message));
-				} else {
-					throw new Error(nls.localize('cannot.create.da', "Cannot create debug adapter."));
-				}
-			});
-		}
 	}
 
 	private getAdapterDescriptor(session: IDebugSession): Promise<IAdapterDescriptor> {

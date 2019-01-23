@@ -243,7 +243,7 @@ function parseWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], rela
 			}
 		}
 		if (!uri) {
-			return void 0;
+			return undefined;
 		}
 		return new WorkspaceFolder({ uri, name: configuredFolder.name! /*is ensured in caller*/, index }, configuredFolder);
 	});

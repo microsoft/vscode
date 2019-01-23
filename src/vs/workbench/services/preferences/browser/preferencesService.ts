@@ -33,7 +33,7 @@ import { IWorkspaceConfigurationService } from 'vs/workbench/services/configurat
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { GroupDirection, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
-import { DEFAULT_SETTINGS_EDITOR_SETTING, FOLDER_SETTINGS_PATH, getSettingsTargetName, IPreferencesEditorModel, IPreferencesService, ISetting, ISettingsEditorOptions, SettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
+import { DEFAULT_SETTINGS_EDITOR_SETTING, FOLDER_SETTINGS_PATH, getSettingsTargetName, IPreferencesEditorModel, IPreferencesService, ISetting, ISettingsEditorOptions, SettingsEditorOptions, USE_SPLIT_JSON_SETTING } from 'vs/workbench/services/preferences/common/preferences';
 import { DefaultPreferencesEditorInput, KeybindingsEditorInput, PreferencesEditorInput, SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { defaultKeybindingsContents, DefaultKeybindingsEditorModel, DefaultSettings, DefaultSettingsEditorModel, Settings2EditorModel, SettingsEditorModel, WorkspaceConfigurationEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 
@@ -45,7 +45,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	private lastOpenedSettingsInput: PreferencesEditorInput | null = null;
 
-	private readonly _onDispose: Emitter<void> = new Emitter<void>();
+	private readonly _onDispose = new Emitter<void>();
 
 	private _defaultUserSettingsUriCounter = 0;
 	private _defaultUserSettingsContentModel: DefaultSettings;
@@ -55,21 +55,21 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	private _defaultFolderSettingsContentModel: DefaultSettings;
 
 	constructor(
-		@IEditorService private editorService: IEditorService,
-		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
-		@IFileService private fileService: IFileService,
-		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
-		@INotificationService private notificationService: INotificationService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@ITextModelService private textModelResolverService: ITextModelService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
+		@IFileService private readonly fileService: IFileService,
+		@IWorkspaceConfigurationService private readonly configurationService: IWorkspaceConfigurationService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IModelService private modelService: IModelService,
-		@IJSONEditingService private jsonEditingService: IJSONEditingService,
-		@IModeService private modeService: IModeService,
-		@ILabelService private labelService: ILabelService
+		@IModelService private readonly modelService: IModelService,
+		@IJSONEditingService private readonly jsonEditingService: IJSONEditingService,
+		@IModeService private readonly modeService: IModeService,
+		@ILabelService private readonly labelService: ILabelService
 	) {
 		super();
 		// The default keybindings.json updates based on keyboard layouts, so here we make sure
@@ -268,9 +268,9 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 					return Promise.all([
 						this.editorService.openEditor({ resource: this.defaultKeybindingsResource, options: { pinned: true, preserveFocus: true, revealIfOpened: true }, label: nls.localize('defaultKeybindings', "Default Keybindings"), description: '' }),
 						this.editorService.openEditor({ resource: editableKeybindings, options: { pinned: true, revealIfOpened: true } }, sideEditorGroup.id)
-					]).then(editors => void 0);
+					]).then(editors => undefined);
 				} else {
-					return this.editorService.openEditor({ resource: editableKeybindings, options: { pinned: true, revealIfOpened: true } }).then(() => void 0);
+					return this.editorService.openEditor({ resource: editableKeybindings, options: { pinned: true, revealIfOpened: true } }).then(() => undefined);
 				}
 			});
 		}
@@ -313,6 +313,11 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	private doOpenSettings(configurationTarget: ConfigurationTarget, resource: URI, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditor> {
+		const openSplitJSON = !!this.configurationService.getValue(USE_SPLIT_JSON_SETTING);
+		if (openSplitJSON) {
+			return this.doOpenSplitJSON(configurationTarget, resource, options, group);
+		}
+
 		const openDefaultSettings = !!this.configurationService.getValue(DEFAULT_SETTINGS_EDITOR_SETTING);
 
 		return this.getOrCreateEditableSettingsEditorInput(configurationTarget, resource)
@@ -333,6 +338,22 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 				} else {
 					return this.editorService.openEditor(editableSettingsEditorInput, SettingsEditorOptions.create(options), group);
 				}
+			});
+	}
+
+	private doOpenSplitJSON(configurationTarget: ConfigurationTarget, resource: URI, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditor> {
+		return this.getOrCreateEditableSettingsEditorInput(configurationTarget, resource)
+			.then(editableSettingsEditorInput => {
+				if (!options) {
+					options = { pinned: true };
+				} else {
+					options = assign(options, { pinned: true });
+				}
+
+				const defaultPreferencesEditorInput = this.instantiationService.createInstance(DefaultPreferencesEditorInput, this.getDefaultSettingsResource(configurationTarget));
+				const preferencesEditorInput = new PreferencesEditorInput(this.getPreferencesEditorInputName(configurationTarget, resource), editableSettingsEditorInput.getDescription(), defaultPreferencesEditorInput, <EditorInput>editableSettingsEditorInput);
+				this.lastOpenedSettingsInput = preferencesEditorInput;
+				return this.editorService.openEditor(preferencesEditorInput, SettingsEditorOptions.create(options), group);
 			});
 	}
 
@@ -493,13 +514,13 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && target === ConfigurationTarget.WORKSPACE) {
 			const workspaceConfig = this.contextService.getWorkspace().configuration;
 			if (!workspaceConfig) {
-				return Promise.resolve(void 0);
+				return Promise.resolve(undefined);
 			}
 
 			return this.fileService.resolveContent(workspaceConfig)
 				.then(content => {
 					if (Object.keys(parse(content.value)).indexOf('settings') === -1) {
-						return this.jsonEditingService.write(resource, { key: 'settings', value: {} }, true).then(void 0, () => { });
+						return this.jsonEditingService.write(resource, { key: 'settings', value: {} }, true).then(undefined, () => { });
 					}
 					return null;
 				});
@@ -508,9 +529,9 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	private createIfNotExists(resource: URI, contents: string): Promise<any> {
-		return this.fileService.resolveContent(resource, { acceptTextOnly: true }).then(void 0, error => {
+		return this.fileService.resolveContent(resource, { acceptTextOnly: true }).then(undefined, error => {
 			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
-				return this.fileService.updateContent(resource, contents).then(void 0, error => {
+				return this.fileService.updateContent(resource, contents).then(undefined, error => {
 					return Promise.reject(new Error(nls.localize('fail.createSettings', "Unable to create '{0}' ({1}).", this.labelService.getUriLabel(resource, { relative: true }), error)));
 				});
 			}

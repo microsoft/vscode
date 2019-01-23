@@ -99,8 +99,8 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 	private _onEnter = new Emitter<void>();
 	readonly onEnter: Event<void> = this._onEnter.event;
 
-	private _onInputDidChange = new Emitter<string>();
-	readonly onInputDidChange: Event<string> = this._onInputDidChange.event;
+	private _onInputDidChange = new Emitter<string | undefined>();
+	readonly onInputDidChange: Event<string | undefined> = this._onInputDidChange.event;
 
 	private disposables: IDisposable[] = [];
 	private inputWidget: CodeEditorWidget;
@@ -120,7 +120,7 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		super();
 
 		this.stylingContainer = append(parent, $('.suggest-input-container'));
-		this.placeholderText = append(this.stylingContainer, $('.suggest-input-placeholder', null, options.placeholderText || ''));
+		this.placeholderText = append(this.stylingContainer, $('.suggest-input-placeholder', undefined, options.placeholderText || ''));
 
 		const editorOptions: IEditorOptions = mixin(
 			getSimpleEditorOptions(),
@@ -152,13 +152,16 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		onKeyDownMonaco.filter(e => e.keyCode === KeyCode.DownArrow && (isMacintosh ? e.metaKey : e.ctrlKey)).on(() => this._onShouldFocusResults.fire(), this, this.disposables);
 
 		let preexistingContent = this.getValue();
-		this.disposables.push(this.inputWidget.getModel().onDidChangeContent(() => {
-			let content = this.getValue();
-			this.placeholderText.style.visibility = content ? 'hidden' : 'visible';
-			if (preexistingContent.trim() === content.trim()) { return; }
-			this._onInputDidChange.fire();
-			preexistingContent = content;
-		}));
+		const inputWidgetModel = this.inputWidget.getModel();
+		if (inputWidgetModel) {
+			this.disposables.push(inputWidgetModel.onDidChangeContent(() => {
+				let content = this.getValue();
+				this.placeholderText.style.visibility = content ? 'hidden' : 'visible';
+				if (preexistingContent.trim() === content.trim()) { return; }
+				this._onInputDidChange.fire(undefined);
+				preexistingContent = content;
+			}));
+		}
 
 		let validatedSuggestProvider = {
 			provideResults: suggestionProvider.provideResults,
@@ -206,9 +209,9 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 
 
 	public style(colors: ISuggestEnabledInputStyles): void {
-		this.stylingContainer.style.backgroundColor = colors.inputBackground && colors.inputBackground.toString();
-		this.stylingContainer.style.color = colors.inputForeground && colors.inputForeground.toString();
-		this.placeholderText.style.color = colors.inputPlaceholderForeground && colors.inputPlaceholderForeground.toString();
+		this.stylingContainer.style.backgroundColor = colors.inputBackground ? colors.inputBackground.toString() : null;
+		this.stylingContainer.style.color = colors.inputForeground ? colors.inputForeground.toString() : null;
+		this.placeholderText.style.color = colors.inputPlaceholderForeground ? colors.inputPlaceholderForeground.toString() : null;
 
 		this.stylingContainer.style.borderWidth = '1px';
 		this.stylingContainer.style.borderStyle = 'solid';
@@ -218,7 +221,7 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 
 		const cursor = this.stylingContainer.getElementsByClassName('cursor')[0] as HTMLDivElement;
 		if (cursor) {
-			cursor.style.backgroundColor = colors.inputForeground && colors.inputForeground.toString();
+			cursor.style.backgroundColor = colors.inputForeground ? colors.inputForeground.toString() : null;
 		}
 	}
 
@@ -249,7 +252,7 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 registerThemingParticipant((theme, collector) => {
 	let selectionColor = theme.getColor(selectionBackground);
 	if (selectionColor) {
-		selectionColor = selectionColor.transparent(.4);
+		selectionColor = selectionColor.transparent(0.4);
 	} else {
 		selectionColor = theme.getColor(editorSelectionBackground);
 	}
@@ -260,8 +263,8 @@ registerThemingParticipant((theme, collector) => {
 
 	// Override inactive selection bg
 	const inputBackgroundColor = theme.getColor(inputBackground);
-	if (inputBackground) {
-		collector.addRule(`.suggest-input-container .monaco-editor .selected-text { background-color: ${inputBackgroundColor.transparent(.4)}; }`);
+	if (inputBackgroundColor) {
+		collector.addRule(`.suggest-input-container .monaco-editor .selected-text { background-color: ${inputBackgroundColor.transparent(0.4)}; }`);
 	}
 
 	// Override selected fg
@@ -281,7 +284,7 @@ function getSuggestEnabledInputOptions(ariaLabel?: string): IEditorOptions {
 		roundedSelection: false,
 		renderIndentGuides: false,
 		cursorWidth: 1,
-		fontFamily: ' -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif',
+		fontFamily: ' -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif',
 		ariaLabel: ariaLabel || '',
 
 		snippetSuggestions: 'none',

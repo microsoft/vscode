@@ -10,7 +10,6 @@ import { Server, Socket, createServer } from 'net';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { timeout } from 'vs/base/common/async';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
@@ -21,9 +20,8 @@ import { URI } from 'vs/base/common/uri';
 import { IRemoteConsoleLog, log, parse } from 'vs/base/node/console';
 import { findFreePort, randomPort } from 'vs/base/node/ports';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
-import { Protocol, generateRandomPipeName } from 'vs/base/parts/ipc/node/ipc.net';
+import { Protocol, generateRandomPipeName, BufferedProtocol } from 'vs/base/parts/ipc/node/ipc.net';
 import { IBroadcast, IBroadcastService } from 'vs/platform/broadcast/electron-browser/broadcastService';
-import { getScopes } from 'vs/platform/configuration/common/configurationRegistry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { EXTENSION_ATTACH_BROADCAST_CHANNEL, EXTENSION_CLOSE_EXTHOST_BROADCAST_CHANNEL, EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_RELOAD_BROADCAST_CHANNEL, EXTENSION_TERMINATE_BROADCAST_CHANNEL } from 'vs/platform/extensions/common/extensionHost';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -34,9 +32,8 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IConfigurationInitData, IInitData } from 'vs/workbench/api/node/extHost.protocol';
+import { IInitData } from 'vs/workbench/api/node/extHost.protocol';
 import { MessageType, createMessageOfType, isMessageOfType } from 'vs/workbench/common/extensionHostProtocol';
-import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { ICrashReporterService } from 'vs/workbench/services/crashReporter/electron-browser/crashReporterService';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 
@@ -103,7 +100,6 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		@IBroadcastService private readonly _broadcastService: IBroadcastService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
-		@IWorkspaceConfigurationService private readonly _configurationService: IWorkspaceConfigurationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ICrashReporterService private readonly _crashReporterService: ICrashReporterService,
 		@ILogService private readonly _logService: ILogService,
@@ -351,7 +347,11 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 				this._namedPipeServer.close();
 				this._namedPipeServer = null;
 				this._extensionHostConnection = socket;
-				resolve(new Protocol(this._extensionHostConnection));
+
+				// using a buffered message protocol here because between now
+				// and the first time a `then` executes some messages might be lost
+				// unless we immediately register a listener for `onMessage`.
+				resolve(new BufferedProtocol(new Protocol(this._extensionHostConnection)));
 			});
 
 		}).then((protocol) => {
@@ -397,10 +397,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 						disposable.dispose();
 
 						// release this promise
-						// using a buffered message protocol here because between now
-						// and the first time a `then` executes some messages might be lost
-						// unless we immediately register a listener for `onMessage`.
-						resolve(new BufferedMessagePassingProtocol(protocol));
+						resolve(protocol);
 						return;
 					}
 
@@ -415,15 +412,14 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 	private _createExtHostInitData(): Promise<IInitData> {
 		return Promise.all([this._telemetryService.getTelemetryInfo(), this._extensions])
 			.then(([telemetryInfo, extensionDescriptions]) => {
-				const configurationData: IConfigurationInitData = { ...this._configurationService.getConfigurationData(), configurationScopes: {} };
 				const workspace = this._contextService.getWorkspace();
 				const r: IInitData = {
 					commit: product.commit,
 					parentPid: process.pid,
 					environment: {
 						isExtensionDevelopmentDebug: this._isExtensionDevDebug,
-						appRoot: this._environmentService.appRoot ? URI.file(this._environmentService.appRoot) : void 0,
-						appSettingsHome: this._environmentService.appSettingsHome ? URI.file(this._environmentService.appSettingsHome) : void 0,
+						appRoot: this._environmentService.appRoot ? URI.file(this._environmentService.appRoot) : undefined,
+						appSettingsHome: this._environmentService.appSettingsHome ? URI.file(this._environmentService.appSettingsHome) : undefined,
 						extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 						extensionTestsPath: this._environmentService.extensionTestsPath,
 						globalStorageHome: URI.file(this._environmentService.globalStorageHome)
@@ -434,9 +430,8 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 						id: workspace.id,
 						name: this._labelService.getWorkspaceLabel(workspace)
 					},
+					resolvedExtensions: [],
 					extensions: extensionDescriptions,
-					// Send configurations scopes only in development mode.
-					configuration: !this._environmentService.isBuilt || this._environmentService.isExtensionDevelopment ? { ...configurationData, configurationScopes: getScopes() } : configurationData,
 					telemetryInfo,
 					logLevel: this._logService.getLevel(),
 					logsLocation: this._extensionHostLogsLocation,
@@ -567,59 +562,5 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
 			event.join(timeout(100 /* wait a bit for IPC to get delivered */));
 		}
-	}
-}
-
-/**
- * Will ensure no messages are lost from creation time until the first user of onMessage comes in.
- */
-class BufferedMessagePassingProtocol implements IMessagePassingProtocol {
-
-	private readonly _actual: IMessagePassingProtocol;
-	private _bufferedMessagesListener: IDisposable;
-	private _bufferedMessages: Buffer[];
-
-	constructor(actual: IMessagePassingProtocol) {
-		this._actual = actual;
-		this._bufferedMessages = [];
-		this._bufferedMessagesListener = this._actual.onMessage((buff) => this._bufferedMessages.push(buff));
-	}
-
-	public send(buffer: Buffer): void {
-		this._actual.send(buffer);
-	}
-
-	public onMessage(listener: (e: Buffer) => any, thisArgs?: any, disposables?: IDisposable[]): IDisposable {
-		if (!this._bufferedMessages) {
-			// second caller gets nothing
-			return this._actual.onMessage(listener, thisArgs, disposables);
-		}
-
-		// prepare result
-		const result = this._actual.onMessage(listener, thisArgs, disposables);
-
-		// stop listening to buffered messages
-		this._bufferedMessagesListener.dispose();
-
-		// capture buffered messages
-		const bufferedMessages = this._bufferedMessages;
-		this._bufferedMessages = null;
-
-		// it is important to deliver these messages after this call, but before
-		// other messages have a chance to be received (to guarantee in order delivery)
-		// that's why we're using here nextTick and not other types of timeouts
-		process.nextTick(() => {
-			// deliver buffered messages
-			while (bufferedMessages.length > 0) {
-				const msg = bufferedMessages.shift();
-				try {
-					listener.call(thisArgs, msg);
-				} catch (e) {
-					onUnexpectedError(e);
-				}
-			}
-		});
-
-		return result;
 	}
 }

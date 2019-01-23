@@ -25,7 +25,7 @@ export default class MarkdownFoldingProvider implements vscode.FoldingRangeProvi
 			(isStartRegion(token.content) || isEndRegion(token.content));
 
 
-		const tokens = await this.engine.parse(document.uri, document.getText());
+		const tokens = await this.engine.parse(document);
 		const regionMarkers = tokens.filter(isRegionMarker)
 			.map(token => ({ line: token.map[0], isStart: isStartRegion(token.content) }));
 
@@ -84,7 +84,7 @@ export default class MarkdownFoldingProvider implements vscode.FoldingRangeProvi
 			}
 		};
 
-		const tokens = await this.engine.parse(document.uri, document.getText());
+		const tokens = await this.engine.parse(document);
 		const multiLineListItems = tokens.filter(isFoldableToken);
 		return multiLineListItems.map(listItem => {
 			const start = listItem.map[0];

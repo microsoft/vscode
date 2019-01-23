@@ -118,7 +118,7 @@ export class BackupFileService implements IBackupFileService {
 
 	constructor(
 		backupWorkspacePath: string,
-		@IFileService private fileService: IFileService
+		@IFileService private readonly fileService: IFileService
 	) {
 		this.isShuttingDown = false;
 		this.ioOperationQueues = new ResourceQueue();
@@ -153,7 +153,7 @@ export class BackupFileService implements IBackupFileService {
 				return backupResource;
 			}
 
-			return void 0;
+			return undefined;
 		});
 	}
 
@@ -165,7 +165,7 @@ export class BackupFileService implements IBackupFileService {
 		return this.ready.then(model => {
 			const backupResource = this.toBackupResource(resource);
 			if (model.has(backupResource, versionId)) {
-				return void 0; // return early if backup version id matches requested one
+				return undefined; // return early if backup version id matches requested one
 			}
 
 			return this.ioOperationQueues.queueFor(backupResource).queue(() => {

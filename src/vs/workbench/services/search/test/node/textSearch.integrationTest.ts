@@ -15,7 +15,7 @@ import { ISerializedFileMatch } from 'vs/workbench/services/search/node/search';
 import { TextSearchEngineAdapter } from 'vs/workbench/services/search/node/textSearchAdapter';
 
 function countAll(matches: ISerializedFileMatch[]): number {
-	return matches.reduce((acc, m) => acc + m.numMatches, 0);
+	return matches.reduce((acc, m) => acc + m.numMatches!, 0);
 }
 
 const TEST_FIXTURES = path.normalize(getPathFromAmdModule(require, './fixtures'));
@@ -39,7 +39,7 @@ function doLegacySearchTest(config: ITextQuery, expectedResultCount: number | Fu
 		if (result && Array.isArray(result)) {
 			c += countAll(result);
 		}
-	}, null).then(() => {
+	}, null!).then(() => {
 		if (typeof expectedResultCount === 'function') {
 			assert(expectedResultCount(c));
 		} else {
@@ -49,13 +49,13 @@ function doLegacySearchTest(config: ITextQuery, expectedResultCount: number | Fu
 }
 
 function doRipgrepSearchTest(query: ITextQuery, expectedResultCount: number | Function): Promise<ISerializedFileMatch[]> {
-	let engine = new TextSearchEngineAdapter(query);
+	const engine = new TextSearchEngineAdapter(query);
 
 	let c = 0;
 	const results: ISerializedFileMatch[] = [];
 	return engine.search(new CancellationTokenSource().token, _results => {
 		if (_results) {
-			c += _results.reduce((acc, cur) => acc + cur.numMatches, 0);
+			c += _results.reduce((acc, cur) => acc + cur.numMatches!, 0);
 			results.push(..._results);
 		}
 	}, () => { }).then(() => {
@@ -78,7 +78,7 @@ suite('Search-integration', function () {
 	this.timeout(1000 * 60); // increase timeout for this suite
 
 	test('Text: GameOfLife', () => {
-		const config = <ITextQuery>{
+		const config: ITextQuery = {
 			type: QueryType.Text,
 			folderQueries: ROOT_FOLDER_QUERY,
 			contentPattern: { pattern: 'GameOfLife' },
@@ -88,7 +88,7 @@ suite('Search-integration', function () {
 	});
 
 	test('Text: GameOfLife (RegExp)', () => {
-		const config = <ITextQuery>{
+		const config: ITextQuery = {
 			type: QueryType.Text,
 			folderQueries: ROOT_FOLDER_QUERY,
 			contentPattern: { pattern: 'Game.?fL\\w?fe', isRegExp: true }
@@ -98,7 +98,7 @@ suite('Search-integration', function () {
 	});
 
 	test('Text: GameOfLife (PCRE2 RegExp)', () => {
-		const config = <ITextQuery>{
+		const config: ITextQuery = {
 			type: QueryType.Text,
 			folderQueries: ROOT_FOLDER_QUERY,
 			usePCRE2: true,
@@ -109,7 +109,7 @@ suite('Search-integration', function () {
 	});
 
 	test('Text: GameOfLife (RegExp to EOL)', () => {
-		const config = <ITextQuery>{
+		const config: ITextQuery = {
 			type: QueryType.Text,
 			folderQueries: ROOT_FOLDER_QUERY,
 			contentPattern: { pattern: 'GameOfLife.*', isRegExp: true }
@@ -119,7 +119,7 @@ suite('Search-integration', function () {
 	});
 
 	test('Text: GameOfLife (Word Match, Case Sensitive)', () => {
-		const config = <ITextQuery>{
+		const config: ITextQuery = {
 			type: QueryType.Text,
 			folderQueries: ROOT_FOLDER_QUERY,
 			contentPattern: { pattern: 'GameOfLife', isWordMatch: true, isCaseSensitive: true }
@@ -129,7 +129,7 @@ suite('Search-integration', function () {
 	});
 
 	test('Text: GameOfLife (Word Match, Spaces)', () => {
-		const config = <ITextQuery>{
+		const config: ITextQuery = {
 			type: QueryType.Text,
 			folderQueries: ROOT_FOLDER_QUERY,
 			contentPattern: { pattern: ' GameOfLife ', isWordMatch: true }
@@ -139,7 +139,7 @@ suite('Search-integration', function () {
 	});
 
 	test('Text: GameOfLife (Word Match, Punctuation and Spaces)', () => {
-		const config = <ITextQuery>{
+		const config: ITextQuery = {
 			type: QueryType.Text,
 			folderQueries: ROOT_FOLDER_QUERY,
 			contentPattern: { pattern: ', as =', isWordMatch: true }
@@ -149,7 +149,7 @@ suite('Search-integration', function () {
 	});
 
 	test('Text: Helvetica (UTF 16)', () => {
-		const config = <ITextQuery>{
+		const config: ITextQuery = {
 			type: QueryType.Text,
 			folderQueries: ROOT_FOLDER_QUERY,
 			contentPattern: { pattern: 'Helvetica' }
@@ -159,13 +159,13 @@ suite('Search-integration', function () {
 	});
 
 	test('Text: e', () => {
-		const config = <ITextQuery>{
+		const config: ITextQuery = {
 			type: QueryType.Text,
 			folderQueries: ROOT_FOLDER_QUERY,
 			contentPattern: { pattern: 'e' }
 		};
 
-		return doSearchTest(config, 776);
+		return doSearchTest(config, 788);
 	});
 
 	test('Text: e (with excludes)', () => {
@@ -185,7 +185,7 @@ suite('Search-integration', function () {
 			includePattern: { '**/examples/**': true }
 		};
 
-		return doSearchTest(config, 382);
+		return doSearchTest(config, 394);
 	});
 
 	// TODO
@@ -228,12 +228,12 @@ suite('Search-integration', function () {
 			excludePattern: { '**/examples/small.js': true }
 		};
 
-		return doSearchTest(config, 361);
+		return doSearchTest(config, 371);
 	});
 
 	test('Text: a (capped)', () => {
 		const maxResults = 520;
-		const config = <ITextQuery>{
+		const config: ITextQuery = {
 			type: QueryType.Text,
 			folderQueries: ROOT_FOLDER_QUERY,
 			contentPattern: { pattern: 'a' },
@@ -247,7 +247,7 @@ suite('Search-integration', function () {
 	});
 
 	test('Text: a (no results)', () => {
-		const config = <ITextQuery>{
+		const config: ITextQuery = {
 			type: QueryType.Text,
 			folderQueries: ROOT_FOLDER_QUERY,
 			contentPattern: { pattern: 'ahsogehtdas' }
@@ -257,7 +257,7 @@ suite('Search-integration', function () {
 	});
 
 	test('Text: -size', () => {
-		const config = <ITextQuery>{
+		const config: ITextQuery = {
 			type: QueryType.Text,
 			folderQueries: ROOT_FOLDER_QUERY,
 			contentPattern: { pattern: '-size' }
@@ -284,7 +284,7 @@ suite('Search-integration', function () {
 			excludePattern: makeExpression('**/*.txt')
 		};
 
-		return doSearchTest(config, 382);
+		return doSearchTest(config, 394);
 	});
 
 	test('Multiroot: e with global excludes', () => {
@@ -308,18 +308,18 @@ suite('Search-integration', function () {
 			contentPattern: { pattern: 'e' }
 		};
 
-		return doSearchTest(config, 286);
+		return doSearchTest(config, 298);
 	});
 
 	test('Text: 语', () => {
-		const config = <ITextQuery>{
+		const config: ITextQuery = {
 			type: QueryType.Text,
 			folderQueries: ROOT_FOLDER_QUERY,
 			contentPattern: { pattern: '语' }
 		};
 
 		return doRipgrepSearchTest(config, 1).then(results => {
-			const matchRange = (<ITextSearchMatch>results[0].results[0]).ranges;
+			const matchRange = (<ITextSearchMatch>results[0].results![0]).ranges;
 			assert.deepEqual(matchRange, [{
 				startLineNumber: 0,
 				startColumn: 1,
@@ -330,7 +330,7 @@ suite('Search-integration', function () {
 	});
 
 	test('Multiple matches on line: h\\d,', () => {
-		const config = <ITextQuery>{
+		const config: ITextQuery = {
 			type: QueryType.Text,
 			folderQueries: ROOT_FOLDER_QUERY,
 			contentPattern: { pattern: 'h\\d,', isRegExp: true }
@@ -338,14 +338,14 @@ suite('Search-integration', function () {
 
 		return doRipgrepSearchTest(config, 15).then(results => {
 			assert.equal(results.length, 3);
-			assert.equal(results[0].results.length, 1);
-			const match = <ITextSearchMatch>results[0].results[0];
+			assert.equal(results[0].results!.length, 1);
+			const match = <ITextSearchMatch>results[0].results![0];
 			assert.equal((<ISearchRange[]>match.ranges).length, 5);
 		});
 	});
 
 	test('Search with context matches', () => {
-		const config = <ITextQuery>{
+		const config: ITextQuery = {
 			type: QueryType.Text,
 			folderQueries: ROOT_FOLDER_QUERY,
 			contentPattern: { pattern: 'compiler.typeCheck();' },
@@ -355,19 +355,19 @@ suite('Search-integration', function () {
 
 		return doRipgrepSearchTest(config, 4).then(results => {
 			assert.equal(results.length, 4);
-			assert.equal((<ITextSearchContext>results[0].results[0]).lineNumber, 25);
-			assert.equal((<ITextSearchContext>results[0].results[0]).text, '        compiler.addUnit(prog,"input.ts");');
+			assert.equal((<ITextSearchContext>results[0].results![0]).lineNumber, 25);
+			assert.equal((<ITextSearchContext>results[0].results![0]).text, '        compiler.addUnit(prog,"input.ts");');
 			// assert.equal((<ITextSearchMatch>results[1].results[0]).preview.text, '        compiler.typeCheck();\n'); // See https://github.com/BurntSushi/ripgrep/issues/1095
-			assert.equal((<ITextSearchContext>results[2].results[0]).lineNumber, 27);
-			assert.equal((<ITextSearchContext>results[2].results[0]).text, '        compiler.emit();');
-			assert.equal((<ITextSearchContext>results[3].results[0]).lineNumber, 28);
-			assert.equal((<ITextSearchContext>results[3].results[0]).text, '');
+			assert.equal((<ITextSearchContext>results[2].results![0]).lineNumber, 27);
+			assert.equal((<ITextSearchContext>results[2].results![0]).text, '        compiler.emit();');
+			assert.equal((<ITextSearchContext>results[3].results![0]).lineNumber, 28);
+			assert.equal((<ITextSearchContext>results[3].results![0]).text, '');
 		});
 	});
 
 	suite('error messages', () => {
 		test('invalid encoding', () => {
-			const config = <ITextQuery>{
+			const config: ITextQuery = {
 				type: QueryType.Text,
 				folderQueries: [
 					{
@@ -388,7 +388,7 @@ suite('Search-integration', function () {
 		});
 
 		test('invalid regex', () => {
-			const config = <ITextQuery>{
+			const config: ITextQuery = {
 				type: QueryType.Text,
 				folderQueries: ROOT_FOLDER_QUERY,
 				contentPattern: { pattern: ')', isRegExp: true },
@@ -404,7 +404,7 @@ suite('Search-integration', function () {
 		});
 
 		test('invalid glob', () => {
-			const config = <ITextQuery>{
+			const config: ITextQuery = {
 				type: QueryType.Text,
 				folderQueries: ROOT_FOLDER_QUERY,
 				contentPattern: { pattern: 'foo' },
@@ -423,7 +423,7 @@ suite('Search-integration', function () {
 		});
 
 		test('invalid literal', () => {
-			const config = <ITextQuery>{
+			const config: ITextQuery = {
 				type: QueryType.Text,
 				folderQueries: ROOT_FOLDER_QUERY,
 				contentPattern: { pattern: 'foo\nbar', isRegExp: true }

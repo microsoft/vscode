@@ -46,17 +46,17 @@ export interface IEditor {
 	/**
 	 * The assigned input of this editor.
 	 */
-	input: IEditorInput;
+	input: IEditorInput | null;
 
 	/**
 	 * The assigned options of this editor.
 	 */
-	options: IEditorOptions;
+	options: IEditorOptions | null;
 
 	/**
 	 * The assigned group this editor is showing in.
 	 */
-	group: IEditorGroup;
+	group: IEditorGroup | undefined;
 
 	/**
 	 * The minimum width of this editor.
@@ -81,7 +81,7 @@ export interface IEditor {
 	/**
 	 * An event to notify whenever minimum/maximum width/height changes.
 	 */
-	readonly onDidSizeConstraintsChange: Event<{ width: number; height: number; }>;
+	readonly onDidSizeConstraintsChange: Event<{ width: number; height: number; } | undefined>;
 
 	/**
 	 * Returns the unique identifier of this editor.
@@ -91,7 +91,7 @@ export interface IEditor {
 	/**
 	 * Returns the underlying control of this editor.
 	 */
-	getControl(): IEditorControl;
+	getControl(): IEditorControl | null;
 
 	/**
 	 * Asks the underlying control to focus.
@@ -509,6 +509,8 @@ export interface IEncodingSupport {
  * to register this kind of input to the platform.
  */
 export interface IFileEditorInput extends IEditorInput, IEncodingSupport {
+
+	getResource(): URI;
 
 	/**
 	 * Sets the preferred encodingt to use for this input.
@@ -939,6 +941,7 @@ export interface IWorkbenchEditorPartConfiguration {
 	highlightModifiedTabs?: boolean;
 	tabCloseButton?: 'left' | 'right' | 'off';
 	tabSizing?: 'fit' | 'shrink';
+	closeTabsInMRUOrder?: boolean;
 	showIcons?: boolean;
 	enablePreview?: boolean;
 	enablePreviewFromQuickOpen?: boolean;
@@ -1007,8 +1010,8 @@ export interface IEditorMemento<T> {
 	saveEditorState(group: IEditorGroup, resource: URI, state: T): void;
 	saveEditorState(group: IEditorGroup, editor: EditorInput, state: T): void;
 
-	loadEditorState(group: IEditorGroup, resource: URI): T;
-	loadEditorState(group: IEditorGroup, editor: EditorInput): T;
+	loadEditorState(group: IEditorGroup, resource: URI): T | undefined;
+	loadEditorState(group: IEditorGroup, editor: EditorInput): T | undefined;
 
 	clearEditorState(resource: URI, group?: IEditorGroup): void;
 	clearEditorState(editor: EditorInput, group?: IEditorGroup): void;

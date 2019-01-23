@@ -17,11 +17,15 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class NoProviderError extends Error {
 
-	static readonly Name = 'NOPRO';
+	static is(thing: any): thing is NoProviderError {
+		return thing instanceof Error && thing.name === NoProviderError._name;
+	}
+
+	private static readonly _name = 'NOPRO';
 
 	constructor(message?: string) {
 		super();
-		this.name = NoProviderError.Name;
+		this.name = NoProviderError._name;
 		if (message) {
 			this.message = message;
 		}

@@ -25,13 +25,13 @@ function options(custom?: Partial<IBestWindowOrFolderOptions<ISimpleWindow>>): I
 		reuseWindow: false,
 		context: OpenContext.CLI,
 		codeSettingsFolder: '_vscode',
-		workspaceResolver: workspace => { return workspace === testWorkspace ? { id: testWorkspace.id, configPath: workspace.configPath, folders: toWorkspaceFolders([{ path: path.join(fixturesFolder, 'vscode_workspace_1_folder') }, { path: path.join(fixturesFolder, 'vscode_workspace_2_folder') }]) } : null; },
+		workspaceResolver: workspace => { return workspace === testWorkspace ? { id: testWorkspace.id, configPath: workspace.configPath, folders: toWorkspaceFolders([{ path: path.join(fixturesFolder, 'vscode_workspace_1_folder') }, { path: path.join(fixturesFolder, 'vscode_workspace_2_folder') }]) } : null!; },
 		...custom
 	};
 }
 
 const vscodeFolderWindow: ISimpleWindow = { lastFocusTime: 1, openedFolderUri: URI.file(path.join(fixturesFolder, 'vscode_folder')) };
-const lastActiveWindow: ISimpleWindow = { lastFocusTime: 3, openedFolderUri: null };
+const lastActiveWindow: ISimpleWindow = { lastFocusTime: 3, openedFolderUri: undefined };
 const noVscodeFolderWindow: ISimpleWindow = { lastFocusTime: 2, openedFolderUri: URI.file(path.join(fixturesFolder, 'no_vscode_folder')) };
 const windows: ISimpleWindow[] = [
 	vscodeFolderWindow,

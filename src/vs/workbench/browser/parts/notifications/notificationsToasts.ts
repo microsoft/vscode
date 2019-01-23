@@ -61,13 +61,13 @@ export class NotificationsToasts extends Themable {
 	constructor(
 		private container: HTMLElement,
 		private model: INotificationsModel,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IPartService private partService: IPartService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IPartService private readonly partService: IPartService,
 		@IThemeService themeService: IThemeService,
-		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IWindowService private windowService: IWindowService
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IWindowService private readonly windowService: IWindowService
 	) {
 		super(themeService);
 
@@ -456,7 +456,7 @@ export class NotificationsToasts extends Themable {
 		let maxWidth = NotificationsToasts.MAX_WIDTH;
 
 		let availableWidth = maxWidth;
-		let availableHeight: number;
+		let availableHeight: number | undefined;
 
 		if (this.workbenchDimensions) {
 
@@ -477,7 +477,9 @@ export class NotificationsToasts extends Themable {
 			availableHeight -= (2 * 12); // adjust for paddings top and bottom
 		}
 
-		availableHeight = Math.round(availableHeight * 0.618); // try to not cover the full height for stacked toasts
+		availableHeight = typeof availableHeight === 'number'
+			? Math.round(availableHeight * 0.618) // try to not cover the full height for stacked toasts
+			: 0;
 
 		return new Dimension(Math.min(maxWidth, availableWidth), availableHeight);
 	}

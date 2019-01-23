@@ -6,7 +6,7 @@
 import 'vs/css!./watermark';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
-import { isMacintosh } from 'vs/base/common/platform';
+import { isMacintosh, OS } from 'vs/base/common/platform';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -22,63 +22,63 @@ import { ShowAllCommandsAction } from 'vs/workbench/parts/quickopen/browser/comm
 import { Parts, IPartService, IDimension } from 'vs/workbench/services/part/common/partService';
 import { StartAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { FindInFilesActionId } from 'vs/workbench/parts/search/common/constants';
-import { escape } from 'vs/base/common/strings';
 import { QUICKOPEN_ACTION_ID } from 'vs/workbench/browser/parts/quickopen/quickopen';
 import { TERMINAL_COMMAND_ID } from 'vs/workbench/parts/terminal/common/terminalCommands';
 import * as dom from 'vs/base/browser/dom';
+import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 
 const $ = dom.$;
 
 interface WatermarkEntry {
 	text: string;
-	ids: string[];
+	id: string;
 	mac?: boolean;
 }
 
 const showCommands: WatermarkEntry = {
 	text: nls.localize('watermark.showCommands', "Show All Commands"),
-	ids: [ShowAllCommandsAction.ID]
+	id: ShowAllCommandsAction.ID
 };
 const quickOpen: WatermarkEntry = {
 	text: nls.localize('watermark.quickOpen', "Go to File"),
-	ids: [QUICKOPEN_ACTION_ID]
+	id: QUICKOPEN_ACTION_ID
 };
 const openFileNonMacOnly: WatermarkEntry = {
 	text: nls.localize('watermark.openFile', "Open File"),
-	ids: [OpenFileAction.ID],
+	id: OpenFileAction.ID,
 	mac: false
 };
 const openFolderNonMacOnly: WatermarkEntry = {
 	text: nls.localize('watermark.openFolder', "Open Folder"),
-	ids: [OpenFolderAction.ID],
+	id: OpenFolderAction.ID,
 	mac: false
 };
 const openFileOrFolderMacOnly: WatermarkEntry = {
 	text: nls.localize('watermark.openFileFolder', "Open File or Folder"),
-	ids: [OpenFileFolderAction.ID],
+	id: OpenFileFolderAction.ID,
 	mac: true
 };
 const openRecent: WatermarkEntry = {
 	text: nls.localize('watermark.openRecent', "Open Recent"),
-	ids: [OpenRecentAction.ID]
+	id: OpenRecentAction.ID
 };
 const newUntitledFile: WatermarkEntry = {
 	text: nls.localize('watermark.newUntitledFile', "New Untitled File"),
-	ids: [GlobalNewUntitledFileAction.ID]
+	id: GlobalNewUntitledFileAction.ID
 };
 const newUntitledFileMacOnly: WatermarkEntry = assign({ mac: true }, newUntitledFile);
 const toggleTerminal: WatermarkEntry = {
 	text: nls.localize({ key: 'watermark.toggleTerminal', comment: ['toggle is a verb here'] }, "Toggle Terminal"),
-	ids: [TERMINAL_COMMAND_ID.TOGGLE]
+	id: TERMINAL_COMMAND_ID.TOGGLE
 };
 
 const findInFiles: WatermarkEntry = {
 	text: nls.localize('watermark.findInFiles', "Find in Files"),
-	ids: [FindInFilesActionId]
+	id: FindInFilesActionId
 };
 const startDebugging: WatermarkEntry = {
 	text: nls.localize('watermark.startDebugging', "Start Debugging"),
-	ids: [StartAction.ID]
+	id: StartAction.ID
 };
 
 const noFolderEntries = [
@@ -87,8 +87,7 @@ const noFolderEntries = [
 	openFolderNonMacOnly,
 	openFileOrFolderMacOnly,
 	openRecent,
-	newUntitledFileMacOnly,
-	toggleTerminal
+	newUntitledFileMacOnly
 ];
 
 const folderEntries = [
@@ -99,7 +98,6 @@ const folderEntries = [
 	toggleTerminal
 ];
 
-const UNBOUND = nls.localize('watermark.unboundCommand', "unbound");
 const WORKBENCH_TIPS_ENABLED_KEY = 'workbench.tips.enabled';
 
 export class WatermarkContribution implements IWorkbenchContribution {
@@ -111,10 +109,10 @@ export class WatermarkContribution implements IWorkbenchContribution {
 
 	constructor(
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@IPartService private partService: IPartService,
-		@IKeybindingService private keybindingService: IKeybindingService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IPartService private readonly partService: IPartService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		this.workbenchState = contextService.getWorkbenchState();
 
@@ -162,15 +160,9 @@ export class WatermarkContribution implements IWorkbenchContribution {
 				const dt = dom.append(dl, $('dt'));
 				dt.textContent = entry.text;
 				const dd = dom.append(dl, $('dd'));
-				dd.innerHTML = entry.ids
-					.map(id => {
-						let k = this.keybindingService.lookupKeybinding(id);
-						if (k) {
-							return `<span class="shortcuts">${escape(k.getLabel())}</span>`;
-						}
-						return `<span class="unbound">${escape(UNBOUND)}</span>`;
-					})
-					.join(' / ');
+				const keybinding = new KeybindingLabel(dd, OS, { renderUnboundKeybindings: true });
+				keybinding.set(this.keybindingService.lookupKeybinding(entry.id));
+				dd.innerHTML = keybinding.element.outerHTML;
 			});
 		};
 		update();

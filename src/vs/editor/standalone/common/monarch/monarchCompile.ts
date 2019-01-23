@@ -219,7 +219,6 @@ function compileAction(lexer: monarchCommon.ILexerMin, ruleName: string, action:
 	else if (action.token || action.token === '') {
 		if (typeof (action.token) !== 'string') {
 			throw monarchCommon.createError(lexer, 'a \'token\' attribute must be of type string, in rule: ' + ruleName);
-			return { token: '' };
 		}
 		else {
 			// only copy specific typed fields (only happens once during compile Lexer)
@@ -321,7 +320,6 @@ function compileAction(lexer: monarchCommon.ILexerMin, ruleName: string, action:
 	}
 	else {
 		throw monarchCommon.createError(lexer, 'an action must be a string, an object with a \'token\' or \'cases\' attribute, or an array of actions; in rule: ' + ruleName);
-		return '';
 	}
 }
 

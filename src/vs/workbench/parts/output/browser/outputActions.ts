@@ -44,7 +44,7 @@ export class ClearOutputAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@IOutputService private outputService: IOutputService
+		@IOutputService private readonly outputService: IOutputService
 	) {
 		super(id, label, 'output-action clear-output');
 	}
@@ -57,7 +57,10 @@ export class ClearOutputAction extends Action {
 	}
 }
 
-export class ToggleOutputScrollLockAction extends Action {
+// this action can be triggered in two ways:
+// 1. user clicks the action icon, In which case the action toggles the lock state
+// 2. user clicks inside the output panel, which sets the lock, Or unsets it if they click the last line.
+export class ToggleOrSetOutputScrollLockAction extends Action {
 
 	public static readonly ID = 'workbench.output.action.toggleOutputScrollLock';
 	public static readonly LABEL = nls.localize({ key: 'toggleOutputScrollLock', comment: ['Turn on / off automatic output scrolling'] }, "Toggle Output Scroll Lock");
@@ -65,15 +68,21 @@ export class ToggleOutputScrollLockAction extends Action {
 	private toDispose: IDisposable[] = [];
 
 	constructor(id: string, label: string,
-		@IOutputService private outputService: IOutputService) {
+		@IOutputService private readonly outputService: IOutputService) {
 		super(id, label, 'output-action output-scroll-unlock');
 		this.toDispose.push(this.outputService.onActiveOutputChannel(channel => this.setClass(this.outputService.getActiveChannel().scrollLock)));
 	}
 
-	public run(): Promise<boolean> {
+	public run(newLockState?: boolean): Promise<boolean> {
+
 		const activeChannel = this.outputService.getActiveChannel();
 		if (activeChannel) {
-			activeChannel.scrollLock = !activeChannel.scrollLock;
+			if (typeof (newLockState) === 'boolean') {
+				activeChannel.scrollLock = newLockState;
+			}
+			else {
+				activeChannel.scrollLock = !activeChannel.scrollLock;
+			}
 			this.setClass(activeChannel.scrollLock);
 		}
 
@@ -98,7 +107,7 @@ export class SwitchOutputAction extends Action {
 
 	public static readonly ID = 'workbench.output.action.switchBetweenOutputs';
 
-	constructor(@IOutputService private outputService: IOutputService) {
+	constructor(@IOutputService private readonly outputService: IOutputService) {
 		super(SwitchOutputAction.ID, nls.localize('switchToOutput.label', "Switch to Output"));
 
 		this.class = 'output-action switch-to-output';
@@ -118,7 +127,7 @@ export class SwitchOutputActionItem extends SelectActionItem {
 
 	constructor(
 		action: IAction,
-		@IOutputService private outputService: IOutputService,
+		@IOutputService private readonly outputService: IOutputService,
 		@IThemeService themeService: IThemeService,
 		@IContextViewService contextViewService: IContextViewService
 	) {
@@ -173,9 +182,9 @@ export class OpenLogOutputFile extends Action {
 	private disposables: IDisposable[] = [];
 
 	constructor(
-		@IOutputService private outputService: IOutputService,
-		@IEditorService private editorService: IEditorService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IOutputService private readonly outputService: IOutputService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super(OpenLogOutputFile.ID, OpenLogOutputFile.LABEL, 'output-action open-log-file');
 		this.outputService.onActiveOutputChannel(this.update, this, this.disposables);
@@ -203,8 +212,8 @@ export class ShowLogsOutputChannelAction extends Action {
 	static LABEL = nls.localize('showLogs', "Show Logs...");
 
 	constructor(id: string, label: string,
-		@IQuickInputService private quickInputService: IQuickInputService,
-		@IOutputService private outputService: IOutputService
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IOutputService private readonly outputService: IOutputService
 	) {
 		super(id, label);
 	}
@@ -233,10 +242,10 @@ export class OpenOutputLogFileAction extends Action {
 	static LABEL = nls.localize('openLogFile', "Open Log File...");
 
 	constructor(id: string, label: string,
-		@IQuickInputService private quickInputService: IQuickInputService,
-		@IOutputService private outputService: IOutputService,
-		@IEditorService private editorService: IEditorService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IOutputService private readonly outputService: IOutputService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super(id, label);
 	}

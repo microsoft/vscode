@@ -1854,6 +1854,11 @@ declare module 'vscode' {
 	 * * `{}` to group conditions (e.g. `**​/*.{ts,js}` matches all TypeScript and JavaScript files)
 	 * * `[]` to declare a range of characters to match in a path segment (e.g., `example.[0-9]` to match on `example.0`, `example.1`, …)
 	 * * `[!...]` to negate a range of characters to match in a path segment (e.g., `example.[!0-9]` to match on `example.a`, `example.b`, but not `example.0`)
+	 *
+	 * Note: a backslash (`\`) is not valid within a glob pattern. If you have an existing file
+	 * path to match against, consider to use the [relative pattern](#RelativePattern) support
+	 * that takes care of converting any backslash into slash. Otherwise, make sure to convert
+	 * any backslash to slash when creating the glob pattern.
 	 */
 	export type GlobPattern = string | RelativePattern;
 
@@ -2024,9 +2029,20 @@ declare module 'vscode' {
 		append(parts: string): CodeActionKind;
 
 		/**
-		 * Does this kind contain `other`?
+		 * Checks if this code action kind intersects `other`.
 		 *
-		 * The kind `"refactor"` for example contains `"refactor.extract"` and ``"refactor.extract.function"`, but not `"unicorn.refactor.extract"` or `"refactory.extract"`
+		 * The kind `"refactor.extract"` for example intersects `refactor`, `"refactor.extract"` and ``"refactor.extract.function"`,
+		 * but not `"unicorn.refactor.extract"`, or `"refactor.extractAll"`.
+		 *
+		 * @param other Kind to check.
+		 */
+		intersects(other: CodeActionKind): boolean;
+
+		/**
+		 * Checks if `other` is a sub-kind of this `CodeActionKind`.
+		 *
+		 * The kind `"refactor.extract"` for example contains `"refactor.extract"` and ``"refactor.extract.function"`,
+		 * but not `"unicorn.refactor.extract"`, or `"refactor.extractAll"` or `refactor`.
 		 *
 		 * @param other Kind to check.
 		 */
@@ -2684,8 +2700,8 @@ declare module 'vscode' {
 		 *
 		 * @param document The document in which the command was invoked.
 		 * @param position The position at which the command was invoked.
-		 * @param context
 		 * @param token A cancellation token.
+		 *
 		 * @return An array of locations or a thenable that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined`, `null`, or an empty array.
 		 */
@@ -4665,6 +4681,15 @@ declare module 'vscode' {
 		storagePath: string | undefined;
 
 		/**
+		 * An absolute file path in which the extension can store gloabal state.
+		 * The directory might not exist on disk and creation is
+		 * up to the extension. However, the parent directory is guaranteed to be existent.
+		 *
+		 * Use [`globalState`](#ExtensionContext.globalState) to store key value data.
+		 */
+		globalStoragePath: string;
+
+		/**
 		 * An absolute file path of a directory in which the extension can create log files.
 		 * The directory might not exist on disk and creation is up to the extension. However,
 		 * the parent directory is guaranteed to be existent.
@@ -5325,10 +5350,8 @@ declare module 'vscode' {
 
 		/**
 		 * The currently active task executions or an empty array.
-		 *
-		 * @readonly
 		 */
-		export let taskExecutions: ReadonlyArray<TaskExecution>;
+		export const taskExecutions: ReadonlyArray<TaskExecution>;
 
 		/**
 		 * Fires when a task starts.
@@ -5870,24 +5893,18 @@ declare module 'vscode' {
 
 		/**
 		 * The application name of the editor, like 'VS Code'.
-		 *
-		 * @readonly
 		 */
-		export let appName: string;
+		export const appName: string;
 
 		/**
 		 * The application root folder from which the editor is running.
-		 *
-		 * @readonly
 		 */
-		export let appRoot: string;
+		export const appRoot: string;
 
 		/**
 		 * Represents the preferred user-language, like `de-CH`, `fr`, or `en-US`.
-		 *
-		 * @readonly
 		 */
-		export let language: string;
+		export const language: string;
 
 		/**
 		 * The system clipboard.
@@ -5896,18 +5913,14 @@ declare module 'vscode' {
 
 		/**
 		 * A unique identifier for the computer.
-		 *
-		 * @readonly
 		 */
-		export let machineId: string;
+		export const machineId: string;
 
 		/**
 		 * A unique identifier for the current session.
 		 * Changes each time the editor is started.
-		 *
-		 * @readonly
 		 */
-		export let sessionId: string;
+		export const sessionId: string;
 	}
 
 	/**
@@ -6113,10 +6126,8 @@ declare module 'vscode' {
 
 		/**
 		 * Represents the current window's state.
-		 *
-		 * @readonly
 		 */
-		export let state: WindowState;
+		export const state: WindowState;
 
 		/**
 		 * An [event](#Event) which fires when the focus state of the current window
@@ -6835,14 +6846,23 @@ declare module 'vscode' {
 		shellArgs?: string[];
 
 		/**
-		 * A path for the current working directory to be used for the terminal.
+		 * A path or Uri for the current working directory to be used for the terminal.
 		 */
-		cwd?: string;
+		cwd?: string | Uri;
 
 		/**
 		 * Object with environment variables that will be added to the VS Code process.
 		 */
 		env?: { [key: string]: string | null };
+
+		/**
+		 * Whether the terminal process environment should be exactly as provided in
+		 * `TerminalOptions.env`. When this is false (default), the environment will be based on the
+		 * window's environment and also apply configured platform settings like
+		 * `terminal.integrated.windows.env` on top. When this is true, the complete environment
+		 * must be provided as nothing will be inherited from the process or any configuration.
+		 */
+		strictEnv?: boolean;
 	}
 
 	/**
@@ -7324,26 +7344,20 @@ declare module 'vscode' {
 		 * has been opened.~~
 		 *
 		 * @deprecated Use [`workspaceFolders`](#workspace.workspaceFolders) instead.
-		 *
-		 * @readonly
 		 */
-		export let rootPath: string | undefined;
+		export const rootPath: string | undefined;
 
 		/**
 		 * List of workspace folders or `undefined` when no folder is open.
 		 * *Note* that the first entry corresponds to the value of `rootPath`.
-		 *
-		 * @readonly
 		 */
-		export let workspaceFolders: WorkspaceFolder[] | undefined;
+		export const workspaceFolders: WorkspaceFolder[] | undefined;
 
 		/**
 		 * The name of the workspace. `undefined` when no folder
 		 * has been opened.
-		 *
-		 * @readonly
 		 */
-		export let name: string | undefined;
+		export const name: string | undefined;
 
 		/**
 		 * An event that is emitted when a workspace folder is added or removed.
@@ -7479,10 +7493,8 @@ declare module 'vscode' {
 
 		/**
 		 * All text documents currently known to the system.
-		 *
-		 * @readonly
 		 */
-		export let textDocuments: TextDocument[];
+		export const textDocuments: TextDocument[];
 
 		/**
 		 * Opens a document. Will return early if this document is already open. Otherwise
@@ -7924,7 +7936,7 @@ declare module 'vscode' {
 		export function registerReferenceProvider(selector: DocumentSelector, provider: ReferenceProvider): Disposable;
 
 		/**
-		 * Register a reference provider.
+		 * Register a rename provider.
 		 *
 		 * Multiple providers can be registered for a language. In that case providers are sorted
 		 * by their [score](#languages.match) and the best-matching provider is used. Failure

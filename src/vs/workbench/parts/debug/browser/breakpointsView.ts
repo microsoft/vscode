@@ -50,12 +50,12 @@ export class BreakpointsView extends ViewletPanel {
 	constructor(
 		options: IViewletViewOptions,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IDebugService private debugService: IDebugService,
+		@IDebugService private readonly debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IThemeService private themeService: IThemeService,
-		@IEditorService private editorService: IEditorService,
-		@IContextViewService private contextViewService: IContextViewService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IThemeService private readonly themeService: IThemeService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('breakpointsSection', "Breakpoints Section") }, keybindingService, contextMenuService, configurationService);
@@ -119,6 +119,12 @@ export class BreakpointsView extends ViewletPanel {
 		}));
 
 		this.list.splice(0, this.list.length, this.elements);
+
+		this.disposables.push(this.onDidChangeBodyVisibility(visible => {
+			if (visible && this.needsRefresh) {
+				this.onBreakpointsChange();
+			}
+		}));
 	}
 
 	public focus(): void {
@@ -191,22 +197,8 @@ export class BreakpointsView extends ViewletPanel {
 		];
 	}
 
-	public setExpanded(expanded: boolean): void {
-		super.setExpanded(expanded);
-		if (expanded && this.needsRefresh) {
-			this.onBreakpointsChange();
-		}
-	}
-
-	public setVisible(visible: boolean): void {
-		super.setVisible(visible);
-		if (visible && this.needsRefresh) {
-			this.onBreakpointsChange();
-		}
-	}
-
 	private onBreakpointsChange(): void {
-		if (this.isExpanded() && this.isVisible()) {
+		if (this.isBodyVisible()) {
 			this.minimumBodySize = this.getExpandedBodySize();
 			if (this.maximumBodySize < Number.POSITIVE_INFINITY) {
 				this.maximumBodySize = this.minimumBodySize;
@@ -293,8 +285,8 @@ interface IInputTemplateData {
 class BreakpointsRenderer implements IListRenderer<IBreakpoint, IBreakpointTemplateData> {
 
 	constructor(
-		@IDebugService private debugService: IDebugService,
-		@ILabelService private labelService: ILabelService
+		@IDebugService private readonly debugService: IDebugService,
+		@ILabelService private readonly labelService: ILabelService
 	) {
 		// noop
 	}
@@ -402,7 +394,7 @@ class ExceptionBreakpointsRenderer implements IListRenderer<IExceptionBreakpoint
 class FunctionBreakpointsRenderer implements IListRenderer<FunctionBreakpoint, IBaseBreakpointWithIconTemplateData> {
 
 	constructor(
-		@IDebugService private debugService: IDebugService
+		@IDebugService private readonly debugService: IDebugService
 	) {
 		// noop
 	}

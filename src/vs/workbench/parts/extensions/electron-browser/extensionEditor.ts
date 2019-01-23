@@ -20,10 +20,11 @@ import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionManifest, IKeyBinding, IView, IExtensionTipsService, LocalExtensionType, IViewContainer } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManifest, IKeyBinding, IView, IViewContainer, ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { ResolvedKeybinding, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
-import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, IExtension, IExtensionDependencies } from 'vs/workbench/parts/extensions/common/extensions';
+import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, IExtension, IExtensionDependencies, ExtensionContainers } from 'vs/workbench/parts/extensions/common/extensions';
 import { RatingsWidget, InstallCountWidget } from 'vs/workbench/parts/extensions/browser/extensionsWidgets';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -121,7 +122,7 @@ class NavBar {
 		this.currentId = id;
 		this._onChange.fire({ id, focus });
 		this.actions.forEach(a => a.enabled = a.id !== id);
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	dispose(): void {
@@ -192,7 +193,7 @@ export class ExtensionEditor extends BaseEditor {
 		@IPartService private readonly partService: IPartService,
 		@IExtensionTipsService private readonly extensionTipsService: IExtensionTipsService,
 		@IStorageService storageService: IStorageService,
-		@IExtensionService private extensionService: IExtensionService
+		@IExtensionService private readonly extensionService: IExtensionService
 	) {
 		super(ExtensionEditor.ID, telemetryService, themeService, storageService);
 		this.disposables = [];
@@ -289,17 +290,17 @@ export class ExtensionEditor extends BaseEditor {
 				this.icon.src = extension.iconUrl;
 
 				this.name.textContent = extension.displayName;
-				this.identifier.textContent = extension.id;
+				this.identifier.textContent = extension.identifier.id;
 				this.preview.style.display = extension.preview ? 'inherit' : 'none';
-				this.builtin.style.display = extension.type === LocalExtensionType.System ? 'inherit' : 'none';
+				this.builtin.style.display = extension.type === ExtensionType.System ? 'inherit' : 'none';
 
 				this.publisher.textContent = extension.publisherDisplayName;
 				this.description.textContent = extension.description;
 
 				const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
 				let recommendationsData = {};
-				if (extRecommendations[extension.id.toLowerCase()]) {
-					recommendationsData = { recommendationReason: extRecommendations[extension.id.toLowerCase()].reasonId };
+				if (extRecommendations[extension.identifier.id.toLowerCase()]) {
+					recommendationsData = { recommendationReason: extRecommendations[extension.identifier.id.toLowerCase()].reasonId };
 				}
 
 				/* __GDPR__
@@ -348,29 +349,26 @@ export class ExtensionEditor extends BaseEditor {
 					this.repository.style.display = 'none';
 				}
 
-				const install = this.instantiationService.createInstance(InstallCountWidget, this.installCount, { extension });
-				this.transientDisposables.push(install);
-
-				const ratings = this.instantiationService.createInstance(RatingsWidget, this.rating, { extension });
-				this.transientDisposables.push(ratings);
-
-				const maliciousStatusAction = this.instantiationService.createInstance(MaliciousStatusLabelAction, true);
-				const disabledStatusAction = this.instantiationService.createInstance(DisabledStatusLabelAction, runningExtensions);
-				const installAction = this.instantiationService.createInstance(CombinedInstallAction);
-				const updateAction = this.instantiationService.createInstance(UpdateAction);
-				const enableAction = this.instantiationService.createInstance(EnableDropDownAction, extension, runningExtensions);
-				const disableAction = this.instantiationService.createInstance(DisableDropDownAction, extension, runningExtensions);
+				const widgets = [
+					this.instantiationService.createInstance(InstallCountWidget, this.installCount, false),
+					this.instantiationService.createInstance(RatingsWidget, this.rating, false)
+				];
 				const reloadAction = this.instantiationService.createInstance(ReloadAction);
-
-				installAction.extension = extension;
-				maliciousStatusAction.extension = extension;
-				disabledStatusAction.extension = extension;
-				updateAction.extension = extension;
-				reloadAction.extension = extension;
+				const actions = [
+					reloadAction,
+					this.instantiationService.createInstance(UpdateAction),
+					this.instantiationService.createInstance(EnableDropDownAction, runningExtensions),
+					this.instantiationService.createInstance(DisableDropDownAction, runningExtensions),
+					this.instantiationService.createInstance(CombinedInstallAction),
+					this.instantiationService.createInstance(MaliciousStatusLabelAction, true),
+					this.instantiationService.createInstance(DisabledStatusLabelAction, runningExtensions)
+				];
+				const extensionContainers: ExtensionContainers = this.instantiationService.createInstance(ExtensionContainers, [...actions, ...widgets]);
+				extensionContainers.extension = extension;
 
 				this.extensionActionBar.clear();
-				this.extensionActionBar.push([reloadAction, updateAction, enableAction, disableAction, installAction, maliciousStatusAction, disabledStatusAction], { icon: true, label: true });
-				this.transientDisposables.push(enableAction, updateAction, reloadAction, disableAction, installAction, maliciousStatusAction, disabledStatusAction);
+				this.extensionActionBar.push(actions, { icon: true, label: true });
+				this.transientDisposables.push(...[...actions, extensionContainers]);
 
 				this.setSubText(extension, reloadAction);
 				this.content.innerHTML = ''; // Clear content before setting navbar actions.
@@ -418,11 +416,11 @@ export class ExtensionEditor extends BaseEditor {
 		this.transientDisposables.push(ignoreAction, undoIgnoreAction);
 
 		const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
-		if (extRecommendations[extension.id.toLowerCase()]) {
+		if (extRecommendations[extension.identifier.id.toLowerCase()]) {
 			ignoreAction.enabled = true;
-			this.subtext.textContent = extRecommendations[extension.id.toLowerCase()].reasonText;
+			this.subtext.textContent = extRecommendations[extension.identifier.id.toLowerCase()].reasonText;
 			show(this.subtextContainer);
-		} else if (this.extensionTipsService.getAllIgnoredRecommendations().global.indexOf(extension.id.toLowerCase()) !== -1) {
+		} else if (this.extensionTipsService.getAllIgnoredRecommendations().global.indexOf(extension.identifier.id.toLowerCase()) !== -1) {
 			undoIgnoreAction.enabled = true;
 			this.subtext.textContent = localize('recommendationHasBeenIgnored', "You have chosen not to receive recommendations for this extension.");
 			show(this.subtextContainer);
@@ -432,13 +430,13 @@ export class ExtensionEditor extends BaseEditor {
 		}
 
 		this.extensionTipsService.onRecommendationChange(change => {
-			if (change.extensionId.toLowerCase() === extension.id.toLowerCase()) {
+			if (change.extensionId.toLowerCase() === extension.identifier.id.toLowerCase()) {
 				if (change.isRecommended) {
 					undoIgnoreAction.enabled = false;
 					const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
-					if (extRecommendations[extension.id.toLowerCase()]) {
+					if (extRecommendations[extension.identifier.id.toLowerCase()]) {
 						ignoreAction.enabled = true;
-						this.subtext.textContent = extRecommendations[extension.id.toLowerCase()].reasonText;
+						this.subtext.textContent = extRecommendations[extension.identifier.id.toLowerCase()].reasonText;
 					}
 				} else {
 					undoIgnoreAction.enabled = true;
@@ -538,7 +536,7 @@ export class ExtensionEditor extends BaseEditor {
 				this.contentDisposables.push(wbeviewElement);
 				return wbeviewElement;
 			})
-			.then(void 0, () => {
+			.then(undefined, () => {
 				const p = append(this.content, $('p.nocontent'));
 				p.textContent = noContentCopy;
 				return p;
@@ -1001,7 +999,7 @@ export class ExtensionEditor extends BaseEditor {
 
 		const renderKeybinding = (keybinding: ResolvedKeybinding): HTMLElement => {
 			const element = $('');
-			new KeybindingLabel(element, OS).set(keybinding, null);
+			new KeybindingLabel(element, OS).set(keybinding);
 			return element;
 		};
 

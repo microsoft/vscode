@@ -238,8 +238,7 @@ class EditorModelManager extends Disposable {
 	}
 
 	public esureSyncedResources(resources: URI[]): void {
-		for (let i = 0; i < resources.length; i++) {
-			let resource = resources[i];
+		for (const resource of resources) {
 			let resourceStr = resource.toString();
 
 			if (!this._syncedModels[resourceStr]) {
@@ -262,8 +261,8 @@ class EditorModelManager extends Disposable {
 			}
 		}
 
-		for (let i = 0; i < toRemove.length; i++) {
-			this._stopModelSync(toRemove[i]);
+		for (const e of toRemove) {
+			this._stopModelSync(e);
 		}
 	}
 
@@ -361,7 +360,7 @@ export class EditorWorkerClient extends Disposable {
 	}
 
 	protected _getProxy(): Promise<EditorSimpleWorkerImpl> {
-		return this._getOrCreateWorker().getProxyObject().then(void 0, (err) => {
+		return this._getOrCreateWorker().getProxyObject().then(undefined, (err) => {
 			logOnceWebWorkerWarning(err);
 			this._worker = new SynchronousWorkerClient(new EditorSimpleWorkerImpl(null));
 			return this._getOrCreateWorker().getProxyObject();

@@ -24,7 +24,7 @@ export function keys<K, V>(map: Map<K, V>): K[] {
 
 export function getOrSet<K, V>(map: Map<K, V>, key: K, value: V): V {
 	let result = map.get(key);
-	if (result === void 0) {
+	if (result === undefined) {
 		result = value;
 		map.set(key, result);
 	}
@@ -431,7 +431,7 @@ export class ResourceMap<T> {
 		this.map.set(this.toKey(resource), value);
 	}
 
-	get(resource: URI): T {
+	get(resource: URI): T | undefined {
 		return this.map.get(this.toKey(resource));
 	}
 
@@ -687,7 +687,7 @@ export class LinkedMap<K, V> {
 		this._head = current;
 		this._size = currentSize;
 		if (current) {
-			current.previous = void 0;
+			current.previous = undefined;
 		}
 	}
 
@@ -719,8 +719,8 @@ export class LinkedMap<K, V> {
 
 	private removeItem(item: Item<K, V>): void {
 		if (item === this._head && item === this._tail) {
-			this._head = void 0;
-			this._tail = void 0;
+			this._head = undefined;
+			this._tail = undefined;
 		}
 		else if (item === this._head) {
 			this._head = item.next;
@@ -759,7 +759,7 @@ export class LinkedMap<K, V> {
 			if (item === this._tail) {
 				// previous must be defined since item was not head but is tail
 				// So there are more than on item in the map
-				previous!.next = void 0;
+				previous!.next = undefined;
 				this._tail = previous;
 			}
 			else {
@@ -769,7 +769,7 @@ export class LinkedMap<K, V> {
 			}
 
 			// Insert the node at head
-			item.previous = void 0;
+			item.previous = undefined;
 			item.next = this._head;
 			this._head.previous = item;
 			this._head = item;
@@ -785,14 +785,14 @@ export class LinkedMap<K, V> {
 			if (item === this._head) {
 				// next must be defined since item was not tail but is head
 				// So there are more than on item in the map
-				next!.previous = void 0;
+				next!.previous = undefined;
 				this._head = next;
 			} else {
 				// Both next and previous are not undefined since item was neither head nor tail.
 				next!.previous = previous;
 				previous!.next = next;
 			}
-			item.next = void 0;
+			item.next = undefined;
 			item.previous = this._tail;
 			this._tail.next = item;
 			this._tail = item;

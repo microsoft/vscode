@@ -107,6 +107,7 @@ namespace snippetExt {
 	};
 
 	export const point = ExtensionsRegistry.registerExtensionPoint<snippetExt.ISnippetsExtensionPoint[]>({
+		isDynamic: true,
 		extensionPoint: 'snippets',
 		deps: [languagesExtPoint],
 		jsonSchema: snippetExt.snippetsContribution
@@ -207,6 +208,13 @@ class SnippetsService implements ISnippetsService {
 
 	private _initExtensionSnippets(): void {
 		snippetExt.point.setHandler(extensions => {
+
+			this._files.forEach((value, key) => {
+				if (value.source === SnippetSource.Extension) {
+					this._files.delete(key);
+				}
+			});
+
 			for (const extension of extensions) {
 				for (const contribution of extension.value) {
 					const validContribution = snippetExt.toValidSnippet(extension, contribution, this._modeService);
@@ -215,8 +223,8 @@ class SnippetsService implements ISnippetsService {
 					}
 
 					const resource = validContribution.location.toString();
-					if (this._files.has(resource)) {
-						const file = this._files.get(resource);
+					const file = this._files.get(resource);
+					if (file) {
 						if (file.defaultScopes) {
 							file.defaultScopes.push(validContribution.language);
 						} else {

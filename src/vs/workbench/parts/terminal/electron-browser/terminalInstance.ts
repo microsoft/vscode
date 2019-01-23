@@ -9,6 +9,7 @@ import * as platform from 'vs/base/common/platform';
 import * as dom from 'vs/base/browser/dom';
 import * as paths from 'vs/base/common/paths';
 import * as os from 'os';
+import * as path from 'path';
 import { Event, Emitter } from 'vs/base/common/event';
 import { debounce } from 'vs/base/common/decorators';
 import { WindowsShellHelper } from 'vs/workbench/parts/terminal/node/windowsShellHelper';
@@ -34,14 +35,122 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { INotificationService, Severity, IPromptChoice } from 'vs/platform/notification/common/notification';
 import { ILogService } from 'vs/platform/log/common/log';
 import { TerminalCommandTracker } from 'vs/workbench/parts/terminal/node/terminalCommandTracker';
-import { TerminalProcessManager } from './terminalProcessManager';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { execFile, exec } from 'child_process';
+import { TERMINAL_COMMAND_ID } from 'vs/workbench/parts/terminal/common/terminalCommands';
+import { TerminalProcessManager } from 'vs/workbench/parts/terminal/electron-browser/terminalProcessManager';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
 const SLOW_CANVAS_RENDER_THRESHOLD = 50;
 const NUMBER_OF_FRAMES_TO_MEASURE = 20;
+
+
+export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
+	TERMINAL_COMMAND_ID.CLEAR_SELECTION,
+	TERMINAL_COMMAND_ID.CLEAR,
+	TERMINAL_COMMAND_ID.COPY_SELECTION,
+	TERMINAL_COMMAND_ID.DELETE_TO_LINE_START,
+	TERMINAL_COMMAND_ID.DELETE_WORD_LEFT,
+	TERMINAL_COMMAND_ID.DELETE_WORD_RIGHT,
+	TERMINAL_COMMAND_ID.FIND_WIDGET_FOCUS,
+	TERMINAL_COMMAND_ID.FIND_WIDGET_HIDE,
+	TERMINAL_COMMAND_ID.FIND_NEXT_TERMINAL_FOCUS,
+	TERMINAL_COMMAND_ID.FIND_PREVIOUS_TERMINAL_FOCUS,
+	TERMINAL_COMMAND_ID.TOGGLE_FIND_REGEX_TERMINAL_FOCUS,
+	TERMINAL_COMMAND_ID.TOGGLE_FIND_WHOLE_WORD_TERMINAL_FOCUS,
+	TERMINAL_COMMAND_ID.TOGGLE_FIND_CASE_SENSITIVE_TERMINAL_FOCUS,
+	TERMINAL_COMMAND_ID.FOCUS_NEXT_PANE,
+	TERMINAL_COMMAND_ID.FOCUS_NEXT,
+	TERMINAL_COMMAND_ID.FOCUS_PREVIOUS_PANE,
+	TERMINAL_COMMAND_ID.FOCUS_PREVIOUS,
+	TERMINAL_COMMAND_ID.FOCUS,
+	TERMINAL_COMMAND_ID.KILL,
+	TERMINAL_COMMAND_ID.MOVE_TO_LINE_END,
+	TERMINAL_COMMAND_ID.MOVE_TO_LINE_START,
+	TERMINAL_COMMAND_ID.NEW_IN_ACTIVE_WORKSPACE,
+	TERMINAL_COMMAND_ID.NEW,
+	TERMINAL_COMMAND_ID.PASTE,
+	TERMINAL_COMMAND_ID.RESIZE_PANE_DOWN,
+	TERMINAL_COMMAND_ID.RESIZE_PANE_LEFT,
+	TERMINAL_COMMAND_ID.RESIZE_PANE_RIGHT,
+	TERMINAL_COMMAND_ID.RESIZE_PANE_UP,
+	TERMINAL_COMMAND_ID.RUN_ACTIVE_FILE,
+	TERMINAL_COMMAND_ID.RUN_SELECTED_TEXT,
+	TERMINAL_COMMAND_ID.SCROLL_DOWN_LINE,
+	TERMINAL_COMMAND_ID.SCROLL_DOWN_PAGE,
+	TERMINAL_COMMAND_ID.SCROLL_TO_BOTTOM,
+	TERMINAL_COMMAND_ID.SCROLL_TO_NEXT_COMMAND,
+	TERMINAL_COMMAND_ID.SCROLL_TO_PREVIOUS_COMMAND,
+	TERMINAL_COMMAND_ID.SCROLL_TO_TOP,
+	TERMINAL_COMMAND_ID.SCROLL_UP_LINE,
+	TERMINAL_COMMAND_ID.SCROLL_UP_PAGE,
+	TERMINAL_COMMAND_ID.SEND_SEQUENCE,
+	TERMINAL_COMMAND_ID.SELECT_ALL,
+	TERMINAL_COMMAND_ID.SELECT_TO_NEXT_COMMAND,
+	TERMINAL_COMMAND_ID.SELECT_TO_NEXT_LINE,
+	TERMINAL_COMMAND_ID.SELECT_TO_PREVIOUS_COMMAND,
+	TERMINAL_COMMAND_ID.SELECT_TO_PREVIOUS_LINE,
+	TERMINAL_COMMAND_ID.SPLIT_IN_ACTIVE_WORKSPACE,
+	TERMINAL_COMMAND_ID.SPLIT,
+	TERMINAL_COMMAND_ID.TOGGLE,
+	'editor.action.toggleTabFocusMode',
+	'workbench.action.quickOpen',
+	'workbench.action.quickOpenPreviousEditor',
+	'workbench.action.showCommands',
+	'workbench.action.tasks.build',
+	'workbench.action.tasks.restartTask',
+	'workbench.action.tasks.runTask',
+	'workbench.action.tasks.reRunTask',
+	'workbench.action.tasks.showLog',
+	'workbench.action.tasks.showTasks',
+	'workbench.action.tasks.terminate',
+	'workbench.action.tasks.test',
+	'workbench.action.toggleFullScreen',
+	'workbench.action.terminal.focusAtIndex1',
+	'workbench.action.terminal.focusAtIndex2',
+	'workbench.action.terminal.focusAtIndex3',
+	'workbench.action.terminal.focusAtIndex4',
+	'workbench.action.terminal.focusAtIndex5',
+	'workbench.action.terminal.focusAtIndex6',
+	'workbench.action.terminal.focusAtIndex7',
+	'workbench.action.terminal.focusAtIndex8',
+	'workbench.action.terminal.focusAtIndex9',
+	'workbench.action.focusSecondEditorGroup',
+	'workbench.action.focusThirdEditorGroup',
+	'workbench.action.focusFourthEditorGroup',
+	'workbench.action.focusFifthEditorGroup',
+	'workbench.action.focusSixthEditorGroup',
+	'workbench.action.focusSeventhEditorGroup',
+	'workbench.action.focusEighthEditorGroup',
+	'workbench.action.nextPanelView',
+	'workbench.action.previousPanelView',
+	'workbench.action.nextSideBarView',
+	'workbench.action.previousSideBarView',
+	'workbench.action.debug.start',
+	'workbench.action.debug.stop',
+	'workbench.action.debug.run',
+	'workbench.action.debug.restart',
+	'workbench.action.debug.continue',
+	'workbench.action.debug.pause',
+	'workbench.action.debug.stepInto',
+	'workbench.action.debug.stepOut',
+	'workbench.action.debug.stepOver',
+	'workbench.action.openNextRecentlyUsedEditorInGroup',
+	'workbench.action.openPreviousRecentlyUsedEditorInGroup',
+	'workbench.action.focusActiveEditorGroup',
+	'workbench.action.focusFirstEditorGroup',
+	'workbench.action.focusLastEditorGroup',
+	'workbench.action.firstEditorInGroup',
+	'workbench.action.lastEditorInGroup',
+	'workbench.action.navigateUp',
+	'workbench.action.navigateDown',
+	'workbench.action.navigateRight',
+	'workbench.action.navigateLeft',
+	'workbench.action.togglePanel',
+	'workbench.action.quickOpenView',
+	'workbench.action.toggleMaximizedPanel'
+];
 
 let Terminal: typeof XTermTerminal;
 
@@ -87,34 +196,34 @@ export class TerminalInstance implements ITerminalInstance {
 	public get processId(): number | undefined { return this._processManager ? this._processManager.shellProcessId : undefined; }
 	// TODO: How does this work with detached processes?
 	// TODO: Should this be an event as it can fire twice?
-	public get processReady(): Promise<void> { return this._processManager ? this._processManager.ptyProcessReady : Promise.resolve(void 0); }
+	public get processReady(): Promise<void> { return this._processManager ? this._processManager.ptyProcessReady : Promise.resolve(undefined); }
 	public get title(): string { return this._title; }
 	public get hadFocusOnExit(): boolean { return this._hadFocusOnExit; }
 	public get isTitleSetByProcess(): boolean { return !!this._messageTitleDisposable; }
 	public get shellLaunchConfig(): IShellLaunchConfig { return this._shellLaunchConfig; }
 	public get commandTracker(): TerminalCommandTracker { return this._commandTracker; }
 
-	private readonly _onExit: Emitter<number> = new Emitter<number>();
+	private readonly _onExit = new Emitter<number>();
 	public get onExit(): Event<number> { return this._onExit.event; }
-	private readonly _onDisposed: Emitter<ITerminalInstance> = new Emitter<ITerminalInstance>();
+	private readonly _onDisposed = new Emitter<ITerminalInstance>();
 	public get onDisposed(): Event<ITerminalInstance> { return this._onDisposed.event; }
-	private readonly _onFocused: Emitter<ITerminalInstance> = new Emitter<ITerminalInstance>();
+	private readonly _onFocused = new Emitter<ITerminalInstance>();
 	public get onFocused(): Event<ITerminalInstance> { return this._onFocused.event; }
-	private readonly _onProcessIdReady: Emitter<ITerminalInstance> = new Emitter<ITerminalInstance>();
+	private readonly _onProcessIdReady = new Emitter<ITerminalInstance>();
 	public get onProcessIdReady(): Event<ITerminalInstance> { return this._onProcessIdReady.event; }
-	private readonly _onTitleChanged: Emitter<ITerminalInstance> = new Emitter<ITerminalInstance>();
+	private readonly _onTitleChanged = new Emitter<ITerminalInstance>();
 	public get onTitleChanged(): Event<ITerminalInstance> { return this._onTitleChanged.event; }
-	private readonly _onData: Emitter<string> = new Emitter<string>();
+	private readonly _onData = new Emitter<string>();
 	public get onData(): Event<string> { return this._onData.event; }
-	private readonly _onLineData: Emitter<string> = new Emitter<string>();
+	private readonly _onLineData = new Emitter<string>();
 	public get onLineData(): Event<string> { return this._onLineData.event; }
-	private readonly _onRendererInput: Emitter<string> = new Emitter<string>();
+	private readonly _onRendererInput = new Emitter<string>();
 	public get onRendererInput(): Event<string> { return this._onRendererInput.event; }
-	private readonly _onRequestExtHostProcess: Emitter<ITerminalInstance> = new Emitter<ITerminalInstance>();
+	private readonly _onRequestExtHostProcess = new Emitter<ITerminalInstance>();
 	public get onRequestExtHostProcess(): Event<ITerminalInstance> { return this._onRequestExtHostProcess.event; }
-	private readonly _onDimensionsChanged: Emitter<void> = new Emitter<void>();
+	private readonly _onDimensionsChanged = new Emitter<void>();
 	public get onDimensionsChanged(): Event<void> { return this._onDimensionsChanged.event; }
-	private readonly _onFocus: Emitter<ITerminalInstance> = new Emitter<ITerminalInstance>();
+	private readonly _onFocus = new Emitter<ITerminalInstance>();
 	public get onFocus(): Event<ITerminalInstance> { return this._onFocus.event; }
 
 	public constructor(
@@ -130,7 +239,7 @@ export class TerminalInstance implements ITerminalInstance {
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@ILogService private _logService: ILogService,
+		@ILogService private readonly _logService: ILogService,
 		@IStorageService private readonly _storageService: IStorageService
 	) {
 		this._disposables = [];
@@ -312,7 +421,7 @@ export class TerminalInstance implements ITerminalInstance {
 			rendererType: config.rendererType === 'auto' ? 'canvas' : config.rendererType,
 			// TODO: Remove this once the setting is removed upstream
 			experimentalCharAtlas: 'dynamic',
-			experimentalBufferLineImpl: config.experimentalBufferImpl
+			experimentalBufferLineImpl: 'TypedArray'
 		});
 		if (this._shellLaunchConfig.initialText) {
 			this._xterm.writeln(this._shellLaunchConfig.initialText);
@@ -620,6 +729,10 @@ export class TerminalInstance implements ITerminalInstance {
 		this._disposables = lifecycle.dispose(this._disposables);
 	}
 
+	public forceRedraw(): void {
+		this._xterm.refresh(0, this._xterm.rows - 1);
+	}
+
 	public focus(force?: boolean): void {
 		if (!this._xterm) {
 			return;
@@ -672,30 +785,43 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 	}
 
-	public preparePathForTerminalAsync(path: string): Promise<string> {
+	public preparePathForTerminalAsync(originalPath: string): Promise<string> {
 		return new Promise<string>(c => {
-			const hasSpace = path.indexOf(' ') !== -1;
+			const exe = this.shellLaunchConfig.executable;
+			if (!exe) {
+				c(originalPath);
+				return;
+			}
+
+			const hasSpace = originalPath.indexOf(' ') !== -1;
+
+			const pathBasename = path.basename(exe, '.exe');
+			const isPowerShell = pathBasename === 'pwsh' ||
+				this.title === 'pwsh' ||
+				pathBasename === 'powershell' ||
+				this.title === 'powershell';
+
+			if (isPowerShell && (hasSpace || originalPath.indexOf('\'') !== -1)) {
+				c(`& '${originalPath.replace(/'/g, '\'\'')}'`);
+				return;
+			}
+
 			if (platform.isWindows) {
-				const exe = this.shellLaunchConfig.executable;
-				if (!exe) {
-					c(path);
-					return;
-				}
 				// 17063 is the build number where wsl path was introduced.
 				// Update Windows uriPath to be executed in WSL.
 				if (((exe.indexOf('wsl') !== -1) || ((exe.indexOf('bash.exe') !== -1) && (exe.indexOf('git') === -1))) && (TerminalInstance.getWindowsBuildNumber() >= 17063)) {
-					execFile('bash.exe', ['-c', 'echo $(wslpath ' + this._escapeNonWindowsPath(path) + ')'], {}, (error, stdout, stderr) => {
+					execFile('bash.exe', ['-c', 'echo $(wslpath ' + this._escapeNonWindowsPath(originalPath) + ')'], {}, (error, stdout, stderr) => {
 						c(this._escapeNonWindowsPath(stdout.trim()));
 					});
 					return;
 				} else if (hasSpace) {
-					c('"' + path + '"');
+					c('"' + originalPath + '"');
 				} else {
-					c(path);
+					c(originalPath);
 				}
 				return;
 			}
-			c(this._escapeNonWindowsPath(path));
+			c(this._escapeNonWindowsPath(originalPath));
 		});
 	}
 
@@ -1004,7 +1130,10 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	private _setCommandsToSkipShell(commands: string[]): void {
-		this._skipTerminalCommands = commands;
+		const excludeCommands = commands.filter(command => command[0] === '-').map(command => command.slice(1));
+		this._skipTerminalCommands = DEFAULT_COMMANDS_TO_SKIP_SHELL.filter(defaultCommand => {
+			return excludeCommands.indexOf(defaultCommand) === -1;
+		}).concat(commands);
 	}
 
 	private _setEnableBell(isEnabled: boolean): void {
@@ -1052,16 +1181,15 @@ export class TerminalInstance implements ITerminalInstance {
 		let cols = this._cols;
 		let rows = this._rows;
 		if (this._dimensionsOverride && this._dimensionsOverride.cols && this._dimensionsOverride.rows) {
-			cols = Math.min(Math.max(this._dimensionsOverride.cols, 2), this._cols);
-			rows = Math.min(Math.max(this._dimensionsOverride.rows, 2), this._rows);
+			cols = Math.min(Math.max(this._dimensionsOverride.cols, 2), cols);
+			rows = Math.min(Math.max(this._dimensionsOverride.rows, 2), rows);
 		}
 
 		if (this._xterm) {
-			const font = this._configHelper.getFont(this._xterm);
-
 			// Only apply these settings when the terminal is visible so that
 			// the characters are measured correctly.
 			if (this._isVisible) {
+				const font = this._configHelper.getFont(this._xterm);
 				const config = this._configHelper.config;
 				this._safeSetOption('letterSpacing', font.letterSpacing);
 				this._safeSetOption('lineHeight', font.lineHeight);

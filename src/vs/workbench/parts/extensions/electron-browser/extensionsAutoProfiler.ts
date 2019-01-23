@@ -20,6 +20,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { RuntimeExtensionsInput } from 'vs/workbench/services/extensions/electron-browser/runtimeExtensionsInput';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchContribution {
 
@@ -27,7 +28,7 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 	private readonly _blame = new Set<string>();
 
 	constructor(
-		@IExtensionService private _extensionService: IExtensionService,
+		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IExtensionHostProfileService private readonly _extensionProfileService: IExtensionHostProfileService,
 		@IExtensionsWorkbenchService private readonly _anotherExtensionService: IExtensionsWorkbenchService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
@@ -132,7 +133,7 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 		}
 
 		// add to running extensions view
-		this._extensionProfileService.setUnresponsiveProfile(extension.id, profile);
+		this._extensionProfileService.setUnresponsiveProfile(extension.identifier, profile);
 
 		// print message to log
 		const path = join(tmpdir(), `exthost-${Math.random().toString(16).slice(2, 8)}.cpuprofile`);
@@ -162,7 +163,7 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 
 		// prompt: only when you can file an issue
 		const reportAction = new ReportExtensionIssueAction({
-			marketplaceInfo: this._anotherExtensionService.local.filter(value => value.id === extension.id)[0],
+			marketplaceInfo: this._anotherExtensionService.local.filter(value => ExtensionIdentifier.equals(value.identifier.id, extension.identifier))[0],
 			description: extension,
 			unresponsiveProfile: profile,
 			status: undefined,
@@ -172,10 +173,10 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 		}
 
 		// only blame once per extension, don't blame too often
-		if (this._blame.has(extension.id) || this._blame.size >= 3) {
+		if (this._blame.has(ExtensionIdentifier.toKey(extension.identifier)) || this._blame.size >= 3) {
 			return;
 		}
-		this._blame.add(extension.id);
+		this._blame.add(ExtensionIdentifier.toKey(extension.identifier));
 
 		// user-facing message when very bad...
 		this._notificationService.prompt(

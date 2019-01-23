@@ -139,8 +139,7 @@ export function createESMSourcesAndResources2(options: IOptions2): void {
 	};
 
 	const allFiles = walkDirRecursive(SRC_FOLDER);
-	for (let i = 0; i < allFiles.length; i++) {
-		const file = allFiles[i];
+	for (const file of allFiles) {
 
 		if (options.ignores.indexOf(file.replace(/\\/g, '/')) >= 0) {
 			continue;
@@ -244,7 +243,6 @@ export function createESMSourcesAndResources2(options: IOptions2): void {
 			let mode = 0;
 			for (let i = 0; i < lines.length; i++) {
 				const line = lines[i];
-
 				if (mode === 0) {
 					if (/\/\/ ESM-comment-begin/.test(line)) {
 						mode = 1;

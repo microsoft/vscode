@@ -33,11 +33,11 @@ export class SelectColorThemeAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IQuickInputService private quickInputService: IQuickInputService,
-		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
-		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
-		@IViewletService private viewletService: IViewletService,
-		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
+		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
+		@IViewletService private readonly viewletService: IViewletService,
+		@IWorkspaceConfigurationService private readonly configurationService: IWorkspaceConfigurationService
 	) {
 		super(id, label);
 	}
@@ -46,7 +46,7 @@ export class SelectColorThemeAction extends Action {
 		return this.themeService.getColorThemes().then(themes => {
 			const currentTheme = this.themeService.getColorTheme();
 
-			const picks: QuickPickInput[] = [].concat(
+			const picks: QuickPickInput[] = ([] as QuickPickInput[]).concat(
 				toEntries(themes.filter(t => t.type === LIGHT), localize('themes.category.light', "light themes")),
 				toEntries(themes.filter(t => t.type === DARK), localize('themes.category.dark', "dark themes")),
 				toEntries(themes.filter(t => t.type === HIGH_CONTRAST), localize('themes.category.hc', "high contrast themes")),
@@ -60,16 +60,16 @@ export class SelectColorThemeAction extends Action {
 					}
 					theme = currentTheme;
 				}
-				let target = null;
+				let target: ConfigurationTarget | undefined = undefined;
 				if (applyTheme) {
 					let confValue = this.configurationService.inspect(COLOR_THEME_SETTING);
 					target = typeof confValue.workspace !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
 				}
 
-				this.themeService.setColorTheme(theme.id, target).then(void 0,
+				this.themeService.setColorTheme(theme.id, target).then(undefined,
 					err => {
 						onUnexpectedError(err);
-						this.themeService.setColorTheme(currentTheme.id, null);
+						this.themeService.setColorTheme(currentTheme.id, undefined);
 					}
 				);
 			};
@@ -94,11 +94,11 @@ class SelectIconThemeAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IQuickInputService private quickInputService: IQuickInputService,
-		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
-		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
-		@IViewletService private viewletService: IViewletService,
-		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
+		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
+		@IViewletService private readonly viewletService: IViewletService,
+		@IWorkspaceConfigurationService private readonly configurationService: IWorkspaceConfigurationService
 
 	) {
 		super(id, label);
@@ -121,15 +121,15 @@ class SelectIconThemeAction extends Action {
 					}
 					theme = currentTheme;
 				}
-				let target = null;
+				let target: ConfigurationTarget | undefined = undefined;
 				if (applyTheme) {
 					let confValue = this.configurationService.inspect(ICON_THEME_SETTING);
 					target = typeof confValue.workspace !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
 				}
-				this.themeService.setFileIconTheme(theme && theme.id, target).then(void 0,
+				this.themeService.setFileIconTheme(theme && theme.id, target).then(undefined,
 					err => {
 						onUnexpectedError(err);
-						this.themeService.setFileIconTheme(currentTheme.id, null);
+						this.themeService.setFileIconTheme(currentTheme.id, undefined);
 					}
 				);
 			};
@@ -153,7 +153,7 @@ function configurationEntries(extensionGalleryService: IExtensionGalleryService,
 				type: 'separator'
 			},
 			{
-				id: void 0,
+				id: undefined,
 				label: label,
 				alwaysShow: true,
 			}
@@ -164,8 +164,10 @@ function configurationEntries(extensionGalleryService: IExtensionGalleryService,
 
 function openExtensionViewlet(viewletService: IViewletService, query: string) {
 	return viewletService.openViewlet(VIEWLET_ID, true).then(viewlet => {
-		(<IExtensionsViewlet>viewlet).search(query);
-		viewlet.focus();
+		if (viewlet) {
+			(viewlet as IExtensionsViewlet).search(query);
+			viewlet.focus();
+		}
 	});
 }
 
@@ -187,8 +189,8 @@ class GenerateColorThemeAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
-		@IEditorService private editorService: IEditorService,
+		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super(id, label);
 	}

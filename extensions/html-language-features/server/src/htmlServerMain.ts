@@ -20,8 +20,8 @@ import uri from 'vscode-uri';
 import { formatError, runSafe, runSafeAsync } from './utils/runner';
 
 import { getFoldingRanges } from './modes/htmlFolding';
-import { parseTagSet, parseAttributes } from './utils/tagDefinitions';
-import { ITagSet, IAttributeSet } from 'vscode-html-languageservice';
+import { parseHTMLData } from './utils/tagDefinitions';
+import { HTMLData } from 'vscode-html-languageservice';
 
 namespace TagCloseRequest {
 	export const type: RequestType<TextDocumentPositionParams, string | null, any, any> = new RequestType('html/tag');
@@ -75,7 +75,7 @@ function getDocumentSettings(textDocument: TextDocument, needsDocumentSettings: 
 		}
 		return promise;
 	}
-	return Promise.resolve(void 0);
+	return Promise.resolve(undefined);
 }
 
 // After the server has started the client sends an initialize request. The server receives
@@ -91,36 +91,28 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 		}
 	}
 
-	const tagPaths: string[] = params.initializationOptions.tagPaths;
-	const attributePaths: string[] = params.initializationOptions.attributePaths;
-	const htmlTags: ITagSet = {};
-	const htmlAttributes: IAttributeSet = {};
+	const dataPaths: string[] = params.initializationOptions.dataPaths;
 
-	if (tagPaths) {
-		tagPaths.forEach(path => {
+	let allHtmlData: HTMLData = {
+		tags: [],
+		globalAttributes: [],
+		valueSetMap: {}
+	};
+
+	if (dataPaths) {
+		dataPaths.forEach(path => {
 			try {
 				if (fs.existsSync(path)) {
-					const tagSet = parseTagSet(fs.readFileSync(path, 'utf-8'));
-					for (let tag in tagSet) {
-						htmlTags[tag] = tagSet[tag];
+					const htmlData = parseHTMLData(fs.readFileSync(path, 'utf-8'));
+					if (htmlData.tags) {
+						allHtmlData.tags = allHtmlData.tags!.concat(htmlData.tags);
+					}
+					if (htmlData.globalAttributes) {
+						allHtmlData.globalAttributes = allHtmlData.globalAttributes!.concat(htmlData.globalAttributes);
 					}
 				}
 			} catch (err) {
 				console.log(`Failed to laod tag from ${path}`);
-			}
-		});
-	}
-	if (htmlAttributes) {
-		attributePaths.forEach(path => {
-			try {
-				if (fs.existsSync(path)) {
-					const attributeSet = parseAttributes(fs.readFileSync(path, 'utf-8'));
-					for (let ga in attributeSet) {
-						htmlAttributes[ga] = attributeSet[ga];
-					}
-				}
-			} catch (err) {
-				console.log(`Failed to load attributes from ${path}`);
 			}
 		});
 	}
@@ -130,7 +122,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 		get folders() { return workspaceFolders; }
 	};
 
-	languageModes = getLanguageModes(initializationOptions ? initializationOptions.embeddedLanguages : { css: true, javascript: true }, workspace, htmlTags, htmlAttributes);
+	languageModes = getLanguageModes(initializationOptions ? initializationOptions.embeddedLanguages : { css: true, javascript: true }, workspace, allHtmlData);
 
 	documents.onDidClose(e => {
 		languageModes.onDocumentRemoved(e.document);

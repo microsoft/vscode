@@ -82,12 +82,12 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 		private quickInput: QuickInputService,
 		private notificationsCenter: NotificationsCenter,
 		private notificationsToasts: NotificationsToasts,
-		@IStorageService private storageService: IStorageService,
-		@IContextViewService private contextViewService: IContextViewService,
-		@IPartService private partService: IPartService,
-		@IViewletService private viewletService: IViewletService,
-		@IThemeService private themeService: IThemeService,
-		@IEditorGroupsService private editorGroupService: IEditorGroupsService
+		@IStorageService private readonly storageService: IStorageService,
+		@IContextViewService private readonly contextViewService: IContextViewService,
+		@IPartService private readonly partService: IPartService,
+		@IViewletService private readonly viewletService: IViewletService,
+		@IThemeService private readonly themeService: IThemeService,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
 	) {
 		super();
 

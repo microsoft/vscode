@@ -7,10 +7,8 @@ import { URI as uri } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import * as paths from 'vs/base/common/paths';
 import * as platform from 'vs/base/common/platform';
-import * as Objects from 'vs/base/common/objects';
 import * as Types from 'vs/base/common/types';
 import { Schemas } from 'vs/base/common/network';
-import { sequence } from 'vs/base/common/async';
 import { toResource } from 'vs/workbench/common/editor';
 import { IStringDictionary, forEach, fromMap } from 'vs/base/common/collections';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -22,18 +20,20 @@ import { AbstractVariableResolverService } from 'vs/workbench/services/configura
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IQuickInputService, IInputOptions, IQuickPickItem, IPickOptions } from 'vs/platform/quickinput/common/quickInput';
-import { ConfiguredInput, ConfiguredInputType } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
+import { ConfiguredInput } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 
 export class ConfigurationResolverService extends AbstractVariableResolverService {
+
+	static INPUT_OR_COMMAND_VARIABLES_PATTERN = /\${((input|command):(.*?))}/g;
 
 	constructor(
 		envVariables: platform.IProcessEnvironment,
 		@IEditorService editorService: IEditorService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@ICommandService private commandService: ICommandService,
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
-		@IQuickInputService private quickInputService: IQuickInputService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService
 	) {
 		super({
 			getFolderUri: (folderName: string): uri => {
@@ -105,20 +105,12 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 		config = resolved.newConfig;
 		const allVariableMapping: Map<string, string> = resolved.resolvedVariables;
 
-		// resolve input variables in the order in which they are encountered
-		return this.resolveWithInputs(folder, config, section).then(inputMapping => {
-			if (!this.updateMapping(inputMapping, allVariableMapping)) {
-				return undefined;
-			}
-
-			// resolve commands in the order in which they are encountered
-			return this.resolveWithCommands(config, variables).then(commandMapping => {
-				if (!this.updateMapping(commandMapping, allVariableMapping)) {
-					return undefined;
-				}
-
+		// resolve input and command variables in the order in which they are encountered
+		return this.resolveWithInputAndCommands(folder, config, variables, section).then(inputOrCommandMapping => {
+			if (this.updateMapping(inputOrCommandMapping, allVariableMapping)) {
 				return allVariableMapping;
-			});
+			}
+			return undefined;
 		});
 	}
 
@@ -136,199 +128,163 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 	}
 
 	/**
-	 * Finds and executes all command variables in the given configuration and returns their values as a dictionary.
-	 * Please note: this method does not substitute the command variables (so the configuration is not modified).
-	 * The returned dictionary can be passed to "resolvePlatform" for the substitution.
+	 * Finds and executes all input and command variables in the given configuration and returns their values as a dictionary.
+	 * Please note: this method does not substitute the input or command variables (so the configuration is not modified).
+	 * The returned dictionary can be passed to "resolvePlatform" for the actual substitution.
 	 * See #6569.
-	 * @param configuration
+	 *
 	 * @param variableToCommandMap Aliases for commands
 	 */
-	private resolveWithCommands(configuration: any, variableToCommandMap: IStringDictionary<string>): Promise<IStringDictionary<string>> {
+	private async resolveWithInputAndCommands(folder: IWorkspaceFolder, configuration: any, variableToCommandMap: IStringDictionary<string>, section: string): Promise<IStringDictionary<string>> {
+
 		if (!configuration) {
 			return Promise.resolve(undefined);
 		}
 
-		// use an array to preserve order of first appearance
-		const cmd_var = /\${command:(.*?)}/g;
-		const commands: string[] = [];
-		this.findVariables(cmd_var, configuration, commands);
-		let cancelled = false;
-		const commandValueMapping: IStringDictionary<string> = Object.create(null);
+		// get all "inputs"
+		let inputs: ConfiguredInput[] = undefined;
+		if (folder && this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
+			let result = this.configurationService.getValue<any>(section, { resource: folder.uri });
+			if (result) {
+				inputs = result.inputs;
+			}
+		}
 
-		const factory: { (): Promise<any> }[] = commands.map(commandVariable => {
-			return () => {
-				let commandId = variableToCommandMap ? variableToCommandMap[commandVariable] : undefined;
-				if (!commandId) {
-					// Just launch any command if the interactive variable is not contributed by the adapter #12735
-					commandId = commandVariable;
-				}
+		// extract and dedupe all "input" and "command" variables and preserve their order in an array
+		const variables: string[] = [];
+		this.findVariables(configuration, variables);
 
-				return this.commandService.executeCommand<string>(commandId, configuration).then(result => {
-					if (typeof result === 'string') {
-						commandValueMapping['command:' + commandVariable] = result;
-					} else if (Types.isUndefinedOrNull(result)) {
-						cancelled = true;
-					} else {
-						throw new Error(nls.localize('stringsOnlySupported', "Command '{0}' did not return a string result. Only strings are supported as results for commands used for variable substitution.", commandVariable));
+		const variableValues: IStringDictionary<string> = Object.create(null);
+
+		for (const variable of variables) {
+
+			const [type, name] = variable.split(':', 2);
+
+			let result: string | undefined | null;
+
+			switch (type) {
+
+				case 'input':
+					result = await this.showUserInput(name, inputs);
+					break;
+
+				case 'command':
+					// use the name as a command ID #12735
+					const commandId = (variableToCommandMap ? variableToCommandMap[name] : undefined) || name;
+					result = await this.commandService.executeCommand(commandId, configuration);
+					if (typeof result !== 'string' && !Types.isUndefinedOrNull(result)) {
+						throw new Error(nls.localize('commandVariable.noStringType', "Cannot substitute command variable '{0}' because command did not return a result of type string.", commandId));
 					}
-				});
-			};
-		});
+					break;
+			}
 
-		return sequence(factory).then(() => cancelled ? undefined : commandValueMapping);
-	}
-
-	/**
-	 * Resolves all inputs in a configuration and returns a map that maps the unresolved input to the resolved input.
-	 * Does not do replacement of inputs.
-	 * @param folder
-	 * @param config
-	 * @param section
-	 */
-	public resolveWithInputs(folder: IWorkspaceFolder, config: any, section: string): Promise<IStringDictionary<string>> {
-		if (!config) {
-			return Promise.resolve(undefined);
-		} else if (folder && section) {
-			// Get all the possible inputs
-			let result = this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY
-				? Objects.deepClone(this.configurationService.getValue<any>(section, { resource: folder.uri }))
-				: undefined;
-			let inputsArray = result ? this.parseConfigurationInputs(result.inputs) : undefined;
-			const inputs = new Map<string, ConfiguredInput>();
-			if (inputsArray) {
-				inputsArray.forEach(input => {
-					inputs.set(input.id, input);
-				});
-
-				// use an array to preserve order of first appearance
-				const input_var = /\${input:(.*?)}/g;
-				const commands: string[] = [];
-				this.findVariables(input_var, config, commands);
-				let cancelled = false;
-				const commandValueMapping: IStringDictionary<string> = Object.create(null);
-
-				const factory: { (): Promise<any> }[] = commands.map(commandVariable => {
-					return () => {
-						return this.showUserInput(commandVariable, inputs).then(resolvedValue => {
-							if (resolvedValue) {
-								commandValueMapping['input:' + commandVariable] = resolvedValue;
-							} else {
-								cancelled = true;
-							}
-						});
-					};
-				}, reason => {
-					return Promise.reject(reason);
-				});
-
-				return sequence(factory).then(() => cancelled ? undefined : commandValueMapping);
+			if (typeof result === 'string') {
+				variableValues[variable] = result;
+			} else {
+				return undefined;
 			}
 		}
 
-		return Promise.resolve(Object.create(null));
+		return variableValues;
 	}
 
 	/**
-	 * Takes the provided input info and shows the quick pick so the user can provide the value for the input
-	 * @param commandVariable Name of the input.
-	 * @param inputs Information about each possible input.
-	 * @param commandValueMapping
-	 */
-	private showUserInput(commandVariable: string, inputs: Map<string, ConfiguredInput>): Promise<string> {
-		if (inputs && inputs.has(commandVariable)) {
-			const input = inputs.get(commandVariable);
-			if (input.type === ConfiguredInputType.PromptString) {
-				let inputOptions: IInputOptions = { prompt: input.description };
-				if (input.default) {
-					inputOptions.value = input.default;
-				}
-
-				return this.quickInputService.input(inputOptions).then(resolvedInput => {
-					return resolvedInput ? resolvedInput : undefined;
-				});
-			} else { // input.type === ConfiguredInputType.pick
-				let picks = new Array<IQuickPickItem>();
-				if (input.options) {
-					input.options.forEach(pickOption => {
-						let item: IQuickPickItem = { label: pickOption };
-						if (input.default && (pickOption === input.default)) {
-							item.description = nls.localize('defaultInputValue', "Default");
-							picks.unshift(item);
-						} else {
-							picks.push(item);
-						}
-					});
-				}
-				let pickOptions: IPickOptions<IQuickPickItem> = { placeHolder: input.description };
-				return this.quickInputService.pick(picks, pickOptions, undefined).then(resolvedInput => {
-					return resolvedInput ? resolvedInput.label : undefined;
-				});
-			}
-		}
-		return Promise.reject(new Error(nls.localize('undefinedInputVariable', "Undefined input variable {0} encountered. Remove or define {0} to continue.", commandVariable)));
-	}
-
-	/**
-	 * Finds all variables in object using cmdVar and pushes them into commands.
-	 * @param cmdVar Regex to use for finding variables.
+	 * Recursively finds all command or input variables in object and pushes them into variables.
 	 * @param object object is searched for variables.
-	 * @param commands All found variables are returned in commands.
+	 * @param variables All found variables are returned in variables.
 	 */
-	private findVariables(cmdVar: RegExp, object: any, commands: string[]) {
-		if (!object) {
-			return;
-		} else if (typeof object === 'string') {
+	private findVariables(object: any, variables: string[]) {
+		if (typeof object === 'string') {
 			let matches;
-			while ((matches = cmdVar.exec(object)) !== null) {
-				if (matches.length === 2) {
+			while ((matches = ConfigurationResolverService.INPUT_OR_COMMAND_VARIABLES_PATTERN.exec(object)) !== null) {
+				if (matches.length === 4) {
 					const command = matches[1];
-					if (commands.indexOf(command) < 0) {
-						commands.push(command);
+					if (variables.indexOf(command) < 0) {
+						variables.push(command);
 					}
 				}
 			}
 		} else if (Types.isArray(object)) {
 			object.forEach(value => {
-				this.findVariables(cmdVar, value, commands);
+				this.findVariables(value, variables);
 			});
-		} else {
+		} else if (object) {
 			Object.keys(object).forEach(key => {
 				const value = object[key];
-				this.findVariables(cmdVar, value, commands);
+				this.findVariables(value, variables);
 			});
 		}
 	}
 
 	/**
-	 * Converts an array of inputs into an actaul array of typed, ConfiguredInputs.
-	 * @param object Array of something that should look like inputs.
+	 * Takes the provided input info and shows the quick pick so the user can provide the value for the input
+	 * @param variable Name of the input variable.
+	 * @param inputInfos Information about each possible input variable.
 	 */
-	private parseConfigurationInputs(object: any[]): ConfiguredInput[] | undefined {
-		let inputs = new Array<ConfiguredInput>();
-		if (object) {
-			object.forEach(item => {
-				if (Types.isString(item.id) && Types.isString(item.description) && Types.isString(item.type)) {
-					let type: ConfiguredInputType;
-					switch (item.type) {
-						case 'promptString': type = ConfiguredInputType.PromptString; break;
-						case 'pickString': type = ConfiguredInputType.PickString; break;
-						default: {
-							throw new Error(nls.localize('unknownInputTypeProvided', "Input '{0}' can only be of type 'promptString' or 'pickString'.", item.id));
-						}
-					}
-					let options: string[];
-					if (type === ConfiguredInputType.PickString) {
-						if (Types.isStringArray(item.options)) {
-							options = item.options;
-						} else {
-							throw new Error(nls.localize('pickStringRequiresOptions', "Input '{0}' is of type 'pickString' and must include 'options'.", item.id));
-						}
-					}
-					inputs.push({ id: item.id, description: item.description, type, default: item.default, options });
-				}
-			});
-		}
+	private showUserInput(variable: string, inputInfos: ConfiguredInput[]): Promise<string> {
 
-		return inputs;
+		// find info for the given input variable
+		const info = inputInfos.filter(item => item.id === variable).pop();
+		if (info) {
+
+			const missingAttribute = (attrName: string) => {
+				throw new Error(nls.localize('inputVariable.missingAttribute', "Input variable '{0}' is of type '{1}' and must include '{2}'.", variable, info.type, attrName));
+			};
+
+			switch (info.type) {
+
+				case 'promptString': {
+					if (!Types.isString(info.description)) {
+						missingAttribute('description');
+					}
+					const inputOptions: IInputOptions = { prompt: info.description };
+					if (info.default) {
+						inputOptions.value = info.default;
+					}
+					return this.quickInputService.input(inputOptions).then(resolvedInput => {
+						return resolvedInput ? resolvedInput : undefined;
+					});
+				}
+
+				case 'pickString': {
+					if (!Types.isString(info.description)) {
+						missingAttribute('description');
+					}
+					if (!Types.isStringArray(info.options)) {
+						missingAttribute('options');
+					}
+					const picks = new Array<IQuickPickItem>();
+					info.options.forEach(pickOption => {
+						const item: IQuickPickItem = { label: pickOption };
+						if (pickOption === info.default) {
+							item.description = nls.localize('inputVariable.defaultInputValue', "Default");
+							picks.unshift(item);
+						} else {
+							picks.push(item);
+						}
+					});
+					const pickOptions: IPickOptions<IQuickPickItem> = { placeHolder: info.description };
+					return this.quickInputService.pick(picks, pickOptions, undefined).then(resolvedInput => {
+						return resolvedInput ? resolvedInput.label : undefined;
+					});
+				}
+
+				case 'command': {
+					if (!Types.isString(info.command)) {
+						missingAttribute('command');
+					}
+					return this.commandService.executeCommand<string>(info.command, info.args).then(result => {
+						if (typeof result === 'string' || Types.isUndefinedOrNull(result)) {
+							return result;
+						}
+						throw new Error(nls.localize('inputVariable.command.noStringType', "Cannot substitute input variable '{0}' because command '{1}' did not return a result of type string.", variable, info.command));
+					});
+				}
+
+				default:
+					throw new Error(nls.localize('inputVariable.unknownType', "Input variable '{0}' can only be of type 'promptString', 'pickString', or 'command'.", variable));
+			}
+		}
+		return Promise.reject(new Error(nls.localize('inputVariable.undefinedVariable', "Undefined input variable '{0}' encountered. Remove or define '{0}' to continue.", variable)));
 	}
 }

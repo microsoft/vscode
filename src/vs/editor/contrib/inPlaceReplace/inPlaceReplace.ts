@@ -76,7 +76,7 @@ class InPlaceReplaceController implements IEditorContribution {
 		const state = new EditorState(this.editor, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position);
 		const modelURI = model.uri;
 		if (!this.editorWorkerService.canNavigateValueSet(modelURI)) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		this.currentRequest = createCancelablePromise(token => this.editorWorkerService.navigateValueSet(modelURI, selection!, up));
@@ -152,7 +152,7 @@ class InPlaceReplaceUp extends EditorAction {
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> | undefined {
 		const controller = InPlaceReplaceController.get(editor);
 		if (!controller) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 		return controller.run(this.id, true);
 	}
@@ -177,7 +177,7 @@ class InPlaceReplaceDown extends EditorAction {
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> | undefined {
 		const controller = InPlaceReplaceController.get(editor);
 		if (!controller) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 		return controller.run(this.id, false);
 	}

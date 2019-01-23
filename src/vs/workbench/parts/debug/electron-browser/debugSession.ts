@@ -31,6 +31,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ReplModel } from 'vs/workbench/parts/debug/common/replModel';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export class DebugSession implements IDebugSession {
 	private id: string;
@@ -54,13 +55,14 @@ export class DebugSession implements IDebugSession {
 		private _configuration: { resolved: IConfig, unresolved: IConfig },
 		public root: IWorkspaceFolder,
 		private model: DebugModel,
-		@IDebugService private debugService: IDebugService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IOutputService private outputService: IOutputService,
-		@IWindowService private windowService: IWindowService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IViewletService private viewletService: IViewletService,
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService
+		@IDebugService private readonly debugService: IDebugService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IOutputService private readonly outputService: IOutputService,
+		@IWindowService private readonly windowService: IWindowService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IViewletService private readonly viewletService: IViewletService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
 		this.id = generateUuid();
 		this.repl = new ReplModel(this);
@@ -146,7 +148,7 @@ export class DebugSession implements IDebugSession {
 
 			return dbgr.createDebugAdapter(this, this.outputService).then(debugAdapter => {
 
-				this.raw = new RawDebugSession(debugAdapter, dbgr, this.telemetryService, customTelemetryService);
+				this.raw = new RawDebugSession(debugAdapter, dbgr, this.telemetryService, customTelemetryService, this.environmentService);
 
 				return this.raw.start().then(() => {
 
@@ -182,7 +184,7 @@ export class DebugSession implements IDebugSession {
 			config.__sessionId = this.getId();
 
 			return this.raw.launchOrAttach(config).then(result => {
-				return void 0;
+				return undefined;
 			});
 		}
 		return Promise.reject(new Error('no debug adapter'));
@@ -195,11 +197,11 @@ export class DebugSession implements IDebugSession {
 		if (this.raw) {
 			if (this.raw.capabilities.supportsTerminateRequest && this._configuration.resolved.request === 'launch') {
 				return this.raw.terminate(restart).then(response => {
-					return void 0;
+					return undefined;
 				});
 			}
 			return this.raw.disconnect(restart).then(response => {
-				return void 0;
+				return undefined;
 			});
 		}
 		return Promise.reject(new Error('no debug adapter'));
@@ -211,7 +213,7 @@ export class DebugSession implements IDebugSession {
 	disconnect(restart = false): Promise<void> {
 		if (this.raw) {
 			return this.raw.disconnect(restart).then(response => {
-				return void 0;
+				return undefined;
 			});
 		}
 		return Promise.reject(new Error('no debug adapter'));
@@ -294,7 +296,7 @@ export class DebugSession implements IDebugSession {
 			if (this.raw.readyForBreakpoints) {
 				return this.raw.setExceptionBreakpoints({ filters: exbpts.map(exb => exb.filter) }).then(() => undefined);
 			}
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 		return Promise.reject(new Error('no debug adapter'));
 	}
@@ -583,7 +585,7 @@ export class DebugSession implements IDebugSession {
 			aria.status(nls.localize('debuggingStarted', "Debugging started."));
 			const sendConfigurationDone = () => {
 				if (this.raw && this.raw.capabilities.supportsConfigurationDoneRequest) {
-					return this.raw.configurationDone().then(void 0, e => {
+					return this.raw.configurationDone().then(undefined, e => {
 						// Disconnect the debug session on configuration done error #10596
 						if (this.raw) {
 							this.raw.disconnect();
@@ -611,6 +613,16 @@ export class DebugSession implements IDebugSession {
 					this.model.fetchCallStack(<Thread>thread).then(() => {
 						if (!event.body.preserveFocusHint && thread.getCallStack().length) {
 							this.debugService.focusStackFrame(undefined, thread);
+							if (!this.debugService.getViewModel().focusedStackFrame) {
+								// There were no appropriate stack frames to focus.
+								// We need to listen on additional stack frame fetching and try to refocus #65012
+								const listener = this.model.onDidChangeCallStack(t => {
+									if (t && t.getId() === thread.getId()) {
+										dispose(listener);
+										this.debugService.focusStackFrame(undefined, thread);
+									}
+								});
+							}
 							if (thread.stoppedDetails) {
 								if (this.configurationService.getValue<IDebugConfiguration>('debug').openDebug === 'openOnDebugBreak') {
 									this.viewletService.openViewlet(VIEWLET_ID);
@@ -643,7 +655,7 @@ export class DebugSession implements IDebugSession {
 		this.rawListeners.push(this.raw.onDidTerminateDebugee(event => {
 			aria.status(nls.localize('debuggingStopped', "Debugging stopped."));
 			if (event.body && event.body.restart) {
-				this.debugService.restartSession(this, event.body.restart).then(void 0, onUnexpectedError);
+				this.debugService.restartSession(this, event.body.restart).then(undefined, onUnexpectedError);
 			} else {
 				this.raw.disconnect();
 			}

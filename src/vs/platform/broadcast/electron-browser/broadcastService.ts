@@ -31,7 +31,7 @@ export class BroadcastService implements IBroadcastService {
 
 	constructor(
 		private windowId: number,
-		@ILogService private logService: ILogService
+		@ILogService private readonly logService: ILogService
 	) {
 		this._onBroadcast = new Emitter<IBroadcast>();
 
