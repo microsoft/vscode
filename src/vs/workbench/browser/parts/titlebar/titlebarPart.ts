@@ -246,6 +246,13 @@ export class TitlebarPart extends Part implements ITitleService {
 		const editor = this.editorService.activeEditor;
 		const workspace = this.contextService.getWorkspace();
 
+		let editorFileResource = editor ? toResource(editor, { supportSideBySide: true }) : undefined;
+		if (editorFileResource) {
+			if (editorFileResource.scheme !== 'file') {
+				editorFileResource = undefined;
+			}
+		}
+
 		let root: URI;
 		if (workspace.configuration) {
 			root = workspace.configuration;
@@ -262,9 +269,9 @@ export class TitlebarPart extends Part implements ITitleService {
 		const activeEditorShort = editor ? editor.getTitle(Verbosity.SHORT) : '';
 		const activeEditorMedium = editor ? editor.getTitle(Verbosity.MEDIUM) : activeEditorShort;
 		const activeEditorLong = editor ? editor.getTitle(Verbosity.LONG) : activeEditorMedium;
-		const activeFolderShort = editor ? (paths.dirname(editor.getTitle(Verbosity.LONG)) === '.' ? '' : paths.basename(paths.dirname(editor.getTitle(Verbosity.LONG)))) : '';
-		const activeFolderMedium = editor ? (paths.dirname(editor.getTitle(Verbosity.MEDIUM)) === '.' ? '' : paths.dirname(editor.getTitle(Verbosity.MEDIUM))) : activeFolderShort;
-		const activeFolderLong = editor ? (paths.dirname(editor.getTitle(Verbosity.LONG)) === '.' ? '' : paths.dirname(editor.getTitle(Verbosity.LONG))) : activeFolderMedium;
+		const activeFolderLong = editorFileResource ? (paths.dirname(this.labelService.getUriLabel(editorFileResource)) === '.' ? '' : paths.dirname(this.labelService.getUriLabel(editorFileResource))) : '';
+		const activeFolderMedium = editorFileResource ? (paths.dirname(this.labelService.getUriLabel(editorFileResource, { relative: true })) === '.' ? '' : paths.dirname(this.labelService.getUriLabel(editorFileResource, { relative: true }))) : '';
+		const activeFolderShort = (activeFolderLong === '') ? '' : paths.basename(activeFolderLong);
 		const rootName = this.labelService.getWorkspaceLabel(workspace);
 		const rootPath = root ? this.labelService.getUriLabel(root) : '';
 		const folderName = folder ? folder.name : '';
