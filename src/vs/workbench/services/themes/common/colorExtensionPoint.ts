@@ -5,8 +5,9 @@
 
 import * as nls from 'vs/nls';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { registerColor, getColorRegistry } from 'vs/platform/theme/common/colorRegistry';
+import { IColorRegistry, Extensions as ColorRegistryExtensions } from 'vs/platform/theme/common/colorRegistry';
 import { Color } from 'vs/base/common/color';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 interface IColorExtensionPoint {
 	id: string;
@@ -14,11 +15,14 @@ interface IColorExtensionPoint {
 	defaults: { light: string, dark: string, highContrast: string };
 }
 
-const colorReferenceSchema = getColorRegistry().getColorReferenceSchema();
+const colorRegistry: IColorRegistry = Registry.as<IColorRegistry>(ColorRegistryExtensions.ColorContribution);
+
+const colorReferenceSchema = colorRegistry.getColorReferenceSchema();
 const colorIdPattern = '^\\w+[.\\w+]*$';
 
 const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IColorExtensionPoint[]>({
 	extensionPoint: 'colors',
+	isDynamic: true,
 	jsonSchema: {
 		description: nls.localize('contributes.color', 'Contributes extension defined themable colors'),
 		type: 'array',
@@ -72,8 +76,8 @@ const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IColorEx
 export class ColorExtensionPoint {
 
 	constructor() {
-		configurationExtPoint.setHandler((extensions) => {
-			for (const extension of extensions) {
+		configurationExtPoint.setHandler((extensions, delta) => {
+			for (const extension of delta.added) {
 				const extensionValue = <IColorExtensionPoint[]>extension.value;
 				const collector = extension.collector;
 
@@ -93,30 +97,36 @@ export class ColorExtensionPoint {
 					return Color.red;
 				};
 
-				extensionValue.forEach(extension => {
-					if (typeof extension.id !== 'string' || extension.id.length === 0) {
+				for (const colorContribution of extensionValue) {
+					if (typeof colorContribution.id !== 'string' || colorContribution.id.length === 0) {
 						collector.error(nls.localize('invalid.id', "'configuration.colors.id' must be defined and can not be empty"));
 						return;
 					}
-					if (!extension.id.match(colorIdPattern)) {
+					if (!colorContribution.id.match(colorIdPattern)) {
 						collector.error(nls.localize('invalid.id.format', "'configuration.colors.id' must follow the word[.word]*"));
 						return;
 					}
-					if (typeof extension.description !== 'string' || extension.id.length === 0) {
+					if (typeof colorContribution.description !== 'string' || colorContribution.id.length === 0) {
 						collector.error(nls.localize('invalid.description', "'configuration.colors.description' must be defined and can not be empty"));
 						return;
 					}
-					let defaults = extension.defaults;
+					let defaults = colorContribution.defaults;
 					if (!defaults || typeof defaults !== 'object' || typeof defaults.light !== 'string' || typeof defaults.dark !== 'string' || typeof defaults.highContrast !== 'string') {
 						collector.error(nls.localize('invalid.defaults', "'configuration.colors.defaults' must be defined and must contain 'light', 'dark' and 'highContrast'"));
 						return;
 					}
-					registerColor(extension.id, {
+					colorRegistry.registerColor(colorContribution.id, {
 						light: parseColorValue(defaults.light, 'configuration.colors.defaults.light'),
 						dark: parseColorValue(defaults.dark, 'configuration.colors.defaults.dark'),
 						hc: parseColorValue(defaults.highContrast, 'configuration.colors.defaults.highContrast')
-					}, extension.description);
-				});
+					}, colorContribution.description);
+				}
+			}
+			for (const extension of delta.removed) {
+				const extensionValue = <IColorExtensionPoint[]>extension.value;
+				for (const colorContribution of extensionValue) {
+					colorRegistry.deregisterColor(colorContribution.id);
+				}
 			}
 		});
 	}

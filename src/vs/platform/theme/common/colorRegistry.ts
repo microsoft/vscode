@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as platform from 'vs/platform/registry/common/platform';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { Color, RGBA } from 'vs/base/common/color';
 import { ITheme } from 'vs/platform/theme/common/themeService';
+import { Event, Emitter } from 'vs/base/common/event';
 
 import * as nls from 'vs/nls';
 import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 //  ------ API types
 
@@ -46,13 +48,20 @@ export const Extensions = {
 
 export interface IColorRegistry {
 
+	readonly onDidChangeSchema: Event<void>;
+
 	/**
 	 * Register a color to the registry.
-	 * @param id The color id as used in theme descrition files
+	 * @param id The color id as used in theme description files
 	 * @param defaults The default values
 	 * @description the description
 	 */
 	registerColor(id: string, defaults: ColorDefaults, description: string): ColorIdentifier;
+
+	/**
+	 * Register a color to the registry.
+	 */
+	deregisterColor(id: string);
 
 	/**
 	 * Get all color contributions
@@ -65,12 +74,12 @@ export interface IColorRegistry {
 	resolveDefaultColor(id: ColorIdentifier, theme: ITheme): Color | null;
 
 	/**
-	 * JSON schema for an object to assign color values to one of the color contrbutions.
+	 * JSON schema for an object to assign color values to one of the color contributions.
 	 */
 	getColorSchema(): IJSONSchema;
 
 	/**
-	 * JSON schema to for a reference to a color contrbution.
+	 * JSON schema to for a reference to a color contribution.
 	 */
 	getColorReferenceSchema(): IJSONSchema;
 
@@ -79,9 +88,13 @@ export interface IColorRegistry {
 
 
 class ColorRegistry implements IColorRegistry {
+
+	private readonly _onDidChangeSchema = new Emitter<void>();
+	readonly onDidChangeSchema: Event<void> = this._onDidChangeSchema.event;
+
 	private colorsById: { [key: string]: ColorContribution };
-	private colorSchema: IJSONSchema = { type: 'object', properties: {} };
-	private colorReferenceSchema: IJSONSchema = { type: 'string', enum: [], enumDescriptions: [] };
+	private colorSchema: IJSONSchema & { properties: IJSONSchemaMap } = { type: 'object', properties: {} };
+	private colorReferenceSchema: IJSONSchema & { enum: string[], enumDescriptions: string[] } = { type: 'string', enum: [], enumDescriptions: [] };
 
 	constructor() {
 		this.colorsById = {};
@@ -94,10 +107,24 @@ class ColorRegistry implements IColorRegistry {
 		if (deprecationMessage) {
 			propertySchema.deprecationMessage = deprecationMessage;
 		}
-		this.colorSchema.properties![id] = propertySchema;
-		this.colorReferenceSchema.enum!.push(id);
-		this.colorReferenceSchema.enumDescriptions!.push(description);
+		this.colorSchema.properties[id] = propertySchema;
+		this.colorReferenceSchema.enum.push(id);
+		this.colorReferenceSchema.enumDescriptions.push(description);
+
+		this._onDidChangeSchema.fire();
 		return id;
+	}
+
+
+	public deregisterColor(id: string): void {
+		delete this.colorsById[id];
+		delete this.colorSchema.properties[id];
+		const index = this.colorReferenceSchema.enum.indexOf(id);
+		if (index !== -1) {
+			this.colorReferenceSchema.enum.splice(index, 1);
+			this.colorReferenceSchema.enumDescriptions.splice(index, 1);
+		}
+		this._onDidChangeSchema.fire();
 	}
 
 	public getColors(): ColorContribution[] {
@@ -448,6 +475,13 @@ export const workbenchColorsSchemaId = 'vscode://schemas/workbench-colors';
 
 let schemaRegistry = platform.Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 schemaRegistry.registerSchema(workbenchColorsSchemaId, colorRegistry.getColorSchema());
+
+const delayer = new RunOnceScheduler(() => schemaRegistry.notifySchemaChanged(workbenchColorsSchemaId), 200);
+colorRegistry.onDidChangeSchema(() => {
+	if (!delayer.isScheduled()) {
+		delayer.schedule();
+	}
+});
 
 // setTimeout(_ => console.log(colorRegistry.toString()), 5000);
 
