@@ -317,7 +317,6 @@ export class OneLineRange extends SearchRange {
 export interface ISearchConfigurationProperties {
 	exclude: glob.IExpression;
 	useRipgrep: boolean;
-	useLegacySearch: boolean;
 	/**
 	 * Use ignore file for file search.
 	 */

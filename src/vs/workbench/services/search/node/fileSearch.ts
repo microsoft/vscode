@@ -75,7 +75,7 @@ export class FileWalker {
 
 	constructor(config: IFileQuery, maxFileSize?: number) {
 		this.config = config;
-		this.useRipgrep = config.useRipgrep !== false;
+		this.useRipgrep = true;
 		this.filePattern = config.filePattern || '';
 		this.includePattern = config.includePattern && glob.parse(config.includePattern);
 		this.maxResults = config.maxResults || null;
