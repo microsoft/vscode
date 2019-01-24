@@ -26,14 +26,7 @@ import 'vs/workbench/api/browser/viewsExtensionPoint';
 import 'vs/workbench/parts/localizations/electron-browser/localizations.contribution';
 
 // Workbench
-import 'vs/workbench/browser/actions/toggleActivityBarVisibility';
-import 'vs/workbench/browser/actions/toggleStatusbarVisibility';
-import 'vs/workbench/browser/actions/toggleSidebarVisibility';
-import 'vs/workbench/browser/actions/toggleSidebarPosition';
-import 'vs/workbench/browser/actions/toggleEditorLayout';
-import 'vs/workbench/browser/actions/toggleZenMode';
-import 'vs/workbench/browser/actions/toggleCenteredLayout';
-import 'vs/workbench/browser/actions/toggleTabsVisibility';
+import 'vs/workbench/browser/actions/layoutActions';
 import 'vs/workbench/parts/preferences/electron-browser/preferences.contribution';
 import 'vs/workbench/parts/preferences/browser/keybindingsEditorContribution';
 import 'vs/workbench/parts/logs/electron-browser/logs.contribution';
