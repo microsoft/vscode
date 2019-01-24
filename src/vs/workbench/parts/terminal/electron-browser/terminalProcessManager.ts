@@ -90,14 +90,13 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		cols: number,
 		rows: number
 	): void {
-
 		let launchRemotely = false;
 
 		if (shellLaunchConfig.cwd && typeof shellLaunchConfig.cwd === 'object') {
 			launchRemotely = !!getRemoteAuthority(shellLaunchConfig.cwd);
 			shellLaunchConfig.cwd = shellLaunchConfig.cwd.fsPath;
 		} else {
-			launchRemotely = !!this._windowService.getConfiguration().remoteAuthority;
+			launchRemotely = !!this._windowService.getConfiguration().remoteAuthority || (this._configHelper.config as any).extHostProcess;
 		}
 
 		if (launchRemotely) {

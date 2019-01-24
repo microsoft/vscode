@@ -25,10 +25,10 @@ import { IExtensionManifest, IKeyBinding, IView, IViewContainer, ExtensionType }
 import { ResolvedKeybinding, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, IExtension, IExtensionDependencies, ExtensionContainers } from 'vs/workbench/parts/extensions/common/extensions';
-import { RatingsWidget, InstallCountWidget } from 'vs/workbench/parts/extensions/browser/extensionsWidgets';
+import { RatingsWidget, InstallCountWidget } from 'vs/workbench/parts/extensions/electron-browser/extensionsWidgets';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { CombinedInstallAction, UpdateAction, ExtensionEditorDropDownAction, ReloadAction, MaliciousStatusLabelAction, DisabledStatusLabelAction, IgnoreExtensionRecommendationAction, UndoIgnoreExtensionRecommendationAction, EnableDropDownAction, DisableDropDownAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
+import { CombinedInstallAction, UpdateAction, ExtensionEditorDropDownAction, ReloadAction, MaliciousStatusLabelAction, IgnoreExtensionRecommendationAction, UndoIgnoreExtensionRecommendationAction, EnableDropDownAction, DisableDropDownAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { WebviewElement } from 'vs/workbench/parts/webview/electron-browser/webviewElement';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -357,18 +357,17 @@ export class ExtensionEditor extends BaseEditor {
 				const actions = [
 					reloadAction,
 					this.instantiationService.createInstance(UpdateAction),
-					this.instantiationService.createInstance(EnableDropDownAction, runningExtensions),
+					this.instantiationService.createInstance(EnableDropDownAction),
 					this.instantiationService.createInstance(DisableDropDownAction, runningExtensions),
 					this.instantiationService.createInstance(CombinedInstallAction),
 					this.instantiationService.createInstance(MaliciousStatusLabelAction, true),
-					this.instantiationService.createInstance(DisabledStatusLabelAction, runningExtensions)
 				];
 				const extensionContainers: ExtensionContainers = this.instantiationService.createInstance(ExtensionContainers, [...actions, ...widgets]);
 				extensionContainers.extension = extension;
 
 				this.extensionActionBar.clear();
 				this.extensionActionBar.push(actions, { icon: true, label: true });
-				this.transientDisposables.push(...[...actions, extensionContainers]);
+				this.transientDisposables.push(...[...actions, ...widgets, extensionContainers]);
 
 				this.setSubText(extension, reloadAction);
 				this.content.innerHTML = ''; // Clear content before setting navbar actions.

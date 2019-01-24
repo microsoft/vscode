@@ -689,6 +689,12 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('workbench.enableExperiments', "Fetches experiments to run from a Microsoft online service."),
 			'default': true,
 			'tags': ['usesOnlineServices']
+		},
+		'workbench.useExperimentalGridLayout': {
+			'type': 'boolean',
+			'description': nls.localize('workbench.useExperimentalGridLayout', "Enables the grid layout for the workbench. This setting may enable additional layout options for workbench components."),
+			'default': false,
+			'scope': ConfigurationScope.APPLICATION
 		}
 	}
 });
@@ -820,7 +826,7 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': false,
 			'scope': ConfigurationScope.APPLICATION,
-			'description': nls.localize('window.doubleClickIconToClose', "If enabled, double clicking the application icon in the title bar will close the window and the window cannot be dragged by the icon. This setting only has an effect when `#window.titleBarStyle#` is set to `custom`.")
+			'markdownDescription': nls.localize('window.doubleClickIconToClose', "If enabled, double clicking the application icon in the title bar will close the window and the window cannot be dragged by the icon. This setting only has an effect when `#window.titleBarStyle#` is set to `custom`.")
 		},
 		'window.titleBarStyle': {
 			'type': 'string',

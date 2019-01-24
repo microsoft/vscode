@@ -36,32 +36,32 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TreeResourceNavigator2, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IProgressService } from 'vs/platform/progress/common/progress';
-import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ISearchHistoryService, ISearchHistoryValues, ISearchProgressItem, ITextQuery, SearchErrorCode, VIEW_ID, IProgress } from 'vs/platform/search/common/search';
+import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ISearchHistoryService, ISearchHistoryValues, ITextQuery, SearchErrorCode, VIEW_ID } from 'vs/platform/search/common/search';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { diffInserted, diffInsertedOutline, diffRemoved, diffRemovedOutline, editorFindMatchHighlight, editorFindMatchHighlightBorder, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { OpenFileFolderAction, OpenFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
+import { ResourceLabels } from 'vs/workbench/browser/labels';
 import { Viewlet } from 'vs/workbench/browser/viewlet';
 import { IEditor } from 'vs/workbench/common/editor';
 import { IPanel } from 'vs/workbench/common/panel';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { ExcludePatternInputWidget, PatternInputWidget } from 'vs/workbench/parts/search/browser/patternInputWidget';
-import { CancelSearchAction, ClearSearchResultsAction, CollapseDeepestExpandedLevelAction, RefreshAction, getKeyboardEventForEditorOpen } from 'vs/workbench/parts/search/browser/searchActions';
-import { FileMatchRenderer, FolderMatchRenderer, MatchRenderer, SearchDelegate, SearchAccessibilityProvider } from 'vs/workbench/parts/search/browser/searchResultsView';
+import { CancelSearchAction, ClearSearchResultsAction, CollapseDeepestExpandedLevelAction, getKeyboardEventForEditorOpen, RefreshAction } from 'vs/workbench/parts/search/browser/searchActions';
+import { FileMatchRenderer, FolderMatchRenderer, MatchRenderer, SearchAccessibilityProvider, SearchDelegate } from 'vs/workbench/parts/search/browser/searchResultsView';
 import { ISearchWidgetOptions, SearchWidget } from 'vs/workbench/parts/search/browser/searchWidget';
 import * as Constants from 'vs/workbench/parts/search/common/constants';
 import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/parts/search/common/queryBuilder';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/parts/search/common/search';
-import { FileMatch, FileMatchOrMatch, FolderMatch, IChangeEvent, ISearchWorkbenchService, Match, RenderableMatch, SearchModel, SearchResult, searchMatchComparer } from 'vs/workbench/parts/search/common/searchModel';
+import { FileMatch, FileMatchOrMatch, FolderMatch, IChangeEvent, ISearchWorkbenchService, Match, RenderableMatch, searchMatchComparer, SearchModel, SearchResult } from 'vs/workbench/parts/search/common/searchModel';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPreferencesService, ISettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { ResourceLabels } from 'vs/workbench/browser/labels';
 
 const $ = dom.$;
 
@@ -1241,13 +1241,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	}
 
 	private doSearch(query: ITextQuery, options: ITextQueryBuilderOptions, excludePatternText: string, includePatternText: string): Thenable<void> {
-		// Progress total is 100.0% for more progress bar granularity
-		const progressTotal = 1000;
-		let progressWorked = 0;
-
-		const progressRunner = query.useRipgrep ?
-			this.progressService.show(/*infinite=*/true) :
-			this.progressService.show(progressTotal);
+		const progressRunner = this.progressService.show(/*infinite=*/true);
 
 		this.searchWidget.searchInput.clearMessage();
 		this.searching = true;
@@ -1263,12 +1257,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			this.searching = false;
 
 			// Complete up to 100% as needed
-			if (completed && !query.useRipgrep) {
-				progressRunner.worked(progressTotal - progressWorked);
-				setTimeout(() => progressRunner.done(), 200);
-			} else {
-				progressRunner.done();
-			}
+			progressRunner.done();
 
 			// Do final render, then expand if just 1 file with less than 50 matches
 			this.onSearchResultsChanged();
@@ -1370,13 +1359,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 				this.searchWidget.searchInput.showMessage({ content: e.message, type: MessageType.ERROR });
 				this.viewModel.searchResult.clear();
 
-				if (e.code === SearchErrorCode.unknownEncoding && !this.configurationService.getValue('search.useLegacySearch')) {
-					this.notificationService.prompt(Severity.Info, nls.localize('otherEncodingWarning', "You can enable \"search.useLegacySearch\" to search non-standard file encodings."),
-						[{
-							label: nls.localize('otherEncodingWarning.openSettingsLabel', "Open Settings"),
-							run: () => this.openSettings('search.useLegacySearch')
-						}]);
-				} else if (e.code === SearchErrorCode.regexParseError && !this.configurationService.getValue('search.usePCRE2')) {
+				if (e.code === SearchErrorCode.regexParseError && !this.configurationService.getValue('search.usePCRE2')) {
 					this.showPcre2Hint();
 				}
 
@@ -1384,48 +1367,13 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			}
 		};
 
-		let total: number = 0;
-		let worked: number = 0;
 		let visibleMatches = 0;
-		const onProgress = (p: ISearchProgressItem) => {
-			// Progress
-			if ((<IProgress>p).total) {
-				total = (<IProgress>p).total;
-			}
-			if ((<IProgress>p).worked) {
-				worked = (<IProgress>p).worked;
-			}
-		};
 
 		// Handle UI updates in an interval to show frequent progress and results
 		const uiRefreshHandle: any = setInterval(() => {
 			if (!this.searching) {
 				window.clearInterval(uiRefreshHandle);
 				return;
-			}
-
-			if (!query.useRipgrep) {
-				// Progress bar update
-				let fakeProgress = true;
-				if (total > 0 && worked > 0) {
-					const ratio = Math.round((worked / total) * progressTotal);
-					if (ratio > progressWorked) { // never show less progress than what we have already
-						progressRunner.worked(ratio - progressWorked);
-						progressWorked = ratio;
-						fakeProgress = false;
-					}
-				}
-
-				// Fake progress up to 90%, or when actual progress beats it
-				const fakeMax = 900;
-				const fakeMultiplier = 12;
-				if (fakeProgress && progressWorked < fakeMax) {
-					// Linearly decrease the rate of fake progress.
-					// 1 is the smallest allowed amount of progress.
-					const fakeAmt = Math.round((fakeMax - progressWorked) / fakeMax * fakeMultiplier) || 1;
-					progressWorked += fakeAmt;
-					progressRunner.worked(fakeAmt);
-				}
 			}
 
 			// Search result tree update
@@ -1441,7 +1389,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 		this.searchWidget.setReplaceAllActionState(false);
 
-		return this.viewModel.search(query, onProgress)
+		return this.viewModel.search(query)
 			.then(onComplete, onError);
 	}
 

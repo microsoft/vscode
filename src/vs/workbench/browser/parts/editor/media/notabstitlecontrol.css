@@ -5,7 +5,7 @@
 
 /* Title Label */
 
-.monaco-workbench > .part.editor > .content .editor-group-container > .title > .label-container {
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .label-container {
 	height: 35px;
 	display: flex;
 	justify-content: flex-start;
@@ -14,7 +14,7 @@
 	flex: auto;
 }
 
-.monaco-workbench > .part.editor > .content .editor-group-container > .title .title-label {
+.monaco-workbench .part.editor > .content .editor-group-container > .title .title-label {
 	line-height: 35px;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -22,31 +22,31 @@
 	padding-left: 20px;
 }
 
-.monaco-workbench > .part.editor > .content .editor-group-container > .title.breadcrumbs .no-tabs.title-label {
+.monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .no-tabs.title-label {
 	flex: none;
 }
 
-.monaco-workbench > .part.editor > .content .editor-group-container > .title .monaco-icon-label::before {
+.monaco-workbench .part.editor > .content .editor-group-container > .title .monaco-icon-label::before {
 	height: 35px; /* tweak the icon size of the editor labels when icons are enabled */
 }
 
 /* Breadcrumbs */
 
-.monaco-workbench > .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control {
+.monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control {
 	flex: 1 50%;
 	overflow: hidden;
 	margin-left: .45em;
 }
 
-.monaco-workbench > .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item {
+.monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item {
 	font-size: 0.9em;
 }
 
-.monaco-workbench > .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control.preview .monaco-breadcrumb-item {
+.monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control.preview .monaco-breadcrumb-item {
 	font-style: italic;
 }
 
-.monaco-workbench > .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item::before {
+.monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item::before {
 	content: '/';
 	opacity: 1;
 	height: inherit;
@@ -58,31 +58,31 @@
 	content: '\\';
 }
 
-.monaco-workbench > .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item.root_folder::before,
-.monaco-workbench > .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item.root_folder + .monaco-breadcrumb-item::before,
-.monaco-workbench > .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control.relative-path .monaco-breadcrumb-item:nth-child(2)::before {
+.monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item.root_folder::before,
+.monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item.root_folder + .monaco-breadcrumb-item::before,
+.monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control.relative-path .monaco-breadcrumb-item:nth-child(2)::before {
 	/* workspace folder, item following workspace folder, or relative path -> hide first seperator */
 	display: none;
 }
 
-.monaco-workbench > .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item.root_folder::after {
+.monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item.root_folder::after {
 	/* use dot separator for workspace folder */
 	content: '\00a0•\00a0';
 	padding: 0px;
 }
 
-.monaco-workbench > .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item:last-child {
+.monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item:last-child {
 	padding-right: 4px; /* does not have trailing separator*/
 }
 
 /* Title Actions */
-.monaco-workbench > .part.editor > .content .editor-group-container > .title .title-actions {
+.monaco-workbench .part.editor > .content .editor-group-container > .title .title-actions {
 	display: flex;
 	flex: initial;
 	opacity: 0.5;
 	height: 35px;
 }
 
-.monaco-workbench > .part.editor > .content .editor-group-container.active > .title .title-actions {
+.monaco-workbench .part.editor > .content .editor-group-container.active > .title .title-actions {
 	opacity: 1;
 }

@@ -609,7 +609,13 @@ class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGro
 	}
 
 	getDragURI(element: OpenEditor | IEditorGroup): string | null {
-		return element instanceof OpenEditor ? element.getResource().toString() : null;
+		if (element instanceof OpenEditor) {
+			const resource = element.getResource();
+			if (resource) {
+				return resource.toString();
+			}
+		}
+		return null;
 	}
 
 	getDragLabel?(elements: (OpenEditor | IEditorGroup)[]): string {

@@ -559,6 +559,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	reload(configurationIn?: IWindowConfiguration, cli?: ParsedArgs): void {
+
 		// If config is not provided, copy our current one
 		const configuration = configurationIn ? configurationIn : objects.mixin({}, this.currentConfig);
 
