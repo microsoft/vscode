@@ -257,8 +257,7 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 		const editor = this.editorService.activeEditor;
 		const workspace = this.contextService.getWorkspace();
 
-		let editorResource = editor ? toResource(editor, { supportSideBySide: true }) : undefined;
-
+		// Compute root
 		let root: URI;
 		if (workspace.configuration) {
 			root = workspace.configuration;
@@ -266,18 +265,25 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 			root = workspace.folders[0].uri;
 		}
 
+		// Compute active editor folder
+		const editorResource = editor ? toResource(editor) : undefined;
+		let editorFolderResource = editorResource ? resources.dirname(editorResource) : undefined;
+		if (editorFolderResource && editorFolderResource.path === '.') {
+			editorFolderResource = undefined;
+		}
+
 		// Compute folder resource
 		// Single Root Workspace: always the root single workspace in this case
 		// Otherwise: root folder of the currently active file if any
-		let folder = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? workspace.folders[0] : this.contextService.getWorkspaceFolder(toResource(editor, { supportSideBySide: true }));
+		const folder = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? workspace.folders[0] : this.contextService.getWorkspaceFolder(toResource(editor, { supportSideBySide: true }));
 
 		// Variables
 		const activeEditorShort = editor ? editor.getTitle(Verbosity.SHORT) : '';
 		const activeEditorMedium = editor ? editor.getTitle(Verbosity.MEDIUM) : activeEditorShort;
 		const activeEditorLong = editor ? editor.getTitle(Verbosity.LONG) : activeEditorMedium;
-		const activeFolderShort = editorResource ? resources.dirname(editorResource).path !== '.' ? resources.basename(resources.dirname(editorResource)) : '' : '';
-		const activeFolderMedium = editorResource ? resources.dirname(editorResource).path !== '.' ? this.labelService.getUriLabel(resources.dirname(editorResource), { relative: true }) : '' : '';
-		const activeFolderLong = editorResource ? resources.dirname(editorResource).path !== '.' ? this.labelService.getUriLabel(resources.dirname(editorResource)) : '' : '';
+		const activeFolderShort = editorFolderResource ? resources.basename(editorFolderResource) : '';
+		const activeFolderMedium = editorFolderResource ? this.labelService.getUriLabel(editorFolderResource, { relative: true }) : '';
+		const activeFolderLong = editorFolderResource ? this.labelService.getUriLabel(editorFolderResource) : '';
 		const rootName = this.labelService.getWorkspaceLabel(workspace);
 		const rootPath = root ? this.labelService.getUriLabel(root) : '';
 		const folderName = folder ? folder.name : '';
