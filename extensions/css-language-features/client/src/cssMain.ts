@@ -9,8 +9,8 @@ import * as fs from 'fs';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-import { languages, window, commands, ExtensionContext, Range, Position, CompletionItem, CompletionItemKind, TextEdit, SnippetString, workspace } from 'vscode';
-import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, Disposable } from 'vscode-languageclient';
+import { languages, window, commands, ExtensionContext, Range, Position, CompletionItem, CompletionItemKind, TextEdit, SnippetString, workspace, TextDocument, SelectionRange, SelectionRangeKind } from 'vscode';
+import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, Disposable, TextDocumentIdentifier } from 'vscode-languageclient';
 import { getCustomDataPathsInAllWorkspaces, getCustomDataPathsFromAllExtensions } from './customData';
 
 // this method is called when vs code is activated
@@ -79,6 +79,24 @@ export function activate(context: ExtensionContext) {
 	client.onReady().then(() => {
 		context.subscriptions.push(initCompletionProvider());
 	});
+
+	const selectionRangeProvider = {
+		async provideSelectionRanges(document: TextDocument, position: Position): Promise<SelectionRange[]> {
+			const textDocument = TextDocumentIdentifier.create(document.uri.toString());
+			const rawRanges: Range[] = await client.sendRequest('$/textDocument/selectionRange', { textDocument, position });
+
+			return rawRanges.map(r => {
+				const actualRange = new Range(new Position(r.start.line, r.start.character), new Position(r.end.line, r.end.character));
+				return {
+					range: actualRange,
+					kind: SelectionRangeKind.Declaration
+				};
+			});
+		}
+	};
+	languages.registerSelectionRangeProvider('css', selectionRangeProvider);
+	languages.registerSelectionRangeProvider('less', selectionRangeProvider);
+	languages.registerSelectionRangeProvider('scss', selectionRangeProvider);
 
 	function initCompletionProvider(): Disposable {
 		const regionCompletionRegExpr = /^(\s*)(\/(\*\s*(#\w*)?)?)?$/;
