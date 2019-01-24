@@ -304,9 +304,12 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
 }
 
 const preferredFixes = new Set([
+	'annotateWithTypeFromJSDoc',
 	'constructorForDerivedNeedSuperCall',
+	'extendsInterfaceBecomesImplements',
 	'fixClassIncorrectlyImplementsInterface',
 	'fixUnreachableCode',
+	'forgottenThisPropertyAccess',
 	'spelling',
 	'unusedIdentifier',
 ]);
