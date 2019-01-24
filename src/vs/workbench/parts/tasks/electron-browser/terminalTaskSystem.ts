@@ -901,7 +901,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			return [terminalToReuse.terminal, commandExecutable, undefined];
 		}
 
-		let result;
+		let result: ITerminalInstance | null = null;
 		if (group) {
 			// Try to find an existing terminal to split.
 			// Even if an existing terminal is found, the split can fail if the terminal width is too small.
