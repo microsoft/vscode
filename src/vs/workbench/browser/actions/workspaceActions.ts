@@ -151,7 +151,7 @@ export class SaveWorkspaceAsAction extends Action {
 						return this.workspaceEditingService.createAndEnterWorkspace(folders, configPath);
 
 					case WorkbenchState.WORKSPACE:
-						return this.workspaceEditingService.saveAndEnterWorkspace(configPath);
+						return this.workspaceEditingService.saveAndEnterWorkspace(configPathUri);
 				}
 			}
 		});

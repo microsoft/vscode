@@ -138,7 +138,7 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 		return this.withWindow(windowId, codeWindow => this.windowsMainService.closeWorkspace(codeWindow));
 	}
 
-	async enterWorkspace(windowId: number, path: string): Promise<IEnterWorkspaceResult | undefined> {
+	async enterWorkspace(windowId: number, path: URI): Promise<IEnterWorkspaceResult | undefined> {
 		this.logService.trace('windowsService#enterWorkspace', windowId);
 
 		return this.withWindow(windowId, codeWindow => this.windowsMainService.enterWorkspace(codeWindow, path));

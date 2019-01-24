@@ -94,7 +94,7 @@ export interface IWindowsMainService {
 	// methods
 	ready(initialUserEnv: IProcessEnvironment): void;
 	reload(win: ICodeWindow, cli?: ParsedArgs): void;
-	enterWorkspace(win: ICodeWindow, path: string): Promise<IEnterWorkspaceResult>;
+	enterWorkspace(win: ICodeWindow, path: URI): Promise<IEnterWorkspaceResult>;
 	createAndEnterWorkspace(win: ICodeWindow, folders?: IWorkspaceFolderCreationData[], path?: string): Promise<IEnterWorkspaceResult>;
 	saveAndEnterWorkspace(win: ICodeWindow, path: string): Promise<IEnterWorkspaceResult>;
 	closeWorkspace(win: ICodeWindow): void;

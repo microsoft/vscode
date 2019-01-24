@@ -84,8 +84,6 @@ export interface IWorkspacesMainService extends IWorkspacesService {
 
 	createWorkspaceSync(folders?: IWorkspaceFolderCreationData[]): IWorkspaceIdentifier;
 
-	resolveWorkspace(path: string): Promise<IResolvedWorkspace | null>;
-
 	resolveWorkspaceSync(path: string): IResolvedWorkspace | null;
 
 	isUntitledWorkspace(workspace: IWorkspaceIdentifier): boolean;
@@ -95,6 +93,8 @@ export interface IWorkspacesMainService extends IWorkspacesService {
 	getUntitledWorkspacesSync(): IWorkspaceIdentifier[];
 
 	getWorkspaceId(workspacePath: string): string;
+
+	getWorkspaceIdentifier(workspacePath: URI): IWorkspaceIdentifier;
 }
 
 export interface IWorkspacesService {
