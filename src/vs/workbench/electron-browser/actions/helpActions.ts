@@ -7,11 +7,8 @@ import { Action } from 'vs/base/common/actions';
 import * as nls from 'vs/nls';
 import product from 'vs/platform/node/product';
 import { isMacintosh, isLinux, language } from 'vs/base/common/platform';
-import { shell } from 'electron';
 import { IssueType } from 'vs/platform/issue/common/issue';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
-
-// --- actions
 
 export class OpenIssueReporterAction extends Action {
 	static readonly ID = 'workbench.action.openIssueReporter';
@@ -26,8 +23,7 @@ export class OpenIssueReporterAction extends Action {
 	}
 
 	run(): Promise<boolean> {
-		return this.issueService.openReporter()
-			.then(() => true);
+		return this.issueService.openReporter().then(() => true);
 	}
 }
 
@@ -44,8 +40,7 @@ export class OpenProcessExplorer extends Action {
 	}
 
 	run(): Promise<boolean> {
-		return this.issueService.openProcessExplorer()
-			.then(() => true);
+		return this.issueService.openProcessExplorer().then(() => true);
 	}
 }
 
@@ -62,9 +57,7 @@ export class ReportPerformanceIssueUsingReporterAction extends Action {
 	}
 
 	run(): Promise<boolean> {
-		// TODO: Reporter should send timings table as well
-		return this.issueService.openReporter({ issueType: IssueType.PerformanceIssue })
-			.then(() => true);
+		return this.issueService.openReporter({ issueType: IssueType.PerformanceIssue }).then(() => true);
 	}
 }
 
@@ -85,6 +78,7 @@ export class KeybindingsReferenceAction extends Action {
 
 	run(): Promise<void> {
 		window.open(KeybindingsReferenceAction.URL);
+
 		return Promise.resolve();
 	}
 }
@@ -106,6 +100,7 @@ export class OpenDocumentationUrlAction extends Action {
 
 	run(): Promise<void> {
 		window.open(OpenDocumentationUrlAction.URL);
+
 		return Promise.resolve();
 	}
 }
@@ -127,6 +122,7 @@ export class OpenIntroductoryVideosUrlAction extends Action {
 
 	run(): Promise<void> {
 		window.open(OpenIntroductoryVideosUrlAction.URL);
+
 		return Promise.resolve();
 	}
 }
@@ -148,6 +144,7 @@ export class OpenTipsAndTricksUrlAction extends Action {
 
 	run(): Promise<void> {
 		window.open(OpenTipsAndTricksUrlAction.URL);
+
 		return Promise.resolve();
 	}
 }
@@ -166,10 +163,10 @@ export class OpenTwitterUrlAction extends Action {
 
 	run(): Promise<boolean> {
 		if (product.twitterUrl) {
-			return Promise.resolve(shell.openExternal(product.twitterUrl));
+			window.open(product.twitterUrl);
 		}
 
-		return Promise.resolve(false);
+		return Promise.resolve();
 	}
 }
 
@@ -187,10 +184,10 @@ export class OpenRequestFeatureUrlAction extends Action {
 
 	run(): Promise<boolean> {
 		if (product.requestFeatureUrl) {
-			return Promise.resolve(shell.openExternal(product.requestFeatureUrl));
+			window.open(product.requestFeatureUrl);
 		}
 
-		return Promise.resolve(false);
+		return Promise.resolve();
 	}
 }
 
@@ -210,13 +207,13 @@ export class OpenLicenseUrlAction extends Action {
 		if (product.licenseUrl) {
 			if (language) {
 				const queryArgChar = product.licenseUrl.indexOf('?') > 0 ? '&' : '?';
-				return Promise.resolve(shell.openExternal(`${product.licenseUrl}${queryArgChar}lang=${language}`));
+				window.open(`${product.licenseUrl}${queryArgChar}lang=${language}`);
 			} else {
-				return Promise.resolve(shell.openExternal(product.licenseUrl));
+				window.open(product.licenseUrl);
 			}
 		}
 
-		return Promise.resolve(false);
+		return Promise.resolve();
 	}
 }
 
@@ -236,14 +233,13 @@ export class OpenPrivacyStatementUrlAction extends Action {
 		if (product.privacyStatementUrl) {
 			if (language) {
 				const queryArgChar = product.privacyStatementUrl.indexOf('?') > 0 ? '&' : '?';
-				return Promise.resolve(shell.openExternal(`${product.privacyStatementUrl}${queryArgChar}lang=${language}`));
+				window.open(`${product.privacyStatementUrl}${queryArgChar}lang=${language}`);
 			} else {
-				return Promise.resolve(shell.openExternal(product.privacyStatementUrl));
+				window.open(product.privacyStatementUrl);
 			}
 		}
 
-
-		return Promise.resolve(false);
+		return Promise.resolve();
 	}
 }
 
