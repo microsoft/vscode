@@ -143,12 +143,11 @@ export class SaveWorkspaceAsAction extends Action {
 	run(): Promise<any> {
 		return this.getNewWorkspaceConfigPath().then((configPathUri): Promise<void> | void => {
 			if (configPathUri) {
-				const configPath = configPathUri.fsPath;
 				switch (this.contextService.getWorkbenchState()) {
 					case WorkbenchState.EMPTY:
 					case WorkbenchState.FOLDER:
 						const folders = this.contextService.getWorkspace().folders.map(folder => ({ uri: folder.uri }));
-						return this.workspaceEditingService.createAndEnterWorkspace(folders, configPath);
+						return this.workspaceEditingService.createAndEnterWorkspace(folders, configPathUri);
 
 					case WorkbenchState.WORKSPACE:
 						return this.workspaceEditingService.saveAndEnterWorkspace(configPathUri);

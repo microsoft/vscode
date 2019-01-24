@@ -9,7 +9,7 @@ import * as nls from 'vs/nls';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWindowService, IEnterWorkspaceResult, MessageBoxOptions, IWindowsService } from 'vs/platform/windows/common/windows';
 import { IJSONEditingService, JSONEditingError, JSONEditingErrorCode } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, IStoredWorkspace, isStoredWorkspaceFolder, isRawFileWorkspaceFolder, isWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, IStoredWorkspace, isStoredWorkspaceFolder, isRawFileWorkspaceFolder, isWorkspaceIdentifier, toWorkspaceIdentifier, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -47,6 +47,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		@ICommandService private readonly commandService: ICommandService,
 		@IFileService private readonly fileSystemService: IFileService,
 		@IWindowsService private readonly windowsService: IWindowsService,
+		@IWorkspacesService private readonly workspaceService: IWorkspacesService
 	) {
 	}
 
@@ -152,8 +153,18 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		return this.doEnterWorkspace(() => this.windowService.enterWorkspace(path));
 	}
 
-	createAndEnterWorkspace(folders?: IWorkspaceFolderCreationData[], path?: string): Promise<void> {
-		return this.doEnterWorkspace(() => this.windowService.createAndEnterWorkspace(folders, path));
+	async createAndEnterWorkspace(folders: IWorkspaceFolderCreationData[], path?: URI): Promise<void> {
+		if (path && !this.isValidTargetWorkspacePath(path)) {
+			return Promise.reject(null);
+		}
+
+		const untitledWorkspace = await this.workspaceService.createUntitledWorkspace(folders);
+		if (path) {
+			await this.saveWorkspace(untitledWorkspace, path);
+		} else {
+			path = URI.file(untitledWorkspace.configPath);
+		}
+		return this.enterWorkspace(path);
 	}
 
 	async saveAndEnterWorkspace(path: URI): Promise<void> {
@@ -189,12 +200,12 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		return Promise.resolve(true); // OK
 	}
 
-	private saveWorkspace(workspace: IWorkspaceIdentifier, targetConfigPathURI: URI): Promise<URI> {
+	private saveWorkspace(workspace: IWorkspaceIdentifier, targetConfigPathURI: URI): Promise<void> {
 		const configPathURI = URI.file(workspace.configPath);
 
 		// Return early if target is same as source
 		if (isEqual(configPathURI, targetConfigPathURI)) {
-			return Promise.resolve(targetConfigPathURI);
+			return Promise.resolve(null);
 		}
 
 		// Read the contents of the workspace file and resolve it
@@ -232,9 +243,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 				newRawWorkspaceContents = jsonEdit.applyEdit(rawWorkspaceContents, edit);
 			});
 
-			return this.fileSystemService.createFile(targetConfigPathURI, newRawWorkspaceContents, { overwrite: true }).then(() => {
-				return targetConfigPathURI;
-			});
+			return this.fileSystemService.createFile(targetConfigPathURI, newRawWorkspaceContents, { overwrite: true });
 		});
 	}
 

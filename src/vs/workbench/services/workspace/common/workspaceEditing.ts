@@ -40,7 +40,7 @@ export interface IWorkspaceEditingService {
 	 * creates a new workspace with the provided folders and opens it. if path is provided
 	 * the workspace will be saved into that location.
 	 */
-	createAndEnterWorkspace(folders?: IWorkspaceFolderCreationData[], path?: string): Promise<void>;
+	createAndEnterWorkspace(folders: IWorkspaceFolderCreationData[], path?: URI): Promise<void>;
 
 	/**
 	 * saves the workspace to the provided path and opens it. requires a workspace to be opened.
