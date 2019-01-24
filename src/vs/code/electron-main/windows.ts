@@ -2006,7 +2006,6 @@ class WorkspacesManager {
 				return this.doSaveAndOpenWorkspace(window, workspace, path);
 			});
 		});
-
 	}
 
 	private isValidTargetWorkspacePath(window: ICodeWindow, path?: string): Promise<boolean> {
