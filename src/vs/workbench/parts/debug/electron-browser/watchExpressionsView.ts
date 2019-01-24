@@ -10,7 +10,7 @@ import { CollapseAction2 } from 'vs/workbench/browser/viewlet';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDebugService, IExpression, CONTEXT_WATCH_EXPRESSIONS_FOCUSED } from 'vs/workbench/parts/debug/common/debug';
 import { Expression, Variable } from 'vs/workbench/parts/debug/common/debugModel';
-import { AddWatchExpressionAction, RemoveAllWatchExpressionsAction, EditWatchExpressionAction, RemoveWatchExpressionAction } from 'vs/workbench/parts/debug/browser/debugActions';
+import { AddWatchExpressionAction, RemoveAllWatchExpressionsAction, EditWatchExpressionAction, RemoveWatchExpressionAction, RemoveWatchExpressionAction2 } from 'vs/workbench/parts/debug/browser/debugActions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -76,9 +76,10 @@ export class WatchExpressionsView extends ViewletPanel {
 		this.tree.setInput(this.debugService).then(undefined, onUnexpectedError);
 
 		const addWatchExpressionAction = new AddWatchExpressionAction(AddWatchExpressionAction.ID, AddWatchExpressionAction.LABEL, this.debugService, this.keybindingService);
+		const removeWatchExpressionAction2 = new RemoveWatchExpressionAction2(RemoveWatchExpressionAction2.ID, RemoveWatchExpressionAction2.LABEL, this.tree, this.debugService, this.keybindingService);
 		const collapseAction = new CollapseAction2(this.tree, true, 'explorer-action collapse-explorer');
 		const removeAllWatchExpressionsAction = new RemoveAllWatchExpressionsAction(RemoveAllWatchExpressionsAction.ID, RemoveAllWatchExpressionsAction.LABEL, this.debugService, this.keybindingService);
-		this.toolbar.setActions([addWatchExpressionAction, collapseAction, removeAllWatchExpressionsAction])();
+		this.toolbar.setActions([addWatchExpressionAction, removeWatchExpressionAction2, collapseAction, removeAllWatchExpressionsAction])();
 
 		this.disposables.push(this.tree.onContextMenu(e => this.onContextMenu(e)));
 		this.disposables.push(this.tree.onMouseDblClick(e => this.onMouseDblClick(e)));

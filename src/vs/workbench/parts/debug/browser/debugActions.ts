@@ -10,7 +10,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IDebugService, State, IDebugSession, IThread, IEnablement, IBreakpoint, IStackFrame, REPL_ID }
+import { IDebugService, State, IDebugSession, IThread, IEnablement, IBreakpoint, IStackFrame, REPL_ID, IExpression }
 	from 'vs/workbench/parts/debug/common/debug';
 import { Variable, Expression, Thread, Breakpoint } from 'vs/workbench/parts/debug/common/debugModel';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -662,6 +662,42 @@ export class RemoveWatchExpressionAction extends AbstractDebugAction {
 	public run(expression: Expression): Promise<any> {
 		this.debugService.removeWatchExpressions(expression.getId());
 		return Promise.resolve(null);
+	}
+}
+
+export class RemoveWatchExpressionAction2 extends AbstractDebugAction {
+	static readonly ID = 'workbench.debug.viewlet.action.removeWatchExpression';
+	static LABEL = nls.localize('removeWatchExpression', "Remove Expression");
+
+	private tree: AsyncDataTree<any, IExpression>;
+
+	constructor(id: string, label: string, tree: AsyncDataTree<any, IExpression>, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+		super(id, label, 'debug-action remove-watch-expression', debugService, keybindingService);
+		this.tree = tree;
+	}
+
+	public run(): Promise<any> {
+		const focus = this.tree.getFocus();
+		const selection = this.tree.getSelection();
+
+		const el = (focus && focus.length > 0 && focus.shift())
+			|| (selection && selection.length > 0 && selection.shift());
+
+		if (el) {
+			this.debugService.removeWatchExpressions(el.getId());
+			this.updateEnablement();
+		}
+
+		return Promise.resolve(null);
+	}
+
+	protected isEnabled(state: State): boolean {
+		const focus = this.tree && this.tree.getFocus();
+		const selection = this.tree && this.tree.getSelection();
+
+		return super.isEnabled(state)
+			&& this.debugService.getModel().getWatchExpressions().every(we => !!we.name)
+			&& (focus && focus.length > 0 || selection && selection.length > 0);
 	}
 }
 

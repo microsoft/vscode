@@ -327,6 +327,16 @@
 	background: url('add-inverse.svg') center center no-repeat;
 }
 
+.debug-viewlet .debug-action.remove-watch-expression,
+.debug-viewlet .debug-action.remove-function-breakpoint {
+	background: url('deletion.svg') center center no-repeat;
+}
+
+.vs-dark .debug-viewlet .debug-action.remove-watch-expression,
+.hc-black .debug-viewlet .debug-action.remove-watch-expression {
+	background: url('deletion-inverse.svg') center center no-repeat;
+}
+
 .vs-dark .debug-viewlet .monaco-list-row .expression .value.changed {
 	animation-name: debugViewletValueChanged;
 }
