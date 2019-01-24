@@ -40,11 +40,11 @@ suite('WorkspacesMainService', () => {
 	}
 
 	function createWorkspace(folders: string[], names?: string[]) {
-		return service.createWorkspace(folders.map((folder, index) => ({ uri: URI.file(folder), name: names ? names[index] : undefined } as IWorkspaceFolderCreationData)));
+		return service.createUntitledWorkspace(folders.map((folder, index) => ({ uri: URI.file(folder), name: names ? names[index] : undefined } as IWorkspaceFolderCreationData)));
 	}
 
 	function createWorkspaceSync(folders: string[], names?: string[]) {
-		return service.createWorkspaceSync(folders.map((folder, index) => ({ uri: URI.file(folder), name: names ? names[index] : undefined } as IWorkspaceFolderCreationData)));
+		return service.createUntitledWorkspaceSync(folders.map((folder, index) => ({ uri: URI.file(folder), name: names ? names[index] : undefined } as IWorkspaceFolderCreationData)));
 	}
 
 	const environmentService = new TestEnvironmentService(parseArgs(process.argv), process.execPath);
@@ -106,8 +106,8 @@ suite('WorkspacesMainService', () => {
 		});
 	});
 
-	test('createWorkspace (folders as other resource URIs)', () => {
-		return service.createWorkspace([{ uri: URI.from({ scheme: 'myScheme', path: process.cwd() }) }, { uri: URI.from({ scheme: 'myScheme', path: os.tmpdir() }) }]).then(workspace => {
+	test('createUntitledWorkspace (folders as other resource URIs)', () => {
+		return service.createUntitledWorkspace([{ uri: URI.from({ scheme: 'myScheme', path: process.cwd() }) }, { uri: URI.from({ scheme: 'myScheme', path: os.tmpdir() }) }]).then(workspace => {
 			assert.ok(workspace);
 			assert.ok(fs.existsSync(workspace.configPath));
 			assert.ok(service.isUntitledWorkspace(workspace));
@@ -152,8 +152,8 @@ suite('WorkspacesMainService', () => {
 		assert.equal((<IRawFileWorkspaceFolder>ws.folders[1]).name, 'tempdir');
 	});
 
-	test('createWorkspaceSync (folders as other resource URIs)', () => {
-		const workspace = service.createWorkspaceSync([{ uri: URI.from({ scheme: 'myScheme', path: process.cwd() }) }, { uri: URI.from({ scheme: 'myScheme', path: os.tmpdir() }) }]);
+	test('createUntitledWorkspaceSync (folders as other resource URIs)', () => {
+		const workspace = service.createUntitledWorkspaceSync([{ uri: URI.from({ scheme: 'myScheme', path: process.cwd() }) }, { uri: URI.from({ scheme: 'myScheme', path: os.tmpdir() }) }]);
 		assert.ok(workspace);
 		assert.ok(fs.existsSync(workspace.configPath));
 		assert.ok(service.isUntitledWorkspace(workspace));
