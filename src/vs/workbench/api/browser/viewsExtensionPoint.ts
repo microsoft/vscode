@@ -382,7 +382,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						ctor: CustomTreeViewPanel,
 						when: ContextKeyExpr.deserialize(item.when),
 						canToggleVisibility: true,
-						collapsed: this.showCollapsed(container),
+						collapsed: false,
 						treeView: this.instantiationService.createInstance(CustomTreeView, item.id, container),
 						order: ExtensionIdentifier.equals(extension.description.identifier, container.extensionId) ? index + 1 : undefined,
 						extensionId: extension.description.identifier,
@@ -442,16 +442,6 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 			case 'scm': return this.viewContainersRegistry.get(SCM);
 			default: return this.viewContainersRegistry.get(`workbench.view.extension.${value}`);
 		}
-	}
-
-	private showCollapsed(container: ViewContainer): boolean {
-		switch (container.id) {
-			case EXPLORER:
-			case SCM:
-			case DEBUG:
-				return true;
-		}
-		return false;
 	}
 }
 
