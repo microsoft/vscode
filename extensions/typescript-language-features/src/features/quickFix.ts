@@ -303,7 +303,13 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
 	}
 }
 
-const preferredFixes = new Set(['spelling']);
+const preferredFixes = new Set([
+	'constructorForDerivedNeedSuperCall',
+	'fixClassIncorrectlyImplementsInterface',
+	'fixUnreachableCode',
+	'spelling',
+	'unusedIdentifier',
+]);
 function isPreferredFix(tsAction: Proto.CodeFixAction): boolean {
 	return preferredFixes.has(tsAction.fixName);
 }
