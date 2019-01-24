@@ -539,13 +539,16 @@ export class TerminalTaskSystem implements ITaskSystem {
 					let key = task.getMapKey();
 					delete this.activeTasks[key];
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Changed));
-					switch (task.command.presentation!.panel) {
-						case PanelKind.Dedicated:
-							this.sameTaskTerminals[key] = terminal!.id.toString();
-							break;
-						case PanelKind.Shared:
-							this.idleTaskTerminals.set(key, terminal!.id.toString(), Touch.AsOld);
-							break;
+					if (exitCode !== undefined) {
+						// Only keep a reference to the terminal if it is not being disposed.
+						switch (task.command.presentation!.panel) {
+							case PanelKind.Dedicated:
+								this.sameTaskTerminals[key] = terminal!.id.toString();
+								break;
+							case PanelKind.Shared:
+								this.idleTaskTerminals.set(key, terminal!.id.toString(), Touch.AsOld);
+								break;
+						}
 					}
 					let reveal = task.command.presentation!.reveal;
 					if ((reveal === RevealKind.Silent) && ((exitCode !== 0) || (watchingProblemMatcher.numberOfMatches > 0) && watchingProblemMatcher.maxMarkerSeverity &&
@@ -602,13 +605,16 @@ export class TerminalTaskSystem implements ITaskSystem {
 					let key = task.getMapKey();
 					delete this.activeTasks[key];
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Changed));
-					switch (task.command.presentation!.panel) {
-						case PanelKind.Dedicated:
-							this.sameTaskTerminals[key] = terminal!.id.toString();
-							break;
-						case PanelKind.Shared:
-							this.idleTaskTerminals.set(key, terminal!.id.toString(), Touch.AsOld);
-							break;
+					if (exitCode !== undefined) {
+						// Only keep a reference to the terminal if it is not being disposed.
+						switch (task.command.presentation!.panel) {
+							case PanelKind.Dedicated:
+								this.sameTaskTerminals[key] = terminal!.id.toString();
+								break;
+							case PanelKind.Shared:
+								this.idleTaskTerminals.set(key, terminal!.id.toString(), Touch.AsOld);
+								break;
+						}
 					}
 					let reveal = task.command.presentation!.reveal;
 					if (terminal && (reveal === RevealKind.Silent) && ((exitCode !== 0) || (startStopProblemMatcher.numberOfMatches > 0) && startStopProblemMatcher.maxMarkerSeverity &&
