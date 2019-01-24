@@ -7,7 +7,6 @@ import { Action } from 'vs/base/common/actions';
 import * as nls from 'vs/nls';
 import product from 'vs/platform/node/product';
 import { isMacintosh, isLinux, language } from 'vs/base/common/platform';
-import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { shell } from 'electron';
 import { IssueType } from 'vs/platform/issue/common/issue';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
@@ -150,79 +149,6 @@ export class OpenTipsAndTricksUrlAction extends Action {
 	run(): Promise<void> {
 		window.open(OpenTipsAndTricksUrlAction.URL);
 		return Promise.resolve();
-	}
-}
-
-// Resize focused view actions
-export abstract class BaseResizeViewAction extends Action {
-
-	// This is a media-size percentage
-	protected static RESIZE_INCREMENT = 6.5;
-
-	constructor(
-		id: string,
-		label: string,
-		@IPartService protected partService: IPartService
-	) {
-		super(id, label);
-	}
-
-	protected resizePart(sizeChange: number): void {
-		const isEditorFocus = this.partService.hasFocus(Parts.EDITOR_PART);
-		const isSidebarFocus = this.partService.hasFocus(Parts.SIDEBAR_PART);
-		const isPanelFocus = this.partService.hasFocus(Parts.PANEL_PART);
-
-		let part: Parts | undefined;
-		if (isSidebarFocus) {
-			part = Parts.SIDEBAR_PART;
-		} else if (isPanelFocus) {
-			part = Parts.PANEL_PART;
-		} else if (isEditorFocus) {
-			part = Parts.EDITOR_PART;
-		}
-
-		if (part) {
-			this.partService.resizePart(part, sizeChange);
-		}
-	}
-}
-
-export class IncreaseViewSizeAction extends BaseResizeViewAction {
-
-	static readonly ID = 'workbench.action.increaseViewSize';
-	static readonly LABEL = nls.localize('increaseViewSize', "Increase Current View Size");
-
-	constructor(
-		id: string,
-		label: string,
-		@IPartService partService: IPartService
-	) {
-		super(id, label, partService);
-	}
-
-	run(): Promise<boolean> {
-		this.resizePart(BaseResizeViewAction.RESIZE_INCREMENT);
-		return Promise.resolve(true);
-	}
-}
-
-export class DecreaseViewSizeAction extends BaseResizeViewAction {
-
-	static readonly ID = 'workbench.action.decreaseViewSize';
-	static readonly LABEL = nls.localize('decreaseViewSize', "Decrease Current View Size");
-
-	constructor(
-		id: string,
-		label: string,
-		@IPartService partService: IPartService
-
-	) {
-		super(id, label, partService);
-	}
-
-	run(): Promise<boolean> {
-		this.resizePart(-BaseResizeViewAction.RESIZE_INCREMENT);
-		return Promise.resolve(true);
 	}
 }
 
