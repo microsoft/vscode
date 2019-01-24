@@ -45,7 +45,7 @@ export function createCancelablePromise<T>(callback: (token: CancellationToken) 
 			return this.then(undefined, reject);
 		}
 		finally(onfinally?: (() => void) | undefined | null): Promise<T> {
-			return always(promise, onfinally);
+			return always(promise, onfinally || (() => { }));
 		}
 	};
 }
