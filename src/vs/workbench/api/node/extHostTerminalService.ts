@@ -405,13 +405,14 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		// TODO: Pull in and resolve config settings
 		// // Resolve env vars from config and shell
 		// const lastActiveWorkspaceRoot = this._workspaceContextService.getWorkspaceFolder(lastActiveWorkspaceRootUri);
-		// const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
-		// const envFromConfig = terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, { ...this._configHelper.config.env[platformKey] }, lastActiveWorkspaceRoot);
+		const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
+		// const envFromConfig = terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, { ...terminalConfig.env[platformKey] }, lastActiveWorkspaceRoot);
+		const envFromConfig = { ...terminalConfig.env[platformKey] };
 		// const envFromShell = terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, { ...shellLaunchConfig.env }, lastActiveWorkspaceRoot);
 
 		// Merge process env with the env from config
 		const env = { ...process.env };
-		// terminalEnvironment.mergeEnvironments(env, envFromConfig);
+		terminalEnvironment.mergeEnvironments(env, envFromConfig);
 		terminalEnvironment.mergeEnvironments(env, shellLaunchConfig.env);
 
 		// Sanitize the environment, removing any undesirable VS Code and Electron environment
