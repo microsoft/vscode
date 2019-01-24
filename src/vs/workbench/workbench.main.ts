@@ -28,6 +28,7 @@ import 'vs/workbench/parts/localizations/electron-browser/localizations.contribu
 // Workbench
 import 'vs/workbench/browser/actions/layoutActions';
 import 'vs/workbench/browser/actions/listCommands';
+import 'vs/workbench/browser/actions/navigationActions';
 import 'vs/workbench/parts/preferences/electron-browser/preferences.contribution';
 import 'vs/workbench/parts/preferences/browser/keybindingsEditorContribution';
 import 'vs/workbench/parts/logs/electron-browser/logs.contribution';
