@@ -223,7 +223,6 @@ export class Workbench extends Disposable implements IPartService {
 	private notificationsToasts: NotificationsToasts;
 
 	private sideBarHidden: boolean;
-	private titleBarHidden: boolean;
 	private statusBarHidden: boolean;
 	private activityBarHidden: boolean;
 	private menubarToggled: boolean;
@@ -1009,7 +1008,6 @@ export class Workbench extends Disposable implements IPartService {
 			const serializedWorkbenchGridString = this.storageService.get(Workbench.workbenchGridUIStateStorageKey, StorageScope.GLOBAL, undefined);
 
 			if (serializedWorkbenchGridString) {
-				console.log(serializedWorkbenchGridString);
 				const serializedWorkbenchGrid = JSON.parse(serializedWorkbenchGridString) as ISerializedGrid;
 				this.workbenchGrid = SerializableGrid.deserialize(serializedWorkbenchGrid, {
 					fromJSON: (serializedView: { type: Parts }): WorkbenchView => {
@@ -1028,30 +1026,10 @@ export class Workbench extends Disposable implements IPartService {
 			} else {
 				this.workbenchGrid = new SerializableGrid(this.editorPart, { proportionalLayout: false });
 
-				const sidebarDirection = this.sideBarPosition === Position.RIGHT ? Direction.Right : Direction.Left;
-
-				if (!this.statusBarHidden) {
-					this.workbenchGrid.addView(this.statusbarPart, Sizing.Split, this.editorPart, Direction.Down);
-				}
-
-				if (this.useCustomTitleBarStyle) {
-					this.workbenchGrid.addView(this.titlebarPart, Sizing.Split, this.editorPart, Direction.Up);
-				}
-
-				if (!this.activityBarHidden) {
-					this.workbenchGrid.addView(this.activitybarPart, Sizing.Split, this.editorPart, sidebarDirection);
-				}
-
-				if (!this.sideBarHidden) {
-					this.workbenchGrid.addView(this.sidebarPart, Sizing.Split, this.editorPart, sidebarDirection);
-				}
-
-				if (!this.panelHidden) {
-					this.workbenchGrid.addView(this.panelPart, Sizing.Split, this.editorPart, this.panelPosition === Position.BOTTOM ? Direction.Down : Direction.Right);
-				}
 			}
 
-			this.workbench.appendChild(this.workbenchGrid.element);
+			this.updateGrid();
+			this.workbench.prepend(this.workbenchGrid.element);
 		} else {
 			this.workbenchGrid = this.instantiationService.createInstance(
 				WorkbenchLayout,
@@ -1159,9 +1137,11 @@ export class Workbench extends Disposable implements IPartService {
 		part.id = id;
 		part.setAttribute('role', role);
 
-		// Insert all workbench parts at the beginning. Issue #52531
-		// This is primarily for the title bar to allow overriding -webkit-app-region
-		this.workbench.insertBefore(part, this.workbench.lastChild);
+		if (!this.configurationService.getValue('workbench.useExperimentalGridLayout')) {
+			// Insert all workbench parts at the beginning. Issue #52531
+			// This is primarily for the title bar to allow overriding -webkit-app-region
+			this.workbench.insertBefore(part, this.workbench.lastChild);
+		}
 
 		return part;
 	}
@@ -1442,7 +1422,7 @@ export class Workbench extends Disposable implements IPartService {
 			statusBarInGrid = false;
 		}
 
-		if (this.titleBarHidden && titlebarInGrid) {
+		if (!this.isVisible(Parts.TITLEBAR_PART) && titlebarInGrid) {
 			this.workbenchGrid.removeView(this.titlebarPart);
 			titlebarInGrid = false;
 		}
@@ -1482,7 +1462,7 @@ export class Workbench extends Disposable implements IPartService {
 			statusBarInGrid = true;
 		}
 
-		if (!this.titleBarHidden && !titlebarInGrid) {
+		if (this.isVisible(Parts.TITLEBAR_PART) && !titlebarInGrid) {
 			if (sidebarInGrid) {
 				this.uiState.lastSidebarDimension = this.workbenchGrid.getViewSize(this.sidebarPart);
 				this.workbenchGrid.removeView(this.sidebarPart);
@@ -1541,18 +1521,12 @@ export class Workbench extends Disposable implements IPartService {
 				DOM.position(this.workbench, 0, 0, 0, 0, 'relative');
 				DOM.size(this.workbench, dimensions.width, dimensions.height);
 
-				this.titleBarHidden = browser.isFullscreen() && (this.getMenubarVisibility() === 'default' || (this.getMenubarVisibility() === 'toggle' && !this.menubarToggled));
-
 				this.updateGrid();
 				this.workbenchGrid.layout(dimensions.width, dimensions.height);
 			} else {
 				this.workbenchGrid.layout(options);
 			}
 		}
-	}
-
-	setTitlebarVisibility(visible: boolean): void {
-		this.titleBarHidden = visible;
 	}
 
 	isEditorLayoutCentered(): boolean {
