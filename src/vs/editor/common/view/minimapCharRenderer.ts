@@ -46,7 +46,7 @@ export class MinimapTokensColorTracker {
 		}
 		let backgroundLuminosity = colorMap[ColorId.DefaultBackground].getRelativeLuminance();
 		this._backgroundIsLight = (backgroundLuminosity >= 0.5);
-		this._onDidChange.fire(void 0);
+		this._onDidChange.fire(undefined);
 	}
 
 	public getColor(colorId: ColorId): RGBA8 {

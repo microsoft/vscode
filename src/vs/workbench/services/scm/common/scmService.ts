@@ -7,7 +7,6 @@ import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ISCMService, ISCMProvider, ISCMInput, ISCMRepository, IInputValidator } from './scm';
 import { ILogService } from 'vs/platform/log/common/log';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { equals } from 'vs/base/common/arrays';
 
 class SCMInput implements ISCMInput {
@@ -54,7 +53,7 @@ class SCMInput implements ISCMInput {
 	private _onDidChangeVisibility = new Emitter<boolean>();
 	get onDidChangeVisibility(): Event<boolean> { return this._onDidChangeVisibility.event; }
 
-	private _validateInput: IInputValidator = () => TPromise.as(undefined);
+	private _validateInput: IInputValidator = () => Promise.resolve(undefined);
 
 	get validateInput(): IInputValidator {
 		return this._validateInput;
@@ -124,7 +123,7 @@ export class SCMService implements ISCMService {
 	private _onDidRemoveProvider = new Emitter<ISCMRepository>();
 	get onDidRemoveRepository(): Event<ISCMRepository> { return this._onDidRemoveProvider.event; }
 
-	constructor(@ILogService private logService: ILogService) { }
+	constructor(@ILogService private readonly logService: ILogService) { }
 
 	registerSCMProvider(provider: ISCMProvider): ISCMRepository {
 		this.logService.trace('SCMService#registerSCMProvider');

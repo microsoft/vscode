@@ -29,7 +29,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { SearchModel } from 'vs/workbench/parts/search/common/searchModel';
 import { QueryBuilder, ITextQueryBuilderOptions } from 'vs/workbench/parts/search/common/queryBuilder';
 
-import * as event from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { NullLogService, ILogService } from 'vs/platform/log/common/log';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
@@ -62,7 +62,7 @@ suite.skip('TextSearch performance (integration)', () => {
 			[ITelemetryService, telemetryService],
 			[IConfigurationService, configurationService],
 			[ITextResourcePropertiesService, textResourcePropertiesService],
-			[IModelService, new ModelServiceImpl(null, configurationService, textResourcePropertiesService)],
+			[IModelService, new ModelServiceImpl(configurationService, textResourcePropertiesService)],
 			[IWorkspaceContextService, new TestContextService(testWorkspace(URI.file(testWorkspacePath)))],
 			[IEditorService, new TestEditorService()],
 			[IEditorGroupsService, new TestEditorGroupsService()],
@@ -82,8 +82,8 @@ suite.skip('TextSearch performance (integration)', () => {
 			const query = queryBuilder.text({ pattern: 'static_library(' }, [URI.file(testWorkspacePath)], queryOptions);
 
 			// Wait for the 'searchResultsFinished' event, which is fired after the search() promise is resolved
-			const onSearchResultsFinished = event.filterEvent(telemetryService.eventLogged, e => e.name === 'searchResultsFinished');
-			event.once(onSearchResultsFinished)(onComplete);
+			const onSearchResultsFinished = Event.filter(telemetryService.eventLogged, e => e.name === 'searchResultsFinished');
+			Event.once(onSearchResultsFinished)(onComplete);
 
 			function onComplete(): void {
 				try {
@@ -117,7 +117,7 @@ suite.skip('TextSearch performance (integration)', () => {
 			});
 		}
 
-		const finishedEvents = [];
+		const finishedEvents: any[] = [];
 		return runSearch() // Warm-up first
 			.then(() => {
 				if (testWorkspaceArg) { // Don't measure by default
@@ -148,9 +148,9 @@ class TestTelemetryService implements ITelemetryService {
 
 	public events: any[] = [];
 
-	private emitter = new event.Emitter<any>();
+	private emitter = new Emitter<any>();
 
-	public get eventLogged(): event.Event<any> {
+	public get eventLogged(): Event<any> {
 		return this.emitter.event;
 	}
 

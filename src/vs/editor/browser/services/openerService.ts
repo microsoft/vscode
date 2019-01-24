@@ -10,10 +10,7 @@ import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 
 export class OpenerService implements IOpenerService {
 
@@ -22,29 +19,28 @@ export class OpenerService implements IOpenerService {
 	constructor(
 		@ICodeEditorService private readonly _editorService: ICodeEditorService,
 		@ICommandService private readonly _commandService: ICommandService,
-		@optional(ITelemetryService) private _telemetryService: ITelemetryService | null = NullTelemetryService
 	) {
 		//
 	}
 
-	open(resource: URI, options?: { openToSide?: boolean }): Promise<any> {
-
-		if (this._telemetryService) {
-			/* __GDPR__
-				"openerService" : {
-					"scheme" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				}
-			*/
-			this._telemetryService.publicLog('openerService', { scheme: resource.scheme });
-		}
+	open(resource: URI, options?: { openToSide?: boolean }): Promise<boolean> {
 
 		const { scheme, path, query, fragment } = resource;
-		let promise: Thenable<any> | undefined = undefined;
 
-		if (scheme === Schemas.http || scheme === Schemas.https || scheme === Schemas.mailto) {
+		if (!scheme) {
+			// no scheme ?!?
+			return Promise.resolve(false);
+
+		} else if (scheme === Schemas.http || scheme === Schemas.https || scheme === Schemas.mailto) {
 			// open http or default mail application
 			dom.windowOpenNoOpener(resource.toString(true));
-		} else if (scheme === 'command' && CommandsRegistry.getCommand(path)) {
+			return Promise.resolve(true);
+
+		} else if (scheme === Schemas.command) {
+			// run command or bail out if command isn't known
+			if (!CommandsRegistry.getCommand(path)) {
+				return Promise.reject(`command '${path}' NOT known`);
+			}
 			// execute as command
 			let args: any = [];
 			try {
@@ -55,13 +51,10 @@ export class OpenerService implements IOpenerService {
 			} catch (e) {
 				//
 			}
-			promise = this._commandService.executeCommand(path, ...args);
+			return this._commandService.executeCommand(path, ...args).then(() => true);
 
 		} else {
-			let selection: {
-				startLineNumber: number;
-				startColumn: number;
-			} | undefined = undefined;
+			let selection: { startLineNumber: number; startColumn: number; } | undefined = undefined;
 			const match = /^L?(\d+)(?:,(\d+))?/.exec(fragment);
 			if (match) {
 				// support file:///some/file.js#73,84
@@ -74,16 +67,15 @@ export class OpenerService implements IOpenerService {
 				resource = resource.with({ fragment: '' });
 			}
 
-			if (!resource.scheme) {
-				// we cannot handle those
-				return Promise.resolve(undefined);
-
-			} else if (resource.scheme === Schemas.file) {
+			if (resource.scheme === Schemas.file) {
 				resource = resources.normalizePath(resource); // workaround for non-normalized paths (https://github.com/Microsoft/vscode/issues/12954)
 			}
-			promise = this._editorService.openCodeEditor({ resource, options: { selection, } }, this._editorService.getFocusedCodeEditor(), options && options.openToSide);
-		}
 
-		return Promise.resolve(promise);
+			return this._editorService.openCodeEditor(
+				{ resource, options: { selection, } },
+				this._editorService.getFocusedCodeEditor(),
+				options && options.openToSide
+			).then(() => true);
+		}
 	}
 }

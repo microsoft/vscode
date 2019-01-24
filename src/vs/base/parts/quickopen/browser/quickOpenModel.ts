@@ -19,6 +19,7 @@ import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLa
 import { OS } from 'vs/base/common/platform';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { IItemAccessor } from 'vs/base/parts/quickopen/common/quickOpenScorer';
+import { coalesce } from 'vs/base/common/arrays';
 
 export interface IContext {
 	event: any;
@@ -45,7 +46,7 @@ export class QuickOpenItemAccessorClass implements IItemAccessor<QuickOpenEntry>
 	getItemPath(entry: QuickOpenEntry): string {
 		const resource = entry.getResource();
 
-		return resource ? resource.fsPath : void 0;
+		return resource ? resource.fsPath : undefined;
 	}
 }
 
@@ -89,8 +90,7 @@ export class QuickOpenEntry {
 	 * The label of the entry to use when a screen reader wants to read about the entry
 	 */
 	getAriaLabel(): string {
-		return [this.getLabel(), this.getDescription(), this.getDetail()]
-			.filter(s => !!s)
+		return coalesce([this.getLabel(), this.getDescription(), this.getDetail()])
 			.join(', ');
 	}
 
@@ -468,13 +468,13 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 			options.title = entry.getTooltip();
 			options.descriptionTitle = entry.getDescriptionTooltip() || entry.getDescription(); // tooltip over description because it could overflow
 			options.descriptionMatches = descriptionHighlights || [];
-			data.label.setValue(entry.getLabel(), entry.getDescription(), options);
+			data.label.setLabel(entry.getLabel(), entry.getDescription(), options);
 
 			// Meta
 			data.detail.set(entry.getDetail(), detailHighlights);
 
 			// Keybinding
-			data.keybinding.set(entry.getKeybinding(), null);
+			data.keybinding.set(entry.getKeybinding());
 		}
 	}
 
@@ -484,7 +484,6 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		data.actionBar = null;
 		data.container = null;
 		data.entry = null;
-		data.keybinding.dispose();
 		data.keybinding = null;
 		data.detail.dispose();
 		data.detail = null;

@@ -121,7 +121,7 @@ export class FileService extends Disposable implements IFileService {
 	}
 
 	private handleError(error: string | Error): void {
-		const msg = error ? error.toString() : void 0;
+		const msg = error ? error.toString() : undefined;
 		if (!msg) {
 			return;
 		}
@@ -207,7 +207,7 @@ export class FileService extends Disposable implements IFileService {
 		throw new Error('not implemented');
 	}
 
-	activateProvider(scheme: string): Thenable<void> {
+	activateProvider(scheme: string): Promise<void> {
 		return Promise.reject(new Error('not implemented'));
 	}
 
@@ -215,20 +215,20 @@ export class FileService extends Disposable implements IFileService {
 		return resource.scheme === Schemas.file;
 	}
 
-	resolveFile(resource: uri, options?: IResolveFileOptions): Thenable<IFileStat> {
+	resolveFile(resource: uri, options?: IResolveFileOptions): Promise<IFileStat> {
 		return this.resolve(resource, options);
 	}
 
-	resolveFiles(toResolve: { resource: uri, options?: IResolveFileOptions }[]): Thenable<IResolveFileResult[]> {
+	resolveFiles(toResolve: { resource: uri, options?: IResolveFileOptions }[]): Promise<IResolveFileResult[]> {
 		return Promise.all(toResolve.map(resourceAndOptions => this.resolve(resourceAndOptions.resource, resourceAndOptions.options)
-			.then(stat => ({ stat, success: true }), error => ({ stat: void 0, success: false }))));
+			.then(stat => ({ stat, success: true }), error => ({ stat: undefined, success: false }))));
 	}
 
-	existsFile(resource: uri): Thenable<boolean> {
+	existsFile(resource: uri): Promise<boolean> {
 		return this.resolveFile(resource).then(() => true, () => false);
 	}
 
-	resolveContent(resource: uri, options?: IResolveContentOptions): Thenable<IContent> {
+	resolveContent(resource: uri, options?: IResolveContentOptions): Promise<IContent> {
 		return this.resolveStreamContent(resource, options).then(streamContent => {
 			return new Promise<IContent>((resolve, reject) => {
 
@@ -251,7 +251,7 @@ export class FileService extends Disposable implements IFileService {
 		});
 	}
 
-	resolveStreamContent(resource: uri, options?: IResolveContentOptions): Thenable<IStreamContent> {
+	resolveStreamContent(resource: uri, options?: IResolveContentOptions): Promise<IStreamContent> {
 
 		// Guard early against attempts to resolve an invalid file path
 		if (resource.scheme !== Schemas.file || !resource.fsPath) {
@@ -263,13 +263,13 @@ export class FileService extends Disposable implements IFileService {
 		}
 
 		const result: IStreamContent = {
-			resource: void 0,
-			name: void 0,
-			mtime: void 0,
-			etag: void 0,
-			encoding: void 0,
+			resource: undefined,
+			name: undefined,
+			mtime: undefined,
+			etag: undefined,
+			encoding: undefined,
 			isReadonly: false,
-			value: void 0
+			value: undefined
 		};
 
 		const contentResolverTokenSource = new CancellationTokenSource();
@@ -326,7 +326,7 @@ export class FileService extends Disposable implements IFileService {
 				}
 			}
 
-			return void 0;
+			return undefined;
 		}, err => {
 
 			// Wrap file not found errors
@@ -341,7 +341,7 @@ export class FileService extends Disposable implements IFileService {
 			return onStatError(err);
 		});
 
-		let completePromise: Thenable<void>;
+		let completePromise: Promise<void>;
 
 		// await the stat iff we already have an etag so that we compare the
 		// etag from the stat before we actually read the file again.
@@ -358,8 +358,8 @@ export class FileService extends Disposable implements IFileService {
 			let contentsError: Error;
 
 			completePromise = Promise.all([
-				statsPromise.then(() => void 0, error => statsError = error),
-				this.fillInContents(result, resource, options, contentResolverTokenSource.token).then(() => void 0, error => contentsError = error)
+				statsPromise.then(() => undefined, error => statsError = error),
+				this.fillInContents(result, resource, options, contentResolverTokenSource.token).then(() => undefined, error => contentsError = error)
 			]).then(() => {
 				// Since each file operation can return a FileOperationError
 				// we want to prefer that one if possible. Otherwise we just
@@ -376,7 +376,7 @@ export class FileService extends Disposable implements IFileService {
 					return Promise.reject(statsError || contentsError);
 				}
 
-				return void 0;
+				return undefined;
 			});
 		}
 
@@ -391,19 +391,19 @@ export class FileService extends Disposable implements IFileService {
 		});
 	}
 
-	private fillInContents(content: IStreamContent, resource: uri, options: IResolveContentOptions, token: CancellationToken): Thenable<void> {
+	private fillInContents(content: IStreamContent, resource: uri, options: IResolveContentOptions, token: CancellationToken): Promise<void> {
 		return this.resolveFileData(resource, options, token).then(data => {
 			content.encoding = data.encoding;
 			content.value = data.stream;
 		});
 	}
 
-	private resolveFileData(resource: uri, options: IResolveContentOptions, token: CancellationToken): Thenable<IContentData> {
+	private resolveFileData(resource: uri, options: IResolveContentOptions, token: CancellationToken): Promise<IContentData> {
 		const chunkBuffer = Buffer.allocUnsafe(64 * 1024);
 
 		const result: IContentData = {
-			encoding: void 0,
-			stream: void 0
+			encoding: undefined,
+			stream: undefined
 		};
 
 		return new Promise<IContentData>((resolve, reject) => {
@@ -528,7 +528,7 @@ export class FileService extends Disposable implements IFileService {
 									resolve(result);
 									handleChunk(bytesRead);
 								}
-							}).then(void 0, err => {
+							}).then(undefined, err => {
 								// failed to get encoding
 								finish(err);
 							});
@@ -542,7 +542,7 @@ export class FileService extends Disposable implements IFileService {
 		});
 	}
 
-	updateContent(resource: uri, value: string | ITextSnapshot, options: IUpdateContentOptions = Object.create(null)): Thenable<IFileStat> {
+	updateContent(resource: uri, value: string | ITextSnapshot, options: IUpdateContentOptions = Object.create(null)): Promise<IFileStat> {
 		if (options.writeElevated) {
 			return this.doUpdateContentElevated(resource, value, options);
 		}
@@ -550,12 +550,12 @@ export class FileService extends Disposable implements IFileService {
 		return this.doUpdateContent(resource, value, options);
 	}
 
-	private doUpdateContent(resource: uri, value: string | ITextSnapshot, options: IUpdateContentOptions = Object.create(null)): Thenable<IFileStat> {
+	private doUpdateContent(resource: uri, value: string | ITextSnapshot, options: IUpdateContentOptions = Object.create(null)): Promise<IFileStat> {
 		const absolutePath = this.toAbsolutePath(resource);
 
 		// 1.) check file for writing
 		return this.checkFileBeforeWriting(absolutePath, options).then(exists => {
-			let createParentsPromise: Thenable<boolean>;
+			let createParentsPromise: Promise<boolean>;
 			if (exists) {
 				createParentsPromise = Promise.resolve();
 			} else {
@@ -565,7 +565,7 @@ export class FileService extends Disposable implements IFileService {
 			// 2.) create parents as needed
 			return createParentsPromise.then(() => {
 				const encodingToWrite = this._encoding.getWriteEncoding(resource, options.encoding);
-				let addBomPromise: Thenable<boolean> = Promise.resolve(false);
+				let addBomPromise: Promise<boolean> = Promise.resolve(false);
 
 				// UTF_16 BE and LE as well as UTF_8 with BOM always have a BOM
 				if (encodingToWrite === encoding.UTF16be || encodingToWrite === encoding.UTF16le || encodingToWrite === encoding.UTF8_with_bom) {
@@ -599,7 +599,7 @@ export class FileService extends Disposable implements IFileService {
 						return pfs.truncate(absolutePath, 0).then(() => {
 
 							// 5.) set contents (with r+ mode) and resolve
-							return this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encodingToWrite, { flag: 'r+' }).then(null, error => {
+							return this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encodingToWrite, { flag: 'r+' }).then(undefined, error => {
 								if (this.environmentService.verbose) {
 									console.error(`Truncate succeeded, but save failed (${error}), retrying after 100ms`);
 								}
@@ -622,7 +622,7 @@ export class FileService extends Disposable implements IFileService {
 					}
 				});
 			});
-		}).then(null, error => {
+		}).then(undefined, error => {
 			if (error.code === 'EACCES' || error.code === 'EPERM') {
 				return Promise.reject(new FileOperationError(
 					nls.localize('filePermission', "Permission denied writing to file ({0})", resource.toString(true)),
@@ -635,7 +635,7 @@ export class FileService extends Disposable implements IFileService {
 		});
 	}
 
-	private doSetContentsAndResolve(resource: uri, absolutePath: string, value: string | ITextSnapshot, addBOM: boolean, encodingToWrite: string, options?: { mode?: number; flag?: string; }): Thenable<IFileStat> {
+	private doSetContentsAndResolve(resource: uri, absolutePath: string, value: string | ITextSnapshot, addBOM: boolean, encodingToWrite: string, options?: { mode?: number; flag?: string; }): Promise<IFileStat> {
 		// Configure encoding related options as needed
 		const writeFileOptions: extfs.IWriteFileOptions = options ? options : Object.create(null);
 		if (addBOM || encodingToWrite !== encoding.UTF8) {
@@ -645,7 +645,7 @@ export class FileService extends Disposable implements IFileService {
 			};
 		}
 
-		let writeFilePromise: Thenable<void>;
+		let writeFilePromise: Promise<void>;
 		if (typeof value === 'string') {
 			writeFilePromise = pfs.writeFile(absolutePath, value, writeFileOptions);
 		} else {
@@ -660,7 +660,7 @@ export class FileService extends Disposable implements IFileService {
 		});
 	}
 
-	private doUpdateContentElevated(resource: uri, value: string | ITextSnapshot, options: IUpdateContentOptions = Object.create(null)): Thenable<IFileStat> {
+	private doUpdateContentElevated(resource: uri, value: string | ITextSnapshot, options: IUpdateContentOptions = Object.create(null)): Promise<IFileStat> {
 		const absolutePath = this.toAbsolutePath(resource);
 
 		// 1.) check file for writing
@@ -678,7 +678,7 @@ export class FileService extends Disposable implements IFileService {
 					return new Promise<void>((resolve, reject) => {
 						const promptOptions = {
 							name: this.environmentService.appNameLong.replace('-', ''),
-							icns: (isMacintosh && this.environmentService.isBuilt) ? paths.join(paths.dirname(this.environmentService.appRoot), `${product.nameShort}.icns`) : void 0
+							icns: (isMacintosh && this.environmentService.isBuilt) ? paths.join(paths.dirname(this.environmentService.appRoot), `${product.nameShort}.icns`) : undefined
 						};
 
 						const sudoCommand: string[] = [`"${this.environmentService.cliPath}"`];
@@ -691,7 +691,7 @@ export class FileService extends Disposable implements IFileService {
 							if (error || stderr) {
 								reject(error || stderr);
 							} else {
-								resolve(void 0);
+								resolve(undefined);
 							}
 						});
 					});
@@ -705,7 +705,7 @@ export class FileService extends Disposable implements IFileService {
 					});
 				});
 			});
-		}).then(null, error => {
+		}).then(undefined, error => {
 			if (this.environmentService.verbose) {
 				this.handleError(`Unable to write to file '${resource.toString(true)}' as elevated user (${error})`);
 			}
@@ -722,10 +722,10 @@ export class FileService extends Disposable implements IFileService {
 		});
 	}
 
-	createFile(resource: uri, content: string = '', options: ICreateFileOptions = Object.create(null)): Thenable<IFileStat> {
+	createFile(resource: uri, content: string = '', options: ICreateFileOptions = Object.create(null)): Promise<IFileStat> {
 		const absolutePath = this.toAbsolutePath(resource);
 
-		let checkFilePromise: Thenable<boolean>;
+		let checkFilePromise: Promise<boolean>;
 		if (options.overwrite) {
 			checkFilePromise = Promise.resolve(false);
 		} else {
@@ -753,13 +753,13 @@ export class FileService extends Disposable implements IFileService {
 		});
 	}
 
-	readFolder(resource: uri): Thenable<string[]> {
+	readFolder(resource: uri): Promise<string[]> {
 		const absolutePath = this.toAbsolutePath(resource);
 
 		return pfs.readdir(absolutePath);
 	}
 
-	createFolder(resource: uri): Thenable<IFileStat> {
+	createFolder(resource: uri): Promise<IFileStat> {
 
 		// 1.) Create folder
 		const absolutePath = this.toAbsolutePath(resource);
@@ -776,7 +776,7 @@ export class FileService extends Disposable implements IFileService {
 		});
 	}
 
-	private checkFileBeforeWriting(absolutePath: string, options: IUpdateContentOptions = Object.create(null), ignoreReadonly?: boolean): Thenable<boolean /* exists */> {
+	private checkFileBeforeWriting(absolutePath: string, options: IUpdateContentOptions = Object.create(null), ignoreReadonly?: boolean): Promise<boolean /* exists */> {
 		return pfs.exists(absolutePath).then(exists => {
 			if (exists) {
 				return pfs.stat(absolutePath).then(stat => {
@@ -830,7 +830,7 @@ export class FileService extends Disposable implements IFileService {
 		});
 	}
 
-	private readOnlyError<T>(options: IUpdateContentOptions): Thenable<T> {
+	private readOnlyError<T>(options: IUpdateContentOptions): Promise<T> {
 		return Promise.reject(new FileOperationError(
 			nls.localize('fileReadOnlyError', "File is Read Only"),
 			FileOperationResult.FILE_READ_ONLY,
@@ -838,15 +838,15 @@ export class FileService extends Disposable implements IFileService {
 		));
 	}
 
-	moveFile(source: uri, target: uri, overwrite?: boolean): Thenable<IFileStat> {
+	moveFile(source: uri, target: uri, overwrite?: boolean): Promise<IFileStat> {
 		return this.moveOrCopyFile(source, target, false, overwrite);
 	}
 
-	copyFile(source: uri, target: uri, overwrite?: boolean): Thenable<IFileStat> {
+	copyFile(source: uri, target: uri, overwrite?: boolean): Promise<IFileStat> {
 		return this.moveOrCopyFile(source, target, true, overwrite);
 	}
 
-	private moveOrCopyFile(source: uri, target: uri, keepCopy: boolean, overwrite: boolean): Thenable<IFileStat> {
+	private moveOrCopyFile(source: uri, target: uri, keepCopy: boolean, overwrite: boolean): Promise<IFileStat> {
 		const sourcePath = this.toAbsolutePath(source);
 		const targetPath = this.toAbsolutePath(target);
 
@@ -864,7 +864,7 @@ export class FileService extends Disposable implements IFileService {
 		});
 	}
 
-	private doMoveOrCopyFile(sourcePath: string, targetPath: string, keepCopy: boolean, overwrite: boolean): Thenable<boolean /* exists */> {
+	private doMoveOrCopyFile(sourcePath: string, targetPath: string, keepCopy: boolean, overwrite: boolean): Promise<boolean /* exists */> {
 
 		// 1.) validate operation
 		if (isParent(targetPath, sourcePath, !isLinux)) {
@@ -882,7 +882,7 @@ export class FileService extends Disposable implements IFileService {
 			}
 
 			// 3.) make sure target is deleted before we move/copy unless this is a case rename of the same file
-			let deleteTargetPromise: Thenable<void> = Promise.resolve();
+			let deleteTargetPromise: Promise<void> = Promise.resolve();
 			if (exists && !isCaseRename) {
 				if (isEqualOrParent(sourcePath, targetPath, !isLinux /* ignorecase */)) {
 					return Promise.reject(new Error(nls.localize('unableToMoveCopyError', "Unable to move/copy. File would replace folder it is contained in."))); // catch this corner case!
@@ -909,7 +909,7 @@ export class FileService extends Disposable implements IFileService {
 		});
 	}
 
-	del(resource: uri, options?: { useTrash?: boolean, recursive?: boolean }): Thenable<void> {
+	del(resource: uri, options?: { useTrash?: boolean, recursive?: boolean }): Promise<void> {
 		if (options && options.useTrash) {
 			return this.doMoveItemToTrash(resource);
 		}
@@ -917,7 +917,7 @@ export class FileService extends Disposable implements IFileService {
 		return this.doDelete(resource, options && options.recursive);
 	}
 
-	private doMoveItemToTrash(resource: uri): Thenable<void> {
+	private doMoveItemToTrash(resource: uri): Promise<void> {
 		const absolutePath = resource.fsPath;
 
 		const shell = (require('electron') as any as Electron.RendererInterface).shell; // workaround for being able to run tests out of VSCode debugger
@@ -931,19 +931,19 @@ export class FileService extends Disposable implements IFileService {
 		return Promise.resolve();
 	}
 
-	private doDelete(resource: uri, recursive: boolean): Thenable<void> {
+	private doDelete(resource: uri, recursive: boolean): Promise<void> {
 		const absolutePath = this.toAbsolutePath(resource);
 
-		let assertNonRecursiveDelete: Thenable<void>;
+		let assertNonRecursiveDelete: Promise<void>;
 		if (!recursive) {
 			assertNonRecursiveDelete = pfs.stat(absolutePath).then(stat => {
 				if (!stat.isDirectory()) {
-					return Promise.resolve();
+					return undefined;
 				}
 
 				return pfs.readdir(absolutePath).then(children => {
 					if (children.length === 0) {
-						return Promise.resolve();
+						return undefined;
 					}
 
 					return Promise.reject(new Error(nls.localize('deleteFailed', "Failed to delete non-empty folder '{0}'.", paths.basename(absolutePath))));
@@ -977,15 +977,15 @@ export class FileService extends Disposable implements IFileService {
 		return paths.normalize(resource.fsPath);
 	}
 
-	private resolve(resource: uri, options: IResolveFileOptions = Object.create(null)): Thenable<IFileStat> {
+	private resolve(resource: uri, options: IResolveFileOptions = Object.create(null)): Promise<IFileStat> {
 		return this.toStatResolver(resource).then(model => model.resolve(options));
 	}
 
-	private toStatResolver(resource: uri): Thenable<StatResolver> {
+	private toStatResolver(resource: uri): Promise<StatResolver> {
 		const absolutePath = this.toAbsolutePath(resource);
 
 		return pfs.statLink(absolutePath).then(({ isSymbolicLink, stat }) => {
-			return new StatResolver(resource, isSymbolicLink, stat.isDirectory(), stat.mtime.getTime(), stat.size, this.environmentService.verbose ? err => this.handleError(err) : void 0);
+			return new StatResolver(resource, isSymbolicLink, stat.isDirectory(), stat.mtime.getTime(), stat.size, this.environmentService.verbose ? err => this.handleError(err) : undefined);
 		});
 	}
 
@@ -1141,7 +1141,7 @@ export class StatResolver {
 		this.etag = etag(size, mtime);
 	}
 
-	resolve(options: IResolveFileOptions): Thenable<IFileStat> {
+	resolve(options: IResolveFileOptions): Promise<IFileStat> {
 
 		// General Data
 		const fileStat: IFileStat = {

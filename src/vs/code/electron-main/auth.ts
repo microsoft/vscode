@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
-import { fromNodeEventEmitter } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { BrowserWindow, app } from 'electron';
 
 type LoginEvent = {
@@ -30,9 +30,9 @@ export class ProxyAuthHandler {
 	private disposables: IDisposable[] = [];
 
 	constructor(
-		@IWindowsMainService private windowsMainService: IWindowsMainService
+		@IWindowsMainService private readonly windowsMainService: IWindowsMainService
 	) {
-		const onLogin = fromNodeEventEmitter<LoginEvent>(app, 'login', (event, webContents, req, authInfo, cb) => ({ event, webContents, req, authInfo, cb }));
+		const onLogin = Event.fromNodeEventEmitter<LoginEvent>(app, 'login', (event, webContents, req, authInfo, cb) => ({ event, webContents, req, authInfo, cb }));
 		onLogin(this.onLogin, this, this.disposables);
 	}
 

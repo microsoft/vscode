@@ -15,9 +15,10 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Color } from 'vs/base/common/color';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
 import { Event, Emitter } from 'vs/base/common/event';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
+import { isLinux } from 'vs/base/common/platform';
 
 export const MENU_MNEMONIC_REGEX: RegExp = /\(&{1,2}(.)\)|&{1,2}(.)/;
 export const MENU_ESCAPED_MNEMONIC_REGEX: RegExp = /(?:&amp;){1,2}(.)/;
@@ -26,7 +27,7 @@ export interface IMenuOptions {
 	context?: any;
 	actionItemProvider?: IActionItemProvider;
 	actionRunner?: IActionRunner;
-	getKeyBinding?: (action: IAction) => ResolvedKeybinding;
+	getKeyBinding?: (action: IAction) => ResolvedKeybinding | undefined;
 	ariaLabel?: string;
 	enableMnemonics?: boolean;
 	anchorAlignment?: AnchorAlignment;
@@ -44,7 +45,7 @@ export interface IMenuStyles {
 }
 
 export class SubmenuAction extends Action {
-	constructor(label: string, public entries: (SubmenuAction | IAction)[], cssClass?: string) {
+	constructor(label: string, public entries: Array<SubmenuAction | IAction>, cssClass?: string) {
 		super(!!cssClass ? cssClass : 'submenu', label, '', true);
 	}
 }
@@ -59,6 +60,7 @@ export class Menu extends ActionBar {
 	private menuDisposables: IDisposable[];
 	private scrollableElement: DomScrollableElement;
 	private menuElement: HTMLElement;
+	private scrollTopHold: number | undefined;
 
 	private readonly _onScroll: Emitter<void>;
 
@@ -94,23 +96,41 @@ export class Menu extends ActionBar {
 				const key = KeyCodeUtils.fromString(e.key);
 				if (this.mnemonics.has(key)) {
 					EventHelper.stop(e, true);
-					const actions = this.mnemonics.get(key);
+					const actions = this.mnemonics.get(key)!;
 
 					if (actions.length === 1) {
 						if (actions[0] instanceof SubmenuActionItem) {
 							this.focusItemByElement(actions[0].container);
 						}
 
-						actions[0].onClick(event);
+						actions[0].onClick(e);
 					}
 
 					if (actions.length > 1) {
 						const action = actions.shift();
-						this.focusItemByElement(action.container);
+						if (action) {
+							this.focusItemByElement(action.container);
+							actions.push(action);
+						}
 
-						actions.push(action);
 						this.mnemonics.set(key, actions);
 					}
+				}
+			}));
+		}
+
+		if (isLinux) {
+			this._register(addDisposableListener(menuElement, EventType.KEY_DOWN, e => {
+				const event = new StandardKeyboardEvent(e);
+
+				if (event.equals(KeyCode.Home) || event.equals(KeyCode.PageUp)) {
+					this.focusedItem = this.items.length - 1;
+					this.focusNext();
+					EventHelper.stop(e, true);
+				} else if (event.equals(KeyCode.End) || event.equals(KeyCode.PageDown)) {
+					this.focusedItem = 0;
+					this.focusPrevious();
+					EventHelper.stop(e, true);
 				}
 			}));
 		}
@@ -119,9 +139,15 @@ export class Menu extends ActionBar {
 			let relatedTarget = e.relatedTarget as HTMLElement;
 			if (!isAncestor(relatedTarget, this.domNode)) {
 				this.focusedItem = undefined;
+				this.scrollTopHold = this.menuElement.scrollTop;
 				this.updateFocus();
 				e.stopPropagation();
 			}
+		}));
+
+		this._register(addDisposableListener(this.domNode, EventType.MOUSE_UP, e => {
+			// Absorb clicks in menu dead space https://github.com/Microsoft/vscode/issues/63575
+			EventHelper.stop(e, true);
 		}));
 
 		this._register(addDisposableListener(this.actionsList, EventType.MOUSE_OVER, e => {
@@ -130,12 +156,13 @@ export class Menu extends ActionBar {
 				return;
 			}
 
-			while (target.parentElement !== this.actionsList) {
+			while (target.parentElement !== this.actionsList && target.parentElement !== null) {
 				target = target.parentElement;
 			}
 
 			if (hasClass(target, 'action-item')) {
 				const lastFocusedItem = this.focusedItem;
+				this.scrollTopHold = this.menuElement.scrollTop;
 				this.setFocusedItem(target);
 
 				if (lastFocusedItem !== this.focusedItem) {
@@ -171,7 +198,11 @@ export class Menu extends ActionBar {
 			this._onScroll.fire();
 		}, this, this.menuDisposables);
 
-		this._register(addDisposableListener(this.menuElement, EventType.SCROLL, (e) => {
+		this._register(addDisposableListener(this.menuElement, EventType.SCROLL, (e: ScrollEvent) => {
+			if (this.scrollTopHold !== undefined) {
+				this.menuElement.scrollTop = this.scrollTopHold;
+				this.scrollTopHold = undefined;
+			}
 			this.scrollableElement.scanDomNode();
 		}));
 
@@ -261,7 +292,7 @@ export class Menu extends ActionBar {
 				if (mnemonic && menuActionItem.isEnabled()) {
 					let actionItems: MenuActionItem[] = [];
 					if (this.mnemonics.has(mnemonic)) {
-						actionItems = this.mnemonics.get(mnemonic);
+						actionItems = this.mnemonics.get(mnemonic)!;
 					}
 
 					actionItems.push(menuActionItem);
@@ -276,7 +307,11 @@ export class Menu extends ActionBar {
 			if (options.getKeyBinding) {
 				const keybinding = options.getKeyBinding(action);
 				if (keybinding) {
-					menuItemOptions.keybinding = keybinding.getLabel();
+					const keybindingLabel = keybinding.getLabel();
+
+					if (keybindingLabel) {
+						menuItemOptions.keybinding = keybindingLabel;
+					}
 				}
 			}
 
@@ -287,7 +322,7 @@ export class Menu extends ActionBar {
 				if (mnemonic && menuActionItem.isEnabled()) {
 					let actionItems: MenuActionItem[] = [];
 					if (this.mnemonics.has(mnemonic)) {
-						actionItems = this.mnemonics.get(mnemonic);
+						actionItems = this.mnemonics.get(mnemonic)!;
 					}
 
 					actionItems.push(menuActionItem);
@@ -341,6 +376,10 @@ class MenuActionItem extends BaseActionItem {
 
 	render(container: HTMLElement): void {
 		super.render(container);
+
+		if (!this.element) {
+			return;
+		}
 
 		this.container = container;
 
@@ -439,7 +478,7 @@ class MenuActionItem extends BaseActionItem {
 			removeClasses(this.item, this.cssClass);
 		}
 		if (this.options.icon) {
-			this.cssClass = this.getAction().class;
+			this.cssClass = this.getAction().class || '';
 			addClass(this.label, 'icon');
 			if (this.cssClass) {
 				addClasses(this.label, this.cssClass);
@@ -452,11 +491,17 @@ class MenuActionItem extends BaseActionItem {
 
 	updateEnabled(): void {
 		if (this.getAction().enabled) {
-			removeClass(this.element, 'disabled');
+			if (this.element) {
+				removeClass(this.element, 'disabled');
+			}
+
 			removeClass(this.item, 'disabled');
 			this.item.tabIndex = 0;
 		} else {
-			addClass(this.element, 'disabled');
+			if (this.element) {
+				addClass(this.element, 'disabled');
+			}
+
 			addClass(this.item, 'disabled');
 			removeTabIndexAndUpdateFocus(this.item);
 		}
@@ -483,7 +528,7 @@ class MenuActionItem extends BaseActionItem {
 			return;
 		}
 
-		const isSelected = hasClass(this.element, 'focused');
+		const isSelected = this.element && hasClass(this.element, 'focused');
 		const fgColor = isSelected && this.menuStyle.selectionForegroundColor ? this.menuStyle.selectionForegroundColor : this.menuStyle.foregroundColor;
 		const bgColor = isSelected && this.menuStyle.selectionBackgroundColor ? this.menuStyle.selectionBackgroundColor : this.menuStyle.backgroundColor;
 		const border = isSelected && this.menuStyle.selectionBorderColor ? `1px solid ${this.menuStyle.selectionBorderColor}` : null;
@@ -501,8 +546,8 @@ class MenuActionItem extends BaseActionItem {
 }
 
 class SubmenuActionItem extends MenuActionItem {
-	private mysubmenu: Menu;
-	private submenuContainer: HTMLElement;
+	private mysubmenu: Menu | null;
+	private submenuContainer: HTMLElement | undefined;
 	private submenuIndicator: HTMLElement;
 	private submenuDisposables: IDisposable[] = [];
 	private mouseOver: boolean;
@@ -525,7 +570,7 @@ class SubmenuActionItem extends MenuActionItem {
 		}, 250);
 
 		this.hideScheduler = new RunOnceScheduler(() => {
-			if ((!isAncestor(document.activeElement, this.element) && this.parentData.submenu === this.mysubmenu)) {
+			if (this.element && (!isAncestor(document.activeElement, this.element) && this.parentData.submenu === this.mysubmenu)) {
 				this.parentData.parent.focus(false);
 				this.cleanupExistingSubmenu(true);
 			}
@@ -534,6 +579,10 @@ class SubmenuActionItem extends MenuActionItem {
 
 	render(container: HTMLElement): void {
 		super.render(container);
+
+		if (!this.element) {
+			return;
+		}
 
 		addClass(this.item, 'monaco-submenu-item');
 		this.item.setAttribute('aria-haspopup', 'true');
@@ -570,7 +619,7 @@ class SubmenuActionItem extends MenuActionItem {
 		}));
 
 		this._register(addDisposableListener(this.element, EventType.FOCUS_OUT, e => {
-			if (!isAncestor(document.activeElement, this.element)) {
+			if (this.element && !isAncestor(document.activeElement, this.element)) {
 				this.hideScheduler.schedule();
 			}
 		}));
@@ -597,16 +646,20 @@ class SubmenuActionItem extends MenuActionItem {
 	private cleanupExistingSubmenu(force: boolean): void {
 		if (this.parentData.submenu && (force || (this.parentData.submenu !== this.mysubmenu))) {
 			this.parentData.submenu.dispose();
-			this.parentData.submenu = null;
+			this.parentData.submenu = undefined;
 
 			if (this.submenuContainer) {
 				this.submenuDisposables = dispose(this.submenuDisposables);
-				this.submenuContainer = null;
+				this.submenuContainer = undefined;
 			}
 		}
 	}
 
 	private createSubmenu(selectFirstItem = true): void {
+		if (!this.element) {
+			return;
+		}
+
 		if (!this.parentData.submenu) {
 			this.submenuContainer = append(this.element, $('div.monaco-submenu'));
 			addClasses(this.submenuContainer, 'menubar-menu-items-holder', 'context-view');
@@ -618,13 +671,15 @@ class SubmenuActionItem extends MenuActionItem {
 
 			const boundingRect = this.element.getBoundingClientRect();
 			const childBoundingRect = this.submenuContainer.getBoundingClientRect();
+			const computedStyles = getComputedStyle(this.parentData.parent.domNode);
+			const paddingTop = parseFloat(computedStyles.paddingTop || '0') || 0;
 
 			if (window.innerWidth <= boundingRect.right + childBoundingRect.width) {
 				this.submenuContainer.style.left = '10px';
 				this.submenuContainer.style.top = `${this.element.offsetTop - this.parentData.parent.scrollOffset + boundingRect.height}px`;
 			} else {
 				this.submenuContainer.style.left = `${this.element.offsetWidth}px`;
-				this.submenuContainer.style.top = `${this.element.offsetTop - this.parentData.parent.scrollOffset}px`;
+				this.submenuContainer.style.top = `${this.element.offsetTop - this.parentData.parent.scrollOffset - paddingTop}px`;
 			}
 
 			this.submenuDisposables.push(addDisposableListener(this.submenuContainer, EventType.KEY_UP, e => {
@@ -633,11 +688,14 @@ class SubmenuActionItem extends MenuActionItem {
 					EventHelper.stop(e, true);
 
 					this.parentData.parent.focus();
-					this.parentData.submenu.dispose();
-					this.parentData.submenu = null;
+
+					if (this.parentData.submenu) {
+						this.parentData.submenu.dispose();
+						this.parentData.submenu = undefined;
+					}
 
 					this.submenuDisposables = dispose(this.submenuDisposables);
-					this.submenuContainer = null;
+					this.submenuContainer = undefined;
 				}
 			}));
 
@@ -651,11 +709,14 @@ class SubmenuActionItem extends MenuActionItem {
 
 			this.submenuDisposables.push(this.parentData.submenu.onDidCancel(() => {
 				this.parentData.parent.focus();
-				this.parentData.submenu.dispose();
-				this.parentData.submenu = null;
+
+				if (this.parentData.submenu) {
+					this.parentData.submenu.dispose();
+					this.parentData.submenu = undefined;
+				}
 
 				this.submenuDisposables = dispose(this.submenuDisposables);
-				this.submenuContainer = null;
+				this.submenuContainer = undefined;
 			}));
 
 			this.parentData.submenu.focus(selectFirstItem);
@@ -673,7 +734,7 @@ class SubmenuActionItem extends MenuActionItem {
 			return;
 		}
 
-		const isSelected = hasClass(this.element, 'focused');
+		const isSelected = this.element && hasClass(this.element, 'focused');
 		const fgColor = isSelected && this.menuStyle.selectionForegroundColor ? this.menuStyle.selectionForegroundColor : this.menuStyle.foregroundColor;
 
 		this.submenuIndicator.style.backgroundColor = fgColor ? `${fgColor}` : null;
@@ -695,7 +756,7 @@ class SubmenuActionItem extends MenuActionItem {
 
 		if (this.submenuContainer) {
 			this.submenuDisposables = dispose(this.submenuDisposables);
-			this.submenuContainer = null;
+			this.submenuContainer = undefined;
 		}
 	}
 }

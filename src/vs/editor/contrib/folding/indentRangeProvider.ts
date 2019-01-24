@@ -26,7 +26,7 @@ export class IndentRangeProvider implements RangeProvider {
 	dispose() {
 	}
 
-	compute(cancelationToken: CancellationToken): Thenable<FoldingRegions> {
+	compute(cancelationToken: CancellationToken): Promise<FoldingRegions> {
 		let foldingRules = LanguageConfigurationRegistry.getFoldingRules(this.editorModel.getLanguageIdentifier().id);
 		let offSide = foldingRules && !!foldingRules.offSide;
 		let markers = foldingRules && foldingRules.markers;
@@ -113,7 +113,7 @@ export function computeRanges(model: ITextModel, offSide: boolean, markers?: Fol
 	const tabSize = model.getOptions().tabSize;
 	let result = new RangesCollector(foldingRangesLimit);
 
-	let pattern: RegExp | undefined = void 0;
+	let pattern: RegExp | undefined = undefined;
 	if (markers) {
 		pattern = new RegExp(`(${markers.start.source})|(?:${markers.end.source})`);
 	}

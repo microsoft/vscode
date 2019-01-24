@@ -17,27 +17,45 @@ export const sep = '/';
  */
 export const nativeSep = isWindows ? '\\' : '/';
 
+
+function isPathSeparator(code: number) {
+	return code === CharCode.Slash || code === CharCode.Backslash;
+}
+
 /**
  * @param path the path to get the dirname from
  * @param separator the separator to use
  * @returns the directory name of a path.
- *
+ * '.' is returned for empty paths or single segment relative paths (as done by NodeJS)
+ * For paths consisting only of a root, the input path is returned
  */
 export function dirname(path: string, separator = nativeSep): string {
-	const idx = ~path.lastIndexOf('/') || ~path.lastIndexOf('\\');
-	if (idx === 0) {
+	const len = path.length;
+	if (len === 0) {
 		return '.';
-	} else if (~idx === 0) {
-		return path[0];
-	} else if (~idx === path.length - 1) {
-		return dirname(path.substring(0, path.length - 1));
-	} else {
-		let res = path.substring(0, ~idx);
-		if (isWindows && res[res.length - 1] === ':') {
-			res += separator; // make sure drive letters end with backslash
-		}
-		return res;
+	} else if (len === 1) {
+		return isPathSeparator(path.charCodeAt(0)) ? path : '.';
 	}
+	const root = getRoot(path, separator);
+	let rootLength = root.length;
+	if (rootLength >= len) {
+		return path; // matched the root
+	}
+	if (rootLength === 0 && isPathSeparator(path.charCodeAt(0))) {
+		rootLength = 1; // absolute paths stay absolute paths.
+	}
+
+	let i = len - 1;
+	if (i > rootLength) {
+		i--; // no need to look at the last character. If it's a trailing slash, we ignore it.
+		while (i > rootLength && !isPathSeparator(path.charCodeAt(i))) {
+			i--;
+		}
+	}
+	if (i === 0) {
+		return '.'; // it was a relative path with a single segment, no root. Nodejs returns '.' here.
+	}
+	return path.substr(0, i);
 }
 
 /**
@@ -77,7 +95,7 @@ export function normalize(path: null, toOSPath?: boolean): null;
 export function normalize(path: string, toOSPath?: boolean): string;
 export function normalize(path: string | null | undefined, toOSPath?: boolean): string | null | undefined {
 
-	if (path === null || path === void 0) {
+	if (path === null || path === undefined) {
 		return path;
 	}
 
@@ -102,7 +120,7 @@ export function normalize(path: string | null | undefined, toOSPath?: boolean): 
 	for (let end = root.length; end <= len; end++) {
 
 		// either at the end or at a path-separator character
-		if (end === len || path.charCodeAt(end) === CharCode.Slash || path.charCodeAt(end) === CharCode.Backslash) {
+		if (end === len || isPathSeparator(path.charCodeAt(end))) {
 
 			if (streql(path, start, end, '..')) {
 				// skip current and remove parent (if there is already something)
@@ -148,29 +166,23 @@ export function getRoot(path: string, sep: string = '/'): string {
 	}
 
 	let len = path.length;
-	let code = path.charCodeAt(0);
-	if (code === CharCode.Slash || code === CharCode.Backslash) {
-
-		code = path.charCodeAt(1);
-		if (code === CharCode.Slash || code === CharCode.Backslash) {
+	const firstLetter = path.charCodeAt(0);
+	if (isPathSeparator(firstLetter)) {
+		if (isPathSeparator(path.charCodeAt(1))) {
 			// UNC candidate \\localhost\shares\ddd
 			//               ^^^^^^^^^^^^^^^^^^^
-			code = path.charCodeAt(2);
-			if (code !== CharCode.Slash && code !== CharCode.Backslash) {
+			if (!isPathSeparator(path.charCodeAt(2))) {
 				let pos = 3;
 				let start = pos;
 				for (; pos < len; pos++) {
-					code = path.charCodeAt(pos);
-					if (code === CharCode.Slash || code === CharCode.Backslash) {
+					if (isPathSeparator(path.charCodeAt(pos))) {
 						break;
 					}
 				}
-				code = path.charCodeAt(pos + 1);
-				if (start !== pos && code !== CharCode.Slash && code !== CharCode.Backslash) {
+				if (start !== pos && !isPathSeparator(path.charCodeAt(pos + 1))) {
 					pos += 1;
 					for (; pos < len; pos++) {
-						code = path.charCodeAt(pos);
-						if (code === CharCode.Slash || code === CharCode.Backslash) {
+						if (isPathSeparator(path.charCodeAt(pos))) {
 							return path.slice(0, pos + 1) // consume this separator
 								.replace(/[\\/]/g, sep);
 						}
@@ -183,12 +195,11 @@ export function getRoot(path: string, sep: string = '/'): string {
 		// ^
 		return sep;
 
-	} else if ((code >= CharCode.A && code <= CharCode.Z) || (code >= CharCode.a && code <= CharCode.z)) {
+	} else if (isWindowsDriveLetter(firstLetter)) {
 		// check for windows drive letter c:\ or c:
 
 		if (path.charCodeAt(1) === CharCode.Colon) {
-			code = path.charCodeAt(2);
-			if (code === CharCode.Slash || code === CharCode.Backslash) {
+			if (isPathSeparator(path.charCodeAt(2))) {
 				// C:\fff
 				// ^^^
 				return path.slice(0, 2) + sep;
@@ -207,8 +218,7 @@ export function getRoot(path: string, sep: string = '/'): string {
 	if (pos !== -1) {
 		pos += 3; // 3 -> "://".length
 		for (; pos < len; pos++) {
-			code = path.charCodeAt(pos);
-			if (code === CharCode.Slash || code === CharCode.Backslash) {
+			if (isPathSeparator(path.charCodeAt(pos))) {
 				return path.slice(0, pos + 1); // consume this separator
 			}
 		}
@@ -229,9 +239,9 @@ export const join: (...parts: string[]) => string = function () {
 			// add the separater between two parts unless
 			// there already is one
 			let last = value.charCodeAt(value.length - 1);
-			if (last !== CharCode.Slash && last !== CharCode.Backslash) {
+			if (!isPathSeparator(last)) {
 				let next = part.charCodeAt(0);
-				if (next !== CharCode.Slash && next !== CharCode.Backslash) {
+				if (!isPathSeparator(next)) {
 
 					value += sep;
 				}
@@ -386,12 +396,12 @@ export function isAbsolute_win32(path: string): boolean {
 	}
 
 	const char0 = path.charCodeAt(0);
-	if (char0 === CharCode.Slash || char0 === CharCode.Backslash) {
+	if (isPathSeparator(char0)) {
 		return true;
-	} else if ((char0 >= CharCode.A && char0 <= CharCode.Z) || (char0 >= CharCode.a && char0 <= CharCode.z)) {
+	} else if (isWindowsDriveLetter(char0)) {
 		if (path.length > 2 && path.charCodeAt(1) === CharCode.Colon) {
 			const char2 = path.charCodeAt(2);
-			if (char2 === CharCode.Slash || char2 === CharCode.Backslash) {
+			if (isPathSeparator(char2)) {
 				return true;
 			}
 		}
@@ -402,4 +412,8 @@ export function isAbsolute_win32(path: string): boolean {
 
 export function isAbsolute_posix(path: string): boolean {
 	return !!(path && path.charCodeAt(0) === CharCode.Slash);
+}
+
+export function isWindowsDriveLetter(char0: number): boolean {
+	return char0 >= CharCode.A && char0 <= CharCode.Z || char0 >= CharCode.a && char0 <= CharCode.z;
 }

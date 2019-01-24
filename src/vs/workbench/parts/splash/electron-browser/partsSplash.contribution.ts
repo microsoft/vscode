@@ -6,7 +6,7 @@
 import { onDidChangeFullscreen, isFullscreen } from 'vs/base/browser/browser';
 import { getTotalHeight, getTotalWidth } from 'vs/base/browser/dom';
 import { Color } from 'vs/base/common/color';
-import { anyEvent, debounceEvent } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IBroadcastService } from 'vs/platform/broadcast/electron-browser/broadcastService';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
@@ -27,7 +27,7 @@ class PartsSplash {
 	private readonly _disposables: IDisposable[] = [];
 
 	private _lastBaseTheme: string;
-	private _lastBackground: string;
+	private _lastBackground?: string;
 
 	constructor(
 		@IThemeService private readonly _themeService: IThemeService,
@@ -35,10 +35,10 @@ class PartsSplash {
 		@IStorageService private readonly _storageService: IStorageService,
 		@IEnvironmentService private readonly _envService: IEnvironmentService,
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@IBroadcastService private broadcastService: IBroadcastService
+		@IBroadcastService private readonly broadcastService: IBroadcastService
 	) {
 		lifecycleService.when(LifecyclePhase.Restored).then(_ => this._removePartsSplash());
-		debounceEvent(anyEvent<any>(
+		Event.debounce(Event.any<any>(
 			onDidChangeFullscreen,
 			_partService.onEditorLayout
 		), () => { }, 800)(this._savePartsSplash, this, this._disposables);
@@ -85,7 +85,7 @@ class PartsSplash {
 		}
 	}
 
-	private _getThemeColor(id: ColorIdentifier): string {
+	private _getThemeColor(id: ColorIdentifier): string | undefined {
 		const theme = this._themeService.getTheme();
 		const color = theme.getColor(id);
 		return color ? color.toString() : undefined;

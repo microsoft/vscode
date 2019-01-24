@@ -20,13 +20,13 @@ export class OpenUrlAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IURLService private urlService: IURLService,
-		@IQuickInputService private quickInputService: IQuickInputService,
+		@IURLService private readonly urlService: IURLService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
 	) {
 		super(id, label);
 	}
 
-	run(): Thenable<any> {
+	run(): Promise<any> {
 		return this.quickInputService.input({ prompt: 'URL to open' }).then(input => {
 			const uri = URI.parse(input);
 			this.urlService.open(uri);

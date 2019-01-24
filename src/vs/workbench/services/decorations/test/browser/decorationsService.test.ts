@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { FileDecorationsService } from 'vs/workbench/services/decorations/browser/decorationsService';
 import { IDecorationsProvider, IDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
 import { URI } from 'vs/base/common/uri';
-import { Event, toPromise, Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
@@ -46,11 +46,11 @@ suite('DecorationsService', function () {
 		assert.equal(callCounter, 1);
 
 		// event when result is computed
-		return toPromise(service.onDidChangeDecorations).then(e => {
+		return Event.toPromise(service.onDidChangeDecorations).then(e => {
 			assert.equal(e.affectsResource(uri), true);
 
 			// sync result
-			assert.deepEqual(service.getDecoration(uri, false).tooltip, 'T');
+			assert.deepEqual(service.getDecoration(uri, false)!.tooltip, 'T');
 			assert.equal(callCounter, 1);
 		});
 	});
@@ -70,7 +70,7 @@ suite('DecorationsService', function () {
 		});
 
 		// trigger -> sync
-		assert.deepEqual(service.getDecoration(uri, false).tooltip, 'Z');
+		assert.deepEqual(service.getDecoration(uri, false)!.tooltip, 'Z');
 		assert.equal(callCounter, 1);
 	});
 
@@ -88,7 +88,7 @@ suite('DecorationsService', function () {
 		});
 
 		// trigger -> sync
-		assert.deepEqual(service.getDecoration(uri, false).tooltip, 'J');
+		assert.deepEqual(service.getDecoration(uri, false)!.tooltip, 'J');
 		assert.equal(callCounter, 1);
 
 		// un-register -> ensure good event
@@ -121,10 +121,10 @@ suite('DecorationsService', function () {
 
 		let childUri = URI.parse('file:///some/path/some/file.txt');
 
-		let deco = service.getDecoration(childUri, false);
+		let deco = service.getDecoration(childUri, false)!;
 		assert.equal(deco.tooltip, '.txt');
 
-		deco = service.getDecoration(childUri.with({ path: 'some/path/' }), true);
+		deco = service.getDecoration(childUri.with({ path: 'some/path/' }), true)!;
 		assert.equal(deco, undefined);
 		reg.dispose();
 
@@ -139,10 +139,10 @@ suite('DecorationsService', function () {
 			}
 		});
 
-		deco = service.getDecoration(childUri, false);
+		deco = service.getDecoration(childUri, false)!;
 		assert.equal(deco.tooltip, '.txt.bubble');
 
-		deco = service.getDecoration(childUri.with({ path: 'some/path/' }), true);
+		deco = service.getDecoration(childUri.with({ path: 'some/path/' }), true)!;
 		assert.equal(typeof deco.tooltip, 'string');
 	});
 
@@ -152,7 +152,7 @@ suite('DecorationsService', function () {
 		let deco = service.getDecoration(someUri, false);
 		assert.equal(deco, undefined);
 
-		deco = service.getDecoration(someUri, false, { tooltip: 'Overwrite' });
+		deco = service.getDecoration(someUri, false, { tooltip: 'Overwrite' })!;
 		assert.equal(deco.tooltip, 'Overwrite');
 
 		let reg = service.registerDecorationsProvider({
@@ -163,10 +163,10 @@ suite('DecorationsService', function () {
 			}
 		});
 
-		deco = service.getDecoration(someUri, false);
+		deco = service.getDecoration(someUri, false)!;
 		assert.equal(deco.tooltip, 'FromMe');
 
-		deco = service.getDecoration(someUri, false, { source: 'foo', tooltip: 'O' });
+		deco = service.getDecoration(someUri, false, { source: 'foo', tooltip: 'O' })!;
 		assert.equal(deco.tooltip, 'O');
 
 		reg.dispose();
@@ -232,7 +232,7 @@ suite('DecorationsService', function () {
 		let data1 = service.getDecoration(URI.parse('a:b/'), true);
 		assert.ok(!data1);
 
-		let data2 = service.getDecoration(URI.parse('a:b/c.hello'), false);
+		let data2 = service.getDecoration(URI.parse('a:b/c.hello'), false)!;
 		assert.ok(data2.tooltip);
 
 		let data3 = service.getDecoration(URI.parse('a:b/'), true);
@@ -259,19 +259,19 @@ suite('DecorationsService', function () {
 
 		let uri = URI.parse('foo:/folder/file.ts');
 		let uri2 = URI.parse('foo:/folder/');
-		let data = service.getDecoration(uri, true);
+		let data = service.getDecoration(uri, true)!;
 		assert.equal(data.tooltip, 'FOO');
 
-		data = service.getDecoration(uri2, true);
+		data = service.getDecoration(uri2, true)!;
 		assert.ok(data.tooltip); // emphazied items...
 
 		gone = true;
 		emitter.fire([uri]);
 
-		data = service.getDecoration(uri, true);
+		data = service.getDecoration(uri, true)!;
 		assert.equal(data, undefined);
 
-		data = service.getDecoration(uri2, true);
+		data = service.getDecoration(uri2, true)!;
 		assert.equal(data, undefined);
 
 		reg.dispose();
@@ -294,10 +294,10 @@ suite('DecorationsService', function () {
 
 		let uri = URI.parse('foo:/folder/file.ts');
 		let uri2 = URI.parse('foo:/folder/');
-		let data = service.getDecoration(uri, true);
+		let data = service.getDecoration(uri, true)!;
 		assert.equal(data.tooltip, 'FOO');
 
-		data = service.getDecoration(uri2, true);
+		data = service.getDecoration(uri2, true)!;
 		assert.ok(data.tooltip); // emphazied items...
 
 		return new Promise((resolve, reject) => {

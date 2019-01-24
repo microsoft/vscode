@@ -10,7 +10,6 @@ import { IConfigurationService, IConfigurationChangeEvent, IConfigurationOverrid
 import { DefaultConfigurationModel, Configuration, ConfigurationChangeEvent, ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { equals } from 'vs/base/common/objects';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { UserConfiguration } from 'vs/platform/configuration/node/configuration';
 
@@ -38,7 +37,7 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 
 		// Listeners
 		this._register(this.userConfiguration.onDidChangeConfiguration(userConfigurationModel => this.onDidChangeUserConfiguration(userConfigurationModel)));
-		this._register(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidRegisterConfiguration(configurationProperties => this.onDidRegisterConfiguration(configurationProperties)));
+		this._register(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidUpdateConfiguration(configurationProperties => this.onDidDefaultConfigurationChange(configurationProperties)));
 	}
 
 	get configuration(): Configuration {
@@ -54,7 +53,7 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 	getValue<T>(overrides: IConfigurationOverrides): T;
 	getValue<T>(section: string, overrides: IConfigurationOverrides): T;
 	getValue(arg1?: any, arg2?: any): any {
-		const section = typeof arg1 === 'string' ? arg1 : void 0;
+		const section = typeof arg1 === 'string' ? arg1 : undefined;
 		const overrides = isConfigurationOverrides(arg1) ? arg1 : isConfigurationOverrides(arg2) ? arg2 : {};
 		return this.configuration.getValue(section, overrides, null);
 	}
@@ -87,25 +86,20 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 	}
 
 	reloadConfiguration(folder?: IWorkspaceFolder): Promise<void> {
-		return folder ? Promise.resolve(null) :
+		return folder ? Promise.resolve(undefined) :
 			this.userConfiguration.reload().then(userConfigurationModel => this.onDidChangeUserConfiguration(userConfigurationModel));
 	}
 
 	private onDidChangeUserConfiguration(userConfigurationModel: ConfigurationModel): void {
-		let changedKeys: string[] = [];
 		const { added, updated, removed } = compare(this._configuration.user, userConfigurationModel);
-		changedKeys = [...added, ...updated, ...removed];
+		const changedKeys = [...added, ...updated, ...removed];
 		if (changedKeys.length) {
-			const oldConfiguartion = this._configuration;
 			this._configuration.updateUserConfiguration(userConfigurationModel);
-			changedKeys = changedKeys.filter(key => !equals(oldConfiguartion.getValue(key, {}, null), this._configuration.getValue(key, {}, null)));
-			if (changedKeys.length) {
-				this.trigger(changedKeys, ConfigurationTarget.USER);
-			}
+			this.trigger(changedKeys, ConfigurationTarget.USER);
 		}
 	}
 
-	private onDidRegisterConfiguration(keys: string[]): void {
+	private onDidDefaultConfigurationChange(keys: string[]): void {
 		this._configuration.updateDefaultConfiguration(new DefaultConfigurationModel());
 		this.trigger(keys, ConfigurationTarget.DEFAULT);
 	}

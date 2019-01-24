@@ -21,9 +21,9 @@ import { attachMenuStyler } from 'vs/platform/theme/common/styler';
 import { domEvent } from 'vs/base/browser/event';
 
 export class ContextMenuHandler {
-	private element: HTMLElement;
+	private element: HTMLElement | null;
 	private elementDisposable: IDisposable;
-	private menuContainerElement: HTMLElement;
+	private menuContainerElement: HTMLElement | null;
 	private focusToReturn: HTMLElement;
 
 	constructor(
@@ -37,7 +37,7 @@ export class ContextMenuHandler {
 		this.setContainer(element);
 	}
 
-	setContainer(container: HTMLElement): void {
+	setContainer(container: HTMLElement | null): void {
 		if (this.element) {
 			this.elementDisposable = dispose(this.elementDisposable);
 			this.element = null;
@@ -96,12 +96,18 @@ export class ContextMenuHandler {
 			},
 
 			focus: () => {
-				menu.focus(!!delegate.autoSelectFirstItem);
+				if (menu) {
+					menu.focus(!!delegate.autoSelectFirstItem);
+				}
 			},
 
 			onHide: (didCancel?: boolean) => {
 				if (delegate.onHide) {
-					delegate.onHide(didCancel);
+					delegate.onHide(!!didCancel);
+				}
+
+				if (this.focusToReturn) {
+					this.focusToReturn.focus();
 				}
 
 				this.menuContainerElement = null;
@@ -140,7 +146,7 @@ export class ContextMenuHandler {
 		}
 
 		let event = new StandardMouseEvent(e);
-		let element = event.target;
+		let element: HTMLElement | null = event.target;
 
 		while (element) {
 			if (element === this.menuContainerElement) {

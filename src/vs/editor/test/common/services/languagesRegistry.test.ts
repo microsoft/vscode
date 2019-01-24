@@ -15,7 +15,7 @@ suite('LanguagesRegistry', () => {
 		registry._registerLanguages([{
 			id: 'outputModeId',
 			extensions: [],
-			aliases: [null],
+			aliases: [],
 			mimetypes: ['outputModeMimeType'],
 		}]);
 

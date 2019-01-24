@@ -17,13 +17,13 @@ export class OpenLogsFolderAction extends Action {
 	static LABEL = nls.localize('openLogsFolder', "Open Logs Folder");
 
 	constructor(id: string, label: string,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IWindowsService private windowsService: IWindowsService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IWindowsService private readonly windowsService: IWindowsService,
 	) {
 		super(id, label);
 	}
 
-	run(): Thenable<void> {
+	run(): Promise<void> {
 		return this.windowsService.showItemInFolder(paths.join(this.environmentService.logsPath, 'main.log'));
 	}
 }
@@ -34,13 +34,13 @@ export class SetLogLevelAction extends Action {
 	static LABEL = nls.localize('setLogLevel', "Set Log Level...");
 
 	constructor(id: string, label: string,
-		@IQuickInputService private quickInputService: IQuickInputService,
-		@ILogService private logService: ILogService
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super(id, label);
 	}
 
-	run(): Thenable<void> {
+	run(): Promise<void> {
 		const current = this.logService.getLevel();
 		const entries = [
 			{ label: nls.localize('trace', "Trace"), level: LogLevel.Trace, description: this.getDescription(LogLevel.Trace, current) },
@@ -69,6 +69,6 @@ export class SetLogLevelAction extends Action {
 		if (current === level) {
 			return nls.localize('current', "Current");
 		}
-		return void 0;
+		return undefined;
 	}
 }

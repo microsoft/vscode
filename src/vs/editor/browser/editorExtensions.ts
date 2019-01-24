@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IPosition } from 'vs/base/browser/ui/contextview/contextview';
-import { always } from 'vs/base/common/async';
 import { illegalArgument } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -108,7 +107,7 @@ export abstract class Command {
 		}
 	}
 
-	public abstract runCommand(accessor: ServicesAccessor, args: any): void | Thenable<void>;
+	public abstract runCommand(accessor: ServicesAccessor, args: any): void | Promise<void>;
 }
 
 //#endregion Command
@@ -116,7 +115,7 @@ export abstract class Command {
 //#region EditorCommand
 
 export interface IContributionCommandOptions<T> extends ICommandOptions {
-	handler: (controller: T) => void;
+	handler: (controller: T, args: any) => void;
 }
 export interface EditorControllerCommand<T extends IEditorContribution> {
 	new(opts: IContributionCommandOptions<T>): EditorCommand;
@@ -128,7 +127,7 @@ export abstract class EditorCommand extends Command {
 	 */
 	public static bindToContribution<T extends IEditorContribution>(controllerGetter: (editor: ICodeEditor) => T): EditorControllerCommand<T> {
 		return class EditorControllerCommandImpl extends EditorCommand {
-			private _callback: (controller: T) => void;
+			private _callback: (controller: T, args: any) => void;
 
 			constructor(opts: IContributionCommandOptions<T>) {
 				super(opts);
@@ -139,13 +138,13 @@ export abstract class EditorCommand extends Command {
 			public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
 				let controller = controllerGetter(editor);
 				if (controller) {
-					this._callback(controllerGetter(editor));
+					this._callback(controllerGetter(editor), args);
 				}
 			}
 		};
 	}
 
-	public runCommand(accessor: ServicesAccessor, args: any): void | Thenable<void> {
+	public runCommand(accessor: ServicesAccessor, args: any): void | Promise<void> {
 		const codeEditorService = accessor.get(ICodeEditorService);
 
 		// Find the editor with text focus or active
@@ -166,7 +165,7 @@ export abstract class EditorCommand extends Command {
 		});
 	}
 
-	public abstract runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | Thenable<void>;
+	public abstract runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): void | Promise<void>;
 }
 
 //#endregion EditorCommand
@@ -213,7 +212,7 @@ export abstract class EditorAction extends EditorCommand {
 		super.register();
 	}
 
-	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | Thenable<void> {
+	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | Promise<void> {
 		this.reportTelemetry(accessor, editor);
 		return this.run(accessor, editor, args || {});
 	}
@@ -231,7 +230,7 @@ export abstract class EditorAction extends EditorCommand {
 		accessor.get(ITelemetryService).publicLog('editorActionInvoked', { name: this.label, id: this.id, ...editor.getTelemetryData() });
 	}
 
-	public abstract run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | Thenable<void>;
+	public abstract run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | Promise<void>;
 }
 
 //#endregion EditorAction
@@ -266,14 +265,14 @@ export function registerDefaultLanguageCommand(id: string, handler: (model: ITex
 		}
 
 		return accessor.get(ITextModelService).createModelReference(resource).then(reference => {
-			return always(new Promise((resolve, reject) => {
+			return new Promise((resolve, reject) => {
 				try {
 					let result = handler(reference.object.textEditorModel, Position.lift(position), args);
 					resolve(result);
 				} catch (err) {
 					reject(err);
 				}
-			}), () => {
+			}).finally(() => {
 				reference.dispose();
 			});
 		});

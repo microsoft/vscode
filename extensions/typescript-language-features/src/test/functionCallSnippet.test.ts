@@ -107,4 +107,22 @@ suite('typescript function call snippets', () => {
 			).snippet.value,
 			'methoda(${1:x})$0');
 	});
+
+	test('Should escape snippet syntax in method name', async () => {
+		assert.strictEqual(
+			snippetForFunctionCall(
+				{ label: '$abc', },
+				[]
+			).snippet.value,
+			'\\$abc()$0');
+	});
+
+	test('Should not include object key signature in completion, #66297', async () => {
+		assert.strictEqual(
+			snippetForFunctionCall(
+				{ label: 'foobar', },
+				[{ "text": "function", "kind": "keyword" }, { "text": " ", "kind": "space" }, { "text": "foobar", "kind": "functionName" }, { "text": "(", "kind": "punctuation" }, { "text": "param", "kind": "parameterName" }, { "text": ":", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "{", "kind": "punctuation" }, { "text": "\n", "kind": "lineBreak" }, { "text": "    ", "kind": "space" }, { "text": "[", "kind": "punctuation" }, { "text": "key", "kind": "parameterName" }, { "text": ":", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "string", "kind": "keyword" }, { "text": "]", "kind": "punctuation" }, { "text": ":", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "string", "kind": "keyword" }, { "text": ";", "kind": "punctuation" }, { "text": "\n", "kind": "lineBreak" }, { "text": "}", "kind": "punctuation" }, { "text": ")", "kind": "punctuation" }, { "text": ":", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "void", "kind": "keyword" }]
+			).snippet.value,
+			'foobar(${1:param})$0');
+	});
 });

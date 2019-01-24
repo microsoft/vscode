@@ -72,7 +72,7 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 
 		// add argument validation if rich command metadata is provided
 		if (idOrCommand.description) {
-			const constraints: (TypeConstraint | undefined)[] = [];
+			const constraints: Array<TypeConstraint | undefined> = [];
 			for (let arg of idOrCommand.description.args) {
 				constraints.push(arg.constraint);
 			}
@@ -96,7 +96,8 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 
 		let ret = toDisposable(() => {
 			removeFn();
-			if (this._commands.get(id).isEmpty()) {
+			const command = this._commands.get(id);
+			if (command && command.isEmpty()) {
 				this._commands.delete(id);
 			}
 		});
@@ -108,9 +109,7 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 	}
 
 	registerCommandAlias(oldId: string, newId: string): IDisposable {
-		return CommandsRegistry.registerCommand(oldId, (accessor, ...args) => {
-			accessor.get(ICommandService).executeCommand(newId, ...args);
-		});
+		return CommandsRegistry.registerCommand(oldId, (accessor, ...args) => accessor.get(ICommandService).executeCommand(newId, ...args));
 	}
 
 	getCommand(id: string): ICommand | undefined {

@@ -64,8 +64,8 @@ class CommandsHistory extends Disposable {
 	private commandHistoryLength: number;
 
 	constructor(
-		@IStorageService private storageService: IStorageService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IStorageService private readonly storageService: IStorageService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
@@ -138,13 +138,13 @@ export class ShowAllCommandsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IQuickOpenService private readonly quickOpenService: IQuickOpenService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(id, label);
 	}
 
-	run(context?: any): Thenable<void> {
+	run(context?: any): Promise<void> {
 		const config = <IWorkbenchQuickOpenConfiguration>this.configurationService.getValue();
 		const restoreInput = config.workbench && config.workbench.commandPalette && config.workbench.commandPalette.preserveInput === true;
 
@@ -154,9 +154,9 @@ export class ShowAllCommandsAction extends Action {
 			value = `${value}${lastCommandPaletteInput}`;
 		}
 
-		this.quickOpenService.show(value, { inputSelection: lastCommandPaletteInput ? { start: 1 /* after prefix */, end: value.length } : void 0 });
+		this.quickOpenService.show(value, { inputSelection: lastCommandPaletteInput ? { start: 1 /* after prefix */, end: value.length } : undefined });
 
-		return Promise.resolve(null);
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -168,19 +168,19 @@ export class ClearCommandHistoryAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(id, label);
 	}
 
-	run(context?: any): Thenable<void> {
+	run(context?: any): Promise<void> {
 		const commandHistoryLength = resolveCommandHistory(this.configurationService);
 		if (commandHistoryLength > 0) {
 			commandHistory = new LRUCache<string, number>(commandHistoryLength);
 			commandCounter = 1;
 		}
 
-		return Promise.resolve(null);
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -199,13 +199,13 @@ class CommandPaletteEditorAction extends EditorAction {
 		});
 	}
 
-	run(accessor: ServicesAccessor, editor: ICodeEditor): Thenable<void> {
+	run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const quickOpenService = accessor.get(IQuickOpenService);
 
 		// Show with prefix
 		quickOpenService.show(ALL_COMMANDS_PREFIX);
 
-		return Promise.resolve(null);
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -222,13 +222,13 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 		alias: string,
 		highlights: { label: IHighlight[], alias: IHighlight[] },
 		private onBeforeRun: (commandId: string) => void,
-		@INotificationService private notificationService: INotificationService,
+		@INotificationService private readonly notificationService: INotificationService,
 		@ITelemetryService protected telemetryService: ITelemetryService
 	) {
 		super();
 
 		this.labelLowercase = this.label.toLowerCase();
-		this.keybindingAriaLabel = keybinding ? keybinding.getAriaLabel() : void 0;
+		this.keybindingAriaLabel = keybinding ? keybinding.getAriaLabel() : undefined;
 
 		if (this.label !== alias) {
 			this.alias = alias;
@@ -378,12 +378,12 @@ export class CommandsHandler extends QuickOpenHandler {
 	private commandsHistory: CommandsHistory;
 
 	constructor(
-		@IEditorService private editorService: IEditorService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IKeybindingService private keybindingService: IKeybindingService,
-		@IMenuService private menuService: IMenuService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IExtensionService private extensionService: IExtensionService
+		@IEditorService private readonly editorService: IEditorService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IMenuService private readonly menuService: IMenuService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IExtensionService private readonly extensionService: IExtensionService
 	) {
 		super();
 
@@ -397,7 +397,7 @@ export class CommandsHandler extends QuickOpenHandler {
 		this.commandHistoryEnabled = resolveCommandHistory(this.configurationService) > 0;
 	}
 
-	getResults(searchValue: string, token: CancellationToken): Thenable<QuickOpenModel> {
+	getResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel> {
 
 		// wait for extensions being registered to cover all commands
 		// also from extensions
@@ -486,8 +486,7 @@ export class CommandsHandler extends QuickOpenHandler {
 	private editorActionsToEntries(actions: IEditorAction[], searchValue: string): EditorActionCommandEntry[] {
 		const entries: EditorActionCommandEntry[] = [];
 
-		for (let i = 0; i < actions.length; i++) {
-			const action = actions[i];
+		for (const action of actions) {
 			if (action.id === ShowAllCommandsAction.ID) {
 				continue; // avoid duplicates
 			}
@@ -555,7 +554,7 @@ export class CommandsHandler extends QuickOpenHandler {
 		if (autoFocusPrefixMatch && this.commandHistoryEnabled) {
 			const firstEntry = context.model && context.model.entries[0];
 			if (firstEntry instanceof BaseCommandEntry && this.commandsHistory.peek(firstEntry.getCommandId())) {
-				autoFocusPrefixMatch = void 0; // keep focus on MRU element if we have history elements
+				autoFocusPrefixMatch = undefined; // keep focus on MRU element if we have history elements
 			}
 		}
 

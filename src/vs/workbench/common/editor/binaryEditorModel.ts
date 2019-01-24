@@ -22,7 +22,7 @@ export class BinaryEditorModel extends EditorModel {
 	constructor(
 		resource: URI,
 		name: string,
-		@IFileService private fileService: IFileService
+		@IFileService private readonly fileService: IFileService
 	) {
 		super();
 
@@ -35,7 +35,7 @@ export class BinaryEditorModel extends EditorModel {
 				this.size = Number(metadata.get(DataUri.META_DATA_SIZE));
 			}
 
-			this.mime = metadata.get(DataUri.META_DATA_MIME);
+			this.mime = metadata.get(DataUri.META_DATA_MIME)!;
 		}
 	}
 
@@ -74,13 +74,15 @@ export class BinaryEditorModel extends EditorModel {
 		return this.etag;
 	}
 
-	load(): Thenable<EditorModel> {
+	load(): Promise<EditorModel> {
 
 		// Make sure to resolve up to date stat for file resources
 		if (this.fileService.canHandleResource(this.resource)) {
 			return this.fileService.resolveFile(this.resource).then(stat => {
 				this.etag = stat.etag;
-				this.size = stat.size;
+				if (typeof stat.size === 'number') {
+					this.size = stat.size;
+				}
 
 				return this;
 			});

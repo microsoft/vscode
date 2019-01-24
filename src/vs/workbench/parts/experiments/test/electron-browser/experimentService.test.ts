@@ -10,9 +10,9 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { TestLifecycleService } from 'vs/workbench/test/workbenchTestServices';
 import {
 	IExtensionManagementService, DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier,
-	IExtensionEnablementService, ILocalExtension, LocalExtensionType
+	IExtensionEnablementService, ILocalExtension
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionManagementService, getLocalExtensionIdFromManifest } from 'vs/platform/extensionManagement/node/extensionManagementService';
+import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { Emitter } from 'vs/base/common/event';
 import { TestExtensionEnablementService } from 'vs/platform/extensionManagement/test/electron-browser/extensionEnablementService.test';
 import { URLService } from 'vs/platform/url/common/urlService';
@@ -22,30 +22,39 @@ import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtil
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { assign } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { lastSessionDateStorageKey } from 'vs/platform/telemetry/node/workbenchCommonProperties';
+import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 
-let experimentData = {
+interface ExperimentSettings {
+	enabled?: boolean;
+	id?: string;
+	state?: ExperimentState;
+}
+
+let experimentData: { [i: string]: any } = {
 	experiments: []
 };
 
 const local = aLocalExtension('installedExtension1', { version: '1.0.0' });
 
 function aLocalExtension(name: string = 'someext', manifest: any = {}, properties: any = {}): ILocalExtension {
-	const localExtension = <ILocalExtension>Object.create({ manifest: {} });
-	assign(localExtension, { type: LocalExtensionType.User, manifest: {}, location: URI.file(`pub.${name}`) }, properties);
-	assign(localExtension.manifest, { name, publisher: 'pub', version: '1.0.0' }, manifest);
-	localExtension.identifier = { id: getLocalExtensionIdFromManifest(localExtension.manifest) };
-	localExtension.metadata = { id: localExtension.identifier.id, publisherId: localExtension.manifest.publisher, publisherDisplayName: 'somename' };
-	return localExtension;
+	manifest = assign({ name, publisher: 'pub', version: '1.0.0' }, manifest);
+	properties = assign({
+		type: ExtensionType.User,
+		location: URI.file(`pub.${name}`),
+		identifier: { id: getGalleryExtensionId(manifest.publisher, manifest.name), uuid: undefined },
+		metadata: { id: getGalleryExtensionId(manifest.publisher, manifest.name), publisherId: manifest.publisher, publisherDisplayName: 'somename' }
+	}, properties);
+	return <ILocalExtension>Object.create({ manifest, ...properties });
 }
 
 export class TestExperimentService extends ExperimentService {
-	public getExperiments(): TPromise<any[]> {
-		return TPromise.wrap(experimentData.experiments);
+	public getExperiments(): Promise<any[]> {
+		return Promise.resolve(experimentData.experiments);
 	}
 }
 
@@ -123,14 +132,14 @@ suite('Experiment Service', () => {
 		};
 
 		testObject = instantiationService.createInstance(TestExperimentService);
-		const tests: TPromise<IExperiment>[] = [];
+		const tests: Promise<IExperiment>[] = [];
 		tests.push(testObject.getExperimentById('experiment1'));
 		tests.push(testObject.getExperimentById('experiment2'));
 		tests.push(testObject.getExperimentById('experiment3'));
 		tests.push(testObject.getExperimentById('experiment4'));
 		tests.push(testObject.getExperimentById('experiment5'));
 
-		return TPromise.join(tests).then(results => {
+		return Promise.all(tests).then(results => {
 			assert.equal(results[0].id, 'experiment1');
 			assert.equal(results[0].enabled, false);
 			assert.equal(results[0].state, ExperimentState.NoRun);
@@ -496,9 +505,9 @@ suite('Experiment Service', () => {
 			]
 		};
 
-		let storageDataExperiment1 = { enabled: false };
-		let storageDataExperiment2 = { enabled: false };
-		let storageDataAllExperiments = ['experiment1', 'experiment2', 'experiment3'];
+		let storageDataExperiment1: ExperimentSettings | null = { enabled: false };
+		let storageDataExperiment2: ExperimentSettings | null = { enabled: false };
+		let storageDataAllExperiments: string[] | null = ['experiment1', 'experiment2', 'experiment3'];
 		instantiationService.stub(IStorageService, {
 			get: (a, b, c) => {
 				switch (a) {
@@ -554,9 +563,9 @@ suite('Experiment Service', () => {
 			assert.equal(!!result, false);
 			assert.equal(!!storageDataExperiment2, false);
 		});
-		return TPromise.join([disabledExperiment, deletedExperiment]).then(() => {
-			assert.equal(storageDataAllExperiments.length, 1);
-			assert.equal(storageDataAllExperiments[0], 'experiment3');
+		return Promise.all([disabledExperiment, deletedExperiment]).then(() => {
+			assert.equal(storageDataAllExperiments!.length, 1);
+			assert.equal(storageDataAllExperiments![0], 'experiment3');
 		});
 
 	});
@@ -566,11 +575,11 @@ suite('Experiment Service', () => {
 			experiments: null
 		};
 
-		let storageDataExperiment1 = { enabled: true, state: ExperimentState.Run };
-		let storageDataExperiment2 = { enabled: true, state: ExperimentState.NoRun };
-		let storageDataExperiment3 = { enabled: true, state: ExperimentState.Evaluating };
-		let storageDataExperiment4 = { enabled: true, state: ExperimentState.Complete };
-		let storageDataAllExperiments = ['experiment1', 'experiment2', 'experiment3', 'experiment4'];
+		let storageDataExperiment1: ExperimentSettings | null = { enabled: true, state: ExperimentState.Run };
+		let storageDataExperiment2: ExperimentSettings | null = { enabled: true, state: ExperimentState.NoRun };
+		let storageDataExperiment3: ExperimentSettings | null = { enabled: true, state: ExperimentState.Evaluating };
+		let storageDataExperiment4: ExperimentSettings | null = { enabled: true, state: ExperimentState.Complete };
+		let storageDataAllExperiments: string[] | null = ['experiment1', 'experiment2', 'experiment3', 'experiment4'];
 		instantiationService.stub(IStorageService, {
 			get: (a, b, c) => {
 				switch (a) {
@@ -635,13 +644,13 @@ suite('Experiment Service', () => {
 
 		testObject = instantiationService.createInstance(TestExperimentService);
 
-		const tests: TPromise<IExperiment>[] = [];
+		const tests: Promise<IExperiment>[] = [];
 		tests.push(testObject.getExperimentById('experiment1'));
 		tests.push(testObject.getExperimentById('experiment2'));
 		tests.push(testObject.getExperimentById('experiment3'));
 		tests.push(testObject.getExperimentById('experiment4'));
 
-		return TPromise.join(tests).then(results => {
+		return Promise.all(tests).then(results => {
 			assert.equal(results[0].id, 'experiment1');
 			assert.equal(results[0].enabled, true);
 			assert.equal(results[0].state, ExperimentState.Run);
@@ -719,16 +728,16 @@ suite('Experiment Service', () => {
 			assert.equal(result.length, 3);
 			assert.equal(result[0].id, 'simple-experiment');
 			assert.equal(result[1].id, 'custom-experiment');
-			assert.equal(result[1].action.properties, customProperties);
+			assert.equal(result[1].action!.properties, customProperties);
 			assert.equal(result[2].id, 'custom-experiment-no-properties');
-			assert.equal(!!result[2].action.properties, true);
+			assert.equal(!!result[2].action!.properties, true);
 		});
 		const prompt = testObject.getExperimentsByType(ExperimentActionType.Prompt).then(result => {
 			assert.equal(result.length, 2);
 			assert.equal(result[0].id, 'prompt-with-no-commands');
 			assert.equal(result[1].id, 'prompt-with-commands');
 		});
-		return TPromise.join([custom, prompt]);
+		return Promise.all([custom, prompt]);
 	});
 
 	test('experimentsPreviouslyRun includes, excludes check', () => {
@@ -792,7 +801,7 @@ suite('Experiment Service', () => {
 			assert.equal(result[1].state, ExperimentState.Run);
 			assert.equal(storageDataExperiment3.state, ExperimentState.NoRun);
 			assert.equal(storageDataExperiment4.state, ExperimentState.Run);
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		});
 	});
 	// test('Experiment with condition type FileEdit should increment editcount as appropriate', () => {

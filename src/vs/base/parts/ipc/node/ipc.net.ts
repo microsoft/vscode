@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Socket, Server as NetServer, createConnection, createServer } from 'net';
-import { Event, Emitter, once, mapEvent, fromNodeEventEmitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IMessagePassingProtocol, ClientConnectionEvent, IPCServer, IPCClient } from 'vs/base/parts/ipc/node/ipc';
 import { join } from 'path';
 import { tmpdir } from 'os';
@@ -207,11 +207,11 @@ export class Protocol implements IDisposable, IMessagePassingProtocol {
 export class Server extends IPCServer {
 
 	private static toClientConnectionEvent(server: NetServer): Event<ClientConnectionEvent> {
-		const onConnection = fromNodeEventEmitter<Socket>(server, 'connection');
+		const onConnection = Event.fromNodeEventEmitter<Socket>(server, 'connection');
 
-		return mapEvent(onConnection, socket => ({
+		return Event.map(onConnection, socket => ({
 			protocol: new Protocol(socket),
-			onDidClientDisconnect: once(fromNodeEventEmitter<void>(socket, 'close'))
+			onDidClientDisconnect: Event.once(Event.fromNodeEventEmitter<void>(socket, 'close'))
 		}));
 	}
 
@@ -239,7 +239,7 @@ export class Client<TContext = string> extends IPCClient<TContext> {
 
 	get onClose(): Event<void> { return this.protocol.onClose; }
 
-	constructor(private protocol: Protocol, id: TContext) {
+	constructor(private protocol: Protocol | BufferedProtocol, id: TContext) {
 		super(protocol, id);
 	}
 
@@ -249,9 +249,9 @@ export class Client<TContext = string> extends IPCClient<TContext> {
 	}
 }
 
-export function serve(port: number): Thenable<Server>;
-export function serve(namedPipe: string): Thenable<Server>;
-export function serve(hook: any): Thenable<Server> {
+export function serve(port: number): Promise<Server>;
+export function serve(namedPipe: string): Promise<Server>;
+export function serve(hook: any): Promise<Server> {
 	return new Promise<Server>((c, e) => {
 		const server = createServer();
 
@@ -263,10 +263,10 @@ export function serve(hook: any): Thenable<Server> {
 	});
 }
 
-export function connect(options: { host: string, port: number }, clientId: string): Thenable<Client>;
-export function connect(port: number, clientId: string): Thenable<Client>;
-export function connect(namedPipe: string, clientId: string): Thenable<Client>;
-export function connect(hook: any, clientId: string): Thenable<Client> {
+export function connect(options: { host: string, port: number }, clientId: string): Promise<Client>;
+export function connect(port: number, clientId: string): Promise<Client>;
+export function connect(namedPipe: string, clientId: string): Promise<Client>;
+export function connect(hook: any, clientId: string): Promise<Client> {
 	return new Promise<Client>((c, e) => {
 		const socket = createConnection(hook, () => {
 			socket.removeListener('error', e);
@@ -275,4 +275,69 @@ export function connect(hook: any, clientId: string): Thenable<Client> {
 
 		socket.once('error', e);
 	});
+}
+
+/**
+ * Will ensure no messages are lost if there are no event listeners.
+ */
+function createBufferedEvent<T>(source: Event<T>): Event<T> {
+	let emitter: Emitter<T>;
+	let hasListeners = false;
+	let isDeliveringMessages = false;
+	let bufferedMessages: T[] = [];
+
+	const deliverMessages = () => {
+		if (isDeliveringMessages) {
+			return;
+		}
+		isDeliveringMessages = true;
+		while (hasListeners && bufferedMessages.length > 0) {
+			emitter.fire(bufferedMessages.shift()!);
+		}
+		isDeliveringMessages = false;
+	};
+
+	source((e: T) => {
+		bufferedMessages.push(e);
+		deliverMessages();
+	});
+
+	emitter = new Emitter<T>({
+		onFirstListenerAdd: () => {
+			hasListeners = true;
+			// it is important to deliver these messages after this call, but before
+			// other messages have a chance to be received (to guarantee in order delivery)
+			// that's why we're using here nextTick and not other types of timeouts
+			process.nextTick(deliverMessages);
+		},
+		onLastListenerRemove: () => {
+			hasListeners = false;
+		}
+	});
+
+	return emitter.event;
+}
+
+/**
+ * Will ensure no messages are lost if there are no event listeners.
+ */
+export class BufferedProtocol implements IMessagePassingProtocol {
+
+	private readonly _actual: Protocol;
+	public readonly onMessage: Event<Buffer>;
+	public readonly onClose: Event<void>;
+
+	constructor(actual: Protocol) {
+		this._actual = actual;
+		this.onMessage = createBufferedEvent(this._actual.onMessage);
+		this.onClose = createBufferedEvent(this._actual.onClose);
+	}
+
+	public send(buffer: Buffer): void {
+		this._actual.send(buffer);
+	}
+
+	public end(): void {
+		this._actual.end();
+	}
 }

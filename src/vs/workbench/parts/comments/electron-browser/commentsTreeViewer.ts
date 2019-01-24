@@ -9,11 +9,9 @@ import { renderMarkdown } from 'vs/base/browser/htmlContentRenderer';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import { IDataSource, IFilter, IRenderer as ITreeRenderer, ITree } from 'vs/base/parts/tree/browser/tree';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { FileLabel } from 'vs/workbench/browser/labels';
+import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { CommentNode, CommentsModel, ResourceWithCommentThreads } from 'vs/workbench/parts/comments/common/commentModel';
 
 export class CommentsDataSource implements IDataSource {
@@ -34,21 +32,21 @@ export class CommentsDataSource implements IDataSource {
 		return element instanceof CommentsModel || element instanceof ResourceWithCommentThreads || (element instanceof CommentNode && !!element.replies.length);
 	}
 
-	public getChildren(tree: ITree, element: any): Promise {
+	public getChildren(tree: ITree, element: any): Promise<ResourceWithCommentThreads[] | CommentNode[]> {
 		if (element instanceof CommentsModel) {
-			return Promise.as(element.resourceCommentThreads);
+			return Promise.resolve(element.resourceCommentThreads);
 		}
 		if (element instanceof ResourceWithCommentThreads) {
-			return Promise.as(element.commentThreads);
+			return Promise.resolve(element.commentThreads);
 		}
 		if (element instanceof CommentNode) {
-			return Promise.as(element.replies);
+			return Promise.resolve(element.replies);
 		}
 		return null;
 	}
 
-	public getParent(tree: ITree, element: any): Promise {
-		return TPromise.as(null);
+	public getParent(tree: ITree, element: any): Promise<void> {
+		return Promise.resolve(undefined);
 	}
 
 	public shouldAutoexpand(tree: ITree, element: any): boolean {
@@ -57,7 +55,7 @@ export class CommentsDataSource implements IDataSource {
 }
 
 interface IResourceTemplateData {
-	resourceLabel: FileLabel;
+	resourceLabel: IResourceLabel;
 }
 
 interface ICommentThreadTemplateData {
@@ -71,10 +69,9 @@ export class CommentsModelRenderer implements ITreeRenderer {
 	private static RESOURCE_ID = 'resource-with-comments';
 	private static COMMENT_ID = 'comment-node';
 
-
 	constructor(
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IOpenerService private openerService: IOpenerService
+		private labels: ResourceLabels,
+		@IOpenerService private readonly openerService: IOpenerService
 	) {
 	}
 
@@ -125,7 +122,7 @@ export class CommentsModelRenderer implements ITreeRenderer {
 	private renderResourceTemplate(container: HTMLElement): IResourceTemplateData {
 		const data = <IResourceTemplateData>Object.create(null);
 		const labelContainer = dom.append(container, dom.$('.resource-container'));
-		data.resourceLabel = this.instantiationService.createInstance(FileLabel, labelContainer, {});
+		data.resourceLabel = this.labels.create(labelContainer);
 
 		return data;
 	}

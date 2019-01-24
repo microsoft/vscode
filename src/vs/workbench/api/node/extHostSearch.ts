@@ -9,7 +9,6 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import * as extfs from 'vs/base/node/extfs';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IFileQuery, IFolderQuery, IRawFileQuery, IRawQuery, IRawTextQuery, ISearchCompleteStats, ITextQuery } from 'vs/platform/search/common/search';
-import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
 import { FileIndexSearchManager } from 'vs/workbench/api/node/extHostSearch.fileIndex';
 import { FileSearchManager } from 'vs/workbench/services/search/node/fileSearchManager';
 import { SearchService } from 'vs/workbench/services/search/node/rawSearchService';
@@ -41,12 +40,10 @@ export class ExtHostSearch implements ExtHostSearchShape {
 	private _fileSearchManager: FileSearchManager;
 	private _fileIndexSearchManager: FileIndexSearchManager;
 
-	constructor(mainContext: IMainContext, private _schemeTransformer: ISchemeTransformer, private _logService: ILogService, configService: ExtHostConfiguration, private _extfs = extfs) {
+	constructor(mainContext: IMainContext, private _schemeTransformer: ISchemeTransformer, private _logService: ILogService, private _extfs = extfs) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadSearch);
 		this._fileSearchManager = new FileSearchManager();
 		this._fileIndexSearchManager = new FileIndexSearchManager();
-
-		registerEHProviders(this, _logService, configService);
 	}
 
 	private _transformScheme(scheme: string): string {
@@ -58,7 +55,7 @@ export class ExtHostSearch implements ExtHostSearchShape {
 
 	registerTextSearchProvider(scheme: string, provider: vscode.TextSearchProvider): IDisposable {
 		if (this._textSearchUsedSchemes.has(scheme)) {
-			throw new Error(`a provider for the scheme '${scheme}' is already registered`);
+			throw new Error(`a text search provider for the scheme '${scheme}' is already registered`);
 		}
 
 		this._textSearchUsedSchemes.add(scheme);
@@ -74,7 +71,7 @@ export class ExtHostSearch implements ExtHostSearchShape {
 
 	registerFileSearchProvider(scheme: string, provider: vscode.FileSearchProvider): IDisposable {
 		if (this._fileSearchUsedSchemes.has(scheme)) {
-			throw new Error(`a provider for the scheme '${scheme}' is already registered`);
+			throw new Error(`a file search provider for the scheme '${scheme}' is already registered`);
 		}
 
 		this._fileSearchUsedSchemes.add(scheme);
@@ -115,7 +112,7 @@ export class ExtHostSearch implements ExtHostSearchShape {
 		});
 	}
 
-	$provideFileSearchResults(handle: number, session: number, rawQuery: IRawFileQuery, token: CancellationToken): Thenable<ISearchCompleteStats> {
+	$provideFileSearchResults(handle: number, session: number, rawQuery: IRawFileQuery, token: CancellationToken): Promise<ISearchCompleteStats> {
 		const query = reviveQuery(rawQuery);
 		if (handle === this._internalFileSearchHandle) {
 			return this.doInternalFileSearch(handle, session, query, token);
@@ -134,7 +131,7 @@ export class ExtHostSearch implements ExtHostSearchShape {
 		}
 	}
 
-	private doInternalFileSearch(handle: number, session: number, rawQuery: IFileQuery, token: CancellationToken): Thenable<ISearchCompleteStats> {
+	private doInternalFileSearch(handle: number, session: number, rawQuery: IFileQuery, token: CancellationToken): Promise<ISearchCompleteStats> {
 		const onResult = (ev) => {
 			if (isSerializedFileMatch(ev)) {
 				ev = [ev];
@@ -153,7 +150,7 @@ export class ExtHostSearch implements ExtHostSearchShape {
 		return this._internalFileSearchProvider.doFileSearch(rawQuery, onResult, token);
 	}
 
-	$clearCache(cacheKey: string): Thenable<void> {
+	$clearCache(cacheKey: string): Promise<void> {
 		if (this._internalFileSearchProvider) {
 			this._internalFileSearchProvider.clearCache(cacheKey);
 		}
@@ -164,7 +161,7 @@ export class ExtHostSearch implements ExtHostSearchShape {
 		return Promise.resolve(undefined);
 	}
 
-	$provideTextSearchResults(handle: number, session: number, rawQuery: IRawTextQuery, token: CancellationToken): Thenable<ISearchCompleteStats> {
+	$provideTextSearchResults(handle: number, session: number, rawQuery: IRawTextQuery, token: CancellationToken): Promise<ISearchCompleteStats> {
 		const provider = this._textSearchProvider.get(handle);
 		if (!provider.provideTextSearchResults) {
 			return Promise.resolve(undefined);
@@ -176,13 +173,10 @@ export class ExtHostSearch implements ExtHostSearchShape {
 	}
 }
 
-function registerEHProviders(extHostSearch: ExtHostSearch, logService: ILogService, configService: ExtHostConfiguration) {
-	if (configService.getConfiguration('searchRipgrep').enable || configService.getConfiguration('search').runInExtensionHost) {
-		const outputChannel = new OutputChannel(logService);
-		extHostSearch.registerTextSearchProvider('file', new RipgrepSearchProvider(outputChannel));
-
-		extHostSearch.registerInternalFileSearchProvider('file', new SearchService());
-	}
+export function registerEHSearchProviders(extHostSearch: ExtHostSearch, logService: ILogService): void {
+	const outputChannel = new OutputChannel(logService);
+	extHostSearch.registerTextSearchProvider('file', new RipgrepSearchProvider(outputChannel));
+	extHostSearch.registerInternalFileSearchProvider('file', new SearchService());
 }
 
 function reviveQuery<U extends IRawQuery>(rawQuery: U): U extends IRawTextQuery ? ITextQuery : IFileQuery {

@@ -7,7 +7,7 @@ import 'vs/css!./actionbar';
 import * as platform from 'vs/base/common/platform';
 import * as nls from 'vs/nls';
 import { Disposable, dispose } from 'vs/base/common/lifecycle';
-import { SelectBox, ISelectBoxOptions } from 'vs/base/browser/ui/selectBox/selectBox';
+import { SelectBox, ISelectOptionItem, ISelectBoxOptions } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IAction, IActionRunner, Action, IActionChangeEvent, ActionRunner, IRunEvent } from 'vs/base/common/actions';
 import * as DOM from 'vs/base/browser/dom';
 import * as types from 'vs/base/common/types';
@@ -60,24 +60,24 @@ export class BaseActionItem extends Disposable implements IActionItem {
 	}
 
 	private handleActionChangeEvent(event: IActionChangeEvent): void {
-		if (event.enabled !== void 0) {
+		if (event.enabled !== undefined) {
 			this.updateEnabled();
 		}
 
-		if (event.checked !== void 0) {
+		if (event.checked !== undefined) {
 			this.updateChecked();
 		}
 
-		if (event.class !== void 0) {
+		if (event.class !== undefined) {
 			this.updateClass();
 		}
 
-		if (event.label !== void 0) {
+		if (event.label !== undefined) {
 			this.updateLabel();
 			this.updateTooltip();
 		}
 
-		if (event.tooltip !== void 0) {
+		if (event.tooltip !== undefined) {
 			this.updateTooltip();
 		}
 	}
@@ -228,7 +228,7 @@ export class Separator extends Action {
 export interface IActionItemOptions extends IBaseActionItemOptions {
 	icon?: boolean;
 	label?: boolean;
-	keybinding?: string;
+	keybinding?: string | null;
 }
 
 export class ActionItem extends BaseActionItem {
@@ -363,7 +363,7 @@ export interface ActionTrigger {
 }
 
 export interface IActionItemProvider {
-	(action: IAction): IActionItem;
+	(action: IAction): IActionItem | null;
 }
 
 export interface IActionBarOptions {
@@ -376,7 +376,7 @@ export interface IActionBarOptions {
 	triggerKeys?: ActionTrigger;
 }
 
-let defaultOptions: IActionBarOptions = {
+const defaultOptions: IActionBarOptions = {
 	orientation: ActionsOrientation.HORIZONTAL,
 	context: null,
 	triggerKeys: {
@@ -473,7 +473,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 		}
 
 		this._register(DOM.addDisposableListener(this.domNode, DOM.EventType.KEY_DOWN, e => {
-			let event = new StandardKeyboardEvent(e);
+			const event = new StandardKeyboardEvent(e);
 			let eventHandled = true;
 
 			if (event.equals(previousKey)) {
@@ -498,7 +498,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 		}));
 
 		this._register(DOM.addDisposableListener(this.domNode, DOM.EventType.KEY_UP, e => {
-			let event = new StandardKeyboardEvent(e);
+			const event = new StandardKeyboardEvent(e);
 
 			// Run action on Enter/Space
 			if (this.isTriggerKeyEvent(event)) {
@@ -560,7 +560,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 	private updateFocusedItem(): void {
 		for (let i = 0; i < this.actionsList.children.length; i++) {
-			let elem = this.actionsList.children[i];
+			const elem = this.actionsList.children[i];
 			if (DOM.isAncestor(document.activeElement, elem)) {
 				this.focusedItem = i;
 				break;
@@ -577,11 +577,11 @@ export class ActionBar extends Disposable implements IActionRunner {
 		this.items.forEach(i => i.setActionContext(context));
 	}
 
-	get actionRunner(): IActionRunner | undefined {
+	get actionRunner(): IActionRunner {
 		return this._actionRunner;
 	}
 
-	set actionRunner(actionRunner: IActionRunner | undefined) {
+	set actionRunner(actionRunner: IActionRunner) {
 		if (actionRunner) {
 			this._actionRunner = actionRunner;
 			this.items.forEach(item => item.actionRunner = actionRunner);
@@ -657,8 +657,8 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 	pull(index: number): void {
 		if (index >= 0 && index < this.items.length) {
-			this.items.splice(index, 1);
 			this.actionsList.removeChild(this.actionsList.childNodes[index]);
+			dispose(this.items.splice(index, 1));
 		}
 	}
 
@@ -679,7 +679,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 	focus(selectFirst?: boolean): void;
 	focus(arg?: any): void {
 		let selectFirst: boolean = false;
-		let index: number | undefined = void 0;
+		let index: number | undefined = undefined;
 		if (arg === undefined) {
 			selectFirst = true;
 		} else if (typeof arg === 'number') {
@@ -701,12 +701,12 @@ export class ActionBar extends Disposable implements IActionRunner {
 		}
 	}
 
-	private focusNext(): void {
+	protected focusNext(): void {
 		if (typeof this.focusedItem === 'undefined') {
 			this.focusedItem = this.items.length - 1;
 		}
 
-		let startIndex = this.focusedItem;
+		const startIndex = this.focusedItem;
 		let item: IActionItem;
 
 		do {
@@ -721,12 +721,12 @@ export class ActionBar extends Disposable implements IActionRunner {
 		this.updateFocus();
 	}
 
-	private focusPrevious(): void {
+	protected focusPrevious(): void {
 		if (typeof this.focusedItem === 'undefined') {
 			this.focusedItem = 0;
 		}
 
-		let startIndex = this.focusedItem;
+		const startIndex = this.focusedItem;
 		let item: IActionItem;
 
 		do {
@@ -752,9 +752,8 @@ export class ActionBar extends Disposable implements IActionRunner {
 		}
 
 		for (let i = 0; i < this.items.length; i++) {
-			let item = this.items[i];
-
-			let actionItem = item;
+			const item = this.items[i];
+			const actionItem = item;
 
 			if (i === this.focusedItem) {
 				if (types.isFunction(actionItem.isEnabled)) {
@@ -778,7 +777,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 		}
 
 		// trigger action
-		let actionItem = this.items[this.focusedItem];
+		const actionItem = this.items[this.focusedItem];
 		if (actionItem instanceof BaseActionItem) {
 			const context = (actionItem._context === null || actionItem._context === undefined) ? event : actionItem._context;
 			this.run(actionItem._action, context);
@@ -793,7 +792,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 		this._onDidCancel.fire();
 	}
 
-	run(action: IAction, context?: any): Thenable<void> {
+	run(action: IAction, context?: any): Promise<void> {
 		return this._actionRunner.run(action, context);
 	}
 
@@ -810,7 +809,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 export class SelectActionItem extends BaseActionItem {
 	protected selectBox: SelectBox;
 
-	constructor(ctx: any, action: IAction, options: string[], selected: number, contextViewProvider: IContextViewProvider, selectBoxOptions?: ISelectBoxOptions) {
+	constructor(ctx: any, action: IAction, options: ISelectOptionItem[], selected: number, contextViewProvider: IContextViewProvider, selectBoxOptions?: ISelectBoxOptions) {
 		super(ctx, action);
 
 		this.selectBox = new SelectBox(options, selected, contextViewProvider, undefined, selectBoxOptions);
@@ -819,8 +818,8 @@ export class SelectActionItem extends BaseActionItem {
 		this.registerListeners();
 	}
 
-	setOptions(options: string[], selected?: number, disabled?: number): void {
-		this.selectBox.setOptions(options, selected, disabled);
+	setOptions(options: ISelectOptionItem[], selected?: number): void {
+		this.selectBox.setOptions(options, selected);
 	}
 
 	select(index: number): void {

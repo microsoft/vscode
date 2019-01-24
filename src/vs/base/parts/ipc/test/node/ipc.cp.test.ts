@@ -39,7 +39,7 @@ suite('IPC, Child Process', () => {
 			service.onMarco(({ answer }) => {
 				try {
 					assert.equal(answer, 'polo');
-					c(null);
+					c(undefined);
 				} catch (err) {
 					e(err);
 				}

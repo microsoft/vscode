@@ -32,7 +32,7 @@ import { IRawSearchService, ISerializedFileMatch, ISerializedSearchComplete, ISe
 import { SearchChannelClient } from './searchIpc';
 
 export class SearchService extends Disposable implements ISearchService {
-	public _serviceBrand: any;
+	_serviceBrand: any;
 
 	private diskSearch: DiskSearch;
 	private readonly fileSearchProviders = new Map<string, ISearchResultProvider>();
@@ -40,21 +40,21 @@ export class SearchService extends Disposable implements ISearchService {
 	private readonly fileIndexProviders = new Map<string, ISearchResultProvider>();
 
 	constructor(
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IModelService private modelService: IModelService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IEditorService private editorService: IEditorService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IModelService private readonly modelService: IModelService,
+		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService,
+		@IEditorService private readonly editorService: IEditorService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@ILogService private logService: ILogService,
-		@IExtensionService private extensionService: IExtensionService
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ILogService private readonly logService: ILogService,
+		@IExtensionService private readonly extensionService: IExtensionService
 	) {
 		super();
 		this.diskSearch = this.instantiationService.createInstance(DiskSearch, !environmentService.isBuilt || environmentService.verbose, /*timeout=*/undefined, environmentService.debugSearch);
 	}
 
-	public registerSearchResultProvider(scheme: string, type: SearchProviderType, provider: ISearchResultProvider): IDisposable {
+	registerSearchResultProvider(scheme: string, type: SearchProviderType, provider: ISearchResultProvider): IDisposable {
 		let list: Map<string, ISearchResultProvider>;
 		if (type === SearchProviderType.file) {
 			list = this.fileSearchProviders;
@@ -71,7 +71,7 @@ export class SearchService extends Disposable implements ISearchService {
 		});
 	}
 
-	public extendQuery(query: IFileQuery): void {
+	extendQuery(query: IFileQuery): void {
 		const configuration = this.configurationService.getValue<ISearchConfiguration>();
 
 		// Configuration: File Excludes
@@ -87,12 +87,12 @@ export class SearchService extends Disposable implements ISearchService {
 		}
 	}
 
-	public textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (item: ISearchProgressItem) => void): Promise<ISearchComplete> {
+	textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (item: ISearchProgressItem) => void): Promise<ISearchComplete> {
 		// Get local results from dirty/untitled
 		const localResults = this.getLocalResults(query);
 
 		if (onProgress) {
-			localResults.values().filter((res) => !!res).forEach(onProgress);
+			arrays.coalesce(localResults.values()).forEach(onProgress);
 		}
 
 		this.logService.trace('SearchService#search', JSON.stringify(query));
@@ -116,14 +116,14 @@ export class SearchService extends Disposable implements ISearchService {
 		return this.doSearch(query, token, onProviderProgress);
 	}
 
-	public fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete> {
+	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete> {
 		return this.doSearch(query, token);
 	}
 
 	private doSearch(query: ISearchQuery, token?: CancellationToken, onProgress?: (item: ISearchProgressItem) => void): Promise<ISearchComplete> {
 		const schemesInQuery = this.getSchemesInQuery(query);
 
-		const providerActivations: Thenable<any>[] = [Promise.resolve(null)];
+		const providerActivations: Promise<any>[] = [Promise.resolve(null)];
 		schemesInQuery.forEach(scheme => providerActivations.push(this.extensionService.activateByEvent(`onSearch:${scheme}`)));
 		providerActivations.push(this.extensionService.activateByEvent('onSearch:file'));
 
@@ -148,7 +148,7 @@ export class SearchService extends Disposable implements ISearchService {
 				return this.searchWithProviders(query, progressCallback, token);
 			})
 			.then(completes => {
-				completes = completes.filter(c => !!c);
+				completes = arrays.coalesce(completes);
 				if (!completes.length) {
 					return {
 						limitHit: false,
@@ -191,19 +191,19 @@ export class SearchService extends Disposable implements ISearchService {
 		const e2eSW = StopWatch.create(false);
 
 		const diskSearchQueries: IFolderQuery[] = [];
-		const searchPs: Thenable<ISearchComplete>[] = [];
+		const searchPs: Promise<ISearchComplete>[] = [];
 
 		const fqs = this.groupFolderQueriesByScheme(query);
 		keys(fqs).forEach(scheme => {
 			const schemeFQs = fqs.get(scheme);
-			let provider = query.type === QueryType.File ?
+			const provider = query.type === QueryType.File ?
 				this.fileSearchProviders.get(scheme) || this.fileIndexProviders.get(scheme) :
 				this.textSearchProviders.get(scheme);
 
 			if (!provider && scheme === 'file') {
 				diskSearchQueries.push(...schemeFQs);
 			} else if (!provider) {
-				throw new Error('No search provider registered for scheme: ' + scheme);
+				console.warn('No search provider registered for scheme: ' + scheme);
 			} else {
 				const oneSchemeQuery: ISearchQuery = {
 					...query,
@@ -315,14 +315,12 @@ export class SearchService extends Disposable implements ISearchService {
 						"type" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 						"endToEndTime" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 						"sortingTime" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-						"traversal" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 						"fileWalkTime" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 						"directoriesWalked" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 						"filesWalked" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 						"cmdTime" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 						"cmdResultCount" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-						"scheme" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-						"useRipgrep" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+						"scheme" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 					}
 				 */
 				this.telemetryService.publicLog('searchComplete', {
@@ -332,14 +330,12 @@ export class SearchService extends Disposable implements ISearchService {
 					type: fileSearchStats.type,
 					endToEndTime: endToEndTime,
 					sortingTime: fileSearchStats.sortingTime,
-					traversal: searchEngineStats.traversal,
 					fileWalkTime: searchEngineStats.fileWalkTime,
 					directoriesWalked: searchEngineStats.directoriesWalked,
 					filesWalked: searchEngineStats.filesWalked,
 					cmdTime: searchEngineStats.cmdTime,
 					cmdResultCount: searchEngineStats.cmdResultCount,
-					scheme,
-					useRipgrep: query.useRipgrep
+					scheme
 				});
 			}
 		} else if (query.type === QueryType.Text) {
@@ -370,7 +366,6 @@ export class SearchService extends Disposable implements ISearchService {
 				endToEndTime: endToEndTime,
 				scheme,
 				error: errorType,
-				useRipgrep: query.useRipgrep,
 				usePCRE2: !!query.usePCRE2
 			});
 		}
@@ -380,9 +375,9 @@ export class SearchService extends Disposable implements ISearchService {
 		const localResults = new ResourceMap<IFileMatch>();
 
 		if (query.type === QueryType.Text) {
-			let models = this.modelService.getModels();
+			const models = this.modelService.getModels();
 			models.forEach((model) => {
-				let resource = model.uri;
+				const resource = model.uri;
 				if (!resource) {
 					return;
 				}
@@ -411,9 +406,9 @@ export class SearchService extends Disposable implements ISearchService {
 				}
 
 				// Use editor API to find matches
-				let matches = model.findMatches(query.contentPattern.pattern, false, query.contentPattern.isRegExp, query.contentPattern.isCaseSensitive, query.contentPattern.isWordMatch ? query.contentPattern.wordSeparators : null, false, query.maxResults);
+				const matches = model.findMatches(query.contentPattern.pattern, false, query.contentPattern.isRegExp, query.contentPattern.isCaseSensitive, query.contentPattern.isWordMatch ? query.contentPattern.wordSeparators : null, false, query.maxResults);
 				if (matches.length) {
-					let fileMatch = new FileMatch(resource);
+					const fileMatch = new FileMatch(resource);
 					localResults.set(resource, fileMatch);
 
 					const textSearchResults = editorMatchesToTextSearchResults(matches, model, query.previewOptions);
@@ -438,7 +433,7 @@ export class SearchService extends Disposable implements ISearchService {
 		return pathIncludedInQuery(query, resource.fsPath);
 	}
 
-	public clearCache(cacheKey: string): Promise<void> {
+	clearCache(cacheKey: string): Promise<void> {
 		const clearPs = [
 			this.diskSearch,
 			...values(this.fileIndexProviders),
@@ -451,7 +446,7 @@ export class SearchService extends Disposable implements ISearchService {
 }
 
 export class DiskSearch implements ISearchResultProvider {
-	public _serviceBrand: any;
+	_serviceBrand: any;
 
 	private raw: IRawSearchService;
 
@@ -521,7 +516,7 @@ export class DiskSearch implements ISearchResultProvider {
 				let event: Event<ISerializedSearchProgressItem | ISerializedSearchComplete>;
 				event = this.raw.fileSearch(query);
 
-				const onProgress = (p: ISearchProgressItem) => {
+				const onProgress = (p: IProgress) => {
 					if (p.message) {
 						// Should only be for logs
 						this.logService.debug('SearchService#search', p.message);
@@ -535,7 +530,7 @@ export class DiskSearch implements ISearchResultProvider {
 	/**
 	 * Public for test
 	 */
-	public static collectResultsFromEvent(event: Event<ISerializedSearchProgressItem | ISerializedSearchComplete>, onProgress?: (p: ISearchProgressItem) => void, token?: CancellationToken): Promise<ISearchComplete> {
+	static collectResultsFromEvent(event: Event<ISerializedSearchProgressItem | ISerializedSearchComplete>, onProgress?: (p: ISearchProgressItem) => void, token?: CancellationToken): Promise<ISearchComplete> {
 		let result: IFileMatch[] = [];
 
 		let listener: IDisposable;
@@ -601,7 +596,7 @@ export class DiskSearch implements ISearchResultProvider {
 		return fileMatch;
 	}
 
-	public clearCache(cacheKey: string): Thenable<void> {
+	clearCache(cacheKey: string): Promise<void> {
 		return this.raw.clearCache(cacheKey);
 	}
 }

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IUpdateService, State } from 'vs/platform/update/common/update';
@@ -20,13 +19,13 @@ export class UpdateChannel implements IServerChannel {
 		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(_, command: string, arg?: any): TPromise<any> {
+	call(_, command: string, arg?: any): Promise<any> {
 		switch (command) {
 			case 'checkForUpdates': return this.service.checkForUpdates(arg);
 			case 'downloadUpdate': return this.service.downloadUpdate();
 			case 'applyUpdate': return this.service.applyUpdate();
 			case 'quitAndInstall': return this.service.quitAndInstall();
-			case '_getInitialState': return TPromise.as(this.service.state);
+			case '_getInitialState': return Promise.resolve(this.service.state);
 			case 'isLatestVersion': return this.service.isLatestVersion();
 		}
 
@@ -58,23 +57,23 @@ export class UpdateChannelClient implements IUpdateService {
 		});
 	}
 
-	checkForUpdates(context: any): TPromise<void> {
+	checkForUpdates(context: any): Promise<void> {
 		return this.channel.call('checkForUpdates', context);
 	}
 
-	downloadUpdate(): TPromise<void> {
+	downloadUpdate(): Promise<void> {
 		return this.channel.call('downloadUpdate');
 	}
 
-	applyUpdate(): TPromise<void> {
+	applyUpdate(): Promise<void> {
 		return this.channel.call('applyUpdate');
 	}
 
-	quitAndInstall(): TPromise<void> {
+	quitAndInstall(): Promise<void> {
 		return this.channel.call('quitAndInstall');
 	}
 
-	isLatestVersion(): TPromise<boolean> {
+	isLatestVersion(): Promise<boolean> {
 		return this.channel.call('isLatestVersion');
 	}
 }

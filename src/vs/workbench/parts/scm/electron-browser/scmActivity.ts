@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { basename } from 'vs/base/common/paths';
 import { IDisposable, dispose, Disposable, combinedDisposable } from 'vs/base/common/lifecycle';
-import { filterEvent, anyEvent as anyEvent } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { VIEWLET_ID } from 'vs/workbench/parts/scm/common/scm';
 import { ISCMService, ISCMRepository } from 'vs/workbench/services/scm/common/scm';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
@@ -23,9 +23,9 @@ export class StatusUpdater implements IWorkbenchContribution {
 	private disposables: IDisposable[] = [];
 
 	constructor(
-		@ISCMService private scmService: ISCMService,
-		@IActivityService private activityService: IActivityService,
-		@ILogService private logService: ILogService
+		@ISCMService private readonly scmService: ISCMService,
+		@IActivityService private readonly activityService: IActivityService,
+		@ILogService private readonly logService: ILogService
 	) {
 		for (const repository of this.scmService.repositories) {
 			this.onDidAddRepository(repository);
@@ -37,10 +37,10 @@ export class StatusUpdater implements IWorkbenchContribution {
 
 	private onDidAddRepository(repository: ISCMRepository): void {
 		const provider = repository.provider;
-		const onDidChange = anyEvent(provider.onDidChange, provider.onDidChangeResources);
+		const onDidChange = Event.any(provider.onDidChange, provider.onDidChangeResources);
 		const changeDisposable = onDidChange(() => this.render());
 
-		const onDidRemove = filterEvent(this.scmService.onDidRemoveRepository, e => e === repository);
+		const onDidRemove = Event.filter(this.scmService.onDidRemoveRepository, e => e === repository);
 		const removeDisposable = onDidRemove(() => {
 			disposable.dispose();
 			this.disposables = this.disposables.filter(d => d !== removeDisposable);
@@ -88,12 +88,12 @@ export class StatusBarController implements IWorkbenchContribution {
 	private disposables: IDisposable[] = [];
 
 	constructor(
-		@ISCMService private scmService: ISCMService,
-		@IStatusbarService private statusbarService: IStatusbarService,
+		@ISCMService private readonly scmService: ISCMService,
+		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IEditorService private editorService: IEditorService
+		@IEditorService private readonly editorService: IEditorService
 	) {
-		this.focusedProviderContextKey = contextKeyService.createKey<string | undefined>('scmProvider', void 0);
+		this.focusedProviderContextKey = contextKeyService.createKey<string | undefined>('scmProvider', undefined);
 		this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
 
 		for (const repository of this.scmService.repositories) {
@@ -140,7 +140,7 @@ export class StatusBarController implements IWorkbenchContribution {
 
 	private onDidAddRepository(repository: ISCMRepository): void {
 		const changeDisposable = repository.onDidFocus(() => this.onDidFocusRepository(repository));
-		const onDidRemove = filterEvent(this.scmService.onDidRemoveRepository, e => e === repository);
+		const onDidRemove = Event.filter(this.scmService.onDidRemoveRepository, e => e === repository);
 		const removeDisposable = onDidRemove(() => {
 			disposable.dispose();
 			this.disposables = this.disposables.filter(d => d !== removeDisposable);
@@ -169,8 +169,8 @@ export class StatusBarController implements IWorkbenchContribution {
 		this.focusedProviderContextKey.set(repository && repository.provider.id);
 		this.focusDisposable.dispose();
 
-		if (repository) {
-			this.focusDisposable = repository.provider.onDidChange(() => this.render(repository));
+		if (repository && repository.provider.onDidChangeStatusBarCommands) {
+			this.focusDisposable = repository.provider.onDidChangeStatusBarCommands(() => this.render(repository));
 		}
 
 		this.render(repository);

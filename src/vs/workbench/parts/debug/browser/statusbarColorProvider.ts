@@ -38,9 +38,9 @@ export class StatusBarColorProvider extends Themable implements IWorkbenchContri
 
 	constructor(
 		@IThemeService themeService: IThemeService,
-		@IDebugService private debugService: IDebugService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IPartService private partService: IPartService
+		@IDebugService private readonly debugService: IDebugService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IPartService private readonly partService: IPartService
 	) {
 		super(themeService);
 
@@ -79,7 +79,7 @@ export class StatusBarColorProvider extends Themable implements IWorkbenchContri
 			this.styleElement = createStyleSheet(container);
 		}
 
-		this.styleElement.innerHTML = `.monaco-workbench > .part.statusbar > .statusbar-item.has-beak:before { border-bottom-color: ${backgroundColor} !important; }`;
+		this.styleElement.innerHTML = `.monaco-workbench .part.statusbar > .statusbar-item.has-beak:before { border-bottom-color: ${backgroundColor} !important; }`;
 	}
 
 	private getColorKey(noFolderColor: string, debuggingColor: string, normalColor: string): string {
@@ -115,6 +115,6 @@ export function isStatusbarInDebugMode(debugService: IDebugService): boolean {
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const statusBarItemDebuggingForeground = theme.getColor(STATUS_BAR_DEBUGGING_FOREGROUND);
 	if (statusBarItemDebuggingForeground) {
-		collector.addRule(`.monaco-workbench > .part.statusbar.debugging > .statusbar-item .mask-icon { background-color: ${statusBarItemDebuggingForeground} !important; }`);
+		collector.addRule(`.monaco-workbench .part.statusbar.debugging > .statusbar-item .mask-icon { background-color: ${statusBarItemDebuggingForeground} !important; }`);
 	}
 });

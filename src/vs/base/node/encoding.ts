@@ -7,7 +7,7 @@ import * as stream from 'vs/base/node/stream';
 import * as iconv from 'iconv-lite';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { exec } from 'child_process';
-import { Readable, Writable, WritableOptions } from 'stream';
+import { Readable, Writable } from 'stream';
 
 export const UTF8 = 'utf8';
 export const UTF8_with_bom = 'utf8bom';
@@ -36,14 +36,9 @@ export function toDecodeStream(readable: Readable, options: IDecodeStreamOptions
 		readable.pipe(new class extends Writable {
 
 			private _decodeStream: NodeJS.ReadWriteStream;
-			private _decodeStreamConstruction: Thenable<any>;
+			private _decodeStreamConstruction: Promise<any>;
 			private _buffer: Buffer[] = [];
 			private _bytesBuffered = 0;
-
-			constructor(opts?: WritableOptions) {
-				super(opts);
-				this.once('finish', () => this._finish());
-			}
 
 			_write(chunk: any, encoding: string, callback: Function): void {
 				if (!Buffer.isBuffer(chunk)) {
@@ -93,14 +88,13 @@ export function toDecodeStream(readable: Readable, options: IDecodeStreamOptions
 					callback(err);
 				});
 			}
-
-			_finish(): void {
+			_final(callback: (err?: any) => any) {
 				if (this._decodeStream) {
 					// normal finish
-					this._decodeStream.end();
+					this._decodeStream.end(callback);
 				} else {
 					// we were still waiting for data...
-					this._startDecodeStream(() => this._decodeStream.end());
+					this._startDecodeStream(() => this._decodeStream.end(callback));
 				}
 			}
 		});
@@ -393,15 +387,14 @@ export function resolveTerminalEncoding(verbose?: boolean): Promise<string> {
 			exec('chcp', (err, stdout, stderr) => {
 				if (stdout) {
 					const windowsTerminalEncodingKeys = Object.keys(windowsTerminalEncodings);
-					for (let i = 0; i < windowsTerminalEncodingKeys.length; i++) {
-						const key = windowsTerminalEncodingKeys[i];
+					for (const key of windowsTerminalEncodingKeys) {
 						if (stdout.indexOf(key) >= 0) {
 							return resolve(windowsTerminalEncodings[key]);
 						}
 					}
 				}
 
-				return resolve(void 0);
+				return resolve(undefined);
 			});
 		});
 	}

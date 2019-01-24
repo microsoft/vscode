@@ -4,11 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as sinon from 'sinon';
-import * as types from 'vs/base/common/types';
+import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { TPromise } from 'vs/base/common/winjs.base';
 
 interface IServiceMock<T> {
 	id: ServiceIdentifier<T>;
@@ -37,13 +35,13 @@ export class TestInstantiationService extends InstantiationService {
 		return <T>this._create(service, { mock: true });
 	}
 
-	public stub<T>(service?: ServiceIdentifier<T>, ctor?: any): T;
-	public stub<T>(service?: ServiceIdentifier<T>, obj?: any): T;
-	public stub<T>(service?: ServiceIdentifier<T>, ctor?: any, property?: string, value?: any): sinon.SinonStub;
-	public stub<T>(service?: ServiceIdentifier<T>, obj?: any, property?: string, value?: any): sinon.SinonStub;
-	public stub<T>(service?: ServiceIdentifier<T>, property?: string, value?: any): sinon.SinonStub;
-	public stub<T>(serviceIdentifier?: ServiceIdentifier<T>, arg2?: any, arg3?: string, arg4?: any): sinon.SinonStub {
-		let service = typeof arg2 !== 'string' ? arg2 : void 0;
+	public stub<T>(service: ServiceIdentifier<T>, ctor?: any): T;
+	public stub<T>(service: ServiceIdentifier<T>, obj?: any): T;
+	public stub<T>(service: ServiceIdentifier<T>, ctor?: any, property?: string, value?: any): sinon.SinonStub;
+	public stub<T>(service: ServiceIdentifier<T>, obj?: any, property?: string, value?: any): sinon.SinonStub;
+	public stub<T>(service: ServiceIdentifier<T>, property?: string, value?: any): sinon.SinonStub;
+	public stub<T>(serviceIdentifier: ServiceIdentifier<T>, arg2?: any, arg3?: string, arg4?: any): sinon.SinonStub {
+		let service = typeof arg2 !== 'string' ? arg2 : undefined;
 		let serviceMock: IServiceMock<any> = { id: serviceIdentifier, service: service };
 		let property = typeof arg2 === 'string' ? arg2 : arg3;
 		let value = typeof arg2 === 'string' ? arg3 : arg4;
@@ -72,8 +70,8 @@ export class TestInstantiationService extends InstantiationService {
 	public stubPromise<T>(service?: ServiceIdentifier<T>, ctor?: any, fnProperty?: string, value?: any): sinon.SinonStub;
 	public stubPromise<T>(service?: ServiceIdentifier<T>, obj?: any, fnProperty?: string, value?: any): sinon.SinonStub;
 	public stubPromise(arg1?: any, arg2?: any, arg3?: any, arg4?: any): sinon.SinonStub {
-		arg3 = typeof arg2 === 'string' ? TPromise.as(arg3) : arg3;
-		arg4 = typeof arg2 !== 'string' && typeof arg3 === 'string' ? TPromise.as(arg4) : arg4;
+		arg3 = typeof arg2 === 'string' ? Promise.resolve(arg3) : arg3;
+		arg4 = typeof arg2 !== 'string' && typeof arg3 === 'string' ? Promise.resolve(arg4) : arg4;
 		return this.stub(arg1, arg2, arg3, arg4);
 	}
 
@@ -121,13 +119,6 @@ export class TestInstantiationService extends InstantiationService {
 	private isServiceMock(arg1: any): boolean {
 		return typeof arg1 === 'object' && arg1.hasOwnProperty('id');
 	}
-}
-
-export function stubFunction<T>(ctor: any, fnProperty: string, value: any): T | sinon.SinonStub {
-	let stub = sinon.createStubInstance(ctor);
-	stub[fnProperty].restore();
-	sinon.stub(stub, fnProperty, types.isFunction(value) ? value : () => { return value; });
-	return stub;
 }
 
 interface SinonOptions {

@@ -23,7 +23,7 @@ export interface IBreadcrumbsService {
 
 	register(group: GroupIdentifier, widget: BreadcrumbsWidget): IDisposable;
 
-	getWidget(group: GroupIdentifier): BreadcrumbsWidget;
+	getWidget(group: GroupIdentifier): BreadcrumbsWidget | undefined;
 }
 
 
@@ -43,12 +43,12 @@ export class BreadcrumbsService implements IBreadcrumbsService {
 		};
 	}
 
-	getWidget(group: number): BreadcrumbsWidget {
+	getWidget(group: number): BreadcrumbsWidget | undefined {
 		return this._map.get(group);
 	}
 }
 
-registerSingleton(IBreadcrumbsService, BreadcrumbsService);
+registerSingleton(IBreadcrumbsService, BreadcrumbsService, true);
 
 
 //#region config
@@ -59,7 +59,7 @@ export abstract class BreadcrumbsConfig<T> {
 	onDidChange: Event<void>;
 
 	abstract getValue(overrides?: IConfigurationOverrides): T;
-	abstract updateValue(value: T, overrides?: IConfigurationOverrides): Thenable<void>;
+	abstract updateValue(value: T, overrides?: IConfigurationOverrides): Promise<void>;
 	abstract dispose(): void;
 
 	private constructor() {
@@ -90,10 +90,18 @@ export abstract class BreadcrumbsConfig<T> {
 					readonly name = name;
 					readonly onDidChange = onDidChange.event;
 					getValue(overrides?: IConfigurationOverrides): T {
-						return service.getValue(name, overrides);
+						if (overrides) {
+							return service.getValue(name, overrides);
+						} else {
+							return service.getValue(name);
+						}
 					}
-					updateValue(newValue: T, overrides?: IConfigurationOverrides): Thenable<void> {
-						return service.updateValue(name, newValue, overrides);
+					updateValue(newValue: T, overrides?: IConfigurationOverrides): Promise<void> {
+						if (overrides) {
+							return service.updateValue(name, newValue, overrides);
+						} else {
+							return service.updateValue(name, newValue);
+						}
 					}
 					dispose(): void {
 						listener.dispose();
@@ -112,7 +120,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 	type: 'object',
 	properties: {
 		'breadcrumbs.enabled': {
-			description: localize('enabled', "Enable/disable navigation breadcrumbs"),
+			description: localize('enabled', "Enable/disable navigation breadcrumbs."),
 			type: 'boolean',
 			default: false
 		},

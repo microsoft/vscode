@@ -51,7 +51,7 @@ const languageScopeSchema: IJSONSchema = {
 			},
 			description: {
 				description: nls.localize('snippetSchema.json.description', 'The snippet description.'),
-				type: 'string'
+				type: ['string', 'array']
 			}
 		},
 		additionalProperties: false

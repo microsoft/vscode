@@ -16,11 +16,11 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { once, debounceEvent } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { getCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { getExcludes, ISearchConfiguration } from 'vs/platform/search/common/search';
 import { IExpression } from 'vs/base/common/glob';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
@@ -29,6 +29,7 @@ import { ResourceGlobMatcher } from 'vs/workbench/electron-browser/resources';
 import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { coalesce } from 'vs/base/common/arrays';
 
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.
@@ -37,20 +38,20 @@ export class TextEditorState {
 
 	private static readonly EDITOR_SELECTION_THRESHOLD = 10; // number of lines to move in editor to justify for new state
 
-	private textEditorSelection: ITextEditorSelection;
+	private textEditorSelection?: ITextEditorSelection;
 
-	constructor(private _editorInput: IEditorInput, private _selection: Selection) {
+	constructor(private _editorInput: IEditorInput, private _selection: Selection | null) {
 		this.textEditorSelection = Selection.isISelection(_selection) ? {
 			startLineNumber: _selection.startLineNumber,
 			startColumn: _selection.startColumn
-		} : void 0;
+		} : undefined;
 	}
 
 	get editorInput(): IEditorInput {
 		return this._editorInput;
 	}
 
-	get selection(): ITextEditorSelection {
+	get selection(): ITextEditorSelection | undefined {
 		return this.textEditorSelection;
 	}
 
@@ -103,7 +104,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private static readonly MAX_RECENTLY_CLOSED_EDITORS = 20;
 
 	private activeEditorListeners: IDisposable[];
-	private lastActiveEditor: IEditorIdentifier;
+	private lastActiveEditor?: IEditorIdentifier;
 
 	private editorHistoryListeners: Map<EditorInput, IDisposable[]> = new Map();
 	private editorStackListeners: Map<EditorInput, IDisposable[]> = new Map();
@@ -112,11 +113,11 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private index: number;
 	private lastIndex: number;
 	private navigatingInStack: boolean;
-	private currentTextEditorState: TextEditorState;
+	private currentTextEditorState: TextEditorState | null;
 
 	private lastEditLocation: IStackEntry;
 
-	private history: (IEditorInput | IResourceInput)[];
+	private history: Array<IEditorInput | IResourceInput>;
 	private recentlyClosedFiles: IRecentlyClosedFile[];
 	private loaded: boolean;
 	private resourceFilter: ResourceGlobMatcher;
@@ -125,18 +126,19 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	private canNavigateBackContextKey: IContextKey<boolean>;
 	private canNavigateForwardContextKey: IContextKey<boolean>;
+	private canNavigateToLastEditLocationContextKey: IContextKey<boolean>;
 
 	constructor(
-		@IEditorService private editorService: EditorServiceImpl,
-		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IStorageService private storageService: IStorageService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IFileService private fileService: IFileService,
-		@IWindowsService private windowService: IWindowsService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IPartService private partService: IPartService,
-		@IContextKeyService private contextKeyService: IContextKeyService
+		@IEditorService private readonly editorService: EditorServiceImpl,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IStorageService private readonly storageService: IStorageService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IFileService private readonly fileService: IFileService,
+		@IWindowsService private readonly windowService: IWindowsService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IPartService private readonly partService: IPartService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
 
@@ -144,6 +146,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		this.canNavigateBackContextKey = (new RawContextKey<boolean>('canNavigateBack', false)).bindTo(this.contextKeyService);
 		this.canNavigateForwardContextKey = (new RawContextKey<boolean>('canNavigateForward', false)).bindTo(this.contextKeyService);
+		this.canNavigateToLastEditLocationContextKey = (new RawContextKey<boolean>('canNavigateToLastEditLocation', false)).bindTo(this.contextKeyService);
 
 		this.fileInputFactory = Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).getFileInputFactory();
 
@@ -154,7 +157,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.loaded = false;
 		this.resourceFilter = this._register(instantiationService.createInstance(
 			ResourceGlobMatcher,
-			(root: URI) => this.getExcludes(root),
+			(root?: URI) => this.getExcludes(root),
 			(event: IConfigurationChangeEvent) => event.affectsConfiguration(FILES_EXCLUDE_CONFIG) || event.affectsConfiguration('search.exclude')
 		));
 
@@ -162,9 +165,9 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	private getExcludes(root?: URI): IExpression {
-		const scope = root ? { resource: root } : void 0;
+		const scope = root ? { resource: root } : undefined;
 
-		return getExcludes(this.configurationService.getValue<ISearchConfiguration>(scope));
+		return getExcludes(scope ? this.configurationService.getValue<ISearchConfiguration>(scope) : this.configurationService.getValue<ISearchConfiguration>())!;
 	}
 
 	private registerListeners(): void {
@@ -190,7 +193,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}
 
 		// Remember as last active editor (can be undefined if none opened)
-		this.lastActiveEditor = activeControl ? { editor: activeControl.input, groupId: activeControl.group.id } : void 0;
+		this.lastActiveEditor = activeControl && activeControl.input && activeControl.group ? { editor: activeControl.input, groupId: activeControl.group.id } : undefined;
 
 		// Dispose old listeners
 		dispose(this.activeEditorListeners);
@@ -207,24 +210,27 @@ export class HistoryService extends Disposable implements IHistoryService {
 			// Debounce the event with a timeout of 0ms so that multiple calls to
 			// editor.setSelection() are folded into one. We do not want to record
 			// subsequent history navigations for such API calls.
-			this.activeEditorListeners.push(debounceEvent(activeTextEditorWidget.onDidChangeCursorPosition, (last, event) => event, 0)((event => {
+			this.activeEditorListeners.push(Event.debounce(activeTextEditorWidget.onDidChangeCursorPosition, (last, event) => event, 0)((event => {
 				this.handleEditorSelectionChangeEvent(activeControl, event);
 			})));
 
 			// Track the last edit location by tracking model content change events
 			// Use a debouncer to make sure to capture the correct cursor position
 			// after the model content has changed.
-			this.activeEditorListeners.push(debounceEvent(activeTextEditorWidget.onDidChangeModelContent, (last, event) => event, 0)((event => {
-				this.lastEditLocation = { input: activeEditor };
+			this.activeEditorListeners.push(Event.debounce(activeTextEditorWidget.onDidChangeModelContent, (last, event) => event, 0)((event => this.rememberLastEditLocation(activeEditor, activeTextEditorWidget))));
+		}
+	}
 
-				const position = activeTextEditorWidget.getPosition();
-				if (position) {
-					this.lastEditLocation.selection = {
-						startLineNumber: position.lineNumber,
-						startColumn: position.column
-					};
-				}
-			})));
+	private rememberLastEditLocation(activeEditor: IEditorInput, activeTextEditorWidget: ICodeEditor): void {
+		this.lastEditLocation = { input: activeEditor };
+		this.canNavigateToLastEditLocationContextKey.set(true);
+
+		const position = activeTextEditorWidget.getPosition();
+		if (position) {
+			this.lastEditLocation.selection = {
+				startLineNumber: position.lineNumber,
+				startColumn: position.column
+			};
 		}
 	}
 
@@ -250,9 +256,9 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		// Track closing of editor to support to reopen closed editors (unless editor was replaced)
 		if (!event.replaced) {
-			const resource = event.editor ? event.editor.getResource() : void 0;
+			const resource = event.editor ? event.editor.getResource() : undefined;
 			const supportsReopen = resource && this.fileService.canHandleResource(resource); // we only support file'ish things to reopen
-			if (supportsReopen) {
+			if (resource && supportsReopen) {
 
 				// Remove all inputs matching and add as last recently closed
 				this.removeFromRecentlyClosedFiles(event.editor);
@@ -401,16 +407,10 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private navigate(acrossEditors?: boolean): void {
 		this.navigatingInStack = true;
 
-		this.doNavigate(this.stack[this.index], !acrossEditors).then(() => {
-			this.navigatingInStack = false;
-		}, error => {
-			this.navigatingInStack = false;
-
-			onUnexpectedError(error);
-		});
+		this.doNavigate(this.stack[this.index], !acrossEditors).finally(() => this.navigatingInStack = false);
 	}
 
-	private doNavigate(location: IStackEntry, withSelection: boolean): Thenable<IBaseEditor> {
+	private doNavigate(location: IStackEntry, withSelection: boolean): Promise<IBaseEditor> {
 		const options: ITextEditorOptions = {
 			revealIfOpened: true // support to navigate across editor groups
 		};
@@ -439,7 +439,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	private handleEditorEventInHistory(editor?: IBaseEditor): void {
-		const input = editor ? editor.input : void 0;
+		const input = editor ? editor.input : undefined;
 
 		// Ensure we have at least a name to show and not configured to exclude input
 		if (!input || !input.getName() || !this.include(input)) {
@@ -456,7 +456,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		// Respect max entries setting
 		if (this.history.length > HistoryService.MAX_HISTORY_ITEMS) {
-			this.clearOnEditorDispose(this.history.pop(), this.editorHistoryListeners);
+			this.clearOnEditorDispose(this.history.pop()!, this.editorHistoryListeners);
 		}
 
 		// Remove this from the history unless the history input is a resource
@@ -467,7 +467,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	private onEditorDispose(editor: EditorInput, listener: Function, mapEditorToDispose: Map<EditorInput, IDisposable[]>): void {
-		const toDispose = once(editor.onDispose)(() => listener());
+		const toDispose = Event.once(editor.onDispose)(() => listener());
 
 		let disposables = mapEditorToDispose.get(editor);
 		if (!disposables) {
@@ -480,7 +480,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	private clearOnEditorDispose(editor: IEditorInput | IResourceInput | FileChangesEvent, mapEditorToDispose: Map<EditorInput, IDisposable[]>): void {
 		if (editor instanceof EditorInput) {
-			const disposables = this.editorHistoryListeners.get(editor);
+			const disposables = mapEditorToDispose.get(editor);
 			if (disposables) {
 				dispose(disposables);
 				mapEditorToDispose.delete(editor);
@@ -541,15 +541,15 @@ export class HistoryService extends Disposable implements IHistoryService {
 		});
 	}
 
-	private handleEditorEventInStack(control: IBaseEditor, event?: ICursorPositionChangedEvent): void {
-		const codeEditor = control ? getCodeEditor(control.getControl()) : void 0;
+	private handleEditorEventInStack(control: IBaseEditor | undefined, event?: ICursorPositionChangedEvent): void {
+		const codeEditor = control ? getCodeEditor(control.getControl()) : undefined;
 
 		// treat editor changes that happen as part of stack navigation specially
 		// we do not want to add a new stack entry as a matter of navigating the
 		// stack but we need to keep our currentTextEditorState up to date with
 		// the navigtion that occurs.
 		if (this.navigatingInStack) {
-			if (codeEditor && control.input) {
+			if (codeEditor && control && control.input) {
 				this.currentTextEditorState = new TextEditorState(control.input, codeEditor.getSelection());
 			} else {
 				this.currentTextEditorState = null; // we navigated to a non text editor
@@ -560,7 +560,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		else {
 
 			// navigation inside text editor
-			if (codeEditor && control.input) {
+			if (codeEditor && control && control.input) {
 				this.handleTextEditorEvent(control, codeEditor, event);
 			}
 
@@ -576,6 +576,10 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	private handleTextEditorEvent(editor: IBaseEditor, editorControl: IEditor, event?: ICursorPositionChangedEvent): void {
+		if (!editor.input) {
+			return;
+		}
+
 		const stateCandidate = new TextEditorState(editor.input, editorControl.getSelection());
 
 		// Add to stack if we dont have a current state or this new state justifies a push
@@ -593,6 +597,10 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	private handleNonTextEditorEvent(editor: IBaseEditor): void {
+		if (!editor.input) {
+			return;
+		}
+
 		const currentStack = this.stack[this.index];
 		if (currentStack && this.matches(editor.input, currentStack.input)) {
 			return; // do not push same editor input again
@@ -660,7 +668,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 			// Check for limit
 			if (this.stack.length > HistoryService.MAX_STACK_ITEMS) {
-				removedEntries.push(this.stack.shift()); // remove first
+				removedEntries.push(this.stack.shift()!); // remove first
 				if (this.lastIndex >= 0) {
 					this.lastIndex--;
 				}
@@ -695,7 +703,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 			return true;
 		}
 
-		if ((!selectionA && selectionB) || (selectionA && !selectionB)) {
+		if (!selectionA || !selectionB) {
 			return false;
 		}
 
@@ -797,7 +805,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		return resourceInput && resourceInput.resource.toString() === resource.toString();
 	}
 
-	getHistory(): (IEditorInput | IResourceInput)[] {
+	getHistory(): Array<IEditorInput | IResourceInput> {
 		this.ensureHistoryLoaded();
 
 		return this.history.slice(0);
@@ -818,7 +826,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		const registry = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories);
 
-		const entries: ISerializedEditorHistoryEntry[] = this.history.map(input => {
+		const entries: ISerializedEditorHistoryEntry[] = coalesce(this.history.map(input => {
 
 			// Editor input: try via factory
 			if (input instanceof EditorInput) {
@@ -836,8 +844,8 @@ export class HistoryService extends Disposable implements IHistoryService {
 				return { resourceJSON: (input as IResourceInput).resource.toJSON() } as ISerializedEditorHistoryEntry;
 			}
 
-			return void 0;
-		}).filter(serialized => !!serialized);
+			return undefined;
+		}));
 
 		this.storageService.store(HistoryService.STORAGE_KEY, JSON.stringify(entries), StorageScope.WORKSPACE);
 	}
@@ -847,23 +855,23 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		const entriesRaw = this.storageService.get(HistoryService.STORAGE_KEY, StorageScope.WORKSPACE);
 		if (entriesRaw) {
-			entries = JSON.parse(entriesRaw).filter((entry: object) => !!entry);
+			entries = coalesce(JSON.parse(entriesRaw));
 		}
 
 		const registry = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories);
 
-		this.history = entries.map(entry => {
+		this.history = coalesce(entries.map(entry => {
 			try {
 				return this.safeLoadHistoryEntry(registry, entry);
 			} catch (error) {
 				onUnexpectedError(error);
 
-				return void 0; // https://github.com/Microsoft/vscode/issues/60960
+				return undefined; // https://github.com/Microsoft/vscode/issues/60960
 			}
-		}).filter(input => !!input);
+		}));
 	}
 
-	private safeLoadHistoryEntry(registry: IEditorInputFactoryRegistry, entry: ISerializedEditorHistoryEntry): IEditorInput | IResourceInput {
+	private safeLoadHistoryEntry(registry: IEditorInputFactoryRegistry, entry: ISerializedEditorHistoryEntry): IEditorInput | IResourceInput | undefined {
 		const serializedEditorHistoryEntry = entry as ISerializedEditorHistoryEntry;
 
 		// File resource: via URI.revive()
@@ -885,15 +893,15 @@ export class HistoryService extends Disposable implements IHistoryService {
 			}
 		}
 
-		return void 0;
+		return undefined;
 	}
 
-	getLastActiveWorkspaceRoot(schemeFilter?: string): URI {
+	getLastActiveWorkspaceRoot(schemeFilter?: string): URI | undefined {
 
 		// No Folder: return early
 		const folders = this.contextService.getWorkspace().folders;
 		if (folders.length === 0) {
-			return void 0;
+			return undefined;
 		}
 
 		// Single Folder: return early
@@ -903,13 +911,12 @@ export class HistoryService extends Disposable implements IHistoryService {
 				return resource;
 			}
 
-			return void 0;
+			return undefined;
 		}
 
 		// Multiple folders: find the last active one
 		const history = this.getHistory();
-		for (let i = 0; i < history.length; i++) {
-			const input = history[i];
+		for (const input of history) {
 			if (input instanceof EditorInput) {
 				continue;
 			}
@@ -926,22 +933,20 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}
 
 		// fallback to first workspace matching scheme filter if any
-		for (let i = 0; i < folders.length; i++) {
-			const resource = folders[i].uri;
+		for (const folder of folders) {
+			const resource = folder.uri;
 			if (!schemeFilter || resource.scheme === schemeFilter) {
 				return resource;
 			}
 		}
 
-		return void 0;
+		return undefined;
 	}
 
-	getLastActiveFile(schemeFilter: string): URI {
+	getLastActiveFile(schemeFilter: string): URI | undefined {
 		const history = this.getHistory();
-		for (let i = 0; i < history.length; i++) {
-			let resource: URI;
-
-			const input = history[i];
+		for (const input of history) {
+			let resource: URI | null;
 			if (input instanceof EditorInput) {
 				resource = toResource(input, { filter: schemeFilter });
 			} else {
@@ -953,6 +958,6 @@ export class HistoryService extends Disposable implements IHistoryService {
 			}
 		}
 
-		return void 0;
+		return undefined;
 	}
 }

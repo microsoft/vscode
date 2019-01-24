@@ -10,7 +10,6 @@ import * as extfs from 'vs/base/node/extfs';
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -69,17 +68,17 @@ interface OutputChannel extends IOutputChannel {
 	readonly file: URI;
 	readonly onDidAppendedContent: Event<void>;
 	readonly onDispose: Event<void>;
-	loadModel(): Thenable<ITextModel>;
+	loadModel(): Promise<ITextModel>;
 }
 
 abstract class AbstractFileOutputChannel extends Disposable implements OutputChannel {
 
 	scrollLock: boolean = false;
 
-	protected _onDidAppendedContent: Emitter<void> = new Emitter<void>();
+	protected _onDidAppendedContent = new Emitter<void>();
 	readonly onDidAppendedContent: Event<void> = this._onDidAppendedContent.event;
 
-	protected _onDispose: Emitter<void> = new Emitter<void>();
+	protected _onDispose = new Emitter<void>();
 	readonly onDispose: Event<void> = this._onDispose.event;
 
 	private readonly mimeType: string;
@@ -151,7 +150,7 @@ abstract class AbstractFileOutputChannel extends Disposable implements OutputCha
 		}
 	}
 
-	abstract loadModel(): Thenable<ITextModel>;
+	abstract loadModel(): Promise<ITextModel>;
 	abstract append(message: string);
 
 	protected onModelCreated(model: ITextModel) { }
@@ -216,7 +215,7 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 		this.appendedMessage = '';
 	}
 
-	loadModel(): Thenable<ITextModel> {
+	loadModel(): Promise<ITextModel> {
 		this.loadingFromFileInProgress = true;
 		if (this.modelUpdater.isScheduled()) {
 			this.modelUpdater.cancel();
@@ -242,16 +241,16 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 			});
 	}
 
-	private resetModel(): Thenable<void> {
+	private resetModel(): Promise<void> {
 		this.startOffset = 0;
 		this.endOffset = 0;
 		if (this.model) {
-			return this.loadModel().then(() => null);
+			return this.loadModel().then(() => undefined);
 		}
-		return Promise.resolve(null);
+		return Promise.resolve(undefined);
 	}
 
-	private loadFile(): Thenable<string> {
+	private loadFile(): Promise<string> {
 		return this.fileService.resolveContent(this.file, { position: this.startOffset, encoding: 'utf8' })
 			.then(content => this.appendedMessage ? content.value + this.appendedMessage : content.value);
 	}
@@ -281,7 +280,7 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 
 class OutputFileListener extends Disposable {
 
-	private readonly _onDidContentChange: Emitter<number> = new Emitter<number>();
+	private readonly _onDidContentChange = new Emitter<number>();
 	readonly onDidContentChange: Event<number> = this._onDidContentChange.event;
 
 	private watching: boolean = false;
@@ -309,7 +308,7 @@ class OutputFileListener extends Disposable {
 		this.syncDelayer.trigger(loop);
 	}
 
-	private doWatch(): Thenable<void> {
+	private doWatch(): Promise<void> {
 		return this.fileService.resolveFile(this.file)
 			.then(stat => {
 				if (stat.etag !== this.etag) {
@@ -341,7 +340,7 @@ class FileOutputChannel extends AbstractFileOutputChannel implements OutputChann
 
 	private updateInProgress: boolean = false;
 	private etag: string = '';
-	private loadModelPromise: Thenable<ITextModel> = Promise.resolve();
+	private loadModelPromise: Promise<ITextModel> = Promise.resolve();
 
 	constructor(
 		outputChannelDescriptor: IOutputChannelDescriptor,
@@ -357,7 +356,7 @@ class FileOutputChannel extends AbstractFileOutputChannel implements OutputChann
 		this._register(toDisposable(() => this.fileHandler.unwatch()));
 	}
 
-	loadModel(): Thenable<ITextModel> {
+	loadModel(): Promise<ITextModel> {
 		this.loadModelPromise = this.fileService.resolveContent(this.file, { position: this.startOffset, encoding: 'utf8' })
 			.then(content => {
 				this.endOffset = this.startOffset + Buffer.from(content.value).byteLength;
@@ -427,23 +426,23 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 	private activeChannel: IOutputChannel;
 	private readonly outputDir: string;
 
-	private readonly _onActiveOutputChannel: Emitter<string> = new Emitter<string>();
+	private readonly _onActiveOutputChannel = new Emitter<string>();
 	readonly onActiveOutputChannel: Event<string> = this._onActiveOutputChannel.event;
 
 	private _outputPanel: OutputPanel;
 
 	constructor(
-		@IStorageService private storageService: IStorageService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IPanelService private panelService: IPanelService,
+		@IStorageService private readonly storageService: IStorageService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IPanelService private readonly panelService: IPanelService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IWindowService windowService: IWindowService,
-		@ILogService private logService: ILogService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
+		@ILogService private readonly logService: ILogService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
 		this.activeChannelIdInStorage = this.storageService.get(OUTPUT_ACTIVE_CHANNEL_KEY, StorageScope.WORKSPACE, null);
@@ -473,7 +472,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		this._register(this.storageService.onWillSaveState(() => this.saveState()));
 	}
 
-	provideTextContent(resource: URI): Thenable<ITextModel> {
+	provideTextContent(resource: URI): Promise<ITextModel> {
 		const channel = <OutputChannel>this.getChannel(resource.path);
 		if (channel) {
 			return channel.loadModel();
@@ -481,17 +480,17 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		return null;
 	}
 
-	showChannel(id: string, preserveFocus?: boolean): Thenable<void> {
+	showChannel(id: string, preserveFocus?: boolean): Promise<void> {
 		const channel = this.getChannel(id);
 		if (!channel || this.isChannelShown(channel)) {
 			if (this._outputPanel && !preserveFocus) {
 				this._outputPanel.focus();
 			}
-			return Promise.resolve(null);
+			return Promise.resolve(undefined);
 		}
 
 		this.activeChannel = channel;
-		let promise: Thenable<void>;
+		let promise: Promise<void>;
 		if (this.isPanelShown()) {
 			promise = this.doShowChannel(channel, preserveFocus);
 		} else {
@@ -523,30 +522,20 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		}
 	}
 
-	private onDidPanelOpen(panel: IPanel, preserveFocus: boolean): Thenable<void> {
+	private onDidPanelOpen(panel: IPanel, preserveFocus: boolean): Promise<void> {
 		if (panel && panel.getId() === OUTPUT_PANEL_ID) {
 			this._outputPanel = <OutputPanel>this.panelService.getActivePanel();
 			if (this.activeChannel) {
 				return this.doShowChannel(this.activeChannel, preserveFocus);
 			}
 		}
-		return Promise.resolve(null);
+		return Promise.resolve(undefined);
 	}
 
 	private onDidPanelClose(panel: IPanel): void {
 		if (this._outputPanel && panel.getId() === OUTPUT_PANEL_ID) {
 			CONTEXT_ACTIVE_LOG_OUTPUT.bindTo(this.contextKeyService).set(false);
 			this._outputPanel.clearInput();
-		}
-	}
-
-	private setPrimaryCursorToLastLine(): void {
-		const codeEditor = <ICodeEditor>this._outputPanel.getControl();
-		const model = codeEditor.getModel();
-
-		if (model) {
-			const lastLine = model.getLineCount();
-			codeEditor.setPosition({ lineNumber: lastLine, column: model.getLineMaxColumn(lastLine) });
 		}
 	}
 
@@ -558,7 +547,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 				const panel = this.panelService.getActivePanel();
 				if (panel && panel.getId() === OUTPUT_PANEL_ID && this.isChannelShown(channel)) {
 					let outputPanel = <OutputPanel>panel;
-					outputPanel.revealLastLine(true);
+					outputPanel.revealLastLine();
 				}
 			}
 		}, channelDisposables);
@@ -570,7 +559,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 					this.showChannel(channel.id, true);
 				} else {
 					this.activeChannel = channel;
-					this._onActiveOutputChannel.fire(channel ? channel.id : void 0);
+					this._onActiveOutputChannel.fire(channel ? channel.id : undefined);
 				}
 			}
 			Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).removeChannel(id);
@@ -604,7 +593,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		}
 	}
 
-	private doShowChannel(channel: IOutputChannel, preserveFocus: boolean): Thenable<void> {
+	private doShowChannel(channel: IOutputChannel, preserveFocus: boolean): Promise<void> {
 		if (this._outputPanel) {
 			CONTEXT_ACTIVE_LOG_OUTPUT.bindTo(this.contextKeyService).set(channel instanceof FileOutputChannel && channel.outputChannelDescriptor.log);
 			return this._outputPanel.setInput(this.createInput(channel), EditorOptions.create({ preserveFocus }), CancellationToken.None)
@@ -612,11 +601,9 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 					if (!preserveFocus) {
 						this._outputPanel.focus();
 					}
-				})
-				// Activate smart scroll when switching back to the output panel
-				.then(() => this.setPrimaryCursorToLastLine());
+				});
 		}
-		return Promise.resolve(null);
+		return Promise.resolve(undefined);
 	}
 
 	private isChannelShown(channel: IOutputChannel): boolean {
@@ -645,12 +632,12 @@ export class LogContentProvider {
 	private channels: Map<string, OutputChannel> = new Map<string, OutputChannel>();
 
 	constructor(
-		@IOutputService private outputService: IOutputService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IOutputService private readonly outputService: IOutputService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 	}
 
-	provideTextContent(resource: URI): Thenable<ITextModel> {
+	provideTextContent(resource: URI): Promise<ITextModel> {
 		if (resource.scheme === LOG_SCHEME) {
 			let channel = this.getChannel(resource);
 			if (channel) {
@@ -683,21 +670,21 @@ class BufferredOutputChannel extends Disposable implements OutputChannel {
 	readonly file: URI | null = null;
 	scrollLock: boolean = false;
 
-	protected _onDidAppendedContent: Emitter<void> = new Emitter<void>();
+	protected _onDidAppendedContent = new Emitter<void>();
 	readonly onDidAppendedContent: Event<void> = this._onDidAppendedContent.event;
 
-	private readonly _onDispose: Emitter<void> = new Emitter<void>();
+	private readonly _onDispose = new Emitter<void>();
 	readonly onDispose: Event<void> = this._onDispose.event;
 
 	private modelUpdater: RunOnceScheduler;
 	private model: ITextModel;
 	private readonly bufferredContent: BufferedContent;
-	private lastReadId: number = void 0;
+	private lastReadId: number = undefined;
 
 	constructor(
 		protected readonly outputChannelIdentifier: IOutputChannelDescriptor,
-		@IModelService private modelService: IModelService,
-		@IModeService private modeService: IModeService
+		@IModelService private readonly modelService: IModelService,
+		@IModeService private readonly modeService: IModeService
 	) {
 		super();
 
@@ -728,10 +715,10 @@ class BufferredOutputChannel extends Disposable implements OutputChannel {
 			this.model.setValue('');
 		}
 		this.bufferredContent.clear();
-		this.lastReadId = void 0;
+		this.lastReadId = undefined;
 	}
 
-	loadModel(): Thenable<ITextModel> {
+	loadModel(): Promise<ITextModel> {
 		const { value, id } = this.bufferredContent.getDelta(this.lastReadId);
 		if (this.model) {
 			this.model.setValue(value);
@@ -803,7 +790,7 @@ class BufferedContent {
 
 	public getDelta(previousId?: number): { value: string, id: number } {
 		let idx = -1;
-		if (previousId !== void 0) {
+		if (previousId !== undefined) {
 			idx = binarySearch(this.dataIds, previousId, (a, b) => a - b);
 		}
 

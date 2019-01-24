@@ -15,7 +15,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 export const NullTelemetryService = new class implements ITelemetryService {
 	_serviceBrand: undefined;
 	publicLog(eventName: string, data?: ITelemetryData) {
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 	isOptedIn: true;
 	getTelemetryInfo(): Promise<ITelemetryInfo> {
@@ -29,7 +29,7 @@ export const NullTelemetryService = new class implements ITelemetryService {
 
 export interface ITelemetryAppender {
 	log(eventName: string, data: any): void;
-	dispose(): Thenable<any>;
+	dispose(): Promise<any> | undefined;
 }
 
 export function combinedAppender(...appenders: ITelemetryAppender[]): ITelemetryAppender {

@@ -24,7 +24,7 @@ export class QuickInputBox {
 		private parent: HTMLElement
 	) {
 		this.container = dom.append(this.parent, $('.quick-input-box'));
-		this.inputBox = new InputBox(this.container, null);
+		this.inputBox = new InputBox(this.container, undefined);
 		this.disposables.push(this.inputBox);
 	}
 
@@ -55,7 +55,7 @@ export class QuickInputBox {
 	}
 
 	get placeholder() {
-		return this.inputBox.inputElement.getAttribute('placeholder');
+		return this.inputBox.inputElement.getAttribute('placeholder') || '';
 	}
 
 	set placeholder(placeholder: string) {

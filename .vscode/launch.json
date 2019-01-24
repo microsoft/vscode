@@ -123,7 +123,8 @@
 			"request": "launch",
 			"name": "Launch VS Code",
 			"windows": {
-				"runtimeExecutable": "${workspaceFolder}/scripts/code.bat"
+				"runtimeExecutable": "${workspaceFolder}/scripts/code.bat",
+				"timeout": 20000
 			},
 			"osx": {
 				"runtimeExecutable": "${workspaceFolder}/scripts/code.sh"
@@ -131,26 +132,25 @@
 			"linux": {
 				"runtimeExecutable": "${workspaceFolder}/scripts/code.sh"
 			},
+			"breakOnLoad": false,
 			"urlFilter": "*workbench.html*",
 			"runtimeArgs": [
-				"--inspect=5875", "--no-cached-data"
-			],
-			"skipFiles": [
-				"**/winjs*.js"
+				"--inspect=5875",
+				"--no-cached-data"
 			],
 			"webRoot": "${workspaceFolder}"
 		},
 		{
-		    "type": "node",
-		    "request": "launch",
-		    "name": "Launch VS Code (Main Process)",
-		    "runtimeExecutable": "${workspaceFolder}/scripts/code.sh",
-		    "runtimeArgs": [
-		        "--no-cached-data"
-		    ],
-		    "outFiles": [
-		        "${workspaceFolder}/out/**/*.js"
-		    ]
+			"type": "node",
+			"request": "launch",
+			"name": "Launch VS Code (Main Process)",
+			"runtimeExecutable": "${workspaceFolder}/scripts/code.sh",
+			"runtimeArgs": [
+				"--no-cached-data"
+			],
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js"
+			]
 		},
 		{
 			"type": "node",

@@ -12,6 +12,7 @@ import { IConfigurationNode, IConfigurationRegistry, Extensions, editorConfigura
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { workspaceSettingsSchemaId, launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { isObject } from 'vs/base/common/types';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 
@@ -77,49 +78,83 @@ const configurationEntrySchema: IJSONSchema = {
 	}
 };
 
-let registeredDefaultConfigurations: IDefaultConfigurationExtension[] = [];
-
 // BEGIN VSCode extension point `configurationDefaults`
-const defaultConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigurationNode>('configurationDefaults', [], {
-	description: nls.localize('vscode.extension.contributes.defaultConfiguration', 'Contributes default editor configuration settings by language.'),
-	type: 'object',
-	defaultSnippets: [{ body: {} }],
-	patternProperties: {
-		'\\[.*\\]$': {
-			type: 'object',
-			default: {},
-			$ref: editorConfigurationSchemaId,
+const defaultConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigurationNode>({
+	extensionPoint: 'configurationDefaults',
+	jsonSchema: {
+		description: nls.localize('vscode.extension.contributes.defaultConfiguration', 'Contributes default editor configuration settings by language.'),
+		type: 'object',
+		defaultSnippets: [{ body: {} }],
+		patternProperties: {
+			'\\[.*\\]$': {
+				type: 'object',
+				default: {},
+				$ref: editorConfigurationSchemaId,
+			}
 		}
-	}
+	},
+	isDynamic: true
 });
-defaultConfigurationExtPoint.setHandler(extensions => {
-	registeredDefaultConfigurations = extensions.map(extension => {
-		const id = extension.description.id;
-		const name = extension.description.name;
-		const defaults = objects.deepClone(extension.value);
-		return <IDefaultConfigurationExtension>{
-			id, name, defaults
-		};
-	});
+defaultConfigurationExtPoint.setHandler((extensions, { added, removed }) => {
+	if (removed.length) {
+		const removedDefaultConfigurations: IDefaultConfigurationExtension[] = removed.map(extension => {
+			const id = extension.description.identifier;
+			const name = extension.description.name;
+			const defaults = objects.deepClone(extension.value);
+			return <IDefaultConfigurationExtension>{
+				id, name, defaults
+			};
+		});
+		configurationRegistry.deregisterDefaultConfigurations(removedDefaultConfigurations);
+	}
+	if (added.length) {
+		const addedDefaultConfigurations = added.map(extension => {
+			const id = extension.description.identifier;
+			const name = extension.description.name;
+			const defaults = objects.deepClone(extension.value);
+			return <IDefaultConfigurationExtension>{
+				id, name, defaults
+			};
+		});
+		configurationRegistry.registerDefaultConfigurations(addedDefaultConfigurations);
+	}
 });
 // END VSCode extension point `configurationDefaults`
 
 
 // BEGIN VSCode extension point `configuration`
-const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigurationNode>('configuration', [defaultConfigurationExtPoint], {
-	description: nls.localize('vscode.extension.contributes.configuration', 'Contributes configuration settings.'),
-	oneOf: [
-		configurationEntrySchema,
-		{
-			type: 'array',
-			items: configurationEntrySchema
-		}
-	]
+const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigurationNode>({
+	extensionPoint: 'configuration',
+	deps: [defaultConfigurationExtPoint],
+	jsonSchema: {
+		description: nls.localize('vscode.extension.contributes.configuration', 'Contributes configuration settings.'),
+		oneOf: [
+			configurationEntrySchema,
+			{
+				type: 'array',
+				items: configurationEntrySchema
+			}
+		]
+	},
+	isDynamic: true
 });
-configurationExtPoint.setHandler(extensions => {
-	const configurations: IConfigurationNode[] = [];
 
-	function handleConfiguration(node: IConfigurationNode, extension: IExtensionPointUser<any>) {
+const extensionConfigurations: Map<string, IConfigurationNode[]> = new Map<string, IConfigurationNode[]>();
+
+configurationExtPoint.setHandler((extensions, { added, removed }) => {
+
+	if (removed.length) {
+		const removedConfigurations: IConfigurationNode[] = [];
+		for (const extension of removed) {
+			const key = ExtensionIdentifier.toKey(extension.description.identifier);
+			removedConfigurations.push(...(extensionConfigurations.get(key) || []));
+			extensionConfigurations.delete(key);
+		}
+		configurationRegistry.deregisterConfigurations(removedConfigurations);
+	}
+
+	function handleConfiguration(node: IConfigurationNode, extension: IExtensionPointUser<any>): IConfigurationNode[] {
+		const configurations: IConfigurationNode[] = [];
 		let configuration = objects.deepClone(node);
 
 		if (configuration.title && (typeof configuration.title !== 'string')) {
@@ -128,21 +163,30 @@ configurationExtPoint.setHandler(extensions => {
 
 		validateProperties(configuration, extension);
 
-		configuration.id = node.id || extension.description.id || extension.description.uuid;
+		configuration.id = node.id || extension.description.identifier.value;
 		configuration.contributedByExtension = true;
-		configuration.title = configuration.title || extension.description.displayName || extension.description.id;
+		configuration.title = configuration.title || extension.description.displayName || extension.description.identifier.value;
 		configurations.push(configuration);
+		return configurations;
 	}
 
-	for (let extension of extensions) {
-		const value = <IConfigurationNode | IConfigurationNode[]>extension.value;
-		if (!Array.isArray(value)) {
-			handleConfiguration(value, extension);
-		} else {
-			value.forEach(v => handleConfiguration(v, extension));
+	if (added.length) {
+		const addedConfigurations: IConfigurationNode[] = [];
+		for (let extension of added) {
+			const configurations: IConfigurationNode[] = [];
+			const value = <IConfigurationNode | IConfigurationNode[]>extension.value;
+			if (!Array.isArray(value)) {
+				configurations.push(...handleConfiguration(value, extension));
+			} else {
+				value.forEach(v => configurations.push(...handleConfiguration(v, extension)));
+			}
+			extensionConfigurations.set(ExtensionIdentifier.toKey(extension.description.identifier), configurations);
+			addedConfigurations.push(...configurations);
 		}
+
+		configurationRegistry.registerConfigurations(addedConfigurations, false);
 	}
-	configurationRegistry.registerConfigurations(configurations, registeredDefaultConfigurations, false);
+
 });
 // END VSCode extension point `configuration`
 

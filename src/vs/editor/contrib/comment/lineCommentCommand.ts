@@ -299,8 +299,8 @@ export class LineCommentCommand implements editorCommon.ICommand {
 			}
 		}
 		this._selectionId = builder.trackSelection(s);
-		for (let i = 0; i < ops.length; i++) {
-			builder.addEditOperation(ops[i].range, ops[i].text);
+		for (const op of ops) {
+			builder.addEditOperation(op.range, op.text);
 		}
 	}
 

@@ -13,12 +13,10 @@ import { LRUCache } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { clamp } from 'vs/base/common/numbers';
 import { Themable } from 'vs/workbench/common/theme';
-import { IStatusbarItem, StatusbarItemDescriptor, IStatusbarRegistry, Extensions } from 'vs/workbench/browser/parts/statusbar/statusbar';
-import { StatusbarAlignment } from 'vs/platform/statusbar/common/statusbar';
+import { IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IDisposable, Disposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { Registry } from 'vs/platform/registry/common/platform';
 import { Action } from 'vs/base/common/actions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { memoize } from 'vs/base/common/decorators';
@@ -234,7 +232,7 @@ class FileSeemsBinaryFileView {
 
 type Scale = number | 'fit';
 
-class ZoomStatusbarItem extends Themable implements IStatusbarItem {
+export class ZoomStatusbarItem extends Themable implements IStatusbarItem {
 
 	static instance: ZoomStatusbarItem;
 
@@ -244,7 +242,7 @@ class ZoomStatusbarItem extends Themable implements IStatusbarItem {
 	private onSelectScale?: (scale: Scale) => void;
 
 	constructor(
-		@IContextMenuService private contextMenuService: IContextMenuService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IEditorService editorService: IEditorService,
 		@IThemeService themeService: IThemeService
 	) {
@@ -257,7 +255,7 @@ class ZoomStatusbarItem extends Themable implements IStatusbarItem {
 
 	private onActiveEditorChanged(): void {
 		this.hide();
-		this.onSelectScale = void 0;
+		this.onSelectScale = undefined;
 	}
 
 	show(scale: Scale, onSelectScale: (scale: number) => void) {
@@ -298,12 +296,12 @@ class ZoomStatusbarItem extends Themable implements IStatusbarItem {
 	private get zoomActions(): Action[] {
 		const scales: Scale[] = [10, 5, 2, 1, 0.5, 0.2, 'fit'];
 		return scales.map(scale =>
-			new Action(`zoom.${scale}`, ZoomStatusbarItem.zoomLabel(scale), void 0, void 0, () => {
+			new Action(`zoom.${scale}`, ZoomStatusbarItem.zoomLabel(scale), undefined, undefined, () => {
 				if (this.onSelectScale) {
 					this.onSelectScale(scale);
 				}
 
-				return void 0;
+				return Promise.resolve(undefined);
 			}));
 	}
 
@@ -313,10 +311,6 @@ class ZoomStatusbarItem extends Themable implements IStatusbarItem {
 			: `${Math.round(scale * 100)}%`;
 	}
 }
-
-Registry.as<IStatusbarRegistry>(Extensions.Statusbar).registerStatusbarItem(
-	new StatusbarItemDescriptor(ZoomStatusbarItem, StatusbarAlignment.RIGHT, 101 /* to the left of editor status (100) */)
-);
 
 interface ImageState {
 	scale: Scale;
@@ -394,7 +388,7 @@ class InlineImageView {
 				DOM.removeClass(image, 'pixelated');
 				image.style.minWidth = 'auto';
 				image.style.width = 'auto';
-				InlineImageView.imageStateCache.set(cacheKey, null);
+				InlineImageView.imageStateCache.delete(cacheKey);
 			} else {
 				const oldWidth = image.width;
 				const oldHeight = image.height;
@@ -432,6 +426,10 @@ class InlineImageView {
 		}
 
 		function firstZoom() {
+			if (!image) {
+				return;
+			}
+
 			scale = image.clientWidth / image.naturalWidth;
 			updateScale(scale);
 		}
@@ -537,10 +535,13 @@ class InlineImageView {
 		DOM.clearNode(container);
 		DOM.addClasses(container, 'image', 'zoom-in');
 
-		image = DOM.append(container, DOM.$('img.scale-to-fit'));
+		image = DOM.append(container, DOM.$<HTMLImageElement>('img.scale-to-fit'));
 		image.style.visibility = 'hidden';
 
 		disposables.push(DOM.addDisposableListener(image, DOM.EventType.LOAD, e => {
+			if (!image) {
+				return;
+			}
 			if (typeof descriptor.size === 'number') {
 				metadataClb(nls.localize('imgMeta', '{0}x{1} {2}', image.naturalWidth, image.naturalHeight, BinarySize.formatSize(descriptor.size)));
 			} else {
@@ -568,7 +569,7 @@ class InlineImageView {
 		return context;
 	}
 
-	private static imageSrc(descriptor: IResourceDescriptor, fileService: IFileService): Thenable<string> {
+	private static imageSrc(descriptor: IResourceDescriptor, fileService: IFileService): Promise<string> {
 		if (descriptor.resource.scheme === Schemas.data) {
 			return Promise.resolve(descriptor.resource.toString(true /* skip encoding */));
 		}
@@ -582,7 +583,7 @@ class InlineImageView {
 }
 
 function getMime(descriptor: IResourceDescriptor) {
-	let mime = descriptor.mime;
+	let mime: string | undefined = descriptor.mime;
 	if (!mime && descriptor.resource.scheme !== Schemas.data) {
 		mime = mimes.getMediaMime(descriptor.resource.path);
 	}

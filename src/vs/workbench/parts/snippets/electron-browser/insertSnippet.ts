@@ -41,13 +41,10 @@ class Args {
 	private static readonly _empty = new Args(undefined, undefined, undefined);
 
 	private constructor(
-		public readonly snippet: string,
-		public readonly name: string,
-		public readonly langId: string
-	) {
-
-	}
-
+		public readonly snippet: string | undefined,
+		public readonly name: string | undefined,
+		public readonly langId: string | undefined
+	) { }
 }
 
 class InsertSnippetAction extends EditorAction {
@@ -61,11 +58,11 @@ class InsertSnippetAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor, arg: any): Promise<void> {
+	run(accessor: ServicesAccessor, editor: ICodeEditor, arg: any): Promise<void> | undefined {
 		const modeService = accessor.get(IModeService);
 		const snippetService = accessor.get(ISnippetsService);
 
-		if (!editor.getModel()) {
+		if (!editor.hasModel()) {
 			return undefined;
 		}
 
@@ -77,19 +74,22 @@ class InsertSnippetAction extends EditorAction {
 
 			if (snippet) {
 				return resolve(new Snippet(
-					undefined,
-					undefined,
-					undefined,
-					undefined,
+					[],
+					'',
+					'',
+					'',
 					snippet,
-					undefined,
+					'',
 					SnippetSource.User,
 				));
 			}
 
-			let languageId: LanguageId;
+			let languageId = LanguageId.Null;
 			if (langId) {
-				languageId = modeService.getLanguageIdentifier(langId).id;
+				const otherLangId = modeService.getLanguageIdentifier(langId);
+				if (otherLangId) {
+					languageId = otherLangId.id;
+				}
 			} else {
 				editor.getModel().tokenizeIfCheap(lineNumber);
 				languageId = editor.getModel().getLanguageIdAtPosition(lineNumber, column);
@@ -97,8 +97,8 @@ class InsertSnippetAction extends EditorAction {
 				// validate the `languageId` to ensure this is a user
 				// facing language with a name and the chance to have
 				// snippets, else fall back to the outer language
-				const { language } = modeService.getLanguageIdentifier(languageId);
-				if (!modeService.getLanguageName(language)) {
+				const otherLangId = modeService.getLanguageIdentifier(languageId);
+				if (otherLangId && !modeService.getLanguageName(otherLangId.language)) {
 					languageId = editor.getModel().getLanguageIdentifier().id;
 				}
 			}
@@ -116,7 +116,7 @@ class InsertSnippetAction extends EditorAction {
 				// let user pick a snippet
 				const snippets = (await snippetService.getSnippets(languageId)).sort(Snippet.compare);
 				const picks: QuickPickInput<ISnippetPick>[] = [];
-				let prevSnippet: Snippet;
+				let prevSnippet: Snippet | undefined;
 				for (const snippet of snippets) {
 					const pick: ISnippetPick = {
 						label: snippet.prefix,

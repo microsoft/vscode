@@ -45,11 +45,11 @@ interface Measurements {
 
 export class AppInsightsAppender implements ITelemetryAppender {
 
-	private _aiClient: appInsights.TelemetryClient;
+	private _aiClient?: appInsights.TelemetryClient;
 
 	constructor(
 		private _eventPrefix: string,
-		private _defaultData: { [key: string]: any },
+		private _defaultData: { [key: string]: any } | null,
 		aiKeyOrClientFactory: string | (() => appInsights.ITelemetryClient), // allow factory function for testing
 		@ILogService private _logService?: ILogService
 	) {
@@ -143,14 +143,14 @@ export class AppInsightsAppender implements ITelemetryAppender {
 		});
 	}
 
-	dispose(): Promise<any> {
+	dispose(): Promise<any> | undefined {
 		if (this._aiClient) {
 			return new Promise(resolve => {
-				this._aiClient.flush({
+				this._aiClient!.flush({
 					callback: () => {
 						// all data flushed
 						this._aiClient = undefined;
-						resolve(void 0);
+						resolve(undefined);
 					}
 				});
 			});

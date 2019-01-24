@@ -6,12 +6,12 @@
 import { Iterator, ISequence } from 'vs/base/common/iterator';
 import { AbstractTree, IAbstractTreeOptions } from 'vs/base/browser/ui/tree/abstractTree';
 import { ISpliceable } from 'vs/base/common/sequence';
-import { ITreeNode, ITreeModel, ITreeElement, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
+import { ITreeNode, ITreeModel, ITreeElement, ITreeRenderer, ITreeSorter } from 'vs/base/browser/ui/tree/tree';
 import { ObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 
 export interface IObjectTreeOptions<T, TFilterData = void> extends IAbstractTreeOptions<T, TFilterData> {
-	collapseByDefault?: boolean; // defaults to false
+	sorter?: ITreeSorter<T>;
 }
 
 export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends AbstractTree<T | null, TFilterData, T | null> {
@@ -34,6 +34,10 @@ export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends 
 		onDidDeleteNode?: (node: ITreeNode<T, TFilterData>) => void
 	): Iterator<ITreeElement<T | null>> {
 		return this.model.setChildren(element, children, onDidCreateNode, onDidDeleteNode);
+	}
+
+	refresh(element: T): void {
+		this.model.refresh(element);
 	}
 
 	protected createModel(view: ISpliceable<ITreeNode<T, TFilterData>>, options: IObjectTreeOptions<T, TFilterData>): ITreeModel<T | null, TFilterData, T | null> {

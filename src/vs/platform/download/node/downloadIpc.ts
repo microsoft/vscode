@@ -7,7 +7,7 @@ import { URI } from 'vs/base/common/uri';
 import * as path from 'path';
 import * as fs from 'fs';
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
-import { Event, Emitter, buffer } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { mkdirp } from 'vs/base/node/pfs';
 import { IURITransformer } from 'vs/base/common/uriIpc';
@@ -19,7 +19,7 @@ export function upload(uri: URI): Event<UploadResponse> {
 	const readstream = fs.createReadStream(uri.fsPath);
 	readstream.on('data', data => stream.fire(data));
 	readstream.on('error', error => stream.fire(error.toString()));
-	readstream.on('close', () => stream.fire());
+	readstream.on('close', () => stream.fire(undefined));
 	return stream.event;
 }
 
@@ -29,13 +29,13 @@ export class DownloadServiceChannel implements IServerChannel {
 
 	listen(_, event: string, arg?: any): Event<any> {
 		switch (event) {
-			case 'upload': return buffer(upload(URI.revive(arg)));
+			case 'upload': return Event.buffer(upload(URI.revive(arg)));
 		}
 
 		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(_, command: string): Thenable<any> {
+	call(_, command: string): Promise<any> {
 		throw new Error(`Call not found: ${command}`);
 	}
 }
@@ -47,7 +47,7 @@ export class DownloadServiceChannelClient implements IDownloadService {
 	constructor(private channel: IChannel, private getUriTransformer: () => IURITransformer) { }
 
 	download(from: URI, to: string): Promise<void> {
-		from = this.getUriTransformer().transformOutgoing(from);
+		from = this.getUriTransformer().transformOutgoingURI(from);
 		const dirName = path.dirname(to);
 		let out: fs.WriteStream;
 		return new Promise((c, e) => {
@@ -58,7 +58,7 @@ export class DownloadServiceChannelClient implements IDownloadService {
 					out.once('error', e);
 					const uploadStream = this.channel.listen<UploadResponse>('upload', from);
 					const disposable = uploadStream(result => {
-						if (result === void 0) {
+						if (result === undefined) {
 							disposable.dispose();
 							out.end(c);
 						} else if (Buffer.isBuffer(result)) {

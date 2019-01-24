@@ -57,12 +57,12 @@ export class IntegrityServiceImpl implements IIntegrityService {
 	_serviceBrand: any;
 
 	private _storage: IntegrityStorage;
-	private _isPurePromise: Thenable<IntegrityTestResult>;
+	private _isPurePromise: Promise<IntegrityTestResult>;
 
 	constructor(
-		@INotificationService private notificationService: INotificationService,
+		@INotificationService private readonly notificationService: INotificationService,
 		@IStorageService storageService: IStorageService,
-		@ILifecycleService private lifecycleService: ILifecycleService
+		@ILifecycleService private readonly lifecycleService: ILifecycleService
 	) {
 		this._storage = new IntegrityStorage(storageService);
 
@@ -101,11 +101,11 @@ export class IntegrityServiceImpl implements IIntegrityService {
 		);
 	}
 
-	isPure(): Thenable<IntegrityTestResult> {
+	isPure(): Promise<IntegrityTestResult> {
 		return this._isPurePromise;
 	}
 
-	private _isPure(): Thenable<IntegrityTestResult> {
+	private _isPure(): Promise<IntegrityTestResult> {
 		const expectedChecksums = product.checksums || {};
 
 		return this.lifecycleService.when(LifecyclePhase.Eventually).then(() => {
@@ -115,7 +115,7 @@ export class IntegrityServiceImpl implements IIntegrityService {
 
 			return Promise.all(asyncResults).then<IntegrityTestResult>((allResults) => {
 				let isPure = true;
-				for (let i = 0, len = allResults.length; isPure && i < len; i++) {
+				for (let i = 0, len = allResults.length; i < len; i++) {
 					if (!allResults[i].isPure) {
 						isPure = false;
 						break;

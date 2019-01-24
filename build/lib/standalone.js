@@ -119,8 +119,7 @@ function createESMSourcesAndResources2(options) {
         return path.join(OUT_RESOURCES_FOLDER, dest);
     };
     const allFiles = walkDirRecursive(SRC_FOLDER);
-    for (let i = 0; i < allFiles.length; i++) {
-        const file = allFiles[i];
+    for (const file of allFiles) {
         if (options.ignores.indexOf(file.replace(/\\/g, '/')) >= 0) {
             continue;
         }

@@ -45,9 +45,9 @@ class InstallAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@INotificationService private notificationService: INotificationService,
-		@IDialogService private dialogService: IDialogService,
-		@ILogService private logService: ILogService
+		@INotificationService private readonly notificationService: INotificationService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super(id, label);
 	}
@@ -70,9 +70,9 @@ class InstallAction extends Action {
 						return Promise.resolve(null);
 					} else {
 						return pfs.unlink(this.target)
-							.then(null, ignore('ENOENT', null))
+							.then(undefined, ignore('ENOENT', null))
 							.then(() => pfs.symlink(getSource(), this.target))
-							.then(null, err => {
+							.then(undefined, err => {
 								if (err.code === 'EACCES' || err.code === 'ENOENT') {
 									return this.createBinFolderAndSymlinkAsAdmin();
 								}
@@ -93,7 +93,7 @@ class InstallAction extends Action {
 			.then(stat => stat.isSymbolicLink())
 			.then(() => pfs.readlink(this.target))
 			.then(link => link === getSource())
-			.then(null, ignore('ENOENT', false));
+			.then(undefined, ignore('ENOENT', false));
 	}
 
 	private createBinFolderAndSymlinkAsAdmin(): Promise<void> {
@@ -106,7 +106,7 @@ class InstallAction extends Action {
 						const command = 'osascript -e "do shell script \\"mkdir -p /usr/local/bin && ln -sf \'' + getSource() + '\' \'' + this.target + '\'\\" with administrator privileges"';
 
 						nfcall(cp.exec, command, {})
-							.then(null, _ => Promise.reject(new Error(nls.localize('cantCreateBinFolder', "Unable to create '/usr/local/bin'."))))
+							.then(undefined, _ => Promise.reject(new Error(nls.localize('cantCreateBinFolder', "Unable to create '/usr/local/bin'."))))
 							.then(resolve, reject);
 						break;
 					case 1 /* Cancel */:
@@ -126,9 +126,9 @@ class UninstallAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@INotificationService private notificationService: INotificationService,
-		@ILogService private logService: ILogService,
-		@IDialogService private dialogService: IDialogService
+		@INotificationService private readonly notificationService: INotificationService,
+		@ILogService private readonly logService: ILogService,
+		@IDialogService private readonly dialogService: IDialogService
 	) {
 		super(id, label);
 	}
@@ -147,10 +147,10 @@ class UninstallAction extends Action {
 
 			const uninstall = () => {
 				return pfs.unlink(this.target)
-					.then(null, ignore('ENOENT', null));
+					.then(undefined, ignore('ENOENT', null));
 			};
 
-			return uninstall().then(null, err => {
+			return uninstall().then(undefined, err => {
 				if (err.code === 'EACCES') {
 					return this.deleteSymlinkAsAdmin();
 				}
@@ -173,7 +173,7 @@ class UninstallAction extends Action {
 						const command = 'osascript -e "do shell script \\"rm \'' + this.target + '\'\\" with administrator privileges"';
 
 						nfcall(cp.exec, command, {})
-							.then(null, _ => Promise.reject(new Error(nls.localize('cantUninstall', "Unable to uninstall the shell command '{0}'.", this.target))))
+							.then(undefined, _ => Promise.reject(new Error(nls.localize('cantUninstall', "Unable to uninstall the shell command '{0}'.", this.target))))
 							.then(resolve, reject);
 						break;
 					case 1 /* Cancel */:

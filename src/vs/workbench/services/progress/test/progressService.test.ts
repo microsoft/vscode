@@ -20,17 +20,17 @@ class TestViewletService implements IViewletService {
 	public _serviceBrand: any;
 
 	onDidViewletRegisterEmitter = new Emitter<ViewletDescriptor>();
+	onDidViewletDeregisterEmitter = new Emitter<ViewletDescriptor>();
 	onDidViewletOpenEmitter = new Emitter<IViewlet>();
 	onDidViewletCloseEmitter = new Emitter<IViewlet>();
-	onDidViewletEnableEmitter = new Emitter<{ id: string, enabled: boolean }>();
 
 	onDidViewletRegister = this.onDidViewletRegisterEmitter.event;
+	onDidViewletDeregister = this.onDidViewletDeregisterEmitter.event;
 	onDidViewletOpen = this.onDidViewletOpenEmitter.event;
 	onDidViewletClose = this.onDidViewletCloseEmitter.event;
-	onDidViewletEnablementChange = this.onDidViewletEnableEmitter.event;
 
 	public openViewlet(id: string, focus?: boolean): Promise<IViewlet> {
-		return Promise.resolve(null);
+		return Promise.resolve(null!);
 	}
 
 	public getViewlets(): ViewletDescriptor[] {
@@ -44,7 +44,6 @@ class TestViewletService implements IViewletService {
 	public getActiveViewlet(): IViewlet {
 		return activeViewlet;
 	}
-	public setViewletEnablement(id: string, enabled: boolean): void { }
 
 	public dispose() {
 	}
@@ -54,11 +53,11 @@ class TestViewletService implements IViewletService {
 	}
 
 	public getViewlet(id: string): ViewletDescriptor {
-		return null;
+		return null!;
 	}
 
 	public getProgressIndicator(id: string) {
-		return null;
+		return null!;
 	}
 }
 
@@ -69,7 +68,7 @@ class TestPanelService implements IPanelService {
 	onDidPanelClose = new Emitter<IPanel>().event;
 
 	public openPanel(id: string, focus?: boolean): IPanel {
-		return null;
+		return null!;
 	}
 
 	public getPanels(): any[] {
@@ -130,14 +129,14 @@ class TestViewlet implements IViewlet {
 	 * Returns the action item for a specific action.
 	 */
 	getActionItem(action: IAction): IActionItem {
-		return null;
+		return null!;
 	}
 
 	/**
 	 * Returns the underlying control of this composite.
 	 */
 	getControl(): IEditorControl {
-		return null;
+		return null!;
 	}
 
 	/**
@@ -176,14 +175,14 @@ class TestProgressBar {
 	}
 
 	public infinite() {
-		this.fDone = null;
+		this.fDone = null!;
 		this.fInfinite = true;
 
 		return this;
 	}
 
 	public total(total: number) {
-		this.fDone = null;
+		this.fDone = null!;
 		this.fTotal = total;
 
 		return this;
@@ -194,7 +193,7 @@ class TestProgressBar {
 	}
 
 	public worked(worked: number) {
-		this.fDone = null;
+		this.fDone = null!;
 
 		if (this.fWorked) {
 			this.fWorked += worked;
@@ -208,9 +207,9 @@ class TestProgressBar {
 	public done() {
 		this.fDone = true;
 
-		this.fInfinite = null;
-		this.fWorked = null;
-		this.fTotal = null;
+		this.fInfinite = null!;
+		this.fWorked = null!;
+		this.fTotal = null!;
 
 		return this;
 	}

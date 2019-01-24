@@ -39,7 +39,7 @@ suite('workspace-namespace', () => {
 		if (vscode.workspace.rootPath) {
 			assert.ok(pathEquals(vscode.workspace.rootPath, join(__dirname, '../../testWorkspace')));
 		}
-		assert.throws(() => vscode.workspace.rootPath = 'farboo');
+		assert.throws(() => (vscode.workspace as any).rootPath = 'farboo');
 	});
 
 	test('workspaceFolders', () => {

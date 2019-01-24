@@ -12,7 +12,7 @@ import { MarkdownString } from 'vs/base/common/htmlContent';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { DefinitionProviderRegistry, DefinitionLink } from 'vs/editor/common/modes';
+import { DefinitionProviderRegistry, LocationLink } from 'vs/editor/common/modes';
 import { ICodeEditor, IMouseTarget, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { getDefinitionsAtPosition } from './goToDefinition';
@@ -35,12 +35,12 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 	private toUnhook: IDisposable[];
 	private decorations: string[];
 	private currentWordUnderMouse: IWordAtPosition;
-	private previousPromise: CancelablePromise<DefinitionLink[]>;
+	private previousPromise: CancelablePromise<LocationLink[]>;
 
 	constructor(
 		editor: ICodeEditor,
-		@ITextModelService private textModelResolverService: ITextModelService,
-		@IModeService private modeService: IModeService
+		@ITextModelService private readonly textModelResolverService: ITextModelService,
+		@IModeService private readonly modeService: IModeService
 	) {
 		this.toUnhook = [];
 		this.decorations = [];
@@ -152,8 +152,8 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 					const previewValue = this.getPreviewValue(textEditorModel, startLineNumber);
 
 					let wordRange: Range;
-					if (result.origin) {
-						wordRange = Range.lift(result.origin);
+					if (result.originSelectionRange) {
+						wordRange = Range.lift(result.originSelectionRange);
 					} else {
 						wordRange = new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
 					}
@@ -281,7 +281,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 			DefinitionProviderRegistry.has(this.editor.getModel());
 	}
 
-	private findDefinition(target: IMouseTarget, token: CancellationToken): Thenable<DefinitionLink[]> {
+	private findDefinition(target: IMouseTarget, token: CancellationToken): Promise<LocationLink[] | null> {
 		const model = this.editor.getModel();
 		if (!model) {
 			return Promise.resolve(null);
@@ -290,7 +290,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 		return getDefinitionsAtPosition(model, target.position, token);
 	}
 
-	private gotoDefinition(target: IMouseTarget, sideBySide: boolean): Thenable<any> {
+	private gotoDefinition(target: IMouseTarget, sideBySide: boolean): Promise<any> {
 		this.editor.setPosition(target.position);
 		const action = new DefinitionAction(new DefinitionActionConfig(sideBySide, false, true, false), { alias: undefined, label: undefined, id: undefined, precondition: undefined });
 		return this.editor.invokeWithinContext(accessor => action.run(accessor, this.editor));

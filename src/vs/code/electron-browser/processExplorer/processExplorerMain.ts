@@ -96,7 +96,7 @@ function attachTo(item: ProcessItem) {
 		config.port = parseInt(matches[2]);
 	}
 
-	ipcRenderer.send('vscode:workbenchCommand', { id: 'workbench.action.debug.start', from: 'processExplorer', args: [config] });
+	ipcRenderer.send('vscode:workbenchCommand', { id: 'debug.startFromConfig', from: 'processExplorer', args: [config] });
 }
 
 function getProcessIdWithHighestProperty(processList, propertyName: string) {
@@ -171,7 +171,9 @@ function applyStyles(styles: ProcessExplorerStyles): void {
 	if (document.head) {
 		document.head.appendChild(styleTag);
 	}
-	document.body.style.color = styles.color;
+	if (styles.color) {
+		document.body.style.color = styles.color;
+	}
 }
 
 function applyZoom(zoomLevel: number): void {

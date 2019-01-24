@@ -21,7 +21,7 @@ import { dispose } from 'vs/base/common/lifecycle';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export interface IOpenCallbacks {
-	openInternal: (input: EditorInput, options: EditorOptions) => Thenable<void>;
+	openInternal: (input: EditorInput, options: EditorOptions) => Promise<void>;
 	openExternal: (uri: URI) => void;
 }
 
@@ -37,7 +37,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 	get onDidOpenInPlace(): Event<void> { return this._onDidOpenInPlace.event; }
 
 	private callbacks: IOpenCallbacks;
-	private metadata: string;
+	private metadata: string | null;
 	private binaryContainer: HTMLElement;
 	private scrollbar: DomScrollableElement;
 	private resourceViewerContext: ResourceViewerContext;
@@ -55,7 +55,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		this.callbacks = callbacks;
 	}
 
-	getTitle(): string {
+	getTitle() {
 		return this.input ? this.input.getName() : nls.localize('binaryEditor', "Binary Viewer");
 	}
 
@@ -72,13 +72,13 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		parent.appendChild(this.scrollbar.getDomNode());
 	}
 
-	setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
+	setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
 		return super.setInput(input, options, token).then(() => {
 			return input.resolve().then(model => {
 
 				// Check for cancellation
 				if (token.isCancellationRequested) {
-					return void 0;
+					return undefined;
 				}
 
 				// Assert Model instance
@@ -97,7 +97,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 					meta => this.handleMetadataChanged(meta)
 				);
 
-				return void 0;
+				return undefined;
 			});
 		});
 	}
@@ -110,13 +110,13 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		});
 	}
 
-	private handleMetadataChanged(meta: string): void {
+	private handleMetadataChanged(meta: string | null): void {
 		this.metadata = meta;
 
 		this._onMetadataChanged.fire();
 	}
 
-	getMetadata(): string {
+	getMetadata() {
 		return this.metadata;
 	}
 

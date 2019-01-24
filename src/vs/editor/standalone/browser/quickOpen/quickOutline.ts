@@ -128,7 +128,7 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): Thenable<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 
 		let model = editor.getModel();
 
@@ -181,8 +181,7 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 			normalizedSearchValue = normalizedSearchValue.substr(SCOPE_PREFIX.length);
 		}
 
-		for (let i = 0; i < flattened.length; i++) {
-			let element = flattened[i];
+		for (const element of flattened) {
 			let label = strings.trim(element.name);
 
 			// Check for meatch

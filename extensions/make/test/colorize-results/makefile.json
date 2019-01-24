@@ -682,29 +682,7 @@
 		}
 	},
 	{
-		"c": "\trm ",
-		"t": "source.makefile meta.scope.recipe.makefile",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": "*",
-		"t": "source.makefile meta.scope.recipe.makefile keyword.operator.glob.shell",
-		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4"
-		}
-	},
-	{
-		"c": "o hello",
+		"c": "\trm *o hello",
 		"t": "source.makefile meta.scope.recipe.makefile",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -825,63 +803,8 @@
 		}
 	},
 	{
-		"c": "(",
-		"t": "source.makefile meta.scope.recipe.makefile meta.scope.subshell.shell punctuation.definition.subshell.shell",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": "sed -nre ",
-		"t": "source.makefile meta.scope.recipe.makefile meta.scope.subshell.shell",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": "'",
-		"t": "source.makefile meta.scope.recipe.makefile meta.scope.subshell.shell string.quoted.single.shell punctuation.definition.string.begin.shell",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
-		}
-	},
-	{
-		"c": "s/some regex with (group)/\\1/p",
-		"t": "source.makefile meta.scope.recipe.makefile meta.scope.subshell.shell string.quoted.single.shell",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
-		}
-	},
-	{
-		"c": "'",
-		"t": "source.makefile meta.scope.recipe.makefile meta.scope.subshell.shell string.quoted.single.shell punctuation.definition.string.end.shell",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
-		}
-	},
-	{
-		"c": ")",
-		"t": "source.makefile meta.scope.recipe.makefile meta.scope.subshell.shell punctuation.definition.subshell.shell",
+		"c": "(sed -nre 's/some regex with (group)/\\1/p')",
+		"t": "source.makefile meta.scope.recipe.makefile",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -946,139 +869,7 @@
 		}
 	},
 	{
-		"c": "\t",
-		"t": "source.makefile meta.scope.recipe.makefile",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": "echo",
-		"t": "source.makefile meta.scope.recipe.makefile support.function.builtin.shell",
-		"r": {
-			"dark_plus": "support.function: #DCDCAA",
-			"light_plus": "support.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "support.function: #DCDCAA"
-		}
-	},
-	{
-		"c": " ",
-		"t": "source.makefile meta.scope.recipe.makefile",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": "\"",
-		"t": "source.makefile meta.scope.recipe.makefile string.quoted.double.shell punctuation.definition.string.begin.shell",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
-		}
-	},
-	{
-		"c": "#",
-		"t": "source.makefile meta.scope.recipe.makefile string.quoted.double.shell",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
-		}
-	},
-	{
-		"c": "\"",
-		"t": "source.makefile meta.scope.recipe.makefile string.quoted.double.shell punctuation.definition.string.end.shell",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
-		}
-	},
-	{
-		"c": " and ",
-		"t": "source.makefile meta.scope.recipe.makefile",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": "'",
-		"t": "source.makefile meta.scope.recipe.makefile string.quoted.single.shell punctuation.definition.string.begin.shell",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
-		}
-	},
-	{
-		"c": "#",
-		"t": "source.makefile meta.scope.recipe.makefile string.quoted.single.shell",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
-		}
-	},
-	{
-		"c": "'",
-		"t": "source.makefile meta.scope.recipe.makefile string.quoted.single.shell punctuation.definition.string.end.shell",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
-		}
-	},
-	{
-		"c": " ",
-		"t": "source.makefile meta.scope.recipe.makefile",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": "in",
-		"t": "source.makefile meta.scope.recipe.makefile keyword.control.shell",
-		"r": {
-			"dark_plus": "keyword.control: #C586C0",
-			"light_plus": "keyword.control: #AF00DB",
-			"dark_vs": "keyword.control: #569CD6",
-			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #C586C0"
-		}
-	},
-	{
-		"c": " quotes are not comments ",
+		"c": "\techo \"#\" and '#' in quotes are not comments ",
 		"t": "source.makefile meta.scope.recipe.makefile",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -1100,51 +891,7 @@
 		}
 	},
 	{
-		"c": "\t\tand ",
-		"t": "source.makefile meta.scope.recipe.makefile",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": "'",
-		"t": "source.makefile meta.scope.recipe.makefile string.quoted.single.shell punctuation.definition.string.begin.shell",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
-		}
-	},
-	{
-		"c": "\\",
-		"t": "source.makefile meta.scope.recipe.makefile string.quoted.single.shell",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
-		}
-	},
-	{
-		"c": "'",
-		"t": "source.makefile meta.scope.recipe.makefile string.quoted.single.shell punctuation.definition.string.end.shell",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
-		}
-	},
-	{
-		"c": " will be continued",
+		"c": "\t\tand '\\' will be continued",
 		"t": "source.makefile meta.scope.recipe.makefile",
 		"r": {
 			"dark_plus": "default: #D4D4D4",

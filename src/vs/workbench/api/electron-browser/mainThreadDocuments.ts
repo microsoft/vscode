@@ -167,20 +167,20 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 
 	// --- from extension host process
 
-	$trySaveDocument(uri: UriComponents): Thenable<boolean> {
+	$trySaveDocument(uri: UriComponents): Promise<boolean> {
 		return this._textFileService.save(URI.revive(uri));
 	}
 
-	$tryOpenDocument(_uri: UriComponents): Thenable<any> {
+	$tryOpenDocument(_uri: UriComponents): Promise<any> {
 		const uri = URI.revive(_uri);
 		if (!uri.scheme || !(uri.fsPath || uri.authority)) {
 			return Promise.reject(new Error(`Invalid uri. Scheme and authority or path must be set.`));
 		}
 
-		let promise: Thenable<boolean>;
+		let promise: Promise<boolean>;
 		switch (uri.scheme) {
 			case Schemas.untitled:
-				promise = this._handleUnititledScheme(uri);
+				promise = this._handleUntitledScheme(uri);
 				break;
 			case Schemas.file:
 			default:
@@ -201,11 +201,11 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		});
 	}
 
-	$tryCreateDocument(options?: { language?: string, content?: string }): Thenable<URI> {
-		return this._doCreateUntitled(void 0, options ? options.language : void 0, options ? options.content : void 0);
+	$tryCreateDocument(options?: { language?: string, content?: string }): Promise<URI> {
+		return this._doCreateUntitled(undefined, options ? options.language : undefined, options ? options.content : undefined);
 	}
 
-	private _handleAsResourceInput(uri: URI): Thenable<boolean> {
+	private _handleAsResourceInput(uri: URI): Promise<boolean> {
 		return this._textModelResolverService.createModelReference(uri).then(ref => {
 			this._modelReferenceCollection.add(ref);
 			const result = !!ref.object;
@@ -213,7 +213,7 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		});
 	}
 
-	private _handleUnititledScheme(uri: URI): Thenable<boolean> {
+	private _handleUntitledScheme(uri: URI): Promise<boolean> {
 		let asFileUri = uri.with({ scheme: Schemas.file });
 		return this._fileService.resolveFile(asFileUri).then(stats => {
 			// don't create a new file ontop of an existing file
@@ -223,7 +223,7 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		});
 	}
 
-	private _doCreateUntitled(resource?: URI, modeId?: string, initialValue?: string): Thenable<URI> {
+	private _doCreateUntitled(resource?: URI, modeId?: string, initialValue?: string): Promise<URI> {
 		return this._untitledEditorService.loadOrCreate({
 			resource,
 			modeId,

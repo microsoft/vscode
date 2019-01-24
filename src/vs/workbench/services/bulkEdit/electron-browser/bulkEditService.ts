@@ -69,16 +69,23 @@ class ModelEditTask implements IDisposable {
 				// honor eol-change
 				this._newEol = edit.eol;
 			}
-			if (edit.range || edit.text) {
-				// create edit operation
-				let range: Range;
-				if (!edit.range) {
-					range = this._model.getFullModelRange();
-				} else {
-					range = Range.lift(edit.range);
-				}
-				this._edits.push(EditOperation.replaceMove(range, edit.text));
+			if (!edit.range && !edit.text) {
+				// lacks both a range and the text
+				continue;
 			}
+			if (Range.isEmpty(edit.range) && !edit.text) {
+				// no-op edit (replace empty range with empty text)
+				continue;
+			}
+
+			// create edit operation
+			let range: Range;
+			if (!edit.range) {
+				range = this._model.getFullModelRange();
+			} else {
+				range = Range.lift(edit.range);
+			}
+			this._edits.push(EditOperation.replaceMove(range, edit.text));
 		}
 	}
 
@@ -121,9 +128,11 @@ class EditorEditTask extends ModelEditTask {
 			this._editor.pushUndoStop();
 		}
 		if (this._newEol !== undefined) {
-			this._editor.pushUndoStop();
-			this._editor.getModel().pushEOL(this._newEol);
-			this._editor.pushUndoStop();
+			if (this._editor.hasModel()) {
+				this._editor.pushUndoStop();
+				this._editor.getModel().pushEOL(this._newEol);
+				this._editor.pushUndoStop();
+			}
 		}
 	}
 }
@@ -132,13 +141,13 @@ class BulkEditModel implements IDisposable {
 
 	private _textModelResolverService: ITextModelService;
 	private _edits = new Map<string, ResourceTextEdit[]>();
-	private _editor: ICodeEditor;
+	private _editor: ICodeEditor | undefined;
 	private _tasks: ModelEditTask[];
 	private _progress: IProgress<void>;
 
 	constructor(
 		textModelResolverService: ITextModelService,
-		editor: ICodeEditor,
+		editor: ICodeEditor | undefined,
 		edits: ResourceTextEdit[],
 		progress: IProgress<void>
 	) {
@@ -169,7 +178,7 @@ class BulkEditModel implements IDisposable {
 		}
 
 		this._tasks = [];
-		const promises: Thenable<any>[] = [];
+		const promises: Promise<any>[] = [];
 
 		this._edits.forEach((value, key) => {
 			const promise = this._textModelResolverService.createModelReference(URI.parse(key)).then(ref => {
@@ -180,7 +189,7 @@ class BulkEditModel implements IDisposable {
 				}
 
 				let task: ModelEditTask;
-				if (this._editor && this._editor.getModel().uri.toString() === model.textEditorModel.uri.toString()) {
+				if (this._editor && this._editor.hasModel() && this._editor.getModel().uri.toString() === model.textEditorModel.uri.toString()) {
 					task = new EditorEditTask(ref, this._editor);
 				} else {
 					task = new ModelEditTask(ref);
@@ -221,12 +230,12 @@ export type Edit = ResourceFileEdit | ResourceTextEdit;
 export class BulkEdit {
 
 	private _edits: Edit[] = [];
-	private _editor: ICodeEditor;
-	private _progress: IProgressRunner;
+	private _editor: ICodeEditor | undefined;
+	private _progress?: IProgressRunner;
 
 	constructor(
-		editor: ICodeEditor,
-		progress: IProgressRunner,
+		editor: ICodeEditor | undefined,
+		progress: IProgressRunner | undefined,
 		@ILogService private readonly _logService: ILogService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IFileService private readonly _fileService: IFileService,
@@ -264,7 +273,7 @@ export class BulkEdit {
 		let total = 0;
 
 		const groups: Edit[][] = [];
-		let group: Edit[];
+		let group: Edit[] | undefined;
 		for (const edit of this._edits) {
 			if (!group
 				|| (isResourceFileEdit(group[0]) && !isResourceFileEdit(edit))
@@ -285,8 +294,10 @@ export class BulkEdit {
 
 		// define total work and progress callback
 		// for child operations
-		this._progress.total(total);
-		let progress: IProgress<void> = { report: _ => this._progress.worked(1) };
+		if (this._progress) {
+			this._progress.total(total);
+		}
+		let progress: IProgress<void> = { report: _ => this._progress && this._progress.worked(1) };
 
 		// do it.
 		for (const group of groups) {
@@ -380,8 +391,7 @@ export class BulkEditService implements IBulkEditService {
 		let codeEditor = options.editor;
 
 		// First check if loaded models were not changed in the meantime
-		for (let i = 0, len = edits.length; i < len; i++) {
-			const edit = edits[i];
+		for (const edit of edits) {
 			if (!isResourceFileEdit(edit) && typeof edit.modelVersionId === 'number') {
 				let model = this._modelService.getModel(edit.resource);
 				if (model && model.getVersionId() !== edit.modelVersionId) {
@@ -400,7 +410,7 @@ export class BulkEditService implements IBulkEditService {
 			}
 		}
 
-		const bulkEdit = new BulkEdit(options.editor, options.progress, this._logService, this._textModelService, this._fileService, this._textFileService, this._labelService, this._configurationService);
+		const bulkEdit = new BulkEdit(codeEditor, options.progress, this._logService, this._textModelService, this._fileService, this._textFileService, this._labelService, this._configurationService);
 		bulkEdit.add(edits);
 
 		return bulkEdit.perform().then(() => {

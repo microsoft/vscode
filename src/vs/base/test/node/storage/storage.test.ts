@@ -8,9 +8,10 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { equal, ok } from 'assert';
-import { mkdirp, del, writeFile } from 'vs/base/node/pfs';
+import { mkdirp, del, writeFile, exists, unlink } from 'vs/base/node/pfs';
 import { timeout } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
+import { isWindows } from 'vs/base/common/platform';
 
 suite('Storage Library', () => {
 
@@ -90,7 +91,6 @@ suite('Storage Library', () => {
 		await Promise.all([delete1Promise, delete2Promise, delete3Promise]).then(() => deletePromiseResolved = true);
 		equal(deletePromiseResolved, true);
 
-		storage.beforeClose();
 		await storage.close();
 		await del(storageDir, tmpdir());
 	});
@@ -100,7 +100,7 @@ suite('Storage Library', () => {
 		await mkdirp(storageDir);
 
 		class TestSQLiteStorageDatabase extends SQLiteStorageDatabase {
-			private _onDidChangeItemsExternal: Emitter<IStorageItemsChangeEvent> = new Emitter<IStorageItemsChangeEvent>();
+			private _onDidChangeItemsExternal = new Emitter<IStorageItemsChangeEvent>();
 			get onDidChangeItemsExternal(): Event<IStorageItemsChangeEvent> { return this._onDidChangeItemsExternal.event; }
 
 			fireDidChangeItemsExternal(event: IStorageItemsChangeEvent): void {
@@ -136,18 +136,17 @@ suite('Storage Library', () => {
 		changes.clear();
 
 		// Delete is accepted
-		change.set('foo', null);
+		change.set('foo', undefined);
 		database.fireDidChangeItemsExternal({ items: change });
 		ok(changes.has('foo'));
-		equal(storage.get('foo', null), null);
+		equal(storage.get('foo', null!), null);
 		changes.clear();
 
 		// Nothing happens if changing to same value
-		change.set('foo', null);
+		change.set('foo', undefined);
 		database.fireDidChangeItemsExternal({ items: change });
 		equal(changes.size, 0);
 
-		storage.beforeClose();
 		await storage.close();
 		await del(storageDir, tmpdir());
 	});
@@ -168,7 +167,6 @@ suite('Storage Library', () => {
 		let setPromiseResolved = false;
 		Promise.all([set1Promise, set2Promise]).then(() => setPromiseResolved = true);
 
-		storage.beforeClose();
 		await storage.close();
 
 		equal(setPromiseResolved, true);
@@ -179,7 +177,6 @@ suite('Storage Library', () => {
 		equal(storage.get('foo'), 'bar');
 		equal(storage.get('bar'), 'foo');
 
-		storage.beforeClose();
 		await storage.close();
 
 		storage = new Storage(new SQLiteStorageDatabase(join(storageDir, 'storage.db')));
@@ -194,7 +191,6 @@ suite('Storage Library', () => {
 		let deletePromiseResolved = false;
 		Promise.all([delete1Promise, delete2Promise]).then(() => deletePromiseResolved = true);
 
-		storage.beforeClose();
 		await storage.close();
 
 		equal(deletePromiseResolved, true);
@@ -205,7 +201,6 @@ suite('Storage Library', () => {
 		ok(!storage.get('foo'));
 		ok(!storage.get('bar'));
 
-		storage.beforeClose();
 		await storage.close();
 		await del(storageDir, tmpdir());
 	});
@@ -248,7 +243,36 @@ suite('Storage Library', () => {
 		await Promise.all([set4Promise, delete1Promise]).then(() => setAndDeletePromiseResolved = true);
 		ok(setAndDeletePromiseResolved);
 
-		storage.beforeClose();
+		await storage.close();
+		await del(storageDir, tmpdir());
+	});
+
+	test('corrupt DB recovers', async () => {
+		const storageDir = uniqueStorageDir();
+		await mkdirp(storageDir);
+
+		const storageFile = join(storageDir, 'storage.db');
+
+		let storage = new Storage(new SQLiteStorageDatabase(storageFile));
+		await storage.init();
+
+		await storage.set('bar', 'foo');
+
+		await writeFile(storageFile, 'This is a broken DB');
+
+		await storage.set('foo', 'bar');
+
+		equal(storage.get('bar'), 'foo');
+		equal(storage.get('foo'), 'bar');
+
+		await storage.close();
+
+		storage = new Storage(new SQLiteStorageDatabase(storageFile));
+		await storage.init();
+
+		equal(storage.get('bar'), 'foo');
+		equal(storage.get('foo'), 'bar');
+
 		await storage.close();
 		await del(storageDir, tmpdir());
 	});
@@ -270,7 +294,7 @@ suite('SQLite Storage Library', () => {
 	}
 
 	async function testDBBasics(path, logError?: (error) => void) {
-		let options: ISQLiteStorageDatabaseOptions;
+		let options!: ISQLiteStorageDatabaseOptions;
 		if (logError) {
 			options = {
 				logging: {
@@ -331,7 +355,14 @@ suite('SQLite Storage Library', () => {
 		storedItems = await storage.getItems();
 		equal(storedItems.size, 0);
 
-		await storage.close();
+		let recoveryCalled = false;
+		await storage.close(() => {
+			recoveryCalled = true;
+
+			return new Map();
+		});
+
+		equal(recoveryCalled, false);
 	}
 
 	test('basics', async () => {
@@ -339,7 +370,7 @@ suite('SQLite Storage Library', () => {
 
 		await mkdirp(storageDir);
 
-		testDBBasics(join(storageDir, 'storage.db'));
+		await testDBBasics(join(storageDir, 'storage.db'));
 
 		await del(storageDir, tmpdir());
 	});
@@ -399,7 +430,14 @@ suite('SQLite Storage Library', () => {
 		equal(storedItems.get('some/foo/path'), 'some/bar/path');
 		equal(storedItems.get(JSON.stringify({ foo: 'bar' })), JSON.stringify({ bar: 'foo' }));
 
-		await storage.close();
+		let recoveryCalled = false;
+		await storage.close(() => {
+			recoveryCalled = true;
+
+			return new Map();
+		});
+
+		equal(recoveryCalled, false);
 
 		await del(storageDir, tmpdir());
 	});
@@ -429,6 +467,74 @@ suite('SQLite Storage Library', () => {
 		equal(storedItems.size, 0);
 
 		await testDBBasics(storagePath);
+
+		await del(storageDir, tmpdir());
+	});
+
+	test('basics (DB that becomes corrupt during runtime stores all state from cache on close)', async () => {
+		if (isWindows) {
+			await Promise.resolve(); // Windows will fail to write to open DB due to locking
+
+			return;
+		}
+
+		const storageDir = uniqueStorageDir();
+
+		await mkdirp(storageDir);
+
+		const storagePath = join(storageDir, 'storage.db');
+		let storage = new SQLiteStorageDatabase(storagePath);
+
+		const items = new Map<string, string>();
+		items.set('foo', 'bar');
+		items.set('some/foo/path', 'some/bar/path');
+		items.set(JSON.stringify({ foo: 'bar' }), JSON.stringify({ bar: 'foo' }));
+
+		await storage.updateItems({ insert: items });
+		await storage.close();
+
+		const backupPath = `${storagePath}.backup`;
+		equal(await exists(backupPath), true);
+
+		storage = new SQLiteStorageDatabase(storagePath);
+		await storage.getItems();
+
+		await writeFile(storagePath, 'This is now a broken DB');
+
+		// we still need to trigger a check to the DB so that we get to know that
+		// the DB is corrupt. We have no extra code on shutdown that checks for the
+		// health of the DB. This is an optimization to not perform too many tasks
+		// on shutdown.
+		await storage.checkIntegrity(true).then(null, error => { } /* error is expected here but we do not want to fail */);
+
+		await unlink(backupPath); // also test that the recovery DB is backed up properly
+
+		let recoveryCalled = false;
+		await storage.close(() => {
+			recoveryCalled = true;
+
+			return items;
+		});
+
+		equal(recoveryCalled, true);
+		equal(await exists(backupPath), true);
+
+		storage = new SQLiteStorageDatabase(storagePath);
+
+		const storedItems = await storage.getItems();
+		equal(storedItems.size, items.size);
+		equal(storedItems.get('foo'), 'bar');
+		equal(storedItems.get('some/foo/path'), 'some/bar/path');
+		equal(storedItems.get(JSON.stringify({ foo: 'bar' })), JSON.stringify({ bar: 'foo' }));
+
+		recoveryCalled = false;
+		await storage.close(() => {
+			recoveryCalled = true;
+
+			return new Map();
+		});
+
+		equal(recoveryCalled, false);
 
 		await del(storageDir, tmpdir());
 	});
@@ -627,7 +733,70 @@ suite('SQLite Storage Library', () => {
 		equal(items.get('foo3'), 'bar');
 		equal(items.get('some/foo3/path'), 'some/bar/path');
 
-		storage.beforeClose();
+		await storage.close();
+
+		await del(storageDir, tmpdir());
+	});
+
+	test('lots of INSERT & DELETE (below inline max)', async () => {
+		const storageDir = uniqueStorageDir();
+
+		await mkdirp(storageDir);
+
+		const storage = new SQLiteStorageDatabase(join(storageDir, 'storage.db'));
+
+		const items = new Map<string, string>();
+		const keys: Set<string> = new Set<string>();
+		for (let i = 0; i < 200; i++) {
+			const uuid = generateUuid();
+			const key = `key: ${uuid}`;
+
+			items.set(key, `value: ${uuid}`);
+			keys.add(key);
+		}
+
+		await storage.updateItems({ insert: items });
+
+		let storedItems = await storage.getItems();
+		equal(storedItems.size, items.size);
+
+		await storage.updateItems({ delete: keys });
+
+		storedItems = await storage.getItems();
+		equal(storedItems.size, 0);
+
+		await storage.close();
+
+		await del(storageDir, tmpdir());
+	});
+
+	test('lots of INSERT & DELETE (above inline max)', async () => {
+		const storageDir = uniqueStorageDir();
+
+		await mkdirp(storageDir);
+
+		const storage = new SQLiteStorageDatabase(join(storageDir, 'storage.db'));
+
+		const items = new Map<string, string>();
+		const keys: Set<string> = new Set<string>();
+		for (let i = 0; i < 400; i++) {
+			const uuid = generateUuid();
+			const key = `key: ${uuid}`;
+
+			items.set(key, `value: ${uuid}`);
+			keys.add(key);
+		}
+
+		await storage.updateItems({ insert: items });
+
+		let storedItems = await storage.getItems();
+		equal(storedItems.size, items.size);
+
+		await storage.updateItems({ delete: keys });
+
+		storedItems = await storage.getItems();
+		equal(storedItems.size, 0);
+
 		await storage.close();
 
 		await del(storageDir, tmpdir());

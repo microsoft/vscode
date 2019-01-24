@@ -34,7 +34,7 @@ export interface IFeedbackDelegate {
 
 export interface IFeedbackDropdownOptions {
 	contextViewProvider: IContextViewService;
-	feedbackService?: IFeedbackDelegate;
+	feedbackService: IFeedbackDelegate;
 	onFeedbackVisibilityChange?: (visible: boolean) => void;
 }
 
@@ -43,14 +43,14 @@ export class FeedbackDropdown extends Dropdown {
 
 	private feedback: string = '';
 	private sentiment: number = 1;
-	private autoHideTimeout: number;
+	private autoHideTimeout?: number;
 
-	private feedbackDelegate: IFeedbackDelegate;
+	private readonly feedbackDelegate: IFeedbackDelegate;
 
-	private feedbackForm: HTMLFormElement;
-	private feedbackDescriptionInput: HTMLTextAreaElement;
-	private smileyInput: HTMLElement;
-	private frownyInput: HTMLElement;
+	private feedbackForm: HTMLFormElement | null;
+	private feedbackDescriptionInput: HTMLTextAreaElement | null;
+	private smileyInput: HTMLElement | null;
+	private frownyInput: HTMLElement | null;
 	private sendButton: Button;
 	private hideButton: HTMLInputElement;
 	private remainingCharacterCount: HTMLElement;
@@ -62,11 +62,11 @@ export class FeedbackDropdown extends Dropdown {
 	constructor(
 		container: HTMLElement,
 		private options: IFeedbackDropdownOptions,
-		@ICommandService private commandService: ICommandService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IIntegrityService private integrityService: IIntegrityService,
-		@IThemeService private themeService: IThemeService,
-		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService
+		@ICommandService private readonly commandService: ICommandService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IIntegrityService private readonly integrityService: IIntegrityService,
+		@IThemeService private readonly themeService: IThemeService,
+		@IWorkspaceConfigurationService private readonly configurationService: IWorkspaceConfigurationService
 	) {
 		super(container, {
 			contextViewProvider: options.contextViewProvider,
@@ -108,7 +108,7 @@ export class FeedbackDropdown extends Dropdown {
 		dom.addClass(container, 'monaco-menu-container');
 
 		// Form
-		this.feedbackForm = dom.append(container, dom.$('form.feedback-form'));
+		this.feedbackForm = dom.append<HTMLFormElement>(container, dom.$('form.feedback-form'));
 		this.feedbackForm.setAttribute('action', 'javascript:void(0);');
 
 		// Title
@@ -122,7 +122,7 @@ export class FeedbackDropdown extends Dropdown {
 
 		disposables.push(dom.addDisposableListener(closeBtn, dom.EventType.MOUSE_OVER, () => {
 			const theme = this.themeService.getTheme();
-			let darkenFactor: number;
+			let darkenFactor: number | undefined;
 			switch (theme.type) {
 				case 'light':
 					darkenFactor = 0.1;
@@ -133,7 +133,13 @@ export class FeedbackDropdown extends Dropdown {
 			}
 
 			if (darkenFactor) {
-				closeBtn.style.backgroundColor = darken(theme.getColor(editorWidgetBackground), darkenFactor)(theme).toString();
+				const backgroundBaseColor = theme.getColor(editorWidgetBackground);
+				if (backgroundBaseColor) {
+					const backgroundColor = darken(backgroundBaseColor, darkenFactor)(theme);
+					if (backgroundColor) {
+						closeBtn.style.backgroundColor = backgroundColor.toString();
+					}
+				}
 			}
 		}));
 
@@ -207,7 +213,7 @@ export class FeedbackDropdown extends Dropdown {
 		submitBugLink.tabIndex = 0;
 
 		disposables.push(dom.addDisposableListener(submitBugLink, 'click', e => {
-			dom.EventHelper.stop(event);
+			dom.EventHelper.stop(e);
 			const actionId = 'workbench.action.openIssueReporter';
 			this.commandService.executeCommand(actionId);
 			this.hide();
@@ -242,7 +248,7 @@ export class FeedbackDropdown extends Dropdown {
 		this.remainingCharacterCount.textContent = this.getCharCountText(0);
 
 		// Feedback Input Form
-		this.feedbackDescriptionInput = dom.append(this.feedbackForm, dom.$('textarea.feedback-description'));
+		this.feedbackDescriptionInput = dom.append<HTMLTextAreaElement>(this.feedbackForm, dom.$('textarea.feedback-description'));
 		this.feedbackDescriptionInput.rows = 3;
 		this.feedbackDescriptionInput.maxLength = this.maxFeedbackCharacters;
 		this.feedbackDescriptionInput.textContent = this.feedback;
@@ -278,9 +284,10 @@ export class FeedbackDropdown extends Dropdown {
 		this.sendButton.onDidClick(() => this.onSubmit());
 
 		disposables.push(attachStylerCallback(this.themeService, { widgetShadow, editorWidgetBackground, inputBackground, inputForeground, inputBorder, editorBackground, contrastBorder }, colors => {
-			this.feedbackForm.style.backgroundColor = colors.editorWidgetBackground ? colors.editorWidgetBackground.toString() : null;
-			this.feedbackForm.style.boxShadow = colors.widgetShadow ? `0 0 8px ${colors.widgetShadow}` : null;
-
+			if (this.feedbackForm) {
+				this.feedbackForm.style.backgroundColor = colors.editorWidgetBackground ? colors.editorWidgetBackground.toString() : null;
+				this.feedbackForm.style.boxShadow = colors.widgetShadow ? `0 0 8px ${colors.widgetShadow}` : null;
+			}
 			if (this.feedbackDescriptionInput) {
 				this.feedbackDescriptionInput.style.backgroundColor = colors.inputBackground ? colors.inputBackground.toString() : null;
 				this.feedbackDescriptionInput.style.color = colors.inputForeground ? colors.inputForeground.toString() : null;
@@ -313,27 +320,39 @@ export class FeedbackDropdown extends Dropdown {
 	}
 
 	private updateCharCountText(): void {
-		this.remainingCharacterCount.innerText = this.getCharCountText(this.feedbackDescriptionInput.value.length);
-		this.sendButton.enabled = this.feedbackDescriptionInput.value.length > 0;
+		if (this.feedbackDescriptionInput) {
+			this.remainingCharacterCount.innerText = this.getCharCountText(this.feedbackDescriptionInput.value.length);
+			this.sendButton.enabled = this.feedbackDescriptionInput.value.length > 0;
+		}
 	}
 
 	private setSentiment(smile: boolean): void {
 		if (smile) {
-			dom.addClass(this.smileyInput, 'checked');
-			this.smileyInput.setAttribute('aria-checked', 'true');
-			dom.removeClass(this.frownyInput, 'checked');
-			this.frownyInput.setAttribute('aria-checked', 'false');
+			if (this.smileyInput) {
+				dom.addClass(this.smileyInput, 'checked');
+				this.smileyInput.setAttribute('aria-checked', 'true');
+			}
+			if (this.frownyInput) {
+				dom.removeClass(this.frownyInput, 'checked');
+				this.frownyInput.setAttribute('aria-checked', 'false');
+			}
 		} else {
-			dom.addClass(this.frownyInput, 'checked');
-			this.frownyInput.setAttribute('aria-checked', 'true');
-			dom.removeClass(this.smileyInput, 'checked');
-			this.smileyInput.setAttribute('aria-checked', 'false');
+			if (this.frownyInput) {
+				dom.addClass(this.frownyInput, 'checked');
+				this.frownyInput.setAttribute('aria-checked', 'true');
+			}
+			if (this.smileyInput) {
+				dom.removeClass(this.smileyInput, 'checked');
+				this.smileyInput.setAttribute('aria-checked', 'false');
+			}
 		}
 
 		this.sentiment = smile ? 1 : 0;
 		this.maxFeedbackCharacters = this.feedbackDelegate.getCharacterLimit(this.sentiment);
 		this.updateCharCountText();
-		this.feedbackDescriptionInput.maxLength = this.maxFeedbackCharacters;
+		if (this.feedbackDescriptionInput) {
+			this.feedbackDescriptionInput.maxLength = this.maxFeedbackCharacters;
+		}
 	}
 
 	private invoke(element: HTMLElement, disposables: IDisposable[], callback: () => void): HTMLElement {
@@ -372,7 +391,7 @@ export class FeedbackDropdown extends Dropdown {
 
 		if (this.autoHideTimeout) {
 			clearTimeout(this.autoHideTimeout);
-			this.autoHideTimeout = null;
+			this.autoHideTimeout = undefined;
 		}
 
 		if (this.hideButton && !this.hideButton.checked) {
@@ -392,7 +411,7 @@ export class FeedbackDropdown extends Dropdown {
 	}
 
 	private onSubmit(): void {
-		if ((this.feedbackForm.checkValidity && !this.feedbackForm.checkValidity())) {
+		if (!this.feedbackForm || !this.feedbackDescriptionInput || (this.feedbackForm.checkValidity && !this.feedbackForm.checkValidity())) {
 			return;
 		}
 
@@ -410,12 +429,12 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	// Sentiment Buttons
 	const inputActiveOptionBorderColor = theme.getColor(inputActiveOptionBorder);
 	if (inputActiveOptionBorderColor) {
-		collector.addRule(`.monaco-shell .feedback-form .sentiment.checked { border: 1px solid ${inputActiveOptionBorderColor}; }`);
+		collector.addRule(`.monaco-workbench .feedback-form .sentiment.checked { border: 1px solid ${inputActiveOptionBorderColor}; }`);
 	}
 
 	// Links
 	const linkColor = theme.getColor(buttonBackground) || theme.getColor(contrastBorder);
 	if (linkColor) {
-		collector.addRule(`.monaco-shell .feedback-form .content .channels a { color: ${linkColor}; }`);
+		collector.addRule(`.monaco-workbench .feedback-form .content .channels a { color: ${linkColor}; }`);
 	}
 });

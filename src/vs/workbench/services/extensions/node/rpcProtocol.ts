@@ -9,9 +9,7 @@ import { CharCode } from 'vs/base/common/charCode';
 import * as errors from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { MarshalledObject } from 'vs/base/common/marshalling';
-import { URI } from 'vs/base/common/uri';
-import { IURITransformer } from 'vs/base/common/uriIpc';
+import { IURITransformer, transformIncomingURIs } from 'vs/base/common/uriIpc';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
 import { LazyPromise } from 'vs/workbench/services/extensions/node/lazyPromise';
 import { IRPCProtocol, ProxyIdentifier, getStringIdentifierForProxy } from 'vs/workbench/services/extensions/node/proxyIdentifier';
@@ -38,75 +36,6 @@ function createURIReplacer(transformer: IURITransformer | null): JSONStringifyRe
 		}
 		return value;
 	};
-}
-
-function _transformOutgoingURIs(obj: any, transformer: IURITransformer, depth: number): any {
-
-	if (!obj || depth > 200) {
-		return null;
-	}
-
-	if (typeof obj === 'object') {
-		if (obj instanceof URI) {
-			return transformer.transformOutgoing(obj);
-		}
-
-		// walk object (or array)
-		for (let key in obj) {
-			if (Object.hasOwnProperty.call(obj, key)) {
-				const r = _transformOutgoingURIs(obj[key], transformer, depth + 1);
-				if (r !== null) {
-					obj[key] = r;
-				}
-			}
-		}
-	}
-
-	return null;
-}
-
-export function transformOutgoingURIs<T>(obj: T, transformer: IURITransformer): T {
-	const result = _transformOutgoingURIs(obj, transformer, 0);
-	if (result === null) {
-		// no change
-		return obj;
-	}
-	return result;
-}
-
-function _transformIncomingURIs(obj: any, transformer: IURITransformer, depth: number): any {
-
-	if (!obj || depth > 200) {
-		return null;
-	}
-
-	if (typeof obj === 'object') {
-
-		if ((<MarshalledObject>obj).$mid === 1) {
-			return transformer.transformIncoming(obj);
-		}
-
-		// walk object (or array)
-		for (let key in obj) {
-			if (Object.hasOwnProperty.call(obj, key)) {
-				const r = _transformIncomingURIs(obj[key], transformer, depth + 1);
-				if (r !== null) {
-					obj[key] = r;
-				}
-			}
-		}
-	}
-
-	return null;
-}
-
-function transformIncomingURIs<T>(obj: T, transformer: IURITransformer): T {
-	const result = _transformIncomingURIs(obj, transformer, 0);
-	if (result === null) {
-		// no change
-		return obj;
-	}
-	return result;
 }
 
 export const enum RequestInitiator {
@@ -354,7 +283,7 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 		}
 		const callId = String(req);
 
-		let promise: Thenable<any>;
+		let promise: Promise<any>;
 		let cancel: () => void;
 		if (usesCancellationToken) {
 			const cancellationTokenSource = new CancellationTokenSource();
@@ -441,7 +370,7 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 		pendingReply.resolveErr(err);
 	}
 
-	private _invokeHandler(rpcId: number, methodName: string, args: any[]): Thenable<any> {
+	private _invokeHandler(rpcId: number, methodName: string, args: any[]): Promise<any> {
 		try {
 			return Promise.resolve(this._doInvokeHandler(rpcId, methodName, args));
 		} catch (err) {
@@ -461,7 +390,7 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 		return method.apply(actor, args);
 	}
 
-	private _remoteCall(rpcId: number, methodName: string, args: any[]): Thenable<any> {
+	private _remoteCall(rpcId: number, methodName: string, args: any[]): Promise<any> {
 		if (this._isDisposed) {
 			return Promise.reject<any>(errors.canceled());
 		}
@@ -592,7 +521,7 @@ class MessageBuffer {
 		return buff;
 	}
 
-	public static sizeMixedArray(arr: (string | Buffer)[], arrLengths: number[]): number {
+	public static sizeMixedArray(arr: Array<string | Buffer>, arrLengths: number[]): number {
 		let size = 0;
 		size += 1; // arr length
 		for (let i = 0, len = arr.length; i < len; i++) {
@@ -608,7 +537,7 @@ class MessageBuffer {
 		return size;
 	}
 
-	public writeMixedArray(arr: (string | Buffer)[], arrLengths: number[]): void {
+	public writeMixedArray(arr: Array<string | Buffer>, arrLengths: number[]): void {
 		this._buff.writeUInt8(arr.length, this._offset, true); this._offset += 1;
 		for (let i = 0, len = arr.length; i < len; i++) {
 			const el = arr[i];
@@ -623,9 +552,9 @@ class MessageBuffer {
 		}
 	}
 
-	public readMixedArray(): (string | Buffer)[] {
+	public readMixedArray(): Array<string | Buffer> {
 		const arrLen = this._buff.readUInt8(this._offset, true); this._offset += 1;
-		let arr: (string | Buffer)[] = new Array(arrLen);
+		let arr: Array<string | Buffer> = new Array(arrLen);
 		for (let i = 0; i < arrLen; i++) {
 			const argType = <ArgType>this.readUInt8();
 			if (argType === ArgType.String) {
@@ -651,7 +580,7 @@ class MessageIO {
 
 	public static serializeRequest(req: number, rpcId: number, method: string, args: any[], usesCancellationToken: boolean, replacer: JSONStringifyReplacer | null): Buffer {
 		if (this._arrayContainsBuffer(args)) {
-			let massagedArgs: (string | Buffer)[] = new Array(args.length);
+			let massagedArgs: Array<string | Buffer> = new Array(args.length);
 			let argsLengths: number[] = new Array(args.length);
 			for (let i = 0, len = args.length; i < len; i++) {
 				const arg = args[i];
@@ -695,7 +624,7 @@ class MessageIO {
 		};
 	}
 
-	private static _requestMixedArgs(req: number, rpcId: number, method: string, args: (string | Buffer)[], argsLengths: number[], usesCancellationToken: boolean): Buffer {
+	private static _requestMixedArgs(req: number, rpcId: number, method: string, args: Array<string | Buffer>, argsLengths: number[], usesCancellationToken: boolean): Buffer {
 		const methodByteLength = Buffer.byteLength(method, 'utf8');
 
 		let len = 0;

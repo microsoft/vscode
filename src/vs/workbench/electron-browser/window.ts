@@ -15,7 +15,7 @@ import { toResource, IUntitledResourceInput } from 'vs/workbench/common/editor';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { IWindowsService, IWindowService, IWindowSettings, IOpenFileRequest, IWindowsConfiguration, IAddFoldersRequest, IRunActionInWindowRequest, IPathData } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService, IWindowSettings, IOpenFileRequest, IWindowsConfiguration, IAddFoldersRequest, IRunActionInWindowRequest, IPathData, IRunKeybindingInWindowRequest } from 'vs/platform/windows/common/windows';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { IWorkbenchThemeService, VS_HC_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
@@ -38,21 +38,22 @@ import { AccessibilitySupport, isRootUser, isWindows, isMacintosh } from 'vs/bas
 import product from 'vs/platform/node/product';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 const TextInputActions: IAction[] = [
-	new Action('undo', nls.localize('undo', "Undo"), null, true, () => document.execCommand('undo') && Promise.resolve(true)),
-	new Action('redo', nls.localize('redo', "Redo"), null, true, () => document.execCommand('redo') && Promise.resolve(true)),
+	new Action('undo', nls.localize('undo', "Undo"), undefined, true, () => Promise.resolve(document.execCommand('undo'))),
+	new Action('redo', nls.localize('redo', "Redo"), undefined, true, () => Promise.resolve(document.execCommand('redo'))),
 	new Separator(),
-	new Action('editor.action.clipboardCutAction', nls.localize('cut', "Cut"), null, true, () => document.execCommand('cut') && Promise.resolve(true)),
-	new Action('editor.action.clipboardCopyAction', nls.localize('copy', "Copy"), null, true, () => document.execCommand('copy') && Promise.resolve(true)),
-	new Action('editor.action.clipboardPasteAction', nls.localize('paste', "Paste"), null, true, () => document.execCommand('paste') && Promise.resolve(true)),
+	new Action('editor.action.clipboardCutAction', nls.localize('cut', "Cut"), undefined, true, () => Promise.resolve(document.execCommand('cut'))),
+	new Action('editor.action.clipboardCopyAction', nls.localize('copy', "Copy"), undefined, true, () => Promise.resolve(document.execCommand('copy'))),
+	new Action('editor.action.clipboardPasteAction', nls.localize('paste', "Paste"), undefined, true, () => Promise.resolve(document.execCommand('paste'))),
 	new Separator(),
-	new Action('editor.action.selectAll', nls.localize('selectAll', "Select All"), null, true, () => document.execCommand('selectAll') && Promise.resolve(true))
+	new Action('editor.action.selectAll', nls.localize('selectAll', "Select All"), undefined, true, () => Promise.resolve(document.execCommand('selectAll')))
 ];
 
 export class ElectronWindow extends Themable {
 
-	private touchBarMenu: IMenu;
+	private touchBarMenu?: IMenu;
 	private touchBarUpdater: RunOnceScheduler;
 	private touchBarDisposables: IDisposable[];
 	private lastInstalledTouchedBar: ICommandAction[][];
@@ -63,21 +64,22 @@ export class ElectronWindow extends Themable {
 	private pendingFoldersToAdd: URI[];
 
 	constructor(
-		@IEditorService private editorService: EditorServiceImpl,
-		@IWindowsService private windowsService: IWindowsService,
-		@IWindowService private windowService: IWindowService,
-		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
-		@ITitleService private titleService: ITitleService,
+		@IEditorService private readonly editorService: EditorServiceImpl,
+		@IWindowsService private readonly windowsService: IWindowsService,
+		@IWindowService private readonly windowService: IWindowService,
+		@IWorkspaceConfigurationService private readonly configurationService: IWorkspaceConfigurationService,
+		@ITitleService private readonly titleService: ITitleService,
 		@IWorkbenchThemeService protected themeService: IWorkbenchThemeService,
-		@INotificationService private notificationService: INotificationService,
-		@ICommandService private commandService: ICommandService,
-		@IContextMenuService private contextMenuService: IContextMenuService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
-		@IFileService private fileService: IFileService,
-		@IMenuService private menuService: IMenuService,
-		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IIntegrityService private integrityService: IIntegrityService
+		@INotificationService private readonly notificationService: INotificationService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
+		@IFileService private readonly fileService: IFileService,
+		@IMenuService private readonly menuService: IMenuService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IIntegrityService private readonly integrityService: IIntegrityService
 	) {
 		super(themeService);
 
@@ -133,6 +135,13 @@ export class ElectronWindow extends Themable {
 			});
 		});
 
+		// Support runKeybinding event
+		ipc.on('vscode:runKeybinding', (event: any, request: IRunKeybindingInWindowRequest) => {
+			if (document.activeElement) {
+				this.keybindingService.dispatchByUserSettingsLabel(request.userSettingsLabel, document.activeElement);
+			}
+		});
+
 		// Error reporting from main
 		ipc.on('vscode:reportError', (event: any, error: string) => {
 			if (error) {
@@ -171,7 +180,7 @@ export class ElectronWindow extends Themable {
 			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 			if (windowConfig && windowConfig.autoDetectHighContrast) {
 				this.lifecycleService.when(LifecyclePhase.Ready).then(() => {
-					this.themeService.setColorTheme(VS_HC_THEME, null);
+					this.themeService.setColorTheme(VS_HC_THEME, undefined);
 				});
 			}
 		});
@@ -300,7 +309,7 @@ export class ElectronWindow extends Themable {
 
 		// Dispose old
 		this.touchBarDisposables = dispose(this.touchBarDisposables);
-		this.touchBarMenu = void 0;
+		this.touchBarMenu = undefined;
 
 		// Create new (delayed)
 		this.touchBarUpdater = new RunOnceScheduler(() => this.doUpdateTouchbarMenu(), 300);
@@ -315,16 +324,15 @@ export class ElectronWindow extends Themable {
 			this.touchBarDisposables.push(this.touchBarMenu.onDidChange(() => this.touchBarUpdater.schedule()));
 		}
 
-		const actions: (MenuItemAction | Separator)[] = [];
+		const actions: Array<MenuItemAction | Separator> = [];
 
 		// Fill actions into groups respecting order
-		fillInActionBarActions(this.touchBarMenu, void 0, actions);
+		fillInActionBarActions(this.touchBarMenu, undefined, actions);
 
 		// Convert into command action multi array
 		const items: ICommandAction[][] = [];
 		let group: ICommandAction[] = [];
-		for (let i = 0; i < actions.length; i++) {
-			const action = actions[i];
+		for (const action of actions) {
 
 			// Command
 			if (action instanceof MenuItemAction) {
@@ -377,7 +385,7 @@ export class ElectronWindow extends Themable {
 
 	private onOpenFiles(request: IOpenFileRequest): void {
 		const inputs: IResourceEditor[] = [];
-		const diffMode = request.filesToDiff && (request.filesToDiff.length === 2);
+		const diffMode = !!(request.filesToDiff && (request.filesToDiff.length === 2));
 
 		if (!diffMode && request.filesToOpen) {
 			inputs.push(...this.toInputs(request.filesToOpen, false));
@@ -387,7 +395,7 @@ export class ElectronWindow extends Themable {
 			inputs.push(...this.toInputs(request.filesToCreate, true));
 		}
 
-		if (diffMode) {
+		if (diffMode && request.filesToDiff) {
 			inputs.push(...this.toInputs(request.filesToDiff, false));
 		}
 
@@ -410,12 +418,12 @@ export class ElectronWindow extends Themable {
 		}
 	}
 
-	private openResources(resources: (IResourceInput | IUntitledResourceInput)[], diffMode: boolean): Thenable<any> {
-		return this.lifecycleService.when(LifecyclePhase.Ready).then(() => {
+	private openResources(resources: Array<IResourceInput | IUntitledResourceInput>, diffMode: boolean): void {
+		this.lifecycleService.when(LifecyclePhase.Ready).then((): Promise<any> => {
 
 			// In diffMode we open 2 resources as diff
 			if (diffMode && resources.length === 2) {
-				return this.editorService.openEditor({ leftResource: resources[0].resource, rightResource: resources[1].resource, options: { pinned: true } });
+				return this.editorService.openEditor({ leftResource: resources[0].resource!, rightResource: resources[1].resource!, options: { pinned: true } });
 			}
 
 			// For one file, just put it into the current active editor
@@ -438,8 +446,8 @@ export class ElectronWindow extends Themable {
 				input = { resource, options: { pinned: true } } as IResourceInput;
 			}
 
-			if (!isNew && p.lineNumber) {
-				input.options.selection = {
+			if (!isNew && typeof p.lineNumber === 'number' && typeof p.columnNumber === 'number') {
+				input.options!.selection = {
 					startLineNumber: p.lineNumber,
 					startColumn: p.columnNumber
 				};

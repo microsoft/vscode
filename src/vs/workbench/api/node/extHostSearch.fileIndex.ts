@@ -26,10 +26,10 @@ interface IInternalSearchComplete<T = IFileSearchStats> {
 }
 
 export class FileIndexSearchEngine {
-	private filePattern: string;
+	private filePattern?: string;
 	private normalizedFilePatternLowercase: string;
-	private includePattern: glob.ParsedExpression;
-	private maxResults: number;
+	private includePattern?: glob.ParsedExpression;
+	private maxResults: number | null;
 	private exists: boolean;
 	private isLimitHit: boolean;
 	private resultCount: number;
@@ -40,13 +40,13 @@ export class FileIndexSearchEngine {
 
 	private activeCancellationTokens: Set<CancellationTokenSource>;
 
-	private globalExcludePattern: glob.ParsedExpression;
+	private globalExcludePattern?: glob.ParsedExpression;
 
 	constructor(private config: IFileQuery, private provider: vscode.FileIndexProvider) {
 		this.filePattern = config.filePattern;
 		this.includePattern = config.includePattern && glob.parse(config.includePattern);
 		this.maxResults = config.maxResults || null;
-		this.exists = config.exists;
+		this.exists = !!config.exists;
 		this.resultCount = 0;
 		this.isLimitHit = false;
 		this.activeCancellationTokens = new Set<CancellationTokenSource>();
@@ -109,7 +109,7 @@ export class FileIndexSearchEngine {
 					errs = [errs];
 				}
 
-				errs = errs.filter(e => !!e);
+				errs = arrays.coalesce(errs);
 				return Promise.reject(errs[0]);
 			});
 		});
@@ -159,7 +159,7 @@ export class FileIndexSearchEngine {
 						return null;
 					}
 
-					results.forEach(onProviderResult);
+					results!.forEach(onProviderResult);
 
 					this.matchDirectoryTree(tree, queryTester, onResult);
 					fileWalkTime = postProcessSW.elapsed();
@@ -268,7 +268,7 @@ export class FileIndexSearchEngine {
 	}
 
 	private matchFile(onResult: (result: IInternalFileMatch) => void, candidate: IInternalFileMatch): void {
-		if (this.isFilePatternMatch(candidate.relativePath) && (!this.includePattern || this.includePattern(candidate.relativePath, candidate.basename))) {
+		if (this.isFilePatternMatch(candidate.relativePath!) && (!this.includePattern || this.includePattern(candidate.relativePath!, candidate.basename))) {
 			if (this.exists || (this.maxResults && this.resultCount >= this.maxResults)) {
 				this.isLimitHit = true;
 				this.cancel();
@@ -314,7 +314,7 @@ export class FileIndexSearchManager {
 					} :
 					config;
 
-				const engine = new FileIndexSearchEngine(engineConfig, provider);
+				const engine = new FileIndexSearchEngine(<any>engineConfig, provider);
 				sortedSearch = this.doSortedSearch(engine, config, token);
 			}
 
@@ -343,18 +343,18 @@ export class FileIndexSearchManager {
 	private getFolderCacheKey(config: IFileQuery): string {
 		const uri = config.folderQueries[0].folder.toString();
 		const folderCacheKey = config.cacheKey && `${uri}_${config.cacheKey}`;
-		if (!this.folderCacheKeys.get(config.cacheKey)) {
-			this.folderCacheKeys.set(config.cacheKey, new Set());
+		if (!this.folderCacheKeys.get(config.cacheKey!)) {
+			this.folderCacheKeys.set(config.cacheKey!, new Set());
 		}
 
-		this.folderCacheKeys.get(config.cacheKey).add(folderCacheKey);
+		this.folderCacheKeys.get(config.cacheKey!)!.add(folderCacheKey!);
 
-		return folderCacheKey;
+		return folderCacheKey!;
 	}
 
 	private rawMatchToSearchItem(match: IInternalFileMatch): IFileMatch {
 		return {
-			resource: match.original || resources.joinPath(match.base, match.relativePath)
+			resource: match.original || resources.joinPath(match.base, match.relativePath!)
 		};
 	}
 
@@ -371,11 +371,11 @@ export class FileIndexSearchManager {
 				promise: allResultsPromise,
 				resolved: false
 			};
-			cache.resultsToSearchCache[config.filePattern] = cacheRow;
+			cache.resultsToSearchCache[config.filePattern!] = cacheRow;
 			allResultsPromise.then(() => {
 				cacheRow.resolved = true;
 			}, err => {
-				delete cache.resultsToSearchCache[config.filePattern];
+				delete cache.resultsToSearchCache[config.filePattern!];
 			});
 			allResultsPromise = this.preventCancellation(allResultsPromise);
 		}
@@ -412,14 +412,14 @@ export class FileIndexSearchManager {
 		return this.caches[cacheKey] = new Cache();
 	}
 
-	private trySortedSearchFromCache(config: IFileQuery, token: CancellationToken): Promise<IInternalSearchComplete> {
+	private trySortedSearchFromCache(config: IFileQuery, token: CancellationToken): Promise<IInternalSearchComplete> | undefined {
 		const folderCacheKey = this.getFolderCacheKey(config);
 		const cache = folderCacheKey && this.caches[folderCacheKey];
 		if (!cache) {
 			return undefined;
 		}
 
-		const cached = this.getResultsFromCache(cache, config.filePattern, token);
+		const cached = this.getResultsFromCache(cache, config.filePattern!, token);
 		if (cached) {
 			return cached.then(complete => {
 				const sortSW = StopWatch.create();
@@ -451,10 +451,10 @@ export class FileIndexSearchManager {
 		// this is very important because we are also limiting the number of results by config.maxResults
 		// and as such we want the top items to be included in this result set if the number of items
 		// exceeds config.maxResults.
-		const query = prepareQuery(config.filePattern);
+		const query = prepareQuery(config.filePattern!);
 		const compare = (matchA: IInternalFileMatch, matchB: IInternalFileMatch) => compareItemsByScore(matchA, matchB, query, true, FileMatchItemAccessor, scorerCache);
 
-		return arrays.topAsync(results, compare, config.maxResults, 10000, token);
+		return arrays.topAsync(results, compare, config.maxResults!, 10000, token);
 	}
 
 	private sendAsBatches(rawMatches: IInternalFileMatch[], onBatch: (batch: IFileMatch[]) => void, batchSize: number) {
@@ -468,7 +468,7 @@ export class FileIndexSearchManager {
 		}
 	}
 
-	private getResultsFromCache(cache: Cache, searchValue: string, token: CancellationToken): Promise<IInternalSearchComplete<ICachedSearchStats>> {
+	private getResultsFromCache(cache: Cache, searchValue: string, token: CancellationToken): Promise<IInternalSearchComplete<ICachedSearchStats>> | null {
 		const cacheLookupSW = StopWatch.create();
 
 		if (path.isAbsolute(searchValue)) {
@@ -477,7 +477,7 @@ export class FileIndexSearchManager {
 
 		// Find cache entries by prefix of search value
 		const hasPathSep = searchValue.indexOf(path.sep) >= 0;
-		let cacheRow: ICacheRow;
+		let cacheRow: ICacheRow | undefined;
 		for (let previousSearch in cache.resultsToSearchCache) {
 
 			// If we narrow down, we might be able to reuse the cached results
@@ -505,7 +505,7 @@ export class FileIndexSearchManager {
 		return new Promise<IInternalSearchComplete<ICachedSearchStats>>((c, e) => {
 			token.onCancellationRequested(() => e(canceled()));
 
-			cacheRow.promise.then(complete => {
+			cacheRow!.promise.then(complete => {
 				if (token && token.isCancellationRequested) {
 					e(canceled());
 				}
@@ -517,7 +517,7 @@ export class FileIndexSearchManager {
 					let entry = complete.results[i];
 
 					// Check if this entry is a match for the search value
-					if (!strings.fuzzyContains(entry.relativePath, normalizedSearchValueLowercase)) {
+					if (!strings.fuzzyContains(entry.relativePath!, normalizedSearchValueLowercase)) {
 						continue;
 					}
 
@@ -528,7 +528,7 @@ export class FileIndexSearchManager {
 					limitHit: complete.limitHit,
 					results,
 					stats: {
-						cacheWasResolved: cacheRow.resolved,
+						cacheWasResolved: cacheRow!.resolved,
 						cacheLookupTime,
 						cacheFilterTime: cacheFilterSW.elapsed(),
 						cacheEntryCount: complete.results.length
@@ -553,11 +553,11 @@ export class FileIndexSearchManager {
 	}
 
 	public clearCache(cacheKey: string): void {
-		if (!this.folderCacheKeys.has(cacheKey)) {
+		const expandedKeys = this.folderCacheKeys.get(cacheKey);
+		if (!expandedKeys) {
 			return undefined;
 		}
 
-		const expandedKeys = this.folderCacheKeys.get(cacheKey);
 		expandedKeys.forEach(key => delete this.caches[key]);
 
 		this.folderCacheKeys.delete(cacheKey);
@@ -575,6 +575,9 @@ export class FileIndexSearchManager {
 			}
 			catch(reject?) {
 				return this.then(undefined, reject);
+			}
+			finally(onFinally) {
+				return promise.finally(onFinally);
 			}
 		};
 	}
@@ -599,10 +602,10 @@ const FileMatchItemAccessor = new class implements IItemAccessor<IInternalFileMa
 	}
 
 	public getItemDescription(match: IInternalFileMatch): string {
-		return match.relativePath.substr(0, match.relativePath.length - match.basename.length - 1); // e.g. some/path/to/file
+		return match.relativePath!.substr(0, match.relativePath!.length - match.basename.length - 1); // e.g. some/path/to/file
 	}
 
 	public getItemPath(match: IInternalFileMatch): string {
-		return match.relativePath; // e.g. some/path/to/file/myFile.txt
+		return match.relativePath!; // e.g. some/path/to/file/myFile.txt
 	}
 };

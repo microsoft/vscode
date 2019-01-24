@@ -16,7 +16,7 @@ import { URI } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { BUILTIN_MANIFEST_CACHE_FILE, MANIFEST_CACHE_FOLDER, USER_MANIFEST_CACHE_FILE } from 'vs/platform/extensions/common/extensions';
+import { BUILTIN_MANIFEST_CACHE_FILE, MANIFEST_CACHE_FOLDER, USER_MANIFEST_CACHE_FILE, ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import pkg from 'vs/platform/node/package';
 import product from 'vs/platform/node/product';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -50,6 +50,7 @@ export class CachedExtensionScanner {
 	public readonly scannedExtensions: Promise<IExtensionDescription[]>;
 	private _scannedExtensionsResolve: (result: IExtensionDescription[]) => void;
 	private _scannedExtensionsReject: (err: any) => void;
+	public readonly translationConfig: Promise<Translations>;
 
 	constructor(
 		@INotificationService private readonly _notificationService: INotificationService,
@@ -61,31 +62,58 @@ export class CachedExtensionScanner {
 			this._scannedExtensionsResolve = resolve;
 			this._scannedExtensionsReject = reject;
 		});
+		this.translationConfig = CachedExtensionScanner._readTranslationConfig();
 	}
 
-	public startScanningExtensions(log: ILog): void {
-		CachedExtensionScanner._scanInstalledExtensions(this._windowService, this._notificationService, this._environmentService, this._extensionEnablementService, log)
-			.then(({ system, user, development }) => {
-				let result: { [extensionId: string]: IExtensionDescription; } = {};
-				system.forEach((systemExtension) => {
-					result[systemExtension.id] = systemExtension;
-				});
-				user.forEach((userExtension) => {
-					if (result.hasOwnProperty(userExtension.id)) {
-						log.warn(userExtension.extensionLocation.fsPath, nls.localize('overwritingExtension', "Overwriting extension {0} with {1}.", result[userExtension.id].extensionLocation.fsPath, userExtension.extensionLocation.fsPath));
-					}
-					result[userExtension.id] = userExtension;
-				});
-				development.forEach(developedExtension => {
-					log.info('', nls.localize('extensionUnderDevelopment', "Loading development extension at {0}", developedExtension.extensionLocation.fsPath));
-					if (result.hasOwnProperty(developedExtension.id)) {
-						log.warn(developedExtension.extensionLocation.fsPath, nls.localize('overwritingExtension', "Overwriting extension {0} with {1}.", result[developedExtension.id].extensionLocation.fsPath, developedExtension.extensionLocation.fsPath));
-					}
-					result[developedExtension.id] = developedExtension;
-				});
-				return Object.keys(result).map(name => result[name]);
-			})
-			.then(this._scannedExtensionsResolve, this._scannedExtensionsReject);
+	public async scanSingleExtension(path: string, isBuiltin: boolean, log: ILog): Promise<IExtensionDescription | null> {
+		const translations = await this.translationConfig;
+
+		const version = pkg.version;
+		const commit = product.commit;
+		const devMode = !!process.env['VSCODE_DEV'];
+		const locale = platform.locale;
+		const input = new ExtensionScannerInput(version, commit, locale, devMode, path, isBuiltin, false, translations);
+		return ExtensionScanner.scanSingleExtension(input, log);
+	}
+
+	public async startScanningExtensions(log: ILog): Promise<void> {
+		try {
+			const translations = await this.translationConfig;
+			const { system, user, development } = await CachedExtensionScanner._scanInstalledExtensions(this._windowService, this._notificationService, this._environmentService, this._extensionEnablementService, log, translations);
+
+			let result = new Map<string, IExtensionDescription>();
+			system.forEach((systemExtension) => {
+				const extensionKey = ExtensionIdentifier.toKey(systemExtension.identifier);
+				const extension = result.get(extensionKey);
+				if (extension) {
+					log.warn(systemExtension.extensionLocation.fsPath, nls.localize('overwritingExtension', "Overwriting extension {0} with {1}.", extension.extensionLocation.fsPath, systemExtension.extensionLocation.fsPath));
+				}
+				result.set(extensionKey, systemExtension);
+			});
+			user.forEach((userExtension) => {
+				const extensionKey = ExtensionIdentifier.toKey(userExtension.identifier);
+				const extension = result.get(extensionKey);
+				if (extension) {
+					log.warn(userExtension.extensionLocation.fsPath, nls.localize('overwritingExtension', "Overwriting extension {0} with {1}.", extension.extensionLocation.fsPath, userExtension.extensionLocation.fsPath));
+				}
+				result.set(extensionKey, userExtension);
+			});
+			development.forEach(developedExtension => {
+				log.info('', nls.localize('extensionUnderDevelopment', "Loading development extension at {0}", developedExtension.extensionLocation.fsPath));
+				const extensionKey = ExtensionIdentifier.toKey(developedExtension.identifier);
+				const extension = result.get(extensionKey);
+				if (extension) {
+					log.warn(developedExtension.extensionLocation.fsPath, nls.localize('overwritingExtension', "Overwriting extension {0} with {1}.", extension.extensionLocation.fsPath, developedExtension.extensionLocation.fsPath));
+				}
+				result.set(extensionKey, developedExtension);
+			});
+			let r: IExtensionDescription[] = [];
+			result.forEach((value) => r.push(value));
+
+			this._scannedExtensionsResolve(r);
+		} catch (err) {
+			this._scannedExtensionsReject(err);
+		}
 	}
 
 	private static async _validateExtensionsCache(windowService: IWindowService, notificationService: INotificationService, environmentService: IEnvironmentService, cacheKey: string, input: ExtensionScannerInput): Promise<void> {
@@ -198,86 +226,90 @@ export class CachedExtensionScanner {
 		return result;
 	}
 
-	private static _scanInstalledExtensions(windowService: IWindowService, notificationService: INotificationService, environmentService: IEnvironmentService, extensionEnablementService: IExtensionEnablementService, log: ILog): Promise<{ system: IExtensionDescription[], user: IExtensionDescription[], development: IExtensionDescription[] }> {
-
-		const translationConfig: Promise<Translations> = platform.translationsConfigFile
-			? pfs.readFile(platform.translationsConfigFile, 'utf8').then((content) => {
-				try {
-					return JSON.parse(content) as Translations;
-				} catch (err) {
-					return Object.create(null);
-				}
-			}, (err) => {
-				return Object.create(null);
-			})
-			: Promise.resolve(Object.create(null));
-
-		return translationConfig.then((translations) => {
-			const version = pkg.version;
-			const commit = product.commit;
-			const devMode = !!process.env['VSCODE_DEV'];
-			const locale = platform.locale;
-
-			const builtinExtensions = this._scanExtensionsWithCache(
-				windowService,
-				notificationService,
-				environmentService,
-				BUILTIN_MANIFEST_CACHE_FILE,
-				new ExtensionScannerInput(version, commit, locale, devMode, getSystemExtensionsRoot(), true, false, translations),
-				log
-			);
-
-			let finalBuiltinExtensions: Promise<IExtensionDescription[]> = builtinExtensions;
-
-			if (devMode) {
-				const builtInExtensionsFilePath = path.normalize(path.join(getPathFromAmdModule(require, ''), '..', 'build', 'builtInExtensions.json'));
-				const builtInExtensions = pfs.readFile(builtInExtensionsFilePath, 'utf8')
-					.then<IBuiltInExtension[]>(raw => JSON.parse(raw));
-
-				const controlFilePath = path.join(os.homedir(), '.vscode-oss-dev', 'extensions', 'control.json');
-				const controlFile = pfs.readFile(controlFilePath, 'utf8')
-					.then<IBuiltInExtensionControl>(raw => JSON.parse(raw), () => ({} as any));
-
-				const input = new ExtensionScannerInput(version, commit, locale, devMode, getExtraDevSystemExtensionsRoot(), true, false, translations);
-				const extraBuiltinExtensions = Promise.all([builtInExtensions, controlFile])
-					.then(([builtInExtensions, control]) => new ExtraBuiltInExtensionResolver(builtInExtensions, control))
-					.then(resolver => ExtensionScanner.scanExtensions(input, log, resolver));
-
-				finalBuiltinExtensions = ExtensionScanner.mergeBuiltinExtensions(builtinExtensions, extraBuiltinExtensions);
+	private static async _readTranslationConfig(): Promise<Translations> {
+		if (platform.translationsConfigFile) {
+			try {
+				const content = await pfs.readFile(platform.translationsConfigFile, 'utf8');
+				return JSON.parse(content) as Translations;
+			} catch (err) {
+				// no problemo
 			}
+		}
+		return Object.create(null);
+	}
 
-			const userExtensions = (
-				extensionEnablementService.allUserExtensionsDisabled || !environmentService.extensionsPath
-					? Promise.resolve([])
-					: this._scanExtensionsWithCache(
-						windowService,
-						notificationService,
-						environmentService,
-						USER_MANIFEST_CACHE_FILE,
-						new ExtensionScannerInput(version, commit, locale, devMode, environmentService.extensionsPath, false, false, translations),
-						log
-					)
+	private static _scanInstalledExtensions(
+		windowService: IWindowService,
+		notificationService: INotificationService,
+		environmentService: IEnvironmentService,
+		extensionEnablementService: IExtensionEnablementService,
+		log: ILog,
+		translations: Translations
+	): Promise<{ system: IExtensionDescription[], user: IExtensionDescription[], development: IExtensionDescription[] }> {
+
+		const version = pkg.version;
+		const commit = product.commit;
+		const devMode = !!process.env['VSCODE_DEV'];
+		const locale = platform.locale;
+
+		const builtinExtensions = this._scanExtensionsWithCache(
+			windowService,
+			notificationService,
+			environmentService,
+			BUILTIN_MANIFEST_CACHE_FILE,
+			new ExtensionScannerInput(version, commit, locale, devMode, getSystemExtensionsRoot(), true, false, translations),
+			log
+		);
+
+		let finalBuiltinExtensions: Promise<IExtensionDescription[]> = builtinExtensions;
+
+		if (devMode) {
+			const builtInExtensionsFilePath = path.normalize(path.join(getPathFromAmdModule(require, ''), '..', 'build', 'builtInExtensions.json'));
+			const builtInExtensions = pfs.readFile(builtInExtensionsFilePath, 'utf8')
+				.then<IBuiltInExtension[]>(raw => JSON.parse(raw));
+
+			const controlFilePath = path.join(os.homedir(), '.vscode-oss-dev', 'extensions', 'control.json');
+			const controlFile = pfs.readFile(controlFilePath, 'utf8')
+				.then<IBuiltInExtensionControl>(raw => JSON.parse(raw), () => ({} as any));
+
+			const input = new ExtensionScannerInput(version, commit, locale, devMode, getExtraDevSystemExtensionsRoot(), true, false, translations);
+			const extraBuiltinExtensions = Promise.all([builtInExtensions, controlFile])
+				.then(([builtInExtensions, control]) => new ExtraBuiltInExtensionResolver(builtInExtensions, control))
+				.then(resolver => ExtensionScanner.scanExtensions(input, log, resolver));
+
+			finalBuiltinExtensions = ExtensionScanner.mergeBuiltinExtensions(builtinExtensions, extraBuiltinExtensions);
+		}
+
+		const userExtensions = (
+			extensionEnablementService.allUserExtensionsDisabled || !environmentService.extensionsPath
+				? Promise.resolve([])
+				: this._scanExtensionsWithCache(
+					windowService,
+					notificationService,
+					environmentService,
+					USER_MANIFEST_CACHE_FILE,
+					new ExtensionScannerInput(version, commit, locale, devMode, environmentService.extensionsPath, false, false, translations),
+					log
+				)
+		);
+
+		// Always load developed extensions while extensions development
+		let developedExtensions: Promise<IExtensionDescription[]> = Promise.resolve([]);
+		if (environmentService.isExtensionDevelopment && environmentService.extensionDevelopmentLocationURI && environmentService.extensionDevelopmentLocationURI.scheme === Schemas.file) {
+			developedExtensions = ExtensionScanner.scanOneOrMultipleExtensions(
+				new ExtensionScannerInput(version, commit, locale, devMode, fsPath(environmentService.extensionDevelopmentLocationURI), false, true, translations), log
 			);
+		}
 
-			// Always load developed extensions while extensions development
-			let developedExtensions: Promise<IExtensionDescription[]> = Promise.resolve([]);
-			if (environmentService.isExtensionDevelopment && environmentService.extensionDevelopmentLocationURI && environmentService.extensionDevelopmentLocationURI.scheme === Schemas.file) {
-				developedExtensions = ExtensionScanner.scanOneOrMultipleExtensions(
-					new ExtensionScannerInput(version, commit, locale, devMode, fsPath(environmentService.extensionDevelopmentLocationURI), false, true, translations), log
-				);
-			}
-
-			return Promise.all([finalBuiltinExtensions, userExtensions, developedExtensions]).then((extensionDescriptions: IExtensionDescription[][]) => {
-				const system = extensionDescriptions[0];
-				const user = extensionDescriptions[1];
-				const development = extensionDescriptions[2];
-				return { system, user, development };
-			}).then(null, err => {
-				log.error('', err);
-				return { system: [], user: [], development: [] };
-			});
+		return Promise.all([finalBuiltinExtensions, userExtensions, developedExtensions]).then((extensionDescriptions: IExtensionDescription[][]) => {
+			const system = extensionDescriptions[0];
+			const user = extensionDescriptions[1];
+			const development = extensionDescriptions[2];
+			return { system, user, development };
+		}).then(undefined, err => {
+			log.error('', err);
+			return { system: [], user: [], development: [] };
 		});
-
 	}
 }
 

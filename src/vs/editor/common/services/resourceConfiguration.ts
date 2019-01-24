@@ -43,5 +43,5 @@ export interface ITextResourcePropertiesService {
 	/**
 	 * Returns the End of Line characters for the given resource
 	 */
-	getEOL(resource: URI, language?: string): string;
+	getEOL(resource: URI | null | undefined, language?: string): string;
 }

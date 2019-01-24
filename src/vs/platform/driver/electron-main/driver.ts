@@ -12,7 +12,7 @@ import { IPCServer, StaticRouter } from 'vs/base/parts/ipc/node/ipc';
 import { SimpleKeybinding, KeyCode } from 'vs/base/common/keyCodes';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { OS } from 'vs/base/common/platform';
-import { Emitter, toPromise } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ScanCodeBinding } from 'vs/base/common/scanCode';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
@@ -33,7 +33,7 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 	constructor(
 		private windowServer: IPCServer,
 		private options: IDriverOptions,
-		@IWindowsMainService private windowsService: IWindowsMainService
+		@IWindowsMainService private readonly windowsService: IWindowsMainService
 	) { }
 
 	async registerWindowDriver(windowId: number): Promise<IDriverOptions> {
@@ -69,6 +69,10 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 		const window = this.windowsService.getWindowById(windowId);
 		this.reloadingWindowIds.add(windowId);
 		this.windowsService.reload(window);
+	}
+
+	async exitApplication(): Promise<void> {
+		return this.windowsService.quit();
 	}
 
 	async dispatchKeybinding(windowId: number, keybinding: string): Promise<void> {
@@ -183,7 +187,7 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 
 	private async whenUnfrozen(windowId: number): Promise<void> {
 		while (this.reloadingWindowIds.has(windowId)) {
-			await toPromise(this.onDidReloadingChange.event);
+			await Event.toPromise(this.onDidReloadingChange.event);
 		}
 	}
 }

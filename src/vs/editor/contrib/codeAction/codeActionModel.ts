@@ -28,7 +28,7 @@ export class CodeActionOracle {
 	constructor(
 		private _editor: ICodeEditor,
 		private readonly _markerService: IMarkerService,
-		private _signalChange: (e: CodeActionsComputeEvent) => any,
+		private _signalChange: (newState: CodeActionsState.State) => void,
 		private readonly _delay: number = 250,
 		private readonly _progressService?: IProgressService,
 	) {
@@ -112,26 +112,16 @@ export class CodeActionOracle {
 		return selection ? selection : undefined;
 	}
 
-	private _createEventAndSignalChange(trigger: CodeActionTrigger, selection: Selection | undefined): Thenable<CodeAction[] | undefined> {
+	private _createEventAndSignalChange(trigger: CodeActionTrigger, selection: Selection | undefined): Promise<CodeAction[] | undefined> {
 		if (!selection) {
 			// cancel
-			this._signalChange({
-				trigger,
-				rangeOrSelection: undefined,
-				position: undefined,
-				actions: undefined,
-			});
+			this._signalChange(CodeActionsState.Empty);
 			return Promise.resolve(undefined);
 		} else {
 			const model = this._editor.getModel();
 			if (!model) {
 				// cancel
-				this._signalChange({
-					trigger,
-					rangeOrSelection: undefined,
-					position: undefined,
-					actions: undefined,
-				});
+				this._signalChange(CodeActionsState.Empty);
 				return Promise.resolve(undefined);
 			}
 
@@ -143,22 +133,38 @@ export class CodeActionOracle {
 				this._progressService.showWhile(actions, 250);
 			}
 
-			this._signalChange({
+			this._signalChange(new CodeActionsState.Triggered(
 				trigger,
-				rangeOrSelection: selection,
+				selection,
 				position,
 				actions
-			});
+			));
 			return actions;
 		}
 	}
 }
 
-export interface CodeActionsComputeEvent {
-	trigger: CodeActionTrigger;
-	rangeOrSelection: Range | Selection | undefined;
-	position: Position | undefined;
-	actions: CancelablePromise<CodeAction[]> | undefined;
+export namespace CodeActionsState {
+
+	export const enum Type {
+		Empty,
+		Triggered,
+	}
+
+	export const Empty = new class { readonly type = Type.Empty; };
+
+	export class Triggered {
+		readonly type = Type.Triggered;
+
+		constructor(
+			public readonly trigger: CodeActionTrigger,
+			public readonly rangeOrSelection: Range | Selection,
+			public readonly position: Position,
+			public readonly actions: CancelablePromise<CodeAction[]>,
+		) { }
+	}
+
+	export type State = typeof Empty | Triggered;
 }
 
 export class CodeActionModel {
@@ -166,7 +172,8 @@ export class CodeActionModel {
 	private _editor: ICodeEditor;
 	private _markerService: IMarkerService;
 	private _codeActionOracle?: CodeActionOracle;
-	private _onDidChangeFixes = new Emitter<CodeActionsComputeEvent>();
+	private _state: CodeActionsState.State = CodeActionsState.Empty;
+	private _onDidChangeState = new Emitter<CodeActionsState.State>();
 	private _disposables: IDisposable[] = [];
 	private readonly _supportedCodeActions: IContextKey<string>;
 
@@ -178,7 +185,7 @@ export class CodeActionModel {
 
 		this._disposables.push(this._editor.onDidChangeModel(() => this._update()));
 		this._disposables.push(this._editor.onDidChangeModelLanguage(() => this._update()));
-		this._disposables.push(CodeActionProviderRegistry.onDidChange(this._update, this));
+		this._disposables.push(CodeActionProviderRegistry.onDidChange(() => this._update()));
 
 		this._update();
 	}
@@ -188,23 +195,26 @@ export class CodeActionModel {
 		dispose(this._codeActionOracle);
 	}
 
-	get onDidChangeFixes(): Event<CodeActionsComputeEvent> {
-		return this._onDidChangeFixes.event;
+	get onDidChangeState(): Event<CodeActionsState.State> {
+		return this._onDidChangeState.event;
 	}
 
 	private _update(): void {
-
 		if (this._codeActionOracle) {
 			this._codeActionOracle.dispose();
 			this._codeActionOracle = undefined;
-			this._onDidChangeFixes.fire(undefined);
 		}
+
+		if (this._state.type === CodeActionsState.Type.Triggered) {
+			// this._state.actions.cancel();
+		}
+		this.setState(CodeActionsState.Empty);
 
 		const model = this._editor.getModel();
 		if (model
 			&& CodeActionProviderRegistry.has(model)
-			&& !this._editor.getConfiguration().readOnly) {
-
+			&& !this._editor.getConfiguration().readOnly
+		) {
 			const supportedActions: string[] = [];
 			for (const provider of CodeActionProviderRegistry.all(model)) {
 				if (Array.isArray(provider.providedCodeActionKinds)) {
@@ -214,17 +224,25 @@ export class CodeActionModel {
 
 			this._supportedCodeActions.set(supportedActions.join(' '));
 
-			this._codeActionOracle = new CodeActionOracle(this._editor, this._markerService, p => this._onDidChangeFixes.fire(p), undefined, this._progressService);
+			this._codeActionOracle = new CodeActionOracle(this._editor, this._markerService, newState => this.setState(newState), undefined, this._progressService);
 			this._codeActionOracle.trigger({ type: 'auto' });
 		} else {
 			this._supportedCodeActions.reset();
 		}
 	}
 
-	trigger(trigger: CodeActionTrigger): Thenable<CodeAction[] | undefined> {
+	public trigger(trigger: CodeActionTrigger): Promise<CodeAction[] | undefined> {
 		if (this._codeActionOracle) {
 			return this._codeActionOracle.trigger(trigger);
 		}
 		return Promise.resolve(undefined);
+	}
+
+	private setState(newState: CodeActionsState.State) {
+		if (newState === this._state) {
+			return;
+		}
+		this._state = newState;
+		this._onDidChangeState.fire(newState);
 	}
 }

@@ -9,7 +9,7 @@ import { nfcall, Queue } from 'vs/base/common/async';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as platform from 'vs/base/common/platform';
-import { once } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 
 export function readdir(path: string): Promise<string[]> {
 	return nfcall(extfs.readdir, path);
@@ -36,7 +36,7 @@ export function rimraf(path: string): Promise<void> {
 		}
 	}, (err: NodeJS.ErrnoException) => {
 		if (err.code === 'ENOENT') {
-			return void 0;
+			return undefined;
 		}
 
 		return Promise.reject(err);
@@ -75,12 +75,6 @@ export function rmdir(path: string): Promise<void> {
 
 export function unlink(path: string): Promise<void> {
 	return nfcall(fs.unlink, path);
-}
-
-export function unlinkIgnoreError(path: string): Promise<void> {
-	return new Promise(resolve => {
-		fs.unlink(path, () => resolve());
-	});
 }
 
 export function symlink(target: string, path: string, type?: string): Promise<void> {
@@ -132,7 +126,7 @@ function ensureWriteFileQueue(queueKey: string): Queue<void> {
 		writeFileQueue = new Queue<void>();
 		writeFilePathQueue[queueKey] = writeFileQueue;
 
-		const onFinish = once(writeFileQueue.onFinished);
+		const onFinish = Event.once(writeFileQueue.onFinished);
 		onFinish(() => {
 			delete writeFilePathQueue[queueKey];
 			writeFileQueue.dispose();
@@ -194,7 +188,7 @@ export function whenDeleted(path: string): Promise<void> {
 
 					if (!exists) {
 						clearInterval(interval);
-						resolve(void 0);
+						resolve(undefined);
 					}
 				});
 			}

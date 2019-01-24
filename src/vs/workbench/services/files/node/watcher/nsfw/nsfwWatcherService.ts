@@ -27,7 +27,7 @@ interface IWatcherObjet {
 }
 
 interface IPathWatcher {
-	ready: Thenable<IWatcherObjet>;
+	ready: Promise<IWatcherObjet>;
 	watcher?: IWatcherObjet;
 	ignored: glob.ParsedPattern[];
 }
@@ -49,7 +49,7 @@ export class NsfwWatcherService implements IWatcherService {
 
 	private _watch(request: IWatcherRequest): void {
 		let undeliveredFileEvents: watcher.IRawFileChange[] = [];
-		const fileEventDelayer = new ThrottledDelayer(NsfwWatcherService.FS_EVENT_DELAY);
+		const fileEventDelayer = new ThrottledDelayer<void>(NsfwWatcherService.FS_EVENT_DELAY);
 
 		let readyPromiseResolve: (watcher: IWatcherObjet) => void;
 		this._pathWatchers[request.basePath] = {
@@ -99,12 +99,10 @@ export class NsfwWatcherService implements IWatcherService {
 		}
 
 		nsfw(request.basePath, events => {
-			for (let i = 0; i < events.length; i++) {
-				const e = events[i];
-
+			for (const e of events) {
 				// Logging
 				if (this._verboseLogging) {
-					const logPath = e.action === nsfw.actions.RENAMED ? path.join(e.directory, e.oldFile) + ' -> ' + e.newFile : path.join(e.directory, e.file);
+					const logPath = e.action === nsfw.actions.RENAMED ? path.join(e.directory, e.oldFile || '') + ' -> ' + e.newFile : path.join(e.directory, e.file || '');
 					console.log(`${e.action === nsfw.actions.CREATED ? '[CREATED]' : e.action === nsfw.actions.DELETED ? '[DELETED]' : e.action === nsfw.actions.MODIFIED ? '[CHANGED]' : '[RENAMED]'} ${logPath}`);
 				}
 
@@ -112,20 +110,20 @@ export class NsfwWatcherService implements IWatcherService {
 				let absolutePath: string;
 				if (e.action === nsfw.actions.RENAMED) {
 					// Rename fires when a file's name changes within a single directory
-					absolutePath = path.join(e.directory, e.oldFile);
+					absolutePath = path.join(e.directory, e.oldFile || '');
 					if (!this._isPathIgnored(absolutePath, this._pathWatchers[request.basePath].ignored)) {
 						undeliveredFileEvents.push({ type: FileChangeType.DELETED, path: absolutePath });
 					} else if (this._verboseLogging) {
 						console.log(' >> ignored', absolutePath);
 					}
-					absolutePath = path.join(e.directory, e.newFile);
+					absolutePath = path.join(e.directory, e.newFile || '');
 					if (!this._isPathIgnored(absolutePath, this._pathWatchers[request.basePath].ignored)) {
 						undeliveredFileEvents.push({ type: FileChangeType.ADDED, path: absolutePath });
 					} else if (this._verboseLogging) {
 						console.log(' >> ignored', absolutePath);
 					}
 				} else {
-					absolutePath = path.join(e.directory, e.file);
+					absolutePath = path.join(e.directory, e.file || '');
 					if (!this._isPathIgnored(absolutePath, this._pathWatchers[request.basePath].ignored)) {
 						undeliveredFileEvents.push({
 							type: nsfwActionToRawChangeType[e.action],
@@ -166,7 +164,7 @@ export class NsfwWatcherService implements IWatcherService {
 					});
 				}
 
-				return Promise.resolve(null);
+				return Promise.resolve(undefined);
 			});
 		}).then(watcher => {
 			this._pathWatchers[request.basePath].watcher = watcher;
@@ -176,8 +174,8 @@ export class NsfwWatcherService implements IWatcherService {
 		});
 	}
 
-	public setRoots(roots: IWatcherRequest[]): Thenable<void> {
-		const promises: Thenable<void>[] = [];
+	public setRoots(roots: IWatcherRequest[]): Promise<void> {
+		const promises: Promise<void>[] = [];
 		const normalizedRoots = this._normalizeRoots(roots);
 
 		// Gather roots that are not currently being watched
@@ -211,15 +209,15 @@ export class NsfwWatcherService implements IWatcherService {
 			}
 		});
 
-		return Promise.all(promises).then(() => void 0);
+		return Promise.all(promises).then(() => undefined);
 	}
 
-	public setVerboseLogging(enabled: boolean): Thenable<void> {
+	public setVerboseLogging(enabled: boolean): Promise<void> {
 		this._verboseLogging = enabled;
-		return Promise.resolve(null);
+		return Promise.resolve(undefined);
 	}
 
-	public stop(): Thenable<void> {
+	public stop(): Promise<void> {
 		for (let path in this._pathWatchers) {
 			let watcher = this._pathWatchers[path];
 			watcher.ready.then(watcher => watcher.stop());

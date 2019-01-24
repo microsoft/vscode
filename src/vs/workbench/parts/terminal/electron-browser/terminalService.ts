@@ -28,6 +28,7 @@ import { TerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/t
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { IQuickInputService, IQuickPickItem, IPickOptions } from 'vs/platform/quickinput/common/quickInput';
+import { coalesce } from 'vs/base/common/arrays';
 
 export class TerminalService extends AbstractTerminalService implements ITerminalService {
 	private _configHelper: TerminalConfigHelper;
@@ -67,6 +68,13 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 					}
 				});
 			}
+		});
+		ipc.on('vscode:osResume', () => {
+			const activeTab = this.getActiveTab();
+			if (!activeTab) {
+				return;
+			}
+			activeTab.terminalInstances.forEach(instance => instance.forceRedraw());
 		});
 	}
 
@@ -250,17 +258,19 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		};
 		const promises: PromiseLike<[string, string]>[] = [];
 		Object.keys(expectedLocations).forEach(key => promises.push(this._validateShellPaths(key, expectedLocations[key])));
-		return Promise.all(promises).then(results => {
-			return results.filter(result => !!result).map(result => {
-				return <IQuickPickItem>{
-					label: result[0],
-					description: result[1]
-				};
+		return Promise.all(promises)
+			.then(coalesce)
+			.then(results => {
+				return results.map(result => {
+					return <IQuickPickItem>{
+						label: result[0],
+						description: result[1]
+					};
+				});
 			});
-		});
 	}
 
-	private _validateShellPaths(label: string, potentialPaths: string[]): PromiseLike<[string, string]> {
+	private _validateShellPaths(label: string, potentialPaths: string[]): Promise<[string, string]> {
 		const current = potentialPaths.shift();
 		return pfs.fileExists(current).then(exists => {
 			if (!exists) {
@@ -278,7 +288,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		return activeInstance ? activeInstance : this.createTerminal(undefined, wasNewTerminalAction);
 	}
 
-	protected _showTerminalCloseConfirmation(): PromiseLike<boolean> {
+	protected _showTerminalCloseConfirmation(): Promise<boolean> {
 		let message;
 		if (this.terminalInstances.length === 1) {
 			message = nls.localize('terminalService.terminalCloseConfirmationSingular', "There is an active terminal session, do you want to kill it?");

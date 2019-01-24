@@ -16,22 +16,22 @@ export interface IReplaceService {
 	/**
 	 * Replaces the given match in the file that match belongs to
 	 */
-	replace(match: Match): Thenable<any>;
+	replace(match: Match): Promise<any>;
 
 	/**
 	 *	Replace all the matches from the given file matches in the files
 	 *  You can also pass the progress runner to update the progress of replacing.
 	 */
-	replace(files: FileMatch[], progress?: IProgressRunner): Thenable<any>;
+	replace(files: FileMatch[], progress?: IProgressRunner): Promise<any>;
 
 	/**
 	 * Opens the replace preview for given file match or match
 	 */
-	openReplacePreview(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Thenable<any>;
+	openReplacePreview(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<any>;
 
 	/**
 	 * Update the replace preview for the given file.
 	 * If `override` is `true`, then replace preview is constructed from source model
 	 */
-	updateReplacePreview(file: FileMatch, override?: boolean): Thenable<void>;
+	updateReplacePreview(file: FileMatch, override?: boolean): Promise<void>;
 }

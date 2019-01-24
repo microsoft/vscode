@@ -6,7 +6,7 @@
 import 'vs/css!../browser/media/breakpointWidget';
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
+import { SelectBox, ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import { Position, IPosition } from 'vs/editor/common/core/position';
@@ -56,13 +56,13 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 	private breakpoint: IBreakpoint;
 
 	constructor(editor: ICodeEditor, private lineNumber: number, private context: Context,
-		@IContextViewService private contextViewService: IContextViewService,
-		@IDebugService private debugService: IDebugService,
-		@IThemeService private themeService: IThemeService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IModelService private modelService: IModelService,
-		@ICodeEditorService private codeEditorService: ICodeEditorService,
+		@IContextViewService private readonly contextViewService: IContextViewService,
+		@IDebugService private readonly debugService: IDebugService,
+		@IThemeService private readonly themeService: IThemeService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IModelService private readonly modelService: IModelService,
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 	) {
 		super(editor, { showFrame: true, showArrow: false, frameWidth: 1 });
 
@@ -139,7 +139,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 
 	protected _fillContainer(container: HTMLElement): void {
 		this.setCssClass('breakpoint-widget');
-		const selectBox = new SelectBox([nls.localize('expression', "Expression"), nls.localize('hitCount', "Hit Count"), nls.localize('logMessage', "Log Message")], this.context, this.contextViewService, null, { ariaLabel: nls.localize('breakpointType', 'Breakpoint Type') });
+		const selectBox = new SelectBox(<ISelectOptionItem[]>[{ text: nls.localize('expression', "Expression") }, { text: nls.localize('hitCount', "Hit Count") }, { text: nls.localize('logMessage', "Log Message") }], this.context, this.contextViewService, null, { ariaLabel: nls.localize('breakpointType', 'Breakpoint Type') });
 		this.toDispose.push(attachSelectBoxStyler(selectBox, this.themeService));
 		this.selectContainer = $('.breakpoint-select-container');
 		selectBox.render(dom.append(container, this.selectContainer));
@@ -230,7 +230,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		this.themeService.onThemeChange(() => setDecorations());
 
 		this.toDispose.push(CompletionProviderRegistry.register({ scheme: DEBUG_SCHEME, hasAccessToAllModels: true }, {
-			provideCompletionItems: (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken): Thenable<CompletionList> => {
+			provideCompletionItems: (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken): Promise<CompletionList> => {
 				let suggestionsPromise: Promise<CompletionList>;
 				if (this.context === Context.CONDITION || this.context === Context.LOG_MESSAGE && this.isCurlyBracketOpen()) {
 					suggestionsPromise = provideSuggestionItems(this.editor.getModel(), new Position(this.lineNumber, 1), 'none', undefined, _context, token).then(suggestions => {
@@ -248,8 +248,8 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 
 						return {
 							suggestions: suggestions.map(s => {
-								s.suggestion.range = Range.fromPositions(position.delta(0, -overwriteBefore), position);
-								return s.suggestion;
+								s.completion.range = Range.fromPositions(position.delta(0, -overwriteBefore), position);
+								return s.completion;
 							})
 						};
 					});

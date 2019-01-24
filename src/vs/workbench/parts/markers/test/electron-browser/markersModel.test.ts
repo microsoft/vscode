@@ -117,11 +117,11 @@ suite('MarkersModel Test', () => {
 		assert.equal(JSON.stringify({ ...marker, resource: marker.resource.path }, null, '\t'), new Marker(marker).toString());
 
 		marker = aMarker('a/res2', MarkerSeverity.Warning, 1, 2, 1, 8, 'Warning message', '', [{ startLineNumber: 2, startColumn: 5, endLineNumber: 2, endColumn: 10, message: 'some info', resource: URI.file('a/res3') }]);
-		const testObject = new Marker(marker, null);
+		const testObject = new Marker(marker, null!);
 
 		// hack
-		(testObject as any).relatedInformation = marker.relatedInformation.map(r => new RelatedInformation(marker.resource, marker, r));
-		assert.equal(JSON.stringify({ ...marker, resource: marker.resource.path, relatedInformation: marker.relatedInformation.map(r => ({ ...r, resource: r.resource.path })) }, null, '\t'), testObject.toString());
+		(testObject as any).relatedInformation = marker.relatedInformation!.map(r => new RelatedInformation(marker.resource, marker, r));
+		assert.equal(JSON.stringify({ ...marker, resource: marker.resource.path, relatedInformation: marker.relatedInformation!.map(r => ({ ...r, resource: r.resource.path })) }, null, '\t'), testObject.toString());
 	});
 
 	function compareResource(a: ResourceMarkers, b: string): boolean {

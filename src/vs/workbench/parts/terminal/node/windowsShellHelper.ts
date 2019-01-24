@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as platform from 'vs/base/common/platform';
-import { Emitter, debounceEvent } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { ITerminalInstance } from 'vs/workbench/parts/terminal/common/terminal';
 import { Terminal as XTermTerminal } from 'vscode-xterm';
 import WindowsProcessTreeType = require('windows-process-tree');
@@ -25,7 +25,7 @@ const SHELL_EXECUTABLES = [
 let windowsProcessTree: typeof WindowsProcessTreeType;
 
 export class WindowsShellHelper {
-	private _onCheckShell: Emitter<Promise<string>>;
+	private _onCheckShell: Emitter<Promise<string> | undefined>;
 	private _isDisposed: boolean;
 	private _currentRequest: Promise<string> | null;
 	private _newLineFeed: boolean;
@@ -50,7 +50,7 @@ export class WindowsShellHelper {
 			this._onCheckShell = new Emitter<Promise<string>>();
 			// The debounce is necessary to prevent multiple processes from spawning when
 			// the enter key or output is spammed
-			debounceEvent(this._onCheckShell.event, (l, e) => e, 150, true)(() => {
+			Event.debounce(this._onCheckShell.event, (l, e) => e, 150, true)(() => {
 				setTimeout(() => {
 					this.checkShell();
 				}, 50);
@@ -64,12 +64,12 @@ export class WindowsShellHelper {
 			this._xterm.on('linefeed', () => this._newLineFeed = true);
 			this._xterm.on('cursormove', () => {
 				if (this._newLineFeed) {
-					this._onCheckShell.fire();
+					this._onCheckShell.fire(undefined);
 				}
 			});
 
 			// Fire a new check for the shell when any key is pressed.
-			this._xterm.on('keypress', () => this._onCheckShell.fire());
+			this._xterm.on('keypress', () => this._onCheckShell.fire(undefined));
 		});
 	}
 

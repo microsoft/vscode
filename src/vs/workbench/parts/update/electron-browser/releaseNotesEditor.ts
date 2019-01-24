@@ -7,7 +7,6 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import * as marked from 'vs/base/common/marked/marked';
 import { OS } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { asText } from 'vs/base/node/request';
 import { TokenizationRegistry, ITokenizationSupport } from 'vs/editor/common/modes';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
@@ -48,7 +47,7 @@ function renderBody(
 
 export class ReleaseNotesManager {
 
-	private _releaseNotesCache: { [version: string]: TPromise<string>; } = Object.create(null);
+	private _releaseNotesCache: { [version: string]: Promise<string>; } = Object.create(null);
 
 	private _currentReleaseNotes: WebviewEditorInput | undefined = undefined;
 	private _lastText: string;
@@ -111,12 +110,10 @@ export class ReleaseNotesManager {
 		return true;
 	}
 
-	private loadReleaseNotes(
-		version: string
-	): TPromise<string> {
+	private loadReleaseNotes(version: string): Promise<string> {
 		const match = /^(\d+\.\d+)\./.exec(version);
 		if (!match) {
-			return TPromise.wrapError<string>(new Error('not found'));
+			return Promise.reject(new Error('not found'));
 		}
 
 		const versionLabel = match[1].replace(/\./g, '_');
@@ -161,10 +158,10 @@ export class ReleaseNotesManager {
 				.then(asText)
 				.then(text => {
 					if (!/^#\s/.test(text)) { // release notes always starts with `#` followed by whitespace
-						return TPromise.wrapError<string>(new Error('Invalid release notes'));
+						return Promise.reject(new Error('Invalid release notes'));
 					}
 
-					return TPromise.wrap(text);
+					return Promise.resolve(text);
 				})
 				.then(text => patchKeybindings(text));
 		}
@@ -175,7 +172,7 @@ export class ReleaseNotesManager {
 	private onDidClickLink(uri: URI) {
 		addGAParameters(this._telemetryService, this._environmentService, uri, 'ReleaseNotes')
 			.then(updated => this._openerService.open(updated))
-			.then(null, onUnexpectedError);
+			.then(undefined, onUnexpectedError);
 	}
 
 	private async renderBody(text: string) {
@@ -191,10 +188,10 @@ export class ReleaseNotesManager {
 		return marked(text, { renderer });
 	}
 
-	private async getRenderer(text: string) {
-		let result: TPromise<ITokenizationSupport>[] = [];
+	private async getRenderer(text: string): Promise<marked.Renderer> {
+		let result: Promise<ITokenizationSupport>[] = [];
 		const renderer = new marked.Renderer();
-		renderer.code = (code, lang) => {
+		renderer.code = (_code, lang) => {
 			const modeId = this._modeService.getModeIdForLanguageName(lang);
 			result.push(this._extensionService.whenInstalledExtensionsRegistered().then(_ => {
 				this._modeService.triggerMode(modeId);
@@ -204,9 +201,12 @@ export class ReleaseNotesManager {
 		};
 
 		marked(text, { renderer });
-		await TPromise.join(result);
+		await Promise.all(result);
 
-		renderer.code = (code, lang) => `<code>${tokenizeToString(code, TokenizationRegistry.get(lang))}</code>`;
+		renderer.code = (code, lang) => {
+			const modeId = this._modeService.getModeIdForLanguageName(lang);
+			return `<code>${tokenizeToString(code, TokenizationRegistry.get(modeId))}</code>`;
+		};
 		return renderer;
 	}
 }

@@ -7,6 +7,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import * as objects from 'vs/base/common/objects';
 import { renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
+import { escape } from 'vs/base/common/strings';
 
 export interface IHighlight {
 	start: number;
@@ -32,7 +33,7 @@ export class HighlightedLabel implements IDisposable {
 		return this.domNode;
 	}
 
-	set(text: string, highlights: IHighlight[] = [], title: string = '', escapeNewLines?: boolean) {
+	set(text: string | undefined, highlights: IHighlight[] = [], title: string = '', escapeNewLines?: boolean) {
 		if (!text) {
 			text = '';
 		}
@@ -57,25 +58,23 @@ export class HighlightedLabel implements IDisposable {
 	private render() {
 		dom.clearNode(this.domNode);
 
-		let htmlContent: string[] = [],
-			highlight: IHighlight,
-			pos = 0;
+		let htmlContent: string[] = [];
+		let pos = 0;
 
-		for (let i = 0; i < this.highlights.length; i++) {
-			highlight = this.highlights[i];
+		for (const highlight of this.highlights) {
 			if (highlight.end === highlight.start) {
 				continue;
 			}
 			if (pos < highlight.start) {
 				htmlContent.push('<span>');
 				const substring = this.text.substring(pos, highlight.start);
-				htmlContent.push(this.supportOcticons ? renderOcticons(substring) : substring);
+				htmlContent.push(this.supportOcticons ? renderOcticons(substring) : escape(substring));
 				htmlContent.push('</span>');
 				pos = highlight.end;
 			}
 			htmlContent.push('<span class="highlight">');
 			const substring = this.text.substring(highlight.start, highlight.end);
-			htmlContent.push(this.supportOcticons ? renderOcticons(substring) : substring);
+			htmlContent.push(this.supportOcticons ? renderOcticons(substring) : escape(substring));
 			htmlContent.push('</span>');
 			pos = highlight.end;
 		}
@@ -83,7 +82,7 @@ export class HighlightedLabel implements IDisposable {
 		if (pos < this.text.length) {
 			htmlContent.push('<span>');
 			const substring = this.text.substring(pos);
-			htmlContent.push(this.supportOcticons ? renderOcticons(substring) : substring);
+			htmlContent.push(this.supportOcticons ? renderOcticons(substring) : escape(substring));
 			htmlContent.push('</span>');
 		}
 

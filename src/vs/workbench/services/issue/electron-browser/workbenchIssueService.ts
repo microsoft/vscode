@@ -7,26 +7,26 @@ import { IssueReporterStyles, IIssueService, IssueReporterData, ProcessExplorerD
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { textLinkForeground, inputBackground, inputBorder, inputForeground, buttonBackground, buttonHoverBackground, buttonForeground, inputValidationErrorBorder, foreground, inputActiveOptionBorder, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, editorBackground, editorForeground, listHoverBackground, listHoverForeground, listHighlightForeground, textLinkActiveForeground } from 'vs/platform/theme/common/colorRegistry';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { IExtensionManagementService, IExtensionEnablementService, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { webFrame } from 'electron';
 import { assign } from 'vs/base/common/objects';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 import { IWindowService } from 'vs/platform/windows/common/windows';
+import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 
 export class WorkbenchIssueService implements IWorkbenchIssueService {
 	_serviceBrand: any;
 
 	constructor(
-		@IIssueService private issueService: IIssueService,
-		@IThemeService private themeService: IThemeService,
-		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
-		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
-		@IWindowService private windowService: IWindowService
-	) {
-	}
+		@IIssueService private readonly issueService: IIssueService,
+		@IThemeService private readonly themeService: IThemeService,
+		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
+		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService,
+		@IWindowService private readonly windowService: IWindowService
+	) { }
 
 	openReporter(dataOverrides: Partial<IssueReporterData> = {}): Promise<void> {
-		return this.extensionManagementService.getInstalled(LocalExtensionType.User).then(extensions => {
+		return this.extensionManagementService.getInstalled(ExtensionType.User).then(extensions => {
 			const enabledExtensions = extensions.filter(extension => this.extensionEnablementService.isEnabled(extension));
 			const extensionData: IssueReporterExtensionData[] = enabledExtensions.map(extension => {
 				const { manifest } = extension;
@@ -57,17 +57,17 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 		});
 	}
 
-	openProcessExplorer(): Thenable<void> {
+	openProcessExplorer(): Promise<void> {
 		const theme = this.themeService.getTheme();
 		const data: ProcessExplorerData = {
 			pid: this.windowService.getConfiguration().mainPid,
 			zoomLevel: webFrame.getZoomLevel(),
 			styles: {
-				backgroundColor: theme.getColor(editorBackground) && theme.getColor(editorBackground).toString(),
-				color: theme.getColor(editorForeground).toString(),
-				hoverBackground: theme.getColor(listHoverBackground) && theme.getColor(listHoverBackground).toString(),
-				hoverForeground: theme.getColor(listHoverForeground) && theme.getColor(listHoverForeground).toString(),
-				highlightForeground: theme.getColor(listHighlightForeground) && theme.getColor(listHighlightForeground).toString()
+				backgroundColor: getColor(theme, editorBackground),
+				color: getColor(theme, editorForeground),
+				hoverBackground: getColor(theme, listHoverBackground),
+				hoverForeground: getColor(theme, listHoverForeground),
+				highlightForeground: getColor(theme, listHighlightForeground),
 			}
 		};
 		return this.issueService.openProcessExplorer(data);
@@ -76,20 +76,26 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 
 export function getIssueReporterStyles(theme: ITheme): IssueReporterStyles {
 	return {
-		backgroundColor: theme.getColor(SIDE_BAR_BACKGROUND) && theme.getColor(SIDE_BAR_BACKGROUND).toString(),
-		color: theme.getColor(foreground).toString(),
-		textLinkColor: theme.getColor(textLinkForeground) && theme.getColor(textLinkForeground).toString(),
-		textLinkActiveForeground: theme.getColor(textLinkActiveForeground) && theme.getColor(textLinkActiveForeground).toString(),
-		inputBackground: theme.getColor(inputBackground) && theme.getColor(inputBackground).toString(),
-		inputForeground: theme.getColor(inputForeground) && theme.getColor(inputForeground).toString(),
-		inputBorder: theme.getColor(inputBorder) && theme.getColor(inputBorder).toString(),
-		inputActiveBorder: theme.getColor(inputActiveOptionBorder) && theme.getColor(inputActiveOptionBorder).toString(),
-		inputErrorBorder: theme.getColor(inputValidationErrorBorder) && theme.getColor(inputValidationErrorBorder).toString(),
-		buttonBackground: theme.getColor(buttonBackground) && theme.getColor(buttonBackground).toString(),
-		buttonForeground: theme.getColor(buttonForeground) && theme.getColor(buttonForeground).toString(),
-		buttonHoverBackground: theme.getColor(buttonHoverBackground) && theme.getColor(buttonHoverBackground).toString(),
-		sliderActiveColor: theme.getColor(scrollbarSliderActiveBackground) && theme.getColor(scrollbarSliderActiveBackground).toString(),
-		sliderBackgroundColor: theme.getColor(scrollbarSliderBackground) && theme.getColor(scrollbarSliderBackground).toString(),
-		sliderHoverColor: theme.getColor(scrollbarSliderHoverBackground) && theme.getColor(scrollbarSliderHoverBackground).toString()
+		backgroundColor: getColor(theme, SIDE_BAR_BACKGROUND),
+		color: getColor(theme, foreground),
+		textLinkColor: getColor(theme, textLinkForeground),
+		textLinkActiveForeground: getColor(theme, textLinkActiveForeground),
+		inputBackground: getColor(theme, inputBackground),
+		inputForeground: getColor(theme, inputForeground),
+		inputBorder: getColor(theme, inputBorder),
+		inputActiveBorder: getColor(theme, inputActiveOptionBorder),
+		inputErrorBorder: getColor(theme, inputValidationErrorBorder),
+		buttonBackground: getColor(theme, buttonBackground),
+		buttonForeground: getColor(theme, buttonForeground),
+		buttonHoverBackground: getColor(theme, buttonHoverBackground),
+		sliderActiveColor: getColor(theme, scrollbarSliderActiveBackground),
+		sliderBackgroundColor: getColor(theme, scrollbarSliderBackground),
+		sliderHoverColor: getColor(theme, scrollbarSliderHoverBackground),
 	};
 }
+
+function getColor(theme: ITheme, key: string): string | undefined {
+	const color = theme.getColor(key);
+	return color ? color.toString() : undefined;
+}
+

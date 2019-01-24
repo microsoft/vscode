@@ -116,12 +116,12 @@ export class WelcomeOverlayAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super(id, label);
 	}
 
-	public run(): Thenable<void> {
+	public run(): Promise<void> {
 		if (!welcomeOverlay) {
 			welcomeOverlay = this.instantiationService.createInstance(WelcomeOverlay);
 		}
@@ -142,7 +142,7 @@ export class HideWelcomeOverlayAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Thenable<void> {
+	public run(): Promise<void> {
 		if (welcomeOverlay) {
 			welcomeOverlay.hide();
 		}
@@ -157,11 +157,11 @@ class WelcomeOverlay {
 	private _overlay: HTMLElement;
 
 	constructor(
-		@IPartService private partService: IPartService,
-		@IEditorService private editorService: IEditorService,
-		@ICommandService private commandService: ICommandService,
+		@IPartService private readonly partService: IPartService,
+		@IEditorService private readonly editorService: IEditorService,
+		@ICommandService private readonly commandService: ICommandService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IKeybindingService private keybindingService: IKeybindingService
+		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
 		this._overlayVisible = OVERLAY_VISIBLE.bindTo(this._contextKeyService);
 		this.create();

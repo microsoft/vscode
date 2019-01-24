@@ -56,7 +56,7 @@ export function format(value: string, ...args: any[]): string {
  * being used e.g. in HTMLElement.innerHTML.
  */
 export function escape(html: string): string {
-	return html.replace(/[<|>|&]/g, function (match) {
+	return html.replace(/[<>&]/g, function (match) {
 		switch (match) {
 			case '<': return '&lt;';
 			case '>': return '&gt;';
@@ -188,6 +188,7 @@ export interface RegExpOptions {
 	wholeWord?: boolean;
 	multiline?: boolean;
 	global?: boolean;
+	unicode?: boolean;
 }
 
 export function createRegExp(searchString: string, isRegex: boolean, options: RegExpOptions = {}): RegExp {
@@ -215,6 +216,9 @@ export function createRegExp(searchString: string, isRegex: boolean, options: Re
 	if (options.multiline) {
 		modifiers += 'm';
 	}
+	if (options.unicode) {
+		modifiers += 'u';
+	}
 
 	return new RegExp(searchString, modifiers);
 }
@@ -234,6 +238,13 @@ export function regExpLeadsToEndlessLoop(regexp: RegExp): boolean {
 
 export function regExpContainsBackreference(regexpValue: string): boolean {
 	return !!regexpValue.match(/([^\\]|^)(\\\\)*\\\d+/);
+}
+
+export function regExpFlags(regexp: RegExp): string {
+	return (regexp.global ? 'g' : '')
+		+ (regexp.ignoreCase ? 'i' : '')
+		+ (regexp.multiline ? 'm' : '')
+		+ ((regexp as any).unicode ? 'u' : '');
 }
 
 /**

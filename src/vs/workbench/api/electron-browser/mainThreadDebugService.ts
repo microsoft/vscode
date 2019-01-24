@@ -31,7 +31,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IDebugService private debugService: IDebugService
+		@IDebugService private readonly debugService: IDebugService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDebugService);
 		this._toDispose = [];
@@ -121,7 +121,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		}
 	}
 
-	public $registerBreakpoints(DTOs: (ISourceMultiBreakpointDto | IFunctionBreakpointDto)[]): Thenable<void> {
+	public $registerBreakpoints(DTOs: Array<ISourceMultiBreakpointDto | IFunctionBreakpointDto>): Promise<void> {
 
 		for (let dto of DTOs) {
 			if (dto.type === 'sourceMulti') {
@@ -141,21 +141,20 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 				this.debugService.addFunctionBreakpoint(dto.functionName, dto.id);
 			}
 		}
-		return void 0;
+		return undefined;
 	}
 
-	public $unregisterBreakpoints(breakpointIds: string[], functionBreakpointIds: string[]): Thenable<void> {
+	public $unregisterBreakpoints(breakpointIds: string[], functionBreakpointIds: string[]): Promise<void> {
 		breakpointIds.forEach(id => this.debugService.removeBreakpoints(id));
 		functionBreakpointIds.forEach(id => this.debugService.removeFunctionBreakpoints(id));
-		return void 0;
+		return undefined;
 	}
 
 
-	public $registerDebugConfigurationProvider(debugType: string, hasProvide: boolean, hasResolve: boolean, hasProvideDebugAdapter: boolean, hasTracker: boolean, handle: number): Thenable<void> {
+	public $registerDebugConfigurationProvider(debugType: string, hasProvide: boolean, hasResolve: boolean, hasProvideDebugAdapter: boolean, handle: number): Promise<void> {
 
 		const provider = <IDebugConfigurationProvider>{
-			type: debugType,
-			hasTracker: hasTracker
+			type: debugType
 		};
 		if (hasProvide) {
 			provider.provideDebugConfigurations = (folder) => {
@@ -168,6 +167,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 			};
 		}
 		if (hasProvideDebugAdapter) {
+			console.info('DebugConfigurationProvider.debugAdapterExecutable is deprecated and will be removed soon; please use DebugAdapterDescriptorFactory.createDebugAdapterDescriptor instead.');
 			provider.debugAdapterExecutable = (folder) => {
 				return Promise.resolve(this._proxy.$legacyDebugAdapterExecutable(handle, folder));
 			};
@@ -186,7 +186,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		}
 	}
 
-	public $registerDebugAdapterDescriptorFactory(debugType: string, handle: number): Thenable<void> {
+	public $registerDebugAdapterDescriptorFactory(debugType: string, handle: number): Promise<void> {
 
 		const provider = <IDebugAdapterDescriptorFactory>{
 			type: debugType,
@@ -226,7 +226,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		}
 	}
 
-	public $startDebugging(_folderUri: uri | undefined, nameOrConfiguration: string | IConfig): Thenable<boolean> {
+	public $startDebugging(_folderUri: uri | undefined, nameOrConfiguration: string | IConfig): Promise<boolean> {
 		const folderUri = _folderUri ? uri.revive(_folderUri) : undefined;
 		const launch = this.debugService.getConfigurationManager().getLaunch(folderUri);
 		return this.debugService.startDebugging(launch, nameOrConfiguration).then(success => {
@@ -236,7 +236,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		});
 	}
 
-	public $customDebugAdapterRequest(sessionId: DebugSessionUUID, request: string, args: any): Thenable<any> {
+	public $customDebugAdapterRequest(sessionId: DebugSessionUUID, request: string, args: any): Promise<any> {
 		const session = this.debugService.getModel().getSessions(true).filter(s => s.getId() === sessionId).pop();
 		if (session) {
 			return session.customRequest(request, args).then(response => {
@@ -292,7 +292,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		return undefined;
 	}
 
-	private convertToDto(bps: (ReadonlyArray<IBreakpoint | IFunctionBreakpoint>)): (ISourceBreakpointDto | IFunctionBreakpointDto)[] {
+	private convertToDto(bps: (ReadonlyArray<IBreakpoint | IFunctionBreakpoint>)): Array<ISourceBreakpointDto | IFunctionBreakpointDto> {
 		return bps.map(bp => {
 			if ('name' in bp) {
 				const fbp = <IFunctionBreakpoint>bp;

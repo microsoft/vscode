@@ -482,7 +482,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 		);
 	}
 
-	private _trySetSelection(): Thenable<vscode.TextEditor> {
+	private _trySetSelection(): Promise<vscode.TextEditor> {
 		let selection = this._selections.map(TypeConverters.Selection.from);
 		return this._runOnProxy(() => this._proxy.$trySetSelections(this._id, selection));
 	}
@@ -494,7 +494,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 
 	// ---- editing
 
-	edit(callback: (edit: TextEditorEdit) => void, options: { undoStopBefore: boolean; undoStopAfter: boolean; } = { undoStopBefore: true, undoStopAfter: true }): Thenable<boolean> {
+	edit(callback: (edit: TextEditorEdit) => void, options: { undoStopBefore: boolean; undoStopAfter: boolean; } = { undoStopBefore: true, undoStopAfter: true }): Promise<boolean> {
 		if (this._disposed) {
 			return Promise.reject(new Error('TextEditor#edit not possible on closed editors'));
 		}
@@ -503,7 +503,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 		return this._applyEdit(edit);
 	}
 
-	private _applyEdit(editBuilder: TextEditorEdit): Thenable<boolean> {
+	private _applyEdit(editBuilder: TextEditorEdit): Promise<boolean> {
 		let editData = editBuilder.finalize();
 
 		// return when there is nothing to do
@@ -557,7 +557,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 		});
 	}
 
-	insertSnippet(snippet: SnippetString, where?: Position | Position[] | Range | Range[], options: { undoStopBefore: boolean; undoStopAfter: boolean; } = { undoStopBefore: true, undoStopAfter: true }): Thenable<boolean> {
+	insertSnippet(snippet: SnippetString, where?: Position | Position[] | Range | Range[], options: { undoStopBefore: boolean; undoStopAfter: boolean; } = { undoStopBefore: true, undoStopAfter: true }): Promise<boolean> {
 		if (this._disposed) {
 			return Promise.reject(new Error('TextEditor#insertSnippet not possible on closed editors'));
 		}
@@ -589,7 +589,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 
 	// ---- util
 
-	private _runOnProxy(callback: () => Thenable<any>): Thenable<ExtHostTextEditor> {
+	private _runOnProxy(callback: () => Promise<any>): Promise<ExtHostTextEditor> {
 		if (this._disposed) {
 			console.warn('TextEditor is closed/disposed');
 			return Promise.resolve(undefined);
@@ -603,8 +603,8 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 	}
 }
 
-function warnOnError(promise: Thenable<any>): void {
-	promise.then(null, (err) => {
+function warnOnError(promise: Promise<any>): void {
+	promise.then(undefined, (err) => {
 		console.warn(err);
 	});
 }

@@ -45,7 +45,7 @@ class DirectiveCommentCompletionProvider implements vscode.CompletionItemProvide
 		position: vscode.Position,
 		_token: vscode.CancellationToken
 	): vscode.CompletionItem[] {
-		const file = this.client.toPath(document.uri);
+		const file = this.client.toOpenedFilePath(document);
 		if (!file) {
 			return [];
 		}

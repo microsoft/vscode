@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable, toDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
-import { Event, Emitter, once, toPromise, Relay } from 'vs/base/common/event';
+import { Event, Emitter, Relay } from 'vs/base/common/event';
 import { always, CancelablePromise, createCancelablePromise, timeout } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
@@ -58,7 +58,7 @@ enum State {
  * with at most one single return value.
  */
 export interface IChannel {
-	call<T>(command: string, arg?: any, cancellationToken?: CancellationToken): Thenable<T>;
+	call<T>(command: string, arg?: any, cancellationToken?: CancellationToken): Promise<T>;
 	listen<T>(event: string, arg?: any): Event<T>;
 }
 
@@ -68,7 +68,7 @@ export interface IChannel {
  * if you'd like to handle remote promises or events.
  */
 export interface IServerChannel<TContext = string> {
-	call<T>(ctx: TContext, command: string, arg?: any, cancellationToken?: CancellationToken): Thenable<T>;
+	call<T>(ctx: TContext, command: string, arg?: any, cancellationToken?: CancellationToken): Promise<T>;
 	listen<T>(ctx: TContext, event: string, arg?: any): Event<T>;
 }
 
@@ -103,8 +103,8 @@ export interface IConnectionHub<TContext> {
  * channels (each from a separate client) to pick from.
  */
 export interface IClientRouter<TContext = string> {
-	routeCall(hub: IConnectionHub<TContext>, command: string, arg?: any, cancellationToken?: CancellationToken): Thenable<Client<TContext>>;
-	routeEvent(hub: IConnectionHub<TContext>, event: string, arg?: any): Thenable<Client<TContext>>;
+	routeCall(hub: IConnectionHub<TContext>, command: string, arg?: any, cancellationToken?: CancellationToken): Promise<Client<TContext>>;
+	routeEvent(hub: IConnectionHub<TContext>, event: string, arg?: any): Promise<Client<TContext>>;
 }
 
 /**
@@ -289,8 +289,11 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
 
 	private onPromise(request: IRawPromiseRequest): void {
 		const channel = this.channels.get(request.channelName);
+		if (!channel) {
+			throw new Error('Unknown channel');
+		}
 		const cancellationTokenSource = new CancellationTokenSource();
-		let promise: Thenable<any>;
+		let promise: Promise<any>;
 
 		try {
 			promise = channel.call(this.ctx, request.name, request.arg, cancellationTokenSource.token);
@@ -309,7 +312,7 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
 					id, data: {
 						message: err.message,
 						name: err.name,
-						stack: err.stack ? (err.stack.split ? err.stack.split('\n') : err.stack) : void 0
+						stack: err.stack ? (err.stack.split ? err.stack.split('\n') : err.stack) : undefined
 					}, type: ResponseType.PromiseError
 				});
 			} else {
@@ -325,6 +328,9 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
 
 	private onEventListen(request: IRawEventListenRequest): void {
 		const channel = this.channels.get(request.channelName);
+		if (!channel) {
+			throw new Error('Unknown channel');
+		}
 
 		const id = request.id;
 		const event = channel.listen(this.ctx, request.name, request.arg);
@@ -380,7 +386,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 		} as T;
 	}
 
-	private requestPromise(channelName: string, name: string, arg?: any, cancellationToken = CancellationToken.None): Thenable<any> {
+	private requestPromise(channelName: string, name: string, arg?: any, cancellationToken = CancellationToken.None): Promise<any> {
 		const id = this.lastRequestId++;
 		const type = RequestType.Promise;
 		const request: IRawRequest = { id, type, channelName, name, arg };
@@ -539,11 +545,11 @@ export class ChannelClient implements IChannelClient, IDisposable {
 		}
 	}
 
-	private whenInitialized(): Thenable<void> {
+	private whenInitialized(): Promise<void> {
 		if (this.state === State.Idle) {
 			return Promise.resolve();
 		} else {
-			return toPromise(this.onDidInitialize);
+			return Event.toPromise(this.onDidInitialize);
 		}
 	}
 
@@ -590,7 +596,7 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 
 	constructor(onDidClientConnect: Event<ClientConnectionEvent>) {
 		onDidClientConnect(({ protocol, onDidClientDisconnect }) => {
-			const onFirstMessage = once(protocol.onMessage);
+			const onFirstMessage = Event.once(protocol.onMessage);
 
 			onFirstMessage(msg => {
 				const reader = new BufferReader(msg);
@@ -681,9 +687,9 @@ export class IPCClient<TContext = string> implements IChannelClient, IChannelSer
 	}
 }
 
-export function getDelayedChannel<T extends IChannel>(promise: Thenable<T>): T {
+export function getDelayedChannel<T extends IChannel>(promise: Promise<T>): T {
 	return {
-		call(command: string, arg?: any, cancellationToken?: CancellationToken): Thenable<T> {
+		call(command: string, arg?: any, cancellationToken?: CancellationToken): Promise<T> {
 			return promise.then(c => c.call(command, arg, cancellationToken));
 		},
 
@@ -699,7 +705,7 @@ export function getNextTickChannel<T extends IChannel>(channel: T): T {
 	let didTick = false;
 
 	return {
-		call<T>(command: string, arg?: any, cancellationToken?: CancellationToken): Thenable<T> {
+		call<T>(command: string, arg?: any, cancellationToken?: CancellationToken): Promise<T> {
 			if (didTick) {
 				return channel.call(command, arg, cancellationToken);
 			}
@@ -726,13 +732,13 @@ export function getNextTickChannel<T extends IChannel>(channel: T): T {
 
 export class StaticRouter<TContext = string> implements IClientRouter<TContext> {
 
-	constructor(private fn: (ctx: TContext) => boolean | Thenable<boolean>) { }
+	constructor(private fn: (ctx: TContext) => boolean | Promise<boolean>) { }
 
-	routeCall(hub: IConnectionHub<TContext>): Thenable<Client<TContext>> {
+	routeCall(hub: IConnectionHub<TContext>): Promise<Client<TContext>> {
 		return this.route(hub);
 	}
 
-	routeEvent(hub: IConnectionHub<TContext>): Thenable<Client<TContext>> {
+	routeEvent(hub: IConnectionHub<TContext>): Promise<Client<TContext>> {
 		return this.route(hub);
 	}
 
@@ -743,7 +749,7 @@ export class StaticRouter<TContext = string> implements IClientRouter<TContext> 
 			}
 		}
 
-		await toPromise(hub.onDidChangeConnections);
+		await Event.toPromise(hub.onDidChangeConnections);
 		return await this.route(hub);
 	}
 }

@@ -10,11 +10,11 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IProgressService2, IProgressOptions, IProgressStep, ProgressLocation, IProgress, emptyProgress, Progress } from 'vs/platform/progress/common/progress';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { StatusbarAlignment, IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
-import { always, timeout } from 'vs/base/common/async';
+import { timeout } from 'vs/base/common/async';
 import { ProgressBadge, IActivityService } from 'vs/workbench/services/activity/common/activity';
 import { INotificationService, Severity, INotificationHandle, INotificationActions } from 'vs/platform/notification/common/notification';
 import { Action } from 'vs/base/common/actions';
-import { once } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 
 export class ProgressService2 implements IProgressService2 {
 
@@ -30,7 +30,7 @@ export class ProgressService2 implements IProgressService2 {
 		@IStatusbarService private readonly _statusbarService: IStatusbarService,
 	) { }
 
-	withProgress<P extends Thenable<R>, R=any>(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => P, onDidCancel?: () => void): P {
+	withProgress<R=any>(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => Promise<R>, onDidCancel?: () => void): Promise<R> {
 
 		const { location } = options;
 		if (typeof location === 'string') {
@@ -59,22 +59,22 @@ export class ProgressService2 implements IProgressService2 {
 		}
 	}
 
-	private _withWindowProgress<P extends Thenable<R>, R=any>(options: IProgressOptions, callback: (progress: IProgress<{ message?: string }>) => P): P {
+	private _withWindowProgress<R=any>(options: IProgressOptions, callback: (progress: IProgress<{ message?: string }>) => Promise<R>): Promise<R> {
 
 		const task: [IProgressOptions, Progress<IProgressStep>] = [options, new Progress<IProgressStep>(() => this._updateWindowProgress())];
 
 		const promise = callback(task[1]);
 
-		let delayHandle = setTimeout(() => {
+		let delayHandle: any = setTimeout(() => {
 			delayHandle = undefined;
 			this._stack.unshift(task);
 			this._updateWindowProgress();
 
 			// show progress for at least 150ms
-			always(Promise.all([
+			Promise.all([
 				timeout(150),
 				promise
-			]), () => {
+			]).finally(() => {
 				const idx = this._stack.indexOf(task);
 				this._stack.splice(idx, 1);
 				this._updateWindowProgress();
@@ -83,8 +83,7 @@ export class ProgressService2 implements IProgressService2 {
 		}, 150);
 
 		// cancel delay if promise finishes below 150ms
-		always(promise, () => clearTimeout(delayHandle));
-		return promise;
+		return promise.finally(() => clearTimeout(delayHandle));
 	}
 
 	private _updateWindowProgress(idx: number = 0) {
@@ -128,10 +127,10 @@ export class ProgressService2 implements IProgressService2 {
 		}
 	}
 
-	private _withNotificationProgress<P extends Thenable<R>, R=any>(options: IProgressOptions, callback: (progress: IProgress<{ message?: string, increment?: number }>) => P, onDidCancel?: () => void): P {
+	private _withNotificationProgress<P extends Promise<R>, R=any>(options: IProgressOptions, callback: (progress: IProgress<{ message?: string, increment?: number }>) => P, onDidCancel?: () => void): P {
 		const toDispose: IDisposable[] = [];
 
-		const createNotification = (message: string, increment?: number): INotificationHandle => {
+		const createNotification = (message: string | undefined, increment?: number): INotificationHandle | undefined => {
 			if (!message) {
 				return undefined; // we need a message at least
 			}
@@ -140,20 +139,20 @@ export class ProgressService2 implements IProgressService2 {
 			if (options.cancellable) {
 				const cancelAction = new class extends Action {
 					constructor() {
-						super('progress.cancel', localize('cancel', "Cancel"), null, true);
+						super('progress.cancel', localize('cancel', "Cancel"), undefined, true);
 					}
 
-					run(): Thenable<any> {
+					run(): Promise<any> {
 						if (typeof onDidCancel === 'function') {
 							onDidCancel();
 						}
 
-						return Promise.resolve(void 0);
+						return Promise.resolve(undefined);
 					}
 				};
 				toDispose.push(cancelAction);
 
-				actions.primary.push(cancelAction);
+				actions.primary!.push(cancelAction);
 			}
 
 			const handle = this._notificationService.notify({
@@ -165,7 +164,7 @@ export class ProgressService2 implements IProgressService2 {
 
 			updateProgress(handle, increment);
 
-			once(handle.onDidClose)(() => {
+			Event.once(handle.onDidClose)(() => {
 				dispose(toDispose);
 			});
 
@@ -181,7 +180,7 @@ export class ProgressService2 implements IProgressService2 {
 			}
 		};
 
-		let handle: INotificationHandle;
+		let handle: INotificationHandle | undefined;
 		const updateNotification = (message?: string, increment?: number): void => {
 			if (!handle) {
 				handle = createNotification(message, increment);
@@ -214,7 +213,7 @@ export class ProgressService2 implements IProgressService2 {
 		});
 
 		// Show progress for at least 800ms and then hide once done or canceled
-		always(Promise.all([timeout(800), p]), () => {
+		Promise.all([timeout(800), p]).finally(() => {
 			if (handle) {
 				handle.close();
 			}
@@ -223,7 +222,7 @@ export class ProgressService2 implements IProgressService2 {
 		return p;
 	}
 
-	private _withViewletProgress<P extends Thenable<R>, R=any>(viewletId: string, task: (progress: IProgress<{ message?: string }>) => P): P {
+	private _withViewletProgress<P extends Promise<R>, R=any>(viewletId: string, task: (progress: IProgress<{ message?: string }>) => P): P {
 
 		const promise = task(emptyProgress);
 
@@ -235,7 +234,7 @@ export class ProgressService2 implements IProgressService2 {
 
 		// show activity bar
 		let activityProgress: IDisposable;
-		let delayHandle = setTimeout(() => {
+		let delayHandle: any = setTimeout(() => {
 			delayHandle = undefined;
 			const handle = this._activityBar.showActivity(
 				viewletId,

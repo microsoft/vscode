@@ -51,9 +51,9 @@ export class FileEntry extends EditorQuickOpenEntry {
 		private description: string,
 		private icon: string,
 		@IEditorService editorService: IEditorService,
-		@IModeService private modeService: IModeService,
-		@IModelService private modelService: IModelService,
-		@IConfigurationService private configurationService: IConfigurationService,
+		@IModeService private readonly modeService: IModeService,
+		@IModelService private readonly modelService: IModelService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService
 	) {
 		super(editorService);
@@ -119,14 +119,14 @@ export class OpenFileHandler extends QuickOpenHandler {
 	private cacheState: CacheState;
 
 	constructor(
-		@IEditorService private editorService: IEditorService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@ISearchService private searchService: ISearchService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IFileService private fileService: IFileService,
-		@ILabelService private labelService: ILabelService
+		@IEditorService private readonly editorService: IEditorService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@ISearchService private readonly searchService: ISearchService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IFileService private readonly fileService: IFileService,
+		@ILabelService private readonly labelService: ILabelService
 	) {
 		super();
 
@@ -137,7 +137,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 		this.options = options;
 	}
 
-	getResults(searchValue: string, token: CancellationToken, maxSortedResults?: number): Thenable<FileQuickOpenModel> {
+	getResults(searchValue: string, token: CancellationToken, maxSortedResults?: number): Promise<FileQuickOpenModel> {
 		const query = prepareQuery(searchValue);
 
 		// Respond directly to empty search
@@ -152,7 +152,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 		return this.doFindResults(query, token, this.cacheState.cacheKey, maxSortedResults);
 	}
 
-	private doFindResults(query: IPreparedQuery, token: CancellationToken, cacheKey?: string, maxSortedResults?: number): Thenable<FileQuickOpenModel> {
+	private doFindResults(query: IPreparedQuery, token: CancellationToken, cacheKey?: string, maxSortedResults?: number): Promise<FileQuickOpenModel> {
 		const queryOptions = this.doResolveQueryOptions(query, cacheKey, maxSortedResults);
 
 		let iconClass: string;
@@ -175,8 +175,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 			const results: QuickOpenEntry[] = [];
 
 			if (!token.isCancellationRequested) {
-				for (let i = 0; i < complete.results.length; i++) {
-					const fileMatch = complete.results[i];
+				for (const fileMatch of complete.results) {
 
 					const label = paths.basename(fileMatch.resource.fsPath);
 					const description = this.labelService.getUriLabel(resources.dirname(fileMatch.resource), { relative: true });
@@ -189,11 +188,11 @@ export class OpenFileHandler extends QuickOpenHandler {
 		});
 	}
 
-	private getAbsolutePathResult(query: IPreparedQuery): Thenable<URI> {
+	private getAbsolutePathResult(query: IPreparedQuery): Promise<URI | null> {
 		if (paths.isAbsolute(query.original)) {
 			const resource = URI.file(query.original);
 
-			return this.fileService.resolveFile(resource).then(stat => stat.isDirectory ? void 0 : resource, error => void 0);
+			return this.fileService.resolveFile(resource).then(stat => stat.isDirectory ? undefined : resource, error => undefined);
 		}
 
 		return Promise.resolve(null);
@@ -272,9 +271,9 @@ export class CacheState {
 	private query: IFileQuery;
 
 	private loadingPhase = LoadingPhase.Created;
-	private promise: Thenable<void>;
+	private promise: Promise<void>;
 
-	constructor(cacheQuery: (cacheKey: string) => IFileQuery, private doLoad: (query: IFileQuery) => Thenable<any>, private doDispose: (cacheKey: string) => Thenable<void>, private previous: CacheState) {
+	constructor(cacheQuery: (cacheKey: string) => IFileQuery, private doLoad: (query: IFileQuery) => Promise<any>, private doDispose: (cacheKey: string) => Promise<void>, private previous: CacheState) {
 		this.query = cacheQuery(this._cacheKey);
 		if (this.previous) {
 			const current = objects.assign({}, this.query, { cacheKey: null });
@@ -320,11 +319,11 @@ export class CacheState {
 
 	dispose(): void {
 		if (this.promise) {
-			this.promise.then(null, () => { })
+			this.promise.then(undefined, () => { })
 				.then(() => {
 					this.loadingPhase = LoadingPhase.Disposed;
 					return this.doDispose(this._cacheKey);
-				}).then(null, err => {
+				}).then(undefined, err => {
 					errors.onUnexpectedError(err);
 				});
 		} else {

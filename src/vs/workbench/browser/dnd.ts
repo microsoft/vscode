@@ -15,12 +15,12 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { DefaultEndOfLine } from 'vs/editor/common/model';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
-import { DataTransfers } from 'vs/base/browser/dnd';
+import { DataTransfers, IDragAndDropData } from 'vs/base/browser/dnd';
 import { DefaultDragAndDrop } from 'vs/base/parts/tree/browser/treeDefaults';
 import { DragMouseEvent } from 'vs/base/browser/mouseEvent';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { MIME_BINARY } from 'vs/base/common/mime';
-import { ITree, IDragAndDropData } from 'vs/base/parts/tree/browser/tree';
+import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { isWindows } from 'vs/base/common/platform';
 import { coalesce } from 'vs/base/common/arrays';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -69,8 +69,8 @@ export const CodeDataTransfers = {
 	FILES: 'CodeFiles'
 };
 
-export function extractResources(e: DragEvent, externalOnly?: boolean): (IDraggedResource | IDraggedEditor)[] {
-	const resources: (IDraggedResource | IDraggedEditor)[] = [];
+export function extractResources(e: DragEvent, externalOnly?: boolean): Array<IDraggedResource | IDraggedEditor> {
+	const resources: Array<IDraggedResource | IDraggedEditor> = [];
 	if (e.dataTransfer.types.length > 0) {
 
 		// Check for window-to-window DND
@@ -82,7 +82,7 @@ export function extractResources(e: DragEvent, externalOnly?: boolean): (IDragge
 				try {
 					const draggedEditors = JSON.parse(rawEditorsData) as ISerializedDraggedEditor[];
 					draggedEditors.forEach(draggedEditor => {
-						resources.push({ resource: URI.parse(draggedEditor.resource), backupResource: draggedEditor.backupResource ? URI.parse(draggedEditor.backupResource) : void 0, viewState: draggedEditor.viewState, isExternal: false });
+						resources.push({ resource: URI.parse(draggedEditor.resource), backupResource: draggedEditor.backupResource ? URI.parse(draggedEditor.backupResource) : undefined, viewState: draggedEditor.viewState, isExternal: false });
 					});
 				} catch (error) {
 					// Invalid transfer
@@ -153,15 +153,15 @@ export class ResourcesDropHandler {
 
 	constructor(
 		private options: IResourcesDropHandlerOptions,
-		@IFileService private fileService: IFileService,
-		@IWindowsService private windowsService: IWindowsService,
-		@IWindowService private windowService: IWindowService,
-		@IWorkspacesService private workspacesService: IWorkspacesService,
-		@ITextFileService private textFileService: ITextFileService,
-		@IBackupFileService private backupFileService: IBackupFileService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IEditorService private editorService: IEditorService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IFileService private readonly fileService: IFileService,
+		@IWindowsService private readonly windowsService: IWindowsService,
+		@IWindowService private readonly windowService: IWindowService,
+		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@IBackupFileService private readonly backupFileService: IBackupFileService,
+		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 	}
 
@@ -177,7 +177,7 @@ export class ResourcesDropHandler {
 			// Check for special things being dropped
 			return this.doHandleDrop(untitledOrFileResources).then(isWorkspaceOpening => {
 				if (isWorkspaceOpening) {
-					return void 0; // return early if the drop operation resulted in this window changing to a workspace
+					return undefined; // return early if the drop operation resulted in this window changing to a workspace
 				}
 
 				// Add external ones to recently open list unless dropped resource is a workspace
@@ -206,7 +206,7 @@ export class ResourcesDropHandler {
 		});
 	}
 
-	private doHandleDrop(untitledOrFileResources: (IDraggedResource | IDraggedEditor)[]): Thenable<boolean> {
+	private doHandleDrop(untitledOrFileResources: Array<IDraggedResource | IDraggedEditor>): Promise<boolean> {
 
 		// Check for dirty editors being dropped
 		const resourcesWithBackups: IDraggedEditor[] = untitledOrFileResources.filter(resource => !resource.isExternal && !!(resource as IDraggedEditor).backupResource);
@@ -225,7 +225,7 @@ export class ResourcesDropHandler {
 		return Promise.resolve(false);
 	}
 
-	private handleDirtyEditorDrop(droppedDirtyEditor: IDraggedEditor): Thenable<boolean> {
+	private handleDirtyEditorDrop(droppedDirtyEditor: IDraggedEditor): Promise<boolean> {
 
 		// Untitled: always ensure that we open a new untitled for each file we drop
 		if (droppedDirtyEditor.resource.scheme === Schemas.untitled) {
@@ -254,7 +254,7 @@ export class ResourcesDropHandler {
 		return DefaultEndOfLine.LF;
 	}
 
-	private handleWorkspaceFileDrop(fileOnDiskResources: URI[]): Thenable<boolean> {
+	private handleWorkspaceFileDrop(fileOnDiskResources: URI[]): Promise<boolean> {
 		const workspaceResources: { workspaces: URI[], folders: URI[] } = {
 			workspaces: [],
 			folders: []
@@ -266,7 +266,7 @@ export class ResourcesDropHandler {
 			if (extname(fileOnDiskResource.fsPath) === `.${WORKSPACE_EXTENSION}`) {
 				workspaceResources.workspaces.push(fileOnDiskResource);
 
-				return void 0;
+				return undefined;
 			}
 
 			// Check for Folder
@@ -274,7 +274,7 @@ export class ResourcesDropHandler {
 				if (stat.isDirectory) {
 					workspaceResources.folders.push(stat.resource);
 				}
-			}, error => void 0);
+			}, error => undefined);
 		})).then(_ => {
 			const { workspaces, folders } = workspaceResources;
 
@@ -286,7 +286,7 @@ export class ResourcesDropHandler {
 			// Pass focus to window
 			this.windowService.focusWindow();
 
-			let workspacesToOpen: Thenable<URI[]>;
+			let workspacesToOpen: Promise<URI[]>;
 
 			// Open in separate windows if we drop workspaces or just one folder
 			if (workspaces.length > 0 || folders.length === 1) {
@@ -323,7 +323,7 @@ export class SimpleFileResourceDragAndDrop extends DefaultDragAndDrop {
 			return resource.toString();
 		}
 
-		return void 0;
+		return undefined;
 	}
 
 	getDragLabel(tree: ITree, elements: any[]): string {
@@ -336,7 +336,7 @@ export class SimpleFileResourceDragAndDrop extends DefaultDragAndDrop {
 			return basenameOrAuthority(resource);
 		}
 
-		return void 0;
+		return undefined;
 	}
 
 	onDragStart(tree: ITree, data: IDragAndDropData, originalEvent: DragMouseEvent): void {
@@ -390,8 +390,7 @@ export function fillResourceDataTransfers(accessor: ServicesAccessor, resources:
 		// Try to find editor view state from the visible editors that match given resource
 		let viewState: IEditorViewState;
 		const textEditorWidgets = editorService.visibleTextEditorWidgets;
-		for (let i = 0; i < textEditorWidgets.length; i++) {
-			const textEditorWidget = textEditorWidgets[i];
+		for (const textEditorWidget of textEditorWidgets) {
 			if (isCodeEditor(textEditorWidget)) {
 				const model = textEditorWidget.getModel();
 				if (model && model.uri && model.uri.toString() === file.resource.toString()) {
@@ -404,7 +403,7 @@ export function fillResourceDataTransfers(accessor: ServicesAccessor, resources:
 		// Add as dragged editor
 		draggedEditors.push({
 			resource: file.resource.toString(),
-			backupResource: textFileService.isDirty(file.resource) ? backupFileService.toBackupResource(file.resource).toString() : void 0,
+			backupResource: textFileService.isDirty(file.resource) ? backupFileService.toBackupResource(file.resource).toString() : undefined,
 			viewState
 		});
 	});
@@ -438,8 +437,8 @@ export class LocalSelectionTransfer<T> {
 
 	clearData(proto: T): void {
 		if (this.hasData(proto)) {
-			this.proto = void 0;
-			this.data = void 0;
+			this.proto = undefined;
+			this.data = undefined;
 		}
 	}
 
@@ -448,7 +447,7 @@ export class LocalSelectionTransfer<T> {
 			return this.data;
 		}
 
-		return void 0;
+		return undefined;
 	}
 
 	setData(data: T[], proto: T): void {

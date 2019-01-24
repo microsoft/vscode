@@ -20,7 +20,7 @@ import { IEditorOptions, RenderLineNumbersType } from 'vs/editor/common/config/e
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
-import { once } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const GOTO_LINE_PREFIX = ':';
@@ -60,7 +60,7 @@ export class GotoLineAction extends QuickOpenAction {
 		const result = super.run();
 
 		if (restoreOptions) {
-			once(this._quickOpenService.onHide)(() => {
+			Event.once(this._quickOpenService.onHide)(() => {
 				activeTextEditorWidget.updateOptions(restoreOptions);
 			});
 		}
@@ -91,16 +91,19 @@ class GotoLineEntry extends EditorQuickOpenEntry {
 
 		// Inform user about valid range if input is invalid
 		const maxLineNumber = this.getMaxLineNumber();
+
 		if (this.invalidRange(maxLineNumber)) {
+			const currentLine = this.editorService.activeTextEditorWidget.getPosition().lineNumber;
+
 			if (maxLineNumber > 0) {
-				return nls.localize('gotoLineLabelEmptyWithLimit', "Type a line number between 1 and {0} to navigate to", maxLineNumber);
+				return nls.localize('gotoLineLabelEmptyWithLimit', "Current Line: {0}. Type a line number between 1 and {1} to navigate to.", currentLine, maxLineNumber);
 			}
 
-			return nls.localize('gotoLineLabelEmpty', "Type a line number to navigate to");
+			return nls.localize('gotoLineLabelEmpty', "Current Line: {0}. Type a line number to navigate to.", currentLine);
 		}
 
 		// Input valid, indicate action
-		return this.column ? nls.localize('gotoLineColumnLabel', "Go to line {0} and character {1}", this.line, this.column) : nls.localize('gotoLineLabel', "Go to line {0}", this.line);
+		return this.column ? nls.localize('gotoLineColumnLabel', "Go to line {0} and character {1}.", this.line, this.column) : nls.localize('gotoLineLabel', "Go to line {0}.", this.line);
 	}
 
 	private invalidRange(maxLineNumber: number = this.getMaxLineNumber()): boolean {
@@ -208,15 +211,21 @@ export class GotoLineHandler extends QuickOpenHandler {
 	private rangeHighlightDecorationId: IEditorLineDecoration;
 	private lastKnownEditorViewState: IEditorViewState;
 
-	constructor(@IEditorService private editorService: IEditorService) {
+	constructor(@IEditorService private readonly editorService: IEditorService) {
 		super();
 	}
 
 	getAriaLabel(): string {
-		return nls.localize('gotoLineHandlerAriaLabel', "Type a line number to navigate to.");
+		if (this.editorService.activeTextEditorWidget) {
+			const currentLine = this.editorService.activeTextEditorWidget.getPosition().lineNumber;
+
+			return nls.localize('gotoLineLabelEmpty', "Current Line: {0}. Type a line number to navigate to.", currentLine);
+		}
+
+		return nls.localize('cannotRunGotoLine', "Open a text file first to go to a line.");
 	}
 
-	getResults(searchValue: string, token: CancellationToken): Thenable<QuickOpenModel> {
+	getResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel> {
 		searchValue = searchValue.trim();
 
 		// Remember view state to be able to restore on cancel
@@ -231,7 +240,7 @@ export class GotoLineHandler extends QuickOpenHandler {
 	canRun(): boolean | string {
 		const canRun = !!this.editorService.activeTextEditorWidget;
 
-		return canRun ? true : nls.localize('cannotRunGotoLine', "Open a text file first to go to a line");
+		return canRun ? true : nls.localize('cannotRunGotoLine', "Open a text file first to go to a line.");
 	}
 
 	decorateOutline(range: IRange, editor: IEditor, group: IEditorGroup): void {

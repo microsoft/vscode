@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, filterEvent, mapEvent, fromNodeEventEmitter, signalEvent } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IPCServer, ClientConnectionEvent } from 'vs/base/parts/ipc/node/ipc';
 import { Protocol } from 'vs/base/parts/ipc/node/ipc.electron';
 import { ipcMain } from 'electron';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 
 interface IIPCEvent {
 	event: { sender: Electron.WebContents; };
@@ -14,19 +15,31 @@ interface IIPCEvent {
 }
 
 function createScopedOnMessageEvent(senderId: number, eventName: string): Event<string> {
-	const onMessage = fromNodeEventEmitter<IIPCEvent>(ipcMain, eventName, (event, message: string) => ({ event, message }));
-	const onMessageFromSender = filterEvent(onMessage, ({ event }) => event.sender.id === senderId);
-	return mapEvent(onMessageFromSender, ({ message }) => message);
+	const onMessage = Event.fromNodeEventEmitter<IIPCEvent>(ipcMain, eventName, (event, message: string) => ({ event, message }));
+	const onMessageFromSender = Event.filter(onMessage, ({ event }) => event.sender.id === senderId);
+	return Event.map(onMessageFromSender, ({ message }) => message);
 }
 
 export class Server extends IPCServer {
 
-	private static getOnDidClientConnect(): Event<ClientConnectionEvent> {
-		const onHello = fromNodeEventEmitter<Electron.WebContents>(ipcMain, 'ipc:hello', ({ sender }) => sender);
+	private static Clients = new Map<number, IDisposable>();
 
-		return mapEvent(onHello, webContents => {
-			const onMessage = createScopedOnMessageEvent(webContents.id, 'ipc:message');
-			const onDidClientDisconnect = signalEvent(createScopedOnMessageEvent(webContents.id, 'ipc:disconnect'));
+	private static getOnDidClientConnect(): Event<ClientConnectionEvent> {
+		const onHello = Event.fromNodeEventEmitter<Electron.WebContents>(ipcMain, 'ipc:hello', ({ sender }) => sender);
+
+		return Event.map(onHello, webContents => {
+			const id = webContents.id;
+			const client = Server.Clients.get(id);
+
+			if (client) {
+				client.dispose();
+			}
+
+			const onDidClientReconnect = new Emitter<void>();
+			Server.Clients.set(id, toDisposable(() => onDidClientReconnect.fire()));
+
+			const onMessage = createScopedOnMessageEvent(id, 'ipc:message');
+			const onDidClientDisconnect = Event.any(Event.signal(createScopedOnMessageEvent(id, 'ipc:disconnect')), onDidClientReconnect.event);
 			const protocol = new Protocol(webContents, onMessage);
 
 			return { protocol, onDidClientDisconnect };

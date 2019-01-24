@@ -62,7 +62,7 @@ class StartDebugEntry extends Model.QuickOpenEntry {
 	}
 
 	public run(mode: QuickOpen.Mode, context: Model.IContext): boolean {
-		if (mode === QuickOpen.Mode.PREVIEW || !StartAction.isEnabled(this.debugService, this.contextService, this.configurationName)) {
+		if (mode === QuickOpen.Mode.PREVIEW || !StartAction.isEnabled(this.debugService)) {
 			return false;
 		}
 		// Run selected debug configuration
@@ -80,10 +80,10 @@ export class DebugQuickOpenHandler extends Quickopen.QuickOpenHandler {
 	private autoFocusIndex: number;
 
 	constructor(
-		@IDebugService private debugService: IDebugService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@ICommandService private commandService: ICommandService,
-		@INotificationService private notificationService: INotificationService
+		@IDebugService private readonly debugService: IDebugService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@ICommandService private readonly commandService: ICommandService,
+		@INotificationService private readonly notificationService: INotificationService
 	) {
 		super();
 	}
@@ -92,7 +92,7 @@ export class DebugQuickOpenHandler extends Quickopen.QuickOpenHandler {
 		return nls.localize('debugAriaLabel', "Type a name of a launch configuration to run.");
 	}
 
-	public getResults(input: string, token: CancellationToken): Thenable<Model.QuickOpenModel> {
+	public getResults(input: string, token: CancellationToken): Promise<Model.QuickOpenModel> {
 		const configurations: Model.QuickOpenEntry[] = [];
 
 		const configManager = this.debugService.getConfigurationManager();

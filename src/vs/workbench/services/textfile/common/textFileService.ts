@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { URI } from 'vs/base/common/uri';
 import * as paths from 'vs/base/common/paths';
 import * as errors from 'vs/base/common/errors';
@@ -97,11 +96,11 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		return this._models;
 	}
 
-	abstract resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent>;
+	abstract resolveTextContent(resource: URI, options?: IResolveContentOptions): Promise<IRawTextContent>;
 
-	abstract promptForPath(resource: URI, defaultPath: URI): TPromise<URI>;
+	abstract promptForPath(resource: URI, defaultPath: URI): Promise<URI>;
 
-	abstract confirmSave(resources?: URI[]): TPromise<ConfirmResult>;
+	abstract confirmSave(resources?: URI[]): Promise<ConfirmResult>;
 
 	private registerListeners(): void {
 
@@ -117,7 +116,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		}));
 	}
 
-	private beforeShutdown(reason: ShutdownReason): boolean | TPromise<boolean> {
+	private beforeShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
 
 		// Dirty files need treatment on shutdown
 		const dirty = this.getDirty();
@@ -125,49 +124,51 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 
 			// If auto save is enabled, save all files and then check again for dirty files
 			// We DO NOT run any save participant if we are in the shutdown phase for performance reasons
-			let handleAutoSave: TPromise<URI[] /* remaining dirty resources */>;
 			if (this.getAutoSaveMode() !== AutoSaveMode.OFF) {
-				handleAutoSave = this.saveAll(false /* files only */, { skipSaveParticipants: true }).then(() => this.getDirty());
-			} else {
-				handleAutoSave = TPromise.as(dirty);
-			}
+				return this.saveAll(false /* files only */, { skipSaveParticipants: true }).then(() => {
 
-			return handleAutoSave.then(dirty => {
-
-				// If we still have dirty files, we either have untitled ones or files that cannot be saved
-				// or auto save was not enabled and as such we did not save any dirty files to disk automatically
-				if (dirty.length) {
-
-					// If hot exit is enabled, backup dirty files and allow to exit without confirmation
-					if (this.isHotExitEnabled) {
-						return this.backupBeforeShutdown(dirty, this.models, reason).then(result => {
-							if (result.didBackup) {
-								return this.noVeto({ cleanUpBackups: false }); // no veto and no backup cleanup (since backup was successful)
-							}
-
-							// since a backup did not happen, we have to confirm for the dirty files now
-							return this.confirmBeforeShutdown();
-						}, errors => {
-							const firstError = errors[0];
-							this.notificationService.error(nls.localize('files.backup.failSave', "Files that are dirty could not be written to the backup location (Error: {0}). Try saving your files first and then exit.", firstError.message));
-
-							return true; // veto, the backups failed
-						});
+					// If we still have dirty files, we either have untitled ones or files that cannot be saved
+					const remainingDirty = this.getDirty();
+					if (remainingDirty.length) {
+						return this.handleDirtyBeforeShutdown(remainingDirty, reason);
 					}
 
-					// Otherwise just confirm from the user what to do with the dirty files
-					return this.confirmBeforeShutdown();
-				}
+					return undefined;
+				});
+			}
 
-				return void 0;
-			});
+			// Auto save is not enabled
+			return this.handleDirtyBeforeShutdown(dirty, reason);
 		}
 
 		// No dirty files: no veto
 		return this.noVeto({ cleanUpBackups: true });
 	}
 
-	private backupBeforeShutdown(dirtyToBackup: URI[], textFileEditorModelManager: ITextFileEditorModelManager, reason: ShutdownReason): TPromise<IBackupResult> {
+	private handleDirtyBeforeShutdown(dirty: URI[], reason: ShutdownReason): boolean | Promise<boolean> {
+
+		// If hot exit is enabled, backup dirty files and allow to exit without confirmation
+		if (this.isHotExitEnabled) {
+			return this.backupBeforeShutdown(dirty, this.models, reason).then(result => {
+				if (result.didBackup) {
+					return this.noVeto({ cleanUpBackups: false }); // no veto and no backup cleanup (since backup was successful)
+				}
+
+				// since a backup did not happen, we have to confirm for the dirty files now
+				return this.confirmBeforeShutdown();
+			}, errors => {
+				const firstError = errors[0];
+				this.notificationService.error(nls.localize('files.backup.failSave', "Files that are dirty could not be written to the backup location (Error: {0}). Try saving your files first and then exit.", firstError.message));
+
+				return true; // veto, the backups failed
+			});
+		}
+
+		// Otherwise just confirm from the user what to do with the dirty files
+		return this.confirmBeforeShutdown();
+	}
+
+	private backupBeforeShutdown(dirtyToBackup: URI[], textFileEditorModelManager: ITextFileEditorModelManager, reason: ShutdownReason): Promise<IBackupResult> {
 		return this.windowsService.getWindowCount().then(windowCount => {
 
 			// When quit is requested skip the confirm callback and attempt to backup all workspaces.
@@ -205,7 +206,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 			}
 
 			if (!doBackup) {
-				return TPromise.as({ didBackup: false });
+				return { didBackup: false };
 			}
 
 			// Backup
@@ -213,7 +214,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		});
 	}
 
-	private backupAll(dirtyToBackup: URI[], textFileEditorModelManager: ITextFileEditorModelManager): TPromise<void> {
+	private backupAll(dirtyToBackup: URI[], textFileEditorModelManager: ITextFileEditorModelManager): Promise<void> {
 
 		// split up between files and untitled
 		const filesToBackup: ITextFileEditorModel[] = [];
@@ -229,27 +230,27 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		return this.doBackupAll(filesToBackup, untitledToBackup);
 	}
 
-	private doBackupAll(dirtyFileModels: ITextFileEditorModel[], untitledResources: URI[]): TPromise<void> {
+	private doBackupAll(dirtyFileModels: ITextFileEditorModel[], untitledResources: URI[]): Promise<void> {
 
 		// Handle file resources first
-		return TPromise.join(dirtyFileModels.map(model => this.backupFileService.backupResource(model.getResource(), model.createSnapshot(), model.getVersionId()))).then(results => {
+		return Promise.all(dirtyFileModels.map(model => this.backupFileService.backupResource(model.getResource(), model.createSnapshot(), model.getVersionId()))).then(results => {
 
 			// Handle untitled resources
 			const untitledModelPromises = untitledResources
 				.filter(untitled => this.untitledEditorService.exists(untitled))
 				.map(untitled => this.untitledEditorService.loadOrCreate({ resource: untitled }));
 
-			return TPromise.join(untitledModelPromises).then(untitledModels => {
+			return Promise.all(untitledModelPromises).then(untitledModels => {
 				const untitledBackupPromises = untitledModels.map(model => {
 					return this.backupFileService.backupResource(model.getResource(), model.createSnapshot(), model.getVersionId());
 				});
 
-				return TPromise.join(untitledBackupPromises).then(() => void 0);
+				return Promise.all(untitledBackupPromises).then(() => undefined);
 			});
 		});
 	}
 
-	private confirmBeforeShutdown(): boolean | TPromise<boolean> {
+	private confirmBeforeShutdown(): boolean | Promise<boolean> {
 		return this.confirmSave().then(confirm => {
 
 			// Save
@@ -278,11 +279,11 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 				return true; // veto
 			}
 
-			return void 0;
+			return undefined;
 		});
 	}
 
-	private noVeto(options: { cleanUpBackups: boolean }): boolean | TPromise<boolean> {
+	private noVeto(options: { cleanUpBackups: boolean }): boolean | Promise<boolean> {
 		if (!options.cleanUpBackups) {
 			return false;
 		}
@@ -294,9 +295,9 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		return this.cleanupBackupsBeforeShutdown().then(() => false, () => false);
 	}
 
-	protected cleanupBackupsBeforeShutdown(): TPromise<void> {
+	protected cleanupBackupsBeforeShutdown(): Promise<void> {
 		if (this.environmentService.isExtensionDevelopment) {
-			return TPromise.as(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		return this.backupFileService.discardAllWorkspaceBackups();
@@ -315,19 +316,19 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 				break;
 
 			case AutoSaveConfiguration.ON_FOCUS_CHANGE:
-				this.configuredAutoSaveDelay = void 0;
+				this.configuredAutoSaveDelay = undefined;
 				this.configuredAutoSaveOnFocusChange = true;
 				this.configuredAutoSaveOnWindowChange = false;
 				break;
 
 			case AutoSaveConfiguration.ON_WINDOW_CHANGE:
-				this.configuredAutoSaveDelay = void 0;
+				this.configuredAutoSaveDelay = undefined;
 				this.configuredAutoSaveOnFocusChange = false;
 				this.configuredAutoSaveOnWindowChange = true;
 				break;
 
 			default:
-				this.configuredAutoSaveDelay = void 0;
+				this.configuredAutoSaveDelay = undefined;
 				this.configuredAutoSaveOnFocusChange = false;
 				this.configuredAutoSaveOnWindowChange = false;
 				break;
@@ -379,16 +380,12 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		return this.untitledEditorService.getDirty().some(dirty => !resource || dirty.toString() === resource.toString());
 	}
 
-	save(resource: URI, options?: ISaveOptions): TPromise<boolean> {
+	save(resource: URI, options?: ISaveOptions): Promise<boolean> {
 
 		// Run a forced save if we detect the file is not dirty so that save participants can still run
 		if (options && options.force && this.fileService.canHandleResource(resource) && !this.isDirty(resource)) {
 			const model = this._models.get(resource);
 			if (model) {
-				if (!options) {
-					options = Object.create(null);
-				}
-
 				options.reason = SaveReason.EXPLICIT;
 
 				return model.save(options).then(() => !model.isDirty());
@@ -398,9 +395,9 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		return this.saveAll([resource], options).then(result => result.results.length === 1 && result.results[0].success);
 	}
 
-	saveAll(includeUntitled?: boolean, options?: ISaveOptions): TPromise<ITextFileOperationResult>;
-	saveAll(resources: URI[], options?: ISaveOptions): TPromise<ITextFileOperationResult>;
-	saveAll(arg1?: any, options?: ISaveOptions): TPromise<ITextFileOperationResult> {
+	saveAll(includeUntitled?: boolean, options?: ISaveOptions): Promise<ITextFileOperationResult>;
+	saveAll(resources: URI[], options?: ISaveOptions): Promise<ITextFileOperationResult>;
+	saveAll(arg1?: any, options?: ISaveOptions): Promise<ITextFileOperationResult> {
 
 		// get all dirty
 		let toSave: URI[] = [];
@@ -424,15 +421,14 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		return this.doSaveAll(filesToSave, untitledToSave, options);
 	}
 
-	private doSaveAll(fileResources: URI[], untitledResources: URI[], options?: ISaveOptions): TPromise<ITextFileOperationResult> {
+	private doSaveAll(fileResources: URI[], untitledResources: URI[], options?: ISaveOptions): Promise<ITextFileOperationResult> {
 
 		// Handle files first that can just be saved
 		return this.doSaveAllFiles(fileResources, options).then(async result => {
 
 			// Preflight for untitled to handle cancellation from the dialog
 			const targetsForUntitled: URI[] = [];
-			for (let i = 0; i < untitledResources.length; i++) {
-				const untitled = untitledResources[i];
+			for (const untitled of untitledResources) {
 				if (this.untitledEditorService.exists(untitled)) {
 					let targetUri: URI;
 
@@ -445,12 +441,8 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 					else {
 						const targetPath = await this.promptForPath(untitled, this.suggestFileName(untitled));
 						if (!targetPath) {
-							return TPromise.as({
-								results: [...fileResources, ...untitledResources].map(r => {
-									return {
-										source: r
-									};
-								})
+							return Promise.resolve({
+								results: [...fileResources, ...untitledResources].map(r => ({ source: r }))
 							});
 						}
 
@@ -462,7 +454,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 			}
 
 			// Handle untitled
-			const untitledSaveAsPromises: TPromise<void>[] = [];
+			const untitledSaveAsPromises: Promise<void>[] = [];
 			targetsForUntitled.forEach((target, index) => {
 				const untitledSaveAsPromise = this.saveAs(untitledResources[index], target).then(uri => {
 					result.results.push({
@@ -475,14 +467,12 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 				untitledSaveAsPromises.push(untitledSaveAsPromise);
 			});
 
-			return TPromise.join(untitledSaveAsPromises).then(() => {
-				return result;
-			});
+			return Promise.all(untitledSaveAsPromises).then(() => result);
 		});
 	}
 
-	private doSaveAllFiles(resources?: URI[], options: ISaveOptions = Object.create(null)): TPromise<ITextFileOperationResult> {
-		const dirtyFileModels = this.getDirtyFileModels(Array.isArray(resources) ? resources : void 0 /* Save All */)
+	private doSaveAllFiles(resources?: URI[], options: ISaveOptions = Object.create(null)): Promise<ITextFileOperationResult> {
+		const dirtyFileModels = this.getDirtyFileModels(Array.isArray(resources) ? resources : undefined /* Save All */)
 			.filter(model => {
 				if ((model.hasState(ModelState.CONFLICT) || model.hasState(ModelState.ERROR)) && (options.reason === SaveReason.AUTO || options.reason === SaveReason.FOCUS_CHANGE || options.reason === SaveReason.WINDOW_CHANGE)) {
 					return false; // if model is in save conflict or error, do not save unless save reason is explicit or not provided at all
@@ -498,17 +488,13 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 			});
 		});
 
-		return TPromise.join(dirtyFileModels.map(model => {
+		return Promise.all(dirtyFileModels.map(model => {
 			return model.save(options).then(() => {
 				if (!model.isDirty()) {
 					mapResourceToResult.get(model.getResource()).success = true;
 				}
 			});
-		})).then(r => {
-			return {
-				results: mapResourceToResult.values()
-			};
-		});
+		})).then(r => ({ results: mapResourceToResult.values() }));
 	}
 
 	private getFileModels(resources?: URI[]): ITextFileEditorModel[];
@@ -532,12 +518,12 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		return this.getFileModels(arg1).filter(model => model.isDirty());
 	}
 
-	saveAs(resource: URI, target?: URI, options?: ISaveOptions): TPromise<URI> {
+	saveAs(resource: URI, target?: URI, options?: ISaveOptions): Promise<URI> {
 
 		// Get to target resource
-		let targetPromise: TPromise<URI>;
+		let targetPromise: Promise<URI>;
 		if (target) {
-			targetPromise = TPromise.wrap(target);
+			targetPromise = Promise.resolve(target);
 		} else {
 			let dialogPath = resource;
 			if (resource.scheme === Schemas.untitled) {
@@ -549,7 +535,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 
 		return targetPromise.then(target => {
 			if (!target) {
-				return TPromise.as(null); // user canceled
+				return null; // user canceled
 			}
 
 			// Just save if target is same as models own resource
@@ -562,12 +548,12 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		});
 	}
 
-	private doSaveAs(resource: URI, target?: URI, options?: ISaveOptions): TPromise<URI> {
+	private doSaveAs(resource: URI, target?: URI, options?: ISaveOptions): Promise<URI> {
 
 		// Retrieve text model from provided resource if any
-		let modelPromise: TPromise<ITextFileEditorModel | UntitledEditorModel> = TPromise.as(null);
+		let modelPromise: Promise<ITextFileEditorModel | UntitledEditorModel> = Promise.resolve(null);
 		if (this.fileService.canHandleResource(resource)) {
-			modelPromise = TPromise.as(this._models.get(resource));
+			modelPromise = Promise.resolve(this._models.get(resource));
 		} else if (resource.scheme === Schemas.untitled && this.untitledEditorService.exists(resource)) {
 			modelPromise = this.untitledEditorService.loadOrCreate({ resource });
 		}
@@ -592,13 +578,13 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		});
 	}
 
-	private doSaveTextFileAs(sourceModel: ITextFileEditorModel | UntitledEditorModel, resource: URI, target: URI, options?: ISaveOptions): TPromise<void> {
-		let targetModelResolver: TPromise<ITextFileEditorModel>;
+	private doSaveTextFileAs(sourceModel: ITextFileEditorModel | UntitledEditorModel, resource: URI, target: URI, options?: ISaveOptions): Promise<void> {
+		let targetModelResolver: Promise<ITextFileEditorModel>;
 
 		// Prefer an existing model if it is already loaded for the given target resource
 		const targetModel = this.models.get(target);
 		if (targetModel && targetModel.isResolved()) {
-			targetModelResolver = TPromise.as(targetModel);
+			targetModelResolver = Promise.resolve(targetModel);
 		}
 
 		// Otherwise create the target file empty if it does not exist already and resolve it from there
@@ -623,7 +609,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 				return this.fileService.del(target).then(() => this.doSaveTextFileAs(sourceModel, resource, target, options));
 			}
 
-			return TPromise.wrapError(error);
+			return Promise.reject(error);
 		});
 	}
 
@@ -646,11 +632,11 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		return URI.file(untitledFileName);
 	}
 
-	revert(resource: URI, options?: IRevertOptions): TPromise<boolean> {
+	revert(resource: URI, options?: IRevertOptions): Promise<boolean> {
 		return this.revertAll([resource], options).then(result => result.results.length === 1 && result.results[0].success);
 	}
 
-	revertAll(resources?: URI[], options?: IRevertOptions): TPromise<ITextFileOperationResult> {
+	revertAll(resources?: URI[], options?: IRevertOptions): Promise<ITextFileOperationResult> {
 
 		// Revert files first
 		return this.doRevertAllFiles(resources, options).then(operation => {
@@ -663,7 +649,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		});
 	}
 
-	private doRevertAllFiles(resources?: URI[], options?: IRevertOptions): TPromise<ITextFileOperationResult> {
+	private doRevertAllFiles(resources?: URI[], options?: IRevertOptions): Promise<ITextFileOperationResult> {
 		const fileModels = options && options.force ? this.getFileModels(resources) : this.getDirtyFileModels(resources);
 
 		const mapResourceToResult = new ResourceMap<IResult>();
@@ -673,7 +659,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 			});
 		});
 
-		return TPromise.join(fileModels.map(model => {
+		return Promise.all(fileModels.map(model => {
 			return model.revert(options && options.soft).then(() => {
 				if (!model.isDirty()) {
 					mapResourceToResult.get(model.getResource()).success = true;
@@ -687,19 +673,15 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 
 				// Otherwise bubble up the error
 				else {
-					return TPromise.wrapError(error);
+					return Promise.reject(error);
 				}
 
-				return void 0;
+				return undefined;
 			});
-		})).then(r => {
-			return {
-				results: mapResourceToResult.values()
-			};
-		});
+		})).then(r => ({ results: mapResourceToResult.values() }));
 	}
 
-	create(resource: URI, contents?: string, options?: { overwrite?: boolean }): TPromise<void> {
+	create(resource: URI, contents?: string, options?: { overwrite?: boolean }): Promise<void> {
 		const existingModel = this.models.get(resource);
 
 		return this.fileService.createFile(resource, contents, options).then(() => {
@@ -712,34 +694,35 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 				return existingModel.revert();
 			}
 
-			return void 0;
+			return undefined;
 		});
 	}
 
-	delete(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): TPromise<void> {
+	delete(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): Promise<void> {
 		const dirtyFiles = this.getDirty().filter(dirty => isEqualOrParent(dirty, resource, !platform.isLinux /* ignorecase */));
 
 		return this.revertAll(dirtyFiles, { soft: true }).then(() => this.fileService.del(resource, options));
 	}
 
-	move(source: URI, target: URI, overwrite?: boolean): TPromise<void> {
+	move(source: URI, target: URI, overwrite?: boolean): Promise<void> {
+		const waitForPromises: Promise<any>[] = [];
 
-		const waitForPromises: TPromise[] = [];
+		// Event
 		this._onWillMove.fire({
 			oldResource: source,
 			newResource: target,
-			waitUntil(p: Thenable<any>) {
-				waitForPromises.push(TPromise.wrap(p).then(undefined, errors.onUnexpectedError));
+			waitUntil(promise: Promise<any>) {
+				waitForPromises.push(promise.then(undefined, errors.onUnexpectedError));
 			}
 		});
 
 		// prevent async waitUntil-calls
 		Object.freeze(waitForPromises);
 
-		return TPromise.join(waitForPromises).then(() => {
+		return Promise.all(waitForPromises).then(() => {
 
 			// Handle target models if existing (if target URI is a folder, this can be multiple)
-			let handleTargetModelPromise: TPromise<any> = TPromise.as(void 0);
+			let handleTargetModelPromise: Promise<any> = Promise.resolve();
 			const dirtyTargetModels = this.getDirtyFileModels().filter(model => isEqualOrParent(model.getResource(), target, false /* do not ignorecase, see https://github.com/Microsoft/vscode/issues/56384 */));
 			if (dirtyTargetModels.length) {
 				handleTargetModelPromise = this.revertAll(dirtyTargetModels.map(targetModel => targetModel.getResource()), { soft: true });
@@ -748,11 +731,11 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 			return handleTargetModelPromise.then(() => {
 
 				// Handle dirty source models if existing (if source URI is a folder, this can be multiple)
-				let handleDirtySourceModels: TPromise<any>;
+				let handleDirtySourceModels: Promise<any>;
 				const dirtySourceModels = this.getDirtyFileModels().filter(model => isEqualOrParent(model.getResource(), source, !platform.isLinux /* ignorecase */));
 				const dirtyTargetModels: URI[] = [];
 				if (dirtySourceModels.length) {
-					handleDirtySourceModels = TPromise.join(dirtySourceModels.map(sourceModel => {
+					handleDirtySourceModels = Promise.all(dirtySourceModels.map(sourceModel => {
 						const sourceModelResource = sourceModel.getResource();
 						let targetModelResource: URI;
 
@@ -774,7 +757,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 						return this.backupFileService.backupResource(targetModelResource, sourceModel.createSnapshot(), sourceModel.getVersionId());
 					}));
 				} else {
-					handleDirtySourceModels = TPromise.as(void 0);
+					handleDirtySourceModels = Promise.resolve();
 				}
 
 				return handleDirtySourceModels.then(() => {
@@ -786,12 +769,12 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 						return this.fileService.moveFile(source, target, overwrite).then(() => {
 
 							// Load models that were dirty before
-							return TPromise.join(dirtyTargetModels.map(dirtyTargetModel => this.models.loadOrCreate(dirtyTargetModel))).then(() => void 0);
+							return Promise.all(dirtyTargetModels.map(dirtyTargetModel => this.models.loadOrCreate(dirtyTargetModel))).then(() => undefined);
 						}, error => {
 
 							// In case of an error, discard any dirty target backups that were made
-							return TPromise.join(dirtyTargetModels.map(dirtyTargetModel => this.backupFileService.discardResourceBackup(dirtyTargetModel)))
-								.then(() => TPromise.wrapError(error));
+							return Promise.all(dirtyTargetModels.map(dirtyTargetModel => this.backupFileService.discardResourceBackup(dirtyTargetModel)))
+								.then(() => Promise.reject(error));
 						});
 					});
 				});
@@ -817,7 +800,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 
 	getAutoSaveConfiguration(): IAutoSaveConfiguration {
 		return {
-			autoSaveDelay: this.configuredAutoSaveDelay && this.configuredAutoSaveDelay > 0 ? this.configuredAutoSaveDelay : void 0,
+			autoSaveDelay: this.configuredAutoSaveDelay && this.configuredAutoSaveDelay > 0 ? this.configuredAutoSaveDelay : undefined,
 			autoSaveFocusChange: this.configuredAutoSaveOnFocusChange,
 			autoSaveApplicationChange: this.configuredAutoSaveOnWindowChange
 		};

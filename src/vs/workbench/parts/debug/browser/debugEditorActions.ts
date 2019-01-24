@@ -119,7 +119,7 @@ class RunToCursorAction extends EditorAction {
 		const debugService = accessor.get(IDebugService);
 		const focusedSession = debugService.getViewModel().focusedSession;
 		if (debugService.state !== State.Stopped || !focusedSession) {
-			return Promise.resolve(null);
+			return Promise.resolve(undefined);
 		}
 
 		let breakpointToRemove: IBreakpoint;
@@ -169,7 +169,7 @@ class SelectionToReplAction extends EditorAction {
 		const session = viewModel.focusedSession;
 		return session.addReplExpression(viewModel.focusedStackFrame, text)
 			.then(() => panelService.openPanel(REPL_ID, true))
-			.then(_ => void 0);
+			.then(_ => undefined);
 	}
 }
 
@@ -188,7 +188,7 @@ class SelectionToWatchExpressionsAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): Thenable<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const debugService = accessor.get(IDebugService);
 		const viewletService = accessor.get(IViewletService);
 
@@ -230,7 +230,7 @@ class GoToBreakpointAction extends EditorAction {
 		super(opts);
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): Thenable<any> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): Promise<any> {
 		const debugService = accessor.get(IDebugService);
 		const editorService = accessor.get(IEditorService);
 		const currentUri = editor.getModel().uri;

@@ -28,9 +28,9 @@ export class JSONEditingService implements IJSONEditingService {
 	private queue: Queue<void>;
 
 	constructor(
-		@IFileService private fileService: IFileService,
-		@ITextModelService private textModelResolverService: ITextModelService,
-		@ITextFileService private textFileService: ITextFileService
+		@IFileService private readonly fileService: IFileService,
+		@ITextModelService private readonly textModelResolverService: ITextModelService,
+		@ITextFileService private readonly textFileService: ITextFileService
 	) {
 		this.queue = new Queue<void>();
 	}
@@ -103,18 +103,18 @@ export class JSONEditingService implements IJSONEditingService {
 				const model = reference.object.textEditorModel;
 
 				if (this.hasParseErrors(model)) {
-					return this.wrapError<IReference<ITextEditorModel>>(JSONEditingErrorCode.ERROR_INVALID_FILE);
+					return this.reject<IReference<ITextEditorModel>>(JSONEditingErrorCode.ERROR_INVALID_FILE);
 				}
 
 				// Target cannot be dirty if not writing into buffer
 				if (checkDirty && this.textFileService.isDirty(resource)) {
-					return this.wrapError<IReference<ITextEditorModel>>(JSONEditingErrorCode.ERROR_FILE_DIRTY);
+					return this.reject<IReference<ITextEditorModel>>(JSONEditingErrorCode.ERROR_FILE_DIRTY);
 				}
 				return reference;
 			});
 	}
 
-	private wrapError<T>(code: JSONEditingErrorCode): Promise<T> {
+	private reject<T>(code: JSONEditingErrorCode): Promise<T> {
 		const message = this.toErrorMessage(code);
 		return Promise.reject(new JSONEditingError(message, code));
 	}

@@ -128,7 +128,7 @@ function doCopyFile(source: string, target: string, mode: number, callback: (err
 
 export function mkdirp(path: string, mode?: number, token?: CancellationToken): Promise<boolean> {
 	const mkdir = (): Promise<null> => {
-		return nfcall(fs.mkdir, path, mode).then(null, (mkdirErr: NodeJS.ErrnoException) => {
+		return nfcall(fs.mkdir, path, mode).then(undefined, (mkdirErr: NodeJS.ErrnoException) => {
 
 			// ENOENT: a parent folder does not exist yet
 			if (mkdirErr.code === 'ENOENT') {
@@ -155,7 +155,7 @@ export function mkdirp(path: string, mode?: number, token?: CancellationToken): 
 	}
 
 	// recursively mkdir
-	return mkdir().then(null, (err: NodeJS.ErrnoException) => {
+	return mkdir().then(undefined, (err: NodeJS.ErrnoException) => {
 
 		// Respect cancellation
 		if (token && token.isCancellationRequested) {
@@ -390,7 +390,7 @@ function doWriteFileStreamAndFlush(path: string, reader: NodeJS.ReadableStream, 
 			if (error) {
 				if (isOpen) {
 					writer.once('close', () => callback(error));
-					writer.close();
+					writer.destroy();
 				} else {
 					callback(error);
 				}
@@ -450,10 +450,10 @@ function doWriteFileStreamAndFlush(path: string, reader: NodeJS.ReadableStream, 
 					canFlush = false;
 				}
 
-				writer.close();
+				writer.destroy();
 			});
 		} else {
-			writer.close();
+			writer.destroy();
 		}
 	});
 

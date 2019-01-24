@@ -12,7 +12,7 @@ export const IPanelService = createDecorator<IPanelService>('panelService');
 export interface IPanelIdentifier {
 	id: string;
 	name: string;
-	cssClass: string;
+	cssClass?: string;
 }
 
 export interface IPanelService {
@@ -41,10 +41,4 @@ export interface IPanelService {
 	 * Returns pinned panels following the visual order
 	 */
 	getPinnedPanels(): IPanelIdentifier[];
-
-	/**
-	 * Enables or disables a panel. Disabled panels are completly hidden from UI.
-	 * By default all panels are enabled.
-	 */
-	setPanelEnablement(id: string, enabled: boolean): void;
 }

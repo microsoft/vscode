@@ -41,20 +41,33 @@ export class TerminalFindWidget extends SimpleFindWidget {
 
 	public hide() {
 		super.hide();
-		this._terminalService.getActiveInstance().focus();
+		const instance = this._terminalService.getActiveInstance();
+		if (instance) {
+			instance.focus();
+		}
 	}
 
 	protected onInputChanged() {
 		// Ignore input changes for now
+		const instance = this._terminalService.getActiveInstance();
+		if (instance !== null) {
+			instance.findNext(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue(), incremental: true });
+		}
 	}
 
 	protected onFocusTrackerFocus() {
-		this._terminalService.getActiveInstance().notifyFindWidgetFocusChanged(true);
+		const instance = this._terminalService.getActiveInstance();
+		if (instance) {
+			instance.notifyFindWidgetFocusChanged(true);
+		}
 		this._findWidgetFocused.set(true);
 	}
 
 	protected onFocusTrackerBlur() {
-		this._terminalService.getActiveInstance().notifyFindWidgetFocusChanged(false);
+		const instance = this._terminalService.getActiveInstance();
+		if (instance) {
+			instance.notifyFindWidgetFocusChanged(false);
+		}
 		this._findWidgetFocused.reset();
 	}
 

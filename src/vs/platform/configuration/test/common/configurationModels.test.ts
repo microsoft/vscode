@@ -331,12 +331,12 @@ suite('CustomConfigurationModel', () => {
 		assert.deepEqual(testObject.configurationModel.contents, {});
 		assert.deepEqual(testObject.configurationModel.keys, []);
 
-		testObject.parse(null);
+		testObject.parse(null!);
 
 		assert.deepEqual(testObject.configurationModel.contents, {});
 		assert.deepEqual(testObject.configurationModel.keys, []);
 
-		testObject.parse(undefined);
+		testObject.parse(undefined!);
 
 		assert.deepEqual(testObject.configurationModel.contents, {});
 		assert.deepEqual(testObject.configurationModel.keys, []);

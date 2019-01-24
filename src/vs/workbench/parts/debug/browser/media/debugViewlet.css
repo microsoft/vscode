@@ -54,7 +54,7 @@
 	background: url('repl-inverse.svg') center center no-repeat;
 }
 
-.monaco-workbench > .part > .title > .title-actions .start-debug-action-item {
+.monaco-workbench .part > .title > .title-actions .start-debug-action-item {
 	display: flex;
 	align-items: center;
 	font-size: 11px;
@@ -64,11 +64,11 @@
 	margin-top: 7px;
 }
 
-.monaco-workbench.mac > .part > .title > .title-actions .start-debug-action-item {
+.mac > .monaco-workbench > .part > .title > .title-actions .start-debug-action-item {
 	border-radius: 4px;
 }
 
-.monaco-workbench > .part > .title > .title-actions .start-debug-action-item .icon {
+.monaco-workbench .part > .title > .title-actions .start-debug-action-item .icon {
 	height: 20px;
 	width: 20px;
 	background: url('start.svg') no-repeat;
@@ -78,8 +78,8 @@
 	transition: transform 50ms ease;
 }
 
-.vs-dark .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .icon,
-.hc-black .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .icon {
+.vs-dark .monaco-workbench .part > .title > .title-actions .start-debug-action-item .icon,
+.hc-black .monaco-workbench .part > .title > .title-actions .start-debug-action-item .icon {
 	background-image: url('start-inverse.svg');
 }
 
@@ -95,7 +95,7 @@
 	cursor: initial;
 }
 
-.monaco-workbench > .part > .title > .title-actions .start-debug-action-item .icon.active {
+.monaco-workbench .part > .title > .title-actions .start-debug-action-item .icon.active {
 	transform: scale(1.272019649, 1.272019649);
 }
 
@@ -110,9 +110,9 @@
 	line-height: 20px;
 }
 
-.debug-viewlet .monaco-list .monaco-list-row.selected .line-number,
-.debug-viewlet .monaco-list .monaco-list-row.selected .thread > .state > .label,
-.debug-viewlet .monaco-list .monaco-list-row.selected .session > .state > .label {
+.debug-viewlet .monaco-list-row.selected .line-number,
+.debug-viewlet .monaco-list-row.selected .thread > .state > .label,
+.debug-viewlet .monaco-list-row.selected .session > .state > .label {
 	background-color: #ffffff;
 	color: #666;
 }

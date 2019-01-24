@@ -148,16 +148,16 @@ export class CursorConfiguration {
 
 		let autoClosingPairs = CursorConfiguration._getAutoClosingPairs(languageIdentifier);
 		if (autoClosingPairs) {
-			for (let i = 0; i < autoClosingPairs.length; i++) {
-				this.autoClosingPairsOpen[autoClosingPairs[i].open] = autoClosingPairs[i].close;
-				this.autoClosingPairsClose[autoClosingPairs[i].close] = autoClosingPairs[i].open;
+			for (const pair of autoClosingPairs) {
+				this.autoClosingPairsOpen[pair.open] = pair.close;
+				this.autoClosingPairsClose[pair.close] = pair.open;
 			}
 		}
 
 		let surroundingPairs = CursorConfiguration._getSurroundingPairs(languageIdentifier);
 		if (surroundingPairs) {
-			for (let i = 0; i < surroundingPairs.length; i++) {
-				this.surroundingPairs[surroundingPairs[i].open] = surroundingPairs[i].close;
+			for (const pair of surroundingPairs) {
+				this.surroundingPairs[pair.open] = pair.close;
 			}
 		}
 	}
@@ -167,8 +167,8 @@ export class CursorConfiguration {
 			this._electricChars = {};
 			let electricChars = CursorConfiguration._getElectricCharacters(this._languageIdentifier);
 			if (electricChars) {
-				for (let i = 0; i < electricChars.length; i++) {
-					this._electricChars[electricChars[i]] = true;
+				for (const char of electricChars) {
+					this._electricChars[char] = true;
 				}
 			}
 		}
@@ -464,13 +464,13 @@ export class EditOperationResult {
 	_editOperationResultBrand: void;
 
 	readonly type: EditOperationType;
-	readonly commands: (ICommand | null)[];
+	readonly commands: Array<ICommand | null>;
 	readonly shouldPushStackElementBefore: boolean;
 	readonly shouldPushStackElementAfter: boolean;
 
 	constructor(
 		type: EditOperationType,
-		commands: (ICommand | null)[],
+		commands: Array<ICommand | null>,
 		opts: {
 			shouldPushStackElementBefore: boolean;
 			shouldPushStackElementAfter: boolean;

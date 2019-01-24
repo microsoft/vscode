@@ -64,9 +64,8 @@ suite('Workbench editor model', () => {
 		let m = new MyTextEditorModel(modelService, modeService);
 		return m.load().then((model: MyTextEditorModel) => {
 			assert(model === m);
-			return model.createTextEditorModel(createTextBufferFactory('foo'), null, 'text/plain').then(() => {
-				assert.strictEqual(m.isResolved(), true);
-			});
+			model.createTextEditorModel(createTextBufferFactory('foo'), null!, 'text/plain');
+			assert.strictEqual(m.isResolved(), true);
 		}).then(() => {
 			m.dispose();
 		});

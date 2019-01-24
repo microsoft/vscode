@@ -158,7 +158,7 @@ export class ExcludeSettingListModel {
 		return items;
 	}
 
-	setEditKey(key: string): void {
+	setEditKey(key: string | null): void {
 		this._editKey = key;
 	}
 
@@ -170,7 +170,7 @@ export class ExcludeSettingListModel {
 		this._selectedIdx = idx;
 	}
 
-	getSelected(): number {
+	getSelected(): number | null {
 		return this._selectedIdx;
 	}
 
@@ -191,9 +191,9 @@ export class ExcludeSettingListModel {
 	}
 }
 
-interface IExcludeChangeEvent {
+export interface IExcludeChangeEvent {
 	originalPattern: string;
-	pattern: string;
+	pattern?: string;
 	sibling?: string;
 }
 
@@ -203,8 +203,8 @@ export class ExcludeSettingWidget extends Disposable {
 
 	private model = new ExcludeSettingListModel();
 
-	private readonly _onDidChangeExclude: Emitter<IExcludeChangeEvent> = new Emitter<IExcludeChangeEvent>();
-	public readonly onDidChangeExclude: Event<IExcludeChangeEvent> = this._onDidChangeExclude.event;
+	private readonly _onDidChangeExclude = new Emitter<IExcludeChangeEvent>();
+	readonly onDidChangeExclude: Event<IExcludeChangeEvent> = this._onDidChangeExclude.event;
 
 	get domNode(): HTMLElement {
 		return this.listElement;
@@ -212,8 +212,8 @@ export class ExcludeSettingWidget extends Disposable {
 
 	constructor(
 		private container: HTMLElement,
-		@IThemeService private themeService: IThemeService,
-		@IContextViewService private contextViewService: IContextViewService
+		@IThemeService private readonly themeService: IThemeService,
+		@IContextViewService private readonly contextViewService: IContextViewService
 	) {
 		super();
 
@@ -306,7 +306,7 @@ export class ExcludeSettingWidget extends Disposable {
 		DOM.clearNode(this.listElement);
 		this.listDisposables = dispose(this.listDisposables);
 
-		const newMode = this.model.items.some(item => item.editing && !item.pattern);
+		const newMode = this.model.items.some(item => !!(item.editing && !item.pattern));
 		DOM.toggleClass(this.container, 'setting-exclude-new-mode', newMode);
 
 		this.model.items
@@ -362,7 +362,7 @@ export class ExcludeSettingWidget extends Disposable {
 		const patternElement = DOM.append(rowElement, $('.setting-exclude-pattern'));
 		const siblingElement = DOM.append(rowElement, $('.setting-exclude-sibling'));
 		patternElement.textContent = item.pattern;
-		siblingElement.textContent = item.sibling && ('when: ' + item.sibling);
+		siblingElement.textContent = item.sibling ? ('when: ' + item.sibling) : null;
 
 		actionBar.push([
 			this.createEditAction(item.pattern),

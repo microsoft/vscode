@@ -36,7 +36,7 @@ export const ID = 'editor.contrib.folding';
 
 export interface RangeProvider {
 	readonly id: string;
-	compute(cancelationToken: CancellationToken): Thenable<FoldingRegions | null>;
+	compute(cancelationToken: CancellationToken): Promise<FoldingRegions | null>;
 	dispose(): void;
 }
 
@@ -70,7 +70,7 @@ export class FoldingController implements IEditorContribution {
 
 	private foldingStateMemento: FoldingStateMemento | null;
 
-	private foldingModelPromise: Thenable<FoldingModel | null> | null;
+	private foldingModelPromise: Promise<FoldingModel | null> | null;
 	private updateScheduler: Delayer<FoldingModel | null> | null;
 
 	private globalToDispose: IDisposable[];
@@ -136,10 +136,10 @@ export class FoldingController implements IEditorContribution {
 		}
 		if (this.foldingModel) { // disposed ?
 			let collapsedRegions = this.foldingModel.isInitialized ? this.foldingModel.getMemento() : this.hiddenRangeModel!.getMemento();
-			let provider = this.rangeProvider ? this.rangeProvider.id : void 0;
+			let provider = this.rangeProvider ? this.rangeProvider.id : undefined;
 			return { collapsedRegions, lineCount: model.getLineCount(), provider };
 		}
-		return void 0;
+		return undefined;
 	}
 
 	/**
@@ -432,7 +432,7 @@ abstract class FoldingAction<T> extends EditorAction {
 
 	abstract invoke(foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor, args: T): void;
 
-	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: T): void | Thenable<void> {
+	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: T): void | Promise<void> {
 		let foldingController = FoldingController.get(editor);
 		if (!foldingController) {
 			return;

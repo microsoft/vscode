@@ -6,7 +6,7 @@
 import 'vs/css!./codelensWidget';
 import * as dom from 'vs/base/browser/dom';
 import { coalesce, isFalsyOrEmpty } from 'vs/base/common/arrays';
-import { escape, format } from 'vs/base/common/strings';
+import { escape } from 'vs/base/common/strings';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
@@ -83,8 +83,8 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 		const { fontInfo, lineHeight } = this._editor.getConfiguration();
 		this._domNode.style.height = `${Math.round(lineHeight * 1.1)}px`;
 		this._domNode.style.lineHeight = `${lineHeight}px`;
-		this._domNode.style.fontSize = `${Math.round(fontInfo.fontSize * .9)}px`;
-		this._domNode.style.paddingRight = `${Math.round(fontInfo.fontSize * .45)}px`;
+		this._domNode.style.fontSize = `${Math.round(fontInfo.fontSize * 0.9)}px`;
+		this._domNode.style.paddingRight = `${Math.round(fontInfo.fontSize * 0.45)}px`;
 		this._domNode.innerHTML = '&nbsp;';
 	}
 
@@ -95,9 +95,9 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 		}
 	}
 
-	withCommands(symbols: ICodeLensSymbol[]): void {
+	withCommands(inSymbols: Array<ICodeLensSymbol | undefined | null>): void {
 		this._commands = Object.create(null);
-		symbols = coalesce(symbols);
+		const symbols = coalesce(inSymbols);
 		if (isFalsyOrEmpty(symbols)) {
 			this._domNode.innerHTML = 'no commands';
 			return;
@@ -105,16 +105,18 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 
 		let html: string[] = [];
 		for (let i = 0; i < symbols.length; i++) {
-			let command = symbols[i].command;
-			let title = escape(command.title);
-			let part: string;
-			if (command.id) {
-				part = format('<a id={0}>{1}</a>', i, title);
-				this._commands[i] = command;
-			} else {
-				part = format('<span>{0}</span>', title);
+			const command = symbols[i].command;
+			if (command) {
+				const title = escape(command.title);
+				let part: string;
+				if (command.id) {
+					part = `<a id=${i}>${title}</a>`;
+					this._commands[i] = command;
+				} else {
+					part = `<span>${title}</span>`;
+				}
+				html.push(part);
 			}
-			html.push(part);
 		}
 
 		this._domNode.innerHTML = html.join('<span>&nbsp;|&nbsp;</span>');
@@ -136,6 +138,9 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 	}
 
 	setSymbolRange(range: Range): void {
+		if (!this._editor.hasModel()) {
+			return;
+		}
 		const lineNumber = range.startLineNumber;
 		const column = this._editor.getModel().getLineFirstNonWhitespaceColumn(lineNumber);
 		this._widgetPosition = {
@@ -206,7 +211,7 @@ export class CodeLens {
 		this._data = data;
 		this._decorationIds = new Array<string>(this._data.length);
 
-		let range: Range;
+		let range: Range | undefined;
 		this._data.forEach((codeLensData, i) => {
 
 			helper.addDecoration({
@@ -222,16 +227,18 @@ export class CodeLens {
 			}
 		});
 
-		this._contentWidget = new CodeLensContentWidget(editor, range);
-		this._viewZone = new CodeLensViewZone(range.startLineNumber - 1, updateCallback);
+		if (range) {
+			this._contentWidget = new CodeLensContentWidget(editor, range);
+			this._viewZone = new CodeLensViewZone(range.startLineNumber - 1, updateCallback);
 
-		this._viewZoneId = viewZoneChangeAccessor.addZone(this._viewZone);
-		this._editor.addContentWidget(this._contentWidget);
+			this._viewZoneId = viewZoneChangeAccessor.addZone(this._viewZone);
+			this._editor.addContentWidget(this._contentWidget);
+		}
 	}
 
-	dispose(helper: CodeLensHelper, viewZoneChangeAccessor: editorBrowser.IViewZoneChangeAccessor): void {
+	dispose(helper: CodeLensHelper, viewZoneChangeAccessor?: editorBrowser.IViewZoneChangeAccessor): void {
 		while (this._decorationIds.length) {
-			helper.removeDecoration(this._decorationIds.pop());
+			helper.removeDecoration(this._decorationIds.pop()!);
 		}
 		if (viewZoneChangeAccessor) {
 			viewZoneChangeAccessor.removeZone(this._viewZoneId);
@@ -240,16 +247,20 @@ export class CodeLens {
 	}
 
 	isValid(): boolean {
+		if (!this._editor.hasModel()) {
+			return false;
+		}
+		const model = this._editor.getModel();
 		return this._decorationIds.some((id, i) => {
-			const range = this._editor.getModel().getDecorationRange(id);
+			const range = model.getDecorationRange(id);
 			const symbol = this._data[i].symbol;
-			return range && Range.isEmpty(symbol.range) === range.isEmpty();
+			return !!(range && Range.isEmpty(symbol.range) === range.isEmpty());
 		});
 	}
 
 	updateCodeLensSymbols(data: ICodeLensData[], helper: CodeLensHelper): void {
 		while (this._decorationIds.length) {
-			helper.removeDecoration(this._decorationIds.pop());
+			helper.removeDecoration(this._decorationIds.pop()!);
 		}
 		this._data = data;
 		this._decorationIds = new Array<string>(this._data.length);
@@ -261,7 +272,7 @@ export class CodeLens {
 		});
 	}
 
-	computeIfNecessary(model: ITextModel): ICodeLensData[] {
+	computeIfNecessary(model: ITextModel): ICodeLensData[] | null {
 		this._contentWidget.updateVisibility(); // trigger the fade in
 		if (!this._contentWidget.isVisible()) {
 			return null;
@@ -269,12 +280,15 @@ export class CodeLens {
 
 		// Read editor current state
 		for (let i = 0; i < this._decorationIds.length; i++) {
-			this._data[i].symbol.range = model.getDecorationRange(this._decorationIds[i]);
+			const range = model.getDecorationRange(this._decorationIds[i]);
+			if (range) {
+				this._data[i].symbol.range = range;
+			}
 		}
 		return this._data;
 	}
 
-	updateCommands(symbols: ICodeLensSymbol[]): void {
+	updateCommands(symbols: Array<ICodeLensSymbol | undefined | null>): void {
 		this._contentWidget.withCommands(symbols);
 	}
 
@@ -287,22 +301,25 @@ export class CodeLens {
 	}
 
 	getLineNumber(): number {
-		const range = this._editor.getModel().getDecorationRange(this._decorationIds[0]);
-		if (range) {
-			return range.startLineNumber;
+		if (this._editor.hasModel()) {
+			const range = this._editor.getModel().getDecorationRange(this._decorationIds[0]);
+			if (range) {
+				return range.startLineNumber;
+			}
 		}
 		return -1;
 	}
 
 	update(viewZoneChangeAccessor: editorBrowser.IViewZoneChangeAccessor): void {
-		if (this.isValid()) {
+		if (this.isValid() && this._editor.hasModel()) {
 			const range = this._editor.getModel().getDecorationRange(this._decorationIds[0]);
+			if (range) {
+				this._viewZone.afterLineNumber = range.startLineNumber - 1;
+				viewZoneChangeAccessor.layoutZone(this._viewZoneId);
 
-			this._viewZone.afterLineNumber = range.startLineNumber - 1;
-			viewZoneChangeAccessor.layoutZone(this._viewZoneId);
-
-			this._contentWidget.setSymbolRange(range);
-			this._editor.layoutContentWidget(this._contentWidget);
+				this._contentWidget.setSymbolRange(range);
+				this._editor.layoutContentWidget(this._contentWidget);
+			}
 		}
 	}
 }

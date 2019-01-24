@@ -13,7 +13,7 @@ import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/wor
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IEditorInputFactory, EditorInput, IFileEditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions } from 'vs/workbench/common/editor';
 import { AutoSaveConfiguration, HotExitConfiguration, SUPPORTED_ENCODINGS } from 'vs/platform/files/common/files';
-import { VIEWLET_ID, SortOrderConfiguration, FILE_EDITOR_INPUT_ID } from 'vs/workbench/parts/files/common/files';
+import { VIEWLET_ID, SortOrderConfiguration, FILE_EDITOR_INPUT_ID, IExplorerService } from 'vs/workbench/parts/files/common/files';
 import { FileEditorTracker } from 'vs/workbench/parts/files/browser/editors/fileEditorTracker';
 import { SaveErrorHandler } from 'vs/workbench/parts/files/electron-browser/saveErrorHandler';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
@@ -35,6 +35,8 @@ import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorG
 import { ILabelService } from 'vs/platform/label/common/label';
 import { nativeSep } from 'vs/base/common/paths';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ExplorerService } from 'vs/workbench/parts/files/electron-browser/explorerService';
 
 // Viewlet Action
 export class OpenExplorerViewletAction extends ShowViewletAction {
@@ -55,16 +57,15 @@ export class OpenExplorerViewletAction extends ShowViewletAction {
 class FileUriLabelContribution implements IWorkbenchContribution {
 
 	constructor(@ILabelService labelService: ILabelService) {
-		labelService.registerFormatter('file://', {
-			uri: {
+		labelService.registerFormatter({
+			scheme: 'file',
+			formatting: {
 				label: '${authority}${path}',
 				separator: nativeSep,
 				tildify: !platform.isWindows,
 				normalizeDriveLetter: platform.isWindows,
-				authorityPrefix: nativeSep + nativeSep
-			},
-			workspace: {
-				suffix: ''
+				authorityPrefix: nativeSep + nativeSep,
+				workspaceSuffix: ''
 			}
 		});
 	}
@@ -78,6 +79,8 @@ Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new Vie
 	'explore',
 	0
 ));
+
+registerSingleton(IExplorerService, ExplorerService, true);
 
 Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).setDefaultViewletId(VIEWLET_ID);
 

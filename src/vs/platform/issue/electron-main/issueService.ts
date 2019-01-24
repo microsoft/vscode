@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import * as objects from 'vs/base/common/objects';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import { IIssueService, IssueReporterData, IssueReporterFeatures, ProcessExplorerData } from 'vs/platform/issue/common/issue';
-import { BrowserWindow, ipcMain, screen, Event } from 'electron';
+import { BrowserWindow, ipcMain, screen, Event, dialog } from 'electron';
 import { ILaunchService } from 'vs/platform/launch/electron-main/launchService';
 import { PerformanceInfo, SystemInfo, IDiagnosticsService } from 'vs/platform/diagnostics/electron-main/diagnosticsService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -28,11 +28,11 @@ export class IssueService implements IIssueService {
 	constructor(
 		private machineId: string,
 		private userEnv: IProcessEnvironment,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@ILaunchService private launchService: ILaunchService,
-		@ILogService private logService: ILogService,
-		@IDiagnosticsService private diagnosticsService: IDiagnosticsService,
-		@IWindowsService private windowsService: IWindowsService
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@ILaunchService private readonly launchService: ILaunchService,
+		@ILogService private readonly logService: ILogService,
+		@IDiagnosticsService private readonly diagnosticsService: IDiagnosticsService,
+		@IWindowsService private readonly windowsService: IWindowsService
 	) {
 		this.registerListeners();
 	}
@@ -48,6 +48,28 @@ export class IssueService implements IIssueService {
 			this.getPerformanceInfo().then(msg => {
 				event.sender.send('vscode:issuePerformanceInfoResponse', msg);
 			});
+		});
+
+		ipcMain.on('vscode:issueReporterConfirmClose', (_) => {
+			const messageOptions = {
+				message: localize('confirmCloseIssueReporter', "Your input will not be saved. Are you sure you want to close this window?"),
+				type: 'warning',
+				buttons: [
+					localize('yes', "Yes"),
+					localize('cancel', "Cancel")
+				]
+			};
+
+			if (this._issueWindow) {
+				dialog.showMessageBox(this._issueWindow, messageOptions, (response) => {
+					if (response === 0) {
+						if (this._issueWindow) {
+							this._issueWindow.destroy();
+							this._issueWindow = null;
+						}
+					}
+				});
+			}
 		});
 
 		ipcMain.on('vscode:workbenchCommand', (_, commandInfo) => {
@@ -96,6 +118,7 @@ export class IssueService implements IIssueService {
 					const position = this.getWindowPosition(this._issueParentWindow, 700, 800);
 
 					this._issueWindow = new BrowserWindow({
+						fullscreen: false,
 						width: position.width,
 						height: position.height,
 						minWidth: 300,
@@ -141,6 +164,7 @@ export class IssueService implements IIssueService {
 					this._processExplorerWindow = new BrowserWindow({
 						skipTaskbar: true,
 						resizable: true,
+						fullscreen: false,
 						width: position.width,
 						height: position.height,
 						minWidth: 300,
@@ -165,7 +189,7 @@ export class IssueService implements IIssueService {
 					const environment = parseArgs(process.argv);
 					const config = objects.assign(environment, windowConfiguration);
 					for (let key in config) {
-						if (config[key] === void 0 || config[key] === null || config[key] === '') {
+						if (config[key] === undefined || config[key] === null || config[key] === '') {
 							delete config[key]; // only send over properties that have a true value
 						}
 					}
@@ -299,7 +323,7 @@ export class IssueService implements IIssueService {
 		const environment = parseArgs(process.argv);
 		const config = objects.assign(environment, windowConfiguration);
 		for (let key in config) {
-			if (config[key] === void 0 || config[key] === null || config[key] === '') {
+			if (config[key] === undefined || config[key] === null || config[key] === '') {
 				delete config[key]; // only send over properties that have a true value
 			}
 		}

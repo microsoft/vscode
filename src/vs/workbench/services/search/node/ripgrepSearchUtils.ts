@@ -42,7 +42,7 @@ function searchRangeToRange(range: SearchRange): Range {
 }
 
 export class Position {
-	constructor(public readonly line, public readonly character) { }
+	constructor(readonly line, readonly character) { }
 
 	isBefore(other: Position): boolean { return false; }
 	isBeforeOrEqual(other: Position): boolean { return false; }
@@ -84,7 +84,7 @@ export interface IOutputChannel {
 }
 
 export class OutputChannel implements IOutputChannel {
-	constructor(@ILogService private logService: ILogService) { }
+	constructor(@ILogService private readonly logService: ILogService) { }
 
 	appendLine(msg: string): void {
 		this.logService.debug('RipgrepSearchEH#search', msg);

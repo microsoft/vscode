@@ -169,7 +169,7 @@ class CommandConfigurationBuilder {
 	}
 
 	public done(taskName: string): void {
-		this.result.args = this.result.args.map(arg => arg === '$name' ? taskName : arg);
+		this.result.args = this.result.args!.map(arg => arg === '$name' ? taskName : arg);
 		this.presentationBuilder.done();
 	}
 }
@@ -181,51 +181,53 @@ class CustomTaskBuilder {
 
 	constructor(public parent: ConfiguationBuilder, name: string, command: string) {
 		this.commandBuilder = new CommandConfigurationBuilder(this, command);
-		this.result = {
-			_id: name,
-			_source: { kind: Tasks.TaskSourceKind.Workspace, label: 'workspace', config: { workspaceFolder: workspaceFolder, element: undefined, index: -1, file: '.vscode/tasks.json' } },
-			_label: name,
-			type: Tasks.CUSTOMIZED_TASK_TYPE,
-			identifier: name,
-			name: name,
-			command: this.commandBuilder.result,
-			isBackground: false,
-			promptOnClose: true,
-			problemMatchers: [],
-			hasDefinedMatchers: false,
-			runOptions: { reevaluateOnRerun: true },
-		};
+		this.result = new Tasks.CustomTask(
+			name,
+			{ kind: Tasks.TaskSourceKind.Workspace, label: 'workspace', config: { workspaceFolder: workspaceFolder, element: undefined, index: -1, file: '.vscode/tasks.json' } },
+			name,
+			Tasks.CUSTOMIZED_TASK_TYPE,
+			this.commandBuilder.result,
+			false,
+			{ reevaluateOnRerun: true },
+			{
+				identifier: name,
+				name: name,
+				isBackground: false,
+				promptOnClose: true,
+				problemMatchers: [],
+			}
+		);
 	}
 
 	public identifier(value: string): CustomTaskBuilder {
-		this.result.identifier = value;
+		this.result.configurationProperties.identifier = value;
 		return this;
 	}
 
 	public group(value: Tasks.TaskGroup): CustomTaskBuilder {
-		this.result.group = value;
-		this.result.groupType = Tasks.GroupType.user;
+		this.result.configurationProperties.group = value;
+		this.result.configurationProperties.groupType = Tasks.GroupType.user;
 		return this;
 	}
 
 	public groupType(value: Tasks.GroupType): CustomTaskBuilder {
-		this.result.groupType = value;
+		this.result.configurationProperties.groupType = value;
 		return this;
 	}
 
 	public isBackground(value: boolean): CustomTaskBuilder {
-		this.result.isBackground = value;
+		this.result.configurationProperties.isBackground = value;
 		return this;
 	}
 
 	public promptOnClose(value: boolean): CustomTaskBuilder {
-		this.result.promptOnClose = value;
+		this.result.configurationProperties.promptOnClose = value;
 		return this;
 	}
 
 	public problemMatcher(): ProblemMatcherBuilder {
 		let builder = new ProblemMatcherBuilder(this);
-		this.result.problemMatchers.push(builder.result);
+		this.result.configurationProperties.problemMatchers!.push(builder.result);
 		return builder;
 	}
 
@@ -234,7 +236,7 @@ class CustomTaskBuilder {
 	}
 
 	public done(): void {
-		this.commandBuilder.done(this.result.name);
+		this.commandBuilder.done(this.result.configurationProperties.name!);
 	}
 }
 
@@ -251,7 +253,7 @@ class ProblemMatcherBuilder {
 			severity: undefined,
 			fileLocation: FileLocationKind.Relative,
 			filePrefix: '${workspaceFolder}',
-			pattern: undefined
+			pattern: undefined!
 		};
 	}
 
@@ -360,7 +362,7 @@ function testDefaultProblemMatcher(external: ExternalTaskRunnerConfiguration, re
 	assert.strictEqual(result.custom.length, 1);
 	let task = result.custom[0];
 	assert.ok(task);
-	assert.strictEqual(task.problemMatchers.length, resolved);
+	assert.strictEqual(task.configurationProperties.problemMatchers!.length, resolved);
 }
 
 function testConfiguration(external: ExternalTaskRunnerConfiguration, builder: ConfiguationBuilder): void {
@@ -403,12 +405,12 @@ class TaskGroupMap {
 			let expectedTasks = expected._store[key];
 			assert.strictEqual(actualTasks.length, expectedTasks.length);
 			if (actualTasks.length === 1) {
-				assert.strictEqual(actualTasks[0].name, expectedTasks[0].name);
+				assert.strictEqual(actualTasks[0].configurationProperties.name, expectedTasks[0].configurationProperties.name);
 				return;
 			}
 			let expectedTaskMap: { [key: string]: boolean } = Object.create(null);
-			expectedTasks.forEach(task => expectedTaskMap[task.name] = true);
-			actualTasks.forEach(task => delete expectedTaskMap[task.name]);
+			expectedTasks.forEach(task => expectedTaskMap[task.configurationProperties.name!] = true);
+			actualTasks.forEach(task => delete expectedTaskMap[task.configurationProperties.name!]);
 			assert.strictEqual(Object.keys(expectedTaskMap).length, 0);
 		});
 	}
@@ -428,20 +430,20 @@ function assertConfiguration(result: ParseResult, expected: Tasks.Task[]): void 
 	let actualId2Name: { [key: string]: string; } = Object.create(null);
 	let actualTaskGroups = new TaskGroupMap();
 	actual.forEach(task => {
-		assert.ok(!actualTasks[task.name]);
-		actualTasks[task.name] = task;
-		actualId2Name[task._id] = task.name;
-		if (task.group) {
-			actualTaskGroups.add(task.group, task);
+		assert.ok(!actualTasks[task.configurationProperties.name!]);
+		actualTasks[task.configurationProperties.name!] = task;
+		actualId2Name[task._id] = task.configurationProperties.name!;
+		if (task.configurationProperties.group) {
+			actualTaskGroups.add(task.configurationProperties.group, task);
 		}
 	});
 	let expectedTasks: { [key: string]: Tasks.Task; } = Object.create(null);
 	let expectedTaskGroup = new TaskGroupMap();
 	expected.forEach(task => {
-		assert.ok(!expectedTasks[task.name]);
-		expectedTasks[task.name] = task;
-		if (task.group) {
-			expectedTaskGroup.add(task.group, task);
+		assert.ok(!expectedTasks[task.configurationProperties.name!]);
+		expectedTasks[task.configurationProperties.name!] = task;
+		if (task.configurationProperties.group) {
+			expectedTaskGroup.add(task.configurationProperties.group, task);
 		}
 	});
 	let actualKeys = Object.keys(actualTasks);
@@ -457,19 +459,19 @@ function assertConfiguration(result: ParseResult, expected: Tasks.Task[]): void 
 
 function assertTask(actual: Tasks.Task, expected: Tasks.Task) {
 	assert.ok(actual._id);
-	assert.strictEqual(actual.name, expected.name, 'name');
+	assert.strictEqual(actual.configurationProperties.name, expected.configurationProperties.name, 'name');
 	if (!Tasks.InMemoryTask.is(actual) && !Tasks.InMemoryTask.is(expected)) {
 		assertCommandConfiguration(actual.command, expected.command);
 	}
-	assert.strictEqual(actual.isBackground, expected.isBackground, 'isBackground');
-	assert.strictEqual(typeof actual.problemMatchers, typeof expected.problemMatchers);
-	assert.strictEqual(actual.promptOnClose, expected.promptOnClose, 'promptOnClose');
-	assert.strictEqual(actual.group, expected.group, 'group');
-	assert.strictEqual(actual.groupType, expected.groupType, 'groupType');
-	if (actual.problemMatchers && expected.problemMatchers) {
-		assert.strictEqual(actual.problemMatchers.length, expected.problemMatchers.length);
-		for (let i = 0; i < actual.problemMatchers.length; i++) {
-			assertProblemMatcher(actual.problemMatchers[i], expected.problemMatchers[i]);
+	assert.strictEqual(actual.configurationProperties.isBackground, expected.configurationProperties.isBackground, 'isBackground');
+	assert.strictEqual(typeof actual.configurationProperties.problemMatchers, typeof expected.configurationProperties.problemMatchers);
+	assert.strictEqual(actual.configurationProperties.promptOnClose, expected.configurationProperties.promptOnClose, 'promptOnClose');
+	assert.strictEqual(actual.configurationProperties.group, expected.configurationProperties.group, 'group');
+	assert.strictEqual(actual.configurationProperties.groupType, expected.configurationProperties.groupType, 'groupType');
+	if (actual.configurationProperties.problemMatchers && expected.configurationProperties.problemMatchers) {
+		assert.strictEqual(actual.configurationProperties.problemMatchers.length, expected.configurationProperties.problemMatchers.length);
+		for (let i = 0; i < actual.configurationProperties.problemMatchers.length; i++) {
+			assertProblemMatcher(actual.configurationProperties.problemMatchers[i], expected.configurationProperties.problemMatchers[i]);
 		}
 	}
 }
@@ -477,7 +479,7 @@ function assertTask(actual: Tasks.Task, expected: Tasks.Task) {
 function assertCommandConfiguration(actual: Tasks.CommandConfiguration, expected: Tasks.CommandConfiguration) {
 	assert.strictEqual(typeof actual, typeof expected);
 	if (actual && expected) {
-		assertPresentation(actual.presentation, expected.presentation);
+		assertPresentation(actual.presentation!, expected.presentation!);
 		assert.strictEqual(actual.name, expected.name, 'name');
 		assert.strictEqual(actual.runtime, expected.runtime, 'runtime type');
 		assert.strictEqual(actual.suppressTaskName, expected.suppressTaskName, 'suppressTaskName');
@@ -1068,7 +1070,7 @@ suite('Tasks version 0.1.0', () => {
 			applyTo(ApplyToKind.closedDocuments).
 			severity(Severity.Warning).
 			fileLocation(FileLocationKind.Absolute).
-			filePrefix(undefined).
+			filePrefix(undefined!).
 			pattern(/abc/);
 		testConfiguration(external, builder);
 	});

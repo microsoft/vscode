@@ -32,7 +32,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 	static readonly ID = 'workbench.picker.anything';
 
-	private static readonly LINE_COLON_PATTERN = /[#|:|\(](\d*)([#|:|,](\d*))?\)?$/;
+	private static readonly LINE_COLON_PATTERN = /[#:\(](\d*)([#:,](\d*))?\)?$/;
 
 	private static readonly TYPING_SEARCH_DELAY = 200; // This delay accommodates for the user typing a word and then stops typing to start searching
 
@@ -46,9 +46,9 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 	private includeSymbols: boolean;
 
 	constructor(
-		@INotificationService private notificationService: INotificationService,
+		@INotificationService private readonly notificationService: INotificationService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
@@ -83,7 +83,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		});
 	}
 
-	getResults(searchValue: string, token: CancellationToken): Thenable<QuickOpenModel> {
+	getResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel> {
 		this.isClosed = false; // Treat this call as the handler being in use
 
 		// Find a suitable range from the pattern looking for ":" and "#"
@@ -100,7 +100,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 		// The throttler needs a factory for its promises
 		const resultsPromise = () => {
-			const resultPromises: Thenable<QuickOpenModel | FileQuickOpenModel>[] = [];
+			const resultPromises: Promise<QuickOpenModel | FileQuickOpenModel>[] = [];
 
 			// File Results
 			const filePromise = this.openFileHandler.getResults(query.original, token, OpenAnythingHandler.MAX_DISPLAYED_RESULTS);

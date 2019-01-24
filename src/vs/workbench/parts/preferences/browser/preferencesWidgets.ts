@@ -76,7 +76,7 @@ export class SettingsHeaderWidget extends Widget implements IViewZone {
 		});
 	}
 
-	public setMessage(message: string): void {
+	setMessage(message: string): void {
 		this.messageElement.textContent = message;
 	}
 
@@ -88,7 +88,7 @@ export class SettingsHeaderWidget extends Widget implements IViewZone {
 		}
 	}
 
-	public dispose() {
+	dispose() {
 		this.editor.changeViewZones(accessor => {
 			accessor.removeZone(this.id);
 		});
@@ -99,7 +99,7 @@ export class SettingsHeaderWidget extends Widget implements IViewZone {
 export class DefaultSettingsHeaderWidget extends SettingsHeaderWidget {
 
 	private _onClick = this._register(new Emitter<void>());
-	public readonly onClick: Event<void> = this._onClick.event;
+	readonly onClick: Event<void> = this._onClick.event;
 
 	protected create() {
 		super.create();
@@ -107,7 +107,7 @@ export class DefaultSettingsHeaderWidget extends SettingsHeaderWidget {
 		this.toggleMessage(true);
 	}
 
-	public toggleMessage(hasSettings: boolean): void {
+	toggleMessage(hasSettings: boolean): void {
 		if (hasSettings) {
 			this.setMessage(localize('defaultSettings', "Place your settings in the right hand side editor to override."));
 		} else {
@@ -127,7 +127,7 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 	private title: HTMLElement;
 
 	private _onToggled = this._register(new Emitter<boolean>());
-	public readonly onToggled: Event<boolean> = this._onToggled.event;
+	readonly onToggled: Event<boolean> = this._onToggled.event;
 
 	private previousPosition: Position;
 
@@ -170,7 +170,7 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 		this.layout();
 	}
 
-	public render() {
+	render() {
 		if (!this.settingsGroup.range) {
 			// #61352
 			return;
@@ -183,15 +183,15 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 		});
 	}
 
-	public toggleCollapse(collapse: boolean) {
+	toggleCollapse(collapse: boolean) {
 		DOM.toggleClass(this.titleContainer, 'collapsed', collapse);
 	}
 
-	public toggleFocus(focus: boolean): void {
+	toggleFocus(focus: boolean): void {
 		DOM.toggleClass(this.titleContainer, 'focused', focus);
 	}
 
-	public isCollapsed(): boolean {
+	isCollapsed(): boolean {
 		return DOM.hasClass(this.titleContainer, 'collapsed');
 	}
 
@@ -276,7 +276,7 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 		return false;
 	}
 
-	public dispose() {
+	dispose() {
 		this.editor.changeViewZones(accessor => {
 			accessor.removeZone(this.id);
 		});
@@ -299,8 +299,8 @@ export class FolderSettingsActionItem extends BaseActionItem {
 
 	constructor(
 		action: IAction,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IContextMenuService private contextMenuService: IContextMenuService
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) {
 		super(null, action);
 		const workspace = this.contextService.getWorkspace();
@@ -317,13 +317,13 @@ export class FolderSettingsActionItem extends BaseActionItem {
 		this.update();
 	}
 
-	public setCount(settingsTarget: URI, count: number): void {
+	setCount(settingsTarget: URI, count: number): void {
 		const folder = this.contextService.getWorkspaceFolder(settingsTarget).uri;
 		this._folderSettingCounts.set(folder.toString(), count);
 		this.update();
 	}
 
-	public render(container: HTMLElement): void {
+	render(container: HTMLElement): void {
 		this.element = container;
 
 		this.container = container;
@@ -354,7 +354,7 @@ export class FolderSettingsActionItem extends BaseActionItem {
 		}
 	}
 
-	public onClick(event: DOM.EventLike): void {
+	onClick(event: DOM.EventLike): void {
 		DOM.EventHelper.stop(event, true);
 		if (!this.folder || this._action.checked) {
 			this.showMenu();
@@ -450,7 +450,7 @@ export class FolderSettingsActionItem extends BaseActionItem {
 		return label;
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		dispose(this.disposables);
 		super.dispose();
 	}
@@ -467,13 +467,13 @@ export class SettingsTargetsWidget extends Widget {
 
 	private _settingsTarget: SettingsTarget;
 
-	private readonly _onDidTargetChange: Emitter<SettingsTarget> = new Emitter<SettingsTarget>();
-	public readonly onDidTargetChange: Event<SettingsTarget> = this._onDidTargetChange.event;
+	private readonly _onDidTargetChange = new Emitter<SettingsTarget>();
+	readonly onDidTargetChange: Event<SettingsTarget> = this._onDidTargetChange.event;
 
 	constructor(
 		parent: HTMLElement,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 		this.create(parent);
@@ -504,11 +504,11 @@ export class SettingsTargetsWidget extends Widget {
 		this.settingsSwitcherBar.push([this.userSettings, this.workspaceSettings, folderSettingsAction]);
 	}
 
-	public get settingsTarget(): SettingsTarget {
+	get settingsTarget(): SettingsTarget {
 		return this._settingsTarget;
 	}
 
-	public set settingsTarget(settingsTarget: SettingsTarget) {
+	set settingsTarget(settingsTarget: SettingsTarget) {
 		this._settingsTarget = settingsTarget;
 		this.userSettings.checked = ConfigurationTarget.USER === this.settingsTarget;
 		this.workspaceSettings.checked = ConfigurationTarget.WORKSPACE === this.settingsTarget;
@@ -520,7 +520,7 @@ export class SettingsTargetsWidget extends Widget {
 		}
 	}
 
-	public setResultCount(settingsTarget: SettingsTarget, count: number): void {
+	setResultCount(settingsTarget: SettingsTarget, count: number): void {
 		if (settingsTarget === ConfigurationTarget.WORKSPACE) {
 			let label = localize('workspaceSettings', "Workspace Settings");
 			if (count) {
@@ -548,13 +548,13 @@ export class SettingsTargetsWidget extends Widget {
 		}
 	}
 
-	public updateTarget(settingsTarget: SettingsTarget): Promise<void> {
+	updateTarget(settingsTarget: SettingsTarget): Promise<void> {
 		const isSameTarget = this.settingsTarget === settingsTarget || settingsTarget instanceof URI && this.settingsTarget instanceof URI && this.settingsTarget.toString() === settingsTarget.toString();
 		if (!isSameTarget) {
 			this.settingsTarget = settingsTarget;
 			this._onDidTargetChange.fire(this.settingsTarget);
 		}
-		return Promise.resolve(null);
+		return Promise.resolve(undefined);
 	}
 
 	private update(): void {
@@ -574,7 +574,7 @@ export interface SearchOptions extends IInputOptions {
 
 export class SearchWidget extends Widget {
 
-	public domNode: HTMLElement;
+	domNode: HTMLElement;
 
 	private countElement: HTMLElement;
 	private searchContainer: HTMLElement;
@@ -582,15 +582,15 @@ export class SearchWidget extends Widget {
 	private controlsDiv: HTMLElement;
 
 	private readonly _onDidChange: Emitter<string> = this._register(new Emitter<string>());
-	public readonly onDidChange: Event<string> = this._onDidChange.event;
+	readonly onDidChange: Event<string> = this._onDidChange.event;
 
 	private readonly _onFocus: Emitter<void> = this._register(new Emitter<void>());
-	public readonly onFocus: Event<void> = this._onFocus.event;
+	readonly onFocus: Event<void> = this._onFocus.event;
 
 	constructor(parent: HTMLElement, protected options: SearchOptions,
-		@IContextViewService private contextViewService: IContextViewService,
+		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
-		@IThemeService private themeService: IThemeService
+		@IThemeService private readonly themeService: IThemeService
 	) {
 		super();
 		this.create(parent);
@@ -645,7 +645,7 @@ export class SearchWidget extends Widget {
 		return box;
 	}
 
-	public showMessage(message: string): void {
+	showMessage(message: string): void {
 		// Avoid setting the aria-label unnecessarily, the screenreader will read the count every time it's set, since it's aria-live:assertive. #50968
 		if (this.countElement && message !== this.countElement.textContent) {
 			this.countElement.textContent = message;
@@ -654,7 +654,7 @@ export class SearchWidget extends Widget {
 		}
 	}
 
-	public layout(dimension: DOM.Dimension) {
+	layout(dimension: DOM.Dimension) {
 		if (dimension.width < 400) {
 			if (this.countElement) {
 				DOM.addClass(this.countElement, 'hide');
@@ -675,30 +675,30 @@ export class SearchWidget extends Widget {
 		return countWidth + 20;
 	}
 
-	public focus() {
+	focus() {
 		this.inputBox.focus();
 		if (this.getValue()) {
 			this.inputBox.select();
 		}
 	}
 
-	public hasFocus(): boolean {
+	hasFocus(): boolean {
 		return this.inputBox.hasFocus();
 	}
 
-	public clear() {
+	clear() {
 		this.inputBox.value = '';
 	}
 
-	public getValue(): string {
+	getValue(): string {
 		return this.inputBox.value;
 	}
 
-	public setValue(value: string): string {
+	setValue(value: string): string {
 		return this.inputBox.value = value;
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		if (this.options.focusKey) {
 			this.options.focusKey.set(false);
 		}
@@ -708,15 +708,15 @@ export class SearchWidget extends Widget {
 
 export class EditPreferenceWidget<T> extends Disposable {
 
-	public static readonly GLYPH_MARGIN_CLASS_NAME = 'edit-preferences-widget';
+	static readonly GLYPH_MARGIN_CLASS_NAME = 'edit-preferences-widget';
 
 	private _line: number;
 	private _preferences: T[];
 
 	private _editPreferenceDecoration: string[];
 
-	private readonly _onClick: Emitter<IEditorMouseEvent> = new Emitter<IEditorMouseEvent>();
-	public get onClick(): Event<IEditorMouseEvent> { return this._onClick.event; }
+	private readonly _onClick = new Emitter<IEditorMouseEvent>();
+	get onClick(): Event<IEditorMouseEvent> { return this._onClick.event; }
 
 	constructor(private editor: ICodeEditor
 	) {
