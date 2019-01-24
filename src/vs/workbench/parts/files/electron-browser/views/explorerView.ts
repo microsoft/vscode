@@ -159,7 +159,6 @@ export class ExplorerView extends ViewletPanel {
 			this.toolbar.setActions(this.getActions(), this.getSecondaryActions())();
 		}
 
-		this.disposables.push(this.contextService.onDidChangeWorkbenchState(() => this.setTreeInput()));
 		this.disposables.push(this.labelService.onDidChangeFormatters(() => {
 			this._onDidChangeTitleArea.fire();
 			this.refresh();
