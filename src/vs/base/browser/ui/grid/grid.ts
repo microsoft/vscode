@@ -186,6 +186,7 @@ export interface IGridStyles extends IGridViewStyles { }
 
 export interface IGridOptions {
 	styles?: IGridStyles;
+	proportionalLayout?: boolean;
 }
 
 export class Grid<T extends IView> implements IDisposable {

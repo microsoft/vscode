@@ -1460,7 +1460,7 @@ registerThemingParticipant((theme, collector, environment) => {
 	// Letterpress
 	const letterpress = `resources/letterpress${theme.type === 'dark' ? '-dark' : theme.type === 'hc' ? '-hc' : ''}.svg`;
 	collector.addRule(`
-		.monaco-workbench > .part.editor > .content .editor-group-container.empty .editor-group-letterpress {
+		.monaco-workbench .part.editor > .content .editor-group-container.empty .editor-group-letterpress {
 			background-image: url('${URI.file(join(environment.appRoot, letterpress)).toString()}')
 		}
 	`);
@@ -1469,20 +1469,20 @@ registerThemingParticipant((theme, collector, environment) => {
 	const focusedEmptyGroupBorder = theme.getColor(EDITOR_GROUP_FOCUSED_EMPTY_BORDER);
 	if (focusedEmptyGroupBorder) {
 		collector.addRule(`
-			.monaco-workbench > .part.editor > .content:not(.empty) .editor-group-container.empty.active:focus {
+			.monaco-workbench .part.editor > .content:not(.empty) .editor-group-container.empty.active:focus {
 				outline-width: 1px;
 				outline-color: ${focusedEmptyGroupBorder};
 				outline-offset: -2px;
 				outline-style: solid;
 			}
 
-			.monaco-workbench > .part.editor > .content.empty .editor-group-container.empty.active:focus {
+			.monaco-workbench .part.editor > .content.empty .editor-group-container.empty.active:focus {
 				outline: none; /* never show outline for empty group if it is the last */
 			}
 		`);
 	} else {
 		collector.addRule(`
-			.monaco-workbench > .part.editor > .content .editor-group-container.empty.active:focus {
+			.monaco-workbench .part.editor > .content .editor-group-container.empty.active:focus {
 				outline: none; /* disable focus outline unless active empty group border is defined */
 			}
 		`);

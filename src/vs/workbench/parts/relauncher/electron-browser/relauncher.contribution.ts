@@ -24,7 +24,7 @@ interface IConfiguration extends IWindowsConfiguration {
 	update: { channel: string; };
 	telemetry: { enableCrashReporter: boolean };
 	keyboard: { touchbar: { enabled: boolean } };
-	workbench: { tree: { horizontalScrolling: boolean } };
+	workbench: { tree: { horizontalScrolling: boolean }, useExperimentalGridLayout: boolean };
 	files: { useExperimentalFileWatcher: boolean, watcherExclude: object };
 }
 
@@ -41,6 +41,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private windowsSmoothScrollingWorkaround: boolean;
 	private experimentalFileWatcher: boolean;
 	private fileWatcherExclude: object;
+	private useGridLayout: boolean;
 
 	private firstFolderResource?: URI;
 	private extensionHostRestarter: RunOnceScheduler;
@@ -141,6 +142,12 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		// Windows: smooth scrolling workaround
 		if (isWindows && config.window && typeof config.window.smoothScrollingWorkaround === 'boolean' && config.window.smoothScrollingWorkaround !== this.windowsSmoothScrollingWorkaround) {
 			this.windowsSmoothScrollingWorkaround = config.window.smoothScrollingWorkaround;
+			changed = true;
+		}
+
+		// Workbench Grid Layout
+		if (config.workbench && typeof config.workbench.useExperimentalGridLayout === 'boolean' && config.workbench.useExperimentalGridLayout !== this.useGridLayout) {
+			this.useGridLayout = config.workbench.useExperimentalGridLayout;
 			changed = true;
 		}
 
