@@ -290,7 +290,7 @@ configurationRegistry.registerConfiguration({
 	}
 });
 
-registerSingleton(ITerminalService, TerminalService);
+registerSingleton(ITerminalService, TerminalService, true);
 
 (<panel.PanelRegistry>Registry.as(panel.Extensions.Panels)).registerPanel(new panel.PanelDescriptor(
 	TerminalPanel,
