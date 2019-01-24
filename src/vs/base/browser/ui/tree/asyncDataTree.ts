@@ -255,7 +255,6 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	private readonly nodes = new Map<null | T, IAsyncDataTreeNode<TInput, T>>();
 	private readonly currentRefreshCalls = new Map<IAsyncDataTreeNode<TInput, T>, Promise<void>>();
 
-	// TODO@joao remove this
 	private readonly refreshPromises = new Map<IAsyncDataTreeNode<TInput, T>, CancelablePromise<T[]>>();
 	private readonly identityProvider?: IIdentityProvider<T>;
 	private readonly autoExpandSingleChildren: boolean;
