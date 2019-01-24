@@ -275,7 +275,7 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 		const activeEditorShort = editor ? editor.getTitle(Verbosity.SHORT) : '';
 		const activeEditorMedium = editor ? editor.getTitle(Verbosity.MEDIUM) : activeEditorShort;
 		const activeEditorLong = editor ? editor.getTitle(Verbosity.LONG) : activeEditorMedium;
-		const activeFolderShort = editorResource ? resources.dirname(editorResource).path !== '.' ? resources.basename(resources.dirname(editorResource)) : resources.basename(editorResource) : '';
+		const activeFolderShort = editorResource ? resources.dirname(editorResource).path !== '.' ? resources.basename(resources.dirname(editorResource)) : '' : '';
 		const activeFolderMedium = editorResource ? resources.dirname(editorResource).path !== '.' ? this.labelService.getUriLabel(resources.dirname(editorResource), { relative: true }) : '' : '';
 		const activeFolderLong = editorResource ? resources.dirname(editorResource).path !== '.' ? this.labelService.getUriLabel(resources.dirname(editorResource)) : '' : '';
 		const rootName = this.labelService.getWorkspaceLabel(workspace);
