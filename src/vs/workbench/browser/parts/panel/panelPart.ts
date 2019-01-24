@@ -238,11 +238,19 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	protected getActions(): IAction[] {
 		const isMinimized = this.partService.isPanelMinimized();
 		const isMaximized = this.partService.isPanelMaximized();
-		return [
-			this.instantiationService.createInstance(ToggleMinimizedPanelAction, ToggleMinimizedPanelAction.ID, isMinimized ? ToggleMinimizedPanelAction.RESTORE_LABEL : ToggleMaximizedPanelAction.MAXIMIZE_LABEL),
-			this.instantiationService.createInstance(ToggleMaximizedPanelAction, ToggleMaximizedPanelAction.ID, isMaximized ? ToggleMaximizedPanelAction.RESTORE_LABEL : ToggleMaximizedPanelAction.MAXIMIZE_LABEL),
-			this.instantiationService.createInstance(ClosePanelAction, ClosePanelAction.ID, ClosePanelAction.LABEL)
-		];
+		const panelPosition = this.partService.getPanelPosition();
+
+		const actions: IAction[] = [];
+
+		if (!isMaximized && panelPosition === Position.BOTTOM) {
+			actions.push(this.instantiationService.createInstance(ToggleMinimizedPanelAction, ToggleMinimizedPanelAction.ID, isMinimized ? ToggleMinimizedPanelAction.RESTORE_LABEL : ToggleMinimizedPanelAction.MINIMIZE_LABEL));
+		}
+		if (!isMinimized) {
+			actions.push(this.instantiationService.createInstance(ToggleMaximizedPanelAction, ToggleMaximizedPanelAction.ID, isMaximized ? ToggleMaximizedPanelAction.RESTORE_LABEL : ToggleMaximizedPanelAction.MAXIMIZE_LABEL));
+		}
+		actions.push(this.instantiationService.createInstance(ClosePanelAction, ClosePanelAction.ID, ClosePanelAction.LABEL));
+
+		return actions;
 	}
 
 	getActivePanel(): IPanel {

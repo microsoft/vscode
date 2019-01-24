@@ -380,6 +380,14 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		return composite;
 	}
 
+	private updateActiveCompositeActions(): void {
+		if (this.activeComposite) {
+			const actionsBinding = this.collectCompositeActions(this.activeComposite);
+			this.mapActionsBindingToComposite[this.activeComposite.getId()] = actionsBinding;
+			actionsBinding();
+		}
+	}
+
 	createTitleArea(parent: HTMLElement): HTMLElement {
 
 		// Title Area Container
@@ -474,6 +482,8 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		if (this.activeComposite) {
 			this.activeComposite.layout(this.contentAreaSize);
 		}
+
+		this.updateActiveCompositeActions();
 
 		return sizes;
 	}
