@@ -17,8 +17,6 @@ import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { DataTree } from 'vs/base/browser/ui/tree/dataTree';
 import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
 
-// --- List Commands
-
 function ensureDOMFocus(widget: ListWidget): void {
 	// it can happen that one of the commands is executed while
 	// DOM focus is within another focusable control within the
