@@ -50,6 +50,25 @@ function matchAll(
 	return out;
 }
 
+function extractDocumentLink(
+	document: vscode.TextDocument,
+	base: string,
+	pre: number,
+	link: string,
+	matchIndex: number | undefined
+): vscode.DocumentLink | undefined {
+	const offset = (matchIndex || 0) + pre;
+	const linkStart = document.positionAt(offset);
+	const linkEnd = document.positionAt(offset + link.length);
+	try {
+		return new vscode.DocumentLink(
+			new vscode.Range(linkStart, linkEnd),
+			normalizeLink(document, link, base));
+	} catch (e) {
+		return undefined;
+	}
+}
+
 export default class LinkProvider implements vscode.DocumentLinkProvider {
 	private readonly linkPattern = /(\[((!\[(.+)\]\()(.+)\)\]|[^\]]*\])\(\s*)((([^\s\(\)]|\(\S*?\))+))\s*(".*?")?\)/g;
 	private readonly referenceLinkPattern = /(\[([^\]]+)\]\[\s*?)([^\s\]]*?)\]/g;
@@ -73,34 +92,15 @@ export default class LinkProvider implements vscode.DocumentLinkProvider {
 	): vscode.DocumentLink[] {
 		const results: vscode.DocumentLink[] = [];
 		for (const match of matchAll(this.linkPattern, text)) {
-			const pre = match[1];
-			const link = match[6];
-			const offset = (match.index || 0) + pre.length;
-			const linkStart = document.positionAt(offset);
-			const linkEnd = document.positionAt(offset + link.length);
-			try {
-				results.push(new vscode.DocumentLink(
-					new vscode.Range(linkStart, linkEnd),
-					normalizeLink(document, link, base)));
-			} catch (e) {
-				// noop
+			const urlLink = extractDocumentLink(document, base, match[1].length, match[6], match.index);
+			if (urlLink) {
+				results.push(urlLink);
 			}
-			if (match[5]) {
-				const imagePre = match[3];
-				const imageLink = match[5];
-				const imageOffset = (match.index || 0) + imagePre.length + 1;
-				const imageLinkStart = document.positionAt(imageOffset);
-				const imageLinkEnd = document.positionAt(imageOffset + imageLink.length);
-				try {
-					results.push(new vscode.DocumentLink(
-						new vscode.Range(imageLinkStart, imageLinkEnd),
-						normalizeLink(document, imageLink, base)));
-				} catch (e) {
-					// noop
-				}
+			const imgLink = match[5] && extractDocumentLink(document, base, match[3].length + 1, match[5], match.index);
+			if (imgLink) {
+				results.push(imgLink);
 			}
 		}
-
 		return results;
 	}
 
