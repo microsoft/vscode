@@ -443,9 +443,15 @@ export class ExplorerView extends ViewletPanel {
 
 		const previousInput = this.tree.getInput();
 		const promise = this.tree.setInput(input, viewState).then(() => {
-			if (Array.isArray(input) && (!viewState || previousInput instanceof ExplorerItem)) {
-				// There is no view state for this workspace, expand all roots. Or we transitioned from a folder workspace.
-				input.forEach(item => this.tree.expand(item).then(undefined, onUnexpectedError));
+			if (Array.isArray(input)) {
+				if (!viewState || previousInput instanceof ExplorerItem) {
+					// There is no view state for this workspace, expand all roots. Or we transitioned from a folder workspace.
+					input.forEach(item => this.tree.expand(item).then(undefined, onUnexpectedError));
+				}
+				if (Array.isArray(previousInput) && previousInput.length < input.length) {
+					// Roots added to the explorer -> expand them.
+					input.slice(previousInput.length).forEach(item => this.tree.expand(item).then(undefined, onUnexpectedError));
+				}
 			}
 			if (initialInputSetup) {
 				perf.mark('didResolveExplorer');
