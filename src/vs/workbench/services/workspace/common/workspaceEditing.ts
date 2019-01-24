@@ -34,7 +34,7 @@ export interface IWorkspaceEditingService {
 	/**
 	 * enters the workspace with the provided path.
 	 */
-	enterWorkspace(path: string): Promise<void>;
+	enterWorkspace(path: URI): Promise<void>;
 
 	/**
 	 * creates a new workspace with the provided folders and opens it. if path is provided
@@ -45,7 +45,7 @@ export interface IWorkspaceEditingService {
 	/**
 	 * saves the workspace to the provided path and opens it. requires a workspace to be opened.
 	 */
-	saveAndEnterWorkspace(path: string): Promise<void>;
+	saveAndEnterWorkspace(path: URI): Promise<void>;
 
 	/**
 	 * copies current workspace settings to the target workspace.

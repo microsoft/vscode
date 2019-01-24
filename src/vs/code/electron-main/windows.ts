@@ -34,7 +34,7 @@ import { normalizeNFC } from 'vs/base/common/normalization';
 import { URI } from 'vs/base/common/uri';
 import { Queue, timeout } from 'vs/base/common/async';
 import { exists } from 'vs/base/node/pfs';
-import { getComparisonKey, isEqual, normalizePath } from 'vs/base/common/resources';
+import { getComparisonKey, isEqual, normalizePath, basename as resourcesBasename } from 'vs/base/common/resources';
 import { endsWith } from 'vs/base/common/strings';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 
@@ -1474,7 +1474,7 @@ export class WindowsManager implements IWindowsMainService {
 		return this.workspacesManager.saveAndEnterWorkspace(win, path).then(result => this.doEnterWorkspace(win, result));
 	}
 
-	enterWorkspace(win: ICodeWindow, path: string): Promise<IEnterWorkspaceResult> {
+	enterWorkspace(win: ICodeWindow, path: URI): Promise<IEnterWorkspaceResult> {
 		return this.workspacesManager.enterWorkspace(win, path).then(result => this.doEnterWorkspace(win, result));
 	}
 
@@ -1968,14 +1968,14 @@ class WorkspacesManager {
 	}
 
 	saveAndEnterWorkspace(window: ICodeWindow, path: string): Promise<IEnterWorkspaceResult | null> {
-		if (!window || !window.win || !window.isReady || !window.openedWorkspace || !path || !this.isValidTargetWorkspacePath(window, path)) {
+		if (!window || !window.win || !window.isReady || !window.openedWorkspace || !path || !this.isValidTargetWorkspacePath(window, URI.file(path))) {
 			return Promise.resolve(null); // return early if the window is not ready or disposed or does not have a workspace
 		}
 
 		return this.doSaveAndOpenWorkspace(window, window.openedWorkspace, path);
 	}
 
-	enterWorkspace(window: ICodeWindow, path: string): Promise<IEnterWorkspaceResult | null> {
+	enterWorkspace(window: ICodeWindow, path: URI): Promise<IEnterWorkspaceResult | null> {
 		if (!window || !window.win || !window.isReady) {
 			return Promise.resolve(null); // return early if the window is not ready or disposed
 		}
@@ -1984,20 +1984,18 @@ class WorkspacesManager {
 			if (!isValid) {
 				return null; // return early if the workspace is not valid
 			}
-
-			return this.workspacesMainService.resolveWorkspace(path).then(workspace => {
-				return this.doOpenWorkspace(window, workspace);
-			});
+			const workspaceIdentifier = this.workspacesMainService.getWorkspaceIdentifier(path);
+			return this.doOpenWorkspace(window, workspaceIdentifier);
 		});
 
 	}
 
 	createAndEnterWorkspace(window: ICodeWindow, folders?: IWorkspaceFolderCreationData[], path?: string): Promise<IEnterWorkspaceResult | null> {
-		if (!window || !window.win || !window.isReady) {
+		if (!window || !window.win || !window.isReady || !path) {
 			return Promise.resolve(null); // return early if the window is not ready or disposed
 		}
 
-		return this.isValidTargetWorkspacePath(window, path).then(isValid => {
+		return this.isValidTargetWorkspacePath(window, URI.file(path)).then(isValid => {
 			if (!isValid) {
 				return null; // return early if the workspace is not valid
 			}
@@ -2008,22 +2006,22 @@ class WorkspacesManager {
 		});
 	}
 
-	private isValidTargetWorkspacePath(window: ICodeWindow, path?: string): Promise<boolean> {
+	private isValidTargetWorkspacePath(window: ICodeWindow, path?: URI): Promise<boolean> {
 		if (!path) {
 			return Promise.resolve(true);
 		}
 
-		if (window.openedWorkspace && window.openedWorkspace.configPath === path) {
+		if (window.openedWorkspace && isEqual(URI.file(window.openedWorkspace.configPath), path)) {
 			return Promise.resolve(false); // window is already opened on a workspace with that path
 		}
 
 		// Prevent overwriting a workspace that is currently opened in another window
-		if (findWindowOnWorkspace(this.windowsMainService.getWindows(), { id: this.workspacesMainService.getWorkspaceId(path), configPath: path })) {
+		if (findWindowOnWorkspace(this.windowsMainService.getWindows(), this.workspacesMainService.getWorkspaceIdentifier(path))) {
 			const options: Electron.MessageBoxOptions = {
 				title: product.nameLong,
 				type: 'info',
 				buttons: [localize('ok', "OK")],
-				message: localize('workspaceOpenedMessage', "Unable to save workspace '{0}'", basename(path)),
+				message: localize('workspaceOpenedMessage', "Unable to save workspace '{0}'", resourcesBasename(path)),
 				detail: localize('workspaceOpenedDetail', "The workspace is already opened in another window. Please close that window first and then try again."),
 				noLink: true
 			};

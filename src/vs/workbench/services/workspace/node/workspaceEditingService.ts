@@ -7,9 +7,9 @@ import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IWindowService, IEnterWorkspaceResult } from 'vs/platform/windows/common/windows';
+import { IWindowService, IEnterWorkspaceResult, MessageBoxOptions, IWindowsService } from 'vs/platform/windows/common/windows';
 import { IJSONEditingService, JSONEditingError, JSONEditingErrorCode } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { IWorkspaceIdentifier, IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, IStoredWorkspace, isStoredWorkspaceFolder, isRawFileWorkspaceFolder, isWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -21,9 +21,15 @@ import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { BackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { distinct } from 'vs/base/common/arrays';
-import { isLinux } from 'vs/base/common/platform';
-import { isEqual } from 'vs/base/common/resources';
+import { isLinux, isMacintosh } from 'vs/base/common/platform';
+import { isEqual, dirname, basename } from 'vs/base/common/resources';
+import * as json from 'vs/base/common/json';
+import * as jsonEdit from 'vs/base/common/jsonEdit';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { IFileService } from 'vs/platform/files/common/files';
+import { isAbsolute, resolve } from 'path';
+import { massageFolderPathForWorkspace } from 'vs/platform/workspaces/node/workspaces';
+import { Schemas } from 'vs/base/common/network';
 
 export class WorkspaceEditingService implements IWorkspaceEditingService {
 
@@ -38,7 +44,9 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IBackupFileService private readonly backupFileService: IBackupFileService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@ICommandService private readonly commandService: ICommandService
+		@ICommandService private readonly commandService: ICommandService,
+		@IFileService private readonly fileSystemService: IFileService,
+		@IWindowsService private readonly windowsService: IWindowsService,
 	) {
 	}
 
@@ -140,7 +148,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		return false;
 	}
 
-	enterWorkspace(path: string): Promise<void> {
+	enterWorkspace(path: URI): Promise<void> {
 		return this.doEnterWorkspace(() => this.windowService.enterWorkspace(path));
 	}
 
@@ -148,8 +156,104 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		return this.doEnterWorkspace(() => this.windowService.createAndEnterWorkspace(folders, path));
 	}
 
-	saveAndEnterWorkspace(path: string): Promise<void> {
-		return this.doEnterWorkspace(() => this.windowService.saveAndEnterWorkspace(path));
+	async saveAndEnterWorkspace(path: URI): Promise<void> {
+		if (!this.isValidTargetWorkspacePath(path)) {
+			return Promise.reject(null);
+		}
+		const currentWorkspaceIdentifier = toWorkspaceIdentifier(this.contextService.getWorkspace());
+		if (!isWorkspaceIdentifier(currentWorkspaceIdentifier)) {
+			return Promise.reject(null);
+		}
+		await this.saveWorkspace(currentWorkspaceIdentifier, path);
+
+		return this.enterWorkspace(path);
+	}
+
+
+	async isValidTargetWorkspacePath(path: URI): Promise<boolean> {
+
+		const windows = await this.windowsService.getWindows();
+
+		// Prevent overwriting a workspace that is currently opened in another window
+		if (windows.some(window => window.workspace && isEqual(URI.file(window.workspace.configPath), path))) {
+			const options: MessageBoxOptions = {
+				type: 'info',
+				buttons: [nls.localize('ok', "OK")],
+				message: nls.localize('workspaceOpenedMessage', "Unable to save workspace '{0}'", basename(path)),
+				detail: nls.localize('workspaceOpenedDetail', "The workspace is already opened in another window. Please close that window first and then try again."),
+				noLink: true
+			};
+			return this.windowService.showMessageBox(options).then(() => false);
+		}
+
+		return Promise.resolve(true); // OK
+	}
+
+	private saveWorkspace(workspace: IWorkspaceIdentifier, targetConfigPathURI: URI): Promise<URI> {
+		const configPathURI = URI.file(workspace.configPath);
+
+		// Return early if target is same as source
+		if (isEqual(configPathURI, targetConfigPathURI)) {
+			return Promise.resolve(targetConfigPathURI);
+		}
+
+		// Read the contents of the workspace file and resolve it
+		return this.fileSystemService.resolveFile(configPathURI).then(raw => {
+			const rawWorkspaceContents = raw.toString();
+			let storedWorkspace: IStoredWorkspace;
+			try {
+				storedWorkspace = this.doParseStoredWorkspace(configPathURI, rawWorkspaceContents);
+			} catch (error) {
+				return Promise.reject(error);
+			}
+
+			const sourceConfigFolder = dirname(configPathURI);
+			const targetConfigFolder = dirname(targetConfigPathURI);
+
+			// Rewrite absolute paths to relative paths if the target workspace folder
+			// is a parent of the location of the workspace file itself. Otherwise keep
+			// using absolute paths.
+			storedWorkspace.folders.forEach(folder => {
+				if (isRawFileWorkspaceFolder(folder)) {
+					if (sourceConfigFolder.scheme === Schemas.file) {
+						if (!isAbsolute(folder.path)) {
+							folder.path = resolve(sourceConfigFolder.path, folder.path); // relative paths get resolved against the workspace location
+						}
+						folder.path = massageFolderPathForWorkspace(folder.path, targetConfigFolder, storedWorkspace.folders);
+					}
+				}
+			});
+
+			// Preserve as much of the existing workspace as possible by using jsonEdit
+			// and only changing the folders portion.
+			let newRawWorkspaceContents = rawWorkspaceContents;
+			const edits = jsonEdit.setProperty(rawWorkspaceContents, ['folders'], storedWorkspace.folders, { insertSpaces: false, tabSize: 4, eol: (isLinux || isMacintosh) ? '\n' : '\r\n' });
+			edits.forEach(edit => {
+				newRawWorkspaceContents = jsonEdit.applyEdit(rawWorkspaceContents, edit);
+			});
+
+			return this.fileSystemService.createFile(targetConfigPathURI, newRawWorkspaceContents, { overwrite: true }).then(() => {
+				return targetConfigPathURI;
+			});
+		});
+	}
+
+	private doParseStoredWorkspace(path: URI, contents: string): IStoredWorkspace {
+
+		// Parse workspace file
+		let storedWorkspace: IStoredWorkspace = json.parse(contents); // use fault tolerant parser
+
+		// Filter out folders which do not have a path or uri set
+		if (Array.isArray(storedWorkspace.folders)) {
+			storedWorkspace.folders = storedWorkspace.folders.filter(folder => isStoredWorkspaceFolder(folder));
+		}
+
+		// Validate
+		if (!Array.isArray(storedWorkspace.folders)) {
+			throw new Error(`${path} looks like an invalid workspace file.`);
+		}
+
+		return storedWorkspace;
 	}
 
 	private handleWorkspaceConfigurationEditingError(error: JSONEditingError): Promise<void> {

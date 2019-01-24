@@ -114,7 +114,7 @@ export interface IWindowsService {
 	openDevTools(windowId: number, options?: IDevToolsOptions): Promise<void>;
 	toggleDevTools(windowId: number): Promise<void>;
 	closeWorkspace(windowId: number): Promise<void>;
-	enterWorkspace(windowId: number, path: string): Promise<IEnterWorkspaceResult | undefined>;
+	enterWorkspace(windowId: number, path: URI): Promise<IEnterWorkspaceResult | undefined>;
 	createAndEnterWorkspace(windowId: number, folders?: IWorkspaceFolderCreationData[], path?: string): Promise<IEnterWorkspaceResult | undefined>;
 	saveAndEnterWorkspace(windowId: number, path: string): Promise<IEnterWorkspaceResult | undefined>;
 	toggleFullScreen(windowId: number): Promise<void>;
@@ -207,7 +207,7 @@ export interface IWindowService {
 	toggleDevTools(): Promise<void>;
 	closeWorkspace(): Promise<void>;
 	updateTouchBar(items: ISerializableCommandAction[][]): Promise<void>;
-	enterWorkspace(path: string): Promise<IEnterWorkspaceResult | undefined>;
+	enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | undefined>;
 	createAndEnterWorkspace(folders?: IWorkspaceFolderCreationData[], path?: string): Promise<IEnterWorkspaceResult | undefined>;
 	saveAndEnterWorkspace(path: string): Promise<IEnterWorkspaceResult | undefined>;
 	toggleFullScreen(): Promise<void>;

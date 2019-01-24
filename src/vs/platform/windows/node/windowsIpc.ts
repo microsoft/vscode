@@ -56,7 +56,7 @@ export class WindowsChannel implements IServerChannel {
 			case 'openDevTools': return this.service.openDevTools(arg[0], arg[1]);
 			case 'toggleDevTools': return this.service.toggleDevTools(arg);
 			case 'closeWorkspace': return this.service.closeWorkspace(arg);
-			case 'enterWorkspace': return this.service.enterWorkspace(arg[0], arg[1]);
+			case 'enterWorkspace': return this.service.enterWorkspace(arg[0], URI.revive(arg[1]));
 			case 'createAndEnterWorkspace': {
 				const rawFolders: IWorkspaceFolderCreationData[] = arg[1];
 				let folders: IWorkspaceFolderCreationData[] | undefined = undefined;
@@ -179,7 +179,7 @@ export class WindowsChannelClient implements IWindowsService {
 		return this.channel.call('closeWorkspace', windowId);
 	}
 
-	enterWorkspace(windowId: number, path: string): Promise<IEnterWorkspaceResult> {
+	enterWorkspace(windowId: number, path: URI): Promise<IEnterWorkspaceResult> {
 		return this.channel.call('enterWorkspace', [windowId, path]);
 	}
 

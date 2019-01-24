@@ -1054,7 +1054,7 @@ export class TestWindowService implements IWindowService {
 		return Promise.resolve();
 	}
 
-	enterWorkspace(_path: string): Promise<IEnterWorkspaceResult> {
+	enterWorkspace(_path: URI): Promise<IEnterWorkspaceResult> {
 		return Promise.resolve();
 	}
 
@@ -1223,7 +1223,7 @@ export class TestWindowsService implements IWindowsService {
 		return Promise.resolve();
 	}
 
-	enterWorkspace(_windowId: number, _path: string): Promise<IEnterWorkspaceResult> {
+	enterWorkspace(_windowId: number, _path: URI): Promise<IEnterWorkspaceResult> {
 		return Promise.resolve();
 	}
 
