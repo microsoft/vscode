@@ -75,20 +75,6 @@ export class ToggleFullScreenAction extends Action {
 	}
 }
 
-export class ToggleDevToolsAction extends Action {
-
-	static readonly ID = 'workbench.action.toggleDevTools';
-	static LABEL = nls.localize('toggleDevTools', "Toggle Developer Tools");
-
-	constructor(id: string, label: string, @IWindowService private readonly windowsService: IWindowService) {
-		super(id, label);
-	}
-
-	run(): Promise<void> {
-		return this.windowsService.toggleDevTools();
-	}
-}
-
 export abstract class BaseZoomAction extends Action {
 	private static readonly SETTING_KEY = 'window.zoomLevel';
 
