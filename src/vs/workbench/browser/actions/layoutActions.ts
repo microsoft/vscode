@@ -18,6 +18,8 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { MenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { isWindows, isLinux } from 'vs/base/common/platform';
 import { IsMacContext } from 'vs/platform/workbench/common/contextkeys';
+import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { InEditorZenModeContext } from 'vs/workbench/common/editor';
 
 const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 const viewCategory = nls.localize('view', "View");
@@ -341,6 +343,18 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	},
 	order: 2
 });
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'workbench.action.exitZenMode',
+	weight: KeybindingWeight.EditorContrib - 1000,
+	handler(accessor: ServicesAccessor) {
+		const partService = accessor.get(IPartService);
+		partService.toggleZenMode();
+	},
+	when: InEditorZenModeContext,
+	primary: KeyChord(KeyCode.Escape, KeyCode.Escape)
+});
+
 
 // --- Toggle Menu Bar
 
