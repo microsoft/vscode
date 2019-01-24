@@ -233,7 +233,7 @@ export function registerCommands(): void {
 			const focused = accessor.get(IListService).lastFocusedList;
 
 			// List
-			if (focused instanceof List || focused instanceof PagedList) {
+			if (focused instanceof List || focused instanceof PagedList || focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
 				const list = focused;
 
 				// Focus up first
