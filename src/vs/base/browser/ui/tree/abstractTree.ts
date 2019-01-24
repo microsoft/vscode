@@ -359,6 +359,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 
 	constructor(
 		private tree: AbstractTree<T, TFilterData, any>,
+		model: ITreeModel<T, TFilterData, any>,
 		private view: List<ITreeNode<T, TFilterData>>,
 		private filter: TypeFilter<T>,
 		private keyboardNavigationLabelProvider: IKeyboardNavigationLabelProvider<T>
@@ -382,6 +383,8 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		this.clearDomNode = append(controls, $<HTMLInputElement>('button.clear'));
 		this.clearDomNode.tabIndex = -1;
 		this.clearDomNode.title = localize('clear', "Clear");
+
+		model.onDidSplice(this.onDidSpliceModel, this, this.disposables);
 
 		tree.onDidUpdateOptions(this.onDidUpdateTreeOptions, this, this.disposables);
 		this.onDidUpdateTreeOptions(tree.options);
@@ -524,6 +527,11 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		disposables.push(toDisposable(() => StaticDND.CurrentDragAndDropData = undefined));
 	}
 
+	private onDidSpliceModel(): void {
+		this.tree.refilter();
+		this.updateMessage();
+	}
+
 	private onDidChangeFilterOnType(): void {
 		this.tree.updateOptions({ filterOnType: this.filterOnTypeDomNode.checked });
 		this.tree.refilter();
@@ -660,7 +668,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		}
 
 		if (_options.keyboardNavigationLabelProvider) {
-			const typeFilterController = new TypeFilterController(this, this.view, filter as TypeFilter<T>, _options.keyboardNavigationLabelProvider);
+			const typeFilterController = new TypeFilterController(this, this.model, this.view, filter as TypeFilter<T>, _options.keyboardNavigationLabelProvider);
 			this.focusNavigationFilter = node => !typeFilterController.pattern || !FuzzyScore.isDefault(node.filterData as any as FuzzyScore); // TODO@joao
 			this.disposables.push(typeFilterController);
 		}
