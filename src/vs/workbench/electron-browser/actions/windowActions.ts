@@ -26,8 +26,6 @@ import { IQuickInputService, IQuickPickItem, IQuickInputButton, IQuickPickSepara
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import product from 'vs/platform/node/product';
 
-// --- actions
-
 export class CloseCurrentWindowAction extends Action {
 
 	static readonly ID = 'workbench.action.closeWindow';

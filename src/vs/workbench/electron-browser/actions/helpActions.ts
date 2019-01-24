@@ -242,4 +242,3 @@ export class OpenPrivacyStatementUrlAction extends Action {
 		return Promise.resolve();
 	}
 }
-

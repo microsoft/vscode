@@ -16,8 +16,6 @@ import { Context } from 'vs/platform/contextkey/browser/contextKeyService';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { timeout } from 'vs/base/common/async';
 
-// --- actions
-
 export class ToggleDevToolsAction extends Action {
 
 	static readonly ID = 'workbench.action.toggleDevTools';
