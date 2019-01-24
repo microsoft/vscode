@@ -818,7 +818,7 @@ export class WindowsManager implements IWindowsMainService {
 		if (!openConfig.addMode && isCommandLineOrAPICall) {
 			const foldersToOpen = windowsToOpen.filter(path => !!path.folderUri);
 			if (foldersToOpen.length > 1 && foldersToOpen.every(f => f.folderUri.scheme === Schemas.file)) {
-				const workspace = this.workspacesMainService.createWorkspaceSync(foldersToOpen.map(folder => ({ uri: folder.folderUri })));
+				const workspace = this.workspacesMainService.createUntitledWorkspaceSync(foldersToOpen.map(folder => ({ uri: folder.folderUri })));
 
 				// Add workspace and remove folders thereby
 				windowsToOpen.push({ workspace, remoteAuthority: foldersToOpen[0].remoteAuthority });
@@ -2000,7 +2000,7 @@ class WorkspacesManager {
 				return null; // return early if the workspace is not valid
 			}
 
-			return this.workspacesMainService.createWorkspace(folders).then(workspace => {
+			return this.workspacesMainService.createUntitledWorkspace(folders).then(workspace => {
 				return this.doSaveAndOpenWorkspace(window, workspace, path);
 			});
 		});

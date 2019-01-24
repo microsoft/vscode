@@ -82,7 +82,7 @@ export interface IWorkspacesMainService extends IWorkspacesService {
 
 	saveWorkspace(workspace: IWorkspaceIdentifier, target: string): Promise<IWorkspaceIdentifier>;
 
-	createWorkspaceSync(folders?: IWorkspaceFolderCreationData[]): IWorkspaceIdentifier;
+	createUntitledWorkspaceSync(folders?: IWorkspaceFolderCreationData[]): IWorkspaceIdentifier;
 
 	resolveWorkspaceSync(path: string): IResolvedWorkspace | null;
 
@@ -100,7 +100,7 @@ export interface IWorkspacesMainService extends IWorkspacesService {
 export interface IWorkspacesService {
 	_serviceBrand: any;
 
-	createWorkspace(folders?: IWorkspaceFolderCreationData[]): Promise<IWorkspaceIdentifier>;
+	createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[]): Promise<IWorkspaceIdentifier>;
 }
 
 export function isSingleFolderWorkspaceIdentifier(obj: any): obj is ISingleFolderWorkspaceIdentifier {

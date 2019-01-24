@@ -107,16 +107,16 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 		return isParent(path, this.environmentService.workspacesHome, !isLinux /* ignore case */);
 	}
 
-	createWorkspace(folders?: IWorkspaceFolderCreationData[]): Promise<IWorkspaceIdentifier> {
-		const { workspace, configParent, storedWorkspace } = this.createUntitledWorkspace(folders);
+	createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[]): Promise<IWorkspaceIdentifier> {
+		const { workspace, configParent, storedWorkspace } = this.newUntitledWorkspace(folders);
 
 		return mkdirp(configParent).then(() => {
 			return writeFile(workspace.configPath, JSON.stringify(storedWorkspace, null, '\t')).then(() => workspace);
 		});
 	}
 
-	createWorkspaceSync(folders?: IWorkspaceFolderCreationData[]): IWorkspaceIdentifier {
-		const { workspace, configParent, storedWorkspace } = this.createUntitledWorkspace(folders);
+	createUntitledWorkspaceSync(folders?: IWorkspaceFolderCreationData[]): IWorkspaceIdentifier {
+		const { workspace, configParent, storedWorkspace } = this.newUntitledWorkspace(folders);
 
 		if (!existsSync(this.workspacesHome)) {
 			mkdirSync(this.workspacesHome);
@@ -129,7 +129,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 		return workspace;
 	}
 
-	private createUntitledWorkspace(folders: IWorkspaceFolderCreationData[] = []): { workspace: IWorkspaceIdentifier, configParent: string, storedWorkspace: IStoredWorkspace } {
+	private newUntitledWorkspace(folders: IWorkspaceFolderCreationData[] = []): { workspace: IWorkspaceIdentifier, configParent: string, storedWorkspace: IStoredWorkspace } {
 		const randomId = (Date.now() + Math.round(Math.random() * 1000)).toString();
 		const untitledWorkspaceConfigFolder = join(this.workspacesHome, randomId);
 		const untitledWorkspaceConfigPath = join(untitledWorkspaceConfigFolder, UNTITLED_WORKSPACE_NAME);
