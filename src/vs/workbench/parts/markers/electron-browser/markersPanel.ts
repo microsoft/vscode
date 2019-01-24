@@ -203,10 +203,15 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		return false;
 	}
 
-	private refreshPanel(): void {
+	private refreshPanel(marker?: Marker): void {
 		if (this.isVisible()) {
 			this.cachedFilterStats = undefined;
-			this.tree.setChildren(null, createModelIterator(this.markersWorkbenchService.markersModel));
+
+			if (marker) {
+				this.tree.refresh(marker);
+			} else {
+				this.tree.setChildren(null, createModelIterator(this.markersWorkbenchService.markersModel));
+			}
 
 			const { total, filtered } = this.getFilterStats();
 			dom.toggleClass(this.treeContainer, 'hidden', total > 0 && filtered === 0);
@@ -216,7 +221,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 	}
 
 	private onDidChangeViewState(marker?: Marker): void {
-		this.refreshPanel();
+		this.refreshPanel(marker);
 	}
 
 	private updateFilter() {

@@ -491,7 +491,7 @@ export class WindowsManager implements IWindowsMainService {
 
 		// Remember in recent document list (unless this opens for extension development)
 		// Also do not add paths when files are opened for diffing, only if opened individually
-		if (!usedWindows.some(w => w.isExtensionDevelopmentHost) && !openConfig.cli.diff) {
+		if (!usedWindows.some(w => w.isExtensionDevelopmentHost) && !openConfig.diffMode) {
 			const recentlyOpenedWorkspaces: Array<IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier> = [];
 			const recentlyOpenedFiles: URI[] = [];
 
@@ -551,9 +551,6 @@ export class WindowsManager implements IWindowsMainService {
 			if (lastActiveWindow) {
 				usedWindows.push(this.doAddFoldersToExistingWindow(lastActiveWindow, foldersToAdd));
 			}
-
-			// Reset because we handled them
-			foldersToAdd = [];
 		}
 
 		// Handle files to open/diff or to create when we dont open a folder and we do not restore any folder/untitled from hot-exit
@@ -833,7 +830,7 @@ export class WindowsManager implements IWindowsMainService {
 		// folders should be added to the existing window.
 		if (!openConfig.addMode && isCommandLineOrAPICall) {
 			const foldersToOpen = windowsToOpen.filter(path => !!path.folderUri);
-			if (foldersToOpen.length > 1) {
+			if (foldersToOpen.length > 1 && foldersToOpen.every(f => f.folderUri.scheme === Schemas.file)) {
 				const workspace = this.workspacesMainService.createWorkspaceSync(foldersToOpen.map(folder => ({ uri: folder.folderUri })));
 
 				// Add workspace and remove folders thereby
@@ -1016,8 +1013,9 @@ export class WindowsManager implements IWindowsMainService {
 
 		// normalize URI
 		uri = normalizePath(uri);
-		if (endsWith(uri.path, '/')) {
-			uri = uri.with({ path: uri.path.substr(0, uri.path.length - 1) });
+		const uriPath = uri.path;
+		if (uriPath.length > 2 && endsWith(uriPath, '/')) {
+			uri = uri.with({ path: uriPath.substr(0, uriPath.length - 1) });
 		}
 		if (isFile) {
 			if (options && options.gotoLineMode) {

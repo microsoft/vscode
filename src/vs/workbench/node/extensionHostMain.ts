@@ -10,7 +10,7 @@ import { Counter } from 'vs/base/common/numbers';
 import { URI, setUriThrowOnMissingScheme } from 'vs/base/common/uri';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
-import { IEnvironment, IInitData, MainContext } from 'vs/workbench/api/node/extHost.protocol';
+import { IEnvironment, IInitData, MainContext, MainThreadConsoleShape } from 'vs/workbench/api/node/extHost.protocol';
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
@@ -67,6 +67,8 @@ export class ExtensionHostMain {
 		const allowExit = !!this._environment.extensionTestsPath; // to support other test frameworks like Jasmin that use process.exit (https://github.com/Microsoft/vscode/issues/37708)
 		patchProcess(allowExit);
 
+		this._patchPatchedConsole(rpcProtocol.getProxy(MainContext.MainThreadConsole));
+
 		// services
 		this._extHostLogService = new ExtHostLogService(initData.logLevel, initData.logsLocation.fsPath);
 		this.disposables.push(this._extHostLogService);
@@ -77,7 +79,7 @@ export class ExtensionHostMain {
 		this._extHostLogService.info('extension host started');
 		this._extHostLogService.trace('initData', initData);
 
-		this._extHostConfiguration = new ExtHostConfiguration(rpcProtocol.getProxy(MainContext.MainThreadConfiguration), extHostWorkspace, initData.configuration);
+		this._extHostConfiguration = new ExtHostConfiguration(rpcProtocol.getProxy(MainContext.MainThreadConfiguration), extHostWorkspace);
 		this._extensionService = new ExtHostExtensionService(nativeExit, initData, rpcProtocol, extHostWorkspace, this._extHostConfiguration, this._extHostLogService);
 
 		// error forwarding and stack trace scanning
@@ -112,6 +114,18 @@ export class ExtensionHostMain {
 				mainThreadErrors.$onUnexpectedError(data);
 			}
 		});
+	}
+
+	private _patchPatchedConsole(mainThreadConsole: MainThreadConsoleShape): void {
+		// The console is already patched to use `process.send()`
+		const nativeProcessSend = process.send;
+		process.send = (...args: any[]) => {
+			if (args.length === 0 || !args[0] || args[0].type !== '__$console') {
+				return nativeProcessSend.apply(process, args);
+			}
+
+			mainThreadConsole.$logExtensionHostMessage(args[0]);
+		};
 	}
 
 	terminate(): void {

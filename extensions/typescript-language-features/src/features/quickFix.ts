@@ -128,8 +128,8 @@ class DiagnosticsSet {
 }
 
 class CodeActionSet {
-	private _actions = new Set<vscode.CodeAction>();
-	private _fixAllActions = new Map<{}, vscode.CodeAction>();
+	private readonly _actions = new Set<vscode.CodeAction>();
+	private readonly _fixAllActions = new Map<{}, vscode.CodeAction>();
 
 	public get values(): Iterable<vscode.CodeAction> {
 		return this._actions;
@@ -142,7 +142,7 @@ class CodeActionSet {
 	public addFixAllAction(fixId: {}, action: vscode.CodeAction) {
 		const existing = this._fixAllActions.get(fixId);
 		if (existing) {
-			// reinsert action at back
+			// reinsert action at back of actions list
 			this._actions.delete(existing);
 		}
 		this.addAction(action);
@@ -216,33 +216,33 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
 
 		await this.formattingConfigurationManager.ensureConfigurationForDocument(document, token);
 
-		const results: vscode.CodeAction[] = [];
+		const results = new CodeActionSet();
 		for (const diagnostic of fixableDiagnostics.values) {
-			results.push(...await this.getFixesForDiagnostic(document, file, diagnostic, token));
+			await this.getFixesForDiagnostic(document, file, diagnostic, results, token);
 		}
-		return results;
+		return Array.from(results.values);
 	}
 
 	private async getFixesForDiagnostic(
 		document: vscode.TextDocument,
 		file: string,
 		diagnostic: vscode.Diagnostic,
-		token: vscode.CancellationToken
-	): Promise<Iterable<vscode.CodeAction>> {
+		results: CodeActionSet,
+		token: vscode.CancellationToken,
+	): Promise<CodeActionSet> {
 		const args: Proto.CodeFixRequestArgs = {
 			...typeConverters.Range.toFileRangeRequestArgs(file, diagnostic.range),
 			errorCodes: [+(diagnostic.code!)]
 		};
 		const response = await this.client.execute('getCodeFixes', args, token);
 		if (response.type !== 'response' || !response.body) {
-			return [];
+			return results;
 		}
 
-		const results = new CodeActionSet();
 		for (const tsCodeFix of response.body) {
-			this.addAllFixesForTsCodeAction(results, document, file, diagnostic, tsCodeFix);
+			this.addAllFixesForTsCodeAction(results, document, file, diagnostic, tsCodeFix as Proto.CodeFixAction);
 		}
-		return results.values;
+		return results;
 	}
 
 	private addAllFixesForTsCodeAction(
@@ -250,7 +250,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
 		document: vscode.TextDocument,
 		file: string,
 		diagnostic: vscode.Diagnostic,
-		tsAction: Proto.CodeAction
+		tsAction: Proto.CodeFixAction
 	): CodeActionSet {
 		results.addAction(this.getSingleFixForTsCodeAction(diagnostic, tsAction));
 		this.addFixAllForTsCodeAction(results, document, file, diagnostic, tsAction as Proto.CodeFixAction);
@@ -259,7 +259,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
 
 	private getSingleFixForTsCodeAction(
 		diagnostic: vscode.Diagnostic,
-		tsAction: Proto.CodeAction
+		tsAction: Proto.CodeFixAction
 	): vscode.CodeAction {
 		const codeAction = new vscode.CodeAction(tsAction.description, vscode.CodeActionKind.QuickFix);
 		codeAction.edit = getEditForCodeAction(this.client, tsAction);
@@ -269,6 +269,9 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
 			arguments: [tsAction],
 			title: ''
 		};
+		if (tsAction.fixName === 'spelling') {
+			codeAction.isPreferred = true;
+		}
 		return codeAction;
 	}
 
@@ -279,7 +282,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
 		diagnostic: vscode.Diagnostic,
 		tsAction: Proto.CodeFixAction,
 	): CodeActionSet {
-		if (!tsAction.fixId || this.client.apiVersion.lt(API.v270) || results.hasFixAllAction(results)) {
+		if (!tsAction.fixId || this.client.apiVersion.lt(API.v270) || results.hasFixAllAction(tsAction.fixId)) {
 			return results;
 		}
 

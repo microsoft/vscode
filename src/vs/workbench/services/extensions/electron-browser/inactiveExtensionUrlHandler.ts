@@ -148,7 +148,7 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 
 	private async handleUnhandledURL(uri: URI, extensionIdentifier: IExtensionIdentifier): Promise<void> {
 		const installedExtensions = await this.extensionManagementService.getInstalled();
-		const extension = installedExtensions.filter(e => areSameExtensions(e.galleryIdentifier, extensionIdentifier))[0];
+		const extension = installedExtensions.filter(e => areSameExtensions(e.identifier, extensionIdentifier))[0];
 
 		// Extension is installed
 		if (extension) {
@@ -183,7 +183,7 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 					return;
 				}
 
-				await this.extensionEnablementService.setEnablement(extension, EnablementState.Enabled);
+				await this.extensionEnablementService.setEnablement([extension], EnablementState.Enabled);
 				await this.reloadAndHandle(uri);
 			}
 		}

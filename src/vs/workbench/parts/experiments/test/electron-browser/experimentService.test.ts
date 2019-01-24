@@ -26,7 +26,7 @@ import { assign } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { lastSessionDateStorageKey } from 'vs/platform/telemetry/node/workbenchCommonProperties';
-import { getLocalExtensionIdFromManifest, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 
 interface ExperimentSettings {
@@ -46,8 +46,7 @@ function aLocalExtension(name: string = 'someext', manifest: any = {}, propertie
 	properties = assign({
 		type: ExtensionType.User,
 		location: URI.file(`pub.${name}`),
-		identifier: { id: getLocalExtensionIdFromManifest(manifest) },
-		galleryIdentifier: { id: getGalleryExtensionId(manifest.publisher, manifest.name), uuid: undefined },
+		identifier: { id: getGalleryExtensionId(manifest.publisher, manifest.name), uuid: undefined },
 		metadata: { id: getGalleryExtensionId(manifest.publisher, manifest.name), publisherId: manifest.publisher, publisherDisplayName: 'somename' }
 	}, properties);
 	return <ILocalExtension>Object.create({ manifest, ...properties });

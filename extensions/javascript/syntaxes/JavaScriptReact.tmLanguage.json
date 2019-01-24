@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/f17fefd8d6bbf181ea27be2faccb2a274366e6db",
+	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/76cfeabda164d2d132222af72e0a5f991e26c51a",
 	"name": "JavaScript (with React support)",
 	"scopeName": "source.js.jsx",
 	"patterns": [
@@ -3727,6 +3727,10 @@
 				},
 				{
 					"include": "#type-function-return-type"
+				},
+				{
+					"name": "storage.modifier.js.jsx",
+					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(readonly)(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))"
 				},
 				{
 					"include": "#type-name"

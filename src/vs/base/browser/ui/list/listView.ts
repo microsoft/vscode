@@ -21,18 +21,7 @@ import { memoize } from 'vs/base/common/decorators';
 import { Range, IRange } from 'vs/base/common/range';
 import { equals, distinct } from 'vs/base/common/arrays';
 import { DataTransfers, StaticDND, IDragAndDropData } from 'vs/base/browser/dnd';
-
-function canUseTranslate3d(): boolean {
-	if (browser.isFirefox) {
-		return false;
-	}
-
-	if (browser.getZoomLevel() !== 0) {
-		return false;
-	}
-
-	return true;
-}
+import { disposableTimeout } from 'vs/base/common/async';
 
 interface IItem<T> {
 	readonly id: string;
@@ -171,8 +160,10 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	private dragOverMouseY: number;
 	private setRowLineHeight: boolean;
 	private supportDynamicHeights: boolean;
+	private canUseTranslate3d: boolean | undefined = undefined;
 
 	private dnd: IListViewDragAndDrop<T>;
+	private canDrop: boolean = false;
 	private currentDragData: IDragAndDropData | undefined;
 	private currentDragFeedback: number[] | undefined;
 	private currentDragFeedbackDisposable: IDisposable = Disposable.None;
@@ -432,14 +423,26 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			}
 		}
 
-		if (canUseTranslate3d() && !isWindows /* Windows: translate3d breaks subpixel-antialias (ClearType) unless a background is defined */) {
+		const canUseTranslate3d = !isWindows && !browser.isFirefox && browser.getZoomLevel() === 0;
+
+		if (canUseTranslate3d) {
 			const transform = `translate3d(0px, -${renderTop}px, 0px)`;
 			this.rowsContainer.style.transform = transform;
 			this.rowsContainer.style.webkitTransform = transform;
+
+			if (canUseTranslate3d !== this.canUseTranslate3d) {
+				this.rowsContainer.style.top = '0';
+			}
 		} else {
 			this.rowsContainer.style.top = `-${renderTop}px`;
+
+			if (canUseTranslate3d !== this.canUseTranslate3d) {
+				this.rowsContainer.style.transform = '';
+				this.rowsContainer.style.webkitTransform = '';
+			}
 		}
 
+		this.canUseTranslate3d = canUseTranslate3d;
 		this.lastRenderTop = renderTop;
 		this.lastRenderHeight = renderHeight;
 	}
@@ -635,6 +638,11 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	private onDragOver(event: IListDragEvent<T>): boolean {
 		this.onDragLeaveTimeout.dispose();
+
+		if (StaticDND.CurrentDragAndDropData && StaticDND.CurrentDragAndDropData.getData() === 'vscode-ui') {
+			return false;
+		}
+
 		this.setupDragAndDropScrollTopAnimation(event.browserEvent);
 
 		if (!event.browserEvent.dataTransfer) {
@@ -658,9 +666,11 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		}
 
 		const result = this.dnd.onDragOver(this.currentDragData, event.element, event.index, event.browserEvent);
-		const canDrop = typeof result === 'boolean' ? result : result.accept;
+		this.canDrop = typeof result === 'boolean' ? result : result.accept;
 
-		if (!canDrop) {
+		if (!this.canDrop) {
+			this.currentDragFeedback = undefined;
+			this.currentDragFeedbackDisposable.dispose();
 			return false;
 		}
 
@@ -723,10 +733,14 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	private onDragLeave(): void {
 		this.onDragLeaveTimeout.dispose();
-		this.onDragLeaveTimeout = DOM.timeout(() => this.clearDragOverFeedback(), 100);
+		this.onDragLeaveTimeout = disposableTimeout(() => this.clearDragOverFeedback(), 100);
 	}
 
 	private onDrop(event: IListDragEvent<T>): void {
+		if (!this.canDrop) {
+			return;
+		}
+
 		const dragData = this.currentDragData;
 		this.teardownDragAndDropScrollTopAnimation();
 		this.clearDragOverFeedback();
@@ -743,6 +757,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	private onDragEnd(): void {
+		this.canDrop = false;
 		this.teardownDragAndDropScrollTopAnimation();
 		this.clearDragOverFeedback();
 		this.currentDragData = undefined;
@@ -764,7 +779,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		}
 
 		this.dragOverAnimationStopDisposable.dispose();
-		this.dragOverAnimationStopDisposable = DOM.timeout(() => {
+		this.dragOverAnimationStopDisposable = disposableTimeout(() => {
 			if (this.dragOverAnimationDisposable) {
 				this.dragOverAnimationDisposable.dispose();
 				this.dragOverAnimationDisposable = undefined;
@@ -881,7 +896,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 				for (const range of renderRanges) {
 					for (let i = range.start; i < range.end; i++) {
-						const beforeRow = i < this.items.length ? this.items[i + 1].row : null;
+						const afterIndex = i + 1;
+						const beforeRow = afterIndex < this.items.length ? this.items[afterIndex].row : null;
 						const beforeElement = beforeRow ? beforeRow.domNode : null;
 						this.insertItemInDOM(i, beforeElement);
 					}

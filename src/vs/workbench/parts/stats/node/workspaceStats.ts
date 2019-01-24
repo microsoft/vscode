@@ -71,7 +71,6 @@ const PyModulesToLookFor = [
 	'azure-storage-blob',
 	'azure-storage-file',
 	'azure-storage-queue',
-	'azure-mgmt',
 	'azure-shell',
 	'azure-cosmos',
 	'azure-devtools',
@@ -79,14 +78,19 @@ const PyModulesToLookFor = [
 	'azure-eventgrid',
 	'azure-functions',
 	'azure-graphrbac',
-	'azure-keybault',
+	'azure-keyvault',
 	'azure-loganalytics',
 	'azure-monitor',
 	'azure-servicebus',
 	'azure-servicefabric',
 	'azure-storage',
 	'azure-translator',
-	'azure-iothub-device-client'
+	'azure-iothub-device-client',
+	'adal',
+	'pydocumentdb',
+	'botbuilder-core',
+	'botbuilder-schema',
+	'botframework-connector'
 ];
 
 type Tags = { [index: string]: boolean | number | string | undefined };
@@ -299,7 +303,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			"workspace.py.azure-eventgrid" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.azure-functions" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.azure-graphrbac" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-keybault" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-keyvault" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.azure-loganalytics" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.azure-monitor" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.azure-servicebus" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -307,7 +311,14 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			"workspace.py.azure-storage" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.azure-translator" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.azure-iothub-device-client" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-ml" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 			"workspace.py.azure-cognitiveservices" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+			"workspace.py.adal" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+			"workspace.py.pydocumentdb" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+			"workspace.py.botbuilder-core" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+			"workspace.py.botbuilder-schema" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+			"workspace.py.botframework-connector" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+
 		}
 	*/
 	private resolveWorkspaceTags(configuration: IWindowConfiguration, participant?: (rootFiles: string[]) => void): Promise<Tags> {
@@ -433,7 +444,13 @@ export class WorkspaceStats implements IWorkbenchContribution {
 				}
 				// cognitive services has a lot of tiny packages. eg. 'azure-cognitiveservices-search-autosuggest'
 				if (packageName.indexOf('azure-cognitiveservices') > -1) {
-					tags['workspace.py.cognitiveservices'] = true;
+					tags['workspace.py.azure-cognitiveservices'] = true;
+				}
+				if (packageName.indexOf('azure-mgmt') > -1) {
+					tags['workspace.py.azure-mgmt'] = true;
+				}
+				if (packageName.indexOf('azure-ml') > -1) {
+					tags['workspace.py.azure-ml'] = true;
 				}
 				if (!tags['workspace.py.any-azure']) {
 					tags['workspace.py.any-azure'] = /azure/i.test(packageName);
@@ -441,7 +458,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			}
 
 			const requirementsTxtPromises = getFilePromises('requirements.txt', this.fileService, content => {
-				const dependencies: string[] = content.value.split('\r\n|\n');
+				const dependencies: string[] = content.value.split(/\r\n|\r|\n/);
 				for (let dependency of dependencies) {
 					// Dependencies in requirements.txt can have 3 formats: `foo==3.1, foo>=3.1, foo`
 					const format1 = dependency.split('==');
@@ -452,7 +469,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			});
 
 			const pipfilePromises = getFilePromises('pipfile', this.fileService, content => {
-				let dependencies: string[] = content.value.split(/\r\n|\n/);
+				let dependencies: string[] = content.value.split(/\r\n|\r|\n/);
 
 				// We're only interested in the '[packages]' section of the Pipfile
 				dependencies = dependencies.slice(dependencies.indexOf('[packages]') + 1);

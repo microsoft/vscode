@@ -9,9 +9,26 @@ import * as objects from 'vs/base/common/objects';
 import { Action } from 'vs/base/common/actions';
 import * as errors from 'vs/base/common/errors';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { formatPII } from 'vs/workbench/parts/debug/common/debugUtils';
+import { formatPII, isUri } from 'vs/workbench/parts/debug/common/debugUtils';
 import { IDebugAdapter, IConfig, AdapterEndEvent, IDebugger } from 'vs/workbench/parts/debug/common/debug';
 import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
+import * as cp from 'child_process';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+
+/**
+ * This interface represents a single command line argument split into a "prefix" and a "path" half.
+ * The optional "prefix" contains arbitrary text and the optional "path" contains a file system path.
+ * Concatenating both results in the original command line argument.
+ */
+export interface ILaunchVSCodeArgument {
+	prefix?: string;
+	path?: string;
+}
+
+export interface ILaunchVSCodeArguments {
+	args: ILaunchVSCodeArgument[];
+	env?: { [key: string]: string | null; };
+}
 
 /**
  * Encapsulates the DebugAdapter lifecycle and some idiosyncrasies of the Debug Adapter Protocol.
@@ -52,7 +69,8 @@ export class RawDebugSession {
 		private debugAdapter: IDebugAdapter,
 		dbgr: IDebugger,
 		private telemetryService: ITelemetryService,
-		public customTelemetryService: ITelemetryService
+		public customTelemetryService: ITelemetryService,
+		private environmentService: IEnvironmentService
 	) {
 		this._capabilities = Object.create(null);
 		this._readyForBreakpoints = false;
@@ -477,6 +495,18 @@ export class RawDebugSession {
 		const safeSendResponse = (response) => this.debugAdapter && this.debugAdapter.sendResponse(response);
 
 		switch (request.command) {
+			case 'launchVSCode':
+				this.launchVsCode(<ILaunchVSCodeArguments>request.arguments).then(pid => {
+					response.body = {
+						processId: pid
+					};
+					safeSendResponse(response);
+				}, err => {
+					response.success = false;
+					response.message = err.message;
+					safeSendResponse(response);
+				});
+				break;
 			case 'runInTerminal':
 				dbgr.runInTerminal(request.arguments as DebugProtocol.RunInTerminalRequestArguments).then(shellProcessId => {
 					const resp = response as DebugProtocol.RunInTerminalResponse;
@@ -512,6 +542,82 @@ export class RawDebugSession {
 				safeSendResponse(response);
 				break;
 		}
+	}
+
+	private launchVsCode(vscodeArgs: ILaunchVSCodeArguments): Promise<number> {
+
+		const spawnOpts: cp.SpawnOptions = {
+			detached: false	// https://github.com/Microsoft/vscode/issues/57018
+		};
+
+		if (vscodeArgs.env) {
+			// merge environment variables into a copy of the process.env
+			const envArgs = objects.mixin(objects.mixin({}, process.env), vscodeArgs.env);
+			// and delete some if necessary
+			Object.keys(envArgs).filter(k => envArgs[k] === null).forEach(key => delete envArgs[key]);
+			spawnOpts.env = envArgs;
+		}
+
+		let spawnArgs = vscodeArgs.args.map(a => {
+			if ((a.prefix === '--file-uri=' || a.prefix === '--folder-uri=') && !isUri(a.path)) {
+				return a.path;
+			}
+			return (a.prefix || '') + (a.path || '');
+		});
+
+		let runtimeExecutable = this.environmentService['execPath'];
+		if (!runtimeExecutable) {
+			return Promise.reject(new Error(`VS Code executable unknown`));
+		}
+
+		// if VS Code runs out of sources, add the VS Code workspace path as the first argument so that Electron turns into VS Code
+		const electronIdx = runtimeExecutable.indexOf(process.platform === 'win32' ? '\\.build\\electron\\' : '/.build/electron/');
+		if (electronIdx > 0) {
+			// guess the VS Code workspace path from the executable
+			const vscodeWorkspacePath = runtimeExecutable.substr(0, electronIdx);
+
+			// only add path if user hasn't already added that path
+			const x = spawnArgs.filter(a => a.indexOf(vscodeWorkspacePath) >= 0);
+			if (x.length === 0) {
+				spawnArgs.unshift(vscodeWorkspacePath);
+			}
+		}
+
+		// Workaround for bug Microsoft/vscode#45832
+		if (process.platform === 'win32' && runtimeExecutable.indexOf(' ') > 0) {
+			let foundArgWithSpace = false;
+
+			// check whether there is one arg with a space
+			const args: string[] = [];
+			for (const a of spawnArgs) {
+				if (a.indexOf(' ') > 0) {
+					args.push(`"${a}"`);
+					foundArgWithSpace = true;
+				} else {
+					args.push(a);
+				}
+			}
+
+			if (foundArgWithSpace) {
+				spawnArgs = args;
+				runtimeExecutable = `"${runtimeExecutable}"`;
+				spawnOpts.shell = true;
+			}
+		}
+
+		return new Promise((resolve, reject) => {
+			const process = cp.spawn(runtimeExecutable, spawnArgs, spawnOpts);
+			process.on('error', error => {
+				reject(error);
+			});
+			process.on('exit', code => {
+				if (code === 0) {
+					resolve(process.pid);
+				} else {
+					reject(new Error(`VS Code exited with ${code}`));
+				}
+			});
+		});
 	}
 
 	private send<R extends DebugProtocol.Response>(command: string, args: any, timeout?: number): Promise<R> {

@@ -12,9 +12,9 @@ import { IExtensionsWorkbenchService, ExtensionState, AutoCheckUpdatesConfigurat
 import { ExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/node/extensionsWorkbenchService';
 import {
 	IExtensionManagementService, IExtensionGalleryService, IExtensionEnablementService, IExtensionTipsService, ILocalExtension, IGalleryExtension,
-	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IGalleryExtensionAssets, IExtensionIdentifier, EnablementState, InstallOperation
+	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IGalleryExtensionAssets, IExtensionIdentifier, EnablementState, InstallOperation, IExtensionManagementServerService, IExtensionManagementServer
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { getGalleryExtensionId, getLocalExtensionIdFromManifest, getLocalExtensionIdFromGallery } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionTipsService } from 'vs/workbench/parts/extensions/electron-browser/extensionTipsService';
 import { TestExtensionEnablementService } from 'vs/platform/extensionManagement/test/electron-browser/extensionEnablementService.test';
@@ -37,6 +37,9 @@ import { URLService } from 'vs/platform/url/common/urlService';
 import { URI } from 'vs/base/common/uri';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { ExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/node/remoteAgentService';
+import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 
 suite('ExtensionsWorkbenchServiceTest', () => {
 
@@ -72,6 +75,9 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 				return (key === AutoCheckUpdatesConfigurationKey || key === AutoUpdateConfigurationKey) ? true : undefined;
 			}
 		});
+
+		instantiationService.stub(IRemoteAgentService, RemoteAgentService);
+		instantiationService.stub(IExtensionManagementServerService, instantiationService.createInstance(ExtensionManagementServerService, <IExtensionManagementServer>{ authority: 'vscode-local', extensionManagementService: instantiationService.get(IExtensionManagementService), label: 'local' }));
 
 		instantiationService.stub(IExtensionManagementService, ExtensionManagementService);
 		instantiationService.stub(IExtensionManagementService, 'onInstallExtension', installEvent.event);
@@ -329,7 +335,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			assert.equal(ExtensionState.Uninstalled, extension.state);
 
 			testObject.install(extension);
-			const identifier = { id: getLocalExtensionIdFromGallery(gallery, gallery.version) };
+			const identifier = gallery.identifier;
 
 			// Installing
 			installEvent.fire({ identifier, gallery });
@@ -713,8 +719,8 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 	});
 
 	test('test uninstalled extensions are always enabled', async () => {
-		return instantiationService.get(IExtensionEnablementService).setEnablement(aLocalExtension('b'), EnablementState.Disabled)
-			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(aLocalExtension('c'), EnablementState.WorkspaceDisabled))
+		return instantiationService.get(IExtensionEnablementService).setEnablement([aLocalExtension('b')], EnablementState.Disabled)
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement([aLocalExtension('c')], EnablementState.WorkspaceDisabled))
 			.then(async () => {
 				testObject = await aWorkbenchService();
 				instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a')));
@@ -726,8 +732,8 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 	});
 
 	test('test enablement state installed enabled extension', async () => {
-		return instantiationService.get(IExtensionEnablementService).setEnablement(aLocalExtension('b'), EnablementState.Disabled)
-			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(aLocalExtension('c'), EnablementState.WorkspaceDisabled))
+		return instantiationService.get(IExtensionEnablementService).setEnablement([aLocalExtension('b')], EnablementState.Disabled)
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement([aLocalExtension('c')], EnablementState.WorkspaceDisabled))
 			.then(async () => {
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [aLocalExtension('a')]);
 				testObject = await aWorkbenchService();
@@ -740,10 +746,10 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 	test('test workspace disabled extension', async () => {
 		const extensionA = aLocalExtension('a');
-		return instantiationService.get(IExtensionEnablementService).setEnablement(aLocalExtension('b'), EnablementState.Disabled)
-			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(aLocalExtension('d'), EnablementState.Disabled))
-			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(extensionA, EnablementState.WorkspaceDisabled))
-			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(aLocalExtension('e'), EnablementState.WorkspaceDisabled))
+		return instantiationService.get(IExtensionEnablementService).setEnablement([aLocalExtension('b')], EnablementState.Disabled)
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement([aLocalExtension('d')], EnablementState.Disabled))
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement([extensionA], EnablementState.WorkspaceDisabled))
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement([aLocalExtension('e')], EnablementState.WorkspaceDisabled))
 			.then(async () => {
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extensionA]);
 				testObject = await aWorkbenchService();
@@ -756,9 +762,9 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 	test('test globally disabled extension', async () => {
 		const localExtension = aLocalExtension('a');
-		return instantiationService.get(IExtensionEnablementService).setEnablement(localExtension, EnablementState.Disabled)
-			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(aLocalExtension('d'), EnablementState.Disabled))
-			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(aLocalExtension('c'), EnablementState.WorkspaceDisabled))
+		return instantiationService.get(IExtensionEnablementService).setEnablement([localExtension], EnablementState.Disabled)
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement([aLocalExtension('d')], EnablementState.Disabled))
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement([aLocalExtension('c')], EnablementState.WorkspaceDisabled))
 			.then(async () => {
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [localExtension]);
 				testObject = await aWorkbenchService();
@@ -770,8 +776,8 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 	});
 
 	test('test enablement state is updated for user extensions', async () => {
-		return instantiationService.get(IExtensionEnablementService).setEnablement(aLocalExtension('c'), EnablementState.Disabled)
-			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(aLocalExtension('b'), EnablementState.WorkspaceDisabled))
+		return instantiationService.get(IExtensionEnablementService).setEnablement([aLocalExtension('c')], EnablementState.Disabled)
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement([aLocalExtension('b')], EnablementState.WorkspaceDisabled))
 			.then(async () => {
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [aLocalExtension('a')]);
 				testObject = await aWorkbenchService();
@@ -785,7 +791,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 	test('test enable extension globally when extension is disabled for workspace', async () => {
 		const localExtension = aLocalExtension('a');
-		return instantiationService.get(IExtensionEnablementService).setEnablement(localExtension, EnablementState.WorkspaceDisabled)
+		return instantiationService.get(IExtensionEnablementService).setEnablement([localExtension], EnablementState.WorkspaceDisabled)
 			.then(async () => {
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [localExtension]);
 				testObject = await aWorkbenchService();
@@ -821,13 +827,13 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 	test('test enablement state is updated on change from outside', async () => {
 		const localExtension = aLocalExtension('a');
-		return instantiationService.get(IExtensionEnablementService).setEnablement(aLocalExtension('c'), EnablementState.Disabled)
-			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(aLocalExtension('b'), EnablementState.WorkspaceDisabled))
+		return instantiationService.get(IExtensionEnablementService).setEnablement([aLocalExtension('c')], EnablementState.Disabled)
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement([aLocalExtension('b')], EnablementState.WorkspaceDisabled))
 			.then(async () => {
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [localExtension]);
 				testObject = await aWorkbenchService();
 
-				return instantiationService.get(IExtensionEnablementService).setEnablement(localExtension, EnablementState.Disabled)
+				return instantiationService.get(IExtensionEnablementService).setEnablement([localExtension], EnablementState.Disabled)
 					.then(() => {
 						const actual = testObject.local[0];
 						assert.equal(actual.enablementState, EnablementState.Disabled);
@@ -840,9 +846,9 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		const extensionB = aLocalExtension('b');
 		const extensionC = aLocalExtension('c');
 
-		return instantiationService.get(IExtensionEnablementService).setEnablement(extensionA, EnablementState.Enabled)
-			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(extensionB, EnablementState.Enabled))
-			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(extensionC, EnablementState.Enabled))
+		return instantiationService.get(IExtensionEnablementService).setEnablement([extensionA], EnablementState.Enabled)
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement([extensionB], EnablementState.Enabled))
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement([extensionC], EnablementState.Enabled))
 			.then(async () => {
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extensionA, extensionB, extensionC]);
 				testObject = await aWorkbenchService();
@@ -860,9 +866,9 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		const extensionB = aLocalExtension('b');
 		const extensionC = aLocalExtension('c');
 
-		return instantiationService.get(IExtensionEnablementService).setEnablement(extensionA, EnablementState.Enabled)
-			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(extensionB, EnablementState.Enabled))
-			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(extensionC, EnablementState.Enabled))
+		return instantiationService.get(IExtensionEnablementService).setEnablement([extensionA], EnablementState.Enabled)
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement([extensionB], EnablementState.Enabled))
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement([extensionC], EnablementState.Enabled))
 			.then(async () => {
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extensionA, extensionB, extensionC]);
 				testObject = await aWorkbenchService();
@@ -880,9 +886,9 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		const extensionB = aLocalExtension('b');
 		const extensionC = aLocalExtension('c');
 
-		return instantiationService.get(IExtensionEnablementService).setEnablement(extensionA, EnablementState.Enabled)
-			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(extensionB, EnablementState.Enabled))
-			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(extensionC, EnablementState.Enabled))
+		return instantiationService.get(IExtensionEnablementService).setEnablement([extensionA], EnablementState.Enabled)
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement([extensionB], EnablementState.Enabled))
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement([extensionC], EnablementState.Enabled))
 			.then(async () => {
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extensionA, extensionB, extensionC]);
 				testObject = await aWorkbenchService();
@@ -900,9 +906,9 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		const extensionB = aLocalExtension('b');
 		const extensionC = aLocalExtension('c');
 
-		return instantiationService.get(IExtensionEnablementService).setEnablement(extensionA, EnablementState.Enabled)
-			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(extensionB, EnablementState.Enabled))
-			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(extensionC, EnablementState.Enabled))
+		return instantiationService.get(IExtensionEnablementService).setEnablement([extensionA], EnablementState.Enabled)
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement([extensionB], EnablementState.Enabled))
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement([extensionC], EnablementState.Enabled))
 			.then(async () => {
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extensionA, extensionB, extensionC]);
 				testObject = await aWorkbenchService();
@@ -915,9 +921,9 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		const extensionB = aLocalExtension('b');
 		const extensionC = aLocalExtension('c');
 
-		return instantiationService.get(IExtensionEnablementService).setEnablement(extensionA, EnablementState.Enabled)
-			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(extensionB, EnablementState.Enabled))
-			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(extensionC, EnablementState.Enabled))
+		return instantiationService.get(IExtensionEnablementService).setEnablement([extensionA], EnablementState.Enabled)
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement([extensionB], EnablementState.Enabled))
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement([extensionC], EnablementState.Enabled))
 			.then(async () => {
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extensionA, extensionB, extensionC]);
 				testObject = await aWorkbenchService();
@@ -933,9 +939,9 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		const extensionB = aLocalExtension('b');
 		const extensionC = aLocalExtension('c');
 
-		return instantiationService.get(IExtensionEnablementService).setEnablement(extensionA, EnablementState.Enabled)
-			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(extensionB, EnablementState.Enabled))
-			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(extensionC, EnablementState.Enabled))
+		return instantiationService.get(IExtensionEnablementService).setEnablement([extensionA], EnablementState.Enabled)
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement([extensionB], EnablementState.Enabled))
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement([extensionC], EnablementState.Enabled))
 			.then(async () => {
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extensionA, extensionB, extensionC]);
 				const target = sinon.spy();
@@ -955,9 +961,9 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		const extensionB = aLocalExtension('b');
 		const extensionC = aLocalExtension('c');
 
-		return instantiationService.get(IExtensionEnablementService).setEnablement(extensionA, EnablementState.Disabled)
-			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(extensionB, EnablementState.Disabled))
-			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(extensionC, EnablementState.Disabled))
+		return instantiationService.get(IExtensionEnablementService).setEnablement([extensionA], EnablementState.Disabled)
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement([extensionB], EnablementState.Disabled))
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement([extensionC], EnablementState.Disabled))
 			.then(async () => {
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extensionA, extensionB, extensionC]);
 				const target = sinon.spy();
@@ -977,9 +983,9 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		const extensionB = aLocalExtension('b');
 		const extensionC = aLocalExtension('c', { extensionDependencies: ['pub.b'] });
 
-		return instantiationService.get(IExtensionEnablementService).setEnablement(extensionA, EnablementState.Enabled)
-			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(extensionB, EnablementState.Enabled))
-			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(extensionC, EnablementState.Enabled))
+		return instantiationService.get(IExtensionEnablementService).setEnablement([extensionA], EnablementState.Enabled)
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement([extensionB], EnablementState.Enabled))
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement([extensionC], EnablementState.Enabled))
 			.then(async () => {
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extensionA, extensionB, extensionC]);
 				testObject = await aWorkbenchService();
@@ -996,9 +1002,9 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		const extensionB = aLocalExtension('b');
 		const extensionC = aLocalExtension('c', { extensionDependencies: ['pub.b'] });
 
-		return instantiationService.get(IExtensionEnablementService).setEnablement(extensionA, EnablementState.Enabled)
-			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(extensionB, EnablementState.Enabled))
-			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(extensionC, EnablementState.Disabled))
+		return instantiationService.get(IExtensionEnablementService).setEnablement([extensionA], EnablementState.Enabled)
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement([extensionB], EnablementState.Enabled))
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement([extensionC], EnablementState.Disabled))
 			.then(async () => {
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extensionA, extensionB, extensionC]);
 				testObject = await aWorkbenchService();
@@ -1015,9 +1021,9 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		const extensionB = aLocalExtension('b', { extensionDependencies: ['pub.a'] });
 		const extensionC = aLocalExtension('c');
 
-		return instantiationService.get(IExtensionEnablementService).setEnablement(extensionA, EnablementState.Enabled)
-			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(extensionB, EnablementState.Enabled))
-			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(extensionC, EnablementState.Enabled))
+		return instantiationService.get(IExtensionEnablementService).setEnablement([extensionA], EnablementState.Enabled)
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement([extensionB], EnablementState.Enabled))
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement([extensionC], EnablementState.Enabled))
 			.then(async () => {
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extensionA, extensionB, extensionC]);
 				testObject = await aWorkbenchService();
@@ -1032,9 +1038,9 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		const extensionB = aLocalExtension('b');
 		const extensionC = aLocalExtension('c', { extensionDependencies: ['pub.b'] });
 
-		return instantiationService.get(IExtensionEnablementService).setEnablement(extensionA, EnablementState.Enabled)
-			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(extensionB, EnablementState.Disabled))
-			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(extensionC, EnablementState.Enabled))
+		return instantiationService.get(IExtensionEnablementService).setEnablement([extensionA], EnablementState.Enabled)
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement([extensionB], EnablementState.Disabled))
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement([extensionC], EnablementState.Enabled))
 			.then(async () => {
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extensionA, extensionB, extensionC]);
 
@@ -1050,9 +1056,9 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		const extensionB = aLocalExtension('b', { extensionDependencies: ['pub.c'] });
 		const extensionC = aLocalExtension('c', { extensionDependencies: ['pub.a'] });
 
-		return instantiationService.get(IExtensionEnablementService).setEnablement(extensionA, EnablementState.Enabled)
-			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(extensionB, EnablementState.Enabled))
-			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(extensionC, EnablementState.Enabled))
+		return instantiationService.get(IExtensionEnablementService).setEnablement([extensionA], EnablementState.Enabled)
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement([extensionB], EnablementState.Enabled))
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement([extensionC], EnablementState.Enabled))
 			.then(async () => {
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extensionA, extensionB, extensionC]);
 				testObject = await aWorkbenchService();
@@ -1066,9 +1072,9 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		const extensionB = aLocalExtension('b');
 		const extensionC = aLocalExtension('c');
 
-		return instantiationService.get(IExtensionEnablementService).setEnablement(extensionA, EnablementState.Disabled)
-			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(extensionB, EnablementState.Disabled))
-			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(extensionC, EnablementState.Disabled))
+		return instantiationService.get(IExtensionEnablementService).setEnablement([extensionA], EnablementState.Disabled)
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement([extensionB], EnablementState.Disabled))
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement([extensionC], EnablementState.Disabled))
 			.then(async () => {
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extensionA, extensionB, extensionC]);
 				testObject = await aWorkbenchService();
@@ -1086,9 +1092,9 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		const extensionB = aLocalExtension('b');
 		const extensionC = aLocalExtension('c');
 
-		return instantiationService.get(IExtensionEnablementService).setEnablement(extensionA, EnablementState.Disabled)
-			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(extensionB, EnablementState.Enabled))
-			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(extensionC, EnablementState.Disabled))
+		return instantiationService.get(IExtensionEnablementService).setEnablement([extensionA], EnablementState.Disabled)
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement([extensionB], EnablementState.Enabled))
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement([extensionC], EnablementState.Disabled))
 			.then(async () => {
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extensionA, extensionB, extensionC]);
 				const target = sinon.spy();
@@ -1107,9 +1113,9 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		const extensionB = aLocalExtension('b');
 		const extensionC = aLocalExtension('c');
 
-		return instantiationService.get(IExtensionEnablementService).setEnablement(extensionA, EnablementState.Disabled)
-			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(extensionB, EnablementState.Disabled))
-			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(extensionC, EnablementState.Disabled))
+		return instantiationService.get(IExtensionEnablementService).setEnablement([extensionA], EnablementState.Disabled)
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement([extensionB], EnablementState.Disabled))
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement([extensionC], EnablementState.Disabled))
 			.then(async () => {
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extensionA, extensionB, extensionC]);
 				const target = sinon.spy();
@@ -1129,9 +1135,9 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		const extensionB = aLocalExtension('b', { extensionDependencies: ['pub.c'] });
 		const extensionC = aLocalExtension('c', { extensionDependencies: ['pub.a'] });
 
-		return instantiationService.get(IExtensionEnablementService).setEnablement(extensionA, EnablementState.Disabled)
-			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(extensionB, EnablementState.Disabled))
-			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(extensionC, EnablementState.Disabled))
+		return instantiationService.get(IExtensionEnablementService).setEnablement([extensionA], EnablementState.Disabled)
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement([extensionB], EnablementState.Disabled))
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement([extensionC], EnablementState.Disabled))
 			.then(async () => {
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extensionA, extensionB, extensionC]);
 
@@ -1147,8 +1153,8 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 	});
 
 	test('test change event is fired when disablement flags are changed', async () => {
-		return instantiationService.get(IExtensionEnablementService).setEnablement(aLocalExtension('c'), EnablementState.Disabled)
-			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(aLocalExtension('b'), EnablementState.WorkspaceDisabled))
+		return instantiationService.get(IExtensionEnablementService).setEnablement([aLocalExtension('c')], EnablementState.Disabled)
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement([aLocalExtension('b')], EnablementState.WorkspaceDisabled))
 			.then(async () => {
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [aLocalExtension('a')]);
 				testObject = await aWorkbenchService();
@@ -1162,15 +1168,15 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 	test('test change event is fired when disablement flags are changed from outside', async () => {
 		const localExtension = aLocalExtension('a');
-		return instantiationService.get(IExtensionEnablementService).setEnablement(aLocalExtension('c'), EnablementState.Disabled)
-			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(aLocalExtension('b'), EnablementState.WorkspaceDisabled))
+		return instantiationService.get(IExtensionEnablementService).setEnablement([aLocalExtension('c')], EnablementState.Disabled)
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement([aLocalExtension('b')], EnablementState.WorkspaceDisabled))
 			.then(async () => {
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [localExtension]);
 				testObject = await aWorkbenchService();
 				const target = sinon.spy();
 				testObject.onChange(target);
 
-				return instantiationService.get(IExtensionEnablementService).setEnablement(localExtension, EnablementState.Disabled)
+				return instantiationService.get(IExtensionEnablementService).setEnablement([localExtension], EnablementState.Disabled)
 					.then(() => assert.ok(target.calledOnce));
 			});
 	});
@@ -1186,8 +1192,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		properties = assign({
 			type: ExtensionType.User,
 			location: URI.file(`pub.${name}`),
-			identifier: { id: getLocalExtensionIdFromManifest(manifest) },
-			galleryIdentifier: { id: getGalleryExtensionId(manifest.publisher, manifest.name), uuid: undefined },
+			identifier: { id: getGalleryExtensionId(manifest.publisher, manifest.name), uuid: undefined },
 			metadata: { id: getGalleryExtensionId(manifest.publisher, manifest.name), publisherId: manifest.publisher, publisherDisplayName: 'somename' }
 		}, properties);
 		return <ILocalExtension>Object.create({ manifest, ...properties });

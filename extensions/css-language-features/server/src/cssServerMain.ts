@@ -8,7 +8,7 @@ import {
 } from 'vscode-languageserver';
 import URI from 'vscode-uri';
 import * as fs from 'fs';
-import { TextDocument, CompletionList } from 'vscode-languageserver-types';
+import { TextDocument, CompletionList, Position } from 'vscode-languageserver-types';
 
 import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet, CSSData } from 'vscode-css-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
@@ -345,6 +345,20 @@ connection.onFoldingRanges((params, token) => {
 		return null;
 	}, null, `Error while computing folding ranges for ${params.textDocument.uri}`, token);
 });
+
+connection.onRequest('$/textDocument/selectionRange', async (params, token) => {
+	return runSafe(() => {
+		const document = documents.get(params.textDocument.uri);
+		const position: Position = params.position;
+
+		if (document) {
+			const stylesheet = stylesheets.get(document);
+			return getLanguageService(document).getSelectionRanges(document, position, stylesheet);
+		}
+		return Promise.resolve(null);
+	}, null, `Error while computing selection ranges for ${params.textDocument.uri}`, token);
+});
+
 
 // Listen on the connection
 connection.listen();

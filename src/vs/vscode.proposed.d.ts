@@ -16,6 +16,25 @@
 
 declare module 'vscode' {
 
+	//#region Joh - vscode.open
+
+	export namespace env {
+
+		/**
+		 * Opens an *external* item, e.g. a http(s) or mailto-link, using the
+		 * default application.
+		 *
+		 * *Note* that [`showTextDocument`](#window.showTextDocument) is the right
+		 * way to open a text document inside the editor, not this function.
+		 *
+		 * @param target The uri that should be opened.
+		 * @returns A promise indicating if open was successful.
+		 */
+		export function open(target: Uri): Thenable<boolean>;
+	}
+
+	//#endregion
+
 	//#region Joh - selection range provider
 
 	export class SelectionRangeKind {
@@ -1096,6 +1115,31 @@ declare module 'vscode' {
 		 * Will have the [`SignatureHelp.activeSignature`] field updated based on user arrowing through sig help
 		 */
 		readonly activeSignatureHelp?: SignatureHelp;
+	}
+	//#endregion
+
+	//#region CodeAction.isPreferred - mjbvz
+	export interface CodeAction {
+		/**
+		 * If the action is a preferred action or fix to take.
+		 *
+		 * A quick fix should be marked preferred if it properly addresses the underlying error.
+		 * A refactoring should be marked preferred if it is the most reasonable choice of actions to take.
+		 */
+		isPreferred?: boolean;
+	}
+	//#endregion
+
+
+	//#region Autofix - mjbvz
+	export namespace CodeActionKind {
+		/**
+		 * Base kind for an auto fix source action: `source.fixAll`.
+		 *
+		 * Fix all actions automatically fix errors in the code that have a clear fix that does not require user input.
+		 * They should not suppress errors or perform unsafe fixes such as generating new types or classes.
+		 */
+		export const SourceFixAll: CodeActionKind;
 	}
 	//#endregion
 }

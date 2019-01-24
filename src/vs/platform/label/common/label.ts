@@ -15,11 +15,6 @@ import { localize } from 'vs/nls';
 import { isParent } from 'vs/platform/files/common/files';
 import { basename } from 'vs/base/common/paths';
 
-export interface RegisterFormatterData {
-	selector: string;
-	formatter: LabelRules;
-}
-
 export interface ILabelService {
 	_serviceBrand: any;
 	/**
@@ -30,21 +25,23 @@ export interface ILabelService {
 	getUriLabel(resource: URI, options?: { relative?: boolean, noPrefix?: boolean }): string;
 	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IWorkspace), options?: { verbose: boolean }): string;
 	getHostLabel(): string;
-	registerFormatter(selector: string, formatter: LabelRules): IDisposable;
-	onDidRegisterFormatter: Event<RegisterFormatterData>;
+	registerFormatter(formatter: ResourceLabelFormatter): IDisposable;
+	onDidChangeFormatters: Event<void>;
 }
 
-export interface LabelRules {
-	uri: {
-		label: string; // myLabel:/${path}
-		separator: '/' | '\\' | '';
-		tildify?: boolean;
-		normalizeDriveLetter?: boolean;
-		authorityPrefix?: string;
-	};
-	workspace?: {
-		suffix: string;
-	};
+export interface ResourceLabelFormatter {
+	scheme: string;
+	authority?: string;
+	formatting: ResourceLabelFormatting;
+}
+
+export interface ResourceLabelFormatting {
+	label: string; // myLabel:/${path}
+	separator: '/' | '\\' | '';
+	tildify?: boolean;
+	normalizeDriveLetter?: boolean;
+	workspaceSuffix?: string;
+	authorityPrefix?: string;
 }
 
 const LABEL_SERVICE_ID = 'label';

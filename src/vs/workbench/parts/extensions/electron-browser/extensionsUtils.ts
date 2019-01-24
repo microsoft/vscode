@@ -14,7 +14,6 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { getIdAndVersionFromLocalExtensionId } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 import { Severity, INotificationService } from 'vs/platform/notification/common/notification';
 import product from 'vs/platform/node/product';
 
@@ -48,9 +47,9 @@ export class KeymapExtensions implements IWorkbenchContribution {
 	private checkForOtherKeymaps(extensionIdentifier: IExtensionIdentifier): Promise<void> {
 		return this.instantiationService.invokeFunction(getInstalledExtensions).then(extensions => {
 			const keymaps = extensions.filter(extension => isKeymapExtension(this.tipsService, extension));
-			const extension = arrays.first(keymaps, extension => stripVersion(extension.identifier.id) === extensionIdentifier.id);
+			const extension = arrays.first(keymaps, extension => areSameExtensions(extension.identifier, extensionIdentifier));
 			if (extension && extension.globallyEnabled) {
-				const otherKeymaps = keymaps.filter(extension => stripVersion(extension.identifier.id) !== extensionIdentifier.id && extension.globallyEnabled);
+				const otherKeymaps = keymaps.filter(extension => !areSameExtensions(extension.identifier, extensionIdentifier) && extension.globallyEnabled);
 				if (otherKeymaps.length) {
 					return this.promptForDisablingOtherKeymaps(extension, otherKeymaps);
 				}
@@ -75,9 +74,7 @@ export class KeymapExtensions implements IWorkbenchContribution {
 			*/
 			this.telemetryService.publicLog('disableOtherKeymaps', telemetryData);
 			if (confirmed) {
-				Promise.all(oldKeymaps.map(keymap => {
-					return this.extensionEnablementService.setEnablement(keymap.local, EnablementState.Disabled);
-				}));
+				this.extensionEnablementService.setEnablement(oldKeymaps.map(keymap => keymap.local), EnablementState.Disabled);
 			}
 		};
 
@@ -103,18 +100,19 @@ export function onExtensionChanged(accessor: ServicesAccessor): Event<IExtension
 	const onDidInstallExtension = Event.chain(extensionService.onDidInstallExtension)
 		.filter(e => e.operation === InstallOperation.Install)
 		.event;
-	return Event.debounce<IExtensionIdentifier, IExtensionIdentifier[]>(Event.any(
+	return Event.debounce<IExtensionIdentifier[], IExtensionIdentifier[]>(Event.any(
 		Event.chain(Event.any(onDidInstallExtension, extensionService.onDidUninstallExtension))
-			.map(e => ({ id: stripVersion(e.identifier.id), uuid: e.identifier.uuid }))
+			.map(e => [e.identifier])
 			.event,
-		extensionEnablementService.onEnablementChanged
-	), (list, id) => {
-		if (!list) {
-			return [id];
-		} else if (list.some(l => !areSameExtensions(l, id))) {
-			list.push(id);
+		Event.map(extensionEnablementService.onEnablementChanged, extensions => extensions.map(e => e.identifier))
+	), (result: IExtensionIdentifier[] | undefined, identifiers: IExtensionIdentifier[]) => {
+		result = result || [];
+		for (const identifier of identifiers) {
+			if (result.some(l => !areSameExtensions(l, identifier))) {
+				result.push(identifier);
+			}
 		}
-		return list;
+		return result;
 	});
 }
 
@@ -126,9 +124,9 @@ export function getInstalledExtensions(accessor: ServicesAccessor): Promise<IExt
 			.then(disabledExtensions => {
 				return extensions.map(extension => {
 					return {
-						identifier: extension.galleryIdentifier,
+						identifier: extension.identifier,
 						local: extension,
-						globallyEnabled: disabledExtensions.every(disabled => !areSameExtensions(disabled, extension.galleryIdentifier))
+						globallyEnabled: disabledExtensions.every(disabled => !areSameExtensions(disabled, extension.identifier))
 					};
 				});
 			});
@@ -137,11 +135,7 @@ export function getInstalledExtensions(accessor: ServicesAccessor): Promise<IExt
 
 export function isKeymapExtension(tipsService: IExtensionTipsService, extension: IExtensionStatus): boolean {
 	const cats = extension.local.manifest.categories;
-	return cats && cats.indexOf('Keymaps') !== -1 || tipsService.getKeymapRecommendations().some(({ extensionId }) => areSameExtensions({ id: extensionId }, extension.local.galleryIdentifier));
-}
-
-function stripVersion(id: string): string {
-	return getIdAndVersionFromLocalExtensionId(id).id;
+	return cats && cats.indexOf('Keymaps') !== -1 || tipsService.getKeymapRecommendations().some(({ extensionId }) => areSameExtensions({ id: extensionId }, extension.local.identifier));
 }
 
 export function getKeywordsForExtension(extension: string): string[] {

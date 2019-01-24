@@ -192,7 +192,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		this._registry = new ExtensionDescriptionRegistry(initData.extensions);
 		this._storage = new ExtHostStorage(this._extHostContext);
 		this._storagePath = new ExtensionStoragePath(initData.workspace, initData.environment);
-		this._activator = new ExtensionsActivator(this._registry, {
+		this._activator = new ExtensionsActivator(this._registry, initData.resolvedExtensions, {
 			showMessage: (severity: Severity, message: string): void => {
 				this._mainThreadExtensionsProxy.$localShowMessage(severity, message);
 
@@ -219,15 +219,22 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 
 		this._started = false;
 
-		initializeExtensionApi(this, this._extensionApiFactory, this._registry).then(() => {
-			// Do this when extension service exists, but extensions are not being activated yet.
-			return connectProxyResolver(this._extHostWorkspace, this._extHostConfiguration, this, this._extHostLogService, this._mainThreadTelemetryProxy);
-		}).then(() => {
-			this._barrier.open();
-		});
+		this._initialize();
 
 		if (this._initData.autoStart) {
 			this._startExtensionHost();
+		}
+	}
+
+	private async _initialize(): Promise<void> {
+		try {
+			const configProvider = await this._extHostConfiguration.getConfigProvider();
+			await initializeExtensionApi(this, this._extensionApiFactory, this._registry, configProvider);
+			// Do this when extension service exists, but extensions are not being activated yet.
+			await connectProxyResolver(this._extHostWorkspace, configProvider, this, this._extHostLogService, this._mainThreadTelemetryProxy);
+			this._barrier.open();
+		} catch (err) {
+			errors.onUnexpectedError(err);
 		}
 	}
 
@@ -653,6 +660,19 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 			this._barrier.wait()
 				.then(_ => this._activateByEvent(activationEvent, false))
 		);
+	}
+
+	public $activate(extensionId: ExtensionIdentifier, activationEvent: string): Promise<void> {
+		return (
+			this._barrier.wait()
+				.then(_ => this._activateById(extensionId, new ExtensionActivatedByEvent(false, activationEvent)))
+		);
+	}
+
+	public $deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void> {
+		toAdd.forEach((extension) => (<any>extension).extensionLocation = URI.revive(extension.extensionLocation));
+		this._registry.deltaExtensions(toAdd, toRemove);
+		return Promise.resolve(undefined);
 	}
 
 	public async $test_latency(n: number): Promise<number> {

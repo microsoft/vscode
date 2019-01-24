@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* File icon themeable tree style */
+/* File icon themeable OLD tree style */
 .file-icon-themable-tree .monaco-tree-row .content {
 	display: flex;
 }
@@ -49,6 +49,17 @@
 .file-icon-themable-tree.hide-arrows .monaco-tree-row .content::before {
 	display: none;
 }
+
+/* File icons in trees */
+
+.file-icon-themable-tree.align-icons-and-twisties .monaco-tl-twistie:not(.collapsible),
+.file-icon-themable-tree.hide-arrows .monaco-tl-twistie {
+	background-image: none !important;
+	width: 0 !important;
+	margin-right: 0 !important;
+}
+
+/* Misc */
 
 .monaco-workbench .tree-explorer-viewlet-tree-view {
 	height: 100%;

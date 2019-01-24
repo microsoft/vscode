@@ -3,30 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import { alert } from 'vs/base/browser/ui/aria/aria';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { registerEditorAction, ServicesAccessor, EditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { OnTypeFormattingEditProviderRegistry, DocumentRangeFormattingEditProviderRegistry, DocumentFormattingEditProviderRegistry, FormattingOptions } from 'vs/editor/common/modes';
-import { getOnTypeFormattingEdits, NoProviderError } from 'vs/editor/contrib/format/format';
-import { FormattingEdit } from 'vs/editor/contrib/format/formattingEdit';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { sequence } from 'vs/base/common/async';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { CodeEditorStateFlag, EditorState } from 'vs/editor/browser/core/editorState';
+import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { CharacterSet } from 'vs/editor/common/core/characterClassifier';
 import { Range } from 'vs/editor/common/core/range';
-import { alert } from 'vs/base/browser/ui/aria/aria';
-import { EditorState, CodeEditorStateFlag } from 'vs/editor/browser/core/editorState';
+import * as editorCommon from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ICodeEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ISingleEditOperation } from 'vs/editor/common/model';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { DocumentFormattingEditProviderRegistry, DocumentRangeFormattingEditProviderRegistry, FormattingOptions, OnTypeFormattingEditProviderRegistry } from 'vs/editor/common/modes';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { getOnTypeFormattingEdits, NoProviderError } from 'vs/editor/contrib/format/format';
+import { FormattingEdit } from 'vs/editor/contrib/format/formattingEdit';
+import * as nls from 'vs/nls';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { sequence } from 'vs/base/common/async';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { MenuRegistry } from 'vs/platform/actions/common/actions';
 
 function alertFormattingEdits(edits: ISingleEditOperation[]): void {
 
@@ -60,11 +62,29 @@ export const enum FormatRangeType {
 	Selection,
 }
 
-export function formatDocumentRange(workerService: IEditorWorkerService, editor: IActiveCodeEditor, rangeOrRangeType: Range | FormatRangeType, options: FormattingOptions, token: CancellationToken): Promise<void> {
+export function formatDocumentRange(telemetryService: ITelemetryService, workerService: IEditorWorkerService, editor: IActiveCodeEditor, rangeOrRangeType: Range | FormatRangeType, options: FormattingOptions, token: CancellationToken): Promise<void> {
 
-	const provider = DocumentRangeFormattingEditProviderRegistry.ordered(editor.getModel()).slice(0, 1);
+	const provider = DocumentRangeFormattingEditProviderRegistry.ordered(editor.getModel());
 	if (provider.length === 0) {
 		return Promise.reject(new NoProviderError());
+	}
+
+	// Know how often multiple providers clash and (for now)
+	// continue picking the 'first' provider
+	if (provider.length !== 1) {
+		/* __GDPR__
+			"manyformatters" : {
+				"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"language" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+			}
+		 */
+		telemetryService.publicLog('manyformatters', {
+			type: 'range',
+			language: editor.getModel().getLanguageIdentifier().language,
+			count: provider.length,
+		});
+		provider.length = 1;
 	}
 
 	let allEdits: ISingleEditOperation[] = [];
@@ -112,10 +132,28 @@ export function formatDocumentRange(workerService: IEditorWorkerService, editor:
 	});
 }
 
-export function formatDocument(workerService: IEditorWorkerService, editor: IActiveCodeEditor, options: FormattingOptions, token: CancellationToken): Promise<void> {
-	const provider = DocumentFormattingEditProviderRegistry.ordered(editor.getModel()).slice(0);
+export function formatDocument(telemetryService: ITelemetryService, workerService: IEditorWorkerService, editor: IActiveCodeEditor, options: FormattingOptions, token: CancellationToken): Promise<void> {
+	const provider = DocumentFormattingEditProviderRegistry.ordered(editor.getModel());
 	if (provider.length === 0) {
-		return formatDocumentRange(workerService, editor, FormatRangeType.Full, options, token);
+		return formatDocumentRange(telemetryService, workerService, editor, FormatRangeType.Full, options, token);
+	}
+
+	// Know how often multiple providers clash and (for now)
+	// continue picking the 'first' provider
+	if (provider.length !== 1) {
+		/* __GDPR__
+			"manyformatters" : {
+				"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"language" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+			}
+		 */
+		telemetryService.publicLog('manyformatters', {
+			type: 'document',
+			language: editor.getModel().getLanguageIdentifier().language,
+			count: provider.length,
+		});
+		provider.length = 1;
 	}
 
 	let allEdits: ISingleEditOperation[] = [];
@@ -281,14 +319,14 @@ class FormatOnPaste implements editorCommon.IEditorContribution {
 
 	private static readonly ID = 'editor.contrib.formatOnPaste';
 
-	private editor: ICodeEditor;
-	private workerService: IEditorWorkerService;
 	private callOnDispose: IDisposable[];
 	private callOnModel: IDisposable[];
 
-	constructor(editor: ICodeEditor, @IEditorWorkerService workerService: IEditorWorkerService) {
-		this.editor = editor;
-		this.workerService = workerService;
+	constructor(
+		private readonly editor: ICodeEditor,
+		@IEditorWorkerService private readonly workerService: IEditorWorkerService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+	) {
 		this.callOnDispose = [];
 		this.callOnModel = [];
 
@@ -336,7 +374,7 @@ class FormatOnPaste implements editorCommon.IEditorContribution {
 
 		const model = this.editor.getModel();
 		const { tabSize, insertSpaces } = model.getOptions();
-		formatDocumentRange(this.workerService, this.editor, range, { tabSize, insertSpaces }, CancellationToken.None);
+		formatDocumentRange(this.telemetryService, this.workerService, this.editor, range, { tabSize, insertSpaces }, CancellationToken.None);
 	}
 
 	public getId(): string {
@@ -378,8 +416,9 @@ export class FormatDocumentAction extends EditorAction {
 		}
 		const notificationService = accessor.get(INotificationService);
 		const workerService = accessor.get(IEditorWorkerService);
+		const telemetryService = accessor.get(ITelemetryService);
 		const { tabSize, insertSpaces } = editor.getModel().getOptions();
-		return formatDocument(workerService, editor, { tabSize, insertSpaces }, CancellationToken.None).catch(err => {
+		return formatDocument(telemetryService, workerService, editor, { tabSize, insertSpaces }, CancellationToken.None).catch(err => {
 			if (NoProviderError.is(err)) {
 				notificationService.info(nls.localize('no.documentprovider', "There is no document formatter for '{0}'-files installed.", editor.getModel().getLanguageIdentifier().language));
 			}
@@ -414,8 +453,9 @@ export class FormatSelectionAction extends EditorAction {
 		}
 		const notificationService = accessor.get(INotificationService);
 		const workerService = accessor.get(IEditorWorkerService);
+		const telemetryService = accessor.get(ITelemetryService);
 		const { tabSize, insertSpaces } = editor.getModel().getOptions();
-		return formatDocumentRange(workerService, editor, FormatRangeType.Selection, { tabSize, insertSpaces }, CancellationToken.None).catch(err => {
+		return formatDocumentRange(telemetryService, workerService, editor, FormatRangeType.Selection, { tabSize, insertSpaces }, CancellationToken.None).catch(err => {
 			if (NoProviderError.is(err)) {
 				notificationService.info(nls.localize('no.selectionprovider', "There is no selection formatter for '{0}'-files installed.", editor.getModel().getLanguageIdentifier().language));
 			}
@@ -437,10 +477,46 @@ CommandsRegistry.registerCommand('editor.action.format', accessor => {
 	}
 	const { tabSize, insertSpaces } = editor.getModel().getOptions();
 	const workerService = accessor.get(IEditorWorkerService);
+	const telemetryService = accessor.get(ITelemetryService);
 
 	if (editor.getSelection().isEmpty()) {
-		return formatDocument(workerService, editor, { tabSize, insertSpaces }, CancellationToken.None);
+		return formatDocument(telemetryService, workerService, editor, { tabSize, insertSpaces }, CancellationToken.None);
 	} else {
-		return formatDocumentRange(workerService, editor, FormatRangeType.Selection, { tabSize, insertSpaces }, CancellationToken.None);
+		return formatDocumentRange(telemetryService, workerService, editor, FormatRangeType.Selection, { tabSize, insertSpaces }, CancellationToken.None);
 	}
+});
+
+
+CommandsRegistry.registerCommand('editor.action.formatInspect', accessor => {
+
+	const editor = accessor.get(ICodeEditorService).getActiveCodeEditor();
+	if (!editor || !editor.hasModel()) {
+		return;
+	}
+	console.log(`Available Formatters for: ${editor.getModel().uri.toString(true)}`);
+	// range formatters
+	const documentRangeProvider = DocumentRangeFormattingEditProviderRegistry.ordered(editor.getModel());
+	console.group('Range Formatters');
+	if (documentRangeProvider.length === 0) {
+		console.log('none');
+	} else {
+		documentRangeProvider.forEach(value => console.log(value.displayName));
+	}
+	console.groupEnd();
+
+	// whole document formatters
+	const documentProvider = DocumentFormattingEditProviderRegistry.ordered(editor.getModel());
+	console.group('Document Formatters');
+	if (documentProvider.length === 0) {
+		console.log('none');
+	} else {
+		documentProvider.forEach(value => console.log(value.displayName));
+	}
+	console.groupEnd();
+});
+
+MenuRegistry.addCommand({
+	id: 'editor.action.formatInspect',
+	category: nls.localize('cat', "Developer"),
+	title: nls.localize('title', "Print Available Formatters..."),
 });

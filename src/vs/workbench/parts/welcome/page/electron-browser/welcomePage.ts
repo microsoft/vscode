@@ -35,7 +35,6 @@ import { getExtraColor } from 'vs/workbench/parts/welcome/walkThrough/node/walkT
 import { IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IEditorInputFactory, EditorInput } from 'vs/workbench/common/editor';
-import { getIdAndVersionFromLocalExtensionId } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -313,70 +312,17 @@ class WelcomePage {
 			if (!ul) {
 				return;
 			}
-			const before = ul.firstElementChild;
-			workspaces.slice(0, 5).forEach(workspace => {
-				let label: string;
-				let resource: URI;
-				if (isSingleFolderWorkspaceIdentifier(workspace)) {
-					resource = workspace;
-					label = this.labelService.getWorkspaceLabel(workspace);
-				} else if (isWorkspaceIdentifier(workspace)) {
-					label = this.labelService.getWorkspaceLabel(workspace);
-					resource = URI.file(workspace.configPath);
-				} else {
-					label = getBaseLabel(workspace);
-					resource = URI.file(workspace);
+			const moreRecent = ul.querySelector('.moreRecent')!;
+			const workspacesToShow = workspaces.slice(0, 5);
+			const updateEntries = () => {
+				const listEntries = this.createListEntries(workspacesToShow);
+				while (ul.firstChild) {
+					ul.removeChild(ul.firstChild);
 				}
-
-				const li = document.createElement('li');
-
-				const a = document.createElement('a');
-				let name = label;
-				let parentFolderPath: string | undefined;
-
-				if (resource.scheme === Schemas.file) {
-					let parentFolder = path.dirname(resource.fsPath);
-					if (!name && parentFolder) {
-						const tmp = name;
-						name = parentFolder;
-						parentFolder = tmp;
-					}
-					parentFolderPath = tildify(parentFolder, this.environmentService.userHome);
-				} else {
-					parentFolderPath = this.labelService.getUriLabel(resource);
-				}
-
-
-				a.innerText = name;
-				a.title = label;
-				a.setAttribute('aria-label', localize('welcomePage.openFolderWithPath', "Open folder {0} with path {1}", name, parentFolderPath));
-				a.href = 'javascript:void(0)';
-				a.addEventListener('click', e => {
-					/* __GDPR__
-						"workbenchActionExecuted" : {
-							"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-							"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-						}
-					*/
-					this.telemetryService.publicLog('workbenchActionExecuted', {
-						id: 'openRecentFolder',
-						from: telemetryFrom
-					});
-					this.windowService.openWindow([resource], { forceNewWindow: e.ctrlKey || e.metaKey });
-					e.preventDefault();
-					e.stopPropagation();
-				});
-				li.appendChild(a);
-
-				const span = document.createElement('span');
-				span.classList.add('path');
-				span.classList.add('detail');
-				span.innerText = parentFolderPath;
-				span.title = label;
-				li.appendChild(span);
-
-				ul.insertBefore(li, before);
-			});
+				ul.append(...listEntries, moreRecent);
+			};
+			updateEntries();
+			this.disposables.push(this.labelService.onDidChangeFormatters(updateEntries));
 		}).then(undefined, onUnexpectedError);
 
 		this.addExtensionList(container, '.extensionPackList', extensionPacks, extensionPackStrings);
@@ -385,13 +331,79 @@ class WelcomePage {
 		this.updateInstalledExtensions(container, installedExtensions);
 		this.disposables.push(this.instantiationService.invokeFunction(onExtensionChanged)(ids => {
 			for (const id of ids) {
-				if (container.querySelector(`.installExtension[data-extension="${stripVersion(id.id)}"], .enabledExtension[data-extension="${stripVersion(id.id)}"]`)) {
+				if (container.querySelector(`.installExtension[data-extension="${id.id}"], .enabledExtension[data-extension="${id.id}"]`)) {
 					const installedExtensions = this.instantiationService.invokeFunction(getInstalledExtensions);
 					this.updateInstalledExtensions(container, installedExtensions);
 					break;
 				}
 			}
 		}));
+	}
+
+	private createListEntries(workspaces: (URI | IWorkspaceIdentifier)[]) {
+		return workspaces.map(workspace => {
+			let label: string;
+			let resource: URI;
+			if (isSingleFolderWorkspaceIdentifier(workspace)) {
+				resource = workspace;
+				label = this.labelService.getWorkspaceLabel(workspace);
+			} else if (isWorkspaceIdentifier(workspace)) {
+				label = this.labelService.getWorkspaceLabel(workspace);
+				resource = URI.file(workspace.configPath);
+			} else {
+				label = getBaseLabel(workspace);
+				resource = URI.file(workspace);
+			}
+
+			const li = document.createElement('li');
+
+			const a = document.createElement('a');
+			let name = label;
+			let parentFolderPath: string | undefined;
+
+			if (resource.scheme === Schemas.file) {
+				let parentFolder = path.dirname(resource.fsPath);
+				if (!name && parentFolder) {
+					const tmp = name;
+					name = parentFolder;
+					parentFolder = tmp;
+				}
+				parentFolderPath = tildify(parentFolder, this.environmentService.userHome);
+			} else {
+				parentFolderPath = this.labelService.getUriLabel(resource);
+			}
+
+
+			a.innerText = name;
+			a.title = label;
+			a.setAttribute('aria-label', localize('welcomePage.openFolderWithPath', "Open folder {0} with path {1}", name, parentFolderPath));
+			a.href = 'javascript:void(0)';
+			a.addEventListener('click', e => {
+				/* __GDPR__
+					"workbenchActionExecuted" : {
+						"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					}
+				*/
+				this.telemetryService.publicLog('workbenchActionExecuted', {
+					id: 'openRecentFolder',
+					from: telemetryFrom
+				});
+				this.windowService.openWindow([resource], { forceNewWindow: e.ctrlKey || e.metaKey });
+				e.preventDefault();
+				e.stopPropagation();
+			});
+			li.appendChild(a);
+
+			const span = document.createElement('span');
+			span.classList.add('path');
+			span.classList.add('detail');
+			span.innerText = parentFolderPath;
+			span.title = label;
+			li.appendChild(span);
+
+			return li;
+		});
 	}
 
 	private addExtensionList(container: HTMLElement, listSelector: string, suggestions: ExtensionSuggestion[], strings: Strings) {
@@ -442,7 +454,7 @@ class WelcomePage {
 			extensionId: extensionSuggestion.id,
 		});
 		this.instantiationService.invokeFunction(getInstalledExtensions).then(extensions => {
-			const installedExtension = arrays.first(extensions, extension => stripVersion(extension.identifier.id) === extensionSuggestion.id);
+			const installedExtension = arrays.first(extensions, extension => areSameExtensions(extension.identifier, { id: extensionSuggestion.id }));
 			if (installedExtension && installedExtension.globallyEnabled) {
 				/* __GDPR__FRAGMENT__
 					"WelcomePageInstalled-1" : {
@@ -468,9 +480,9 @@ class WelcomePage {
 					return this.extensionManagementService.installFromGallery(extension)
 						.then(() => this.extensionManagementService.getInstalled(ExtensionType.User))
 						.then(installed => {
-							const local = installed.filter(i => areSameExtensions(extension.identifier, i.galleryIdentifier))[0];
+							const local = installed.filter(i => areSameExtensions(extension.identifier, i.identifier))[0];
 							// TODO: Do this as part of the install to avoid multiple events.
-							return this.extensionEnablementService.setEnablement(local, EnablementState.Disabled).then(() => local);
+							return this.extensionEnablementService.setEnablement([local], EnablementState.Disabled).then(() => local);
 						});
 				});
 
@@ -484,14 +496,13 @@ class WelcomePage {
 						messageDelay.cancelAndSet(() => {
 							this.notificationService.info(strings.installing.replace('{0}', extensionSuggestion.name));
 						}, 300);
-						Promise.all(extensionSuggestion.isKeymap ? extensions.filter(extension => isKeymapExtension(this.tipsService, extension) && extension.globallyEnabled)
-							.map(extension => {
-								return this.extensionEnablementService.setEnablement(extension.local, EnablementState.Disabled);
-							}) : []).then(() => {
+						const extensionsToDisable = extensions.filter(extension => isKeymapExtension(this.tipsService, extension) && extension.globallyEnabled).map(extension => extension.local);
+						extensionsToDisable.length ? this.extensionEnablementService.setEnablement(extensionsToDisable, EnablementState.Disabled) : Promise.resolve()
+							.then(() => {
 								return foundAndInstalled.then(foundExtension => {
 									messageDelay.cancel();
 									if (foundExtension) {
-										return this.extensionEnablementService.setEnablement(foundExtension, EnablementState.Enabled)
+										return this.extensionEnablementService.setEnablement([foundExtension], EnablementState.Enabled)
 											.then(() => {
 												/* __GDPR__FRAGMENT__
 													"WelcomePageInstalled-2" : {
@@ -587,7 +598,7 @@ class WelcomePage {
 				elements[i].classList.remove('installed');
 			}
 			extensions.filter(ext => ext.globallyEnabled)
-				.map(ext => stripVersion(ext.identifier.id))
+				.map(ext => ext.identifier.id)
 				.forEach(id => {
 					const install = container.querySelectorAll(`.installExtension[data-extension="${id}"]`);
 					for (let i = 0; i < install.length; i++) {
@@ -605,11 +616,6 @@ class WelcomePage {
 		this.disposables = dispose(this.disposables);
 	}
 }
-
-function stripVersion(id: string): string {
-	return getIdAndVersionFromLocalExtensionId(id).id;
-}
-
 
 export class WelcomeInputFactory implements IEditorInputFactory {
 
@@ -634,43 +640,43 @@ export const welcomePageBackground = registerColor('welcomePage.background', { l
 registerThemingParticipant((theme, collector) => {
 	const backgroundColor = theme.getColor(welcomePageBackground);
 	if (backgroundColor) {
-		collector.addRule(`.monaco-workbench > .part.editor > .content .welcomePageContainer { background-color: ${backgroundColor}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .welcomePageContainer { background-color: ${backgroundColor}; }`);
 	}
 	const foregroundColor = theme.getColor(foreground);
 	if (foregroundColor) {
-		collector.addRule(`.monaco-workbench > .part.editor > .content .welcomePage .caption { color: ${foregroundColor}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .welcomePage .caption { color: ${foregroundColor}; }`);
 	}
 	const descriptionColor = theme.getColor(descriptionForeground);
 	if (descriptionColor) {
-		collector.addRule(`.monaco-workbench > .part.editor > .content .welcomePage .detail { color: ${descriptionColor}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .welcomePage .detail { color: ${descriptionColor}; }`);
 	}
 	const buttonColor = getExtraColor(theme, buttonBackground, { dark: 'rgba(0, 0, 0, .2)', extra_dark: 'rgba(200, 235, 255, .042)', light: 'rgba(0,0,0,.04)', hc: 'black' });
 	if (buttonColor) {
-		collector.addRule(`.monaco-workbench > .part.editor > .content .welcomePage .commands .item button { background: ${buttonColor}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .welcomePage .commands .item button { background: ${buttonColor}; }`);
 	}
 	const buttonHoverColor = getExtraColor(theme, buttonHoverBackground, { dark: 'rgba(200, 235, 255, .072)', extra_dark: 'rgba(200, 235, 255, .072)', light: 'rgba(0,0,0,.10)', hc: null });
 	if (buttonHoverColor) {
-		collector.addRule(`.monaco-workbench > .part.editor > .content .welcomePage .commands .item button:hover { background: ${buttonHoverColor}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .welcomePage .commands .item button:hover { background: ${buttonHoverColor}; }`);
 	}
 	const link = theme.getColor(textLinkForeground);
 	if (link) {
-		collector.addRule(`.monaco-workbench > .part.editor > .content .welcomePage a { color: ${link}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .welcomePage a { color: ${link}; }`);
 	}
 	const activeLink = theme.getColor(textLinkActiveForeground);
 	if (activeLink) {
-		collector.addRule(`.monaco-workbench > .part.editor > .content .welcomePage a:hover,
-			.monaco-workbench > .part.editor > .content .welcomePage a:active { color: ${activeLink}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .welcomePage a:hover,
+			.monaco-workbench .part.editor > .content .welcomePage a:active { color: ${activeLink}; }`);
 	}
 	const focusColor = theme.getColor(focusBorder);
 	if (focusColor) {
-		collector.addRule(`.monaco-workbench > .part.editor > .content .welcomePage a:focus { outline-color: ${focusColor}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .welcomePage a:focus { outline-color: ${focusColor}; }`);
 	}
 	const border = theme.getColor(contrastBorder);
 	if (border) {
-		collector.addRule(`.monaco-workbench > .part.editor > .content .welcomePage .commands .item button { border-color: ${border}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .welcomePage .commands .item button { border-color: ${border}; }`);
 	}
 	const activeBorder = theme.getColor(activeContrastBorder);
 	if (activeBorder) {
-		collector.addRule(`.monaco-workbench > .part.editor > .content .welcomePage .commands .item button:hover { outline-color: ${activeBorder}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .welcomePage .commands .item button:hover { outline-color: ${activeBorder}; }`);
 	}
 });

@@ -16,6 +16,7 @@ import { URI } from 'vs/base/common/uri';
 
 const iconThemeExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPoint[]>({
 	extensionPoint: 'iconThemes',
+	isDynamic: true,
 	jsonSchema: {
 		description: nls.localize('vscode.extension.contributes.iconThemes', 'Contributes file icon themes.'),
 		type: 'array',
@@ -56,6 +57,7 @@ export class FileIconThemeStore {
 
 	private initialize() {
 		iconThemeExtPoint.setHandler((extensions) => {
+			this.knownIconThemes.length = 0;
 			for (let ext of extensions) {
 				let extensionData = {
 					extensionId: ext.description.identifier.value,
@@ -109,25 +111,31 @@ export class FileIconThemeStore {
 
 	}
 
-	public findThemeData(iconTheme: string): Promise<FileIconThemeData | null> {
+	public findThemeData(iconTheme: string): Promise<FileIconThemeData | undefined> {
+		if (iconTheme.length === 0) {
+			return Promise.resolve(FileIconThemeData.noIconTheme());
+		}
 		return this.getFileIconThemes().then(allIconSets => {
 			for (let iconSet of allIconSets) {
 				if (iconSet.id === iconTheme) {
 					return iconSet;
 				}
 			}
-			return null;
+			return undefined;
 		});
 	}
 
-	public findThemeBySettingsId(settingsId: string): Promise<FileIconThemeData | null> {
+	public findThemeBySettingsId(settingsId: string | null): Promise<FileIconThemeData | undefined> {
+		if (!settingsId) {
+			return Promise.resolve(FileIconThemeData.noIconTheme());
+		}
 		return this.getFileIconThemes().then(allIconSets => {
 			for (let iconSet of allIconSets) {
 				if (iconSet.settingsId === settingsId) {
 					return iconSet;
 				}
 			}
-			return null;
+			return undefined;
 		});
 	}
 
