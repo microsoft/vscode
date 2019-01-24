@@ -13,7 +13,8 @@ import { IExtensionManagementServerService, IExtensionTipsService } from 'vs/pla
 import { ILabelService } from 'vs/platform/label/common/label';
 import { extensionButtonProminentBackground, extensionButtonProminentForeground } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { STATUS_BAR_HOST_NAME_BACKGROUND } from 'vs/workbench/common/theme';
+import { STATUS_BAR_HOST_NAME_BACKGROUND, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_FOREGROUND } from 'vs/workbench/common/theme';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 
 export abstract class ExtensionWidget extends Disposable implements IExtensionContainer {
 	private _extension: IExtension;
@@ -204,6 +205,7 @@ export class RemoteBadgeWidget extends ExtensionWidget {
 		@ILabelService private readonly labelService: ILabelService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
 		this.render();
@@ -230,10 +232,13 @@ export class RemoteBadgeWidget extends ExtensionWidget {
 
 			const applyBadgeStyle = () => {
 				const bgColor = this.themeService.getTheme().getColor(STATUS_BAR_HOST_NAME_BACKGROUND);
+				const fgColor = this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY ? this.themeService.getTheme().getColor(STATUS_BAR_NO_FOLDER_FOREGROUND) : this.themeService.getTheme().getColor(STATUS_BAR_FOREGROUND);
 				this.element.style.backgroundColor = bgColor ? bgColor.toString() : '';
+				this.element.style.color = fgColor ? fgColor.toString() : '';
 			};
 			applyBadgeStyle();
 			this.themeService.onThemeChange(applyBadgeStyle, this, this.disposables);
+			this.workspaceContextService.onDidChangeWorkbenchState(applyBadgeStyle, this, this.disposables);
 
 			const updateTitle = () => this.element.title = this.labelService.getHostLabel();
 			this.labelService.onDidChangeFormatters(() => updateTitle(), this, this.disposables);
