@@ -442,9 +442,10 @@ export class ExplorerView extends ViewletPanel {
 			viewState = JSON.parse(rawViewState) as IAsyncDataTreeViewState;
 		}
 
+		const previousInput = this.tree.getInput();
 		const promise = this.tree.setInput(input, viewState).then(() => {
-			if (!viewState && Array.isArray(input)) {
-				// There is no view state for this workspace, expand all roots.
+			if (Array.isArray(input) && (!viewState || previousInput instanceof ExplorerItem)) {
+				// There is no view state for this workspace, expand all roots. Or we transitioned from a folder workspace.
 				input.forEach(item => this.tree.expand(item).then(undefined, onUnexpectedError));
 			}
 			if (initialInputSetup) {
