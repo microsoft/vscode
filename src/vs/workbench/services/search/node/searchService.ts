@@ -320,7 +320,7 @@ export class SearchService extends Disposable implements ISearchService {
 						"filesWalked" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 						"cmdTime" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 						"cmdResultCount" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-						"scheme" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+						"scheme" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 					}
 				 */
 				this.telemetryService.publicLog('searchComplete', {
