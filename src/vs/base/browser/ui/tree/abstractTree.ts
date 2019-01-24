@@ -420,7 +420,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 
 		this.filterOnTypeDomNode.checked = !!options.filterOnType;
 		this.tree.refilter();
-		this.updateMessage();
+		this.render();
 	}
 
 	private enable(): void {
@@ -454,7 +454,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		onInput(this.onInput, this, this.enabledDisposables);
 		this.filter.pattern = '';
 		this.tree.refilter();
-		this.updateMessage();
+		this.render();
 		this.enabled = true;
 	}
 
@@ -466,7 +466,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		this.domNode.remove();
 		this.enabledDisposables = dispose(this.enabledDisposables);
 		this.tree.refilter();
-		this.updateMessage();
+		this.render();
 		this.enabled = false;
 	}
 
@@ -480,16 +480,11 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 			this.tree.domFocus();
 		}
 
-		this.labelDomNode.textContent = pattern.length > 16
-			? '…' + pattern.substr(pattern.length - 16)
-			: pattern;
-
 		this._pattern = pattern;
 		this.filter.pattern = pattern;
 		this.tree.refilter();
 		this.tree.focusNext(0, true);
-
-		this.updateMessage();
+		this.render();
 	}
 
 	private onDragStart(): void {
@@ -550,14 +545,14 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 
 	private onDidSpliceModel(): void {
 		this.tree.refilter();
-		this.updateMessage();
+		this.render();
 	}
 
 	private onDidChangeFilterOnType(): void {
 		this.tree.updateOptions({ filterOnType: this.filterOnTypeDomNode.checked });
 		this.tree.refilter();
 		this.tree.domFocus();
-		this.updateMessage();
+		this.render();
 		this.updateFilterOnTypeTitle();
 	}
 
@@ -569,12 +564,18 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		}
 	}
 
-	private updateMessage(): void {
-		if (this.pattern && this.view.length === 0) {
+	private render(): void {
+		const noMatches = this.filter.totalCount > 0 && this.filter.matchCount === 0;
+
+		if (this.pattern && this.tree.options.filterOnType && noMatches) {
 			this.messageDomNode.textContent = localize('empty', "No elements found");
 		} else {
 			this.messageDomNode.innerHTML = '';
 		}
+
+		toggleClass(this.domNode, 'no-matches', noMatches);
+		this.domNode.title = localize('found', "Matched {0} out of {1} elements", this.filter.matchCount, this.filter.totalCount);
+		this.labelDomNode.textContent = this.pattern.length > 16 ? '…' + this.pattern.substr(this.pattern.length - 16) : this.pattern;
 	}
 
 	dispose() {
@@ -693,13 +694,13 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		}
 
 		if (_options.keyboardNavigationLabelProvider) {
-			const typeFilterController = new TypeFilterController(this, this.model, this.view, filter, _options.keyboardNavigationLabelProvider);
+			const typeFilterController = new TypeFilterController(this, this.model, this.view, filter!, _options.keyboardNavigationLabelProvider);
 			this.focusNavigationFilter = node => {
 				if (!typeFilterController.pattern) {
 					return true;
 				}
 
-				if (filter.totalCount > 0 && filter.matchCount === 0) {
+				if (filter!.totalCount > 0 && filter!.matchCount === 0) {
 					return true;
 				}
 
