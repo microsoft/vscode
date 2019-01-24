@@ -120,7 +120,7 @@ async function computePicks(snippetService: ISnippetsService, envService: IEnvir
 	return { existing, future };
 }
 
-async function createGlobalSnippetFile(defaultPath: URI, windowService: IWindowService, notificationService: INotificationService, fileService: IFileService, opener: IOpenerService) {
+async function createSnippetFile(scope: string, defaultPath: URI, windowService: IWindowService, notificationService: INotificationService, fileService: IFileService, opener: IOpenerService) {
 
 	await fileService.createFolder(defaultPath);
 	await timeout(100); // ensure quick pick closes...
@@ -140,7 +140,7 @@ async function createGlobalSnippetFile(defaultPath: URI, windowService: IWindowS
 
 	await fileService.updateContent(resource, [
 		'{',
-		'\t// Place your global snippets here. Each snippet is defined under a snippet name and has a scope, prefix, body and ',
+		'\t// Place your ' + scope + ' snippets here. Each snippet is defined under a snippet name and has a scope, prefix, body and ',
 		'\t// description. Add comma separated ids of the languages where the snippet is applicable in the scope field. If scope ',
 		'\t// is left empty or omitted, the snippet gets applied to all languages. The prefix is what is ',
 		'\t// used to trigger the snippet and the body will be expanded and inserted. Possible variables are: ',
@@ -207,8 +207,12 @@ CommandsRegistry.registerCommand(id, async (accessor): Promise<any> => {
 		label: nls.localize('new.global', "New Global Snippets file..."),
 		uri: URI.file(join(envService.appSettingsHome, 'snippets'))
 	}];
+
+	type WorkspaceSnippetPick = IQuickPickItem & { uri: URI } & { name: string };
+	const workspaceSnippetPicks: WorkspaceSnippetPick[] = [];
 	for (const folder of workspaceService.getWorkspace().folders) {
-		globalSnippetPicks.push({
+		workspaceSnippetPicks.push({
+			name: folder.name,
 			label: nls.localize('new.folder', "New Snippets file for '{0}'...", folder.name),
 			uri: folder.toResource('.vscode')
 		});
@@ -221,13 +225,15 @@ CommandsRegistry.registerCommand(id, async (accessor): Promise<any> => {
 		existing.push({ type: 'separator', label: nls.localize('new.global.sep', "New Snippets") });
 	}
 
-	const pick = await quickInputService.pick(([] as QuickPickInput[]).concat(existing, globalSnippetPicks, picks.future), {
+	const pick = await quickInputService.pick(([] as QuickPickInput[]).concat(existing, globalSnippetPicks, workspaceSnippetPicks, picks.future), {
 		placeHolder: nls.localize('openSnippet.pickLanguage', "Select Snippets File or Create Snippets"),
 		matchOnDescription: true
 	});
 
 	if (globalSnippetPicks.indexOf(pick as GlobalSnippetPick) >= 0) {
-		return createGlobalSnippetFile((pick as GlobalSnippetPick).uri, windowService, notificationService, fileService, opener);
+		return createSnippetFile('global', (pick as GlobalSnippetPick).uri, windowService, notificationService, fileService, opener);
+	} else if (workspaceSnippetPicks.indexOf(pick as WorkspaceSnippetPick) >= 0) {
+		return createSnippetFile((pick as WorkspaceSnippetPick).name + ' workspace', (pick as WorkspaceSnippetPick).uri, windowService, notificationService, fileService, opener);
 	} else if (ISnippetPick.is(pick)) {
 		if (pick.hint) {
 			await createLanguageSnippetFile(pick, fileService);
