@@ -157,7 +157,7 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 		};
 
 		let color: string | null = null;
-		if (suggestion.kind === CompletionItemKind.Color && ((color = matchesColor(suggestion.label)) || typeof suggestion.documentation === 'string' && matchesColor(suggestion.documentation))) {
+		if (suggestion.kind === CompletionItemKind.Color && ((color = matchesColor(suggestion.label) || typeof suggestion.documentation === 'string' && matchesColor(suggestion.documentation)))) {
 			// special logic for 'color' completion items
 			data.icon.className = 'icon customcolor';
 			data.colorspan.style.backgroundColor = color;
