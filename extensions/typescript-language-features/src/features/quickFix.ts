@@ -269,9 +269,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
 			arguments: [tsAction],
 			title: ''
 		};
-		if (tsAction.fixName === 'spelling') {
-			codeAction.isPreferred = true;
-		}
+		codeAction.isPreferred = isPreferredFix(tsAction);
 		return codeAction;
 	}
 
@@ -303,6 +301,11 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
 		results.addFixAllAction(tsAction.fixId, action);
 		return results;
 	}
+}
+
+const preferredFixes = new Set(['spelling']);
+function isPreferredFix(tsAction: Proto.CodeFixAction): boolean {
+	return preferredFixes.has(tsAction.fixName);
 }
 
 export function register(
