@@ -12,19 +12,44 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, Configur
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
-import { KeybindingsReferenceAction, OpenDocumentationUrlAction, OpenIntroductoryVideosUrlAction, OpenTipsAndTricksUrlAction, OpenIssueReporterAction, ReportPerformanceIssueUsingReporterAction, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleFullScreenAction, ToggleMenuBarAction, CloseWorkspaceAction, CloseCurrentWindowAction, SwitchWindow, NewWindowAction, NavigateUpAction, NavigateDownAction, NavigateLeftAction, NavigateRightAction, IncreaseViewSizeAction, DecreaseViewSizeAction, ToggleSharedProcessAction, QuickSwitchWindow, QuickOpenRecentAction, inRecentFilesPickerContextKey, ShowAboutDialogAction, InspectContextKeysAction, OpenProcessExplorer, OpenTwitterUrlAction, OpenRequestFeatureUrlAction, OpenPrivacyStatementUrlAction, OpenLicenseUrlAction, OpenRecentAction, ToggleScreencastModeAction } from 'vs/workbench/electron-browser/actions';
-import { registerCommands, QUIT_ID } from 'vs/workbench/electron-browser/commands';
-import { AddRootFolderAction, GlobalRemoveRootFolderAction, OpenWorkspaceAction, SaveWorkspaceAsAction, OpenWorkspaceConfigFileAction, DuplicateWorkspaceInNewWindowAction, OpenFileFolderAction, OpenFileAction, OpenFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
+import { KeybindingsReferenceAction, OpenDocumentationUrlAction, OpenIntroductoryVideosUrlAction, OpenTipsAndTricksUrlAction, OpenIssueReporterAction, ReportPerformanceIssueUsingReporterAction, IncreaseViewSizeAction, DecreaseViewSizeAction, OpenProcessExplorer, OpenTwitterUrlAction, OpenRequestFeatureUrlAction, OpenPrivacyStatementUrlAction, OpenLicenseUrlAction } from 'vs/workbench/electron-browser/actions';
+import { ToggleSharedProcessAction, InspectContextKeysAction, ToggleScreencastModeAction } from 'vs/workbench/electron-browser/actions/developerActions';
+import { ShowAboutDialogAction, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleFullScreenAction, CloseCurrentWindowAction, SwitchWindow, NewWindowAction, QuickSwitchWindow, QuickOpenRecentAction, inRecentFilesPickerContextKey, OpenRecentAction } from 'vs/workbench/electron-browser/actions/windowActions';
+import { AddRootFolderAction, GlobalRemoveRootFolderAction, OpenWorkspaceAction, SaveWorkspaceAsAction, OpenWorkspaceConfigFileAction, DuplicateWorkspaceInNewWindowAction, OpenFileFolderAction, OpenFileAction, OpenFolderAction, CloseWorkspaceAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { inQuickOpenContext, getQuickNavigateHandler } from 'vs/workbench/browser/parts/quickopen/quickopen';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ADD_ROOT_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { IsMacContext } from 'vs/platform/workbench/common/contextkeys';
+import { NoEditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/common/editor';
+import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 
 // Contribute Commands
-registerCommands();
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'workbench.action.closeWindow', // close the window when the last editor is closed by reusing the same keybinding
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ContextKeyExpr.and(NoEditorsVisibleContext, SingleEditorGroupsContext),
+	primary: KeyMod.CtrlCmd | KeyCode.KEY_W,
+	handler: accessor => {
+		const windowService = accessor.get(IWindowService);
+		windowService.closeWindow();
+	}
+});
+
+const QUIT_ID = 'workbench.action.quit';
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: QUIT_ID,
+	weight: KeybindingWeight.WorkbenchContrib,
+	handler(accessor: ServicesAccessor) {
+		const windowsService = accessor.get(IWindowsService);
+		windowsService.quit();
+	},
+	when: undefined,
+	primary: KeyMod.CtrlCmd | KeyCode.KEY_Q,
+	win: { primary: undefined }
+});
 
 // Contribute Global Actions
 const viewCategory = nls.localize('view', "View");
@@ -93,13 +118,6 @@ workbenchActionsRegistry.registerWorkbenchAction(
 );
 
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleFullScreenAction, ToggleFullScreenAction.ID, ToggleFullScreenAction.LABEL, { primary: KeyCode.F11, mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_F } }), 'View: Toggle Full Screen', viewCategory);
-if (isWindows || isLinux) {
-	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleMenuBarAction, ToggleMenuBarAction.ID, ToggleMenuBarAction.LABEL), 'View: Toggle Menu Bar', viewCategory);
-}
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(NavigateUpAction, NavigateUpAction.ID, NavigateUpAction.LABEL, undefined), 'View: Navigate to the View Above', viewCategory);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(NavigateDownAction, NavigateDownAction.ID, NavigateDownAction.LABEL, undefined), 'View: Navigate to the View Below', viewCategory);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(NavigateLeftAction, NavigateLeftAction.ID, NavigateLeftAction.LABEL, undefined), 'View: Navigate to the View on the Left', viewCategory);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(NavigateRightAction, NavigateRightAction.ID, NavigateRightAction.LABEL, undefined), 'View: Navigate to the View on the Right', viewCategory);
 
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(IncreaseViewSizeAction, IncreaseViewSizeAction.ID, IncreaseViewSizeAction.LABEL, undefined), 'View: Increase Current View Size', viewCategory);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(DecreaseViewSizeAction, DecreaseViewSizeAction.ID, DecreaseViewSizeAction.LABEL, undefined), 'View: Decrease Current View Size', viewCategory);
@@ -300,16 +318,6 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 		title: nls.localize({ key: 'miToggleFullScreen', comment: ['&& denotes a mnemonic'] }, "Toggle &&Full Screen")
 	},
 	order: 1
-});
-
-MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
-	group: '1_toggle_view',
-	command: {
-		id: ToggleMenuBarAction.ID,
-		title: nls.localize({ key: 'miToggleMenuBar', comment: ['&& denotes a mnemonic'] }, "Toggle Menu &&Bar")
-	},
-	when: IsMacContext.toNegated(),
-	order: 4
 });
 
 // Zoom
@@ -689,6 +697,12 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('workbench.enableExperiments', "Fetches experiments to run from a Microsoft online service."),
 			'default': true,
 			'tags': ['usesOnlineServices']
+		},
+		'workbench.useExperimentalGridLayout': {
+			'type': 'boolean',
+			'description': nls.localize('workbench.useExperimentalGridLayout', "Enables the grid layout for the workbench. This setting may enable additional layout options for workbench components."),
+			'default': false,
+			'scope': ConfigurationScope.APPLICATION
 		}
 	}
 });
@@ -820,7 +834,7 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': false,
 			'scope': ConfigurationScope.APPLICATION,
-			'description': nls.localize('window.doubleClickIconToClose', "If enabled, double clicking the application icon in the title bar will close the window and the window cannot be dragged by the icon. This setting only has an effect when `#window.titleBarStyle#` is set to `custom`.")
+			'markdownDescription': nls.localize('window.doubleClickIconToClose', "If enabled, double clicking the application icon in the title bar will close the window and the window cannot be dragged by the icon. This setting only has an effect when `#window.titleBarStyle#` is set to `custom`.")
 		},
 		'window.titleBarStyle': {
 			'type': 'string',

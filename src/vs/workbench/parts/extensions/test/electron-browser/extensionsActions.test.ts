@@ -698,7 +698,7 @@ suite('ExtensionsActions Test', () => {
 	});
 
 	test('Test EnableAction when there is no extension', () => {
-		const testObject: ExtensionsActions.EnableDropDownAction = instantiationService.createInstance(ExtensionsActions.EnableDropDownAction, []);
+		const testObject: ExtensionsActions.EnableDropDownAction = instantiationService.createInstance(ExtensionsActions.EnableDropDownAction);
 
 		assert.ok(!testObject.enabled);
 	});
@@ -709,7 +709,7 @@ suite('ExtensionsActions Test', () => {
 
 		return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
 			.then(extensions => {
-				const testObject: ExtensionsActions.EnableDropDownAction = instantiationService.createInstance(ExtensionsActions.EnableDropDownAction, []);
+				const testObject: ExtensionsActions.EnableDropDownAction = instantiationService.createInstance(ExtensionsActions.EnableDropDownAction);
 				testObject.extension = extensions[0];
 				assert.ok(!testObject.enabled);
 			});
@@ -723,7 +723,7 @@ suite('ExtensionsActions Test', () => {
 
 				return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
 					.then(extensions => {
-						const testObject: ExtensionsActions.EnableDropDownAction = instantiationService.createInstance(ExtensionsActions.EnableDropDownAction, []);
+						const testObject: ExtensionsActions.EnableDropDownAction = instantiationService.createInstance(ExtensionsActions.EnableDropDownAction);
 						testObject.extension = extensions[0];
 						assert.ok(testObject.enabled);
 					});
@@ -738,7 +738,7 @@ suite('ExtensionsActions Test', () => {
 
 				return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
 					.then(extensions => {
-						const testObject: ExtensionsActions.EnableDropDownAction = instantiationService.createInstance(ExtensionsActions.EnableDropDownAction, []);
+						const testObject: ExtensionsActions.EnableDropDownAction = instantiationService.createInstance(ExtensionsActions.EnableDropDownAction);
 						testObject.extension = extensions[0];
 						assert.ok(testObject.enabled);
 					});
@@ -751,7 +751,7 @@ suite('ExtensionsActions Test', () => {
 
 		return instantiationService.get(IExtensionsWorkbenchService).queryGallery()
 			.then(page => {
-				const testObject: ExtensionsActions.EnableDropDownAction = instantiationService.createInstance(ExtensionsActions.EnableDropDownAction, []);
+				const testObject: ExtensionsActions.EnableDropDownAction = instantiationService.createInstance(ExtensionsActions.EnableDropDownAction);
 				testObject.extension = page.firstPage[0];
 				assert.ok(!testObject.enabled);
 			});
@@ -763,7 +763,7 @@ suite('ExtensionsActions Test', () => {
 
 		return instantiationService.get(IExtensionsWorkbenchService).queryGallery()
 			.then(page => {
-				const testObject: ExtensionsActions.EnableDropDownAction = instantiationService.createInstance(ExtensionsActions.EnableDropDownAction, []);
+				const testObject: ExtensionsActions.EnableDropDownAction = instantiationService.createInstance(ExtensionsActions.EnableDropDownAction);
 				testObject.extension = page.firstPage[0];
 				instantiationService.get(IExtensionsWorkbenchService).onChange(() => testObject.update());
 
@@ -778,7 +778,7 @@ suite('ExtensionsActions Test', () => {
 
 		return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
 			.then(extensions => {
-				const testObject: ExtensionsActions.EnableDropDownAction = instantiationService.createInstance(ExtensionsActions.EnableDropDownAction, []);
+				const testObject: ExtensionsActions.EnableDropDownAction = instantiationService.createInstance(ExtensionsActions.EnableDropDownAction);
 				testObject.extension = extensions[0];
 				uninstallEvent.fire(local.identifier);
 				assert.ok(!testObject.enabled);
@@ -1214,6 +1214,7 @@ suite('ExtensionsActions Test', () => {
 		return workbenchService.queryLocal().then(extensions => {
 			testObject.extension = extensions[0];
 			return workbenchService.setEnablement(extensions[0], EnablementState.Disabled)
+				.then(() => testObject.update())
 				.then(() => {
 					assert.ok(testObject.enabled);
 					assert.equal('Please reload Visual Studio Code to complete the disabling of this extension.', testObject.tooltip);
@@ -1250,6 +1251,7 @@ suite('ExtensionsActions Test', () => {
 					.then(extensions => {
 						testObject.extension = extensions[0];
 						return workbenchService.setEnablement(extensions[0], EnablementState.Enabled)
+							.then(() => testObject.update())
 							.then(() => {
 								assert.ok(testObject.enabled);
 								assert.equal('Please reload Visual Studio Code to complete the enabling of this extension.', testObject.tooltip);
@@ -1294,6 +1296,7 @@ suite('ExtensionsActions Test', () => {
 						installEvent.fire({ identifier: gallery.identifier, gallery });
 						didInstallEvent.fire({ identifier: gallery.identifier, gallery, operation: InstallOperation.Install, local: aLocalExtension('a', gallery, gallery) });
 						return workbenchService.setEnablement(extensions[0], EnablementState.Enabled)
+							.then(() => testObject.update())
 							.then(() => {
 								assert.ok(testObject.enabled);
 								assert.equal('Please reload Visual Studio Code to complete the enabling of this extension.', testObject.tooltip);

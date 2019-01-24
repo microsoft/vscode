@@ -723,11 +723,11 @@ export class DefaultStyleController implements IStyleController {
 		}
 
 		if (styles.listHoverBackground) {
-			content.push(`.monaco-list${suffix}:not(.drop-target) .monaco-list-row:hover { background-color:  ${styles.listHoverBackground}; }`);
+			content.push(`.monaco-list${suffix}:not(.drop-target) .monaco-list-row:hover:not(.selected):not(.focused) { background-color:  ${styles.listHoverBackground}; }`);
 		}
 
 		if (styles.listHoverForeground) {
-			content.push(`.monaco-list${suffix} .monaco-list-row:hover { color:  ${styles.listHoverForeground}; }`);
+			content.push(`.monaco-list${suffix} .monaco-list-row:hover:not(.selected):not(.focused) { color:  ${styles.listHoverForeground}; }`);
 		}
 
 		if (styles.listSelectionOutline) {
@@ -762,6 +762,10 @@ export class DefaultStyleController implements IStyleController {
 
 		if (styles.listMatchesOutline) {
 			content.push(`.monaco-list-type-filter { border: 1px solid ${styles.listMatchesOutline}; }`);
+		}
+
+		if (styles.listNoMatchesOutline) {
+			content.push(`.monaco-list-type-filter.no-matches { border: 1px solid ${styles.listNoMatchesOutline}; }`);
 		}
 
 		if (styles.listMatchesShadow) {
@@ -815,6 +819,7 @@ export interface IListStyles {
 	listHoverOutline?: Color;
 	listMatchesBackground?: Color;
 	listMatchesOutline?: Color;
+	listNoMatchesOutline?: Color;
 	listMatchesShadow?: Color;
 }
 

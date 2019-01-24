@@ -315,14 +315,12 @@ export class SearchService extends Disposable implements ISearchService {
 						"type" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 						"endToEndTime" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 						"sortingTime" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-						"traversal" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 						"fileWalkTime" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 						"directoriesWalked" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 						"filesWalked" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 						"cmdTime" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 						"cmdResultCount" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 						"scheme" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-						"useRipgrep" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 					}
 				 */
 				this.telemetryService.publicLog('searchComplete', {
@@ -332,14 +330,12 @@ export class SearchService extends Disposable implements ISearchService {
 					type: fileSearchStats.type,
 					endToEndTime: endToEndTime,
 					sortingTime: fileSearchStats.sortingTime,
-					traversal: searchEngineStats.traversal,
 					fileWalkTime: searchEngineStats.fileWalkTime,
 					directoriesWalked: searchEngineStats.directoriesWalked,
 					filesWalked: searchEngineStats.filesWalked,
 					cmdTime: searchEngineStats.cmdTime,
 					cmdResultCount: searchEngineStats.cmdResultCount,
-					scheme,
-					useRipgrep: query.useRipgrep
+					scheme
 				});
 			}
 		} else if (query.type === QueryType.Text) {
@@ -370,7 +366,6 @@ export class SearchService extends Disposable implements ISearchService {
 				endToEndTime: endToEndTime,
 				scheme,
 				error: errorType,
-				useRipgrep: query.useRipgrep,
 				usePCRE2: !!query.usePCRE2
 			});
 		}

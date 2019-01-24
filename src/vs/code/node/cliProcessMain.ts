@@ -136,7 +136,7 @@ export class Main {
 
 		const [id, version] = getIdAndVersion(extension);
 		return this.extensionManagementService.getInstalled(ExtensionType.User)
-			.then(installed => this.extensionGalleryService.getExtension({ id }, version)
+			.then(installed => this.extensionGalleryService.getCompatibleExtension({ id }, version)
 				.then<IGalleryExtension>(null, err => {
 					if (err.responseText) {
 						try {

@@ -23,18 +23,6 @@ import { equals, distinct } from 'vs/base/common/arrays';
 import { DataTransfers, StaticDND, IDragAndDropData } from 'vs/base/browser/dnd';
 import { disposableTimeout } from 'vs/base/common/async';
 
-function canUseTranslate3d(): boolean {
-	if (browser.isFirefox) {
-		return false;
-	}
-
-	if (browser.getZoomLevel() !== 0) {
-		return false;
-	}
-
-	return true;
-}
-
 interface IItem<T> {
 	readonly id: string;
 	readonly element: T;
@@ -172,6 +160,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	private dragOverMouseY: number;
 	private setRowLineHeight: boolean;
 	private supportDynamicHeights: boolean;
+	private canUseTranslate3d: boolean | undefined = undefined;
 
 	private dnd: IListViewDragAndDrop<T>;
 	private canDrop: boolean = false;
@@ -434,14 +423,26 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			}
 		}
 
-		if (canUseTranslate3d() && !isWindows /* Windows: translate3d breaks subpixel-antialias (ClearType) unless a background is defined */) {
+		const canUseTranslate3d = !isWindows && !browser.isFirefox && browser.getZoomLevel() === 0;
+
+		if (canUseTranslate3d) {
 			const transform = `translate3d(0px, -${renderTop}px, 0px)`;
 			this.rowsContainer.style.transform = transform;
 			this.rowsContainer.style.webkitTransform = transform;
+
+			if (canUseTranslate3d !== this.canUseTranslate3d) {
+				this.rowsContainer.style.top = '0';
+			}
 		} else {
 			this.rowsContainer.style.top = `-${renderTop}px`;
+
+			if (canUseTranslate3d !== this.canUseTranslate3d) {
+				this.rowsContainer.style.transform = '';
+				this.rowsContainer.style.webkitTransform = '';
+			}
 		}
 
+		this.canUseTranslate3d = canUseTranslate3d;
 		this.lastRenderTop = renderTop;
 		this.lastRenderHeight = renderHeight;
 	}

@@ -960,7 +960,6 @@ export class SearchModel extends Disposable {
 				"fileCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"options": { "${inline}": [ "${IPatternInfo}" ] },
 				"duration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-				"useRipgrep": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"type" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 				"scheme" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 			}
@@ -970,7 +969,6 @@ export class SearchModel extends Disposable {
 			fileCount: this._searchResult.fileCount(),
 			options,
 			duration,
-			useRipgrep: this._searchQuery.useRipgrep,
 			type: stats && stats.type,
 			scheme
 		});

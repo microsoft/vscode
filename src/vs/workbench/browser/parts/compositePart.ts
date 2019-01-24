@@ -464,10 +464,11 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		return AnchorAlignment.RIGHT;
 	}
 
-	layout(dimension: Dimension): Dimension[] {
-
+	layout(dimension: Dimension): Dimension[];
+	layout(width: number, height: number): void;
+	layout(dim1: Dimension | number, dim2?: number): Dimension[] | void {
 		// Pass to super
-		const sizes = super.layout(dimension);
+		const sizes = super.layout(dim1 instanceof Dimension ? dim1 : new Dimension(dim1, dim2!));
 
 		// Pass Contentsize to composite
 		this.contentAreaSize = sizes[1];
@@ -475,7 +476,9 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			this.activeComposite.layout(this.contentAreaSize);
 		}
 
-		return sizes;
+		if (dim1 instanceof Dimension) {
+			return sizes;
+		}
 	}
 
 	protected removeComposite(compositeId: string): boolean {

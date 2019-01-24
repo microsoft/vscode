@@ -576,6 +576,9 @@ export class FileIndexSearchManager {
 			catch(reject?) {
 				return this.then(undefined, reject);
 			}
+			finally(onFinally) {
+				return promise.finally(onFinally);
+			}
 		};
 	}
 }

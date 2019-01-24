@@ -67,6 +67,7 @@
 
 .monaco-list-type-filter {
 	display: flex;
+	align-items: center;
 	position: absolute;
 	border-radius: 2px;
 	padding: 0px 3px;
