@@ -278,10 +278,16 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 	}
 }
 
-class TypeFilter<T> implements ITreeFilter<T, FuzzyScore> {
+class TypeFilter<T> implements ITreeFilter<T, FuzzyScore>, IDisposable {
+
+	private _totalCount = 0;
+	get totalCount(): number { return this._totalCount; }
+	private _matchCount = 0;
+	get matchCount(): number { return this._matchCount; }
 
 	private _pattern: string;
 	private _lowercasePattern: string;
+	private disposables: IDisposable[] = [];
 
 	set pattern(pattern: string) {
 		this._pattern = pattern;
@@ -292,7 +298,9 @@ class TypeFilter<T> implements ITreeFilter<T, FuzzyScore> {
 		private tree: AbstractTree<T, any, any>,
 		private keyboardNavigationLabelProvider: IKeyboardNavigationLabelProvider<T>,
 		private _filter?: ITreeFilter<T, FuzzyScore>
-	) { }
+	) {
+		tree.onWillRefilter(this.reset, this, this.disposables);
+	}
 
 	filter(element: T, parentVisibility: TreeVisibility): TreeFilterResult<FuzzyScore> {
 		if (this._filter) {
@@ -317,7 +325,10 @@ class TypeFilter<T> implements ITreeFilter<T, FuzzyScore> {
 			}
 		}
 
+		this._totalCount++;
+
 		if (this.tree.options.simpleKeyboardNavigation || !this._pattern) {
+			this._matchCount++;
 			return { data: FuzzyScore.Default, visibility: true };
 		}
 
@@ -335,7 +346,17 @@ class TypeFilter<T> implements ITreeFilter<T, FuzzyScore> {
 			// return parentVisibility === TreeVisibility.Visible ? true : TreeVisibility.Recurse;
 		}
 
+		this._matchCount++;
 		return { data: score, visibility: true };
+	}
+
+	private reset(): void {
+		this._totalCount = 0;
+		this._matchCount = 0;
+	}
+
+	dispose(): void {
+		this.disposables = dispose(this.disposables);
 	}
 }
 
@@ -629,6 +650,9 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	get onDidChangeCollapseState(): Event<ICollapseStateChangeEvent<T, TFilterData>> { return this.model.onDidChangeCollapseState; }
 	get onDidChangeRenderNodeCount(): Event<ITreeNode<T, TFilterData>> { return this.model.onDidChangeRenderNodeCount; }
 
+	private _onWillRefilter = new Emitter<void>();
+	readonly onWillRefilter: Event<void> = this._onWillRefilter.event;
+
 	get onDidDispose(): Event<void> { return this.view.onDidDispose; }
 
 	constructor(
@@ -643,11 +667,12 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		this.renderers = renderers.map(r => new TreeRenderer<T, TFilterData, any>(r, onDidChangeCollapseStateRelay.event, _options));
 		this.disposables.push(...this.renderers);
 
-		let filter: ITreeFilter<T, TFilterData> | undefined;
+		let filter: TypeFilter<T> | undefined;
 
 		if (_options.keyboardNavigationLabelProvider) {
-			filter = new TypeFilter(this, _options.keyboardNavigationLabelProvider, _options.filter as ITreeFilter<T, FuzzyScore>) as ITreeFilter<T, TFilterData>; // TODO need typescript help here
-			_options = { ..._options, filter };
+			filter = new TypeFilter(this, _options.keyboardNavigationLabelProvider, _options.filter as ITreeFilter<T, FuzzyScore>);
+			_options = { ..._options, filter: filter as ITreeFilter<T, TFilterData> }; // TODO need typescript help here
+			this.disposables.push(filter);
 		}
 
 		this.view = new List(container, treeDelegate, this.renderers, asListOptions(() => this.model, _options));
@@ -668,8 +693,18 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		}
 
 		if (_options.keyboardNavigationLabelProvider) {
-			const typeFilterController = new TypeFilterController(this, this.model, this.view, filter as TypeFilter<T>, _options.keyboardNavigationLabelProvider);
-			this.focusNavigationFilter = node => !typeFilterController.pattern || !FuzzyScore.isDefault(node.filterData as any as FuzzyScore); // TODO@joao
+			const typeFilterController = new TypeFilterController(this, this.model, this.view, filter, _options.keyboardNavigationLabelProvider);
+			this.focusNavigationFilter = node => {
+				if (!typeFilterController.pattern) {
+					return true;
+				}
+
+				if (filter.totalCount > 0 && filter.matchCount === 0) {
+					return true;
+				}
+
+				return !FuzzyScore.isDefault(node.filterData as any as FuzzyScore);
+			};
 			this.disposables.push(typeFilterController);
 		}
 	}
@@ -784,6 +819,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	}
 
 	refilter(): void {
+		this._onWillRefilter.fire(undefined);
 		this.model.refilter();
 	}
 
