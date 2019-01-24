@@ -13,7 +13,7 @@ import { IExtensionManagementServerService, IExtensionTipsService } from 'vs/pla
 import { ILabelService } from 'vs/platform/label/common/label';
 import { extensionButtonProminentBackground, extensionButtonProminentForeground } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { STATUS_BAR_PROMINENT_ITEM_BACKGROUND } from 'vs/workbench/common/theme';
+import { STATUS_BAR_HOST_NAME_BACKGROUND } from 'vs/workbench/common/theme';
 
 export abstract class ExtensionWidget extends Disposable implements IExtensionContainer {
 	private _extension: IExtension;
@@ -229,7 +229,7 @@ export class RemoteBadgeWidget extends ExtensionWidget {
 			append(this.element, $('span.octicon.octicon-file-symlink-directory'));
 
 			const applyBadgeStyle = () => {
-				const bgColor = this.themeService.getTheme().getColor(STATUS_BAR_PROMINENT_ITEM_BACKGROUND);
+				const bgColor = this.themeService.getTheme().getColor(STATUS_BAR_HOST_NAME_BACKGROUND);
 				this.element.style.backgroundColor = bgColor ? bgColor.toString() : '';
 			};
 			applyBadgeStyle();
