@@ -5921,6 +5921,18 @@ declare module 'vscode' {
 		 * Changes each time the editor is started.
 		 */
 		export const sessionId: string;
+
+		/**
+		 * Opens an *external* item, e.g. a http(s) or mailto-link, using the
+		 * default application.
+		 *
+		 * *Note* that [`showTextDocument`](#window.showTextDocument) is the right
+		 * way to open a text document inside the editor, not this function.
+		 *
+		 * @param target The uri that should be opened.
+		 * @returns A promise indicating if open was successful.
+		 */
+		export function open(target: Uri): Thenable<boolean>;
 	}
 
 	/**
