@@ -14,18 +14,41 @@ import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
 import { KeybindingsReferenceAction, OpenDocumentationUrlAction, OpenIntroductoryVideosUrlAction, OpenTipsAndTricksUrlAction, OpenIssueReporterAction, ReportPerformanceIssueUsingReporterAction, NavigateUpAction, NavigateDownAction, NavigateLeftAction, NavigateRightAction, IncreaseViewSizeAction, DecreaseViewSizeAction, ToggleSharedProcessAction, ShowAboutDialogAction, InspectContextKeysAction, OpenProcessExplorer, OpenTwitterUrlAction, OpenRequestFeatureUrlAction, OpenPrivacyStatementUrlAction, OpenLicenseUrlAction, ToggleScreencastModeAction } from 'vs/workbench/electron-browser/actions';
 import { ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleFullScreenAction, CloseCurrentWindowAction, SwitchWindow, NewWindowAction, QuickSwitchWindow, QuickOpenRecentAction, inRecentFilesPickerContextKey, OpenRecentAction } from 'vs/workbench/electron-browser/actions/windowActions';
-import { registerCommands, QUIT_ID } from 'vs/workbench/electron-browser/commands';
 import { AddRootFolderAction, GlobalRemoveRootFolderAction, OpenWorkspaceAction, SaveWorkspaceAsAction, OpenWorkspaceConfigFileAction, DuplicateWorkspaceInNewWindowAction, OpenFileFolderAction, OpenFileAction, OpenFolderAction, CloseWorkspaceAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { inQuickOpenContext, getQuickNavigateHandler } from 'vs/workbench/browser/parts/quickopen/quickopen';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ADD_ROOT_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { IsMacContext } from 'vs/platform/workbench/common/contextkeys';
+import { NoEditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/common/editor';
+import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 
 // Contribute Commands
-registerCommands();
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'workbench.action.closeWindow', // close the window when the last editor is closed by reusing the same keybinding
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ContextKeyExpr.and(NoEditorsVisibleContext, SingleEditorGroupsContext),
+	primary: KeyMod.CtrlCmd | KeyCode.KEY_W,
+	handler: accessor => {
+		const windowService = accessor.get(IWindowService);
+		windowService.closeWindow();
+	}
+});
+
+const QUIT_ID = 'workbench.action.quit';
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: QUIT_ID,
+	weight: KeybindingWeight.WorkbenchContrib,
+	handler(accessor: ServicesAccessor) {
+		const windowsService = accessor.get(IWindowsService);
+		windowsService.quit();
+	},
+	when: undefined,
+	primary: KeyMod.CtrlCmd | KeyCode.KEY_Q,
+	win: { primary: undefined }
+});
 
 // Contribute Global Actions
 const viewCategory = nls.localize('view', "View");
