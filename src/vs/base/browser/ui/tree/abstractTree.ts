@@ -405,7 +405,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		const onKeyDown = Event.chain(domEvent(this.view.getHTMLElement(), 'keydown'))
 			.filter(e => !isInputElement(e.target as HTMLElement) || e.target === this.filterOnTypeDomNode)
 			.map(e => new StandardKeyboardEvent(e))
-			.filter(e => e.keyCode === KeyCode.Backspace || e.keyCode === KeyCode.Escape || isPrintableCharEvent(e))
+			.filter(e => isPrintableCharEvent(e) || (this._pattern.length > 0 && (e.keyCode === KeyCode.Escape || e.keyCode === KeyCode.Backspace)))
 			.forEach(e => { e.stopPropagation(); e.preventDefault(); })
 			.event;
 
