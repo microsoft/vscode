@@ -27,7 +27,7 @@ function isPathSeparator(code: number) {
  * @param separator the separator to use
  * @returns the directory name of a path.
  * '.' is returned for empty paths or single segment relative paths (as done by NodeJS)
- * For paths consisting only of a root, the inout path is returned
+ * For paths consisting only of a root, the input path is returned
  */
 export function dirname(path: string, separator = nativeSep): string {
 	const len = path.length;
