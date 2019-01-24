@@ -333,7 +333,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			return Promise.reject(new ExtensionManagementError(nls.localize('malicious extension', "Can't install extension since it was reported to be problematic."), INSTALL_ERROR_MALICIOUS));
 		}
 
-		const compatibleExtension = await this.galleryService.loadCompatibleVersion(extension);
+		const compatibleExtension = await this.galleryService.getCompatibleExtension(extension);
 
 		if (!compatibleExtension) {
 			return Promise.reject(new ExtensionManagementError(nls.localize('notFoundCompatibleDependency', "Unable to install because, the extension '{0}' compatible with current version '{1}' of VS Code is not found.", extension.identifier.id, pkg.version), INSTALL_ERROR_INCOMPATIBLE));
