@@ -443,6 +443,10 @@ export class ExplorerView extends ViewletPanel {
 		}
 
 		const promise = this.tree.setInput(input, viewState).then(() => {
+			if (!viewState && Array.isArray(input)) {
+				// There is no view state for this workspace, expand all roots.
+				input.forEach(item => this.tree.expand(item).then(undefined, onUnexpectedError));
+			}
 			if (initialInputSetup) {
 				perf.mark('didResolveExplorer');
 			}
