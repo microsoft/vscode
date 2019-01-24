@@ -9,7 +9,7 @@ import * as perf from 'vs/base/common/performance';
 import { sequence } from 'vs/base/common/async';
 import { Action, IAction } from 'vs/base/common/actions';
 import { memoize } from 'vs/base/common/decorators';
-import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, IExplorerService } from 'vs/workbench/parts/files/common/files';
+import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, IExplorerService, ExplorerResourceCut } from 'vs/workbench/parts/files/common/files';
 import { NewFolderAction, NewFileAction, FileCopiedContext, RefreshExplorerView } from 'vs/workbench/parts/files/electron-browser/fileActions';
 import { toResource } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -120,6 +120,10 @@ export class ExplorerView extends ViewletPanel {
 
 	@memoize private get fileCopiedContextKey(): IContextKey<boolean> {
 		return FileCopiedContext.bindTo(this.contextKeyService);
+	}
+
+	@memoize private get resourceCutContextKey(): IContextKey<boolean> {
+		return ExplorerResourceCut.bindTo(this.contextKeyService);
 	}
 
 	// Split view methods
@@ -484,6 +488,7 @@ export class ExplorerView extends ViewletPanel {
 
 	private onCopyItems(stats: ExplorerItem[], cut: boolean, previousCut: ExplorerItem[]): void {
 		this.fileCopiedContextKey.set(stats.length > 0);
+		this.resourceCutContextKey.set(cut && stats.length > 0);
 		if (previousCut) {
 			previousCut.forEach(item => this.tree.refresh(item));
 		}
