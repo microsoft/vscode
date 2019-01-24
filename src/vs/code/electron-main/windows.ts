@@ -13,7 +13,7 @@ import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/
 import { IStateService } from 'vs/platform/state/common/state';
 import { CodeWindow, defaultWindowState } from 'vs/code/electron-main/window';
 import { hasArgs, asArray } from 'vs/platform/environment/node/argv';
-import { ipcMain as ipc, screen, BrowserWindow, dialog, systemPreferences, app } from 'electron';
+import { ipcMain as ipc, screen, BrowserWindow, dialog, systemPreferences } from 'electron';
 import { IPathWithLineAndColumn, parseLineAndColumnAware } from 'vs/code/node/paths';
 import { ILifecycleService, UnloadReason, IWindowUnloadEvent, LifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -145,12 +145,6 @@ export class WindowsManager implements IWindowsMainService {
 	private _onWindowLoad = new Emitter<number>();
 	onWindowLoad: CommonEvent<number> = this._onWindowLoad.event;
 
-	private _onActiveWindowChanged = new Emitter<ICodeWindow>();
-	onActiveWindowChanged: CommonEvent<ICodeWindow> = this._onActiveWindowChanged.event;
-
-	private _onWindowReload = new Emitter<number>();
-	onWindowReload: CommonEvent<number> = this._onWindowReload.event;
-
 	private _onWindowsCountChanged = new Emitter<IWindowsCountChangedEvent>();
 	onWindowsCountChanged: CommonEvent<IWindowsCountChangedEvent> = this._onWindowsCountChanged.event;
 
@@ -207,13 +201,6 @@ export class WindowsManager implements IWindowsMainService {
 	}
 
 	private registerListeners(): void {
-
-		// React to windows focus changes
-		app.on('browser-window-focus', () => {
-			setTimeout(() => {
-				this._onActiveWindowChanged.fire(this.getLastActiveWindow());
-			});
-		});
 
 		// React to workbench ready events from windows
 		ipc.on('vscode:workbenchReady', (event: any, windowId: number) => {
@@ -1471,9 +1458,6 @@ export class WindowsManager implements IWindowsMainService {
 		this.lifecycleService.unload(win, UnloadReason.RELOAD).then(veto => {
 			if (!veto) {
 				win.reload(undefined, cli);
-
-				// Emit
-				this._onWindowReload.fire(win.id);
 			}
 		});
 	}
