@@ -12,7 +12,7 @@ import * as pfs from 'vs/base/node/pfs';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import { WorkspacesMainService, IStoredWorkspace } from 'vs/platform/workspaces/electron-main/workspacesMainService';
-import { WORKSPACE_EXTENSION, IWorkspaceSavedEvent, IWorkspaceIdentifier, IRawFileWorkspaceFolder, IWorkspaceFolderCreationData, IRawUriWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
+import { WORKSPACE_EXTENSION, IWorkspaceIdentifier, IRawFileWorkspaceFolder, IWorkspaceFolderCreationData, IRawUriWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { URI } from 'vs/base/common/uri';
 import { getRandomTestPath } from 'vs/workbench/test/workbenchTestServices';
@@ -224,16 +224,6 @@ suite('WorkspacesMainService', () => {
 	});
 
 	test('saveWorkspace (untitled)', () => {
-		let savedEvent: IWorkspaceSavedEvent;
-		const listener = service.onWorkspaceSaved(e => {
-			savedEvent = e;
-		});
-
-		let deletedEvent: IWorkspaceIdentifier;
-		const listener2 = service.onUntitledWorkspaceDeleted(e => {
-			deletedEvent = e;
-		});
-
 		return createWorkspace([process.cwd(), os.tmpdir(), path.join(os.tmpdir(), 'somefolder')]).then(workspace => {
 			const workspaceConfigPath = path.join(os.tmpdir(), `myworkspace.${Date.now()}.${WORKSPACE_EXTENSION}`);
 
@@ -249,14 +239,6 @@ suite('WorkspacesMainService', () => {
 				assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[0]).path, process.cwd()); // absolute
 				assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[1]).path, '.'); // relative
 				assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[2]).path, path.relative(path.dirname(workspaceConfigPath), path.join(os.tmpdir(), 'somefolder'))); // relative
-
-				assert.equal(savedWorkspace, savedEvent.workspace);
-				assertPathEquals(workspace.configPath, savedEvent.oldConfigPath);
-
-				assert.deepEqual(deletedEvent, workspace);
-
-				listener.dispose();
-				listener2.dispose();
 
 				extfs.delSync(workspaceConfigPath);
 			});

@@ -9,7 +9,7 @@ import * as nls from 'vs/nls';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWindowService, MessageBoxOptions, IWindowsService } from 'vs/platform/windows/common/windows';
 import { IJSONEditingService, JSONEditingError, JSONEditingErrorCode } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, IStoredWorkspace, isStoredWorkspaceFolder, isRawFileWorkspaceFolder, isWorkspaceIdentifier, toWorkspaceIdentifier, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, isWorkspaceIdentifier, toWorkspaceIdentifier, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -21,15 +21,11 @@ import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { BackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { distinct } from 'vs/base/common/arrays';
-import { isLinux, isMacintosh } from 'vs/base/common/platform';
-import { isEqual, dirname, basename } from 'vs/base/common/resources';
-import * as json from 'vs/base/common/json';
-import * as jsonEdit from 'vs/base/common/jsonEdit';
+import { isLinux } from 'vs/base/common/platform';
+import { isEqual, basename } from 'vs/base/common/resources';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IFileService } from 'vs/platform/files/common/files';
-import { isAbsolute, resolve } from 'path';
-import { massageFolderPathForWorkspace } from 'vs/platform/workspaces/node/workspaces';
-import { Schemas } from 'vs/base/common/network';
+import { rewriteWorkspaceFileForNewLocation } from 'vs/platform/workspaces/node/workspaces';
 
 export class WorkspaceEditingService implements IWorkspaceEditingService {
 
@@ -156,7 +152,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 
 		const untitledWorkspace = await this.workspaceService.createUntitledWorkspace(folders);
 		if (path) {
-			await this.saveWorkspace(untitledWorkspace, path);
+			await this.saveWorkspaceAs(untitledWorkspace, path);
 		} else {
 			path = URI.file(untitledWorkspace.configPath);
 		}
@@ -171,11 +167,10 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		if (!isWorkspaceIdentifier(currentWorkspaceIdentifier)) {
 			return Promise.reject(null);
 		}
-		await this.saveWorkspace(currentWorkspaceIdentifier, path);
+		await this.saveWorkspaceAs(currentWorkspaceIdentifier, path);
 
 		return this.enterWorkspace(path);
 	}
-
 
 	async isValidTargetWorkspacePath(path: URI): Promise<boolean> {
 
@@ -196,7 +191,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		return Promise.resolve(true); // OK
 	}
 
-	private saveWorkspace(workspace: IWorkspaceIdentifier, targetConfigPathURI: URI): Promise<void> {
+	private async saveWorkspaceAs(workspace: IWorkspaceIdentifier, targetConfigPathURI: URI): Promise<any> {
 		const configPathURI = URI.file(workspace.configPath);
 
 		// Return early if target is same as source
@@ -204,61 +199,11 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 			return Promise.resolve(null);
 		}
 
-		// Read the contents of the workspace file and resolve it
-		return this.fileSystemService.resolveFile(configPathURI).then(raw => {
-			const rawWorkspaceContents = raw.toString();
-			let storedWorkspace: IStoredWorkspace;
-			try {
-				storedWorkspace = this.doParseStoredWorkspace(configPathURI, rawWorkspaceContents);
-			} catch (error) {
-				return Promise.reject(error);
-			}
-
-			const sourceConfigFolder = dirname(configPathURI);
-			const targetConfigFolder = dirname(targetConfigPathURI);
-
-			// Rewrite absolute paths to relative paths if the target workspace folder
-			// is a parent of the location of the workspace file itself. Otherwise keep
-			// using absolute paths.
-			storedWorkspace.folders.forEach(folder => {
-				if (isRawFileWorkspaceFolder(folder)) {
-					if (sourceConfigFolder.scheme === Schemas.file) {
-						if (!isAbsolute(folder.path)) {
-							folder.path = resolve(sourceConfigFolder.path, folder.path); // relative paths get resolved against the workspace location
-						}
-						folder.path = massageFolderPathForWorkspace(folder.path, targetConfigFolder, storedWorkspace.folders);
-					}
-				}
-			});
-
-			// Preserve as much of the existing workspace as possible by using jsonEdit
-			// and only changing the folders portion.
-			let newRawWorkspaceContents = rawWorkspaceContents;
-			const edits = jsonEdit.setProperty(rawWorkspaceContents, ['folders'], storedWorkspace.folders, { insertSpaces: false, tabSize: 4, eol: (isLinux || isMacintosh) ? '\n' : '\r\n' });
-			edits.forEach(edit => {
-				newRawWorkspaceContents = jsonEdit.applyEdit(rawWorkspaceContents, edit);
-			});
-
-			return this.fileSystemService.createFile(targetConfigPathURI, newRawWorkspaceContents, { overwrite: true });
-		});
-	}
-
-	private doParseStoredWorkspace(path: URI, contents: string): IStoredWorkspace {
-
-		// Parse workspace file
-		let storedWorkspace: IStoredWorkspace = json.parse(contents); // use fault tolerant parser
-
-		// Filter out folders which do not have a path or uri set
-		if (Array.isArray(storedWorkspace.folders)) {
-			storedWorkspace.folders = storedWorkspace.folders.filter(folder => isStoredWorkspaceFolder(folder));
-		}
-
-		// Validate
-		if (!Array.isArray(storedWorkspace.folders)) {
-			throw new Error(`${path} looks like an invalid workspace file.`);
-		}
-
-		return storedWorkspace;
+		// Read the contents of the workspace file, update it to new location and save it.
+		const raw = await this.fileSystemService.resolveContent(configPathURI);
+		const newRawWorkspaceContents = rewriteWorkspaceFileForNewLocation(raw.value, configPathURI, targetConfigPathURI);
+		await this.fileSystemService.createFile(targetConfigPathURI, newRawWorkspaceContents, { overwrite: true });
+		await this.workspaceService.deleteIfUntitledWorkspace(workspace);
 	}
 
 	private handleWorkspaceConfigurationEditingError(error: JSONEditingError): Promise<void> {
