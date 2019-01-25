@@ -63,7 +63,7 @@ export interface IIdentityProvider<T> {
 }
 
 // Default tree/list root role 'tree' does not support interactive element labeling, 'form' does
-export enum EListAriaRootRole {
+export enum ListAriaRootRole {
 	TREE = 'tree',		// default tree structure role
 	FORM = 'form'		// unstructured - allows interactive elements within tree/list structure
 }

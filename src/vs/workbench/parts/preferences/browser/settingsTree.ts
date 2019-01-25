@@ -12,7 +12,7 @@ import { alert as ariaAlert } from 'vs/base/browser/ui/aria/aria';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { IListVirtualDelegate, EListAriaRootRole } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate, ListAriaRootRole } from 'vs/base/browser/ui/list/list';
 import { ISelectOptionItem, SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IObjectTreeOptions, ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
@@ -1294,7 +1294,7 @@ export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 			renderers,
 			{
 				supportDynamicHeights: true,
-				ariaRootRole: EListAriaRootRole.FORM,
+				ariaRole: ListAriaRootRole.FORM,
 				ariaLabel: localize('treeAriaLabel', "Settings"),
 				identityProvider: {
 					getId(e) {
