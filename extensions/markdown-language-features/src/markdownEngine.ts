@@ -131,7 +131,7 @@ export class MarkdownEngine {
 		const config = this.getConfig(document.uri);
 		const engine = await this.getEngine(config);
 		return engine.renderer.render(this.tokenize(document, config, engine), {
-			...(await getMarkdownOptions(() => engine)),
+			...(engine as any).options,
 			...config
 		}, {});
 	}
