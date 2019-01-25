@@ -1092,7 +1092,8 @@ const problemPatternExtPoint = ExtensionsRegistry.registerExtensionPoint<Config.
 				Schemas.NamedMultiLineProblemPattern
 			]
 		}
-	}
+	},
+	isDynamic: true
 });
 
 export interface IProblemPatternRegistry {
@@ -1110,10 +1111,18 @@ class ProblemPatternRegistryImpl implements IProblemPatternRegistry {
 		this.patterns = Object.create(null);
 		this.fillDefaults();
 		this.readyPromise = new Promise<void>((resolve, reject) => {
-			problemPatternExtPoint.setHandler((extensions) => {
+			problemPatternExtPoint.setHandler((extensions, delta) => {
 				// We get all statically know extension during startup in one batch
 				try {
-					extensions.forEach(extension => {
+					delta.removed.forEach(extension => {
+						let problemPatterns = extension.value as Config.NamedProblemPatterns;
+						for (let pattern of problemPatterns) {
+							if (this.patterns[pattern.name]) {
+								delete this.patterns[pattern.name];
+							}
+						}
+					});
+					delta.added.forEach(extension => {
 						let problemPatterns = extension.value as Config.NamedProblemPatterns;
 						let parser = new ProblemPatternParser(new ExtensionRegistryReporter(extension.collector));
 						for (let pattern of problemPatterns) {
@@ -1664,7 +1673,8 @@ const problemMatchersExtPoint = ExtensionsRegistry.registerExtensionPoint<Config
 		description: localize('ProblemMatcherExtPoint', 'Contributes problem matchers'),
 		type: 'array',
 		items: Schemas.NamedProblemMatcher
-	}
+	},
+	isDynamic: true
 });
 
 export interface IProblemMatcherRegistry {
@@ -1682,9 +1692,17 @@ class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 		this.matchers = Object.create(null);
 		this.fillDefaults();
 		this.readyPromise = new Promise<void>((resolve, reject) => {
-			problemMatchersExtPoint.setHandler((extensions) => {
+			problemMatchersExtPoint.setHandler((extensions, delta) => {
 				try {
-					extensions.forEach(extension => {
+					delta.removed.forEach(extension => {
+						let problemMatchers = extension.value;
+						for (let matcher of problemMatchers) {
+							if (this.matchers[matcher.name]) {
+								delete this.matchers[matcher.name];
+							}
+						}
+					});
+					delta.added.forEach(extension => {
 						let problemMatchers = extension.value;
 						let parser = new ProblemMatcherParser(new ExtensionRegistryReporter(extension.collector));
 						for (let matcher of problemMatchers) {
