@@ -511,7 +511,9 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 
 		const onDragOver = (event: DragEvent) => {
 			const x = event.screenX - left;
-			event.dataTransfer.dropEffect = 'none';
+			if (event.dataTransfer) {
+				event.dataTransfer.dropEffect = 'none';
+			}
 
 			if (x < midContainerWidth) {
 				positionClassName = 'nw';
