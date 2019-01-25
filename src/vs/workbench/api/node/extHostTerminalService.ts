@@ -213,9 +213,20 @@ export class ExtHostTerminalRenderer extends BaseExtHostTerminal implements vsco
 		proxy: MainThreadTerminalServiceShape,
 		private _name: string,
 		private _terminal: ExtHostTerminal,
-		id?: number
+		id?: number,
+		cols?: number,
+		rows?: number
 	) {
 		super(proxy, id);
+
+		// TODO: Should we set maximum dimensions to these as well?
+		if (cols !== null && rows !== null) {
+			this._dimensions = {
+				columns: cols,
+				rows: rows
+			};
+		}
+
 		if (!id) {
 			this._proxy.$createTerminalRenderer(this._name).then(id => {
 				this._runQueuedRequests(id);
@@ -360,7 +371,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		}
 	}
 
-	public $acceptTerminalOpened(id: number, name: string, isRendererOnly: boolean): void {
+	public $acceptTerminalOpened(id: number, name: string, isRendererOnly: boolean, cols: number, rows: number): void {
 		// If this is a terminal created by one of the public createTerminal* APIs
 		// then @acceptTerminalOpened was called from the main thread task
 		// to indicate that the terminal is ready for use.
@@ -378,20 +389,22 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 			this._onDidOpenTerminalRenderer.fire(renderer);
 		}
 
-		if (renderer || index) {
+		if ((renderer !== null) && (index !== null)) {
 			return;
 		}
 
 		// The extension host did not know about this terminal, so create extension host
 		// objects to represent them.
-		const terminal = new ExtHostTerminal(this._proxy, name, id, renderer ? RENDERER_NO_PROCESS_ID : undefined);
-		this._terminals.push(terminal);
-		this._onDidOpenTerminal.fire(terminal);
+		if (!index) {
+			const terminal = new ExtHostTerminal(this._proxy, name, id, renderer ? RENDERER_NO_PROCESS_ID : undefined);
+			this._terminals.push(terminal);
+			this._onDidOpenTerminal.fire(terminal);
 
-		if (isRendererOnly) {
-			renderer = new ExtHostTerminalRenderer(this._proxy, name, terminal, id);
-			this.terminalRenderers.push(renderer);
-			this._onDidOpenTerminalRenderer.fire(renderer);
+			if (!renderer && isRendererOnly) {
+				renderer = new ExtHostTerminalRenderer(this._proxy, name, terminal, id, cols, rows);
+				this.terminalRenderers.push(renderer);
+				this._onDidOpenTerminalRenderer.fire(renderer);
+			}
 		}
 	}
 
