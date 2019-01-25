@@ -232,8 +232,6 @@ suite('WorkspacesMainService', () => {
 				assert.notEqual(savedWorkspace.id, workspace.id);
 				assert.equal(savedWorkspace.configPath, workspaceConfigPath);
 
-				assert.equal(service.deleteWorkspaceCall, workspace);
-
 				const ws = JSON.parse(fs.readFileSync(savedWorkspace.configPath).toString()) as IStoredWorkspace;
 				assert.equal(ws.folders.length, 3);
 				assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[0]).path, process.cwd()); // absolute
