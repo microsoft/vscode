@@ -3,14 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStoredWorkspaceFolder, isRawFileWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
-import { isWindows, isLinux } from 'vs/base/common/platform';
-import { isAbsolute, relative, posix } from 'path';
+import { IStoredWorkspaceFolder, isRawFileWorkspaceFolder, IStoredWorkspace, isStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
+import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
+import { isAbsolute, relative, posix, resolve } from 'path';
 import { normalize, isEqualOrParent } from 'vs/base/common/paths';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { URI } from 'vs/base/common/uri';
-import { fsPath } from 'vs/base/common/resources';
+import { fsPath, dirname } from 'vs/base/common/resources';
 import { Schemas } from 'vs/base/common/network';
+import * as jsonEdit from 'vs/base/common/jsonEdit';
+import * as json from 'vs/base/common/json';
 
 const SLASH = '/';
 
@@ -53,6 +55,58 @@ export function massageFolderPathForWorkspace(absoluteFolderPath: string, target
 	}
 
 	return absoluteFolderPath;
+}
+
+/**
+ * Rewrites the content of a workspace file to be saved at a new location.
+ * Throws an exception if file is not a valid workspace file
+ */
+export function rewriteWorkspaceFileForNewLocation(rawWorkspaceContents: string, configPathURI: URI, targetConfigPathURI: URI) {
+	let storedWorkspace = doParseStoredWorkspace(configPathURI, rawWorkspaceContents);
+
+	const sourceConfigFolder = dirname(configPathURI);
+	const targetConfigFolder = dirname(targetConfigPathURI);
+
+	// Rewrite absolute paths to relative paths if the target workspace folder
+	// is a parent of the location of the workspace file itself. Otherwise keep
+	// using absolute paths.
+	for (const folder of storedWorkspace.folders) {
+		if (isRawFileWorkspaceFolder(folder)) {
+			if (sourceConfigFolder.scheme === Schemas.file) {
+				if (!isAbsolute(folder.path)) {
+					folder.path = resolve(sourceConfigFolder.path, folder.path); // relative paths get resolved against the workspace location
+				}
+				folder.path = massageFolderPathForWorkspace(folder.path, targetConfigFolder, storedWorkspace.folders);
+			}
+		}
+	}
+
+	// Preserve as much of the existing workspace as possible by using jsonEdit
+	// and only changing the folders portion.
+	let newRawWorkspaceContents = rawWorkspaceContents;
+	const edits = jsonEdit.setProperty(rawWorkspaceContents, ['folders'], storedWorkspace.folders, { insertSpaces: false, tabSize: 4, eol: (isLinux || isMacintosh) ? '\n' : '\r\n' });
+	edits.forEach(edit => {
+		newRawWorkspaceContents = jsonEdit.applyEdit(rawWorkspaceContents, edit);
+	});
+	return newRawWorkspaceContents;
+}
+
+function doParseStoredWorkspace(path: URI, contents: string): IStoredWorkspace {
+
+	// Parse workspace file
+	let storedWorkspace: IStoredWorkspace = json.parse(contents); // use fault tolerant parser
+
+	// Filter out folders which do not have a path or uri set
+	if (Array.isArray(storedWorkspace.folders)) {
+		storedWorkspace.folders = storedWorkspace.folders.filter(folder => isStoredWorkspaceFolder(folder));
+	}
+
+	// Validate
+	if (!Array.isArray(storedWorkspace.folders)) {
+		throw new Error(`${path} looks like an invalid workspace file.`);
+	}
+
+	return storedWorkspace;
 }
 
 function shouldUseSlashForPath(storedFolders: IStoredWorkspaceFolder[]): boolean {
