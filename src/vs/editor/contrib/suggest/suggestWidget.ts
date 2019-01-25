@@ -549,8 +549,8 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 			return isSnippet ? item.completion.label
 				: item.completion.label;
 		} else if (this.expandDocsSettingFromStorage()) {
-			return isSnippet ? nls.localize('ariaCurrentSnippeSuggestionReadDetails', "{0}: {1}", item.completion.label, this.details.getAriaLabel())
-				: nls.localize('ariaCurrenttSuggestionReadDetails', "{0}: {1}", item.completion.label, this.details.getAriaLabel());
+			return isSnippet ? nls.localize('ariaCurrentSnippeSuggestionReadDetails', "Item {0}, docs: {1}", item.completion.label, this.details.getAriaLabel())
+				: nls.localize('ariaCurrenttSuggestionReadDetails', "Item {0}, docs: {1}", item.completion.label, this.details.getAriaLabel());
 		} else {
 			return isSnippet ? item.completion.label
 				: item.completion.label;
