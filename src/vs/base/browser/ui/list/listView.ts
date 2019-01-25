@@ -180,6 +180,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	readonly onDidChangeContentHeight: Event<number> = Event.latch(this._onDidChangeContentHeight.event);
 	get contentHeight(): number { return this.rangeMap.size; }
 
+	readonly onDidScroll: Event<void>;
+
 	// private _onDragStart = new Emitter<{ element: T, uri: string, event: DragEvent }>();
 	// readonly onDragStart = this._onDragStart.event;
 
@@ -234,6 +236,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		this.disposables = [this.rangeMap, this.gesture, this.scrollableElement, this.cache];
 
+		this.onDidScroll = Event.signal(this.scrollableElement.onScroll);
 		this.scrollableElement.onScroll(this.onScroll, this, this.disposables);
 		domEvent(this.rowsContainer, TouchEventType.Change)(this.onTouchChange, this, this.disposables);
 

@@ -636,6 +636,8 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	private _onDidUpdateOptions = new Emitter<IAbstractTreeOptions<T, TFilterData>>();
 	readonly onDidUpdateOptions = this._onDidUpdateOptions.event;
 
+	get onDidScroll(): Event<void> { return this.view.onDidScroll; }
+
 	get onDidChangeFocus(): Event<ITreeEvent<T>> { return Event.map(this.view.onFocusChange, asTreeEvent); }
 	get onDidChangeSelection(): Event<ITreeEvent<T>> { return Event.map(this.view.onSelectionChange, asTreeEvent); }
 	get onDidOpen(): Event<ITreeEvent<T>> { return Event.map(this.view.onDidOpen, asTreeEvent); }
