@@ -147,7 +147,7 @@ class BranchNode implements ISplitView, IDisposable {
 		this._orthogonalSize = orthogonalSize;
 
 		this.element = $('.monaco-grid-branch-node');
-		this.splitview = new SplitView(this.element, { orientation, styles });
+		this.splitview = new SplitView(this.element, { orientation, styles, proportionalLayout });
 		this.splitview.layout(size);
 
 		const onDidSashReset = Event.map(this.splitview.onDidSashReset, i => [i]);
