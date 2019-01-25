@@ -352,7 +352,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		if (!this.scrollableElementUpdateDisposable) {
 			this.scrollableElementUpdateDisposable = DOM.scheduleAtNextAnimationFrame(() => {
-				this.scrollableElement.setScrollDimensions({ scrollHeight: this._scrollHeight });
+				this.scrollableElement.setScrollDimensions({ scrollHeight: this.scrollHeight });
 				this.updateScrollWidth();
 				this.scrollableElementUpdateDisposable = null;
 			});
@@ -429,7 +429,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		if (this.scrollableElementUpdateDisposable) {
 			this.scrollableElementUpdateDisposable.dispose();
 			this.scrollableElementUpdateDisposable = null;
-			scrollDimensions.scrollHeight = this._scrollHeight;
+			scrollDimensions.scrollHeight = this.scrollHeight;
 		}
 
 		this.scrollableElement.setScrollDimensions(scrollDimensions);
@@ -605,7 +605,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		if (this.scrollableElementUpdateDisposable) {
 			this.scrollableElementUpdateDisposable.dispose();
 			this.scrollableElementUpdateDisposable = null;
-			this.scrollableElement.setScrollDimensions({ scrollHeight: this._scrollHeight });
+			this.scrollableElement.setScrollDimensions({ scrollHeight: this.scrollHeight });
 		}
 
 		this.scrollableElement.setScrollPosition({ scrollTop });
@@ -620,7 +620,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	get scrollHeight(): number {
-		return this._scrollHeight;
+		return this._scrollHeight + (this.horizontalScrolling ? 10 : 0);
 	}
 
 	// Events
