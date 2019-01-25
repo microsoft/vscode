@@ -217,6 +217,7 @@ function handleTreeController(configuration: ITreeConfiguration, instantiationSe
 export class WorkbenchList<T> extends List<T> {
 
 	readonly contextKeyService: IContextKeyService;
+	private readonly configurationService: IConfigurationService;
 
 	private listHasSelectionOrFocus: IContextKey<boolean>;
 	private listDoubleSelection: IContextKey<boolean>;
@@ -232,19 +233,23 @@ export class WorkbenchList<T> extends List<T> {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
+		const horizontalScrolling = typeof options.horizontalScrolling !== 'undefined' ? options.horizontalScrolling : configurationService.getValue<boolean>(horizontalScrollingKey);
+
 		super(container, delegate, renderers,
 			{
 				keyboardSupport: false,
 				styleController: new DefaultStyleController(getSharedListStyleSheet()),
 				...computeStyles(themeService.getTheme(), defaultListStyles),
-				...toWorkbenchListOptions(options, configurationService, keybindingService)
+				...toWorkbenchListOptions(options, configurationService, keybindingService),
+				horizontalScrolling
 			} as IListOptions<T>
 		);
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
+		this.configurationService = configurationService;
 
 		const listSupportsMultiSelect = WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
 		listSupportsMultiSelect.set(!(options.multipleSelectionSupport === false));
@@ -294,8 +299,9 @@ export class WorkbenchList<T> extends List<T> {
 export class WorkbenchPagedList<T> extends PagedList<T> {
 
 	readonly contextKeyService: IContextKeyService;
+	private readonly configurationService: IConfigurationService;
 
-	private disposables: IDisposable[] = [];
+	private disposables: IDisposable[];
 
 	private _useAltAsMultipleSelectionModifier: boolean;
 
@@ -307,19 +313,24 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
+		const horizontalScrolling = typeof options.horizontalScrolling !== 'undefined' ? options.horizontalScrolling : configurationService.getValue<boolean>(horizontalScrollingKey);
 		super(container, delegate, renderers,
 			{
 				keyboardSupport: false,
 				styleController: new DefaultStyleController(getSharedListStyleSheet()),
 				...computeStyles(themeService.getTheme(), defaultListStyles),
-				...toWorkbenchListOptions(options, configurationService, keybindingService)
+				...toWorkbenchListOptions(options, configurationService, keybindingService),
+				horizontalScrolling
 			} as IListOptions<T>
 		);
 
+		this.disposables = [];
+
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
+		this.configurationService = configurationService;
 
 		const listSupportsMultiSelect = WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
 		listSupportsMultiSelect.set(!(options.multipleSelectionSupport === false));
@@ -907,6 +918,7 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		const keyboardNavigation = configurationService.getValue<string>(keyboardNavigationSettingKey);
+		const horizontalScrolling = typeof options.horizontalScrolling !== 'undefined' ? options.horizontalScrolling : configurationService.getValue<boolean>(horizontalScrollingKey);
 
 		super(container, delegate, renderers, {
 			keyboardSupport: false,
@@ -915,7 +927,8 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 			...toWorkbenchListOptions(options, configurationService, keybindingService),
 			indent: configurationService.getValue(treeIndentKey),
 			simpleKeyboardNavigation: keyboardNavigation === 'simple',
-			filterOnType: keyboardNavigation === 'filter'
+			filterOnType: keyboardNavigation === 'filter',
+			horizontalScrolling
 		});
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
@@ -999,6 +1012,7 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		const keyboardNavigation = configurationService.getValue<string>(keyboardNavigationSettingKey);
+		const horizontalScrolling = typeof options.horizontalScrolling !== 'undefined' ? options.horizontalScrolling : configurationService.getValue<boolean>(horizontalScrollingKey);
 
 		super(container, delegate, renderers, dataSource, {
 			keyboardSupport: false,
@@ -1007,7 +1021,8 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 			...toWorkbenchListOptions(options, configurationService, keybindingService),
 			indent: configurationService.getValue(treeIndentKey),
 			simpleKeyboardNavigation: keyboardNavigation === 'simple',
-			filterOnType: keyboardNavigation === 'filter'
+			filterOnType: keyboardNavigation === 'filter',
+			horizontalScrolling
 		});
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
@@ -1086,6 +1101,7 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		const keyboardNavigation = configurationService.getValue<string>(keyboardNavigationSettingKey);
+		const horizontalScrolling = typeof options.horizontalScrolling !== 'undefined' ? options.horizontalScrolling : configurationService.getValue<boolean>(horizontalScrollingKey);
 
 		super(container, delegate, renderers, dataSource, {
 			keyboardSupport: false,
@@ -1094,7 +1110,8 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 			...toWorkbenchListOptions(options, configurationService, keybindingService),
 			indent: configurationService.getValue<number>(treeIndentKey),
 			simpleKeyboardNavigation: keyboardNavigation === 'simple',
-			filterOnType: keyboardNavigation === 'filter'
+			filterOnType: keyboardNavigation === 'filter',
+			horizontalScrolling
 		});
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
@@ -1186,7 +1203,7 @@ configurationRegistry.registerConfiguration({
 		[horizontalScrollingKey]: {
 			'type': 'boolean',
 			'default': false,
-			'description': localize('horizontalScrolling setting', "Controls whether trees support horizontal scrolling in the workbench.")
+			'description': localize('horizontalScrolling setting', "Controls whether lists and trees support horizontal scrolling in the workbench.")
 		},
 		[treeIndentKey]: {
 			'type': 'number',

@@ -30,6 +30,7 @@ import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 /**
  * An implementation of editor for file system resources.
@@ -39,6 +40,7 @@ export class TextFileEditor extends BaseTextEditor {
 	static readonly ID = TEXT_FILE_EDITOR_ID;
 
 	private restoreViewState: boolean;
+	private groupListener: IDisposable;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -96,7 +98,8 @@ export class TextFileEditor extends BaseTextEditor {
 		// React to editors closing to preserve or clear view state. This needs to happen
 		// in the onWillCloseEditor because at that time the editor has not yet
 		// been disposed and we can safely persist the view state still as needed.
-		this._register((group as IEditorGroupView).onWillCloseEditor(e => {
+		this.groupListener = dispose(this.groupListener);
+		this.groupListener = ((group as IEditorGroupView).onWillCloseEditor(e => {
 			if (e.editor === this.input) {
 				this.doSaveOrClearTextEditorViewState(this.input);
 			}
@@ -275,5 +278,11 @@ export class TextFileEditor extends BaseTextEditor {
 		else if (!input.isDisposed()) {
 			this.saveTextEditorViewState(input.getResource());
 		}
+	}
+
+	dispose(): void {
+		this.groupListener = dispose(this.groupListener);
+
+		super.dispose();
 	}
 }

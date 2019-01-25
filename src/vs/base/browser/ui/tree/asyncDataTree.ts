@@ -263,6 +263,8 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 	protected readonly disposables: IDisposable[] = [];
 
+	get onDidScroll(): Event<void> { return this.tree.onDidScroll; }
+
 	get onDidChangeFocus(): Event<ITreeEvent<T>> { return Event.map(this.tree.onDidChangeFocus, asTreeEvent); }
 	get onDidChangeSelection(): Event<ITreeEvent<T>> { return Event.map(this.tree.onDidChangeSelection, asTreeEvent); }
 	get onDidOpen(): Event<ITreeEvent<T>> { return Event.map(this.tree.onDidOpen, asTreeEvent); }
@@ -348,8 +350,8 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		this.tree.domFocus();
 	}
 
-	layout(height?: number): void {
-		this.tree.layout(height);
+	layout(height?: number, width?: number): void {
+		this.tree.layout(height, width);
 	}
 
 	style(styles: IListStyles): void {

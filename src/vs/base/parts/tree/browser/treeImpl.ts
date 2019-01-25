@@ -161,13 +161,6 @@ export class Tree implements _.ITree {
 		return this.model.refresh(element, recursive);
 	}
 
-	public updateWidth(element: any): void {
-		const item = this.model.getItem(element);
-		if (item) {
-			this.view.updateWidth(item);
-		}
-	}
-
 	public expand(element: any): Promise<any> {
 		return this.model.expand(element);
 	}

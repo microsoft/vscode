@@ -798,6 +798,7 @@ export interface IListOptions<T> extends IListStyles {
 	readonly setRowLineHeight?: boolean;
 	readonly supportDynamicHeights?: boolean;
 	readonly mouseSupport?: boolean;
+	readonly horizontalScrolling?: boolean;
 }
 
 export interface IListStyles {
@@ -1079,6 +1080,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		return Event.map(this._onPin.event, indexes => this.toListEvent({ indexes }));
 	}
 
+	get onDidScroll(): Event<void> { return this.view.onDidScroll; }
 	get onMouseClick(): Event<IListMouseEvent<T>> { return this.view.onMouseClick; }
 	get onMouseDblClick(): Event<IListMouseEvent<T>> { return this.view.onMouseDblClick; }
 	get onMouseMiddleClick(): Event<IListMouseEvent<T>> { return this.view.onMouseMiddleClick; }
@@ -1269,12 +1271,8 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		this.view.domNode.focus();
 	}
 
-	layout(height?: number): void {
-		this.view.layout(height);
-	}
-
-	layoutWidth(width: number): void {
-		this.view.layoutWidth(width);
+	layout(height?: number, width?: number): void {
+		this.view.layout(height, width);
 	}
 
 	setSelection(indexes: number[], browserEvent?: UIEvent): void {

@@ -900,7 +900,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 		this.resultsElement.style.height = searchResultContainerSize + 'px';
 
-		this.tree.layout(searchResultContainerSize);
+		this.tree.layout(searchResultContainerSize, this.size.width);
 	}
 
 	layout(dimension: dom.Dimension): void {
