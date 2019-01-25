@@ -1111,6 +1111,14 @@ declare module 'vscode' {
 	}
 	//#endregion
 
+	//#region Tasks
+	export interface TaskPresentationOptions {
+		/**
+		 * Controls whether the task is executed in a specific terminal group using split panes.
+		 */
+		group?: string;
+	}
+	//#endregion
 
 	//#region Autofix - mjbvz
 	export namespace CodeActionKind {
