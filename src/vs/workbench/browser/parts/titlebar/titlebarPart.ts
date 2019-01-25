@@ -66,8 +66,8 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 
 	minimumWidth: number = 0;
 	maximumWidth: number = Number.POSITIVE_INFINITY;
-	minimumHeight: number = 30;
-	maximumHeight: number = 30;
+	minimumHeight: number = isMacintosh ? 22 : 30;
+	maximumHeight: number = isMacintosh ? 22 : 30;
 
 	private _onDidChange = new Emitter<{ width: number; height: number; }>();
 	readonly onDidChange = this._onDidChange.event;
