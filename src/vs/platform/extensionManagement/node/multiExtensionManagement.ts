@@ -70,7 +70,7 @@ export class MultiExtensionManagementService extends Disposable implements IExte
 			return Promise.reject(`Invalid location ${extension.location.toString()}`);
 		}
 		const promise = server.extensionManagementService.uninstall(extension);
-		const anotherServer = server === this.extensionManagementServerService.localExtensionManagementServer ? this.extensionManagementServerService.remoteExtensionManagementServer : this.extensionManagementServerService.localExtensionManagementServer;
+		const anotherServer: IExtensionManagementServer = server === this.extensionManagementServerService.localExtensionManagementServer ? this.extensionManagementServerService.remoteExtensionManagementServer! : this.extensionManagementServerService.localExtensionManagementServer;
 		const installed = await anotherServer.extensionManagementService.getInstalled(ExtensionType.User);
 		extension = installed.filter(i => areSameExtensions(i.identifier, extension.identifier))[0];
 		if (extension) {
@@ -81,7 +81,7 @@ export class MultiExtensionManagementService extends Disposable implements IExte
 
 	private async uninstallInServer(extension: ILocalExtension, server: IExtensionManagementServer, force?: boolean): Promise<void> {
 		if (server === this.extensionManagementServerService.localExtensionManagementServer) {
-			const installedExtensions = await this.extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService.getInstalled(ExtensionType.User);
+			const installedExtensions = await this.extensionManagementServerService.remoteExtensionManagementServer!.extensionManagementService.getInstalled(ExtensionType.User);
 			const dependentNonUIExtensions = installedExtensions.filter(i => !isUIExtension(i.manifest, this.configurationService)
 				&& i.manifest.extensionDependencies && i.manifest.extensionDependencies.some(id => areSameExtensions({ id }, extension.identifier)));
 			if (dependentNonUIExtensions.length) {
@@ -157,7 +157,7 @@ export class MultiExtensionManagementService extends Disposable implements IExte
 			if (manifest) {
 				if (syncExtensions) {
 					// Install on both servers
-					return Promise.all(this.servers.map(server => server.extensionManagementService.installFromGallery(gallery))).then(() => null);
+					return Promise.all(this.servers.map(server => server.extensionManagementService.installFromGallery(gallery))).then(() => undefined);
 				}
 				if (isUIExtension(manifest, this.configurationService)) {
 					// Install only on local server
