@@ -1197,12 +1197,12 @@ configurationRegistry.registerConfiguration({
 			'type': 'string',
 			'enum': ['simple', 'highlight', 'filter'],
 			'enumDescriptions': [
-				localize('keyboardNavigationSettingKey.simple', "Sets simple keyboard navigation for lists and trees."),
-				localize('keyboardNavigationSettingKey.highlight', "Enables highlighting keyboard navigation for lists and trees."),
-				localize('keyboardNavigationSettingKey.filter', "Enables filtering keyboard navigation for lists and trees.")
+				localize('keyboardNavigationSettingKey.simple', "Simple keyboard navigation focuses elements which match the keyboard input. Matching is done only on prefixes."),
+				localize('keyboardNavigationSettingKey.highlight', "Highlight keyboard navigation highlights elements which match the keyboard input. Further up and down navigation will traverse only the highlighted elements."),
+				localize('keyboardNavigationSettingKey.filter', "Filter keyboard navigation will filter out and hide all the elements which do not match the keyboard input.")
 			],
 			'default': 'highlight',
-			'description': localize('keyboardNavigationSettingKey', "Controls the keyboard navigation style for lists and trees.")
+			'description': localize('keyboardNavigationSettingKey', "Controls the keyboard navigation style for lists and trees in the workbench. Can be simple, highlight and filter.")
 		},
 	}
 });
