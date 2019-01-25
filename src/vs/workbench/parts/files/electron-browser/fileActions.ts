@@ -899,8 +899,8 @@ export function validateFileName(item: ExplorerItem, name: string): string {
 
 	if (name !== item.name) {
 		// Do not allow to overwrite existing file
-		const childExists = parent && !!parent.getChild(name);
-		if (childExists) {
+		const child = parent && parent.getChild(name);
+		if (child && child !== item) {
 			return nls.localize('fileNameExistsError', "A file or folder **{0}** already exists at this location. Please choose a different name.", name);
 		}
 	}
