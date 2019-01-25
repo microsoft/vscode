@@ -74,7 +74,7 @@ export function rewriteWorkspaceFileForNewLocation(rawWorkspaceContents: string,
 		if (isRawFileWorkspaceFolder(folder)) {
 			if (sourceConfigFolder.scheme === Schemas.file) {
 				if (!isAbsolute(folder.path)) {
-					folder.path = resolve(sourceConfigFolder.path, folder.path); // relative paths get resolved against the workspace location
+					folder.path = resolve(fsPath(sourceConfigFolder), folder.path); // relative paths get resolved against the workspace location
 				}
 				folder.path = massageFolderPathForWorkspace(folder.path, targetConfigFolder, storedWorkspace.folders);
 			}
