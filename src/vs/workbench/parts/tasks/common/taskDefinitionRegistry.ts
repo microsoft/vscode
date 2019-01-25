@@ -100,7 +100,7 @@ class TaskDefinitionRegistryImpl implements ITaskDefinitionRegistry {
 					for (let extension of delta.removed) {
 						let taskTypes = extension.value;
 						for (let taskType of taskTypes) {
-							if (this.taskTypes && this.taskTypes[taskType.type]) {
+							if (this.taskTypes && taskType.type && this.taskTypes[taskType.type]) {
 								delete this.taskTypes[taskType.type];
 							}
 						}
