@@ -113,42 +113,55 @@ function getProcessIdWithHighestProperty(processList, propertyName: string) {
 }
 
 function updateProcessInfo(processList): void {
-	const target = document.getElementById('process-list');
-	if (!target) {
+	const container = document.getElementById('process-list');
+	if (!container) {
 		return;
 	}
 
+	container.innerHTML = '';
 	const highestCPUProcess = getProcessIdWithHighestProperty(processList, 'cpu');
 	const highestMemoryProcess = getProcessIdWithHighestProperty(processList, 'memory');
 
-	let tableHtml = `
-		<thead>
-			<tr>
-				<th scope="col" class="cpu">${localize('cpu', "CPU %")}</th>
-				<th scope="col" class="memory">${localize('memory', "Memory (MB)")}</th>
-				<th scope="col" class="pid">${localize('pid', "pid")}</th>
-				<th scope="col" class="nameLabel">${localize('name', "Name")}</th>
-			</tr>
-		</thead>`;
+	const tableHead = document.createElement('thead');
+	tableHead.innerHTML = `<tr>
+		<th scope="col" class="cpu">${localize('cpu', "CPU %")}</th>
+		<th scope="col" class="memory">${localize('memory', "Memory (MB)")}</th>
+		<th scope="col" class="pid">${localize('pid', "pid")}</th>
+		<th scope="col" class="nameLabel">${localize('name', "Name")}</th>
+	</tr>`;
 
-	tableHtml += `<tbody>`;
+	const tableBody = document.createElement('tbody');
 
 	processList.forEach(p => {
-		const cpuClass = p.pid === highestCPUProcess ? 'highest' : '';
-		const memoryClass = p.pid === highestMemoryProcess ? 'highest' : '';
+		const row = document.createElement('tr');
+		row.id = p.pid;
 
-		tableHtml += `
-			<tr id=${p.pid}>
-				<td class="centered ${cpuClass}">${p.cpu}</td>
-				<td class="centered ${memoryClass}">${p.memory}</td>
-				<td class="centered">${p.pid}</td>
-				<td title="${p.name}" class="data">${p.formattedName}</td>
-			</tr>`;
+		const cpu = document.createElement('td');
+		p.pid === highestCPUProcess
+			? cpu.classList.add('centered', 'highest')
+			: cpu.classList.add('centered');
+		cpu.textContent = p.cpu;
+
+		const memory = document.createElement('td');
+		p.pid === highestMemoryProcess
+			? memory.classList.add('centered', 'highest')
+			: memory.classList.add('centered');
+		memory.textContent = p.memory;
+
+		const pid = document.createElement('td');
+		pid.classList.add('centered');
+		pid.textContent = p.pid;
+
+		const name = document.createElement('td');
+		name.classList.add('data');
+		name.title = p.cmd;
+		name.textContent = p.formattedName;
+
+		row.append(cpu, memory, pid, name);
+		tableBody.appendChild(row);
 	});
 
-	tableHtml += `</tbody>`;
-
-	target.innerHTML = tableHtml;
+	container.append(tableHead, tableBody);
 }
 
 function applyStyles(styles: ProcessExplorerStyles): void {
