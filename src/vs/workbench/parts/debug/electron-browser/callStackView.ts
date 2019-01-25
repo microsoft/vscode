@@ -223,8 +223,8 @@ export class CallStackView extends ViewletPanel {
 		}));
 	}
 
-	layoutBody(size: number): void {
-		this.tree.layout(size);
+	layoutBody(height: number, width: number): void {
+		this.tree.layout(height, width);
 	}
 
 	private updateTreeSelection(): void {

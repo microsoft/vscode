@@ -766,12 +766,8 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		return this.getHTMLElement() === document.activeElement;
 	}
 
-	layout(height?: number): void {
-		this.view.layout(height);
-	}
-
-	layoutWidth(width: number): void {
-		this.view.layoutWidth(width);
+	layout(height?: number, width?: number): void {
+		this.view.layout(height, width);
 	}
 
 	style(styles: IListStyles): void {

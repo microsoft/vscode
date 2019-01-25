@@ -269,7 +269,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			this.replDelegate.setWidth(dimension.width - 25, this.characterWidth);
 			const treeHeight = dimension.height - this.replInputHeight;
 			this.treeContainer.style.height = `${treeHeight}px`;
-			this.tree.layout(treeHeight);
+			this.tree.layout(treeHeight, dimension.width);
 		}
 		this.replInputContainer.style.height = `${this.replInputHeight}px`;
 

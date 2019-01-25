@@ -151,7 +151,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 
 	public layout(dimension: dom.Dimension): void {
 		this.treeContainer.style.height = `${dimension.height}px`;
-		this.tree.layout(dimension.height);
+		this.tree.layout(dimension.height, dimension.width);
 		if (this.filterInputActionItem) {
 			this.filterInputActionItem.toggleLayout(dimension.width < 1200);
 		}

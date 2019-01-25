@@ -348,8 +348,8 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		this.tree.domFocus();
 	}
 
-	layout(height?: number): void {
-		this.tree.layout(height);
+	layout(height?: number, width?: number): void {
+		this.tree.layout(height, width);
 	}
 
 	style(styles: IListStyles): void {
