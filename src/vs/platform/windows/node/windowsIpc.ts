@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
 import { IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, CrashReporterStartOptions, IMessageBoxResult, MessageBoxOptions, SaveDialogOptions, OpenDialogOptions, IDevToolsOptions, INewWindowOptions } from 'vs/platform/windows/common/windows';
-import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, ISingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { URI } from 'vs/base/common/uri';
@@ -56,22 +56,7 @@ export class WindowsChannel implements IServerChannel {
 			case 'openDevTools': return this.service.openDevTools(arg[0], arg[1]);
 			case 'toggleDevTools': return this.service.toggleDevTools(arg);
 			case 'closeWorkspace': return this.service.closeWorkspace(arg);
-			case 'enterWorkspace': return this.service.enterWorkspace(arg[0], arg[1]);
-			case 'createAndEnterWorkspace': {
-				const rawFolders: IWorkspaceFolderCreationData[] = arg[1];
-				let folders: IWorkspaceFolderCreationData[] | undefined = undefined;
-				if (Array.isArray(rawFolders)) {
-					folders = rawFolders.map(rawFolder => {
-						return {
-							uri: URI.revive(rawFolder.uri), // convert raw URI back to real URI
-							name: rawFolder.name
-						} as IWorkspaceFolderCreationData;
-					});
-				}
-
-				return this.service.createAndEnterWorkspace(arg[0], folders, arg[2]);
-			}
-			case 'saveAndEnterWorkspace': return this.service.saveAndEnterWorkspace(arg[0], arg[1]);
+			case 'enterWorkspace': return this.service.enterWorkspace(arg[0], URI.revive(arg[1]));
 			case 'toggleFullScreen': return this.service.toggleFullScreen(arg);
 			case 'setRepresentedFilename': return this.service.setRepresentedFilename(arg[0], arg[1]);
 			case 'addRecentlyOpened': return this.service.addRecentlyOpened(arg.map(URI.revive));
@@ -179,16 +164,8 @@ export class WindowsChannelClient implements IWindowsService {
 		return this.channel.call('closeWorkspace', windowId);
 	}
 
-	enterWorkspace(windowId: number, path: string): Promise<IEnterWorkspaceResult> {
+	enterWorkspace(windowId: number, path: URI): Promise<IEnterWorkspaceResult> {
 		return this.channel.call('enterWorkspace', [windowId, path]);
-	}
-
-	createAndEnterWorkspace(windowId: number, folders?: IWorkspaceFolderCreationData[], path?: string): Promise<IEnterWorkspaceResult> {
-		return this.channel.call('createAndEnterWorkspace', [windowId, folders, path]);
-	}
-
-	saveAndEnterWorkspace(windowId: number, path: string): Promise<IEnterWorkspaceResult> {
-		return this.channel.call('saveAndEnterWorkspace', [windowId, path]);
 	}
 
 	toggleFullScreen(windowId: number): Promise<void> {
