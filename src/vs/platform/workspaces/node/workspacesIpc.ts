@@ -32,11 +32,6 @@ export class WorkspacesChannel implements IServerChannel {
 
 				return this.service.createUntitledWorkspace(folders);
 			}
-			case 'deleteIfUntitledWorkspace': {
-				const rawWorkspace: IWorkspaceIdentifier = arg;
-				// TODO aeschli: resolve IWorkspaceIdentifier when switching to URI
-				return this.service.deleteIfUntitledWorkspace(rawWorkspace);
-			}
 		}
 
 		throw new Error(`Call not found: ${command}`);
@@ -51,9 +46,5 @@ export class WorkspacesChannelClient implements IWorkspacesService {
 
 	createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[]): Promise<IWorkspaceIdentifier> {
 		return this.channel.call('createUntitledWorkspace', folders);
-	}
-
-	deleteIfUntitledWorkspace(workspace: IWorkspaceIdentifier): Promise<void> {
-		return this.channel.call('deleteIfUntitledWorkspace', workspace);
 	}
 }

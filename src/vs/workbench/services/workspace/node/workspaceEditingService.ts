@@ -203,7 +203,6 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		const raw = await this.fileSystemService.resolveContent(configPathURI);
 		const newRawWorkspaceContents = rewriteWorkspaceFileForNewLocation(raw.value, configPathURI, targetConfigPathURI);
 		await this.fileSystemService.createFile(targetConfigPathURI, newRawWorkspaceContents, { overwrite: true });
-		await this.workspaceService.deleteIfUntitledWorkspace(workspace);
 	}
 
 	private handleWorkspaceConfigurationEditingError(error: JSONEditingError): Promise<void> {

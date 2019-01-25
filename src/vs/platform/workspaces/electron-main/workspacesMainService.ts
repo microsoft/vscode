@@ -190,7 +190,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 		return this.isInsideWorkspacesHome(workspace.configPath);
 	}
 
-	saveWorkspace(workspace: IWorkspaceIdentifier, targetConfigPath: string): Promise<IWorkspaceIdentifier> {
+	saveWorkspaceAs(workspace: IWorkspaceIdentifier, targetConfigPath: string): Promise<IWorkspaceIdentifier> {
 
 		// Return early if target is same as source
 		if (isEqual(workspace.configPath, targetConfigPath, !isLinux)) {
@@ -203,7 +203,6 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 			const newRawWorkspaceContents = rewriteWorkspaceFileForNewLocation(raw.toString(), URI.file(workspace.configPath), targetConfigPathURI);
 
 			return writeFile(targetConfigPath, newRawWorkspaceContents).then(() => {
-				this.deleteUntitledWorkspaceSync(workspace);
 				return this.getWorkspaceIdentifier(targetConfigPathURI);
 			});
 		});
@@ -219,11 +218,6 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 
 		// Event
 		this._onUntitledWorkspaceDeleted.fire(workspace);
-	}
-
-	deleteIfUntitledWorkspace(workspace: IWorkspaceIdentifier): Promise<any> {
-		this.deleteUntitledWorkspaceSync(workspace);
-		return Promise.resolve();
 	}
 
 	private doDeleteUntitledWorkspaceSync(configPath: string): void {

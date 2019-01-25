@@ -227,7 +227,7 @@ suite('WorkspacesMainService', () => {
 		return createWorkspace([process.cwd(), os.tmpdir(), path.join(os.tmpdir(), 'somefolder')]).then(workspace => {
 			const workspaceConfigPath = path.join(os.tmpdir(), `myworkspace.${Date.now()}.${WORKSPACE_EXTENSION}`);
 
-			return service.saveWorkspace(workspace, workspaceConfigPath).then(savedWorkspace => {
+			return service.saveWorkspaceAs(workspace, workspaceConfigPath).then(savedWorkspace => {
 				assert.ok(savedWorkspace.id);
 				assert.notEqual(savedWorkspace.id, workspace.id);
 				assert.equal(savedWorkspace.configPath, workspaceConfigPath);
@@ -250,8 +250,8 @@ suite('WorkspacesMainService', () => {
 			const workspaceConfigPath = path.join(os.tmpdir(), `myworkspace.${Date.now()}.${WORKSPACE_EXTENSION}`);
 			const newWorkspaceConfigPath = path.join(os.tmpdir(), `mySavedWorkspace.${Date.now()}.${WORKSPACE_EXTENSION}`);
 
-			return service.saveWorkspace(workspace, workspaceConfigPath).then(savedWorkspace => {
-				return service.saveWorkspace(savedWorkspace, newWorkspaceConfigPath).then(newSavedWorkspace => {
+			return service.saveWorkspaceAs(workspace, workspaceConfigPath).then(savedWorkspace => {
+				return service.saveWorkspaceAs(savedWorkspace, newWorkspaceConfigPath).then(newSavedWorkspace => {
 					assert.ok(newSavedWorkspace.id);
 					assert.notEqual(newSavedWorkspace.id, workspace.id);
 					assertPathEquals(newSavedWorkspace.configPath, newWorkspaceConfigPath);
@@ -274,11 +274,11 @@ suite('WorkspacesMainService', () => {
 			const workspaceConfigPath = path.join(os.tmpdir(), `myworkspace.${Date.now()}.${WORKSPACE_EXTENSION}`);
 			const newWorkspaceConfigPath = path.join(os.tmpdir(), `mySavedWorkspace.${Date.now()}.${WORKSPACE_EXTENSION}`);
 
-			return service.saveWorkspace(workspace, workspaceConfigPath).then(savedWorkspace => {
+			return service.saveWorkspaceAs(workspace, workspaceConfigPath).then(savedWorkspace => {
 				const contents = fs.readFileSync(savedWorkspace.configPath).toString();
 				fs.writeFileSync(savedWorkspace.configPath, `// this is a comment\n${contents}`);
 
-				return service.saveWorkspace(savedWorkspace, newWorkspaceConfigPath).then(newSavedWorkspace => {
+				return service.saveWorkspaceAs(savedWorkspace, newWorkspaceConfigPath).then(newSavedWorkspace => {
 					assert.ok(newSavedWorkspace.id);
 					assert.notEqual(newSavedWorkspace.id, workspace.id);
 					assertPathEquals(newSavedWorkspace.configPath, newWorkspaceConfigPath);
@@ -298,11 +298,11 @@ suite('WorkspacesMainService', () => {
 			const workspaceConfigPath = path.join(os.tmpdir(), `myworkspace.${Date.now()}.${WORKSPACE_EXTENSION}`);
 			const newWorkspaceConfigPath = path.join(os.tmpdir(), `mySavedWorkspace.${Date.now()}.${WORKSPACE_EXTENSION}`);
 
-			return service.saveWorkspace(workspace, workspaceConfigPath).then(savedWorkspace => {
+			return service.saveWorkspaceAs(workspace, workspaceConfigPath).then(savedWorkspace => {
 				const contents = fs.readFileSync(savedWorkspace.configPath).toString();
 				fs.writeFileSync(savedWorkspace.configPath, contents.replace(/[\\]/g, '/')); // convert backslash to slash
 
-				return service.saveWorkspace(savedWorkspace, newWorkspaceConfigPath).then(newSavedWorkspace => {
+				return service.saveWorkspaceAs(savedWorkspace, newWorkspaceConfigPath).then(newSavedWorkspace => {
 					assert.ok(newSavedWorkspace.id);
 					assert.notEqual(newSavedWorkspace.id, workspace.id);
 					assertPathEquals(newSavedWorkspace.configPath, newWorkspaceConfigPath);
@@ -331,7 +331,7 @@ suite('WorkspacesMainService', () => {
 		return createWorkspace([process.cwd(), os.tmpdir()]).then(workspace => {
 			const workspaceConfigPath = path.join(os.tmpdir(), `myworkspace.${Date.now()}.${WORKSPACE_EXTENSION}`);
 
-			return service.saveWorkspace(workspace, workspaceConfigPath).then(savedWorkspace => {
+			return service.saveWorkspaceAs(workspace, workspaceConfigPath).then(savedWorkspace => {
 				assert.ok(fs.existsSync(savedWorkspace.configPath));
 
 				service.deleteUntitledWorkspaceSync(savedWorkspace);

@@ -2010,6 +2010,11 @@ class WorkspacesManager {
 			backupPath = this.backupMainService.registerWorkspaceBackupSync(workspace, window.config.backupPath);
 		}
 
+		// if the window was opened on an untitled workspace, delete it.
+		if (window.openedWorkspace && this.workspacesMainService.isUntitledWorkspace(window.openedWorkspace)) {
+			this.workspacesMainService.deleteUntitledWorkspaceSync(window.openedWorkspace);
+		}
+
 		// Update window configuration properly based on transition to workspace
 		window.config.folderUri = undefined;
 		window.config.workspace = workspace;
@@ -2091,8 +2096,9 @@ class WorkspacesManager {
 						defaultPath: this.getUntitledWorkspaceSaveDialogDefaultPath(workspace)
 					}, window).then(target => {
 						if (target) {
-							return this.workspacesMainService.saveWorkspace(workspace, target).then(savedWorkspace => {
+							return this.workspacesMainService.saveWorkspaceAs(workspace, target).then(savedWorkspace => {
 								this.historyMainService.addRecentlyOpened([savedWorkspace], []);
+								this.workspacesMainService.deleteUntitledWorkspaceSync(workspace);
 								return false;
 							},
 								() => false);
