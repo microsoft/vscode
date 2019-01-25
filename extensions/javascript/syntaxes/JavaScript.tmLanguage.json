@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/76cfeabda164d2d132222af72e0a5f991e26c51a",
+	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/444971648e9e1e41c54c62f41d1310f2816965c4",
 	"name": "JavaScript (with React support)",
 	"scopeName": "source.js",
 	"patterns": [
@@ -691,6 +691,12 @@
 					"include": "#string"
 				},
 				{
+					"include": "#numeric-literal"
+				},
+				{
+					"include": "#regex"
+				},
+				{
 					"include": "#object-binding-pattern"
 				},
 				{
@@ -711,6 +717,12 @@
 				},
 				{
 					"include": "#string"
+				},
+				{
+					"include": "#numeric-literal"
+				},
+				{
+					"include": "#regex"
 				},
 				{
 					"include": "#object-binding-pattern-const"
@@ -985,6 +997,12 @@
 				},
 				{
 					"include": "#string"
+				},
+				{
+					"include": "#numeric-literal"
+				},
+				{
+					"include": "#regex"
 				},
 				{
 					"include": "#parameter-object-binding-pattern"
@@ -2462,8 +2480,8 @@
 				},
 				{
 					"name": "meta.object.member.js meta.object-literal.key.js",
-					"begin": "(?=[\\'\\\"])",
-					"end": "(?=:)|((?<=[\\'\\\"])(?=\\s*[\\(\\<]))",
+					"begin": "(?=[\\'\\\"\\`])",
+					"end": "(?=:)|((?<=[\\'\\\"\\`])(?=((\\s*[\\(\\<,}])|(\\s+(as)\\s+))))",
 					"patterns": [
 						{
 							"include": "#comment"
@@ -2474,8 +2492,21 @@
 					]
 				},
 				{
+					"name": "meta.object.member.js meta.object-literal.key.js",
+					"begin": "(?x)(?=(\\b(?<!\\$)0(?:x|X)[0-9a-fA-F][0-9a-fA-F_]*(n)?\\b(?!\\$))|(\\b(?<!\\$)0(?:b|B)[01][01_]*(n)?\\b(?!\\$))|(\\b(?<!\\$)0(?:o|O)?[0-7][0-7_]*(n)?\\b(?!\\$))|((?<!\\$)(?:\n  (?:\\b[0-9][0-9_]*(\\.)[0-9][0-9_]*[eE][+-]?[0-9][0-9_]*(n)?\\b)| # 1.1E+3\n  (?:\\b[0-9][0-9_]*(\\.)[eE][+-]?[0-9][0-9_]*(n)?\\b)|             # 1.E+3\n  (?:\\B(\\.)[0-9][0-9_]*[eE][+-]?[0-9][0-9_]*(n)?\\b)|             # .1E+3\n  (?:\\b[0-9][0-9_]*[eE][+-]?[0-9][0-9_]*(n)?\\b)|                 # 1E+3\n  (?:\\b[0-9][0-9_]*(\\.)[0-9][0-9_]*(n)?\\b)|                      # 1.1\n  (?:\\b[0-9][0-9_]*(\\.)(n)?\\B)|                                  # 1.\n  (?:\\B(\\.)[0-9][0-9_]*(n)?\\b)|                                  # .1\n  (?:\\b[0-9][0-9_]*(n)?\\b(?!\\.))                                 # 1\n)(?!\\$)))",
+					"end": "(?=:)|(?=\\s*([\\(\\<,}])|(\\s+as\\s+))",
+					"patterns": [
+						{
+							"include": "#comment"
+						},
+						{
+							"include": "#numeric-literal"
+						}
+					]
+				},
+				{
 					"name": "meta.method.declaration.js",
-					"begin": "(?<=[\\]\\'\\\"])(?=\\s*[\\(\\<])",
+					"begin": "(?<=[\\]\\'\\\"\\`])(?=\\s*[\\(\\<])",
 					"end": "(?=\\}|;|,)|(?<=\\})",
 					"patterns": [
 						{
@@ -2539,6 +2570,33 @@
 							"name": "variable.other.readwrite.js"
 						}
 					}
+				},
+				{
+					"name": "meta.object.member.js",
+					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(as)\\s+(const)(?=\\s*([,}]|$))",
+					"captures": {
+						"1": {
+							"name": "keyword.control.as.js"
+						},
+						"2": {
+							"name": "storage.modifier.js"
+						}
+					}
+				},
+				{
+					"name": "meta.object.member.js",
+					"begin": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(as)\\s+",
+					"beginCaptures": {
+						"1": {
+							"name": "keyword.control.as.js"
+						}
+					},
+					"end": "(?=$|^|[,}]|((?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(as)\\s+))",
+					"patterns": [
+						{
+							"include": "#type"
+						}
+					]
 				},
 				{
 					"name": "meta.object.member.js",
@@ -2957,6 +3015,17 @@
 				{
 					"name": "keyword.operator.expression.void.js",
 					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))void(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))"
+				},
+				{
+					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(as)\\s+(const)(?=\\s*($|[;,:})\\]]))",
+					"captures": {
+						"1": {
+							"name": "keyword.control.as.js"
+						},
+						"2": {
+							"name": "storage.modifier.js"
+						}
+					}
 				},
 				{
 					"begin": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(as)\\s+",
