@@ -152,7 +152,8 @@ function updateProcessInfo(processList): void {
 		pid.classList.add('centered');
 		pid.textContent = p.pid;
 
-		const name = document.createElement('td');
+		const name = document.createElement('th');
+		name.scope = 'row';
 		name.classList.add('data');
 		name.title = p.cmd;
 		name.textContent = p.formattedName;

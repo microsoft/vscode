@@ -56,7 +56,7 @@ table {
 	width: 100%;
 	table-layout: fixed;
 }
-th {
+th[scope='col'] {
 	vertical-align: bottom;
 	border-bottom: 1px solid #cccccc;
 	padding: .5rem;
@@ -80,6 +80,9 @@ td {
 .data {
 	white-space: pre;
 	padding-left: .5rem;
+	font-weight: normal;
+	text-align: left;
+	height: 22px;
 }
 
 tbody > tr:hover {
