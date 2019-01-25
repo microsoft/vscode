@@ -11,6 +11,7 @@ export interface ParsedArgs {
 	_: string[];
 	'folder-uri'?: string | string[];
 	'file-uri'?: string | string[];
+	'workspace-uri'?: string | string[];
 	_urls?: string[];
 	help?: boolean;
 	version?: boolean;

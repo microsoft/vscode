@@ -349,7 +349,7 @@ class WelcomePage {
 				label = this.labelService.getWorkspaceLabel(workspace);
 			} else if (isWorkspaceIdentifier(workspace)) {
 				label = this.labelService.getWorkspaceLabel(workspace);
-				resource = URI.file(workspace.configPath);
+				resource = workspace.configPath;
 			} else {
 				label = getBaseLabel(workspace);
 				resource = URI.file(workspace);

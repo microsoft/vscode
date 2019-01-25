@@ -327,7 +327,7 @@ export class MenubarControl extends Disposable {
 			uri = workspace;
 		} else if (isWorkspaceIdentifier(workspace)) {
 			label = this.labelService.getWorkspaceLabel(workspace, { verbose: true });
-			uri = URI.file(workspace.configPath);
+			uri = workspace.configPath;
 		} else {
 			uri = workspace;
 			label = this.labelService.getUriLabel(uri);

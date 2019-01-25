@@ -40,6 +40,7 @@ export const options: Option[] = [
 	{ id: 'help', type: 'boolean', cat: 'o', alias: 'h', description: localize('help', "Print usage.") },
 	{ id: 'folder-uri', type: 'string', cat: 'o', args: 'uri', description: localize('folderUri', "Opens a window with given folder uri(s)") },
 	{ id: 'file-uri', type: 'string', cat: 'o', args: 'uri', description: localize('fileUri', "Opens a window with given file uri(s)") },
+	{ id: 'workspace-uri', type: 'string', cat: 'o', args: 'uri', description: localize('workspaceUri', "Opens a window with given workspace file") },
 
 	{ id: 'extensions-dir', type: 'string', cat: 'e', args: 'dir', description: localize('extensionHomePath', "Set the root path for extensions.") },
 	{ id: 'list-extensions', type: 'boolean', cat: 'e', description: localize('listExtensions', "List the installed extensions.") },

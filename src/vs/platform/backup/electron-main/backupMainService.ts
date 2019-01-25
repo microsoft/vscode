@@ -253,7 +253,7 @@ export class BackupMainService implements IBackupMainService {
 
 				// If the workspace has no backups, ignore it
 				if (hasBackups) {
-					if (await exists(workspace.configPath)) {
+					if (workspace.configPath.scheme !== Schemas.file || await exists(workspace.configPath.fsPath)) {
 						result.push(workspace);
 					} else {
 						// If the workspace has backups, but the target workspace is missing, convert backups to empty ones

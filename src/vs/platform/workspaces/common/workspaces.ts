@@ -23,7 +23,7 @@ export type ISingleFolderWorkspaceIdentifier = URI;
 
 export interface IWorkspaceIdentifier {
 	id: string;
-	configPath: string;
+	configPath: URI;
 }
 
 export function isStoredWorkspaceFolder(thing: any): thing is IStoredWorkspaceFolder {
@@ -91,8 +91,6 @@ export interface IWorkspacesMainService extends IWorkspacesService {
 
 	getUntitledWorkspacesSync(): IWorkspaceIdentifier[];
 
-	getWorkspaceId(workspacePath: string): string;
-
 	getWorkspaceIdentifier(workspacePath: URI): IWorkspaceIdentifier;
 }
 
@@ -115,7 +113,7 @@ export function isWorkspaceIdentifier(obj: any): obj is IWorkspaceIdentifier {
 export function toWorkspaceIdentifier(workspace: IWorkspace): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined {
 	if (workspace.configuration) {
 		return {
-			configPath: workspace.configuration.fsPath,
+			configPath: workspace.configuration,
 			id: workspace.id
 		};
 	}

@@ -9,7 +9,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import * as pfs from 'vs/base/node/pfs';
-import { URI as Uri } from 'vs/base/common/uri';
+import { URI as Uri, URI } from 'vs/base/common/uri';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainService';
@@ -60,7 +60,7 @@ suite('BackupMainService', () => {
 	function toWorkspace(path: string): IWorkspaceIdentifier {
 		return {
 			id: createHash('md5').update(sanitizePath(path)).digest('hex'),
-			configPath: path
+			configPath: URI.file(path)
 		};
 	}
 
@@ -73,8 +73,8 @@ suite('BackupMainService', () => {
 	}
 
 	async function ensureWorkspaceExists(workspace: IWorkspaceIdentifier): Promise<IWorkspaceIdentifier> {
-		if (!fs.existsSync(workspace.configPath)) {
-			await pfs.writeFile(workspace.configPath, 'Hello');
+		if (!fs.existsSync(workspace.configPath.fsPath)) {
+			await pfs.writeFile(workspace.configPath.fsPath, 'Hello');
 		}
 		const backupFolder = service.toBackupPath(workspace.id);
 		await createBackupFolder(backupFolder);

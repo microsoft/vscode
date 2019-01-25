@@ -34,7 +34,7 @@ import { normalizeNFC } from 'vs/base/common/normalization';
 import { URI } from 'vs/base/common/uri';
 import { Queue, timeout } from 'vs/base/common/async';
 import { exists } from 'vs/base/node/pfs';
-import { getComparisonKey, isEqual, normalizePath, basename as resourcesBasename } from 'vs/base/common/resources';
+import { getComparisonKey, isEqual, normalizePath, basename as resourcesBasename, fsPath } from 'vs/base/common/resources';
 import { endsWith } from 'vs/base/common/strings';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 
@@ -100,6 +100,10 @@ interface IFileInputs {
 	filesToDiff: IPath[];
 	filesToWait?: IPathsToWaitFor;
 	remoteAuthority?: string;
+}
+
+enum URIType {
+	FILE, FOLDER, WORKSPACE
 }
 
 interface IPathToOpen extends IPath {
@@ -438,7 +442,7 @@ export class WindowsManager implements IWindowsMainService {
 		// Make sure to pass focus to the most relevant of the windows if we open multiple
 		if (usedWindows.length > 1) {
 
-			let focusLastActive = this.windowsState.lastActiveWindow && !openConfig.forceEmpty && !hasArgs(openConfig.cli._) && !hasArgs(openConfig.cli['file-uri']) && !hasArgs(openConfig.cli['folder-uri']) && !(openConfig.urisToOpen && openConfig.urisToOpen.length);
+			let focusLastActive = this.windowsState.lastActiveWindow && !openConfig.forceEmpty && !hasArgs(openConfig.cli._) && !hasArgs(openConfig.cli['file-uri']) && !hasArgs(openConfig.cli['folder-uri']) && !hasArgs(openConfig.cli['workspace-uri']) && !(openConfig.urisToOpen && openConfig.urisToOpen.length);
 			let focusLastOpened = true;
 			let focusLastWindow = true;
 
@@ -552,10 +556,9 @@ export class WindowsManager implements IWindowsMainService {
 			let bestWindowOrFolder = findBestWindowOrFolderForFile({
 				windows,
 				newWindow: openFilesInNewWindow,
-				reuseWindow: openConfig.forceReuseWindow,
 				context: openConfig.context,
 				fileUri: fileToCheck && fileToCheck.fileUri,
-				workspaceResolver: workspace => this.workspacesMainService.resolveWorkspaceSync(workspace.configPath)
+				workspaceResolver: workspace => workspace.configPath.scheme === Schemas.file && this.workspacesMainService.resolveWorkspaceSync(fsPath(workspace.configPath))
 			});
 
 			// We found a window to open the files in
@@ -801,7 +804,7 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		// Extract paths: from CLI
-		else if (hasArgs(openConfig.cli._) || hasArgs(openConfig.cli['folder-uri']) || hasArgs(openConfig.cli['file-uri'])) {
+		else if (hasArgs(openConfig.cli._) || hasArgs(openConfig.cli['folder-uri']) || hasArgs(openConfig.cli['file-uri']) || hasArgs(openConfig.cli['workspace-uri'])) {
 			windowsToOpen = this.doExtractPathsFromCLI(openConfig.cli);
 			isCommandLineOrAPICall = true;
 		}
@@ -838,7 +841,7 @@ export class WindowsManager implements IWindowsMainService {
 				continue;
 			}
 
-			const path = this.parseUri(pathToOpen, openConfig.forceOpenWorkspaceAsFile, parseOptions);
+			const path = this.parseUri(pathToOpen, openConfig.forceOpenWorkspaceAsFile ? URIType.FILE : URIType.FOLDER, parseOptions);
 			if (path) {
 				pathsToOpen.push(path);
 			} else {
@@ -874,7 +877,7 @@ export class WindowsManager implements IWindowsMainService {
 		// folder uris
 		const folderUris = asArray(cli['folder-uri']);
 		for (let folderUri of folderUris) {
-			const path = this.parseUri(this.argToUri(folderUri), false, parseOptions);
+			const path = this.parseUri(this.argToUri(folderUri), URIType.FOLDER, parseOptions);
 			if (path) {
 				pathsToOpen.push(path);
 			}
@@ -883,11 +886,20 @@ export class WindowsManager implements IWindowsMainService {
 		// file uris
 		const fileUris = asArray(cli['file-uri']);
 		for (let fileUri of fileUris) {
-			const path = this.parseUri(this.argToUri(fileUri), true, parseOptions);
+			const path = this.parseUri(this.argToUri(fileUri), URIType.FILE, parseOptions);
 			if (path) {
 				pathsToOpen.push(path);
 			}
 		}
+
+		const workspaceUris = asArray(cli['workspace-uri']);
+		for (let workspaceUri of workspaceUris) {
+			const path = this.parseUri(this.argToUri(workspaceUri), URIType.WORKSPACE, parseOptions);
+			if (path) {
+				pathsToOpen.push(path);
+			}
+		}
+
 
 		// folder or file paths
 		const cliArgs = asArray(cli._);
@@ -932,12 +944,12 @@ export class WindowsManager implements IWindowsMainService {
 				const windowsToOpen: IPathToOpen[] = [];
 				for (const openedWindow of openedWindows) {
 					if (openedWindow.workspace) { // Workspaces
-						const pathToOpen = this.parsePath(openedWindow.workspace.configPath, { remoteAuthority: openedWindow.remoteAuthority });
+						const pathToOpen = this.parseUri(openedWindow.workspace.configPath, URIType.WORKSPACE, { remoteAuthority: openedWindow.remoteAuthority });
 						if (pathToOpen && pathToOpen.workspace) {
 							windowsToOpen.push(pathToOpen);
 						}
 					} else if (openedWindow.folderUri) { // Folders
-						const pathToOpen = this.parseUri(openedWindow.folderUri, false, { remoteAuthority: openedWindow.remoteAuthority });
+						const pathToOpen = this.parseUri(openedWindow.folderUri, URIType.FOLDER, { remoteAuthority: openedWindow.remoteAuthority });
 						if (pathToOpen && pathToOpen.folderUri) {
 							windowsToOpen.push(pathToOpen);
 						}
@@ -987,7 +999,7 @@ export class WindowsManager implements IWindowsMainService {
 		return null;
 	}
 
-	private parseUri(uri: URI, isFile: boolean, options?: IPathParseOptions): IPathToOpen {
+	private parseUri(uri: URI, type: URIType, options?: IPathParseOptions): IPathToOpen {
 		if (!uri || !uri.scheme) {
 			return null;
 		}
@@ -1004,7 +1016,7 @@ export class WindowsManager implements IWindowsMainService {
 		if (uriPath.length > 2 && endsWith(uriPath, '/')) {
 			uri = uri.with({ path: uriPath.substr(0, uriPath.length - 1) });
 		}
-		if (isFile) {
+		if (type === URIType.FILE) {
 			if (options && options.gotoLineMode) {
 				const parsedPath = parseLineAndColumnAware(uri.path);
 				return {
@@ -1016,6 +1028,11 @@ export class WindowsManager implements IWindowsMainService {
 			}
 			return {
 				fileUri: uri,
+				remoteAuthority
+			};
+		} else if (type === URIType.WORKSPACE) {
+			return {
+				workspace: this.workspacesMainService.getWorkspaceIdentifier(uri),
 				remoteAuthority
 			};
 		}
@@ -1141,6 +1158,7 @@ export class WindowsManager implements IWindowsMainService {
 		}
 		let folderUris = asArray(openConfig.cli['folder-uri']);
 		let fileUris = asArray(openConfig.cli['file-uri']);
+		let workspaceUris = asArray(openConfig.cli['workspace-uri']);
 		let cliArgs = openConfig.cli._;
 
 		// Fill in previously opened workspace unless an explicit path is provided and we are not unit testing
@@ -1155,7 +1173,11 @@ export class WindowsManager implements IWindowsMainService {
 						folderUris = [workspaceToOpen.toString()];
 					}
 				} else {
-					cliArgs = [workspaceToOpen.configPath];
+					if (workspaceToOpen.configPath.scheme === Schemas.file) {
+						cliArgs = [fsPath(workspaceToOpen.configPath)];
+					} else {
+						workspaceUris = [workspaceToOpen.configPath.toString()];
+					}
 				}
 			}
 		}
@@ -1173,12 +1195,17 @@ export class WindowsManager implements IWindowsMainService {
 			fileUris = [];
 		}
 
+		if (workspaceUris.length && workspaceUris.some(uri => !!findWindowOnWorkspaceOrFolderUri(WindowsManager.WINDOWS, this.argToUri(uri)))) {
+			workspaceUris = [];
+		}
+
 		openConfig.cli._ = cliArgs;
 		openConfig.cli['folder-uri'] = folderUris;
 		openConfig.cli['file-uri'] = fileUris;
+		openConfig.cli['workspace-uri'] = workspaceUris;
 
 		// Open it
-		this.open({ context: openConfig.context, cli: openConfig.cli, forceNewWindow: true, forceEmpty: !cliArgs.length && !folderUris.length && !fileUris.length, userEnv: openConfig.userEnv });
+		this.open({ context: openConfig.context, cli: openConfig.cli, forceNewWindow: true, forceEmpty: !cliArgs.length && !folderUris.length && !fileUris.length && !workspaceUris.length, userEnv: openConfig.userEnv });
 	}
 
 	private openInBrowserWindow(options: IOpenBrowserWindowOptions): ICodeWindow {
@@ -1980,7 +2007,7 @@ class WorkspacesManager {
 			return Promise.resolve(true);
 		}
 
-		if (window.openedWorkspace && isEqual(URI.file(window.openedWorkspace.configPath), path)) {
+		if (window.openedWorkspace && isEqual(window.openedWorkspace.configPath, path)) {
 			return Promise.resolve(false); // window is already opened on a workspace with that path
 		}
 
@@ -2116,7 +2143,7 @@ class WorkspacesManager {
 				return workspace.scheme === Schemas.file ? dirname(workspace.fsPath) : undefined;
 			}
 
-			const resolvedWorkspace = this.workspacesMainService.resolveWorkspaceSync(workspace.configPath);
+			const resolvedWorkspace = workspace.configPath.scheme === Schemas.file && this.workspacesMainService.resolveWorkspaceSync(workspace.configPath.fsPath);
 			if (resolvedWorkspace && resolvedWorkspace.folders.length > 0) {
 				for (const folder of resolvedWorkspace.folders) {
 					if (folder.uri.scheme === Schemas.file) {

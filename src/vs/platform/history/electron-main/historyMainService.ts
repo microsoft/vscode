@@ -16,7 +16,7 @@ import { IWorkspaceIdentifier, IWorkspacesMainService, ISingleFolderWorkspaceIde
 import { IHistoryMainService, IRecentlyOpened } from 'vs/platform/history/common/history';
 import { isEqual } from 'vs/base/common/paths';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { getComparisonKey, isEqual as areResourcesEqual, dirname } from 'vs/base/common/resources';
+import { getComparisonKey, isEqual as areResourcesEqual, dirname, fsPath } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -112,7 +112,7 @@ export class HistoryMainService implements IHistoryMainService {
 			// Remove workspace
 			let index = arrays.firstIndex(mru.workspaces, workspace => {
 				if (isWorkspaceIdentifier(pathToRemove)) {
-					return isWorkspaceIdentifier(workspace) && isEqual(pathToRemove.configPath, workspace.configPath, !isLinux /* ignorecase */);
+					return isWorkspaceIdentifier(workspace) && areResourcesEqual(pathToRemove.configPath, workspace.configPath, !isLinux /* ignorecase */);
 				}
 				if (isSingleFolderWorkspaceIdentifier(pathToRemove)) {
 					return isSingleFolderWorkspaceIdentifier(workspace) && areResourcesEqual(pathToRemove, workspace);
@@ -122,7 +122,7 @@ export class HistoryMainService implements IHistoryMainService {
 						return workspace.scheme === Schemas.file && isEqual(pathToRemove, workspace.fsPath, !isLinux /* ignorecase */);
 					}
 					if (isWorkspaceIdentifier(workspace)) {
-						return isEqual(pathToRemove, workspace.configPath, !isLinux /* ignorecase */);
+						return workspace.configPath.scheme === Schemas.file && isEqual(pathToRemove, workspace.configPath.fsPath, !isLinux /* ignorecase */);
 					}
 				}
 				return false;
@@ -178,12 +178,14 @@ export class HistoryMainService implements IHistoryMainService {
 			const workspace = mru.workspaces[i];
 			if (isSingleFolderWorkspaceIdentifier(workspace)) {
 				if (workspace.scheme === Schemas.file) {
-					app.addRecentDocument(workspace.fsPath);
+					app.addRecentDocument(fsPath(workspace));
 					entries++;
 				}
 			} else {
-				app.addRecentDocument(workspace.configPath);
-				entries++;
+				if (workspace.configPath.scheme === Schemas.file) {
+					app.addRecentDocument(fsPath(workspace.configPath));
+					entries++;
+				}
 			}
 		}
 
@@ -192,7 +194,7 @@ export class HistoryMainService implements IHistoryMainService {
 		for (let i = 0; i < mru.files.length && entries < HistoryMainService.MAX_MACOS_DOCK_RECENT_FILES; i++) {
 			const file = mru.files[i];
 			if (file.scheme === Schemas.file) {
-				app.addRecentDocument(file.fsPath);
+				app.addRecentDocument(fsPath(file));
 				entries++;
 			}
 		}
@@ -345,14 +347,9 @@ export class HistoryMainService implements IHistoryMainService {
 			for (let item of app.getJumpListSettings().removedItems) {
 				const args = item.args;
 				if (args) {
-					const match = /^--folder-uri\s+"([^"]+)"$/.exec(args);
+					const match = /^--(folder|workspace)-uri\s+"([^"]+)"$/.exec(args);
 					if (match) {
-						if (args[0] === '-') {
-							toRemove.push(URI.parse(match[1]));
-						} else {
-							let configPath = match[1];
-							toRemove.push({ id: this.workspacesMainService.getWorkspaceId(configPath), configPath });
-						}
+						toRemove.push(URI.parse(match[2]));
 					}
 				}
 			}
@@ -372,7 +369,7 @@ export class HistoryMainService implements IHistoryMainService {
 						args = `--folder-uri "${workspace.toString()}"`;
 					} else {
 						description = nls.localize('codeWorkspace', "Code Workspace");
-						args = `"${workspace.configPath}"`;
+						args = `--workspace-uri "${workspace.configPath.toString()}"`;
 					}
 					return <Electron.JumpListItem>{
 						type: 'task',
