@@ -12,7 +12,7 @@ import { alert as ariaAlert } from 'vs/base/browser/ui/aria/aria';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate, ListAriaRootRole } from 'vs/base/browser/ui/list/list';
 import { ISelectOptionItem, SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IObjectTreeOptions, ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
@@ -437,11 +437,6 @@ export abstract class AbstractSettingRenderer implements ITreeRenderer<SettingsT
 		template.deprecationWarningElement.innerText = element.setting.deprecationMessage || '';
 		this.renderValue(element, <ISettingItemTemplate>template, onChange);
 
-		// Remove tree attributes - sometimes overridden by tree - should be managed there
-		template.containerElement.parentElement.parentElement.removeAttribute('role');
-		template.containerElement.parentElement.parentElement.removeAttribute('aria-level');
-		template.containerElement.parentElement.parentElement.removeAttribute('aria-posinset');
-		template.containerElement.parentElement.parentElement.removeAttribute('aria-setsize');
 	}
 
 	private renderDescriptionMarkdown(element: SettingsTreeSettingElement, text: string, disposeables: IDisposable[]): HTMLElement {
@@ -1292,11 +1287,14 @@ export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 	) {
 		const treeClass = 'settings-editor-tree';
 
+		// Must use role = EListAriaRootRole.FORM for interactive elements in settingsTree
+
 		super(container,
 			new SettingsTreeDelegate(),
 			renderers,
 			{
 				supportDynamicHeights: true,
+				ariaRole: ListAriaRootRole.FORM,
 				ariaLabel: localize('treeAriaLabel', "Settings"),
 				identityProvider: {
 					getId(e) {

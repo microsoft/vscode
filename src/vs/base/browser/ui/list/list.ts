@@ -62,6 +62,12 @@ export interface IIdentityProvider<T> {
 	getId(element: T): { toString(): string; };
 }
 
+// Default tree/list root role 'tree' does not support interactive element labeling, 'form' does
+export enum ListAriaRootRole {
+	TREE = 'tree',		// default tree structure role
+	FORM = 'form'		// unstructured - allows interactive elements within tree/list structure
+}
+
 export interface IKeyboardNavigationLabelProvider<T> {
 	getKeyboardNavigationLabel(element: T): { toString(): string; };
 	mightProducePrintableCharacter?(event: IKeyboardEvent): boolean;
