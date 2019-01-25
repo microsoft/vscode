@@ -17,7 +17,7 @@ import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { IWindowsMainService, ISharedProcess, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService, IRecentlyOpened } from 'vs/platform/history/common/history';
-import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { Schemas } from 'vs/base/common/network';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
@@ -142,18 +142,6 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 		this.logService.trace('windowsService#enterWorkspace', windowId);
 
 		return this.withWindow(windowId, codeWindow => this.windowsMainService.enterWorkspace(codeWindow, path));
-	}
-
-	async createAndEnterWorkspace(windowId: number, folders?: IWorkspaceFolderCreationData[], path?: string): Promise<IEnterWorkspaceResult | undefined> {
-		this.logService.trace('windowsService#createAndEnterWorkspace', windowId);
-
-		return this.withWindow(windowId, codeWindow => this.windowsMainService.createAndEnterWorkspace(codeWindow, folders, path));
-	}
-
-	async saveAndEnterWorkspace(windowId: number, path: string): Promise<IEnterWorkspaceResult | undefined> {
-		this.logService.trace('windowsService#saveAndEnterWorkspace', windowId);
-
-		return this.withWindow(windowId, codeWindow => this.windowsMainService.saveAndEnterWorkspace(codeWindow, path));
 	}
 
 	async toggleFullScreen(windowId: number): Promise<void> {
