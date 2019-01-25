@@ -1525,7 +1525,16 @@ export class Workbench extends Disposable implements IPartService {
 				DOM.position(this.workbench, 0, 0, 0, 0, 'relative');
 				DOM.size(this.workbench, dimensions.width, dimensions.height);
 
+				// Layout the grid
 				this.workbenchGrid.layout(dimensions.width, dimensions.height);
+
+				// Layout non-view ui components
+				this.quickInput.layout(dimensions);
+				this.quickOpen.layout(dimensions);
+				this.notificationsCenter.layout(dimensions);
+				this.notificationsToasts.layout(dimensions);
+
+				// Update grid view membership
 				this.updateGrid();
 			} else {
 				this.workbenchGrid.layout(options);
