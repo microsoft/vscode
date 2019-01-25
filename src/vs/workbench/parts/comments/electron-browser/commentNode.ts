@@ -86,6 +86,8 @@ export class CommentNode extends Disposable {
 		this._md = this.markdownRenderer.render(comment.body).element;
 		this._body.appendChild(this._md);
 
+		this.createReactions(commentDetailsContainer);
+
 		this._domNode.setAttribute('aria-label', `${comment.userName}, ${comment.body.value}`);
 		this._domNode.setAttribute('role', 'treeitem');
 		this._clearTimeout = null;
@@ -125,6 +127,17 @@ export class CommentNode extends Disposable {
 
 			actions.forEach(action => actionBar.push(action, { label: false, icon: true }));
 		}
+	}
+
+	private createReactions(commentDetailsContainer: HTMLElement): void {
+		let reactions = ['❤️', '🎉', '😄'];
+
+		const reactionsBar = dom.append(commentDetailsContainer, dom.$('div.comment-reactions'));
+
+		reactions.forEach(reaction => {
+			let btn = new Button(reactionsBar);
+			btn.label = reaction;
+		});
 	}
 
 	private createCommentEditor(): void {
