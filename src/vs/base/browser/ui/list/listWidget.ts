@@ -779,7 +779,6 @@ export class DefaultStyleController implements IStyleController {
 	}
 }
 
-
 export interface IListOptions<T> extends IListStyles {
 	readonly identityProvider?: IIdentityProvider<T>;
 	readonly dnd?: IListDragAndDrop<T>;

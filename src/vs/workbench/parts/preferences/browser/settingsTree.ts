@@ -1287,8 +1287,6 @@ export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 	) {
 		const treeClass = 'settings-editor-tree';
 
-		// Must use role = EListAriaRootRole.FORM for interactive elements in settingsTree
-
 		super(container,
 			new SettingsTreeDelegate(),
 			renderers,
