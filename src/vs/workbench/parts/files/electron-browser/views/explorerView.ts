@@ -147,8 +147,8 @@ export class ExplorerView extends ViewletPanel {
 		setHeader();
 	}
 
-	protected layoutBody(size: number): void {
-		this.tree.layout(size);
+	protected layoutBody(height: number, width: number): void {
+		this.tree.layout(height, width);
 	}
 
 	renderBody(container: HTMLElement): void {

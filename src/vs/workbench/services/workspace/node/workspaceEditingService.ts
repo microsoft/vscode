@@ -7,9 +7,9 @@ import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IWindowService, IEnterWorkspaceResult } from 'vs/platform/windows/common/windows';
+import { IWindowService, MessageBoxOptions, IWindowsService } from 'vs/platform/windows/common/windows';
 import { IJSONEditingService, JSONEditingError, JSONEditingErrorCode } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { IWorkspaceIdentifier, IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, isWorkspaceIdentifier, toWorkspaceIdentifier, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -22,8 +22,10 @@ import { BackupFileService } from 'vs/workbench/services/backup/node/backupFileS
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { distinct } from 'vs/base/common/arrays';
 import { isLinux } from 'vs/base/common/platform';
-import { isEqual } from 'vs/base/common/resources';
+import { isEqual, basename } from 'vs/base/common/resources';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { IFileService } from 'vs/platform/files/common/files';
+import { rewriteWorkspaceFileForNewLocation } from 'vs/platform/workspaces/node/workspaces';
 
 export class WorkspaceEditingService implements IWorkspaceEditingService {
 
@@ -38,7 +40,10 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IBackupFileService private readonly backupFileService: IBackupFileService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@ICommandService private readonly commandService: ICommandService
+		@ICommandService private readonly commandService: ICommandService,
+		@IFileService private readonly fileSystemService: IFileService,
+		@IWindowsService private readonly windowsService: IWindowsService,
+		@IWorkspacesService private readonly workspaceService: IWorkspacesService
 	) {
 	}
 
@@ -140,16 +145,64 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		return false;
 	}
 
-	enterWorkspace(path: string): Promise<void> {
-		return this.doEnterWorkspace(() => this.windowService.enterWorkspace(path));
+	async createAndEnterWorkspace(folders: IWorkspaceFolderCreationData[], path?: URI): Promise<void> {
+		if (path && !this.isValidTargetWorkspacePath(path)) {
+			return Promise.reject(null);
+		}
+
+		const untitledWorkspace = await this.workspaceService.createUntitledWorkspace(folders);
+		if (path) {
+			await this.saveWorkspaceAs(untitledWorkspace, path);
+		} else {
+			path = URI.file(untitledWorkspace.configPath);
+		}
+		return this.enterWorkspace(path);
 	}
 
-	createAndEnterWorkspace(folders?: IWorkspaceFolderCreationData[], path?: string): Promise<void> {
-		return this.doEnterWorkspace(() => this.windowService.createAndEnterWorkspace(folders, path));
+	async saveAndEnterWorkspace(path: URI): Promise<void> {
+		if (!this.isValidTargetWorkspacePath(path)) {
+			return Promise.reject(null);
+		}
+		const currentWorkspaceIdentifier = toWorkspaceIdentifier(this.contextService.getWorkspace());
+		if (!isWorkspaceIdentifier(currentWorkspaceIdentifier)) {
+			return Promise.reject(null);
+		}
+		await this.saveWorkspaceAs(currentWorkspaceIdentifier, path);
+
+		return this.enterWorkspace(path);
 	}
 
-	saveAndEnterWorkspace(path: string): Promise<void> {
-		return this.doEnterWorkspace(() => this.windowService.saveAndEnterWorkspace(path));
+	async isValidTargetWorkspacePath(path: URI): Promise<boolean> {
+
+		const windows = await this.windowsService.getWindows();
+
+		// Prevent overwriting a workspace that is currently opened in another window
+		if (windows.some(window => window.workspace && isEqual(URI.file(window.workspace.configPath), path))) {
+			const options: MessageBoxOptions = {
+				type: 'info',
+				buttons: [nls.localize('ok', "OK")],
+				message: nls.localize('workspaceOpenedMessage', "Unable to save workspace '{0}'", basename(path)),
+				detail: nls.localize('workspaceOpenedDetail', "The workspace is already opened in another window. Please close that window first and then try again."),
+				noLink: true
+			};
+			return this.windowService.showMessageBox(options).then(() => false);
+		}
+
+		return Promise.resolve(true); // OK
+	}
+
+	private async saveWorkspaceAs(workspace: IWorkspaceIdentifier, targetConfigPathURI: URI): Promise<any> {
+		const configPathURI = URI.file(workspace.configPath);
+
+		// Return early if target is same as source
+		if (isEqual(configPathURI, targetConfigPathURI)) {
+			return Promise.resolve(null);
+		}
+
+		// Read the contents of the workspace file, update it to new location and save it.
+		const raw = await this.fileSystemService.resolveContent(configPathURI);
+		const newRawWorkspaceContents = rewriteWorkspaceFileForNewLocation(raw.value, configPathURI, targetConfigPathURI);
+		await this.fileSystemService.createFile(targetConfigPathURI, newRawWorkspaceContents, { overwrite: true });
 	}
 
 	private handleWorkspaceConfigurationEditingError(error: JSONEditingError): Promise<void> {
@@ -185,7 +238,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		);
 	}
 
-	private doEnterWorkspace(mainSidePromise: () => Promise<IEnterWorkspaceResult>): Promise<void> {
+	enterWorkspace(path: URI): Promise<void> {
 
 		// Stop the extension host first to give extensions most time to shutdown
 		this.extensionService.stopExtensionHost();
@@ -196,7 +249,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 			extensionHostStarted = true;
 		};
 
-		return mainSidePromise().then(result => {
+		return this.windowService.enterWorkspace(path).then(result => {
 
 			// Migrate storage and settings if we are to enter a workspace
 			if (result) {

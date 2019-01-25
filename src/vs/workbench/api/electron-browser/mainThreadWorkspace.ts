@@ -245,5 +245,5 @@ CommandsRegistry.registerCommand('_workbench.enterWorkspace', async function (ac
 		}
 	}
 
-	return workspaceEditingService.enterWorkspace(workspace.fsPath);
+	return workspaceEditingService.enterWorkspace(workspace);
 });

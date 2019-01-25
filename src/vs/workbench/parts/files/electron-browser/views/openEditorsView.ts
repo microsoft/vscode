@@ -307,9 +307,9 @@ export class OpenEditorsView extends ViewletPanel {
 		return this.list;
 	}
 
-	protected layoutBody(size: number): void {
+	protected layoutBody(height: number, width: number): void {
 		if (this.list) {
-			this.list.layout(size);
+			this.list.layout(height, width);
 		}
 	}
 

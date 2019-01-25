@@ -44,7 +44,8 @@ import { Schemas } from 'vs/base/common/network';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { getManifest } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
-import { IExtensionManifest, ExtensionType, ExtensionIdentifierWithVersion } from 'vs/platform/extensions/common/extensions';
+import { IExtensionManifest, ExtensionType, ExtensionIdentifierWithVersion, isUIExtension } from 'vs/platform/extensions/common/extensions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const ERROR_SCANNING_SYS_EXTENSIONS = 'scanningSystem';
 const ERROR_SCANNING_USER_EXTENSIONS = 'scanningUser';
@@ -127,7 +128,9 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	onDidUninstallExtension: Event<DidUninstallExtensionEvent> = this._onDidUninstallExtension.event;
 
 	constructor(
+		private readonly remote: boolean,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
 		@ILogService private readonly logService: ILogService,
 		@optional(IDownloadService) private downloadService: IDownloadService,
@@ -339,6 +342,13 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			return Promise.reject(new ExtensionManagementError(nls.localize('notFoundCompatibleDependency', "Unable to install because, the extension '{0}' compatible with current version '{1}' of VS Code is not found.", extension.identifier.id, pkg.version), INSTALL_ERROR_INCOMPATIBLE));
 		}
 
+		if (this.remote) {
+			const manifest = await this.galleryService.getManifest(extension, CancellationToken.None);
+			if (manifest && isUIExtension(manifest, this.configurationService)) {
+				return Promise.reject(new Error(nls.localize('notSupportedUIExtension', "Can't install extension {0} since UI Extensions are not supported", extension.identifier.id)));
+			}
+		}
+
 		return compatibleExtension;
 	}
 
@@ -480,7 +490,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			});
 	}
 
-	private installDependenciesAndPackExtensions(installed: ILocalExtension, existing: ILocalExtension | null): Promise<void> {
+	private async installDependenciesAndPackExtensions(installed: ILocalExtension, existing: ILocalExtension | null): Promise<void> {
 		if (this.galleryService.isEnabled()) {
 			const dependenciesAndPackExtensions: string[] = installed.manifest.extensionDependencies || [];
 			if (installed.manifest.extensionPack) {
@@ -502,7 +512,16 @@ export class ExtensionManagementService extends Disposable implements IExtension
 							return this.galleryService.query({ names, pageSize: dependenciesAndPackExtensions.length })
 								.then(galleryResult => {
 									const extensionsToInstall = galleryResult.firstPage;
-									return Promise.all(extensionsToInstall.map(e => this.installFromGallery(e)))
+									return Promise.all(extensionsToInstall.map(async e => {
+										if (this.remote) {
+											const manifest = await this.galleryService.getManifest(e, CancellationToken.None);
+											if (manifest && isUIExtension(manifest, this.configurationService)) {
+												this.logService.info('Ignored installing the UI dependency', e.identifier.id);
+												return;
+											}
+										}
+										return this.installFromGallery(e);
+									}))
 										.then(() => null, errors => this.rollback(extensionsToInstall).then(() => Promise.reject(errors), () => Promise.reject(errors)));
 								});
 						}

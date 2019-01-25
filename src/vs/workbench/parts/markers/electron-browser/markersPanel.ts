@@ -151,7 +151,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 
 	public layout(dimension: dom.Dimension): void {
 		this.treeContainer.style.height = `${dimension.height}px`;
-		this.tree.layout(dimension.height);
+		this.tree.layout(dimension.height, dimension.width);
 		if (this.filterInputActionItem) {
 			this.filterInputActionItem.toggleLayout(dimension.width < 1200);
 		}
@@ -408,13 +408,12 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 
 	private onDidChangeModel(resources: URI[]) {
 		for (const resource of resources) {
+			this.markersViewState.remove(resource);
 			const resourceMarkers = this.markersWorkbenchService.markersModel.getResourceMarkers(resource);
 			if (resourceMarkers) {
 				for (const marker of resourceMarkers.markers) {
 					this.markersViewState.add(marker);
 				}
-			} else {
-				this.markersViewState.remove(resource);
 			}
 		}
 		this.currentResourceGotAddedToMarkersData = this.currentResourceGotAddedToMarkersData || this.isCurrentResourceGotAddedToMarkersData(resources);
