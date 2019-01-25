@@ -113,7 +113,6 @@
 	text-decoration: underline;
 }
 
-.settings-editor.no-toc-search > .settings-body .settings-tree-container .monaco-list-rows,
 .settings-editor.narrow-width > .settings-body .settings-tree-container .monaco-list-rows {
 	margin-left: 0px;
 }
