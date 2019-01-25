@@ -2100,8 +2100,7 @@ class WorkspacesManager {
 								this.historyMainService.addRecentlyOpened([savedWorkspace], []);
 								this.workspacesMainService.deleteUntitledWorkspaceSync(workspace);
 								return false;
-							},
-								() => false);
+							}, () => false);
 						}
 
 						return true; // keep veto if no target was provided
