@@ -7,7 +7,7 @@ import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IWindowService, IEnterWorkspaceResult, MessageBoxOptions, IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowService, MessageBoxOptions, IWindowsService } from 'vs/platform/windows/common/windows';
 import { IJSONEditingService, JSONEditingError, JSONEditingErrorCode } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, IStoredWorkspace, isStoredWorkspaceFolder, isRawFileWorkspaceFolder, isWorkspaceIdentifier, toWorkspaceIdentifier, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
@@ -147,10 +147,6 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		}
 
 		return false;
-	}
-
-	enterWorkspace(path: URI): Promise<void> {
-		return this.doEnterWorkspace(() => this.windowService.enterWorkspace(path));
 	}
 
 	async createAndEnterWorkspace(folders: IWorkspaceFolderCreationData[], path?: URI): Promise<void> {
@@ -298,7 +294,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		);
 	}
 
-	private doEnterWorkspace(mainSidePromise: () => Promise<IEnterWorkspaceResult>): Promise<void> {
+	enterWorkspace(path: URI): Promise<void> {
 
 		// Stop the extension host first to give extensions most time to shutdown
 		this.extensionService.stopExtensionHost();
@@ -309,7 +305,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 			extensionHostStarted = true;
 		};
 
-		return mainSidePromise().then(result => {
+		return this.windowService.enterWorkspace(path).then(result => {
 
 			// Migrate storage and settings if we are to enter a workspace
 			if (result) {

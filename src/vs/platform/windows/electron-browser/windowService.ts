@@ -7,7 +7,6 @@ import { Event } from 'vs/base/common/event';
 import { IWindowService, IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IWindowConfiguration, IDevToolsOptions, IOpenSettings } from 'vs/platform/windows/common/windows';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
-import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { URI } from 'vs/base/common/uri';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -91,14 +90,6 @@ export class WindowService extends Disposable implements IWindowService {
 
 	enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | undefined> {
 		return this.windowsService.enterWorkspace(this.windowId, path);
-	}
-
-	createAndEnterWorkspace(folders?: IWorkspaceFolderCreationData[], path?: string): Promise<IEnterWorkspaceResult | undefined> {
-		return this.windowsService.createAndEnterWorkspace(this.windowId, folders, path);
-	}
-
-	saveAndEnterWorkspace(path: string): Promise<IEnterWorkspaceResult | undefined> {
-		return this.windowsService.saveAndEnterWorkspace(this.windowId, path);
 	}
 
 	openWindow(paths: URI[], options?: IOpenSettings): Promise<void> {

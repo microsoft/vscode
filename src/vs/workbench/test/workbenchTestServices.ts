@@ -44,7 +44,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { generateUuid } from 'vs/base/common/uuid';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { ITextResourceConfigurationService, ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 import { IPosition, Position as EditorPosition } from 'vs/editor/common/core/position';
@@ -1058,14 +1058,6 @@ export class TestWindowService implements IWindowService {
 		return Promise.resolve();
 	}
 
-	createAndEnterWorkspace(_folders?: IWorkspaceFolderCreationData[], _path?: string): Promise<IEnterWorkspaceResult> {
-		return Promise.resolve();
-	}
-
-	saveAndEnterWorkspace(_path: string): Promise<IEnterWorkspaceResult> {
-		return Promise.resolve();
-	}
-
 	toggleFullScreen(): Promise<void> {
 		return Promise.resolve();
 	}
@@ -1224,14 +1216,6 @@ export class TestWindowsService implements IWindowsService {
 	}
 
 	enterWorkspace(_windowId: number, _path: URI): Promise<IEnterWorkspaceResult> {
-		return Promise.resolve();
-	}
-
-	createAndEnterWorkspace(_windowId: number, _folders?: IWorkspaceFolderCreationData[], _path?: string): Promise<IEnterWorkspaceResult> {
-		return Promise.resolve();
-	}
-
-	saveAndEnterWorkspace(_windowId: number, _path: string): Promise<IEnterWorkspaceResult> {
 		return Promise.resolve();
 	}
 
