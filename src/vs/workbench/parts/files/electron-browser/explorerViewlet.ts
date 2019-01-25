@@ -62,27 +62,27 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 		let viewDescriptorsToDeregister: IViewDescriptor[] = [];
 
 		const openEditorsViewDescriptor = this.createOpenEditorsViewDescriptor();
-		const openEditorsViewDescriptorExists = viewDescriptors.some(v => v.id === openEditorsViewDescriptor.id);
-		const explorerViewDescriptor = this.createExplorerViewDescriptor();
-		const explorerViewDescriptorExists = viewDescriptors.some(v => v.id === explorerViewDescriptor.id);
-		const emptyViewDescriptor = this.createEmptyViewDescriptor();
-		const emptyViewDescriptorExists = viewDescriptors.some(v => v.id === emptyViewDescriptor.id);
-
-		if (!openEditorsViewDescriptorExists) {
+		if (!viewDescriptors.some(v => v.id === openEditorsViewDescriptor.id)) {
 			viewDescriptorsToRegister.push(openEditorsViewDescriptor);
 		}
+
+		const explorerViewDescriptor = this.createExplorerViewDescriptor();
+		const registeredExplorerViewDescriptor = viewDescriptors.filter(v => v.id === explorerViewDescriptor.id)[0];
+		const emptyViewDescriptor = this.createEmptyViewDescriptor();
+		const registeredEmptyViewDescriptor = viewDescriptors.filter(v => v.id === emptyViewDescriptor.id)[0];
+
 		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY || this.workspaceContextService.getWorkspace().folders.length === 0) {
-			if (explorerViewDescriptorExists) {
-				viewDescriptorsToDeregister.push(explorerViewDescriptor);
+			if (registeredExplorerViewDescriptor) {
+				viewDescriptorsToDeregister.push(registeredExplorerViewDescriptor);
 			}
-			if (!emptyViewDescriptorExists) {
+			if (!registeredEmptyViewDescriptor) {
 				viewDescriptorsToRegister.push(emptyViewDescriptor);
 			}
 		} else {
-			if (emptyViewDescriptorExists) {
-				viewDescriptorsToDeregister.push(emptyViewDescriptor);
+			if (registeredEmptyViewDescriptor) {
+				viewDescriptorsToDeregister.push(registeredEmptyViewDescriptor);
 			}
-			if (!explorerViewDescriptorExists) {
+			if (!registeredExplorerViewDescriptor) {
 				viewDescriptorsToRegister.push(explorerViewDescriptor);
 			}
 		}
