@@ -305,7 +305,7 @@ export class PanelViewlet extends Viewlet {
 	}
 
 	layout(dimension: Dimension): void {
-		this.panelview.layout(dimension.height);
+		this.panelview.layout(dimension.height, dimension.width);
 	}
 
 	getOptimalWidth(): number {

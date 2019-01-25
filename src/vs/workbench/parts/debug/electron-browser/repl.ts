@@ -269,7 +269,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			this.replDelegate.setWidth(dimension.width - 25, this.characterWidth);
 			const treeHeight = dimension.height - this.replInputHeight;
 			this.treeContainer.style.height = `${treeHeight}px`;
-			this.tree.layout(treeHeight);
+			this.tree.layout(treeHeight, dimension.width);
 		}
 		this.replInputContainer.style.height = `${this.replInputHeight}px`;
 
@@ -358,7 +358,8 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 				accessibilityProvider: new ReplAccessibilityProvider(),
 				identityProvider: { getId: element => element.getId() },
 				mouseSupport: false,
-				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: e => e }
+				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: e => e },
+				horizontalScrolling: false
 			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
 
 		this.toDispose.push(this.tree.onContextMenu(e => this.onContextMenu(e)));

@@ -1189,8 +1189,7 @@ export class SettingsEditor2 extends BaseEditor {
 		const listHeight = dimension.height - (76 + 11 /* header height + padding*/);
 		const settingsTreeHeight = listHeight - 14;
 		this.settingsTreeContainer.style.height = `${settingsTreeHeight}px`;
-		this.settingsTree.layout(settingsTreeHeight);
-		this.settingsTree.layoutWidth(dimension.width);
+		this.settingsTree.layout(settingsTreeHeight, dimension.width);
 
 		const tocTreeHeight = listHeight - 16;
 		this.tocTreeContainer.style.height = `${tocTreeHeight}px`;
