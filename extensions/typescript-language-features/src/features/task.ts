@@ -11,6 +11,7 @@ import { ITypeScriptServiceClient } from '../typescriptService';
 import { Lazy } from '../utils/lazy';
 import { isImplicitProjectConfigFile } from '../utils/tsconfig';
 import TsConfigProvider, { TSConfig } from '../utils/tsconfigProvider';
+import { Disposable } from '../utils/dispose';
 
 
 const localize = nls.loadMessageBundle();
@@ -244,23 +245,24 @@ class TscTaskProvider implements vscode.TaskProvider {
 /**
  * Manages registrations of TypeScript task providers with VS Code.
  */
-export default class TypeScriptTaskProviderManager {
+export default class TypeScriptTaskProviderManager extends Disposable {
 	private taskProviderSub: vscode.Disposable | undefined = undefined;
-	private readonly disposables: vscode.Disposable[] = [];
 
 	constructor(
 		private readonly client: Lazy<ITypeScriptServiceClient>
 	) {
-		vscode.workspace.onDidChangeConfiguration(this.onConfigurationChanged, this, this.disposables);
+		super();
+		vscode.workspace.onDidChangeConfiguration(this.onConfigurationChanged, this, this._disposables);
 		this.onConfigurationChanged();
 	}
 
 	dispose() {
+		super.dispose();
+
 		if (this.taskProviderSub) {
 			this.taskProviderSub.dispose();
 			this.taskProviderSub = undefined;
 		}
-		this.disposables.forEach(x => x.dispose());
 	}
 
 	private onConfigurationChanged() {

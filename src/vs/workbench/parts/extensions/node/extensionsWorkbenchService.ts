@@ -507,7 +507,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 			// Loading the compatible version only there is an engine property
 			// Otherwise falling back to old way so that we will not make many roundtrips
 			if (gallery.properties.engine) {
-				this.galleryService.loadCompatibleVersion(gallery)
+				this.galleryService.getCompatibleExtension(gallery)
 					.then(compatible => compatible ? this.syncLocalWithGalleryExtension(result!, compatible) : null);
 			} else {
 				this.syncLocalWithGalleryExtension(result, gallery);
@@ -679,7 +679,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 			return Promise.reject(new Error('Missing gallery'));
 		}
 
-		return this.galleryService.getExtension(extension.gallery.identifier, version)
+		return this.galleryService.getCompatibleExtension(extension.gallery.identifier, version)
 			.then(gallery => {
 				if (!gallery) {
 					return undefined;

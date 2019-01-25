@@ -463,12 +463,13 @@ CommandsRegistry.registerCommand({
 				const explorerView = viewlet.getExplorerView();
 				if (explorerView) {
 					explorerView.setExpanded(true);
-					explorerService.select(uri, true).then(undefined, onUnexpectedError);
+					explorerService.select(uri, true).then(() => explorerView.focus(), onUnexpectedError);
 				}
 			} else {
 				const openEditorsView = viewlet.getOpenEditorsView();
 				if (openEditorsView) {
 					openEditorsView.setExpanded(true);
+					openEditorsView.focus();
 				}
 			}
 		});

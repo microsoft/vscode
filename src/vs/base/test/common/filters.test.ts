@@ -449,4 +449,8 @@ suite('Filters', () => {
 		assertMatches('cno', 'co_new', '^c^o_^new', fuzzyScoreGraceful);
 		assertMatches('cno', 'co_new', '^c^o_^new', fuzzyScoreGracefulAggressive);
 	});
+
+	// test('List highlight filter: Not all characters from match are highlighterd #66923', () => {
+	// 	assertMatches('foo', 'barbarbarbarbarbarbarbarbarbarbarbarbarbarbarbar_foo', 'barbarbarbarbarbarbarbarbarbarbarbarbarbarbarbar_^f^o^o', fuzzyScore);
+	// });
 });

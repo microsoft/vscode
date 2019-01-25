@@ -25,7 +25,7 @@ import { IExtensionManifest, IKeyBinding, IView, IViewContainer, ExtensionType }
 import { ResolvedKeybinding, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, IExtension, IExtensionDependencies, ExtensionContainers } from 'vs/workbench/parts/extensions/common/extensions';
-import { RatingsWidget, InstallCountWidget } from 'vs/workbench/parts/extensions/electron-browser/extensionsWidgets';
+import { RatingsWidget, InstallCountWidget, RemoteBadgeWidget } from 'vs/workbench/parts/extensions/electron-browser/extensionsWidgets';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CombinedInstallAction, UpdateAction, ExtensionEditorDropDownAction, ReloadAction, MaliciousStatusLabelAction, IgnoreExtensionRecommendationAction, UndoIgnoreExtensionRecommendationAction, EnableDropDownAction, DisableDropDownAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
@@ -150,6 +150,7 @@ export class ExtensionEditor extends BaseEditor {
 
 	static readonly ID: string = 'workbench.editor.extension';
 
+	private iconContainer: HTMLElement;
 	private icon: HTMLImageElement;
 	private name: HTMLElement;
 	private identifier: HTMLElement;
@@ -207,7 +208,8 @@ export class ExtensionEditor extends BaseEditor {
 		const root = append(parent, $('.extension-editor'));
 		this.header = append(root, $('.header'));
 
-		this.icon = append(this.header, $<HTMLImageElement>('img.icon', { draggable: false }));
+		this.iconContainer = append(this.header, $('.icon-container'));
+		this.icon = append(this.iconContainer, $<HTMLImageElement>('img.icon', { draggable: false }));
 
 		const details = append(this.header, $('.details'));
 		const title = append(details, $('.title'));
@@ -285,6 +287,7 @@ export class ExtensionEditor extends BaseEditor {
 				this.extensionManifest = new Cache(() => createCancelablePromise(token => extension.getManifest(token)));
 				this.extensionDependencies = new Cache(() => createCancelablePromise(token => this.extensionsWorkbenchService.loadDependencies(extension, token)));
 
+				const remoteBadge = this.instantiationService.createInstance(RemoteBadgeWidget, this.iconContainer);
 				const onError = Event.once(domEvent(this.icon, 'error'));
 				onError(() => this.icon.src = extension.iconUrlFallback, null, this.transientDisposables);
 				this.icon.src = extension.iconUrl;
@@ -350,6 +353,7 @@ export class ExtensionEditor extends BaseEditor {
 				}
 
 				const widgets = [
+					remoteBadge,
 					this.instantiationService.createInstance(InstallCountWidget, this.installCount, false),
 					this.instantiationService.createInstance(RatingsWidget, this.rating, false)
 				];

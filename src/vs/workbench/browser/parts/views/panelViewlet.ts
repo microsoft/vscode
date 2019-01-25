@@ -259,7 +259,7 @@ export class PanelViewlet extends Viewlet {
 		let title = Registry.as<ViewletRegistry>(Extensions.Viewlets).getViewlet(this.getId()).name;
 
 		if (this.isSingleView()) {
-			title += ': ' + this.panelItems[0].panel.title;
+			title = `${title}: ${this.panelItems[0].panel.title}`;
 		}
 
 		return title;

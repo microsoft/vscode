@@ -225,6 +225,7 @@ export interface IListStyleOverrides extends IStyleOverrides {
 	listHoverOutline?: ColorIdentifier;
 	listMatchesBackground?: ColorIdentifier;
 	listMatchesOutline?: ColorIdentifier;
+	listNoMatchesOutline?: ColorIdentifier;
 	listMatchesShadow?: ColorIdentifier;
 }
 
@@ -249,6 +250,7 @@ export const defaultListStyles: IColorMapping = {
 	listSelectionOutline: activeContrastBorder,
 	listHoverOutline: activeContrastBorder,
 	listMatchesBackground: blend2(editorFindMatchHighlight, editorWidgetBackground),
+	listNoMatchesOutline: inputValidationWarningBorder,
 	listMatchesShadow: widgetShadow
 };
 

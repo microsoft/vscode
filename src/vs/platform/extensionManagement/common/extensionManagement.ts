@@ -156,11 +156,11 @@ export interface IExtensionGalleryService {
 	getManifest(extension: IGalleryExtension, token: CancellationToken): Promise<IExtensionManifest | null>;
 	getChangelog(extension: IGalleryExtension, token: CancellationToken): Promise<string>;
 	getCoreTranslation(extension: IGalleryExtension, languageId: string): Promise<ITranslation | null>;
-	loadCompatibleVersion(extension: IGalleryExtension, fromVersion?: string): Promise<IGalleryExtension | null>;
 	getAllVersions(extension: IGalleryExtension, compatible: boolean): Promise<IGalleryExtensionVersion[]>;
 	loadAllDependencies(dependencies: IExtensionIdentifier[], token: CancellationToken): Promise<IGalleryExtension[]>;
 	getExtensionsReport(): Promise<IReportedExtension[]>;
-	getExtension(id: IExtensionIdentifier, version?: string): Promise<IGalleryExtension | null>;
+	getCompatibleExtension(extension: IGalleryExtension): Promise<IGalleryExtension | null>;
+	getCompatibleExtension(id: IExtensionIdentifier, version?: string): Promise<IGalleryExtension | null>;
 }
 
 export interface InstallExtensionEvent {

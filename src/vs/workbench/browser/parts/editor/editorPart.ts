@@ -23,7 +23,6 @@ import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorGroup';
-import { always } from 'vs/base/common/async';
 import { EditorDropTarget } from 'vs/workbench/browser/parts/editor/editorDropTarget';
 import { localize } from 'vs/nls';
 import { Color } from 'vs/base/common/color';
@@ -829,7 +828,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		}
 
 		// Signal restored
-		always(Promise.all(this.groups.map(group => group.whenRestored)), () => this.whenRestoredResolve());
+		Promise.all(this.groups.map(group => group.whenRestored)).finally(() => this.whenRestoredResolve());
 
 		// Update container
 		this.updateContainer();

@@ -19,7 +19,6 @@ import { compareItemsByScore, IItemAccessor, prepareQuery, ScorerCache } from 'v
 import { MAX_FILE_SIZE } from 'vs/platform/files/node/files';
 import { ICachedSearchStats, IFileQuery, IFileSearchStats, IFolderQuery, IProgress, IRawFileQuery, IRawQuery, IRawTextQuery, ITextQuery } from 'vs/platform/search/common/search';
 import { Engine as FileSearchEngine } from 'vs/workbench/services/search/node/fileSearch';
-import { LegacyTextSearchService } from 'vs/workbench/services/search/node/legacy/rawLegacyTextSearchService';
 import { TextSearchEngineAdapter } from 'vs/workbench/services/search/node/textSearchAdapter';
 import { IFileSearchProgressItem, IRawFileMatch, IRawSearchService, ISearchEngine, ISearchEngineSuccess, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess } from './search';
 
@@ -32,7 +31,6 @@ export class SearchService implements IRawSearchService {
 
 	private static readonly BATCH_SIZE = 512;
 
-	private legacyTextSearchService = new LegacyTextSearchService();
 	private caches: { [cacheKey: string]: Cache; } = Object.create(null);
 
 	fileSearch(config: IRawFileQuery): Event<ISerializedSearchProgressItem | ISerializedSearchComplete> {
@@ -64,9 +62,7 @@ export class SearchService implements IRawSearchService {
 		const emitter = new Emitter<ISerializedSearchProgressItem | ISerializedSearchComplete>({
 			onFirstListenerDidAdd: () => {
 				promise = createCancelablePromise(token => {
-					return (rawQuery.useRipgrep ?
-						this.ripgrepTextSearch(query, p => emitter.fire(p), token) :
-						this.legacyTextSearchService.textSearch(query, p => emitter.fire(p), token));
+					return this.ripgrepTextSearch(query, p => emitter.fire(p), token);
 				});
 
 				promise.then(

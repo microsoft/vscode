@@ -123,7 +123,7 @@ export interface ICoreServices {
  * The workbench shell contains the workbench with a rich header containing navigation and the activity bar.
  * With the Shell being the top level element in the page, it is also responsible for driving the layouting.
  */
-export class WorkbenchShell extends Disposable {
+export class Shell extends Disposable {
 
 	private readonly _onWillShutdown = this._register(new Emitter<WillShutdownEvent>());
 	get onWillShutdown(): Event<WillShutdownEvent> { return this._onWillShutdown.event; }
@@ -416,11 +416,12 @@ export class WorkbenchShell extends Disposable {
 		serviceCollection.set(IWindowService, new SyncDescriptor(WindowService, [this.configuration.windowId, this.configuration]));
 
 		const sharedProcess = (<IWindowsService>serviceCollection.get(IWindowsService)).whenSharedProcessReady()
-			.then(() => connectNet(this.environmentService.sharedIPCHandle, `window:${this.configuration.windowId}`));
+			.then(() => connectNet(this.environmentService.sharedIPCHandle, `window:${this.configuration.windowId}`))
+			.then(client => {
+				client.registerChannel('dialog', instantiationService.createInstance(DialogChannel));
 
-		sharedProcess.then(client => {
-			client.registerChannel('dialog', instantiationService.createInstance(DialogChannel));
-		});
+				return client;
+			});
 
 		// Hash
 		serviceCollection.set(IHashService, new SyncDescriptor(HashService, undefined, true));

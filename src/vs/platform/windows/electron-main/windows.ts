@@ -88,10 +88,8 @@ export interface IWindowsMainService {
 
 	// events
 	readonly onWindowReady: Event<ICodeWindow>;
-	readonly onActiveWindowChanged: Event<ICodeWindow>;
 	readonly onWindowsCountChanged: Event<IWindowsCountChangedEvent>;
 	readonly onWindowClose: Event<number>;
-	readonly onWindowReload: Event<number>;
 
 	// methods
 	ready(initialUserEnv: IProcessEnvironment): void;

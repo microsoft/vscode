@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 
 import 'vs/css!./media/dirtydiffDecorator';
-import { ThrottledDelayer, always, first } from 'vs/base/common/async';
+import { ThrottledDelayer, first } from 'vs/base/common/async';
 import { IDisposable, dispose, toDisposable, Disposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as ext from 'vs/workbench/common/contributions';
@@ -1101,7 +1101,7 @@ export class DirtyDiffModel {
 			});
 		});
 
-		return always(this._originalURIPromise!, () => {
+		return this._originalURIPromise.finally(() => {
 			this._originalURIPromise = undefined;
 		});
 	}

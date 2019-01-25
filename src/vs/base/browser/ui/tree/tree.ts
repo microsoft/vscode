@@ -97,6 +97,8 @@ export interface ICollapseStateChangeEvent<T, TFilterData> {
 
 export interface ITreeModel<T, TFilterData, TRef> {
 	readonly rootRef: TRef;
+
+	readonly onDidSplice: Event<void>;
 	readonly onDidChangeCollapseState: Event<ICollapseStateChangeEvent<T, TFilterData>>;
 	readonly onDidChangeRenderNodeCount: Event<ITreeNode<T, TFilterData>>;
 
