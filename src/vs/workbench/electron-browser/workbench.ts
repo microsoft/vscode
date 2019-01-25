@@ -235,7 +235,11 @@ export class Workbench extends Disposable implements IPartService {
 	private fontAliasing: FontAliasingOption;
 	private hasInitialFilesToOpen: boolean;
 	private shouldCenterLayout = false;
-	private uiState: IWorkbenchUIState = {};
+	private uiState: IWorkbenchUIState = {
+		lastPanelHeight: 350,
+		lastPanelWidth: 350,
+		lastSidebarDimension: 300,
+	};
 
 	private inZenMode: IContextKey<boolean>;
 	private sideBarVisibleContext: IContextKey<boolean>;
@@ -1026,11 +1030,10 @@ export class Workbench extends Disposable implements IPartService {
 				});
 			} else {
 				this.workbenchGrid = new SerializableGrid(this.editorPart, { proportionalLayout: false });
-
 			}
 
-			this.updateGrid();
 			this.workbench.prepend(this.workbenchGrid.element);
+			this.layout();
 		} else {
 			this.workbenchGrid = this.instantiationService.createInstance(
 				WorkbenchLayout,
@@ -1522,8 +1525,8 @@ export class Workbench extends Disposable implements IPartService {
 				DOM.position(this.workbench, 0, 0, 0, 0, 'relative');
 				DOM.size(this.workbench, dimensions.width, dimensions.height);
 
-				this.updateGrid();
 				this.workbenchGrid.layout(dimensions.width, dimensions.height);
+				this.updateGrid();
 			} else {
 				this.workbenchGrid.layout(options);
 			}
