@@ -64,8 +64,8 @@ export function massageFolderPathForWorkspace(absoluteFolderPath: string, target
 export function rewriteWorkspaceFileForNewLocation(rawWorkspaceContents: string, configPathURI: URI, targetConfigPathURI: URI) {
 	let storedWorkspace = doParseStoredWorkspace(configPathURI, rawWorkspaceContents);
 
-	const sourceConfigFolder = dirname(configPathURI);
-	const targetConfigFolder = dirname(targetConfigPathURI);
+	const sourceConfigFolder = dirname(configPathURI)!;
+	const targetConfigFolder = dirname(targetConfigPathURI)!;
 
 	// Rewrite absolute paths to relative paths if the target workspace folder
 	// is a parent of the location of the workspace file itself. Otherwise keep
