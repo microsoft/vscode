@@ -7,19 +7,7 @@
 
 import 'vs/editor/editor.all';
 
-import 'vs/workbench/browser/actions/layoutActions';
-import 'vs/workbench/browser/actions/listCommands';
-import 'vs/workbench/browser/actions/navigationActions';
-
-import 'vs/workbench/browser/parts/quickopen/quickopen.contribution';
-import 'vs/workbench/browser/parts/quickinput/quickInput.contribution';
-
-import 'vs/workbench/browser/parts/editor/editorPicker';
-
-import 'vs/workbench/electron-browser/workbench';
-
 import 'vs/workbench/api/electron-browser/extensionHost.contribution';
-import 'vs/workbench/api/browser/viewsExtensionPoint';
 
 import 'vs/workbench/electron-browser/main.contribution';
 import 'vs/workbench/electron-browser/main';
@@ -27,10 +15,28 @@ import 'vs/workbench/electron-browser/main';
 //#endregion
 
 
+//#region --- workbench actions
+
+import 'vs/workbench/browser/actions/layoutActions';
+import 'vs/workbench/browser/actions/listCommands';
+import 'vs/workbench/browser/actions/navigationActions';
+import 'vs/workbench/browser/parts/quickopen/quickopenActions';
+import 'vs/workbench/browser/parts/quickinput/quickInputActions';
+
+//#endregion
+
+
+//#region --- API Extension Points
+
+import 'vs/workbench/api/common/menusExtensionPoint';
+import 'vs/workbench/api/common/configurationExtensionPoint';
+import 'vs/workbench/api/browser/viewsExtensionPoint';
+
+//#endregion
+
+
 //#region --- workbench services
 
-import 'vs/workbench/services/configuration/common/configurationExtensionPoint';
-import 'vs/workbench/services/actions/electron-browser/menusExtensionPoint';
 import 'vs/workbench/services/bulkEdit/electron-browser/bulkEditService';
 
 //#endregion
