@@ -1088,7 +1088,7 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	//#region SignatureHelpContext active paramters - mjbvz
+	//#region SignatureHelpContext active parameters - mjbvz
 	export interface SignatureHelpContext {
 		/**
 		 * The currently active [`SignatureHelp`](#SignatureHelp).
