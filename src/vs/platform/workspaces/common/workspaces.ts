@@ -77,7 +77,6 @@ export interface IWorkspaceFolderCreationData {
 export interface IWorkspacesMainService extends IWorkspacesService {
 	_serviceBrand: any;
 
-	onWorkspaceSaved: Event<IWorkspaceSavedEvent>;
 	onUntitledWorkspaceDeleted: Event<IWorkspaceIdentifier>;
 
 	saveWorkspace(workspace: IWorkspaceIdentifier, target: string): Promise<IWorkspaceIdentifier>;
@@ -101,6 +100,8 @@ export interface IWorkspacesService {
 	_serviceBrand: any;
 
 	createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[]): Promise<IWorkspaceIdentifier>;
+
+	deleteIfUntitledWorkspace(workspace: IWorkspaceIdentifier): Promise<any>;
 }
 
 export function isSingleFolderWorkspaceIdentifier(obj: any): obj is ISingleFolderWorkspaceIdentifier {

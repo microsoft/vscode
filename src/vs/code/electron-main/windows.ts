@@ -167,7 +167,7 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		this.dialogs = new Dialogs(environmentService, telemetryService, stateService, this);
-		this.workspacesManager = new WorkspacesManager(workspacesMainService, backupMainService, environmentService, this);
+		this.workspacesManager = new WorkspacesManager(workspacesMainService, backupMainService, environmentService, historyMainService, this);
 	}
 
 	private getWindowsState(): IWindowsState {
@@ -1955,7 +1955,8 @@ class WorkspacesManager {
 		private workspacesMainService: IWorkspacesMainService,
 		private backupMainService: IBackupMainService,
 		private environmentService: IEnvironmentService,
-		private windowsMainService: IWindowsMainService
+		private historyMainService: IHistoryMainService,
+		private windowsMainService: IWindowsMainService,
 	) {
 	}
 
@@ -2090,7 +2091,11 @@ class WorkspacesManager {
 						defaultPath: this.getUntitledWorkspaceSaveDialogDefaultPath(workspace)
 					}, window).then(target => {
 						if (target) {
-							return this.workspacesMainService.saveWorkspace(workspace, target).then(() => false, () => false);
+							return this.workspacesMainService.saveWorkspace(workspace, target).then(savedWorkspace => {
+								this.historyMainService.addRecentlyOpened([savedWorkspace], []);
+								return false;
+							},
+								() => false);
 						}
 
 						return true; // keep veto if no target was provided
