@@ -57,7 +57,7 @@ export class GlobalStorageDatabaseChannel extends Disposable implements IServerC
 
 	private serializeEvents(events: IStorageChangeEvent[]): ISerializableItemsChangeEvent {
 		const items = new Map<Key, Value>();
-		events.forEach(event => items.set(event.key, this.storageMainService.get(event.key, '')));
+		events.forEach(event => items.set(event.key, this.storageMainService.get(event.key)));
 
 		return { items: mapToSerializable(items) } as ISerializableItemsChangeEvent;
 	}

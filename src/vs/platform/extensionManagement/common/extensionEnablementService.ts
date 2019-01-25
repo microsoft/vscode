@@ -375,7 +375,7 @@ class StorageManager extends Disposable {
 	}
 
 	private _get(key: string, scope: StorageScope): string {
-		return this.storageService.get(key, scope, '[]') || '[]';
+		return this.storageService.get(key, scope, '[]');
 	}
 
 	private _set(key: string, value: string | undefined, scope: StorageScope): void {
