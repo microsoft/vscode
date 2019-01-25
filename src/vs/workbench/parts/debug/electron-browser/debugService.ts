@@ -45,8 +45,8 @@ import { DebugSession } from 'vs/workbench/parts/debug/electron-browser/debugSes
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IDebugService, State, IDebugSession, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_MODE, IThread, IDebugConfiguration, VIEWLET_ID, REPL_ID, IConfig, ILaunch, IViewModel, IConfigurationManager, IDebugModel, IEnablement, IBreakpoint, IBreakpointData, ICompound, IGlobalConfig, IStackFrame, AdapterEndEvent, getStateLabel } from 'vs/workbench/parts/debug/common/debug';
 import { isExtensionHostDebugging } from 'vs/workbench/parts/debug/common/debugUtils';
-import { RunOnceScheduler } from 'vs/base/common/async';
 import { isErrorWithActions, createErrorWithActions } from 'vs/base/common/errorsWithActions';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_BREAKPOINTS_ACTIVATED_KEY = 'debug.breakpointactivated';
@@ -90,25 +90,25 @@ export class DebugService implements IDebugService {
 	private previousState: State;
 
 	constructor(
-		@IStorageService private storageService: IStorageService,
-		@IEditorService private editorService: IEditorService,
-		@ITextFileService private textFileService: ITextFileService,
-		@IViewletService private viewletService: IViewletService,
-		@IPanelService private panelService: IPanelService,
-		@INotificationService private notificationService: INotificationService,
-		@IDialogService private dialogService: IDialogService,
-		@IPartService private partService: IPartService,
-		@IBroadcastService private broadcastService: IBroadcastService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IStorageService private readonly storageService: IStorageService,
+		@IEditorService private readonly editorService: IEditorService,
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@IViewletService private readonly viewletService: IViewletService,
+		@IPanelService private readonly panelService: IPanelService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@IPartService private readonly partService: IPartService,
+		@IBroadcastService private readonly broadcastService: IBroadcastService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IExtensionService private extensionService: IExtensionService,
-		@IMarkerService private markerService: IMarkerService,
-		@ITaskService private taskService: ITaskService,
-		@IFileService private fileService: IFileService,
-		@IConfigurationService private configurationService: IConfigurationService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IMarkerService private readonly markerService: IMarkerService,
+		@ITaskService private readonly taskService: ITaskService,
+		@IFileService private readonly fileService: IFileService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		this.toDispose = [];
 
@@ -119,7 +119,7 @@ export class DebugService implements IDebugService {
 		this._onWillNewSession = new Emitter<IDebugSession>();
 		this._onDidEndSession = new Emitter<IDebugSession>();
 
-		this.configurationManager = this.instantiationService.createInstance(ConfigurationManager);
+		this.configurationManager = this.instantiationService.createInstance(ConfigurationManager, this);
 		this.toDispose.push(this.configurationManager);
 
 		this.debugType = CONTEXT_DEBUG_TYPE.bindTo(contextKeyService);
@@ -428,6 +428,12 @@ export class DebugService implements IDebugService {
 		// this event doesn't go to extensions
 		this._onWillNewSession.fire(session);
 
+		const openDebug = this.configurationService.getValue<IDebugConfiguration>('debug').openDebug;
+		// Open debug viewlet based on the visibility of the side bar and openDebug setting. Do not open for 'run without debug'
+		if (!configuration.resolved.noDebug && (openDebug === 'openOnSessionStart' || (openDebug === 'openOnFirstSessionStart' && this.viewModel.firstSessionStart))) {
+			this.viewletService.openViewlet(VIEWLET_ID).then(undefined, errors.onUnexpectedError);
+		}
+
 		return this.launchOrAttachToSession(session).then(() => {
 
 			// since the initialized response has arrived announce the new Session (including extensions)
@@ -438,14 +444,8 @@ export class DebugService implements IDebugService {
 				this.panelService.openPanel(REPL_ID, false);
 			}
 
-			const openDebug = this.configurationService.getValue<IDebugConfiguration>('debug').openDebug;
-			// Open debug viewlet based on the visibility of the side bar and openDebug setting. Do not open for 'run without debug'
-			if (!configuration.resolved.noDebug && (openDebug === 'openOnSessionStart' || (openDebug === 'openOnFirstSessionStart' && this.viewModel.firstSessionStart))) {
-				this.viewletService.openViewlet(VIEWLET_ID);
-			}
 			this.viewModel.firstSessionStart = false;
 
-			this.debugType.set(session.configuration.type);
 			if (this.model.getSessions().length > 1) {
 				this.viewModel.setMultiSessionView(true);
 			}
@@ -490,10 +490,9 @@ export class DebugService implements IDebugService {
 
 	private registerSessionListeners(session: IDebugSession): void {
 		const sessionRunningScheduler = new RunOnceScheduler(() => {
-			// Do not immediatly focus another session or thread if a session is running
-			// Stepping in a session should preserve that session focused even if some continued events happen
+			// Do not immediatly defocus the stack frame if the session is running
 			if (session.state === State.Running && this.viewModel.focusedSession === session) {
-				this.focusStackFrame(undefined);
+				this.viewModel.setFocus(undefined, this.viewModel.focusedThread, session, false);
 			}
 		}, 200);
 		this.toDispose.push(session.onDidChangeState(() => {
@@ -535,7 +534,6 @@ export class DebugService implements IDebugService {
 			}
 
 			if (this.model.getSessions().length === 0) {
-				this.debugType.reset();
 				this.viewModel.setMultiSessionView(false);
 
 				if (this.partService.isVisible(Parts.SIDEBAR_PART) && this.configurationService.getValue<IDebugConfiguration>('debug').openExplorerOnEnd) {
@@ -606,7 +604,7 @@ export class DebugService implements IDebugService {
 
 								this.launchOrAttachToSession(session, shouldFocus).then(() => {
 									this._onDidNewSession.fire(session);
-									c(void 0);
+									c(undefined);
 								}, err => e(err));
 							});
 						});
@@ -660,7 +658,7 @@ export class DebugService implements IDebugService {
 				return actions[choice].run();
 			}
 
-			return void 0;
+			return undefined;
 		});
 	}
 
@@ -727,7 +725,7 @@ export class DebugService implements IDebugService {
 				if (task.configurationProperties.isBackground) {
 					return new Promise((c, e) => once(e => e.kind === TaskEventKind.Inactive && e.taskId === task._id, this.taskService.onDidStateChange)(() => {
 						taskStarted = true;
-						c(void 0);
+						c(undefined);
 					}));
 				}
 
@@ -778,13 +776,18 @@ export class DebugService implements IDebugService {
 		if (!stackFrame) {
 			if (thread) {
 				const callStack = thread.getCallStack();
-				stackFrame = first(callStack, sf => sf.source && sf.source.available, undefined);
+				stackFrame = first(callStack, sf => sf.source && sf.source.available && sf.source.presentationHint !== 'deemphasize', undefined);
 			}
 		}
 
 		if (stackFrame) {
 			stackFrame.openInEditor(this.editorService, true);
 			aria.alert(nls.localize('debuggingPaused', "Debugging paused {0}, {1} {2}", thread.stoppedDetails ? `, reason ${thread.stoppedDetails.reason}` : '', stackFrame.source ? stackFrame.source.name : '', stackFrame.range.startLineNumber));
+		}
+		if (session) {
+			this.debugType.set(session.configuration.type);
+		} else {
+			this.debugType.reset();
 		}
 
 		this.viewModel.setFocus(stackFrame, thread, session, explicit);
@@ -912,7 +915,7 @@ export class DebugService implements IDebugService {
 		if (session) {
 			return send(session);
 		}
-		return Promise.all(this.model.getSessions().map(s => send(s))).then(() => void 0);
+		return Promise.all(this.model.getSessions().map(s => send(s))).then(() => undefined);
 	}
 
 	private onFileChanges(fileChangesEvent: FileChangesEvent): void {
@@ -1030,7 +1033,7 @@ export class DebugService implements IDebugService {
 			breakpointCount: this.model.getBreakpoints().length,
 			exceptionBreakpoints: this.model.getExceptionBreakpoints(),
 			watchExpressionsCount: this.model.getWatchExpressions().length,
-			extensionName: extension.id,
+			extensionName: extension.identifier.value,
 			isBuiltin: extension.isBuiltin,
 			launchJsonExists: root && !!this.configurationService.getValue<IGlobalConfig>('launch', { resource: root.uri })
 		});

@@ -37,7 +37,7 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 
 		// Listeners
 		this._register(this.userConfiguration.onDidChangeConfiguration(userConfigurationModel => this.onDidChangeUserConfiguration(userConfigurationModel)));
-		this._register(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidRegisterConfiguration(configurationProperties => this.onDidRegisterConfiguration(configurationProperties)));
+		this._register(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidUpdateConfiguration(configurationProperties => this.onDidDefaultConfigurationChange(configurationProperties)));
 	}
 
 	get configuration(): Configuration {
@@ -53,7 +53,7 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 	getValue<T>(overrides: IConfigurationOverrides): T;
 	getValue<T>(section: string, overrides: IConfigurationOverrides): T;
 	getValue(arg1?: any, arg2?: any): any {
-		const section = typeof arg1 === 'string' ? arg1 : void 0;
+		const section = typeof arg1 === 'string' ? arg1 : undefined;
 		const overrides = isConfigurationOverrides(arg1) ? arg1 : isConfigurationOverrides(arg2) ? arg2 : {};
 		return this.configuration.getValue(section, overrides, null);
 	}
@@ -86,7 +86,7 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 	}
 
 	reloadConfiguration(folder?: IWorkspaceFolder): Promise<void> {
-		return folder ? Promise.resolve(void 0) :
+		return folder ? Promise.resolve(undefined) :
 			this.userConfiguration.reload().then(userConfigurationModel => this.onDidChangeUserConfiguration(userConfigurationModel));
 	}
 
@@ -99,7 +99,7 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 		}
 	}
 
-	private onDidRegisterConfiguration(keys: string[]): void {
+	private onDidDefaultConfigurationChange(keys: string[]): void {
 		this._configuration.updateDefaultConfiguration(new DefaultConfigurationModel());
 		this.trigger(keys, ConfigurationTarget.DEFAULT);
 	}

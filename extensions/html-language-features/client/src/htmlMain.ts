@@ -8,11 +8,12 @@ import * as fs from 'fs';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-import { languages, ExtensionContext, IndentAction, Position, TextDocument, Range, CompletionItem, CompletionItemKind, SnippetString, workspace } from 'vscode';
-import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, TextDocumentPositionParams } from 'vscode-languageclient';
+import { languages, ExtensionContext, IndentAction, Position, TextDocument, Range, CompletionItem, CompletionItemKind, SnippetString, workspace, SelectionRange, SelectionRangeKind } from 'vscode';
+import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, TextDocumentPositionParams, TextDocumentIdentifier } from 'vscode-languageclient';
 import { EMPTY_ELEMENTS } from './htmlEmptyTagsShared';
 import { activateTagClosing } from './tagClosing';
 import TelemetryReporter from 'vscode-extension-telemetry';
+import { getCustomDataPathsInAllWorkspaces } from './customData';
 
 namespace TagCloseRequest {
 	export const type: RequestType<TextDocumentPositionParams, string, any, any> = new RequestType('html/tag');
@@ -49,23 +50,7 @@ export function activate(context: ExtensionContext) {
 	let documentSelector = ['html', 'handlebars', 'razor'];
 	let embeddedLanguages = { css: true, javascript: true };
 
-	let tagPaths: string[] = workspace.getConfiguration('html').get('experimental.custom.tags', []);
-	let attributePaths: string[] = workspace.getConfiguration('html').get('experimental.custom.attributes', []);
-
-	if (tagPaths && tagPaths.length > 0) {
-		if (!workspace.workspaceFolders) {
-			tagPaths = [];
-		} else {
-			try {
-				const workspaceRoot = workspace.workspaceFolders[0].uri.fsPath;
-				tagPaths = tagPaths.map(d => {
-					return path.resolve(workspaceRoot, d);
-				});
-			} catch (err) {
-				tagPaths = [];
-			}
-		}
-	}
+	let { dataPaths } = getCustomDataPathsInAllWorkspaces(workspace.workspaceFolders);
 
 	// Options to control the language client
 	let clientOptions: LanguageClientOptions = {
@@ -75,8 +60,7 @@ export function activate(context: ExtensionContext) {
 		},
 		initializationOptions: {
 			embeddedLanguages,
-			tagPaths,
-			attributePaths
+			dataPaths
 		}
 	};
 
@@ -100,6 +84,21 @@ export function activate(context: ExtensionContext) {
 			}
 		});
 		toDispose.push(disposable);
+	});
+
+	languages.registerSelectionRangeProvider('html', {
+		async provideSelectionRanges(document: TextDocument, position: Position): Promise<SelectionRange[]> {
+			const textDocument = TextDocumentIdentifier.create(document.uri.toString());
+			const rawRanges: Range[] = await client.sendRequest('$/textDocument/selectionRange', { textDocument, position });
+
+			return rawRanges.map(r => {
+				const actualRange = new Range(new Position(r.start.line, r.start.character), new Position(r.end.line, r.end.character));
+				return {
+					range: actualRange,
+					kind: SelectionRangeKind.Declaration
+				};
+			});
+		}
 	});
 
 	languages.setLanguageConfiguration('html', {

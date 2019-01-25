@@ -7,13 +7,15 @@ import * as cp from 'child_process';
 import { EventEmitter } from 'events';
 import * as path from 'path';
 import { NodeStringDecoder, StringDecoder } from 'string_decoder';
-import { createRegExp, startsWith, startsWithUTF8BOM, stripUTF8BOM, escapeRegExpCharacters } from 'vs/base/common/strings';
+import { createRegExp, startsWith, startsWithUTF8BOM, stripUTF8BOM, escapeRegExpCharacters, endsWith } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { IExtendedExtensionSearchOptions, SearchError, SearchErrorCode, serializeSearchError } from 'vs/platform/search/common/search';
 import * as vscode from 'vscode';
 import { rgPath } from 'vscode-ripgrep';
 import { anchorGlob, createTextSearchResult, IOutputChannel, Maybe, Range } from './ripgrepSearchUtils';
 import { coalesce } from 'vs/base/common/arrays';
+import { splitGlobAware } from 'vs/base/common/glob';
+import { groupBy } from 'vs/base/common/collections';
 
 // If vscode-ripgrep is in an .asar file, then the binary is unpacked.
 const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
@@ -123,7 +125,7 @@ export function rgErrorMsgForDisplay(msg: string): Maybe<SearchError> {
 		return new SearchError('Regex parse error', SearchErrorCode.regexParseError);
 	}
 
-	let match = firstLine.match(/grep config error: unknown encoding: (.*)/);
+	const match = firstLine.match(/grep config error: unknown encoding: (.*)/);
 	if (match) {
 		return new SearchError(`Unknown encoding: ${match[1]}`, SearchErrorCode.unknownEncoding);
 	}
@@ -154,11 +156,11 @@ export class RipgrepParser extends EventEmitter {
 		this.stringDecoder = new StringDecoder();
 	}
 
-	public cancel(): void {
+	cancel(): void {
 		this.isDone = true;
 	}
 
-	public flush(): void {
+	flush(): void {
 		this.handleDecodedData(this.stringDecoder.end());
 	}
 
@@ -169,7 +171,7 @@ export class RipgrepParser extends EventEmitter {
 		super.on(event, listener);
 	}
 
-	public handleData(data: Buffer | string): void {
+	handleData(data: Buffer | string): void {
 		if (this.isDone) {
 			return;
 		}
@@ -235,7 +237,12 @@ export class RipgrepParser extends EventEmitter {
 
 	private createTextSearchMatch(data: IRgMatch, uri: vscode.Uri): vscode.TextSearchMatch {
 		const lineNumber = data.line_number - 1;
-		const fullText = bytesOrTextToString(data.lines);
+		let isBOMStripped = false;
+		let fullText = bytesOrTextToString(data.lines);
+		if (lineNumber === 0 && startsWithUTF8BOM(fullText)) {
+			isBOMStripped = true;
+			fullText = stripUTF8BOM(fullText);
+		}
 		const fullTextBytes = Buffer.from(fullText);
 
 		let prevMatchEnd = 0;
@@ -253,21 +260,20 @@ export class RipgrepParser extends EventEmitter {
 			}
 
 			let matchText = bytesOrTextToString(match.match);
+			if (lineNumber === 0 && i === 0 && isBOMStripped) {
+				matchText = stripUTF8BOM(matchText);
+				match.start = match.start <= 3 ? 0 : match.start - 3;
+				match.end = match.end <= 3 ? 0 : match.end - 3;
+			}
 			const inBetweenChars = fullTextBytes.slice(prevMatchEnd, match.start).toString().length;
 			let startCol = prevMatchEndCol + inBetweenChars;
 
 			const stats = getNumLinesAndLastNewlineLength(matchText);
-			let startLineNumber = prevMatchEndLine;
-			let endLineNumber = stats.numLines + startLineNumber;
+			const startLineNumber = prevMatchEndLine;
+			const endLineNumber = stats.numLines + startLineNumber;
 			let endCol = stats.numLines > 0 ?
 				stats.lastLineLength :
 				stats.lastLineLength + startCol;
-
-			if (lineNumber === 0 && i === 0 && startsWithUTF8BOM(matchText)) {
-				matchText = stripUTF8BOM(matchText);
-				startCol -= 3;
-				endCol -= 3;
-			}
 
 			prevMatchEnd = match.end;
 			prevMatchEndCol = endCol;
@@ -326,9 +332,36 @@ function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOpti
 	const args = ['--hidden'];
 	args.push(query.isCaseSensitive ? '--case-sensitive' : '--ignore-case');
 
-	options.includes
-		.map(anchorGlob)
-		.forEach(globArg => args.push('-g', globArg));
+	const { doubleStarIncludes, otherIncludes } = groupBy(
+		options.includes,
+		(include: string) => startsWith(include, '**') ? 'doubleStarIncludes' : 'otherIncludes');
+
+	if (otherIncludes && otherIncludes.length) {
+		const uniqueOthers = new Set<string>();
+		otherIncludes.forEach(other => {
+			if (!endsWith(other, '/**')) {
+				other += '/**';
+			}
+
+			uniqueOthers.add(other);
+		});
+
+		args.push('-g', '!*');
+		uniqueOthers
+			.forEach(otherIncude => {
+				spreadGlobComponents(otherIncude)
+					.map(anchorGlob)
+					.forEach(globArg => {
+						args.push('-g', globArg);
+					});
+			});
+	}
+
+	if (doubleStarIncludes && doubleStarIncludes.length) {
+		doubleStarIncludes.forEach(globArg => {
+			args.push('-g', globArg);
+		});
+	}
 
 	options.excludes
 		.map(anchorGlob)
@@ -422,6 +455,18 @@ function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOpti
 	args.push('.');
 
 	return args;
+}
+
+/**
+ * `"foo/*bar/something"` -> `["foo", "foo/*bar", "foo/*bar/something", "foo/*bar/something/**"]`
+ */
+export function spreadGlobComponents(globArg: string): string[] {
+	const components = splitGlobAware(globArg, '/');
+	if (components[components.length - 1] !== '**') {
+		components.push('**');
+	}
+
+	return components.map((_, i) => components.slice(0, i + 1).join('/'));
 }
 
 export function unicodeEscapesToPCRE2(pattern: string): string {

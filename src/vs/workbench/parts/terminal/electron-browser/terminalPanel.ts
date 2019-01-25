@@ -96,6 +96,24 @@ export class TerminalPanel extends Panel {
 		this._updateFont();
 		this._updateTheme();
 
+		this._register(this.onDidChangeVisibility(visible => {
+			if (visible) {
+				if (this._terminalService.terminalInstances.length > 0) {
+					this._updateFont();
+					this._updateTheme();
+				} else {
+					// Check if instances were already restored as part of workbench restore
+					if (this._terminalService.terminalInstances.length === 0) {
+						this._terminalService.createTerminal();
+					}
+					if (this._terminalService.terminalInstances.length > 0) {
+						this._updateFont();
+						this._updateTheme();
+					}
+				}
+			}
+		}));
+
 		// Force another layout (first is setContainers) since config has changed
 		this.layout(new dom.Dimension(this._terminalContainer.offsetWidth, this._terminalContainer.offsetHeight));
 	}
@@ -105,28 +123,6 @@ export class TerminalPanel extends Panel {
 			return;
 		}
 		this._terminalService.terminalTabs.forEach(t => t.layout(dimension.width, dimension.height));
-	}
-
-	public setVisible(visible: boolean): void {
-		if (visible) {
-			if (this._terminalService.terminalInstances.length > 0) {
-				this._updateFont();
-				this._updateTheme();
-			} else {
-				super.setVisible(visible);
-				// Check if instances were already restored as part of workbench restore
-				if (this._terminalService.terminalInstances.length === 0) {
-					this._terminalService.createTerminal();
-				}
-				if (this._terminalService.terminalInstances.length > 0) {
-					this._updateFont();
-					this._updateTheme();
-				}
-				return;
-			}
-		}
-		super.setVisible(visible);
-
 	}
 
 	public getActions(): IAction[] {
@@ -155,7 +151,10 @@ export class TerminalPanel extends Panel {
 				this._instantiationService.createInstance(TerminalPasteAction, TerminalPasteAction.ID, TerminalPasteAction.SHORT_LABEL),
 				this._instantiationService.createInstance(SelectAllTerminalAction, SelectAllTerminalAction.ID, SelectAllTerminalAction.LABEL),
 				new Separator(),
-				this._instantiationService.createInstance(ClearTerminalAction, ClearTerminalAction.ID, ClearTerminalAction.LABEL)
+				this._instantiationService.createInstance(ClearTerminalAction, ClearTerminalAction.ID, ClearTerminalAction.LABEL),
+				new Separator(),
+				this._instantiationService.createInstance(KillTerminalAction, KillTerminalAction.ID, KillTerminalAction.PANEL_LABEL)
+
 			];
 			this._contextMenuActions.forEach(a => {
 				this._register(a);
@@ -262,6 +261,8 @@ export class TerminalPanel extends Panel {
 					getActions: () => this._getContextMenuActions(),
 					getActionsContext: () => this._parentDomElement
 				});
+			} else {
+				event.stopImmediatePropagation();
 			}
 			this._cancelContextMenu = false;
 		}));

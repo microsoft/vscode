@@ -12,7 +12,7 @@ import { getBaseLabel, getPathLabel } from 'vs/base/common/labels';
 import { IPath } from 'vs/platform/windows/common/windows';
 import { Event as CommonEvent, Emitter } from 'vs/base/common/event';
 import { isWindows, isMacintosh, isLinux } from 'vs/base/common/platform';
-import { IWorkspaceIdentifier, IWorkspacesMainService, IWorkspaceSavedEvent, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, IWorkspacesMainService, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IHistoryMainService, IRecentlyOpened } from 'vs/platform/history/common/history';
 import { isEqual } from 'vs/base/common/paths';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -48,24 +48,12 @@ export class HistoryMainService implements IHistoryMainService {
 	private macOSRecentDocumentsUpdater: RunOnceScheduler;
 
 	constructor(
-		@IStateService private stateService: IStateService,
-		@ILogService private logService: ILogService,
-		@IWorkspacesMainService private workspacesMainService: IWorkspacesMainService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IStateService private readonly stateService: IStateService,
+		@ILogService private readonly logService: ILogService,
+		@IWorkspacesMainService private readonly workspacesMainService: IWorkspacesMainService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
 		this.macOSRecentDocumentsUpdater = new RunOnceScheduler(() => this.updateMacOSRecentDocuments(), 800);
-
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-		this.workspacesMainService.onWorkspaceSaved(e => this.onWorkspaceSaved(e));
-	}
-
-	private onWorkspaceSaved(e: IWorkspaceSavedEvent): void {
-
-		// Make sure to add newly saved workspaces to the list of recent workspaces
-		this.addRecentlyOpened([e.workspace], []);
 	}
 
 	addRecentlyOpened(workspaces: Array<IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier>, files: URI[]): void {
@@ -180,7 +168,6 @@ export class HistoryMainService implements IHistoryMainService {
 		// out of sync quickly over time. the attempted fix is to always set the list fresh
 		// from our MRU history data. So we clear the documents first and then set the documents
 		// again.
-
 		app.clearRecentDocuments();
 
 		const mru = this.getRecentlyOpened();
@@ -257,6 +244,7 @@ export class HistoryMainService implements IHistoryMainService {
 		if (workspaceOrFile instanceof URI) {
 			return getComparisonKey(workspaceOrFile);
 		}
+
 		return workspaceOrFile.id;
 	}
 
@@ -286,6 +274,7 @@ export class HistoryMainService implements IHistoryMainService {
 					}
 				}
 			}
+
 			if (Array.isArray(storedRecents.files2)) {
 				for (const file of storedRecents.files2) {
 					if (typeof file === 'string') {
@@ -300,11 +289,13 @@ export class HistoryMainService implements IHistoryMainService {
 				}
 			}
 		}
+
 		return result;
 	}
 
 	private saveRecentlyOpened(recent: IRecentlyOpened): void {
 		const serialized: ISerializedRecentlyOpened = { workspaces2: [], files2: [] };
+
 		for (const workspace of recent.workspaces) {
 			if (isSingleFolderWorkspaceIdentifier(workspace)) {
 				serialized.workspaces2.push(workspace.toString());
@@ -312,9 +303,11 @@ export class HistoryMainService implements IHistoryMainService {
 				serialized.workspaces2.push(workspace);
 			}
 		}
+
 		for (const file of recent.files) {
 			serialized.files2.push(file.toString());
 		}
+
 		this.stateService.setItem(HistoryMainService.recentlyOpenedStorageKey, serialized);
 	}
 

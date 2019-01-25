@@ -34,8 +34,8 @@ class SymbolEntry extends EditorQuickOpenEntry {
 		private provider: IWorkspaceSymbolProvider,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorService editorService: IEditorService,
-		@ILabelService private labelService: ILabelService,
-		@IOpenerService private openerService: IOpenerService
+		@ILabelService private readonly labelService: ILabelService,
+		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		super(editorService);
 	}
@@ -82,7 +82,7 @@ class SymbolEntry extends EditorQuickOpenEntry {
 
 		// open after resolving
 		Promise.resolve(this.bearingResolve).then(() => {
-			const scheme = this.bearing.location.uri ? this.bearing.location.uri.scheme : void 0;
+			const scheme = this.bearing.location.uri ? this.bearing.location.uri.scheme : undefined;
 			if (scheme === Schemas.http || scheme === Schemas.https) {
 				if (mode === Mode.OPEN || mode === Mode.OPEN_IN_BACKGROUND) {
 					this.openerService.open(this.bearing.location.uri); // support http/https resources (https://github.com/Microsoft/vscode/issues/58924))
@@ -141,7 +141,7 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 	private delayer: ThrottledDelayer<QuickOpenEntry[]>;
 	private options: IOpenSymbolOptions;
 
-	constructor(@IInstantiationService private instantiationService: IInstantiationService) {
+	constructor(@IInstantiationService private readonly instantiationService: IInstantiationService) {
 		super();
 
 		this.delayer = new ThrottledDelayer<QuickOpenEntry[]>(OpenSymbolHandler.TYPING_SEARCH_DELAY);

@@ -30,6 +30,7 @@ import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode, ITreeContextMenuEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { TreeResourceNavigator2, WorkbenchAsyncDataTree, IListService } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 const $ = dom.$;
 
@@ -51,15 +52,15 @@ export class CallStackView extends ViewletPanel {
 	constructor(
 		private options: IViewletViewOptions,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IDebugService private debugService: IDebugService,
+		@IDebugService private readonly debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IEditorService private editorService: IEditorService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IMenuService menuService: IMenuService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IThemeService private themeService: IThemeService,
-		@IListService private listService: IListService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IThemeService private readonly themeService: IThemeService,
+		@IListService private readonly listService: IListService
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('callstackSection', "Call Stack Section") }, keybindingService, contextMenuService, configurationService);
 		this.callStackItemType = CONTEXT_CALLSTACK_ITEM_TYPE.bindTo(contextKeyService);
@@ -84,7 +85,7 @@ export class CallStackView extends ViewletPanel {
 
 			this.needsRefresh = false;
 			this.dataSource.deemphasizedStackFramesToShow = [];
-			this.tree.refresh().then(() => this.updateTreeSelection());
+			this.tree.updateChildren().then(() => this.updateTreeSelection());
 		}, 50);
 	}
 
@@ -144,8 +145,7 @@ export class CallStackView extends ViewletPanel {
 				}
 			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
 
-		// TODO@isidor this is a promise
-		this.tree.setInput(this.debugService.getModel());
+		this.tree.setInput(this.debugService.getModel()).then(undefined, onUnexpectedError);
 
 		const callstackNavigator = new TreeResourceNavigator2(this.tree);
 		this.disposables.push(callstackNavigator);
@@ -179,17 +179,17 @@ export class CallStackView extends ViewletPanel {
 				const thread = session && session.getThread(element.threadId);
 				if (thread) {
 					(<Thread>thread).fetchCallStack()
-						.then(() => this.tree.refresh());
+						.then(() => this.tree.updateChildren());
 				}
 			}
 			if (element instanceof Array) {
 				this.dataSource.deemphasizedStackFramesToShow.push(...element);
-				this.tree.refresh();
+				this.tree.updateChildren();
 			}
 		}));
 
 		this.disposables.push(this.debugService.getModel().onDidChangeCallStack(() => {
-			if (!this.isVisible()) {
+			if (!this.isBodyVisible()) {
 				this.needsRefresh = true;
 				return;
 			}
@@ -202,7 +202,7 @@ export class CallStackView extends ViewletPanel {
 			if (this.ignoreFocusStackFrameEvent) {
 				return;
 			}
-			if (!this.isVisible) {
+			if (!this.isBodyVisible()) {
 				this.needsRefresh = true;
 				return;
 			}
@@ -215,10 +215,16 @@ export class CallStackView extends ViewletPanel {
 		if (this.debugService.state === State.Stopped) {
 			this.onCallStackChangeScheduler.schedule(0);
 		}
+
+		this.disposables.push(this.onDidChangeBodyVisibility(visible => {
+			if (visible && this.needsRefresh) {
+				this.onCallStackChangeScheduler.schedule();
+			}
+		}));
 	}
 
-	layoutBody(size: number): void {
-		this.tree.layout(size);
+	layoutBody(height: number, width: number): void {
+		this.tree.layout(height, width);
 	}
 
 	private updateTreeSelection(): void {
@@ -253,13 +259,6 @@ export class CallStackView extends ViewletPanel {
 			if (stackFrame) {
 				expansionsPromise.then(() => updateSelectionAndReveal(stackFrame));
 			}
-		}
-	}
-
-	setVisible(visible: boolean): void {
-		super.setVisible(visible);
-		if (visible && this.needsRefresh) {
-			this.onCallStackChangeScheduler.schedule();
 		}
 	}
 
@@ -420,7 +419,7 @@ class ThreadsRenderer implements ITreeRenderer<IThread, void, IThreadTemplateDat
 class StackFramesRenderer implements ITreeRenderer<IStackFrame, void, IStackFrameTemplateData> {
 	static readonly ID = 'stackFrame';
 
-	constructor(@ILabelService private labelService: ILabelService) { }
+	constructor(@ILabelService private readonly labelService: ILabelService) { }
 
 	get templateId(): string {
 		return StackFramesRenderer.ID;

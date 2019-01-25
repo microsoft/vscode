@@ -123,7 +123,7 @@ export class SCMService implements ISCMService {
 	private _onDidRemoveProvider = new Emitter<ISCMRepository>();
 	get onDidRemoveRepository(): Event<ISCMRepository> { return this._onDidRemoveProvider.event; }
 
-	constructor(@ILogService private logService: ILogService) { }
+	constructor(@ILogService private readonly logService: ILogService) { }
 
 	registerSCMProvider(provider: ISCMProvider): ISCMRepository {
 		this.logService.trace('SCMService#registerSCMProvider');

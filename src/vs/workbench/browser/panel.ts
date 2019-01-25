@@ -35,6 +35,13 @@ export class PanelRegistry extends CompositeRegistry<Panel> {
 	}
 
 	/**
+	 * Deregisters a panel to the platform.
+	 */
+	deregisterPanel(id: string): void {
+		super.deregisterComposite(id);
+	}
+
+	/**
 	 * Returns an array of registered panels known to the platform.
 	 */
 	getPanels(): PanelDescriptor[] {

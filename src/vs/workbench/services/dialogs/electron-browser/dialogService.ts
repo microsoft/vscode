@@ -39,8 +39,8 @@ export class DialogService implements IDialogService {
 	_serviceBrand: any;
 
 	constructor(
-		@IWindowService private windowService: IWindowService,
-		@ILogService private logService: ILogService
+		@IWindowService private readonly windowService: IWindowService,
+		@ILogService private readonly logService: ILogService
 	) { }
 
 	confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
@@ -100,8 +100,8 @@ export class DialogService implements IDialogService {
 			message,
 			buttons,
 			type: (severity === Severity.Info) ? 'question' : (severity === Severity.Error) ? 'error' : (severity === Severity.Warning) ? 'warning' : 'none',
-			cancelId: dialogOptions ? dialogOptions.cancelId : void 0,
-			detail: dialogOptions ? dialogOptions.detail : void 0
+			cancelId: dialogOptions ? dialogOptions.cancelId : undefined,
+			detail: dialogOptions ? dialogOptions.detail : undefined
 		});
 
 		return this.windowService.showMessageBox(options).then(result => buttonIndexMap[result.button]);
@@ -157,47 +157,45 @@ export class FileDialogService implements IFileDialogService {
 	_serviceBrand: any;
 
 	constructor(
-		@IWindowService private windowService: IWindowService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IHistoryService private historyService: IHistoryService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IWindowService private readonly windowService: IWindowService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IHistoryService private readonly historyService: IHistoryService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) { }
 
-	public defaultFilePath(schemeFilter: string): URI | undefined {
-		let candidate: URI;
+	defaultFilePath(schemeFilter: string): URI | undefined {
 
 		// Check for last active file first...
-		candidate = this.historyService.getLastActiveFile(schemeFilter);
+		let candidate = this.historyService.getLastActiveFile(schemeFilter);
 
 		// ...then for last active file root
 		if (!candidate) {
 			candidate = this.historyService.getLastActiveWorkspaceRoot(schemeFilter);
 		}
 
-		return candidate && resources.dirname(candidate) || void 0;
+		return candidate && resources.dirname(candidate) || undefined;
 	}
 
-	public defaultFolderPath(schemeFilter: string): URI | undefined {
-		let candidate: URI;
+	defaultFolderPath(schemeFilter: string): URI | undefined {
 
 		// Check for last active file root first...
-		candidate = this.historyService.getLastActiveWorkspaceRoot(schemeFilter);
+		let candidate = this.historyService.getLastActiveWorkspaceRoot(schemeFilter);
 
 		// ...then for last active file
 		if (!candidate) {
 			candidate = this.historyService.getLastActiveFile(schemeFilter);
 		}
 
-		return candidate && resources.dirname(candidate) || void 0;
+		return candidate && resources.dirname(candidate) || undefined;
 	}
 
-	public defaultWorkspacePath(schemeFilter: string): URI | undefined {
+	defaultWorkspacePath(schemeFilter: string): URI | undefined {
 
 		// Check for current workspace config file first...
 		if (schemeFilter === Schemas.file && this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 			const configuration = this.contextService.getWorkspace().configuration;
 			if (configuration && !isUntitledWorkspace(configuration.fsPath, this.environmentService)) {
-				return resources.dirname(configuration) || void 0;
+				return resources.dirname(configuration) || undefined;
 			}
 		}
 
@@ -215,36 +213,39 @@ export class FileDialogService implements IFileDialogService {
 		};
 	}
 
-	public pickFileFolderAndOpen(options: IPickAndOpenOptions): Promise<any> {
-		let defaultUri = options.defaultUri;
+	pickFileFolderAndOpen(options: IPickAndOpenOptions): Promise<any> {
+		const defaultUri = options.defaultUri;
 		if (!defaultUri) {
 			options.defaultUri = this.defaultFilePath(Schemas.file);
 		}
-		return this.windowService.pickFileFolderAndOpen(this.toNativeOpenDialogOptions(options));
 
+		return this.windowService.pickFileFolderAndOpen(this.toNativeOpenDialogOptions(options));
 	}
 
-	public pickFileAndOpen(options: IPickAndOpenOptions): Promise<any> {
-		let defaultUri = options.defaultUri;
+	pickFileAndOpen(options: IPickAndOpenOptions): Promise<any> {
+		const defaultUri = options.defaultUri;
 		if (!defaultUri) {
 			options.defaultUri = this.defaultFilePath(Schemas.file);
 		}
+
 		return this.windowService.pickFileAndOpen(this.toNativeOpenDialogOptions(options));
 	}
 
-	public pickFolderAndOpen(options: IPickAndOpenOptions): Promise<any> {
-		let defaultUri = options.defaultUri;
+	pickFolderAndOpen(options: IPickAndOpenOptions): Promise<any> {
+		const defaultUri = options.defaultUri;
 		if (!defaultUri) {
 			options.defaultUri = this.defaultFolderPath(Schemas.file);
 		}
+
 		return this.windowService.pickFolderAndOpen(this.toNativeOpenDialogOptions(options));
 	}
 
-	public pickWorkspaceAndOpen(options: IPickAndOpenOptions): Promise<void> {
-		let defaultUri = options.defaultUri;
+	pickWorkspaceAndOpen(options: IPickAndOpenOptions): Promise<void> {
+		const defaultUri = options.defaultUri;
 		if (!defaultUri) {
 			options.defaultUri = this.defaultWorkspacePath(Schemas.file);
 		}
+
 		return this.windowService.pickWorkspaceAndOpen(this.toNativeOpenDialogOptions(options));
 	}
 
@@ -257,20 +258,22 @@ export class FileDialogService implements IFileDialogService {
 		};
 	}
 
-	public showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
+	showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
 		const defaultUri = options.defaultUri;
 		if (defaultUri && defaultUri.scheme !== Schemas.file) {
 			return Promise.reject(new Error('Not supported - Save-dialogs can only be opened on `file`-uris.'));
 		}
+
 		return this.windowService.showSaveDialog(this.toNativeSaveDialogOptions(options)).then(result => {
 			if (result) {
 				return URI.file(result);
 			}
-			return void 0;
+
+			return undefined;
 		});
 	}
 
-	public showOpenDialog(options: IOpenDialogOptions): Promise<URI[] | undefined> {
+	showOpenDialog(options: IOpenDialogOptions): Promise<URI[] | undefined> {
 		const defaultUri = options.defaultUri;
 		if (defaultUri && defaultUri.scheme !== Schemas.file) {
 			return Promise.reject(new Error('Not supported - Open-dialogs can only be opened on `file`-uris.'));
@@ -283,17 +286,22 @@ export class FileDialogService implements IFileDialogService {
 			filters: options.filters,
 			properties: []
 		};
+
 		newOptions.properties!.push('createDirectory');
+
 		if (options.canSelectFiles) {
 			newOptions.properties!.push('openFile');
 		}
+
 		if (options.canSelectFolders) {
 			newOptions.properties!.push('openDirectory');
 		}
+
 		if (options.canSelectMany) {
 			newOptions.properties!.push('multiSelections');
 		}
-		return this.windowService.showOpenDialog(newOptions).then(result => result ? result.map(URI.file) : void 0);
+
+		return this.windowService.showOpenDialog(newOptions).then(result => result ? result.map(URI.file) : undefined);
 	}
 }
 

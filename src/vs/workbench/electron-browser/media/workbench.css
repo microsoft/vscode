@@ -11,7 +11,7 @@
 	overflow: hidden;
 }
 
-.monaco-workbench > .part {
+.monaco-workbench .part {
 	position: absolute;
 	box-sizing:	border-box;
 }

@@ -21,7 +21,7 @@ declare namespace monaco {
 	export class Emitter<T> {
 		constructor();
 		readonly event: IEvent<T>;
-		fire(event?: T): void;
+		fire(event: T): void;
 		dispose(): void;
 	}
 
@@ -846,8 +846,8 @@ declare namespace monaco.editor {
 
 	/**
 	 * Get markers for owner and/or resource
-	 * @returns {IMarker[]} list of markers
-	 * @param filter
+	 *
+	 * @returns list of markers
 	 */
 	export function getModelMarkers(filter: {
 		owner?: string;
@@ -2263,6 +2263,7 @@ declare namespace monaco.editor {
 	 * An event describing that some ranges of lines have been tokenized (their tokens have changed).
 	 */
 	export interface IModelTokensChangedEvent {
+		readonly tokenizationSupportChanged: boolean;
 		readonly ranges: {
 			/**
 			 * The start of the range (inclusive)
@@ -2788,6 +2789,11 @@ declare namespace monaco.editor {
 		 */
 		mouseWheelScrollSensitivity?: number;
 		/**
+		 * FastScrolling mulitplier speed when pressing `Alt`
+		 * Defaults to 5.
+		 */
+		fastScrollSensitivity?: number;
+		/**
 		 * The modifier to be used to add multiple cursors with the mouse.
 		 * Defaults to 'alt'
 		 */
@@ -3013,6 +3019,10 @@ declare namespace monaco.editor {
 		 * Controls fading out of unused variables.
 		 */
 		showUnused?: boolean;
+		/**
+		 * Selects text after paste
+		 */
+		selectAfterPaste?: boolean;
 	}
 
 	/**
@@ -3149,6 +3159,7 @@ declare namespace monaco.editor {
 		readonly verticalScrollbarSize: number;
 		readonly verticalSliderSize: number;
 		readonly mouseWheelScrollSensitivity: number;
+		readonly fastScrollSensitivity: number;
 	}
 
 	export interface InternalEditorMinimapOptions {
@@ -3273,6 +3284,7 @@ declare namespace monaco.editor {
 		readonly lightbulbEnabled: boolean;
 		readonly codeActionsOnSave: ICodeActionsOnSaveOptions;
 		readonly codeActionsOnSaveTimeout: number;
+		readonly selectAfterPaste: boolean;
 	}
 
 	/**
@@ -4036,7 +4048,7 @@ declare namespace monaco.editor {
 		/**
 		 * Force an editor render now.
 		 */
-		render(): void;
+		render(forceRedraw?: boolean): void;
 		/**
 		 * Get the hit test target at coordinates `clientX` and `clientY`.
 		 * The coordinates are relative to the top-left of the viewport.
@@ -4368,8 +4380,6 @@ declare namespace monaco.languages {
 	export interface CodeActionContext {
 		/**
 		 * An array of diagnostics.
-		 *
-		 * @readonly
 		 */
 		readonly markers: editor.IMarkerData[];
 		/**
@@ -4844,6 +4854,7 @@ declare namespace monaco.languages {
 		edit?: WorkspaceEdit;
 		diagnostics?: editor.IMarkerData[];
 		kind?: string;
+		isPreferred?: boolean;
 	}
 
 	/**
@@ -4915,6 +4926,7 @@ declare namespace monaco.languages {
 		readonly triggerKind: SignatureHelpTriggerKind;
 		readonly triggerCharacter?: string;
 		readonly isRetrigger: boolean;
+		readonly activeSignatureHelp?: SignatureHelp;
 	}
 
 	/**
@@ -5013,19 +5025,27 @@ declare namespace monaco.languages {
 		range: IRange;
 	}
 
-	/**
-	 * The definition of a symbol represented as one or many [locations](#Location).
-	 * For most programming languages there is only one location at which a symbol is
-	 * defined.
-	 */
-	export type Definition = Location | Location[];
-
-	export interface DefinitionLink {
-		origin?: IRange;
+	export interface LocationLink {
+		/**
+		 * A range to select where this link originates from.
+		 */
+		originSelectionRange?: IRange;
+		/**
+		 * The target uri this link points to.
+		 */
 		uri: Uri;
+		/**
+		 * The full range this link points to.
+		 */
 		range: IRange;
-		selectionRange?: IRange;
+		/**
+		 * A range to select this link points to. Must be contained
+		 * in `LocationLink.range`.
+		 */
+		targetSelectionRange?: IRange;
 	}
+
+	export type Definition = Location | Location[] | LocationLink[];
 
 	/**
 	 * The definition provider interface defines the contract between extensions and
@@ -5036,7 +5056,7 @@ declare namespace monaco.languages {
 		/**
 		 * Provide the definition of the symbol at the given position and document.
 		 */
-		provideDefinition(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | DefinitionLink[]>;
+		provideDefinition(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | LocationLink[]>;
 	}
 
 	/**
@@ -5048,7 +5068,7 @@ declare namespace monaco.languages {
 		/**
 		 * Provide the declaration of the symbol at the given position and document.
 		 */
-		provideDeclaration(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | DefinitionLink[]>;
+		provideDeclaration(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | LocationLink[]>;
 	}
 
 	/**
@@ -5059,7 +5079,7 @@ declare namespace monaco.languages {
 		/**
 		 * Provide the implementation of the symbol at the given position and document.
 		 */
-		provideImplementation(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | DefinitionLink[]>;
+		provideImplementation(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | LocationLink[]>;
 	}
 
 	/**
@@ -5070,7 +5090,7 @@ declare namespace monaco.languages {
 		/**
 		 * Provide the type definition of the symbol at the given position and document.
 		 */
-		provideTypeDefinition(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | DefinitionLink[]>;
+		provideTypeDefinition(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | LocationLink[]>;
 	}
 
 	/**
@@ -5152,6 +5172,7 @@ declare namespace monaco.languages {
 	 * the formatting-feature.
 	 */
 	export interface DocumentFormattingEditProvider {
+		displayName?: string;
 		/**
 		 * Provide formatting edits for a whole document.
 		 */
@@ -5163,6 +5184,7 @@ declare namespace monaco.languages {
 	 * the formatting-feature.
 	 */
 	export interface DocumentRangeFormattingEditProvider {
+		displayName?: string;
 		/**
 		 * Provide formatting edits for a range in a document.
 		 *

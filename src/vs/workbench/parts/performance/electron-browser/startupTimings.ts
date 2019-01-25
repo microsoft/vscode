@@ -3,26 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { appendFile } from 'fs';
+import { nfcall, timeout } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ILifecycleService, LifecyclePhase, StartupKind } from 'vs/platform/lifecycle/common/lifecycle';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ILifecycleService, StartupKind } from 'vs/platform/lifecycle/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
-import { Registry } from 'vs/platform/registry/common/platform';
+import product from 'vs/platform/node/product';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUpdateService } from 'vs/platform/update/common/update';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { Extensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import * as files from 'vs/workbench/parts/files/common/files';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { ITimerService, didUseCachedData } from 'vs/workbench/services/timer/electron-browser/timerService';
+import { didUseCachedData, ITimerService } from 'vs/workbench/services/timer/electron-browser/timerService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import product from 'vs/platform/node/product';
-import { timeout, nfcall } from 'vs/base/common/async';
-import { appendFile } from 'fs';
 
-class StartupTimings implements IWorkbenchContribution {
+export class StartupTimings implements IWorkbenchContribution {
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -42,11 +41,11 @@ class StartupTimings implements IWorkbenchContribution {
 
 	private async _report() {
 		const isStandardStartup = await this._isStandardStartup();
-		this._reportStartupTimes(isStandardStartup).catch(onUnexpectedError);
+		this._reportStartupTimes().catch(onUnexpectedError);
 		this._appendStartupTimes(isStandardStartup).catch(onUnexpectedError);
 	}
 
-	private async _reportStartupTimes(isStandardStartup: boolean): Promise<void> {
+	private async _reportStartupTimes(): Promise<void> {
 		const metrics = await this._timerService.startupMetrics;
 
 		/* __GDPR__
@@ -57,15 +56,6 @@ class StartupTimings implements IWorkbenchContribution {
 			}
 		*/
 		this._telemetryService.publicLog('startupTimeVaried', metrics);
-
-		/* __GDPR__
-		"startupTime" : {
-			"${include}": [
-				"${IStartupMetrics}"
-			]
-		}
-		*/
-		this._telemetryService.publicLog('startupTime', metrics);
 	}
 
 	private async _appendStartupTimes(isStandardStartup: boolean) {
@@ -88,7 +78,7 @@ class StartupTimings implements IWorkbenchContribution {
 			this._timerService.startupMetrics,
 			waitWhenNoCachedData(),
 		]).then(([startupMetrics]) => {
-			return nfcall(appendFile, appendTo, `${startupMetrics.ellapsed}\t${product.nameShort}\t${product.commit.slice(0, 10) || '0000000000'}\t${sessionId}\t${isStandardStartup ? 'standard_start' : 'NO_standard_start'}\n`);
+			return nfcall(appendFile, appendTo, `${startupMetrics.ellapsed}\t${product.nameShort}\t${(product.commit || '').slice(0, 10) || '0000000000'}\t${sessionId}\t${isStandardStartup ? 'standard_start' : 'NO_standard_start'}\n`);
 		}).then(() => {
 			this._windowsService.quit();
 		}).catch(err => {
@@ -138,5 +128,3 @@ class StartupTimings implements IWorkbenchContribution {
 	}
 }
 
-const registry = Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);
-registry.registerWorkbenchContribution(StartupTimings, LifecyclePhase.Eventually);

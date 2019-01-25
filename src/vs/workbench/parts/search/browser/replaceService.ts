@@ -40,13 +40,13 @@ const toFileResource = (replaceResource: URI): URI => {
 export class ReplacePreviewContentProvider implements ITextModelContentProvider, IWorkbenchContribution {
 
 	constructor(
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@ITextModelService private textModelResolverService: ITextModelService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ITextModelService private readonly textModelResolverService: ITextModelService
 	) {
 		this.textModelResolverService.registerTextModelContentProvider(network.Schemas.internal, this);
 	}
 
-	public provideTextContent(uri: URI): Promise<ITextModel> {
+	provideTextContent(uri: URI): Promise<ITextModel> | null {
 		if (uri.fragment === REPLACE_PREVIEW) {
 			return this.instantiationService.createInstance(ReplacePreviewModel).resolve(uri);
 		}
@@ -56,11 +56,11 @@ export class ReplacePreviewContentProvider implements ITextModelContentProvider,
 
 class ReplacePreviewModel extends Disposable {
 	constructor(
-		@IModelService private modelService: IModelService,
-		@IModeService private modeService: IModeService,
-		@ITextModelService private textModelResolverService: ITextModelService,
-		@IReplaceService private replaceService: IReplaceService,
-		@ISearchWorkbenchService private searchWorkbenchService: ISearchWorkbenchService
+		@IModelService private readonly modelService: IModelService,
+		@IModeService private readonly modeService: IModeService,
+		@ITextModelService private readonly textModelResolverService: ITextModelService,
+		@IReplaceService private readonly replaceService: IReplaceService,
+		@ISearchWorkbenchService private readonly searchWorkbenchService: ISearchWorkbenchService
 	) {
 		super();
 	}
@@ -91,26 +91,26 @@ class ReplacePreviewModel extends Disposable {
 
 export class ReplaceService implements IReplaceService {
 
-	public _serviceBrand: any;
+	_serviceBrand: any;
 
 	constructor(
-		@ITextFileService private textFileService: ITextFileService,
-		@IEditorService private editorService: IEditorService,
-		@ITextModelService private textModelResolverService: ITextModelService,
-		@IBulkEditService private bulkEditorService: IBulkEditService
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@IEditorService private readonly editorService: IEditorService,
+		@ITextModelService private readonly textModelResolverService: ITextModelService,
+		@IBulkEditService private readonly bulkEditorService: IBulkEditService
 	) { }
 
-	public replace(match: Match): Promise<any>;
-	public replace(files: FileMatch[], progress?: IProgressRunner): Promise<any>;
-	public replace(match: FileMatchOrMatch, progress?: IProgressRunner, resource?: URI): Promise<any>;
-	public replace(arg: any, progress: IProgressRunner | null = null, resource: URI | null = null): Promise<any> {
+	replace(match: Match): Promise<any>;
+	replace(files: FileMatch[], progress?: IProgressRunner): Promise<any>;
+	replace(match: FileMatchOrMatch, progress?: IProgressRunner, resource?: URI): Promise<any>;
+	replace(arg: any, progress: IProgressRunner | undefined = undefined, resource: URI | null = null): Promise<any> {
 
 		const edits: ResourceTextEdit[] = this.createEdits(arg, resource);
 		return this.bulkEditorService.apply({ edits }, { progress }).then(() => this.textFileService.saveAll(edits.map(e => e.resource)));
 
 	}
 
-	public openReplacePreview(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<any> {
+	openReplacePreview(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<any> {
 		const fileMatch = element instanceof Match ? element.parent() : element;
 
 		return this.editorService.openEditor({
@@ -131,7 +131,7 @@ export class ReplaceService implements IReplaceService {
 			});
 			this.updateReplacePreview(fileMatch).then(() => {
 				if (editor) {
-					let editorControl = editor.getControl();
+					const editorControl = editor.getControl();
 					if (element instanceof Match) {
 						editorControl.revealLineInCenter(element.range().startLineNumber, ScrollType.Immediate);
 					}
@@ -140,13 +140,13 @@ export class ReplaceService implements IReplaceService {
 		}, errors.onUnexpectedError);
 	}
 
-	public updateReplacePreview(fileMatch: FileMatch, override: boolean = false): Promise<void> {
+	updateReplacePreview(fileMatch: FileMatch, override: boolean = false): Promise<void> {
 		const replacePreviewUri = toReplaceResource(fileMatch.resource());
 		return Promise.all([this.textModelResolverService.createModelReference(fileMatch.resource()), this.textModelResolverService.createModelReference(replacePreviewUri)])
 			.then(([sourceModelRef, replaceModelRef]) => {
 				const sourceModel = sourceModelRef.object.textEditorModel;
 				const replaceModel = replaceModelRef.object.textEditorModel;
-				let returnValue = Promise.resolve(null);
+				const returnValue = Promise.resolve(null);
 				// If model is disposed do not update
 				if (sourceModel && replaceModel) {
 					if (override) {
@@ -179,7 +179,7 @@ export class ReplaceService implements IReplaceService {
 		const edits: ResourceTextEdit[] = [];
 
 		if (arg instanceof Match) {
-			let match = <Match>arg;
+			const match = <Match>arg;
 			edits.push(this.createEdit(match, match.replaceString, resource));
 		}
 
@@ -189,7 +189,7 @@ export class ReplaceService implements IReplaceService {
 
 		if (arg instanceof Array) {
 			arg.forEach(element => {
-				let fileMatch = <FileMatch>element;
+				const fileMatch = <FileMatch>element;
 				if (fileMatch.count() > 0) {
 					edits.push(...fileMatch.matches().map(match => this.createEdit(match, match.replaceString, resource)));
 				}
@@ -200,8 +200,8 @@ export class ReplaceService implements IReplaceService {
 	}
 
 	private createEdit(match: Match, text: string, resource: URI | null = null): ResourceTextEdit {
-		let fileMatch: FileMatch = match.parent();
-		let resourceEdit: ResourceTextEdit = {
+		const fileMatch: FileMatch = match.parent();
+		const resourceEdit: ResourceTextEdit = {
 			resource: resource !== null ? resource : fileMatch.resource(),
 			edits: [{
 				range: match.range(),

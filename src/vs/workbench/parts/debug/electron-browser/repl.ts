@@ -95,8 +95,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	private static readonly REPL_INPUT_MAX_HEIGHT = 170;
 
 	private history: HistoryNavigator<string>;
-	private tree: WorkbenchAsyncDataTree<null, IReplElement>;
-	private dataSource: ReplDataSource;
+	private tree: WorkbenchAsyncDataTree<IDebugSession, IReplElement>;
 	private replDelegate: ReplDelegate;
 	private container: HTMLElement;
 	private treeContainer: HTMLElement;
@@ -110,19 +109,19 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	private replElementsChangeListener: IDisposable;
 
 	constructor(
-		@IDebugService private debugService: IDebugService,
+		@IDebugService private readonly debugService: IDebugService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IStorageService private storageService: IStorageService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IStorageService private readonly storageService: IStorageService,
 		@IThemeService protected themeService: IThemeService,
-		@IModelService private modelService: IModelService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
+		@IModelService private readonly modelService: IModelService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
-		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IListService private listService: IListService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@ITextResourcePropertiesService private textResourcePropertiesService: ITextResourcePropertiesService,
-		@IKeybindingService private keybindingService: IKeybindingService
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IListService private readonly listService: IListService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ITextResourcePropertiesService private readonly textResourcePropertiesService: ITextResourcePropertiesService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
 		super(REPL_ID, telemetryService, themeService, storageService);
 
@@ -139,7 +138,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		}));
 		this._register(this.debugService.onWillNewSession(() => {
 			// Need to listen to output events for sessions which are not yet fully initialised
-			const input: IDebugSession = this.dataSource.input;
+			const input = this.tree.getInput();
 			if (!input || input.state === State.Inactive) {
 				this.selectSession();
 			}
@@ -150,23 +149,21 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 				this.updateInputDecoration();
 			}
 		}));
-	}
-
-	setVisible(visible: boolean): void {
-		super.setVisible(visible);
-		if (!visible) {
-			dispose(this.model);
-		} else {
-			this.model = this.modelService.createModel('', null, uri.parse(`${DEBUG_SCHEME}:replinput`), true);
-			this.replInput.setModel(this.model);
-			this.updateInputDecoration();
-			this.refreshReplElements(true);
-		}
+		this._register(this.onDidChangeVisibility(visible => {
+			if (!visible) {
+				dispose(this.model);
+			} else {
+				this.model = this.modelService.createModel('', null, uri.parse(`${DEBUG_SCHEME}:replinput`), true);
+				this.replInput.setModel(this.model);
+				this.updateInputDecoration();
+				this.refreshReplElements(true);
+			}
+		}));
 	}
 
 	get isReadonly(): boolean {
 		// Do not allow to edit inactive sessions
-		const session: IDebugSession = this.dataSource.input;
+		const session = this.tree.getInput();
 		if (session && session.state !== State.Inactive) {
 			return false;
 		}
@@ -199,7 +196,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			// If there is a focusedSession focus on that one, otherwise just show any other not ignored session
 			if (focusedSession) {
 				session = focusedSession;
-			} else if (!this.dataSource.input || sessionsToIgnore.has(this.dataSource.input)) {
+			} else if (!this.tree.getInput() || sessionsToIgnore.has(this.tree.getInput())) {
 				session = first(this.debugService.getModel().getSessions(true), s => !sessionsToIgnore.has(s));
 			}
 		}
@@ -211,9 +208,8 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 				this.refreshReplElements(session.getReplElements().length === 0);
 			});
 
-			if (this.tree && this.dataSource.input !== session) {
-				this.dataSource.input = session;
-				this.tree.refresh().then(() => revealLastElement(this.tree));
+			if (this.tree && this.tree.getInput() !== session) {
+				this.tree.setInput(session).then(() => revealLastElement(this.tree)).then(undefined, errors.onUnexpectedError);
 			}
 		}
 
@@ -222,7 +218,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	}
 
 	clearRepl(): void {
-		const session: IDebugSession = this.dataSource.input;
+		const session = this.tree.getInput();
 		if (session) {
 			session.removeReplExpressions();
 			if (session.state === State.Inactive) {
@@ -236,7 +232,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	}
 
 	acceptReplInput(): void {
-		const session: IDebugSession = this.dataSource.input;
+		const session = this.tree.getInput();
 		if (session) {
 			session.addReplExpression(this.debugService.getViewModel().focusedStackFrame, this.replInput.getValue());
 			revealLastElement(this.tree);
@@ -262,7 +258,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 				}
 			});
 		};
-		traverseAndAppend(this.tree.getNode(null));
+		traverseAndAppend(this.tree.getNode());
 
 		return removeAnsiEscapeCodes(text);
 	}
@@ -273,7 +269,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			this.replDelegate.setWidth(dimension.width - 25, this.characterWidth);
 			const treeHeight = dimension.height - this.replInputHeight;
 			this.treeContainer.style.height = `${treeHeight}px`;
-			this.tree.layout(treeHeight);
+			this.tree.layout(treeHeight, dimension.width);
 		}
 		this.replInputContainer.style.height = `${this.replInputHeight}px`;
 
@@ -330,8 +326,11 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	@memoize
 	private get refreshScheduler(): RunOnceScheduler {
 		return new RunOnceScheduler(() => {
+			if (!this.tree.getInput()) {
+				return;
+			}
 			const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight;
-			this.tree.refresh().then(() => {
+			this.tree.updateChildren().then(() => {
 				if (lastElementVisible) {
 					// Only scroll if we were scrolled all the way down before tree refreshed #10486
 					revealLastElement(this.tree);
@@ -348,22 +347,20 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		this.treeContainer = dom.append(this.container, $('.repl-tree'));
 		this.createReplInput(this.container);
 
-		this.dataSource = new ReplDataSource();
 		this.replDelegate = new ReplDelegate();
 		this.tree = new WorkbenchAsyncDataTree(this.treeContainer, this.replDelegate, [
 			this.instantiationService.createInstance(VariablesRenderer),
 			this.instantiationService.createInstance(ReplSimpleElementsRenderer),
 			new ReplExpressionsRenderer(),
 			new ReplRawObjectsRenderer()
-		], this.dataSource, {
+		], new ReplDataSource(), {
 				ariaLabel: nls.localize('replAriaLabel', "Read Eval Print Loop Panel"),
 				accessibilityProvider: new ReplAccessibilityProvider(),
 				identityProvider: { getId: element => element.getId() },
 				mouseSupport: false,
-				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: e => e }
+				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: e => e },
+				horizontalScrolling: false
 			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
-
-		this.tree.setInput(null);
 
 		this.toDispose.push(this.tree.onContextMenu(e => this.onContextMenu(e)));
 		// Make sure to select the session if debugging is already active
@@ -463,7 +460,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		}
 
 		const decorations: IDecorationOptions[] = [];
-		if (this.isReadonly && this.replInput.hasTextFocus()) {
+		if (this.isReadonly && this.replInput.hasTextFocus() && !this.replInput.getValue()) {
 			decorations.push({
 				range: {
 					startLineNumber: 0,
@@ -569,9 +566,9 @@ class ReplSimpleElementsRenderer implements ITreeRenderer<SimpleReplElement, voi
 	static readonly ID = 'simpleReplElement';
 
 	constructor(
-		@IEditorService private editorService: IEditorService,
-		@ILabelService private labelService: ILabelService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IEditorService private readonly editorService: IEditorService,
+		@ILabelService private readonly labelService: ILabelService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) { }
 
 	get templateId(): string {
@@ -751,17 +748,23 @@ class ReplDelegate implements IListVirtualDelegate<IReplElement> {
 	}
 }
 
+function isDebugSession(obj: any): obj is IDebugSession {
+	return typeof obj.getReplElements === 'function';
+}
 
-class ReplDataSource implements IAsyncDataSource<null, IReplElement> {
-	input: IDebugSession;
+class ReplDataSource implements IAsyncDataSource<IDebugSession, IReplElement> {
 
-	hasChildren(element: IReplElement | null): boolean {
-		return element === null || !!(<IExpressionContainer>element).hasChildren;
+	hasChildren(element: IReplElement | IDebugSession): boolean {
+		if (isDebugSession(element)) {
+			return true;
+		}
+
+		return !!(<IExpressionContainer>element).hasChildren;
 	}
 
-	getChildren(element: IReplElement | null): Promise<IReplElement[]> {
-		if (element === null) {
-			return Promise.resolve(this.input ? this.input.getReplElements() : []);
+	getChildren(element: IReplElement | IDebugSession): Promise<IReplElement[]> {
+		if (isDebugSession(element)) {
+			return Promise.resolve(element.getReplElements());
 		}
 		if (element instanceof RawObjectReplElement) {
 			return element.getChildren();
@@ -846,8 +849,8 @@ class SelectReplAction extends Action {
 	static LABEL = nls.localize('selectRepl', "Select Debug Console");
 
 	constructor(id: string, label: string,
-		@IDebugService private debugService: IDebugService,
-		@IPrivateReplService private replService: IPrivateReplService
+		@IDebugService private readonly debugService: IDebugService,
+		@IPrivateReplService private readonly replService: IPrivateReplService
 	) {
 		super(id, label);
 	}
@@ -870,7 +873,7 @@ export class ClearReplAction extends Action {
 	static LABEL = nls.localize('clearRepl', "Clear Console");
 
 	constructor(id: string, label: string,
-		@IPanelService private panelService: IPanelService
+		@IPanelService private readonly panelService: IPanelService
 	) {
 		super(id, label, 'debug-action clear-repl');
 	}

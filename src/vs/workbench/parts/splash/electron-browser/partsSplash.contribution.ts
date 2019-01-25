@@ -27,7 +27,7 @@ class PartsSplash {
 	private readonly _disposables: IDisposable[] = [];
 
 	private _lastBaseTheme: string;
-	private _lastBackground: string;
+	private _lastBackground?: string;
 
 	constructor(
 		@IThemeService private readonly _themeService: IThemeService,
@@ -35,7 +35,7 @@ class PartsSplash {
 		@IStorageService private readonly _storageService: IStorageService,
 		@IEnvironmentService private readonly _envService: IEnvironmentService,
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@IBroadcastService private broadcastService: IBroadcastService
+		@IBroadcastService private readonly broadcastService: IBroadcastService
 	) {
 		lifecycleService.when(LifecyclePhase.Restored).then(_ => this._removePartsSplash());
 		Event.debounce(Event.any<any>(
@@ -85,7 +85,7 @@ class PartsSplash {
 		}
 	}
 
-	private _getThemeColor(id: ColorIdentifier): string {
+	private _getThemeColor(id: ColorIdentifier): string | undefined {
 		const theme = this._themeService.getTheme();
 		const color = theme.getColor(id);
 		return color ? color.toString() : undefined;

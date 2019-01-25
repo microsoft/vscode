@@ -48,7 +48,7 @@ export interface ISearchWidgetOptions {
 class ReplaceAllAction extends Action {
 
 	private static fgInstance: ReplaceAllAction | null = null;
-	public static readonly ID: string = 'search.action.replaceAll';
+	static readonly ID: string = 'search.action.replaceAll';
 
 	static get INSTANCE(): ReplaceAllAction {
 		if (ReplaceAllAction.fgInstance === null) {
@@ -79,23 +79,23 @@ export class SearchWidget extends Widget {
 
 	private static readonly REPLACE_ALL_DISABLED_LABEL = nls.localize('search.action.replaceAll.disabled.label', "Replace All (Submit Search to Enable)");
 	private static readonly REPLACE_ALL_ENABLED_LABEL = (keyBindingService2: IKeybindingService): string => {
-		let kb = keyBindingService2.lookupKeybinding(ReplaceAllAction.ID);
+		const kb = keyBindingService2.lookupKeybinding(ReplaceAllAction.ID);
 		return appendKeyBindingLabel(nls.localize('search.action.replaceAll.enabled.label', "Replace All"), kb, keyBindingService2);
 	}
 
-	public domNode: HTMLElement;
+	domNode: HTMLElement;
 
-	public searchInput: FindInput;
-	public searchInputFocusTracker: dom.IFocusTracker;
+	searchInput: FindInput;
+	searchInputFocusTracker: dom.IFocusTracker;
 	private searchInputBoxFocused: IContextKey<boolean>;
 
 	private replaceContainer: HTMLElement;
-	public replaceInput: HistoryInputBox;
+	replaceInput: HistoryInputBox;
 	private toggleReplaceButton: Button;
 	private replaceAllAction: ReplaceAllAction;
 	private replaceActive: IContextKey<boolean>;
 	private replaceActionBar: ActionBar;
-	public replaceInputFocusTracker: dom.IFocusTracker;
+	replaceInputFocusTracker: dom.IFocusTracker;
 	private replaceInputBoxFocused: IContextKey<boolean>;
 	private _replaceHistoryDelayer: Delayer<void>;
 
@@ -103,38 +103,38 @@ export class SearchWidget extends Widget {
 	private previousGlobalFindBufferValue: string;
 
 	private _onSearchSubmit = this._register(new Emitter<void>());
-	public readonly onSearchSubmit: Event<void> = this._onSearchSubmit.event;
+	readonly onSearchSubmit: Event<void> = this._onSearchSubmit.event;
 
 	private _onSearchCancel = this._register(new Emitter<void>());
-	public readonly onSearchCancel: Event<void> = this._onSearchCancel.event;
+	readonly onSearchCancel: Event<void> = this._onSearchCancel.event;
 
 	private _onReplaceToggled = this._register(new Emitter<void>());
-	public readonly onReplaceToggled: Event<void> = this._onReplaceToggled.event;
+	readonly onReplaceToggled: Event<void> = this._onReplaceToggled.event;
 
 	private _onReplaceStateChange = this._register(new Emitter<boolean>());
-	public readonly onReplaceStateChange: Event<boolean> = this._onReplaceStateChange.event;
+	readonly onReplaceStateChange: Event<boolean> = this._onReplaceStateChange.event;
 
-	private _onReplaceValueChanged = this._register(new Emitter<string>());
-	public readonly onReplaceValueChanged: Event<string> = this._onReplaceValueChanged.event;
+	private _onReplaceValueChanged = this._register(new Emitter<string | undefined>());
+	readonly onReplaceValueChanged: Event<string> = this._onReplaceValueChanged.event;
 
 	private _onReplaceAll = this._register(new Emitter<void>());
-	public readonly onReplaceAll: Event<void> = this._onReplaceAll.event;
+	readonly onReplaceAll: Event<void> = this._onReplaceAll.event;
 
 	private _onBlur = this._register(new Emitter<void>());
-	public readonly onBlur: Event<void> = this._onBlur.event;
+	readonly onBlur: Event<void> = this._onBlur.event;
 
 	private _onDidHeightChange = this._register(new Emitter<void>());
-	public readonly onDidHeightChange: Event<void> = this._onDidHeightChange.event;
+	readonly onDidHeightChange: Event<void> = this._onDidHeightChange.event;
 
 	constructor(
 		container: HTMLElement,
 		options: ISearchWidgetOptions,
-		@IContextViewService private contextViewService: IContextViewService,
-		@IThemeService private themeService: IThemeService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IKeybindingService private keyBindingService: IKeybindingService,
-		@IClipboardService private clipboardServce: IClipboardService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IContextViewService private readonly contextViewService: IContextViewService,
+		@IThemeService private readonly themeService: IThemeService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IKeybindingService private readonly keyBindingService: IKeybindingService,
+		@IClipboardService private readonly clipboardServce: IClipboardService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 		this.replaceActive = Constants.ReplaceActiveKey.bindTo(this.contextKeyService);
@@ -152,7 +152,7 @@ export class SearchWidget extends Widget {
 		this.updateAccessibilitySupport();
 	}
 
-	public focus(select: boolean = true, focusReplace: boolean = false, suppressGlobalSearchBuffer = false): void {
+	focus(select: boolean = true, focusReplace: boolean = false, suppressGlobalSearchBuffer = false): void {
 		this.ignoreGlobalFindBufferOnNextFocus = suppressGlobalSearchBuffer;
 
 		if (focusReplace && this.isReplaceShown()) {
@@ -168,19 +168,19 @@ export class SearchWidget extends Widget {
 		}
 	}
 
-	public setWidth(width: number) {
+	setWidth(width: number) {
 		this.searchInput.setWidth(width);
 		this.replaceInput.width = width - 28;
 		this.replaceInput.layout();
 	}
 
-	public clear() {
+	clear() {
 		this.searchInput.clear();
 		this.replaceInput.value = '';
 		this.setReplaceAllActionState(false);
 	}
 
-	public isReplaceShown(): boolean {
+	isReplaceShown(): boolean {
 		return !dom.hasClass(this.replaceContainer, 'disabled');
 	}
 
@@ -188,57 +188,57 @@ export class SearchWidget extends Widget {
 		return this.replaceActive.get();
 	}
 
-	public getReplaceValue(): string {
+	getReplaceValue(): string {
 		return this.replaceInput.value;
 	}
 
-	public toggleReplace(show?: boolean): void {
-		if (show === void 0 || show !== this.isReplaceShown()) {
+	toggleReplace(show?: boolean): void {
+		if (show === undefined || show !== this.isReplaceShown()) {
 			this.onToggleReplaceButton();
 		}
 	}
 
-	public getSearchHistory(): string[] {
+	getSearchHistory(): string[] {
 		return this.searchInput.inputBox.getHistory();
 	}
 
-	public getReplaceHistory(): string[] {
+	getReplaceHistory(): string[] {
 		return this.replaceInput.getHistory();
 	}
 
-	public clearHistory(): void {
+	clearHistory(): void {
 		this.searchInput.inputBox.clearHistory();
 	}
 
-	public showNextSearchTerm() {
+	showNextSearchTerm() {
 		this.searchInput.inputBox.showNextValue();
 	}
 
-	public showPreviousSearchTerm() {
+	showPreviousSearchTerm() {
 		this.searchInput.inputBox.showPreviousValue();
 	}
 
-	public showNextReplaceTerm() {
+	showNextReplaceTerm() {
 		this.replaceInput.showNextValue();
 	}
 
-	public showPreviousReplaceTerm() {
+	showPreviousReplaceTerm() {
 		this.replaceInput.showPreviousValue();
 	}
 
-	public searchInputHasFocus(): boolean {
+	searchInputHasFocus(): boolean {
 		return this.searchInputBoxFocused.get();
 	}
 
-	public replaceInputHasFocus(): boolean {
+	replaceInputHasFocus(): boolean {
 		return this.replaceInput.hasFocus();
 	}
 
-	public focusReplaceAllAction(): void {
+	focusReplaceAllAction(): void {
 		this.replaceActionBar.focus(true);
 	}
 
-	public focusRegexAction(): void {
+	focusRegexAction(): void {
 		this.searchInput.focusOnRegex();
 	}
 
@@ -279,7 +279,7 @@ export class SearchWidget extends Widget {
 	}
 
 	private renderSearchInput(parent: HTMLElement, options: ISearchWidgetOptions): void {
-		let inputOptions: IFindInputOptions = {
+		const inputOptions: IFindInputOptions = {
 			label: nls.localize('label.Search', 'Search: Type Search Term and press Enter to search or Escape to cancel'),
 			validation: (value: string) => this.validateSearchInput(value),
 			placeholder: nls.localize('search.placeHolder', "Search"),
@@ -290,7 +290,7 @@ export class SearchWidget extends Widget {
 			flexibleHeight: true
 		};
 
-		let searchInputContainer = dom.append(parent, dom.$('.search-container.input-box'));
+		const searchInputContainer = dom.append(parent, dom.$('.search-container.input-box'));
 		this.searchInput = this._register(new ContextScopedFindInput(searchInputContainer, this.contextViewService, inputOptions, this.contextKeyService, true));
 		this._register(attachFindInputBoxStyler(this.searchInput, this.themeService));
 		this.searchInput.onKeyDown((keyboardEvent: IKeyboardEvent) => this.onSearchInputKeyDown(keyboardEvent));
@@ -333,7 +333,7 @@ export class SearchWidget extends Widget {
 
 	private renderReplaceInput(parent: HTMLElement, options: ISearchWidgetOptions): void {
 		this.replaceContainer = dom.append(parent, dom.$('.replace-container.disabled'));
-		let replaceBox = dom.append(this.replaceContainer, dom.$('.input-box'));
+		const replaceBox = dom.append(this.replaceContainer, dom.$('.input-box'));
 		this.replaceInput = this._register(new ContextScopedHistoryInputBox(replaceBox, this.contextViewService, {
 			ariaLabel: nls.localize('label.Replace', 'Replace: Type replace term and press Enter to preview or Escape to cancel'),
 			placeholder: nls.localize('search.replace.placeHolder', "Replace"),
@@ -343,7 +343,7 @@ export class SearchWidget extends Widget {
 		this._register(attachInputBoxStyler(this.replaceInput, this.themeService));
 		this.onkeydown(this.replaceInput.inputElement, (keyboardEvent) => this.onReplaceInputKeyDown(keyboardEvent));
 		this.replaceInput.value = options.replaceValue || '';
-		this._register(this.replaceInput.onDidChange(() => this._onReplaceValueChanged.fire()));
+		this._register(this.replaceInput.onDidChange(() => this._onReplaceValueChanged.fire(undefined)));
 		this._register(this.replaceInput.onDidHeightChange(() => this._onDidHeightChange.fire()));
 
 		this.replaceAllAction = ReplaceAllAction.INSTANCE;
@@ -372,7 +372,7 @@ export class SearchWidget extends Widget {
 		this._onReplaceToggled.fire();
 	}
 
-	public setReplaceAllActionState(enabled: boolean): void {
+	setReplaceAllActionState(enabled: boolean): void {
 		if (this.replaceAllAction.enabled !== enabled) {
 			this.replaceAllAction.enabled = enabled;
 			this.replaceAllAction.label = enabled ? SearchWidget.REPLACE_ALL_ENABLED_LABEL(this.keyBindingService) : SearchWidget.REPLACE_ALL_DISABLED_LABEL;
@@ -381,8 +381,8 @@ export class SearchWidget extends Widget {
 	}
 
 	private updateReplaceActiveState(): void {
-		let currentState = this.isReplaceActive();
-		let newState = this.isReplaceShown() && this.replaceAllAction.enabled;
+		const currentState = this.isReplaceActive();
+		const newState = this.isReplaceShown() && this.replaceAllAction.enabled;
 		if (currentState !== newState) {
 			this.replaceActive.set(newState);
 			this._onReplaceStateChange.fire(newState);
@@ -531,7 +531,7 @@ export class SearchWidget extends Widget {
 		}
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this.setReplaceAllActionState(false);
 		this.replaceAllAction.searchWidget = null;
 		this.replaceActionBar = null;

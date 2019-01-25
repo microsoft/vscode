@@ -15,7 +15,7 @@ export interface IProgressService {
 	/**
 	 * Show progress customized with the provided flags.
 	 */
-	show(infinite: boolean, delay?: number): IProgressRunner;
+	show(infinite: true, delay?: number): IProgressRunner;
 	show(total: number, delay?: number): IProgressRunner;
 
 	/**
@@ -52,7 +52,7 @@ export interface IProgressService2 {
 
 	_serviceBrand: any;
 
-	withProgress<P extends Promise<R>, R=any>(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => P, onDidCancel?: () => void): P;
+	withProgress<R=any>(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => Promise<R>, onDidCancel?: () => void): Promise<R>;
 }
 
 export interface IProgressRunner {
@@ -130,7 +130,7 @@ export class LongRunningOperation {
 		this.currentOperationDisposables.push(
 			toDisposable(() => clearTimeout(this.currentProgressTimeout)),
 			toDisposable(() => newOperationToken.cancel()),
-			toDisposable(() => this.currentProgressRunner ? this.currentProgressRunner.done() : void 0)
+			toDisposable(() => this.currentProgressRunner ? this.currentProgressRunner.done() : undefined)
 		);
 
 		return {

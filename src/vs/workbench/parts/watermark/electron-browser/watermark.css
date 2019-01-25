@@ -11,11 +11,11 @@
 	background-position-y: 50%;
 }
 
-.monaco-workbench > .part.editor > .content > .watermark {
+.monaco-workbench .part.editor > .content > .watermark {
 	display: none; /* only visible when no editors are opened */
 }
 
-.monaco-workbench > .part.editor.has-watermark > .content.empty > .watermark {
+.monaco-workbench .part.editor.has-watermark > .content.empty > .watermark {
 	display: block;
 	position: absolute;
 	width: 100%;
@@ -25,69 +25,50 @@
 	overflow: hidden;
 }
 
-.monaco-workbench > .part.editor > .content.empty > .watermark > .watermark-box {
+.monaco-workbench .part.editor > .content.empty > .watermark > .watermark-box {
 	display: inline-table;
 	border-collapse: separate;
 	border-spacing: 13px 17px;
 }
 
-.monaco-workbench > .part.editor.max-height-478px > .content.empty > .watermark {
+.monaco-workbench .part.editor.max-height-478px > .content.empty > .watermark {
 	display: none;
 }
 
-.monaco-workbench > .part.editor > .content.empty > .watermark dl {
+.monaco-workbench .part.editor > .content.empty > .watermark dl {
 	display: table-row;
 	opacity: .8;
 	cursor: default;
 }
 
-.monaco-workbench > .part.editor > .content.empty > .watermark dt {
+.monaco-workbench .part.editor > .content.empty > .watermark dt {
 	text-align: right;
 	letter-spacing: 0.04em
 }
 
-.monaco-workbench > .part.editor > .content.empty > .watermark dd {
+.monaco-workbench .part.editor > .content.empty > .watermark dd {
 	text-align: left;
 }
 
-.monaco-workbench > .part.editor > .content.empty > .watermark dd > .shortcuts {
-	padding-left: 0.5em;
-	padding-right: 0.5em;
-}
-
-.monaco-workbench.mac > .part.editor > .content.empty > .watermark dd > .shortcuts {
-	letter-spacing: 0.15em;
-	font-family: "Lucida Grande", sans-serif;
-}
-
-.monaco-workbench > .part.editor > .content.empty > .watermark dd > .unbound {
-	padding-left: 0.5em;
-	padding-right: 0.5em;
-}
-
-.monaco-workbench.mac > .part.editor > .content.empty > .watermark dd > .unbound {
-	font-family: "Lucida Grande", sans-serif;
-}
-
-.monaco-workbench > .part.editor > .content.empty > .watermark dt,
-.monaco-workbench > .part.editor > .content.empty > .watermark dd {
+.monaco-workbench .part.editor > .content.empty > .watermark dt,
+.monaco-workbench .part.editor > .content.empty > .watermark dd {
 	display: table-cell;
 }
 
-.monaco-workbench > .part.editor > .content.empty > .watermark dt,
-.monaco-workbench > .part.editor > .content.empty > .watermark dl {
+.monaco-workbench .part.editor > .content.empty > .watermark dt,
+.monaco-workbench .part.editor > .content.empty > .watermark dl {
 	color: rgba(0,0,0,.68);
 }
 
-.vs-dark .monaco-workbench > .part.editor > .content.empty > .watermark dt,
-.vs-dark .monaco-workbench > .part.editor > .content.empty > .watermark dl {
+.vs-dark .monaco-workbench .part.editor > .content.empty > .watermark dt,
+.vs-dark .monaco-workbench .part.editor > .content.empty > .watermark dl {
 	color: rgba(255,255,255,.6);
 }
 
-.hc-black .monaco-workbench > .part.editor > .content.empty > .watermark dt {
+.hc-black .monaco-workbench .part.editor > .content.empty > .watermark dt {
 	color: #FFF;
 }
-.hc-black .monaco-workbench > .part.editor > .content.empty > .watermark dl {
+.hc-black .monaco-workbench .part.editor > .content.empty > .watermark dl {
 	color: #FFF;
 	opacity: 1;
 }

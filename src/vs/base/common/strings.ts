@@ -56,7 +56,7 @@ export function format(value: string, ...args: any[]): string {
  * being used e.g. in HTMLElement.innerHTML.
  */
 export function escape(html: string): string {
-	return html.replace(/[<|>|&]/g, function (match) {
+	return html.replace(/[<>&]/g, function (match) {
 		switch (match) {
 			case '<': return '&lt;';
 			case '>': return '&gt;';

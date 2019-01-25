@@ -16,6 +16,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IURLHandler, IURLService } from 'vs/platform/url/common/url';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 const FIVE_MINUTES = 5 * 60 * 1000;
 const THIRTY_SECONDS = 30 * 1000;
@@ -29,8 +30,8 @@ export const IExtensionUrlHandler = createDecorator<IExtensionUrlHandler>('inact
 
 export interface IExtensionUrlHandler {
 	readonly _serviceBrand: any;
-	registerExtensionHandler(extensionId: string, handler: IURLHandler): void;
-	unregisterExtensionHandler(extensionId: string): void;
+	registerExtensionHandler(extensionId: ExtensionIdentifier, handler: IURLHandler): void;
+	unregisterExtensionHandler(extensionId: ExtensionIdentifier): void;
 }
 
 /**
@@ -52,14 +53,14 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 
 	constructor(
 		@IURLService urlService: IURLService,
-		@IExtensionService private extensionService: IExtensionService,
-		@IDialogService private dialogService: IDialogService,
-		@INotificationService private notificationService: INotificationService,
-		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
-		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
-		@IWindowService private windowService: IWindowService,
-		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
-		@IStorageService private storageService: IStorageService
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
+		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService,
+		@IWindowService private readonly windowService: IWindowService,
+		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		const interval = setInterval(() => this.garbageCollect(), THIRTY_SECONDS);
 		const urlToHandleValue = this.storageService.get(URL_TO_HANDLE, StorageScope.WORKSPACE);
@@ -80,7 +81,7 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		}
 
 		const extensionId = uri.authority;
-		const wasHandlerAvailable = this.extensionHandlers.has(extensionId);
+		const wasHandlerAvailable = this.extensionHandlers.has(ExtensionIdentifier.toKey(extensionId));
 		const extension = await this.extensionService.getExtension(extensionId);
 
 		if (!extension) {
@@ -101,7 +102,7 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 			}
 		}
 
-		const handler = this.extensionHandlers.get(extensionId);
+		const handler = this.extensionHandlers.get(ExtensionIdentifier.toKey(extensionId));
 
 		if (handler) {
 			if (!wasHandlerAvailable) {
@@ -115,39 +116,39 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 
 		// collect URI for eventual extension activation
 		const timestamp = new Date().getTime();
-		let uris = this.uriBuffer.get(extensionId);
+		let uris = this.uriBuffer.get(ExtensionIdentifier.toKey(extensionId));
 
 		if (!uris) {
 			uris = [];
-			this.uriBuffer.set(extensionId, uris);
+			this.uriBuffer.set(ExtensionIdentifier.toKey(extensionId), uris);
 		}
 
 		uris.push({ timestamp, uri });
 
 		// activate the extension
-		await this.extensionService.activateByEvent(`onUri:${extensionId}`);
+		await this.extensionService.activateByEvent(`onUri:${ExtensionIdentifier.toKey(extensionId)}`);
 		return true;
 	}
 
-	registerExtensionHandler(extensionId: string, handler: IURLHandler): void {
-		this.extensionHandlers.set(extensionId, handler);
+	registerExtensionHandler(extensionId: ExtensionIdentifier, handler: IURLHandler): void {
+		this.extensionHandlers.set(ExtensionIdentifier.toKey(extensionId), handler);
 
-		const uris = this.uriBuffer.get(extensionId) || [];
+		const uris = this.uriBuffer.get(ExtensionIdentifier.toKey(extensionId)) || [];
 
 		for (const { uri } of uris) {
 			handler.handleURL(uri);
 		}
 
-		this.uriBuffer.delete(extensionId);
+		this.uriBuffer.delete(ExtensionIdentifier.toKey(extensionId));
 	}
 
-	unregisterExtensionHandler(extensionId: string): void {
-		this.extensionHandlers.delete(extensionId);
+	unregisterExtensionHandler(extensionId: ExtensionIdentifier): void {
+		this.extensionHandlers.delete(ExtensionIdentifier.toKey(extensionId));
 	}
 
 	private async handleUnhandledURL(uri: URI, extensionIdentifier: IExtensionIdentifier): Promise<void> {
 		const installedExtensions = await this.extensionManagementService.getInstalled();
-		const extension = installedExtensions.filter(e => areSameExtensions(e.galleryIdentifier, extensionIdentifier))[0];
+		const extension = installedExtensions.filter(e => areSameExtensions(e.identifier, extensionIdentifier))[0];
 
 		// Extension is installed
 		if (extension) {
@@ -182,14 +183,14 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 					return;
 				}
 
-				await this.extensionEnablementService.setEnablement(extension, EnablementState.Enabled);
+				await this.extensionEnablementService.setEnablement([extension], EnablementState.Enabled);
 				await this.reloadAndHandle(uri);
 			}
 		}
 
 		// Extension is not installed
 		else {
-			const galleryExtension = await this.galleryService.getExtension(extensionIdentifier);
+			const galleryExtension = await this.galleryService.getCompatibleExtension(extensionIdentifier);
 
 			if (!galleryExtension) {
 				return;

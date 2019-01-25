@@ -73,15 +73,15 @@ suite('URI', () => {
 		assert.equal(URI.from({ scheme: 'http', authority: 'a-test-site.com', path: '/', query: '', fragment: 'test=true' }).toString(true), 'http://a-test-site.com/#test=true');
 		assert.equal(URI.from({ scheme: 'http', path: '/api/files/test.me', query: 't=1234' }).toString(true), 'http:/api/files/test.me?t=1234');
 
-		var value = URI.parse('file://shares/pröjects/c%23/#l12');
+		const value = URI.parse('file://shares/pröjects/c%23/#l12');
 		assert.equal(value.authority, 'shares');
 		assert.equal(value.path, '/pröjects/c#/');
 		assert.equal(value.fragment, 'l12');
 		assert.equal(value.toString(), 'file://shares/pr%C3%B6jects/c%23/#l12');
 		assert.equal(value.toString(true), 'file://shares/pröjects/c%23/#l12');
 
-		var uri2 = URI.parse(value.toString(true));
-		var uri3 = URI.parse(value.toString());
+		const uri2 = URI.parse(value.toString(true));
+		const uri3 = URI.parse(value.toString());
 		assert.equal(uri2.authority, uri3.authority);
 		assert.equal(uri2.path, uri3.path);
 		assert.equal(uri2.query, uri3.query);
@@ -91,9 +91,9 @@ suite('URI', () => {
 	test('with, identity', () => {
 		let uri = URI.parse('foo:bar/path');
 
-		let uri2 = uri.with(null);
+		let uri2 = uri.with(null!);
 		assert.ok(uri === uri2);
-		uri2 = uri.with(undefined);
+		uri2 = uri.with(undefined!);
 		assert.ok(uri === uri2);
 		uri2 = uri.with({});
 		assert.ok(uri === uri2);
@@ -130,7 +130,7 @@ suite('URI', () => {
 	});
 
 	test('parse', () => {
-		var value = URI.parse('http:/api/files/test.me?t=1234');
+		let value = URI.parse('http:/api/files/test.me?t=1234');
 		assert.equal(value.scheme, 'http');
 		assert.equal(value.authority, '');
 		assert.equal(value.path, '/api/files/test.me');
@@ -238,7 +238,7 @@ suite('URI', () => {
 
 	test('URI#file, win-speciale', () => {
 		if (isWindows) {
-			var value = URI.file('c:\\test\\drive');
+			let value = URI.file('c:\\test\\drive');
 			assert.equal(value.path, '/c:/test/drive');
 			assert.equal(value.toString(), 'file:///c%3A/test/drive');
 
@@ -298,7 +298,7 @@ suite('URI', () => {
 
 	test('URI#file, always slash', () => {
 
-		var value = URI.file('a.file');
+		let value = URI.file('a.file');
 		assert.equal(value.scheme, 'file');
 		assert.equal(value.authority, '');
 		assert.equal(value.path, '/a.file');
@@ -312,12 +312,12 @@ suite('URI', () => {
 	});
 
 	test('URI.toString, only scheme and query', () => {
-		var value = URI.parse('stuff:?qüery');
+		const value = URI.parse('stuff:?qüery');
 		assert.equal(value.toString(), 'stuff:?q%C3%BCery');
 	});
 
 	test('URI#toString, upper-case percent espaces', () => {
-		var value = URI.parse('file://sh%c3%a4res/path');
+		const value = URI.parse('file://sh%c3%a4res/path');
 		assert.equal(value.toString(), 'file://sh%C3%A4res/path');
 	});
 
@@ -328,12 +328,12 @@ suite('URI', () => {
 
 	test('URI#toString, escape all the bits', () => {
 
-		var value = URI.file('/Users/jrieken/Code/_samples/18500/Mödel + Other Thîngß/model.js');
+		const value = URI.file('/Users/jrieken/Code/_samples/18500/Mödel + Other Thîngß/model.js');
 		assert.equal(value.toString(), 'file:///Users/jrieken/Code/_samples/18500/M%C3%B6del%20%2B%20Other%20Th%C3%AEng%C3%9F/model.js');
 	});
 
 	test('URI#toString, don\'t encode port', () => {
-		var value = URI.parse('http://localhost:8080/far');
+		let value = URI.parse('http://localhost:8080/far');
 		assert.equal(value.toString(), 'http://localhost:8080/far');
 
 		value = URI.from({ scheme: 'http', authority: 'löcalhost:8080', path: '/far', query: undefined, fragment: undefined });
@@ -341,7 +341,7 @@ suite('URI', () => {
 	});
 
 	test('URI#toString, user information in authority', () => {
-		var value = URI.parse('http://foo:bar@localhost/far');
+		let value = URI.parse('http://foo:bar@localhost/far');
 		assert.equal(value.toString(), 'http://foo:bar@localhost/far');
 
 		value = URI.parse('http://foo@localhost/far');
@@ -359,11 +359,11 @@ suite('URI', () => {
 
 	test('correctFileUriToFilePath2', () => {
 
-		var test = (input: string, expected: string) => {
+		const test = (input: string, expected: string) => {
 			expected = normalize(expected, true);
-			var value = URI.parse(input);
+			const value = URI.parse(input);
 			assert.equal(value.fsPath, expected, 'Result for ' + input);
-			var value2 = URI.file(value.fsPath);
+			const value2 = URI.file(value.fsPath);
 			assert.equal(value2.fsPath, expected, 'Result for ' + input);
 			assert.equal(value.toString(), value2.toString());
 		};
@@ -431,7 +431,7 @@ suite('URI', () => {
 
 	test('URI - (de)serialize', function () {
 
-		var values = [
+		const values = [
 			URI.parse('http://localhost:8080/far'),
 			URI.file('c:\\test with %25\\c#code'),
 			URI.file('\\\\shäres\\path\\c#\\plugin.json'),

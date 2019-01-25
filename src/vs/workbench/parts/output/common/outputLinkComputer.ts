@@ -45,8 +45,7 @@ export class OutputLinkComputer {
 
 	private getModel(uri: string): IMirrorModel | null {
 		const models = this.ctx.getMirrorModels();
-		for (let i = 0; i < models.length; i++) {
-			const model = models[i];
+		for (const model of models) {
 			if (model.uri.toString() === uri) {
 				return model;
 			}

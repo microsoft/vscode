@@ -77,8 +77,8 @@ export class TerminalPickerHandler extends QuickOpenHandler {
 	public static readonly ID = 'workbench.picker.terminals';
 
 	constructor(
-		@ITerminalService private terminalService: ITerminalService,
-		@ICommandService private commandService: ICommandService,
+		@ITerminalService private readonly terminalService: ITerminalService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 	}

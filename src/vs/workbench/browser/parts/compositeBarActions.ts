@@ -359,7 +359,7 @@ export class CompositeOverflowActivityActionItem extends ActivityActionItem {
 		private getBadge: (compositeId: string) => IBadge,
 		private getCompositeOpenAction: (compositeId: string) => Action,
 		colors: (theme: ITheme) => ICompositeBarColors,
-		@IContextMenuService private contextMenuService: IContextMenuService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IThemeService themeService: IThemeService
 	) {
 		super(action, { icon: true, colors }, themeService);
@@ -412,7 +412,7 @@ export class CompositeOverflowActivityActionItem extends ActivityActionItem {
 class ManageExtensionAction extends Action {
 
 	constructor(
-		@ICommandService private commandService: ICommandService
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super('activitybar.manage.extension', nls.localize('manageExtension', "Manage Extension"));
 	}
@@ -444,8 +444,8 @@ export class CompositeActionItem extends ActivityActionItem {
 		colors: (theme: ITheme) => ICompositeBarColors,
 		icon: boolean,
 		private compositeBar: ICompositeBar,
-		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IKeybindingService private keybindingService: IKeybindingService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService
 	) {

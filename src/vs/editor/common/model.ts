@@ -733,6 +733,12 @@ export interface ITextModel {
 	findPreviousMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wordSeparators: string | null, captureMatches: boolean): FindMatch | null;
 
 	/**
+	 * Flush all tokenization state.
+	 * @internal
+	 */
+	flushTokens(): void;
+
+	/**
 	 * Force tokenization information for `lineNumber` to be accurate.
 	 * @internal
 	 */

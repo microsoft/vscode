@@ -39,6 +39,7 @@ export interface IStorageMainService {
 	 * the provided defaultValue if the element is null or undefined.
 	 */
 	get(key: string, fallbackValue: string): string;
+	get(key: string, fallbackValue?: string): string | undefined;
 
 	/**
 	 * Retrieve an element stored with the given key from storage. Use
@@ -46,6 +47,7 @@ export interface IStorageMainService {
 	 * will be converted to a boolean.
 	 */
 	getBoolean(key: string, fallbackValue: boolean): boolean;
+	getBoolean(key: string, fallbackValue?: boolean): boolean | undefined;
 
 	/**
 	 * Retrieve an element stored with the given key from storage. Use
@@ -53,6 +55,7 @@ export interface IStorageMainService {
 	 * will be converted to a number using parseInt with a base of 10.
 	 */
 	getInteger(key: string, fallbackValue: number): number;
+	getInteger(key: string, fallbackValue?: number): number | undefined;
 
 	/**
 	 * Store a string value under the given key to storage. The value will
@@ -87,9 +90,9 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 	private storage: IStorage;
 
 	constructor(
-		@ILogService private logService: ILogService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@ILogService private readonly logService: ILogService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super();
 
@@ -109,7 +112,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 		const loggedStorageErrors = new Set<string>();
 
 		return {
-			logTrace: (this.logService.getLevel() === LogLevel.Trace) ? msg => this.logService.trace(msg) : void 0,
+			logTrace: (this.logService.getLevel() === LogLevel.Trace) ? msg => this.logService.trace(msg) : undefined,
 			logError: error => {
 				this.logService.error(error);
 
@@ -345,15 +348,21 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 		});
 	}
 
-	get(key: string, fallbackValue: string): string {
+	get(key: string, fallbackValue: string): string;
+	get(key: string, fallbackValue?: string): string | undefined;
+	get(key: string, fallbackValue?: string): string | undefined {
 		return this.storage.get(key, fallbackValue);
 	}
 
-	getBoolean(key: string, fallbackValue: boolean): boolean {
+	getBoolean(key: string, fallbackValue: boolean): boolean;
+	getBoolean(key: string, fallbackValue?: boolean): boolean | undefined;
+	getBoolean(key: string, fallbackValue?: boolean): boolean | undefined {
 		return this.storage.getBoolean(key, fallbackValue);
 	}
 
-	getInteger(key: string, fallbackValue: number): number {
+	getInteger(key: string, fallbackValue: number): number;
+	getInteger(key: string, fallbackValue?: number): number | undefined;
+	getInteger(key: string, fallbackValue?: number): number | undefined {
 		return this.storage.getInteger(key, fallbackValue);
 	}
 

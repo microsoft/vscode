@@ -21,7 +21,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IDebugConfigurationProvider, ICompound, IDebugConfiguration, IConfig, IGlobalConfig, IConfigurationManager, ILaunch, IDebugAdapterDescriptorFactory, IDebugAdapter, ITerminalSettings, ITerminalLauncher, IDebugSession, IAdapterDescriptor, CONTEXT_DEBUG_CONFIGURATION_TYPE, IDebugAdapterFactory, IDebugAdapterTrackerFactory } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugConfigurationProvider, ICompound, IDebugConfiguration, IConfig, IGlobalConfig, IConfigurationManager, ILaunch, IDebugAdapterDescriptorFactory, IDebugAdapter, ITerminalSettings, ITerminalLauncher, IDebugSession, IAdapterDescriptor, CONTEXT_DEBUG_CONFIGURATION_TYPE, IDebugAdapterFactory, IDebugAdapterTrackerFactory, IDebugService } from 'vs/workbench/parts/debug/common/debug';
 import { Debugger } from 'vs/workbench/parts/debug/node/debugger';
 import { IEditorService, ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -33,6 +33,7 @@ import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/plat
 import { launchSchema, debuggersExtPoint, breakpointsExtPoint } from 'vs/workbench/parts/debug/common/debugSchemas';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 jsonRegistry.registerSchema(launchSchemaId, launchSchema);
@@ -56,15 +57,16 @@ export class ConfigurationManager implements IConfigurationManager {
 	private debugConfigurationTypeContext: IContextKey<string>;
 
 	constructor(
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IEditorService private editorService: IEditorService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IQuickInputService private quickInputService: IQuickInputService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@ICommandService private commandService: ICommandService,
-		@IStorageService private storageService: IStorageService,
+		private debugService: IDebugService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IStorageService private readonly storageService: IStorageService,
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@IExtensionService private extensionService: IExtensionService,
+		@IExtensionService private readonly extensionService: IExtensionService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		this.configProviders = [];
@@ -207,14 +209,7 @@ export class ConfigurationManager implements IConfigurationManager {
 
 		// if the given debugType matches any registered tracker factory we need to run the DA in the EH
 		const providers = this.adapterTrackerFactories.filter(p => p.type === debugType || p.type === '*');
-		if (providers.length > 0) {
-			return true;
-		}
-
-		// TODO@AW deprecated
-		// if the given debugType matches any registered provider that has a provideTracker method, we need to run the DA in the EH
-		const providers2 = this.configProviders.filter(p => p.hasTracker && (p.type === debugType || p.type === '*'));
-		return providers2.length > 0;
+		return providers.length > 0;
 	}
 
 	public resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: IConfig): Promise<IConfig> {
@@ -241,14 +236,12 @@ export class ConfigurationManager implements IConfigurationManager {
 				.then(results => results.reduce((first, second) => first.concat(second), [])));
 	}
 
-	///////////////////////////////////////////////////////////
-
 	private registerListeners(lifecycleService: ILifecycleService): void {
-		debuggersExtPoint.setHandler((extensions) => {
-			extensions.forEach(extension => {
-				extension.value.forEach(rawAdapter => {
+		debuggersExtPoint.setHandler((extensions, delta) => {
+			delta.added.forEach(added => {
+				added.value.forEach(rawAdapter => {
 					if (!rawAdapter.type || (typeof rawAdapter.type !== 'string')) {
-						extension.collector.error(nls.localize('debugNoType', "Debugger 'type' can not be omitted and must be of type 'string'."));
+						added.collector.error(nls.localize('debugNoType', "Debugger 'type' can not be omitted and must be of type 'string'."));
 					}
 					if (rawAdapter.enableBreakpointsFor) {
 						rawAdapter.enableBreakpointsFor.languageIds.forEach(modeId => {
@@ -258,9 +251,19 @@ export class ConfigurationManager implements IConfigurationManager {
 
 					const duplicate = this.getDebugger(rawAdapter.type);
 					if (duplicate) {
-						duplicate.merge(rawAdapter, extension.description);
+						duplicate.merge(rawAdapter, added.description);
 					} else {
-						this.debuggers.push(this.instantiationService.createInstance(Debugger, this, rawAdapter, extension.description));
+						this.debuggers.push(this.instantiationService.createInstance(Debugger, this, rawAdapter, added.description));
+					}
+				});
+			});
+			delta.removed.forEach(removed => {
+				const removedTypes = removed.value.map(rawAdapter => rawAdapter.type);
+				this.debuggers = this.debuggers.filter(d => removedTypes.indexOf(d.type) === -1);
+				this.debugService.getModel().getSessions().forEach(s => {
+					// Stop sessions if their debugger has been removed
+					if (removedTypes.indexOf(s.configuration.type) >= 0) {
+						this.debugService.stopSession(s).then(undefined, onUnexpectedError);
 					}
 				});
 			});
@@ -281,11 +284,12 @@ export class ConfigurationManager implements IConfigurationManager {
 			this.setCompoundSchemaValues();
 		});
 
-		breakpointsExtPoint.setHandler(extensions => {
-			extensions.forEach(ext => {
-				ext.value.forEach(breakpoints => {
-					this.breakpointModeIdsSet.add(breakpoints.language);
-				});
+		breakpointsExtPoint.setHandler((extensions, delta) => {
+			delta.removed.forEach(removed => {
+				removed.value.forEach(breakpoints => this.breakpointModeIdsSet.delete(breakpoints.language));
+			});
+			delta.added.forEach(added => {
+				added.value.forEach(breakpoints => this.breakpointModeIdsSet.add(breakpoints.language));
 			});
 		});
 
@@ -450,7 +454,7 @@ export class ConfigurationManager implements IConfigurationManager {
 			thenables.push(this.extensionService.activateByEvent(`${activationEvent}:${debugType}`));
 		}
 		return Promise.all(thenables).then(_ => {
-			return void 0;
+			return undefined;
 		});
 	}
 
@@ -471,7 +475,7 @@ class Launch implements ILaunch {
 	constructor(
 		private configurationManager: ConfigurationManager,
 		public workspace: IWorkspaceFolder,
-		@IFileService private fileService: IFileService,
+		@IFileService private readonly fileService: IFileService,
 		@IEditorService protected editorService: IEditorService,
 		@IConfigurationService protected configurationService: IConfigurationService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
@@ -624,7 +628,7 @@ class UserLaunch extends Launch implements ILaunch {
 		@IFileService fileService: IFileService,
 		@IEditorService editorService: IEditorService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IPreferencesService private preferencesService: IPreferencesService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService
 	) {
 		super(configurationManager, undefined, fileService, editorService, configurationService, contextService);

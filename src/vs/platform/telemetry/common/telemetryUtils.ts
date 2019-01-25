@@ -15,7 +15,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 export const NullTelemetryService = new class implements ITelemetryService {
 	_serviceBrand: undefined;
 	publicLog(eventName: string, data?: ITelemetryData) {
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 	isOptedIn: true;
 	getTelemetryInfo(): Promise<ITelemetryInfo> {
@@ -155,6 +155,7 @@ const configurationValueWhitelist = [
 	'editor.dragAndDrop',
 	'editor.formatOnSave',
 	'editor.colorDecorators',
+	'editor.selectAfterPaste',
 
 	'breadcrumbs.enabled',
 	'breadcrumbs.filePath',

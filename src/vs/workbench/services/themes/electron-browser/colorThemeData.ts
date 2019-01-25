@@ -43,6 +43,7 @@ export class ColorThemeData implements IColorTheme {
 	description?: string;
 	isLoaded: boolean;
 	location?: URI;
+	watch: boolean;
 	extensionData: ExtensionData;
 
 	get tokenColors(): ITokenColorizationRule[] {
@@ -56,8 +57,8 @@ export class ColorThemeData implements IColorTheme {
 	private colorMap: IColorMap = {};
 	private customColorMap: IColorMap = {};
 
-	public getColor(colorId: ColorIdentifier, useDefault?: boolean): Color {
-		let color = this.customColorMap[colorId];
+	public getColor(colorId: ColorIdentifier, useDefault?: boolean): Color | null {
+		let color: Color | null = this.customColorMap[colorId];
 		if (color) {
 			return color;
 		}
@@ -68,7 +69,7 @@ export class ColorThemeData implements IColorTheme {
 		return color;
 	}
 
-	public getDefault(colorId: ColorIdentifier): Color {
+	public getDefault(colorId: ColorIdentifier): Color | null {
 		return colorRegistry.resolveDefaultColor(colorId, this);
 	}
 
@@ -135,15 +136,21 @@ export class ColorThemeData implements IColorTheme {
 	}
 
 	public ensureLoaded(fileService: IFileService): Promise<void> {
-		if (!this.isLoaded) {
-			if (this.location) {
-				return _loadColorTheme(fileService, this.location, this.themeTokenColors, this.colorMap).then(_ => {
-					this.isLoaded = true;
-					this.sanitizeTokenColors();
-				});
-			}
+		return !this.isLoaded ? this.load(fileService) : Promise.resolve(undefined);
+	}
+
+	public reload(fileService: IFileService): Promise<void> {
+		return this.load(fileService);
+	}
+
+	private load(fileService: IFileService): Promise<void> {
+		if (!this.location) {
+			return Promise.resolve(undefined);
 		}
-		return Promise.resolve(void 0);
+		return _loadColorTheme(fileService, this.location, this.themeTokenColors, this.colorMap).then(_ => {
+			this.isLoaded = true;
+			this.sanitizeTokenColors();
+		});
 	}
 
 	/**
@@ -179,7 +186,8 @@ export class ColorThemeData implements IColorTheme {
 			selector: this.id.split(' ').join('.'), // to not break old clients
 			themeTokenColors: this.themeTokenColors,
 			extensionData: this.extensionData,
-			colorMap: colorMapData
+			colorMap: colorMapData,
+			watch: this.watch
 		});
 	}
 
@@ -205,9 +213,10 @@ export class ColorThemeData implements IColorTheme {
 		let themeData = new ColorThemeData();
 		themeData.id = id;
 		themeData.label = '';
-		themeData.settingsId = null;
+		themeData.settingsId = '__' + id;
 		themeData.isLoaded = false;
 		themeData.themeTokenColors = [{ settings: {} }];
+		themeData.watch = false;
 		return themeData;
 	}
 
@@ -218,10 +227,11 @@ export class ColorThemeData implements IColorTheme {
 		themeData.settingsId = settingsId;
 		themeData.isLoaded = true;
 		themeData.themeTokenColors = [{ settings: {} }];
+		themeData.watch = false;
 		return themeData;
 	}
 
-	static fromStorageData(input: string): ColorThemeData {
+	static fromStorageData(input: string): ColorThemeData | undefined {
 		try {
 			let data = JSON.parse(input);
 			let theme = new ColorThemeData();
@@ -234,14 +244,14 @@ export class ColorThemeData implements IColorTheme {
 						}
 						break;
 					case 'themeTokenColors':
-					case 'id': case 'label': case 'settingsId': case 'extensionData':
+					case 'id': case 'label': case 'settingsId': case 'extensionData': case 'watch':
 						theme[key] = data[key];
 						break;
 				}
 			}
 			return theme;
 		} catch (e) {
-			return null;
+			return undefined;
 		}
 	}
 
@@ -254,6 +264,7 @@ export class ColorThemeData implements IColorTheme {
 		themeData.label = theme.label || Paths.basename(theme.path);
 		themeData.settingsId = theme.id || themeData.label;
 		themeData.description = theme.description;
+		themeData.watch = theme._watch === true;
 		themeData.location = colorThemeLocation;
 		themeData.extensionData = extensionData;
 		themeData.isLoaded = false;
@@ -281,7 +292,7 @@ function _loadColorTheme(fileService: IFileService, themeLocation: URI, resultRu
 			}
 			let includeCompletes: Promise<any> = Promise.resolve(null);
 			if (contentValue.include) {
-				includeCompletes = _loadColorTheme(fileService, resources.joinPath(resources.dirname(themeLocation), contentValue.include), resultRules, resultColors);
+				includeCompletes = _loadColorTheme(fileService, resources.joinPath(resources.dirname(themeLocation)!, contentValue.include), resultRules, resultColors);
 			}
 			return includeCompletes.then(_ => {
 				if (Array.isArray(contentValue.settings)) {
@@ -307,7 +318,7 @@ function _loadColorTheme(fileService: IFileService, themeLocation: URI, resultRu
 						resultRules.push(...tokenColors);
 						return null;
 					} else if (typeof tokenColors === 'string') {
-						return _loadSyntaxTokens(fileService, resources.joinPath(resources.dirname(themeLocation), tokenColors), resultRules, {});
+						return _loadSyntaxTokens(fileService, resources.joinPath(resources.dirname(themeLocation)!, tokenColors), resultRules, {});
 					} else {
 						return Promise.reject(new Error(nls.localize({ key: 'error.invalidformat.tokenColors', comment: ['{0} will be replaced by a path. Values in quotes should not be translated.'] }, "Problem parsing color theme file: {0}. Property 'tokenColors' should be either an array specifying colors or a path to a TextMate theme file", themeLocation.toString())));
 					}
@@ -322,7 +333,10 @@ function _loadColorTheme(fileService: IFileService, themeLocation: URI, resultRu
 
 let pListParser: Promise<{ parse(content: string) }>;
 function getPListParser() {
-	return pListParser || import('fast-plist');
+	if (!pListParser) {
+		pListParser = import('fast-plist');
+	}
+	return pListParser;
 }
 
 function _loadSyntaxTokens(fileService: IFileService, themeLocation: URI, resultRules: ITokenColorizationRule[], resultColors: IColorMap): Promise<any> {
@@ -346,8 +360,8 @@ function _loadSyntaxTokens(fileService: IFileService, themeLocation: URI, result
 }
 
 function updateDefaultRuleSettings(defaultRule: ITokenColorizationRule, theme: ColorThemeData): ITokenColorizationRule {
-	const foreground = theme.getColor(editorForeground) || theme.getDefault(editorForeground);
-	const background = theme.getColor(editorBackground) || theme.getDefault(editorBackground);
+	const foreground = theme.getColor(editorForeground) || theme.getDefault(editorForeground)!;
+	const background = theme.getColor(editorBackground) || theme.getDefault(editorBackground)!;
 	defaultRule.settings.foreground = Color.Format.CSS.formatHexA(foreground);
 	defaultRule.settings.background = Color.Format.CSS.formatHexA(background);
 	return defaultRule;

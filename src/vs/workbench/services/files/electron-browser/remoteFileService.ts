@@ -90,8 +90,8 @@ class WorkspaceWatchLogic extends Disposable {
 
 	constructor(
 		private _fileService: RemoteFileService,
-		@IConfigurationService private _configurationService: IConfigurationService,
-		@IWorkspaceContextService private _contextService: IWorkspaceContextService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 	) {
 		super();
 
@@ -482,7 +482,7 @@ export class RemoteFileService extends FileService {
 		return new Promise<IFileStat>((resolve, reject) => {
 			readable.pipe(encoder).pipe(target);
 			target.once('error', err => reject(err));
-			target.once('finish', _ => resolve(void 0));
+			target.once('finish', _ => resolve(undefined));
 		}).then(_ => {
 			return this.resolveFile(resource);
 		});
@@ -563,17 +563,19 @@ export class RemoteFileService extends FileService {
 			: Promise.resolve(null);
 
 		return prepare.then(() => this._withProvider(source)).then(RemoteFileService._throwIfFileSystemIsReadonly).then(provider => {
-			return provider.rename(source, target, { overwrite }).then(() => {
-				return this.resolveFile(target);
-			}).then(fileStat => {
-				this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.MOVE, fileStat));
-				return fileStat;
-			}, err => {
-				const result = this._tryParseFileOperationResult(err);
-				if (result === FileOperationResult.FILE_MOVE_CONFLICT) {
-					throw new FileOperationError(localize('fileMoveConflict', "Unable to move/copy. File already exists at destination."), result);
-				}
-				throw err;
+			return RemoteFileService._mkdirp(provider, resources.dirname(target)).then(() => {
+				return provider.rename(source, target, { overwrite }).then(() => {
+					return this.resolveFile(target);
+				}).then(fileStat => {
+					this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.MOVE, fileStat));
+					return fileStat;
+				}, err => {
+					const result = this._tryParseFileOperationResult(err);
+					if (result === FileOperationResult.FILE_MOVE_CONFLICT) {
+						throw new FileOperationError(localize('fileMoveConflict', "Unable to move/copy. File already exists at destination."), result);
+					}
+					throw err;
+				});
 			});
 		});
 	}

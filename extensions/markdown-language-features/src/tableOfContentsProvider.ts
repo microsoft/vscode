@@ -17,6 +17,7 @@ export interface TocEntry {
 
 export interface SkinnyTextDocument {
 	readonly uri: vscode.Uri;
+	readonly version: number;
 	readonly lineCount: number;
 	getText(): string;
 	lineAt(line: number): vscode.TextLine;
@@ -49,7 +50,7 @@ export class TableOfContentsProvider {
 
 	private async buildToc(document: SkinnyTextDocument): Promise<TocEntry[]> {
 		const toc: TocEntry[] = [];
-		const tokens = await this.engine.parse(document.uri, document.getText());
+		const tokens = await this.engine.parse(document);
 
 		const slugCount = new Map<string, number>();
 

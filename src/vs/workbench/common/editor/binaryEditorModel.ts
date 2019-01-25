@@ -22,7 +22,7 @@ export class BinaryEditorModel extends EditorModel {
 	constructor(
 		resource: URI,
 		name: string,
-		@IFileService private fileService: IFileService
+		@IFileService private readonly fileService: IFileService
 	) {
 		super();
 
@@ -35,7 +35,7 @@ export class BinaryEditorModel extends EditorModel {
 				this.size = Number(metadata.get(DataUri.META_DATA_SIZE));
 			}
 
-			this.mime = metadata.get(DataUri.META_DATA_MIME);
+			this.mime = metadata.get(DataUri.META_DATA_MIME)!;
 		}
 	}
 

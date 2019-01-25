@@ -47,11 +47,11 @@ export class BracketSelectionRangeProvider implements SelectionRangeProvider {
 			const key = bracket.close;
 			if (bracket.isOpen) {
 				// wait for closing
-				let val = counts.has(key) ? counts.get(key) : 0;
+				let val = counts.has(key) ? counts.get(key)! : 0;
 				counts.set(key, val + 1);
 			} else {
 				// process closing
-				let val = counts.has(key) ? counts.get(key) : 0;
+				let val = counts.has(key) ? counts.get(key)! : 0;
 				val -= 1;
 				counts.set(key, Math.max(0, val));
 				if (val < 0) {
@@ -92,11 +92,11 @@ export class BracketSelectionRangeProvider implements SelectionRangeProvider {
 			const key = bracket.close;
 			if (!bracket.isOpen) {
 				// wait for opening
-				let val = counts.has(key) ? counts.get(key) : 0;
+				let val = counts.has(key) ? counts.get(key)! : 0;
 				counts.set(key, val + 1);
 			} else {
 				// opening
-				let val = counts.has(key) ? counts.get(key) : 0;
+				let val = counts.has(key) ? counts.get(key)! : 0;
 				val -= 1;
 				counts.set(key, Math.max(0, val));
 				if (val < 0) {
@@ -108,8 +108,8 @@ export class BracketSelectionRangeProvider implements SelectionRangeProvider {
 						}
 						const innerBracket = Range.fromPositions(bracket.range.getEndPosition(), closing!.getStartPosition());
 						const outerBracket = Range.fromPositions(bracket.range.getStartPosition(), closing!.getEndPosition());
-						bucket.push({ range: innerBracket, kind: 'block.bracket' });
-						bucket.push({ range: outerBracket, kind: 'block.bracket' });
+						bucket.push({ range: innerBracket, kind: 'statement.brackets' });
+						bucket.push({ range: outerBracket, kind: 'statement.brackets.full' });
 						BracketSelectionRangeProvider._addBracketLeading(model, outerBracket, bucket);
 					}
 				}
@@ -128,8 +128,8 @@ export class BracketSelectionRangeProvider implements SelectionRangeProvider {
 		const startLine = bracket.startLineNumber;
 		const column = model.getLineFirstNonWhitespaceColumn(startLine);
 		if (column !== 0 && column !== bracket.startColumn) {
-			bucket.push({ range: Range.fromPositions(new Position(startLine, column), bracket.getEndPosition()), kind: 'block.bracket.leading' });
-			bucket.push({ range: Range.fromPositions(new Position(startLine, 1), bracket.getEndPosition()), kind: 'block.bracket.leading' });
+			bucket.push({ range: Range.fromPositions(new Position(startLine, column), bracket.getEndPosition()), kind: 'statement.brackets.leading' });
+			bucket.push({ range: Range.fromPositions(new Position(startLine, 1), bracket.getEndPosition()), kind: 'statement.brackets.leading.full' });
 		}
 
 		// xxxxxxxx
@@ -140,8 +140,8 @@ export class BracketSelectionRangeProvider implements SelectionRangeProvider {
 		if (aboveLine > 0) {
 			const column = model.getLineFirstNonWhitespaceColumn(aboveLine);
 			if (column === bracket.startColumn && column !== model.getLineLastNonWhitespaceColumn(aboveLine)) {
-				bucket.push({ range: Range.fromPositions(new Position(aboveLine, column), bracket.getEndPosition()), kind: 'block.bracket.leading' });
-				bucket.push({ range: Range.fromPositions(new Position(aboveLine, 1), bracket.getEndPosition()), kind: 'block.bracket.leading' });
+				bucket.push({ range: Range.fromPositions(new Position(aboveLine, column), bracket.getEndPosition()), kind: 'statement.brackets.leading' });
+				bucket.push({ range: Range.fromPositions(new Position(aboveLine, 1), bracket.getEndPosition()), kind: 'statement.brackets.leading.full' });
 			}
 		}
 	}

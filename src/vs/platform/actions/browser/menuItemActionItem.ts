@@ -83,7 +83,7 @@ export function fillInContextMenuActions(menu: IMenu, options: IMenuActionOption
 	fillInActions(groups, target, getAlternativeActions, isPrimaryGroup);
 }
 
-export function fillInActionBarActions(menu: IMenu, options: IMenuActionOptions, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, isPrimaryGroup?: (group: string) => boolean): void {
+export function fillInActionBarActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, isPrimaryGroup?: (group: string) => boolean): void {
 	const groups = menu.getActions(options);
 	// Action bars handle alternative actions on their own so the alternative actions should be ignored
 	fillInActions(groups, target, false, isPrimaryGroup);
@@ -231,7 +231,7 @@ export class MenuItemActionItem extends ActionItem {
 			const iconPathMapKey = item.iconLocation.dark.toString();
 
 			if (MenuItemActionItem.ICON_PATH_TO_CSS_RULES.has(iconPathMapKey)) {
-				iconClass = MenuItemActionItem.ICON_PATH_TO_CSS_RULES.get(iconPathMapKey);
+				iconClass = MenuItemActionItem.ICON_PATH_TO_CSS_RULES.get(iconPathMapKey)!;
 			} else {
 				iconClass = ids.nextId();
 				createCSSRule(`.icon.${iconClass}`, `background-image: url("${(item.iconLocation.light || item.iconLocation.dark).toString()}")`);

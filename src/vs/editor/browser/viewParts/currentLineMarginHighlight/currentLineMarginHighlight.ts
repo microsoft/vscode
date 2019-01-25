@@ -63,7 +63,6 @@ export class CurrentLineMarginHighlightOverlay extends DynamicViewOverlay {
 		const selectionIsEmpty = e.selections[0].isEmpty();
 		if (this._selectionIsEmpty !== selectionIsEmpty) {
 			this._selectionIsEmpty = selectionIsEmpty;
-			hasChanged = true;
 			return true;
 		}
 

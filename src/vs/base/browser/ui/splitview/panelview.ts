@@ -77,7 +77,7 @@ export abstract class Panel implements IView {
 
 	set minimumBodySize(size: number) {
 		this._minimumBodySize = size;
-		this._onDidChange.fire();
+		this._onDidChange.fire(undefined);
 	}
 
 	get maximumBodySize(): number {
@@ -86,7 +86,7 @@ export abstract class Panel implements IView {
 
 	set maximumBodySize(size: number) {
 		this._maximumBodySize = size;
-		this._onDidChange.fire();
+		this._onDidChange.fire(undefined);
 	}
 
 	private get headerSize(): number {
@@ -109,6 +109,8 @@ export abstract class Panel implements IView {
 		return headerSize + maximumBodySize;
 	}
 
+	width: number;
+
 	constructor(options: IPanelOptions = {}) {
 		this._expanded = typeof options.expanded === 'undefined' ? true : !!options.expanded;
 		this.ariaHeaderLabel = options.ariaHeaderLabel || '';
@@ -122,14 +124,16 @@ export abstract class Panel implements IView {
 		return this._expanded;
 	}
 
-	setExpanded(expanded: boolean): void {
+	setExpanded(expanded: boolean): boolean {
 		if (this._expanded === !!expanded) {
-			return;
+			return false;
 		}
 
 		this._expanded = !!expanded;
 		this.updateHeader();
 		this._onDidChange.fire(expanded ? this.expandedSize : undefined);
+
+		return true;
 	}
 
 	get headerVisible(): boolean {
@@ -143,7 +147,7 @@ export abstract class Panel implements IView {
 
 		this._headerVisible = !!visible;
 		this.updateHeader();
-		this._onDidChange.fire();
+		this._onDidChange.fire(undefined);
 	}
 
 	render(): void {
@@ -186,12 +190,12 @@ export abstract class Panel implements IView {
 		this.renderBody(body);
 	}
 
-	layout(size: number): void {
+	layout(height: number): void {
 		const headerSize = this.headerVisible ? Panel.HEADER_SIZE : 0;
 
 		if (this.isExpanded()) {
-			this.layoutBody(size - headerSize);
-			this.expandedSize = size;
+			this.layoutBody(height - headerSize, this.width);
+			this.expandedSize = height;
 		}
 	}
 
@@ -222,7 +226,7 @@ export abstract class Panel implements IView {
 
 	protected abstract renderHeader(container: HTMLElement): void;
 	protected abstract renderBody(container: HTMLElement): void;
-	protected abstract layoutBody(size: number): void;
+	protected abstract layoutBody(height: number, width: number): void;
 
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
@@ -367,6 +371,7 @@ export class PanelView extends Disposable {
 	private dndContext: IDndContext = { draggable: null };
 	private el: HTMLElement;
 	private panelItems: IPanelItem[] = [];
+	private width: number;
 	private splitview: SplitView;
 	private animationTimer: number | null = null;
 
@@ -396,6 +401,7 @@ export class PanelView extends Disposable {
 
 		const panelItem = { panel, disposable: combinedDisposable(disposables) };
 		this.panelItems.splice(index, 0, panelItem);
+		panel.width = this.width;
 		this.splitview.addView(panel, size, index);
 
 		if (this.dnd) {
@@ -451,8 +457,14 @@ export class PanelView extends Disposable {
 		return this.splitview.getViewSize(index);
 	}
 
-	layout(size: number): void {
-		this.splitview.layout(size);
+	layout(height: number, width: number): void {
+		this.width = width;
+
+		for (const panelItem of this.panelItems) {
+			panelItem.panel.width = width;
+		}
+
+		this.splitview.layout(height);
 	}
 
 	private setupAnimation(): void {

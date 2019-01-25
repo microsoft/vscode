@@ -102,3 +102,5 @@ export const FOLDER_SETTINGS_PATH = join('.vscode', 'settings.json');
 export const DEFAULT_SETTINGS_EDITOR_SETTING = 'workbench.settings.openDefaultSettings';
 
 export const MODIFIED_SETTING_TAG = 'modified';
+
+export const SETTINGS_COMMAND_OPEN_SETTINGS = 'workbench.action.openSettings';

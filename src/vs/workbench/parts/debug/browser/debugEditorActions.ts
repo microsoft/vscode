@@ -119,7 +119,7 @@ class RunToCursorAction extends EditorAction {
 		const debugService = accessor.get(IDebugService);
 		const focusedSession = debugService.getViewModel().focusedSession;
 		if (debugService.state !== State.Stopped || !focusedSession) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		let breakpointToRemove: IBreakpoint;
@@ -169,7 +169,7 @@ class SelectionToReplAction extends EditorAction {
 		const session = viewModel.focusedSession;
 		return session.addReplExpression(viewModel.focusedStackFrame, text)
 			.then(() => panelService.openPanel(REPL_ID, true))
-			.then(_ => void 0);
+			.then(_ => undefined);
 	}
 }
 

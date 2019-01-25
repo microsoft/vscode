@@ -39,7 +39,7 @@ export class TextFileService extends AbstractTextFileService {
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IModeService private modeService: IModeService,
+		@IModeService private readonly modeService: IModeService,
 		@IModelService modelService: IModelService,
 		@IWindowService windowService: IWindowService,
 		@IEnvironmentService environmentService: IEnvironmentService,
@@ -48,9 +48,9 @@ export class TextFileService extends AbstractTextFileService {
 		@IWindowsService windowsService: IWindowsService,
 		@IHistoryService historyService: IHistoryService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IDialogService private dialogService: IDialogService,
-		@IFileDialogService private fileDialogService: IFileDialogService,
-		@IEditorService private editorService: IEditorService
+		@IDialogService private readonly dialogService: IDialogService,
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		super(lifecycleService, contextService, configurationService, fileService, untitledEditorService, instantiationService, notificationService, environmentService, backupFileService, windowsService, windowService, historyService, contextKeyService, modelService);
 	}
@@ -125,7 +125,7 @@ export class TextFileService extends AbstractTextFileService {
 		interface IFilter { name: string; extensions: string[]; }
 
 		// Build the file filter by using our known languages
-		const ext: string = defaultUri ? paths.extname(defaultUri.path) : void 0;
+		const ext: string = defaultUri ? paths.extname(defaultUri.path) : undefined;
 		let matchingFilter: IFilter;
 		const filters: IFilter[] = coalesce(this.modeService.getRegisteredLanguageNames().map(languageName => {
 			const extensions = this.modeService.getExtensions(languageName);

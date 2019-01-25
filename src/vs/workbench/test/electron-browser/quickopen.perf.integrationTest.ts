@@ -56,7 +56,7 @@ suite.skip('QuickOpen performance (integration)', () => {
 
 	test('Measure', () => {
 		if (process.env['VSCODE_PID']) {
-			return void 0; // TODO@Christoph find out why test fails when run from within VS Code
+			return undefined; // TODO@Christoph find out why test fails when run from within VS Code
 		}
 
 		const n = 3;
@@ -72,7 +72,7 @@ suite.skip('QuickOpen performance (integration)', () => {
 			[ITelemetryService, telemetryService],
 			[IConfigurationService, configurationService],
 			[ITextResourcePropertiesService, textResourcePropertiesService],
-			[IModelService, new ModelServiceImpl(null, configurationService, textResourcePropertiesService)],
+			[IModelService, new ModelServiceImpl(configurationService, textResourcePropertiesService)],
 			[IWorkspaceContextService, new TestContextService(testWorkspace(URI.file(testWorkspacePath)))],
 			[IEditorService, new TestEditorService()],
 			[IEditorGroupsService, new TestEditorGroupsService()],
@@ -137,7 +137,7 @@ suite.skip('QuickOpen performance (integration)', () => {
 					let i = n;
 					return (function iterate(): Promise<Timer.ITimerEvent> {
 						if (!i--) {
-							return undefined;
+							return undefined!;
 						}
 						return measure()
 							.then(([uncachedEvent, cachedEvent]) => {
@@ -166,7 +166,7 @@ class TestTelemetryService implements ITelemetryService {
 
 	public publicLog(eventName: string, data?: any): Promise<void> {
 		this.events.push({ name: eventName, data: data });
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	public getTelemetryInfo(): Promise<ITelemetryInfo> {

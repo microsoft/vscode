@@ -459,6 +459,11 @@ export interface IEditorOptions {
 	 */
 	mouseWheelScrollSensitivity?: number;
 	/**
+	 * FastScrolling mulitplier speed when pressing `Alt`
+	 * Defaults to 5.
+	 */
+	fastScrollSensitivity?: number;
+	/**
 	 * The modifier to be used to add multiple cursors with the mouse.
 	 * Defaults to 'alt'
 	 */
@@ -680,6 +685,10 @@ export interface IEditorOptions {
 	 * Controls fading out of unused variables.
 	 */
 	showUnused?: boolean;
+	/**
+	 * Selects text after paste
+	 */
+	selectAfterPaste?: boolean;
 }
 
 /**
@@ -875,6 +884,7 @@ export interface InternalEditorScrollbarOptions {
 	readonly verticalScrollbarSize: number;
 	readonly verticalSliderSize: number;
 	readonly mouseWheelScrollSensitivity: number;
+	readonly fastScrollSensitivity: number;
 }
 
 export interface InternalEditorMinimapOptions {
@@ -999,6 +1009,7 @@ export interface EditorContribOptions {
 	readonly lightbulbEnabled: boolean;
 	readonly codeActionsOnSave: ICodeActionsOnSaveOptions;
 	readonly codeActionsOnSaveTimeout: number;
+	readonly selectAfterPaste: boolean;
 }
 
 /**
@@ -1292,6 +1303,7 @@ export class InternalEditorOptions {
 			&& a.verticalScrollbarSize === b.verticalScrollbarSize
 			&& a.verticalSliderSize === b.verticalSliderSize
 			&& a.mouseWheelScrollSensitivity === b.mouseWheelScrollSensitivity
+			&& a.fastScrollSensitivity === b.fastScrollSensitivity
 		);
 	}
 
@@ -1795,7 +1807,7 @@ export class EditorOptionsValidator {
 		};
 	}
 
-	private static _sanitizeScrollbarOpts(opts: IEditorScrollbarOptions | undefined, defaults: InternalEditorScrollbarOptions, mouseWheelScrollSensitivity: number): InternalEditorScrollbarOptions {
+	private static _sanitizeScrollbarOpts(opts: IEditorScrollbarOptions | undefined, defaults: InternalEditorScrollbarOptions, mouseWheelScrollSensitivity: number, fastScrollSensitivity: number): InternalEditorScrollbarOptions {
 		if (typeof opts !== 'object') {
 			return defaults;
 		}
@@ -1818,7 +1830,8 @@ export class EditorOptionsValidator {
 			verticalSliderSize: _clampedInt(opts.verticalSliderSize, verticalScrollbarSize, 0, 1000),
 
 			handleMouseWheel: _boolean(opts.handleMouseWheel, defaults.handleMouseWheel),
-			mouseWheelScrollSensitivity: mouseWheelScrollSensitivity
+			mouseWheelScrollSensitivity: mouseWheelScrollSensitivity,
+			fastScrollSensitivity: fastScrollSensitivity,
 		};
 	}
 
@@ -1835,7 +1848,7 @@ export class EditorOptionsValidator {
 		};
 	}
 
-	private static _santizeFindOpts(opts: IEditorFindOptions | undefined, defaults: InternalEditorFindOptions): InternalEditorFindOptions {
+	private static _sanitizeFindOpts(opts: IEditorFindOptions | undefined, defaults: InternalEditorFindOptions): InternalEditorFindOptions {
 		if (typeof opts !== 'object') {
 			return defaults;
 		}
@@ -1858,7 +1871,7 @@ export class EditorOptionsValidator {
 		};
 	}
 
-	private static _santizeHoverOpts(_opts: boolean | IEditorHoverOptions | undefined, defaults: InternalEditorHoverOptions): InternalEditorHoverOptions {
+	private static _sanitizeHoverOpts(_opts: boolean | IEditorHoverOptions | undefined, defaults: InternalEditorHoverOptions): InternalEditorHoverOptions {
 		let opts: IEditorHoverOptions;
 		if (typeof _opts === 'boolean') {
 			opts = {
@@ -1946,7 +1959,7 @@ export class EditorOptionsValidator {
 			} else if (<any>renderWhitespace === false) {
 				renderWhitespace = 'none';
 			}
-			renderWhitespace = _stringSet<'none' | 'boundary' | 'all'>(opts.renderWhitespace, defaults.renderWhitespace, ['none', 'boundary', 'all']);
+			renderWhitespace = _stringSet<'none' | 'boundary' | 'all'>(renderWhitespace, defaults.renderWhitespace, ['none', 'boundary', 'all']);
 		}
 
 		let renderLineHighlight = opts.renderLineHighlight;
@@ -1957,7 +1970,7 @@ export class EditorOptionsValidator {
 			} else if (<any>renderLineHighlight === false) {
 				renderLineHighlight = 'none';
 			}
-			renderLineHighlight = _stringSet<'none' | 'gutter' | 'line' | 'all'>(opts.renderLineHighlight, defaults.renderLineHighlight, ['none', 'gutter', 'line', 'all']);
+			renderLineHighlight = _stringSet<'none' | 'gutter' | 'line' | 'all'>(renderLineHighlight, defaults.renderLineHighlight, ['none', 'gutter', 'line', 'all']);
 		}
 
 		let mouseWheelScrollSensitivity = _float(opts.mouseWheelScrollSensitivity, defaults.scrollbar.mouseWheelScrollSensitivity);
@@ -1965,7 +1978,12 @@ export class EditorOptionsValidator {
 			// Disallow 0, as it would prevent/block scrolling
 			mouseWheelScrollSensitivity = 1;
 		}
-		const scrollbar = this._sanitizeScrollbarOpts(opts.scrollbar, defaults.scrollbar, mouseWheelScrollSensitivity);
+
+		let fastScrollSensitivity = _float(opts.fastScrollSensitivity, defaults.scrollbar.fastScrollSensitivity);
+		if (fastScrollSensitivity <= 0) {
+			fastScrollSensitivity = defaults.scrollbar.fastScrollSensitivity;
+		}
+		const scrollbar = this._sanitizeScrollbarOpts(opts.scrollbar, defaults.scrollbar, mouseWheelScrollSensitivity, fastScrollSensitivity);
 		const minimap = this._sanitizeMinimapOpts(opts.minimap, defaults.minimap);
 
 		return {
@@ -2014,10 +2032,10 @@ export class EditorOptionsValidator {
 		if (typeof opts.acceptSuggestionOnEnter === 'boolean') {
 			opts.acceptSuggestionOnEnter = opts.acceptSuggestionOnEnter ? 'on' : 'off';
 		}
-		const find = this._santizeFindOpts(opts.find, defaults.find);
+		const find = this._sanitizeFindOpts(opts.find, defaults.find);
 		return {
 			selectionClipboard: _boolean(opts.selectionClipboard, defaults.selectionClipboard),
-			hover: this._santizeHoverOpts(opts.hover, defaults.hover),
+			hover: this._sanitizeHoverOpts(opts.hover, defaults.hover),
 			links: _boolean(opts.links, defaults.links),
 			contextmenu: _boolean(opts.contextmenu, defaults.contextmenu),
 			quickSuggestions: quickSuggestions,
@@ -2046,7 +2064,8 @@ export class EditorOptionsValidator {
 			colorDecorators: _boolean(opts.colorDecorators, defaults.colorDecorators),
 			lightbulbEnabled: _boolean(opts.lightbulb ? opts.lightbulb.enabled : false, defaults.lightbulbEnabled),
 			codeActionsOnSave: _booleanMap(opts.codeActionsOnSave, {}),
-			codeActionsOnSaveTimeout: _clampedInt(opts.codeActionsOnSaveTimeout, defaults.codeActionsOnSaveTimeout, 1, 10000)
+			codeActionsOnSaveTimeout: _clampedInt(opts.codeActionsOnSaveTimeout, defaults.codeActionsOnSaveTimeout, 1, 10000),
+			selectAfterPaste: _boolean(opts.selectAfterPaste, defaults.selectAfterPaste)
 		};
 	}
 }
@@ -2159,7 +2178,8 @@ export class InternalEditorOptionsFactory {
 				colorDecorators: opts.contribInfo.colorDecorators,
 				lightbulbEnabled: opts.contribInfo.lightbulbEnabled,
 				codeActionsOnSave: opts.contribInfo.codeActionsOnSave,
-				codeActionsOnSaveTimeout: opts.contribInfo.codeActionsOnSaveTimeout
+				codeActionsOnSaveTimeout: opts.contribInfo.codeActionsOnSaveTimeout,
+				selectAfterPaste: opts.contribInfo.selectAfterPaste
 			}
 		};
 	}
@@ -2535,7 +2555,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 	wordWrapMinified: true,
 	wrappingIndent: WrappingIndent.Same,
 	wordWrapBreakBeforeCharacters: '([{‘“〈《「『【〔（［｛｢£¥＄￡￥+＋',
-	wordWrapBreakAfterCharacters: ' \t})]?|&,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻ｧｨｩｪｫｬｭｮｯｰ”〉》」』】〕）］｝｣',
+	wordWrapBreakAfterCharacters: ' \t})]?|/&,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻ｧｨｩｪｫｬｭｮｯｰ”〉》」』】〕）］｝｣',
 	wordWrapBreakObtrusiveCharacters: '.',
 	autoClosingBrackets: 'languageDefined',
 	autoClosingQuotes: 'languageDefined',
@@ -2592,6 +2612,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 			verticalSliderSize: 14,
 			handleMouseWheel: true,
 			mouseWheelScrollSensitivity: 1,
+			fastScrollSensitivity: 5,
 		},
 		minimap: {
 			enabled: true,
@@ -2651,6 +2672,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		colorDecorators: true,
 		lightbulbEnabled: true,
 		codeActionsOnSave: {},
-		codeActionsOnSaveTimeout: 750
+		codeActionsOnSaveTimeout: 750,
+		selectAfterPaste: false
 	},
 };

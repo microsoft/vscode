@@ -7,8 +7,8 @@ import * as vscode from 'vscode';
 import { Node, HtmlNode, Rule, Property, Stylesheet } from 'EmmetNode';
 import { getEmmetHelper, getNode, getInnerRange, getMappingForIncludedLanguages, parseDocument, validate, getEmmetConfiguration, isStyleSheet, getEmmetMode, parsePartialStylesheet, isStyleAttribute, getEmbeddedCssNodeIfAny, allowedMimeTypesInScriptTag } from './util';
 
-const trimRegex = /[\u00a0]*[\d|#|\-|\*|\u2022]+\.?/;
-const hexColorRegex = /^#[\d,a-f,A-F]{0,6}$/;
+const trimRegex = /[\u00a0]*[\d#\-\*\u2022]+\.?/;
+const hexColorRegex = /^#[\da-fA-F]{0,6}$/;
 const inlineElements = ['a', 'abbr', 'acronym', 'applet', 'b', 'basefont', 'bdo',
 	'big', 'br', 'button', 'cite', 'code', 'del', 'dfn', 'em', 'font', 'i',
 	'iframe', 'img', 'input', 'ins', 'kbd', 'label', 'map', 'object', 'q',
@@ -105,9 +105,9 @@ function doWrapping(individualLines: boolean, args: any) {
 
 	function revertPreview(): Thenable<any> {
 		return editor.edit(builder => {
-			for (let i = 0; i < rangesToReplace.length; i++) {
-				builder.replace(rangesToReplace[i].previewRange, rangesToReplace[i].originalContent);
-				rangesToReplace[i].previewRange = rangesToReplace[i].originalRange;
+			for (const rangeToReplace of rangesToReplace) {
+				builder.replace(rangeToReplace.previewRange, rangeToReplace.originalContent);
+				rangeToReplace.previewRange = rangeToReplace.originalRange;
 			}
 		}, { undoStopBefore: false, undoStopAfter: false });
 	}
@@ -295,8 +295,8 @@ export function expandEmmetAbbreviation(args: any): Thenable<boolean | undefined
 
 	let selectionsInReverseOrder = editor.selections.slice(0);
 	selectionsInReverseOrder.sort((a, b) => {
-		var posA = a.isReversed ? a.anchor : a.active;
-		var posB = b.isReversed ? b.anchor : b.active;
+		const posA = a.isReversed ? a.anchor : a.active;
+		const posB = b.isReversed ? b.anchor : b.active;
 		return posA.compareTo(posB) * -1;
 	});
 
@@ -535,9 +535,7 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 
 /**
  * Expands abbreviations as detailed in expandAbbrList in the editor
- * @param editor
- * @param expandAbbrList
- * @param insertSameSnippet
+ *
  * @returns false if no snippet can be inserted.
  */
 function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: ExpandAbbreviationInput[], insertSameSnippet: boolean): Thenable<boolean> {

@@ -3,210 +3,162 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as os from 'os';
 import * as minimist from 'minimist';
-import * as assert from 'assert';
-import { firstIndex } from 'vs/base/common/arrays';
+import * as os from 'os';
 import { localize } from 'vs/nls';
-import { ParsedArgs } from '../common/environment';
-import { isWindows } from 'vs/base/common/platform';
-import product from 'vs/platform/node/product';
-import { MIN_MAX_MEMORY_SIZE_MB } from 'vs/platform/files/common/files';
-
-const options: minimist.Opts = {
-	string: [
-		'locale',
-		'user-data-dir',
-		'extensions-dir',
-		'folder-uri',
-		'file-uri',
-		'remote',
-		'extensionDevelopmentPath',
-		'extensionTestsPath',
-		'install-extension',
-		'disable-extension',
-		'uninstall-extension',
-		'debugId',
-		'debugPluginHost',
-		'debugBrkPluginHost',
-		'debugSearch',
-		'debugBrkSearch',
-		'enable-proposed-api',
-		'export-default-configuration',
-		'install-source',
-		'upload-logs',
-		'driver',
-		'trace-category-filter',
-		'trace-options',
-		'_'
-	],
-	boolean: [
-		'help',
-		'version',
-		'wait',
-		'diff',
-		'add',
-		'goto',
-		'new-window',
-		'unity-launch',
-		'reuse-window',
-		'open-url',
-		'performance',
-		'prof-startup',
-		'verbose',
-		'logExtensionHostCommunication',
-		'disable-extensions',
-		'list-extensions',
-		'show-versions',
-		'nolazy',
-		'issue',
-		'skip-getting-started',
-		'skip-release-notes',
-		'sticky-quickopen',
-		'disable-restore-windows',
-		'disable-telemetry',
-		'disable-updates',
-		'disable-crash-reporter',
-		'skip-add-to-recently-opened',
-		'status',
-		'file-write',
-		'file-chmod',
-		'driver-verbose',
-		'trace'
-	],
-	alias: {
-		add: 'a',
-		help: 'h',
-		version: 'v',
-		wait: 'w',
-		diff: 'd',
-		goto: 'g',
-		status: 's',
-		'new-window': 'n',
-		'reuse-window': 'r',
-		performance: 'p',
-		'disable-extensions': 'disableExtensions',
-		'extensions-dir': 'extensionHomePath',
-		'debugPluginHost': 'inspect-extensions',
-		'debugBrkPluginHost': 'inspect-brk-extensions',
-		'debugSearch': 'inspect-search',
-		'debugBrkSearch': 'inspect-brk-search',
-	}
-};
-
-function validate(args: ParsedArgs): ParsedArgs {
-	if (args.goto) {
-		args._.forEach(arg => assert(/^(\w:)?[^:]+(:\d*){0,2}$/.test(arg), localize('gotoValidation', "Arguments in `--goto` mode should be in the format of `FILE(:LINE(:CHARACTER))`.")));
-	}
-
-	if (args['max-memory']) {
-		assert(args['max-memory'] >= MIN_MAX_MEMORY_SIZE_MB, `The max-memory argument cannot be specified lower than ${MIN_MAX_MEMORY_SIZE_MB} MB.`);
-	}
-
-	return args;
-}
-
-function stripAppPath(argv: string[]): string[] | undefined {
-	const index = firstIndex(argv, a => !/^-/.test(a));
-
-	if (index > -1) {
-		return [...argv.slice(0, index), ...argv.slice(index + 1)];
-	}
-	return undefined;
-}
+import { ParsedArgs } from 'vs/platform/environment/common/environment';
 
 /**
- * Use this to parse raw code process.argv such as: `Electron . --verbose --wait`
+ * This code is also used by standalone cli's. Avoid adding any other dependencies.
  */
-export function parseMainProcessArgv(processArgv: string[]): ParsedArgs {
-	let [, ...args] = processArgv;
 
-	// If dev, remove the first non-option argument: it's the app location
-	if (process.env['VSCODE_DEV']) {
-		args = stripAppPath(args) || [];
+class HelpCategories {
+	o = localize('optionsUpperCase', "Options");
+	e = localize('extensionsManagement', "Extensions Management");
+	t = localize('troubleshooting', "Troubleshooting");
+}
+
+export interface Option {
+	id: string;
+	type: 'boolean' | 'string';
+	alias?: string;
+	args?: string | string[];
+	description?: string;
+	cat?: keyof HelpCategories;
+}
+
+export const options: Option[] = [
+	{ id: 'diff', type: 'boolean', cat: 'o', alias: 'd', args: ['file', 'file'], description: localize('diff', "Compare two files with each other.") },
+	{ id: 'add', type: 'boolean', cat: 'o', alias: 'a', args: 'folder', description: localize('add', "Add folder(s) to the last active window.") },
+	{ id: 'goto', type: 'boolean', cat: 'o', alias: 'g', args: 'file:line[:character]', description: localize('goto', "Open a file at the path on the specified line and character position.") },
+	{ id: 'new-window', type: 'boolean', cat: 'o', alias: 'n', description: localize('newWindow', "Force to open a new window.") },
+	{ id: 'reuse-window', type: 'boolean', cat: 'o', alias: 'r', description: localize('reuseWindow', "Force to open a file or folder in an already opened window.") },
+	{ id: 'wait', type: 'boolean', cat: 'o', alias: 'w', description: localize('wait', "Wait for the files to be closed before returning.") },
+	{ id: 'locale', type: 'string', cat: 'o', args: 'locale', description: localize('locale', "The locale to use (e.g. en-US or zh-TW).") },
+	{ id: 'user-data-dir', type: 'string', cat: 'o', args: 'dir', description: localize('userDataDir', "Specifies the directory that user data is kept in. Can be used to open multiple distinct instances of Code.") },
+	{ id: 'version', type: 'boolean', cat: 'o', alias: 'v', description: localize('version', "Print version.") },
+	{ id: 'help', type: 'boolean', cat: 'o', alias: 'h', description: localize('help', "Print usage.") },
+	{ id: 'folder-uri', type: 'string', cat: 'o', args: 'uri', description: localize('folderUri', "Opens a window with given folder uri(s)") },
+	{ id: 'file-uri', type: 'string', cat: 'o', args: 'uri', description: localize('fileUri', "Opens a window with given file uri(s)") },
+
+	{ id: 'extensions-dir', type: 'string', cat: 'e', args: 'dir', description: localize('extensionHomePath', "Set the root path for extensions.") },
+	{ id: 'list-extensions', type: 'boolean', cat: 'e', description: localize('listExtensions', "List the installed extensions.") },
+	{ id: 'show-versions', type: 'boolean', cat: 'e', description: localize('showVersions', "Show versions of installed extensions, when using --list-extension.") },
+	{ id: 'install-extension', type: 'string', cat: 'e', args: 'extension-id', description: localize('installExtension', "Installs or updates the extension. Use `--force` argument to avoid prompts.") },
+	{ id: 'uninstall-extension', type: 'string', cat: 'e', args: 'extension-id', description: localize('uninstallExtension', "Uninstalls an extension.") },
+	{ id: 'enable-proposed-api', type: 'string', cat: 'e', args: 'extension-id', description: localize('experimentalApis', "Enables proposed API features for extensions. Can receive one or more extension IDs to enable individually.") },
+
+	{ id: 'verbose', type: 'boolean', cat: 't', description: localize('verbose', "Print verbose output (implies --wait).") },
+	{ id: 'log', type: 'string', cat: 't', args: 'level', description: localize('log', "Log level to use. Default is 'info'. Allowed values are 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'.") },
+	{ id: 'status', type: 'boolean', alias: 's', cat: 't', description: localize('status', "Print process usage and diagnostics information.") },
+	{ id: 'prof-modules', type: 'boolean', alias: 'p', cat: 't', description: localize('prof-modules', "Capture performance markers while loading JS modules and print them with 'F1 > Developer: Startup Performance") },
+	{ id: 'prof-startup', type: 'boolean', cat: 't', description: localize('prof-startup', "Run CPU profiler during startup") },
+	{ id: 'disable-extensions', type: 'boolean', cat: 't', description: localize('disableExtensions', "Disable all installed extensions.") },
+	{ id: 'disable-extension', type: 'string', cat: 't', args: 'extension-id', description: localize('disableExtension', "Disable an extension.") },
+
+	{ id: 'inspect-extensions', type: 'string', args: 'port', cat: 't', description: localize('inspect-extensions', "Allow debugging and profiling of extensions. Check the developer tools for the connection URI.") },
+	{ id: 'inspect-brk-search', type: 'string', args: 'port', cat: 't', description: localize('inspect-brk-extensions', "Allow debugging and profiling of extensions with the extension host being paused after start. Check the developer tools for the connection URI.") },
+	{ id: 'disable-gpu', type: 'boolean', cat: 't', description: localize('disableGPU', "Disable GPU hardware acceleration.") },
+	{ id: 'upload-logs', type: 'string', cat: 't', description: localize('uploadLogs', "Uploads logs from current session to a secure endpoint.") },
+	{ id: 'max-memory', type: 'boolean', cat: 't', description: localize('maxMemory', "Max memory size for a window (in Mbytes).") },
+
+	{ id: 'remote', type: 'string' },
+	{ id: 'extensionDevelopmentPath', type: 'string' },
+	{ id: 'extensionTestsPath', type: 'string' },
+	{ id: 'debugId', type: 'string' },
+	{ id: 'inspect-search', type: 'string' },
+	{ id: 'inspect-brk-extensions', type: 'string' },
+	{ id: 'export-default-configuration', type: 'string' },
+	{ id: 'install-source', type: 'string' },
+	{ id: 'driver', type: 'string' },
+	{ id: 'logExtensionHostCommunication', type: 'boolean' },
+	{ id: 'skip-getting-started', type: 'boolean' },
+	{ id: 'skip-release-notes', type: 'boolean' },
+	{ id: 'sticky-quickopen', type: 'boolean' },
+	{ id: 'disable-restore-windows', type: 'boolean' },
+	{ id: 'disable-telemetry', type: 'boolean' },
+	{ id: 'disable-updates', type: 'boolean' },
+	{ id: 'disable-crash-reporter', type: 'boolean' },
+	{ id: 'skip-add-to-recently-opened', type: 'boolean' },
+	{ id: 'unity-launch', type: 'boolean' },
+	{ id: 'open-url', type: 'boolean' },
+	{ id: 'nolazy', type: 'boolean' },
+	{ id: 'issue', type: 'boolean' },
+	{ id: 'file-write', type: 'boolean' },
+	{ id: 'file-chmod', type: 'boolean' },
+	{ id: 'driver-verbose', type: 'boolean' },
+	{ id: 'force', type: 'boolean' },
+	{ id: 'trace-category-filter', type: 'string' },
+	{ id: 'trace-options', type: 'string' },
+	{ id: 'prof-code-loading', type: 'boolean' },
+
+	{ id: 'debugPluginHost', type: 'string', alias: 'inspect-extensions' },
+	{ id: 'debugBrkPluginHost', type: 'string', alias: 'inspect-brk-extensions' }
+];
+
+export function parseArgs(args: string[], isOptionSupported = (_: Option) => true): ParsedArgs {
+	const alias: { [key: string]: string } = {};
+	const string: string[] = [];
+	const boolean: string[] = [];
+	for (let o of options) {
+		if (o.alias && isOptionSupported(o)) {
+			alias[o.id] = o.alias;
+		}
+		if (o.type === 'string') {
+			string.push(o.id);
+		} else if (o.type === 'boolean') {
+			boolean.push(o.id);
+		}
 	}
-
-	return validate(parseArgs(args));
-}
-
-/**
- * Use this to parse raw code CLI process.argv such as: `Electron cli.js . --verbose --wait`
- */
-export function parseCLIProcessArgv(processArgv: string[]): ParsedArgs {
-	let [, , ...args] = processArgv;
-
-	if (process.env['VSCODE_DEV']) {
-		args = stripAppPath(args) || [];
+	// remote aliases to avoid confusion
+	const parsedArgs = minimist(args, { string, boolean, alias }) as ParsedArgs;
+	for (let o of options) {
+		if (o.alias) {
+			delete parsedArgs[o.alias];
+		}
 	}
-
-	return validate(parseArgs(args));
+	return parsedArgs;
 }
 
-/**
- * Use this to parse code arguments such as `--verbose --wait`
- */
-export function parseArgs(args: string[]): ParsedArgs {
-	return minimist(args, options) as ParsedArgs;
+function formatUsage(option: Option) {
+	let args = '';
+	if (option.args) {
+		if (Array.isArray(option.args)) {
+			args = ` <${option.args.join('> <')}>`;
+		} else {
+			args = ` <${option.args}>`;
+		}
+	}
+	if (option.alias) {
+		return `-${option.alias} --${option.id}${args}`;
+	}
+	return `--${option.id}${args}`;
 }
 
-const optionsHelp: { [name: string]: string; } = {
-	'-d, --diff <file> <file>': localize('diff', "Compare two files with each other."),
-	'-a, --add <dir>': localize('add', "Add folder(s) to the last active window."),
-	'-g, --goto <file:line[:character]>': localize('goto', "Open a file at the path on the specified line and character position."),
-	'-n, --new-window': localize('newWindow', "Force to open a new window."),
-	'-r, --reuse-window': localize('reuseWindow', "Force to open a file or folder in an already opened window."),
-	'-w, --wait': localize('wait', "Wait for the files to be closed before returning."),
-	'--locale <locale>': localize('locale', "The locale to use (e.g. en-US or zh-TW)."),
-	'--user-data-dir <dir>': localize('userDataDir', "Specifies the directory that user data is kept in. Can be used to open multiple distinct instances of Code."),
-	'-v, --version': localize('version', "Print version."),
-	'-h, --help': localize('help', "Print usage.")
-};
-
-const extensionsHelp: { [name: string]: string; } = {
-	'--extensions-dir <dir>': localize('extensionHomePath', "Set the root path for extensions."),
-	'--list-extensions': localize('listExtensions', "List the installed extensions."),
-	'--show-versions': localize('showVersions', "Show versions of installed extensions, when using --list-extension."),
-	'--uninstall-extension (<extension-id> | <extension-vsix-path>)': localize('uninstallExtension', "Uninstalls an extension."),
-	'--install-extension (<extension-id> | <extension-vsix-path>)': localize('installExtension', "Installs or updates the extension. Use `--force` argument to avoid prompts."),
-	'--enable-proposed-api (<extension-id>)': localize('experimentalApis', "Enables proposed API features for extensions. Can receive one or more extension IDs to enable individually.")
-};
-
-const troubleshootingHelp: { [name: string]: string; } = {
-	'--verbose': localize('verbose', "Print verbose output (implies --wait)."),
-	'--log <level>': localize('log', "Log level to use. Default is 'info'. Allowed values are 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'."),
-	'-s, --status': localize('status', "Print process usage and diagnostics information."),
-	'-p, --performance': localize('performance', "Start with the 'Developer: Startup Performance' command enabled."),
-	'--prof-startup': localize('prof-startup', "Run CPU profiler during startup"),
-	'--disable-extensions': localize('disableExtensions', "Disable all installed extensions."),
-	'--disable-extension <extension-id>': localize('disableExtension', "Disable an extension."),
-	'--inspect-extensions': localize('inspect-extensions', "Allow debugging and profiling of extensions. Check the developer tools for the connection URI."),
-	'--inspect-brk-extensions': localize('inspect-brk-extensions', "Allow debugging and profiling of extensions with the extension host being paused after start. Check the developer tools for the connection URI."),
-	'--disable-gpu': localize('disableGPU', "Disable GPU hardware acceleration."),
-	'--upload-logs': localize('uploadLogs', "Uploads logs from current session to a secure endpoint."),
-	'--max-memory': localize('maxMemory', "Max memory size for a window (in Mbytes).")
-};
-
-export function formatOptions(options: { [name: string]: string; }, columns: number): string {
-	let keys = Object.keys(options);
-	let argLength = Math.max.apply(null, keys.map(k => k.length)) + 2/*left padding*/ + 1/*right padding*/;
+// exported only for testing
+export function formatOptions(docOptions: Option[], columns: number): string[] {
+	let usageTexts = docOptions.map(formatUsage);
+	let argLength = Math.max.apply(null, usageTexts.map(k => k.length)) + 2/*left padding*/ + 1/*right padding*/;
 	if (columns - argLength < 25) {
 		// Use a condensed version on narrow terminals
-		return keys.reduce((r, key) => r.concat([`  ${key}`, `      ${options[key]}`]), [] as string[]).join('\n');
+		return docOptions.reduce<string[]>((r, o, i) => r.concat([`  ${usageTexts[i]}`, `      ${o.description}`]), []);
 	}
 	let descriptionColumns = columns - argLength - 1;
-	let result = '';
-	keys.forEach(k => {
-		let wrappedDescription = wrapText(options[k], descriptionColumns);
-		let keyPadding = (<any>' ').repeat(argLength - k.length - 2/*left padding*/);
-		if (result.length > 0) {
-			result += '\n';
-		}
-		result += '  ' + k + keyPadding + wrappedDescription[0];
+	let result: string[] = [];
+	docOptions.forEach((o, i) => {
+		let usage = usageTexts[i];
+		let wrappedDescription = wrapText(o.description!, descriptionColumns);
+		let keyPadding = indent(argLength - usage.length - 2/*left padding*/);
+		result.push('  ' + usage + keyPadding + wrappedDescription[0]);
 		for (let i = 1; i < wrappedDescription.length; i++) {
-			result += '\n' + (<any>' ').repeat(argLength) + wrappedDescription[i];
+			result.push(indent(argLength) + wrappedDescription[i]);
 		}
 	});
 	return result;
+}
+
+function indent(count: number): string {
+	return (<any>' ').repeat(count);
 }
 
 function wrapText(text: string, columns: number): string[] {
@@ -220,24 +172,34 @@ function wrapText(text: string, columns: number): string[] {
 	return lines;
 }
 
-export function buildHelpMessage(fullName: string, name: string, version: string): string {
-	const columns = (<any>process.stdout).isTTY ? (<any>process.stdout).columns : 80;
-	const executable = `${name}${os.platform() === 'win32' ? '.exe' : ''}`;
+export function buildHelpMessage(productName: string, executableName: string, version: string, isOptionSupported = (_: Option) => true): string {
+	const columns = (process.stdout).isTTY && (process.stdout).columns || 80;
 
-	return `${fullName} ${version}
+	let categories = new HelpCategories();
 
-${ localize('usage', "Usage")}: ${executable} [${localize('options', "options")}] [${localize('paths', 'paths')}...]
+	let help = [`${productName} ${version}`];
+	help.push('');
+	help.push(`${localize('usage', "Usage")}: ${executableName} [${localize('options', "options")}][${localize('paths', 'paths')}...]`);
+	help.push('');
+	if (os.platform() === 'win32') {
+		help.push(localize('stdinWindows', "To read output from another program, append '-' (e.g. 'echo Hello World | {0} -')", executableName));
+	} else {
+		help.push(localize('stdinUnix', "To read from stdin, append '-' (e.g. 'ps aux | grep code | {0} -')", executableName));
+	}
+	help.push('');
+	for (let key in categories) {
+		let categoryOptions = options.filter(o => !!o.description && o.cat === key && isOptionSupported(o));
+		if (categoryOptions.length) {
+			help.push(categories[key]);
+			help.push(...formatOptions(categoryOptions, columns));
+			help.push('');
+		}
+	}
+	return help.join('\n');
+}
 
-${ isWindows ? localize('stdinWindows', "To read output from another program, append '-' (e.g. 'echo Hello World | {0} -')", product.applicationName) : localize('stdinUnix', "To read from stdin, append '-' (e.g. 'ps aux | grep code | {0} -')", product.applicationName)}
-
-${ localize('optionsUpperCase', "Options")}:
-${formatOptions(optionsHelp, columns)}
-
-${ localize('extensionsManagement', "Extensions Management")}:
-${formatOptions(extensionsHelp, columns)}
-
-${ localize('troubleshooting', "Troubleshooting")}:
-${formatOptions(troubleshootingHelp, columns)}`;
+export function buildVersionMessage(version: string | undefined, commit: string | undefined): string {
+	return `${version || localize('unknownVersion', "Unknown version")}\n${commit || localize('unknownCommit', "Unknown commit")}\n${process.arch}`;
 }
 
 /**

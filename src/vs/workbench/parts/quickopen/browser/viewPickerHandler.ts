@@ -68,12 +68,12 @@ export class ViewPickerHandler extends QuickOpenHandler {
 	static readonly ID = 'workbench.picker.views';
 
 	constructor(
-		@IViewletService private viewletService: IViewletService,
-		@IViewsService private viewsService: IViewsService,
-		@IOutputService private outputService: IOutputService,
-		@ITerminalService private terminalService: ITerminalService,
-		@IPanelService private panelService: IPanelService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
+		@IViewletService private readonly viewletService: IViewletService,
+		@IViewsService private readonly viewsService: IViewsService,
+		@IOutputService private readonly outputService: IOutputService,
+		@ITerminalService private readonly terminalService: ITerminalService,
+		@IPanelService private readonly panelService: IPanelService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
 	}
@@ -122,7 +122,7 @@ export class ViewPickerHandler extends QuickOpenHandler {
 				}
 			} else {
 				e.setShowBorder(false);
-				e.setGroupLabel(void 0);
+				e.setGroupLabel(undefined);
 			}
 		});
 
@@ -218,8 +218,8 @@ export class QuickOpenViewPickerAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IKeybindingService private keybindingService: IKeybindingService
+		@IQuickOpenService private readonly quickOpenService: IQuickOpenService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
 		super(id, label);
 	}

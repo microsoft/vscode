@@ -10,7 +10,7 @@ import { Event } from 'vs/base/common/event';
 import { ITreeModel, ITreeNode, ITreeElement, ITreeSorter, ICollapseStateChangeEvent } from 'vs/base/browser/ui/tree/tree';
 
 export interface IObjectTreeModelOptions<T, TFilterData> extends IIndexTreeModelOptions<T, TFilterData> {
-	sorter?: ITreeSorter<T>;
+	readonly sorter?: ITreeSorter<T>;
 }
 
 export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends NonNullable<any> = void> implements ITreeModel<T | null, TFilterData, T | null> {
@@ -21,6 +21,7 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 	private nodes = new Map<T | null, ITreeNode<T, TFilterData>>();
 	private sorter?: ITreeSorter<ITreeElement<T>>;
 
+	readonly onDidSplice: Event<void>;
 	readonly onDidChangeCollapseState: Event<ICollapseStateChangeEvent<T, TFilterData>>;
 	readonly onDidChangeRenderNodeCount: Event<ITreeNode<T, TFilterData>>;
 
@@ -28,6 +29,7 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 
 	constructor(list: ISpliceable<ITreeNode<T, TFilterData>>, options: IObjectTreeModelOptions<T, TFilterData> = {}) {
 		this.model = new IndexTreeModel(list, null, options);
+		this.onDidSplice = this.model.onDidSplice;
 		this.onDidChangeCollapseState = this.model.onDidChangeCollapseState as Event<ICollapseStateChangeEvent<T, TFilterData>>;
 		this.onDidChangeRenderNodeCount = this.model.onDidChangeRenderNodeCount as Event<ITreeNode<T, TFilterData>>;
 
@@ -103,6 +105,11 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 		});
 	}
 
+	refresh(element: T): void {
+		const location = this.getElementLocation(element);
+		this.model.refresh(location);
+	}
+
 	getParentElement(ref: T | null = null): T | null {
 		const location = this.getElementLocation(ref);
 		return this.model.getParentElement(location);
@@ -121,6 +128,11 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 	getListIndex(element: T): number {
 		const location = this.getElementLocation(element);
 		return this.model.getListIndex(location);
+	}
+
+	getListRenderCount(element: T): number {
+		const location = this.getElementLocation(element);
+		return this.model.getListRenderCount(location);
 	}
 
 	isCollapsible(element: T): boolean {

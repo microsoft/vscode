@@ -39,10 +39,10 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 
 	constructor(
 		@ITextModelService textModelResolverService: ITextModelService,
-		@IDebugService private debugService: IDebugService,
-		@IModelService private modelService: IModelService,
-		@IModeService private modeService: IModeService,
-		@IEditorWorkerService private editorWorkerService: IEditorWorkerService
+		@IDebugService private readonly debugService: IDebugService,
+		@IModelService private readonly modelService: IModelService,
+		@IModeService private readonly modeService: IModeService,
+		@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService
 	) {
 		textModelResolverService.registerTextModelContentProvider(DEBUG_SCHEME, this);
 		DebugContentProvider.INSTANCE = this;

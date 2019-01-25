@@ -114,17 +114,17 @@ function findGitWin32InPath(onLookup: (path: string) => void): Promise<IGit> {
 
 function findGitWin32(onLookup: (path: string) => void): Promise<IGit> {
 	return findSystemGitWin32(process.env['ProgramW6432'] as string, onLookup)
-		.then(void 0, () => findSystemGitWin32(process.env['ProgramFiles(x86)'] as string, onLookup))
-		.then(void 0, () => findSystemGitWin32(process.env['ProgramFiles'] as string, onLookup))
-		.then(void 0, () => findSystemGitWin32(path.join(process.env['LocalAppData'] as string, 'Programs'), onLookup))
-		.then(void 0, () => findGitWin32InPath(onLookup));
+		.then(undefined, () => findSystemGitWin32(process.env['ProgramFiles(x86)'] as string, onLookup))
+		.then(undefined, () => findSystemGitWin32(process.env['ProgramFiles'] as string, onLookup))
+		.then(undefined, () => findSystemGitWin32(path.join(process.env['LocalAppData'] as string, 'Programs'), onLookup))
+		.then(undefined, () => findGitWin32InPath(onLookup));
 }
 
 export function findGit(hint: string | undefined, onLookup: (path: string) => void): Promise<IGit> {
 	const first = hint ? findSpecificGit(hint, onLookup) : Promise.reject<IGit>(null);
 
 	return first
-		.then(void 0, () => {
+		.then(undefined, () => {
 			switch (process.platform) {
 				case 'darwin': return findGitDarwin(onLookup);
 				case 'win32': return findGitWin32(onLookup);
@@ -248,7 +248,7 @@ export class GitError {
 			this.error = data.error;
 			this.message = data.error.message;
 		} else {
-			this.error = void 0;
+			this.error = undefined;
 			this.message = '';
 		}
 
@@ -308,7 +308,7 @@ function getGitErrorCode(stderr: string): string | undefined {
 		return GitErrorCodes.InvalidBranchName;
 	}
 
-	return void 0;
+	return undefined;
 }
 
 export class Git {
@@ -627,6 +627,10 @@ export interface CommitOptions {
 	signoff?: boolean;
 	signCommit?: boolean;
 	empty?: boolean;
+}
+
+export interface PullOptions {
+	unshallow?: boolean;
 }
 
 export enum ForcePushMode {
@@ -1166,7 +1170,7 @@ export class Repository {
 		await this.run(args);
 	}
 
-	async fetch(options: { remote?: string, ref?: string, all?: boolean, prune?: boolean } = {}): Promise<void> {
+	async fetch(options: { remote?: string, ref?: string, all?: boolean, prune?: boolean, depth?: number } = {}): Promise<void> {
 		const args = ['fetch'];
 
 		if (options.remote) {
@@ -1183,6 +1187,9 @@ export class Repository {
 			args.push('--prune');
 		}
 
+		if (typeof options.depth === 'number') {
+			args.push(`--depth=${options.depth}`);
+		}
 
 		try {
 			await this.run(args);
@@ -1197,8 +1204,12 @@ export class Repository {
 		}
 	}
 
-	async pull(rebase?: boolean, remote?: string, branch?: string): Promise<void> {
+	async pull(rebase?: boolean, remote?: string, branch?: string, options: PullOptions = {}): Promise<void> {
 		const args = ['pull', '--tags'];
+
+		if (options.unshallow) {
+			args.push('--unshallow');
+		}
 
 		if (rebase) {
 			args.push('-r');
@@ -1265,6 +1276,23 @@ export class Repository {
 				err.gitErrorCode = GitErrorCodes.RemoteConnectionError;
 			} else if (/^fatal: The current branch .* has no upstream branch/.test(err.stderr || '')) {
 				err.gitErrorCode = GitErrorCodes.NoUpstreamBranch;
+			}
+
+			throw err;
+		}
+	}
+
+	async blame(path: string): Promise<string> {
+		try {
+			const args = ['blame'];
+			args.push(path);
+
+			let result = await this.run(args);
+
+			return result.stdout.trim();
+		} catch (err) {
+			if (/^fatal: no such path/.test(err.stderr || '')) {
+				err.gitErrorCode = GitErrorCodes.NoPathFound;
 			}
 
 			throw err;
@@ -1376,7 +1404,7 @@ export class Repository {
 				throw new Error('Not in a branch');
 			}
 
-			return { name: result.stdout.trim(), commit: void 0, type: RefType.Head };
+			return { name: result.stdout.trim(), commit: undefined, type: RefType.Head };
 		} catch (err) {
 			const result = await this.run(['rev-parse', 'HEAD']);
 
@@ -1384,7 +1412,7 @@ export class Repository {
 				throw new Error('Error parsing HEAD');
 			}
 
-			return { name: void 0, commit: result.stdout.trim(), type: RefType.Head };
+			return { name: undefined, commit: result.stdout.trim(), type: RefType.Head };
 		}
 	}
 

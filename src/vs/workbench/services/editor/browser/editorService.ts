@@ -58,12 +58,12 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	private lastActiveGroupId: GroupIdentifier;
 
 	constructor(
-		@IEditorGroupsService private editorGroupService: EditorGroupsServiceImpl,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@ILabelService private labelService: ILabelService,
-		@IFileService private fileService: IFileService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IEditorGroupsService private readonly editorGroupService: EditorGroupsServiceImpl,
+		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ILabelService private readonly labelService: ILabelService,
+		@IFileService private readonly fileService: IFileService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
@@ -143,8 +143,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	}
 
 	private onGroupWillOpenEditor(group: IEditorGroup, event: IEditorOpeningEvent): void {
-		for (let i = 0; i < this.openEditorHandlers.length; i++) {
-			const handler = this.openEditorHandlers[i];
+		for (const handler of this.openEditorHandlers) {
 			const result = handler(event.editor, event.options, group);
 			if (result && result.override) {
 				event.prevent((() => result.override));
@@ -156,7 +155,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	get activeControl(): IEditor {
 		const activeGroup = this.editorGroupService.activeGroup;
 
-		return activeGroup ? activeGroup.activeControl : void 0;
+		return activeGroup ? activeGroup.activeControl : undefined;
 	}
 
 	get activeTextEditorWidget(): ICodeEditor | IDiffEditor {
@@ -168,7 +167,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			}
 		}
 
-		return void 0;
+		return undefined;
 	}
 
 	get editors(): IEditorInput[] {
@@ -183,7 +182,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	get activeEditor(): IEditorInput {
 		const activeGroup = this.editorGroupService.activeGroup;
 
-		return activeGroup ? activeGroup.activeEditor : void 0;
+		return activeGroup ? activeGroup.activeEditor : undefined;
 	}
 
 	get visibleControls(): IEditor[] {
@@ -270,8 +269,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 			// Respect option to reveal an editor if it is already visible in any group
 			if (options && options.revealIfVisible) {
-				for (let i = 0; i < groupsByLastActive.length; i++) {
-					const group = groupsByLastActive[i];
+				for (const group of groupsByLastActive) {
 					if (input.matches(group.activeEditor)) {
 						targetGroup = group;
 						break;
@@ -281,8 +279,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 			// Respect option to reveal an editor if it is open (not necessarily visible)
 			if ((options && options.revealIfOpened) || this.configurationService.getValue<boolean>('workbench.editor.revealIfOpen')) {
-				for (let i = 0; i < groupsByLastActive.length; i++) {
-					const group = groupsByLastActive[i];
+				for (const group of groupsByLastActive) {
 					if (group.isOpened(input)) {
 						targetGroup = group;
 						break;
@@ -388,7 +385,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		if (!(editor instanceof EditorInput)) {
 			const resourceInput = editor as IResourceInput | IUntitledResourceInput;
 			if (!resourceInput.resource) {
-				return void 0; // we need a resource at least
+				return undefined; // we need a resource at least
 			}
 		}
 
@@ -402,8 +399,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 
 		// For each editor group
-		for (let i = 0; i < groups.length; i++) {
-			const group = groups[i];
+		for (const group of groups) {
 
 			// Typed editor
 			if (editor instanceof EditorInput) {
@@ -414,8 +410,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 			// Resource editor
 			else {
-				for (let j = 0; j < group.editors.length; j++) {
-					const editorInGroup = group.editors[j];
+				for (const editorInGroup of group.editors) {
 					const resource = toResource(editorInGroup, { supportSideBySide: true });
 					if (!resource) {
 						continue; // need a resource to compare with
@@ -429,7 +424,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			}
 		}
 
-		return void 0;
+		return undefined;
 	}
 
 	//#endregion

@@ -23,13 +23,13 @@
 	},
 	{
 		"c": "push",
-		"t": "source.ts meta.function-call.ts support.function.ts",
+		"t": "source.ts meta.function-call.ts entity.name.function.ts",
 		"r": {
-			"dark_plus": "support.function: #DCDCAA",
-			"light_plus": "support.function: #795E26",
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "support.function: #DCDCAA"
+			"hc_black": "entity.name.function: #DCDCAA"
 		}
 	},
 	{

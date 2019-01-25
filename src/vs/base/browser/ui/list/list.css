@@ -29,6 +29,11 @@
 	height: 100%;
 }
 
+.monaco-list.horizontal-scrolling .monaco-list-rows {
+	width: auto;
+	min-width: 100%;
+}
+
 .monaco-list-row {
 	position: absolute;
 	-moz-box-sizing:	border-box;
@@ -52,4 +57,138 @@
 /* Focus */
 .monaco-list.element-focused, .monaco-list.selection-single, .monaco-list.selection-multiple {
 	outline: 0 !important;
+}
+
+/* Dnd */
+.monaco-list-drag-image {
+	display: inline-block;
+	padding: 1px 7px;
+	border-radius: 10px;
+	font-size: 12px;
+	position: absolute;
+}
+
+/* Type filter */
+
+.monaco-list-type-filter {
+	display: flex;
+	align-items: center;
+	position: absolute;
+	border-radius: 2px;
+	padding: 0px 3px;
+	max-width: calc(100% - 10px);
+	text-overflow: ellipsis;
+	overflow: hidden;
+	text-align: right;
+	box-sizing: border-box;
+	cursor: all-scroll;
+	font-size: 13px;
+	line-height: 18px;
+	height: 20px;
+	z-index: 1;
+	top: 4px;
+}
+
+.monaco-list-type-filter.dragging {
+	transition: top 0.2s, left 0.2s;
+}
+
+.monaco-list-type-filter.ne {
+	right: 4px;
+}
+
+.monaco-list-type-filter.nw {
+	left: 4px;
+}
+
+.monaco-list-type-filter > .controls {
+	display: flex;
+	align-items: center;
+	box-sizing: border-box;
+	transition: width 0.2s;
+	width: 0;
+}
+
+.monaco-list-type-filter.dragging > .controls,
+.monaco-list-type-filter:hover > .controls {
+	width: 36px;
+}
+
+.monaco-list-type-filter > .controls > * {
+	box-sizing: border-box;
+	width: 16px;
+	height: 16px;
+	margin: 0 0 0 2px;
+	flex-shrink: 0;
+}
+
+.monaco-list-type-filter > .controls > .filter {
+	-webkit-appearance: none;
+	width: 16px;
+	height: 16px;
+	background: url("media/no-filter.svg");
+	background-position: 50% 50%;
+	cursor: pointer;
+}
+
+.monaco-list-type-filter > .controls > .filter:checked {
+	background-image: url("media/filter.svg");
+}
+
+.vs-dark .monaco-list-type-filter > .controls > .filter {
+	background-image: url("media/no-filter-dark.svg");
+}
+
+.vs-dark .monaco-list-type-filter > .controls > .filter:checked {
+	background-image: url("media/filter-dark.svg");
+}
+
+.hc-black .monaco-list-type-filter > .controls > .filter {
+	background-image: url("media/no-filter-hc.svg");
+}
+
+.hc-black .monaco-list-type-filter > .controls > .filter:checked {
+	background-image: url("media/filter-hc.svg");
+}
+
+.monaco-list-type-filter > .controls > .clear {
+	border: none;
+	background: url("media/close.svg");
+	cursor: pointer;
+}
+
+.vs-dark .monaco-list-type-filter > .controls > .clear {
+	background-image: url("media/close-dark.svg");
+}
+
+.hc-black .monaco-list-type-filter > .controls > .clear {
+	background-image: url("media/close-hc.svg");
+}
+
+.monaco-list-type-filter-message {
+	position: absolute;
+	box-sizing: border-box;
+	width: 100%;
+	height: 100%;
+	top: 0;
+	left: 0;
+	padding: 40px 1em 1em 1em;
+	text-align: center;
+	white-space: normal;
+	opacity: 0.7;
+	pointer-events: none;
+}
+
+.monaco-list-type-filter-message:empty {
+	display: none;
+}
+
+/* Electron */
+
+.monaco-list-type-filter {
+	cursor: -webkit-grab;
+}
+
+.monaco-list-type-filter.dragging {
+	cursor: -webkit-grabbing;
 }
