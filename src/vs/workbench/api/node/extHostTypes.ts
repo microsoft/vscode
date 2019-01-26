@@ -1787,22 +1787,14 @@ export class Task implements vscode.TaskWithExtensionCallback {
 	}
 
 	set execution(value: ProcessExecution | ShellExecution | undefined) {
-		this.executionInternal = value;
+		this.executionWithExtensionCallback = value;
 	}
 
 	get executionWithExtensionCallback(): ProcessExecution | ShellExecution | ExtensionCallbackExecution | undefined {
-		return this.executionInternal;
-	}
-
-	set executionWithExtensionCallback(value: ProcessExecution | ShellExecution | ExtensionCallbackExecution | undefined) {
-		this.executionInternal = value;
-	}
-
-	private get executionInternal(): ProcessExecution | ShellExecution | ExtensionCallbackExecution | undefined {
 		return this._execution;
 	}
 
-	private set executionInternal(value: ProcessExecution | ShellExecution | ExtensionCallbackExecution | undefined) {
+	set executionWithExtensionCallback(value: ProcessExecution | ShellExecution | ExtensionCallbackExecution | undefined) {
 		if (value === null) {
 			value = undefined;
 		}

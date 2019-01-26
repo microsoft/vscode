@@ -736,42 +736,16 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public finishedWithRenderer(): void {
-		//NOTE: This looks a lot like _onProcessExit, and it should.
 		// The use of this API is for cases where there is no backing process
-		// behind a terminal instance (such as when executiong an extension callback task).
+		// behind a terminal instance (such as when executing an extension callback task).
 		// There is no associated string, error text, etc, as the consumer of the renderer
-		// can simply outout the text to the renderer themselves.
+		// can simply output  the text to the renderer themselves.
 		// All this code does is handle the "wait on exit" condition.
 		if (!this.shellLaunchConfig.isRendererOnly) {
 			return;
 		}
 
-		// Prevent dispose functions being triggered multiple times
-		if (this._isExiting) {
-			return;
-		}
-
-		this._isExiting = true;
-
-		// Only trigger wait on exit when the exit was *not* triggered by the
-		// user (via the `workbench.action.terminal.kill` command).
-		if (this._shellLaunchConfig.waitOnExit) {
-			if (typeof this._shellLaunchConfig.waitOnExit === 'string') {
-				let message = this._shellLaunchConfig.waitOnExit;
-				// Bold the message and add an extra new line to make it stand out from the rest of the output
-				message = `\n\x1b[1m${message}\x1b[0m`;
-				this._xterm.writeln(message);
-			}
-			// Disable all input if the terminal is exiting and listen for next keypress
-			this._xterm.setOption('disableStdin', true);
-			if (this._xterm.textarea) {
-				this._attachPressAnyKeyToCloseListener();
-			}
-
-			this._onExit.fire(this._id);
-		} else {
-			this.dispose();
-		}
+		return this._onProcessOrExtensionCallbackExit();
 	}
 
 	public forceRedraw(): void {
@@ -958,7 +932,7 @@ export class TerminalInstance implements ITerminalInstance {
 	protected _createProcess(): void {
 		this._processManager = this._instantiationService.createInstance(TerminalProcessManager, this._id, this._configHelper);
 		this._processManager.onProcessReady(() => this._onProcessIdReady.fire(this));
-		this._processManager.onProcessExit(exitCode => this._onProcessExit(exitCode));
+		this._processManager.onProcessExit(exitCode => this._onProcessOrExtensionCallbackExit(exitCode));
 		this._processManager.onProcessData(data => this._onData.fire(data));
 
 		if (this._shellLaunchConfig.name) {
@@ -995,8 +969,12 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 	}
 
-	private _onProcessExit(exitCode: number): void {
-		this._logService.debug(`Terminal process exit (id: ${this.id}) with code ${exitCode}`);
+	private _onProcessOrExtensionCallbackExit(exitCode?: number): void {
+		// Use 'typeof exitCode' because simply doing if (exitCode) would return false for both "not undefined" and a value of 0
+		// which is not the intention.
+		if (typeof exitCode === `number`) {
+			this._logService.debug(`Terminal process exit (id: ${this.id}) with code ${exitCode}`);
+		}
 
 		// Prevent dispose functions being triggered multiple times
 		if (this._isExiting) {
@@ -1006,16 +984,18 @@ export class TerminalInstance implements ITerminalInstance {
 		this._isExiting = true;
 		let exitCodeMessage: string;
 
-		if (exitCode) {
+		if (typeof exitCode === `number`) {
 			exitCodeMessage = nls.localize('terminal.integrated.exitedWithCode', 'The terminal process terminated with exit code: {0}', exitCode);
 		}
 
-		this._logService.debug(`Terminal process exit (id: ${this.id}) state ${this._processManager!.processState}`);
+		if (this._processManager) {
+			this._logService.debug(`Terminal process exit (id: ${this.id}) state ${this._processManager!.processState}`);
+		}
 
 		// Only trigger wait on exit when the exit was *not* triggered by the
 		// user (via the `workbench.action.terminal.kill` command).
-		if (this._shellLaunchConfig.waitOnExit && this._processManager!.processState !== ProcessState.KILLED_BY_USER) {
-			if (exitCode) {
+		if (this._shellLaunchConfig.waitOnExit && (!this._processManager || this._processManager.processState !== ProcessState.KILLED_BY_USER)) {
+			if (typeof exitCode === `number`) {
 				this._xterm.writeln(exitCodeMessage!);
 			}
 			if (typeof this._shellLaunchConfig.waitOnExit === 'string') {
@@ -1031,8 +1011,8 @@ export class TerminalInstance implements ITerminalInstance {
 			}
 		} else {
 			this.dispose();
-			if (exitCode) {
-				if (this._processManager!.processState === ProcessState.KILLED_DURING_LAUNCH) {
+			if (typeof exitCode === `number`) {
+				if (this._processManager && this._processManager!.processState === ProcessState.KILLED_DURING_LAUNCH) {
 					let args = '';
 					if (typeof this._shellLaunchConfig.args === 'string') {
 						args = this._shellLaunchConfig.args;
@@ -1059,7 +1039,7 @@ export class TerminalInstance implements ITerminalInstance {
 			}
 		}
 
-		this._onExit.fire(exitCode);
+		this._onExit.fire((typeof exitCode === `number`) ? exitCode : 0);
 	}
 
 	private _attachPressAnyKeyToCloseListener() {
