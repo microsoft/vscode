@@ -92,13 +92,13 @@ export default class LinkProvider implements vscode.DocumentLinkProvider {
 	): vscode.DocumentLink[] {
 		const results: vscode.DocumentLink[] = [];
 		for (const match of matchAll(this.linkPattern, text)) {
-			const urlLink = extractDocumentLink(document, base, match[1].length, match[6], match.index);
-			if (urlLink) {
-				results.push(urlLink);
+			const matchImage = match[5] && extractDocumentLink(document, base, match[3].length + 1, match[5], match.index);
+			if (matchImage) {
+				results.push(matchImage);
 			}
-			const imgLink = match[5] && extractDocumentLink(document, base, match[3].length + 1, match[5], match.index);
-			if (imgLink) {
-				results.push(imgLink);
+			const matchLink = extractDocumentLink(document, base, match[1].length, match[6], match.index);
+			if (matchLink) {
+				results.push(matchLink);
 			}
 		}
 		return results;
