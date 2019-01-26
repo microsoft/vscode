@@ -11,18 +11,21 @@ import { TypeScriptServiceConfiguration } from './utils/configuration';
 import Logger from './utils/logger';
 import { PluginManager } from './utils/plugins';
 
-export class CancelledResponse {
-	public readonly type: 'cancelled' = 'cancelled';
+export namespace ServerResponse {
 
-	constructor(
-		public readonly reason: string
-	) { }
+	export class Cancelled {
+		public readonly type = 'cancelled';
+
+		constructor(
+			public readonly reason: string
+		) { }
+	}
+
+	export const NoContent = new class { readonly type = 'noContent'; };
+	export const LanguageServiceDisabled = new class { readonly type = 'languageServiceDisabled'; };
+
+	export type Response<T extends Proto.Response> = T | Cancelled | typeof NoContent | typeof LanguageServiceDisabled;
 }
-
-export const NoContentResponse = new class { readonly type = 'noContent'; };
-export const LanguageServiceDisabledContentResponse = new class { readonly type = 'languageServiceDisabled'; };
-
-export type ServerResponse<T extends Proto.Response> = T | CancelledResponse | typeof NoContentResponse | typeof LanguageServiceDisabledContentResponse;
 
 export interface TypeScriptRequestTypes {
 	'applyCodeActionCommand': [Proto.ApplyCodeActionCommandRequestArgs, Proto.ApplyCodeActionCommandResponse];
@@ -103,7 +106,7 @@ export interface ITypeScriptServiceClient {
 		args: TypeScriptRequestTypes[K][0],
 		token: vscode.CancellationToken,
 		lowPriority?: boolean
-	): Promise<ServerResponse<TypeScriptRequestTypes[K][1]>>;
+	): Promise<ServerResponse.Response<TypeScriptRequestTypes[K][1]>>;
 
 	executeWithoutWaitingForResponse(command: 'open', args: Proto.OpenRequestArgs): void;
 	executeWithoutWaitingForResponse(command: 'close', args: Proto.FileRequestArgs): void;
@@ -111,7 +114,7 @@ export interface ITypeScriptServiceClient {
 	executeWithoutWaitingForResponse(command: 'compilerOptionsForInferredProjects', args: Proto.SetCompilerOptionsForInferredProjectsArgs): void;
 	executeWithoutWaitingForResponse(command: 'reloadProjects', args: null): void;
 
-	executeAsync(command: 'geterr', args: Proto.GeterrRequestArgs, token: vscode.CancellationToken): Promise<ServerResponse<Proto.Response>>;
+	executeAsync(command: 'geterr', args: Proto.GeterrRequestArgs, token: vscode.CancellationToken): Promise<ServerResponse.Response<Proto.Response>>;
 
 	/**
 	 * Cancel on going geterr requests and re-queue them after `f` has been evaluated.

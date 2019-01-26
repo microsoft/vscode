@@ -11,7 +11,7 @@ import BufferSyncSupport from './features/bufferSyncSupport';
 import { DiagnosticKind, DiagnosticsManager } from './features/diagnostics';
 import * as Proto from './protocol';
 import { TypeScriptServer, TypeScriptServerSpawner } from './tsServer/server';
-import { ITypeScriptServiceClient, ServerResponse, LanguageServiceDisabledContentResponse } from './typescriptService';
+import { ITypeScriptServiceClient, ServerResponse } from './typescriptService';
 import API from './utils/api';
 import { TsServerLogLevel, TypeScriptServiceConfiguration } from './utils/configuration';
 import { Disposable } from './utils/dispose';
@@ -590,7 +590,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		return undefined;
 	}
 
-	public execute(command: string, args: any, token: vscode.CancellationToken, lowPriority?: boolean): Promise<ServerResponse<Proto.Response>> {
+	public execute(command: string, args: any, token: vscode.CancellationToken, lowPriority?: boolean): Promise<ServerResponse.Response<Proto.Response>> {
 		return this.executeImpl(command, args, {
 			isAsync: false,
 			token,
@@ -607,7 +607,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		});
 	}
 
-	public executeAsync(command: string, args: Proto.GeterrRequestArgs, token: vscode.CancellationToken): Promise<ServerResponse<Proto.Response>> {
+	public executeAsync(command: string, args: Proto.GeterrRequestArgs, token: vscode.CancellationToken): Promise<ServerResponse.Response<Proto.Response>> {
 		return this.executeImpl(command, args, {
 			isAsync: true,
 			token,
@@ -616,8 +616,8 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	private executeImpl(command: string, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: false, lowPriority?: boolean }): undefined;
-	private executeImpl(command: string, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean }): Promise<ServerResponse<Proto.Response>>;
-	private executeImpl(command: string, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean }): Promise<ServerResponse<Proto.Response>> | undefined {
+	private executeImpl(command: string, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean }): Promise<ServerResponse.Response<Proto.Response>>;
+	private executeImpl(command: string, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean }): Promise<ServerResponse.Response<Proto.Response>> | undefined {
 		const runningServerState = this.service();
 
 		if (!runningServerState.langaugeServiceEnabled) {
@@ -634,7 +634,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				'reloadProjects',
 			];
 			if (nonSemanticCommands.indexOf(command) === -1) {
-				return Promise.resolve(LanguageServiceDisabledContentResponse);
+				return Promise.resolve(ServerResponse.LanguageServiceDisabled);
 			}
 		}
 
