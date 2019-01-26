@@ -523,7 +523,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 						this._taskService.extensionCallbackTaskComplete(task).then((value) => {
 							resolve(undefined);
 						}, (error) => {
-							reject(undefined);
+							reject(error);
 						});
 						return;
 					}

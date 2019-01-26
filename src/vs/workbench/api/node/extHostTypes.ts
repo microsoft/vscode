@@ -1636,8 +1636,6 @@ export class ExtensionCallbackExecution implements vscode.ExtensionCallbackExecu
 	public computeId(): string {
 		const hash = crypto.createHash('md5');
 		hash.update('extensionCallback');
-		// TODO: How is this ID used. Not sure how to create a valid ID from a function.
-		// TODO: Also not clear on how the ID is used
 		hash.update(generateUuid());
 		return hash.digest('hex');
 	}

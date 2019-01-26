@@ -372,12 +372,6 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	}
 
 	public $acceptTerminalOpened(id: number, name: string, isRendererOnly: boolean, cols: number, rows: number): void {
-		// If this is a terminal created by one of the public createTerminal* APIs
-		// then @acceptTerminalOpened was called from the main thread task
-		// to indicate that the terminal is ready for use.
-		// In those cases, we don't need to create the extension host objects
-		// as they already exist, but, we do still need to fire the events
-		// to our consumers.
 		const index = this._getTerminalObjectIndexById(this._terminals, id);
 		if (index !== null) {
 			this._onDidOpenTerminal.fire(this.terminals[index]);
@@ -389,6 +383,12 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 			this._onDidOpenTerminalRenderer.fire(renderer);
 		}
 
+		// If this is a terminal created by one of the public createTerminal* APIs
+		// then @acceptTerminalOpened was called from the main thread task
+		// to indicate that the terminal is ready for use.
+		// In those cases, we don't need to create the extension host objects
+		// as they already exist, but, we do still need to fire the events
+		// to our consumers.
 		if ((renderer !== null) && (index !== null)) {
 			return;
 		}

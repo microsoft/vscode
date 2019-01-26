@@ -266,14 +266,9 @@ export class TerminalTaskSystem implements ITaskSystem {
 	}
 
 	public extensionCallbackTaskComplete(task: Task): Promise<void> {
-		const definition = task.getDefinition();
-		if (definition === undefined || definition.type !== 'extensionCallback') {
-			return Promise.resolve();
-		}
-
 		let activeTerminal = this.activeTasks[task.getMapKey()];
 		if (!activeTerminal) {
-			return Promise.resolve();
+			return Promise.reject(new Error('Expected to have a terminal for an extension callback task'));
 		}
 
 		return new Promise<void>((resolve) => {
