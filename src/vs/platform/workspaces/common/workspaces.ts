@@ -7,7 +7,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { localize } from 'vs/nls';
 import { Event } from 'vs/base/common/event';
 import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 
 export const IWorkspacesMainService = createDecorator<IWorkspacesMainService>('workspacesMainService');
 export const IWorkspacesService = createDecorator<IWorkspacesService>('workspacesService');
@@ -24,6 +24,10 @@ export type ISingleFolderWorkspaceIdentifier = URI;
 export interface IWorkspaceIdentifier {
 	id: string;
 	configPath: URI;
+}
+
+export function reviveWorkspaceIdentifier(workspace: { id: string, configPath: UriComponents; }) {
+	return { id: workspace.id, configPath: URI.revive(workspace.configPath) };
 }
 
 export function isStoredWorkspaceFolder(thing: any): thing is IStoredWorkspaceFolder {
