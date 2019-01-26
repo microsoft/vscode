@@ -70,7 +70,7 @@ function extractDocumentLink(
 }
 
 export default class LinkProvider implements vscode.DocumentLinkProvider {
-	private readonly linkPattern = /(\[((!\[(.+)\]\()(.+)\)\]|[^\]]*\])\(\s*)((([^\s\(\)]|\(\S*?\))+))\s*(".*?")?\)/g;
+	private readonly linkPattern = /(\[((!\[[^\]]*\]\(\s*)([^\s\(\)]+)\s*\)\]|[^\]]*\])\(\s*)(([^\s\(\)]|\(\S*?\))+)\s*(".*?")?\)/g;
 	private readonly referenceLinkPattern = /(\[([^\]]+)\]\[\s*?)([^\s\]]*?)\]/g;
 	private readonly definitionPattern = /^([\t ]*\[([^\]]+)\]:\s*)(\S+)/gm;
 
@@ -92,11 +92,11 @@ export default class LinkProvider implements vscode.DocumentLinkProvider {
 	): vscode.DocumentLink[] {
 		const results: vscode.DocumentLink[] = [];
 		for (const match of matchAll(this.linkPattern, text)) {
-			const matchImage = match[5] && extractDocumentLink(document, base, match[3].length + 1, match[5], match.index);
+			const matchImage = match[4] && extractDocumentLink(document, base, match[3].length + 1, match[4], match.index);
 			if (matchImage) {
 				results.push(matchImage);
 			}
-			const matchLink = extractDocumentLink(document, base, match[1].length, match[6], match.index);
+			const matchLink = extractDocumentLink(document, base, match[1].length, match[5], match.index);
 			if (matchLink) {
 				results.push(matchLink);
 			}
