@@ -70,7 +70,7 @@ function extractDocumentLink(
 }
 
 export default class LinkProvider implements vscode.DocumentLinkProvider {
-	private readonly linkPattern = /(\[((!\[[^\]]*\]\(\s*)([^\s\(\)]+)\s*\)\]|[^\]]*\])\(\s*)(([^\s\(\)]|\(\S*?\))+)\s*(".*?")?\)/g;
+	private readonly linkPattern = /(\[((!\[[^\]]*?\]\(\s*)([^\s\(\)]+?)\s*\)\]|[^\]]*\])\(\s*)(([^\s\(\)]|\(\S*?\))+)\s*(".*?")?\)/g;
 	private readonly referenceLinkPattern = /(\[([^\]]+)\]\[\s*?)([^\s\]]*?)\]/g;
 	private readonly definitionPattern = /^([\t ]*\[([^\]]+)\]:\s*)(\S+)/gm;
 
