@@ -619,25 +619,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	private executeImpl(command: string, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean }): Promise<ServerResponse.Response<Proto.Response>>;
 	private executeImpl(command: string, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean }): Promise<ServerResponse.Response<Proto.Response>> | undefined {
 		const runningServerState = this.service();
-
-		if (!runningServerState.langaugeServiceEnabled) {
-			const nonSemanticCommands: string[] = [
-				'change',
-				'close',
-				'compilerOptionsForInferredProjects',
-				'configure',
-				'format',
-				'formatonkey',
-				'getOutliningSpans',
-				'open',
-				'projectInfo',
-				'reloadProjects',
-			];
-			if (nonSemanticCommands.indexOf(command) === -1) {
-				return Promise.resolve(ServerResponse.LanguageServiceDisabled);
-			}
-		}
-
 		return runningServerState.server.executeImpl(command, args, executeInfo);
 	}
 

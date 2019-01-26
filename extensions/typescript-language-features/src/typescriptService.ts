@@ -22,9 +22,8 @@ export namespace ServerResponse {
 	}
 
 	export const NoContent = new class { readonly type = 'noContent'; };
-	export const LanguageServiceDisabled = new class { readonly type = 'languageServiceDisabled'; };
 
-	export type Response<T extends Proto.Response> = T | Cancelled | typeof NoContent | typeof LanguageServiceDisabled;
+	export type Response<T extends Proto.Response> = T | Cancelled | typeof NoContent;
 }
 
 export interface TypeScriptRequestTypes {
