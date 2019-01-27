@@ -35,7 +35,7 @@ import { ColorIdentifier, ColorFunction } from 'vs/platform/theme/common/colorRe
 import { attachBreadcrumbsStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { FileLabel } from 'vs/workbench/browser/labels';
+import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { BreadcrumbsConfig, IBreadcrumbsService } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 import { BreadcrumbElement, EditorBreadcrumbsModel, FileElement } from 'vs/workbench/browser/parts/editor/breadcrumbsModel';
 import { BreadcrumbsPicker, createBreadcrumbsPicker } from 'vs/workbench/browser/parts/editor/breadcrumbsPicker';
@@ -78,8 +78,8 @@ class Item extends BreadcrumbsItem {
 	render(container: HTMLElement): void {
 		if (this.element instanceof FileElement) {
 			// file/folder
-			let label = this._instantiationService.createInstance(FileLabel, container, {});
-			label.setFile(this.element.uri, {
+			let label = this._instantiationService.createInstance(ResourceLabel, container, {});
+			label.element.setFile(this.element.uri, {
 				hidePath: true,
 				hideIcon: this.element.kind === FileKind.FOLDER || !this.options.showFileIcons,
 				fileKind: this.element.kind,
@@ -98,7 +98,7 @@ class Item extends BreadcrumbsItem {
 		} else if (this.element instanceof OutlineGroup) {
 			// provider
 			let label = new IconLabel(container);
-			label.setValue(this.element.provider.displayName);
+			label.setLabel(this.element.provider.displayName);
 			this._disposables.push(label);
 
 		} else if (this.element instanceof OutlineElement) {
@@ -111,7 +111,7 @@ class Item extends BreadcrumbsItem {
 			}
 			let label = new IconLabel(container);
 			let title = this.element.symbol.name.replace(/\r|\n|\r\n/g, '\u23CE');
-			label.setValue(title);
+			label.setLabel(title);
 			this._disposables.push(label);
 		}
 	}
@@ -356,7 +356,7 @@ export class BreadcrumbsControl {
 			},
 			getAnchor: () => {
 				let maxInnerWidth = window.innerWidth - 8 /*a little less the full widget*/;
-				let maxHeight = Math.min(window.innerHeight * .7, 300);
+				let maxHeight = Math.min(window.innerHeight * 0.7, 300);
 
 				let pickerWidth = Math.min(maxInnerWidth, Math.max(240, maxInnerWidth / 4.17));
 				let pickerArrowSize = 8;
@@ -379,7 +379,7 @@ export class BreadcrumbsControl {
 						pickerArrowOffset = maxPickerArrowOffset;
 					}
 				} else {
-					pickerArrowOffset = (data.left + (data.width * .3)) - x;
+					pickerArrowOffset = (data.left + (data.width * 0.3)) - x;
 				}
 				picker.setInput(element, maxHeight, pickerWidth, pickerArrowSize, Math.max(0, pickerArrowOffset));
 				return { x, y };

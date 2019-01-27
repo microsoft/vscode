@@ -3,29 +3,39 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./renameInputField';
-import { localize } from 'vs/nls';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { Range, IRange } from 'vs/editor/common/core/range';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
-import { inputBackground, inputBorder, inputForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { Position } from 'vs/editor/common/core/position';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { ScrollType } from 'vs/editor/common/editorCommon';
+import { localize } from 'vs/nls';
+import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { inputBackground, inputBorder, inputForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
 
-export default class RenameInputField implements IContentWidget, IDisposable {
+export const CONTEXT_RENAME_INPUT_VISIBLE = new RawContextKey<boolean>('renameInputVisible', false);
+
+export class RenameInputField implements IContentWidget, IDisposable {
 
 	private _editor: ICodeEditor;
 	private _position: Position;
 	private _domNode: HTMLElement;
 	private _inputField: HTMLInputElement;
 	private _visible: boolean;
+	private readonly _visibleContextKey: IContextKey<boolean>;
 	private _disposables: IDisposable[] = [];
 
 	// Editor.IContentWidget.allowEditorOverflow
 	public allowEditorOverflow: boolean = true;
 
-	constructor(editor: ICodeEditor, @IThemeService private themeService: IThemeService) {
+	constructor(
+		editor: ICodeEditor,
+		private readonly themeService: IThemeService,
+		contextKeyService: IContextKeyService,
+	) {
+		this._visibleContextKey = CONTEXT_RENAME_INPUT_VISIBLE.bindTo(contextKeyService);
+
 		this._editor = editor;
 		this._editor.addContentWidget(this);
 
@@ -128,10 +138,8 @@ export default class RenameInputField implements IContentWidget, IDisposable {
 		this._inputField.setAttribute('selectionEnd', selectionEnd.toString());
 		this._inputField.size = Math.max((where.endColumn - where.startColumn) * 1.1, 20);
 
-		let disposeOnDone: IDisposable[] = [],
-			always: Function;
-
-		always = () => {
+		const disposeOnDone: IDisposable[] = [];
+		const always = () => {
 			dispose(disposeOnDone);
 			this._hide();
 		};
@@ -181,6 +189,7 @@ export default class RenameInputField implements IContentWidget, IDisposable {
 	private _show(): void {
 		this._editor.revealLineInCenterIfOutsideViewport(this._position.lineNumber, ScrollType.Smooth);
 		this._visible = true;
+		this._visibleContextKey.set(true);
 		this._editor.layoutContentWidget(this);
 
 		setTimeout(() => {
@@ -193,6 +202,7 @@ export default class RenameInputField implements IContentWidget, IDisposable {
 
 	private _hide(): void {
 		this._visible = false;
+		this._visibleContextKey.reset();
 		this._editor.layoutContentWidget(this);
 	}
 }

@@ -219,7 +219,7 @@ export class Expression extends ExpressionContainer implements IExpression {
 			this.available = false;
 			this.reference = 0;
 
-			return Promise.resolve(null);
+			return Promise.resolve(undefined);
 		}
 
 		this.session = session;
@@ -380,7 +380,7 @@ export class StackFrame implements IStackFrame {
 		return `${this.name} (${this.source.inMemory ? this.source.name : this.source.uri.fsPath}:${this.range.startLineNumber})`;
 	}
 
-	openInEditor(editorService: IEditorService, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Thenable<any> {
+	openInEditor(editorService: IEditorService, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<any> {
 		return !this.source.available ? Promise.resolve(null) :
 			this.source.openInEditor(editorService, this.range, preserveFocus, sideBySide, pinned);
 	}
@@ -427,7 +427,7 @@ export class Thread implements IThread {
 	 */
 	fetchCallStack(levels = 20): Promise<void> {
 		if (!this.stopped) {
-			return Promise.resolve(null);
+			return Promise.resolve(undefined);
 		}
 
 		const start = this.callStack.length;
@@ -472,7 +472,7 @@ export class Thread implements IThread {
 	/**
 	 * Returns exception info promise if the exception was thrown, otherwise null
 	 */
-	get exceptionInfo(): Promise<IExceptionInfo> {
+	get exceptionInfo(): Promise<IExceptionInfo | null> {
 		if (this.stoppedDetails && this.stoppedDetails.reason === 'exception') {
 			if (this.session.capabilities.supportsExceptionInfoRequest) {
 				return this.session.exceptionInfo(this.threadId);
@@ -644,6 +644,13 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 		return data ? data.endColumn : undefined;
 	}
 
+	setSessionData(sessionId: string, data: DebugProtocol.Breakpoint): void {
+		super.setSessionData(sessionId, data);
+		if (!this._adapterData) {
+			this._adapterData = this.adapterData;
+		}
+	}
+
 	toJSON(): any {
 		const result = super.toJSON();
 		result.uri = this.uri;
@@ -779,7 +786,7 @@ export class DebugModel implements IDebugModel {
 			return true;
 		});
 		this.sessions.push(session);
-		this._onDidChangeCallStack.fire();
+		this._onDidChangeCallStack.fire(undefined);
 	}
 
 	get onDidChangeBreakpoints(): Event<IBreakpointsChangeEvent> {
@@ -798,7 +805,7 @@ export class DebugModel implements IDebugModel {
 		let session = this.sessions.filter(p => p.getId() === data.sessionId).pop();
 		if (session) {
 			session.rawUpdate(data);
-			this._onDidChangeCallStack.fire();
+			this._onDidChangeCallStack.fire(undefined);
 		}
 	}
 
@@ -809,7 +816,7 @@ export class DebugModel implements IDebugModel {
 
 		if (session) {
 			session.clearThreads(removeThreads, reference);
-			this._onDidChangeCallStack.fire();
+			this._onDidChangeCallStack.fire(undefined);
 		}
 	}
 
@@ -874,7 +881,7 @@ export class DebugModel implements IDebugModel {
 				const ebp = this.exceptionBreakpoints.filter(ebp => ebp.filter === d.filter).pop();
 				return new ExceptionBreakpoint(d.filter, d.label, ebp ? ebp.enabled : d.default);
 			});
-			this._onDidChangeBreakpoints.fire();
+			this._onDidChangeBreakpoints.fire(undefined);
 		}
 	}
 
@@ -884,7 +891,7 @@ export class DebugModel implements IDebugModel {
 
 	setBreakpointsActivated(activated: boolean): void {
 		this.breakpointsActivated = activated;
-		this._onDidChangeBreakpoints.fire();
+		this._onDidChangeBreakpoints.fire(undefined);
 	}
 
 	addBreakpoints(uri: uri, rawData: IBreakpointData[], fireEvent = true): IBreakpoint[] {
@@ -964,7 +971,7 @@ export class DebugModel implements IDebugModel {
 
 	setEnablement(element: IEnablement, enable: boolean): void {
 		if (element instanceof Breakpoint || element instanceof FunctionBreakpoint || element instanceof ExceptionBreakpoint) {
-			const changed: (IBreakpoint | IFunctionBreakpoint)[] = [];
+			const changed: Array<IBreakpoint | IFunctionBreakpoint> = [];
 			if (element.enabled !== enable && (element instanceof Breakpoint || element instanceof FunctionBreakpoint)) {
 				changed.push(element);
 			}
@@ -976,7 +983,7 @@ export class DebugModel implements IDebugModel {
 	}
 
 	enableOrDisableAllBreakpoints(enable: boolean): void {
-		const changed: (IBreakpoint | IFunctionBreakpoint)[] = [];
+		const changed: Array<IBreakpoint | IFunctionBreakpoint> = [];
 
 		this.breakpoints.forEach(bp => {
 			if (bp.enabled !== enable) {
@@ -1045,7 +1052,7 @@ export class DebugModel implements IDebugModel {
 
 	removeWatchExpressions(id: string | null = null): void {
 		this.watchExpressions = id ? this.watchExpressions.filter(we => we.getId() !== id) : [];
-		this._onDidChangeWatchExpressions.fire();
+		this._onDidChangeWatchExpressions.fire(undefined);
 	}
 
 	moveWatchExpression(id: string, position: number): void {
@@ -1053,7 +1060,7 @@ export class DebugModel implements IDebugModel {
 		this.watchExpressions = this.watchExpressions.filter(we => we.getId() !== id);
 		this.watchExpressions = this.watchExpressions.slice(0, position).concat(we, this.watchExpressions.slice(position));
 
-		this._onDidChangeWatchExpressions.fire();
+		this._onDidChangeWatchExpressions.fire(undefined);
 	}
 
 	sourceIsNotAvailable(uri: uri): void {
@@ -1063,7 +1070,7 @@ export class DebugModel implements IDebugModel {
 				source.available = false;
 			}
 		});
-		this._onDidChangeCallStack.fire();
+		this._onDidChangeCallStack.fire(undefined);
 	}
 
 	dispose(): void {

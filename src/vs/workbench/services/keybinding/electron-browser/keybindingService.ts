@@ -24,7 +24,7 @@ import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/c
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
 import { IKeybindingEvent, IKeyboardEvent, IUserFriendlyKeybinding, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
-import { IKeybindingItem, IKeybindingRule2, KeybindingRuleSource, KeybindingWeight, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IKeybindingItem, IKeybindingRule2, KeybindingWeight, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -47,7 +47,7 @@ export class KeyboardMapperFactory {
 	private _keyboardMapper: IKeyboardMapper | null;
 	private _initialized: boolean;
 
-	private readonly _onDidChangeKeyboardMapper: Emitter<void> = new Emitter<void>();
+	private readonly _onDidChangeKeyboardMapper = new Emitter<void>();
 	public readonly onDidChangeKeyboardMapper: Event<void> = this._onDidChangeKeyboardMapper.event;
 
 	private constructor() {
@@ -156,6 +156,7 @@ export class KeyboardMapperFactory {
 
 interface ContributedKeyBinding {
 	command: string;
+	args?: any;
 	key: string;
 	when?: string;
 	mac?: string;
@@ -207,6 +208,10 @@ let keybindingType: IJSONSchema = {
 			description: nls.localize('vscode.extension.contributes.keybindings.command', 'Identifier of the command to run when keybinding is triggered.'),
 			type: 'string'
 		},
+		args: {
+			'description': nls.localize('vscode.extension.contributes.keybindings.args', "Arguments to pass to the command to execute."),
+			type: 'any'
+		},
 		key: {
 			description: nls.localize('vscode.extension.contributes.keybindings.key', 'Key or key sequence (separate keys with plus-sign and sequences with space, e.g Ctrl+O and Ctrl+L L for a chord).'),
 			type: 'string'
@@ -226,19 +231,23 @@ let keybindingType: IJSONSchema = {
 		when: {
 			description: nls.localize('vscode.extension.contributes.keybindings.when', 'Condition when the key is active.'),
 			type: 'string'
-		}
+		},
 	}
 };
 
-let keybindingsExtPoint = ExtensionsRegistry.registerExtensionPoint<ContributedKeyBinding | ContributedKeyBinding[]>('keybindings', [], {
-	description: nls.localize('vscode.extension.contributes.keybindings', "Contributes keybindings."),
-	oneOf: [
-		keybindingType,
-		{
-			type: 'array',
-			items: keybindingType
-		}
-	]
+const keybindingsExtPoint = ExtensionsRegistry.registerExtensionPoint<ContributedKeyBinding | ContributedKeyBinding[]>({
+	isDynamic: true,
+	extensionPoint: 'keybindings',
+	jsonSchema: {
+		description: nls.localize('vscode.extension.contributes.keybindings', "Contributes keybindings."),
+		oneOf: [
+			keybindingType,
+			{
+				type: 'array',
+				items: keybindingType
+			}
+		]
+	}
 });
 
 export const enum DispatchConfig {
@@ -268,7 +277,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IStatusbarService statusBarService: IStatusbarService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IWindowService private windowService: IWindowService
+		@IWindowService private readonly windowService: IWindowService
 	) {
 		super(contextKeyService, commandService, telemetryService, notificationService, statusBarService);
 
@@ -296,15 +305,14 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		this.userKeybindings = this._register(new ConfigWatcher(environmentService.appKeybindingsPath, { defaultConfig: [], onError: error => onUnexpectedError(error) }));
 
 		keybindingsExtPoint.setHandler((extensions) => {
-			let commandAdded = false;
 
+			let keybindings: IKeybindingRule2[] = [];
 			for (let extension of extensions) {
-				commandAdded = this._handleKeybindingsExtensionPointUser(extension.description.isBuiltin, extension.value, extension.collector) || commandAdded;
+				this._handleKeybindingsExtensionPointUser(extension.description.isBuiltin, extension.value, extension.collector, keybindings);
 			}
 
-			if (commandAdded) {
-				this.updateResolver({ source: KeybindingSource.Default });
-			}
+			KeybindingsRegistry.setExtensionKeybindings(keybindings);
+			this.updateResolver({ source: KeybindingSource.Default });
 		});
 
 		this._register(this.userKeybindings.onDidUpdateConfiguration(event => this.updateResolver({
@@ -377,8 +385,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 	private _resolveKeybindingItems(items: IKeybindingItem[], isDefault: boolean): ResolvedKeybindingItem[] {
 		let result: ResolvedKeybindingItem[] = [], resultLen = 0;
-		for (let i = 0, len = items.length; i < len; i++) {
-			const item = items[i];
+		for (const item of items) {
 			const when = (item.when ? item.when.normalize() : null);
 			const keybinding = item.keybinding;
 			if (!keybinding) {
@@ -386,8 +393,8 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 				result[resultLen++] = new ResolvedKeybindingItem(null, item.command, item.commandArgs, when, isDefault);
 			} else {
 				const resolvedKeybindings = this.resolveKeybinding(keybinding);
-				for (let j = 0; j < resolvedKeybindings.length; j++) {
-					result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybindings[j], item.command, item.commandArgs, when, isDefault);
+				for (const resolvedKeybinding of resolvedKeybindings) {
+					result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybinding, item.command, item.commandArgs, when, isDefault);
 				}
 			}
 		}
@@ -397,8 +404,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 	private _resolveUserKeybindingItems(items: IUserKeybindingItem[], isDefault: boolean): ResolvedKeybindingItem[] {
 		let result: ResolvedKeybindingItem[] = [], resultLen = 0;
-		for (let i = 0, len = items.length; i < len; i++) {
-			const item = items[i];
+		for (const item of items) {
 			const when = (item.when ? item.when.normalize() : null);
 			const firstPart = item.firstPart;
 			const chordPart = item.chordPart;
@@ -407,8 +413,8 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 				result[resultLen++] = new ResolvedKeybindingItem(null, item.command, item.commandArgs, when, isDefault);
 			} else {
 				const resolvedKeybindings = this._keyboardMapper.resolveUserBinding(firstPart, chordPart);
-				for (let j = 0; j < resolvedKeybindings.length; j++) {
-					result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybindings[j], item.command, item.commandArgs, when, isDefault);
+				for (const resolvedKeybinding of resolvedKeybindings) {
+					result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybinding, item.command, item.commandArgs, when, isDefault);
 				}
 			}
 		}
@@ -447,28 +453,24 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		return this._keyboardMapper.resolveUserBinding(firstPart, chordPart);
 	}
 
-	private _handleKeybindingsExtensionPointUser(isBuiltin: boolean, keybindings: ContributedKeyBinding | ContributedKeyBinding[], collector: ExtensionMessageCollector): boolean {
+	private _handleKeybindingsExtensionPointUser(isBuiltin: boolean, keybindings: ContributedKeyBinding | ContributedKeyBinding[], collector: ExtensionMessageCollector, result: IKeybindingRule2[]): void {
 		if (isContributedKeyBindingsArray(keybindings)) {
-			let commandAdded = false;
 			for (let i = 0, len = keybindings.length; i < len; i++) {
-				commandAdded = this._handleKeybinding(isBuiltin, i + 1, keybindings[i], collector) || commandAdded;
+				this._handleKeybinding(isBuiltin, i + 1, keybindings[i], collector, result);
 			}
-			return commandAdded;
 		} else {
-			return this._handleKeybinding(isBuiltin, 1, keybindings, collector);
+			this._handleKeybinding(isBuiltin, 1, keybindings, collector, result);
 		}
 	}
 
-	private _handleKeybinding(isBuiltin: boolean, idx: number, keybindings: ContributedKeyBinding, collector: ExtensionMessageCollector): boolean {
+	private _handleKeybinding(isBuiltin: boolean, idx: number, keybindings: ContributedKeyBinding, collector: ExtensionMessageCollector, result: IKeybindingRule2[]): void {
 
 		let rejects: string[] = [];
-		let commandAdded = false;
 
 		if (isValidContributedKeyBinding(keybindings, rejects)) {
 			let rule = this._asCommandRule(isBuiltin, idx++, keybindings);
 			if (rule) {
-				KeybindingsRegistry.registerKeybindingRule2(rule, KeybindingRuleSource.Extension);
-				commandAdded = true;
+				result.push(rule);
 			}
 		}
 
@@ -480,13 +482,11 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 				rejects.join('\n')
 			));
 		}
-
-		return commandAdded;
 	}
 
 	private _asCommandRule(isBuiltin: boolean, idx: number, binding: ContributedKeyBinding): IKeybindingRule2 | undefined {
 
-		let { command, when, key, mac, linux, win } = binding;
+		let { command, args, when, key, mac, linux, win } = binding;
 
 		let weight: number;
 		if (isBuiltin) {
@@ -497,6 +497,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 		let desc: IKeybindingRule2 = {
 			id: command,
+			args,
 			when: ContextKeyExpr.deserialize(when),
 			weight: weight,
 			primary: KeybindingParser.parseKeybinding(key, OS),

@@ -8,7 +8,7 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import * as types from 'vs/base/common/types';
 import * as paths from 'vs/base/common/paths';
 import { Action } from 'vs/base/common/actions';
-import { VIEWLET_ID, IExplorerViewlet, TEXT_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
+import { VIEWLET_ID, TEXT_FILE_EDITOR_ID, IExplorerService } from 'vs/workbench/parts/files/common/files';
 import { ITextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { BaseTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
 import { EditorOptions, TextEditorOptions } from 'vs/workbench/common/editor';
@@ -30,6 +30,7 @@ import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 /**
  * An implementation of editor for file system resources.
@@ -39,22 +40,24 @@ export class TextFileEditor extends BaseTextEditor {
 	static readonly ID = TEXT_FILE_EDITOR_ID;
 
 	private restoreViewState: boolean;
+	private groupListener: IDisposable;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IFileService private fileService: IFileService,
-		@IViewletService private viewletService: IViewletService,
+		@IFileService private readonly fileService: IFileService,
+		@IViewletService private readonly viewletService: IViewletService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IStorageService storageService: IStorageService,
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@IEditorService editorService: IEditorService,
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@ITextFileService textFileService: ITextFileService,
-		@IWindowsService private windowsService: IWindowsService,
-		@IPreferencesService private preferencesService: IPreferencesService,
-		@IWindowService windowService: IWindowService
+		@IWindowsService private readonly windowsService: IWindowsService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
+		@IWindowService windowService: IWindowService,
+		@IExplorerService private readonly explorerService: IExplorerService
 	) {
 		super(TextFileEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService, windowService);
 
@@ -95,7 +98,8 @@ export class TextFileEditor extends BaseTextEditor {
 		// React to editors closing to preserve or clear view state. This needs to happen
 		// in the onWillCloseEditor because at that time the editor has not yet
 		// been disposed and we can safely persist the view state still as needed.
-		this._register((group as IEditorGroupView).onWillCloseEditor(e => {
+		this.groupListener = dispose(this.groupListener);
+		this.groupListener = ((group as IEditorGroupView).onWillCloseEditor(e => {
 			if (e.editor === this.input) {
 				this.doSaveOrClearTextEditorViewState(this.input);
 			}
@@ -109,7 +113,7 @@ export class TextFileEditor extends BaseTextEditor {
 		}
 	}
 
-	setInput(input: FileEditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
+	setInput(input: FileEditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
 
 		// Update/clear view settings if input changes
 		this.doSaveOrClearTextEditorViewState(this.input);
@@ -120,7 +124,7 @@ export class TextFileEditor extends BaseTextEditor {
 
 				// Check for cancellation
 				if (token.isCancellationRequested) {
-					return void 0;
+					return undefined;
 				}
 
 				// There is a special case where the text editor has to handle binary file editor input: if a binary file
@@ -218,8 +222,8 @@ export class TextFileEditor extends BaseTextEditor {
 
 			// Best we can do is to reveal the folder in the explorer
 			if (this.contextService.isInsideWorkspace(input.getResource())) {
-				this.viewletService.openViewlet(VIEWLET_ID, true).then(viewlet => {
-					return (viewlet as IExplorerViewlet).getExplorerView().select(input.getResource(), true);
+				this.viewletService.openViewlet(VIEWLET_ID, true).then(() => {
+					this.explorerService.select(input.getResource(), true);
 				});
 			}
 		});
@@ -274,5 +278,11 @@ export class TextFileEditor extends BaseTextEditor {
 		else if (!input.isDisposed()) {
 			this.saveTextEditorViewState(input.getResource());
 		}
+	}
+
+	dispose(): void {
+		this.groupListener = dispose(this.groupListener);
+
+		super.dispose();
 	}
 }

@@ -72,16 +72,16 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 	constructor(
 		private editor: ICodeEditor,
-		@IDebugService private debugService: IDebugService,
-		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IInstantiationService private instantiationService: IInstantiationService,
+		@IDebugService private readonly debugService: IDebugService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ICommandService private commandService: ICommandService,
-		@ICodeEditorService private codeEditorService: ICodeEditorService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IKeybindingService private keybindingService: IKeybindingService,
-		@IDialogService private dialogService: IDialogService,
+		@ICommandService private readonly commandService: ICommandService,
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IDialogService private readonly dialogService: IDialogService,
 	) {
 		this.breakpointHintDecoration = [];
 		this.hoverWidget = this.instantiationService.createInstance(DebugHoverWidget, this.editor);
@@ -93,8 +93,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		this.toggleExceptionWidget();
 	}
 
-	private getContextMenuActions(breakpoints: ReadonlyArray<IBreakpoint>, uri: uri, lineNumber: number): (IAction | ContextSubMenu)[] {
-		const actions: (IAction | ContextSubMenu)[] = [];
+	private getContextMenuActions(breakpoints: ReadonlyArray<IBreakpoint>, uri: uri, lineNumber: number): Array<IAction | ContextSubMenu> {
+		const actions: Array<IAction | ContextSubMenu> = [];
 		if (breakpoints.length === 1) {
 			const breakpointType = breakpoints[0].logMessage ? nls.localize('logPoint', "Logpoint") : nls.localize('breakpoint', "Breakpoint");
 			actions.push(new RemoveBreakpointAction(RemoveBreakpointAction.ID, nls.localize('removeBreakpoint', "Remove {0}", breakpointType), this.debugService, this.keybindingService));
@@ -294,7 +294,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		if (stackFrame && model && model.uri.toString() === stackFrame.source.uri.toString()) {
 			this.editor.updateOptions({
 				hover: {
-					enabled: !stackFrame || !model || model.uri.toString() !== stackFrame.source.uri.toString()
+					enabled: false
 				}
 			});
 		} else {
@@ -568,12 +568,6 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				this.editor.setPosition(position);
 				CoreEditingCommands.LineBreakInsert.runEditorCommand(null, this.editor, null);
 			}
-			// Check if there is already an empty line to insert suggest, if yes just place the cursor
-			if (this.editor.getModel().getLineLastNonWhitespaceColumn(position.lineNumber + 1) === 0) {
-				this.editor.setPosition({ lineNumber: position.lineNumber + 1, column: Constants.MAX_SAFE_SMALL_INTEGER });
-				this.commandService.executeCommand('editor.action.deleteLines');
-			}
-
 			this.editor.setPosition(position);
 			return this.commandService.executeCommand('editor.action.insertLineAfter');
 		};

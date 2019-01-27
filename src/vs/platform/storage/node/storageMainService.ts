@@ -39,6 +39,7 @@ export interface IStorageMainService {
 	 * the provided defaultValue if the element is null or undefined.
 	 */
 	get(key: string, fallbackValue: string): string;
+	get(key: string, fallbackValue?: string): string | undefined;
 
 	/**
 	 * Retrieve an element stored with the given key from storage. Use
@@ -46,6 +47,7 @@ export interface IStorageMainService {
 	 * will be converted to a boolean.
 	 */
 	getBoolean(key: string, fallbackValue: boolean): boolean;
+	getBoolean(key: string, fallbackValue?: boolean): boolean | undefined;
 
 	/**
 	 * Retrieve an element stored with the given key from storage. Use
@@ -53,6 +55,7 @@ export interface IStorageMainService {
 	 * will be converted to a number using parseInt with a base of 10.
 	 */
 	getInteger(key: string, fallbackValue: number): number;
+	getInteger(key: string, fallbackValue?: number): number | undefined;
 
 	/**
 	 * Store a string value under the given key to storage. The value will
@@ -87,9 +90,9 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 	private storage: IStorage;
 
 	constructor(
-		@ILogService private logService: ILogService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@ILogService private readonly logService: ILogService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super();
 
@@ -109,7 +112,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 		const loggedStorageErrors = new Set<string>();
 
 		return {
-			logTrace: (this.logService.getLevel() === LogLevel.Trace) ? msg => this.logService.trace(msg) : void 0,
+			logTrace: (this.logService.getLevel() === LogLevel.Trace) ? msg => this.logService.trace(msg) : undefined,
 			logError: error => {
 				this.logService.error(error);
 
@@ -130,7 +133,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 		} as ISQLiteStorageDatabaseLoggingOptions;
 	}
 
-	initialize(): Thenable<void> {
+	initialize(): Promise<void> {
 		const useInMemoryStorage = this.storagePath === SQLiteStorageDatabase.IN_MEMORY_PATH;
 
 		let globalStorageExists: Promise<boolean>;
@@ -158,7 +161,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 			}).then(() => {
 
 				// Migrate storage if this is the first start and we are not using in-memory
-				let migrationPromise: Thenable<void>;
+				let migrationPromise: Promise<void>;
 				if (!useInMemoryStorage && !exists) {
 					// TODO@Ben remove global storage migration and move Storage creation back to ctor
 					migrationPromise = this.migrateGlobalStorage().then(() => this.logService.info('[storage] migrated global storage'), error => this.logService.error(`[storage] migration error ${error}`));
@@ -171,7 +174,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 		});
 	}
 
-	private migrateGlobalStorage(): Thenable<void> {
+	private migrateGlobalStorage(): Promise<void> {
 		this.logService.info('[storage] migrating global storage from localStorage into SQLite');
 
 		const localStorageDBBackup = join(this.environmentService.userDataPath, 'Local Storage', 'file__0.vscmig');
@@ -345,27 +348,33 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 		});
 	}
 
-	get(key: string, fallbackValue: string): string {
+	get(key: string, fallbackValue: string): string;
+	get(key: string, fallbackValue?: string): string | undefined;
+	get(key: string, fallbackValue?: string): string | undefined {
 		return this.storage.get(key, fallbackValue);
 	}
 
-	getBoolean(key: string, fallbackValue: boolean): boolean {
+	getBoolean(key: string, fallbackValue: boolean): boolean;
+	getBoolean(key: string, fallbackValue?: boolean): boolean | undefined;
+	getBoolean(key: string, fallbackValue?: boolean): boolean | undefined {
 		return this.storage.getBoolean(key, fallbackValue);
 	}
 
-	getInteger(key: string, fallbackValue: number): number {
+	getInteger(key: string, fallbackValue: number): number;
+	getInteger(key: string, fallbackValue?: number): number | undefined;
+	getInteger(key: string, fallbackValue?: number): number | undefined {
 		return this.storage.getInteger(key, fallbackValue);
 	}
 
-	store(key: string, value: any): Thenable<void> {
+	store(key: string, value: any): Promise<void> {
 		return this.storage.set(key, value);
 	}
 
-	remove(key: string): Thenable<void> {
+	remove(key: string): Promise<void> {
 		return this.storage.delete(key);
 	}
 
-	close(): Thenable<void> {
+	close(): Promise<void> {
 		this.logService.trace('StorageMainService#close() - begin');
 
 		// Signal as event so that clients can still store data
@@ -380,7 +389,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 		});
 	}
 
-	checkIntegrity(full: boolean): Thenable<string> {
+	checkIntegrity(full: boolean): Promise<string> {
 		return this.storage.checkIntegrity(full);
 	}
 }

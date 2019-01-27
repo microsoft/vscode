@@ -7,7 +7,7 @@ import { groupBy } from 'vs/base/common/arrays';
 import { dispose } from 'vs/base/common/lifecycle';
 import { getLeadingWhitespace } from 'vs/base/common/strings';
 import 'vs/css!./snippetSession';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -34,7 +34,7 @@ registerThemingParticipant((theme, collector) => {
 
 export class OneSnippet {
 
-	private readonly _editor: ICodeEditor;
+	private readonly _editor: IActiveCodeEditor;
 	private readonly _snippet: TextmateSnippet;
 	private readonly _offset: number;
 
@@ -50,7 +50,7 @@ export class OneSnippet {
 		inactiveFinal: ModelDecorationOptions.register({ stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges, className: 'finish-snippet-placeholder' }),
 	};
 
-	constructor(editor: ICodeEditor, snippet: TextmateSnippet, offset: number) {
+	constructor(editor: IActiveCodeEditor, snippet: TextmateSnippet, offset: number) {
 		this._editor = editor;
 		this._snippet = snippet;
 		this._offset = offset;
@@ -95,6 +95,9 @@ export class OneSnippet {
 	}
 
 	move(fwd: boolean | undefined): Selection[] {
+		if (!this._editor.hasModel()) {
+			return [];
+		}
 
 		this._initDecorations();
 
@@ -105,8 +108,8 @@ export class OneSnippet {
 			for (const placeholder of this._placeholderGroups[this._placeholderGroupsIdx]) {
 				// Check if the placeholder has a transformation
 				if (placeholder.transform) {
-					const id = this._placeholderDecorations.get(placeholder);
-					const range = this._editor.getModel().getDecorationRange(id);
+					const id = this._placeholderDecorations.get(placeholder)!;
+					const range = this._editor.getModel().getDecorationRange(id)!;
 					const currentValue = this._editor.getModel().getValueInRange(range);
 
 					operations.push(EditOperation.replaceMove(range, placeholder.transform.resolve(currentValue)));
@@ -142,8 +145,8 @@ export class OneSnippet {
 			// Special case #2: placeholders enclosing active placeholders
 			const selections: Selection[] = [];
 			for (const placeholder of this._placeholderGroups[this._placeholderGroupsIdx]) {
-				const id = this._placeholderDecorations.get(placeholder);
-				const range = this._editor.getModel().getDecorationRange(id);
+				const id = this._placeholderDecorations.get(placeholder)!;
+				const range = this._editor.getModel().getDecorationRange(id)!;
 				selections.push(new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn));
 
 				// consider to skip this placeholder index when the decoration
@@ -155,7 +158,7 @@ export class OneSnippet {
 				activePlaceholders.add(placeholder);
 
 				for (const enclosingPlaceholder of this._snippet.enclosingPlaceholders(placeholder)) {
-					const id = this._placeholderDecorations.get(enclosingPlaceholder);
+					const id = this._placeholderDecorations.get(enclosingPlaceholder)!;
 					accessor.changeDecorationOptions(id, enclosingPlaceholder.isFinalTabstop ? OneSnippet._decor.activeFinal : OneSnippet._decor.active);
 					activePlaceholders.add(enclosingPlaceholder);
 				}
@@ -170,7 +173,7 @@ export class OneSnippet {
 			});
 
 			return selections;
-		});
+		})!;
 
 		return !skipThisPlaceholder ? newSelections : this.move(fwd);
 	}
@@ -190,7 +193,7 @@ export class OneSnippet {
 	computePossibleSelections() {
 		const result = new Map<number, Range[]>();
 		for (const placeholdersWithEqualIndex of this._placeholderGroups) {
-			let ranges: Range[];
+			let ranges: Range[] | undefined;
 
 			for (const placeholder of placeholdersWithEqualIndex) {
 				if (placeholder.isFinalTabstop) {
@@ -203,7 +206,7 @@ export class OneSnippet {
 					result.set(placeholder.index, ranges);
 				}
 
-				const id = this._placeholderDecorations.get(placeholder);
+				const id = this._placeholderDecorations.get(placeholder)!;
 				const range = this._editor.getModel().getDecorationRange(id);
 				if (!range) {
 					// one of the placeholder lost its decoration and
@@ -219,7 +222,7 @@ export class OneSnippet {
 		return result;
 	}
 
-	get choice(): Choice {
+	get choice(): Choice | undefined {
 		return this._placeholderGroups[this._placeholderGroupsIdx][0].choice;
 	}
 
@@ -235,13 +238,13 @@ export class OneSnippet {
 			// everything is sorted by editor selection we can simply remove
 			// elements from the beginning of the array
 			for (const placeholder of this._placeholderGroups[this._placeholderGroupsIdx]) {
-				const nested = others.shift();
+				const nested = others.shift()!;
 				console.assert(!nested._placeholderDecorations);
 
 				// Massage placeholder-indicies of the nested snippet to be
 				// sorted right after the insertion point. This ensures we move
 				// through the placeholders in the correct order
-				const indexLastPlaceholder = nested._snippet.placeholderInfo.last.index;
+				const indexLastPlaceholder = nested._snippet.placeholderInfo.last!.index;
 
 				for (const nestedPlaceholder of nested._snippet.placeholderInfo.all) {
 					if (nestedPlaceholder.isFinalTabstop) {
@@ -254,7 +257,7 @@ export class OneSnippet {
 
 				// Remove the placeholder at which position are inserting
 				// the snippet and also remove its decoration.
-				const id = this._placeholderDecorations.get(placeholder);
+				const id = this._placeholderDecorations.get(placeholder)!;
 				accessor.removeDecoration(id);
 				this._placeholderDecorations.delete(placeholder);
 
@@ -277,15 +280,15 @@ export class OneSnippet {
 		});
 	}
 
-	public getEnclosingRange(): Range {
-		let result: Range;
+	public getEnclosingRange(): Range | undefined {
+		let result: Range | undefined;
 		const model = this._editor.getModel();
 		this._placeholderDecorations.forEach((decorationId) => {
-			const placeholderRange = model.getDecorationRange(decorationId);
+			const placeholderRange = model.getDecorationRange(decorationId) || undefined;
 			if (!result) {
 				result = placeholderRange;
 			} else {
-				result = result.plusRange(placeholderRange);
+				result = result.plusRange(placeholderRange!);
 			}
 		});
 		return result;
@@ -340,11 +343,14 @@ export class SnippetSession {
 		return selection;
 	}
 
-	static createEditsAndSnippets(editor: ICodeEditor, template: string, overwriteBefore: number, overwriteAfter: number, enforceFinalTabstop: boolean, adjustWhitespace: boolean): { edits: IIdentifiedSingleEditOperation[], snippets: OneSnippet[] } {
-
-		const model = editor.getModel();
+	static createEditsAndSnippets(editor: IActiveCodeEditor, template: string, overwriteBefore: number, overwriteAfter: number, enforceFinalTabstop: boolean, adjustWhitespace: boolean): { edits: IIdentifiedSingleEditOperation[], snippets: OneSnippet[] } {
 		const edits: IIdentifiedSingleEditOperation[] = [];
 		const snippets: OneSnippet[] = [];
+
+		if (!editor.hasModel()) {
+			return { edits, snippets };
+		}
+		const model = editor.getModel();
 
 		const modelBasedVariableResolver = new ModelBasedVariableResolver(model);
 		const clipboardService = editor.invokeWithinContext(accessor => accessor.get(IClipboardService, optional));
@@ -419,7 +425,7 @@ export class SnippetSession {
 		return { edits, snippets };
 	}
 
-	private readonly _editor: ICodeEditor;
+	private readonly _editor: IActiveCodeEditor;
 	private readonly _template: string;
 	private readonly _templateMerges: [number, number, string][] = [];
 	private readonly _overwriteBefore: number;
@@ -427,7 +433,7 @@ export class SnippetSession {
 	private readonly _adjustWhitespace: boolean;
 	private _snippets: OneSnippet[] = [];
 
-	constructor(editor: ICodeEditor, template: string, overwriteBefore: number = 0, overwriteAfter: number = 0, adjustWhitespace: boolean = true) {
+	constructor(editor: IActiveCodeEditor, template: string, overwriteBefore: number = 0, overwriteAfter: number = 0, adjustWhitespace: boolean = true) {
 		this._editor = editor;
 		this._template = template;
 		this._overwriteBefore = overwriteBefore;
@@ -444,6 +450,9 @@ export class SnippetSession {
 	}
 
 	insert(): void {
+		if (!this._editor.hasModel()) {
+			return;
+		}
 
 		const model = this._editor.getModel();
 
@@ -457,12 +466,15 @@ export class SnippetSession {
 			} else {
 				return undoEdits.map(edit => Selection.fromPositions(edit.range.getEndPosition()));
 			}
-		});
+		})!;
 		this._editor.setSelections(selections);
 		this._editor.revealRange(selections[0]);
 	}
 
 	merge(template: string, overwriteBefore: number = 0, overwriteAfter: number = 0, adjustWhitespace: boolean = true): void {
+		if (!this._editor.hasModel()) {
+			return;
+		}
 		this._templateMerges.push([this._snippets[0]._nestingLevel, this._snippets[0]._placeholderGroupsIdx, template]);
 		const { edits, snippets } = SnippetSession.createEditsAndSnippets(this._editor, template, overwriteBefore, overwriteAfter, true, adjustWhitespace);
 
@@ -478,7 +490,7 @@ export class SnippetSession {
 			} else {
 				return undoEdits.map(edit => Selection.fromPositions(edit.range.getEndPosition()));
 			}
-		}));
+		})!);
 	}
 
 	next(): void {
@@ -514,7 +526,7 @@ export class SnippetSession {
 		return this._snippets[0].hasPlaceholder;
 	}
 
-	get choice(): Choice {
+	get choice(): Choice | undefined {
 		return this._snippets[0].choice;
 	}
 
@@ -532,7 +544,7 @@ export class SnippetSession {
 			return false;
 		}
 
-		let allPossibleSelections: Map<number, Range[]>;
+		let allPossibleSelections = new Map<number, Range[]>();
 		for (const snippet of this._snippets) {
 
 			const possibleSelections = snippet.computePossibleSelections();
@@ -540,8 +552,7 @@ export class SnippetSession {
 			// for the first snippet find the placeholder (and its ranges)
 			// that contain at least one selection. for all remaining snippets
 			// the same placeholder (and their ranges) must be used.
-			if (!allPossibleSelections) {
-				allPossibleSelections = new Map<number, Range[]>();
+			if (allPossibleSelections.size === 0) {
 				possibleSelections.forEach((ranges, index) => {
 
 					ranges.sort(Range.compareRangesUsingStarts);
@@ -563,7 +574,7 @@ export class SnippetSession {
 			// add selections from 'this' snippet so that we know all
 			// selections for this placeholder
 			allPossibleSelections.forEach((array, index) => {
-				array.push(...possibleSelections.get(index));
+				array.push(...possibleSelections.get(index)!);
 			});
 		}
 
@@ -595,14 +606,14 @@ export class SnippetSession {
 		return allPossibleSelections.size > 0;
 	}
 
-	public getEnclosingRange(): Range {
-		let result: Range;
+	public getEnclosingRange(): Range | undefined {
+		let result: Range | undefined;
 		for (const snippet of this._snippets) {
 			const snippetRange = snippet.getEnclosingRange();
 			if (!result) {
 				result = snippetRange;
 			} else {
-				result = result.plusRange(snippetRange);
+				result = result.plusRange(snippetRange!);
 			}
 		}
 		return result;

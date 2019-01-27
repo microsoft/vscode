@@ -56,13 +56,13 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 	private breakpoint: IBreakpoint;
 
 	constructor(editor: ICodeEditor, private lineNumber: number, private context: Context,
-		@IContextViewService private contextViewService: IContextViewService,
-		@IDebugService private debugService: IDebugService,
-		@IThemeService private themeService: IThemeService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IModelService private modelService: IModelService,
-		@ICodeEditorService private codeEditorService: ICodeEditorService,
+		@IContextViewService private readonly contextViewService: IContextViewService,
+		@IDebugService private readonly debugService: IDebugService,
+		@IThemeService private readonly themeService: IThemeService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IModelService private readonly modelService: IModelService,
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 	) {
 		super(editor, { showFrame: true, showArrow: false, frameWidth: 1 });
 
@@ -230,7 +230,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		this.themeService.onThemeChange(() => setDecorations());
 
 		this.toDispose.push(CompletionProviderRegistry.register({ scheme: DEBUG_SCHEME, hasAccessToAllModels: true }, {
-			provideCompletionItems: (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken): Thenable<CompletionList> => {
+			provideCompletionItems: (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken): Promise<CompletionList> => {
 				let suggestionsPromise: Promise<CompletionList>;
 				if (this.context === Context.CONDITION || this.context === Context.LOG_MESSAGE && this.isCurlyBracketOpen()) {
 					suggestionsPromise = provideSuggestionItems(this.editor.getModel(), new Position(this.lineNumber, 1), 'none', undefined, _context, token).then(suggestions => {

@@ -106,7 +106,12 @@ namespace snippetExt {
 		}
 	};
 
-	export const point = ExtensionsRegistry.registerExtensionPoint<snippetExt.ISnippetsExtensionPoint[]>('snippets', [languagesExtPoint], snippetExt.snippetsContribution);
+	export const point = ExtensionsRegistry.registerExtensionPoint<snippetExt.ISnippetsExtensionPoint[]>({
+		isDynamic: true,
+		extensionPoint: 'snippets',
+		deps: [languagesExtPoint],
+		jsonSchema: snippetExt.snippetsContribution
+	});
 }
 
 function watch(service: IFileService, resource: URI, callback: (type: FileChangeType, resource: URI) => any): IDisposable {
@@ -131,7 +136,7 @@ class SnippetsService implements ISnippetsService {
 	readonly _serviceBrand: any;
 
 	private readonly _disposables: IDisposable[] = [];
-	private readonly _pendingWork: Thenable<any>[] = [];
+	private readonly _pendingWork: Promise<any>[] = [];
 	private readonly _files = new Map<string, SnippetFile>();
 
 	constructor(
@@ -203,6 +208,13 @@ class SnippetsService implements ISnippetsService {
 
 	private _initExtensionSnippets(): void {
 		snippetExt.point.setHandler(extensions => {
+
+			this._files.forEach((value, key) => {
+				if (value.source === SnippetSource.Extension) {
+					this._files.delete(key);
+				}
+			});
+
 			for (const extension of extensions) {
 				for (const contribution of extension.value) {
 					const validContribution = snippetExt.toValidSnippet(extension, contribution, this._modeService);
@@ -211,8 +223,8 @@ class SnippetsService implements ISnippetsService {
 					}
 
 					const resource = validContribution.location.toString();
-					if (this._files.has(resource)) {
-						const file = this._files.get(resource);
+					const file = this._files.get(resource);
+					if (file) {
 						if (file.defaultScopes) {
 							file.defaultScopes.push(validContribution.language);
 						} else {
@@ -263,7 +275,7 @@ class SnippetsService implements ISnippetsService {
 		updateWorkspaceSnippets();
 	}
 
-	private _initWorkspaceFolderSnippets(workspace: IWorkspace, bucket: IDisposable[]): Thenable<any> {
+	private _initWorkspaceFolderSnippets(workspace: IWorkspace, bucket: IDisposable[]): Promise<any> {
 		let promises = workspace.folders.map(folder => {
 			const snippetFolder = folder.toResource('.vscode');
 			return this._fileService.existsFile(snippetFolder).then(value => {
@@ -282,12 +294,12 @@ class SnippetsService implements ISnippetsService {
 		return Promise.all(promises);
 	}
 
-	private _initUserSnippets(): Thenable<any> {
+	private _initUserSnippets(): Promise<any> {
 		const userSnippetsFolder = URI.file(join(this._environmentService.appSettingsHome, 'snippets'));
 		return this._fileService.createFolder(userSnippetsFolder).then(() => this._initFolderSnippets(SnippetSource.User, userSnippetsFolder, this._disposables));
 	}
 
-	private _initFolderSnippets(source: SnippetSource, folder: URI, bucket: IDisposable[]): Thenable<any> {
+	private _initFolderSnippets(source: SnippetSource, folder: URI, bucket: IDisposable[]): Promise<any> {
 		let disposables: IDisposable[] = [];
 		let addFolderSnippets = () => {
 			disposables = dispose(disposables);

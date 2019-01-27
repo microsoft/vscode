@@ -9,13 +9,13 @@ import { OperatingSystem } from 'vs/base/common/platform';
 
 suite('keyCodes', () => {
 
-	function testBinaryEncoding(expected: Keybinding, k: number, OS: OperatingSystem): void {
+	function testBinaryEncoding(expected: Keybinding | null, k: number, OS: OperatingSystem): void {
 		assert.deepEqual(createKeybinding(k, OS), expected);
 	}
 
 	test('MAC binary encoding', () => {
 
-		function test(expected: Keybinding, k: number): void {
+		function test(expected: Keybinding | null, k: number): void {
 			testBinaryEncoding(expected, k, OperatingSystem.Macintosh);
 		}
 
@@ -57,7 +57,7 @@ suite('keyCodes', () => {
 
 		[OperatingSystem.Linux, OperatingSystem.Windows].forEach((OS) => {
 
-			function test(expected: Keybinding, k: number): void {
+			function test(expected: Keybinding | null, k: number): void {
 				testBinaryEncoding(expected, k, OS);
 			}
 

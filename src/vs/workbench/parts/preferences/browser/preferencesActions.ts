@@ -18,160 +18,142 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 
 export class OpenRawDefaultSettingsAction extends Action {
 
-	public static readonly ID = 'workbench.action.openRawDefaultSettings';
-	public static readonly LABEL = nls.localize('openRawDefaultSettings', "Open Raw Default Settings");
+	static readonly ID = 'workbench.action.openRawDefaultSettings';
+	static readonly LABEL = nls.localize('openRawDefaultSettings', "Open Raw Default Settings");
 
 	constructor(
 		id: string,
 		label: string,
-		@IPreferencesService private preferencesService: IPreferencesService
+		@IPreferencesService private readonly preferencesService: IPreferencesService
 	) {
 		super(id, label);
 	}
 
-	public run(event?: any): Thenable<any> {
+	run(event?: any): Promise<any> {
 		return this.preferencesService.openRawDefaultSettings();
 	}
 }
 
 export class OpenSettings2Action extends Action {
 
-	public static readonly ID = 'workbench.action.openSettings2';
-	public static readonly LABEL = nls.localize('openSettings2', "Open Settings (UI)");
+	static readonly ID = 'workbench.action.openSettings2';
+	static readonly LABEL = nls.localize('openSettings2', "Open Settings (UI)");
 
 	constructor(
 		id: string,
 		label: string,
-		@IPreferencesService private preferencesService: IPreferencesService
+		@IPreferencesService private readonly preferencesService: IPreferencesService
 	) {
 		super(id, label);
 	}
 
-	public run(event?: any): Thenable<any> {
+	run(event?: any): Promise<any> {
 		return this.preferencesService.openSettings(false);
-	}
-}
-
-export class OpenSettingsAction extends Action {
-
-	public static readonly ID = 'workbench.action.openSettings';
-	public static readonly LABEL = nls.localize('openSettings', "Open Settings");
-
-	constructor(
-		id: string,
-		label: string,
-		@IPreferencesService private preferencesService: IPreferencesService
-	) {
-		super(id, label);
-	}
-
-	public run(event?: any): Thenable<any> {
-		return this.preferencesService.openSettings();
 	}
 }
 
 export class OpenSettingsJsonAction extends Action {
 
-	public static readonly ID = 'workbench.action.openSettingsJson';
-	public static readonly LABEL = nls.localize('openSettingsJson', "Open Settings (JSON)");
+	static readonly ID = 'workbench.action.openSettingsJson';
+	static readonly LABEL = nls.localize('openSettingsJson', "Open Settings (JSON)");
 
 	constructor(
 		id: string,
 		label: string,
-		@IPreferencesService private preferencesService: IPreferencesService
+		@IPreferencesService private readonly preferencesService: IPreferencesService
 	) {
 		super(id, label);
 	}
 
-	public run(event?: any): Thenable<any> {
+	run(event?: any): Promise<any> {
 		return this.preferencesService.openSettings(true);
 	}
 }
 
 export class OpenGlobalSettingsAction extends Action {
 
-	public static readonly ID = 'workbench.action.openGlobalSettings';
-	public static readonly LABEL = nls.localize('openGlobalSettings', "Open User Settings");
+	static readonly ID = 'workbench.action.openGlobalSettings';
+	static readonly LABEL = nls.localize('openGlobalSettings', "Open User Settings");
 
 	constructor(
 		id: string,
 		label: string,
-		@IPreferencesService private preferencesService: IPreferencesService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
 	) {
 		super(id, label);
 	}
 
-	public run(event?: any): Thenable<any> {
+	run(event?: any): Promise<any> {
 		return this.preferencesService.openGlobalSettings();
 	}
 }
 
 export class OpenGlobalKeybindingsAction extends Action {
 
-	public static readonly ID = 'workbench.action.openGlobalKeybindings';
-	public static readonly LABEL = nls.localize('openGlobalKeybindings', "Open Keyboard Shortcuts");
+	static readonly ID = 'workbench.action.openGlobalKeybindings';
+	static readonly LABEL = nls.localize('openGlobalKeybindings', "Open Keyboard Shortcuts");
 
 	constructor(
 		id: string,
 		label: string,
-		@IPreferencesService private preferencesService: IPreferencesService
+		@IPreferencesService private readonly preferencesService: IPreferencesService
 	) {
 		super(id, label);
 	}
 
-	public run(event?: any): Thenable<any> {
+	run(event?: any): Promise<any> {
 		return this.preferencesService.openGlobalKeybindingSettings(false);
 	}
 }
 
 export class OpenGlobalKeybindingsFileAction extends Action {
 
-	public static readonly ID = 'workbench.action.openGlobalKeybindingsFile';
-	public static readonly LABEL = nls.localize('openGlobalKeybindingsFile', "Open Keyboard Shortcuts (JSON)");
+	static readonly ID = 'workbench.action.openGlobalKeybindingsFile';
+	static readonly LABEL = nls.localize('openGlobalKeybindingsFile', "Open Keyboard Shortcuts (JSON)");
 
 	constructor(
 		id: string,
 		label: string,
-		@IPreferencesService private preferencesService: IPreferencesService
+		@IPreferencesService private readonly preferencesService: IPreferencesService
 	) {
 		super(id, label);
 	}
 
-	public run(event?: any): Thenable<any> {
+	run(event?: any): Promise<any> {
 		return this.preferencesService.openGlobalKeybindingSettings(true);
 	}
 }
 
 export class OpenDefaultKeybindingsFileAction extends Action {
 
-	public static readonly ID = 'workbench.action.openDefaultKeybindingsFile';
-	public static readonly LABEL = nls.localize('openDefaultKeybindingsFile', "Open Default Keyboard Shortcuts (JSON)");
+	static readonly ID = 'workbench.action.openDefaultKeybindingsFile';
+	static readonly LABEL = nls.localize('openDefaultKeybindingsFile', "Open Default Keyboard Shortcuts (JSON)");
 
 	constructor(
 		id: string,
 		label: string,
-		@IPreferencesService private preferencesService: IPreferencesService
+		@IPreferencesService private readonly preferencesService: IPreferencesService
 	) {
 		super(id, label);
 	}
 
-	public run(event?: any): Thenable<any> {
+	run(event?: any): Promise<any> {
 		return this.preferencesService.openDefaultKeybindingsFile();
 	}
 }
 
 export class OpenWorkspaceSettingsAction extends Action {
 
-	public static readonly ID = 'workbench.action.openWorkspaceSettings';
-	public static readonly LABEL = nls.localize('openWorkspaceSettings', "Open Workspace Settings");
+	static readonly ID = 'workbench.action.openWorkspaceSettings';
+	static readonly LABEL = nls.localize('openWorkspaceSettings', "Open Workspace Settings");
 
 	private disposables: IDisposable[] = [];
 
 	constructor(
 		id: string,
 		label: string,
-		@IPreferencesService private preferencesService: IPreferencesService,
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 	) {
 		super(id, label);
 		this.update();
@@ -182,11 +164,11 @@ export class OpenWorkspaceSettingsAction extends Action {
 		this.enabled = this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY;
 	}
 
-	public run(event?: any): Thenable<any> {
+	run(event?: any): Promise<any> {
 		return this.preferencesService.openWorkspaceSettings();
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this.disposables = dispose(this.disposables);
 		super.dispose();
 	}
@@ -196,8 +178,8 @@ export const OPEN_FOLDER_SETTINGS_COMMAND = '_workbench.action.openFolderSetting
 export const OPEN_FOLDER_SETTINGS_LABEL = nls.localize('openFolderSettings', "Open Folder Settings");
 export class OpenFolderSettingsAction extends Action {
 
-	public static readonly ID = 'workbench.action.openFolderSettings';
-	public static readonly LABEL = OPEN_FOLDER_SETTINGS_LABEL;
+	static readonly ID = 'workbench.action.openFolderSettings';
+	static readonly LABEL = OPEN_FOLDER_SETTINGS_LABEL;
 
 	private disposables: IDisposable[] = [];
 
@@ -205,9 +187,9 @@ export class OpenFolderSettingsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
-		@IPreferencesService private preferencesService: IPreferencesService,
-		@ICommandService private commandService: ICommandService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(id, label);
 		this.update();
@@ -219,7 +201,7 @@ export class OpenFolderSettingsAction extends Action {
 		this.enabled = this.workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE && this.workspaceContextService.getWorkspace().folders.length > 0;
 	}
 
-	public run(): Thenable<any> {
+	run(): Promise<any> {
 		return this.commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID)
 			.then(workspaceFolder => {
 				if (workspaceFolder) {
@@ -230,7 +212,7 @@ export class OpenFolderSettingsAction extends Action {
 			});
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this.disposables = dispose(this.disposables);
 		super.dispose();
 	}
@@ -238,24 +220,24 @@ export class OpenFolderSettingsAction extends Action {
 
 export class ConfigureLanguageBasedSettingsAction extends Action {
 
-	public static readonly ID = 'workbench.action.configureLanguageBasedSettings';
-	public static readonly LABEL = nls.localize('configureLanguageBasedSettings', "Configure Language Specific Settings...");
+	static readonly ID = 'workbench.action.configureLanguageBasedSettings';
+	static readonly LABEL = nls.localize('configureLanguageBasedSettings', "Configure Language Specific Settings...");
 
 	constructor(
 		id: string,
 		label: string,
-		@IModelService private modelService: IModelService,
-		@IModeService private modeService: IModeService,
-		@IQuickInputService private quickInputService: IQuickInputService,
-		@IPreferencesService private preferencesService: IPreferencesService
+		@IModelService private readonly modelService: IModelService,
+		@IModeService private readonly modeService: IModeService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService
 	) {
 		super(id, label);
 	}
 
-	public run(): Thenable<any> {
+	run(): Promise<any> {
 		const languages = this.modeService.getRegisteredLanguageNames();
 		const picks: IQuickPickItem[] = languages.sort().map((lang, index) => {
-			let description: string = nls.localize('languageDescriptionConfigured', "({0})", this.modeService.getModeIdForLanguageName(lang.toLowerCase()));
+			const description: string = nls.localize('languageDescriptionConfigured', "({0})", this.modeService.getModeIdForLanguageName(lang.toLowerCase()));
 			// construct a fake resource to be able to show nice icons if any
 			let fakeResource: URI;
 			const extensions = this.modeService.getExtensions(lang);

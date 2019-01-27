@@ -118,7 +118,7 @@ export class PagedList<T> implements IDisposable {
 	}
 
 	get onOpen(): Event<IListEvent<T>> {
-		return Event.map(this.list.onOpen, ({ elements, indexes, browserEvent }) => ({ elements: elements.map(e => this._model.get(e)), indexes, browserEvent }));
+		return Event.map(this.list.onDidOpen, ({ elements, indexes, browserEvent }) => ({ elements: elements.map(e => this._model.get(e)), indexes, browserEvent }));
 	}
 
 	get onSelectionChange(): Event<IListEvent<T>> {
@@ -190,8 +190,8 @@ export class PagedList<T> implements IDisposable {
 		return this.list.getSelection();
 	}
 
-	layout(height?: number): void {
-		this.list.layout(height);
+	layout(height?: number, width?: number): void {
+		this.list.layout(height, width);
 	}
 
 	reveal(index: number, relativeTop?: number): void {

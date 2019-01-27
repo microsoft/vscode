@@ -118,7 +118,7 @@ export class MenuBar extends Disposable {
 			} else if (event.equals(KeyCode.Escape) && this.isFocused && !this.isOpen) {
 				this.setUnfocusedState();
 			} else if (!this.isOpen && !event.ctrlKey && this.options.enableMnemonics && this.mnemonicsInUse && this.mnemonics.has(key)) {
-				const menuIndex = this.mnemonics.get(key);
+				const menuIndex = this.mnemonics.get(key)!;
 				this.onMenuTriggered(menuIndex, false);
 			} else {
 				eventHandled = false;
@@ -171,7 +171,7 @@ export class MenuBar extends Disposable {
 			this.mnemonicsInUse = true;
 			this.updateMnemonicVisibility(true);
 
-			const menuIndex = this.mnemonics.get(key);
+			const menuIndex = this.mnemonics.get(key)!;
 			this.onMenuTriggered(menuIndex, false);
 		}));
 
@@ -520,6 +520,8 @@ export class MenuBar extends Disposable {
 		if (this.container.style.display !== 'flex') {
 			this.container.style.display = 'flex';
 			this._onVisibilityChange.fire(true);
+
+			this.updateOverflowAction();
 		}
 	}
 
@@ -861,12 +863,6 @@ export class MenuBar extends Disposable {
 			this.focusState = MenubarState.FOCUSED;
 		}));
 
-		this._register(menuWidget.onDidBlur(() => {
-			setTimeout(() => {
-				this.cleanupCustomMenu();
-			}, 100);
-		}));
-
 		if (actualMenuIndex !== menuIndex) {
 			menuWidget.trigger(menuIndex - this.numMenusShown);
 		} else {
@@ -907,7 +903,7 @@ class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 			ctrlKey: false
 		};
 
-		this._subscriptions.push(domEvent(document.body, 'keydown')(e => {
+		this._subscriptions.push(domEvent(document.body, 'keydown', true)(e => {
 			const event = new StandardKeyboardEvent(e);
 
 			if (e.altKey && !this._keyStatus.altKey) {
@@ -930,7 +926,8 @@ class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 				this.fire(this._keyStatus);
 			}
 		}));
-		this._subscriptions.push(domEvent(document.body, 'keyup')(e => {
+
+		this._subscriptions.push(domEvent(document.body, 'keyup', true)(e => {
 			if (!e.altKey && this._keyStatus.altKey) {
 				this._keyStatus.lastKeyReleased = 'alt';
 			} else if (!e.ctrlKey && this._keyStatus.ctrlKey) {
@@ -953,10 +950,10 @@ class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 				this.fire(this._keyStatus);
 			}
 		}));
-		this._subscriptions.push(domEvent(document.body, 'mousedown')(e => {
+
+		this._subscriptions.push(domEvent(document.body, 'mousedown', true)(e => {
 			this._keyStatus.lastKeyPressed = undefined;
 		}));
-
 
 		this._subscriptions.push(domEvent(window, 'blur')(e => {
 			this._keyStatus.lastKeyPressed = undefined;

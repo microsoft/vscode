@@ -12,6 +12,7 @@ import * as Objects from 'vs/base/common/objects';
 import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
 import * as Tasks from 'vs/workbench/parts/tasks/common/tasks';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 
 const taskDefinitionSchema: IJSONSchema = {
@@ -45,7 +46,7 @@ namespace Configuration {
 		properties?: IJSONSchemaMap;
 	}
 
-	export function from(value: TaskDefinition, extensionId: string, messageCollector: ExtensionMessageCollector): Tasks.TaskDefinition | undefined {
+	export function from(value: TaskDefinition, extensionId: ExtensionIdentifier, messageCollector: ExtensionMessageCollector): Tasks.TaskDefinition | undefined {
 		if (!value) {
 			return undefined;
 		}
@@ -62,15 +63,19 @@ namespace Configuration {
 				}
 			}
 		}
-		return { extensionId, taskType, required: required, properties: value.properties ? Objects.deepClone(value.properties) : {} };
+		return { extensionId: extensionId.value, taskType, required: required, properties: value.properties ? Objects.deepClone(value.properties) : {} };
 	}
 }
 
 
-const taskDefinitionsExtPoint = ExtensionsRegistry.registerExtensionPoint<Configuration.TaskDefinition[]>('taskDefinitions', [], {
-	description: nls.localize('TaskDefinitionExtPoint', 'Contributes task kinds'),
-	type: 'array',
-	items: taskDefinitionSchema
+const taskDefinitionsExtPoint = ExtensionsRegistry.registerExtensionPoint<Configuration.TaskDefinition[]>({
+	extensionPoint: 'taskDefinitions',
+	jsonSchema: {
+		description: nls.localize('TaskDefinitionExtPoint', 'Contributes task kinds'),
+		type: 'array',
+		items: taskDefinitionSchema
+	},
+	isDynamic: true
 });
 
 export interface ITaskDefinitionRegistry {
@@ -90,12 +95,20 @@ class TaskDefinitionRegistryImpl implements ITaskDefinitionRegistry {
 	constructor() {
 		this.taskTypes = Object.create(null);
 		this.readyPromise = new Promise<void>((resolve, reject) => {
-			taskDefinitionsExtPoint.setHandler((extensions) => {
+			taskDefinitionsExtPoint.setHandler((extensions, delta) => {
 				try {
-					for (let extension of extensions) {
+					for (let extension of delta.removed) {
 						let taskTypes = extension.value;
 						for (let taskType of taskTypes) {
-							let type = Configuration.from(taskType, extension.description.id, extension.collector);
+							if (this.taskTypes && taskType.type && this.taskTypes[taskType.type]) {
+								delete this.taskTypes[taskType.type];
+							}
+						}
+					}
+					for (let extension of delta.added) {
+						let taskTypes = extension.value;
+						for (let taskType of taskTypes) {
+							let type = Configuration.from(taskType, extension.description.identifier, extension.collector);
 							if (type) {
 								this.taskTypes[type.taskType] = type;
 							}
@@ -121,7 +134,7 @@ class TaskDefinitionRegistryImpl implements ITaskDefinitionRegistry {
 	}
 
 	public getJsonSchema(): IJSONSchema {
-		if (this._schema === void 0) {
+		if (this._schema === undefined) {
 			let schemas: IJSONSchema[] = [];
 			for (let definition of this.all()) {
 				let schema: IJSONSchema = {
@@ -131,7 +144,7 @@ class TaskDefinitionRegistryImpl implements ITaskDefinitionRegistry {
 				if (definition.required.length > 0) {
 					schema.required = definition.required.slice(0);
 				}
-				if (definition.properties !== void 0) {
+				if (definition.properties !== undefined) {
 					schema.properties = Objects.deepClone(definition.properties);
 				} else {
 					schema.properties = Object.create(null);

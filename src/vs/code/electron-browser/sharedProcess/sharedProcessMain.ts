@@ -43,7 +43,6 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { DownloadService } from 'vs/platform/download/node/downloadService';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { StaticRouter } from 'vs/base/parts/ipc/node/ipc';
-import { DefaultURITransformer } from 'vs/base/common/uriIpc';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;
@@ -124,7 +123,7 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 		}
 		server.registerChannel('telemetryAppender', new TelemetryAppenderChannel(appInsightsAppender));
 
-		services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
+		services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService, [false]));
 		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
 		services.set(ILocalizationsService, new SyncDescriptor(LocalizationsService));
 
@@ -133,7 +132,7 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 		instantiationService2.invokeFunction(accessor => {
 
 			const extensionManagementService = accessor.get(IExtensionManagementService);
-			const channel = new ExtensionManagementChannel(extensionManagementService, () => DefaultURITransformer);
+			const channel = new ExtensionManagementChannel(extensionManagementService, () => null);
 			server.registerChannel('extensions', channel);
 
 			// clean up deprecated extensions
@@ -149,8 +148,8 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 	});
 }
 
-function setupIPC(hook: string): Thenable<Server> {
-	function setup(retry: boolean): Thenable<Server> {
+function setupIPC(hook: string): Promise<Server> {
+	function setup(retry: boolean): Promise<Server> {
 		return serve(hook).then(null, err => {
 			if (!retry || platform.isWindows || err.code !== 'EADDRINUSE') {
 				return Promise.reject(err);

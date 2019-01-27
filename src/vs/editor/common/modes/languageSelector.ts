@@ -17,7 +17,7 @@ export interface LanguageFilter {
 	exclusive?: boolean;
 }
 
-export type LanguageSelector = string | LanguageFilter | (string | LanguageFilter)[];
+export type LanguageSelector = string | LanguageFilter | Array<string | LanguageFilter>;
 
 export function score(selector: LanguageSelector, candidateUri: URI, candidateLanguage: string, candidateIsSynchronized: boolean): number {
 

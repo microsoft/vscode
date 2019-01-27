@@ -18,14 +18,14 @@ export class DataUriEditorInput extends EditorInput {
 	static readonly ID: string = 'workbench.editors.dataUriEditorInput';
 
 	private resource: URI;
-	private name: string;
-	private description: string;
+	private readonly name: string | undefined;
+	private readonly description: string | undefined;
 
 	constructor(
 		name: string,
 		description: string,
 		resource: URI,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 
@@ -54,15 +54,15 @@ export class DataUriEditorInput extends EditorInput {
 		return DataUriEditorInput.ID;
 	}
 
-	getName(): string {
-		return this.name;
+	getName(): string | null {
+		return this.name || null;
 	}
 
-	getDescription(): string {
-		return this.description;
+	getDescription(): string | null {
+		return this.description || null;
 	}
 
-	resolve(): Thenable<BinaryEditorModel> {
+	resolve(): Promise<BinaryEditorModel> {
 		return this.instantiationService.createInstance(BinaryEditorModel, this.resource, this.getName()).load().then(m => m as BinaryEditorModel);
 	}
 

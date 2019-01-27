@@ -27,7 +27,7 @@ interface IWatcherObjet {
 }
 
 interface IPathWatcher {
-	ready: Thenable<IWatcherObjet>;
+	ready: Promise<IWatcherObjet>;
 	watcher?: IWatcherObjet;
 	ignored: glob.ParsedPattern[];
 }
@@ -99,9 +99,7 @@ export class NsfwWatcherService implements IWatcherService {
 		}
 
 		nsfw(request.basePath, events => {
-			for (let i = 0; i < events.length; i++) {
-				const e = events[i];
-
+			for (const e of events) {
 				// Logging
 				if (this._verboseLogging) {
 					const logPath = e.action === nsfw.actions.RENAMED ? path.join(e.directory, e.oldFile || '') + ' -> ' + e.newFile : path.join(e.directory, e.file || '');
@@ -166,7 +164,7 @@ export class NsfwWatcherService implements IWatcherService {
 					});
 				}
 
-				return Promise.resolve(void 0);
+				return Promise.resolve(undefined);
 			});
 		}).then(watcher => {
 			this._pathWatchers[request.basePath].watcher = watcher;
@@ -176,8 +174,8 @@ export class NsfwWatcherService implements IWatcherService {
 		});
 	}
 
-	public setRoots(roots: IWatcherRequest[]): Thenable<void> {
-		const promises: Thenable<void>[] = [];
+	public setRoots(roots: IWatcherRequest[]): Promise<void> {
+		const promises: Promise<void>[] = [];
 		const normalizedRoots = this._normalizeRoots(roots);
 
 		// Gather roots that are not currently being watched
@@ -211,15 +209,15 @@ export class NsfwWatcherService implements IWatcherService {
 			}
 		});
 
-		return Promise.all(promises).then(() => void 0);
+		return Promise.all(promises).then(() => undefined);
 	}
 
-	public setVerboseLogging(enabled: boolean): Thenable<void> {
+	public setVerboseLogging(enabled: boolean): Promise<void> {
 		this._verboseLogging = enabled;
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
-	public stop(): Thenable<void> {
+	public stop(): Promise<void> {
 		for (let path in this._pathWatchers) {
 			let watcher = this._pathWatchers[path];
 			watcher.ready.then(watcher => watcher.stop());

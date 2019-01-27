@@ -71,7 +71,7 @@ suite('SuggestModel - Context', function () {
 
 			this._register(TokenizationRegistry.register(this.getLanguageIdentifier().language, {
 				getInitialState: (): IState => NULL_STATE,
-				tokenize: undefined,
+				tokenize: undefined!,
 				tokenize2: (line: string, state: IState): TokenizationResult2 => {
 					const tokensArr: number[] = [];
 					let prevLanguageId: LanguageIdentifier | undefined = undefined;
@@ -232,7 +232,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 			return Promise.all([
 
 				assertEvent(model.onDidTrigger, function () {
-					model.trigger({ auto: true });
+					model.trigger({ auto: true, shy: false });
 				}, function (event) {
 					assert.equal(event.auto, true);
 
@@ -244,13 +244,13 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				}),
 
 				assertEvent(model.onDidTrigger, function () {
-					model.trigger({ auto: true });
+					model.trigger({ auto: true, shy: false });
 				}, function (event) {
 					assert.equal(event.auto, true);
 				}),
 
 				assertEvent(model.onDidTrigger, function () {
-					model.trigger({ auto: false });
+					model.trigger({ auto: false, shy: false });
 				}, function (event) {
 					assert.equal(event.auto, false);
 				})
@@ -266,12 +266,12 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 		return withOracle(model => {
 			return Promise.all([
 				assertEvent(model.onDidCancel, function () {
-					model.trigger({ auto: true });
+					model.trigger({ auto: true, shy: false });
 				}, function (event) {
 					assert.equal(event.retrigger, false);
 				}),
 				assertEvent(model.onDidSuggest, function () {
-					model.trigger({ auto: false });
+					model.trigger({ auto: false, shy: false });
 				}, function (event) {
 					assert.equal(event.auto, false);
 					assert.equal(event.isFrozen, false);
@@ -322,7 +322,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 			return assertEvent(model.onDidSuggest, () => {
 				// make sure completionModel starts here!
-				model.trigger({ auto: true });
+				model.trigger({ auto: true, shy: false });
 			}, event => {
 
 				return assertEvent(model.onDidSuggest, () => {
@@ -418,11 +418,11 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 		return withOracle((model, editor) => {
 
-			editor.getModel().setValue('fo');
+			editor.getModel()!.setValue('fo');
 			editor.setPosition({ lineNumber: 1, column: 3 });
 
 			return assertEvent(model.onDidSuggest, () => {
-				model.trigger({ auto: false });
+				model.trigger({ auto: false, shy: false });
 			}, event => {
 				assert.equal(event.auto, false);
 				assert.equal(event.isFrozen, false);
@@ -443,11 +443,11 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 		return withOracle((model, editor) => {
 
-			editor.getModel().setValue('fo');
+			editor.getModel()!.setValue('fo');
 			editor.setPosition({ lineNumber: 1, column: 3 });
 
 			return assertEvent(model.onDidSuggest, () => {
-				model.trigger({ auto: false });
+				model.trigger({ auto: false, shy: false });
 			}, event => {
 				assert.equal(event.auto, false);
 				assert.equal(event.isFrozen, false);
@@ -480,11 +480,11 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 		return withOracle((model, editor) => {
 
-			editor.getModel().setValue('foo');
+			editor.getModel()!.setValue('foo');
 			editor.setPosition({ lineNumber: 1, column: 4 });
 
 			return assertEvent(model.onDidSuggest, () => {
-				model.trigger({ auto: false });
+				model.trigger({ auto: false, shy: false });
 			}, event => {
 				assert.equal(event.auto, false);
 				assert.equal(event.completionModel.incomplete.size, 1);
@@ -517,11 +517,11 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 		return withOracle((model, editor) => {
 
-			editor.getModel().setValue('foo');
+			editor.getModel()!.setValue('foo');
 			editor.setPosition({ lineNumber: 1, column: 4 });
 
 			return assertEvent(model.onDidSuggest, () => {
-				model.trigger({ auto: false });
+				model.trigger({ auto: false, shy: false });
 			}, event => {
 				assert.equal(event.auto, false);
 				assert.equal(event.completionModel.incomplete.size, 1);
@@ -548,7 +548,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 			triggerCharacters: ['.'],
 			provideCompletionItems(doc, pos, context): CompletionList {
 				assert.equal(context.triggerKind, CompletionTriggerKind.TriggerCharacter);
-				triggerCharacter = context.triggerCharacter;
+				triggerCharacter = context.triggerCharacter!;
 				return {
 					incomplete: false,
 					suggestions: [
@@ -680,7 +680,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 			await assertEvent(sugget.onDidSuggest, () => {
 				editor.setPosition({ lineNumber: 1, column: 3 });
-				sugget.trigger({ auto: false });
+				sugget.trigger({ auto: false, shy: false });
 			}, event => {
 
 				assert.equal(event.completionModel.items.length, 1);

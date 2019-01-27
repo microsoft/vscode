@@ -16,7 +16,8 @@ export function snippetForFunctionCall(
 	}
 
 	const parameterListParts = getParameterListParts(displayParts);
-	const snippet = new vscode.SnippetString(`${item.insertText || item.label}(`);
+	const snippet = new vscode.SnippetString();
+	snippet.appendText(`${item.insertText || item.label}(`);
 	appendJoinedPlaceholders(snippet, parameterListParts.parts, ', ');
 	if (parameterListParts.hasOptionalParameters) {
 		snippet.appendTabstop();
@@ -67,7 +68,7 @@ function getParameterListParts(
 				break;
 
 			case PConst.DisplayPartKind.parameterName:
-				if (parenCount === 1 && isInMethod) {
+				if (parenCount === 1 && braceCount === 0 && isInMethod) {
 					// Only take top level paren names
 					const next = displayParts[i + 1];
 					// Skip optional parameters

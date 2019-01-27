@@ -7,7 +7,6 @@ import 'vs/css!./media/scrollbar';
 import 'vs/css!./media/terminal';
 import 'vs/css!./media/xterm';
 import 'vs/css!./media/widgets';
-import * as debugActions from 'vs/workbench/parts/debug/browser/debugActions';
 import * as nls from 'vs/nls';
 import * as panel from 'vs/workbench/browser/panel';
 import * as platform from 'vs/base/common/platform';
@@ -19,25 +18,21 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KillTerminalAction, ClearSelectionTerminalAction, CopyTerminalSelectionAction, CreateNewTerminalAction, CreateNewInActiveWorkspaceTerminalAction, FocusActiveTerminalAction, FocusNextTerminalAction, FocusPreviousTerminalAction, SelectDefaultShellWindowsTerminalAction, RunSelectedTextInTerminalAction, RunActiveFileInTerminalAction, ScrollDownTerminalAction, ScrollDownPageTerminalAction, ScrollToBottomTerminalAction, ScrollUpTerminalAction, ScrollUpPageTerminalAction, ScrollToTopTerminalAction, TerminalPasteAction, ToggleTerminalAction, ClearTerminalAction, AllowWorkspaceShellTerminalCommand, DisallowWorkspaceShellTerminalCommand, RenameTerminalAction, SelectAllTerminalAction, FocusTerminalFindWidgetAction, HideTerminalFindWidgetAction, DeleteWordLeftTerminalAction, DeleteWordRightTerminalAction, QuickOpenActionTermContributor, QuickOpenTermAction, TERMINAL_PICKER_PREFIX, MoveToLineStartTerminalAction, MoveToLineEndTerminalAction, SplitTerminalAction, SplitInActiveWorkspaceTerminalAction, FocusPreviousPaneTerminalAction, FocusNextPaneTerminalAction, ResizePaneLeftTerminalAction, ResizePaneRightTerminalAction, ResizePaneUpTerminalAction, ResizePaneDownTerminalAction, ScrollToPreviousCommandAction, ScrollToNextCommandAction, SelectToPreviousCommandAction, SelectToNextCommandAction, SelectToPreviousLineAction, SelectToNextLineAction, ToggleEscapeSequenceLoggingAction, SendSequenceTerminalCommand, ToggleRegexCommand, ToggleWholeWordCommand, ToggleCaseSensitiveCommand, FindNext, FindPrevious, DeleteToLineStartTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ShowAllCommandsAction } from 'vs/workbench/parts/quickopen/browser/commandsHandler';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { TerminalService } from 'vs/workbench/parts/terminal/electron-browser/terminalService';
-import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/toggleTabFocusMode';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { OpenNextRecentlyUsedEditorInGroupAction, OpenPreviousRecentlyUsedEditorInGroupAction, FocusActiveGroupAction, FocusFirstGroupAction, FocusLastGroupAction, OpenFirstEditorInGroup, OpenLastEditorInGroup } from 'vs/workbench/browser/parts/editor/editorActions';
 import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { registerColors } from 'vs/workbench/parts/terminal/common/terminalColorRegistry';
-import { NavigateUpAction, NavigateDownAction, NavigateLeftAction, NavigateRightAction } from 'vs/workbench/electron-browser/actions';
-import { QUICKOPEN_ACTION_ID, getQuickNavigateHandler, QUICKOPEN_FOCUS_SECONDARY_ACTION_ID } from 'vs/workbench/browser/parts/quickopen/quickopen';
+import { getQuickNavigateHandler } from 'vs/workbench/browser/parts/quickopen/quickopen';
 import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs/workbench/browser/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { TogglePanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
 import { TerminalPanel } from 'vs/workbench/parts/terminal/electron-browser/terminalPanel';
 import { TerminalPickerHandler } from 'vs/workbench/parts/terminal/browser/terminalQuickOpen';
 import { setupTerminalCommands, TERMINAL_COMMAND_ID } from 'vs/workbench/parts/terminal/common/terminalCommands';
 import { setupTerminalMenu } from 'vs/workbench/parts/terminal/common/terminalMenu';
+import { DEFAULT_COMMANDS_TO_SKIP_SHELL } from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
 
 const quickOpenRegistry = (Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen));
 
@@ -198,9 +193,9 @@ configurationRegistry.registerConfiguration({
 			default: 1000
 		},
 		'terminal.integrated.setLocaleVariables': {
-			markdownDescription: nls.localize('terminal.integrated.setLocaleVariables', "Controls whether locale variables are set at startup of the terminal, this defaults to `true` on macOS, `false` on other platforms."),
+			markdownDescription: nls.localize('terminal.integrated.setLocaleVariables', "Controls whether locale variables are set at startup of the terminal."),
 			type: 'boolean',
-			default: platform.isMacintosh
+			default: true
 		},
 		'terminal.integrated.rendererType': {
 			type: 'string',
@@ -240,116 +235,12 @@ configurationRegistry.registerConfiguration({
 			default: false
 		},
 		'terminal.integrated.commandsToSkipShell': {
-			description: nls.localize('terminal.integrated.commandsToSkipShell', "A set of command IDs whose keybindings will not be sent to the shell and instead always be handled by Code. This allows the use of keybindings that would normally be consumed by the shell to act the same as when the terminal is not focused, for example ctrl+p to launch Quick Open."),
+			description: nls.localize('terminal.integrated.commandsToSkipShell', "A set of command IDs whose keybindings will not be sent to the shell and instead always be handled by Code. This allows the use of keybindings that would normally be consumed by the shell to act the same as when the terminal is not focused, for example ctrl+p to launch Quick Open.\nDefault Skipped Commands:\n\n{0}", DEFAULT_COMMANDS_TO_SKIP_SHELL.sort().map(command => `- ${command}`).join('\n')),
 			type: 'array',
 			items: {
 				type: 'string'
 			},
-			default: [
-				TERMINAL_COMMAND_ID.CLEAR_SELECTION,
-				TERMINAL_COMMAND_ID.CLEAR,
-				TERMINAL_COMMAND_ID.COPY_SELECTION,
-				TERMINAL_COMMAND_ID.DELETE_TO_LINE_START,
-				TERMINAL_COMMAND_ID.DELETE_WORD_LEFT,
-				TERMINAL_COMMAND_ID.DELETE_WORD_RIGHT,
-				TERMINAL_COMMAND_ID.FIND_WIDGET_FOCUS,
-				TERMINAL_COMMAND_ID.FIND_WIDGET_HIDE,
-				TERMINAL_COMMAND_ID.FIND_NEXT_TERMINAL_FOCUS,
-				TERMINAL_COMMAND_ID.FIND_PREVIOUS_TERMINAL_FOCUS,
-				TERMINAL_COMMAND_ID.TOGGLE_FIND_REGEX_TERMINAL_FOCUS,
-				TERMINAL_COMMAND_ID.TOGGLE_FIND_WHOLE_WORD_TERMINAL_FOCUS,
-				TERMINAL_COMMAND_ID.TOGGLE_FIND_CASE_SENSITIVE_TERMINAL_FOCUS,
-				TERMINAL_COMMAND_ID.FOCUS_NEXT_PANE,
-				TERMINAL_COMMAND_ID.FOCUS_NEXT,
-				TERMINAL_COMMAND_ID.FOCUS_PREVIOUS_PANE,
-				TERMINAL_COMMAND_ID.FOCUS_PREVIOUS,
-				TERMINAL_COMMAND_ID.FOCUS,
-				TERMINAL_COMMAND_ID.KILL,
-				TERMINAL_COMMAND_ID.MOVE_TO_LINE_END,
-				TERMINAL_COMMAND_ID.MOVE_TO_LINE_START,
-				TERMINAL_COMMAND_ID.NEW_IN_ACTIVE_WORKSPACE,
-				TERMINAL_COMMAND_ID.NEW,
-				TERMINAL_COMMAND_ID.PASTE,
-				TERMINAL_COMMAND_ID.RESIZE_PANE_DOWN,
-				TERMINAL_COMMAND_ID.RESIZE_PANE_LEFT,
-				TERMINAL_COMMAND_ID.RESIZE_PANE_RIGHT,
-				TERMINAL_COMMAND_ID.RESIZE_PANE_UP,
-				TERMINAL_COMMAND_ID.RUN_ACTIVE_FILE,
-				TERMINAL_COMMAND_ID.RUN_SELECTED_TEXT,
-				TERMINAL_COMMAND_ID.SCROLL_DOWN_LINE,
-				TERMINAL_COMMAND_ID.SCROLL_DOWN_PAGE,
-				TERMINAL_COMMAND_ID.SCROLL_TO_BOTTOM,
-				TERMINAL_COMMAND_ID.SCROLL_TO_NEXT_COMMAND,
-				TERMINAL_COMMAND_ID.SCROLL_TO_PREVIOUS_COMMAND,
-				TERMINAL_COMMAND_ID.SCROLL_TO_TOP,
-				TERMINAL_COMMAND_ID.SCROLL_UP_LINE,
-				TERMINAL_COMMAND_ID.SCROLL_UP_PAGE,
-				TERMINAL_COMMAND_ID.SEND_SEQUENCE,
-				TERMINAL_COMMAND_ID.SELECT_ALL,
-				TERMINAL_COMMAND_ID.SELECT_TO_NEXT_COMMAND,
-				TERMINAL_COMMAND_ID.SELECT_TO_NEXT_LINE,
-				TERMINAL_COMMAND_ID.SELECT_TO_PREVIOUS_COMMAND,
-				TERMINAL_COMMAND_ID.SELECT_TO_PREVIOUS_LINE,
-				TERMINAL_COMMAND_ID.SPLIT_IN_ACTIVE_WORKSPACE,
-				TERMINAL_COMMAND_ID.SPLIT,
-				TERMINAL_COMMAND_ID.TOGGLE,
-				ToggleTabFocusModeAction.ID,
-				QUICKOPEN_ACTION_ID,
-				QUICKOPEN_FOCUS_SECONDARY_ACTION_ID,
-				ShowAllCommandsAction.ID,
-				'workbench.action.tasks.build',
-				'workbench.action.tasks.restartTask',
-				'workbench.action.tasks.runTask',
-				'workbench.action.tasks.reRunTask',
-				'workbench.action.tasks.showLog',
-				'workbench.action.tasks.showTasks',
-				'workbench.action.tasks.terminate',
-				'workbench.action.tasks.test',
-				'workbench.action.toggleFullScreen',
-				'workbench.action.terminal.focusAtIndex1',
-				'workbench.action.terminal.focusAtIndex2',
-				'workbench.action.terminal.focusAtIndex3',
-				'workbench.action.terminal.focusAtIndex4',
-				'workbench.action.terminal.focusAtIndex5',
-				'workbench.action.terminal.focusAtIndex6',
-				'workbench.action.terminal.focusAtIndex7',
-				'workbench.action.terminal.focusAtIndex8',
-				'workbench.action.terminal.focusAtIndex9',
-				'workbench.action.focusSecondEditorGroup',
-				'workbench.action.focusThirdEditorGroup',
-				'workbench.action.focusFourthEditorGroup',
-				'workbench.action.focusFifthEditorGroup',
-				'workbench.action.focusSixthEditorGroup',
-				'workbench.action.focusSeventhEditorGroup',
-				'workbench.action.focusEighthEditorGroup',
-				'workbench.action.nextPanelView',
-				'workbench.action.previousPanelView',
-				'workbench.action.nextSideBarView',
-				'workbench.action.previousSideBarView',
-				debugActions.StartAction.ID,
-				debugActions.StopAction.ID,
-				debugActions.RunAction.ID,
-				debugActions.RestartAction.ID,
-				debugActions.ContinueAction.ID,
-				debugActions.PauseAction.ID,
-				debugActions.StepIntoAction.ID,
-				debugActions.StepOutAction.ID,
-				debugActions.StepOverAction.ID,
-				OpenNextRecentlyUsedEditorInGroupAction.ID,
-				OpenPreviousRecentlyUsedEditorInGroupAction.ID,
-				FocusActiveGroupAction.ID,
-				FocusFirstGroupAction.ID,
-				FocusLastGroupAction.ID,
-				OpenFirstEditorInGroup.ID,
-				OpenLastEditorInGroup.ID,
-				NavigateUpAction.ID,
-				NavigateDownAction.ID,
-				NavigateRightAction.ID,
-				NavigateLeftAction.ID,
-				TogglePanelAction.ID,
-				'workbench.action.quickOpenView',
-				'workbench.action.toggleMaximizedPanel'
-			].sort()
+			default: []
 		},
 		'terminal.integrated.env.osx': {
 			markdownDescription: nls.localize('terminal.integrated.env.osx', "Object with environment variables that will be added to the VS Code process to be used by the terminal on macOS. Set to `null` to delete the environment variable."),
@@ -380,12 +271,6 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: true
 		},
-		'terminal.integrated.experimentalBufferImpl': {
-			description: nls.localize('terminal.integrated.experimentalBufferImpl', "Controls the terminal's internal buffer implementation. This setting is picked up on terminal creation and will not apply to existing terminals."),
-			type: 'string',
-			enum: ['JsArray', 'TypedArray'],
-			default: 'TypedArray'
-		},
 		'terminal.integrated.splitCwd': {
 			description: nls.localize('terminal.integrated.splitCwd', "Controls the working directory a split terminal starts with."),
 			type: 'string',
@@ -397,10 +282,15 @@ configurationRegistry.registerConfiguration({
 			],
 			default: 'inherited'
 		},
+		'terminal.integrated.windowsEnableConpty': {
+			description: nls.localize('terminal.integrated.windowsEnableConpty', "Whether to use ConPTY for Windows terminal process communication (requires Windows 10 build number 18309+). Winpty will be used if this is false."),
+			type: 'boolean',
+			default: true
+		}
 	}
 });
 
-registerSingleton(ITerminalService, TerminalService);
+registerSingleton(ITerminalService, TerminalService, true);
 
 (<panel.PanelRegistry>Registry.as(panel.Extensions.Panels)).registerPanel(new panel.PanelDescriptor(
 	TerminalPanel,

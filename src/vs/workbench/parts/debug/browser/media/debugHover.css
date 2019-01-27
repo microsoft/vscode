@@ -31,11 +31,11 @@
 
 .monaco-editor .debug-hover-widget .debug-hover-tree {
 	line-height: 18px;
+	cursor: pointer;
 }
 
 .monaco-editor .debug-hover-widget .debug-hover-tree .monaco-list-row .monaco-tl-contents {
 	user-select: text;
-	white-space: pre;
 }
 
 /* Disable tree highlight in debug hover tree. */
@@ -57,6 +57,10 @@
 	color: rgba(108, 108, 108, 0.8);
 	overflow: auto;
 	max-height: 500px;
+}
+
+.monaco-editor .debug-hover-widget .monaco-tl-contents .value {
+	white-space: nowrap;
 }
 
 .monaco-editor .debug-hover-widget .error {

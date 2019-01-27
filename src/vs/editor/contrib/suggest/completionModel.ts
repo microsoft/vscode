@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { fuzzyScore, fuzzyScoreGracefulAggressive, anyScore, FuzzyScorer } from 'vs/base/common/filters';
+import { fuzzyScore, fuzzyScoreGracefulAggressive, anyScore, FuzzyScorer, FuzzyScore } from 'vs/base/common/filters';
 import { isDisposable } from 'vs/base/common/lifecycle';
 import { CompletionList, CompletionItemProvider, CompletionItemKind } from 'vs/editor/common/modes';
 import { CompletionItem } from './suggest';
@@ -186,8 +186,7 @@ export class CompletionModel {
 				// the fallback-sort using the initial sort order.
 				// use a score of `-100` because that is out of the
 				// bound of values `fuzzyScore` will return
-				item.score = -100;
-				item.matches = [];
+				item.score = FuzzyScore.Default;
 
 			} else {
 				// skip word characters that are whitespace until
@@ -205,8 +204,7 @@ export class CompletionModel {
 				if (wordPos >= wordLen) {
 					// the wordPos at which scoring starts is the whole word
 					// and therefore the same rules as not having a word apply
-					item.score = -100;
-					item.matches = [];
+					item.score = FuzzyScore.Default;
 
 				} else if (typeof item.completion.filterText === 'string') {
 					// when there is a `filterText` it must match the `word`.
@@ -217,8 +215,8 @@ export class CompletionModel {
 					if (!match) {
 						continue; // NO match
 					}
-					item.score = match[0];
-					item.matches = (fuzzyScore(word, wordLow, 0, item.completion.label, item.labelLow, 0, true) || anyScore(word, item.completion.label))[1];
+					item.score = anyScore(word, wordLow, 0, item.completion.label, item.labelLow, 0);
+					item.score[0] = match[0]; // use score from filterText
 
 				} else {
 					// by default match `word` against the `label`
@@ -226,8 +224,7 @@ export class CompletionModel {
 					if (!match) {
 						continue; // NO match
 					}
-					item.score = match[0];
-					item.matches = match[1];
+					item.score = match;
 				}
 			}
 
@@ -248,9 +245,9 @@ export class CompletionModel {
 	}
 
 	private static _compareCompletionItems(a: StrictCompletionItem, b: StrictCompletionItem): number {
-		if (a.score > b.score) {
+		if (a.score[0] > b.score[0]) {
 			return -1;
-		} else if (a.score < b.score) {
+		} else if (a.score[0] < b.score[0]) {
 			return 1;
 		} else if (a.distance < b.distance) {
 			return -1;

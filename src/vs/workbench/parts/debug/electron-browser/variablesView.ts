@@ -8,7 +8,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import * as dom from 'vs/base/browser/dom';
 import { CollapseAction2 } from 'vs/workbench/browser/viewlet';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IDebugService, IExpression, IScope, CONTEXT_VARIABLES_FOCUSED } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, IExpression, IScope, CONTEXT_VARIABLES_FOCUSED, IViewModel } from 'vs/workbench/parts/debug/common/debug';
 import { Variable, Scope } from 'vs/workbench/parts/debug/common/debugModel';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -19,10 +19,9 @@ import { CopyValueAction, CopyEvaluatePathAction } from 'vs/workbench/parts/debu
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewletPanelOptions, ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
-import { IDataSource } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ITreeRenderer, ITreeNode, ITreeMouseEvent, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
+import { ITreeRenderer, ITreeNode, ITreeMouseEvent, ITreeContextMenuEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Emitter } from 'vs/base/common/event';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -38,25 +37,25 @@ export class VariablesView extends ViewletPanel {
 
 	private onFocusStackFrameScheduler: RunOnceScheduler;
 	private needsRefresh: boolean;
-	private tree: WorkbenchAsyncDataTree<IExpression | IScope>;
+	private tree: WorkbenchAsyncDataTree<IViewModel, IExpression | IScope>;
 
 	constructor(
 		options: IViewletViewOptions,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IDebugService private debugService: IDebugService,
+		@IDebugService private readonly debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IListService private listService: IListService,
-		@IThemeService private themeService: IThemeService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IListService private readonly listService: IListService,
+		@IThemeService private readonly themeService: IThemeService
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('variablesSection', "Variables Section") }, keybindingService, contextMenuService, configurationService);
 
 		// Use scheduler to prevent unnecessary flashing
 		this.onFocusStackFrameScheduler = new RunOnceScheduler(() => {
 			this.needsRefresh = false;
-			this.tree.refresh(null).then(() => {
+			this.tree.updateChildren().then(() => {
 				const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 				if (stackFrame) {
 					stackFrame.getScopes().then(scopes => {
@@ -76,21 +75,23 @@ export class VariablesView extends ViewletPanel {
 
 		this.tree = new WorkbenchAsyncDataTree(treeContainer, new VariablesDelegate(),
 			[this.instantiationService.createInstance(VariablesRenderer), new ScopesRenderer()],
-			new VariablesDataSource(this.debugService), {
+			new VariablesDataSource(), {
 				ariaLabel: nls.localize('variablesAriaTreeLabel', "Debug Variables"),
 				accessibilityProvider: new VariablesAccessibilityProvider(),
 				identityProvider: { getId: element => element.getId() },
-				typeLabelProvider: { getTypeLabel: e => e }
+				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: e => e }
 			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
+
+		this.tree.setInput(this.debugService.getViewModel()).then(null, onUnexpectedError);
 
 		CONTEXT_VARIABLES_FOCUSED.bindTo(this.contextKeyService.createScoped(treeContainer));
 
 		const collapseAction = new CollapseAction2(this.tree, true, 'explorer-action collapse-explorer');
 		this.toolbar.setActions([collapseAction])();
-		this.tree.refresh(null);
+		this.tree.updateChildren();
 
 		this.disposables.push(this.debugService.getViewModel().onDidFocusStackFrame(sf => {
-			if (!this.isVisible() || !this.isExpanded()) {
+			if (!this.isBodyVisible()) {
 				this.needsRefresh = true;
 				return;
 			}
@@ -100,27 +101,24 @@ export class VariablesView extends ViewletPanel {
 			const timeout = sf.explicit ? 0 : undefined;
 			this.onFocusStackFrameScheduler.schedule(timeout);
 		}));
-		this.disposables.push(variableSetEmitter.event(() => this.tree.refresh(null)));
+		this.disposables.push(variableSetEmitter.event(() => this.tree.updateChildren()));
 		this.disposables.push(this.tree.onMouseDblClick(e => this.onMouseDblClick(e)));
 		this.disposables.push(this.tree.onContextMenu(e => this.onContextMenu(e)));
+
+		this.disposables.push(this.onDidChangeBodyVisibility(visible => {
+			if (visible && this.needsRefresh) {
+				this.onFocusStackFrameScheduler.schedule();
+			}
+		}));
+		this.disposables.push(this.debugService.getViewModel().onDidSelectExpression(e => {
+			if (e instanceof Variable) {
+				this.tree.refresh(e);
+			}
+		}));
 	}
 
-	layoutBody(size: number): void {
-		this.tree.layout(size);
-	}
-
-	setExpanded(expanded: boolean): void {
-		super.setExpanded(expanded);
-		if (expanded && this.needsRefresh) {
-			this.onFocusStackFrameScheduler.schedule();
-		}
-	}
-
-	setVisible(visible: boolean): void {
-		super.setVisible(visible);
-		if (visible && this.needsRefresh) {
-			this.onFocusStackFrameScheduler.schedule();
-		}
+	layoutBody(width: number, height: number): void {
+		this.tree.layout(width, height);
 	}
 
 	private onMouseDblClick(e: ITreeMouseEvent<IExpression | IScope>): void {
@@ -150,21 +148,23 @@ export class VariablesView extends ViewletPanel {
 	}
 }
 
-export class VariablesDataSource implements IDataSource<IExpression | IScope> {
+function isViewModel(obj: any): obj is IViewModel {
+	return typeof obj.getSelectedExpression === 'function';
+}
 
-	constructor(private debugService: IDebugService) { }
+export class VariablesDataSource implements IAsyncDataSource<IViewModel, IExpression | IScope> {
 
-	hasChildren(element: IExpression | IScope | null): boolean {
-		if (element === null || element instanceof Scope) {
+	hasChildren(element: IViewModel | IExpression | IScope): boolean {
+		if (isViewModel(element) || element instanceof Scope) {
 			return true;
 		}
 
 		return element.hasChildren;
 	}
 
-	getChildren(element: IExpression | IScope | null): Thenable<(IExpression | IScope)[]> {
-		if (element === null) {
-			const stackFrame = this.debugService.getViewModel().focusedStackFrame;
+	getChildren(element: IViewModel | IExpression | IScope): Promise<(IExpression | IScope)[]> {
+		if (isViewModel(element)) {
+			const stackFrame = element.focusedStackFrame;
 			return stackFrame ? stackFrame.getScopes() : Promise.resolve([]);
 		}
 

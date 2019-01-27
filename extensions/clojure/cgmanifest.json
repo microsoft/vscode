@@ -10,7 +10,7 @@
 				}
 			},
 			"license": "MIT",
-			"version": "0.0.0",
+			"version": "0.22.6",
 			"description": "The file syntaxes/clojure.tmLanguage.json was derived from the Atom package https://github.com/atom/language-clojure which was originally converted from the TextMate bundle https://github.com/mmcgrana/textmate-clojure."
 		}
 	],

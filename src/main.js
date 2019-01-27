@@ -106,7 +106,10 @@ function onReady() {
 				process.env['VSCODE_NODE_CACHED_DATA_DIR'] = cachedDataDir || '';
 
 				// Load main in AMD
-				require('./bootstrap-amd').load('vs/code/electron-main/main');
+				perf.mark('willLoadMainBundle');
+				require('./bootstrap-amd').load('vs/code/electron-main/main', () => {
+					perf.mark('didLoadMainBundle');
+				});
 			};
 
 			// We recevied a valid nlsConfig from a user defined locale
@@ -148,7 +151,6 @@ function onReady() {
 function configureCommandlineSwitches(cliArgs, nodeCachedDataDir) {
 
 	// Force pre-Chrome-60 color profile handling (for https://github.com/Microsoft/vscode/issues/51791)
-	// TODO@Ben check if future versions of Electron still support this flag
 	app.commandLine.appendSwitch('disable-features', 'ColorCorrectRendering');
 
 	// Support JS Flags
@@ -164,10 +166,13 @@ function configureCommandlineSwitches(cliArgs, nodeCachedDataDir) {
  * @returns {string}
  */
 function resolveJSFlags(cliArgs, ...jsFlags) {
+
+	// Add any existing JS flags we already got from the command line
 	if (cliArgs['js-flags']) {
 		jsFlags.push(cliArgs['js-flags']);
 	}
 
+	// Support max-memory flag
 	if (cliArgs['max-memory'] && !/max_old_space_size=(\d+)/g.exec(cliArgs['js-flags'])) {
 		jsFlags.push(`--max_old_space_size=${cliArgs['max-memory']}`);
 	}
@@ -265,7 +270,8 @@ function getNodeCachedDir() {
 		}
 
 		jsFlags() {
-			return this.value ? '--nolazy' : undefined;
+			// return this.value ? '--nolazy' : undefined;
+			return undefined;
 		}
 
 		ensureExists() {
@@ -411,7 +417,7 @@ function rimraf(location) {
 		}
 	}, err => {
 		if (err.code === 'ENOENT') {
-			return void 0;
+			return undefined;
 		}
 		throw err;
 	});
@@ -431,20 +437,16 @@ function getUserDefinedLocale() {
 	}
 
 	const localeConfig = path.join(userDataPath, 'User', 'locale.json');
-	return exists(localeConfig).then((result) => {
-		if (result) {
-			return bootstrap.readFile(localeConfig).then((content) => {
-				content = stripComments(content);
-				try {
-					const value = JSON.parse(content).locale;
-					return value && typeof value === 'string' ? value.toLowerCase() : undefined;
-				} catch (e) {
-					return undefined;
-				}
-			});
-		} else {
+	return bootstrap.readFile(localeConfig).then((content) => {
+		content = stripComments(content);
+		try {
+			const value = JSON.parse(content).locale;
+			return value && typeof value === 'string' ? value.toLowerCase() : undefined;
+		} catch (e) {
 			return undefined;
 		}
+	}, () => {
+		return undefined;
 	});
 }
 

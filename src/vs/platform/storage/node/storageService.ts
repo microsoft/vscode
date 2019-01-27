@@ -33,7 +33,7 @@ export class StorageService extends Disposable implements IStorageService {
 	private _hasErrors = false;
 	get hasErrors(): boolean { return this._hasErrors; }
 
-	private bufferedWorkspaceStorageErrors?: (string | Error)[] = [];
+	private bufferedWorkspaceStorageErrors?: Array<string | Error> = [];
 	private _onWorkspaceStorageError: Emitter<string | Error> = this._register(new Emitter<string | Error>());
 	get onWorkspaceStorageError(): Event<string | Error> {
 		if (Array.isArray(this.bufferedWorkspaceStorageErrors)) {
@@ -45,7 +45,7 @@ export class StorageService extends Disposable implements IStorageService {
 				}, 0);
 			}
 
-			this.bufferedWorkspaceStorageErrors = void 0;
+			this.bufferedWorkspaceStorageErrors = undefined;
 		}
 
 		return this._onWorkspaceStorageError.event;
@@ -59,8 +59,8 @@ export class StorageService extends Disposable implements IStorageService {
 
 	constructor(
 		globalStorageDatabase: IStorageDatabase,
-		@ILogService private logService: ILogService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@ILogService private readonly logService: ILogService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
 		super();
 
@@ -73,14 +73,14 @@ export class StorageService extends Disposable implements IStorageService {
 		this._onDidChangeStorage.fire({ key, scope });
 	}
 
-	initialize(payload: IWorkspaceInitializationPayload): Thenable<void> {
+	initialize(payload: IWorkspaceInitializationPayload): Promise<void> {
 		return Promise.all([
 			this.initializeGlobalStorage(),
 			this.initializeWorkspaceStorage(payload)
-		]).then(() => void 0);
+		]).then(() => undefined);
 	}
 
-	private initializeGlobalStorage(): Thenable<void> {
+	private initializeGlobalStorage(): Promise<void> {
 		mark('willInitGlobalStorage');
 
 		return this.globalStorage.init().then(() => {
@@ -92,7 +92,7 @@ export class StorageService extends Disposable implements IStorageService {
 		});
 	}
 
-	private initializeWorkspaceStorage(payload: IWorkspaceInitializationPayload): Thenable<void> {
+	private initializeWorkspaceStorage(payload: IWorkspaceInitializationPayload): Promise<void> {
 
 		// Prepare workspace storage folder for DB
 		return this.prepareWorkspaceStorageFolder(payload).then(result => {
@@ -100,13 +100,18 @@ export class StorageService extends Disposable implements IStorageService {
 
 			// Create workspace storage and initalize
 			mark('willInitWorkspaceStorage');
-			return this.createWorkspaceStorage(useInMemoryStorage ? SQLiteStorageDatabase.IN_MEMORY_PATH : join(result.path, StorageService.WORKSPACE_STORAGE_NAME), result.wasCreated ? StorageHint.STORAGE_DOES_NOT_EXIST : void 0).init().then(() => {
+			return this.createWorkspaceStorage(useInMemoryStorage ? SQLiteStorageDatabase.IN_MEMORY_PATH : join(result.path, StorageService.WORKSPACE_STORAGE_NAME), result.wasCreated ? StorageHint.STORAGE_DOES_NOT_EXIST : undefined).init().then(() => {
 				mark('didInitWorkspaceStorage');
 			}, error => {
 				mark('didInitWorkspaceStorage');
 
 				return Promise.reject(error);
 			});
+		}).then(undefined, error => {
+			onUnexpectedError(error);
+
+			// Upon error, fallback to in-memory storage
+			return this.createWorkspaceStorage(SQLiteStorageDatabase.IN_MEMORY_PATH).init();
 		});
 	}
 
@@ -114,7 +119,7 @@ export class StorageService extends Disposable implements IStorageService {
 
 		// Logger for workspace storage
 		const workspaceLoggingOptions: ISQLiteStorageDatabaseLoggingOptions = {
-			logTrace: (this.logService.getLevel() === LogLevel.Trace) ? msg => this.logService.trace(msg) : void 0,
+			logTrace: (this.logService.getLevel() === LogLevel.Trace) ? msg => this.logService.trace(msg) : undefined,
 			logError: error => {
 				this.logService.error(error);
 
@@ -144,7 +149,7 @@ export class StorageService extends Disposable implements IStorageService {
 		return join(this.environmentService.workspaceStorageHome, payload.id); // workspace home + workspace id;
 	}
 
-	private prepareWorkspaceStorageFolder(payload: IWorkspaceInitializationPayload): Thenable<{ path: string, wasCreated: boolean }> {
+	private prepareWorkspaceStorageFolder(payload: IWorkspaceInitializationPayload): Promise<{ path: string, wasCreated: boolean }> {
 		const workspaceStorageFolderPath = this.getWorkspaceStorageFolderPath(payload);
 
 		return exists(workspaceStorageFolderPath).then(exists => {
@@ -163,7 +168,7 @@ export class StorageService extends Disposable implements IStorageService {
 	}
 
 	private ensureWorkspaceStorageFolderMeta(payload: IWorkspaceInitializationPayload): void {
-		let meta: object | undefined = void 0;
+		let meta: object | undefined = undefined;
 		if (isSingleFolderWorkspaceInitializationPayload(payload)) {
 			meta = { folder: payload.folder.toString() };
 		} else if (isWorkspaceIdentifier(payload)) {
@@ -174,11 +179,11 @@ export class StorageService extends Disposable implements IStorageService {
 			const workspaceStorageMetaPath = join(this.getWorkspaceStorageFolderPath(payload), StorageService.WORKSPACE_META_NAME);
 			exists(workspaceStorageMetaPath).then(exists => {
 				if (exists) {
-					return void 0; // already existing
+					return undefined; // already existing
 				}
 
-				return writeFile(workspaceStorageMetaPath, JSON.stringify(meta, void 0, 2));
-			}).then(null, error => onUnexpectedError(error));
+				return writeFile(workspaceStorageMetaPath, JSON.stringify(meta, undefined, 2));
+			}).then(undefined, error => onUnexpectedError(error));
 		}
 	}
 
@@ -200,7 +205,7 @@ export class StorageService extends Disposable implements IStorageService {
 		return this.getStorage(scope).getInteger(key, fallbackValue);
 	}
 
-	store(key: string, value: any, scope: StorageScope): void {
+	store(key: string, value: string | boolean | number, scope: StorageScope): void {
 		this.getStorage(scope).set(key, value);
 	}
 
@@ -232,7 +237,7 @@ export class StorageService extends Disposable implements IStorageService {
 		return scope === StorageScope.GLOBAL ? this.globalStorage.size : this.workspaceStorage.size;
 	}
 
-	checkIntegrity(scope: StorageScope, full: boolean): Thenable<string> {
+	checkIntegrity(scope: StorageScope, full: boolean): Promise<string> {
 		return scope === StorageScope.GLOBAL ? this.globalStorage.checkIntegrity(full) : this.workspaceStorage.checkIntegrity(full);
 	}
 
@@ -287,7 +292,7 @@ export class StorageService extends Disposable implements IStorageService {
 		});
 	}
 
-	migrate(toWorkspace: IWorkspaceInitializationPayload): Thenable<void> {
+	migrate(toWorkspace: IWorkspaceInitializationPayload): Promise<void> {
 		if (this.workspaceStoragePath === SQLiteStorageDatabase.IN_MEMORY_PATH) {
 			return Promise.resolve(); // no migration needed if running in memory
 		}
@@ -318,13 +323,13 @@ export class LogStorageAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IStorageService private storageService: StorageService,
-		@IWindowService private windowService: IWindowService
+		@IStorageService private readonly storageService: StorageService,
+		@IWindowService private readonly windowService: IWindowService
 	) {
 		super(id, label);
 	}
 
-	run(): Thenable<void> {
+	run(): Promise<void> {
 		this.storageService.logStorage();
 
 		return this.windowService.openDevTools();

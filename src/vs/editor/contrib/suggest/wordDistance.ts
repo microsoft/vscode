@@ -17,7 +17,7 @@ export abstract class WordDistance {
 		distance() { return 0; }
 	};
 
-	static create(service: IEditorWorkerService, editor: ICodeEditor): Thenable<WordDistance> {
+	static create(service: IEditorWorkerService, editor: ICodeEditor): Promise<WordDistance> {
 
 		if (!editor.getConfiguration().contribInfo.suggest.localityBonus) {
 			return Promise.resolve(WordDistance.None);
@@ -38,7 +38,7 @@ export abstract class WordDistance {
 			if (!ranges || ranges.length === 0) {
 				return WordDistance.None;
 			}
-			return service.computeWordRanges(model.uri, ranges[0]).then(wordRanges => {
+			return service.computeWordRanges(model.uri, ranges[0].range).then(wordRanges => {
 				return new class extends WordDistance {
 					distance(anchor: IPosition, suggestion: CompletionItem) {
 						if (!wordRanges || !position.equals(editor.getPosition())) {
@@ -56,7 +56,7 @@ export abstract class WordDistance {
 						let bestWordRange = idx >= 0 ? wordLines[idx] : wordLines[Math.max(0, ~idx - 1)];
 						let blockDistance = ranges.length;
 						for (const range of ranges) {
-							if (!Range.containsRange(range, bestWordRange)) {
+							if (!Range.containsRange(range.range, bestWordRange)) {
 								break;
 							}
 							blockDistance -= 1;

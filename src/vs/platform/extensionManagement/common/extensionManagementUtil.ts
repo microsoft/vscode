@@ -24,24 +24,6 @@ export function getGalleryExtensionId(publisher: string, name: string): string {
 	return `${publisher.toLocaleLowerCase()}.${name.toLocaleLowerCase()}`;
 }
 
-export function getGalleryExtensionIdFromLocal(local: ILocalExtension): string {
-	return local.manifest ? getGalleryExtensionId(local.manifest.publisher, local.manifest.name) : local.identifier.id;
-}
-
-export const LOCAL_EXTENSION_ID_REGEX = /^([^.]+\..+)-(\d+\.\d+\.\d+(-.*)?)$/;
-
-export function getIdFromLocalExtensionId(localExtensionId: string): string {
-	const matches = LOCAL_EXTENSION_ID_REGEX.exec(localExtensionId);
-	if (matches && matches[1]) {
-		return adoptToGalleryExtensionId(matches[1]);
-	}
-	return adoptToGalleryExtensionId(localExtensionId);
-}
-
-export function getLocalExtensionId(id: string, version: string): string {
-	return `${id}-${version}`;
-}
-
 export function groupByExtension<T>(extensions: T[], getExtensionIdentifier: (t: T) => IExtensionIdentifier): T[][] {
 	const byExtension: T[][] = [];
 	const findGroup = extension => {
@@ -65,7 +47,7 @@ export function groupByExtension<T>(extensions: T[], getExtensionIdentifier: (t:
 
 export function getLocalExtensionTelemetryData(extension: ILocalExtension): any {
 	return {
-		id: getGalleryExtensionIdFromLocal(extension),
+		id: extension.identifier.id,
 		name: extension.manifest.name,
 		galleryId: null,
 		publisherId: extension.metadata ? extension.metadata.publisherId : null,

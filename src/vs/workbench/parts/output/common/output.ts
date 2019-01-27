@@ -84,7 +84,7 @@ export interface IOutputService {
 	/**
 	 * Show the channel with the passed id.
 	 */
-	showChannel(id: string, preserveFocus?: boolean): Thenable<void>;
+	showChannel(id: string, preserveFocus?: boolean): Promise<void>;
 
 	/**
 	 * Allows to register on active output channel change.
@@ -155,7 +155,7 @@ export interface IOutputChannelRegistry {
 	/**
 	 * Returns the channel with the passed id.
 	 */
-	getChannel(id: string): IOutputChannelDescriptor;
+	getChannel(id: string): IOutputChannelDescriptor | undefined;
 
 	/**
 	 * Remove the output channel with the passed id.
@@ -166,10 +166,10 @@ export interface IOutputChannelRegistry {
 class OutputChannelRegistry implements IOutputChannelRegistry {
 	private channels = new Map<string, IOutputChannelDescriptor>();
 
-	private readonly _onDidRegisterChannel: Emitter<string> = new Emitter<string>();
+	private readonly _onDidRegisterChannel = new Emitter<string>();
 	readonly onDidRegisterChannel: Event<string> = this._onDidRegisterChannel.event;
 
-	private readonly _onDidRemoveChannel: Emitter<string> = new Emitter<string>();
+	private readonly _onDidRemoveChannel = new Emitter<string>();
 	readonly onDidRemoveChannel: Event<string> = this._onDidRemoveChannel.event;
 
 	public registerChannel(descriptor: IOutputChannelDescriptor): void {
@@ -185,7 +185,7 @@ class OutputChannelRegistry implements IOutputChannelRegistry {
 		return result;
 	}
 
-	public getChannel(id: string): IOutputChannelDescriptor {
+	public getChannel(id: string): IOutputChannelDescriptor | undefined {
 		return this.channels.get(id);
 	}
 

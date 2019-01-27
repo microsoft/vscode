@@ -24,6 +24,11 @@ interface ISCMResourceGroupMenuEntry extends IDisposable {
 	readonly group: ISCMResourceGroup;
 }
 
+interface ISCMMenus {
+	readonly resourceGroupMenu: IMenu;
+	readonly resourceMenu: IMenu;
+}
+
 export function getSCMResourceContextKey(resource: ISCMResourceGroup | ISCMResource): string {
 	return isSCMResource(resource) ? resource.resourceGroup.id : resource.id;
 }
@@ -39,18 +44,18 @@ export class SCMMenus implements IDisposable {
 	readonly onDidChangeTitle: Event<void> = this._onDidChangeTitle.event;
 
 	private readonly resourceGroupMenuEntries: ISCMResourceGroupMenuEntry[] = [];
-	private readonly resourceGroupMenus = new Map<ISCMResourceGroup, IMenu>();
+	private readonly resourceGroupMenus = new Map<ISCMResourceGroup, ISCMMenus>();
 
 	private readonly disposables: IDisposable[] = [];
 
 	constructor(
 		provider: ISCMProvider | undefined,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IMenuService private menuService: IMenuService,
-		@IContextMenuService private contextMenuService: IContextMenuService
+		@IMenuService private readonly menuService: IMenuService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) {
 		this.contextKeyService = contextKeyService.createScoped();
-		const scmProviderKey = this.contextKeyService.createKey<string | undefined>('scmProvider', void 0);
+		const scmProviderKey = this.contextKeyService.createKey<string | undefined>('scmProvider', undefined);
 
 		if (provider) {
 			scmProviderKey.set(provider.contextValue);
@@ -115,12 +120,20 @@ export class SCMMenus implements IDisposable {
 		return result;
 	}
 
-	getMenu(group: ISCMResourceGroup): IMenu {
+	getResourceGroupMenu(group: ISCMResourceGroup): IMenu {
 		if (!this.resourceGroupMenus.has(group)) {
 			throw new Error('SCM Resource Group menu not found');
 		}
 
-		return this.resourceGroupMenus.get(group)!;
+		return this.resourceGroupMenus.get(group)!.resourceGroupMenu;
+	}
+
+	getResourceMenu(group: ISCMResourceGroup): IMenu {
+		if (!this.resourceGroupMenus.has(group)) {
+			throw new Error('SCM Resource Group menu not found');
+		}
+
+		return this.resourceGroupMenus.get(group)!.resourceMenu;
 	}
 
 	private onDidSpliceGroups({ start, deleteCount, toInsert }: ISplice<ISCMResourceGroup>): void {
@@ -129,15 +142,17 @@ export class SCMMenus implements IDisposable {
 			contextKeyService.createKey('scmProvider', group.provider.contextValue);
 			contextKeyService.createKey('scmResourceGroup', getSCMResourceContextKey(group));
 
-			const menu = this.menuService.createMenu(MenuId.SCMResourceGroupContext, contextKeyService);
+			const resourceGroupMenu = this.menuService.createMenu(MenuId.SCMResourceGroupContext, contextKeyService);
+			const resourceMenu = this.menuService.createMenu(MenuId.SCMResourceContext, contextKeyService);
 
-			this.resourceGroupMenus.set(group, menu);
+			this.resourceGroupMenus.set(group, { resourceGroupMenu, resourceMenu });
 
 			return {
 				group,
 				dispose() {
 					contextKeyService.dispose();
-					menu.dispose();
+					resourceGroupMenu.dispose();
+					resourceMenu.dispose();
 				}
 			};
 		});

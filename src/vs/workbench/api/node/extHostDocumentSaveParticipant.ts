@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { sequence, always } from 'vs/base/common/async';
+import { sequence } from 'vs/base/common/async';
 import { illegalState } from 'vs/base/common/errors';
 import { ExtHostDocumentSaveParticipantShape, MainThreadTextEditorsShape, ResourceTextEditDto } from 'vs/workbench/api/node/extHost.protocol';
 import { TextEdit } from 'vs/workbench/api/node/extHostTypes';
@@ -48,7 +48,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 		};
 	}
 
-	$participateInSave(data: UriComponents, reason: SaveReason): Thenable<boolean[]> {
+	$participateInSave(data: UriComponents, reason: SaveReason): Promise<boolean[]> {
 		const resource = URI.revive(data);
 		const entries = this._callbacks.toArray();
 
@@ -67,7 +67,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 				return this._deliverEventAsyncAndBlameBadListeners(listener, <any>{ document, reason: TextDocumentSaveReason.to(reason) });
 			};
 		}));
-		return always(promise, () => clearTimeout(didTimeoutHandle));
+		return promise.finally(() => clearTimeout(didTimeoutHandle));
 	}
 
 	private _deliverEventAsyncAndBlameBadListeners([listener, thisArg, extension]: Listener, stubEvent: vscode.TextDocumentWillSaveEvent): Promise<any> {
@@ -83,7 +83,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 
 		}, err => {
 
-			this._logService.error(`onWillSaveTextDocument-listener from extension '${extension.id}' threw ERROR`);
+			this._logService.error(`onWillSaveTextDocument-listener from extension '${extension.identifier.value}' threw ERROR`);
 			this._logService.error(err);
 
 			if (!(err instanceof Error) || (<Error>err).message !== 'concurrent_edits') {
@@ -91,7 +91,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 				this._badListeners.set(listener, !errors ? 1 : errors + 1);
 
 				if (errors > this._thresholds.errors) {
-					this._logService.info(`onWillSaveTextDocument-listener from extension '${extension.id}' will now be IGNORED because of timeouts and/or errors`);
+					this._logService.info(`onWillSaveTextDocument-listener from extension '${extension.identifier.value}' will now be IGNORED because of timeouts and/or errors`);
 				}
 			}
 			return false;
@@ -109,7 +109,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 		const event = Object.freeze(<vscode.TextDocumentWillSaveEvent>{
 			document,
 			reason,
-			waitUntil(p: Thenable<any | vscode.TextEdit[]>) {
+			waitUntil(p: Promise<any | vscode.TextEdit[]>) {
 				if (Object.isFrozen(promises)) {
 					throw illegalState('waitUntil can not be called async');
 				}
@@ -132,7 +132,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 			const handle = setTimeout(() => reject(new Error('timeout')), this._thresholds.timeout);
 
 			return Promise.all(promises).then(edits => {
-				this._logService.debug(`onWillSaveTextDocument-listener from extension '${extension.id}' finished after ${(Date.now() - t1)}ms`);
+				this._logService.debug(`onWillSaveTextDocument-listener from extension '${extension.identifier.value}' finished after ${(Date.now() - t1)}ms`);
 				clearTimeout(handle);
 				resolve(edits);
 			}).catch(err => {

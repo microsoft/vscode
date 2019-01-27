@@ -68,10 +68,11 @@ export default class LanguageProvider extends Disposable {
 		this._register((await import('./features/jsDocCompletions')).register(selector, this.client));
 		this._register((await import('./features/organizeImports')).register(selector, this.client, this.commandManager, this.fileConfigurationManager, this.telemetryReporter));
 		this._register((await import('./features/quickFix')).register(selector, this.client, this.fileConfigurationManager, this.commandManager, this.client.diagnosticsManager, this.telemetryReporter));
+		this._register((await import('./features/fixAll')).register(selector, this.client, this.fileConfigurationManager, this.client.diagnosticsManager));
 		this._register((await import('./features/refactor')).register(selector, this.client, this.fileConfigurationManager, this.commandManager, this.telemetryReporter));
 		this._register((await import('./features/references')).register(selector, this.client));
 		this._register((await import('./features/referencesCodeLens')).register(selector, this.description.id, this.client, cachedResponse));
-		this._register((await import('./features/rename')).register(selector, this.client));
+		this._register((await import('./features/rename')).register(selector, this.client, this.fileConfigurationManager));
 		this._register((await import('./features/signatureHelp')).register(selector, this.client));
 		this._register((await import('./features/tagClosing')).register(selector, this.description.id, this.client));
 		this._register((await import('./features/typeDefinitions')).register(selector, this.client));

@@ -17,9 +17,9 @@ export class BackupRestorer implements IWorkbenchContribution {
 	private static readonly UNTITLED_REGEX = /Untitled-\d+/;
 
 	constructor(
-		@IEditorService private editorService: IEditorService,
-		@IBackupFileService private backupFileService: IBackupFileService,
-		@ILifecycleService private lifecycleService: ILifecycleService
+		@IEditorService private readonly editorService: IEditorService,
+		@IBackupFileService private readonly backupFileService: IBackupFileService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService
 	) {
 		this.restoreBackups();
 	}
@@ -28,32 +28,32 @@ export class BackupRestorer implements IWorkbenchContribution {
 		this.lifecycleService.when(LifecyclePhase.Restored).then(() => this.doRestoreBackups());
 	}
 
-	private doRestoreBackups(): Thenable<URI[]> {
+	private doRestoreBackups(): Promise<URI[] | undefined> {
 
 		// Find all files and untitled with backups
 		return this.backupFileService.getWorkspaceFileBackups().then(backups => {
 
 			// Resolve backups that are opened
-			return this.doResolveOpenedBackups(backups).then(unresolved => {
+			return this.doResolveOpenedBackups(backups).then((unresolved): Promise<URI[] | undefined> | undefined => {
 
 				// Some failed to restore or were not opened at all so we open and resolve them manually
 				if (unresolved.length > 0) {
 					return this.doOpenEditors(unresolved).then(() => this.doResolveOpenedBackups(unresolved));
 				}
 
-				return void 0;
+				return undefined;
 			});
 		});
 	}
 
-	private doResolveOpenedBackups(backups: URI[]): Thenable<URI[]> {
-		const restorePromises: Thenable<any>[] = [];
+	private doResolveOpenedBackups(backups: URI[]): Promise<URI[]> {
+		const restorePromises: Promise<any>[] = [];
 		const unresolved: URI[] = [];
 
 		backups.forEach(backup => {
 			const openedEditor = this.editorService.getOpened({ resource: backup });
 			if (openedEditor) {
-				restorePromises.push(openedEditor.resolve().then(null, () => unresolved.push(backup)));
+				restorePromises.push(openedEditor.resolve().then(undefined, () => unresolved.push(backup)));
 			} else {
 				unresolved.push(backup);
 			}
@@ -62,12 +62,12 @@ export class BackupRestorer implements IWorkbenchContribution {
 		return Promise.all(restorePromises).then(() => unresolved, () => unresolved);
 	}
 
-	private doOpenEditors(resources: URI[]): Thenable<void> {
+	private doOpenEditors(resources: URI[]): Promise<void> {
 		const hasOpenedEditors = this.editorService.visibleEditors.length > 0;
 		const inputs = resources.map((resource, index) => this.resolveInput(resource, index, hasOpenedEditors));
 
 		// Open all remaining backups as editors and resolve them to load their backups
-		return this.editorService.openEditors(inputs).then(() => void 0);
+		return this.editorService.openEditors(inputs).then(() => undefined);
 	}
 
 	private resolveInput(resource: URI, index: number, hasOpenedEditors: boolean): IResourceInput | IUntitledResourceInput {

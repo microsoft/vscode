@@ -18,15 +18,44 @@ declare module 'vscode' {
 
 	//#region Joh - selection range provider
 
+	export class SelectionRangeKind {
+
+		/**
+		 * Empty Kind.
+		 */
+		static readonly Empty: SelectionRangeKind;
+
+		/**
+		 * The statment kind, its value is `statement`, possible extensions can be
+		 * `statement.if` etc
+		 */
+		static readonly Statement: SelectionRangeKind;
+
+		/**
+		 * The declaration kind, its value is `declaration`, possible extensions can be
+		 * `declaration.function`, `declaration.class` etc.
+		 */
+		static readonly Declaration: SelectionRangeKind;
+
+		readonly value: string;
+
+		private constructor(value: string);
+
+		append(value: string): SelectionRangeKind;
+	}
+
+	export class SelectionRange {
+		kind: SelectionRangeKind;
+		range: Range;
+		constructor(range: Range, kind: SelectionRangeKind);
+	}
+
 	export interface SelectionRangeProvider {
 		/**
 		 * Provide selection ranges starting at a given position. The first range must [contain](#Range.contains)
 		 * position and subsequent ranges must contain the previous range.
-		 * @param document
-		 * @param position
-		 * @param token
 		 */
-		provideSelectionRanges(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Range[]>;
+		provideSelectionRanges(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<SelectionRange[]>;
 	}
 
 	export namespace languages {
@@ -527,34 +556,12 @@ declare module 'vscode' {
 
 	// deprecated
 
-	export interface DebugAdapterTracker {
-		// VS Code -> Debug Adapter
-		startDebugAdapter?(): void;
-		toDebugAdapter?(message: any): void;
-		stopDebugAdapter?(): void;
-
-		// Debug Adapter -> VS Code
-		fromDebugAdapter?(message: any): void;
-		debugAdapterError?(error: Error): void;
-		debugAdapterExit?(code?: number, signal?: string): void;
-	}
-
 	export interface DebugConfigurationProvider {
 		/**
 		 * Deprecated, use DebugAdapterDescriptorFactory.provideDebugAdapter instead.
 		 * @deprecated Use DebugAdapterDescriptorFactory.createDebugAdapterDescriptor instead
 		 */
 		debugAdapterExecutable?(folder: WorkspaceFolder | undefined, token?: CancellationToken): ProviderResult<DebugAdapterExecutable>;
-
-		/**
-		 * Deprecated, use DebugAdapterTrackerFactory.createDebugAdapterTracker instead.
-		 * @deprecated Use DebugAdapterTrackerFactory.createDebugAdapterTracker instead
-		 *
-		 * The optional method 'provideDebugAdapterTracker' is called at the start of a debug session to provide a tracker that gives access to the communication between VS Code and a Debug Adapter.
-		 * @param session The [debug session](#DebugSession) for which the tracker will be used.
-		 * @param token A cancellation token.
-		 */
-		provideDebugAdapterTracker?(session: DebugSession, workspaceFolder: WorkspaceFolder | undefined, config: DebugConfiguration, token?: CancellationToken): ProviderResult<DebugAdapterTracker>;
 	}
 
 	//#endregion
@@ -786,6 +793,7 @@ declare module 'vscode' {
 		command?: Command;
 
 		isDraft?: boolean;
+		commentReactions?: CommentReaction[];
 	}
 
 	export interface CommentThreadChangedEvent {
@@ -808,6 +816,11 @@ declare module 'vscode' {
 		 * Changed draft mode
 		 */
 		readonly inDraftMode: boolean;
+	}
+
+	interface CommentReaction {
+		readonly label?: string;
+		readonly iconPath?: string | Uri;
 	}
 
 	interface DocumentCommentProvider {
@@ -836,13 +849,18 @@ declare module 'vscode' {
 		 */
 		deleteComment?(document: TextDocument, comment: Comment, token: CancellationToken): Promise<void>;
 
-		startDraft?(token: CancellationToken): Promise<void>;
-		deleteDraft?(token: CancellationToken): Promise<void>;
-		finishDraft?(token: CancellationToken): Promise<void>;
+		startDraft?(document: TextDocument, token: CancellationToken): Promise<void>;
+		deleteDraft?(document: TextDocument, token: CancellationToken): Promise<void>;
+		finishDraft?(document: TextDocument, token: CancellationToken): Promise<void>;
 
 		startDraftLabel?: string;
 		deleteDraftLabel?: string;
 		finishDraftLabel?: string;
+
+		commentReactions?: CommentReaction[];
+
+		addReaction(comment: Comment, reaction: CommentReaction): Promise<void>;
+		deleteReaction(comment: Comment, reaction: CommentReaction): Promise<void>;
 
 		/**
 		 * Notify of updates to comment threads.
@@ -1081,18 +1099,47 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	//#region Extension Context
-	export interface ExtensionContext {
-
+	//#region SignatureHelpContext active parameters - mjbvz
+	export interface SignatureHelpContext {
 		/**
-		 * An absolute file path in which the extension can store gloabal state.
-		 * The directory might not exist on disk and creation is
-		 * up to the extension. However, the parent directory is guaranteed to be existent.
+		 * The currently active [`SignatureHelp`](#SignatureHelp).
 		 *
-		 * Use [`globalState`](#ExtensionContext.globalState) to store key value data.
+		 * Will have the [`SignatureHelp.activeSignature`] field updated based on user arrowing through sig help
 		 */
-		globalStoragePath: string;
+		readonly activeSignatureHelp?: SignatureHelp;
+	}
+	//#endregion
 
+	//#region CodeAction.isPreferred - mjbvz
+	export interface CodeAction {
+		/**
+		 * If the action is a preferred action or fix to take.
+		 *
+		 * A quick fix should be marked preferred if it properly addresses the underlying error.
+		 * A refactoring should be marked preferred if it is the most reasonable choice of actions to take.
+		 */
+		isPreferred?: boolean;
+	}
+	//#endregion
+
+	//#region Tasks
+	export interface TaskPresentationOptions {
+		/**
+		 * Controls whether the task is executed in a specific terminal group using split panes.
+		 */
+		group?: string;
+	}
+	//#endregion
+
+	//#region Autofix - mjbvz
+	export namespace CodeActionKind {
+		/**
+		 * Base kind for an auto fix source action: `source.fixAll`.
+		 *
+		 * Fix all actions automatically fix errors in the code that have a clear fix that does not require user input.
+		 * They should not suppress errors or perform unsafe fixes such as generating new types or classes.
+		 */
+		export const SourceFixAll: CodeActionKind;
 	}
 	//#endregion
 }

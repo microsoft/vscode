@@ -11,11 +11,11 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
 import { ExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/node/extensionsWorkbenchService';
 import {
-	IExtensionManagementService, IExtensionGalleryService, IExtensionEnablementService, IExtensionTipsService, ILocalExtension, LocalExtensionType, IGalleryExtension, IQueryOptions,
+	IExtensionManagementService, IExtensionGalleryService, IExtensionEnablementService, IExtensionTipsService, ILocalExtension, IGalleryExtension, IQueryOptions,
 	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, IExtensionManagementServerService, IExtensionManagementServer, EnablementState, ExtensionRecommendationReason, SortBy
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { getGalleryExtensionId, getGalleryExtensionIdFromLocal } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { ExtensionManagementService, getLocalExtensionIdFromManifest } from 'vs/platform/extensionManagement/node/extensionManagementService';
+import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionTipsService } from 'vs/workbench/parts/extensions/electron-browser/extensionTipsService';
 import { TestExtensionEnablementService } from 'vs/platform/extensionManagement/test/electron-browser/extensionEnablementService.test';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
@@ -32,10 +32,13 @@ import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { URLService } from 'vs/platform/url/common/urlService';
 import { URI } from 'vs/base/common/uri';
-import { SingleServerExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { SinonStub } from 'sinon';
 import { IExperimentService, ExperimentService, ExperimentState, ExperimentActionType } from 'vs/workbench/parts/experiments/node/experimentService';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/node/remoteAgentService';
+import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
+import { ExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
+import { ExtensionIdentifier, ExtensionType } from 'vs/platform/extensions/common/extensions';
 
 
 suite('ExtensionsListView Tests', () => {
@@ -52,8 +55,8 @@ suite('ExtensionsListView Tests', () => {
 	const localDisabledTheme = aLocalExtension('first-disabled-extension', { categories: ['themes'] });
 	const localDisabledLanguage = aLocalExtension('second-disabled-extension', { categories: ['programming languages'] });
 	const localRandom = aLocalExtension('random-enabled-extension', { categories: ['random'] });
-	const builtInTheme = aLocalExtension('my-theme', { contributes: { themes: ['my-theme'] } }, {}, LocalExtensionType.System);
-	const builtInBasic = aLocalExtension('my-lang', { contributes: { grammars: [{ language: 'my-language' }] } }, {}, LocalExtensionType.System);
+	const builtInTheme = aLocalExtension('my-theme', { contributes: { themes: ['my-theme'] } }, { type: ExtensionType.System });
+	const builtInBasic = aLocalExtension('my-lang', { contributes: { grammars: [{ language: 'my-language' }] } }, { type: ExtensionType.System });
 
 	const workspaceRecommendationA = aGalleryExtension('workspace-recommendation-A');
 	const workspaceRecommendationB = aGalleryExtension('workspace-recommendation-B');
@@ -83,8 +86,9 @@ suite('ExtensionsListView Tests', () => {
 		instantiationService.stub(IExtensionManagementService, 'onDidInstallExtension', didInstallEvent.event);
 		instantiationService.stub(IExtensionManagementService, 'onUninstallExtension', uninstallEvent.event);
 		instantiationService.stub(IExtensionManagementService, 'onDidUninstallExtension', didUninstallEvent.event);
+		instantiationService.stub(IRemoteAgentService, RemoteAgentService);
 
-		instantiationService.stub(IExtensionManagementServerService, instantiationService.createInstance(SingleServerExtensionManagementServerService, <IExtensionManagementServer>{ authority: 'vscode-local', extensionManagementService: instantiationService.get(IExtensionManagementService), label: 'local' }));
+		instantiationService.stub(IExtensionManagementServerService, instantiationService.createInstance(ExtensionManagementServerService, <IExtensionManagementServer>{ authority: 'vscode-local', extensionManagementService: instantiationService.get(IExtensionManagementService), label: 'local' }));
 
 		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 
@@ -120,16 +124,16 @@ suite('ExtensionsListView Tests', () => {
 		instantiationService.stub(IExtensionService, {
 			getExtensions: () => {
 				return Promise.resolve([
-					{ id: localEnabledTheme.galleryIdentifier.id },
-					{ id: localEnabledLanguage.galleryIdentifier.id },
-					{ id: localRandom.galleryIdentifier.id },
-					{ id: builtInTheme.galleryIdentifier.id },
-					{ id: builtInBasic.galleryIdentifier.id }
+					{ identifier: new ExtensionIdentifier(localEnabledTheme.identifier.id) },
+					{ identifier: new ExtensionIdentifier(localEnabledLanguage.identifier.id) },
+					{ identifier: new ExtensionIdentifier(localRandom.identifier.id) },
+					{ identifier: new ExtensionIdentifier(builtInTheme.identifier.id) },
+					{ identifier: new ExtensionIdentifier(builtInBasic.identifier.id) }
 				]);
 			}
 		});
-		await (<TestExtensionEnablementService>instantiationService.get(IExtensionEnablementService)).setEnablement(localDisabledTheme, EnablementState.Disabled);
-		await (<TestExtensionEnablementService>instantiationService.get(IExtensionEnablementService)).setEnablement(localDisabledLanguage, EnablementState.Disabled);
+		await (<TestExtensionEnablementService>instantiationService.get(IExtensionEnablementService)).setEnablement([localDisabledTheme], EnablementState.Disabled);
+		await (<TestExtensionEnablementService>instantiationService.get(IExtensionEnablementService)).setEnablement([localDisabledLanguage], EnablementState.Disabled);
 
 		instantiationService.set(IExtensionsWorkbenchService, instantiationService.createInstance(ExtensionsWorkbenchService));
 		testableView = instantiationService.createInstance(ExtensionsListView, {});
@@ -320,11 +324,11 @@ suite('ExtensionsListView Tests', () => {
 		return testableView.show('@recommended:workspace').then(result => {
 			assert.ok(target.calledOnce);
 			const options: IQueryOptions = target.args[0][0];
-			assert.equal(options.names.length, workspaceRecommendedExtensions.length);
+			assert.equal(options.names!.length, workspaceRecommendedExtensions.length);
 			assert.equal(result.length, workspaceRecommendedExtensions.length);
 			for (let i = 0; i < workspaceRecommendedExtensions.length; i++) {
-				assert.equal(options.names[i], workspaceRecommendedExtensions[i].identifier.id);
-				assert.equal(result.get(i).id, workspaceRecommendedExtensions[i].identifier.id);
+				assert.equal(options.names![i], workspaceRecommendedExtensions[i].identifier.id);
+				assert.equal(result.get(i).identifier.id, workspaceRecommendedExtensions[i].identifier.id);
 			}
 		});
 	});
@@ -341,11 +345,11 @@ suite('ExtensionsListView Tests', () => {
 			const options: IQueryOptions = target.args[0][0];
 
 			assert.ok(target.calledOnce);
-			assert.equal(options.names.length, allRecommendedExtensions.length);
+			assert.equal(options.names!.length, allRecommendedExtensions.length);
 			assert.equal(result.length, allRecommendedExtensions.length);
 			for (let i = 0; i < allRecommendedExtensions.length; i++) {
-				assert.equal(options.names[i], allRecommendedExtensions[i].identifier.id);
-				assert.equal(result.get(i).id, allRecommendedExtensions[i].identifier.id);
+				assert.equal(options.names![i], allRecommendedExtensions[i].identifier.id);
+				assert.equal(result.get(i).identifier.id, allRecommendedExtensions[i].identifier.id);
 			}
 		});
 	});
@@ -365,11 +369,11 @@ suite('ExtensionsListView Tests', () => {
 			const options: IQueryOptions = target.args[0][0];
 
 			assert.ok(target.calledOnce);
-			assert.equal(options.names.length, allRecommendedExtensions.length);
+			assert.equal(options.names!.length, allRecommendedExtensions.length);
 			assert.equal(result.length, allRecommendedExtensions.length);
 			for (let i = 0; i < allRecommendedExtensions.length; i++) {
-				assert.equal(options.names[i], allRecommendedExtensions[i].identifier.id);
-				assert.equal(result.get(i).id, allRecommendedExtensions[i].identifier.id);
+				assert.equal(options.names![i], allRecommendedExtensions[i].identifier.id);
+				assert.equal(result.get(i).identifier.id, allRecommendedExtensions[i].identifier.id);
 			}
 		});
 	});
@@ -388,11 +392,11 @@ suite('ExtensionsListView Tests', () => {
 
 			assert.ok(experimentTarget.calledOnce);
 			assert.ok(queryTarget.calledOnce);
-			assert.equal(options.names.length, curatedList.length);
+			assert.equal(options.names!.length, curatedList.length);
 			assert.equal(result.length, curatedList.length);
 			for (let i = 0; i < curatedList.length; i++) {
-				assert.equal(options.names[i], curatedList[i].identifier.id);
-				assert.equal(result.get(i).id, curatedList[i].identifier.id);
+				assert.equal(options.names![i], curatedList[i].identifier.id);
+				assert.equal(result.get(i).identifier.id, curatedList[i].identifier.id);
 			}
 			assert.equal(curatedKey, 'mykey');
 		});
@@ -414,7 +418,7 @@ suite('ExtensionsListView Tests', () => {
 			assert.equal(options.text, searchText);
 			assert.equal(result.length, results.length);
 			for (let i = 0; i < results.length; i++) {
-				assert.equal(result.get(i).id, results[i].identifier.id);
+				assert.equal(result.get(i).identifier.id, results[i].identifier.id);
 			}
 		});
 	});
@@ -463,7 +467,7 @@ suite('ExtensionsListView Tests', () => {
 			assert.equal(options.text, searchText);
 			assert.equal(result.length, expected.length);
 			for (let i = 0; i < expected.length; i++) {
-				assert.equal(result.get(i).id, expected[i].identifier.id);
+				assert.equal(result.get(i).identifier.id, expected[i].identifier.id);
 			}
 		});
 	});
@@ -489,19 +493,20 @@ suite('ExtensionsListView Tests', () => {
 			assert.equal(options.text, searchText);
 			assert.equal(result.length, realResults.length);
 			for (let i = 0; i < realResults.length; i++) {
-				assert.equal(result.get(i).id, realResults[i].identifier.id);
+				assert.equal(result.get(i).identifier.id, realResults[i].identifier.id);
 			}
 		});
 	});
 
-	function aLocalExtension(name: string = 'someext', manifest: any = {}, properties: any = {}, type: LocalExtensionType = LocalExtensionType.User): ILocalExtension {
-		const localExtension = <ILocalExtension>Object.create({ manifest: {} });
-		assign(localExtension, { type, manifest: {}, location: URI.file(`pub.${name}`) }, properties);
-		assign(localExtension.manifest, { name, publisher: 'pub', version: '1.0.0' }, manifest);
-		localExtension.identifier = { id: getLocalExtensionIdFromManifest(localExtension.manifest) };
-		localExtension.metadata = { id: localExtension.identifier.id, publisherId: localExtension.manifest.publisher, publisherDisplayName: 'somename' };
-		localExtension.galleryIdentifier = { id: getGalleryExtensionIdFromLocal(localExtension), uuid: void 0 };
-		return localExtension;
+	function aLocalExtension(name: string = 'someext', manifest: any = {}, properties: any = {}): ILocalExtension {
+		manifest = assign({ name, publisher: 'pub', version: '1.0.0' }, manifest);
+		properties = assign({
+			type: ExtensionType.User,
+			location: URI.file(`pub.${name}`),
+			identifier: { id: getGalleryExtensionId(manifest.publisher, manifest.name), uuid: undefined },
+			metadata: { id: getGalleryExtensionId(manifest.publisher, manifest.name), publisherId: manifest.publisher, publisherDisplayName: 'somename' }
+		}, properties);
+		return <ILocalExtension>Object.create({ manifest, ...properties });
 	}
 
 	function aGalleryExtension(name: string, properties: any = {}, galleryExtensionProperties: any = {}, assets: any = {}): IGalleryExtension {
@@ -514,7 +519,7 @@ suite('ExtensionsListView Tests', () => {
 	}
 
 	function aPage<T>(...objects: T[]): IPager<T> {
-		return { firstPage: objects, total: objects.length, pageSize: objects.length, getPage: () => null };
+		return { firstPage: objects, total: objects.length, pageSize: objects.length, getPage: () => null! };
 	}
 });
 

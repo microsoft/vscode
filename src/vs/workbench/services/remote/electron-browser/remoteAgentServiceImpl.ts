@@ -40,8 +40,8 @@ export class RemoteAgentService implements IRemoteAgentService {
 class RemoteAgentConnection extends Disposable implements IRemoteAgentConnection {
 
 	readonly remoteAuthority: string;
-	private _connection: Thenable<Client<RemoteAgentConnectionContext>> | null;
-	private _environment: Thenable<IRemoteAgentEnvironment | null> | null;
+	private _connection: Promise<Client<RemoteAgentConnectionContext>> | null;
+	private _environment: Promise<IRemoteAgentEnvironment | null> | null;
 
 	constructor(
 		remoteAuthority: string,
@@ -55,7 +55,7 @@ class RemoteAgentConnection extends Disposable implements IRemoteAgentConnection
 		this._environment = null;
 	}
 
-	getEnvironment(): Thenable<IRemoteAgentEnvironment | null> {
+	getEnvironment(): Promise<IRemoteAgentEnvironment | null> {
 		if (!this._environment) {
 			const client = new RemoteExtensionEnvironmentChannelClient(this.getChannel('remoteextensionsenvironment'));
 
@@ -74,10 +74,10 @@ class RemoteAgentConnection extends Disposable implements IRemoteAgentConnection
 		this._getOrCreateConnection().then(client => client.registerChannel(channelName, channel));
 	}
 
-	private _getOrCreateConnection(): Thenable<Client<RemoteAgentConnectionContext>> {
+	private _getOrCreateConnection(): Promise<Client<RemoteAgentConnectionContext>> {
 		if (!this._connection) {
 			this._connection = this._remoteAuthorityResolverService.resolveAuthority(this.remoteAuthority).then((resolvedAuthority) => {
-				return connectRemoteAgentManagement(this.remoteAuthority, resolvedAuthority.host, resolvedAuthority.port, `renderer`);
+				return connectRemoteAgentManagement(this.remoteAuthority, resolvedAuthority.host, resolvedAuthority.port, `renderer`, this._environmentService.isBuilt);
 			});
 		}
 		return this._connection;

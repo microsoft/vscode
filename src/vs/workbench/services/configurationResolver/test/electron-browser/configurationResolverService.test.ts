@@ -416,6 +416,33 @@ suite('Configuration Resolver Service', () => {
 			assert.equal(0, mockCommandService.callCount);
 		});
 	});
+	test('a single command input variable', () => {
+
+		const configuration = {
+			'name': 'Attach to Process',
+			'type': 'node',
+			'request': 'attach',
+			'processId': '${input:input4}',
+			'port': 5858,
+			'sourceMaps': false,
+			'outDir': null
+		};
+
+		return configurationResolverService.resolveWithInteractionReplace(workspace, configuration, 'tasks').then(result => {
+
+			assert.deepEqual(result, {
+				'name': 'Attach to Process',
+				'type': 'node',
+				'request': 'attach',
+				'processId': 'arg for command',
+				'port': 5858,
+				'sourceMaps': false,
+				'outDir': null
+			});
+
+			assert.equal(1, mockCommandService.callCount);
+		});
+	});
 	test('several input variables and command', () => {
 
 		const configuration = {
@@ -423,6 +450,7 @@ suite('Configuration Resolver Service', () => {
 			'type': '${command:command1}',
 			'request': '${input:input1}',
 			'processId': '${input:input2}',
+			'command': '${input:input4}',
 			'port': 5858,
 			'sourceMaps': false,
 			'outDir': null
@@ -435,12 +463,13 @@ suite('Configuration Resolver Service', () => {
 				'type': 'command1-result',
 				'request': 'resolvedEnterinput1',
 				'processId': 'selectedPick',
+				'command': 'arg for command',
 				'port': 5858,
 				'sourceMaps': false,
 				'outDir': null
 			});
 
-			assert.equal(1, mockCommandService.callCount);
+			assert.equal(2, mockCommandService.callCount);
 		});
 	});
 });
@@ -450,7 +479,7 @@ class MockConfigurationService implements IConfigurationService {
 	public _serviceBrand: any;
 	public serviceId = IConfigurationService;
 	public constructor(private configuration: any = {}) { }
-	public inspect<T>(key: string, overrides?: IConfigurationOverrides): any { return { value: getConfigurationValue<T>(this.getValue(), key), default: getConfigurationValue<T>(this.getValue(), key), user: getConfigurationValue<T>(this.getValue(), key), workspaceFolder: void 0, folder: void 0 }; }
+	public inspect<T>(key: string, overrides?: IConfigurationOverrides): any { return { value: getConfigurationValue<T>(this.getValue(), key), default: getConfigurationValue<T>(this.getValue(), key), user: getConfigurationValue<T>(this.getValue(), key), workspaceFolder: undefined, folder: undefined }; }
 	public keys() { return { default: [], user: [], workspace: [], workspaceFolder: [] }; }
 	public getValue(): any;
 	public getValue(value: string): any;
@@ -495,9 +524,9 @@ class MockCommandService implements ICommandService {
 class MockQuickInputService implements IQuickInputService {
 	_serviceBrand: any;
 
-	public pick<T extends IQuickPickItem>(picks: Thenable<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: true }, token?: CancellationToken): Promise<T[]>;
-	public pick<T extends IQuickPickItem>(picks: Thenable<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: false }, token?: CancellationToken): Promise<T>;
-	public pick<T extends IQuickPickItem>(picks: Thenable<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: Omit<IPickOptions<T>, 'canPickMany'>, token?: CancellationToken): Promise<T> {
+	public pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: true }, token?: CancellationToken): Promise<T[]>;
+	public pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: false }, token?: CancellationToken): Promise<T>;
+	public pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: Omit<IPickOptions<T>, 'canPickMany'>, token?: CancellationToken): Promise<T> {
 		if (Types.isArray(picks)) {
 			return Promise.resolve(<T>{ label: 'selectedPick', description: 'pick description' });
 		} else {
@@ -568,6 +597,14 @@ class MockInputsConfigurationService extends TestConfigurationService {
 						type: 'promptString',
 						description: 'Enterinput3',
 						default: 'default input3'
+					},
+					{
+						id: 'input4',
+						type: 'command',
+						command: 'command1',
+						args: {
+							value: 'arg for command'
+						}
 					}
 				]
 			};

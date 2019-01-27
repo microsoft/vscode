@@ -23,12 +23,12 @@ export class DirtyFilesTracker extends Disposable implements IWorkbenchContribut
 	private badgeHandle: IDisposable;
 
 	constructor(
-		@ITextFileService private textFileService: ITextFileService,
-		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IEditorService private editorService: IEditorService,
-		@IActivityService private activityService: IActivityService,
-		@IWindowService private windowService: IWindowService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IActivityService private readonly activityService: IActivityService,
+		@IWindowService private readonly windowService: IWindowService,
+		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService
 	) {
 		super();
 

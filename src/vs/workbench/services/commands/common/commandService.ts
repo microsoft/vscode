@@ -35,7 +35,7 @@ export class CommandService extends Disposable implements ICommandService {
 		// we don't wait for it when the extension
 		// host didn't yet start and the command is already registered
 
-		const activation: Thenable<any> = this._extensionService.activateByEvent(`onCommand:${id}`);
+		const activation: Promise<any> = this._extensionService.activateByEvent(`onCommand:${id}`);
 		const commandIsRegistered = !!CommandsRegistry.getCommand(id);
 
 		if (!this._extensionHostIsReady && commandIsRegistered) {

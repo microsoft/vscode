@@ -14,19 +14,20 @@ import { IExtensionDescription } from 'vs/workbench/services/extensions/common/e
 import { NullLogService } from 'vs/platform/log/common/log';
 import { IMainContext } from 'vs/workbench/api/node/extHost.protocol';
 import { Counter } from 'vs/base/common/numbers';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 suite('ExtHostWorkspace', function () {
 
 	const extensionDescriptor: IExtensionDescription = {
-		id: 'nullExtensionDescription',
+		identifier: new ExtensionIdentifier('nullExtensionDescription'),
 		name: 'ext',
 		publisher: 'vscode',
 		enableProposedApi: false,
-		engines: undefined,
-		extensionLocation: undefined,
+		engines: undefined!,
+		extensionLocation: undefined!,
 		isBuiltin: false,
 		isUnderDevelopment: false,
-		version: undefined
+		version: undefined!
 	};
 
 	function assertAsRelativePath(workspace: ExtHostWorkspace, input: string, expected: string, includeWorkspace?: boolean) {
@@ -63,7 +64,7 @@ suite('ExtHostWorkspace', function () {
 	});
 
 	test('asRelativePath, no workspace', function () {
-		const ws = new ExtHostWorkspace(new TestRPCProtocol(), null, new NullLogService(), new Counter());
+		const ws = new ExtHostWorkspace(new TestRPCProtocol(), null!, new NullLogService(), new Counter());
 		assertAsRelativePath(ws, (''), '');
 		assertAsRelativePath(ws, ('/foo/bar'), '/foo/bar');
 	});
@@ -101,10 +102,10 @@ suite('ExtHostWorkspace', function () {
 		let ws = new ExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', name: 'Test', folders: [] }, new NullLogService(), new Counter());
 		assert.equal(ws.getPath(), undefined);
 
-		ws = new ExtHostWorkspace(new TestRPCProtocol(), null, new NullLogService(), new Counter());
+		ws = new ExtHostWorkspace(new TestRPCProtocol(), null!, new NullLogService(), new Counter());
 		assert.equal(ws.getPath(), undefined);
 
-		ws = new ExtHostWorkspace(new TestRPCProtocol(), undefined, new NullLogService(), new Counter());
+		ws = new ExtHostWorkspace(new TestRPCProtocol(), undefined!, new NullLogService(), new Counter());
 		assert.equal(ws.getPath(), undefined);
 
 		ws = new ExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.file('Folder'), 0), aWorkspaceFolderData(URI.file('Another/Folder'), 1)] }, new NullLogService(), new Counter());
@@ -259,7 +260,7 @@ suite('ExtHostWorkspace', function () {
 	test('updateWorkspaceFolders - invalid arguments', function () {
 		let ws = new ExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', name: 'Test', folders: [] }, new NullLogService(), new Counter());
 
-		assert.equal(false, ws.updateWorkspaceFolders(extensionDescriptor, null, null));
+		assert.equal(false, ws.updateWorkspaceFolders(extensionDescriptor, null!, null!));
 		assert.equal(false, ws.updateWorkspaceFolders(extensionDescriptor, 0, 0));
 		assert.equal(false, ws.updateWorkspaceFolders(extensionDescriptor, 0, 1));
 		assert.equal(false, ws.updateWorkspaceFolders(extensionDescriptor, 1, 0));
@@ -283,9 +284,9 @@ suite('ExtHostWorkspace', function () {
 		};
 
 		const protocol: IMainContext = {
-			getProxy: () => { return undefined; },
-			set: undefined,
-			assertRegistered: undefined
+			getProxy: () => { return undefined!; },
+			set: undefined!,
+			assertRegistered: undefined!
 		};
 
 		const ws = new ExtHostWorkspace(protocol, { id: 'foo', name: 'Test', folders: [] }, new NullLogService(), new Counter());

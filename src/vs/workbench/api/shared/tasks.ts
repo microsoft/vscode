@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { UriComponents } from 'vs/base/common/uri';
+import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 
 export interface TaskDefinitionDTO {
 	type: string;
@@ -17,6 +18,7 @@ export interface TaskPresentationOptionsDTO {
 	panel?: number;
 	showReuseMessage?: boolean;
 	clear?: boolean;
+	group?: string;
 }
 
 export interface RunOptionsDTO {
@@ -60,7 +62,7 @@ export interface ShellQuotedStringDTO {
 export interface ShellExecutionDTO {
 	commandLine?: string;
 	command?: string | ShellQuotedStringDTO;
-	args?: (string | ShellQuotedStringDTO)[];
+	args?: Array<string | ShellQuotedStringDTO>;
 	options?: ShellExecutionOptionsDTO;
 }
 
@@ -87,6 +89,11 @@ export interface TaskDTO {
 	problemMatchers: string[];
 	hasDefinedMatchers: boolean;
 	runOptions: RunOptionsDTO;
+}
+
+export interface TaskSetDTO {
+	tasks: TaskDTO[];
+	extension: IExtensionDescription;
 }
 
 export interface TaskExecutionDTO {

@@ -5,7 +5,7 @@
 
 import { spawn, ChildProcess } from 'child_process';
 import { assign } from 'vs/base/common/objects';
-import { parseCLIProcessArgv, buildHelpMessage } from 'vs/platform/environment/node/argv';
+import { buildHelpMessage, buildVersionMessage } from 'vs/platform/environment/node/argv';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
@@ -20,6 +20,7 @@ import { writeFileAndFlushSync } from 'vs/base/node/extfs';
 import { isWindows } from 'vs/base/common/platform';
 import { ProfilingSession, Target } from 'v8-inspect-profiler';
 import { createWaitMarkerFile } from 'vs/code/node/wait';
+import { parseCLIProcessArgv } from 'vs/platform/environment/node/argvHelper';
 
 function shouldSpawnCliProcess(argv: ParsedArgs): boolean {
 	return !!argv['install-source']
@@ -29,7 +30,7 @@ function shouldSpawnCliProcess(argv: ParsedArgs): boolean {
 }
 
 interface IMainCli {
-	main: (argv: ParsedArgs) => Thenable<void>;
+	main: (argv: ParsedArgs) => Promise<void>;
 }
 
 export async function main(argv: string[]): Promise<any> {
@@ -44,12 +45,13 @@ export async function main(argv: string[]): Promise<any> {
 
 	// Help
 	if (args.help) {
-		console.log(buildHelpMessage(product.nameLong, product.applicationName, pkg.version));
+		const executable = `${product.applicationName}${os.platform() === 'win32' ? '.exe' : ''}`;
+		console.log(buildHelpMessage(product.nameLong, executable, pkg.version));
 	}
 
 	// Version Info
 	else if (args.version) {
-		console.log(`${pkg.version}\n${product.commit}\n${process.arch}`);
+		console.log(buildVersionMessage(pkg.version, product.commit));
 	}
 
 	// Extensions Management
@@ -121,7 +123,7 @@ export async function main(argv: string[]): Promise<any> {
 
 		delete env['ELECTRON_RUN_AS_NODE'];
 
-		const processCallbacks: ((child: ChildProcess) => Thenable<any>)[] = [];
+		const processCallbacks: ((child: ChildProcess) => Promise<any>)[] = [];
 
 		const verbose = args.verbose || args.status || typeof args['upload-logs'] !== 'undefined';
 		if (verbose) {
@@ -206,14 +208,14 @@ export async function main(argv: string[]): Promise<any> {
 							console.log(`Run with '${product.applicationName} -' to read from stdin (e.g. 'ps aux | grep code | ${product.applicationName} -').`);
 						}
 
-						c(void 0);
+						c(undefined);
 					};
 
 					// wait for 1s maximum...
 					setTimeout(() => {
 						process.stdin.removeListener('data', dataListener);
 
-						c(void 0);
+						c(undefined);
 					}, 1000);
 
 					// ...but finish early if we detect data
@@ -360,7 +362,7 @@ export async function main(argv: string[]): Promise<any> {
 			return new Promise<void>(c => {
 
 				// Complete when process exits
-				child.once('exit', () => c(void 0));
+				child.once('exit', () => c(undefined));
 
 				// Complete when wait marker file is deleted
 				whenDeleted(waitMarkerFilePath!).then(c, c);

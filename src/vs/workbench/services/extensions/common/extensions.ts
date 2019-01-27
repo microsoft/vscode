@@ -8,33 +8,20 @@ import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { ExtensionIdentifier, IExtensionManifest, IExtension, ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 
-export interface IExtensionDescription {
-	readonly id: string;
-	readonly name: string;
+export interface IExtensionDescription extends IExtensionManifest {
+	readonly identifier: ExtensionIdentifier;
 	readonly uuid?: string;
-	readonly displayName?: string;
-	readonly version: string;
-	readonly publisher: string;
 	readonly isBuiltin: boolean;
 	readonly isUnderDevelopment: boolean;
 	readonly extensionLocation: URI;
-	readonly extensionDependencies?: string[];
-	readonly activationEvents?: string[];
-	readonly engines: {
-		vscode: string;
-	};
-	readonly main?: string;
-	readonly contributes?: { [point: string]: any; };
-	readonly keywords?: string[];
-	readonly repository?: {
-		url: string;
-	};
 	enableProposedApi?: boolean;
 }
 
 export const nullExtensionDescription = Object.freeze(<IExtensionDescription>{
-	id: 'nullExtensionDescription',
+	identifier: new ExtensionIdentifier('nullExtensionDescription'),
 	name: 'Null Extension Description',
 	version: '0.0.0',
 	publisher: 'vscode',
@@ -49,7 +36,7 @@ export const IExtensionService = createDecorator<IExtensionService>('extensionSe
 export interface IMessage {
 	type: Severity;
 	message: string;
-	extensionId: string;
+	extensionId: ExtensionIdentifier;
 	extensionPointId: string;
 }
 
@@ -129,7 +116,7 @@ export const ExtensionHostLogFileName = 'exthost';
 
 export interface IWillActivateEvent {
 	readonly event: string;
-	readonly activation: Thenable<void>;
+	readonly activation: Promise<void>;
 }
 
 export interface IResponsiveStateChangeEvent {
@@ -154,7 +141,12 @@ export interface IExtensionService extends ICpuProfilerTarget {
 	 * Fired when extensions status changes.
 	 * The event contains the ids of the extensions that have changed.
 	 */
-	onDidChangeExtensionsStatus: Event<string[]>;
+	onDidChangeExtensionsStatus: Event<ExtensionIdentifier[]>;
+
+	/**
+	 * Fired when the available extensions change (i.e. when extensions are added or removed).
+	 */
+	onDidChangeExtensions: Event<void>;
 
 	/**
 	 * An event that is fired when activation happens.
@@ -170,7 +162,7 @@ export interface IExtensionService extends ICpuProfilerTarget {
 	/**
 	 * Send an activation event and activate interested extensions.
 	 */
-	activateByEvent(activationEvent: string): Thenable<void>;
+	activateByEvent(activationEvent: string): Promise<void>;
 
 	/**
 	 * An promise that resolves when the installed extensions are registered after
@@ -244,5 +236,14 @@ export function checkProposedApiEnabled(extension: IExtensionDescription): void 
 }
 
 export function throwProposedApiError(extension: IExtensionDescription): never {
-	throw new Error(`[${extension.id}]: Proposed API is only available when running out of dev or with the following command line switch: --enable-proposed-api ${extension.id}`);
+	throw new Error(`[${extension.identifier.value}]: Proposed API is only available when running out of dev or with the following command line switch: --enable-proposed-api ${extension.identifier.value}`);
+}
+
+export function toExtension(extensionDescription: IExtensionDescription): IExtension {
+	return {
+		type: extensionDescription.isBuiltin ? ExtensionType.System : ExtensionType.User,
+		identifier: { id: getGalleryExtensionId(extensionDescription.publisher, extensionDescription.name), uuid: extensionDescription.uuid },
+		manifest: extensionDescription,
+		location: extensionDescription.extensionLocation,
+	};
 }

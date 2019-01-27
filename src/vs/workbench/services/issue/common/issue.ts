@@ -10,6 +10,6 @@ export const IWorkbenchIssueService = createDecorator<IWorkbenchIssueService>('w
 
 export interface IWorkbenchIssueService {
 	_serviceBrand: any;
-	openReporter(dataOverrides?: Partial<IssueReporterData>): Thenable<void>;
-	openProcessExplorer(): Thenable<void>;
+	openReporter(dataOverrides?: Partial<IssueReporterData>): Promise<void>;
+	openProcessExplorer(): Promise<void>;
 }

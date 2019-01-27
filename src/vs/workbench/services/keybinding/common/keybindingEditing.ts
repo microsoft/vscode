@@ -32,11 +32,11 @@ export interface IKeybindingEditingService {
 
 	_serviceBrand: ServiceIdentifier<any>;
 
-	editKeybinding(key: string, keybindingItem: ResolvedKeybindingItem): Thenable<void>;
+	editKeybinding(key: string, keybindingItem: ResolvedKeybindingItem): Promise<void>;
 
-	removeKeybinding(keybindingItem: ResolvedKeybindingItem): Thenable<void>;
+	removeKeybinding(keybindingItem: ResolvedKeybindingItem): Promise<void>;
 
-	resetKeybinding(keybindingItem: ResolvedKeybindingItem): Thenable<void>;
+	resetKeybinding(keybindingItem: ResolvedKeybindingItem): Promise<void>;
 }
 
 export class KeybindingsEditingService extends Disposable implements IKeybindingEditingService {
@@ -47,29 +47,29 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 	private resource: URI = URI.file(this.environmentService.appKeybindingsPath);
 
 	constructor(
-		@ITextModelService private textModelResolverService: ITextModelService,
-		@ITextFileService private textFileService: ITextFileService,
-		@IFileService private fileService: IFileService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@ITextModelService private readonly textModelResolverService: ITextModelService,
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@IFileService private readonly fileService: IFileService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
 		super();
 		this.queue = new Queue<void>();
 	}
 
-	editKeybinding(key: string, keybindingItem: ResolvedKeybindingItem): Thenable<void> {
+	editKeybinding(key: string, keybindingItem: ResolvedKeybindingItem): Promise<void> {
 		return this.queue.queue(() => this.doEditKeybinding(key, keybindingItem)); // queue up writes to prevent race conditions
 	}
 
-	resetKeybinding(keybindingItem: ResolvedKeybindingItem): Thenable<void> {
+	resetKeybinding(keybindingItem: ResolvedKeybindingItem): Promise<void> {
 		return this.queue.queue(() => this.doResetKeybinding(keybindingItem)); // queue up writes to prevent race conditions
 	}
 
-	removeKeybinding(keybindingItem: ResolvedKeybindingItem): Thenable<void> {
+	removeKeybinding(keybindingItem: ResolvedKeybindingItem): Promise<void> {
 		return this.queue.queue(() => this.doRemoveKeybinding(keybindingItem)); // queue up writes to prevent race conditions
 	}
 
-	private doEditKeybinding(key: string, keybindingItem: ResolvedKeybindingItem): Thenable<void> {
+	private doEditKeybinding(key: string, keybindingItem: ResolvedKeybindingItem): Promise<void> {
 		return this.resolveAndValidate()
 			.then(reference => {
 				const model = reference.object.textEditorModel;
@@ -83,7 +83,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 			});
 	}
 
-	private doRemoveKeybinding(keybindingItem: ResolvedKeybindingItem): Thenable<void> {
+	private doRemoveKeybinding(keybindingItem: ResolvedKeybindingItem): Promise<void> {
 		return this.resolveAndValidate()
 			.then(reference => {
 				const model = reference.object.textEditorModel;
@@ -96,7 +96,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 			});
 	}
 
-	private doResetKeybinding(keybindingItem: ResolvedKeybindingItem): Thenable<void> {
+	private doResetKeybinding(keybindingItem: ResolvedKeybindingItem): Promise<void> {
 		return this.resolveAndValidate()
 			.then(reference => {
 				const model = reference.object.textEditorModel;
@@ -108,7 +108,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 			});
 	}
 
-	private save(): Thenable<any> {
+	private save(): Promise<any> {
 		return this.textFileService.save(this.resource);
 	}
 
@@ -130,7 +130,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 		const userKeybindingEntries = <IUserFriendlyKeybinding[]>json.parse(model.getValue());
 		const userKeybindingEntryIndex = this.findUserKeybindingEntryIndex(keybindingItem, userKeybindingEntries);
 		if (userKeybindingEntryIndex !== -1) {
-			this.applyEditsToBuffer(setProperty(model.getValue(), [userKeybindingEntryIndex], void 0, { tabSize, insertSpaces, eol })[0], model);
+			this.applyEditsToBuffer(setProperty(model.getValue(), [userKeybindingEntryIndex], undefined, { tabSize, insertSpaces, eol })[0], model);
 		}
 	}
 
@@ -146,7 +146,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 		const userKeybindingEntries = <IUserFriendlyKeybinding[]>json.parse(model.getValue());
 		const indices = this.findUnassignedDefaultKeybindingEntryIndex(keybindingItem, userKeybindingEntries).reverse();
 		for (const index of indices) {
-			this.applyEditsToBuffer(setProperty(model.getValue(), [index], void 0, { tabSize, insertSpaces, eol })[0], model);
+			this.applyEditsToBuffer(setProperty(model.getValue(), [index], undefined, { tabSize, insertSpaces, eol })[0], model);
 		}
 	}
 
@@ -197,16 +197,16 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 	}
 
 
-	private resolveModelReference(): Thenable<IReference<ITextEditorModel>> {
+	private resolveModelReference(): Promise<IReference<ITextEditorModel>> {
 		return this.fileService.existsFile(this.resource)
 			.then(exists => {
 				const EOL = this.configurationService.getValue('files', { overrideIdentifier: 'json' })['eol'];
-				const result: Thenable<any> = exists ? Promise.resolve(null) : this.fileService.updateContent(this.resource, this.getEmptyContent(EOL), { encoding: 'utf8' });
+				const result: Promise<any> = exists ? Promise.resolve(null) : this.fileService.updateContent(this.resource, this.getEmptyContent(EOL), { encoding: 'utf8' });
 				return result.then(() => this.textModelResolverService.createModelReference(this.resource));
 			});
 	}
 
-	private resolveAndValidate(): Thenable<IReference<ITextEditorModel>> {
+	private resolveAndValidate(): Promise<IReference<ITextEditorModel>> {
 
 		// Target cannot be dirty if not writing into buffer
 		if (this.textFileService.isDirty(this.resource)) {

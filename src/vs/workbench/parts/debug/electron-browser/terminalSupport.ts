@@ -8,7 +8,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { ITerminalService, ITerminalInstance } from 'vs/workbench/parts/terminal/common/terminal';
 import { ITerminalService as IExternalTerminalService } from 'vs/workbench/parts/execution/common/execution';
 import { ITerminalLauncher, ITerminalSettings } from 'vs/workbench/parts/debug/common/debug';
-import { hasChildprocesses, prepareCommand } from 'vs/workbench/parts/debug/node/terminals';
+import { hasChildProcesses, prepareCommand } from 'vs/workbench/parts/debug/node/terminals';
 
 export class TerminalLauncher implements ITerminalLauncher {
 
@@ -16,8 +16,8 @@ export class TerminalLauncher implements ITerminalLauncher {
 	private terminalDisposedListener: IDisposable;
 
 	constructor(
-		@ITerminalService private terminalService: ITerminalService,
-		@IExternalTerminalService private nativeTerminalService: IExternalTerminalService
+		@ITerminalService private readonly terminalService: ITerminalService,
+		@IExternalTerminalService private readonly nativeTerminalService: IExternalTerminalService
 	) {
 	}
 
@@ -37,7 +37,7 @@ export class TerminalLauncher implements ITerminalLauncher {
 		}
 
 		let t = this.integratedTerminalInstance;
-		if ((t && hasChildprocesses(t.processId)) || !t) {
+		if ((t && hasChildProcesses(t.processId)) || !t) {
 			t = this.terminalService.createTerminal({ name: args.title || nls.localize('debug.terminal.title', "debuggee") });
 			this.integratedTerminalInstance = t;
 		}

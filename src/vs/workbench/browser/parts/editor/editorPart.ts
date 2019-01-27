@@ -11,7 +11,7 @@ import { Event, Emitter, Relay } from 'vs/base/common/event';
 import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { GroupDirection, IAddGroupOptions, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, ICopyEditorOptions, GroupsOrder, GroupChangeKind, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Direction, SerializableGrid, Sizing, ISerializedGrid, Orientation, GridBranchNode, isGridBranchNode, GridNode, createSerializedGrid, Grid } from 'vs/base/browser/ui/grid/grid';
+import { Direction, SerializableGrid, Sizing, ISerializedGrid, Orientation, GridBranchNode, isGridBranchNode, GridNode, createSerializedGrid, Grid, ISerializableView } from 'vs/base/browser/ui/grid/grid';
 import { GroupIdentifier, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { values } from 'vs/base/common/map';
 import { EDITOR_GROUP_BORDER, EDITOR_PANE_BACKGROUND } from 'vs/workbench/common/theme';
@@ -23,13 +23,13 @@ import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorGroup';
-import { always } from 'vs/base/common/async';
 import { EditorDropTarget } from 'vs/workbench/browser/parts/editor/editorDropTarget';
 import { localize } from 'vs/nls';
 import { Color } from 'vs/base/common/color';
 import { CenteredViewLayout } from 'vs/base/browser/ui/centered/centeredViewLayout';
-import { IView, orthogonal } from 'vs/base/browser/ui/grid/gridview';
+import { IView, orthogonal, LayoutPriority } from 'vs/base/browser/ui/grid/gridview';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { Parts } from 'vs/workbench/services/part/common/partService';
 
 interface IEditorPartUIState {
 	serializedGrid: ISerializedGrid;
@@ -79,7 +79,7 @@ class GridWidgetView<T extends IView> implements IView {
 	}
 }
 
-export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditorGroupsAccessor {
+export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditorGroupsAccessor, ISerializableView {
 
 	_serviceBrand: any;
 
@@ -129,15 +129,22 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	private gridWidget: SerializableGrid<IEditorGroupView>;
 	private gridWidgetView: GridWidgetView<IEditorGroupView>;
 
-	private _whenRestored: Thenable<void>;
+	private _whenRestored: Promise<void>;
 	private whenRestoredResolve: () => void;
+
+	element: HTMLElement;
+
+	private _onDidChange = new Emitter<{ width: number; height: number; }>();
+	readonly onDidChange = this._onDidChange.event;
+
+	priority: LayoutPriority = LayoutPriority.High;
 
 	constructor(
 		id: string,
 		private restorePreviousState: boolean,
-		@IInstantiationService private instantiationService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
-		@IConfigurationService private configurationService: IConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService
 	) {
 		super(id, { hasTitle: false }, themeService, storageService);
@@ -216,13 +223,13 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 
 	get orientation(): GroupOrientation {
 		if (!this.gridWidget) {
-			return void 0; // we have not been created yet
+			return undefined; // we have not been created yet
 		}
 
 		return this.gridWidget.orientation === Orientation.VERTICAL ? GroupOrientation.VERTICAL : GroupOrientation.HORIZONTAL;
 	}
 
-	get whenRestored(): Thenable<void> {
+	get whenRestored(): Promise<void> {
 		return this._whenRestored;
 	}
 
@@ -758,7 +765,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	private resetPreferredSize(): void {
 
 		// Reset (will be computed upon next access)
-		this._preferredSize = void 0;
+		this._preferredSize = undefined;
 
 		// Event
 		this._onDidPreferredSizeChange.fire();
@@ -779,6 +786,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	createContentArea(parent: HTMLElement): HTMLElement {
 
 		// Container
+		this.element = parent;
 		this.container = document.createElement('div');
 		addClass(this.container, 'content');
 		parent.appendChild(this.container);
@@ -820,7 +828,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		}
 
 		// Signal restored
-		always(Promise.all(this.groups.map(group => group.whenRestored)), () => this.whenRestoredResolve());
+		Promise.all(this.groups.map(group => group.whenRestored)).finally(() => this.whenRestoredResolve());
 
 		// Update container
 		this.updateContainer();
@@ -857,7 +865,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 
 		this.groupViews.forEach(group => group.dispose());
 		this.groupViews.clear();
-		this._activeGroup = void 0;
+		this._activeGroup = undefined;
 		this.mostRecentActiveGroups = [];
 	}
 
@@ -920,7 +928,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 			this._onDidSizeConstraintsChange.input = gridWidget.onDidChange;
 		}
 
-		this.onDidSetGridWidget.fire();
+		this.onDidSetGridWidget.fire(undefined);
 	}
 
 	private updateContainer(): void {
@@ -946,12 +954,16 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		return this.groupViews.size === 1 && this._activeGroup.isEmpty();
 	}
 
-	layout(dimension: Dimension): Dimension[] {
-		const sizes = super.layout(dimension);
+	layout(dimension: Dimension): Dimension[];
+	layout(width: number, height: number): void;
+	layout(dim1: Dimension | number, dim2?: number): Dimension[] | void {
+		const sizes = super.layout(dim1 instanceof Dimension ? dim1 : new Dimension(dim1, dim2));
 
 		this.doLayout(sizes[1]);
 
-		return sizes;
+		if (dim1 instanceof Dimension) {
+			return sizes;
+		}
 	}
 
 	private doLayout(dimension: Dimension): void {
@@ -1007,4 +1019,10 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	}
 
 	//#endregion
+
+	toJSON(): object {
+		return {
+			type: Parts.EDITOR_PART
+		};
+	}
 }

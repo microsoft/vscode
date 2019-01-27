@@ -57,13 +57,13 @@ export class ChokidarWatcherService implements IWatcherService {
 		return this.onWatchEvent;
 	}
 
-	public setVerboseLogging(enabled: boolean): Thenable<void> {
+	public setVerboseLogging(enabled: boolean): Promise<void> {
 		this._verboseLogging = enabled;
 
 		return Promise.resolve();
 	}
 
-	public setRoots(requests: IWatcherRequest[]): Thenable<void> {
+	public setRoots(requests: IWatcherRequest[]): Promise<void> {
 		const watchers = Object.create(null);
 		const newRequests: string[] = [];
 
@@ -269,7 +269,7 @@ export class ChokidarWatcherService implements IWatcherService {
 		return watcher;
 	}
 
-	public stop(): Thenable<void> {
+	public stop(): Promise<void> {
 		for (let path in this._watchers) {
 			let watcher = this._watchers[path];
 			watcher.stop();

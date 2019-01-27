@@ -6,7 +6,7 @@
 import * as DOM from 'vs/base/browser/dom';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { escape } from 'vs/base/common/strings';
-import { removeMarkdownEscapes, IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
+import { removeMarkdownEscapes, IMarkdownString } from 'vs/base/common/htmlContent';
 import * as marked from 'vs/base/common/marked/marked';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -24,7 +24,7 @@ export interface RenderOptions {
 	className?: string;
 	inline?: boolean;
 	actionHandler?: IContentActionHandler;
-	codeBlockRenderer?: (modeId: string, value: string) => Thenable<string>;
+	codeBlockRenderer?: (modeId: string, value: string) => Promise<string>;
 	codeBlockRenderCallback?: () => void;
 }
 
@@ -92,7 +92,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions
 
 	// signal to code-block render that the
 	// element has been created
-	let signalInnerHTML: Function;
+	let signalInnerHTML: () => void;
 	const withInnerHTML = new Promise(c => signalInnerHTML = c);
 
 	const renderer = new marked.Renderer();
@@ -211,7 +211,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions
 	}
 
 	const markedOptions: marked.MarkedOptions = {
-		sanitize: markdown instanceof MarkdownString ? markdown.sanitize : true,
+		sanitize: true,
 		renderer
 	};
 

@@ -15,7 +15,6 @@ import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService
 import { EditorService, DelegatingEditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { IEditorGroup, IEditorGroupsService, GroupDirection } from 'vs/workbench/services/group/common/editorGroupsService';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
-import { Dimension } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -33,10 +32,10 @@ export class TestEditorControl extends BaseEditor {
 
 	constructor(@ITelemetryService telemetryService: ITelemetryService) { super('MyTestEditorForEditorService', NullTelemetryService, new TestThemeService(), new TestStorageService()); }
 
-	setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
+	setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
 		super.setInput(input, options, token);
 
-		return input.resolve().then(() => void 0);
+		return input.resolve().then(() => undefined);
 	}
 
 	getId(): string { return 'MyTestEditorForEditorService'; }
@@ -50,7 +49,7 @@ export class TestEditorInput extends EditorInput implements IFileEditorInput {
 	constructor(private resource: URI) { super(); }
 
 	getTypeId() { return 'testEditorInputForEditorService'; }
-	resolve(): Thenable<IEditorModel> { return !this.fails ? Promise.resolve(null) : Promise.reject(new Error('fails')); }
+	resolve(): Promise<IEditorModel> { return !this.fails ? Promise.resolve(null) : Promise.reject(new Error('fails')); }
 	matches(other: TestEditorInput): boolean { return other && other.resource && this.resource.toString() === other.resource.toString() && other instanceof TestEditorInput; }
 	setEncoding(encoding: string) { }
 	getEncoding(): string { return null; }
@@ -79,7 +78,7 @@ suite('Editor service', () => {
 
 		const part = partInstantiator.createInstance(EditorPart, 'id', false);
 		part.create(document.createElement('div'));
-		part.layout(new Dimension(400, 300));
+		part.layout(400, 300);
 
 		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([IEditorGroupsService, part]));
 
@@ -121,25 +120,26 @@ suite('Editor service', () => {
 				assert.equal(visibleEditorChangeEventCounter, 1);
 
 				// Close input
-				editor.group.closeEditor(input);
-				assert.equal(didCloseEditorListenerCounter, 1);
-				assert.equal(activeEditorChangeEventCounter, 2);
-				assert.equal(visibleEditorChangeEventCounter, 2);
-				assert.ok(input.gotDisposed);
+				return editor.group.closeEditor(input).then(() => {
+					assert.equal(didCloseEditorListenerCounter, 1);
+					assert.equal(activeEditorChangeEventCounter, 2);
+					assert.equal(visibleEditorChangeEventCounter, 2);
+					assert.ok(input.gotDisposed);
 
-				// Open again 2 inputs
-				return service.openEditor(input, { pinned: true }).then(editor => {
-					return service.openEditor(otherInput, { pinned: true }).then(editor => {
-						assert.equal(service.visibleControls.length, 1);
-						assert.equal(service.isOpen(input), true);
-						assert.equal(service.isOpen(otherInput), true);
+					// Open again 2 inputs
+					return service.openEditor(input, { pinned: true }).then(editor => {
+						return service.openEditor(otherInput, { pinned: true }).then(editor => {
+							assert.equal(service.visibleControls.length, 1);
+							assert.equal(service.isOpen(input), true);
+							assert.equal(service.isOpen(otherInput), true);
 
-						assert.equal(activeEditorChangeEventCounter, 4);
-						assert.equal(visibleEditorChangeEventCounter, 4);
+							assert.equal(activeEditorChangeEventCounter, 4);
+							assert.equal(visibleEditorChangeEventCounter, 4);
 
-						activeEditorChangeListener.dispose();
-						visibleEditorChangeListener.dispose();
-						didCloseEditorListener.dispose();
+							activeEditorChangeListener.dispose();
+							visibleEditorChangeListener.dispose();
+							didCloseEditorListener.dispose();
+						});
 					});
 				});
 			});
@@ -151,7 +151,7 @@ suite('Editor service', () => {
 
 		const part = partInstantiator.createInstance(EditorPart, 'id', false);
 		part.create(document.createElement('div'));
-		part.layout(new Dimension(400, 300));
+		part.layout(400, 300);
 
 		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([IEditorGroupsService, part]));
 
@@ -292,7 +292,7 @@ suite('Editor service', () => {
 
 		const part = partInstantiator.createInstance(EditorPart, 'id', false);
 		part.create(document.createElement('div'));
-		part.layout(new Dimension(400, 300));
+		part.layout(400, 300);
 
 		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([IEditorGroupsService, part]));
 
@@ -331,7 +331,7 @@ suite('Editor service', () => {
 
 		const part = partInstantiator.createInstance(EditorPart, 'id', false);
 		part.create(document.createElement('div'));
-		part.layout(new Dimension(400, 300));
+		part.layout(400, 300);
 
 		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([IEditorGroupsService, part]));
 
@@ -365,7 +365,7 @@ suite('Editor service', () => {
 
 		const part = partInstantiator.createInstance(EditorPart, 'id', false);
 		part.create(document.createElement('div'));
-		part.layout(new Dimension(400, 300));
+		part.layout(400, 300);
 
 		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([IEditorGroupsService, part]));
 
@@ -575,7 +575,7 @@ suite('Editor service', () => {
 
 		const part = partInstantiator.createInstance(EditorPart, 'id', false);
 		part.create(document.createElement('div'));
-		part.layout(new Dimension(400, 300));
+		part.layout(400, 300);
 
 		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([IEditorGroupsService, part]));
 

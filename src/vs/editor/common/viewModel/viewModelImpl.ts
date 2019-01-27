@@ -23,6 +23,7 @@ import { IViewModelLinesCollection, IdentityLinesCollection, SplitLinesCollectio
 import { ICoordinatesConverter, IOverviewRulerDecorations, IViewModel, MinimapLinesRenderingData, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
 import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecorations';
 import { ITheme } from 'vs/platform/theme/common/themeService';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
@@ -31,6 +32,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 	private readonly editorId: number;
 	private readonly configuration: editorCommon.IConfiguration;
 	private readonly model: ITextModel;
+	private readonly _tokenizeViewportSoon: RunOnceScheduler;
 	private hasFocus: boolean;
 	private viewportStartLine: number;
 	private viewportStartLineTrackedRange: string | null;
@@ -38,7 +40,6 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 	private readonly lines: IViewModelLinesCollection;
 	public readonly coordinatesConverter: ICoordinatesConverter;
 	public readonly viewLayout: ViewLayout;
-
 	private readonly decorations: ViewModelDecorations;
 
 	constructor(editorId: number, configuration: editorCommon.IConfiguration, model: ITextModel, scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable) {
@@ -47,6 +48,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		this.editorId = editorId;
 		this.configuration = configuration;
 		this.model = model;
+		this._tokenizeViewportSoon = this._register(new RunOnceScheduler(() => this.tokenizeViewport(), 50));
 		this.hasFocus = false;
 		this.viewportStartLine = -1;
 		this.viewportStartLineTrackedRange = null;
@@ -80,6 +82,9 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		this.viewLayout = this._register(new ViewLayout(this.configuration, this.getLineCount(), scheduleAtNextAnimationFrame));
 
 		this._register(this.viewLayout.onDidScroll((e) => {
+			if (e.scrollTopChanged) {
+				this._tokenizeViewportSoon.schedule();
+			}
 			try {
 				const eventsCollector = this._beginEmit();
 				eventsCollector.emit(new viewEvents.ViewScrollChangedEvent(e));
@@ -118,6 +123,13 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		this.decorations.dispose();
 		this.lines.dispose();
 		this.viewportStartLineTrackedRange = this.model._setTrackedRange(this.viewportStartLineTrackedRange, null, TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges);
+	}
+
+	public tokenizeViewport(): void {
+		const linesViewportData = this.viewLayout.getLinesViewportData();
+		const startPosition = this.coordinatesConverter.convertViewPositionToModelPosition(new Position(linesViewportData.startLineNumber, 1));
+		const endPosition = this.coordinatesConverter.convertViewPositionToModelPosition(new Position(linesViewportData.endLineNumber, 1));
+		this.model.tokenizeViewport(startPosition.lineNumber, endPosition.lineNumber);
 	}
 
 	public setHasFocus(hasFocus: boolean): void {
@@ -272,6 +284,10 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 				eventsCollector.emit(new viewEvents.ViewTokensChangedEvent(viewRanges));
 			} finally {
 				this._endEmit();
+			}
+
+			if (e.tokenizationSupportChanged) {
+				this._tokenizeViewportSoon.schedule();
 			}
 		}));
 
@@ -537,8 +553,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 
 	public invalidateOverviewRulerColorCache(): void {
 		const decorations = this.model.getOverviewRulerDecorations();
-		for (let i = 0, len = decorations.length; i < len; i++) {
-			const decoration = decorations[i];
+		for (const decoration of decorations) {
 			const opts = <ModelDecorationOverviewRulerOptions>decoration.options.overviewRuler;
 			if (opts) {
 				opts.invalidateCachedColor();
@@ -611,8 +626,8 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		}
 
 		let result: string[] = [];
-		for (let i = 0; i < nonEmptyRanges.length; i++) {
-			result.push(this.getValueInRange(nonEmptyRanges[i], forceCRLF ? EndOfLinePreference.CRLF : EndOfLinePreference.TextDefined));
+		for (const nonEmptyRange of nonEmptyRanges) {
+			result.push(this.getValueInRange(nonEmptyRange, forceCRLF ? EndOfLinePreference.CRLF : EndOfLinePreference.TextDefined));
 		}
 		return result.length === 1 ? result[0] : result;
 	}

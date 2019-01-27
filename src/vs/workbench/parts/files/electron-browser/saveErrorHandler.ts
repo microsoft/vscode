@@ -47,13 +47,13 @@ export class SaveErrorHandler extends Disposable implements ISaveErrorHandler, I
 	private activeConflictResolutionResource: URI;
 
 	constructor(
-		@INotificationService private notificationService: INotificationService,
-		@ITextFileService private textFileService: ITextFileService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@ITextFileService private readonly textFileService: ITextFileService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IEditorService private editorService: IEditorService,
+		@IEditorService private readonly editorService: IEditorService,
 		@ITextModelService textModelService: ITextModelService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IStorageService private storageService: IStorageService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		super();
 
@@ -193,7 +193,7 @@ function clearPendingResolveSaveConflictMessages(): void {
 class ResolveConflictLearnMoreAction extends Action {
 
 	constructor(
-		@IOpenerService private openerService: IOpenerService
+		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		super('workbench.files.action.resolveConflictLearnMore', nls.localize('learnMore', "Learn More"));
 	}
@@ -206,7 +206,7 @@ class ResolveConflictLearnMoreAction extends Action {
 class DoNotShowResolveConflictLearnMoreAction extends Action {
 
 	constructor(
-		@IStorageService private storageService: IStorageService
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		super('workbench.files.action.resolveConflictLearnMoreDoNotShowAgain', nls.localize('dontShowAgain', "Don't Show Again"));
 	}
@@ -217,7 +217,7 @@ class DoNotShowResolveConflictLearnMoreAction extends Action {
 		// Hide notification
 		notification.dispose();
 
-		return Promise.resolve(void 0);
+		return Promise.resolve();
 	}
 }
 
@@ -225,16 +225,16 @@ class ResolveSaveConflictAction extends Action {
 
 	constructor(
 		private model: ITextFileEditorModel,
-		@IEditorService private editorService: IEditorService,
-		@INotificationService private notificationService: INotificationService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IStorageService private storageService: IStorageService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEditorService private readonly editorService: IEditorService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IStorageService private readonly storageService: IStorageService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
 		super('workbench.files.action.resolveConflict', nls.localize('compareChanges', "Compare"));
 	}
 
-	run(): Thenable<any> {
+	run(): Promise<any> {
 		if (!this.model.isDisposed()) {
 			const resource = this.model.getResource();
 			const name = paths.basename(resource.fsPath);

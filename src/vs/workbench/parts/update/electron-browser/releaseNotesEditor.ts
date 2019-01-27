@@ -47,7 +47,7 @@ function renderBody(
 
 export class ReleaseNotesManager {
 
-	private _releaseNotesCache: { [version: string]: Thenable<string>; } = Object.create(null);
+	private _releaseNotesCache: { [version: string]: Promise<string>; } = Object.create(null);
 
 	private _currentReleaseNotes: WebviewEditorInput | undefined = undefined;
 	private _lastText: string;
@@ -110,7 +110,7 @@ export class ReleaseNotesManager {
 		return true;
 	}
 
-	private loadReleaseNotes(version: string): Thenable<string> {
+	private loadReleaseNotes(version: string): Promise<string> {
 		const match = /^(\d+\.\d+)\./.exec(version);
 		if (!match) {
 			return Promise.reject(new Error('not found'));
@@ -172,7 +172,7 @@ export class ReleaseNotesManager {
 	private onDidClickLink(uri: URI) {
 		addGAParameters(this._telemetryService, this._environmentService, uri, 'ReleaseNotes')
 			.then(updated => this._openerService.open(updated))
-			.then(null, onUnexpectedError);
+			.then(undefined, onUnexpectedError);
 	}
 
 	private async renderBody(text: string) {
@@ -189,9 +189,9 @@ export class ReleaseNotesManager {
 	}
 
 	private async getRenderer(text: string): Promise<marked.Renderer> {
-		let result: Thenable<ITokenizationSupport>[] = [];
+		let result: Promise<ITokenizationSupport>[] = [];
 		const renderer = new marked.Renderer();
-		renderer.code = (code, lang) => {
+		renderer.code = (_code, lang) => {
 			const modeId = this._modeService.getModeIdForLanguageName(lang);
 			result.push(this._extensionService.whenInstalledExtensionsRegistered().then(_ => {
 				this._modeService.triggerMode(modeId);
@@ -203,7 +203,10 @@ export class ReleaseNotesManager {
 		marked(text, { renderer });
 		await Promise.all(result);
 
-		renderer.code = (code, lang) => `<code>${tokenizeToString(code, TokenizationRegistry.get(lang))}</code>`;
+		renderer.code = (code, lang) => {
+			const modeId = this._modeService.getModeIdForLanguageName(lang);
+			return `<code>${tokenizeToString(code, TokenizationRegistry.get(modeId))}</code>`;
+		};
 		return renderer;
 	}
 }

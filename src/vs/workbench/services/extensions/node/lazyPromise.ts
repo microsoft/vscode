@@ -5,7 +5,7 @@
 
 import { onUnexpectedError } from 'vs/base/common/errors';
 
-export class LazyPromise implements Thenable<any> {
+export class LazyPromise implements Promise<any> {
 
 	private _actual: Promise<any> | null;
 	private _actualOk: ((value?: any) => any) | null;
@@ -77,5 +77,13 @@ export class LazyPromise implements Thenable<any> {
 
 	public then(success: any, error: any): any {
 		return this._ensureActual().then(success, error);
+	}
+
+	public catch(error: any): any {
+		return this._ensureActual().then(undefined, error);
+	}
+
+	public finally(callback): any {
+		return this._ensureActual().finally(callback);
 	}
 }

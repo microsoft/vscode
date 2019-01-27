@@ -20,14 +20,16 @@ import { CommentsDataFilter, CommentsDataSource, CommentsModelRenderer } from 'v
 import { ICommentService, IWorkspaceCommentThreadsEvent } from 'vs/workbench/parts/comments/electron-browser/commentService';
 import { IEditorService, ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { textLinkForeground, textLinkActiveForeground, focusBorder } from 'vs/platform/theme/common/colorRegistry';
+import { textLinkForeground, textLinkActiveForeground, focusBorder, textPreformatForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { ResourceLabels } from 'vs/workbench/browser/labels';
 
 export const COMMENTS_PANEL_ID = 'workbench.panel.comments';
 export const COMMENTS_PANEL_TITLE = 'Comments';
 
 export class CommentsPanel extends Panel {
+	private treeLabels: ResourceLabels;
 	private tree: WorkbenchTree;
 	private treeContainer: HTMLElement;
 	private messageBoxContainer: HTMLElement;
@@ -36,11 +38,11 @@ export class CommentsPanel extends Panel {
 	private collapseAllAction: IAction;
 
 	constructor(
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@ICommentService private commentService: ICommentService,
-		@IEditorService private editorService: IEditorService,
-		@ICommandService private commandService: ICommandService,
-		@IOpenerService private openerService: IOpenerService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ICommentService private readonly commentService: ICommentService,
+		@IEditorService private readonly editorService: IEditorService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IOpenerService private readonly openerService: IOpenerService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService
@@ -60,14 +62,18 @@ export class CommentsPanel extends Panel {
 		this.createTree();
 		this.createMessageBox(container);
 
-		this.commentService.onDidSetAllCommentThreads(this.onAllCommentsChanged, this);
-		this.commentService.onDidUpdateCommentThreads(this.onCommentsUpdated, this);
+		this._register(this.commentService.onDidSetAllCommentThreads(this.onAllCommentsChanged, this));
+		this._register(this.commentService.onDidUpdateCommentThreads(this.onCommentsUpdated, this));
 
 		const styleElement = dom.createStyleSheet(parent);
 		this.applyStyles(styleElement);
-		this.themeService.onThemeChange(_ => {
-			this.applyStyles(styleElement);
-		});
+		this._register(this.themeService.onThemeChange(_ => this.applyStyles(styleElement)));
+
+		this._register(this.onDidChangeVisibility(visible => {
+			if (visible) {
+				this.refresh();
+			}
+		}));
 
 		this.render();
 	}
@@ -89,6 +95,11 @@ export class CommentsPanel extends Panel {
 		const focusColor = theme.getColor(focusBorder);
 		if (focusColor) {
 			content.push(`.comments-panel .commenst-panel-container a:focus { outline-color: ${focusColor}; }`);
+		}
+
+		const codeTextForegroundColor = theme.getColor(textPreformatForeground);
+		if (codeTextForegroundColor) {
+			content.push(`.comments-panel .comments-panel-container .text code { color: ${codeTextForegroundColor}; }`);
 		}
 
 		styleElement.innerHTML = content.join('\n');
@@ -129,9 +140,11 @@ export class CommentsPanel extends Panel {
 	}
 
 	private createTree(): void {
-		this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
+		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels, this));
+
+		this.tree = this._register(this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
 			dataSource: new CommentsDataSource(),
-			renderer: new CommentsModelRenderer(this.instantiationService, this.openerService),
+			renderer: new CommentsModelRenderer(this.treeLabels, this.openerService),
 			accessibilityProvider: new DefaultAccessibilityProvider,
 			controller: new DefaultController(),
 			dnd: new DefaultDragAndDrop(),
@@ -139,7 +152,7 @@ export class CommentsPanel extends Panel {
 		}, {
 				twistiePixels: 20,
 				ariaLabel: COMMENTS_PANEL_TITLE
-			});
+			}));
 
 		const commentsNavigator = this._register(new TreeResourceNavigator(this.tree, { openOnFocus: true }));
 		this._register(Event.debounce(commentsNavigator.openResource, (last, event) => event, 100, true)(options => {
@@ -159,7 +172,7 @@ export class CommentsPanel extends Panel {
 		const range = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].range : element.range;
 
 		const activeEditor = this.editorService.activeEditor;
-		let currentActiveResource = activeEditor ? activeEditor.getResource() : void 0;
+		let currentActiveResource = activeEditor ? activeEditor.getResource() : undefined;
 		if (currentActiveResource && currentActiveResource.toString() === element.resource.toString()) {
 			const threadToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].threadId : element.threadId;
 			const commentToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].comment.commentId : element.comment.commentId;
@@ -171,7 +184,6 @@ export class CommentsPanel extends Panel {
 
 			return true;
 		}
-
 
 		const threadToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].threadId : element.threadId;
 		const commentToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].comment : element.comment;
@@ -195,7 +207,7 @@ export class CommentsPanel extends Panel {
 					}
 				} else {
 					let activeEditor = this.editorService.activeEditor;
-					let currentActiveResource = activeEditor ? activeEditor.getResource() : void 0;
+					let currentActiveResource = activeEditor ? activeEditor.getResource() : undefined;
 					if (currentActiveResource && currentActiveResource.toString() === element.resource.toString()) {
 						const control = this.editorService.activeTextEditorWidget;
 						if (threadToReveal && isCodeEditor(control)) {
@@ -227,16 +239,6 @@ export class CommentsPanel extends Panel {
 		}
 
 		return true;
-	}
-
-	public setVisible(visible: boolean): void {
-		const wasVisible = this.isVisible();
-		super.setVisible(visible);
-		if (this.isVisible()) {
-			if (!wasVisible) {
-				this.refresh();
-			}
-		}
 	}
 
 	private refresh(): void {

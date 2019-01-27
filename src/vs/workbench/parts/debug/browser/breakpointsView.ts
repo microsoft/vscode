@@ -50,12 +50,12 @@ export class BreakpointsView extends ViewletPanel {
 	constructor(
 		options: IViewletViewOptions,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IDebugService private debugService: IDebugService,
+		@IDebugService private readonly debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IThemeService private themeService: IThemeService,
-		@IEditorService private editorService: IEditorService,
-		@IContextViewService private contextViewService: IContextViewService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IThemeService private readonly themeService: IThemeService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('breakpointsSection', "Breakpoints Section") }, keybindingService, contextMenuService, configurationService);
@@ -76,14 +76,14 @@ export class BreakpointsView extends ViewletPanel {
 		], {
 				identityProvider: { getId: element => element.getId() },
 				multipleSelectionSupport: false,
-				typeLabelProvider: { getTypeLabel: e => e }
+				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: e => e }
 			}) as WorkbenchList<IEnablement>;
 
 		CONTEXT_BREAKPOINTS_FOCUSED.bindTo(this.list.contextKeyService);
 
 		this.list.onContextMenu(this.onListContextMenu, this, this.disposables);
 
-		this.disposables.push(this.list.onOpen(e => {
+		this.disposables.push(this.list.onDidOpen(e => {
 			let isSingleClick = false;
 			let isDoubleClick = false;
 			let isMiddleClick = false;
@@ -119,6 +119,12 @@ export class BreakpointsView extends ViewletPanel {
 		}));
 
 		this.list.splice(0, this.list.length, this.elements);
+
+		this.disposables.push(this.onDidChangeBodyVisibility(visible => {
+			if (visible && this.needsRefresh) {
+				this.onBreakpointsChange();
+			}
+		}));
 	}
 
 	public focus(): void {
@@ -128,9 +134,9 @@ export class BreakpointsView extends ViewletPanel {
 		}
 	}
 
-	protected layoutBody(size: number): void {
+	protected layoutBody(height: number, width: number): void {
 		if (this.list) {
-			this.list.layout(size);
+			this.list.layout(height, width);
 		}
 	}
 
@@ -191,22 +197,8 @@ export class BreakpointsView extends ViewletPanel {
 		];
 	}
 
-	public setExpanded(expanded: boolean): void {
-		super.setExpanded(expanded);
-		if (expanded && this.needsRefresh) {
-			this.onBreakpointsChange();
-		}
-	}
-
-	public setVisible(visible: boolean): void {
-		super.setVisible(visible);
-		if (visible && this.needsRefresh) {
-			this.onBreakpointsChange();
-		}
-	}
-
 	private onBreakpointsChange(): void {
-		if (this.isExpanded() && this.isVisible()) {
+		if (this.isBodyVisible()) {
 			this.minimumBodySize = this.getExpandedBodySize();
 			if (this.maximumBodySize < Number.POSITIVE_INFINITY) {
 				this.maximumBodySize = this.minimumBodySize;
@@ -293,8 +285,8 @@ interface IInputTemplateData {
 class BreakpointsRenderer implements IListRenderer<IBreakpoint, IBreakpointTemplateData> {
 
 	constructor(
-		@IDebugService private debugService: IDebugService,
-		@ILabelService private labelService: ILabelService
+		@IDebugService private readonly debugService: IDebugService,
+		@ILabelService private readonly labelService: ILabelService
 	) {
 		// noop
 	}
@@ -402,7 +394,7 @@ class ExceptionBreakpointsRenderer implements IListRenderer<IExceptionBreakpoint
 class FunctionBreakpointsRenderer implements IListRenderer<FunctionBreakpoint, IBaseBreakpointWithIconTemplateData> {
 
 	constructor(
-		@IDebugService private debugService: IDebugService
+		@IDebugService private readonly debugService: IDebugService
 	) {
 		// noop
 	}
@@ -543,7 +535,7 @@ class FunctionBreakpointInputRenderer implements IListRenderer<IFunctionBreakpoi
 	}
 }
 
-export function openBreakpointSource(breakpoint: IBreakpoint, sideBySide: boolean, preserveFocus: boolean, debugService: IDebugService, editorService: IEditorService): Thenable<IEditor> {
+export function openBreakpointSource(breakpoint: IBreakpoint, sideBySide: boolean, preserveFocus: boolean, debugService: IDebugService, editorService: IEditorService): Promise<IEditor> {
 	if (breakpoint.uri.scheme === DEBUG_SCHEME && debugService.state === State.Inactive) {
 		return Promise.resolve(null);
 	}

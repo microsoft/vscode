@@ -20,6 +20,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { ITextModel } from 'vs/editor/common/model';
 
 export class ContextMenuController implements IEditorContribution {
 
@@ -45,7 +46,7 @@ export class ContextMenuController implements IEditorContribution {
 
 		this._toDispose.push(this._editor.onContextMenu((e: IEditorMouseEvent) => this._onContextMenu(e)));
 		this._toDispose.push(this._editor.onDidScrollChange((e: IScrollEvent) => {
-			if (this._contextMenuIsBeingShownCount > 0) {
+			if (this._contextMenuIsBeingShownCount > 0 && e.scrollTopChanged) {
 				this._contextViewService.hideContextView();
 			}
 		}));
@@ -60,6 +61,10 @@ export class ContextMenuController implements IEditorContribution {
 	}
 
 	private _onContextMenu(e: IEditorMouseEvent): void {
+		if (!this._editor.hasModel()) {
+			return;
+		}
+
 		if (!this._editor.getConfiguration().contribInfo.contextmenu) {
 			this._editor.focus();
 			// Ensure the cursor is at the position of the mouse click
@@ -88,7 +93,7 @@ export class ContextMenuController implements IEditorContribution {
 		}
 
 		// Unless the user triggerd the context menu through Shift+F10, use the mouse position as menu position
-		let anchor: IAnchor;
+		let anchor: IAnchor | null = null;
 		if (e.target.type !== MouseTargetType.TEXTAREA) {
 			anchor = { x: e.event.posx - 1, width: 2, y: e.event.posy - 1, height: 2 };
 		}
@@ -97,9 +102,12 @@ export class ContextMenuController implements IEditorContribution {
 		this.showContextMenu(anchor);
 	}
 
-	public showContextMenu(anchor?: IAnchor): void {
+	public showContextMenu(anchor?: IAnchor | null): void {
 		if (!this._editor.getConfiguration().contribInfo.contextmenu) {
 			return; // Context menu is turned off through configuration
+		}
+		if (!this._editor.hasModel()) {
+			return;
 		}
 
 		if (!this._contextMenuService) {
@@ -108,7 +116,7 @@ export class ContextMenuController implements IEditorContribution {
 		}
 
 		// Find actions available for menu
-		const menuActions = this._getMenuActions();
+		const menuActions = this._getMenuActions(this._editor.getModel());
 
 		// Show menu if we have actions to show
 		if (menuActions.length > 0) {
@@ -116,11 +124,11 @@ export class ContextMenuController implements IEditorContribution {
 		}
 	}
 
-	private _getMenuActions(): IAction[] {
+	private _getMenuActions(model: ITextModel): IAction[] {
 		const result: IAction[] = [];
 
 		let contextMenu = this._menuService.createMenu(MenuId.EditorContext, this._contextKeyService);
-		const groups = contextMenu.getActions({ arg: this._editor.getModel().uri });
+		const groups = contextMenu.getActions({ arg: model.uri });
 		contextMenu.dispose();
 
 		for (let group of groups) {
@@ -133,6 +141,9 @@ export class ContextMenuController implements IEditorContribution {
 	}
 
 	private _doShowContextMenu(actions: IAction[], anchor: IAnchor | null = null): void {
+		if (!this._editor.hasModel()) {
+			return;
+		}
 
 		// Disable hover
 		const oldHoverSetting = this._editor.getConfiguration().contribInfo.hover;
@@ -160,7 +171,7 @@ export class ContextMenuController implements IEditorContribution {
 		// Show menu
 		this._contextMenuIsBeingShownCount++;
 		this._contextMenuService.showContextMenu({
-			getAnchor: () => anchor,
+			getAnchor: () => anchor!,
 
 			getActions: () => actions,
 
@@ -178,8 +189,8 @@ export class ContextMenuController implements IEditorContribution {
 				return new ActionItem(action, action, { icon: true, label: true, isMenu: true });
 			},
 
-			getKeyBinding: (action): ResolvedKeybinding => {
-				return this._keybindingFor(action);
+			getKeyBinding: (action): ResolvedKeybinding | undefined => {
+				return this._keybindingFor(action) || undefined;
 			},
 
 			onHide: (wasCancelled: boolean) => {
@@ -192,7 +203,7 @@ export class ContextMenuController implements IEditorContribution {
 		});
 	}
 
-	private _keybindingFor(action: IAction): ResolvedKeybinding {
+	private _keybindingFor(action: IAction): ResolvedKeybinding | undefined {
 		return this._keybindingService.lookupKeybinding(action.id);
 	}
 

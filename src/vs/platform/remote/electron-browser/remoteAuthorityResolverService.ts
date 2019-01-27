@@ -19,37 +19,37 @@ export class RemoteAuthorityResolverService implements IRemoteAuthorityResolverS
 
 	_serviceBrand: any;
 
-	private _pendingResolveAuthorityRequests: { [authority: string]: PendingResolveAuthorityRequest; };
-	private _resolvedAuthorities: { [authority: string]: ResolvedAuthority; };
+	private _resolveAuthorityRequests: { [authority: string]: PendingResolveAuthorityRequest; };
 
 	constructor() {
-		this._pendingResolveAuthorityRequests = Object.create(null);
-		this._resolvedAuthorities = Object.create(null);
+		this._resolveAuthorityRequests = Object.create(null);
 	}
 
-	resolveAuthority(authority: string): Thenable<ResolvedAuthority> {
-		if (this._resolvedAuthorities[authority]) {
-			return Promise.resolve(this._resolvedAuthorities[authority]);
-		}
-		if (!this._pendingResolveAuthorityRequests[authority]) {
+	resolveAuthority(authority: string): Promise<ResolvedAuthority> {
+		if (!this._resolveAuthorityRequests[authority]) {
 			let resolve: (value: ResolvedAuthority) => void;
 			let reject: (err: any) => void;
 			let promise = new Promise<ResolvedAuthority>((_resolve, _reject) => {
 				resolve = _resolve;
 				reject = _reject;
 			});
-			this._pendingResolveAuthorityRequests[authority] = new PendingResolveAuthorityRequest(resolve!, reject!, promise);
+			this._resolveAuthorityRequests[authority] = new PendingResolveAuthorityRequest(resolve!, reject!, promise);
 		}
-		return this._pendingResolveAuthorityRequests[authority].promise;
+		return this._resolveAuthorityRequests[authority].promise;
 	}
 
 	setResolvedAuthority(resolvedAuthority: ResolvedAuthority) {
-		this._resolvedAuthorities[resolvedAuthority.authority] = resolvedAuthority;
-		if (this._pendingResolveAuthorityRequests[resolvedAuthority.authority]) {
-			let request = this._pendingResolveAuthorityRequests[resolvedAuthority.authority];
-			delete this._pendingResolveAuthorityRequests[resolvedAuthority.authority];
+		if (this._resolveAuthorityRequests[resolvedAuthority.authority]) {
+			let request = this._resolveAuthorityRequests[resolvedAuthority.authority];
 			ipc.send('vscode:remoteAuthorityResolved', resolvedAuthority);
 			request.resolve(resolvedAuthority);
+		}
+	}
+
+	setResolvedAuthorityError(authority: string, err: any): void {
+		if (this._resolveAuthorityRequests[authority]) {
+			let request = this._resolveAuthorityRequests[authority];
+			request.reject(err);
 		}
 	}
 }

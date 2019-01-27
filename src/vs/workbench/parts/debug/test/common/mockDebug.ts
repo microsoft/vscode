@@ -133,7 +133,7 @@ export class MockSession implements IDebugSession {
 	}
 
 	addReplExpression(stackFrame: IStackFrame, name: string): Promise<void> {
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
 	appendToRepl(data: string | IExpression, severity: Severity, source?: IReplElementSource): void { }
@@ -199,7 +199,7 @@ export class MockSession implements IDebugSession {
 
 	rawUpdate(data: IRawModelUpdate): void { }
 
-	initialize(dbgr: IDebugger): Thenable<void> {
+	initialize(dbgr: IDebugger): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
 	launchOrAttach(config: IConfig): Promise<void> {

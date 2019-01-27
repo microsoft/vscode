@@ -9,10 +9,9 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IFolderQuery, IPatternInfo, ISearchConfiguration, ISearchProgressItem, ISearchService, QueryType, IFileQuery } from 'vs/platform/search/common/search';
+import { IFolderQuery, IPatternInfo, ISearchConfiguration, ISearchProgressItem, ISearchService, QueryType, IFileQuery, IFileMatch } from 'vs/platform/search/common/search';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -24,6 +23,7 @@ import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common
 import { ExtHostContext, ExtHostWorkspaceShape, IExtHostContext, MainContext, MainThreadWorkspaceShape } from '../node/extHost.protocol';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 import { TextSearchComplete } from 'vscode';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
 export class MainThreadWorkspace implements MainThreadWorkspaceShape {
@@ -60,7 +60,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	// --- workspace ---
 
-	$updateWorkspaceFolders(extensionName: string, index: number, deleteCount: number, foldersToAdd: { uri: UriComponents, name?: string }[]): Thenable<void> {
+	$updateWorkspaceFolders(extensionName: string, index: number, deleteCount: number, foldersToAdd: { uri: UriComponents, name?: string }[]): Promise<void> {
 		const workspaceFoldersToAdd = foldersToAdd.map(f => ({ uri: URI.revive(f.uri), name: f.name }));
 
 		// Indicate in status message
@@ -113,7 +113,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	// --- search ---
 
-	$startFileSearch(includePattern: string, _includeFolder: UriComponents, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Thenable<URI[]> {
+	$startFileSearch(includePattern: string, _includeFolder: UriComponents, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Promise<URI[]> {
 		const includeFolder = URI.revive(_includeFolder);
 		const workspace = this._contextService.getWorkspace();
 		if (!workspace.folders.length) {
@@ -131,11 +131,6 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 			return undefined; // invalid query parameters
 		}
 
-		const useRipgrep = folderQueries.every(folderQuery => {
-			const folderConfig = this._configurationService.getValue<ISearchConfiguration>({ resource: folderQuery.folder });
-			return folderConfig.search.useRipgrep;
-		});
-
 		const ignoreSymlinks = folderQueries.every(folderQuery => {
 			const folderConfig = this._configurationService.getValue<ISearchConfiguration>({ resource: folderQuery.folder });
 			return !folderConfig.search.followSymlinks;
@@ -151,7 +146,6 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 			type: QueryType.File,
 			maxResults,
 			disregardExcludeSettings: excludePatternOrDisregardExcludes === false,
-			useRipgrep,
 			_reason: 'startFileSearch'
 		};
 		if (typeof includePattern === 'string') {
@@ -174,7 +168,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		});
 	}
 
-	$startTextSearch(pattern: IPatternInfo, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Thenable<TextSearchComplete> {
+	$startTextSearch(pattern: IPatternInfo, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<TextSearchComplete> {
 		const workspace = this._contextService.getWorkspace();
 		const folders = workspace.folders.map(folder => folder.uri);
 
@@ -183,8 +177,8 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		query._reason = 'startTextSearch';
 
 		const onProgress = (p: ISearchProgressItem) => {
-			if (p.results) {
-				this._proxy.$handleTextSearchResult(p, requestId);
+			if ((<IFileMatch>p).results) {
+				this._proxy.$handleTextSearchResult(<IFileMatch>p, requestId);
 			}
 		};
 
@@ -203,7 +197,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		return search;
 	}
 
-	$checkExists(includes: string[], token: CancellationToken): Thenable<boolean> {
+	$checkExists(includes: string[], token: CancellationToken): Promise<boolean> {
 		const queryBuilder = this._instantiationService.createInstance(QueryBuilder);
 		const folders = this._contextService.getWorkspace().folders.map(folder => folder.uri);
 		const query = queryBuilder.file(folders, {
@@ -227,13 +221,13 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	// --- save & edit resources ---
 
-	$saveAll(includeUntitled?: boolean): Thenable<boolean> {
+	$saveAll(includeUntitled?: boolean): Promise<boolean> {
 		return this._textFileService.saveAll(includeUntitled).then(result => {
 			return result.results.every(each => each.success === true);
 		});
 	}
 
-	$resolveProxy(url: string): Thenable<string> {
+	$resolveProxy(url: string): Promise<string> {
 		return this._windowService.resolveProxy(url);
 	}
 }
@@ -246,10 +240,10 @@ CommandsRegistry.registerCommand('_workbench.enterWorkspace', async function (ac
 	if (disableExtensions && disableExtensions.length) {
 		const runningExtensions = await extensionService.getExtensions();
 		// If requested extension to disable is running, then reload window with given workspace
-		if (disableExtensions && runningExtensions.some(runningExtension => disableExtensions.some(id => areSameExtensions({ id }, { id: runningExtension.id })))) {
+		if (disableExtensions && runningExtensions.some(runningExtension => disableExtensions.some(id => ExtensionIdentifier.equals(runningExtension.identifier, id)))) {
 			return windowService.openWindow([URI.file(workspace.fsPath)], { args: { _: [], 'disable-extension': disableExtensions } });
 		}
 	}
 
-	return workspaceEditingService.enterWorkspace(workspace.fsPath);
+	return workspaceEditingService.enterWorkspace(workspace);
 });

@@ -17,17 +17,17 @@ import { Range } from 'vs/editor/common/core/range';
 export class WalkThroughContentProvider implements ITextModelContentProvider, IWorkbenchContribution {
 
 	constructor(
-		@ITextModelService private textModelResolverService: ITextModelService,
-		@ITextFileService private textFileService: ITextFileService,
-		@IModeService private modeService: IModeService,
-		@IModelService private modelService: IModelService,
+		@ITextModelService private readonly textModelResolverService: ITextModelService,
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@IModeService private readonly modeService: IModeService,
+		@IModelService private readonly modelService: IModelService,
 	) {
 		this.textModelResolverService.registerTextModelContentProvider(Schemas.walkThrough, this);
 	}
 
-	public provideTextContent(resource: URI): Thenable<ITextModel> {
+	public provideTextContent(resource: URI): Promise<ITextModel> {
 		const query = resource.query ? JSON.parse(resource.query) : {};
-		const content: Thenable<string | ITextBufferFactory> = (query.moduleId ? new Promise<string>((resolve, reject) => {
+		const content: Promise<string | ITextBufferFactory> = (query.moduleId ? new Promise<string>((resolve, reject) => {
 			require([query.moduleId], content => {
 				try {
 					resolve(content.default());
@@ -52,15 +52,15 @@ export class WalkThroughContentProvider implements ITextModelContentProvider, IW
 export class WalkThroughSnippetContentProvider implements ITextModelContentProvider, IWorkbenchContribution {
 
 	constructor(
-		@ITextModelService private textModelResolverService: ITextModelService,
-		@ITextFileService private textFileService: ITextFileService,
-		@IModeService private modeService: IModeService,
-		@IModelService private modelService: IModelService,
+		@ITextModelService private readonly textModelResolverService: ITextModelService,
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@IModeService private readonly modeService: IModeService,
+		@IModelService private readonly modelService: IModelService,
 	) {
 		this.textModelResolverService.registerTextModelContentProvider(Schemas.walkThroughSnippet, this);
 	}
 
-	public provideTextContent(resource: URI): Thenable<ITextModel> {
+	public provideTextContent(resource: URI): Promise<ITextModel> {
 		return this.textFileService.resolveTextContent(URI.file(resource.fsPath)).then(content => {
 			let codeEditorModel = this.modelService.getModel(resource);
 			if (!codeEditorModel) {
@@ -84,7 +84,7 @@ export class WalkThroughSnippetContentProvider implements ITextModelContentProvi
 				const markdown = textBuffer.getValueInRange(range, EndOfLinePreference.TextDefined);
 				marked(markdown, { renderer });
 
-				const languageId = this.modeService.getModeIdForLanguageName(languageName);
+				const languageId = this.modeService.getModeIdForLanguageName(languageName) || '';
 				const languageSelection = this.modeService.create(languageId);
 				codeEditorModel = this.modelService.createModel(codeSnippet, languageSelection, resource);
 			} else {

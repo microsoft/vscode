@@ -87,6 +87,6 @@ export interface ProcessExplorerData extends WindowData {
 
 export interface IIssueService {
 	_serviceBrand: any;
-	openReporter(data: IssueReporterData): Thenable<void>;
-	openProcessExplorer(data: ProcessExplorerData): Thenable<void>;
+	openReporter(data: IssueReporterData): Promise<void>;
+	openProcessExplorer(data: ProcessExplorerData): Promise<void>;
 }

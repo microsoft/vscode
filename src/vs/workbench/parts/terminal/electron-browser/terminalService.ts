@@ -69,6 +69,13 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 				});
 			}
 		});
+		ipc.on('vscode:osResume', () => {
+			const activeTab = this.getActiveTab();
+			if (!activeTab) {
+				return;
+			}
+			activeTab.terminalInstances.forEach(instance => instance.forceRedraw());
+		});
 	}
 
 	public createTerminal(shell: IShellLaunchConfig = {}, wasNewTerminalAction?: boolean): ITerminalInstance {
@@ -263,7 +270,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 			});
 	}
 
-	private _validateShellPaths(label: string, potentialPaths: string[]): PromiseLike<[string, string]> {
+	private _validateShellPaths(label: string, potentialPaths: string[]): Promise<[string, string]> {
 		const current = potentialPaths.shift();
 		return pfs.fileExists(current).then(exists => {
 			if (!exists) {
@@ -281,7 +288,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		return activeInstance ? activeInstance : this.createTerminal(undefined, wasNewTerminalAction);
 	}
 
-	protected _showTerminalCloseConfirmation(): PromiseLike<boolean> {
+	protected _showTerminalCloseConfirmation(): Promise<boolean> {
 		let message;
 		if (this.terminalInstances.length === 1) {
 			message = nls.localize('terminalService.terminalCloseConfirmationSingular', "There is an active terminal session, do you want to kill it?");

@@ -24,9 +24,9 @@ const PAUSE = `.debug-toolbar .debug-action.pause`;
 const DEBUG_STATUS_BAR = `.statusbar.debugging`;
 const NOT_DEBUG_STATUS_BAR = `.statusbar:not(debugging)`;
 const TOOLBAR_HIDDEN = `.debug-toolbar[aria-hidden="true"]`;
-const STACK_FRAME = `${VIEWLET} .monaco-tree-row .stack-frame`;
+const STACK_FRAME = `${VIEWLET} .monaco-list-row .stack-frame`;
 const SPECIFIC_STACK_FRAME = filename => `${STACK_FRAME} .file[title*="${filename}"]`;
-const VARIABLE = `${VIEWLET} .debug-variables .monaco-tree-row .expression`;
+const VARIABLE = `${VIEWLET} .debug-variables .monaco-list-row .expression`;
 const CONSOLE_OUTPUT = `.repl .output.expression .value`;
 const CONSOLE_INPUT_OUTPUT = `.repl .input-output-pair .output.expression .value`;
 

@@ -124,12 +124,12 @@ export function isFunction(obj: any): obj is Function {
  * @returns whether the provided parameters is are JavaScript Function or not.
  */
 export function areFunctions(...objects: any[]): boolean {
-	return objects && objects.length > 0 && objects.every(isFunction);
+	return objects.length > 0 && objects.every(isFunction);
 }
 
 export type TypeConstraint = string | Function;
 
-export function validateConstraints(args: any[], constraints: (TypeConstraint | undefined)[]): void {
+export function validateConstraints(args: any[], constraints: Array<TypeConstraint | undefined>): void {
 	const len = Math.min(args.length, constraints.length);
 	for (let i = 0; i < len; i++) {
 		validateConstraint(args[i], constraints[i]);

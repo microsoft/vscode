@@ -5,13 +5,11 @@
 
 import 'vs/css!./media/explorerviewlet';
 import { localize } from 'vs/nls';
-import { IActionRunner } from 'vs/base/common/actions';
 import * as DOM from 'vs/base/browser/dom';
-import { VIEWLET_ID, ExplorerViewletVisibleContext, IFilesConfiguration, OpenEditorsVisibleContext, OpenEditorsVisibleCondition, IExplorerViewlet, VIEW_CONTAINER } from 'vs/workbench/parts/files/common/files';
+import { VIEWLET_ID, ExplorerViewletVisibleContext, IFilesConfiguration, OpenEditorsVisibleContext, OpenEditorsVisibleCondition, VIEW_CONTAINER } from 'vs/workbench/parts/files/common/files';
 import { ViewContainerViewlet, IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { ActionRunner, FileViewletState } from 'vs/workbench/parts/files/electron-browser/views/explorerViewer';
-import { ExplorerView, IExplorerViewOptions } from 'vs/workbench/parts/files/electron-browser/views/explorerView';
+import { ExplorerView } from 'vs/workbench/parts/files/electron-browser/views/explorerView';
 import { EmptyView } from 'vs/workbench/parts/files/electron-browser/views/emptyView';
 import { OpenEditorsView } from 'vs/workbench/parts/files/electron-browser/views/openEditorsView';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -41,8 +39,8 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 	private openEditorsVisibleContextKey: IContextKey<boolean>;
 
 	constructor(
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
-		@IConfigurationService private configurationService: IConfigurationService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super();
@@ -61,36 +59,36 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 		const viewDescriptors = ViewsRegistry.getViews(VIEW_CONTAINER);
 
 		let viewDescriptorsToRegister: IViewDescriptor[] = [];
-		let viewDescriptorsToDeregister: string[] = [];
+		let viewDescriptorsToDeregister: IViewDescriptor[] = [];
 
 		const openEditorsViewDescriptor = this.createOpenEditorsViewDescriptor();
-		const openEditorsViewDescriptorExists = viewDescriptors.some(v => v.id === openEditorsViewDescriptor.id);
-		const explorerViewDescriptor = this.createExplorerViewDescriptor();
-		const explorerViewDescriptorExists = viewDescriptors.some(v => v.id === explorerViewDescriptor.id);
-		const emptyViewDescriptor = this.createEmptyViewDescriptor();
-		const emptyViewDescriptorExists = viewDescriptors.some(v => v.id === emptyViewDescriptor.id);
-
-		if (!openEditorsViewDescriptorExists) {
+		if (!viewDescriptors.some(v => v.id === openEditorsViewDescriptor.id)) {
 			viewDescriptorsToRegister.push(openEditorsViewDescriptor);
 		}
+
+		const explorerViewDescriptor = this.createExplorerViewDescriptor();
+		const registeredExplorerViewDescriptor = viewDescriptors.filter(v => v.id === explorerViewDescriptor.id)[0];
+		const emptyViewDescriptor = this.createEmptyViewDescriptor();
+		const registeredEmptyViewDescriptor = viewDescriptors.filter(v => v.id === emptyViewDescriptor.id)[0];
+
 		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY || this.workspaceContextService.getWorkspace().folders.length === 0) {
-			if (explorerViewDescriptorExists) {
-				viewDescriptorsToDeregister.push(explorerViewDescriptor.id);
+			if (registeredExplorerViewDescriptor) {
+				viewDescriptorsToDeregister.push(registeredExplorerViewDescriptor);
 			}
-			if (!emptyViewDescriptorExists) {
+			if (!registeredEmptyViewDescriptor) {
 				viewDescriptorsToRegister.push(emptyViewDescriptor);
 			}
 		} else {
-			if (emptyViewDescriptorExists) {
-				viewDescriptorsToDeregister.push(emptyViewDescriptor.id);
+			if (registeredEmptyViewDescriptor) {
+				viewDescriptorsToDeregister.push(registeredEmptyViewDescriptor);
 			}
-			if (!explorerViewDescriptorExists) {
+			if (!registeredExplorerViewDescriptor) {
 				viewDescriptorsToRegister.push(explorerViewDescriptor);
 			}
 		}
 
 		if (viewDescriptorsToRegister.length) {
-			ViewsRegistry.registerViews(viewDescriptorsToRegister);
+			ViewsRegistry.registerViews(viewDescriptorsToRegister, VIEW_CONTAINER);
 		}
 		if (viewDescriptorsToDeregister.length) {
 			ViewsRegistry.deregisterViews(viewDescriptorsToDeregister, VIEW_CONTAINER);
@@ -101,7 +99,6 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 		return {
 			id: OpenEditorsView.ID,
 			name: OpenEditorsView.NAME,
-			container: VIEW_CONTAINER,
 			ctor: OpenEditorsView,
 			order: 0,
 			when: OpenEditorsVisibleCondition,
@@ -117,7 +114,6 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 		return {
 			id: EmptyView.ID,
 			name: EmptyView.NAME,
-			container: VIEW_CONTAINER,
 			ctor: EmptyView,
 			order: 1,
 			canToggleVisibility: false
@@ -128,7 +124,6 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 		return {
 			id: ExplorerView.ID,
 			name: localize('folders', "Folders"),
-			container: VIEW_CONTAINER,
 			ctor: ExplorerView,
 			order: 1,
 			canToggleVisibility: false
@@ -146,11 +141,10 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 	}
 }
 
-export class ExplorerViewlet extends ViewContainerViewlet implements IExplorerViewlet {
+export class ExplorerViewlet extends ViewContainerViewlet {
 
 	private static readonly EXPLORER_VIEWS_STATE = 'workbench.explorer.views.state';
 
-	private fileViewletState: FileViewletState;
 	private viewletVisibleContextKey: IContextKey<boolean>;
 
 	constructor(
@@ -158,8 +152,8 @@ export class ExplorerViewlet extends ViewContainerViewlet implements IExplorerVi
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 		@IStorageService protected storageService: IStorageService,
-		@IEditorService private editorService: IEditorService,
-		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -169,7 +163,6 @@ export class ExplorerViewlet extends ViewContainerViewlet implements IExplorerVi
 	) {
 		super(VIEWLET_ID, ExplorerViewlet.EXPLORER_VIEWS_STATE, true, configurationService, partService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
 
-		this.fileViewletState = new FileViewletState();
 		this.viewletVisibleContextKey = ExplorerViewletVisibleContext.bindTo(contextKeyService);
 
 		this._register(this.contextService.onDidChangeWorkspaceName(e => this.updateTitleArea()));
@@ -217,7 +210,7 @@ export class ExplorerViewlet extends ViewContainerViewlet implements IExplorerVi
 			});
 
 			const explorerInstantiator = this.instantiationService.createChild(new ServiceCollection([IEditorService, delegatingEditorService]));
-			return explorerInstantiator.createInstance(ExplorerView, <IExplorerViewOptions>{ ...options, fileViewletState: this.fileViewletState });
+			return explorerInstantiator.createInstance(ExplorerView, options);
 		}
 		return super.createView(viewDescriptor, options);
 	}
@@ -239,19 +232,8 @@ export class ExplorerViewlet extends ViewContainerViewlet implements IExplorerVi
 		super.setVisible(visible);
 	}
 
-	public getActionRunner(): IActionRunner {
-		if (!this.actionRunner) {
-			this.actionRunner = new ActionRunner(this.fileViewletState);
-		}
-		return this.actionRunner;
-	}
-
-	public getViewletState(): FileViewletState {
-		return this.fileViewletState;
-	}
-
 	focus(): void {
-		const explorerView = this.getExplorerView();
+		const explorerView = this.getView(ExplorerView.ID);
 		if (explorerView && explorerView.isExpanded()) {
 			explorerView.focus();
 		} else {

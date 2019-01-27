@@ -5,7 +5,6 @@
 
 import * as nls from 'vs/nls';
 import * as Filters from 'vs/base/common/filters';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Action, IAction } from 'vs/base/common/actions';
 import { IStringDictionary } from 'vs/base/common/collections';
 
@@ -14,7 +13,7 @@ import * as QuickOpen from 'vs/base/parts/quickopen/common/quickOpen';
 import * as Model from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 
-import { Task, CustomTask, ContributedTask } from 'vs/workbench/parts/tasks/common/tasks';
+import { CustomTask, ContributedTask } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskService, ProblemMatcherRunOptions } from 'vs/workbench/parts/tasks/common/taskService';
 import { ActionBarContributor, ContributableActionProvider } from 'vs/workbench/browser/actions';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -33,7 +32,7 @@ export class TaskEntry extends Model.QuickOpenEntry {
 		if (!this.taskService.needsFolderQualification()) {
 			return null;
 		}
-		let workspaceFolder = Task.getWorkspaceFolder(this.task);
+		let workspaceFolder = this.task.getWorkspaceFolder();
 		if (!workspaceFolder) {
 			return null;
 		}
@@ -68,7 +67,7 @@ export class TaskGroupEntry extends Model.QuickOpenEntryGroup {
 
 export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 
-	private tasks: TPromise<(CustomTask | ContributedTask)[]>;
+	private tasks: Promise<Array<CustomTask | ContributedTask>>;
 
 	constructor(
 		protected quickOpenService: IQuickOpenService,
@@ -88,19 +87,19 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 		this.tasks = undefined;
 	}
 
-	public getResults(input: string, token: CancellationToken): Thenable<Model.QuickOpenModel> {
+	public getResults(input: string, token: CancellationToken): Promise<Model.QuickOpenModel> {
 		return this.tasks.then((tasks) => {
 			let entries: Model.QuickOpenEntry[] = [];
 			if (tasks.length === 0 || token.isCancellationRequested) {
 				return new Model.QuickOpenModel(entries);
 			}
 			let recentlyUsedTasks = this.taskService.getRecentlyUsedTasks();
-			let recent: (CustomTask | ContributedTask)[] = [];
+			let recent: Array<CustomTask | ContributedTask> = [];
 			let configured: CustomTask[] = [];
 			let detected: ContributedTask[] = [];
 			let taskMap: IStringDictionary<CustomTask | ContributedTask> = Object.create(null);
 			tasks.forEach(task => {
-				let key = Task.getRecentlyUsedKey(task);
+				let key = task.getRecentlyUsedKey();
 				if (key) {
 					taskMap[key] = task;
 				}
@@ -112,7 +111,7 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 				}
 			});
 			for (let task of tasks) {
-				let key = Task.getRecentlyUsedKey(task);
+				let key = task.getRecentlyUsedKey();
 				if (!key || !recentlyUsedTasks.has(key)) {
 					if (CustomTask.is(task)) {
 						configured.push(task);
@@ -133,7 +132,7 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 		});
 	}
 
-	private fillEntries(entries: Model.QuickOpenEntry[], input: string, tasks: (CustomTask | ContributedTask)[], groupLabel: string, withBorder: boolean = false) {
+	private fillEntries(entries: Model.QuickOpenEntry[], input: string, tasks: Array<CustomTask | ContributedTask>, groupLabel: string, withBorder: boolean = false) {
 		let first = true;
 		for (let task of tasks) {
 			let highlights = Filters.matchesFuzzy(input, task._label);
@@ -149,7 +148,7 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 		}
 	}
 
-	protected abstract getTasks(): TPromise<(CustomTask | ContributedTask)[]>;
+	protected abstract getTasks(): Promise<Array<CustomTask | ContributedTask>>;
 
 	protected abstract createEntry(task: CustomTask | ContributedTask, highlights: Model.IHighlight[]): TaskEntry;
 
@@ -174,7 +173,7 @@ class CustomizeTaskAction extends Action {
 		this.class = 'quick-open-task-configure';
 	}
 
-	public run(element: any): Thenable<any> {
+	public run(element: any): Promise<any> {
 		let task = this.getTask(element);
 		if (ContributedTask.is(task)) {
 			return this.taskService.customize(task, undefined, true).then(() => {

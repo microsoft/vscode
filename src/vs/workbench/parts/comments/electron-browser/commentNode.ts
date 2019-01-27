@@ -86,6 +86,8 @@ export class CommentNode extends Disposable {
 		this._md = this.markdownRenderer.render(comment.body).element;
 		this._body.appendChild(this._md);
 
+		this.createReactions(commentDetailsContainer);
+
 		this._domNode.setAttribute('aria-label', `${comment.userName}, ${comment.body.value}`);
 		this._domNode.setAttribute('role', 'treeitem');
 		this._clearTimeout = null;
@@ -127,11 +129,22 @@ export class CommentNode extends Disposable {
 		}
 	}
 
+	private createReactions(commentDetailsContainer: HTMLElement): void {
+		let reactions = ['❤️', '🎉', '😄'];
+
+		const reactionsBar = dom.append(commentDetailsContainer, dom.$('div.comment-reactions'));
+
+		reactions.forEach(reaction => {
+			let btn = new Button(reactionsBar);
+			btn.label = reaction;
+		});
+	}
+
 	private createCommentEditor(): void {
 		const container = dom.append(this._commentEditContainer, dom.$('.edit-textarea'));
 		this._commentEditor = this.instantiationService.createInstance(SimpleCommentEditor, container, SimpleCommentEditor.getEditorOptions());
 		const resource = URI.parse(`comment:commentinput-${this.comment.commentId}-${Date.now()}.md`);
-		this._commentEditorModel = this.modelService.createModel('', this.modeService.createByFilepathOrFirstLine(resource.path), resource, true);
+		this._commentEditorModel = this.modelService.createModel('', this.modeService.createByFilepathOrFirstLine(resource.path), resource, false);
 
 		this._commentEditor.setModel(this._commentEditorModel);
 		this._commentEditor.setValue(this.comment.body.value);
@@ -227,7 +240,7 @@ export class CommentNode extends Disposable {
 
 			const cancelEditButton = new Button(formActions);
 			cancelEditButton.label = nls.localize('label.cancel', "Cancel");
-			attachButtonStyler(cancelEditButton, this.themeService);
+			this._toDispose.push(attachButtonStyler(cancelEditButton, this.themeService));
 
 			this._toDispose.push(cancelEditButton.onDidClick(_ => {
 				this.removeCommentEditor();
@@ -235,7 +248,7 @@ export class CommentNode extends Disposable {
 
 			this._updateCommentButton = new Button(formActions);
 			this._updateCommentButton.label = UPDATE_COMMENT_LABEL;
-			attachButtonStyler(this._updateCommentButton, this.themeService);
+			this._toDispose.push(attachButtonStyler(this._updateCommentButton, this.themeService));
 
 			this._toDispose.push(this._updateCommentButton.onDidClick(_ => {
 				this.editComment();

@@ -11,7 +11,7 @@ suite('Snippets', function () {
 
 	class TestSnippetFile extends SnippetFile {
 		constructor(filepath: URI, snippets: Snippet[]) {
-			super(SnippetSource.Extension, filepath, undefined, undefined, undefined);
+			super(SnippetSource.Extension, filepath, undefined, undefined, undefined!);
 			this.data.push(...snippets);
 		}
 	}

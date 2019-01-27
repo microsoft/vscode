@@ -60,24 +60,24 @@ export class BaseActionItem extends Disposable implements IActionItem {
 	}
 
 	private handleActionChangeEvent(event: IActionChangeEvent): void {
-		if (event.enabled !== void 0) {
+		if (event.enabled !== undefined) {
 			this.updateEnabled();
 		}
 
-		if (event.checked !== void 0) {
+		if (event.checked !== undefined) {
 			this.updateChecked();
 		}
 
-		if (event.class !== void 0) {
+		if (event.class !== undefined) {
 			this.updateClass();
 		}
 
-		if (event.label !== void 0) {
+		if (event.label !== undefined) {
 			this.updateLabel();
 			this.updateTooltip();
 		}
 
-		if (event.tooltip !== void 0) {
+		if (event.tooltip !== undefined) {
 			this.updateTooltip();
 		}
 	}
@@ -228,7 +228,7 @@ export class Separator extends Action {
 export interface IActionItemOptions extends IBaseActionItemOptions {
 	icon?: boolean;
 	label?: boolean;
-	keybinding?: string;
+	keybinding?: string | null;
 }
 
 export class ActionItem extends BaseActionItem {
@@ -679,7 +679,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 	focus(selectFirst?: boolean): void;
 	focus(arg?: any): void {
 		let selectFirst: boolean = false;
-		let index: number | undefined = void 0;
+		let index: number | undefined = undefined;
 		if (arg === undefined) {
 			selectFirst = true;
 		} else if (typeof arg === 'number') {
@@ -701,7 +701,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 		}
 	}
 
-	private focusNext(): void {
+	protected focusNext(): void {
 		if (typeof this.focusedItem === 'undefined') {
 			this.focusedItem = this.items.length - 1;
 		}
@@ -721,7 +721,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 		this.updateFocus();
 	}
 
-	private focusPrevious(): void {
+	protected focusPrevious(): void {
 		if (typeof this.focusedItem === 'undefined') {
 			this.focusedItem = 0;
 		}
@@ -792,7 +792,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 		this._onDidCancel.fire();
 	}
 
-	run(action: IAction, context?: any): Thenable<void> {
+	run(action: IAction, context?: any): Promise<void> {
 		return this._actionRunner.run(action, context);
 	}
 

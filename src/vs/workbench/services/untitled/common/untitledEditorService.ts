@@ -11,7 +11,6 @@ import { IFilesConfiguration } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ResourceMap } from 'vs/base/common/map';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
 import { Schemas } from 'vs/base/common/network';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -86,7 +85,7 @@ export interface IUntitledEditorService {
 	 * It is valid to pass in a file resource. In that case the path will be used as identifier.
 	 * The use case is to be able to create a new file with a specific path with VSCode.
 	 */
-	loadOrCreate(options: IModelLoadOrCreateOptions): TPromise<UntitledEditorModel>;
+	loadOrCreate(options: IModelLoadOrCreateOptions): Promise<UntitledEditorModel>;
 
 	/**
 	 * A check to find out if a untitled resource has a file path associated or not.
@@ -124,8 +123,8 @@ export class UntitledEditorService extends Disposable implements IUntitledEditor
 	get onDidDisposeModel(): Event<URI> { return this._onDidDisposeModel.event; }
 
 	constructor(
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 	}
@@ -181,7 +180,7 @@ export class UntitledEditorService extends Disposable implements IUntitledEditor
 			.map(i => i.getResource());
 	}
 
-	loadOrCreate(options: IModelLoadOrCreateOptions = Object.create(null)): Thenable<UntitledEditorModel> {
+	loadOrCreate(options: IModelLoadOrCreateOptions = Object.create(null)): Promise<UntitledEditorModel> {
 		return this.createOrGet(options.resource, options.modeId, options.initialValue, options.encoding, options.useResourcePath).resolve();
 	}
 
@@ -269,12 +268,12 @@ export class UntitledEditorService extends Disposable implements IUntitledEditor
 	suggestFileName(resource: URI): string {
 		const input = this.get(resource);
 
-		return input ? input.suggestFileName() : void 0;
+		return input ? input.suggestFileName() : undefined;
 	}
 
 	getEncoding(resource: URI): string {
 		const input = this.get(resource);
 
-		return input ? input.getEncoding() : void 0;
+		return input ? input.getEncoding() : undefined;
 	}
 }

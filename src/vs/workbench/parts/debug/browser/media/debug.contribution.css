@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 /* Activity Bar */
-.monaco-workbench > .activitybar .monaco-action-bar .action-label.debug {
+.monaco-workbench .activitybar .monaco-action-bar .action-label.debug {
 	-webkit-mask: url('debug-dark.svg') no-repeat 50% 50%;
 }
 
@@ -112,7 +112,7 @@
 
 /* Debug status */
 /* A very precise css rule to overwrite the display set in statusbar.css */
-.monaco-workbench > .part.statusbar > .statusbar-item > .debug-statusbar-item > a {
+.monaco-workbench .part.statusbar > .statusbar-item > .debug-statusbar-item > a {
 	display: flex;
 	padding: 0 5px 0 5px;
 }
@@ -142,12 +142,12 @@
 	font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback";
 }
 
-.monaco-workbench.mac .monaco-list-row .expression {
+.mac > .monaco-workbench .monaco-list-row .expression {
 	font-size: 11px;
 }
 
-.monaco-workbench.windows .monaco-list-row .expression,
-.monaco-workbench.linux .monaco-list-row .expression {
+.windows > .monaco-workbench .monaco-list-row .expression,
+.linux > .monaco-workbench .monaco-list-row .expression {
 	font-size: 13px;
 }
 
@@ -155,15 +155,21 @@
 	margin-left: 6px;
 }
 
-.monaco-workbench .monaco-list-row:not(.selected) .expression .name {
+/* White color when element is selected and list is focused. White looks better on blue selection background. */
+.monaco-workbench .monaco-list:focus .monaco-list-row.selected .expression .name,
+.monaco-workbench .monaco-list:focus .monaco-list-row.selected .expression .value {
+	color: white;
+}
+
+.monaco-workbench .monaco-list-row .expression .name {
 	color: #9B46B0;
 }
 
-.monaco-workbench .monaco-list-row:not(.selected) .expression .name.virtual {
+.monaco-workbench .monaco-list-row .expression .name.virtual {
 	opacity: 0.5;
 }
 
-.monaco-workbench > .monaco-list-row:not(.selected) .expression .value {
+.monaco-workbench > .monaco-list-row .expression .value {
 	color: rgba(108, 108, 108, 0.8);
 }
 
@@ -171,67 +177,67 @@
 	font-style: italic;
 }
 
-.monaco-workbench .monaco-list-row:not(.selected) .expression .error {
+.monaco-workbench .monaco-list-row .expression .error {
 	color: #E51400;
 }
 
-.monaco-workbench .monaco-list-row:not(.selected) .expression .value.number {
+.monaco-workbench .monaco-list-row .expression .value.number {
 	color: #09885A;
 }
 
-.monaco-workbench .monaco-list-row:not(.selected) .expression .value.boolean {
+.monaco-workbench .monaco-list-row .expression .value.boolean {
 	color: #0000FF;
 }
 
-.monaco-workbench .monaco-list-row:not(.selected) .expression .value.string {
+.monaco-workbench .monaco-list-row .expression .value.string {
 	color: #A31515;
 }
 
-.vs-dark .monaco-workbench  > .monaco-list-row:not(.selected) .expression .value {
+.vs-dark .monaco-workbench  > .monaco-list-row .expression .value {
 	color: rgba(204, 204, 204, 0.6);
 }
 
-.vs-dark .monaco-workbench  .monaco-list-row:not(.selected) .expression .error {
+.vs-dark .monaco-workbench  .monaco-list-row .expression .error {
 	color: #F48771;
 }
 
-.vs-dark .monaco-workbench  .monaco-list-row:not(.selected) .expression .value.number {
+.vs-dark .monaco-workbench  .monaco-list-row .expression .value.number {
 	color: #B5CEA8;
 }
 
-.hc-black .monaco-workbench  .monaco-list-row:not(.selected) .expression .value.number {
+.hc-black .monaco-workbench  .monaco-list-row .expression .value.number {
 	color: #89d185;
 }
 
-.hc-black .monaco-workbench  .monaco-list-row:not(.selected) .expression .value.boolean {
+.hc-black .monaco-workbench  .monaco-list-row .expression .value.boolean {
 	color: #75bdfe;
 }
 
-.hc-black .monaco-workbench  .monaco-list-row:not(.selected) .expression .value.string {
+.hc-black .monaco-workbench  .monaco-list-row .expression .value.string {
 	color: #f48771;
 }
 
-.vs-dark .monaco-workbench  .monaco-list-row:not(.selected) .expression .value.boolean {
+.vs-dark .monaco-workbench  .monaco-list-row .expression .value.boolean {
 	color: #4E94CE;
 }
 
-.vs-dark .monaco-workbench  .monaco-list-row:not(.selected) .expression .value.string {
+.vs-dark .monaco-workbench  .monaco-list-row .expression .value.string {
 	color: #CE9178;
 }
 
-.hc-black .monaco-workbench .monaco-list-row:not(.selected) .expression .error {
+.hc-black .monaco-workbench .monaco-list-row .expression .error {
 	color: #F48771;
 }
 
 /* Dark theme */
 
-.vs-dark .monaco-workbench .monaco-list-row:not(.selected) .expression .name {
+.vs-dark .monaco-workbench .monaco-list-row .expression .name {
 	color: #C586C0;
 }
 
 /* High Contrast Theming */
 
-.hc-black .monaco-workbench .monaco-list-row:not(.selected) .expression .name {
+.hc-black .monaco-workbench .monaco-list-row .expression .name {
 	color: inherit;
 }
 

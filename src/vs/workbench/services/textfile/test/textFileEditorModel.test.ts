@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EncodingMode } from 'vs/workbench/common/editor';
 import { TextFileEditorModel, SaveSequentializer } from 'vs/workbench/services/textfile/common/textFileEditorModel';
@@ -80,9 +79,11 @@ suite('Files - TextFileEditorModel', () => {
 
 		model.setEncoding('utf16', EncodingMode.Decode);
 
-		assert.ok(model.isResolved()); // model got loaded due to decoding
+		return timeout(0).then(() => { // due to model updating async
+			assert.ok(model.isResolved()); // model got loaded due to decoding
 
-		model.dispose();
+			model.dispose();
+		});
 	});
 
 	test('disposes when underlying model is destroyed', function () {
@@ -275,7 +276,7 @@ suite('Files - TextFileEditorModel', () => {
 				model.textEditorModel.setValue('bar');
 				assert.ok(model.isDirty());
 				eventCounter++;
-				return undefined;
+				return Promise.resolve();
 			}
 		});
 
@@ -336,22 +337,23 @@ suite('Files - TextFileEditorModel', () => {
 		assert.ok(!sequentializer.pendingSave);
 
 		// pending removes itself after done
-		sequentializer.setPending(1, TPromise.as(null));
-		assert.ok(!sequentializer.hasPendingSave());
-		assert.ok(!sequentializer.hasPendingSave(1));
-		assert.ok(!sequentializer.pendingSave);
-
-		// pending removes itself after done (use timeout)
-		sequentializer.setPending(2, timeout(1));
-		assert.ok(sequentializer.hasPendingSave());
-		assert.ok(sequentializer.hasPendingSave(2));
-		assert.ok(!sequentializer.hasPendingSave(1));
-		assert.ok(sequentializer.pendingSave);
-
-		return timeout(2).then(() => {
+		return sequentializer.setPending(1, Promise.resolve(null)).then(() => {
 			assert.ok(!sequentializer.hasPendingSave());
-			assert.ok(!sequentializer.hasPendingSave(2));
+			assert.ok(!sequentializer.hasPendingSave(1));
 			assert.ok(!sequentializer.pendingSave);
+
+			// pending removes itself after done (use timeout)
+			sequentializer.setPending(2, timeout(1));
+			assert.ok(sequentializer.hasPendingSave());
+			assert.ok(sequentializer.hasPendingSave(2));
+			assert.ok(!sequentializer.hasPendingSave(1));
+			assert.ok(sequentializer.pendingSave);
+
+			return timeout(2).then(() => {
+				assert.ok(!sequentializer.hasPendingSave());
+				assert.ok(!sequentializer.hasPendingSave(2));
+				assert.ok(!sequentializer.pendingSave);
+			});
 		});
 	});
 
@@ -363,7 +365,7 @@ suite('Files - TextFileEditorModel', () => {
 
 		// next finishes instantly
 		let nextDone = false;
-		const res = sequentializer.setNext(() => TPromise.as(null).then(() => { nextDone = true; return null; }));
+		const res = sequentializer.setNext(() => Promise.resolve(null).then(() => { nextDone = true; return null; }));
 
 		return res.then(() => {
 			assert.ok(pendingDone);

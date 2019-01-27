@@ -30,6 +30,7 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	highlightModifiedTabs: false,
 	tabCloseButton: 'right',
 	tabSizing: 'fit',
+	closeTabsInMRUOrder: true,
 	showIcons: true,
 	enablePreview: true,
 	openPositioning: 'right',
@@ -76,7 +77,7 @@ export interface IEditorOpeningEvent extends IEditorIdentifier {
 	 * to return a promise that resolves to NULL to prevent the opening
 	 * alltogether.
 	 */
-	prevent(callback: () => Thenable<IEditor>): void;
+	prevent(callback: () => Promise<IEditor>): void;
 }
 
 export interface IEditorGroupsAccessor {
@@ -102,7 +103,7 @@ export interface IEditorGroupsAccessor {
 
 export interface IEditorGroupView extends IDisposable, ISerializableView, IEditorGroup {
 	readonly group: EditorGroup;
-	readonly whenRestored: Thenable<void>;
+	readonly whenRestored: Promise<void>;
 	readonly disposed: boolean;
 
 	readonly onDidFocus: Event<void>;
@@ -119,7 +120,7 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 }
 
 export function getActiveTextEditorOptions(group: IEditorGroup, expectedActiveEditor?: IEditorInput, presetOptions?: EditorOptions): EditorOptions {
-	const activeGroupCodeEditor = group.activeControl ? getCodeEditor(group.activeControl.getControl()) : void 0;
+	const activeGroupCodeEditor = group.activeControl ? getCodeEditor(group.activeControl.getControl()) : undefined;
 	if (activeGroupCodeEditor) {
 		if (!expectedActiveEditor || expectedActiveEditor.matches(group.activeEditor)) {
 			return TextEditorOptions.fromEditor(activeGroupCodeEditor, presetOptions);
@@ -155,5 +156,5 @@ export interface EditorGroupsServiceImpl extends IEditorGroupsService {
 	/**
 	 * A promise that resolves when groups have been restored.
 	 */
-	readonly whenRestored: Thenable<void>;
+	readonly whenRestored: Promise<void>;
 }

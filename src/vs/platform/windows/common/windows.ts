@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { IProcessEnvironment, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
 import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { ExportData } from 'vs/base/common/performance';
@@ -103,72 +102,70 @@ export interface IWindowsService {
 	onRecentlyOpenedChange: Event<void>;
 
 	// Dialogs
-	pickFileFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
-	pickFileAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
-	pickFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
-	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
-	showMessageBox(windowId: number, options: MessageBoxOptions): TPromise<IMessageBoxResult>;
-	showSaveDialog(windowId: number, options: SaveDialogOptions): TPromise<string>;
-	showOpenDialog(windowId: number, options: OpenDialogOptions): TPromise<string[]>;
+	pickFileFolderAndOpen(options: INativeOpenDialogOptions): Promise<void>;
+	pickFileAndOpen(options: INativeOpenDialogOptions): Promise<void>;
+	pickFolderAndOpen(options: INativeOpenDialogOptions): Promise<void>;
+	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): Promise<void>;
+	showMessageBox(windowId: number, options: MessageBoxOptions): Promise<IMessageBoxResult>;
+	showSaveDialog(windowId: number, options: SaveDialogOptions): Promise<string>;
+	showOpenDialog(windowId: number, options: OpenDialogOptions): Promise<string[]>;
 
-	reloadWindow(windowId: number, args?: ParsedArgs): TPromise<void>;
-	openDevTools(windowId: number, options?: IDevToolsOptions): TPromise<void>;
-	toggleDevTools(windowId: number): TPromise<void>;
-	closeWorkspace(windowId: number): TPromise<void>;
-	enterWorkspace(windowId: number, path: string): TPromise<IEnterWorkspaceResult | undefined>;
-	createAndEnterWorkspace(windowId: number, folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult | undefined>;
-	saveAndEnterWorkspace(windowId: number, path: string): TPromise<IEnterWorkspaceResult | undefined>;
-	toggleFullScreen(windowId: number): TPromise<void>;
-	setRepresentedFilename(windowId: number, fileName: string): TPromise<void>;
-	addRecentlyOpened(files: URI[]): TPromise<void>;
-	removeFromRecentlyOpened(paths: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | string)[]): TPromise<void>;
-	clearRecentlyOpened(): TPromise<void>;
-	getRecentlyOpened(windowId: number): TPromise<IRecentlyOpened>;
-	focusWindow(windowId: number): TPromise<void>;
-	closeWindow(windowId: number): TPromise<void>;
-	isFocused(windowId: number): TPromise<boolean>;
-	isMaximized(windowId: number): TPromise<boolean>;
-	maximizeWindow(windowId: number): TPromise<void>;
-	unmaximizeWindow(windowId: number): TPromise<void>;
-	minimizeWindow(windowId: number): TPromise<void>;
-	onWindowTitleDoubleClick(windowId: number): TPromise<void>;
-	setDocumentEdited(windowId: number, flag: boolean): TPromise<void>;
-	quit(): TPromise<void>;
-	relaunch(options: { addArgs?: string[], removeArgs?: string[] }): TPromise<void>;
+	reloadWindow(windowId: number, args?: ParsedArgs): Promise<void>;
+	openDevTools(windowId: number, options?: IDevToolsOptions): Promise<void>;
+	toggleDevTools(windowId: number): Promise<void>;
+	closeWorkspace(windowId: number): Promise<void>;
+	enterWorkspace(windowId: number, path: URI): Promise<IEnterWorkspaceResult | undefined>;
+	toggleFullScreen(windowId: number): Promise<void>;
+	setRepresentedFilename(windowId: number, fileName: string): Promise<void>;
+	addRecentlyOpened(files: URI[]): Promise<void>;
+	removeFromRecentlyOpened(paths: Array<IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | string>): Promise<void>;
+	clearRecentlyOpened(): Promise<void>;
+	getRecentlyOpened(windowId: number): Promise<IRecentlyOpened>;
+	focusWindow(windowId: number): Promise<void>;
+	closeWindow(windowId: number): Promise<void>;
+	isFocused(windowId: number): Promise<boolean>;
+	isMaximized(windowId: number): Promise<boolean>;
+	maximizeWindow(windowId: number): Promise<void>;
+	unmaximizeWindow(windowId: number): Promise<void>;
+	minimizeWindow(windowId: number): Promise<void>;
+	onWindowTitleDoubleClick(windowId: number): Promise<void>;
+	setDocumentEdited(windowId: number, flag: boolean): Promise<void>;
+	quit(): Promise<void>;
+	relaunch(options: { addArgs?: string[], removeArgs?: string[] }): Promise<void>;
 
 	// macOS Native Tabs
-	newWindowTab(): TPromise<void>;
-	showPreviousWindowTab(): TPromise<void>;
-	showNextWindowTab(): TPromise<void>;
-	moveWindowTabToNewWindow(): TPromise<void>;
-	mergeAllWindowTabs(): TPromise<void>;
-	toggleWindowTabsBar(): TPromise<void>;
+	newWindowTab(): Promise<void>;
+	showPreviousWindowTab(): Promise<void>;
+	showNextWindowTab(): Promise<void>;
+	moveWindowTabToNewWindow(): Promise<void>;
+	mergeAllWindowTabs(): Promise<void>;
+	toggleWindowTabsBar(): Promise<void>;
 
 	// macOS TouchBar
-	updateTouchBar(windowId: number, items: ISerializableCommandAction[][]): TPromise<void>;
+	updateTouchBar(windowId: number, items: ISerializableCommandAction[][]): Promise<void>;
 
 	// Shared process
-	whenSharedProcessReady(): TPromise<void>;
-	toggleSharedProcess(): TPromise<void>;
+	whenSharedProcessReady(): Promise<void>;
+	toggleSharedProcess(): Promise<void>;
 
 	// Global methods
-	openWindow(windowId: number, paths: URI[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean, args?: ParsedArgs }): TPromise<void>;
-	openNewWindow(options?: INewWindowOptions): TPromise<void>;
-	showWindow(windowId: number): TPromise<void>;
-	getWindows(): TPromise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]>;
-	getWindowCount(): TPromise<number>;
-	log(severity: string, ...messages: string[]): TPromise<void>;
-	showItemInFolder(path: string): TPromise<void>;
-	getActiveWindowId(): TPromise<number | undefined>;
+	openWindow(windowId: number, paths: URI[], options?: IOpenSettings): Promise<void>;
+	openNewWindow(options?: INewWindowOptions): Promise<void>;
+	showWindow(windowId: number): Promise<void>;
+	getWindows(): Promise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]>;
+	getWindowCount(): Promise<number>;
+	log(severity: string, ...messages: string[]): Promise<void>;
+	showItemInFolder(path: string): Promise<void>;
+	getActiveWindowId(): Promise<number | undefined>;
 
 	// This needs to be handled from browser process to prevent
 	// foreground ordering issues on Windows
-	openExternal(url: string): TPromise<boolean>;
+	openExternal(url: string): Promise<boolean>;
 
 	// TODO: this is a bit backwards
-	startCrashReporter(config: CrashReporterStartOptions): TPromise<void>;
+	startCrashReporter(config: CrashReporterStartOptions): Promise<void>;
 
-	openAboutDialog(): TPromise<void>;
+	openAboutDialog(): Promise<void>;
 	resolveProxy(windowId: number, url: string): Promise<string | undefined>;
 }
 
@@ -177,6 +174,15 @@ export const IWindowService = createDecorator<IWindowService>('windowService');
 export interface IMessageBoxResult {
 	button: number;
 	checkboxChecked?: boolean;
+}
+
+export interface IOpenSettings {
+	forceNewWindow?: boolean;
+	forceReuseWindow?: boolean;
+	forceOpenWorkspaceAsFile?: boolean;
+	diffMode?: boolean;
+	addMode?: boolean;
+	args?: ParsedArgs;
 }
 
 export interface IWindowService {
@@ -190,35 +196,33 @@ export interface IWindowService {
 
 	getConfiguration(): IWindowConfiguration;
 	getCurrentWindowId(): number;
-	pickFileFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
-	pickFileAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
-	pickFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
-	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
-	reloadWindow(args?: ParsedArgs): TPromise<void>;
-	openDevTools(options?: IDevToolsOptions): TPromise<void>;
-	toggleDevTools(): TPromise<void>;
-	closeWorkspace(): TPromise<void>;
-	updateTouchBar(items: ISerializableCommandAction[][]): TPromise<void>;
-	enterWorkspace(path: string): TPromise<IEnterWorkspaceResult | undefined>;
-	createAndEnterWorkspace(folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult | undefined>;
-	saveAndEnterWorkspace(path: string): TPromise<IEnterWorkspaceResult | undefined>;
-	toggleFullScreen(): TPromise<void>;
-	setRepresentedFilename(fileName: string): TPromise<void>;
-	getRecentlyOpened(): TPromise<IRecentlyOpened>;
-	focusWindow(): TPromise<void>;
-	closeWindow(): TPromise<void>;
-	openWindow(paths: URI[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean, args?: ParsedArgs }): TPromise<void>;
-	isFocused(): TPromise<boolean>;
-	setDocumentEdited(flag: boolean): TPromise<void>;
-	isMaximized(): TPromise<boolean>;
-	maximizeWindow(): TPromise<void>;
-	unmaximizeWindow(): TPromise<void>;
-	minimizeWindow(): TPromise<void>;
-	onWindowTitleDoubleClick(): TPromise<void>;
-	show(): TPromise<void>;
-	showMessageBox(options: MessageBoxOptions): TPromise<IMessageBoxResult>;
-	showSaveDialog(options: SaveDialogOptions): TPromise<string>;
-	showOpenDialog(options: OpenDialogOptions): TPromise<string[]>;
+	pickFileFolderAndOpen(options: INativeOpenDialogOptions): Promise<void>;
+	pickFileAndOpen(options: INativeOpenDialogOptions): Promise<void>;
+	pickFolderAndOpen(options: INativeOpenDialogOptions): Promise<void>;
+	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): Promise<void>;
+	reloadWindow(args?: ParsedArgs): Promise<void>;
+	openDevTools(options?: IDevToolsOptions): Promise<void>;
+	toggleDevTools(): Promise<void>;
+	closeWorkspace(): Promise<void>;
+	updateTouchBar(items: ISerializableCommandAction[][]): Promise<void>;
+	enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | undefined>;
+	toggleFullScreen(): Promise<void>;
+	setRepresentedFilename(fileName: string): Promise<void>;
+	getRecentlyOpened(): Promise<IRecentlyOpened>;
+	focusWindow(): Promise<void>;
+	closeWindow(): Promise<void>;
+	openWindow(paths: URI[], options?: IOpenSettings): Promise<void>;
+	isFocused(): Promise<boolean>;
+	setDocumentEdited(flag: boolean): Promise<void>;
+	isMaximized(): Promise<boolean>;
+	maximizeWindow(): Promise<void>;
+	unmaximizeWindow(): Promise<void>;
+	minimizeWindow(): Promise<void>;
+	onWindowTitleDoubleClick(): Promise<void>;
+	show(): Promise<void>;
+	showMessageBox(options: MessageBoxOptions): Promise<IMessageBoxResult>;
+	showSaveDialog(options: SaveDialogOptions): Promise<string>;
+	showOpenDialog(options: OpenDialogOptions): Promise<string[]>;
 	resolveProxy(url: string): Promise<string | undefined>;
 }
 
@@ -243,7 +247,6 @@ export interface IWindowSettings {
 	nativeFullScreen: boolean;
 	enableMenuBarMnemonics: boolean;
 	closeWhenEmpty: boolean;
-	smoothScrollingWorkaround: boolean;
 	clickThroughInactive: boolean;
 }
 
@@ -264,11 +267,6 @@ export function getTitleBarStyle(configurationService: IConfigurationService, en
 		const useSimpleFullScreen = isMacintosh && configuration.nativeFullScreen === false;
 		if (useSimpleFullScreen) {
 			return 'native'; // simple fullscreen does not work well with custom title style (https://github.com/Microsoft/vscode/issues/63291)
-		}
-
-		const smoothScrollingWorkaround = isWindows && configuration.smoothScrollingWorkaround === true;
-		if (smoothScrollingWorkaround) {
-			return 'native'; // smooth scrolling workaround does not work with custom title style
 		}
 
 		const style = configuration.titleBarStyle;
@@ -410,10 +408,14 @@ export interface IRunActionInWindowRequest {
 	args?: any[];
 }
 
+export interface IRunKeybindingInWindowRequest {
+	userSettingsLabel: string;
+}
+
 export class ActiveWindowManager implements IDisposable {
 
 	private disposables: IDisposable[] = [];
-	private firstActiveWindowIdPromise: TPromise<any> | null;
+	private firstActiveWindowIdPromise: Promise<any> | null;
 	private _activeWindowId: number | undefined;
 
 	constructor(@IWindowsService windowsService: IWindowsService) {
@@ -432,12 +434,12 @@ export class ActiveWindowManager implements IDisposable {
 		this._activeWindowId = windowId;
 	}
 
-	getActiveClientId(): TPromise<string> {
+	getActiveClientId(): Promise<string> {
 		if (this.firstActiveWindowIdPromise) {
 			return this.firstActiveWindowIdPromise;
 		}
 
-		return TPromise.as(`window:${this._activeWindowId}`);
+		return Promise.resolve(`window:${this._activeWindowId}`);
 	}
 
 	dispose() {

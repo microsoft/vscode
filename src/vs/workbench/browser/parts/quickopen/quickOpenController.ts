@@ -53,7 +53,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 
 const HELP_PREFIX = '?';
 
-type ValueCallback<T = any> = (value: T | Thenable<T>) => void;
+type ValueCallback<T = any> = (value: T | Promise<T>) => void;
 
 export class QuickOpenController extends Component implements IQuickOpenService {
 
@@ -86,13 +86,13 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	private pendingGetResultsInvocation: CancellationTokenSource;
 
 	constructor(
-		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
-		@INotificationService private notificationService: INotificationService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IPartService private partService: IPartService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IPartService private readonly partService: IPartService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService
 	) {
@@ -155,9 +155,9 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	}
 
 	show(prefix?: string, options?: IShowOptions): Promise<void> {
-		let quickNavigateConfiguration = options ? options.quickNavigateConfiguration : void 0;
-		let inputSelection = options ? options.inputSelection : void 0;
-		let autoFocus = options ? options.autoFocus : void 0;
+		let quickNavigateConfiguration = options ? options.quickNavigateConfiguration : undefined;
+		let inputSelection = options ? options.inputSelection : undefined;
+		let autoFocus = options ? options.autoFocus : undefined;
 
 		const promiseCompletedOnHide = new Promise<void>(c => {
 			this.promisesToCompleteOnHide.push(c);
@@ -452,11 +452,11 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 			const previousInput = this.quickOpenWidget.getInput();
 			const wasShowingHistory = previousInput && previousInput.entries && previousInput.entries.some(e => e instanceof EditorHistoryEntry || e instanceof EditorHistoryEntryGroup);
 			if (wasShowingHistory || matchingHistoryEntries.length > 0) {
-				let responseDelay: Thenable<void>;
+				let responseDelay: Promise<void>;
 				if (resolvedHandler.hasShortResponseTime()) {
 					responseDelay = timeout(QuickOpenController.MAX_SHORT_RESPONSE_TIME);
 				} else {
-					responseDelay = Promise.resolve(void 0);
+					responseDelay = Promise.resolve();
 				}
 
 				responseDelay.then(() => {
@@ -490,8 +490,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		// Remove results already showing by checking for a "resource" property
 		const mapEntryToResource = this.mapEntriesToResource(quickOpenModel);
 		const additionalHandlerResults: QuickOpenEntry[] = [];
-		for (let i = 0; i < handlerResults.length; i++) {
-			const result = handlerResults[i];
+		for (const result of handlerResults) {
 			const resource = result.getResource();
 
 			if (!result.mergeWithEditorHistory() || !resource || !mapEntryToResource[resource.toString()]) {
@@ -529,7 +528,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 				const model = new QuickOpenModel([new PlaceholderQuickOpenEntry(placeHolderLabel)], this.actionProvider);
 				this.showModel(model, resolvedHandler.getAutoFocus(value, { model, quickNavigateConfiguration: this.quickOpenWidget.getQuickNavigateConfiguration() }), resolvedHandler.getAriaLabel());
 
-				return Promise.resolve(null);
+				return Promise.resolve(undefined);
 			}
 
 			// Support extra class from handler
@@ -646,9 +645,9 @@ class EditorHistoryHandler {
 	private scorerCache: ScorerCache;
 
 	constructor(
-		@IHistoryService private historyService: IHistoryService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IFileService private fileService: IFileService
+		@IHistoryService private readonly historyService: IHistoryService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		this.scorerCache = Object.create(null);
 	}
@@ -709,7 +708,7 @@ class EditorHistoryItemAccessorClass extends QuickOpenItemAccessorClass {
 	}
 
 	getItemDescription(entry: QuickOpenEntry): string {
-		return this.allowMatchOnDescription ? entry.getDescription() : void 0;
+		return this.allowMatchOnDescription ? entry.getDescription() : undefined;
 	}
 }
 
@@ -730,10 +729,10 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 	constructor(
 		input: IEditorInput | IResourceInput,
 		@IEditorService editorService: IEditorService,
-		@IModeService private modeService: IModeService,
-		@IModelService private modelService: IModelService,
-		@ITextFileService private textFileService: ITextFileService,
-		@IConfigurationService private configurationService: IConfigurationService,
+		@IModeService private readonly modeService: IModeService,
+		@IModelService private readonly modelService: IModelService,
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILabelService labelService: ILabelService,
 		@IFileService fileService: IFileService
 	) {
@@ -808,7 +807,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 }
 
 function resourceForEditorHistory(input: EditorInput, fileService: IFileService): URI {
-	const resource = input ? input.getResource() : void 0;
+	const resource = input ? input.getResource() : undefined;
 
 	// For the editor history we only prefer resources that are either untitled or
 	// can be handled by the file service which indicates they are editable resources.
@@ -816,7 +815,7 @@ function resourceForEditorHistory(input: EditorInput, fileService: IFileService)
 		return resource;
 	}
 
-	return void 0;
+	return undefined;
 }
 
 export class RemoveFromEditorHistoryAction extends Action {
@@ -827,16 +826,16 @@ export class RemoveFromEditorHistoryAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IQuickInputService private quickInputService: IQuickInputService,
-		@IModelService private modelService: IModelService,
-		@IModeService private modeService: IModeService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IHistoryService private historyService: IHistoryService
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IModelService private readonly modelService: IModelService,
+		@IModeService private readonly modeService: IModeService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IHistoryService private readonly historyService: IHistoryService
 	) {
 		super(id, label);
 	}
 
-	run(): Thenable<any> {
+	run(): Promise<any> {
 		interface IHistoryPickEntry extends IQuickPickItem {
 			input: IEditorInput | IResourceInput;
 		}

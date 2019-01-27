@@ -1,11 +1,12 @@
 {
+  "enableProposedApi": true,
   "name": "css-language-features",
   "displayName": "%displayName%",
   "description": "%description%",
   "version": "1.0.0",
   "publisher": "vscode",
   "engines": {
-    "vscode": "0.10.x"
+    "vscode": "^1.29.0"
   },
   "icon": "icons/css.png",
   "activationEvents": [
@@ -32,18 +33,17 @@
         "id": "css",
         "title": "%css.title%",
         "properties": {
+          "css.experimental.customData": {
+            "type": "array",
+            "description": "A list of JSON file paths that define custom CSS data that loads custom properties, at directives, pseudo classes / elements.",
+            "default": [],
+            "scope": "resource"
+          },
           "css.validate": {
             "type": "boolean",
             "scope": "resource",
             "default": true,
             "description": "%css.validate.desc%"
-          },
-          "css.colorDecorators.enable": {
-            "type": "boolean",
-            "scope": "window",
-            "default": true,
-            "description": "%css.colorDecorators.enable.desc%",
-            "deprecationMessage": "%css.colorDecorators.enable.deprecationMessage%"
           },
           "css.lint.compatibleVendorPrefixes": {
             "type": "string",
@@ -288,13 +288,6 @@
             "default": true,
             "description": "%scss.validate.desc%"
           },
-          "scss.colorDecorators.enable": {
-            "type": "boolean",
-            "scope": "window",
-            "default": true,
-            "description": "%scss.colorDecorators.enable.desc%",
-            "deprecationMessage": "%scss.colorDecorators.enable.deprecationMessage%"
-          },
           "scss.lint.compatibleVendorPrefixes": {
             "type": "string",
             "scope": "resource",
@@ -516,13 +509,6 @@
             "scope": "resource",
             "default": true,
             "description": "%less.validate.desc%"
-          },
-          "less.colorDecorators.enable": {
-            "type": "boolean",
-            "scope": "window",
-            "default": true,
-            "description": "%less.colorDecorators.enable.desc%",
-            "deprecationMessage": "%less.colorDecorators.enable.deprecationMessage%"
           },
           "less.lint.compatibleVendorPrefixes": {
             "type": "string",

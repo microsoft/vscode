@@ -28,9 +28,12 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 const SEARCH_STRING_MAX_LENGTH = 524288;
 
-export function getSelectionSearchString(editor: ICodeEditor): string {
-	let selection = editor.getSelection();
+export function getSelectionSearchString(editor: ICodeEditor): string | null {
+	if (!editor.hasModel()) {
+		return null;
+	}
 
+	const selection = editor.getSelection();
 	// if selection spans multiple lines, default search string to empty
 	if (selection.startLineNumber === selection.endLineNumber) {
 		if (selection.isEmpty()) {
@@ -71,7 +74,7 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 	private _findWidgetVisible: IContextKey<boolean>;
 	protected _state: FindReplaceState;
 	protected _updateHistoryDelayer: Delayer<void>;
-	private _model: FindModelBoundToEditorModel;
+	private _model: FindModelBoundToEditorModel | null;
 	private _storageService: IStorageService;
 	private _clipboardService: IClipboardService;
 	protected readonly _contextKeyService: IContextKeyService;
@@ -178,7 +181,7 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 	}
 
 	public isFindInputFocused(): boolean {
-		return CONTEXT_FIND_INPUT_FOCUSED.getValue(this._contextKeyService);
+		return !!CONTEXT_FIND_INPUT_FOCUSED.getValue(this._contextKeyService);
 	}
 
 	public getState(): FindReplaceState {
@@ -218,12 +221,14 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 		if (this._state.searchScope) {
 			this._state.change({ searchScope: null }, true);
 		} else {
-			let selection = this._editor.getSelection();
-			if (selection.endColumn === 1 && selection.endLineNumber > selection.startLineNumber) {
-				selection = selection.setEndPosition(selection.endLineNumber - 1, this._editor.getModel().getLineMaxColumn(selection.endLineNumber - 1));
-			}
-			if (!selection.isEmpty()) {
-				this._state.change({ searchScope: selection }, true);
+			if (this._editor.hasModel()) {
+				let selection = this._editor.getSelection();
+				if (selection.endColumn === 1 && selection.endLineNumber > selection.startLineNumber) {
+					selection = selection.setEndPosition(selection.endLineNumber - 1, this._editor.getModel().getLineMaxColumn(selection.endLineNumber - 1));
+				}
+				if (!selection.isEmpty()) {
+					this._state.change({ searchScope: selection }, true);
+				}
 			}
 		}
 	}
@@ -242,7 +247,7 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 	protected _start(opts: IFindStartOptions): void {
 		this.disposeModel();
 
-		if (!this._editor.getModel()) {
+		if (!this._editor.hasModel()) {
 			// cannot do anything with an editor that doesn't have a model...
 			return;
 		}
@@ -338,6 +343,7 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 	public getGlobalBufferTerm(): string {
 		if (this._editor.getConfiguration().contribInfo.find.globalFindClipboard
 			&& this._clipboardService
+			&& this._editor.hasModel()
 			&& !this._editor.getModel().isTooLargeForSyncing()
 		) {
 			return this._clipboardService.readFindText();
@@ -348,6 +354,7 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 	public setGlobalBufferTerm(text: string) {
 		if (this._editor.getConfiguration().contribInfo.find.globalFindClipboard
 			&& this._clipboardService
+			&& this._editor.hasModel()
 			&& !this._editor.getModel().isTooLargeForSyncing()
 		) {
 			this._clipboardService.writeFindText(text);
@@ -430,7 +437,7 @@ export class StartFindAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(accessor: ServicesAccessor | null, editor: ICodeEditor): void {
 		let controller = CommonFindController.get(editor);
 		if (controller) {
 			controller.start({
@@ -481,7 +488,7 @@ export class StartFindWithSelectionAction extends EditorAction {
 	}
 }
 export abstract class MatchFindAction extends EditorAction {
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(accessor: ServicesAccessor | null, editor: ICodeEditor): void {
 		let controller = CommonFindController.get(editor);
 		if (controller && !this._run(controller)) {
 			controller.start({
@@ -544,7 +551,7 @@ export class PreviousMatchFindAction extends MatchFindAction {
 }
 
 export abstract class SelectionMatchFindAction extends EditorAction {
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(accessor: ServicesAccessor | null, editor: ICodeEditor): void {
 		let controller = CommonFindController.get(editor);
 		if (!controller) {
 			return;
@@ -634,8 +641,8 @@ export class StartFindReplaceAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		if (editor.getConfiguration().readOnly) {
+	public run(accessor: ServicesAccessor | null, editor: ICodeEditor): void {
+		if (!editor.hasModel() || editor.getConfiguration().readOnly) {
 			return;
 		}
 

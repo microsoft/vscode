@@ -25,6 +25,7 @@ import * as perf from 'vs/base/common/performance';
 import { resolveMarketplaceHeaders } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 import { getBackgroundColor } from 'vs/code/electron-main/theme';
 import { IStorageMainService } from 'vs/platform/storage/node/storageMainService';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 export interface IWindowCreationOptions {
 	state: IWindowState;
@@ -74,19 +75,19 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private currentConfig: IWindowConfiguration;
 	private pendingLoadConfig: IWindowConfiguration;
 
-	private marketplaceHeadersPromise: Thenable<object>;
+	private marketplaceHeadersPromise: Promise<object>;
 
 	private touchBarGroups: Electron.TouchBarSegmentedControl[];
 
 	constructor(
 		config: IWindowCreationOptions,
-		@ILogService private logService: ILogService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IStateService private stateService: IStateService,
-		@IWorkspacesMainService private workspacesMainService: IWorkspacesMainService,
-		@IBackupMainService private backupMainService: IBackupMainService,
-		@IStorageMainService private storageMainService: IStorageMainService
+		@ILogService private readonly logService: ILogService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IStateService private readonly stateService: IStateService,
+		@IWorkspacesMainService private readonly workspacesMainService: IWorkspacesMainService,
+		@IBackupMainService private readonly backupMainService: IBackupMainService,
+		@IStorageMainService private readonly storageMainService: IStorageMainService
 	) {
 		super();
 
@@ -253,19 +254,19 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	get backupPath(): string {
-		return this.currentConfig ? this.currentConfig.backupPath : void 0;
+		return this.currentConfig ? this.currentConfig.backupPath : undefined;
 	}
 
 	get openedWorkspace(): IWorkspaceIdentifier {
-		return this.currentConfig ? this.currentConfig.workspace : void 0;
+		return this.currentConfig ? this.currentConfig.workspace : undefined;
 	}
 
 	get openedFolderUri(): URI {
-		return this.currentConfig ? this.currentConfig.folderUri : void 0;
+		return this.currentConfig ? this.currentConfig.folderUri : undefined;
 	}
 
 	get remoteAuthority(): string {
-		return this.currentConfig ? this.currentConfig.remoteAuthority : void 0;
+		return this.currentConfig ? this.currentConfig.remoteAuthority : undefined;
 	}
 
 	setReady(): void {
@@ -273,11 +274,11 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// inform all waiting promises that we are ready now
 		while (this.whenReadyCallbacks.length) {
-			this.whenReadyCallbacks.pop()(this);
+			this.whenReadyCallbacks.pop()!(this);
 		}
 	}
 
-	ready(): Thenable<ICodeWindow> {
+	ready(): Promise<ICodeWindow> {
 		return new Promise<ICodeWindow>(resolve => {
 			if (this.isReady) {
 				return resolve(this);
@@ -360,17 +361,31 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			this._lastFocusTime = Date.now();
 		});
 
-		// Simple fullscreen doesn't resize automatically when the resolution changes
+		// Simple fullscreen doesn't resize automatically when the resolution changes so as a workaround
+		// we need to detect when display metrics change or displays are added/removed and toggle the
+		// fullscreen manually.
 		if (isMacintosh) {
-			const displayMetricsChangedListener = () => {
-				if (this.isFullScreen() && !this.useNativeFullScreen()) {
+			const simpleFullScreenScheduler = this._register(new RunOnceScheduler(() => {
+				if (!this._win) {
+					return; // disposed
+				}
+
+				if (!this.useNativeFullScreen() && this.isFullScreen()) {
 					this.setFullScreen(false);
 					this.setFullScreen(true);
 				}
-			};
+			}, 100));
 
-			screen.addListener('display-metrics-changed', displayMetricsChangedListener);
-			this._register(toDisposable(() => screen.removeListener('display-metrics-changed', displayMetricsChangedListener)));
+			const displayChangedListener = () => simpleFullScreenScheduler.schedule();
+
+			screen.on('display-metrics-changed', displayChangedListener);
+			this._register(toDisposable(() => screen.removeListener('display-metrics-changed', displayChangedListener)));
+
+			screen.on('display-added', displayChangedListener);
+			this._register(toDisposable(() => screen.removeListener('display-added', displayChangedListener)));
+
+			screen.on('display-removed', displayChangedListener);
+			this._register(toDisposable(() => screen.removeListener('display-removed', displayChangedListener)));
 		}
 
 		// Window (Un)Maximize
@@ -409,34 +424,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Handle Workspace events
 		this._register(this.workspacesMainService.onUntitledWorkspaceDeleted(e => this.onUntitledWorkspaceDeleted(e)));
-
-		// TODO@Ben workaround for https://github.com/Microsoft/vscode/issues/13612
-		// It looks like smooth scrolling disappears as soon as the window is minimized
-		// and maximized again. Touching some window properties "fixes" it, like toggling
-		// the visibility of the menu.
-		if (isWindows) {
-			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
-			if (windowConfig && windowConfig.smoothScrollingWorkaround === true) {
-				let minimized = false;
-
-				const restoreSmoothScrolling = () => {
-					if (minimized) {
-						const visibility = this.getMenuBarVisibility();
-						const temporaryVisibility: MenuBarVisibility = (visibility === 'hidden' || visibility === 'toggle') ? 'default' : 'hidden';
-						setTimeout(() => {
-							this.doSetMenuBarVisibility(temporaryVisibility);
-							this.doSetMenuBarVisibility(visibility);
-						}, 0);
-					}
-
-					minimized = false;
-				};
-
-				this._win.on('minimize', () => minimized = true);
-				this._win.on('restore', () => restoreSmoothScrolling());
-				this._win.on('maximize', () => restoreSmoothScrolling());
-			}
-		}
 	}
 
 	private onUntitledWorkspaceDeleted(workspace: IWorkspaceIdentifier): void {
@@ -444,7 +431,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// Make sure to update our workspace config if we detect that it
 		// was deleted
 		if (this.openedWorkspace && this.openedWorkspace.id === workspace.id) {
-			this.currentConfig.workspace = void 0;
+			this.currentConfig.workspace = undefined;
 		}
 	}
 
@@ -543,12 +530,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 	}
 
-	reload(configuration?: IWindowConfiguration, cli?: ParsedArgs): void {
+	reload(configurationIn?: IWindowConfiguration, cli?: ParsedArgs): void {
 
 		// If config is not provided, copy our current one
-		if (!configuration) {
-			configuration = objects.mixin({}, this.currentConfig);
-		}
+		const configuration = configurationIn ? configurationIn : objects.mixin({}, this.currentConfig);
 
 		// Delete some properties we do not want during reload
 		delete configuration.filesToOpen;
@@ -605,13 +590,13 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		windowConfiguration.perfEntries = perf.exportEntries();
 
 		// Parts splash
-		windowConfiguration.partsSplashData = this.storageMainService.get('parts-splash-data', void 0);
+		windowConfiguration.partsSplashData = this.storageMainService.get('parts-splash-data', undefined);
 
 		// Config (combination of process.argv and window configuration)
 		const environment = parseArgs(process.argv);
 		const config = objects.assign(environment, windowConfiguration);
 		for (let key in config) {
-			if (config[key] === void 0 || config[key] === null || config[key] === '' || config[key] === false) {
+			if (config[key] === undefined || config[key] === null || config[key] === '' || config[key] === false) {
 				delete config[key]; // only send over properties that have a true value
 			}
 		}
@@ -651,7 +636,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 			const res = {
 				mode: WindowMode.Fullscreen,
-				display: display ? display.id : void 0,
+				display: display ? display.id : undefined,
 
 				// Still carry over window dimensions from previous sessions
 				// if we can compute it in fullscreen state.
@@ -713,7 +698,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		return state;
 	}
 
-	private validateWindowState(state: IWindowState): IWindowState {
+	private validateWindowState(state: IWindowState): IWindowState | null {
 		if (!state) {
 			return null;
 		}
@@ -854,6 +839,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 		if (!windowConfig || typeof windowConfig.nativeFullScreen !== 'boolean') {
 			return true; // default
+		}
+
+		if (windowConfig.nativeTabs) {
+			return true; // https://github.com/electron/electron/issues/16142
 		}
 
 		return windowConfig.nativeFullScreen !== false;
@@ -1028,17 +1017,17 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private createTouchBarGroupSegments(items: ISerializableCommandAction[] = []): ITouchBarSegment[] {
 		const segments: ITouchBarSegment[] = items.map(item => {
-			let icon: Electron.NativeImage;
+			let icon: Electron.NativeImage | undefined;
 			if (item.iconLocation && item.iconLocation.dark.scheme === 'file') {
 				icon = nativeImage.createFromPath(URI.revive(item.iconLocation.dark).fsPath);
 				if (icon.isEmpty()) {
-					icon = void 0;
+					icon = undefined;
 				}
 			}
 
 			return {
 				id: item.id,
-				label: !icon ? item.title as string : void 0,
+				label: !icon ? item.title as string : undefined,
 				icon
 			};
 		});

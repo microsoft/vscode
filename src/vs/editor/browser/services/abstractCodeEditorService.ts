@@ -74,8 +74,7 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 		let editorWithWidgetFocus: ICodeEditor | null = null;
 
 		let editors = this.listCodeEditors();
-		for (let i = 0; i < editors.length; i++) {
-			let editor = editors[i];
+		for (const editor of editors) {
 
 			if (editor.hasTextFocus()) {
 				// bingo!
@@ -126,7 +125,7 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 	}
 
 	abstract getActiveCodeEditor(): ICodeEditor | null;
-	abstract openCodeEditor(input: IResourceInput, source: ICodeEditor | null, sideBySide?: boolean): Thenable<ICodeEditor | null>;
+	abstract openCodeEditor(input: IResourceInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null>;
 }
 
 export class ModelTransientSettingWatcher {

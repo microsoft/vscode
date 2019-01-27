@@ -23,7 +23,7 @@ import { overviewRulerRangeHighlight } from 'vs/editor/common/view/editorColorRe
 import { GroupIdentifier, IEditorInput } from 'vs/workbench/common/editor';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
-import { asThenable } from 'vs/base/common/async';
+import { asPromise } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 
 export const GOTO_SYMBOL_PREFIX = '@';
@@ -89,7 +89,7 @@ class OutlineModel extends QuickOpenModel {
 
 			// Filter by search
 			if (normalizedSearchValue) {
-				const highlights = filters.matchesFuzzy(normalizedSearchValue, entry.getLabel());
+				const highlights = filters.matchesFuzzy2(normalizedSearchValue, entry.getLabel());
 				if (highlights) {
 					entry.setHighlights(highlights);
 					entry.setHidden(false);
@@ -372,7 +372,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 	private pendingOutlineRequest: CancellationTokenSource;
 
 	constructor(
-		@IEditorService private editorService: IEditorService
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		super();
 
@@ -386,11 +386,11 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 	private onDidActiveEditorChange(): void {
 		this.clearOutlineRequest();
 
-		this.lastKnownEditorViewState = void 0;
-		this.rangeHighlightDecorationId = void 0;
+		this.lastKnownEditorViewState = undefined;
+		this.rangeHighlightDecorationId = undefined;
 	}
 
-	getResults(searchValue: string, token: CancellationToken): Thenable<QuickOpenModel> {
+	getResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel> {
 		searchValue = searchValue.trim();
 
 		// Support to cancel pending outline requests
@@ -490,7 +490,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		return this.cachedOutlineRequest;
 	}
 
-	private doGetActiveOutline(): Promise<OutlineModel> {
+	private doGetActiveOutline(): Promise<OutlineModel | null> {
 		const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
 		if (activeTextEditorWidget) {
 			let model = activeTextEditorWidget.getModel();
@@ -499,7 +499,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 			}
 
 			if (model && types.isFunction((<ITextModel>model).getLanguageIdentifier)) {
-				return Promise.resolve(asThenable(() => getDocumentSymbols(<ITextModel>model, true, this.pendingOutlineRequest.token)).then(entries => {
+				return Promise.resolve(asPromise(() => getDocumentSymbols(<ITextModel>model, true, this.pendingOutlineRequest.token)).then(entries => {
 					return new OutlineModel(this.toQuickOpenEntries(entries));
 				}));
 			}
@@ -595,7 +595,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		if (this.pendingOutlineRequest) {
 			this.pendingOutlineRequest.cancel();
 			this.pendingOutlineRequest.dispose();
-			this.pendingOutlineRequest = void 0;
+			this.pendingOutlineRequest = undefined;
 		}
 
 		this.cachedOutlineRequest = null;

@@ -7,7 +7,6 @@ import * as assert from 'assert';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { workbenchInstantiationService, TestStorageService } from 'vs/workbench/test/workbenchTestServices';
 import { GroupDirection, GroupsOrder, MergeGroupMode, GroupOrientation, GroupChangeKind, EditorsOrder, GroupLocation } from 'vs/workbench/services/group/common/editorGroupsService';
-import { Dimension } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorPartOptions } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorInput, IFileEditorInput, IEditorInputFactory, IEditorInputFactoryRegistry, Extensions as EditorExtensions, EditorOptions, CloseDirection } from 'vs/workbench/common/editor';
@@ -26,10 +25,10 @@ export class TestEditorControl extends BaseEditor {
 
 	constructor(@ITelemetryService telemetryService: ITelemetryService) { super('MyFileEditorForEditorGroupService', NullTelemetryService, new TestThemeService(), new TestStorageService()); }
 
-	setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
+	setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
 		super.setInput(input, options, token);
 
-		return input.resolve().then(() => void 0);
+		return input.resolve().then(() => undefined);
 	}
 
 	getId(): string { return 'MyFileEditorForEditorGroupService'; }
@@ -42,10 +41,10 @@ export class TestEditorInput extends EditorInput implements IFileEditorInput {
 	constructor(private resource: URI) { super(); }
 
 	getTypeId() { return 'testEditorInputForEditorGroupService'; }
-	resolve(): Thenable<IEditorModel> { return Promise.resolve(); }
+	resolve(): Promise<IEditorModel> { return Promise.resolve(); }
 	matches(other: TestEditorInput): boolean { return other && this.resource.toString() === other.resource.toString() && other instanceof TestEditorInput; }
 	setEncoding(encoding: string) { }
-	getEncoding(): string { return null; }
+	getEncoding(): string { return null!; }
 	setPreferredEncoding(encoding: string) { }
 	getResource(): URI { return this.resource; }
 	setForceOpenAsBinary(): void { }
@@ -90,7 +89,7 @@ suite('Editor groups service', () => {
 
 		const part = instantiationService.createInstance(EditorPart, 'id', false);
 		part.create(document.createElement('div'));
-		part.layout(new Dimension(400, 300));
+		part.layout(400, 300);
 
 		return part;
 	}
@@ -225,12 +224,12 @@ suite('Editor groups service', () => {
 		assert.equal(mru[0], rightGroup);
 		assert.equal(mru[1], rootGroup);
 
-		let rightGroupInstantiator: IInstantiationService;
+		let rightGroupInstantiator!: IInstantiationService;
 		part.activeGroup.invokeWithinContext(accessor => {
 			rightGroupInstantiator = accessor.get(IInstantiationService);
 		});
 
-		let rootGroupInstantiator: IInstantiationService;
+		let rootGroupInstantiator!: IInstantiationService;
 		rootGroup.invokeWithinContext(accessor => {
 			rootGroupInstantiator = accessor.get(IInstantiationService);
 		});
@@ -353,8 +352,8 @@ suite('Editor groups service', () => {
 	test('options', () => {
 		const part = createPart();
 
-		let oldOptions: IEditorPartOptions;
-		let newOptions: IEditorPartOptions;
+		let oldOptions!: IEditorPartOptions;
+		let newOptions!: IEditorPartOptions;
 		part.onDidEditorPartOptionsChange(event => {
 			oldOptions = event.oldPartOptions;
 			newOptions = event.newPartOptions;

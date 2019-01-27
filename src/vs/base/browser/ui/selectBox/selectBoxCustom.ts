@@ -28,6 +28,7 @@ interface ISelectListTemplateData {
 	root: HTMLElement;
 	text: HTMLElement;
 	itemDescription: HTMLElement;
+	decoratorRight: HTMLElement;
 	disposables: IDisposable[];
 }
 
@@ -42,6 +43,7 @@ class SelectListRenderer implements IListRenderer<ISelectOptionItem, ISelectList
 		data.disposables = [];
 		data.root = container;
 		data.text = dom.append(container, $('.option-text'));
+		data.decoratorRight = dom.append(container, $('.option-decorator-right'));
 		data.itemDescription = dom.append(container, $('.option-text-description'));
 		dom.addClass(data.itemDescription, 'visually-hidden');
 
@@ -51,9 +53,11 @@ class SelectListRenderer implements IListRenderer<ISelectOptionItem, ISelectList
 	renderElement(element: ISelectOptionItem, index: number, templateData: ISelectListTemplateData): void {
 		const data = <ISelectListTemplateData>templateData;
 		const text = (<ISelectOptionItem>element).text;
+		const decoratorRight = (<ISelectOptionItem>element).decoratorRight;
 		const isDisabled = (<ISelectOptionItem>element).isDisabled;
 
 		data.text.textContent = text;
+		data.decoratorRight.innerText = (!!decoratorRight ? decoratorRight : '');
 
 		if (typeof element.description === 'string') {
 			const itemDescriptionId = (text.replace(/ /g, '_').toLowerCase() + '_description_' + data.root.id);
@@ -323,6 +327,10 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 
 		if (this.styles.listFocusForeground) {
 			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.focused:not(:hover) { color: ${this.styles.listFocusForeground} !important; }`);
+		}
+
+		if (this.styles.decoratorRightForeground) {
+			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row .option-decorator-right { color: ${this.styles.decoratorRightForeground} !important; }`);
 		}
 
 		if (this.styles.selectBackground && this.styles.selectBorder && !this.styles.selectBorder.equals(this.styles.selectBackground)) {
@@ -683,14 +691,18 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 
 		if (container && !!this.options) {
 			let longest = 0;
+			let longestLength = 0;
 
-			for (let index = 0; index < this.options.length; index++) {
-				if (this.options[index].text.length > this.options[longest].text.length) {
+			this.options.forEach((option, index) => {
+				const len = option.text.length + (!!option.decoratorRight ? option.decoratorRight.length : 0);
+				if (len > longestLength) {
 					longest = index;
+					longestLength = len;
 				}
-			}
+			});
 
-			container.innerHTML = this.options[longest].text;
+
+			container.innerHTML = this.options[longest].text + (!!this.options[longest].decoratorRight ? (this.options[longest].decoratorRight + ' ') : '');
 			elementWidth = dom.getTotalWidth(container);
 		}
 
@@ -719,7 +731,6 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 		this.selectList = new List(this.selectDropDownListContainer, this, [this.listRenderer], {
 			ariaLabel: this.selectBoxOptions.ariaLabel,
 			useShadows: false,
-			selectOnMouseDown: false,
 			verticalScrollMode: ScrollbarVisibility.Visible,
 			keyboardSupport: false,
 			mouseSupport: false
@@ -765,12 +776,18 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 
 		dom.EventHelper.stop(e);
 
-		// Check our mouse event is on an option (not scrollbar)
-		if (!e.toElement.classList.contains('option-text')) {
+		const target = <Element>e.target;
+		if (!target) {
 			return;
 		}
 
-		const listRowElement = e.toElement.parentElement;
+		// Check our mouse event is on an option (not scrollbar)
+		if (!!target.classList.contains('slider')) {
+			return;
+		}
+
+		const listRowElement = target.closest('.monaco-list-row');
+
 		if (!listRowElement) {
 			return;
 		}

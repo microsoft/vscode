@@ -7,6 +7,7 @@ import 'vs/css!./media/output';
 import * as nls from 'vs/nls';
 import { Action, IAction } from 'vs/base/common/actions';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -17,7 +18,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { AbstractTextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
 import { OUTPUT_PANEL_ID, IOutputService, CONTEXT_IN_OUTPUT } from 'vs/workbench/parts/output/common/output';
-import { SwitchOutputAction, SwitchOutputActionItem, ClearOutputAction, ToggleOutputScrollLockAction, OpenLogOutputFile } from 'vs/workbench/parts/output/browser/outputActions';
+import { SwitchOutputAction, SwitchOutputActionItem, ClearOutputAction, ToggleOrSetOutputScrollLockAction, OpenLogOutputFile } from 'vs/workbench/parts/output/browser/outputActions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -25,6 +26,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorG
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWindowService } from 'vs/platform/windows/common/windows';
+import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 
 export class OutputPanel extends AbstractTextResourceEditor {
 	private actions: IAction[];
@@ -35,11 +37,11 @@ export class OutputPanel extends AbstractTextResourceEditor {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
-		@IConfigurationService private baseConfigurationService: IConfigurationService,
+		@IConfigurationService private readonly baseConfigurationService: IConfigurationService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IThemeService themeService: IThemeService,
-		@IOutputService private outputService: IOutputService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
+		@IOutputService private readonly outputService: IOutputService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@ITextFileService textFileService: ITextFileService,
 		@IEditorService editorService: IEditorService,
@@ -63,7 +65,7 @@ export class OutputPanel extends AbstractTextResourceEditor {
 			this.actions = [
 				this.instantiationService.createInstance(SwitchOutputAction),
 				this.instantiationService.createInstance(ClearOutputAction, ClearOutputAction.ID, ClearOutputAction.LABEL),
-				this.instantiationService.createInstance(ToggleOutputScrollLockAction, ToggleOutputScrollLockAction.ID, ToggleOutputScrollLockAction.LABEL),
+				this.instantiationService.createInstance(ToggleOrSetOutputScrollLockAction, ToggleOrSetOutputScrollLockAction.ID, ToggleOrSetOutputScrollLockAction.LABEL),
 				this.instantiationService.createInstance(OpenLogOutputFile)
 			];
 
@@ -112,10 +114,10 @@ export class OutputPanel extends AbstractTextResourceEditor {
 		return channel ? nls.localize('outputPanelWithInputAriaLabel', "{0}, Output panel", channel.label) : nls.localize('outputPanelAriaLabel', "Output panel");
 	}
 
-	public setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
+	public setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
 		this._focus = !options.preserveFocus;
 		if (input.matches(this.input)) {
-			return Promise.resolve(null);
+			return Promise.resolve(undefined);
 		}
 
 		if (this.input) {
@@ -126,7 +128,7 @@ export class OutputPanel extends AbstractTextResourceEditor {
 			if (this._focus) {
 				this.focus();
 			}
-			this.revealLastLine(false);
+			this.revealLastLine();
 		});
 	}
 
@@ -145,6 +147,19 @@ export class OutputPanel extends AbstractTextResourceEditor {
 		super.createEditor(parent);
 
 		CONTEXT_IN_OUTPUT.bindTo(scopedContextKeyService).set(true);
+
+		const codeEditor = <ICodeEditor>this.getControl();
+		codeEditor.onDidChangeCursorPosition((e) => {
+			if (e.reason !== CursorChangeReason.Explicit) {
+				return;
+			}
+
+			const newPositionLine = e.position.lineNumber;
+			const lastLine = codeEditor.getModel().getLineCount();
+			const newLockState = lastLine !== newPositionLine;
+			const lockAction = this.actions.filter((action) => action.id === ToggleOrSetOutputScrollLockAction.ID)[0];
+			lockAction.run(newLockState);
+		});
 	}
 
 	public get instantiationService(): IInstantiationService {

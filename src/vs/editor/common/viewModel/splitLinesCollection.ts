@@ -55,7 +55,7 @@ export interface ISplitLine {
 	getViewLineMinColumn(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): number;
 	getViewLineMaxColumn(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): number;
 	getViewLineData(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): ViewLineData;
-	getViewLinesData(model: ISimpleModel, modelLineNumber: number, fromOuputLineIndex: number, toOutputLineIndex: number, globalStartIndex: number, needed: boolean[], result: (ViewLineData | null)[]): void;
+	getViewLinesData(model: ISimpleModel, modelLineNumber: number, fromOuputLineIndex: number, toOutputLineIndex: number, globalStartIndex: number, needed: boolean[], result: Array<ViewLineData | null>): void;
 
 	getModelColumnOfViewPosition(outputLineIndex: number, outputColumn: number): number;
 	getViewPositionOfModelPosition(deltaLineNumber: number, inputColumn: number): Position;
@@ -87,7 +87,7 @@ export interface IViewModelLinesCollection {
 	getViewLineMinColumn(viewLineNumber: number): number;
 	getViewLineMaxColumn(viewLineNumber: number): number;
 	getViewLineData(viewLineNumber: number): ViewLineData;
-	getViewLinesData(viewStartLineNumber: number, viewEndLineNumber: number, needed: boolean[]): (ViewLineData | null)[];
+	getViewLinesData(viewStartLineNumber: number, viewEndLineNumber: number, needed: boolean[]): Array<ViewLineData | null>;
 
 	getAllOverviewRulerDecorations(ownerId: number, filterOutValidation: boolean, theme: ITheme): IOverviewRulerDecorations;
 	getDecorationsInRange(range: Range, ownerId: number, filterOutValidation: boolean): IModelDecoration[];
@@ -286,9 +286,9 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		// END TODO@Martin: Please stop calling this method on each model change!
 
 		let newDecorations: IModelDeltaDecoration[] = [];
-		for (let i = 0; i < newRanges.length; i++) {
+		for (const newRange of newRanges) {
 			newDecorations.push({
-				range: newRanges[i],
+				range: newRange,
 				options: ModelDecorationOptions.EMPTY
 			});
 		}
@@ -403,8 +403,8 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		let hiddenAreas = this.getHiddenAreas();
 		let isInHiddenArea = false;
 		let testPosition = new Position(fromLineNumber, 1);
-		for (let i = 0; i < hiddenAreas.length; i++) {
-			if (hiddenAreas[i].containsPosition(testPosition)) {
+		for (const hiddenArea of hiddenAreas) {
+			if (hiddenArea.containsPosition(testPosition)) {
 				isInHiddenArea = true;
 				break;
 			}
@@ -788,8 +788,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 	public getAllOverviewRulerDecorations(ownerId: number, filterOutValidation: boolean, theme: ITheme): IOverviewRulerDecorations {
 		const decorations = this.model.getOverviewRulerDecorations(ownerId, filterOutValidation);
 		const result = new OverviewRulerDecorations();
-		for (let i = 0, len = decorations.length; i < len; i++) {
-			const decoration = decorations[i];
+		for (const decoration of decorations) {
 			const opts = <ModelDecorationOverviewRulerOptions>decoration.options.overviewRuler;
 			const lane = opts ? opts.position : 0;
 			if (lane === 0) {
@@ -858,8 +857,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		// Eliminate duplicate decorations that might have intersected our visible ranges multiple times
 		let finalResult: IModelDecoration[] = [], finalResultLen = 0;
 		let prevDecId: string | null = null;
-		for (let i = 0, len = result.length; i < len; i++) {
-			const dec = result[i];
+		for (const dec of result) {
 			const decId = dec.id;
 			if (prevDecId === decId) {
 				// skip
@@ -922,7 +920,7 @@ class VisibleIdentitySplitLine implements ISplitLine {
 		);
 	}
 
-	public getViewLinesData(model: ISimpleModel, modelLineNumber: number, _fromOuputLineIndex: number, _toOutputLineIndex: number, globalStartIndex: number, needed: boolean[], result: (ViewLineData | null)[]): void {
+	public getViewLinesData(model: ISimpleModel, modelLineNumber: number, _fromOuputLineIndex: number, _toOutputLineIndex: number, globalStartIndex: number, needed: boolean[], result: Array<ViewLineData | null>): void {
 		if (!needed[globalStartIndex]) {
 			result[globalStartIndex] = null;
 			return;
@@ -1136,7 +1134,7 @@ export class SplitLine implements ISplitLine {
 		);
 	}
 
-	public getViewLinesData(model: ITextModel, modelLineNumber: number, fromOuputLineIndex: number, toOutputLineIndex: number, globalStartIndex: number, needed: boolean[], result: (ViewLineData | null)[]): void {
+	public getViewLinesData(model: ITextModel, modelLineNumber: number, fromOuputLineIndex: number, toOutputLineIndex: number, globalStartIndex: number, needed: boolean[], result: Array<ViewLineData | null>): void {
 		if (!this._isVisible) {
 			throw new Error('Not supported');
 		}
@@ -1360,12 +1358,12 @@ export class IdentityLinesCollection implements IViewModelLinesCollection {
 		);
 	}
 
-	public getViewLinesData(viewStartLineNumber: number, viewEndLineNumber: number, needed: boolean[]): (ViewLineData | null)[] {
+	public getViewLinesData(viewStartLineNumber: number, viewEndLineNumber: number, needed: boolean[]): Array<ViewLineData | null> {
 		const lineCount = this.model.getLineCount();
 		viewStartLineNumber = Math.min(Math.max(1, viewStartLineNumber), lineCount);
 		viewEndLineNumber = Math.min(Math.max(1, viewEndLineNumber), lineCount);
 
-		let result: (ViewLineData | null)[] = [];
+		let result: Array<ViewLineData | null> = [];
 		for (let lineNumber = viewStartLineNumber; lineNumber <= viewEndLineNumber; lineNumber++) {
 			let idx = lineNumber - viewStartLineNumber;
 			if (!needed[idx]) {
@@ -1380,8 +1378,7 @@ export class IdentityLinesCollection implements IViewModelLinesCollection {
 	public getAllOverviewRulerDecorations(ownerId: number, filterOutValidation: boolean, theme: ITheme): IOverviewRulerDecorations {
 		const decorations = this.model.getOverviewRulerDecorations(ownerId, filterOutValidation);
 		const result = new OverviewRulerDecorations();
-		for (let i = 0, len = decorations.length; i < len; i++) {
-			const decoration = decorations[i];
+		for (const decoration of decorations) {
 			const opts = <ModelDecorationOverviewRulerOptions>decoration.options.overviewRuler;
 			const lane = opts ? opts.position : 0;
 			if (lane === 0) {

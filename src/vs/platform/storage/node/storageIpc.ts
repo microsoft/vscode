@@ -57,7 +57,7 @@ export class GlobalStorageDatabaseChannel extends Disposable implements IServerC
 
 	private serializeEvents(events: IStorageChangeEvent[]): ISerializableItemsChangeEvent {
 		const items = new Map<Key, Value>();
-		events.forEach(event => items.set(event.key, this.storageMainService.get(event.key, '')));
+		events.forEach(event => items.set(event.key, this.storageMainService.get(event.key)));
 
 		return { items: mapToSerializable(items) } as ISerializableItemsChangeEvent;
 	}
@@ -70,7 +70,7 @@ export class GlobalStorageDatabaseChannel extends Disposable implements IServerC
 		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(_, command: string, arg?: any): Thenable<any> {
+	call(_, command: string, arg?: any): Promise<any> {
 		switch (command) {
 			case 'getItems': {
 				return Promise.resolve(mapToSerializable(this.storageMainService.items));
@@ -125,11 +125,11 @@ export class GlobalStorageDatabaseChannelClient extends Disposable implements IS
 		}
 	}
 
-	getItems(): Thenable<Map<string, string>> {
+	getItems(): Promise<Map<string, string>> {
 		return this.channel.call('getItems').then((data: Item[]) => serializableToMap(data));
 	}
 
-	updateItems(request: IUpdateRequest): Thenable<void> {
+	updateItems(request: IUpdateRequest): Promise<void> {
 		let updateCount = 0;
 		const serializableRequest: ISerializableUpdateRequest = Object.create(null);
 
@@ -150,11 +150,11 @@ export class GlobalStorageDatabaseChannelClient extends Disposable implements IS
 		return this.channel.call('updateItems', serializableRequest);
 	}
 
-	checkIntegrity(full: boolean): Thenable<string> {
+	checkIntegrity(full: boolean): Promise<string> {
 		return this.channel.call('checkIntegrity', full);
 	}
 
-	close(): Thenable<void> {
+	close(): Promise<void> {
 
 		// when we are about to close, we start to ignore main-side changes since we close anyway
 		this.onDidChangeItemsOnMainListener = dispose(this.onDidChangeItemsOnMainListener);

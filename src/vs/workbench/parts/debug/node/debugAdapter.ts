@@ -332,13 +332,17 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 					"Cannot determine executable for debug adapter '{0}'.", this.debugType)));
 			}
 
+			let env = objects.mixin({}, process.env);
+			if (this.adapterExecutable.options && this.adapterExecutable.options.env) {
+				env = objects.mixin(env, this.adapterExecutable.options.env);
+			}
+			delete env.VSCODE_PREVENT_FOREIGN_INSPECT;
+
 			if (this.adapterExecutable.command === 'node') {
 				if (Array.isArray(this.adapterExecutable.args) && this.adapterExecutable.args.length > 0) {
 					const isElectron = !!process.env['ELECTRON_RUN_AS_NODE'] || !!process.versions['electron'];
 					const options: cp.ForkOptions = {
-						env: this.adapterExecutable.options && this.adapterExecutable.options.env
-							? objects.mixin(objects.mixin({}, process.env), this.adapterExecutable.options.env)
-							: process.env,
+						env: env,
 						execArgv: isElectron ? ['-e', 'delete process.env.ELECTRON_RUN_AS_NODE;require(process.argv[1])'] : [],
 						silent: true
 					};
@@ -356,9 +360,7 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 				}
 			} else {
 				const options: cp.SpawnOptions = {
-					env: this.adapterExecutable.options && this.adapterExecutable.options.env
-						? objects.mixin(objects.mixin({}, process.env), this.adapterExecutable.options.env)
-						: process.env
+					env: env
 				};
 				if (this.adapterExecutable.options && this.adapterExecutable.options.cwd) {
 					options.cwd = this.adapterExecutable.options.cwd;
@@ -407,7 +409,7 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 		this.cancelPending();
 
 		if (!this.serverProcess) {
-			return Promise.resolve(null);
+			return Promise.resolve(undefined);
 		}
 
 		// when killing a process in windows its child
@@ -425,7 +427,7 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 			});
 		} else {
 			this.serverProcess.kill('SIGTERM');
-			return Promise.resolve(null);
+			return Promise.resolve(undefined);
 		}
 	}
 

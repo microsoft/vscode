@@ -19,7 +19,7 @@ export class SmartSnippetInserter {
 	private static hasOpenBrace(scanner: JSONScanner): boolean {
 
 		while (scanner.scan() !== JSONSyntaxKind.EOF) {
-			let kind = scanner.getToken();
+			const kind = scanner.getToken();
 
 			if (kind === JSONSyntaxKind.OpenBraceToken) {
 				return true;
@@ -31,11 +31,11 @@ export class SmartSnippetInserter {
 
 	private static offsetToPosition(model: ITextModel, offset: number): Position {
 		let offsetBeforeLine = 0;
-		let eolLength = model.getEOL().length;
-		let lineCount = model.getLineCount();
+		const eolLength = model.getEOL().length;
+		const lineCount = model.getLineCount();
 		for (let lineNumber = 1; lineNumber <= lineCount; lineNumber++) {
-			let lineTotalLength = model.getLineContent(lineNumber).length + eolLength;
-			let offsetAfterLine = offsetBeforeLine + lineTotalLength;
+			const lineTotalLength = model.getLineContent(lineNumber).length + eolLength;
+			const offsetAfterLine = offsetBeforeLine + lineTotalLength;
 
 			if (offsetAfterLine > offset) {
 				return new Position(
@@ -51,9 +51,9 @@ export class SmartSnippetInserter {
 		);
 	}
 
-	public static insertSnippet(model: ITextModel, _position: Position): InsertSnippetResult {
+	static insertSnippet(model: ITextModel, _position: Position): InsertSnippetResult {
 
-		let desiredPosition = model.getValueLengthInRange(new Range(1, 1, _position.lineNumber, _position.column));
+		const desiredPosition = model.getValueLengthInRange(new Range(1, 1, _position.lineNumber, _position.column));
 
 		// <INVALID> [ <BEFORE_OBJECT> { <INVALID> } <AFTER_OBJECT>, <BEFORE_OBJECT> { <INVALID> } <AFTER_OBJECT> ] <INVALID>
 		enum State {
@@ -65,11 +65,11 @@ export class SmartSnippetInserter {
 		let lastValidPos = -1;
 		let lastValidState = State.INVALID;
 
-		let scanner = createJSONScanner(model.getValue());
+		const scanner = createJSONScanner(model.getValue());
 		let arrayLevel = 0;
 		let objLevel = 0;
 
-		let checkRangeStatus = (pos: number, state: State) => {
+		const checkRangeStatus = (pos: number, state: State) => {
 			if (state !== State.INVALID && arrayLevel === 1 && objLevel === 0) {
 				currentState = state;
 				lastValidPos = pos;
@@ -83,8 +83,8 @@ export class SmartSnippetInserter {
 		};
 
 		while (scanner.scan() !== JSONSyntaxKind.EOF) {
-			let currentPos = scanner.getPosition();
-			let kind = scanner.getToken();
+			const currentPos = scanner.getPosition();
+			const kind = scanner.getToken();
 
 			let goodKind = false;
 			switch (kind) {
@@ -147,7 +147,7 @@ export class SmartSnippetInserter {
 		}
 
 		// no valid position found!
-		let modelLineCount = model.getLineCount();
+		const modelLineCount = model.getLineCount();
 		return {
 			position: new Position(modelLineCount, model.getLineMaxColumn(modelLineCount)),
 			prepend: '\n[',

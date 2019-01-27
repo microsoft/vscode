@@ -12,13 +12,12 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { Composite, CompositeDescriptor, CompositeRegistry } from 'vs/workbench/browser/composite';
 import { IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
-import { ToggleSidebarVisibilityAction } from 'vs/workbench/browser/actions/toggleSidebarVisibility';
+import { ToggleSidebarVisibilityAction, ToggleSidebarPositionAction } from 'vs/workbench/browser/actions/layoutActions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { URI } from 'vs/base/common/uri';
-import { ToggleSidebarPositionAction } from 'vs/workbench/browser/actions/toggleSidebarPosition';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
@@ -35,7 +34,7 @@ export abstract class Viewlet extends Composite implements IViewlet {
 		super(id, telemetryService, themeService, storageService);
 	}
 
-	getOptimalWidth(): number {
+	getOptimalWidth(): number | null {
 		return null;
 	}
 
@@ -67,7 +66,7 @@ export class ViewletDescriptor extends CompositeDescriptor<Viewlet> {
 		super(ctor, id, name, cssClass, order, id);
 	}
 
-	get iconUrl(): URI {
+	get iconUrl(): URI | undefined {
 		return this._iconUrl;
 	}
 }
@@ -84,6 +83,16 @@ export class ViewletRegistry extends CompositeRegistry<Viewlet> {
 	 */
 	registerViewlet(descriptor: ViewletDescriptor): void {
 		super.registerComposite(descriptor);
+	}
+
+	/**
+	 * Deregisters a viewlet to the platform.
+	 */
+	deregisterViewlet(id: string): void {
+		if (id === this.defaultViewletId) {
+			throw new Error('Cannot deregister default viewlet');
+		}
+		super.deregisterComposite(id);
 	}
 
 	/**
@@ -128,8 +137,8 @@ export class ShowViewletAction extends Action {
 		name: string,
 		viewletId: string,
 		@IViewletService protected viewletService: IViewletService,
-		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
-		@IPartService private partService: IPartService
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
+		@IPartService private readonly partService: IPartService
 	) {
 		super(id, name);
 
@@ -137,7 +146,7 @@ export class ShowViewletAction extends Action {
 		this.enabled = !!this.viewletService && !!this.editorGroupService;
 	}
 
-	run(): Thenable<any> {
+	run(): Promise<any> {
 
 		// Pass focus to viewlet if not open or focused
 		if (this.otherViewletShowing() || !this.sidebarHasFocus()) {
@@ -160,7 +169,7 @@ export class ShowViewletAction extends Action {
 		const activeViewlet = this.viewletService.getActiveViewlet();
 		const activeElement = document.activeElement;
 
-		return activeViewlet && activeElement && DOM.isAncestor(activeElement, this.partService.getContainer(Parts.SIDEBAR_PART));
+		return !!(activeViewlet && activeElement && DOM.isAncestor(activeElement, this.partService.getContainer(Parts.SIDEBAR_PART)));
 	}
 }
 
@@ -186,7 +195,7 @@ export class CollapseAction extends Action {
 
 // Collapse All action for the new tree
 export class CollapseAction2 extends Action {
-	constructor(tree: AsyncDataTree<any>, enabled: boolean, clazz: string) {
+	constructor(tree: AsyncDataTree<any, any, any>, enabled: boolean, clazz: string) {
 		super('workbench.action.collapse', nls.localize('collapse', "Collapse All"), clazz, enabled, () => {
 			tree.collapseAll();
 			return Promise.resolve(undefined);

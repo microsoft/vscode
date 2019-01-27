@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { localize } from 'vs/nls';
 import { Event } from 'vs/base/common/event';
 import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
@@ -78,14 +77,11 @@ export interface IWorkspaceFolderCreationData {
 export interface IWorkspacesMainService extends IWorkspacesService {
 	_serviceBrand: any;
 
-	onWorkspaceSaved: Event<IWorkspaceSavedEvent>;
 	onUntitledWorkspaceDeleted: Event<IWorkspaceIdentifier>;
 
-	saveWorkspace(workspace: IWorkspaceIdentifier, target: string): TPromise<IWorkspaceIdentifier>;
+	saveWorkspaceAs(workspace: IWorkspaceIdentifier, target: string): Promise<IWorkspaceIdentifier>;
 
-	createWorkspaceSync(folders?: IWorkspaceFolderCreationData[]): IWorkspaceIdentifier;
-
-	resolveWorkspace(path: string): TPromise<IResolvedWorkspace | null>;
+	createUntitledWorkspaceSync(folders?: IWorkspaceFolderCreationData[]): IWorkspaceIdentifier;
 
 	resolveWorkspaceSync(path: string): IResolvedWorkspace | null;
 
@@ -96,12 +92,14 @@ export interface IWorkspacesMainService extends IWorkspacesService {
 	getUntitledWorkspacesSync(): IWorkspaceIdentifier[];
 
 	getWorkspaceId(workspacePath: string): string;
+
+	getWorkspaceIdentifier(workspacePath: URI): IWorkspaceIdentifier;
 }
 
 export interface IWorkspacesService {
 	_serviceBrand: any;
 
-	createWorkspace(folders?: IWorkspaceFolderCreationData[]): TPromise<IWorkspaceIdentifier>;
+	createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[]): Promise<IWorkspaceIdentifier>;
 }
 
 export function isSingleFolderWorkspaceIdentifier(obj: any): obj is ISingleFolderWorkspaceIdentifier {

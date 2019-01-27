@@ -12,11 +12,16 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { ExtHostCommentsShape, ExtHostContext, IExtHostContext, MainContext, MainThreadCommentsShape, CommentProviderFeatures } from '../node/extHost.protocol';
 
 import { ICommentService } from 'vs/workbench/parts/comments/electron-browser/commentService';
-import { COMMENTS_PANEL_ID } from 'vs/workbench/parts/comments/electron-browser/commentsPanel';
+import { COMMENTS_PANEL_ID, CommentsPanel, COMMENTS_PANEL_TITLE } from 'vs/workbench/parts/comments/electron-browser/commentsPanel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { URI } from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { generateUuid } from 'vs/base/common/uuid';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ICommentsConfiguration } from 'vs/workbench/parts/comments/electron-browser/comments.contribution';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { PanelRegistry, Extensions as PanelExtensions, PanelDescriptor } from 'vs/workbench/browser/panel';
 
 export class MainThreadDocumentCommentProvider implements modes.DocumentCommentProvider {
 	private _proxy: ExtHostCommentsShape;
@@ -52,14 +57,14 @@ export class MainThreadDocumentCommentProvider implements modes.DocumentCommentP
 		return this._proxy.$deleteComment(this._handle, uri, comment);
 	}
 
-	async startDraft(token): Promise<void> {
-		return this._proxy.$startDraft(this._handle);
+	async startDraft(uri, token): Promise<void> {
+		return this._proxy.$startDraft(this._handle, uri);
 	}
-	async deleteDraft(token): Promise<void> {
-		return this._proxy.$deleteDraft(this._handle);
+	async deleteDraft(uri, token): Promise<void> {
+		return this._proxy.$deleteDraft(this._handle, uri);
 	}
-	async finishDraft(token): Promise<void> {
-		return this._proxy.$finishDraft(this._handle);
+	async finishDraft(uri, token): Promise<void> {
+		return this._proxy.$finishDraft(this._handle, uri);
 	}
 
 	onDidChangeCommentThreads = null;
@@ -72,18 +77,18 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	private _documentProviders = new Map<number, IDisposable>();
 	private _workspaceProviders = new Map<number, IDisposable>();
 	private _handlers = new Map<number, string>();
-	private _firstSessionStart: boolean;
+	private _openPanelListener: IDisposable | null;
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IEditorService private _editorService: IEditorService,
-		@ICommentService private _commentService: ICommentService,
-		@IPanelService private _panelService: IPanelService,
-		@ITelemetryService private _telemetryService: ITelemetryService
+		@IEditorService private readonly _editorService: IEditorService,
+		@ICommentService private readonly _commentService: ICommentService,
+		@IPanelService private readonly _panelService: IPanelService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();
 		this._disposables = [];
-		this._firstSessionStart = true;
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostComments);
 	}
 
@@ -97,19 +102,67 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		this._commentService.registerDataProvider(providerId, handler);
 	}
 
-	$registerWorkspaceCommentProvider(handle: number, extensionId: string): void {
+	/**
+	 * If the comments panel has never been opened, the constructor for it has not yet run so it has
+	 * no listeners for comment threads being set or updated. Listen for the panel opening for the
+	 * first time and send it comments then.
+	 */
+	private registerOpenPanelListener(commentsPanelAlreadyConstructed: boolean) {
+		if (!commentsPanelAlreadyConstructed && !this._openPanelListener) {
+			this._openPanelListener = this._panelService.onDidPanelOpen(e => {
+				if (e.panel.getId() === COMMENTS_PANEL_ID) {
+					keys(this._workspaceProviders).forEach(handle => {
+						this._proxy.$provideWorkspaceComments(handle).then(commentThreads => {
+							if (commentThreads) {
+								const providerId = this._handlers.get(handle);
+								this._commentService.setWorkspaceComments(providerId, commentThreads);
+							}
+
+						});
+					});
+
+					this._openPanelListener.dispose();
+					this._openPanelListener = null;
+				}
+			});
+		}
+	}
+
+	$registerWorkspaceCommentProvider(handle: number, extensionId: ExtensionIdentifier): void {
 		this._workspaceProviders.set(handle, undefined);
 
 		const providerId = generateUuid();
 		this._handlers.set(handle, providerId);
 
-		this._panelService.setPanelEnablement(COMMENTS_PANEL_ID, true);
-		if (this._firstSessionStart) {
-			this._panelService.openPanel(COMMENTS_PANEL_ID);
-			this._firstSessionStart = false;
+		const commentsPanelAlreadyConstructed = this._panelService.getPanels().some(panel => panel.id === COMMENTS_PANEL_ID);
+		Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(new PanelDescriptor(
+			CommentsPanel,
+			COMMENTS_PANEL_ID,
+			COMMENTS_PANEL_TITLE,
+			'commentsPanel',
+			10
+		));
+
+		const openPanel = this._configurationService.getValue<ICommentsConfiguration>('comments').openPanel;
+
+		if (openPanel === 'neverOpen') {
+			this.registerOpenPanelListener(commentsPanelAlreadyConstructed);
 		}
+
+		if (openPanel === 'openOnSessionStart') {
+			this._panelService.openPanel(COMMENTS_PANEL_ID);
+		}
+
 		this._proxy.$provideWorkspaceComments(handle).then(commentThreads => {
 			if (commentThreads) {
+				if (openPanel === 'openOnSessionStartWithComments' && commentThreads.length) {
+					if (commentThreads.length) {
+						this._panelService.openPanel(COMMENTS_PANEL_ID);
+					} else {
+						this.registerOpenPanelListener(commentsPanelAlreadyConstructed);
+					}
+				}
+
 				this._commentService.setWorkspaceComments(providerId, commentThreads);
 			}
 		});
@@ -120,7 +173,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 			}
 		*/
 		this._telemetryService.publicLog('comments:registerWorkspaceCommentProvider', {
-			extensionId: extensionId
+			extensionId: extensionId.value
 		});
 	}
 
@@ -134,8 +187,14 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	$unregisterWorkspaceCommentProvider(handle: number): void {
 		this._workspaceProviders.delete(handle);
 		if (this._workspaceProviders.size === 0) {
-			this._panelService.setPanelEnablement(COMMENTS_PANEL_ID, false);
+			Registry.as<PanelRegistry>(PanelExtensions.Panels).deregisterPanel(COMMENTS_PANEL_ID);
+
+			if (this._openPanelListener) {
+				this._openPanelListener.dispose();
+				this._openPanelListener = null;
+			}
 		}
+
 		const handlerId = this._handlers.get(handle);
 		this._commentService.removeWorkspaceComments(handlerId);
 		this._handlers.delete(handle);

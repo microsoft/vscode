@@ -24,27 +24,39 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { isThemeColor } from 'vs/editor/common/editorCommon';
 import { Color } from 'vs/base/common/color';
-import { addClass, EventHelper, createStyleSheet, addDisposableListener } from 'vs/base/browser/dom';
+import { addClass, EventHelper, createStyleSheet, addDisposableListener, Dimension } from 'vs/base/browser/dom';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { Emitter } from 'vs/base/common/event';
+import { ISerializableView } from 'vs/base/browser/ui/grid/grid';
+import { Parts } from 'vs/workbench/services/part/common/partService';
 
-export class StatusbarPart extends Part implements IStatusbarService {
 
+export class StatusbarPart extends Part implements IStatusbarService, ISerializableView {
 	_serviceBrand: any;
 
 	private static readonly PRIORITY_PROP = 'statusbar-entry-priority';
 	private static readonly ALIGNMENT_PROP = 'statusbar-entry-alignment';
 
-	private statusItemsContainer: HTMLElement;
+	element: HTMLElement;
 	private statusMsgDispose: IDisposable;
+
+
+	minimumWidth: number = 0;
+	maximumWidth: number = Number.POSITIVE_INFINITY;
+	minimumHeight: number = 22;
+	maximumHeight: number = 22;
+
+	private _onDidChange = new Emitter<{ width: number; height: number; }>();
+	readonly onDidChange = this._onDidChange.event;
 
 	private styleElement: HTMLStyleElement;
 
 	constructor(
 		id: string,
-		@IInstantiationService private instantiationService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IStorageService storageService: IStorageService
 	) {
 		super(id, { hasTitle: false }, themeService, storageService);
@@ -59,16 +71,15 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	addEntry(entry: IStatusbarEntry, alignment: StatusbarAlignment, priority: number = 0): IDisposable {
 
 		// Render entry in status bar
-		const el = this.doCreateStatusItem(alignment, priority, entry.showBeak ? 'has-beak' : void 0);
+		const el = this.doCreateStatusItem(alignment, priority, entry.showBeak ? 'has-beak' : undefined);
 		const item = this.instantiationService.createInstance(StatusBarEntryItem, entry);
 		const toDispose = item.render(el);
 
 		// Insert according to priority
-		const container = this.statusItemsContainer;
+		const container = this.element;
 		const neighbours = this.getEntries(alignment);
 		let inserted = false;
-		for (let i = 0; i < neighbours.length; i++) {
-			const neighbour = neighbours[i];
+		for (const neighbour of neighbours) {
 			const nPriority = Number(neighbour.getAttribute(StatusbarPart.PRIORITY_PROP));
 			if (
 				alignment === StatusbarAlignment.LEFT && nPriority < priority ||
@@ -96,7 +107,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	private getEntries(alignment: StatusbarAlignment): HTMLElement[] {
 		const entries: HTMLElement[] = [];
 
-		const container = this.statusItemsContainer;
+		const container = this.element;
 		const children = container.children;
 		for (let i = 0; i < children.length; i++) {
 			const childElement = <HTMLElement>children.item(i);
@@ -109,7 +120,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	}
 
 	createContentArea(parent: HTMLElement): HTMLElement {
-		this.statusItemsContainer = parent;
+		this.element = parent;
 
 		// Fill in initial items that were contributed from the registry
 		const registry = Registry.as<IStatusbarRegistry>(Extensions.Statusbar);
@@ -135,10 +146,10 @@ export class StatusbarPart extends Part implements IStatusbarService {
 			const el = this.doCreateStatusItem(descriptor.alignment, descriptor.priority);
 
 			this._register(item.render(el));
-			this.statusItemsContainer.appendChild(el);
+			this.element.appendChild(el);
 		}
 
-		return this.statusItemsContainer;
+		return this.element;
 	}
 
 	protected updateStyles(): void {
@@ -162,7 +173,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 			this.styleElement = createStyleSheet(container);
 		}
 
-		this.styleElement.innerHTML = `.monaco-workbench > .part.statusbar > .statusbar-item.has-beak:before { border-bottom-color: ${backgroundColor}; }`;
+		this.styleElement.innerHTML = `.monaco-workbench .part.statusbar > .statusbar-item.has-beak:before { border-bottom-color: ${backgroundColor}; }`;
 	}
 
 	private doCreateStatusItem(alignment: StatusbarAlignment, priority: number = 0, extraClass?: string): HTMLElement {
@@ -191,7 +202,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 		// Create new
 		let statusDispose: IDisposable;
-		let showHandle = setTimeout(() => {
+		let showHandle: any = setTimeout(() => {
 			statusDispose = this.addEntry({ text: message }, StatusbarAlignment.LEFT, -Number.MAX_VALUE /* far right on left hand side */);
 			showHandle = null;
 		}, delayBy);
@@ -221,6 +232,22 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 		return dispose;
 	}
+
+	layout(dimension: Dimension): Dimension[];
+	layout(width: number, height: number): void;
+	layout(dim1: Dimension | number, dim2?: number): Dimension[] | void {
+		if (dim1 instanceof Dimension) {
+			return super.layout(dim1);
+		} else {
+			super.layout(new Dimension(dim1, dim2!));
+		}
+	}
+
+	toJSON(): object {
+		return {
+			type: Parts.STATUSBAR_PART
+		};
+	}
 }
 
 let manageExtensionAction: ManageExtensionAction;
@@ -228,13 +255,13 @@ class StatusBarEntryItem implements IStatusbarItem {
 
 	constructor(
 		private entry: IStatusbarEntry,
-		@ICommandService private commandService: ICommandService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@INotificationService private notificationService: INotificationService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IEditorService private editorService: IEditorService,
-		@IThemeService private themeService: IThemeService
+		@ICommandService private readonly commandService: ICommandService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IThemeService private readonly themeService: IThemeService
 	) {
 		this.entry = entry;
 
@@ -252,7 +279,7 @@ class StatusBarEntryItem implements IStatusbarItem {
 		if (this.entry.command) {
 			textContainer = document.createElement('a');
 
-			toDispose.push(addDisposableListener(textContainer, 'click', () => this.executeCommand(this.entry.command, this.entry.arguments)));
+			toDispose.push(addDisposableListener(textContainer, 'click', () => this.executeCommand(this.entry.command!, this.entry.arguments)));
 		} else {
 			textContainer = document.createElement('span');
 		}
@@ -286,7 +313,7 @@ class StatusBarEntryItem implements IStatusbarItem {
 
 				this.contextMenuService.showContextMenu({
 					getAnchor: () => el,
-					getActionsContext: () => this.entry.extensionId,
+					getActionsContext: () => this.entry.extensionId!.value,
 					getActions: () => [manageExtensionAction]
 				});
 			}));
@@ -324,12 +351,12 @@ class StatusBarEntryItem implements IStatusbarItem {
 class ManageExtensionAction extends Action {
 
 	constructor(
-		@ICommandService private commandService: ICommandService
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super('statusbar.manage.extension', nls.localize('manageExtension', "Manage Extension"));
 	}
 
-	run(extensionId: string): Thenable<any> {
+	run(extensionId: string): Promise<any> {
 		return this.commandService.executeCommand('_extensions.manage', extensionId);
 	}
 }
@@ -337,21 +364,21 @@ class ManageExtensionAction extends Action {
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const statusBarItemHoverBackground = theme.getColor(STATUS_BAR_ITEM_HOVER_BACKGROUND);
 	if (statusBarItemHoverBackground) {
-		collector.addRule(`.monaco-workbench > .part.statusbar > .statusbar-item a:hover { background-color: ${statusBarItemHoverBackground}; }`);
+		collector.addRule(`.monaco-workbench .part.statusbar > .statusbar-item a:hover { background-color: ${statusBarItemHoverBackground}; }`);
 	}
 
 	const statusBarItemActiveBackground = theme.getColor(STATUS_BAR_ITEM_ACTIVE_BACKGROUND);
 	if (statusBarItemActiveBackground) {
-		collector.addRule(`.monaco-workbench > .part.statusbar > .statusbar-item a:active { background-color: ${statusBarItemActiveBackground}; }`);
+		collector.addRule(`.monaco-workbench .part.statusbar > .statusbar-item a:active { background-color: ${statusBarItemActiveBackground}; }`);
 	}
 
 	const statusBarProminentItemBackground = theme.getColor(STATUS_BAR_PROMINENT_ITEM_BACKGROUND);
 	if (statusBarProminentItemBackground) {
-		collector.addRule(`.monaco-workbench > .part.statusbar > .statusbar-item .status-bar-info { background-color: ${statusBarProminentItemBackground}; }`);
+		collector.addRule(`.monaco-workbench .part.statusbar > .statusbar-item .status-bar-info { background-color: ${statusBarProminentItemBackground}; }`);
 	}
 
 	const statusBarProminentItemHoverBackground = theme.getColor(STATUS_BAR_PROMINENT_ITEM_HOVER_BACKGROUND);
 	if (statusBarProminentItemHoverBackground) {
-		collector.addRule(`.monaco-workbench > .part.statusbar > .statusbar-item a.status-bar-info:hover { background-color: ${statusBarProminentItemHoverBackground}; }`);
+		collector.addRule(`.monaco-workbench .part.statusbar > .statusbar-item a.status-bar-info:hover { background-color: ${statusBarProminentItemHoverBackground}; }`);
 	}
 });

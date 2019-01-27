@@ -18,7 +18,6 @@ import * as nls from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { TokenTreeSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/tokenTree';
 import { WordSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/wordSelections';
 import { BracketSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/bracketSelections';
 
@@ -82,10 +81,10 @@ class SmartSelectController implements IEditorContribution {
 		}
 
 
-		let promise: Promise<void> = Promise.resolve(void 0);
+		let promise: Promise<void> = Promise.resolve(undefined);
 
 		if (!this._state) {
-			promise = provideSelectionRanges(model, selection.getStartPosition(), CancellationToken.None).then(ranges => {
+			promise = provideSelectionRanges(model, selection.getPosition(), CancellationToken.None).then(ranges => {
 				if (!arrays.isNonEmptyArray(ranges)) {
 					// invalid result
 					return;
@@ -203,7 +202,6 @@ registerEditorAction(ShrinkSelectionAction);
 
 modes.SelectionRangeRegistry.register('*', new WordSelectionRangeProvider());
 modes.SelectionRangeRegistry.register('*', new BracketSelectionRangeProvider());
-modes.SelectionRangeRegistry.register('*', new TokenTreeSelectionRangeProvider());
 
 export function provideSelectionRanges(model: ITextModel, position: Position, token: CancellationToken): Promise<Range[] | undefined | null> {
 
@@ -221,11 +219,11 @@ export function provideSelectionRanges(model: ITextModel, position: Position, to
 	for (const group of provider) {
 		rank += 1;
 		for (const prov of group) {
-			work.push(Promise.resolve(prov.provideSelectionRanges(model, position, token)).then(res => {
-				if (arrays.isNonEmptyArray(res)) {
-					for (const range of res) {
-						if (Range.isIRange(range) && Range.containsPosition(range, position)) {
-							ranges.push({ range: Range.lift(range), rank });
+			work.push(Promise.resolve(prov.provideSelectionRanges(model, position, token)).then(selectionRanges => {
+				if (arrays.isNonEmptyArray(selectionRanges)) {
+					for (const sel of selectionRanges) {
+						if (Range.isIRange(sel.range) && Range.containsPosition(sel.range, position)) {
+							ranges.push({ range: Range.lift(sel.range), rank });
 						}
 					}
 				}
@@ -247,12 +245,10 @@ export function provideSelectionRanges(model: ITextModel, position: Position, to
 				return b.rank - a.rank;
 			}
 		});
-
-		// ranges.sort((a, b) => Range.compareRangesUsingStarts(b.range, a.range));
 		let result: Range[] = [];
 		let last: Range | undefined;
 		for (const { range } of ranges) {
-			if (!last || Range.containsRange(range, last)) {
+			if (!last || (Range.containsRange(range, last) && !Range.equalsRange(range, last))) {
 				result.push(range);
 				last = range;
 			}

@@ -8,13 +8,6 @@
 	"name": "PHP",
 	"scopeName": "text.html.php",
 	"injections": {
-		"text.html.php - (meta.embedded | meta.tag), L:((text.html.php meta.tag) - (meta.embedded.block.php | meta.embedded.line.php)), L:(source.js.embedded.html - (meta.embedded.block.php | meta.embedded.line.php))": {
-			"patterns": [
-				{
-					"include": "#php-tag"
-				}
-			]
-		},
 		"L:source.php string.quoted.single.sql.php source.sql.embedded.php": {
 			"patterns": [
 				{
@@ -113,6 +106,13 @@
 				},
 				{
 					"include": "source.php#interpolation_double_quoted"
+				}
+			]
+		},
+		"text.html.php - (meta.embedded | meta.tag), L:((text.html.php meta.tag) - (meta.embedded.block.php | meta.embedded.line.php)), L:(source.js - (meta.embedded.block.php | meta.embedded.line.php))": {
+			"patterns": [
+				{
+					"include": "#php-tag"
 				}
 			]
 		}

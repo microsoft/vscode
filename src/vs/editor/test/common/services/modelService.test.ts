@@ -27,7 +27,7 @@ suite('ModelService', () => {
 		configService.setUserConfiguration('files', { 'eol': '\n' });
 		configService.setUserConfiguration('files', { 'eol': '\r\n' }, URI.file(platform.isWindows ? 'c:\\myroot' : '/myroot'));
 
-		modelService = new ModelServiceImpl(null, configService, new TestTextResourcePropertiesService(configService));
+		modelService = new ModelServiceImpl(configService, new TestTextResourcePropertiesService(configService));
 	});
 
 	teardown(() => {
@@ -313,7 +313,7 @@ function assertComputeEdits(lines1: string[], lines2: string[]): void {
 	// console.log(`took ${Date.now() - start} ms.`);
 
 	// apply edits
-	model.pushEditOperations(null, edits, null);
+	model.pushEditOperations([], edits, null);
 
 	assert.equal(model.getValue(), lines2.join('\n'));
 }
@@ -370,7 +370,7 @@ class TestTextResourcePropertiesService implements ITextResourcePropertiesServic
 	_serviceBrand: any;
 
 	constructor(
-		@IConfigurationService private configurationService: IConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 	}
 

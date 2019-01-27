@@ -122,13 +122,13 @@ export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {
 }
 
 export interface IStandaloneCodeEditor extends ICodeEditor {
-	addCommand(keybinding: number, handler: ICommandHandler, context: string): string | null;
+	addCommand(keybinding: number, handler: ICommandHandler, context?: string): string | null;
 	createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
 	addAction(descriptor: IActionDescriptor): IDisposable;
 }
 
 export interface IStandaloneDiffEditor extends IDiffEditor {
-	addCommand(keybinding: number, handler: ICommandHandler, context: string): string | null;
+	addCommand(keybinding: number, handler: ICommandHandler, context?: string): string | null;
 	createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
 	addAction(descriptor: IActionDescriptor): IDisposable;
 
@@ -182,7 +182,7 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 		createAriaDomNode();
 	}
 
-	public addCommand(keybinding: number, handler: ICommandHandler, context: string): string | null {
+	public addCommand(keybinding: number, handler: ICommandHandler, context?: string): string | null {
 		if (!this._standaloneKeybindingService) {
 			console.warn('Cannot add command because the editor is configured with an unrecognized KeybindingService');
 			return null;
@@ -360,7 +360,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 
 	constructor(
 		domElement: HTMLElement,
-		options: IDiffEditorConstructionOptions,
+		options: IDiffEditorConstructionOptions | undefined,
 		toDispose: IDisposable,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -409,7 +409,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		return <StandaloneCodeEditor>super.getModifiedEditor();
 	}
 
-	public addCommand(keybinding: number, handler: ICommandHandler, context: string): string | null {
+	public addCommand(keybinding: number, handler: ICommandHandler, context?: string): string | null {
 		return this.getModifiedEditor().addCommand(keybinding, handler, context);
 	}
 
