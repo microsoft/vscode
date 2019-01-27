@@ -23,14 +23,18 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { getSimpleWorkspaceLabel } from 'vs/platform/label/common/label';
 
 interface ISerializedRecentlyOpened {
-	workspaces2: Array<IWorkspaceIdentifier | string>; // IWorkspaceIdentifier or URI.toString()
+	workspaces3: Array<ISerializedWorkspace | string>; // workspace or URI.toString()
 	files2: string[]; // files as URI.toString()
 }
 
 interface ILegacySerializedRecentlyOpened {
-	workspaces: Array<IWorkspaceIdentifier | string | UriComponents>; // legacy (UriComponents was also supported for a few insider builds)
+	workspaces2: Array<ILegacySerializedWorkspace | string>; // legacy, configPath as file path
+	workspaces: Array<ILegacySerializedWorkspace | string | UriComponents>; // legacy (UriComponents was also supported for a few insider builds)
 	files: string[]; // files as paths
 }
+
+interface ISerializedWorkspace { id: string; configURIPath: string; }
+interface ILegacySerializedWorkspace { id: string; configPath: string; }
 
 export class HistoryMainService implements IHistoryMainService {
 
@@ -254,10 +258,18 @@ export class HistoryMainService implements IHistoryMainService {
 		const storedRecents = this.stateService.getItem<ISerializedRecentlyOpened & ILegacySerializedRecentlyOpened>(HistoryMainService.recentlyOpenedStorageKey);
 		const result: IRecentlyOpened = { workspaces: [], files: [] };
 		if (storedRecents) {
-			if (Array.isArray(storedRecents.workspaces2)) {
+			if (Array.isArray(storedRecents.workspaces3)) {
+				for (const workspace of storedRecents.workspaces3) {
+					if (typeof workspace === 'object' && typeof workspace.id === 'string' && typeof workspace.configURIPath === 'string') {
+						result.workspaces.push({ id: workspace.id, configPath: URI.parse(workspace.configURIPath) });
+					} else if (typeof workspace === 'string') {
+						result.workspaces.push(URI.parse(workspace));
+					}
+				}
+			} else if (Array.isArray(storedRecents.workspaces2)) {
 				for (const workspace of storedRecents.workspaces2) {
-					if (isWorkspaceIdentifier(workspace)) {
-						result.workspaces.push(workspace);
+					if (typeof workspace === 'object' && typeof workspace.id === 'string' && typeof workspace.configPath === 'string') {
+						result.workspaces.push({ id: workspace.id, configPath: URI.file(workspace.configPath) });
 					} else if (typeof workspace === 'string') {
 						result.workspaces.push(URI.parse(workspace));
 					}
@@ -268,9 +280,9 @@ export class HistoryMainService implements IHistoryMainService {
 				for (const workspace of storedRecents.workspaces) {
 					if (typeof workspace === 'string') {
 						result.workspaces.push(URI.file(workspace));
-					} else if (isWorkspaceIdentifier(workspace)) {
-						result.workspaces.push(workspace);
-					} else if (workspace && typeof workspace.path === 'string' && typeof workspace.scheme === 'string') {
+					} else if (typeof workspace === 'object' && typeof workspace['id'] === 'string' && typeof workspace['configPath'] === 'string') {
+						result.workspaces.push({ id: workspace['id'], configPath: URI.file(workspace['configPath']) });
+					} else if (workspace && typeof workspace['path'] === 'string' && typeof workspace['scheme'] === 'string') {
 						// added by 1.26-insiders
 						result.workspaces.push(URI.revive(workspace));
 					}
@@ -296,13 +308,13 @@ export class HistoryMainService implements IHistoryMainService {
 	}
 
 	private saveRecentlyOpened(recent: IRecentlyOpened): void {
-		const serialized: ISerializedRecentlyOpened = { workspaces2: [], files2: [] };
+		const serialized: ISerializedRecentlyOpened = { workspaces3: [], files2: [] };
 
 		for (const workspace of recent.workspaces) {
 			if (isSingleFolderWorkspaceIdentifier(workspace)) {
-				serialized.workspaces2.push(workspace.toString());
+				serialized.workspaces3.push(workspace.toString());
 			} else {
-				serialized.workspaces2.push(workspace);
+				serialized.workspaces3.push({ id: workspace.id, configURIPath: workspace.configPath.toString() });
 			}
 		}
 

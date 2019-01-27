@@ -111,7 +111,7 @@ export function isSingleFolderWorkspaceIdentifier(obj: any): obj is ISingleFolde
 export function isWorkspaceIdentifier(obj: any): obj is IWorkspaceIdentifier {
 	const workspaceIdentifier = obj as IWorkspaceIdentifier;
 
-	return workspaceIdentifier && typeof workspaceIdentifier.id === 'string' && typeof workspaceIdentifier.configPath === 'string';
+	return workspaceIdentifier && typeof workspaceIdentifier.id === 'string' && workspaceIdentifier.configPath instanceof URI;
 }
 
 export function toWorkspaceIdentifier(workspace: IWorkspace): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined {

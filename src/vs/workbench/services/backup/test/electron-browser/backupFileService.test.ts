@@ -5,13 +5,12 @@
 
 import * as assert from 'assert';
 import * as platform from 'vs/base/common/platform';
-import * as crypto from 'crypto';
 import * as os from 'os';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as pfs from 'vs/base/node/pfs';
 import { URI as Uri } from 'vs/base/common/uri';
-import { BackupFileService, BackupFilesModel } from 'vs/workbench/services/backup/node/backupFileService';
+import { BackupFileService, BackupFilesModel, hashPath } from 'vs/workbench/services/backup/node/backupFileService';
 import { FileService } from 'vs/workbench/services/files/electron-browser/fileService';
 import { TextModel, createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { TestContextService, TestTextResourceConfigurationService, getRandomTestPath, TestLifecycleService, TestEnvironmentService, TestStorageService } from 'vs/workbench/test/workbenchTestServices';
@@ -27,13 +26,13 @@ const backupHome = path.join(parentDir, 'Backups');
 const workspacesJsonPath = path.join(backupHome, 'workspaces.json');
 
 const workspaceResource = Uri.file(platform.isWindows ? 'c:\\workspace' : '/workspace');
-const workspaceBackupPath = path.join(backupHome, crypto.createHash('md5').update(workspaceResource.fsPath).digest('hex'));
+const workspaceBackupPath = path.join(backupHome, hashPath(workspaceResource));
 const fooFile = Uri.file(platform.isWindows ? 'c:\\Foo' : '/Foo');
 const barFile = Uri.file(platform.isWindows ? 'c:\\Bar' : '/Bar');
 const untitledFile = Uri.from({ scheme: Schemas.untitled, path: 'Untitled-1' });
-const fooBackupPath = path.join(workspaceBackupPath, 'file', crypto.createHash('md5').update(fooFile.fsPath).digest('hex'));
-const barBackupPath = path.join(workspaceBackupPath, 'file', crypto.createHash('md5').update(barFile.fsPath).digest('hex'));
-const untitledBackupPath = path.join(workspaceBackupPath, 'untitled', crypto.createHash('md5').update(untitledFile.fsPath).digest('hex'));
+const fooBackupPath = path.join(workspaceBackupPath, 'file', hashPath(fooFile));
+const barBackupPath = path.join(workspaceBackupPath, 'file', hashPath(barFile));
+const untitledBackupPath = path.join(workspaceBackupPath, 'untitled', hashPath(untitledFile));
 
 class TestBackupFileService extends BackupFileService {
 	constructor(workspace: Uri, backupHome: string, workspacesJsonPath: string) {
@@ -69,8 +68,8 @@ suite('BackupFileService', () => {
 		test('should get the correct backup path for text files', () => {
 			// Format should be: <backupHome>/<workspaceHash>/<scheme>/<filePathHash>
 			const backupResource = fooFile;
-			const workspaceHash = crypto.createHash('md5').update(workspaceResource.fsPath).digest('hex');
-			const filePathHash = crypto.createHash('md5').update(backupResource.fsPath).digest('hex');
+			const workspaceHash = hashPath(workspaceResource);
+			const filePathHash = hashPath(backupResource);
 			const expectedPath = Uri.file(path.join(backupHome, workspaceHash, 'file', filePathHash)).fsPath;
 			assert.equal(service.toBackupResource(backupResource).fsPath, expectedPath);
 		});
@@ -78,8 +77,8 @@ suite('BackupFileService', () => {
 		test('should get the correct backup path for untitled files', () => {
 			// Format should be: <backupHome>/<workspaceHash>/<scheme>/<filePath>
 			const backupResource = Uri.from({ scheme: Schemas.untitled, path: 'Untitled-1' });
-			const workspaceHash = crypto.createHash('md5').update(workspaceResource.fsPath).digest('hex');
-			const filePathHash = crypto.createHash('md5').update(backupResource.fsPath).digest('hex');
+			const workspaceHash = hashPath(workspaceResource);
+			const filePathHash = hashPath(backupResource);
 			const expectedPath = Uri.file(path.join(backupHome, workspaceHash, 'untitled', filePathHash)).fsPath;
 			assert.equal(service.toBackupResource(backupResource).fsPath, expectedPath);
 		});

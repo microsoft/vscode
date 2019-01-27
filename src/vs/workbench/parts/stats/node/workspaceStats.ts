@@ -327,17 +327,21 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		const state = this.contextService.getWorkbenchState();
 		const workspace = this.contextService.getWorkspace();
 
+		function createHash(uri: URI): string {
+			return crypto.createHash('sha1').update(uri.scheme === Schemas.file ? uri.fsPath : uri.toString()).digest('hex');
+		}
+
 		let workspaceId: string | undefined;
 		switch (state) {
 			case WorkbenchState.EMPTY:
 				workspaceId = undefined;
 				break;
 			case WorkbenchState.FOLDER:
-				workspaceId = crypto.createHash('sha1').update(workspace.folders[0].uri.scheme === Schemas.file ? workspace.folders[0].uri.fsPath : workspace.folders[0].uri.toString()).digest('hex');
+				workspaceId = createHash(workspace.folders[0].uri);
 				break;
 			case WorkbenchState.WORKSPACE:
 				if (workspace.configuration) {
-					workspaceId = crypto.createHash('sha1').update(workspace.configuration.fsPath).digest('hex');
+					workspaceId = createHash(workspace.configuration);
 				}
 		}
 
