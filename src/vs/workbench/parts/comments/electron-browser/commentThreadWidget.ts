@@ -39,6 +39,7 @@ import { CommentNode } from 'vs/workbench/parts/comments/electron-browser/commen
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ITextModel } from 'vs/editor/common/model';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
 const COLLAPSE_ACTION_CLASS = 'expand-review-action octicon octicon-x';
@@ -97,6 +98,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		private openerService: IOpenerService,
 		private dialogService: IDialogService,
 		private notificationService: INotificationService,
+		private contextMenuService: IContextMenuService,
 		editor: ICodeEditor,
 		owner: string,
 		commentThread: modes.CommentThread,
@@ -491,7 +493,8 @@ export class ReviewZoneWidget extends ZoneWidget {
 			this.modelService,
 			this.modeService,
 			this.dialogService,
-			this.notificationService);
+			this.notificationService,
+			this.contextMenuService);
 
 		this._disposables.push(newCommentNode);
 		this._disposables.push(newCommentNode.onDidDelete(deletedNode => {
