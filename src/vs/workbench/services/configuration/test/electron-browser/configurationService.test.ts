@@ -1245,11 +1245,6 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 	});
 });
 
-
-export function createWorkspaceIdentifier(path: URI) {
-
-}
-
 function getWorkspaceId(configPath: URI): string {
 	let workspaceConfigPath = configPath.scheme === Schemas.file ? fsPath(configPath) : configPath.toString();
 	if (!isLinux) {

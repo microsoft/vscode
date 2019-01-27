@@ -26,7 +26,7 @@ export interface IWorkspaceIdentifier {
 	configPath: URI;
 }
 
-export function reviveWorkspaceIdentifier(workspace: { id: string, configPath: UriComponents; }) {
+export function reviveWorkspaceIdentifier(workspace: { id: string, configPath: UriComponents; }): IWorkspaceIdentifier {
 	return { id: workspace.id, configPath: URI.revive(workspace.configPath) };
 }
 
