@@ -501,15 +501,14 @@ suite('BackupMainService', () => {
 		});
 
 		test('should ignore duplicates on Windows and Mac (root workspace)', async () => {
-			if (platform.isLinux) {
-				return; // TODO:Martin #54483 fix tests
-			}
 
 			const workspacePath = path.join(parentDir, 'Foo.code-workspace');
+			const workspacePath1 = path.join(parentDir, 'FOO.code-workspace');
+			const workspacePath2 = path.join(parentDir, 'foo.code-workspace');
 
 			const workspace1 = await ensureWorkspaceExists(toWorkspace(workspacePath));
-			const workspace2 = await ensureWorkspaceExists(toWorkspace(workspacePath.toUpperCase()));
-			const workspace3 = await ensureWorkspaceExists(toWorkspace(workspacePath.toLowerCase()));
+			const workspace2 = await ensureWorkspaceExists(toWorkspace(workspacePath1));
+			const workspace3 = await ensureWorkspaceExists(toWorkspace(workspacePath2));
 
 			const workspacesJson: IBackupWorkspacesFormat = {
 				rootURIWorkspaces: [workspace1, workspace2, workspace3].map(toSerializedWorkspace),
@@ -523,9 +522,9 @@ suite('BackupMainService', () => {
 			const json = <IBackupWorkspacesFormat>JSON.parse(buffer);
 			assert.equal(json.rootURIWorkspaces.length, platform.isLinux ? 3 : 1);
 			if (platform.isLinux) {
-				assert.deepEqual(json.rootURIWorkspaces.map(r => r.configURIPath), [URI.file(workspacePath), URI.file(workspacePath.toUpperCase()), URI.file(workspacePath.toLowerCase())]);
+				assert.deepEqual(json.rootURIWorkspaces.map(r => r.configURIPath), [URI.file(workspacePath).toString(), URI.file(workspacePath1).toString(), URI.file(workspacePath2).toString()]);
 			} else {
-				assert.deepEqual(json.rootURIWorkspaces.map(r => r.configURIPath), [URI.file(workspacePath)], 'should return the first duplicated entry');
+				assert.deepEqual(json.rootURIWorkspaces.map(r => r.configURIPath), [URI.file(workspacePath).toString()], 'should return the first duplicated entry');
 			}
 		});
 	});
