@@ -78,6 +78,15 @@
 	border-style: none;
 }
 
+
+.monaco-editor .review-widget .body .monaco-text-button {
+	margin: 0 7px 0 0;
+	width: 30px;
+	background-color: transparent;
+	border: 1px solid grey;
+	border-radius: 3px;
+}
+
 .monaco-editor .review-widget .body .review-comment .review-comment-contents {
 	padding-left: 20px;
 	user-select: text;
