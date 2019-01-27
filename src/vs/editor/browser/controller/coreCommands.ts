@@ -1336,7 +1336,7 @@ export namespace CoreNavigationCommands {
 				kbOpts: {
 					weight: CORE_WEIGHT,
 					kbExpr: EditorContextKeys.textInputFocus,
-					primary: KeyMod.CtrlCmd | KeyCode.KEY_I
+					primary: KeyMod.CtrlCmd | KeyCode.KEY_L
 				}
 			});
 		}
