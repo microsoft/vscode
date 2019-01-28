@@ -1122,7 +1122,7 @@ declare module 'vscode' {
 	//#region CodeAction.isPreferred - mjbvz
 	export interface CodeAction {
 		/**
-		 * If the action is a preferred action or fix to take.
+		 * Marks this as a preferred action. Preferred actions are used by the `auto fix` command.
 		 *
 		 * A quick fix should be marked preferred if it properly addresses the underlying error.
 		 * A refactoring should be marked preferred if it is the most reasonable choice of actions to take.
@@ -1143,9 +1143,9 @@ declare module 'vscode' {
 	//#region Autofix - mjbvz
 	export namespace CodeActionKind {
 		/**
-		 * Base kind for an auto fix source action: `source.fixAll`.
+		 * Base kind for auto-fix source actions: `source.fixAll`.
 		 *
-		 * Fix all actions automatically fix errors in the code that have a clear fix that does not require user input.
+		 * Fix all actions automatically fix errors that have a clear fix that do not require user input.
 		 * They should not suppress errors or perform unsafe fixes such as generating new types or classes.
 		 */
 		export const SourceFixAll: CodeActionKind;
