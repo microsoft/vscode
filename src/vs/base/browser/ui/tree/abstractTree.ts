@@ -734,6 +734,16 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		return this._options;
 	}
 
+	updateWidth(element: TRef): void {
+		const index = this.model.getListIndex(element);
+
+		if (index === -1) {
+			return;
+		}
+
+		this.view.updateWidth(index);
+	}
+
 	// Widget
 
 	getHTMLElement(): HTMLElement {

@@ -395,6 +395,11 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		this.tree.refresh(node);
 	}
 
+	updateWidth(element: T): void {
+		const node = this.getDataNode(element);
+		this.tree.updateWidth(node);
+	}
+
 	// Tree
 
 	getNode(element: TInput | T = this.root.element): ITreeNode<TInput | T, TFilterData> {

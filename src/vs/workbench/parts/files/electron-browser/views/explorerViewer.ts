@@ -107,6 +107,7 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, FuzzyScore, IF
 
 	constructor(
 		private labels: ResourceLabels,
+		private updateWidth: (stat: ExplorerItem) => void,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -152,8 +153,7 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, FuzzyScore, IF
 			});
 
 			templateData.elementDisposable = templateData.label.onDidRender(() => {
-				// todo@isidor horizontal scrolling
-				// this.tree.updateWidth(stat);
+				this.updateWidth(stat);
 			});
 		}
 

@@ -249,7 +249,8 @@ export class ExplorerView extends ViewletPanel {
 		const explorerLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility } as IResourceLabelsContainer);
 		this.disposables.push(explorerLabels);
 
-		const filesRenderer = this.instantiationService.createInstance(FilesRenderer, explorerLabels);
+		const updateWidth = (stat: ExplorerItem) => this.tree.updateWidth(stat);
+		const filesRenderer = this.instantiationService.createInstance(FilesRenderer, explorerLabels, updateWidth);
 		this.disposables.push(filesRenderer);
 
 		this.disposables.push(createFileIconThemableTreeContainerScope(container, this.themeService));
