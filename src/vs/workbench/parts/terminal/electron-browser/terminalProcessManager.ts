@@ -19,6 +19,7 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { Schemas } from 'vs/base/common/network';
 import { REMOTE_HOST_SCHEME, getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
+import { sanitizeProcessEnvironment } from 'vs/base/node/processes';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -133,7 +134,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 
 				// Sanitize the environment, removing any undesirable VS Code and Electron environment
 				// variables
-				terminalEnvironment.sanitizeEnvironment(env);
+				sanitizeProcessEnvironment(env);
 
 				// Adding other env keys necessary to create the process
 				terminalEnvironment.addTerminalEnvironmentKeys(env, platform.locale, this._configHelper.config.setLocaleVariables);

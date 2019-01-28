@@ -18,6 +18,7 @@ import { generateRandomPipeName } from 'vs/base/parts/ipc/node/ipc.net';
 import * as http from 'http';
 import * as fs from 'fs';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
+import { sanitizeProcessEnvironment } from 'vs/base/node/processes';
 
 const RENDERER_NO_PROCESS_ID = -1;
 
@@ -417,7 +418,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 
 		// Sanitize the environment, removing any undesirable VS Code and Electron environment
 		// variables
-		terminalEnvironment.sanitizeEnvironment(env);
+		sanitizeProcessEnvironment(env);
 
 		// Continue env initialization, merging in the env from the launch
 		// config and adding keys that are needed to create the process
