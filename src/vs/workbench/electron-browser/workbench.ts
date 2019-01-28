@@ -1430,7 +1430,7 @@ export class Workbench extends Disposable implements IPartService {
 			statusBarInGrid = true;
 		}
 
-		if (!titlebarInGrid) {
+		if (!titlebarInGrid && this.useCustomTitleBarStyle()) {
 			this.workbenchGrid.addView(this.titlebarPartView, Sizing.Split, this.editorPartView, Direction.Up);
 			titlebarInGrid = true;
 		}
