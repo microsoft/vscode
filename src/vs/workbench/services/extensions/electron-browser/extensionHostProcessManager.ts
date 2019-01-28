@@ -199,7 +199,7 @@ export class ExtensionHostProcessManager extends Disposable {
 		return this._extensionHostProcessRPCProtocol.getProxy(ExtHostContext.ExtHostExtensionService);
 	}
 
-	public activate(extension: ExtensionIdentifier, activationEvent: string): Promise<void> {
+	public activate(extension: ExtensionIdentifier, activationEvent: string): Promise<boolean> {
 		return this._extensionHostProcessProxy.then((proxy) => {
 			return proxy.value.$activate(extension, activationEvent);
 		});

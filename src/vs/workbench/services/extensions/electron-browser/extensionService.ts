@@ -823,6 +823,16 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		}
 	}
 
+	public async _activateById(extensionId: ExtensionIdentifier, activationEvent: string): Promise<void> {
+		const results = await Promise.all(
+			this._extensionHostProcessManagers.map(manager => manager.activate(extensionId, activationEvent))
+		);
+		const activated = results.some(e => e);
+		if (!activated) {
+			throw new Error(`Unknown extension ${extensionId.value}`);
+		}
+	}
+
 	public _onWillActivateExtension(extensionId: ExtensionIdentifier): void {
 		this._extensionHostActiveExtensions.set(ExtensionIdentifier.toKey(extensionId), extensionId);
 	}

@@ -104,7 +104,7 @@ export class ExtensionDescriptionRegistry {
 				this.addNode(from);
 				this.addNode(to);
 				if (this._arcs.has(from)) {
-					this._arcs.get(from).push(to);
+					this._arcs.get(from)!.push(to);
 				} else {
 					this._arcs.set(from, [to]);
 				}
@@ -112,7 +112,7 @@ export class ExtensionDescriptionRegistry {
 
 			getArcs(id: string): string[] {
 				if (this._arcs.has(id)) {
-					return this._arcs.get(id);
+					return this._arcs.get(id)!;
 				}
 				return [];
 			}
@@ -169,7 +169,7 @@ export class ExtensionDescriptionRegistry {
 		} while (madeProgress);
 
 		// The remaining nodes are bad and have loops
-		return nodes.map(id => descs.get(id));
+		return nodes.map(id => descs.get(id)!);
 	}
 
 	public containsActivationEvent(activationEvent: string): boolean {
