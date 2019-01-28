@@ -157,7 +157,9 @@ class WebviewKeyboardHandler extends Disposable {
 				const contents = this.getWebContents();
 				if (contents) {
 					contents.on('before-input-event', (_event, input) => {
-						this.setIgnoreMenuShortcuts(input.control || input.meta);
+						if (input.type === 'keyDown') {
+							this.setIgnoreMenuShortcuts(input.control || input.meta);
+						}
 					});
 				}
 			}));
