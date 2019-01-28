@@ -30,15 +30,19 @@ import { Command } from 'vs/editor/browser/editorExtensions';
 import { timeout } from 'vs/base/common/async';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
+import { URI } from 'vs/base/common/uri';
 
 export const TERMINAL_PICKER_PREFIX = 'term ';
 
-function getCwdForSplit(configHelper: ITerminalConfigHelper, instance: ITerminalInstance, folders?: IWorkspaceFolder[], commandService?: ICommandService): Promise<string | undefined> {
+function getCwdForSplit(configHelper: ITerminalConfigHelper, instance: ITerminalInstance, folders?: IWorkspaceFolder[], commandService?: ICommandService): Promise<string | URI> {
 	switch (configHelper.config.splitCwd) {
 		case 'workspaceRoot':
-			// allow original behavior
-			let pathPromise: Promise<string> = Promise.resolve('');
-			if (folders.length > 1) {
+			let pathPromise: Promise<string | URI>;
+			if (folders.length === 0) {
+				pathPromise = Promise.resolve('');
+			} else if (folders.length === 1) {
+				pathPromise = Promise.resolve(folders[0].uri);
+			} else if (folders.length > 1) {
 				// Only choose a path when there's more than 1 folder
 				const options: IPickOptions<IQuickPickItem> = {
 					placeHolder: nls.localize('workbench.action.terminal.newWorkspacePlaceholder', "Select current working directory for new terminal")
@@ -48,16 +52,13 @@ function getCwdForSplit(configHelper: ITerminalConfigHelper, instance: ITerminal
 						// Don't split the instance if the workspace picker was canceled
 						return undefined;
 					}
-					return Promise.resolve(workspace.uri.fsPath);
+					return Promise.resolve(workspace.uri);
 				});
 			}
-
 			return pathPromise;
 		case 'initial':
-			console.log('getCwdForSplit initial');
 			return instance.getInitialCwd();
 		case 'inherited':
-			console.log('getCwdForSplit inherited');
 			return instance.getCwd();
 	}
 }
@@ -382,9 +383,7 @@ export class SplitTerminalAction extends Action {
 		if (!instance) {
 			return Promise.resolve(undefined);
 		}
-		console.log('SplitTerminalAction');
 		return getCwdForSplit(this._terminalService.configHelper, instance, this.workspaceContextService.getWorkspace().folders, this.commandService).then(cwd => {
-			console.log('SplitTerminalAction cwd', cwd);
 			if (cwd || (cwd === '')) {
 				this._terminalService.splitInstance(instance, { cwd });
 				return this._terminalService.showPanel(true);

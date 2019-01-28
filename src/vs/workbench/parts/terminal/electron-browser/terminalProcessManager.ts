@@ -35,8 +35,6 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	public processState: ProcessState = ProcessState.UNINITIALIZED;
 	public ptyProcessReady: Promise<void>;
 	public shellProcessId: number;
-	// TODO: This should be removed in favor of async getInitialCwd
-	public initialCwd: string;
 
 	private _process: ITerminalChildProcess | null = null;
 	private _preLaunchInputQueue: string[] = [];
@@ -92,24 +90,25 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		rows: number
 	): void {
 		let launchRemotely = false;
+		const forceExtHostProcess = (this._configHelper.config as any).extHostProcess;
 
 		if (shellLaunchConfig.cwd && typeof shellLaunchConfig.cwd === 'object') {
 			launchRemotely = !!getRemoteAuthority(shellLaunchConfig.cwd);
 			shellLaunchConfig.cwd = shellLaunchConfig.cwd.fsPath;
 		} else {
-			launchRemotely = !!this._windowService.getConfiguration().remoteAuthority || (this._configHelper.config as any).extHostProcess;
+			launchRemotely = !!this._windowService.getConfiguration().remoteAuthority;
 		}
 
-		if (launchRemotely) {
-			const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(REMOTE_HOST_SCHEME);
+		if (launchRemotely || forceExtHostProcess) {
+			const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(forceExtHostProcess ? undefined : REMOTE_HOST_SCHEME);
 			this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows);
 		} else {
 			if (!shellLaunchConfig.executable) {
 				this._configHelper.mergeDefaultShellPathAndArgs(shellLaunchConfig);
 			}
-			// TODO: @daniel
+
 			const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.file);
-			this.initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, activeWorkspaceRootUri, this._configHelper.config.cwd);
+			const initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, activeWorkspaceRootUri, this._configHelper.config.cwd);
 
 			// Compel type system as process.env should not have any undefined entries
 			let env: platform.IProcessEnvironment = {};
@@ -140,8 +139,8 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 				terminalEnvironment.addTerminalEnvironmentKeys(env, platform.locale, this._configHelper.config.setLocaleVariables);
 			}
 
-			this._logService.debug(`Terminal process launching`, shellLaunchConfig, this.initialCwd, cols, rows, env);
-			this._process = new TerminalProcess(shellLaunchConfig, this.initialCwd, cols, rows, env, this._configHelper.config.windowsEnableConpty);
+			this._logService.debug(`Terminal process launching`, shellLaunchConfig, initialCwd, cols, rows, env);
+			this._process = new TerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, this._configHelper.config.windowsEnableConpty);
 		}
 		this.processState = ProcessState.LAUNCHING;
 

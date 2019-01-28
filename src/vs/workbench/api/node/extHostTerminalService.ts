@@ -458,21 +458,12 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		this._terminalProcesses[id].shutdown(immediate);
 	}
 
-	// TODO: Also support initial cwd as it's evaluated on the ext host
 	public $acceptProcessRequestInitialCwd(id: number): void {
-		console.log('$acceptProcessRequestInitialCwd', id);
-		this._terminalProcesses[id].getInitialCwd().then(initialCwd => {
-			console.log('initialCwd', initialCwd);
-			this._proxy.$sendProcessInitialCwd(id, initialCwd);
-		});
+		this._terminalProcesses[id].getInitialCwd().then(initialCwd => this._proxy.$sendProcessInitialCwd(id, initialCwd));
 	}
 
 	public $acceptProcessRequestCwd(id: number): void {
-		console.log('$acceptProcessRequestCwd', id);
-		this._terminalProcesses[id].getCwd().then(cwd => {
-			console.log('cwd', cwd);
-			this._proxy.$sendProcessCwd(id, cwd);
-		});
+		this._terminalProcesses[id].getCwd().then(cwd => this._proxy.$sendProcessCwd(id, cwd));
 	}
 
 	private _onProcessExit(id: number, exitCode: number): void {
