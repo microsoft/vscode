@@ -231,7 +231,7 @@ export class ExtensionsActivator {
 			return NO_OP_VOID_PROMISE;
 		}
 		let activateExtensions = this._registry.getExtensionDescriptionsForActivationEvent(activationEvent);
-		return this._activateExtensions(activateExtensions, reason, 0).then(() => {
+		return this._activateExtensions(activateExtensions, reason).then(() => {
 			this._alreadyActivatedEvents[activationEvent] = true;
 		});
 	}
@@ -242,7 +242,7 @@ export class ExtensionsActivator {
 			throw new Error('Extension `' + extensionId + '` is not known');
 		}
 
-		return this._activateExtensions([desc], reason, 0);
+		return this._activateExtensions([desc], reason);
 	}
 
 	/**
@@ -295,7 +295,7 @@ export class ExtensionsActivator {
 		}
 	}
 
-	private _activateExtensions(extensionDescriptions: IExtensionDescription[], reason: ExtensionActivationReason, recursionLevel: number): Promise<void> {
+	private _activateExtensions(extensionDescriptions: IExtensionDescription[], reason: ExtensionActivationReason): Promise<void> {
 		// console.log(recursionLevel, '_activateExtensions: ', extensionDescriptions.map(p => p.id));
 		if (extensionDescriptions.length === 0) {
 			return Promise.resolve(undefined);
@@ -303,17 +303,6 @@ export class ExtensionsActivator {
 
 		extensionDescriptions = extensionDescriptions.filter((p) => !this._activatedExtensions.has(ExtensionIdentifier.toKey(p.identifier)));
 		if (extensionDescriptions.length === 0) {
-			return Promise.resolve(undefined);
-		}
-
-		if (recursionLevel > 10) {
-			// More than 10 dependencies deep => most likely a dependency loop
-			for (let i = 0, len = extensionDescriptions.length; i < len; i++) {
-				// Error condition 3: dependency loop
-				this._host.showMessage(Severity.Error, nls.localize('failedDep2', "Extension '{0}' failed to activate. Reason: more than 10 levels of dependencies (most likely a dependency loop).", extensionDescriptions[i].identifier.value));
-				const error = new Error('More than 10 levels of dependencies (most likely a dependency loop)');
-				this._activatedExtensions.set(ExtensionIdentifier.toKey(extensionDescriptions[i].identifier), new FailedExtension(error));
-			}
 			return Promise.resolve(undefined);
 		}
 
@@ -342,8 +331,8 @@ export class ExtensionsActivator {
 			return Promise.all(green.map((p) => this._activateExtension(p, reason))).then(_ => undefined);
 		}
 
-		return this._activateExtensions(green, reason, recursionLevel + 1).then(_ => {
-			return this._activateExtensions(red, reason, recursionLevel + 1);
+		return this._activateExtensions(green, reason).then(_ => {
+			return this._activateExtensions(red, reason);
 		});
 	}
 
