@@ -27,7 +27,7 @@ function ensureDOMFocus(widget: ListWidget): void {
 	}
 }
 
-function focusDown(accessor: ServicesAccessor, arg2?: number): void {
+function focusDown(accessor: ServicesAccessor, arg2?: number, loop: boolean = true): void {
 	const focused = accessor.get(IListService).lastFocusedList;
 	const count = typeof arg2 === 'number' ? arg2 : 1;
 
@@ -50,7 +50,7 @@ function focusDown(accessor: ServicesAccessor, arg2?: number): void {
 		const tree = focused;
 
 		const fakeKeyboardEvent = new KeyboardEvent('keydown');
-		tree.focusNext(count, true, fakeKeyboardEvent);
+		tree.focusNext(count, loop, fakeKeyboardEvent);
 
 		const listFocus = tree.getFocus();
 		if (listFocus.length) {
@@ -99,6 +99,11 @@ function expandMultiSelection(focused: List<any> | PagedList<any> | ITree | Obje
 		const list = focused;
 
 		const focus = list.getFocus() ? list.getFocus()[0] : undefined;
+
+		if (previousFocus === focus) {
+			return;
+		}
+
 		const selection = list.getSelection();
 		const fakeKeyboardEvent = new KeyboardEvent('keydown', { shiftKey: true });
 
@@ -137,7 +142,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 			// Focus down first
 			const previousFocus = list.getFocus() ? list.getFocus()[0] : undefined;
-			focusDown(accessor, arg2);
+			focusDown(accessor, arg2, false);
 
 			// Then adjust selection
 			expandMultiSelection(focused, previousFocus);
@@ -157,7 +162,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
-function focusUp(accessor: ServicesAccessor, arg2?: number): void {
+function focusUp(accessor: ServicesAccessor, arg2?: number, loop: boolean = true): void {
 	const focused = accessor.get(IListService).lastFocusedList;
 	const count = typeof arg2 === 'number' ? arg2 : 1;
 
@@ -180,7 +185,7 @@ function focusUp(accessor: ServicesAccessor, arg2?: number): void {
 		const tree = focused;
 
 		const fakeKeyboardEvent = new KeyboardEvent('keydown');
-		tree.focusPrevious(count, true, fakeKeyboardEvent);
+		tree.focusPrevious(count, loop, fakeKeyboardEvent);
 
 		const listFocus = tree.getFocus();
 		if (listFocus.length) {
@@ -223,7 +228,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 			// Focus up first
 			const previousFocus = list.getFocus() ? list.getFocus()[0] : undefined;
-			focusUp(accessor, arg2);
+			focusUp(accessor, arg2, false);
 
 			// Then adjust selection
 			expandMultiSelection(focused, previousFocus);
