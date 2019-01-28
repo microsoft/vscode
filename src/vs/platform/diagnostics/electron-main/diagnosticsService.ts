@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { WorkspaceStats, collectWorkspaceStats, collectLaunchConfigs, WorkspaceStatItem } from 'vs/base/node/stats';
+import { WorkspaceStats, collectWorkspaceStats, WorkspaceStatItem } from 'vs/base/node/stats';
 import { IMainProcessInfo } from 'vs/platform/launch/electron-main/launchService';
 import { ProcessItem, listProcesses } from 'vs/base/node/ps';
 import product from 'vs/platform/node/product';
@@ -110,9 +110,8 @@ export class DiagnosticsService implements IDiagnosticsService {
 								workspaceInfoMessages.push(`|    Folder (${basename(folder)}): ${countMessage}`);
 								workspaceInfoMessages.push(this.formatWorkspaceStats(stats));
 
-								const launchConfigs = await collectLaunchConfigs(folder);
-								if (launchConfigs.length > 0) {
-									workspaceInfoMessages.push(this.formatLaunchConfigs(launchConfigs));
+								if (stats.launchConfigFiles.length > 0) {
+									workspaceInfoMessages.push(this.formatLaunchConfigs(stats.launchConfigFiles));
 								}
 							}));
 						} else {
@@ -196,11 +195,9 @@ export class DiagnosticsService implements IDiagnosticsService {
 								console.log(`|    Folder (${basename(folder)}): ${countMessage}`);
 								console.log(this.formatWorkspaceStats(stats));
 
-								await collectLaunchConfigs(folder).then(launchConfigs => {
-									if (launchConfigs.length > 0) {
-										console.log(this.formatLaunchConfigs(launchConfigs));
-									}
-								});
+								if (stats.launchConfigFiles.length > 0) {
+									console.log(this.formatLaunchConfigs(stats.launchConfigFiles));
+								}
 							}).catch(error => {
 								console.log(`|      Error: Unable to collect workspace stats for folder ${folder} (${error.toString()})`);
 							}));
