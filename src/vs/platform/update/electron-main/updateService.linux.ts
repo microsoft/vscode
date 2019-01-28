@@ -125,9 +125,11 @@ export class LinuxUpdateService extends AbstractUpdateService {
 		}
 
 		// Allow 3 seconds for VS Code to close
-		spawn('bash', ['-c', path.join(snap, `usr/share/${product.applicationName}/snapUpdate.sh`)], {
+		spawn('sleep 3 && $SNAP_NAME', {
+			shell: true,
 			detached: true,
-			stdio: ['ignore', 'ignore', 'ignore']
+			stdio: 'ignore',
 		});
+
 	}
 }
