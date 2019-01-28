@@ -637,7 +637,7 @@ export class TreeResourceNavigator2<T, TFilterData> extends Disposable {
 	}
 
 	private onSelection(e: ITreeEvent<T | null>): void {
-		if (!e.browserEvent) {
+		if (!e.browserEvent || e.browserEvent.type === 'contextmenu') {
 			return;
 		}
 
