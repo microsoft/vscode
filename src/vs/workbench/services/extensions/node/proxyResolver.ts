@@ -233,14 +233,17 @@ function patches(originals: typeof http | typeof https, agent: http.Agent, setti
 
 			if (!options.socketPath && (config === 'override' || config === 'on' && !options.agent) && options.agent !== agent) {
 				if (url) {
-					const parsed = typeof url === 'string' ? nodeurl.parse(url) : url;
-					options = {
+					const parsed = typeof url === 'string' ? new nodeurl.URL(url) : url;
+					const urlOptions = {
 						protocol: parsed.protocol,
-						hostname: parsed.hostname,
+						hostname: parsed.hostname.lastIndexOf('[', 0) === 0 ? parsed.hostname.slice(1, -1) : parsed.hostname,
 						port: parsed.port,
-						path: parsed.pathname,
-						...options
+						path: `${parsed.pathname}${parsed.search}`
 					};
+					if (parsed.username || parsed.password) {
+						options.auth = `${parsed.username}:${parsed.password}`;
+					}
+					options = { ...urlOptions, ...options };
 				} else {
 					options = { ...options };
 				}
