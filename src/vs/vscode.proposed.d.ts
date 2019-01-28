@@ -1112,7 +1112,8 @@ declare module 'vscode' {
 		/**
 		 * The currently active [`SignatureHelp`](#SignatureHelp).
 		 *
-		 * Will have the [`SignatureHelp.activeSignature`] field updated based on user arrowing through sig help
+		 * The `activeSignatureHelp` has its [`SignatureHelp.activeSignature`] field updated based on
+		 * the user arrowing through available signatures.
 		 */
 		readonly activeSignatureHelp?: SignatureHelp;
 	}
