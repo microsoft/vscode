@@ -20,7 +20,7 @@ import { escape } from 'vs/base/common/strings';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { IListVirtualDelegate, IKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate, IKeyboardNavigationLabelProvider, IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { basename } from 'vs/base/common/paths';
@@ -90,6 +90,13 @@ export class StringRepresentationProvider implements IKeyboardNavigationLabelPro
 
 	mightProducePrintableCharacter(event: IKeyboardEvent): boolean {
 		return this._keybindingService.mightProducePrintableCharacter(event);
+	}
+}
+
+export class IdentityProvider implements IIdentityProvider<TreeElement> {
+
+	getId(element: TreeElement): { toString(): string; } {
+		return element.id;
 	}
 }
 
