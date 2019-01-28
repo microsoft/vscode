@@ -859,8 +859,8 @@ declare module 'vscode' {
 
 		commentReactions?: CommentReaction[];
 
-		addReaction(comment: Comment, reaction: CommentReaction): Promise<void>;
-		deleteReaction(comment: Comment, reaction: CommentReaction): Promise<void>;
+		addReaction?(comment: Comment, reaction: CommentReaction): Promise<void>;
+		deleteReaction?(comment: Comment, reaction: CommentReaction): Promise<void>;
 
 		/**
 		 * Notify of updates to comment threads.
