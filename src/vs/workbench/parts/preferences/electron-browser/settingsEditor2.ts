@@ -605,9 +605,9 @@ export class SettingsEditor2 extends BaseEditor {
 			this.settingRenderers.allRenderers));
 		this.settingsTree.getHTMLElement().attributes.removeNamedItem('tabindex');
 
-		// this._register(this.settingsTree.onDidScroll(() => {
-		// 	this.updateTreeScrollSync();
-		// }));
+		this._register(this.settingsTree.onDidScroll(() => {
+			this.updateTreeScrollSync();
+		}));
 	}
 
 	private notifyNoSaveNeeded() {
@@ -644,35 +644,28 @@ export class SettingsEditor2 extends BaseEditor {
 
 		// this.updateTreePagingByScroll();
 
-		const element = this.tocTreeModel.children[0];
+		// const element = this.tocTreeModel.children[0];
 		// const elementToSync = this.settingsTree.getFirstVisibleElement();
 		// const element = elementToSync instanceof SettingsTreeSettingElement ? elementToSync.parent :
 		// 	elementToSync instanceof SettingsTreeGroupElement ? elementToSync :
 		// 		null;
 
-		if (element && this.tocTree.getSelection()[0] !== element) {
-			// 	this.tocTree.reveal(element);
-			// 	const elementTop = this.tocTree.getRelativeTop(element);
-			// 	collapseAll(this.tocTree, element);
-			// 	if (elementTop < 0 || elementTop > 1) {
-			// 		this.tocTree.reveal(element);
-			// 	} else {
-			// 		this.tocTree.reveal(element, elementTop);
-			// 	}
+		// if (element && this.tocTree.getSelection()[0] !== element) {
+		// 	this.tocTree.reveal(element);
+		// 	const elementTop = this.tocTree.getRelativeTop(element);
+		// 	collapseAll(this.tocTree, element);
+		// 	if (elementTop < 0 || elementTop > 1) {
+		// 		this.tocTree.reveal(element);
+		// 	} else {
+		// 		this.tocTree.reveal(element, elementTop);
+		// 	}
 
-			// 	this.tocTree.expand(element);
+		// 	this.tocTree.expand(element);
 
-			// this.tocTree.setSelection([element]);
-			// this.tocTree.setFocus(element, { fromScroll: true });
-		}
+		// this.tocTree.setSelection([element]);
+		// this.tocTree.setFocus(element, { fromScroll: true });
+		// }
 	}
-
-	// private updateTreePagingByScroll(): void {
-	// 	const lastVisibleElement = this.settingsTree.getLastVisibleElement();
-	// 	if (lastVisibleElement && this.settingsTreeDataSource.pageTo(lastVisibleElement.index)) {
-	// 		this.renderTree();
-	// 	}
-	// }
 
 	private updateChangedSetting(key: string, value: any): Promise<void> {
 		// ConfigurationService displays the error if this fails.
