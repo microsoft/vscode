@@ -341,6 +341,7 @@ let taskConfiguration: IJSONSchema = {
 			description: nls.localize('JsonSchema.tasks.matchers', 'The problem matcher(s) to use. Can either be a string or a problem matcher definition or an array of strings and problem matchers.')
 		},
 		runOptions: Objects.deepClone(runOptions),
+		dependsOn: Objects.deepClone(dependsOn),
 	}
 };
 
