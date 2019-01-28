@@ -362,6 +362,7 @@
           "type": "boolean",
           "default": true,
           "description": "%jsDocCompletion.enabled%",
+          "deprecationMessage": "jsDocCompletion.deprecationMessage",
           "scope": "resource"
         },
         "javascript.implicitProjectConfig.checkJs": {
@@ -422,6 +423,18 @@
           "type": "boolean",
           "default": true,
           "description": "%configuration.suggest.autoImports%",
+          "scope": "resource"
+        },
+        "javascript.suggest.completeJSDocs": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.completeJSDocs%",
+          "scope": "resource"
+        },
+        "typescript.suggest.completeJSDocs": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.completeJSDocs%",
           "scope": "resource"
         },
         "typescript.locale": {
