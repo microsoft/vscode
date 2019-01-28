@@ -24,7 +24,7 @@ export interface IView {
 	readonly onDidChange: Event<{ width: number; height: number; } | undefined>;
 	readonly priority?: LayoutPriority;
 	readonly snapSize?: number;
-	layout(width: number, height: number): void;
+	layout(width: number, height: number, orientation: Orientation): void;
 }
 
 export function orthogonal(orientation: Orientation): Orientation {
@@ -480,12 +480,12 @@ class LeafNode implements ISplitView, IDisposable {
 
 	layout(size: number): void {
 		this._size = size;
-		return this.view.layout(this.width, this.height);
+		return this.view.layout(this.width, this.height, orthogonal(this.orientation));
 	}
 
 	orthogonalLayout(size: number): void {
 		this._orthogonalSize = size;
-		return this.view.layout(this.width, this.height);
+		return this.view.layout(this.width, this.height, orthogonal(this.orientation));
 	}
 
 	dispose(): void { }
