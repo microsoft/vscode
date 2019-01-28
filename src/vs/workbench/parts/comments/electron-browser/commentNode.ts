@@ -92,7 +92,7 @@ export class CommentNode extends Disposable {
 		this._md = this.markdownRenderer.render(comment.body).element;
 		this._body.appendChild(this._md);
 
-		if (this.comment.commentReactions) {
+		if (this.comment.commentReactions && this.comment.commentReactions.length) {
 			this.createReactions(commentDetailsContainer);
 		}
 
