@@ -314,12 +314,13 @@ export class TerminalTaskSystem implements ITaskSystem {
 		let promises: Promise<ITaskSummary>[] = [];
 		if (task.configurationProperties.dependsOn) {
 			task.configurationProperties.dependsOn.forEach((dependency) => {
-				let task = resolver.resolve(dependency.workspaceFolder, dependency.task!);
-				if (task) {
-					let key = task.getMapKey();
+				let dependencyTask = resolver.resolve(dependency.workspaceFolder, dependency.task!);
+				if (dependencyTask) {
+					let key = dependencyTask.getMapKey();
 					let promise = this.activeTasks[key] ? this.activeTasks[key].promise : undefined;
 					if (!promise) {
-						promise = this.executeTask(task, resolver, trigger);
+						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.DependsOnStarted, task));
+						promise = this.executeTask(dependencyTask, resolver, trigger);
 					}
 					promises.push(promise);
 				} else {
