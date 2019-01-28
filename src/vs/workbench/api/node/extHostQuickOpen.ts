@@ -164,7 +164,7 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 				return undefined;
 			}
 
-			return this._workspace.getWorkspaceFolders().filter(folder => folder.uri.toString() === selectedFolder.uri.toString())[0];
+			return this._workspace.getWorkspaceProvider().then(workspaceProvider => workspaceProvider.getWorkspaceFolders().filter(folder => folder.uri.toString() === selectedFolder.uri.toString())[0]);
 		});
 	}
 

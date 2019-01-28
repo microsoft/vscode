@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
-import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
+import { ExtHostWorkspaceProvider } from 'vs/workbench/api/node/extHostWorkspace';
 import { ExtHostConfigProvider } from 'vs/workbench/api/node/extHostConfiguration';
 import { MainThreadConfigurationShape, IConfigurationInitData } from 'vs/workbench/api/node/extHost.protocol';
 import { ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
@@ -31,7 +31,7 @@ suite('ExtHostConfiguration', function () {
 		if (!shape) {
 			shape = new class extends mock<MainThreadConfigurationShape>() { };
 		}
-		return new ExtHostConfigProvider(shape, new ExtHostWorkspace(new TestRPCProtocol(), null, new NullLogService(), new Counter()), createConfigurationData(contents));
+		return new ExtHostConfigProvider(shape, new ExtHostWorkspaceProvider(new TestRPCProtocol(), null, new NullLogService(), new Counter()), createConfigurationData(contents));
 	}
 
 	function createConfigurationData(contents: any): IConfigurationInitData {
@@ -265,7 +265,7 @@ suite('ExtHostConfiguration', function () {
 	test('inspect in no workspace context', function () {
 		const testObject = new ExtHostConfigProvider(
 			new class extends mock<MainThreadConfigurationShape>() { },
-			new ExtHostWorkspace(new TestRPCProtocol(), null, new NullLogService(), new Counter()),
+			new ExtHostWorkspaceProvider(new TestRPCProtocol(), null, new NullLogService(), new Counter()),
 			{
 				defaults: new ConfigurationModel({
 					'editor': {
@@ -308,7 +308,7 @@ suite('ExtHostConfiguration', function () {
 		folders[workspaceUri.toString()] = workspace;
 		const testObject = new ExtHostConfigProvider(
 			new class extends mock<MainThreadConfigurationShape>() { },
-			new ExtHostWorkspace(new TestRPCProtocol(), {
+			new ExtHostWorkspaceProvider(new TestRPCProtocol(), {
 				'id': 'foo',
 				'folders': [aWorkspaceFolder(URI.file('foo'), 0)],
 				'name': 'foo'
@@ -382,7 +382,7 @@ suite('ExtHostConfiguration', function () {
 
 		const testObject = new ExtHostConfigProvider(
 			new class extends mock<MainThreadConfigurationShape>() { },
-			new ExtHostWorkspace(new TestRPCProtocol(), {
+			new ExtHostWorkspaceProvider(new TestRPCProtocol(), {
 				'id': 'foo',
 				'folders': [aWorkspaceFolder(firstRoot, 0), aWorkspaceFolder(secondRoot, 1)],
 				'name': 'foo'
@@ -591,7 +591,7 @@ suite('ExtHostConfiguration', function () {
 		const workspaceFolder = aWorkspaceFolder(URI.file('folder1'), 0);
 		const testObject = new ExtHostConfigProvider(
 			new class extends mock<MainThreadConfigurationShape>() { },
-			new ExtHostWorkspace(new TestRPCProtocol(), {
+			new ExtHostWorkspaceProvider(new TestRPCProtocol(), {
 				'id': 'foo',
 				'folders': [workspaceFolder],
 				'name': 'foo'

@@ -55,18 +55,21 @@ export interface IEnvironment {
 	globalStorageHome: URI;
 }
 
-export interface IWorkspaceData {
+export interface IStaticWorkspaceData {
 	id: string;
 	name: string;
-	folders: { uri: UriComponents, name: string, index: number }[];
 	configuration?: UriComponents;
+}
+
+export interface IWorkspaceData extends IStaticWorkspaceData {
+	folders: { uri: UriComponents, name: string, index: number }[];
 }
 
 export interface IInitData {
 	commit: string;
 	parentPid: number;
 	environment: IEnvironment;
-	workspace: IWorkspaceData;
+	workspace: IStaticWorkspaceData;
 	resolvedExtensions: ExtensionIdentifier[];
 	extensions: IExtensionDescription[];
 	telemetryInfo: ITelemetryInfo;
@@ -716,6 +719,7 @@ export interface ExtHostTreeViewsShape {
 }
 
 export interface ExtHostWorkspaceShape {
+	$initializeWorkspace(workspace: IWorkspaceData): void;
 	$acceptWorkspaceData(workspace: IWorkspaceData): void;
 	$handleTextSearchResult(result: IRawFileMatch2, requestId: number): void;
 }

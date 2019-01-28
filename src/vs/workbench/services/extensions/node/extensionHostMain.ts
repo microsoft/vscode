@@ -49,7 +49,6 @@ export class ExtensionHostMain {
 	private _isTerminating: boolean;
 	private readonly _environment: IEnvironment;
 	private readonly _extensionService: ExtHostExtensionService;
-	private readonly _extHostConfiguration: ExtHostConfiguration;
 	private readonly _extHostLogService: ExtHostLogService;
 	private disposables: IDisposable[] = [];
 
@@ -74,13 +73,13 @@ export class ExtensionHostMain {
 		this.disposables.push(this._extHostLogService);
 
 		this._searchRequestIdProvider = new Counter();
-		const extHostWorkspace = new ExtHostWorkspace(rpcProtocol, initData.workspace, this._extHostLogService, this._searchRequestIdProvider);
+		const extHostWorkspace = new ExtHostWorkspace(rpcProtocol, this._extHostLogService, this._searchRequestIdProvider);
 
 		this._extHostLogService.info('extension host started');
 		this._extHostLogService.trace('initData', initData);
 
-		this._extHostConfiguration = new ExtHostConfiguration(rpcProtocol.getProxy(MainContext.MainThreadConfiguration), extHostWorkspace);
-		this._extensionService = new ExtHostExtensionService(nativeExit, initData, rpcProtocol, extHostWorkspace, this._extHostConfiguration, this._extHostLogService);
+		const extHostConfiguraiton = new ExtHostConfiguration(rpcProtocol.getProxy(MainContext.MainThreadConfiguration), extHostWorkspace);
+		this._extensionService = new ExtHostExtensionService(nativeExit, initData, rpcProtocol, extHostWorkspace, extHostConfiguraiton, this._extHostLogService);
 
 		// error forwarding and stack trace scanning
 		Error.stackTraceLimit = 100; // increase number of stack frames (from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)

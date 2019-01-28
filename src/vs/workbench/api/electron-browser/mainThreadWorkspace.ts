@@ -14,13 +14,13 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IFolderQuery, IPatternInfo, ISearchConfiguration, ISearchProgressItem, ISearchService, QueryType, IFileQuery, IFileMatch } from 'vs/platform/search/common/search';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IWindowService } from 'vs/platform/windows/common/windows';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { QueryBuilder, ITextQueryBuilderOptions } from 'vs/workbench/parts/search/common/queryBuilder';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
-import { ExtHostContext, ExtHostWorkspaceShape, IExtHostContext, MainContext, MainThreadWorkspaceShape } from '../node/extHost.protocol';
+import { ExtHostContext, ExtHostWorkspaceShape, IExtHostContext, MainContext, MainThreadWorkspaceShape, IWorkspaceData } from '../node/extHost.protocol';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 import { TextSearchComplete } from 'vscode';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
@@ -45,6 +45,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		@ILabelService private readonly _labelService: ILabelService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostWorkspace);
+		this._contextService.getCompleteWorkspace().then(workspace => this._proxy.$initializeWorkspace(this.getWorkspaceData(workspace)));
 		this._contextService.onDidChangeWorkspaceFolders(this._onDidChangeWorkspace, this, this._toDispose);
 		this._contextService.onDidChangeWorkbenchState(this._onDidChangeWorkspace, this, this._toDispose);
 	}
@@ -102,13 +103,19 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 	}
 
 	private _onDidChangeWorkspace(): void {
-		const workspace = this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? null : this._contextService.getWorkspace();
-		this._proxy.$acceptWorkspaceData(workspace ? {
+		this._proxy.$acceptWorkspaceData(this.getWorkspaceData(this._contextService.getWorkspace()));
+	}
+
+	private getWorkspaceData(workspace: IWorkspace): IWorkspaceData | null {
+		if (this._contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
+			return null;
+		}
+		return {
 			configuration: workspace.configuration,
 			folders: workspace.folders,
 			id: workspace.id,
 			name: this._labelService.getWorkspaceLabel(workspace)
-		} : null);
+		};
 	}
 
 	// --- search ---
