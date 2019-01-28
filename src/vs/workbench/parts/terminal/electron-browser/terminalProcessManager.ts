@@ -201,10 +201,16 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	}
 
 	public getInitialCwd(): Promise<string> {
+		if (!this._process) {
+			return Promise.resolve('');
+		}
 		return this._process.getInitialCwd();
 	}
 
 	public getCwd(): Promise<string> {
+		if (!this._process) {
+			return Promise.resolve('');
+		}
 		return this._process.getCwd();
 	}
 

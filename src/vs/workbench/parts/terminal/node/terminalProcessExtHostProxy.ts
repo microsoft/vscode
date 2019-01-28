@@ -77,13 +77,13 @@ export class TerminalProcessExtHostProxy implements ITerminalChildProcess, ITerm
 
 	public emitInitialCwd(initialCwd: string): void {
 		while (this._pendingInitialCwdRequests.length > 0) {
-			this._pendingInitialCwdRequests.pop()(initialCwd);
+			this._pendingInitialCwdRequests.pop()!(initialCwd);
 		}
 	}
 
 	public emitCwd(cwd: string): void {
 		while (this._pendingCwdRequests.length > 0) {
-			this._pendingCwdRequests.pop()(cwd);
+			this._pendingCwdRequests.pop()!(cwd);
 		}
 	}
 
@@ -100,7 +100,7 @@ export class TerminalProcessExtHostProxy implements ITerminalChildProcess, ITerm
 	}
 
 	public getInitialCwd(): Promise<string> {
-		return new Promise<string | undefined>(resolve => {
+		return new Promise<string>(resolve => {
 			this._onRequestInitialCwd.fire();
 			this._pendingInitialCwdRequests.push(resolve);
 		});
