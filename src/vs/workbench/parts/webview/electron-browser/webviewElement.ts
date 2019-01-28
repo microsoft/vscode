@@ -574,6 +574,26 @@ export class WebviewElement extends Disposable {
 	public selectAll() {
 		this._webview.selectAll();
 	}
+
+	public copy() {
+		this._webview.copy();
+	}
+
+	public paste() {
+		this._webview.paste();
+	}
+
+	public cut() {
+		this._webview.cut();
+	}
+
+	public undo() {
+		this._webview.undo();
+	}
+
+	public redo() {
+		this._webview.redo();
+	}
 }
 
 
