@@ -268,7 +268,7 @@ suite('Files - View Model', () => {
 		const child = new ExplorerItem(URI.file(join('C:\\', '/path/to/foo.html')), undefined, true, false, false, 'foo.html', Date.now(), d);
 		merge2.removeChild(child);
 		merge2.addChild(child);
-		merge2.isDirectoryResolved = true;
+		(<any>merge2)._isDirectoryResolved = true;
 		ExplorerItem.mergeLocalWithDisk(merge2, merge1);
 		assert.strictEqual(merge1.getChild('foo.html').name, 'foo.html');
 		assert.deepEqual(merge1.getChild('foo.html').parent, merge1, 'Check parent');

@@ -156,7 +156,7 @@ export class ExplorerService implements IExplorerService {
 	}
 
 	refresh(): void {
-		this.model.roots.forEach(r => r.isDirectoryResolved = false);
+		this.model.roots.forEach(r => r.forgetChildren());
 		this._onDidChangeItem.fire(undefined);
 	}
 
@@ -249,7 +249,7 @@ export class ExplorerService implements IExplorerService {
 			// Filter to the ones we care
 			e = this.filterToViewRelevantEvents(e);
 			const explorerItemChanged = (item: ExplorerItem) => {
-				item.isDirectoryResolved = false;
+				item.forgetChildren();
 				this._onDidChangeItem.fire(item);
 			};
 
