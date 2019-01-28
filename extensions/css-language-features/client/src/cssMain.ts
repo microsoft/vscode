@@ -78,6 +78,24 @@ export function activate(context: ExtensionContext) {
 
 	client.onReady().then(() => {
 		context.subscriptions.push(initCompletionProvider());
+
+		documentSelector.forEach(selector => {
+			context.subscriptions.push(languages.registerSelectionRangeProvider(selector, {
+				async provideSelectionRanges(document: TextDocument, position: Position): Promise<SelectionRange[]> {
+					const textDocument = client.code2ProtocolConverter.asTextDocumentIdentifier(document);
+					const rawRanges = await client.sendRequest<Range[]>('$/textDocument/selectionRange', { textDocument, position });
+					if (Array.isArray(rawRanges)) {
+						return rawRanges.map(r => {
+							return {
+								range: client.protocol2CodeConverter.asRange(r),
+								kind: SelectionRangeKind.Declaration
+							};
+						});
+					}
+					return [];
+				}
+			}));
+		});
 	});
 
 	const selectionRangeProvider = {

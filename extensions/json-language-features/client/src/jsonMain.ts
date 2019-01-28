@@ -194,26 +194,26 @@ export function activate(context: ExtensionContext) {
 
 		client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociation(context));
 
+		documentSelector.forEach(selector => {
+			toDispose.push(languages.registerSelectionRangeProvider(selector, {
+				async provideSelectionRanges(document: TextDocument, position: Position): Promise<SelectionRange[]> {
+					const textDocument = client.code2ProtocolConverter.asTextDocumentIdentifier(document);
+					const rawRanges = await client.sendRequest<Range[]>('$/textDocument/selectionRange', { textDocument, position });
+					if (Array.isArray(rawRanges)) {
+						return rawRanges.map(r => {
+							return {
+								range: client.protocol2CodeConverter.asRange(r),
+								kind: SelectionRangeKind.Declaration
+							};
+						});
+					}
+					return [];
+				}
+			}));
+		});
 	});
 
-	const selectionRangeProvider = {
-		async provideSelectionRanges(document: TextDocument, position: Position): Promise<SelectionRange[]> {
-			const textDocument = client.code2ProtocolConverter.asTextDocumentIdentifier(document);
-			const rawRanges = await client.sendRequest<Range[]>('$/textDocument/selectionRange', { textDocument, position });
-			if (Array.isArray(rawRanges)) {
-				return rawRanges.map(r => {
-					return {
-						range: client.protocol2CodeConverter.asRange(r),
-						kind: SelectionRangeKind.Declaration
-					};
-				});
-			}
-			return [];
-		}
-	};
-	documentSelector.forEach(selector => {
-		languages.registerSelectionRangeProvider(selector, selectionRangeProvider);
-	});
+
 
 	let languageConfiguration: LanguageConfiguration = {
 		wordPattern: /("(?:[^\\\"]*(?:\\.)?)*"?)|[^\s{}\[\],:]+/,
