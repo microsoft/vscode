@@ -547,6 +547,10 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 	}
 
 	private onDidSpliceModel(): void {
+		if (!this.enabled || this.pattern.length === 0) {
+			return;
+		}
+
 		this.tree.refilter();
 		this.render();
 	}
