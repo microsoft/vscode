@@ -121,6 +121,10 @@ export class VariablesView extends ViewletPanel {
 		this.tree.layout(width, height);
 	}
 
+	focus(): void {
+		this.tree.domFocus();
+	}
+
 	private onMouseDblClick(e: ITreeMouseEvent<IExpression | IScope>): void {
 		const session = this.debugService.getViewModel().focusedSession;
 		if (e.element instanceof Variable && session.capabilities.supportsSetVariable) {
