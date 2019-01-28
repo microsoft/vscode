@@ -1,5 +1,4 @@
 {
-  "enableProposedApi": true,
   "name": "css-language-features",
   "displayName": "%displayName%",
   "description": "%description%",
@@ -16,6 +15,7 @@
     "onCommand:_css.applyCodeAction"
   ],
   "main": "./client/out/cssMain",
+  "enableProposedApi": true,
   "scripts": {
     "compile": "gulp compile-extension:css-language-features-client compile-extension:css-language-features-server",
     "watch": "gulp watch-extension:css-language-features-client watch-extension:css-language-features-server",

@@ -94,9 +94,9 @@ export function activate(context: ExtensionContext) {
 			});
 		}
 	};
-	languages.registerSelectionRangeProvider('css', selectionRangeProvider);
-	languages.registerSelectionRangeProvider('less', selectionRangeProvider);
-	languages.registerSelectionRangeProvider('scss', selectionRangeProvider);
+	documentSelector.forEach(selector => {
+		languages.registerSelectionRangeProvider(selector, selectionRangeProvider);
+	});
 
 	function initCompletionProvider(): Disposable {
 		const regionCompletionRegExpr = /^(\s*)(\/(\*\s*(#\w*)?)?)?$/;
