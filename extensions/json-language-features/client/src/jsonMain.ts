@@ -194,6 +194,10 @@ export function activate(context: ExtensionContext) {
 
 		client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociation(context));
 
+		extensions.onDidChange(_ => {
+			client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociation(context));
+		});
+
 		documentSelector.forEach(selector => {
 			toDispose.push(languages.registerSelectionRangeProvider(selector, {
 				async provideSelectionRanges(document: TextDocument, position: Position): Promise<SelectionRange[]> {
