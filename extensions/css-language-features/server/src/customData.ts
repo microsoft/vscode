@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CSSData, ICSSDataProvider } from 'vscode-css-languageservice';
+import { CSSDataV1, ICSSDataProvider } from 'vscode-css-languageservice';
 import * as fs from 'fs';
 
 export function getDataProviders(dataPaths: string[]): ICSSDataProvider[] {
@@ -29,16 +29,19 @@ export function getDataProviders(dataPaths: string[]): ICSSDataProvider[] {
 	return providers;
 }
 
-function parseCSSData(source: string): CSSData {
+function parseCSSData(source: string): CSSDataV1 {
 	let rawData: any;
 
 	try {
 		rawData = JSON.parse(source);
 	} catch (err) {
-		return {};
+		return {
+			version: 1
+		};
 	}
 
 	return {
+		version: 1,
 		properties: rawData.properties || [],
 		atDirectives: rawData.atdirectives || [],
 		pseudoClasses: rawData.pseudoclasses || [],
