@@ -69,7 +69,8 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		this._proxy.$registerDocumentCommentProvider(handle, {
 			startDraftLabel: provider.startDraftLabel,
 			deleteDraftLabel: provider.deleteDraftLabel,
-			finishDraftLabel: provider.finishDraftLabel
+			finishDraftLabel: provider.finishDraftLabel,
+			reactionGroup: provider.reactionGroup
 		});
 		this.registerListeners(handle, extensionId, provider);
 
@@ -174,6 +175,34 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		});
 	}
 
+	$addReaction(handle: number, uri: UriComponents, comment: modes.Comment, reaction: modes.CommentReaction): Promise<void> {
+		const data = this._documents.getDocumentData(URI.revive(uri));
+
+		if (!data || !data.document) {
+			throw new Error('Unable to retrieve document from URI');
+		}
+
+		const handlerData = this._documentProviders.get(handle);
+
+		return asPromise(() => {
+			return handlerData.provider.addReaction(data.document, convertFromComment(comment), reaction);
+		});
+	}
+
+	$deleteReaction(handle: number, uri: UriComponents, comment: modes.Comment, reaction: modes.CommentReaction): Promise<void> {
+		const data = this._documents.getDocumentData(URI.revive(uri));
+
+		if (!data || !data.document) {
+			throw new Error('Unable to retrieve document from URI');
+		}
+
+		const handlerData = this._documentProviders.get(handle);
+
+		return asPromise(() => {
+			return handlerData.provider.deleteReaction(data.document, convertFromComment(comment), reaction);
+		});
+	}
+
 	$provideDocumentComments(handle: number, uri: UriComponents): Promise<modes.CommentInfo> {
 		const data = this._documents.getDocumentData(URI.revive(uri));
 		if (!data || !data.document) {
@@ -259,7 +288,8 @@ function convertFromComment(comment: modes.Comment): vscode.Comment {
 		userIconPath: userIconPath,
 		canEdit: comment.canEdit,
 		canDelete: comment.canDelete,
-		isDraft: comment.isDraft
+		isDraft: comment.isDraft,
+		commentReactions: comment.commentReactions
 	};
 }
 
@@ -275,6 +305,7 @@ function convertToComment(provider: vscode.DocumentCommentProvider | vscode.Work
 		canEdit: canEdit,
 		canDelete: canDelete,
 		command: vscodeComment.command ? commandsConverter.toInternal(vscodeComment.command) : null,
-		isDraft: vscodeComment.isDraft
+		isDraft: vscodeComment.isDraft,
+		commentReactions: vscodeComment.commentReactions
 	};
 }

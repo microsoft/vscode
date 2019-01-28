@@ -820,7 +820,7 @@ declare module 'vscode' {
 
 	interface CommentReaction {
 		readonly label?: string;
-		readonly iconPath?: string | Uri;
+		readonly hasReacted?: boolean;
 	}
 
 	interface DocumentCommentProvider {
@@ -857,10 +857,9 @@ declare module 'vscode' {
 		deleteDraftLabel?: string;
 		finishDraftLabel?: string;
 
-		commentReactions?: CommentReaction[];
-
-		addReaction?(comment: Comment, reaction: CommentReaction): Promise<void>;
-		deleteReaction?(comment: Comment, reaction: CommentReaction): Promise<void>;
+		addReaction?(document: TextDocument, comment: Comment, reaction: CommentReaction): Promise<void>;
+		deleteReaction?(document: TextDocument, comment: Comment, reaction: CommentReaction): Promise<void>;
+		reactionGroup?: CommentReaction[];
 
 		/**
 		 * Notify of updates to comment threads.

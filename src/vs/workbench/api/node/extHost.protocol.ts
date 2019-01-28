@@ -110,6 +110,7 @@ export interface CommentProviderFeatures {
 	startDraftLabel?: string;
 	deleteDraftLabel?: string;
 	finishDraftLabel?: string;
+	reactionGroup?: vscode.CommentReaction[];
 }
 
 export interface MainThreadCommentsShape extends IDisposable {
@@ -1063,6 +1064,8 @@ export interface ExtHostCommentsShape {
 	$startDraft(handle: number, document: UriComponents): Promise<void>;
 	$deleteDraft(handle: number, document: UriComponents): Promise<void>;
 	$finishDraft(handle: number, document: UriComponents): Promise<void>;
+	$addReaction(handle: number, document: UriComponents, comment: modes.Comment, reaction: modes.CommentReaction): Promise<void>;
+	$deleteReaction(handle: number, document: UriComponents, comment: modes.Comment, reaction: modes.CommentReaction): Promise<void>;
 	$provideWorkspaceComments(handle: number): Promise<modes.CommentThread[]>;
 }
 

@@ -7,9 +7,9 @@ import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import * as modes from 'vs/editor/common/modes';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionsOrientation, ActionItem, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Button } from 'vs/base/browser/ui/button/button';
-import { Action } from 'vs/base/common/actions';
+import { Action, IActionRunner } from 'vs/base/common/actions';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
@@ -30,6 +30,8 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { assign } from 'vs/base/common/objects';
 import { MarkdownString } from 'vs/base/common/htmlContent';
+import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 
 const UPDATE_COMMENT_LABEL = nls.localize('label.updateComment', "Update comment");
 const UPDATE_IN_PROGRESS_LABEL = nls.localize('label.updatingComment', "Updating comment...");
@@ -49,6 +51,9 @@ export class CommentNode extends Disposable {
 	private _isPendingLabel: HTMLElement;
 
 	private _deleteAction: Action;
+	protected actionRunner?: IActionRunner;
+	protected toolbar: ToolBar;
+
 	private _onDidDelete = new Emitter<CommentNode>();
 
 	public get domNode(): HTMLElement {
@@ -66,7 +71,8 @@ export class CommentNode extends Disposable {
 		private modelService: IModelService,
 		private modeService: IModeService,
 		private dialogService: IDialogService,
-		private notificationService: INotificationService
+		private notificationService: INotificationService,
+		private contextMenuService: IContextMenuService
 	) {
 		super();
 
@@ -86,7 +92,9 @@ export class CommentNode extends Disposable {
 		this._md = this.markdownRenderer.render(comment.body).element;
 		this._body.appendChild(this._md);
 
-		this.createReactions(commentDetailsContainer);
+		if (this.comment.commentReactions) {
+			this.createReactions(commentDetailsContainer);
+		}
 
 		this._domNode.setAttribute('aria-label', `${comment.userName}, ${comment.body.value}`);
 		this._domNode.setAttribute('role', 'treeitem');
@@ -121,23 +129,79 @@ export class CommentNode extends Disposable {
 
 		if (actions.length) {
 			const actionsContainer = dom.append(header, dom.$('.comment-actions.hidden'));
-			const actionBar = new ActionBar(actionsContainer, {});
-			this._toDispose.push(actionBar);
+
+			this.toolbar = new ToolBar(actionsContainer, this.contextMenuService, {
+				actionItemProvider: action => this.actionItemProvider(action as Action),
+				orientation: ActionsOrientation.HORIZONTAL
+			});
+
 			this.registerActionBarListeners(actionsContainer);
 
-			actions.forEach(action => actionBar.push(action, { label: false, icon: true }));
+			let reactionActions = [];
+			let reactionGroup = this.commentService.getReactionGroup(this.owner);
+			if (reactionGroup) {
+				reactionActions = reactionGroup.map((reaction) => {
+					return new Action(`reaction.command.${reaction.label}`, `${reaction.label}`, '', true, async () => {
+						try {
+							await this.commentService.addReaction(this.owner, this.resource, this.comment, reaction);
+						} catch (e) {
+							const error = e.message
+								? nls.localize('commentAddReactionError', "Deleting the comment reaction failed: {0}.", e.message)
+								: nls.localize('commentAddReactionDefaultError', "Deleting the comment reaction failed");
+							this.notificationService.error(error);
+						}
+					});
+				});
+			}
+
+			this.toolbar.setActions(actions, reactionActions)();
+			this._toDispose.push(this.toolbar);
 		}
 	}
 
+	actionItemProvider(action: Action) {
+		let options = {};
+		if (action.id === 'comment.delete' || action.id === 'comment.edit') {
+			options = { label: false, icon: true };
+		} else {
+			options = { label: true, icon: true };
+		}
+
+		let item = new ActionItem({}, action, options);
+		return item;
+	}
+
 	private createReactions(commentDetailsContainer: HTMLElement): void {
-		let reactions = ['❤️', '🎉', '😄'];
+		const actionsContainer = dom.append(commentDetailsContainer, dom.$('div.comment-reactions'));
+		const actionBar = new ActionBar(actionsContainer, {});
+		this._toDispose.push(actionBar);
 
-		const reactionsBar = dom.append(commentDetailsContainer, dom.$('div.comment-reactions'));
+		let reactionActions = this.comment.commentReactions.map(reaction => {
+			return new Action(`reaction.${reaction.label}`, `${reaction.label}`, reaction.hasReacted ? 'active' : '', true, async () => {
+				try {
+					if (reaction.hasReacted) {
+						await this.commentService.deleteReaction(this.owner, this.resource, this.comment, reaction);
+					} else {
+						await this.commentService.addReaction(this.owner, this.resource, this.comment, reaction);
+					}
+				} catch (e) {
+					let error: string;
 
-		reactions.forEach(reaction => {
-			let btn = new Button(reactionsBar);
-			btn.label = reaction;
+					if (reaction.hasReacted) {
+						error = e.message
+							? nls.localize('commentDeleteReactionError', "Deleting the comment reaction failed: {0}.", e.message)
+							: nls.localize('commentDeleteReactionDefaultError', "Deleting the comment reaction failed");
+					} else {
+						error = e.message
+							? nls.localize('commentAddReactionError', "Deleting the comment reaction failed: {0}.", e.message)
+							: nls.localize('commentAddReactionDefaultError', "Deleting the comment reaction failed");
+					}
+					this.notificationService.error(error);
+				}
+			});
 		});
+
+		reactionActions.forEach(action => actionBar.push(action, { label: true, icon: true }));
 	}
 
 	private createCommentEditor(): void {
@@ -272,7 +336,7 @@ export class CommentNode extends Disposable {
 			actionsContainer.classList.remove('hidden');
 		}));
 
-		this._toDispose.push(dom.addDisposableListener(this._domNode, 'mouseleave', (e: MouseEvent) => {
+		this._toDispose.push(dom.addDisposableListener(this._domNode, 'mouseleave', () => {
 			if (!this._domNode.contains(document.activeElement)) {
 				actionsContainer.classList.add('hidden');
 			}
