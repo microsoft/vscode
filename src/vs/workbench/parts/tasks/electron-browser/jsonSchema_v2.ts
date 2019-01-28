@@ -513,7 +513,7 @@ Object.getOwnPropertyNames(definitions).forEach(key => {
 });
 fixReferences(schema);
 
-ProblemMatcherRegistry.onReady().then(() => {
+export function updateProblemMatchers() {
 	try {
 		let matcherIds = ProblemMatcherRegistry.keys().map(key => '$' + key);
 		definitions.problemMatcherType2.oneOf![0].enum = matcherIds;
@@ -521,6 +521,10 @@ ProblemMatcherRegistry.onReady().then(() => {
 	} catch (err) {
 		console.log('Installing problem matcher ids failed');
 	}
+}
+
+ProblemMatcherRegistry.onReady().then(() => {
+	updateProblemMatchers();
 });
 
 export default schema;

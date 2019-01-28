@@ -20,6 +20,7 @@ import { IStringDictionary } from 'vs/base/common/collections';
 
 import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { Event, Emitter } from 'vs/base/common/event';
 
 export enum FileLocationKind {
 	Auto,
@@ -1681,12 +1682,16 @@ export interface IProblemMatcherRegistry {
 	onReady(): Promise<void>;
 	get(name: string): NamedProblemMatcher;
 	keys(): string[];
+	readonly onMatcherChanged;
 }
 
 class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 
 	private matchers: IStringDictionary<NamedProblemMatcher>;
 	private readyPromise: Promise<void>;
+	private _onMatchersChanged: Emitter<void> = new Emitter<void>();
+	public get onMatcherChanged(): Event<void> { return this._onMatchersChanged.event; }
+
 
 	constructor() {
 		this.matchers = Object.create(null);
@@ -1712,6 +1717,9 @@ class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 							}
 						}
 					});
+					if ((delta.removed.length > 0) || (delta.added.length > 0)) {
+						this._onMatchersChanged.fire();
+					}
 				} catch (error) {
 				}
 				let matcher = this.get('tsc-watch');
