@@ -257,6 +257,7 @@ export abstract class AbstractSettingRenderer implements ITreeRenderer<SettingsT
 	static readonly CONTROL_SELECTOR = '.' + AbstractSettingRenderer.CONTROL_CLASS;
 
 	static readonly SETTING_KEY_ATTR = 'data-key';
+	static readonly SETTING_ID_ATTR = 'data-id';
 
 	private readonly _onDidClickOverrideElement = new Emitter<ISettingOverrideClickEvent>();
 	readonly onDidClickOverrideElement: Event<ISettingOverrideClickEvent> = this._onDidClickOverrideElement.event;
@@ -385,6 +386,7 @@ export abstract class AbstractSettingRenderer implements ITreeRenderer<SettingsT
 		DOM.toggleClass(template.containerElement, 'is-configured', element.isConfigured);
 		DOM.toggleClass(template.containerElement, 'is-expanded', true);
 		template.containerElement.setAttribute(AbstractSettingRenderer.SETTING_KEY_ATTR, element.setting.key);
+		template.containerElement.setAttribute(AbstractSettingRenderer.SETTING_ID_ATTR, element.id);
 
 		const titleTooltip = setting.key + (element.isConfigured ? ' - Modified' : '');
 		template.categoryElement.textContent = element.displayCategory && (element.displayCategory + ': ');
@@ -1085,6 +1087,11 @@ export class SettingTreeRenderers {
 	getKeyForDOMElementInSetting(element: HTMLElement): string {
 		const settingElement = this.getSettingDOMElementForDOMElement(element);
 		return settingElement && settingElement.getAttribute(AbstractSettingRenderer.SETTING_KEY_ATTR);
+	}
+
+	getIdForDOMElementInSetting(element: HTMLElement): string {
+		const settingElement = this.getSettingDOMElementForDOMElement(element);
+		return settingElement && settingElement.getAttribute(AbstractSettingRenderer.SETTING_ID_ATTR);
 	}
 }
 

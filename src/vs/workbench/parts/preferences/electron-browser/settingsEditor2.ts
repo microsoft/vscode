@@ -32,7 +32,7 @@ import { attachSuggestEnabledInputBoxStyler, SuggestEnabledInput } from 'vs/work
 import { SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { commonlyUsedData, tocData } from 'vs/workbench/parts/preferences/browser/settingsLayout';
 import { AbstractSettingRenderer, ISettingLinkClickEvent, ISettingOverrideClickEvent, resolveExtensionsSettings, resolveSettingsTree, SettingsTree, SettingTreeRenderers } from 'vs/workbench/parts/preferences/browser/settingsTree';
-import { ISettingsEditorViewState, parseQuery, SearchResultIdx, SearchResultModel, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeModel } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
+import { ISettingsEditorViewState, parseQuery, SearchResultIdx, SearchResultModel, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
 import { settingsTextInputBorder } from 'vs/workbench/parts/preferences/browser/settingsWidgets';
 import { createTOCIterator, TOCTree, TOCTreeModel } from 'vs/workbench/parts/preferences/browser/tocTree';
 import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, IPreferencesSearchService, ISearchProvider, MODIFIED_SETTING_TAG, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/parts/preferences/common/preferences';
@@ -123,6 +123,9 @@ export class SettingsEditor2 extends BaseEditor {
 	private hasWarnedMissingSettings: boolean;
 
 	private editorMemento: IEditorMemento<ISettingsEditor2State>;
+
+	private tocFocusedElement: SettingsTreeGroupElement;
+	private settingsTreeScrollTop = 0;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -542,21 +545,22 @@ export class SettingsEditor2 extends BaseEditor {
 			this.viewState));
 
 		this._register(this.tocTree.onDidChangeFocus(e => {
-			this.tocTree.setSelection(e.elements);
 			const element: SettingsTreeGroupElement = e.elements[0];
+			if (this.tocFocusedElement === e.elements[0]) {
+				return;
+			}
+
+			this.tocFocusedElement = element;
+			this.tocTree.setSelection(e.elements);
 			if (this.searchResultModel) {
 				if (this.viewState.filterToCategory !== element) {
 					this.viewState.filterToCategory = element;
 					this.renderTree();
 					this.settingsTree.scrollTop = 0;
 				}
-			} else if (element) {
+			} else if (element && (!e.browserEvent || !(<any>e.browserEvent).fromScroll)) {
 				this.settingsTree.reveal(element, 0);
 			}
-
-			// else if (element && (!e.payload || !e.payload.fromScroll)) {
-			// this.settingsTree.reveal(element, 0);
-			// }
 		}));
 
 		this._register(this.tocTree.onDidFocus(() => {
@@ -606,7 +610,17 @@ export class SettingsEditor2 extends BaseEditor {
 		this.settingsTree.getHTMLElement().attributes.removeNamedItem('tabindex');
 
 		this._register(this.settingsTree.onDidScroll(() => {
-			this.updateTreeScrollSync();
+			if (this.settingsTree.scrollTop === this.settingsTreeScrollTop) {
+				return;
+			}
+
+			this.settingsTreeScrollTop = this.settingsTree.scrollTop;
+
+			// setTimeout because calling setChildren on the settingsTree can trigger onDidScroll, so it fires when
+			// setChildren has called on the settings tree but not the toc tree yet, so their rendered elements are out of sync
+			setTimeout(() => {
+				this.updateTreeScrollSync();
+			}, 0);
 		}));
 	}
 
@@ -642,29 +656,56 @@ export class SettingsEditor2 extends BaseEditor {
 			return;
 		}
 
-		// this.updateTreePagingByScroll();
+		// Hack, see https://github.com/Microsoft/vscode/issues/64749
+		const settingItems = this.settingsTree.getHTMLElement().querySelectorAll('.setting-item');
+		const firstEl = settingItems[1] || settingItems[0];
+		if (!firstEl) {
+			return;
+		}
 
-		// const element = this.tocTreeModel.children[0];
-		// const elementToSync = this.settingsTree.getFirstVisibleElement();
-		// const element = elementToSync instanceof SettingsTreeSettingElement ? elementToSync.parent :
-		// 	elementToSync instanceof SettingsTreeGroupElement ? elementToSync :
-		// 		null;
+		const firstSettingId = this.settingRenderers.getIdForDOMElementInSetting(<HTMLElement>firstEl);
+		const elementToSync = this.settingsTreeModel.getElementById(firstSettingId);
+		const element = elementToSync instanceof SettingsTreeSettingElement ? elementToSync.parent :
+			elementToSync instanceof SettingsTreeGroupElement ? elementToSync :
+				null;
 
-		// if (element && this.tocTree.getSelection()[0] !== element) {
-		// 	this.tocTree.reveal(element);
-		// 	const elementTop = this.tocTree.getRelativeTop(element);
-		// 	collapseAll(this.tocTree, element);
-		// 	if (elementTop < 0 || elementTop > 1) {
-		// 		this.tocTree.reveal(element);
-		// 	} else {
-		// 		this.tocTree.reveal(element, elementTop);
-		// 	}
+		if (element && this.tocTree.getSelection()[0] !== element) {
+			const ancestors = this.getAncestors(element);
+			ancestors.forEach(e => this.tocTree.expand(<SettingsTreeGroupElement>e));
 
-		// 	this.tocTree.expand(element);
+			this.tocTree.reveal(element);
+			const elementTop = this.tocTree.getRelativeTop(element);
+			this.tocTree.collapseAll();
 
-		// this.tocTree.setSelection([element]);
-		// this.tocTree.setFocus(element, { fromScroll: true });
-		// }
+			ancestors.forEach(e => this.tocTree.expand(<SettingsTreeGroupElement>e));
+			if (elementTop < 0 || elementTop > 1) {
+				this.tocTree.reveal(element);
+			} else {
+				this.tocTree.reveal(element, elementTop);
+			}
+
+			this.tocTree.expand(element);
+
+			this.tocTree.setSelection([element]);
+
+			const fakeKeyboardEvent = new KeyboardEvent('keydown');
+			(<any>fakeKeyboardEvent).fromScroll = true;
+			this.tocTree.setFocus([element], fakeKeyboardEvent);
+		}
+	}
+
+	private getAncestors(element: SettingsTreeElement): SettingsTreeElement[] {
+		const ancestors: any[] = [];
+
+		while (element.parent) {
+			if (element.parent.id !== 'root') {
+				ancestors.push(element.parent);
+			}
+
+			element = element.parent;
+		}
+
+		return ancestors.reverse();
 	}
 
 	private updateChangedSetting(key: string, value: any): Promise<void> {
@@ -843,10 +884,11 @@ export class SettingsEditor2 extends BaseEditor {
 		} else {
 			this.settingsTreeModel = this.instantiationService.createInstance(SettingsTreeModel, this.viewState);
 			this.settingsTreeModel.update(resolvedSettingsRoot);
+			this.tocTreeModel.settingsTreeRoot = this.settingsTreeModel.root as SettingsTreeGroupElement;
+
+			this.refreshTOCTree();
 			this.refreshTree();
 
-			this.tocTreeModel.settingsTreeRoot = this.settingsTreeModel.root as SettingsTreeGroupElement;
-			this.refreshTOCTree();
 			this.tocTree.collapseAll();
 		}
 
@@ -980,7 +1022,6 @@ export class SettingsEditor2 extends BaseEditor {
 
 			this.viewState.filterToCategory = null;
 			this.tocTreeModel.currentSearchModel = this.searchResultModel;
-			this.refreshTOCTree();
 			this.onSearchModeToggled();
 
 			if (this.searchResultModel) {
@@ -995,6 +1036,8 @@ export class SettingsEditor2 extends BaseEditor {
 				this.refreshTree();
 				this.renderResultCountMessages();
 			}
+
+			this.refreshTOCTree();
 		}
 
 		return Promise.resolve(null);
