@@ -21,7 +21,7 @@ export function getDataProviders(dataPaths?: string[]): IHTMLDataProvider[] {
 				providers.push(new HTMLDataProvider(`customProvider${i}`, htmlData));
 			}
 		} catch (err) {
-			console.log(`Failed to laod tag from ${path}`);
+			console.log(`Failed to load tag from ${path}`);
 		}
 	});
 
