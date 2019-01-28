@@ -21,6 +21,7 @@ import { fuzzyScore, FuzzyScore } from 'vs/base/common/filters';
 import { getVisibleState, isFilterResult } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { localize } from 'vs/nls';
 import { disposableTimeout } from 'vs/base/common/async';
+import { isMacintosh } from 'vs/base/common/platform';
 
 function asTreeDragAndDropData<T, TFilterData>(data: IDragAndDropData): IDragAndDropData {
 	if (data instanceof ElementsDragAndDropData) {
@@ -432,14 +433,14 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		const onKeyDown = Event.chain(domEvent(this.view.getHTMLElement(), 'keydown'))
 			.filter(e => !isInputElement(e.target as HTMLElement) || e.target === this.filterOnTypeDomNode)
 			.map(e => new StandardKeyboardEvent(e))
-			.filter(e => isPrintableCharEvent(e) || (this._pattern.length > 0 && (e.keyCode === KeyCode.Escape || e.keyCode === KeyCode.Backspace) && !e.altKey && !e.ctrlKey && !e.metaKey))
+			.filter(e => isPrintableCharEvent(e) || (this._pattern.length > 0 && ((e.keyCode === KeyCode.Escape || e.keyCode === KeyCode.Backspace) && !e.altKey && !e.ctrlKey && !e.metaKey) || (e.keyCode === KeyCode.Backspace && (isMacintosh ? e.altKey : e.ctrlKey))))
 			.forEach(e => { e.stopPropagation(); e.preventDefault(); })
 			.event;
 
 		const onClear = domEvent(this.clearDomNode, 'click');
 		const onInput = Event.chain(Event.any<MouseEvent | StandardKeyboardEvent>(onKeyDown, onClear))
 			.reduce((previous: string, e) => {
-				if (e instanceof MouseEvent || e.keyCode === KeyCode.Escape) {
+				if (e instanceof MouseEvent || e.keyCode === KeyCode.Escape || (e.keyCode === KeyCode.Backspace && (isMacintosh ? e.altKey : e.ctrlKey))) {
 					return '';
 				}
 
