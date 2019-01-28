@@ -193,23 +193,23 @@ function createPatchedModules(configProvider: ExtHostConfigProvider, agents: { h
 
 	return {
 		http: {
-			off: assign({}, http, patches(http, agents.http, { config: 'off' }, true)),
-			on: assign({}, http, patches(http, agents.http, { config: 'on' }, true)),
-			override: assign({}, http, patches(http, agents.http, { config: 'override' }, true)),
-			onRequest: assign({}, http, patches(http, agents.http, setting, true)),
-			default: assign(http, patches(http, agents.http, setting, false)) // run last
+			off: assign({}, http, patches(http, agents.http, agents.https, { config: 'off' }, true)),
+			on: assign({}, http, patches(http, agents.http, agents.https, { config: 'on' }, true)),
+			override: assign({}, http, patches(http, agents.http, agents.https, { config: 'override' }, true)),
+			onRequest: assign({}, http, patches(http, agents.http, agents.https, setting, true)),
+			default: assign(http, patches(http, agents.http, agents.https, setting, false)) // run last
 		},
 		https: {
-			off: assign({}, https, patches(https, agents.https, { config: 'off' }, true)),
-			on: assign({}, https, patches(https, agents.https, { config: 'on' }, true)),
-			override: assign({}, https, patches(https, agents.https, { config: 'override' }, true)),
-			onRequest: assign({}, https, patches(https, agents.https, setting, true)),
-			default: assign(https, patches(https, agents.https, setting, false)) // run last
+			off: assign({}, https, patches(https, agents.https, agents.http, { config: 'off' }, true)),
+			on: assign({}, https, patches(https, agents.https, agents.http, { config: 'on' }, true)),
+			override: assign({}, https, patches(https, agents.https, agents.http, { config: 'override' }, true)),
+			onRequest: assign({}, https, patches(https, agents.https, agents.http, setting, true)),
+			default: assign(https, patches(https, agents.https, agents.http, setting, false)) // run last
 		}
 	};
 }
 
-function patches(originals: typeof http | typeof https, agent: http.Agent, setting: { config: string; }, onRequest: boolean) {
+function patches(originals: typeof http | typeof https, agent: http.Agent, otherAgent: http.Agent, setting: { config: string; }, onRequest: boolean) {
 	return {
 		get: patch(originals.get),
 		request: patch(originals.request)
@@ -233,7 +233,7 @@ function patches(originals: typeof http | typeof https, agent: http.Agent, setti
 				return original.apply(null, arguments as unknown as any[]);
 			}
 
-			if (!options.socketPath && (config === 'override' || config === 'on' && !options.agent) && options.agent !== agent) {
+			if (!options.socketPath && (config === 'override' || config === 'on' && !options.agent) && options.agent !== agent && options.agent !== otherAgent) {
 				if (url) {
 					const parsed = typeof url === 'string' ? new nodeurl.URL(url) : url;
 					const urlOptions = {
