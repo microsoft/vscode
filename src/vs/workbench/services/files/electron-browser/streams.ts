@@ -50,7 +50,7 @@ function createWritable(provider: IFileSystemProvider, resource: URI, opts: File
 		async _write(chunk: Buffer, encoding, callback: Function) {
 			try {
 				if (typeof this._fd !== 'number') {
-					this._fd = await provider.open(resource);
+					this._fd = await provider.open(resource, { create: true });
 				}
 				let bytesWritten = await provider.write(this._fd, this._pos, chunk, 0, chunk.length);
 				this._pos += bytesWritten;
@@ -60,7 +60,11 @@ function createWritable(provider: IFileSystemProvider, resource: URI, opts: File
 			}
 		}
 		_final(callback: (err?: any) => any) {
-			provider.close(this._fd).then(callback, callback);
+			if (typeof this._fd !== 'number') {
+				provider.open(resource, { create: true }).then(fd => provider.close(fd)).finally(callback);
+			} else {
+				provider.close(this._fd).finally(callback);
+			}
 		}
 	};
 }
@@ -88,7 +92,7 @@ function createReadable(provider: IFileSystemProvider, resource: URI, position: 
 			this._reading = true;
 			try {
 				if (typeof this._fd !== 'number') {
-					this._fd = await provider.open(resource);
+					this._fd = await provider.open(resource, { create: false });
 				}
 				while (this._reading) {
 					let buffer = Buffer.allocUnsafe(size);

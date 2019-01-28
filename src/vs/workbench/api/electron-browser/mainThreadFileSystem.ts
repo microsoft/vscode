@@ -6,7 +6,7 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { FileWriteOptions, FileSystemProviderCapabilities, IFileChange, IFileService, IFileSystemProvider, IStat, IWatchOptions, FileType, FileOverwriteOptions, FileDeleteOptions } from 'vs/platform/files/common/files';
+import { FileWriteOptions, FileSystemProviderCapabilities, IFileChange, IFileService, IFileSystemProvider, IStat, IWatchOptions, FileType, FileOverwriteOptions, FileDeleteOptions, FileOpenOptions } from 'vs/platform/files/common/files';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { ExtHostContext, ExtHostFileSystemShape, IExtHostContext, IFileChangeDto, MainContext, MainThreadFileSystemShape } from '../node/extHost.protocol';
 import { ResourceLabelFormatter, ILabelService } from 'vs/platform/label/common/label';
@@ -130,8 +130,8 @@ class RemoteFileSystemProvider implements IFileSystemProvider {
 		return this._proxy.$copy(this._handle, resource, target, opts);
 	}
 
-	open(resource: URI): Promise<number> {
-		return this._proxy.$open(this._handle, resource);
+	open(resource: URI, opts: FileOpenOptions): Promise<number> {
+		return this._proxy.$open(this._handle, resource, opts);
 	}
 
 	close(fd: number): Promise<void> {

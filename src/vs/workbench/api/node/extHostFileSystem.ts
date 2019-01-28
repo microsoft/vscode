@@ -280,9 +280,9 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		}
 	}
 
-	$open(handle: number, resource: UriComponents): Promise<number> {
+	$open(handle: number, resource: UriComponents, opts: files.FileOpenOptions): Promise<number> {
 		this._checkProviderExists(handle);
-		return Promise.resolve(this._fsProvider.get(handle).open(URI.revive(resource)));
+		return Promise.resolve(this._fsProvider.get(handle).open(URI.revive(resource), opts));
 	}
 
 	$close(handle: number, fd: number): Promise<void> {

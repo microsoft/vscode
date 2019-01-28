@@ -168,6 +168,10 @@ export interface FileWriteOptions {
 	create: boolean;
 }
 
+export interface FileOpenOptions {
+	create: boolean;
+}
+
 export interface FileDeleteOptions {
 	recursive: boolean;
 }
@@ -219,7 +223,7 @@ export interface IFileSystemProvider {
 	readFile?(resource: URI): Promise<Uint8Array>;
 	writeFile?(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void>;
 
-	open?(resource: URI): Promise<number>;
+	open?(resource: URI, opts: FileOpenOptions): Promise<number>;
 	close?(fd: number): Promise<void>;
 	read?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number>;
 	write?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number>;
