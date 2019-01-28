@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { alert } from 'vs/base/browser/ui/aria/aria';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -292,9 +291,8 @@ export class SuggestController implements IEditorContribution {
 	}
 
 	private _alertCompletionItem({ completion: suggestion }: CompletionItem): void {
-		// @todo Remove alert support. Assigning an empty string temporarly to silence alers.
-		let msg = null;
-		alert(msg);
+		// A temporary fix for too verbose, unnecesary screen reader alerts.
+		// Todo: Remove calls to this empty method body.
 	}
 
 	triggerSuggest(onlyFrom?: CompletionItemProvider[]): void {
