@@ -43,6 +43,8 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	public _serviceBrand: any;
 
 	private workspace: Workspace;
+	private resolvePromise: Promise<void>;
+	private resolveCallback: () => void;
 	private _configuration: Configuration;
 	private defaultConfiguration: DefaultConfigurationModel;
 	private userConfiguration: UserConfiguration;
@@ -70,6 +72,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	constructor(private environmentService: IEnvironmentService, private workspaceSettingsRootFolder: string = FOLDER_CONFIG_FOLDER_NAME) {
 		super();
 
+		this.resolvePromise = new Promise(c => this.resolveCallback = c);
 		this.defaultConfiguration = new DefaultConfigurationModel();
 		this.userConfiguration = this._register(new UserConfiguration(environmentService.appSettingsPath));
 		this.workspaceConfiguration = this._register(new WorkspaceConfiguration(environmentService));
@@ -83,6 +86,10 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	}
 
 	// Workspace Context Service Impl
+
+	public getCompleteWorkspace(): Promise<Workspace> {
+		return this.resolvePromise.then(() => this.getWorkspace());
+	}
 
 	public getWorkspace(): Workspace {
 		return this.workspace;
@@ -317,6 +324,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 				for (const workspaceFolder of changedWorkspaceFolders) {
 					this.onWorkspaceFolderConfigurationChanged(workspaceFolder);
 				}
+				this.resolveCallback();
 			});
 	}
 

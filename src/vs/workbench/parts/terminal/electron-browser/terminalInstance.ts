@@ -36,7 +36,7 @@ import { INotificationService, Severity, IPromptChoice } from 'vs/platform/notif
 import { ILogService } from 'vs/platform/log/common/log';
 import { TerminalCommandTracker } from 'vs/workbench/parts/terminal/node/terminalCommandTracker';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { execFile, exec } from 'child_process';
+import { execFile } from 'child_process';
 import { TERMINAL_COMMAND_ID } from 'vs/workbench/parts/terminal/common/terminalCommands';
 import { TerminalProcessManager } from 'vs/workbench/parts/terminal/electron-browser/terminalProcessManager';
 
@@ -434,8 +434,8 @@ export class TerminalInstance implements ITerminalInstance {
 			this._xterm.on('data', data => this._processManager!.write(data));
 			// TODO: How does the cwd work on detached processes?
 			this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._xterm, platform.platform);
-			this.processReady.then(() => {
-				this._linkHandler.processCwd = this._processManager!.initialCwd;
+			this.processReady.then(async () => {
+				this._linkHandler.processCwd = await this._processManager!.getInitialCwd();
 			});
 		}
 		this._xterm.on('focus', () => this._onFocus.fire(this));
@@ -1314,28 +1314,18 @@ export class TerminalInstance implements ITerminalInstance {
 		this._xterm.setOption('debug', this._xterm._core.debug);
 	}
 
-	public get initialCwd(): string {
-		if (this._processManager) {
-			return this._processManager.initialCwd;
+	public getInitialCwd(): Promise<string> {
+		if (!this._processManager) {
+			return Promise.resolve('');
 		}
-		return '';
+		return this._processManager.getInitialCwd();
 	}
 
 	public getCwd(): Promise<string> {
-		if (!platform.isWindows) {
-			let pid = this.processId;
-			return new Promise<string>(resolve => {
-				exec('lsof -p ' + pid + ' | grep cwd', (error, stdout, stderr) => {
-					if (stdout !== '') {
-						resolve(stdout.substring(stdout.indexOf('/'), stdout.length - 1));
-					}
-				});
-			});
-		} else {
-			return new Promise<string>(resolve => {
-				resolve(this.initialCwd);
-			});
+		if (!this._processManager) {
+			return Promise.resolve('');
 		}
+		return this._processManager.getCwd();
 	}
 }
 

@@ -67,7 +67,7 @@ declare module 'vscode' {
 	//#region Joh - read/write in chunks
 
 	export interface FileSystemProvider {
-		open?(resource: Uri): number | Thenable<number>;
+		open?(resource: Uri, options: { create: boolean }): number | Thenable<number>;
 		close?(fd: number): void | Thenable<void>;
 		read?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): number | Thenable<number>;
 		write?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): number | Thenable<number>;
@@ -793,6 +793,7 @@ declare module 'vscode' {
 		command?: Command;
 
 		isDraft?: boolean;
+		commentReactions?: CommentReaction[];
 	}
 
 	export interface CommentThreadChangedEvent {
@@ -815,6 +816,11 @@ declare module 'vscode' {
 		 * Changed draft mode
 		 */
 		readonly inDraftMode: boolean;
+	}
+
+	interface CommentReaction {
+		readonly label?: string;
+		readonly hasReacted?: boolean;
 	}
 
 	interface DocumentCommentProvider {
@@ -850,6 +856,10 @@ declare module 'vscode' {
 		startDraftLabel?: string;
 		deleteDraftLabel?: string;
 		finishDraftLabel?: string;
+
+		addReaction?(document: TextDocument, comment: Comment, reaction: CommentReaction): Promise<void>;
+		deleteReaction?(document: TextDocument, comment: Comment, reaction: CommentReaction): Promise<void>;
+		reactionGroup?: CommentReaction[];
 
 		/**
 		 * Notify of updates to comment threads.
@@ -1042,6 +1052,15 @@ declare module 'vscode' {
 		 * This rule will only execute if the text above the this line matches this regular expression.
 		 */
 		oneLineAboveText?: RegExp;
+	}
+	//#endregion
+
+	//#region Alex - extensions.all change event
+	export namespace extensions {
+		/**
+		 * An event which fires when `extensions.all` changes.
+		 */
+		export const onDidChange: Event<void>;
 	}
 	//#endregion
 

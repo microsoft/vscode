@@ -73,7 +73,7 @@ export class ExplorerModel implements IDisposable {
 }
 
 export class ExplorerItem {
-	public isDirectoryResolved: boolean;
+	private _isDirectoryResolved: boolean;
 	public isError: boolean;
 
 	constructor(
@@ -86,7 +86,11 @@ export class ExplorerItem {
 		private _mtime?: number,
 		private _etag?: string,
 	) {
-		this.isDirectoryResolved = false;
+		this._isDirectoryResolved = false;
+	}
+
+	get isDirectoryResolved(): boolean {
+		return this._isDirectoryResolved;
 	}
 
 	get isSymbolicLink(): boolean {
@@ -157,7 +161,7 @@ export class ExplorerItem {
 			// isDirectoryResolved is a very important indicator in the stat model that tells if the folder was fully resolved
 			// the folder is fully resolved if either it has a list of children or the client requested this by using the resolveTo
 			// array of resource path to resolve.
-			stat.isDirectoryResolved = !!raw.children || (!!resolveTo && resolveTo.some((r) => {
+			stat._isDirectoryResolved = !!raw.children || (!!resolveTo && resolveTo.some((r) => {
 				return resources.isEqualOrParent(r, stat.resource);
 			}));
 
@@ -185,7 +189,7 @@ export class ExplorerItem {
 
 		// Stop merging when a folder is not resolved to avoid loosing local data
 		const mergingDirectories = disk.isDirectory || local.isDirectory;
-		if (mergingDirectories && local.isDirectoryResolved && !disk.isDirectoryResolved) {
+		if (mergingDirectories && local._isDirectoryResolved && !disk._isDirectoryResolved) {
 			return;
 		}
 
@@ -194,13 +198,13 @@ export class ExplorerItem {
 		local.updateName(disk.name);
 		local._isDirectory = disk.isDirectory;
 		local._mtime = disk.mtime;
-		local.isDirectoryResolved = disk.isDirectoryResolved;
+		local._isDirectoryResolved = disk._isDirectoryResolved;
 		local._isSymbolicLink = disk.isSymbolicLink;
 		local._isReadonly = disk.isReadonly;
 		local.isError = disk.isError;
 
 		// Merge Children if resolved
-		if (mergingDirectories && disk.isDirectoryResolved) {
+		if (mergingDirectories && disk._isDirectoryResolved) {
 
 			// Map resource => stat
 			const oldLocalChildren = new ResourceMap<ExplorerItem>();
@@ -244,11 +248,11 @@ export class ExplorerItem {
 
 	fetchChildren(fileService: IFileService): Promise<ExplorerItem[]> {
 		let promise: Promise<any> = Promise.resolve(undefined);
-		if (!this.isDirectoryResolved) {
+		if (!this._isDirectoryResolved) {
 			promise = fileService.resolveFile(this.resource, { resolveSingleChildDescendants: true }).then(stat => {
 				const resolved = ExplorerItem.create(stat, this);
 				ExplorerItem.mergeLocalWithDisk(resolved, this);
-				this.isDirectoryResolved = true;
+				this._isDirectoryResolved = true;
 			});
 		}
 
@@ -267,6 +271,11 @@ export class ExplorerItem {
 	 */
 	removeChild(child: ExplorerItem): void {
 		this.children.delete(this.getPlatformAwareName(child.name));
+	}
+
+	forgetChildren(): void {
+		this.children.clear();
+		this._isDirectoryResolved = false;
 	}
 
 	private getPlatformAwareName(name: string): string {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as path from 'path';
-import { workspace, WorkspaceFolder } from 'vscode';
+import { workspace, WorkspaceFolder, extensions } from 'vscode';
 
 interface ExperimentalConfig {
 	experimental?: {
@@ -12,14 +12,11 @@ interface ExperimentalConfig {
 	};
 }
 
-export function getCustomDataPathsInAllWorkspaces(workspaceFolders: WorkspaceFolder[] | undefined) {
+export function getCustomDataPathsInAllWorkspaces(workspaceFolders: WorkspaceFolder[] | undefined): string[] {
 	const dataPaths: string[] = [];
 
-
 	if (!workspaceFolders) {
-		return {
-			dataPaths
-		};
+		return dataPaths;
 	}
 
 	workspaceFolders.forEach(wf => {
@@ -39,7 +36,22 @@ export function getCustomDataPathsInAllWorkspaces(workspaceFolders: WorkspaceFol
 		}
 	});
 
-	return {
-		dataPaths
-	};
+	return dataPaths;
+}
+
+export function getCustomDataPathsFromAllExtensions(): string[] {
+	const dataPaths: string[] = [];
+
+	for (const extension of extensions.all) {
+		const contributes = extension.packageJSON && extension.packageJSON.contributes;
+
+		if (contributes && contributes.html && contributes.html.customData && Array.isArray(contributes.html.customData)) {
+			const relativePaths: string[] = contributes.html.customData;
+			relativePaths.forEach(rp => {
+				dataPaths.push(path.resolve(extension.extensionPath, rp));
+			});
+		}
+	}
+
+	return dataPaths;
 }

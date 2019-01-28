@@ -9399,10 +9399,10 @@ vscode-nsfw@1.1.1:
     lodash.isundefined "^3.0.1"
     nan "^2.10.0"
 
-vscode-proxy-agent@0.2.0:
-  version "0.2.0"
-  resolved "https://registry.yarnpkg.com/vscode-proxy-agent/-/vscode-proxy-agent-0.2.0.tgz#5ae6e1f8e1b8715a4058fafb6d10cd2409d72620"
-  integrity sha512-x6RUOUkV18iM78+6S70VjiwiHuY7qmk3CU9+u+0y4c1Y/X8/IcTJfPsngoAXrrojoKcplyLdp3YCZbj1rFNo/Q==
+vscode-proxy-agent@0.3.0:
+  version "0.3.0"
+  resolved "https://registry.yarnpkg.com/vscode-proxy-agent/-/vscode-proxy-agent-0.3.0.tgz#b5c8bea5046761966e1fa71f89d9cef11c457894"
+  integrity sha512-R6qz8Sc0ocNfeFPOp3k6QLP/Y8HzK1yqXwfgB1f0GakVzUGMDmniRe8RLxIiCAqlxGaWMn2yqpTSNUYZ1obPsQ==
   dependencies:
     debug "3.1.0"
     http-proxy-agent "2.1.0"
