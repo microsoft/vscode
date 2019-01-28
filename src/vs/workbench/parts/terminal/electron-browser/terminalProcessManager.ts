@@ -35,6 +35,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	public processState: ProcessState = ProcessState.UNINITIALIZED;
 	public ptyProcessReady: Promise<void>;
 	public shellProcessId: number;
+	// TODO: This should be removed in favor of async getInitialCwd
 	public initialCwd: string;
 
 	private _process: ITerminalChildProcess | null = null;
@@ -198,6 +199,14 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 			// If the pty is not ready, queue the data received to send later
 			this._preLaunchInputQueue.push(data);
 		}
+	}
+
+	public getInitialCwd(): Promise<string> {
+		return this._process.getInitialCwd();
+	}
+
+	public getCwd(): Promise<string> {
+		return this._process.getCwd();
 	}
 
 	private _onExit(exitCode: number): void {

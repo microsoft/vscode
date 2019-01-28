@@ -363,6 +363,8 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 	$sendProcessData(terminalId: number, data: string): void;
 	$sendProcessPid(terminalId: number, pid: number): void;
 	$sendProcessExit(terminalId: number, exitCode: number): void;
+	$sendProcessInitialCwd(terminalId: number, cwd: string): void;
+	$sendProcessCwd(terminalId: number, initialCwd: string): void;
 
 	// Renderer
 	$terminalRendererSetName(terminalId: number, name: string): void;
@@ -938,6 +940,8 @@ export interface ExtHostTerminalServiceShape {
 	$acceptProcessInput(id: number, data: string): void;
 	$acceptProcessResize(id: number, cols: number, rows: number): void;
 	$acceptProcessShutdown(id: number, immediate: boolean): void;
+	$acceptProcessRequestInitialCwd(id: number): void;
+	$acceptProcessRequestCwd(id: number): void;
 }
 
 export interface ExtHostSCMShape {

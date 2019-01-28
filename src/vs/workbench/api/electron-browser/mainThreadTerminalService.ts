@@ -214,6 +214,14 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		request.proxy.onInput(data => this._proxy.$acceptProcessInput(request.proxy.terminalId, data));
 		request.proxy.onResize(dimensions => this._proxy.$acceptProcessResize(request.proxy.terminalId, dimensions.cols, dimensions.rows));
 		request.proxy.onShutdown(immediate => this._proxy.$acceptProcessShutdown(request.proxy.terminalId, immediate));
+		request.proxy.onRequestCwd(() => {
+			console.log('onRequestCwd', request.proxy.terminalId);
+			this._proxy.$acceptProcessRequestCwd(request.proxy.terminalId);
+		});
+		request.proxy.onRequestInitialCwd(() => {
+			console.log('onRequestInitialCwd', request.proxy.terminalId);
+			this._proxy.$acceptProcessRequestInitialCwd(request.proxy.terminalId);
+		});
 	}
 
 	public $sendProcessTitle(terminalId: number, title: string): void {
@@ -231,5 +239,13 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	public $sendProcessExit(terminalId: number, exitCode: number): void {
 		this._terminalProcesses[terminalId].emitExit(exitCode);
 		delete this._terminalProcesses[terminalId];
+	}
+
+	public $sendProcessInitialCwd(terminalId: number, initialCwd: string): void {
+		this._terminalProcesses[terminalId].emitInitialCwd(initialCwd);
+	}
+
+	public $sendProcessCwd(terminalId: number, cwd: string): void {
+		this._terminalProcesses[terminalId].emitCwd(cwd);
 	}
 }

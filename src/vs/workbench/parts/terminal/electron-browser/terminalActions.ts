@@ -35,7 +35,7 @@ export const TERMINAL_PICKER_PREFIX = 'term ';
 
 function getCwdForSplit(configHelper: ITerminalConfigHelper, instance: ITerminalInstance, folders?: IWorkspaceFolder[], commandService?: ICommandService): Promise<string | undefined> {
 	switch (configHelper.config.splitCwd) {
-		case 'workspaceRoot': {
+		case 'workspaceRoot':
 			// allow original behavior
 			let pathPromise: Promise<string> = Promise.resolve('');
 			if (folders.length > 1) {
@@ -53,15 +53,12 @@ function getCwdForSplit(configHelper: ITerminalConfigHelper, instance: ITerminal
 			}
 
 			return pathPromise;
-		}
-		case 'initial': {
-			return new Promise<string>(resolve => {
-				resolve(instance.initialCwd);
-			});
-		}
-		case 'inherited': {
+		case 'initial':
+			console.log('getCwdForSplit initial');
+			return instance.getInitialCwd();
+		case 'inherited':
+			console.log('getCwdForSplit inherited');
 			return instance.getCwd();
-		}
 	}
 }
 
@@ -385,8 +382,9 @@ export class SplitTerminalAction extends Action {
 		if (!instance) {
 			return Promise.resolve(undefined);
 		}
-
+		console.log('SplitTerminalAction');
 		return getCwdForSplit(this._terminalService.configHelper, instance, this.workspaceContextService.getWorkspace().folders, this.commandService).then(cwd => {
+			console.log('SplitTerminalAction cwd', cwd);
 			if (cwd || (cwd === '')) {
 				this._terminalService.splitInstance(instance, { cwd });
 				return this._terminalService.showPanel(true);

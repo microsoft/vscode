@@ -430,11 +430,12 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 
 		// Fork the process and listen for messages
 		this._logService.debug(`Terminal process launching on ext host`, shellLaunchConfig, initialCwd, cols, rows, env);
-		this._terminalProcesses[id] = new TerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, terminalConfig.get('windowsEnableConpty'));
-		this._terminalProcesses[id].onProcessIdReady(pid => this._proxy.$sendProcessPid(id, pid));
-		this._terminalProcesses[id].onProcessTitleChanged(title => this._proxy.$sendProcessTitle(id, title));
-		this._terminalProcesses[id].onProcessData(data => this._proxy.$sendProcessData(id, data));
-		this._terminalProcesses[id].onProcessExit((exitCode) => this._onProcessExit(id, exitCode));
+		const p = new TerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, terminalConfig.get('windowsEnableConpty'));
+		p.onProcessIdReady(pid => this._proxy.$sendProcessPid(id, pid));
+		p.onProcessTitleChanged(title => this._proxy.$sendProcessTitle(id, title));
+		p.onProcessData(data => this._proxy.$sendProcessData(id, data));
+		p.onProcessExit((exitCode) => this._onProcessExit(id, exitCode));
+		this._terminalProcesses[id] = p;
 	}
 
 
@@ -455,6 +456,23 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 
 	public $acceptProcessShutdown(id: number, immediate: boolean): void {
 		this._terminalProcesses[id].shutdown(immediate);
+	}
+
+	// TODO: Also support initial cwd as it's evaluated on the ext host
+	public $acceptProcessRequestInitialCwd(id: number): void {
+		console.log('$acceptProcessRequestInitialCwd', id);
+		this._terminalProcesses[id].getInitialCwd().then(initialCwd => {
+			console.log('initialCwd', initialCwd);
+			this._proxy.$sendProcessInitialCwd(id, initialCwd);
+		});
+	}
+
+	public $acceptProcessRequestCwd(id: number): void {
+		console.log('$acceptProcessRequestCwd', id);
+		this._terminalProcesses[id].getCwd().then(cwd => {
+			console.log('cwd', cwd);
+			this._proxy.$sendProcessCwd(id, cwd);
+		});
 	}
 
 	private _onProcessExit(id: number, exitCode: number): void {
