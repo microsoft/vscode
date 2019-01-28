@@ -44,6 +44,9 @@ export class CommentNode extends Disposable {
 
 	private _editAction: Action;
 	private _commentEditContainer: HTMLElement;
+	private _commentDetailsContainer: HTMLElement;
+	private _reactionsActionBar?: ActionBar;
+	private _actionsContainer?: HTMLElement;
 	private _commentEditor: SimpleCommentEditor;
 	private _commentEditorModel: ITextModel;
 	private _updateCommentButton: Button;
@@ -84,16 +87,16 @@ export class CommentNode extends Disposable {
 			img.src = comment.userIconPath.toString();
 			img.onerror = _ => img.remove();
 		}
-		const commentDetailsContainer = dom.append(this._domNode, dom.$('.review-comment-contents'));
+		this._commentDetailsContainer = dom.append(this._domNode, dom.$('.review-comment-contents'));
 
-		this.createHeader(commentDetailsContainer);
+		this.createHeader(this._commentDetailsContainer);
 
-		this._body = dom.append(commentDetailsContainer, dom.$('div.comment-body'));
+		this._body = dom.append(this._commentDetailsContainer, dom.$('div.comment-body'));
 		this._md = this.markdownRenderer.render(comment.body).element;
 		this._body.appendChild(this._md);
 
 		if (this.comment.commentReactions && this.comment.commentReactions.length) {
-			this.createReactions(commentDetailsContainer);
+			this.createReactions(this._commentDetailsContainer);
 		}
 
 		this._domNode.setAttribute('aria-label', `${comment.userName}, ${comment.body.value}`);
@@ -139,7 +142,7 @@ export class CommentNode extends Disposable {
 
 			let reactionActions = [];
 			let reactionGroup = this.commentService.getReactionGroup(this.owner);
-			if (reactionGroup) {
+			if (reactionGroup && reactionGroup.length) {
 				reactionActions = reactionGroup.map((reaction) => {
 					return new Action(`reaction.command.${reaction.label}`, `${reaction.label}`, '', true, async () => {
 						try {
@@ -172,9 +175,9 @@ export class CommentNode extends Disposable {
 	}
 
 	private createReactions(commentDetailsContainer: HTMLElement): void {
-		const actionsContainer = dom.append(commentDetailsContainer, dom.$('div.comment-reactions'));
-		const actionBar = new ActionBar(actionsContainer, {});
-		this._toDispose.push(actionBar);
+		this._actionsContainer = dom.append(commentDetailsContainer, dom.$('div.comment-reactions'));
+		this._reactionsActionBar = new ActionBar(this._actionsContainer, {});
+		this._toDispose.push(this._reactionsActionBar);
 
 		let reactionActions = this.comment.commentReactions.map(reaction => {
 			return new Action(`reaction.${reaction.label}`, `${reaction.label}`, reaction.hasReacted ? 'active' : '', true, async () => {
@@ -201,7 +204,7 @@ export class CommentNode extends Disposable {
 			});
 		});
 
-		reactionActions.forEach(action => actionBar.push(action, { label: true, icon: true }));
+		reactionActions.forEach(action => this._reactionsActionBar.push(action, { label: true, icon: true }));
 	}
 
 	private createCommentEditor(): void {
@@ -354,6 +357,8 @@ export class CommentNode extends Disposable {
 	}
 
 	update(newComment: modes.Comment) {
+		this.comment = newComment;
+
 		if (newComment.body !== this.comment.body) {
 			this._body.removeChild(this._md);
 			this._md = this.markdownRenderer.render(newComment.body).element;
@@ -366,7 +371,18 @@ export class CommentNode extends Disposable {
 			this._isPendingLabel.innerText = '';
 		}
 
-		this.comment = newComment;
+		// update comment reactions
+		if (this._actionsContainer) {
+			this._actionsContainer.remove();
+		}
+
+		if (this._reactionsActionBar) {
+			this._reactionsActionBar.clear();
+		}
+
+		if (this.comment.commentReactions && this.comment.commentReactions.length) {
+			this.createReactions(this._commentDetailsContainer);
+		}
 	}
 
 	focus() {
