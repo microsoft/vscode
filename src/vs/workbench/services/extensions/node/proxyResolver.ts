@@ -17,6 +17,13 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 import { URI } from 'vs/base/common/uri';
 
+interface ConnectionResult {
+	proxy: string;
+	connection: string;
+	code: string;
+	count: number;
+}
+
 export function connectProxyResolver(
 	extHostWorkspace: ExtHostWorkspace,
 	configProvider: ExtHostConfigProvider,
@@ -83,6 +90,7 @@ function createProxyAgents(
 	let envCount = 0;
 	let settingsCount = 0;
 	let localhostCount = 0;
+	let results: ConnectionResult[] = [];
 	function logEvent() {
 		timeout = undefined;
 		/* __GDPR__
@@ -95,14 +103,16 @@ function createProxyAgents(
 				"cacheRolls": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 				"envCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 				"settingsCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-				"localhostCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+				"localhostCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+				"results": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 			}
 		*/
-		mainThreadTelemetry.$publicLog('resolveProxy', { count, duration, errorCount, cacheCount, cacheSize: cache.size, cacheRolls, envCount, settingsCount, localhostCount });
+		mainThreadTelemetry.$publicLog('resolveProxy', { count, duration, errorCount, cacheCount, cacheSize: cache.size, cacheRolls, envCount, settingsCount, localhostCount, results });
 		count = duration = errorCount = cacheCount = envCount = settingsCount = localhostCount = 0;
+		results = [];
 	}
 
-	function resolveProxy(url: string, callback: (proxy?: string) => void) {
+	function resolveProxy(req: http.ClientRequest, opts: http.RequestOptions, url: string, callback: (proxy?: string) => void) {
 		if (!timeout) {
 			timeout = setTimeout(logEvent, 10 * 60 * 1000);
 		}
@@ -135,6 +145,7 @@ function createProxyAgents(
 		const proxy = getCachedProxy(key);
 		if (proxy) {
 			cacheCount++;
+			collectResult(results, proxy, parsedUrl.protocol === 'https:' ? 'HTTPS' : 'HTTP', req);
 			callback(proxy);
 			extHostLogService.trace('ProxyResolver#resolveProxy cached', url, proxy);
 			return;
@@ -144,6 +155,7 @@ function createProxyAgents(
 		extHostWorkspace.resolveProxy(url) // Use full URL to ensure it is an actually used one.
 			.then(proxy => {
 				cacheProxy(key, proxy);
+				collectResult(results, proxy, parsedUrl.protocol === 'https:' ? 'HTTPS' : 'HTTP', req);
 				callback(proxy);
 				extHostLogService.debug('ProxyResolver#resolveProxy', url, proxy);
 			}).then(() => {
@@ -161,6 +173,31 @@ function createProxyAgents(
 	const httpsAgent: http.Agent = new ProxyAgent({ resolveProxy });
 	(<any>httpsAgent).defaultPort = 443;
 	return { http: httpAgent, https: httpsAgent };
+}
+
+function collectResult(results: ConnectionResult[], resolveProxy: string, connection: string, req: http.ClientRequest) {
+	const proxy = resolveProxy ? String(resolveProxy).trim().split(/\s+/, 1)[0] : 'EMPTY';
+	req.on('response', res => {
+		const code = `HTTP_${res.statusCode}`;
+		const result = findOrCreateResult(results, proxy, connection, code);
+		result.count++;
+	});
+	req.on('error', err => {
+		const code = err && typeof (<any>err).code === 'string' && (<any>err).code || 'UNKNOWN_ERROR';
+		const result = findOrCreateResult(results, proxy, connection, code);
+		result.count++;
+	});
+}
+
+function findOrCreateResult(results: ConnectionResult[], proxy: string, connection: string, code: string): ConnectionResult | undefined {
+	for (const result of results) {
+		if (result.proxy === proxy && result.connection === connection && result.code === code) {
+			return result;
+		}
+	}
+	const result = { proxy, connection, code, count: 0 };
+	results.push(result);
+	return result;
 }
 
 function proxyFromConfigURL(configURL: string) {
