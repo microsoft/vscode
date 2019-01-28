@@ -603,8 +603,11 @@ class CLIServer {
 		req.setEncoding('utf8');
 		req.on('data', (d: string) => chunks.push(d));
 		req.on('end', () => {
-			const { fileURIs, folderURIs, forceNewWindow, diffMode, addMode, forceReuseWindow } = JSON.parse(chunks.join(''));
+			let { fileURIs, folderURIs, forceNewWindow, diffMode, addMode, forceReuseWindow } = JSON.parse(chunks.join(''));
 			if (folderURIs && folderURIs.length || fileURIs && fileURIs.length) {
+				if (folderURIs && folderURIs.length && !forceReuseWindow) {
+					forceNewWindow = true;
+				}
 				this._commands.executeCommand('_files.windowOpen', { folderURIs: this.toURIs(folderURIs), fileURIs: this.toURIs(fileURIs), forceNewWindow, diffMode, addMode, forceReuseWindow });
 			}
 			res.writeHead(200);
