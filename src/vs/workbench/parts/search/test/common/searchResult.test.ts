@@ -40,6 +40,9 @@ suite('SearchResult', () => {
 		assert.equal(lineMatch.range().startColumn, 1);
 		assert.equal(lineMatch.range().endColumn, 4);
 		assert.equal('file:///folder/file.txt>[2,1 -> 2,4]foo', lineMatch.id());
+
+		assert.equal(lineMatch.fullMatchText(), 'foo');
+		assert.equal(lineMatch.fullMatchText(true), 'foo bar');
 	});
 
 	test('Line Match - Remove', function () {
@@ -311,50 +314,6 @@ suite('SearchResult', () => {
 
 		return voidPromise.then(() => assert.ok(testObject.isEmpty()));
 	});
-
-	//// ----- utils
-	//function lineHasDecorations(model: editor.IModel, lineNumber: number, decorations: { start: number; end: number; }[]): void {
-	//    let lineDecorations:typeof decorations = [];
-	//    let decs = model.getLineDecorations(lineNumber);
-	//    for (let i = 0, len = decs.length; i < len; i++) {
-	//        lineDecorations.push({
-	//            start: decs[i].range.startColumn,
-	//            end: decs[i].range.endColumn
-	//        });
-	//    }
-	//    assert.deepEqual(lineDecorations, decorations);
-	//}
-	//
-	//function lineHasNoDecoration(model: editor.IModel, lineNumber: number): void {
-	//    lineHasDecorations(model, lineNumber, []);
-	//}
-	//
-	//function lineHasDecoration(model: editor.IModel, lineNumber: number, start: number, end: number): void {
-	//    lineHasDecorations(model, lineNumber, [{
-	//        start: start,
-	//        end: end
-	//    }]);
-	//}
-	//// ----- end utils
-	//
-	//test('Model Highlights', function () {
-	//
-	//    let fileMatch = instantiation.createInstance(FileMatch, null, toUri('folder\\file.txt'));
-	//    fileMatch.add(new Match(fileMatch, 'line2', 1, 0, 2));
-	//    fileMatch.connect();
-	//    lineHasDecoration(oneModel, 2, 1, 3);
-	//});
-	//
-	//test('Dispose', () => {
-	//
-	//    let fileMatch = instantiation.createInstance(FileMatch, null, toUri('folder\\file.txt'));
-	//    fileMatch.add(new Match(fileMatch, 'line2', 1, 0, 2));
-	//    fileMatch.connect();
-	//    lineHasDecoration(oneModel, 2, 1, 3);
-	//
-	//    fileMatch.dispose();
-	//    lineHasNoDecoration(oneModel, 2);
-	//});
 
 	function aFileMatch(path: string, searchResult?: SearchResult, ...lineMatches: ITextSearchMatch[]): FileMatch {
 		const rawMatch: IFileMatch = {

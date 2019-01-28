@@ -20,7 +20,7 @@ import { CommentsDataFilter, CommentsDataSource, CommentsModelRenderer } from 'v
 import { ICommentService, IWorkspaceCommentThreadsEvent } from 'vs/workbench/parts/comments/electron-browser/commentService';
 import { IEditorService, ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { textLinkForeground, textLinkActiveForeground, focusBorder } from 'vs/platform/theme/common/colorRegistry';
+import { textLinkForeground, textLinkActiveForeground, focusBorder, textPreformatForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ResourceLabels } from 'vs/workbench/browser/labels';
@@ -95,6 +95,11 @@ export class CommentsPanel extends Panel {
 		const focusColor = theme.getColor(focusBorder);
 		if (focusColor) {
 			content.push(`.comments-panel .commenst-panel-container a:focus { outline-color: ${focusColor}; }`);
+		}
+
+		const codeTextForegroundColor = theme.getColor(textPreformatForeground);
+		if (codeTextForegroundColor) {
+			content.push(`.comments-panel .comments-panel-container .text code { color: ${codeTextForegroundColor}; }`);
 		}
 
 		styleElement.innerHTML = content.join('\n');

@@ -1232,6 +1232,14 @@ export interface NewCommentAction {
 /**
  * @internal
  */
+export interface CommentReaction {
+	readonly label?: string;
+	readonly hasReacted?: boolean;
+}
+
+/**
+ * @internal
+ */
 export interface Comment {
 	readonly commentId: string;
 	readonly body: IMarkdownString;
@@ -1241,6 +1249,7 @@ export interface Comment {
 	readonly canDelete?: boolean;
 	readonly command?: Command;
 	readonly isDraft?: boolean;
+	readonly commentReactions?: CommentReaction[];
 }
 
 /**
@@ -1284,6 +1293,11 @@ export interface DocumentCommentProvider {
 	startDraftLabel?: string;
 	deleteDraftLabel?: string;
 	finishDraftLabel?: string;
+
+	addReaction?(resource: URI, comment: Comment, reaction: CommentReaction, token: CancellationToken): Promise<void>;
+	deleteReaction?(resource: URI, comment: Comment, reaction: CommentReaction, token: CancellationToken): Promise<void>;
+	reactionGroup?: CommentReaction[];
+
 	onDidChangeCommentThreads(): Event<CommentThreadChangedEvent>;
 }
 

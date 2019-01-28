@@ -16,25 +16,6 @@
 
 declare module 'vscode' {
 
-	//#region Joh - vscode.open
-
-	export namespace env {
-
-		/**
-		 * Opens an *external* item, e.g. a http(s) or mailto-link, using the
-		 * default application.
-		 *
-		 * *Note* that [`showTextDocument`](#window.showTextDocument) is the right
-		 * way to open a text document inside the editor, not this function.
-		 *
-		 * @param target The uri that should be opened.
-		 * @returns A promise indicating if open was successful.
-		 */
-		export function open(target: Uri): Thenable<boolean>;
-	}
-
-	//#endregion
-
 	//#region Joh - selection range provider
 
 	export class SelectionRangeKind {
@@ -812,6 +793,7 @@ declare module 'vscode' {
 		command?: Command;
 
 		isDraft?: boolean;
+		commentReactions?: CommentReaction[];
 	}
 
 	export interface CommentThreadChangedEvent {
@@ -834,6 +816,11 @@ declare module 'vscode' {
 		 * Changed draft mode
 		 */
 		readonly inDraftMode: boolean;
+	}
+
+	interface CommentReaction {
+		readonly label?: string;
+		readonly hasReacted?: boolean;
 	}
 
 	interface DocumentCommentProvider {
@@ -869,6 +856,10 @@ declare module 'vscode' {
 		startDraftLabel?: string;
 		deleteDraftLabel?: string;
 		finishDraftLabel?: string;
+
+		addReaction?(document: TextDocument, comment: Comment, reaction: CommentReaction): Promise<void>;
+		deleteReaction?(document: TextDocument, comment: Comment, reaction: CommentReaction): Promise<void>;
+		reactionGroup?: CommentReaction[];
 
 		/**
 		 * Notify of updates to comment threads.
@@ -1107,7 +1098,7 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	//#region SignatureHelpContext active paramters - mjbvz
+	//#region SignatureHelpContext active parameters - mjbvz
 	export interface SignatureHelpContext {
 		/**
 		 * The currently active [`SignatureHelp`](#SignatureHelp).
@@ -1130,6 +1121,14 @@ declare module 'vscode' {
 	}
 	//#endregion
 
+	//#region Tasks
+	export interface TaskPresentationOptions {
+		/**
+		 * Controls whether the task is executed in a specific terminal group using split panes.
+		 */
+		group?: string;
+	}
+	//#endregion
 
 	//#region Autofix - mjbvz
 	export namespace CodeActionKind {

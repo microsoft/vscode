@@ -255,7 +255,6 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	private readonly nodes = new Map<null | T, IAsyncDataTreeNode<TInput, T>>();
 	private readonly currentRefreshCalls = new Map<IAsyncDataTreeNode<TInput, T>, Promise<void>>();
 
-	// TODO@joao remove this
 	private readonly refreshPromises = new Map<IAsyncDataTreeNode<TInput, T>, CancelablePromise<T[]>>();
 	private readonly identityProvider?: IIdentityProvider<T>;
 	private readonly autoExpandSingleChildren: boolean;
@@ -263,6 +262,8 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	private readonly _onDidChangeNodeState = new Emitter<IAsyncDataTreeNode<TInput, T>>();
 
 	protected readonly disposables: IDisposable[] = [];
+
+	get onDidScroll(): Event<void> { return this.tree.onDidScroll; }
 
 	get onDidChangeFocus(): Event<ITreeEvent<T>> { return Event.map(this.tree.onDidChangeFocus, asTreeEvent); }
 	get onDidChangeSelection(): Event<ITreeEvent<T>> { return Event.map(this.tree.onDidChangeSelection, asTreeEvent); }
@@ -349,8 +350,8 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		this.tree.domFocus();
 	}
 
-	layout(height?: number): void {
-		this.tree.layout(height);
+	layout(height?: number, width?: number): void {
+		this.tree.layout(height, width);
 	}
 
 	style(styles: IListStyles): void {

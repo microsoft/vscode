@@ -79,7 +79,8 @@ import { MenuService } from 'vs/platform/actions/common/menuService';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
-import { OpenRecentAction, ToggleDevToolsAction, ReloadWindowAction, ShowPreviousWindowTab, MoveWindowTabToNewWindow, MergeAllWindowTabs, ShowNextWindowTab, ToggleWindowTabsBar, ReloadWindowWithExtensionsDisabledAction, NewWindowTab } from 'vs/workbench/electron-browser/actions';
+import { ShowPreviousWindowTab, MoveWindowTabToNewWindow, MergeAllWindowTabs, ShowNextWindowTab, ToggleWindowTabsBar, NewWindowTab, OpenRecentAction, ReloadWindowAction, ReloadWindowWithExtensionsDisabledAction } from 'vs/workbench/electron-browser/actions/windowActions';
+import { ToggleDevToolsAction } from 'vs/workbench/electron-browser/actions/developerActions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { WorkspaceEditingService } from 'vs/workbench/services/workspace/node/workspaceEditingService';
@@ -234,7 +235,11 @@ export class Workbench extends Disposable implements IPartService {
 	private fontAliasing: FontAliasingOption;
 	private hasInitialFilesToOpen: boolean;
 	private shouldCenterLayout = false;
-	private uiState: IWorkbenchUIState = {};
+	private uiState: IWorkbenchUIState = {
+		lastPanelHeight: 350,
+		lastPanelWidth: 350,
+		lastSidebarDimension: 300,
+	};
 
 	private inZenMode: IContextKey<boolean>;
 	private sideBarVisibleContext: IContextKey<boolean>;
@@ -1025,11 +1030,10 @@ export class Workbench extends Disposable implements IPartService {
 				});
 			} else {
 				this.workbenchGrid = new SerializableGrid(this.editorPart, { proportionalLayout: false });
-
 			}
 
-			this.updateGrid();
 			this.workbench.prepend(this.workbenchGrid.element);
+			this.layout();
 		} else {
 			this.workbenchGrid = this.instantiationService.createInstance(
 				WorkbenchLayout,
@@ -1521,8 +1525,17 @@ export class Workbench extends Disposable implements IPartService {
 				DOM.position(this.workbench, 0, 0, 0, 0, 'relative');
 				DOM.size(this.workbench, dimensions.width, dimensions.height);
 
-				this.updateGrid();
+				// Layout the grid
 				this.workbenchGrid.layout(dimensions.width, dimensions.height);
+
+				// Layout non-view ui components
+				this.quickInput.layout(dimensions);
+				this.quickOpen.layout(dimensions);
+				this.notificationsCenter.layout(dimensions);
+				this.notificationsToasts.layout(dimensions);
+
+				// Update grid view membership
+				this.updateGrid();
 			} else {
 				this.workbenchGrid.layout(options);
 			}

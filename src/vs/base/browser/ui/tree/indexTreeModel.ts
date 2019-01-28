@@ -61,6 +61,9 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 	private filter?: ITreeFilter<T, TFilterData>;
 	private autoExpandSingleChildren: boolean;
 
+	private _onDidSplice = new Emitter<void>();
+	readonly onDidSplice = this._onDidSplice.event;
+
 	constructor(private list: ISpliceable<ITreeNode<T, TFilterData>>, rootElement: T, options: IIndexTreeModelOptions<T, TFilterData> = {}) {
 		this.collapseByDefault = typeof options.collapseByDefault === 'undefined' ? false : options.collapseByDefault;
 		this.filter = options.filter;
@@ -123,7 +126,9 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 			deletedNodes.forEach(visit);
 		}
 
-		return Iterator.map(Iterator.fromArray(deletedNodes), treeNodeToElement);
+		const result = Iterator.map(Iterator.fromArray(deletedNodes), treeNodeToElement);
+		this._onDidSplice.fire(undefined);
+		return result;
 	}
 
 	refresh(location: number[]): void {

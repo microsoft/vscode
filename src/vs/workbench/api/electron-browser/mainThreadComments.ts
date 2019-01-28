@@ -30,6 +30,7 @@ export class MainThreadDocumentCommentProvider implements modes.DocumentCommentP
 	get startDraftLabel(): string { return this._features.startDraftLabel; }
 	get deleteDraftLabel(): string { return this._features.deleteDraftLabel; }
 	get finishDraftLabel(): string { return this._features.finishDraftLabel; }
+	get reactionGroup(): modes.CommentReaction[] { return this._features.reactionGroup; }
 
 	constructor(proxy: ExtHostCommentsShape, handle: number, features: CommentProviderFeatures) {
 		this._proxy = proxy;
@@ -66,6 +67,13 @@ export class MainThreadDocumentCommentProvider implements modes.DocumentCommentP
 	async finishDraft(uri, token): Promise<void> {
 		return this._proxy.$finishDraft(this._handle, uri);
 	}
+	async addReaction(uri, comment: modes.Comment, reaction: modes.CommentReaction, token): Promise<void> {
+		return this._proxy.$addReaction(this._handle, uri, comment, reaction);
+	}
+	async deleteReaction(uri, comment: modes.Comment, reaction: modes.CommentReaction, token): Promise<void> {
+		return this._proxy.$deleteReaction(this._handle, uri, comment, reaction);
+	}
+
 
 	onDidChangeCommentThreads = null;
 }

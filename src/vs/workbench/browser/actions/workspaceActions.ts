@@ -17,6 +17,7 @@ import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL, PICK_WORKSPACE_FOLDE
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export class OpenFileAction extends Action {
 
@@ -142,15 +143,14 @@ export class SaveWorkspaceAsAction extends Action {
 	run(): Promise<any> {
 		return this.getNewWorkspaceConfigPath().then((configPathUri): Promise<void> | void => {
 			if (configPathUri) {
-				const configPath = configPathUri.fsPath;
 				switch (this.contextService.getWorkbenchState()) {
 					case WorkbenchState.EMPTY:
 					case WorkbenchState.FOLDER:
 						const folders = this.contextService.getWorkspace().folders.map(folder => ({ uri: folder.uri }));
-						return this.workspaceEditingService.createAndEnterWorkspace(folders, configPath);
+						return this.workspaceEditingService.createAndEnterWorkspace(folders, configPathUri);
 
 					case WorkbenchState.WORKSPACE:
-						return this.workspaceEditingService.saveAndEnterWorkspace(configPath);
+						return this.workspaceEditingService.saveAndEnterWorkspace(configPathUri);
 				}
 			}
 		});
@@ -181,6 +181,32 @@ export class OpenWorkspaceAction extends Action {
 
 	run(event?: any, data?: ITelemetryData): Promise<any> {
 		return this.dialogService.pickWorkspaceAndOpen({ telemetryExtraData: data });
+	}
+}
+
+export class CloseWorkspaceAction extends Action {
+
+	static readonly ID = 'workbench.action.closeFolder';
+	static LABEL = nls.localize('closeWorkspace', "Close Workspace");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IWindowService private readonly windowService: IWindowService
+	) {
+		super(id, label);
+	}
+
+	run(): Promise<void> {
+		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
+			this.notificationService.info(nls.localize('noWorkspaceOpened', "There is currently no workspace opened in this instance to close."));
+
+			return Promise.resolve(undefined);
+		}
+
+		return this.windowService.closeWorkspace();
 	}
 }
 
@@ -228,7 +254,7 @@ export class DuplicateWorkspaceInNewWindowAction extends Action {
 	run(): Promise<any> {
 		const folders = this.workspaceContextService.getWorkspace().folders;
 
-		return this.workspacesService.createWorkspace(folders).then(newWorkspace => {
+		return this.workspacesService.createUntitledWorkspace(folders).then(newWorkspace => {
 			return this.workspaceEditingService.copyWorkspaceSettings(newWorkspace).then(() => {
 				return this.windowService.openWindow([URI.file(newWorkspace.configPath)], { forceNewWindow: true });
 			});

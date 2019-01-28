@@ -12,11 +12,8 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { IFileMatch, ITextSearchMatch, OneLineRange, QueryType } from 'vs/platform/search/common/search';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { FileMatch, Match, SearchResult, RenderableMatch, searchMatchComparer } from 'vs/workbench/parts/search/common/searchModel';
+import { FileMatch, Match, searchMatchComparer, SearchResult } from 'vs/workbench/parts/search/common/searchModel';
 import { TestContextService } from 'vs/workbench/test/workbenchTestServices';
-import { createIterator } from 'vs/workbench/parts/search/browser/searchView';
-import { ITreeElement } from 'vs/base/browser/ui/tree/tree';
-import { Iterator } from 'vs/base/common/iterator';
 
 suite('Search - Viewlet', () => {
 	let instantiation: TestInstantiationService;
@@ -63,12 +60,6 @@ suite('Search - Viewlet', () => {
 
 		assert.equal(fileMatch.id(), 'file:///c%3A/foo');
 		assert.equal(lineMatch.id(), 'file:///c%3A/foo>[2,1 -> 2,2]b');
-
-		const resultIterator = createIterator(result, 'auto');
-		const first = resultIterator.next();
-
-		assert(!!first.value!.children);
-		assert.equal((<Iterator<ITreeElement<RenderableMatch>>>first.value!.children).next().value!.element.id(), 'file:///c%3A/foo>[2,1 -> 2,2]b');
 	});
 
 	test('Comparer', () => {

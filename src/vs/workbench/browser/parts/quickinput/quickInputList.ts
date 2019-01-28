@@ -248,7 +248,8 @@ export class QuickInputList {
 			identityProvider: { getId: element => element.saneLabel },
 			openController: { shouldOpen: () => false }, // Workaround #58124
 			setRowLineHeight: false,
-			multipleSelectionSupport: false
+			multipleSelectionSupport: false,
+			horizontalScrolling: false
 		} as IListOptions<ListElement>) as WorkbenchList<ListElement>;
 		this.list.getHTMLElement().id = id;
 		this.disposables.push(this.list);

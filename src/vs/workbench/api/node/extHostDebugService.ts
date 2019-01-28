@@ -24,7 +24,7 @@ import { getTerminalLauncher, hasChildProcesses, prepareCommand } from 'vs/workb
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/node/variableResolver';
 import { ExtHostConfiguration, ExtHostConfigProvider } from './extHostConfiguration';
-import { convertToVSCPaths, convertToDAPaths, stringToUri, uriToString } from 'vs/workbench/parts/debug/common/debugUtils';
+import { convertToVSCPaths, convertToDAPaths } from 'vs/workbench/parts/debug/common/debugUtils';
 import { ExtHostTerminalService } from 'vs/workbench/api/node/extHostTerminalService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
@@ -422,7 +422,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 						}
 
 						// DA -> VS Code
-						message = convertToVSCPaths(message, source => stringToUri(source));
+						message = convertToVSCPaths(message, true);
 
 						mythis._debugServiceProxy.$acceptDAMessage(debugAdapterHandle, message);
 					});
@@ -454,7 +454,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 	public $sendDAMessage(debugAdapterHandle: number, message: DebugProtocol.ProtocolMessage): Promise<void> {
 
 		// VS Code -> DA
-		message = convertToDAPaths(message, source => uriToString(source));
+		message = convertToDAPaths(message, false);
 
 		const tracker = this._debugAdaptersTrackers.get(debugAdapterHandle);	// TODO@AW: same handle?
 		if (tracker) {

@@ -43,6 +43,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { domEvent } from 'vs/base/browser/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ResourceLabels } from 'vs/workbench/browser/labels';
+import { IMarker } from 'vs/platform/markers/common/markers';
 
 function createModelIterator(model: MarkersModel): Iterator<ITreeElement<TreeElement>> {
 	const resourcesIt = Iterator.fromArray(model.resourceMarkers);
@@ -150,7 +151,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 
 	public layout(dimension: dom.Dimension): void {
 		this.treeContainer.style.height = `${dimension.height}px`;
-		this.tree.layout(dimension.height);
+		this.tree.layout(dimension.height, dimension.width);
 		if (this.filterInputActionItem) {
 			this.filterInputActionItem.toggleLayout(dimension.width < 1200);
 		}
@@ -178,9 +179,22 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 	}
 
 	public openFileAtElement(element: any, preserveFocus: boolean, sideByside: boolean, pinned: boolean): boolean {
-		const { resource, selection } = element instanceof Marker ? { resource: element.resource, selection: element.range } :
-			element instanceof RelatedInformation ? { resource: element.raw.resource, selection: element.raw } : { resource: null, selection: null };
+		const { resource, selection, event, data } = element instanceof Marker ? { resource: element.resource, selection: element.range, event: 'problems.selectDiagnostic', data: this.getTelemetryData(element.marker) } :
+			element instanceof RelatedInformation ? { resource: element.raw.resource, selection: element.raw, event: 'problems.selectRelatedInformation', data: this.getTelemetryData(element.marker) } : { resource: null, selection: null, event: null, data: null };
 		if (resource && selection) {
+			/* __GDPR__
+			"problems.selectDiagnostic" : {
+				"source": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+				"code" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+			}
+			*/
+			/* __GDPR__
+				"problems.selectRelatedInformation" : {
+					"source": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+					"code" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+				}
+			*/
+			this.telemetryService.publicLog(event, data);
 			this.editorService.openEditor({
 				resource,
 				options: {
@@ -336,6 +350,18 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		this._register(Event.debounce(markersNavigator.openResource, (last, event) => event, 75, true)(options => {
 			this.openFileAtElement(options.element, options.editorOptions.preserveFocus, options.sideBySide, options.editorOptions.pinned);
 		}));
+		this._register(this.tree.onDidChangeCollapseState(({ node }) => {
+			const { element } = node;
+			if (element instanceof RelatedInformation && !node.collapsed) {
+				/* __GDPR__
+				"problems.expandRelatedInformation" : {
+					"source": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+					"code" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+				}
+				*/
+				this.telemetryService.publicLog('problems.expandRelatedInformation', this.getTelemetryData(element.marker));
+			}
+		}));
 
 		this.tree.onContextMenu(this.onContextMenu, this, this._toDispose);
 
@@ -382,13 +408,12 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 
 	private onDidChangeModel(resources: URI[]) {
 		for (const resource of resources) {
+			this.markersViewState.remove(resource);
 			const resourceMarkers = this.markersWorkbenchService.markersModel.getResourceMarkers(resource);
 			if (resourceMarkers) {
 				for (const marker of resourceMarkers.markers) {
 					this.markersViewState.add(marker);
 				}
-			} else {
-				this.markersViewState.remove(resource);
 			}
 		}
 		this.currentResourceGotAddedToMarkersData = this.currentResourceGotAddedToMarkersData || this.isCurrentResourceGotAddedToMarkersData(resources);
@@ -666,6 +691,10 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		}
 
 		return { total, filtered };
+	}
+
+	private getTelemetryData({ source, code }: IMarker): any {
+		return { source, code };
 	}
 
 	protected saveState(): void {

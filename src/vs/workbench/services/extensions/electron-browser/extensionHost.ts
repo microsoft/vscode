@@ -167,7 +167,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
 				const opts = {
 					env: objects.mixin(objects.deepClone(process.env), {
-						AMD_ENTRYPOINT: 'vs/workbench/node/extensionHostProcess',
+						AMD_ENTRYPOINT: 'vs/workbench/services/extensions/node/extensionHostProcess',
 						PIPE_LOGGING: 'true',
 						VERBOSE_LOGGING: true,
 						VSCODE_IPC_HOOK_EXTHOST: pipeName,
