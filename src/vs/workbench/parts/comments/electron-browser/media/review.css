@@ -137,7 +137,7 @@
 }
 
 .monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item .action-label {
-	padding: 2px 5px 0px 5px;
+	padding: 2px 5px 2px 5px;
 	white-space: pre;
 	text-align: center;
 	font-size: 14px;
