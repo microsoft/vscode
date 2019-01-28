@@ -657,11 +657,12 @@ export class View implements IView {
 	private visible = false;
 	private width: number | undefined;
 	private height: number | undefined;
+	private orientation: Orientation = Orientation.HORIZONTAL;
 
 	get minimumWidth(): number { return this.visible ? this.view.minimumWidth : 0; }
-	get maximumWidth(): number { return this.visible ? this.view.maximumWidth : 0; }
+	get maximumWidth(): number { return this.visible ? this.view.maximumWidth : (this.orientation === Orientation.HORIZONTAL ? 0 : Number.POSITIVE_INFINITY); }
 	get minimumHeight(): number { return this.visible ? this.view.minimumHeight : 0; }
-	get maximumHeight(): number { return this.visible ? this.view.maximumHeight : 0; }
+	get maximumHeight(): number { return this.visible ? this.view.maximumHeight : (this.orientation === Orientation.VERTICAL ? 0 : Number.POSITIVE_INFINITY); }
 
 	private onDidChangeVisibility = new Emitter<{ width: number; height: number; } | undefined>();
 	readonly onDidChange: Event<{ width: number; height: number; } | undefined>;
@@ -696,13 +697,14 @@ export class View implements IView {
 		this.onDidChangeVisibility.fire(undefined);
 	}
 
-	layout(width: number, height: number): void {
+	layout(width: number, height: number, orientation: Orientation): void {
 		if (!this.visible) {
 			return;
 		}
 
-		this.view.layout(width, height);
+		this.view.layout(width, height, orientation);
 		this.width = width;
 		this.height = height;
+		this.orientation = orientation;
 	}
 }
