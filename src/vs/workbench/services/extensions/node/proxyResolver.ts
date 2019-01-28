@@ -24,14 +24,14 @@ export function connectProxyResolver(
 	extHostLogService: ExtHostLogService,
 	mainThreadTelemetry: MainThreadTelemetryShape
 ) {
-	const agent = createProxyAgent(extHostWorkspace, configProvider, extHostLogService, mainThreadTelemetry);
-	const lookup = createPatchedModules(configProvider, agent);
+	const agents = createProxyAgents(extHostWorkspace, configProvider, extHostLogService, mainThreadTelemetry);
+	const lookup = createPatchedModules(configProvider, agents);
 	return configureModuleLoading(extensionService, lookup);
 }
 
 const maxCacheEntries = 5000; // Cache can grow twice that much due to 'oldCache'.
 
-function createProxyAgent(
+function createProxyAgents(
 	extHostWorkspace: ExtHostWorkspace,
 	configProvider: ExtHostConfigProvider,
 	extHostLogService: ExtHostLogService,
@@ -156,7 +156,11 @@ function createProxyAgent(
 			});
 	}
 
-	return new ProxyAgent({ resolveProxy });
+	const httpAgent: http.Agent = new ProxyAgent({ resolveProxy });
+	(<any>httpAgent).defaultPort = 80;
+	const httpsAgent: http.Agent = new ProxyAgent({ resolveProxy });
+	(<any>httpsAgent).defaultPort = 443;
+	return { http: httpAgent, https: httpsAgent };
 }
 
 function proxyFromConfigURL(configURL: string) {
@@ -177,7 +181,7 @@ function proxyFromConfigURL(configURL: string) {
 	return undefined;
 }
 
-function createPatchedModules(configProvider: ExtHostConfigProvider, agent: http.Agent) {
+function createPatchedModules(configProvider: ExtHostConfigProvider, agents: { http: http.Agent; https: http.Agent; }) {
 	const setting = {
 		config: configProvider.getConfiguration('http')
 			.get<string>('proxySupport') || 'off'
@@ -189,25 +193,23 @@ function createPatchedModules(configProvider: ExtHostConfigProvider, agent: http
 
 	return {
 		http: {
-			off: assign({}, http, patches(http, agent, { config: 'off' }, true)),
-			on: assign({}, http, patches(http, agent, { config: 'on' }, true)),
-			override: assign({}, http, patches(http, agent, { config: 'override' }, true)),
-			onRequest: assign({}, http, patches(http, agent, setting, true)),
-			default: assign(http, patches(http, agent, setting, false)) // run last
+			off: assign({}, http, patches(http, agents.http, { config: 'off' }, true)),
+			on: assign({}, http, patches(http, agents.http, { config: 'on' }, true)),
+			override: assign({}, http, patches(http, agents.http, { config: 'override' }, true)),
+			onRequest: assign({}, http, patches(http, agents.http, setting, true)),
+			default: assign(http, patches(http, agents.http, setting, false)) // run last
 		},
 		https: {
-			off: assign({}, https, patches(https, agent, { config: 'off' }, true)),
-			on: assign({}, https, patches(https, agent, { config: 'on' }, true)),
-			override: assign({}, https, patches(https, agent, { config: 'override' }, true)),
-			onRequest: assign({}, https, patches(https, agent, setting, true)),
-			default: assign(https, patches(https, agent, setting, false)) // run last
+			off: assign({}, https, patches(https, agents.https, { config: 'off' }, true)),
+			on: assign({}, https, patches(https, agents.https, { config: 'on' }, true)),
+			override: assign({}, https, patches(https, agents.https, { config: 'override' }, true)),
+			onRequest: assign({}, https, patches(https, agents.https, setting, true)),
+			default: assign(https, patches(https, agents.https, setting, false)) // run last
 		}
 	};
 }
 
 function patches(originals: typeof http | typeof https, agent: http.Agent, setting: { config: string; }, onRequest: boolean) {
-	const defaultPort = originals === https ? 443 : 80;
-
 	return {
 		get: patch(originals.get),
 		request: patch(originals.request)
@@ -248,7 +250,6 @@ function patches(originals: typeof http | typeof https, agent: http.Agent, setti
 					options = { ...options };
 				}
 				options.agent = agent;
-				options.defaultPort = defaultPort; // Lets Node's http module omit the port, if it is the default port, in the Host header. (https://github.com/Microsoft/vscode/issues/65118)
 				return original(options, callback);
 			}
 
