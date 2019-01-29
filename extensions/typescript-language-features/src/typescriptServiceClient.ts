@@ -423,6 +423,10 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	private serviceStarted(resendModels: boolean): void {
 		const configureOptions: Proto.ConfigureRequestArguments = {
 			hostInfo: 'vscode',
+			preferences: {
+				providePrefixAndSuffixTextForRename: true,
+				allowRenameOfImportPath: true,
+			}
 		};
 		this.executeWithoutWaitingForResponse('configure', configureOptions);
 		this.setCompilerOptionsForInferredProjects(this._configuration);

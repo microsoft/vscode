@@ -183,7 +183,7 @@ export default class FileConfigurationManager extends Disposable {
 			allowTextChangesInNewFiles: document.uri.scheme === 'file',
 			providePrefixAndSuffixTextForRename: true,
 			allowRenameOfImportPath: true,
-		} as Proto.UserPreferences;
+		};
 	}
 }
 
