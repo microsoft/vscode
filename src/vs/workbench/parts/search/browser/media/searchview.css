@@ -177,6 +177,9 @@
 	line-height: 22px;
 	display: flex;
 	overflow: hidden;
+}
+
+.search-view .results.align-icons-and-twisties .linematch {
 	padding-left: 22px;
 }
 
