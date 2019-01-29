@@ -492,6 +492,8 @@ export class TestPartService implements IPartService {
 		return false;
 	}
 
+	public setEditorHidden(_hidden: boolean): Promise<void> { return Promise.resolve(null); }
+
 	public setSideBarHidden(_hidden: boolean): Promise<void> { return Promise.resolve(null); }
 
 	public isPanelHidden(): boolean {

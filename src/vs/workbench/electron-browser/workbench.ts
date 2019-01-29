@@ -228,6 +228,7 @@ export class Workbench extends Disposable implements IPartService {
 	private notificationsCenter: NotificationsCenter;
 	private notificationsToasts: NotificationsToasts;
 
+	private editorHidden: boolean;
 	private sideBarHidden: boolean;
 	private statusBarHidden: boolean;
 	private activityBarHidden: boolean;
@@ -911,6 +912,9 @@ export class Workbench extends Disposable implements IPartService {
 
 	private initSettings(): void {
 
+		// Editor visiblity
+		this.editorHidden = false;
+
 		// Sidebar visibility
 		this.sideBarHidden = this.storageService.getBoolean(Workbench.sidebarHiddenStorageKey, StorageScope.WORKSPACE, this.contextService.getWorkbenchState() === WorkbenchState.EMPTY);
 
@@ -1403,27 +1407,6 @@ export class Workbench extends Disposable implements IPartService {
 		let statusBarInGrid = this.gridHasView(this.statusbarPartView);
 		let titlebarInGrid = this.gridHasView(this.titlebarPartView);
 
-		// Hide parts
-		if (this.panelHidden) {
-			this.panelPartView.hide();
-		}
-
-		if (this.statusBarHidden) {
-			this.statusbarPartView.hide();
-		}
-
-		if (!this.isVisible(Parts.TITLEBAR_PART)) {
-			this.titlebarPartView.hide();
-		}
-
-		if (this.activityBarHidden) {
-			this.activitybarPartView.hide();
-		}
-
-		if (this.sideBarHidden) {
-			this.sidebarPartView.hide();
-		}
-
 		// Add parts to grid
 		if (!statusBarInGrid) {
 			this.workbenchGrid.addView(this.statusbarPartView, Sizing.Split, this.editorPartView, Direction.Down);
@@ -1450,7 +1433,36 @@ export class Workbench extends Disposable implements IPartService {
 			panelInGrid = true;
 		}
 
+		// Hide parts
+		if (this.panelHidden) {
+			this.panelPartView.hide();
+		}
+
+		if (this.statusBarHidden) {
+			this.statusbarPartView.hide();
+		}
+
+		if (!this.isVisible(Parts.TITLEBAR_PART)) {
+			this.titlebarPartView.hide();
+		}
+
+		if (this.activityBarHidden) {
+			this.activitybarPartView.hide();
+		}
+
+		if (this.sideBarHidden) {
+			this.sidebarPartView.hide();
+		}
+
+		if (this.editorHidden) {
+			this.editorPartView.hide();
+		}
+
 		// Show visible parts
+		if (!this.editorHidden) {
+			this.editorPartView.show();
+		}
+
 		if (!this.statusBarHidden) {
 			this.statusbarPartView.show();
 		}
@@ -1553,6 +1565,23 @@ export class Workbench extends Disposable implements IPartService {
 		}
 	}
 
+	setEditorHidden(hidden: boolean, skipLayout?: boolean): void {
+		if (!(this.workbenchGrid instanceof Grid)) {
+			return;
+		}
+
+		this.editorHidden = hidden;
+
+		// The editor and the panel cannot be hidden at the same time
+		if (this.editorHidden && this.panelHidden) {
+			this.setPanelHidden(false, true);
+		}
+
+		if (!skipLayout) {
+			this.layout();
+		}
+	}
+
 	setSideBarHidden(hidden: boolean, skipLayout?: boolean): void {
 		this.sideBarHidden = hidden;
 		this.sideBarVisibleContext.set(!hidden);
@@ -1637,6 +1666,11 @@ export class Workbench extends Disposable implements IPartService {
 			this.storageService.store(Workbench.panelHiddenStorageKey, 'false', StorageScope.WORKSPACE);
 		} else {
 			this.storageService.remove(Workbench.panelHiddenStorageKey, StorageScope.WORKSPACE);
+		}
+
+		// The editor and panel cannot be hiddne at the same time
+		if (hidden && this.editorHidden) {
+			this.setEditorHidden(false, true);
 		}
 
 		// Layout
