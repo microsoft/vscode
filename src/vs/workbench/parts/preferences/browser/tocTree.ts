@@ -160,6 +160,7 @@ export class TOCTree extends ObjectTree<SettingsTreeGroupElement> {
 		const filter = instantiationService.createInstance(SettingsTreeFilter, viewState);
 		const options: IObjectTreeOptions<SettingsTreeGroupElement> = {
 			filter,
+			multipleSelectionSupport: false,
 			identityProvider: {
 				getId(e) {
 					return e.id;
