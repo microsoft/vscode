@@ -442,7 +442,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	layout(height?: number, width?: number): void {
 		let scrollDimensions: INewScrollDimensions = {
-			height: height || DOM.getContentHeight(this.domNode)
+			height: typeof height === 'number' ? height : DOM.getContentHeight(this.domNode)
 		};
 
 		if (this.scrollableElementUpdateDisposable) {
@@ -462,7 +462,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 			if (this.horizontalScrolling) {
 				this.scrollableElement.setScrollDimensions({
-					width: width || DOM.getContentWidth(this.domNode)
+					width: typeof width === 'number' ? width : DOM.getContentWidth(this.domNode)
 				});
 			}
 		}
