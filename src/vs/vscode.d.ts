@@ -70,7 +70,7 @@ declare module 'vscode' {
 
 		/**
 		 * The offset of the first character which is not a whitespace character as defined
-		 * by `/\s/`. **Note** that if a line is all whitespaces the length of the line is returned.
+		 * by `/\s/`. **Note** that if a line is all whitespace the length of the line is returned.
 		 */
 		readonly firstNonWhitespaceCharacterIndex: number;
 
@@ -3218,7 +3218,7 @@ declare module 'vscode' {
 		/**
 		 * List of characters that re-trigger signature help.
 		 *
-		 * These trigger characters are only active when signature help is alread showing. All trigger characters
+		 * These trigger characters are only active when signature help is already showing. All trigger characters
 		 * are also counted as re-trigger characters.
 		 */
 		readonly retriggerCharacters: ReadonlyArray<string>;
@@ -4681,7 +4681,7 @@ declare module 'vscode' {
 		storagePath: string | undefined;
 
 		/**
-		 * An absolute file path in which the extension can store gloabal state.
+		 * An absolute file path in which the extension can store global state.
 		 * The directory might not exist on disk and creation is
 		 * up to the extension. However, the parent directory is guaranteed to be existent.
 		 *
@@ -5633,7 +5633,7 @@ declare module 'vscode' {
 		 *
 		 * @param source The existing file.
 		 * @param destination The destination location.
-		 * @param options Defines if existing files should be overwriten.
+		 * @param options Defines if existing files should be overwritten.
 		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when `source` doesn't exist.
 		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when parent of `destination` doesn't exist, e.g. no mkdirp-logic required.
 		 * @throws [`FileExists`](#FileSystemError.FileExists) when `destination` exists and when the `overwrite` option is not `true`.
@@ -5855,7 +5855,7 @@ declare module 'vscode' {
 	 */
 	interface WebviewPanelSerializer {
 		/**
-		 * Restore a webview panel from its seriailzed `state`.
+		 * Restore a webview panel from its serialized `state`.
 		 *
 		 * Called when a serialized webview first becomes visible.
 		 *
@@ -5863,7 +5863,7 @@ declare module 'vscode' {
 		 * serializer must restore the webview's `.html` and hook up all webview events.
 		 * @param state Persisted state from the webview content.
 		 *
-		 * @return Thanble indicating that the webview has been fully restored.
+		 * @return Thenble indicating that the webview has been fully restored.
 		 */
 		deserializeWebviewPanel(webviewPanel: WebviewPanel, state: any): Thenable<void>;
 	}
@@ -6926,13 +6926,13 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A light-weight user input UI that is intially not visible. After
+	 * A light-weight user input UI that is initially not visible. After
 	 * configuring it through its properties the extension can make it
 	 * visible by calling [QuickInput.show](#QuickInput.show).
 	 *
 	 * There are several reasons why this UI might have to be hidden and
 	 * the extension will be notified through [QuickInput.onDidHide](#QuickInput.onDidHide).
-	 * (Examples include: an explict call to [QuickInput.hide](#QuickInput.hide),
+	 * (Examples include: an explicit call to [QuickInput.hide](#QuickInput.hide),
 	 * the user pressing Esc, some other input UI opening, etc.)
 	 *
 	 * A user pressing Enter or some other gesture implying acceptance
@@ -7001,7 +7001,7 @@ declare module 'vscode' {
 		 *
 		 * There are several reasons why this UI might have to be hidden and
 		 * the extension will be notified through [QuickInput.onDidHide](#QuickInput.onDidHide).
-		 * (Examples include: an explict call to [QuickInput.hide](#QuickInput.hide),
+		 * (Examples include: an explicit call to [QuickInput.hide](#QuickInput.hide),
 		 * the user pressing Esc, some other input UI opening, etc.)
 		 */
 		onDidHide: Event<void>;
@@ -7495,7 +7495,7 @@ declare module 'vscode' {
 		 * cause failure of the operation.
 		 *
 		 * When applying a workspace edit that consists only of text edits an 'all-or-nothing'-strategy is used.
-		 * A workspace edit with resource creations or deletions aborts the operation, e.g. consective edits will
+		 * A workspace edit with resource creations or deletions aborts the operation, e.g. consecutive edits will
 		 * not be attempted, when a single edit fails.
 		 *
 		 * @param edit A workspace edit.
@@ -8534,7 +8534,7 @@ declare module 'vscode' {
 		 */
 		onWillStopSession?(): void;
 		/**
-		 * An error with the debug adapter has occured.
+		 * An error with the debug adapter has occurred.
 		 */
 		onError?(error: Error): void;
 		/**
