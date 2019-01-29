@@ -6,7 +6,7 @@
 import 'vs/css!./media/extensionActions';
 import { localize } from 'vs/nls';
 import { IAction, Action } from 'vs/base/common/actions';
-import { ThrottledDelayer } from 'vs/base/common/async';
+import { Throttler } from 'vs/base/common/async';
 import * as DOM from 'vs/base/browser/dom';
 import * as paths from 'vs/base/common/paths';
 import { Event } from 'vs/base/common/event';
@@ -964,7 +964,7 @@ export class ReloadAction extends ExtensionAction {
 	private static readonly DisabledClass = `${ReloadAction.EnabledClass} disabled`;
 
 	// Use delayer to wait for more updates
-	private throttler: ThrottledDelayer<void>;
+	private throttler: Throttler;
 	private disposables: IDisposable[] = [];
 
 	constructor(
@@ -974,13 +974,13 @@ export class ReloadAction extends ExtensionAction {
 		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService
 	) {
 		super('extensions.reload', localize('reloadAction', "Reload"), ReloadAction.DisabledClass, false);
-		this.throttler = new ThrottledDelayer(50);
+		this.throttler = new Throttler();
 		this.extensionService.onDidChangeExtensions(this.update, this, this.disposables);
 		this.update();
 	}
 
 	update(): Promise<void> {
-		return this.throttler.trigger(() => {
+		return this.throttler.queue(() => {
 			this.enabled = false;
 			this.tooltip = '';
 			if (!this.extension) {
@@ -999,7 +999,6 @@ export class ReloadAction extends ExtensionAction {
 				.then(runningExtensions => this.computeReloadState(runningExtensions, installed));
 		}).then(() => {
 			this.class = this.enabled ? ReloadAction.EnabledClass : ReloadAction.DisabledClass;
-			this.label = localize('reloadAction', "Reload");
 		});
 	}
 
@@ -1015,25 +1014,28 @@ export class ReloadAction extends ExtensionAction {
 				if (isDifferentVersionRunning && !isDisabled) {
 					// Requires reload to run the updated extension
 					this.enabled = true;
+					this.label = localize('reloadToUpdateAction', "Reload to Update");
 					this.tooltip = localize('postUpdateTooltip', "Please reload Visual Studio Code to complete the updating of this extension.");
 					return;
 				}
 				if (isDisabled) {
 					// Requires reload to disable the extension
 					this.enabled = true;
+					this.label = localize('reloadToDisable', "Reload to Disable");
 					this.tooltip = localize('postDisableTooltip', "Please reload Visual Studio Code to complete the disabling of this extension.");
 					return;
 				}
 			} else {
-				if (!isDisabled) {
+				if (!isDisabled && !(this.extension.local && this.extensionService.canAddExtension(toExtensionDescription(this.extension.local)))) {
 					this.enabled = true;
-					if (!isEnabled) {
+					if (isEnabled) {
+						this.label = localize('reloadToEnable', "Reload to Enable");
+						this.tooltip = localize('postEnableTooltip', "Please reload Visual Studio Code to complete the enabling of this extension.");
+					} else {
+						this.label = localize('reloadToInstall', "Reload to Install");
 						this.tooltip = localize('postInstallTooltip', "Please reload Visual Studio Code to complete the installation of this extension.");
 						alert(localize('installExtensionComplete', "Installing extension {0} is completed. Please reload Visual Studio Code to enable it.", this.extension.displayName));
-					} else {
-						this.tooltip = localize('postEnableTooltip', "Please reload Visual Studio Code to complete the enabling of this extension.");
 					}
-					return;
 				}
 			}
 			return;
@@ -1042,6 +1044,7 @@ export class ReloadAction extends ExtensionAction {
 		if (isUninstalled && runningExtension) {
 			// Requires reload to deactivate the extension
 			this.enabled = true;
+			this.label = localize('reloadToUninstall', "Reload to Uninstall");
 			this.tooltip = localize('postUninstallTooltip', "Please reload Visual Studio Code to complete the uninstallation of this extension.");
 			alert(localize('uninstallExtensionComplete', "Please reload Visual Studio Code to complete the uninstallation of the extension {0}.", this.extension.displayName));
 			return;
@@ -2043,6 +2046,84 @@ export class AddToWorkspaceRecommendationsAction extends AbstractConfigureRecomm
 			}
 		});
 	}
+}
+
+export class StatusLabelAction extends Action implements IExtensionContainer {
+
+	private static readonly ENABLED_CLASS = 'extension-status-label';
+	private static readonly DISABLED_CLASS = `${StatusLabelAction.ENABLED_CLASS} hide`;
+
+	private status: ExtensionState | null = null;
+	private enablementState: EnablementState | null = null;
+
+	private _extension: IExtension;
+	get extension(): IExtension { return this._extension; }
+	set extension(extension: IExtension) {
+		if (!(this._extension && areSameExtensions(this._extension.identifier, extension.identifier))) {
+			// Different extension. Reset
+			this.status = null;
+			this.enablementState = null;
+		}
+		this._extension = extension;
+		this.update();
+	}
+
+	constructor(
+		@IExtensionService private readonly extensionService: IExtensionService
+	) {
+		super('extensions.action.statusLabel', '', StatusLabelAction.DISABLED_CLASS, false);
+	}
+
+	update(): void {
+		this.computeLabel()
+			.then(label => {
+				this.label = label || '';
+				this.class = label ? StatusLabelAction.ENABLED_CLASS : StatusLabelAction.DISABLED_CLASS;
+			});
+	}
+
+	private async computeLabel(): Promise<string | null> {
+		if (!this.extension) {
+			return null;
+		}
+
+		const currentStatus = this.status;
+		const currentEnablementState = this.enablementState;
+		this.status = this.extension.state;
+		this.enablementState = this.extension.enablementState;
+
+		const runningExtensions = await this.extensionService.getExtensions();
+		const canAddExtension = () => this.extension.local && (runningExtensions.some(e => areSameExtensions({ id: e.identifier.value }, this.extension.identifier)) || this.extensionService.canAddExtension(toExtensionDescription(this.extension.local)));
+		const canRemoveExtension = () => this.extension.local && (runningExtensions.every(e => !areSameExtensions({ id: e.identifier.value }, this.extension.identifier)) || this.extensionService.canRemoveExtension(toExtensionDescription(this.extension.local)));
+
+		if (currentStatus !== null) {
+			if (currentStatus === ExtensionState.Installing && this.status === ExtensionState.Installed) {
+				return canAddExtension() ? localize('installed', "Installed") : null;
+			}
+			if (currentStatus === ExtensionState.Uninstalling && this.status === ExtensionState.Uninstalled) {
+				return canRemoveExtension() ? localize('uninstalled', "Uninstalled") : null;
+			}
+		}
+
+		if (currentEnablementState !== null) {
+			const currentlyEnabled = currentEnablementState === EnablementState.Enabled || currentEnablementState === EnablementState.WorkspaceEnabled;
+			const enabled = this.enablementState === EnablementState.Enabled || this.enablementState === EnablementState.WorkspaceEnabled;
+			if (!currentlyEnabled && enabled) {
+				return canAddExtension() ? localize('enabled', "Enabled") : null;
+			}
+			if (currentlyEnabled && !enabled) {
+				return canRemoveExtension() ? localize('disabled', "Disabled") : null;
+			}
+
+		}
+
+		return null;
+	}
+
+	run(): Promise<any> {
+		return Promise.resolve(null);
+	}
+
 }
 
 export class MaliciousStatusLabelAction extends ExtensionAction {
