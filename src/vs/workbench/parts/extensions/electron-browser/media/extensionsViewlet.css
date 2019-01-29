@@ -108,11 +108,11 @@
 	bottom: 5px;
 }
 
-.extensions-viewlet.narrow > .extensions .extension > .icon {
+.extensions-viewlet.narrow > .extensions .extension > .icon-container > .icon {
 	display: none;
 }
 
-.extensions-viewlet > .extensions .extension.loading > .icon {
+.extensions-viewlet > .extensions .extension.loading > .icon-container > .icon {
 	display: none;
 }
 
