@@ -967,7 +967,7 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	private refreshTOCTree(): void {
-		this.tocTree.setChildren(null, createTOCIterator(this.tocTreeModel));
+		this.tocTree.setChildren(null, createTOCIterator(this.tocTreeModel, this.tocTree));
 	}
 
 	private updateModifiedLabelForKey(key: string): void {
