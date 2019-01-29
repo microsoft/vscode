@@ -45,7 +45,7 @@ export function getCustomDataPathsFromAllExtensions(): string[] {
 	for (const extension of extensions.all) {
 		const contributes = extension.packageJSON && extension.packageJSON.contributes;
 
-		if (contributes && contributes.html && contributes.html.customData && Array.isArray(contributes.html.customData)) {
+		if (contributes && contributes.html && contributes.html.experimental.customData && Array.isArray(contributes.html.experimental.customData)) {
 			const relativePaths: string[] = contributes.html.customData;
 			relativePaths.forEach(rp => {
 				dataPaths.push(path.resolve(extension.extensionPath, rp));
