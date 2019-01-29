@@ -83,11 +83,11 @@ export interface IExtensionsWorkbenchService {
 	queryLocal(): Promise<IExtension[]>;
 	queryGallery(options?: IQueryOptions): Promise<IPager<IExtension>>;
 	canInstall(extension: IExtension): boolean;
-	install(vsix: string): Promise<void>;
-	install(extension: IExtension, promptToInstallDependencies?: boolean): Promise<void>;
+	install(vsix: string): Promise<IExtension>;
+	install(extension: IExtension, promptToInstallDependencies?: boolean): Promise<IExtension>;
 	uninstall(extension: IExtension): Promise<void>;
-	installVersion(extension: IExtension, version: string): Promise<void>;
-	reinstall(extension: IExtension): Promise<void>;
+	installVersion(extension: IExtension, version: string): Promise<IExtension>;
+	reinstall(extension: IExtension): Promise<IExtension>;
 	setEnablement(extensions: IExtension | IExtension[], enablementState: EnablementState): Promise<void>;
 	loadDependencies(extension: IExtension, token: CancellationToken): Promise<IExtensionDependencies | null>;
 	open(extension: IExtension, sideByside?: boolean): Promise<any>;
