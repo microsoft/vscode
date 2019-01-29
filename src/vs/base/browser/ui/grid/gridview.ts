@@ -414,7 +414,7 @@ class LeafNode implements ISplitView, IDisposable {
 	) {
 		this._orthogonalSize = orthogonalSize;
 
-		this._onDidViewChange = Event.map(this.view.onDidChange, this.orientation === Orientation.HORIZONTAL ? e => e && e.width : e => e && e.height);
+		this._onDidViewChange = Event.map(this.view.onDidChange, this.orientation === Orientation.VERTICAL ? e => e && e.width : e => e && e.height);
 		this.onDidChange = Event.any(this._onDidViewChange, this._onDidSetLinkedNode.event, this._onDidLinkedWidthNodeChange.event, this._onDidLinkedHeightNodeChange.event);
 	}
 
