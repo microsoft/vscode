@@ -329,6 +329,8 @@ export class TestExtensionService implements IExtensionService {
 	restartExtensionHost(): void { }
 	startExtensionHost(): void { }
 	stopExtensionHost(): void { }
+	canAddExtension(): boolean { return false; }
+	canRemoveExtension(): boolean { return false; }
 }
 
 export class TestMenuService implements IMenuService {

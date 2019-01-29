@@ -275,6 +275,44 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		return true;
 	}
 
+	public canAddExtension(extension: IExtensionDescription): boolean {
+		if (this._windowService.getConfiguration().remoteAuthority) {
+			return false;
+		}
+
+		if (extension.extensionLocation.scheme !== Schemas.file) {
+			return false;
+		}
+
+		const extensionDescription = this._registry.getExtensionDescription(extension.identifier);
+		if (extensionDescription) {
+			// ignore adding an extension which is already running and cannot be removed
+			if (!this._canRemoveExtension(extensionDescription)) {
+				return false;
+			}
+		}
+
+		return this._usesOnlyDynamicExtensionPoints(extension);
+	}
+
+	public canRemoveExtension(extension: IExtensionDescription): boolean {
+		if (this._windowService.getConfiguration().remoteAuthority) {
+			return false;
+		}
+
+		if (extension.extensionLocation.scheme !== Schemas.file) {
+			return false;
+		}
+
+		const extensionDescription = this._registry.getExtensionDescription(extension.identifier);
+		if (!extensionDescription) {
+			// ignore removing an extension which is not running
+			return false;
+		}
+
+		return this._canRemoveExtension(extensionDescription);
+	}
+
 	private _canRemoveExtension(extension: IExtensionDescription): boolean {
 		if (this._extensionHostActiveExtensions.has(ExtensionIdentifier.toKey(extension.identifier))) {
 			// Extension is running, cannot remove it safely
