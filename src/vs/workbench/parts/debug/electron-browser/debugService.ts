@@ -73,7 +73,7 @@ const enum TaskRunResult {
 
 export class DebugService implements IDebugService {
 	_serviceBrand: any;
-
+	// add comments
 	private readonly _onDidChangeState: Emitter<State>;
 	private readonly _onDidNewSession: Emitter<IDebugSession>;
 	private readonly _onWillNewSession: Emitter<IDebugSession>;
