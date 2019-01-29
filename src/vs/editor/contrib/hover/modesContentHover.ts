@@ -493,7 +493,9 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				a.onclick = e => {
 					e.stopPropagation();
 					e.preventDefault();
-					this._openerService.open(resource.with({ fragment: `${startLineNumber},${startColumn}` })).catch(onUnexpectedError);
+					if (this._openerService) {
+						this._openerService.open(resource.with({ fragment: `${startLineNumber},${startColumn}` })).catch(onUnexpectedError);
+					}
 				};
 				const messageElement = dom.append<HTMLAnchorElement>(item, $('span'));
 				messageElement.innerText = `: ${message}`;
