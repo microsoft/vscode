@@ -117,6 +117,10 @@ export class WatchExpressionsView extends ViewletPanel {
 		this.tree.layout(height, width);
 	}
 
+	focus(): void {
+		this.tree.domFocus();
+	}
+
 	private onMouseDblClick(e: ITreeMouseEvent<IExpression>): void {
 		if ((e.browserEvent.target as HTMLElement).className.indexOf('twistie') >= 0) {
 			// Ignore double click events on twistie

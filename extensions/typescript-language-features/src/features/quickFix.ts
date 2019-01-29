@@ -307,6 +307,7 @@ const preferredFixes = new Set([
 	'annotateWithTypeFromJSDoc',
 	'constructorForDerivedNeedSuperCall',
 	'extendsInterfaceBecomesImplements',
+	'fixAwaitInSyncFunction',
 	'fixClassIncorrectlyImplementsInterface',
 	'fixUnreachableCode',
 	'forgottenThisPropertyAccess',

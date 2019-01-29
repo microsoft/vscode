@@ -157,7 +157,9 @@ class WebviewKeyboardHandler extends Disposable {
 				const contents = this.getWebContents();
 				if (contents) {
 					contents.on('before-input-event', (_event, input) => {
-						this.setIgnoreMenuShortcuts(input.control || input.meta);
+						if (input.type === 'keyDown') {
+							this.setIgnoreMenuShortcuts(input.control || input.meta);
+						}
 					});
 				}
 			}));
@@ -573,6 +575,26 @@ export class WebviewElement extends Disposable {
 
 	public selectAll() {
 		this._webview.selectAll();
+	}
+
+	public copy() {
+		this._webview.copy();
+	}
+
+	public paste() {
+		this._webview.paste();
+	}
+
+	public cut() {
+		this._webview.cut();
+	}
+
+	public undo() {
+		this._webview.undo();
+	}
+
+	public redo() {
+		this._webview.redo();
 	}
 }
 

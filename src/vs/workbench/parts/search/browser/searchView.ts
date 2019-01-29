@@ -62,6 +62,8 @@ import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorG
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPreferencesService, ISettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { createFileIconThemableTreeContainerScope } from 'vs/workbench/browser/parts/views/views';
+import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 
 const $ = dom.$;
 
@@ -143,10 +145,11 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IThemeService protected themeService: IThemeService,
+		@IWorkbenchThemeService protected workbenchThemeService: IWorkbenchThemeService,
 		@ISearchHistoryService private readonly searchHistoryService: ISearchHistoryService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IMenuService private readonly menuService: IMenuService
+		@IMenuService private readonly menuService: IMenuService,
 	) {
 		super(VIEW_ID, configurationService, partService, telemetryService, themeService, storageService);
 
@@ -615,6 +618,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	private createSearchResultsView(container: HTMLElement): void {
 		this.resultsElement = dom.append(container, $('.results.show-file-icons'));
 		const delegate = this.instantiationService.createInstance(SearchDelegate);
+		this._register(createFileIconThemableTreeContainerScope(this.resultsElement, this.workbenchThemeService));
 
 		const identityProvider: IIdentityProvider<RenderableMatch> = {
 			getId(element: RenderableMatch) {
@@ -632,6 +636,15 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 				this._register(this.instantiationService.createInstance(MatchRenderer, this.viewModel, this)),
 			],
 			{
+				keyboardNavigationLabelProvider: {
+					getKeyboardNavigationLabel: (element: RenderableMatch) => {
+						if (element instanceof FolderMatch || element instanceof FileMatch) {
+							return element.name();
+						}
+
+						return '';
+					}
+				},
 				identityProvider,
 				accessibilityProvider: this.instantiationService.createInstance(SearchAccessibilityProvider, this.viewModel)
 			}));

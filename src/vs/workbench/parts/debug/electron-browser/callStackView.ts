@@ -227,6 +227,10 @@ export class CallStackView extends ViewletPanel {
 		this.tree.layout(height, width);
 	}
 
+	focus(): void {
+		this.tree.domFocus();
+	}
+
 	private updateTreeSelection(): void {
 		if (!this.tree || this.tree.visibleNodeCount === 0) {
 			// Tree not initialized yet

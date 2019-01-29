@@ -210,6 +210,32 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 
 // --- Toggle Sidebar Visibility
 
+export class ToggleEditorVisibilityAction extends Action {
+	static readonly ID = 'workbench.action.toggleEditorVisibility';
+	static readonly LABEL = nls.localize('toggleEditor', "Toggle Editor Area");
+
+	constructor(
+		id: string,
+		label: string,
+		@IPartService private readonly partService: IPartService
+	) {
+		super(id, label);
+
+		this.enabled = !!this.partService;
+	}
+
+	run(): Promise<any> {
+		const hideEditor = this.partService.isVisible(Parts.EDITOR_PART);
+		this.partService.setEditorHidden(hideEditor);
+
+		return Promise.resolve(null);
+	}
+
+}
+
+registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleEditorVisibilityAction, ToggleEditorVisibilityAction.ID, ToggleEditorVisibilityAction.LABEL), 'View: Toggle Editor Area Visibility', viewCategory);
+
+
 export class ToggleSidebarVisibilityAction extends Action {
 
 	static readonly ID = 'workbench.action.toggleSidebarVisibility';

@@ -177,6 +177,7 @@
 	line-height: 22px;
 	display: flex;
 	overflow: hidden;
+	padding-left: 22px;
 }
 
 .search-view .linematch > .match {

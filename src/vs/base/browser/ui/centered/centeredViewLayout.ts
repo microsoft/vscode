@@ -40,7 +40,7 @@ function toSplitViewView(view: IView, getHeight: () => number): ISplitViewView {
 		get maximumSize() { return view.maximumWidth; },
 		get minimumSize() { return view.minimumWidth; },
 		onDidChange: Event.map(view.onDidChange, e => e && e.width),
-		layout: size => view.layout(size, getHeight())
+		layout: size => view.layout(size, getHeight(), Orientation.HORIZONTAL)
 	};
 }
 
@@ -78,7 +78,7 @@ export class CenteredViewLayout {
 				this.resizeMargins();
 			}
 		} else {
-			this.view.layout(width, height);
+			this.view.layout(width, height, Orientation.HORIZONTAL);
 		}
 		this.didLayout = true;
 	}

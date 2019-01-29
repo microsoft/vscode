@@ -126,15 +126,23 @@ class TOCTreeDelegate implements IListVirtualDelegate<SettingsTreeElement> {
 	}
 }
 
-export function createTOCIterator(model: TOCTreeModel | SettingsTreeGroupElement): Iterator<ITreeElement<SettingsTreeGroupElement>> {
+export function createTOCIterator(model: TOCTreeModel | SettingsTreeGroupElement, tree: TOCTree): Iterator<ITreeElement<SettingsTreeGroupElement>> {
 	const groupChildren = <SettingsTreeGroupElement[]>model.children.filter(c => c instanceof SettingsTreeGroupElement);
 	const groupsIt = Iterator.fromArray(groupChildren);
 
+
 	return Iterator.map(groupsIt, g => {
+		let nodeExists = true;
+		try { tree.getNode(g); } catch (e) { nodeExists = false; }
+
+		const hasGroupChildren = g.children.some(c => c instanceof SettingsTreeGroupElement);
+
 		return {
 			element: g,
+			collapsed: nodeExists ? undefined : true,
+			collapsible: hasGroupChildren,
 			children: g instanceof SettingsTreeGroupElement ?
-				createTOCIterator(g) :
+				createTOCIterator(g, tree) :
 				undefined
 		};
 	});

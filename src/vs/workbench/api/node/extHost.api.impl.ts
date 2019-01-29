@@ -272,6 +272,9 @@ export function createApiFactory(
 			},
 			get all(): Extension<any>[] {
 				return extensionRegistry.getAllExtensionDescriptions().map((desc) => new Extension(extensionService, desc));
+			},
+			get onDidChange() {
+				return extensionRegistry.onDidChange;
 			}
 		};
 

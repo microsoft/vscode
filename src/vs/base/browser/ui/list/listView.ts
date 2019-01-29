@@ -165,6 +165,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	private setRowLineHeight: boolean;
 	private supportDynamicHeights: boolean;
 	private horizontalScrolling: boolean;
+	private scrollWidth: number | undefined;
 	private canUseTranslate3d: boolean | undefined = undefined;
 
 	private dnd: IListViewDragAndDrop<T>;
@@ -387,7 +388,22 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			}
 		}
 
+		this.scrollWidth = scrollWidth;
 		this.scrollableElement.setScrollDimensions({ scrollWidth: scrollWidth + 10 });
+	}
+
+	updateWidth(index: number): void {
+		if (!this.horizontalScrolling || typeof this.scrollWidth === 'undefined') {
+			return;
+		}
+
+		const item = this.items[index];
+		this.measureItemWidth(item);
+
+		if (typeof item.width !== 'undefined' && item.width > this.scrollWidth) {
+			this.scrollWidth = item.width;
+			this.scrollableElement.setScrollDimensions({ scrollWidth: this.scrollWidth + 10 });
+		}
 	}
 
 	get length(): number {
@@ -530,27 +546,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			throw new Error(`No renderer found for template id ${item.templateId}`);
 		}
 
-		if (this.horizontalScrolling) {
-			item.row.domNode!.style.width = 'fit-content';
-		}
-
 		if (renderer) {
 			renderer.renderElement(item.element, index, item.row.templateData);
-		}
-
-		if (this.horizontalScrolling) {
-			item.width = DOM.getContentWidth(item.row.domNode!);
-			const style = window.getComputedStyle(item.row.domNode!);
-
-			if (style.paddingLeft) {
-				item.width += parseFloat(style.paddingLeft);
-			}
-
-			if (style.paddingRight) {
-				item.width += parseFloat(style.paddingRight);
-			}
-
-			item.row.domNode!.style.width = '';
 		}
 
 		const uri = this.dnd.getDragURI(item.element);
@@ -563,8 +560,29 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		}
 
 		if (this.horizontalScrolling) {
+			this.measureItemWidth(item);
 			this.eventuallyUpdateScrollWidth();
 		}
+	}
+
+	private measureItemWidth(item: IItem<T>): void {
+		if (!item.row || !item.row.domNode) {
+			return;
+		}
+
+		item.row.domNode.style.width = 'fit-content';
+		item.width = DOM.getContentWidth(item.row.domNode);
+		const style = window.getComputedStyle(item.row.domNode);
+
+		if (style.paddingLeft) {
+			item.width += parseFloat(style.paddingLeft);
+		}
+
+		if (style.paddingRight) {
+			item.width += parseFloat(style.paddingRight);
+		}
+
+		item.row.domNode.style.width = '';
 	}
 
 	private updateItemInDOM(item: IItem<T>, index: number): void {

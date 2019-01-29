@@ -9,7 +9,7 @@ import {
 	IExtensionManagementServerService, IExtensionManagementServer, IExtensionGalleryService
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { flatten } from 'vs/base/common/arrays';
-import { isUIExtension, ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -19,6 +19,7 @@ import { getManifest } from 'vs/platform/extensionManagement/node/extensionManag
 import { ILogService } from 'vs/platform/log/common/log';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { localize } from 'vs/nls';
+import { isUIExtension } from 'vs/platform/extensions/node/extensionsUtil';
 
 export class MultiExtensionManagementService extends Disposable implements IExtensionManagementService {
 

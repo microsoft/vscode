@@ -87,6 +87,12 @@ export interface IPartService {
 	getTitleBarOffset(): number;
 
 	/**
+	 *
+	 * Set editor area hidden or not
+	 */
+	setEditorHidden(hidden: boolean): void;
+
+	/**
 	 * Set sidebar hidden or not
 	 */
 	setSideBarHidden(hidden: boolean): void;

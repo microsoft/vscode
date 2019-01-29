@@ -26,7 +26,7 @@ declare module 'vscode' {
 		static readonly Empty: SelectionRangeKind;
 
 		/**
-		 * The statment kind, its value is `statement`, possible extensions can be
+		 * The statement kind, its value is `statement`, possible extensions can be
 		 * `statement.if` etc
 		 */
 		static readonly Statement: SelectionRangeKind;
@@ -67,7 +67,7 @@ declare module 'vscode' {
 	//#region Joh - read/write in chunks
 
 	export interface FileSystemProvider {
-		open?(resource: Uri): number | Thenable<number>;
+		open?(resource: Uri, options: { create: boolean }): number | Thenable<number>;
 		close?(fd: number): void | Thenable<void>;
 		read?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): number | Thenable<number>;
 		write?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): number | Thenable<number>;
@@ -915,7 +915,7 @@ declare module 'vscode' {
 	/**
 	 * Represents a terminal without a process where all interaction and output in the terminal is
 	 * controlled by an extension. This is similar to an output window but has the same VT sequence
-	 * compatility as the regular terminal.
+	 * compatibility as the regular terminal.
 	 *
 	 * Note that an instance of [Terminal](#Terminal) will be created when a TerminalRenderer is
 	 * created with all its APIs available for use by extensions. When using the Terminal object
@@ -963,7 +963,7 @@ declare module 'vscode' {
 		readonly maximumDimensions: TerminalDimensions | undefined;
 
 		/**
-		 * The corressponding [Terminal](#Terminal) for this TerminalRenderer.
+		 * The corresponding [Terminal](#Terminal) for this TerminalRenderer.
 		 */
 		readonly terminal: Terminal;
 
@@ -995,7 +995,7 @@ declare module 'vscode' {
 		 * ```typescript
 		 * const terminalRenderer = window.createTerminalRenderer('test');
 		 * terminalRenderer.onDidAcceptInput(data => {
-		 *   cosole.log(data); // 'Hello world'
+		 *   console.log(data); // 'Hello world'
 		 * });
 		 * terminalRenderer.terminal.then(t => t.sendText('Hello world'));
 		 * ```
@@ -1055,6 +1055,15 @@ declare module 'vscode' {
 	}
 	//#endregion
 
+	//#region Alex - extensions.all change event
+	export namespace extensions {
+		/**
+		 * An event which fires when `extensions.all` changes.
+		 */
+		export const onDidChange: Event<void>;
+	}
+	//#endregion
+
 	//#region Tree View
 
 	export interface TreeView<T> {
@@ -1103,7 +1112,8 @@ declare module 'vscode' {
 		/**
 		 * The currently active [`SignatureHelp`](#SignatureHelp).
 		 *
-		 * Will have the [`SignatureHelp.activeSignature`] field updated based on user arrowing through sig help
+		 * The `activeSignatureHelp` has its [`SignatureHelp.activeSignature`] field updated based on
+		 * the user arrowing through available signatures.
 		 */
 		readonly activeSignatureHelp?: SignatureHelp;
 	}
@@ -1112,7 +1122,7 @@ declare module 'vscode' {
 	//#region CodeAction.isPreferred - mjbvz
 	export interface CodeAction {
 		/**
-		 * If the action is a preferred action or fix to take.
+		 * Marks this as a preferred action. Preferred actions are used by the `auto fix` command.
 		 *
 		 * A quick fix should be marked preferred if it properly addresses the underlying error.
 		 * A refactoring should be marked preferred if it is the most reasonable choice of actions to take.
@@ -1133,9 +1143,9 @@ declare module 'vscode' {
 	//#region Autofix - mjbvz
 	export namespace CodeActionKind {
 		/**
-		 * Base kind for an auto fix source action: `source.fixAll`.
+		 * Base kind for auto-fix source actions: `source.fixAll`.
 		 *
-		 * Fix all actions automatically fix errors in the code that have a clear fix that does not require user input.
+		 * Fix all actions automatically fix errors that have a clear fix that do not require user input.
 		 * They should not suppress errors or perform unsafe fixes such as generating new types or classes.
 		 */
 		export const SourceFixAll: CodeActionKind;

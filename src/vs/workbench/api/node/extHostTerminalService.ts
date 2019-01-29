@@ -18,6 +18,7 @@ import { generateRandomPipeName } from 'vs/base/parts/ipc/node/ipc.net';
 import * as http from 'http';
 import * as fs from 'fs';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
+import { sanitizeProcessEnvironment } from 'vs/base/node/processes';
 
 const RENDERER_NO_PROCESS_ID = -1;
 
@@ -417,7 +418,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 
 		// Sanitize the environment, removing any undesirable VS Code and Electron environment
 		// variables
-		terminalEnvironment.sanitizeEnvironment(env);
+		sanitizeProcessEnvironment(env);
 
 		// Continue env initialization, merging in the env from the launch
 		// config and adding keys that are needed to create the process
@@ -430,11 +431,12 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 
 		// Fork the process and listen for messages
 		this._logService.debug(`Terminal process launching on ext host`, shellLaunchConfig, initialCwd, cols, rows, env);
-		this._terminalProcesses[id] = new TerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, terminalConfig.get('windowsEnableConpty'));
-		this._terminalProcesses[id].onProcessIdReady(pid => this._proxy.$sendProcessPid(id, pid));
-		this._terminalProcesses[id].onProcessTitleChanged(title => this._proxy.$sendProcessTitle(id, title));
-		this._terminalProcesses[id].onProcessData(data => this._proxy.$sendProcessData(id, data));
-		this._terminalProcesses[id].onProcessExit((exitCode) => this._onProcessExit(id, exitCode));
+		const p = new TerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, terminalConfig.get('windowsEnableConpty'));
+		p.onProcessIdReady(pid => this._proxy.$sendProcessPid(id, pid));
+		p.onProcessTitleChanged(title => this._proxy.$sendProcessTitle(id, title));
+		p.onProcessData(data => this._proxy.$sendProcessData(id, data));
+		p.onProcessExit((exitCode) => this._onProcessExit(id, exitCode));
+		this._terminalProcesses[id] = p;
 	}
 
 
@@ -455,6 +457,14 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 
 	public $acceptProcessShutdown(id: number, immediate: boolean): void {
 		this._terminalProcesses[id].shutdown(immediate);
+	}
+
+	public $acceptProcessRequestInitialCwd(id: number): void {
+		this._terminalProcesses[id].getInitialCwd().then(initialCwd => this._proxy.$sendProcessInitialCwd(id, initialCwd));
+	}
+
+	public $acceptProcessRequestCwd(id: number): void {
+		this._terminalProcesses[id].getCwd().then(cwd => this._proxy.$sendProcessCwd(id, cwd));
 	}
 
 	private _onProcessExit(id: number, exitCode: number): void {
@@ -593,8 +603,11 @@ class CLIServer {
 		req.setEncoding('utf8');
 		req.on('data', (d: string) => chunks.push(d));
 		req.on('end', () => {
-			const { fileURIs, folderURIs, forceNewWindow, diffMode, addMode, forceReuseWindow } = JSON.parse(chunks.join(''));
+			let { fileURIs, folderURIs, forceNewWindow, diffMode, addMode, forceReuseWindow } = JSON.parse(chunks.join(''));
 			if (folderURIs && folderURIs.length || fileURIs && fileURIs.length) {
+				if (folderURIs && folderURIs.length && !forceReuseWindow) {
+					forceNewWindow = true;
+				}
 				this._commands.executeCommand('_files.windowOpen', { folderURIs: this.toURIs(folderURIs), fileURIs: this.toURIs(fileURIs), forceNewWindow, diffMode, addMode, forceReuseWindow });
 			}
 			res.writeHead(200);

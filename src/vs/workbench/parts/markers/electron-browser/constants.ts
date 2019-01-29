@@ -16,6 +16,7 @@ export default {
 	MARKERS_PANEL_SHOW_SINGLELINE_MESSAGE: 'problems.action.showSinglelineMessage',
 	MARKER_OPEN_SIDE_ACTION_ID: 'problems.action.openToSide',
 	MARKER_SHOW_PANEL_ID: 'workbench.action.showErrorsWarnings',
+	MARKER_SHOW_QUICK_FIX: 'problems.action.showQuickFixes',
 
 	MarkerPanelFocusContextKey: new RawContextKey<boolean>('problemsViewFocus', false),
 	MarkerFocusContextKey: new RawContextKey<boolean>('problemFocus', false),

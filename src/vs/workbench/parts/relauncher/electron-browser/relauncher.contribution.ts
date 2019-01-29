@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWindowsService, IWindowService, IWindowsConfiguration } from 'vs/platform/windows/common/windows';
@@ -42,11 +42,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private fileWatcherExclude: object;
 	private useGridLayout: boolean;
 
-	private firstFolderResource?: URI;
-	private extensionHostRestarter: RunOnceScheduler;
-
-	private onDidChangeWorkspaceFoldersUnbind: IDisposable;
-
 	constructor(
 		@IWindowsService private readonly windowsService: IWindowsService,
 		@IWindowService private readonly windowService: IWindowService,
@@ -54,23 +49,11 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		@IEnvironmentService private readonly envService: IEnvironmentService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IExtensionService private readonly extensionService: IExtensionService
 	) {
 		super();
 
-		const workspace = this.contextService.getWorkspace();
-		this.firstFolderResource = workspace.folders.length > 0 ? workspace.folders[0].uri : undefined;
-		this.extensionHostRestarter = new RunOnceScheduler(() => this.extensionService.restartExtensionHost(), 10);
-
 		this.onConfigurationChange(configurationService.getValue<IConfiguration>(), false);
-		this.handleWorkbenchState();
-
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChange(this.configurationService.getValue<IConfiguration>(), true)));
-		this._register(this.contextService.onDidChangeWorkbenchState(() => setTimeout(() => this.handleWorkbenchState())));
 	}
 
 	private onConfigurationChange(config: IConfiguration, notify: boolean): void {
@@ -155,6 +138,55 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		}
 	}
 
+	private doConfirm(message: string, detail: string, primaryButton: string, confirmed: () => void): void {
+		this.windowService.isFocused().then(focused => {
+			if (focused) {
+				return this.dialogService.confirm({
+					type: 'info',
+					message,
+					detail,
+					primaryButton
+				}).then(res => {
+					if (res.confirmed) {
+						confirmed();
+					}
+				});
+			}
+
+			return undefined;
+		});
+	}
+}
+
+export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWorkbenchContribution {
+
+	private firstFolderResource?: URI;
+	private extensionHostRestarter: RunOnceScheduler;
+
+	private onDidChangeWorkspaceFoldersUnbind: IDisposable;
+
+	constructor(
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IExtensionService extensionService: IExtensionService
+	) {
+		super();
+
+		this.extensionHostRestarter = this._register(new RunOnceScheduler(() => extensionService.restartExtensionHost(), 10));
+
+		this.contextService.getCompleteWorkspace()
+			.then(workspace => {
+				this.firstFolderResource = workspace.folders.length > 0 ? workspace.folders[0].uri : undefined;
+				this.handleWorkbenchState();
+				this._register(this.contextService.onDidChangeWorkbenchState(() => setTimeout(() => this.handleWorkbenchState())));
+			});
+
+		this._register(toDisposable(() => {
+			if (this.onDidChangeWorkspaceFoldersUnbind) {
+				this.onDidChangeWorkspaceFoldersUnbind.dispose();
+			}
+		}));
+	}
+
 	private handleWorkbenchState(): void {
 
 		// React to folder changes when we are in workspace state
@@ -187,26 +219,8 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 			this.extensionHostRestarter.schedule(); // buffer calls to extension host restart
 		}
 	}
-
-	private doConfirm(message: string, detail: string, primaryButton: string, confirmed: () => void): void {
-		this.windowService.isFocused().then(focused => {
-			if (focused) {
-				return this.dialogService.confirm({
-					type: 'info',
-					message,
-					detail,
-					primaryButton
-				}).then(res => {
-					if (res.confirmed) {
-						confirmed();
-					}
-				});
-			}
-
-			return undefined;
-		});
-	}
 }
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(SettingsChangeRelauncher, LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(WorkspaceChangeExtHostRelauncher, LifecyclePhase.Restored);

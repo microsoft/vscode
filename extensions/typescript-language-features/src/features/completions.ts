@@ -638,25 +638,23 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 		try {
 			const args: Proto.FileLocationRequestArgs = typeConverters.Position.toFileLocationRequestArgs(filepath, position);
 			const response = await this.client.execute('quickinfo', args, token);
-			if (response.type !== 'response' || !response.body) {
-				return true;
+			if (response.type === 'response' && response.body) {
+				switch (response.body.kind) {
+					case 'var':
+					case 'let':
+					case 'const':
+					case 'alias':
+						return false;
+				}
 			}
-
-			switch (response.body.kind) {
-				case 'var':
-				case 'let':
-				case 'const':
-				case 'alias':
-					return false;
-			}
-		} catch (e) {
-			return true;
+		} catch {
+			// Noop
 		}
 
-		// Don't complete function call if there is already something that looks like a funciton call
+		// Don't complete function call if there is already something that looks like a function call
 		// https://github.com/Microsoft/vscode/issues/18131
 		const after = document.lineAt(position.line).text.slice(position.character);
-		return after.match(/^\s*\(/g) === null;
+		return after.match(/^[a-z_$0-9]*\s*\(/gi) === null;
 	}
 }
 

@@ -117,14 +117,18 @@
             "force",
             "force-aligned",
             "force-expand-multiline",
-            "aligned-multiple"
+            "aligned-multiple",
+            "preserve",
+            "preserve-aligned"
           ],
           "enumDescriptions": [
             "%html.format.wrapAttributes.auto%",
             "%html.format.wrapAttributes.force%",
             "%html.format.wrapAttributes.forcealign%",
             "%html.format.wrapAttributes.forcemultiline%",
-            "%html.format.wrapAttributes.alignedmultiple%"
+            "%html.format.wrapAttributes.alignedmultiple%",
+            "%html.format.wrapAttributes.preserve%",
+            "%html.format.wrapAttributes.preservealigned%"
           ],
           "description": "%html.format.wrapAttributes.desc%"
         },
