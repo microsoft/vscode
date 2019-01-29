@@ -10,7 +10,7 @@ import * as Objects from 'vs/base/common/objects';
 import * as Types from 'vs/base/common/types';
 import * as Platform from 'vs/base/common/platform';
 import * as Async from 'vs/base/common/async';
-import { IStringDictionary } from 'vs/base/common/collections';
+import { IStringDictionary, values } from 'vs/base/common/collections';
 import { LinkedMap, Touch } from 'vs/base/common/map';
 import Severity from 'vs/base/common/severity';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -42,6 +42,7 @@ import {
 interface TerminalData {
 	terminal: ITerminalInstance;
 	lastTask: string;
+	group?: string;
 }
 
 interface ActiveTerminalData {
@@ -347,12 +348,13 @@ export class TerminalTaskSystem implements ITaskSystem {
 		let promises: Promise<ITaskSummary>[] = [];
 		if (task.configurationProperties.dependsOn) {
 			task.configurationProperties.dependsOn.forEach((dependency) => {
-				let task = resolver.resolve(dependency.workspaceFolder, dependency.task!);
-				if (task) {
-					let key = task.getMapKey();
+				let dependencyTask = resolver.resolve(dependency.workspaceFolder, dependency.task!);
+				if (dependencyTask) {
+					let key = dependencyTask.getMapKey();
 					let promise = this.activeTasks[key] ? this.activeTasks[key].promise : undefined;
 					if (!promise) {
-						promise = this.executeTask(task, resolver, trigger);
+						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.DependsOnStarted, task));
+						promise = this.executeTask(dependencyTask, resolver, trigger);
 					}
 					promises.push(promise);
 				} else {
@@ -574,13 +576,16 @@ export class TerminalTaskSystem implements ITaskSystem {
 					let key = task.getMapKey();
 					delete this.activeTasks[key];
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Changed));
-					switch (task.command.presentation!.panel) {
-						case PanelKind.Dedicated:
-							this.sameTaskTerminals[key] = terminal!.id.toString();
-							break;
-						case PanelKind.Shared:
-							this.idleTaskTerminals.set(key, terminal!.id.toString(), Touch.AsOld);
-							break;
+					if (exitCode !== undefined) {
+						// Only keep a reference to the terminal if it is not being disposed.
+						switch (task.command.presentation!.panel) {
+							case PanelKind.Dedicated:
+								this.sameTaskTerminals[key] = terminal!.id.toString();
+								break;
+							case PanelKind.Shared:
+								this.idleTaskTerminals.set(key, terminal!.id.toString(), Touch.AsOld);
+								break;
+						}
 					}
 					let reveal = task.command.presentation!.reveal;
 					if ((reveal === RevealKind.Silent) && ((exitCode !== 0) || (watchingProblemMatcher.numberOfMatches > 0) && watchingProblemMatcher.maxMarkerSeverity &&
@@ -639,13 +644,16 @@ export class TerminalTaskSystem implements ITaskSystem {
 					let key = task.getMapKey();
 					delete this.activeTasks[key];
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Changed));
-					switch (task.command.presentation!.panel) {
-						case PanelKind.Dedicated:
-							this.sameTaskTerminals[key] = terminal!.id.toString();
-							break;
-						case PanelKind.Shared:
-							this.idleTaskTerminals.set(key, terminal!.id.toString(), Touch.AsOld);
-							break;
+					if (exitCode !== undefined) {
+						// Only keep a reference to the terminal if it is not being disposed.
+						switch (task.command.presentation!.panel) {
+							case PanelKind.Dedicated:
+								this.sameTaskTerminals[key] = terminal!.id.toString();
+								break;
+							case PanelKind.Shared:
+								this.idleTaskTerminals.set(key, terminal!.id.toString(), Touch.AsOld);
+								break;
+						}
 					}
 					let reveal = task.command.presentation!.reveal;
 					if (terminal && (reveal === RevealKind.Silent) && ((exitCode !== 0) || (startStopProblemMatcher.numberOfMatches > 0) && startStopProblemMatcher.maxMarkerSeverity &&
@@ -918,6 +926,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 
 		let prefersSameTerminal = presentationOptions.panel === PanelKind.Dedicated;
 		let allowsSharedTerminal = presentationOptions.panel === PanelKind.Shared;
+		let group = presentationOptions.group;
 
 		let taskKey = task.getMapKey();
 		let terminalToReuse: TerminalData | undefined;
@@ -928,7 +937,20 @@ export class TerminalTaskSystem implements ITaskSystem {
 				delete this.sameTaskTerminals[taskKey];
 			}
 		} else if (allowsSharedTerminal) {
-			let terminalId = this.idleTaskTerminals.remove(taskKey) || this.idleTaskTerminals.shift();
+			// Always allow to reuse the terminal previously used by the same task.
+			let terminalId = this.idleTaskTerminals.remove(taskKey);
+			if (!terminalId) {
+				// There is no idle terminal which was used by the same task.
+				// Search for any idle terminal used previously by a task of the same group
+				// (or, if the task has no group, a terminal used by a task without group).
+				for (const taskId of this.idleTaskTerminals.keys()) {
+					const idleTerminalId = this.idleTaskTerminals.get(taskId)!;
+					if (this.terminals[idleTerminalId].group === group) {
+						terminalId = this.idleTaskTerminals.remove(taskId);
+						break;
+					}
+				}
+			}
 			if (terminalId) {
 				terminalToReuse = this.terminals[terminalId];
 			}
@@ -946,7 +968,26 @@ export class TerminalTaskSystem implements ITaskSystem {
 			return [terminalToReuse.terminal, commandExecutable, undefined];
 		}
 
-		const result = this.terminalService.createTerminal(this.currentTask.shellLaunchConfig);
+		let result: ITerminalInstance | null = null;
+		if (group) {
+			// Try to find an existing terminal to split.
+			// Even if an existing terminal is found, the split can fail if the terminal width is too small.
+			for (const terminal of values(this.terminals)) {
+				if (terminal.group === group) {
+					const originalInstance = terminal.terminal;
+					const config = this.currentTask.shellLaunchConfig;
+					result = this.terminalService.splitInstance(originalInstance, config);
+					if (result) {
+						break;
+					}
+				}
+			}
+		}
+		if (!result) {
+			// Either no group is used, no terminal with the group exists or splitting an existing terminal failed.
+			result = this.terminalService.createTerminal(this.currentTask.shellLaunchConfig);
+		}
+
 		const terminalKey = result.id.toString();
 		result.onDisposed((terminal) => {
 			let terminalData = this.terminals[terminalKey];
@@ -961,7 +1002,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 				delete this.activeTasks[task.getMapKey()];
 			}
 		});
-		this.terminals[terminalKey] = { terminal: result, lastTask: taskKey };
+		this.terminals[terminalKey] = { terminal: result, lastTask: taskKey, group };
 		return [result, commandExecutable, undefined];
 	}
 

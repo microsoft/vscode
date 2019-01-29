@@ -81,7 +81,6 @@ export interface ICommonQueryProps<U extends UriComponents> {
 	excludePattern?: glob.IExpression;
 	extraFileResources?: U[];
 
-	useRipgrep?: boolean;
 	maxResults?: number;
 	usingSearchPaths?: boolean;
 }
@@ -232,7 +231,6 @@ export interface ICachedSearchStats {
 }
 
 export interface ISearchEngineStats {
-	traversal: string;
 	fileWalkTime: number;
 	directoriesWalked: number;
 	filesWalked: number;
@@ -317,7 +315,6 @@ export class OneLineRange extends SearchRange {
 export interface ISearchConfigurationProperties {
 	exclude: glob.IExpression;
 	useRipgrep: boolean;
-	useLegacySearch: boolean;
 	/**
 	 * Use ignore file for file search.
 	 */

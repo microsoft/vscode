@@ -21,6 +21,7 @@ import { fuzzyScore, FuzzyScore } from 'vs/base/common/filters';
 import { getVisibleState, isFilterResult } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { localize } from 'vs/nls';
 import { disposableTimeout } from 'vs/base/common/async';
+import { isMacintosh } from 'vs/base/common/platform';
 
 function asTreeDragAndDropData<T, TFilterData>(data: IDragAndDropData): IDragAndDropData {
 	if (data instanceof ElementsDragAndDropData) {
@@ -179,6 +180,8 @@ interface ITreeRendererOptions {
 
 class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITreeNode<T, TFilterData>, ITreeListTemplateData<TTemplateData>> {
 
+	private static DefaultIndent = 8;
+
 	readonly templateId: string;
 	private renderedElements = new Map<T, ITreeNode<T, TFilterData>>();
 	private renderedNodes = new Map<ITreeNode<T, TFilterData>, ITreeListTemplateData<TTemplateData>>();
@@ -201,7 +204,7 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 	}
 
 	updateOptions(options: ITreeRendererOptions = {}): void {
-		this.indent = typeof options.indent === 'number' ? options.indent : 8;
+		this.indent = typeof options.indent === 'number' ? Math.max(options.indent, 0) : TreeRenderer.DefaultIndent;
 
 		this.renderedNodes.forEach((templateData, node) => {
 			templateData.twistie.style.marginLeft = `${node.depth * this.indent}px`;
@@ -221,7 +224,8 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 		this.renderedNodes.set(node, templateData);
 		this.renderedElements.set(node.element, node);
 
-		templateData.twistie.style.marginLeft = `${node.depth * this.indent}px`;
+		const indent = TreeRenderer.DefaultIndent + (node.depth - 1) * this.indent;
+		templateData.twistie.style.marginLeft = `${indent}px`;
 		this.renderTwistie(node, templateData.twistie);
 
 		this.renderer.renderElement(node, index, templateData.templateData);
@@ -275,10 +279,16 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 	}
 }
 
-class TypeFilter<T> implements ITreeFilter<T, FuzzyScore> {
+class TypeFilter<T> implements ITreeFilter<T, FuzzyScore>, IDisposable {
+
+	private _totalCount = 0;
+	get totalCount(): number { return this._totalCount; }
+	private _matchCount = 0;
+	get matchCount(): number { return this._matchCount; }
 
 	private _pattern: string;
 	private _lowercasePattern: string;
+	private disposables: IDisposable[] = [];
 
 	set pattern(pattern: string) {
 		this._pattern = pattern;
@@ -289,7 +299,9 @@ class TypeFilter<T> implements ITreeFilter<T, FuzzyScore> {
 		private tree: AbstractTree<T, any, any>,
 		private keyboardNavigationLabelProvider: IKeyboardNavigationLabelProvider<T>,
 		private _filter?: ITreeFilter<T, FuzzyScore>
-	) { }
+	) {
+		tree.onWillRefilter(this.reset, this, this.disposables);
+	}
 
 	filter(element: T, parentVisibility: TreeVisibility): TreeFilterResult<FuzzyScore> {
 		if (this._filter) {
@@ -314,7 +326,10 @@ class TypeFilter<T> implements ITreeFilter<T, FuzzyScore> {
 			}
 		}
 
+		this._totalCount++;
+
 		if (this.tree.options.simpleKeyboardNavigation || !this._pattern) {
+			this._matchCount++;
 			return { data: FuzzyScore.Default, visibility: true };
 		}
 
@@ -332,7 +347,17 @@ class TypeFilter<T> implements ITreeFilter<T, FuzzyScore> {
 			// return parentVisibility === TreeVisibility.Visible ? true : TreeVisibility.Recurse;
 		}
 
+		this._matchCount++;
 		return { data: score, visibility: true };
+	}
+
+	private reset(): void {
+		this._totalCount = 0;
+		this._matchCount = 0;
+	}
+
+	dispose(): void {
+		this.disposables = dispose(this.disposables);
 	}
 }
 
@@ -356,6 +381,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 
 	constructor(
 		private tree: AbstractTree<T, TFilterData, any>,
+		model: ITreeModel<T, TFilterData, any>,
 		private view: List<ITreeNode<T, TFilterData>>,
 		private filter: TypeFilter<T>,
 		private keyboardNavigationLabelProvider: IKeyboardNavigationLabelProvider<T>
@@ -380,6 +406,8 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		this.clearDomNode.tabIndex = -1;
 		this.clearDomNode.title = localize('clear', "Clear");
 
+		model.onDidSplice(this.onDidSpliceModel, this, this.disposables);
+
 		tree.onDidUpdateOptions(this.onDidUpdateTreeOptions, this, this.disposables);
 		this.onDidUpdateTreeOptions(tree.options);
 	}
@@ -393,7 +421,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 
 		this.filterOnTypeDomNode.checked = !!options.filterOnType;
 		this.tree.refilter();
-		this.updateMessage();
+		this.render();
 	}
 
 	private enable(): void {
@@ -405,14 +433,14 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		const onKeyDown = Event.chain(domEvent(this.view.getHTMLElement(), 'keydown'))
 			.filter(e => !isInputElement(e.target as HTMLElement) || e.target === this.filterOnTypeDomNode)
 			.map(e => new StandardKeyboardEvent(e))
-			.filter(e => e.keyCode === KeyCode.Backspace || e.keyCode === KeyCode.Escape || isPrintableCharEvent(e))
+			.filter(e => isPrintableCharEvent(e) || (this._pattern.length > 0 && ((e.keyCode === KeyCode.Escape || e.keyCode === KeyCode.Backspace) && !e.altKey && !e.ctrlKey && !e.metaKey) || (e.keyCode === KeyCode.Backspace && (isMacintosh ? e.altKey : e.ctrlKey))))
 			.forEach(e => { e.stopPropagation(); e.preventDefault(); })
 			.event;
 
 		const onClear = domEvent(this.clearDomNode, 'click');
 		const onInput = Event.chain(Event.any<MouseEvent | StandardKeyboardEvent>(onKeyDown, onClear))
 			.reduce((previous: string, e) => {
-				if (e instanceof MouseEvent || e.keyCode === KeyCode.Escape) {
+				if (e instanceof MouseEvent || e.keyCode === KeyCode.Escape || (e.keyCode === KeyCode.Backspace && (isMacintosh ? e.altKey : e.ctrlKey))) {
 					return '';
 				}
 
@@ -427,7 +455,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		onInput(this.onInput, this, this.enabledDisposables);
 		this.filter.pattern = '';
 		this.tree.refilter();
-		this.updateMessage();
+		this.render();
 		this.enabled = true;
 	}
 
@@ -439,7 +467,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		this.domNode.remove();
 		this.enabledDisposables = dispose(this.enabledDisposables);
 		this.tree.refilter();
-		this.updateMessage();
+		this.render();
 		this.enabled = false;
 	}
 
@@ -453,16 +481,11 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 			this.tree.domFocus();
 		}
 
-		this.labelDomNode.textContent = pattern.length > 16
-			? '…' + pattern.substr(pattern.length - 16)
-			: pattern;
-
 		this._pattern = pattern;
 		this.filter.pattern = pattern;
 		this.tree.refilter();
 		this.tree.focusNext(0, true);
-
-		this.updateMessage();
+		this.render();
 	}
 
 	private onDragStart(): void {
@@ -489,6 +512,9 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 
 		const onDragOver = (event: DragEvent) => {
 			const x = event.screenX - left;
+			if (event.dataTransfer) {
+				event.dataTransfer.dropEffect = 'none';
+			}
 
 			if (x < midContainerWidth) {
 				positionClassName = 'nw';
@@ -521,11 +547,20 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		disposables.push(toDisposable(() => StaticDND.CurrentDragAndDropData = undefined));
 	}
 
+	private onDidSpliceModel(): void {
+		if (!this.enabled || this.pattern.length === 0) {
+			return;
+		}
+
+		this.tree.refilter();
+		this.render();
+	}
+
 	private onDidChangeFilterOnType(): void {
 		this.tree.updateOptions({ filterOnType: this.filterOnTypeDomNode.checked });
 		this.tree.refilter();
 		this.tree.domFocus();
-		this.updateMessage();
+		this.render();
 		this.updateFilterOnTypeTitle();
 	}
 
@@ -537,12 +572,18 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		}
 	}
 
-	private updateMessage(): void {
-		if (this.pattern && this.view.length === 0) {
+	private render(): void {
+		const noMatches = this.filter.totalCount > 0 && this.filter.matchCount === 0;
+
+		if (this.pattern && this.tree.options.filterOnType && noMatches) {
 			this.messageDomNode.textContent = localize('empty', "No elements found");
 		} else {
 			this.messageDomNode.innerHTML = '';
 		}
+
+		toggleClass(this.domNode, 'no-matches', noMatches);
+		this.domNode.title = localize('found', "Matched {0} out of {1} elements", this.filter.matchCount, this.filter.totalCount);
+		this.labelDomNode.textContent = this.pattern.length > 16 ? '…' + this.pattern.substr(this.pattern.length - 16) : this.pattern;
 	}
 
 	dispose() {
@@ -600,6 +641,8 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	private _onDidUpdateOptions = new Emitter<IAbstractTreeOptions<T, TFilterData>>();
 	readonly onDidUpdateOptions = this._onDidUpdateOptions.event;
 
+	get onDidScroll(): Event<void> { return this.view.onDidScroll; }
+
 	get onDidChangeFocus(): Event<ITreeEvent<T>> { return Event.map(this.view.onFocusChange, asTreeEvent); }
 	get onDidChangeSelection(): Event<ITreeEvent<T>> { return Event.map(this.view.onSelectionChange, asTreeEvent); }
 	get onDidOpen(): Event<ITreeEvent<T>> { return Event.map(this.view.onDidOpen, asTreeEvent); }
@@ -618,6 +661,9 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	get onDidChangeCollapseState(): Event<ICollapseStateChangeEvent<T, TFilterData>> { return this.model.onDidChangeCollapseState; }
 	get onDidChangeRenderNodeCount(): Event<ITreeNode<T, TFilterData>> { return this.model.onDidChangeRenderNodeCount; }
 
+	private _onWillRefilter = new Emitter<void>();
+	readonly onWillRefilter: Event<void> = this._onWillRefilter.event;
+
 	get onDidDispose(): Event<void> { return this.view.onDidDispose; }
 
 	constructor(
@@ -632,11 +678,12 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		this.renderers = renderers.map(r => new TreeRenderer<T, TFilterData, any>(r, onDidChangeCollapseStateRelay.event, _options));
 		this.disposables.push(...this.renderers);
 
-		let filter: ITreeFilter<T, TFilterData> | undefined;
+		let filter: TypeFilter<T> | undefined;
 
 		if (_options.keyboardNavigationLabelProvider) {
-			filter = new TypeFilter(this, _options.keyboardNavigationLabelProvider, _options.filter as ITreeFilter<T, FuzzyScore>) as ITreeFilter<T, TFilterData>; // TODO need typescript help here
-			_options = { ..._options, filter };
+			filter = new TypeFilter(this, _options.keyboardNavigationLabelProvider, _options.filter as ITreeFilter<T, FuzzyScore>);
+			_options = { ..._options, filter: filter as ITreeFilter<T, TFilterData> }; // TODO need typescript help here
+			this.disposables.push(filter);
 		}
 
 		this.view = new List(container, treeDelegate, this.renderers, asListOptions(() => this.model, _options));
@@ -657,8 +704,18 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		}
 
 		if (_options.keyboardNavigationLabelProvider) {
-			const typeFilterController = new TypeFilterController(this, this.view, filter as TypeFilter<T>, _options.keyboardNavigationLabelProvider);
-			this.focusNavigationFilter = node => !typeFilterController.pattern || !FuzzyScore.isDefault(node.filterData as any as FuzzyScore); // TODO@joao
+			const typeFilterController = new TypeFilterController(this, this.model, this.view, filter!, _options.keyboardNavigationLabelProvider);
+			this.focusNavigationFilter = node => {
+				if (!typeFilterController.pattern) {
+					return true;
+				}
+
+				if (filter!.totalCount > 0 && filter!.matchCount === 0) {
+					return true;
+				}
+
+				return !FuzzyScore.isDefault(node.filterData as any as FuzzyScore);
+			};
 			this.disposables.push(typeFilterController);
 		}
 	}
@@ -676,6 +733,16 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 	get options(): IAbstractTreeOptions<T, TFilterData> {
 		return this._options;
+	}
+
+	updateWidth(element: TRef): void {
+		const index = this.model.getListIndex(element);
+
+		if (index === -1) {
+			return;
+		}
+
+		this.view.updateWidth(index);
 	}
 
 	// Widget
@@ -716,12 +783,8 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		return this.getHTMLElement() === document.activeElement;
 	}
 
-	layout(height?: number): void {
-		this.view.layout(height);
-	}
-
-	layoutWidth(width: number): void {
-		this.view.layoutWidth(width);
+	layout(height?: number, width?: number): void {
+		this.view.layout(height, width);
 	}
 
 	style(styles: IListStyles): void {
@@ -773,6 +836,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	}
 
 	refilter(): void {
+		this._onWillRefilter.fire(undefined);
 		this.model.refilter();
 	}
 

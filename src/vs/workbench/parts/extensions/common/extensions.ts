@@ -60,7 +60,6 @@ export interface IExtension {
 	getChangelog(token: CancellationToken): Promise<string>;
 	hasChangelog(): boolean;
 	local?: ILocalExtension;
-	locals?: ILocalExtension[];
 	gallery?: IGalleryExtension;
 	isMalicious: boolean;
 }

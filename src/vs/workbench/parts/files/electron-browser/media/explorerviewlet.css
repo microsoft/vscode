@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 /* Activity Bar */
-.monaco-workbench > .activitybar .monaco-action-bar .action-label.explore {
+.monaco-workbench .activitybar .monaco-action-bar .action-label.explore {
 	-webkit-mask: url('files-dark.svg') no-repeat 50% 50%;
 }
 

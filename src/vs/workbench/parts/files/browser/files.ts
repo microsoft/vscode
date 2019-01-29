@@ -27,8 +27,11 @@ export function getResourceForCommand(resource: URI | object, listService: IList
 			if (focused.length) {
 				focus = focused[0];
 			}
-		} else {
-			focus = list.getFocus();
+		} else if (list instanceof WorkbenchAsyncDataTree) {
+			const focused = list.getFocus();
+			if (focused.length) {
+				focus = focused[0];
+			}
 		}
 
 		if (focus instanceof ExplorerItem) {
@@ -47,7 +50,8 @@ export function getMultiSelectedResources(resource: URI | object, listService: I
 		// Explorer
 		if (list instanceof WorkbenchAsyncDataTree) {
 			const selection = list.getSelection().map((fs: ExplorerItem) => fs.resource);
-			const focus = list.getFocus();
+			const focusedElements = list.getFocus();
+			const focus = focusedElements.length ? focusedElements[0] : undefined;
 			const mainUriStr = URI.isUri(resource) ? resource.toString() : focus instanceof ExplorerItem ? focus.resource.toString() : undefined;
 			// If the resource is passed it has to be a part of the returned context.
 			// We only respect the selection if it contains the focused element.

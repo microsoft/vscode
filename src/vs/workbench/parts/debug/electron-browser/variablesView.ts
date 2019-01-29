@@ -117,8 +117,12 @@ export class VariablesView extends ViewletPanel {
 		}));
 	}
 
-	layoutBody(size: number): void {
-		this.tree.layout(size);
+	layoutBody(width: number, height: number): void {
+		this.tree.layout(width, height);
+	}
+
+	focus(): void {
+		this.tree.domFocus();
 	}
 
 	private onMouseDblClick(e: ITreeMouseEvent<IExpression | IScope>): void {

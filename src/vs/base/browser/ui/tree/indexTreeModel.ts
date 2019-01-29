@@ -61,6 +61,9 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 	private filter?: ITreeFilter<T, TFilterData>;
 	private autoExpandSingleChildren: boolean;
 
+	private _onDidSplice = new Emitter<void>();
+	readonly onDidSplice = this._onDidSplice.event;
+
 	constructor(private list: ISpliceable<ITreeNode<T, TFilterData>>, rootElement: T, options: IIndexTreeModelOptions<T, TFilterData> = {}) {
 		this.collapseByDefault = typeof options.collapseByDefault === 'undefined' ? false : options.collapseByDefault;
 		this.filter = options.filter;
@@ -123,7 +126,9 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 			deletedNodes.forEach(visit);
 		}
 
-		return Iterator.map(Iterator.fromArray(deletedNodes), treeNodeToElement);
+		const result = Iterator.map(Iterator.fromArray(deletedNodes), treeNodeToElement);
+		this._onDidSplice.fire(undefined);
+		return result;
 	}
 
 	refresh(location: number[]): void {
@@ -139,7 +144,8 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 	}
 
 	getListIndex(location: number[]): number {
-		return this.getTreeNodeWithListIndex(location).listIndex;
+		const { listIndex, visible } = this.getTreeNodeWithListIndex(location);
+		return visible ? listIndex : -1;
 	}
 
 	getListRenderCount(location: number[]): number {
@@ -418,12 +424,12 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 	}
 
 	// expensive
-	private getTreeNodeWithListIndex(location: number[]): { node: IMutableTreeNode<T, TFilterData>, listIndex: number, revealed: boolean } {
+	private getTreeNodeWithListIndex(location: number[]): { node: IMutableTreeNode<T, TFilterData>, listIndex: number, revealed: boolean, visible: boolean } {
 		if (location.length === 0) {
-			return { node: this.root, listIndex: -1, revealed: true };
+			return { node: this.root, listIndex: -1, revealed: true, visible: false };
 		}
 
-		const { parentNode, listIndex, revealed } = this.getParentNodeWithListIndex(location);
+		const { parentNode, listIndex, revealed, visible } = this.getParentNodeWithListIndex(location);
 		const index = location[location.length - 1];
 
 		if (index < 0 || index > parentNode.children.length) {
@@ -432,10 +438,10 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 
 		const node = parentNode.children[index];
 
-		return { node, listIndex, revealed };
+		return { node, listIndex, revealed, visible: visible && node.visible };
 	}
 
-	private getParentNodeWithListIndex(location: number[], node: IMutableTreeNode<T, TFilterData> = this.root, listIndex: number = 0, revealed = true): { parentNode: IMutableTreeNode<T, TFilterData>; listIndex: number; revealed: boolean; } {
+	private getParentNodeWithListIndex(location: number[], node: IMutableTreeNode<T, TFilterData> = this.root, listIndex: number = 0, revealed = true, visible = true): { parentNode: IMutableTreeNode<T, TFilterData>; listIndex: number; revealed: boolean; visible: boolean; } {
 		const [index, ...rest] = location;
 
 		if (index < 0 || index > node.children.length) {
@@ -448,12 +454,13 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		}
 
 		revealed = revealed && !node.collapsed;
+		visible = visible && node.visible;
 
 		if (rest.length === 0) {
-			return { parentNode: node, listIndex, revealed };
+			return { parentNode: node, listIndex, revealed, visible };
 		}
 
-		return this.getParentNodeWithListIndex(rest, node.children[index], listIndex + 1, revealed);
+		return this.getParentNodeWithListIndex(rest, node.children[index], listIndex + 1, revealed, visible);
 	}
 
 	getNode(location: number[] = []): ITreeNode<T, TFilterData> {

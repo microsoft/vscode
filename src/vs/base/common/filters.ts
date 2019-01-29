@@ -378,16 +378,13 @@ export function createMatches(score: undefined | FuzzyScore): IMatch[] {
 		return [];
 	}
 
-	const [, matches, wordStart] = score;
+	const matches = score[1].toString(2);
+	const wordStart = score[2];
 	const res: IMatch[] = [];
 
-	for (let pos = wordStart; pos < _masks.length; pos++) {
-		const mask = _masks[pos];
-		if (mask > matches) {
-			break;
-		} else if (matches & mask) {
+	for (let pos = wordStart; pos < _maxLen; pos++) {
+		if (matches[matches.length - (pos + 1)] === '1') {
 			const last = res[res.length - 1];
-
 			if (last && last.end === pos) {
 				last.end = pos + 1;
 			} else {
@@ -399,14 +396,6 @@ export function createMatches(score: undefined | FuzzyScore): IMatch[] {
 }
 
 const _maxLen = 53;
-
-const _masks = (function () {
-	const result: number[] = [];
-	for (let pos = 0; pos < _maxLen; pos++) {
-		result.push(2 ** pos);
-	}
-	return result;
-}());
 
 function initTable() {
 	const table: number[][] = [];

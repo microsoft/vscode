@@ -140,7 +140,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 	@memoize
 	private get longDescription(): string {
-		return this.labelService.getUriLabel(resources.dirname(this.resource), { relative: true });
+		return this.labelService.getUriLabel(resources.dirname(this.resource));
 	}
 
 	getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string {

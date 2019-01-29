@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench > .part.statusbar > .statusbar-item.progress {
+.monaco-workbench .part.statusbar > .statusbar-item.progress {
 	padding-left: 5px;
 }
 
-.monaco-workbench > .part.statusbar > .statusbar-item.progress .spinner-container {
+.monaco-workbench .part.statusbar > .statusbar-item.progress .spinner-container {
 	padding-right: 5px;
 }
 

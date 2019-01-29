@@ -135,6 +135,10 @@ export class Match {
 		return thisMatchPreviewLines.join('\n');
 	}
 
+	fullPreviewLines(): string[] {
+		return this._fullPreviewLines.slice(this._fullPreviewRange.startLineNumber, this._fullPreviewRange.endLineNumber + 1);
+	}
+
 	getMatchString(): string {
 		return this._oneLinePreviewText.substring(this._rangeInPreviewText.startColumn - 1, this._rangeInPreviewText.endColumn - 1);
 	}
@@ -960,7 +964,6 @@ export class SearchModel extends Disposable {
 				"fileCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"options": { "${inline}": [ "${IPatternInfo}" ] },
 				"duration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-				"useRipgrep": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"type" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 				"scheme" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 			}
@@ -970,7 +973,6 @@ export class SearchModel extends Disposable {
 			fileCount: this._searchResult.fileCount(),
 			options,
 			duration,
-			useRipgrep: this._searchQuery.useRipgrep,
 			type: stats && stats.type,
 			scheme
 		});

@@ -16,7 +16,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent, IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Event, Emitter, EventBufferer } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
-import { IListVirtualDelegate, IListRenderer, IListEvent, IListContextMenuEvent, IListMouseEvent, IListTouchEvent, IListGestureEvent, IIdentityProvider, IKeyboardNavigationLabelProvider, IListDragAndDrop, IListDragOverReaction } from './list';
+import { IListVirtualDelegate, IListRenderer, IListEvent, IListContextMenuEvent, IListMouseEvent, IListTouchEvent, IListGestureEvent, IIdentityProvider, IKeyboardNavigationLabelProvider, IListDragAndDrop, IListDragOverReaction, ListAriaRootRole } from './list';
 import { ListView, IListViewOptions, IListViewDragAndDrop } from './listView';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
@@ -723,11 +723,11 @@ export class DefaultStyleController implements IStyleController {
 		}
 
 		if (styles.listHoverBackground) {
-			content.push(`.monaco-list${suffix}:not(.drop-target) .monaco-list-row:hover { background-color:  ${styles.listHoverBackground}; }`);
+			content.push(`.monaco-list${suffix}:not(.drop-target) .monaco-list-row:hover:not(.selected):not(.focused) { background-color:  ${styles.listHoverBackground}; }`);
 		}
 
 		if (styles.listHoverForeground) {
-			content.push(`.monaco-list${suffix} .monaco-list-row:hover { color:  ${styles.listHoverForeground}; }`);
+			content.push(`.monaco-list${suffix} .monaco-list-row:hover:not(.selected):not(.focused) { color:  ${styles.listHoverForeground}; }`);
 		}
 
 		if (styles.listSelectionOutline) {
@@ -764,6 +764,10 @@ export class DefaultStyleController implements IStyleController {
 			content.push(`.monaco-list-type-filter { border: 1px solid ${styles.listMatchesOutline}; }`);
 		}
 
+		if (styles.listNoMatchesOutline) {
+			content.push(`.monaco-list-type-filter.no-matches { border: 1px solid ${styles.listNoMatchesOutline}; }`);
+		}
+
 		if (styles.listMatchesShadow) {
 			content.push(`.monaco-list-type-filter { box-shadow: 1px 1px 1px ${styles.listMatchesShadow}; }`);
 		}
@@ -780,6 +784,7 @@ export interface IListOptions<T> extends IListStyles {
 	readonly dnd?: IListDragAndDrop<T>;
 	readonly enableKeyboardNavigation?: boolean;
 	readonly keyboardNavigationLabelProvider?: IKeyboardNavigationLabelProvider<T>;
+	readonly ariaRole?: ListAriaRootRole;
 	readonly ariaLabel?: string;
 	readonly keyboardSupport?: boolean;
 	readonly multipleSelectionSupport?: boolean;
@@ -794,6 +799,7 @@ export interface IListOptions<T> extends IListStyles {
 	readonly setRowLineHeight?: boolean;
 	readonly supportDynamicHeights?: boolean;
 	readonly mouseSupport?: boolean;
+	readonly horizontalScrolling?: boolean;
 }
 
 export interface IListStyles {
@@ -815,6 +821,7 @@ export interface IListStyles {
 	listHoverOutline?: Color;
 	listMatchesBackground?: Color;
 	listMatchesOutline?: Color;
+	listNoMatchesOutline?: Color;
 	listMatchesShadow?: Color;
 }
 
@@ -838,7 +845,8 @@ const DefaultOptions = {
 		onDragStart(): void { },
 		onDragOver() { return false; },
 		drop() { }
-	}
+	},
+	ariaRootRole: ListAriaRootRole.TREE
 };
 
 // TODO@Joao: move these utils into a SortedArray class
@@ -1074,6 +1082,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		return Event.map(this._onPin.event, indexes => this.toListEvent({ indexes }));
 	}
 
+	get onDidScroll(): Event<void> { return this.view.onDidScroll; }
 	get onMouseClick(): Event<IListMouseEvent<T>> { return this.view.onMouseClick; }
 	get onMouseDblClick(): Event<IListMouseEvent<T>> { return this.view.onMouseDblClick; }
 	get onMouseMiddleClick(): Event<IListMouseEvent<T>> { return this.view.onMouseMiddleClick; }
@@ -1158,7 +1167,13 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		};
 
 		this.view = new ListView(container, virtualDelegate, renderers, viewOptions);
-		this.view.domNode.setAttribute('role', 'tree');
+
+		if (typeof _options.ariaRole !== 'string') {
+			this.view.domNode.setAttribute('role', ListAriaRootRole.TREE);
+		} else {
+			this.view.domNode.setAttribute('role', _options.ariaRole);
+		}
+
 		DOM.addClass(this.view.domNode, this.idPrefix);
 		this.view.domNode.tabIndex = 0;
 
@@ -1228,6 +1243,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		this.eventBufferer.bufferEvents(() => this.spliceable.splice(start, deleteCount, elements));
 	}
 
+	updateWidth(index: number): void {
+		this.view.updateWidth(index);
+	}
+
 	element(index: number): T {
 		return this.view.element(index);
 	}
@@ -1264,12 +1283,8 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		this.view.domNode.focus();
 	}
 
-	layout(height?: number): void {
-		this.view.layout(height);
-	}
-
-	layoutWidth(width: number): void {
-		this.view.layoutWidth(width);
+	layout(height?: number, width?: number): void {
+		this.view.layout(height, width);
 	}
 
 	setSelection(indexes: number[], browserEvent?: UIEvent): void {

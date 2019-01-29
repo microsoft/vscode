@@ -106,7 +106,10 @@ function onReady() {
 				process.env['VSCODE_NODE_CACHED_DATA_DIR'] = cachedDataDir || '';
 
 				// Load main in AMD
-				require('./bootstrap-amd').load('vs/code/electron-main/main');
+				perf.mark('willLoadMainBundle');
+				require('./bootstrap-amd').load('vs/code/electron-main/main', () => {
+					perf.mark('didLoadMainBundle');
+				});
 			};
 
 			// We recevied a valid nlsConfig from a user defined locale
@@ -148,7 +151,6 @@ function onReady() {
 function configureCommandlineSwitches(cliArgs, nodeCachedDataDir) {
 
 	// Force pre-Chrome-60 color profile handling (for https://github.com/Microsoft/vscode/issues/51791)
-	// TODO@Ben check if future versions of Electron still support this flag
 	app.commandLine.appendSwitch('disable-features', 'ColorCorrectRendering');
 
 	// Support JS Flags

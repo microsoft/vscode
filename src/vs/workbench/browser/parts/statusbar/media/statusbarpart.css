@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench > .part.statusbar {
+.monaco-workbench .part.statusbar {
 	box-sizing: border-box;
 	cursor: default;
 	width: 100%;
@@ -11,18 +11,18 @@
 	font-size: 12px;
 }
 
-.monaco-workbench > .part.statusbar > .statusbar-item {
+.monaco-workbench  .part.statusbar > .statusbar-item {
 	display: inline-block;
 	line-height: 22px;
 	height: 100%;
 	vertical-align: top;
 }
 
-.monaco-workbench > .part.statusbar > .statusbar-item.has-beak {
+.monaco-workbench .part.statusbar > .statusbar-item.has-beak {
 	position: relative;
 }
 
-.monaco-workbench > .part.statusbar > .statusbar-item.has-beak:before {
+.monaco-workbench .part.statusbar > .statusbar-item.has-beak:before {
 	content: '';
 	position: absolute;
 	left: 11px;
@@ -33,48 +33,48 @@
 	border-right: 5px solid transparent;
 }
 
-.monaco-workbench > .part.statusbar > .statusbar-item.left > :first-child {
+.monaco-workbench .part.statusbar > .statusbar-item.left > :first-child {
 	margin-right: 5px;
 }
 
-.monaco-workbench > .part.statusbar > .statusbar-item.right {
+.monaco-workbench .part.statusbar > .statusbar-item.right {
 	float: right;
 }
 
-.monaco-workbench > .part.statusbar > .statusbar-item.right > :first-child {
+.monaco-workbench .part.statusbar > .statusbar-item.right > :first-child {
 	margin-left: 5px;
 }
 
 /* adding padding to the most left status bar item */
-.monaco-workbench > .part.statusbar > .statusbar-item.left:first-child, .monaco-workbench > .part.statusbar > .statusbar-item.right + .statusbar-item.left {
+.monaco-workbench .part.statusbar > .statusbar-item.left:first-child, .monaco-workbench .part.statusbar > .statusbar-item.right + .statusbar-item.left {
 	padding-left: 10px;
 }
 /* adding padding to the most right status bar item */
-.monaco-workbench > .part.statusbar > .statusbar-item.right:first-child {
+.monaco-workbench .part.statusbar > .statusbar-item.right:first-child {
 	padding-right: 10px;
 }
 
-.monaco-workbench > .part.statusbar > .statusbar-item a {
+.monaco-workbench .part.statusbar > .statusbar-item a {
 	cursor: pointer;
 	display: inline-block;
 	height: 100%;
 }
 
-.monaco-workbench > .part.statusbar > .statusbar-entry > span {
+.monaco-workbench .part.statusbar > .statusbar-entry > span {
 	height: 100%;
 }
 
-.monaco-workbench > .part.statusbar > .statusbar-entry > span,
-.monaco-workbench > .part.statusbar > .statusbar-entry > a {
+.monaco-workbench .part.statusbar > .statusbar-entry > span,
+.monaco-workbench .part.statusbar > .statusbar-entry > a {
 	padding: 0 5px 0 5px;
 	white-space: pre; /* gives some degree of styling */
 }
 
-.monaco-workbench > .part.statusbar > .statusbar-entry span.octicon {
+.monaco-workbench .part.statusbar > .statusbar-entry span.octicon {
 	text-align: center;
 	font-size: 14px;
 }
 
-.monaco-workbench > .part.statusbar > .statusbar-item a:hover {
+.monaco-workbench .part.statusbar > .statusbar-item a:hover {
 	text-decoration: none;
 }

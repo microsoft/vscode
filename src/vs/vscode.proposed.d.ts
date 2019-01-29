@@ -16,25 +16,6 @@
 
 declare module 'vscode' {
 
-	//#region Joh - vscode.open
-
-	export namespace env {
-
-		/**
-		 * Opens an *external* item, e.g. a http(s) or mailto-link, using the
-		 * default application.
-		 *
-		 * *Note* that [`showTextDocument`](#window.showTextDocument) is the right
-		 * way to open a text document inside the editor, not this function.
-		 *
-		 * @param target The uri that should be opened.
-		 * @returns A promise indicating if open was successful.
-		 */
-		export function open(target: Uri): Thenable<boolean>;
-	}
-
-	//#endregion
-
 	//#region Joh - selection range provider
 
 	export class SelectionRangeKind {
@@ -45,7 +26,7 @@ declare module 'vscode' {
 		static readonly Empty: SelectionRangeKind;
 
 		/**
-		 * The statment kind, its value is `statement`, possible extensions can be
+		 * The statement kind, its value is `statement`, possible extensions can be
 		 * `statement.if` etc
 		 */
 		static readonly Statement: SelectionRangeKind;
@@ -86,7 +67,7 @@ declare module 'vscode' {
 	//#region Joh - read/write in chunks
 
 	export interface FileSystemProvider {
-		open?(resource: Uri): number | Thenable<number>;
+		open?(resource: Uri, options: { create: boolean }): number | Thenable<number>;
 		close?(fd: number): void | Thenable<void>;
 		read?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): number | Thenable<number>;
 		write?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): number | Thenable<number>;
@@ -812,6 +793,7 @@ declare module 'vscode' {
 		command?: Command;
 
 		isDraft?: boolean;
+		commentReactions?: CommentReaction[];
 	}
 
 	export interface CommentThreadChangedEvent {
@@ -834,6 +816,11 @@ declare module 'vscode' {
 		 * Changed draft mode
 		 */
 		readonly inDraftMode: boolean;
+	}
+
+	interface CommentReaction {
+		readonly label?: string;
+		readonly hasReacted?: boolean;
 	}
 
 	interface DocumentCommentProvider {
@@ -869,6 +856,10 @@ declare module 'vscode' {
 		startDraftLabel?: string;
 		deleteDraftLabel?: string;
 		finishDraftLabel?: string;
+
+		addReaction?(document: TextDocument, comment: Comment, reaction: CommentReaction): Promise<void>;
+		deleteReaction?(document: TextDocument, comment: Comment, reaction: CommentReaction): Promise<void>;
+		reactionGroup?: CommentReaction[];
 
 		/**
 		 * Notify of updates to comment threads.
@@ -1004,7 +995,7 @@ declare module 'vscode' {
 		 * ```typescript
 		 * const terminalRenderer = window.createTerminalRenderer('test');
 		 * terminalRenderer.onDidAcceptInput(data => {
-		 *   cosole.log(data); // 'Hello world'
+		 *   console.log(data); // 'Hello world'
 		 * });
 		 * terminalRenderer.terminal.then(t => t.sendText('Hello world'));
 		 * ```
@@ -1064,6 +1055,15 @@ declare module 'vscode' {
 	}
 	//#endregion
 
+	//#region Alex - extensions.all change event
+	export namespace extensions {
+		/**
+		 * An event which fires when `extensions.all` changes.
+		 */
+		export const onDidChange: Event<void>;
+	}
+	//#endregion
+
 	//#region Tree View
 
 	export interface TreeView<T> {
@@ -1112,7 +1112,8 @@ declare module 'vscode' {
 		/**
 		 * The currently active [`SignatureHelp`](#SignatureHelp).
 		 *
-		 * Will have the [`SignatureHelp.activeSignature`] field updated based on user arrowing through sig help
+		 * The `activeSignatureHelp` has its [`SignatureHelp.activeSignature`] field updated based on
+		 * the user arrowing through available signatures.
 		 */
 		readonly activeSignatureHelp?: SignatureHelp;
 	}
@@ -1197,7 +1198,7 @@ declare module 'vscode' {
 	//#region CodeAction.isPreferred - mjbvz
 	export interface CodeAction {
 		/**
-		 * If the action is a preferred action or fix to take.
+		 * Marks this as a preferred action. Preferred actions are used by the `auto fix` command.
 		 *
 		 * A quick fix should be marked preferred if it properly addresses the underlying error.
 		 * A refactoring should be marked preferred if it is the most reasonable choice of actions to take.
@@ -1206,13 +1207,21 @@ declare module 'vscode' {
 	}
 	//#endregion
 
+	//#region Tasks
+	export interface TaskPresentationOptions {
+		/**
+		 * Controls whether the task is executed in a specific terminal group using split panes.
+		 */
+		group?: string;
+	}
+	//#endregion
 
 	//#region Autofix - mjbvz
 	export namespace CodeActionKind {
 		/**
-		 * Base kind for an auto fix source action: `source.fixAll`.
+		 * Base kind for auto-fix source actions: `source.fixAll`.
 		 *
-		 * Fix all actions automatically fix errors in the code that have a clear fix that does not require user input.
+		 * Fix all actions automatically fix errors that have a clear fix that do not require user input.
 		 * They should not suppress errors or perform unsafe fixes such as generating new types or classes.
 		 */
 		export const SourceFixAll: CodeActionKind;

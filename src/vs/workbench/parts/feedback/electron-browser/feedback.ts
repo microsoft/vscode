@@ -429,12 +429,12 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	// Sentiment Buttons
 	const inputActiveOptionBorderColor = theme.getColor(inputActiveOptionBorder);
 	if (inputActiveOptionBorderColor) {
-		collector.addRule(`.monaco-shell .feedback-form .sentiment.checked { border: 1px solid ${inputActiveOptionBorderColor}; }`);
+		collector.addRule(`.monaco-workbench .feedback-form .sentiment.checked { border: 1px solid ${inputActiveOptionBorderColor}; }`);
 	}
 
 	// Links
 	const linkColor = theme.getColor(buttonBackground) || theme.getColor(contrastBorder);
 	if (linkColor) {
-		collector.addRule(`.monaco-shell .feedback-form .content .channels a { color: ${linkColor}; }`);
+		collector.addRule(`.monaco-workbench .feedback-form .content .channels a { color: ${linkColor}; }`);
 	}
 });

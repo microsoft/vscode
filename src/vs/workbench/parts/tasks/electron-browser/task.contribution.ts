@@ -2665,7 +2665,7 @@ let schema: IJSONSchema = {
 };
 
 import schemaVersion1 from './jsonSchema_v1';
-import schemaVersion2 from './jsonSchema_v2';
+import schemaVersion2, { updateProblemMatchers } from './jsonSchema_v2';
 schema.definitions = {
 	...schemaVersion1.definitions,
 	...schemaVersion2.definitions,
@@ -2674,3 +2674,8 @@ schema.oneOf = [...schemaVersion2.oneOf, ...schemaVersion1.oneOf];
 
 let jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>Registry.as(jsonContributionRegistry.Extensions.JSONContribution);
 jsonRegistry.registerSchema(schemaId, schema);
+
+ProblemMatcherRegistry.onMatcherChanged(() => {
+	updateProblemMatchers();
+	jsonRegistry.notifySchemaChanged(schemaId);
+});

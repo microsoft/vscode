@@ -134,9 +134,9 @@ export class BreakpointsView extends ViewletPanel {
 		}
 	}
 
-	protected layoutBody(size: number): void {
+	protected layoutBody(height: number, width: number): void {
 		if (this.list) {
-			this.list.layout(size);
+			this.list.layout(height, width);
 		}
 	}
 

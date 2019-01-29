@@ -74,8 +74,8 @@ export function formatDocumentRange(telemetryService: ITelemetryService, workerS
 	if (provider.length !== 1) {
 		/* __GDPR__
 			"manyformatters" : {
-				"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				"language" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"language" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 			}
 		 */
@@ -143,8 +143,8 @@ export function formatDocument(telemetryService: ITelemetryService, workerServic
 	if (provider.length !== 1) {
 		/* __GDPR__
 			"manyformatters" : {
-				"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				"language" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"language" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 			}
 		 */

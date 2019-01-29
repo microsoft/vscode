@@ -298,6 +298,11 @@ export const STATUS_BAR_PROMINENT_ITEM_HOVER_BACKGROUND = registerColor('statusB
 	hc: '#369432'
 }, nls.localize('statusBarProminentItemHoverBackground', "Status bar prominent items background color when hovering. Prominent items stand out from other status bar entries to indicate importance. Change mode `Toggle Tab Key Moves Focus` from command palette to see an example. The status bar is shown in the bottom of the window."));
 
+export const STATUS_BAR_HOST_NAME_BACKGROUND = registerColor('statusBarItem.hostBackground', {
+	dark: STATUS_BAR_PROMINENT_ITEM_BACKGROUND,
+	light: STATUS_BAR_PROMINENT_ITEM_BACKGROUND,
+	hc: STATUS_BAR_PROMINENT_ITEM_BACKGROUND
+}, nls.localize('statusBarItemHostBackground', "Background color for the remote host name on the status bar."));
 
 
 // < --- Activity Bar --- >

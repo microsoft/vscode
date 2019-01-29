@@ -724,6 +724,7 @@ function convertValidationType(type: InputValidationType): MessageType {
 export class RepositoryPanel extends ViewletPanel {
 
 	private cachedHeight: number | undefined = undefined;
+	private cachedWidth: number | undefined = undefined;
 	private inputBoxContainer: HTMLElement;
 	private inputBox: InputBox;
 	private listContainer: HTMLElement;
@@ -910,7 +911,7 @@ export class RepositoryPanel extends ViewletPanel {
 		}
 	}
 
-	layoutBody(height: number = this.cachedHeight): void {
+	layoutBody(height: number = this.cachedHeight, width: number = this.cachedWidth): void {
 		if (height === undefined) {
 			return;
 		}
@@ -924,7 +925,7 @@ export class RepositoryPanel extends ViewletPanel {
 			const editorHeight = this.inputBox.height;
 			const listHeight = height - (editorHeight + 12 /* margin */);
 			this.listContainer.style.height = `${listHeight}px`;
-			this.list.layout(listHeight);
+			this.list.layout(listHeight, width);
 
 			toggleClass(this.inputBoxContainer, 'scroll', editorHeight >= 134);
 		} else {
@@ -932,7 +933,7 @@ export class RepositoryPanel extends ViewletPanel {
 			removeClass(this.inputBoxContainer, 'scroll');
 
 			this.listContainer.style.height = `${height}px`;
-			this.list.layout(height);
+			this.list.layout(height, width);
 		}
 	}
 

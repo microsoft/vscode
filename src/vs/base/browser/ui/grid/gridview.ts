@@ -24,7 +24,7 @@ export interface IView {
 	readonly onDidChange: Event<{ width: number; height: number; } | undefined>;
 	readonly priority?: LayoutPriority;
 	readonly snapSize?: number;
-	layout(width: number, height: number): void;
+	layout(width: number, height: number, orientation: Orientation): void;
 }
 
 export function orthogonal(orientation: Orientation): Orientation {
@@ -147,7 +147,7 @@ class BranchNode implements ISplitView, IDisposable {
 		this._orthogonalSize = orthogonalSize;
 
 		this.element = $('.monaco-grid-branch-node');
-		this.splitview = new SplitView(this.element, { orientation, styles });
+		this.splitview = new SplitView(this.element, { orientation, styles, proportionalLayout });
 		this.splitview.layout(size);
 
 		const onDidSashReset = Event.map(this.splitview.onDidSashReset, i => [i]);
@@ -414,7 +414,7 @@ class LeafNode implements ISplitView, IDisposable {
 	) {
 		this._orthogonalSize = orthogonalSize;
 
-		this._onDidViewChange = Event.map(this.view.onDidChange, this.orientation === Orientation.HORIZONTAL ? e => e && e.width : e => e && e.height);
+		this._onDidViewChange = Event.map(this.view.onDidChange, e => e && (this.orientation === Orientation.VERTICAL ? e.width : e.height));
 		this.onDidChange = Event.any(this._onDidViewChange, this._onDidSetLinkedNode.event, this._onDidLinkedWidthNodeChange.event, this._onDidLinkedHeightNodeChange.event);
 	}
 
@@ -480,12 +480,12 @@ class LeafNode implements ISplitView, IDisposable {
 
 	layout(size: number): void {
 		this._size = size;
-		return this.view.layout(this.width, this.height);
+		return this.view.layout(this.width, this.height, orthogonal(this.orientation));
 	}
 
 	orthogonalLayout(size: number): void {
 		this._orthogonalSize = size;
-		return this.view.layout(this.width, this.height);
+		return this.view.layout(this.width, this.height, orthogonal(this.orientation));
 	}
 
 	dispose(): void { }

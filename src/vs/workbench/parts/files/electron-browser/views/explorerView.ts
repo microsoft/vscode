@@ -9,7 +9,7 @@ import * as perf from 'vs/base/common/performance';
 import { sequence } from 'vs/base/common/async';
 import { Action, IAction } from 'vs/base/common/actions';
 import { memoize } from 'vs/base/common/decorators';
-import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, IExplorerService } from 'vs/workbench/parts/files/common/files';
+import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, IExplorerService, ExplorerResourceCut } from 'vs/workbench/parts/files/common/files';
 import { NewFolderAction, NewFileAction, FileCopiedContext, RefreshExplorerView } from 'vs/workbench/parts/files/electron-browser/fileActions';
 import { toResource } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -122,6 +122,10 @@ export class ExplorerView extends ViewletPanel {
 		return FileCopiedContext.bindTo(this.contextKeyService);
 	}
 
+	@memoize private get resourceCutContextKey(): IContextKey<boolean> {
+		return ExplorerResourceCut.bindTo(this.contextKeyService);
+	}
+
 	// Split view methods
 
 	protected renderHeader(container: HTMLElement): void {
@@ -143,8 +147,8 @@ export class ExplorerView extends ViewletPanel {
 		setHeader();
 	}
 
-	protected layoutBody(size: number): void {
-		this.tree.layout(size);
+	protected layoutBody(height: number, width: number): void {
+		this.tree.layout(height, width);
 	}
 
 	renderBody(container: HTMLElement): void {
@@ -155,7 +159,6 @@ export class ExplorerView extends ViewletPanel {
 			this.toolbar.setActions(this.getActions(), this.getSecondaryActions())();
 		}
 
-		this.disposables.push(this.contextService.onDidChangeWorkbenchState(() => this.setTreeInput()));
 		this.disposables.push(this.labelService.onDidChangeFormatters(() => {
 			this._onDidChangeTitleArea.fire();
 			this.refresh();
@@ -246,7 +249,8 @@ export class ExplorerView extends ViewletPanel {
 		const explorerLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility } as IResourceLabelsContainer);
 		this.disposables.push(explorerLabels);
 
-		const filesRenderer = this.instantiationService.createInstance(FilesRenderer, explorerLabels);
+		const updateWidth = (stat: ExplorerItem) => this.tree.updateWidth(stat);
+		const filesRenderer = this.instantiationService.createInstance(FilesRenderer, explorerLabels, updateWidth);
 		this.disposables.push(filesRenderer);
 
 		this.disposables.push(createFileIconThemableTreeContainerScope(container, this.themeService));
@@ -438,7 +442,18 @@ export class ExplorerView extends ViewletPanel {
 			viewState = JSON.parse(rawViewState) as IAsyncDataTreeViewState;
 		}
 
+		const previousInput = this.tree.getInput();
 		const promise = this.tree.setInput(input, viewState).then(() => {
+			if (Array.isArray(input)) {
+				if (!viewState || previousInput instanceof ExplorerItem) {
+					// There is no view state for this workspace, expand all roots. Or we transitioned from a folder workspace.
+					input.forEach(item => this.tree.expand(item).then(undefined, onUnexpectedError));
+				}
+				if (Array.isArray(previousInput) && previousInput.length < input.length) {
+					// Roots added to the explorer -> expand them.
+					input.slice(previousInput.length).forEach(item => this.tree.expand(item).then(undefined, onUnexpectedError));
+				}
+			}
 			if (initialInputSetup) {
 				perf.mark('didResolveExplorer');
 			}
@@ -484,6 +499,7 @@ export class ExplorerView extends ViewletPanel {
 
 	private onCopyItems(stats: ExplorerItem[], cut: boolean, previousCut: ExplorerItem[]): void {
 		this.fileCopiedContextKey.set(stats.length > 0);
+		this.resourceCutContextKey.set(cut && stats.length > 0);
 		if (previousCut) {
 			previousCut.forEach(item => this.tree.refresh(item));
 		}

@@ -18,7 +18,7 @@ import { OpenEditorsFocusedContext, ExplorerFocusedContext, IFilesConfiguration,
 import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { CloseAllEditorsAction, CloseEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
-import { ToggleEditorLayoutAction } from 'vs/workbench/browser/actions/toggleEditorLayout';
+import { ToggleEditorLayoutAction } from 'vs/workbench/browser/actions/layoutActions';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -146,8 +146,11 @@ export class OpenEditorsView extends ViewletPanel {
 						break;
 					}
 					case GroupChangeKind.EDITOR_OPEN: {
-						this.list.splice(index, 0, [new OpenEditor(e.editor, group)]);
-						setTimeout(() => this.updateSize(), this.structuralRefreshDelay);
+						setTimeout(() => {
+							this.list.splice(index, 0, [new OpenEditor(e.editor, group)]);
+							this.updateSize();
+							this.focusActiveEditor();
+						}, this.structuralRefreshDelay);
 						break;
 					}
 					case GroupChangeKind.EDITOR_CLOSE: {
@@ -304,9 +307,9 @@ export class OpenEditorsView extends ViewletPanel {
 		return this.list;
 	}
 
-	protected layoutBody(size: number): void {
+	protected layoutBody(height: number, width: number): void {
 		if (this.list) {
-			this.list.layout(size);
+			this.list.layout(height, width);
 		}
 	}
 
@@ -395,9 +398,11 @@ export class OpenEditorsView extends ViewletPanel {
 	private focusActiveEditor(): void {
 		if (this.list.length && this.editorGroupService.activeGroup) {
 			const index = this.getIndex(this.editorGroupService.activeGroup, this.editorGroupService.activeGroup.activeEditor);
-			this.list.setFocus([index]);
-			this.list.setSelection([index]);
-			this.list.reveal(index);
+			if (index < this.list.length) {
+				this.list.setFocus([index]);
+				this.list.setSelection([index]);
+				this.list.reveal(index);
+			}
 		} else {
 			this.list.setFocus([]);
 			this.list.setSelection([]);

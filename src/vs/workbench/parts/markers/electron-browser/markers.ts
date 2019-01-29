@@ -23,8 +23,7 @@ import { CodeAction } from 'vs/editor/common/modes';
 import { Range } from 'vs/editor/common/core/range';
 import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
-import { timeout } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { timeout, CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 
 export const IMarkersWorkbenchService = createDecorator<IMarkersWorkbenchService>('markersWorkbenchService');
 
@@ -45,8 +44,8 @@ export class MarkersWorkbenchService extends Disposable implements IMarkersWorkb
 
 	readonly markersModel: MarkersModel;
 
-	private readonly allFixesCache: Map<string, Promise<CodeAction[]>> = new Map<string, Promise<CodeAction[]>>();
-	private readonly codeActionsPromises: Map<string, Map<string, Promise<CodeAction[]>>> = new Map<string, Map<string, Promise<CodeAction[]>>>();
+	private readonly allFixesCache: Map<string, CancelablePromise<CodeAction[]>> = new Map<string, CancelablePromise<CodeAction[]>>();
+	private readonly codeActionsPromises: Map<string, Map<string, CancelablePromise<CodeAction[]>>> = new Map<string, Map<string, CancelablePromise<CodeAction[]>>>();
 	private readonly codeActions: Map<string, Map<string, CodeAction[]>> = new Map<string, Map<string, CodeAction[]>>();
 
 	constructor(
@@ -69,8 +68,16 @@ export class MarkersWorkbenchService extends Disposable implements IMarkersWorkb
 
 	private onMarkerChanged(resources: URI[]): void {
 		for (const resource of resources) {
-			this.allFixesCache.delete(resource.toString());
-			this.codeActionsPromises.delete(resource.toString());
+			const allFixes = this.allFixesCache.get(resource.toString());
+			if (allFixes) {
+				allFixes.cancel();
+				this.allFixesCache.delete(resource.toString());
+			}
+			const codeActions = this.codeActionsPromises.get(resource.toString());
+			if (codeActions) {
+				codeActions.forEach(promise => promise.cancel());
+				this.codeActionsPromises.delete(resource.toString());
+			}
 			this.codeActions.delete(resource.toString());
 			this.markersModel.setResourceMarkers(resource, this.readMarkers(resource));
 		}
@@ -93,7 +100,7 @@ export class MarkersWorkbenchService extends Disposable implements IMarkersWorkb
 		} else {
 			let codeActionsPromisesPerMarker = this.codeActionsPromises.get(marker.resource.toString());
 			if (!codeActionsPromisesPerMarker) {
-				codeActionsPromisesPerMarker = new Map<string, Promise<CodeAction[]>>();
+				codeActionsPromisesPerMarker = new Map<string, CancelablePromise<CodeAction[]>>();
 				this.codeActionsPromises.set(marker.resource.toString(), codeActionsPromisesPerMarker);
 			}
 			if (!codeActionsPromisesPerMarker.has(markerKey)) {
@@ -153,16 +160,18 @@ export class MarkersWorkbenchService extends Disposable implements IMarkersWorkb
 		}, ACTIVE_GROUP).then(() => undefined);
 	}
 
-	private getFixes(marker: Marker): Promise<CodeAction[]> {
+	private getFixes(marker: Marker): CancelablePromise<CodeAction[]> {
 		return this._getFixes(marker.resource, new Range(marker.range.startLineNumber, marker.range.startColumn, marker.range.endLineNumber, marker.range.endColumn));
 	}
 
-	private async _getFixes(uri: URI, range?: Range): Promise<CodeAction[]> {
-		const model = this.modelService.getModel(uri);
-		if (model) {
-			return getCodeActions(model, range ? range : model.getFullModelRange(), { type: 'manual', filter: { kind: CodeActionKind.QuickFix } }, CancellationToken.None /* TODO: use cancellation here */);
-		}
-		return [];
+	private _getFixes(uri: URI, range?: Range): CancelablePromise<CodeAction[]> {
+		return createCancelablePromise(cancellationToken => {
+			const model = this.modelService.getModel(uri);
+			if (model) {
+				return getCodeActions(model, range ? range : model.getFullModelRange(), { type: 'manual', filter: { kind: CodeActionKind.QuickFix } }, cancellationToken);
+			}
+			return Promise.resolve([]);
+		});
 	}
 
 }

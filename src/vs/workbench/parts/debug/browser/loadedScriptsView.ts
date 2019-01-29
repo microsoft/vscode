@@ -500,8 +500,8 @@ export class LoadedScriptsView extends ViewletPanel {
 		}));
 	}
 
-	layoutBody(size: number): void {
-		this.tree.layout(size);
+	layoutBody(height: number, width: number): void {
+		this.tree.layout(height, width);
 	}
 
 	dispose(): void {

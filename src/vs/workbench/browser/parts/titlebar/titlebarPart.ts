@@ -5,6 +5,7 @@
 
 import 'vs/css!./media/titlebarpart';
 import * as paths from 'vs/base/common/paths';
+import * as resources from 'vs/base/common/resources';
 import { Part } from 'vs/workbench/browser/part';
 import { ITitleService, ITitleProperties } from 'vs/workbench/services/title/common/titleService';
 import { getZoomFactor } from 'vs/base/browser/browser';
@@ -30,10 +31,12 @@ import { MenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarContr
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { template, getBaseLabel } from 'vs/base/common/labels';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { Event } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { ISerializableView } from 'vs/base/browser/ui/grid/grid';
+import { Parts } from 'vs/workbench/services/part/common/partService';
 
-export class TitlebarPart extends Part implements ITitleService {
+export class TitlebarPart extends Part implements ITitleService, ISerializableView {
 
 	_serviceBrand: any;
 
@@ -43,7 +46,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	private static readonly TITLE_DIRTY = '\u25cf ';
 	private static readonly TITLE_SEPARATOR = isMacintosh ? ' — ' : ' - '; // macOS uses special - separator
 
-	private titleContainer: HTMLElement;
+	element: HTMLElement;
 	private title: HTMLElement;
 	private dragRegion: HTMLElement;
 	private windowControls: HTMLElement;
@@ -60,6 +63,14 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	private properties: ITitleProperties;
 	private activeEditorListeners: IDisposable[];
+
+	minimumWidth: number = 0;
+	maximumWidth: number = Number.POSITIVE_INFINITY;
+	minimumHeight: number = isMacintosh ? 22 : 30;
+	maximumHeight: number = isMacintosh ? 22 : 30;
+
+	private _onDidChange = new Emitter<{ width: number; height: number; }>();
+	readonly onDidChange = this._onDidChange.event;
 
 	constructor(
 		id: string,
@@ -228,21 +239,25 @@ export class TitlebarPart extends Part implements ITitleService {
 	/**
 	 * Possible template values:
 	 *
-	 * {activeEditorLong}: e.g. /Users/Development/myProject/myFolder/myFile.txt
-	 * {activeEditorMedium}: e.g. myFolder/myFile.txt
+	 * {activeEditorLong}: e.g. /Users/Development/myFolder/myFileFolder/myFile.txt
+	 * {activeEditorMedium}: e.g. myFolder/myFileFolder/myFile.txt
 	 * {activeEditorShort}: e.g. myFile.txt
+	 * {activeFolderLong}: e.g. /Users/Development/myFolder/myFileFolder
+	 * {activeFolderMedium}: e.g. myFolder/myFileFolder
+	 * {activeFolderShort}: e.g. myFileFolder
 	 * {rootName}: e.g. myFolder1, myFolder2, myFolder3
-	 * {rootPath}: e.g. /Users/Development/myProject
+	 * {rootPath}: e.g. /Users/Development
 	 * {folderName}: e.g. myFolder
 	 * {folderPath}: e.g. /Users/Development/myFolder
 	 * {appName}: e.g. VS Code
-	 * {dirty}: indiactor
+	 * {dirty}: indicator
 	 * {separator}: conditional separator
 	 */
 	private doGetWindowTitle(): string {
 		const editor = this.editorService.activeEditor;
 		const workspace = this.contextService.getWorkspace();
 
+		// Compute root
 		let root: URI;
 		if (workspace.configuration) {
 			root = workspace.configuration;
@@ -250,15 +265,25 @@ export class TitlebarPart extends Part implements ITitleService {
 			root = workspace.folders[0].uri;
 		}
 
+		// Compute active editor folder
+		const editorResource = editor ? toResource(editor) : undefined;
+		let editorFolderResource = editorResource ? resources.dirname(editorResource) : undefined;
+		if (editorFolderResource && editorFolderResource.path === '.') {
+			editorFolderResource = undefined;
+		}
+
 		// Compute folder resource
 		// Single Root Workspace: always the root single workspace in this case
 		// Otherwise: root folder of the currently active file if any
-		let folder = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? workspace.folders[0] : this.contextService.getWorkspaceFolder(toResource(editor, { supportSideBySide: true }));
+		const folder = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? workspace.folders[0] : this.contextService.getWorkspaceFolder(toResource(editor, { supportSideBySide: true }));
 
 		// Variables
 		const activeEditorShort = editor ? editor.getTitle(Verbosity.SHORT) : '';
 		const activeEditorMedium = editor ? editor.getTitle(Verbosity.MEDIUM) : activeEditorShort;
 		const activeEditorLong = editor ? editor.getTitle(Verbosity.LONG) : activeEditorMedium;
+		const activeFolderShort = editorFolderResource ? resources.basename(editorFolderResource) : '';
+		const activeFolderMedium = editorFolderResource ? this.labelService.getUriLabel(editorFolderResource, { relative: true }) : '';
+		const activeFolderLong = editorFolderResource ? this.labelService.getUriLabel(editorFolderResource) : '';
 		const rootName = this.labelService.getWorkspaceLabel(workspace);
 		const rootPath = root ? this.labelService.getUriLabel(root) : '';
 		const folderName = folder ? folder.name : '';
@@ -272,6 +297,9 @@ export class TitlebarPart extends Part implements ITitleService {
 			activeEditorShort,
 			activeEditorLong,
 			activeEditorMedium,
+			activeFolderShort,
+			activeFolderMedium,
+			activeFolderLong,
 			rootName,
 			rootPath,
 			folderName,
@@ -283,14 +311,14 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	createContentArea(parent: HTMLElement): HTMLElement {
-		this.titleContainer = parent;
+		this.element = parent;
 
 		// Draggable region that we can manipulate for #52522
-		this.dragRegion = append(this.titleContainer, $('div.titlebar-drag-region'));
+		this.dragRegion = append(this.element, $('div.titlebar-drag-region'));
 
 		// App Icon (Windows/Linux)
 		if (!isMacintosh) {
-			this.appIcon = append(this.titleContainer, $('div.window-appicon'));
+			this.appIcon = append(this.element, $('div.window-appicon'));
 			this.onUpdateAppIconDragBehavior();
 
 			this._register(addDisposableListener(this.appIcon, EventType.DBLCLICK, (e => {
@@ -300,7 +328,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 		// Menubar: the menubar part which is responsible for populating both the custom and native menubars
 		this.menubarPart = this.instantiationService.createInstance(MenubarControl);
-		this.menubar = append(this.titleContainer, $('div.menubar'));
+		this.menubar = append(this.element, $('div.menubar'));
 		this.menubar.setAttribute('role', 'menubar');
 
 		this.menubarPart.create(this.menubar);
@@ -311,7 +339,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		}
 
 		// Title
-		this.title = append(this.titleContainer, $('div.window-title'));
+		this.title = append(this.element, $('div.window-title'));
 		if (this.pendingTitle) {
 			this.title.innerText = this.pendingTitle;
 		} else {
@@ -320,7 +348,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 		// Maximize/Restore on doubleclick
 		if (isMacintosh) {
-			this._register(addDisposableListener(this.titleContainer, EventType.DBLCLICK, e => {
+			this._register(addDisposableListener(this.element, EventType.DBLCLICK, e => {
 				EventHelper.stop(e);
 
 				this.onTitleDoubleclick();
@@ -340,7 +368,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 		// Window Controls (Windows/Linux)
 		if (!isMacintosh) {
-			this.windowControls = append(this.titleContainer, $('div.window-controls-container'));
+			this.windowControls = append(this.element, $('div.window-controls-container'));
 
 
 			// Minimize
@@ -375,7 +403,7 @@ export class TitlebarPart extends Part implements ITitleService {
 			}));
 
 			// Resizer
-			this.resizer = append(this.titleContainer, $('div.resizer'));
+			this.resizer = append(this.element, $('div.resizer'));
 
 			const isMaximized = this.windowService.getConfiguration().maximized ? true : false;
 			this.onDidChangeMaximized(isMaximized);
@@ -384,7 +412,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 		// Since the title area is used to drag the window, we do not want to steal focus from the
 		// currently active element. So we restore focus after a timeout back to where it was.
-		this._register(addDisposableListener(this.titleContainer, EventType.MOUSE_DOWN, e => {
+		this._register(addDisposableListener(this.element, EventType.MOUSE_DOWN, e => {
 			if (e.target && isAncestor(e.target as HTMLElement, this.menubar)) {
 				return;
 			}
@@ -399,7 +427,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 		this.updateStyles();
 
-		return this.titleContainer;
+		return this.element;
 	}
 
 	private onDidChangeMaximized(maximized: boolean) {
@@ -428,26 +456,26 @@ export class TitlebarPart extends Part implements ITitleService {
 		super.updateStyles();
 
 		// Part container
-		if (this.titleContainer) {
+		if (this.element) {
 			if (this.isInactive) {
-				addClass(this.titleContainer, 'inactive');
+				addClass(this.element, 'inactive');
 			} else {
-				removeClass(this.titleContainer, 'inactive');
+				removeClass(this.element, 'inactive');
 			}
 
 			const titleBackground = this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_BACKGROUND : TITLE_BAR_ACTIVE_BACKGROUND);
-			this.titleContainer.style.backgroundColor = titleBackground;
+			this.element.style.backgroundColor = titleBackground;
 			if (Color.fromHex(titleBackground).isLighter()) {
-				addClass(this.titleContainer, 'light');
+				addClass(this.element, 'light');
 			} else {
-				removeClass(this.titleContainer, 'light');
+				removeClass(this.element, 'light');
 			}
 
 			const titleForeground = this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_FOREGROUND : TITLE_BAR_ACTIVE_FOREGROUND);
-			this.titleContainer.style.color = titleForeground;
+			this.element.style.color = titleForeground;
 
 			const titleBorder = this.getColor(TITLE_BAR_BORDER);
-			this.titleContainer.style.borderBottom = titleBorder ? `1px solid ${titleBorder}` : null;
+			this.element.style.borderBottom = titleBorder ? `1px solid ${titleBorder}` : null;
 		}
 	}
 
@@ -513,8 +541,8 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	private adjustTitleMarginToCenter(): void {
 		if (!isMacintosh &&
-			(this.appIcon.clientWidth + this.menubar.clientWidth + 10 > (this.titleContainer.clientWidth - this.title.clientWidth) / 2 ||
-				this.titleContainer.clientWidth - this.windowControls.clientWidth - 10 < (this.titleContainer.clientWidth + this.title.clientWidth) / 2)) {
+			(this.appIcon.clientWidth + this.menubar.clientWidth + 10 > (this.element.clientWidth - this.title.clientWidth) / 2 ||
+				this.element.clientWidth - this.windowControls.clientWidth - 10 < (this.element.clientWidth + this.title.clientWidth) / 2)) {
 			this.title.style.position = null;
 			this.title.style.left = null;
 			this.title.style.transform = null;
@@ -525,7 +553,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		}
 	}
 
-	layout(dimension: Dimension): Dimension[] {
+	updateLayout(dimension: Dimension): void {
 		if (getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
 			// Only prevent zooming behavior on macOS or when the menubar is not visible
 			if (isMacintosh || this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility') === 'hidden') {
@@ -549,8 +577,27 @@ export class TitlebarPart extends Part implements ITitleService {
 				this.menubarPart.layout(menubarDimension);
 			}
 		}
+	}
 
-		return super.layout(dimension);
+	layout(dimension: Dimension): Dimension[];
+	layout(width: number, height: number): void;
+	layout(dim1: Dimension | number, dim2?: number): Dimension[] | void {
+		if (dim1 instanceof Dimension) {
+			this.updateLayout(dim1);
+
+			return super.layout(dim1);
+		}
+
+		const dimensions = new Dimension(dim1, dim2);
+		this.updateLayout(dimensions);
+
+		super.layout(dimensions);
+	}
+
+	toJSON(): object {
+		return {
+			type: Parts.TITLEBAR_PART
+		};
 	}
 }
 
@@ -569,7 +616,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const titlebarActiveFg = theme.getColor(TITLE_BAR_ACTIVE_FOREGROUND);
 	if (titlebarActiveFg) {
 		collector.addRule(`
-		.monaco-workbench > .part.titlebar > .window-controls-container .window-icon {
+		.monaco-workbench .part.titlebar > .window-controls-container .window-icon {
 			background-color: ${titlebarActiveFg};
 		}
 		`);
@@ -578,7 +625,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const titlebarInactiveFg = theme.getColor(TITLE_BAR_INACTIVE_FOREGROUND);
 	if (titlebarInactiveFg) {
 		collector.addRule(`
-		.monaco-workbench > .part.titlebar.inactive > .window-controls-container .window-icon {
+		.monaco-workbench .part.titlebar.inactive > .window-controls-container .window-icon {
 				background-color: ${titlebarInactiveFg};
 			}
 		`);

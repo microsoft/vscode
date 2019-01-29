@@ -84,7 +84,6 @@ const defaultConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<I
 	jsonSchema: {
 		description: nls.localize('vscode.extension.contributes.defaultConfiguration', 'Contributes default editor configuration settings by language.'),
 		type: 'object',
-		defaultSnippets: [{ body: {} }],
 		patternProperties: {
 			'\\[.*\\]$': {
 				type: 'object',

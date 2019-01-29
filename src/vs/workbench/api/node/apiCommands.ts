@@ -3,14 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { tmpdir } from 'os';
+import { posix } from 'path';
+import * as vscode from 'vscode';
 import { URI } from 'vs/base/common/uri';
 import { isMalformedFileUri } from 'vs/base/common/resources';
-import * as vscode from 'vscode';
 import * as typeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import { CommandsRegistry, ICommandService, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { EditorViewColumn } from 'vs/workbench/api/shared/editor';
 import { EditorGroupLayout } from 'vs/workbench/services/group/common/editorGroupsService';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IDownloadService } from 'vs/platform/download/common/download';
+import { generateUuid } from 'vs/base/common/uuid';
 
 // -----------------------------------------------------------------
 // The following commands are registered on both sides separately.
@@ -99,6 +106,12 @@ export class OpenAPICommand {
 }
 CommandsRegistry.registerCommand(OpenAPICommand.ID, adjustHandler(OpenAPICommand.execute));
 
+CommandsRegistry.registerCommand('_workbench.removeFromRecentlyOpened', function (accessor: ServicesAccessor, path: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | string) {
+	const windowsService = accessor.get(IWindowsService);
+
+	return windowsService.removeFromRecentlyOpened([path]).then(() => undefined);
+});
+
 export class RemoveFromRecentlyOpenedAPICommand {
 	public static ID = 'vscode.removeFromRecentlyOpened';
 	public static execute(executor: ICommandsExecutor, path: string): Promise<any> {
@@ -114,3 +127,10 @@ export class SetEditorLayoutAPICommand {
 	}
 }
 CommandsRegistry.registerCommand(SetEditorLayoutAPICommand.ID, adjustHandler(SetEditorLayoutAPICommand.execute));
+
+CommandsRegistry.registerCommand('_workbench.downloadResource', function (accessor: ServicesAccessor, resource: URI) {
+	const downloadService = accessor.get(IDownloadService);
+	const location = posix.join(tmpdir(), generateUuid());
+
+	return downloadService.download(resource, location).then(() => URI.file(location));
+});

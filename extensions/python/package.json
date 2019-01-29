@@ -10,7 +10,7 @@
 	"contributes": {
 		"languages": [{
 			"id": "python",
-			"extensions": [ ".py", ".rpy", ".pyw", ".cpy", ".gyp", ".gypi", ".snakefile", ".smk"],
+			"extensions": [ ".py", ".rpy", ".pyw", ".cpy", ".gyp", ".gypi", ".snakefile", ".smk", ".pyi"],
 			"aliases": [ "Python", "py" ],
 			"firstLine": "^#!\\s*/.*\\bpython[0-9.-]*\\b",
 			"configuration": "./language-configuration.json"

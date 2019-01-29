@@ -12,7 +12,7 @@ import { alert as ariaAlert } from 'vs/base/browser/ui/aria/aria';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate, ListAriaRootRole } from 'vs/base/browser/ui/list/list';
 import { ISelectOptionItem, SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IObjectTreeOptions, ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
@@ -257,6 +257,7 @@ export abstract class AbstractSettingRenderer implements ITreeRenderer<SettingsT
 	static readonly CONTROL_SELECTOR = '.' + AbstractSettingRenderer.CONTROL_CLASS;
 
 	static readonly SETTING_KEY_ATTR = 'data-key';
+	static readonly SETTING_ID_ATTR = 'data-id';
 
 	private readonly _onDidClickOverrideElement = new Emitter<ISettingOverrideClickEvent>();
 	readonly onDidClickOverrideElement: Event<ISettingOverrideClickEvent> = this._onDidClickOverrideElement.event;
@@ -385,6 +386,7 @@ export abstract class AbstractSettingRenderer implements ITreeRenderer<SettingsT
 		DOM.toggleClass(template.containerElement, 'is-configured', element.isConfigured);
 		DOM.toggleClass(template.containerElement, 'is-expanded', true);
 		template.containerElement.setAttribute(AbstractSettingRenderer.SETTING_KEY_ATTR, element.setting.key);
+		template.containerElement.setAttribute(AbstractSettingRenderer.SETTING_ID_ATTR, element.id);
 
 		const titleTooltip = setting.key + (element.isConfigured ? ' - Modified' : '');
 		template.categoryElement.textContent = element.displayCategory && (element.displayCategory + ': ');
@@ -437,11 +439,6 @@ export abstract class AbstractSettingRenderer implements ITreeRenderer<SettingsT
 		template.deprecationWarningElement.innerText = element.setting.deprecationMessage || '';
 		this.renderValue(element, <ISettingItemTemplate>template, onChange);
 
-		// Remove tree attributes - sometimes overridden by tree - should be managed there
-		template.containerElement.parentElement.parentElement.removeAttribute('role');
-		template.containerElement.parentElement.parentElement.removeAttribute('aria-level');
-		template.containerElement.parentElement.parentElement.removeAttribute('aria-posinset');
-		template.containerElement.parentElement.parentElement.removeAttribute('aria-setsize');
 	}
 
 	private renderDescriptionMarkdown(element: SettingsTreeSettingElement, text: string, disposeables: IDisposable[]): HTMLElement {
@@ -1091,6 +1088,11 @@ export class SettingTreeRenderers {
 		const settingElement = this.getSettingDOMElementForDOMElement(element);
 		return settingElement && settingElement.getAttribute(AbstractSettingRenderer.SETTING_KEY_ATTR);
 	}
+
+	getIdForDOMElementInSetting(element: HTMLElement): string {
+		const settingElement = this.getSettingDOMElementForDOMElement(element);
+		return settingElement && settingElement.getAttribute(AbstractSettingRenderer.SETTING_ID_ATTR);
+	}
 }
 
 function renderValidations(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate, calledOnStartup: boolean, originalAriaLabel: string) {
@@ -1297,6 +1299,7 @@ export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 			renderers,
 			{
 				supportDynamicHeights: true,
+				ariaRole: ListAriaRootRole.FORM,
 				ariaLabel: localize('treeAriaLabel', "Settings"),
 				identityProvider: {
 					getId(e) {

@@ -8,8 +8,6 @@ import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/
 import { Registry } from 'vs/platform/registry/common/platform';
 import { runWhenIdle, IdleDeadline } from 'vs/base/common/async';
 
-// --- Workbench Contribution Registry
-
 /**
  * A workbench contribution that will be loaded when the workbench starts and disposed when the workbench shuts down.
  */

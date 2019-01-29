@@ -113,8 +113,12 @@ export class WatchExpressionsView extends ViewletPanel {
 		}));
 	}
 
-	layoutBody(size: number): void {
-		this.tree.layout(size);
+	layoutBody(height: number, width: number): void {
+		this.tree.layout(height, width);
+	}
+
+	focus(): void {
+		this.tree.domFocus();
 	}
 
 	private onMouseDblClick(e: ITreeMouseEvent<IExpression>): void {

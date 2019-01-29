@@ -10,7 +10,7 @@ import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { IAction } from 'vs/base/common/actions';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
 import * as nls from 'vs/nls';
@@ -26,11 +26,13 @@ import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { RemoveAction, ReplaceAction, ReplaceAllAction, ReplaceAllInFolderAction } from 'vs/workbench/parts/search/browser/searchActions';
 import { SearchView } from 'vs/workbench/parts/search/browser/searchView';
 import { FileMatch, FolderMatch, Match, RenderableMatch, SearchModel, BaseFolderMatch } from 'vs/workbench/parts/search/common/searchModel';
+import { createMatches } from 'vs/base/common/filters';
 
 interface IFolderMatchTemplate {
 	label: IResourceLabel;
 	badge: CountBadge;
 	actions: ActionBar;
+	disposables: IDisposable[];
 }
 
 interface IFileMatchTemplate {
@@ -38,6 +40,7 @@ interface IFileMatchTemplate {
 	label: IResourceLabel;
 	badge: CountBadge;
 	actions: ActionBar;
+	disposables: IDisposable[];
 }
 
 interface IMatchTemplate {
@@ -87,14 +90,23 @@ export class FolderMatchRenderer extends Disposable implements ITreeRenderer<Fol
 	}
 
 	renderTemplate(container: HTMLElement): IFolderMatchTemplate {
+		const disposables: IDisposable[] = [];
+
 		const folderMatchElement = DOM.append(container, DOM.$('.foldermatch'));
 		const label = this.labels.create(folderMatchElement);
+		disposables.push(label);
 		const badge = new CountBadge(DOM.append(folderMatchElement, DOM.$('.badge')));
-		this._register(attachBadgeStyler(badge, this.themeService));
+		disposables.push(attachBadgeStyler(badge, this.themeService));
 		const actionBarContainer = DOM.append(folderMatchElement, DOM.$('.actionBarContainer'));
 		const actions = new ActionBar(actionBarContainer, { animated: false });
+		disposables.push(actions);
 
-		return { label, badge, actions };
+		return {
+			label,
+			badge,
+			actions,
+			disposables
+		};
 	}
 
 	renderElement(node: ITreeNode<FolderMatch, any>, index: number, templateData: IFolderMatchTemplate): void {
@@ -128,8 +140,7 @@ export class FolderMatchRenderer extends Disposable implements ITreeRenderer<Fol
 	}
 
 	disposeTemplate(templateData: IFolderMatchTemplate): void {
-		templateData.label.dispose();
-		templateData.actions.dispose();
+		dispose(templateData.disposables);
 	}
 }
 
@@ -150,19 +161,33 @@ export class FileMatchRenderer extends Disposable implements ITreeRenderer<FileM
 	}
 
 	renderTemplate(container: HTMLElement): IFileMatchTemplate {
+		const disposables: IDisposable[] = [];
 		const fileMatchElement = DOM.append(container, DOM.$('.filematch'));
-		const label = this.labels.create(fileMatchElement);
+		const label = this.labels.create(fileMatchElement, { supportHighlights: true });
+		disposables.push(label);
 		const badge = new CountBadge(DOM.append(fileMatchElement, DOM.$('.badge')));
-		this._register(attachBadgeStyler(badge, this.themeService));
+		disposables.push(attachBadgeStyler(badge, this.themeService));
 		const actionBarContainer = DOM.append(fileMatchElement, DOM.$('.actionBarContainer'));
 		const actions = new ActionBar(actionBarContainer, { animated: false });
-		return { el: fileMatchElement, label, badge, actions };
+		disposables.push(actions);
+
+		return {
+			el: fileMatchElement,
+			label,
+			badge,
+			actions,
+			disposables
+		};
 	}
 
 	renderElement(node: ITreeNode<FileMatch, any>, index: number, templateData: IFileMatchTemplate): void {
 		const fileMatch = node.element;
 		templateData.el.setAttribute('data-resource', fileMatch.resource().toString());
-		templateData.label.setFile(fileMatch.resource(), { hideIcon: false });
+		templateData.label.setFile(
+			fileMatch.resource(), {
+				hideIcon: false,
+				matches: createMatches(node.filterData)
+			});
 		const count = fileMatch.count();
 		templateData.badge.setCount(count);
 		templateData.badge.setTitleFormat(count > 1 ? nls.localize('searchMatches', "{0} matches found", count) : nls.localize('searchMatch', "{0} match found", count));
@@ -181,8 +206,7 @@ export class FileMatchRenderer extends Disposable implements ITreeRenderer<FileM
 	}
 
 	disposeTemplate(templateData: IFolderMatchTemplate): void {
-		templateData.label.dispose();
-		templateData.actions.dispose();
+		dispose(templateData.disposables);
 	}
 }
 

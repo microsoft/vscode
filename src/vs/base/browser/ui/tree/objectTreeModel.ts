@@ -21,6 +21,7 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 	private nodes = new Map<T | null, ITreeNode<T, TFilterData>>();
 	private sorter?: ITreeSorter<ITreeElement<T>>;
 
+	readonly onDidSplice: Event<void>;
 	readonly onDidChangeCollapseState: Event<ICollapseStateChangeEvent<T, TFilterData>>;
 	readonly onDidChangeRenderNodeCount: Event<ITreeNode<T, TFilterData>>;
 
@@ -28,6 +29,7 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 
 	constructor(list: ISpliceable<ITreeNode<T, TFilterData>>, options: IObjectTreeModelOptions<T, TFilterData> = {}) {
 		this.model = new IndexTreeModel(list, null, options);
+		this.onDidSplice = this.model.onDidSplice;
 		this.onDidChangeCollapseState = this.model.onDidChangeCollapseState as Event<ICollapseStateChangeEvent<T, TFilterData>>;
 		this.onDidChangeRenderNodeCount = this.model.onDidChangeRenderNodeCount as Event<ITreeNode<T, TFilterData>>;
 

@@ -7,7 +7,6 @@ import 'vs/css!./media/fileactions';
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import { isWindows, isLinux } from 'vs/base/common/platform';
-import { always } from 'vs/base/common/async';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
@@ -900,8 +899,8 @@ export function validateFileName(item: ExplorerItem, name: string): string {
 
 	if (name !== item.name) {
 		// Do not allow to overwrite existing file
-		const childExists = parent && !!parent.getChild(name);
-		if (childExists) {
+		const child = parent && parent.getChild(name);
+		if (child && child !== item) {
 			return nls.localize('fileNameExistsError', "A file or folder **{0}** already exists at this location. Please choose a different name.", name);
 		}
 	}
@@ -979,11 +978,9 @@ export class CompareWithClipboardAction extends Action {
 			const name = resources.basename(resource);
 			const editorLabel = nls.localize('clipboardComparisonLabel', "Clipboard ↔ {0}", name);
 
-			const cleanUp = () => {
+			return this.editorService.openEditor({ leftResource: resource.with({ scheme: CompareWithClipboardAction.SCHEME }), rightResource: resource, label: editorLabel }).finally(() => {
 				this.registrationDisposal = dispose(this.registrationDisposal);
-			};
-
-			return always(this.editorService.openEditor({ leftResource: resource.with({ scheme: CompareWithClipboardAction.SCHEME }), rightResource: resource, label: editorLabel }), cleanUp);
+			});
 		}
 
 		return Promise.resolve(true);

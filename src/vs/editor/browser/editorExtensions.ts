@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IPosition } from 'vs/base/browser/ui/contextview/contextview';
-import { always } from 'vs/base/common/async';
 import { illegalArgument } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -266,14 +265,14 @@ export function registerDefaultLanguageCommand(id: string, handler: (model: ITex
 		}
 
 		return accessor.get(ITextModelService).createModelReference(resource).then(reference => {
-			return always(new Promise((resolve, reject) => {
+			return new Promise((resolve, reject) => {
 				try {
 					let result = handler(reference.object.textEditorModel, Position.lift(position), args);
 					resolve(result);
 				} catch (err) {
 					reject(err);
 				}
-			}), () => {
+			}).finally(() => {
 				reference.dispose();
 			});
 		});

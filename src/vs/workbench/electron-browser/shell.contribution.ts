@@ -12,19 +12,44 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, Configur
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
-import { KeybindingsReferenceAction, OpenDocumentationUrlAction, OpenIntroductoryVideosUrlAction, OpenTipsAndTricksUrlAction, OpenIssueReporterAction, ReportPerformanceIssueUsingReporterAction, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleFullScreenAction, ToggleMenuBarAction, CloseWorkspaceAction, CloseCurrentWindowAction, SwitchWindow, NewWindowAction, NavigateUpAction, NavigateDownAction, NavigateLeftAction, NavigateRightAction, IncreaseViewSizeAction, DecreaseViewSizeAction, ToggleSharedProcessAction, QuickSwitchWindow, QuickOpenRecentAction, inRecentFilesPickerContextKey, ShowAboutDialogAction, InspectContextKeysAction, OpenProcessExplorer, OpenTwitterUrlAction, OpenRequestFeatureUrlAction, OpenPrivacyStatementUrlAction, OpenLicenseUrlAction, OpenRecentAction, ToggleScreencastModeAction } from 'vs/workbench/electron-browser/actions';
-import { registerCommands, QUIT_ID } from 'vs/workbench/electron-browser/commands';
-import { AddRootFolderAction, GlobalRemoveRootFolderAction, OpenWorkspaceAction, SaveWorkspaceAsAction, OpenWorkspaceConfigFileAction, DuplicateWorkspaceInNewWindowAction, OpenFileFolderAction, OpenFileAction, OpenFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
+import { KeybindingsReferenceAction, OpenDocumentationUrlAction, OpenIntroductoryVideosUrlAction, OpenTipsAndTricksUrlAction, OpenIssueReporterAction, ReportPerformanceIssueUsingReporterAction, OpenProcessExplorer, OpenTwitterUrlAction, OpenRequestFeatureUrlAction, OpenPrivacyStatementUrlAction, OpenLicenseUrlAction } from 'vs/workbench/electron-browser/actions/helpActions';
+import { ToggleSharedProcessAction, InspectContextKeysAction, ToggleScreencastModeAction } from 'vs/workbench/electron-browser/actions/developerActions';
+import { ShowAboutDialogAction, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleFullScreenAction, CloseCurrentWindowAction, SwitchWindow, NewWindowAction, QuickSwitchWindow, QuickOpenRecentAction, inRecentFilesPickerContextKey, OpenRecentAction } from 'vs/workbench/electron-browser/actions/windowActions';
+import { AddRootFolderAction, GlobalRemoveRootFolderAction, OpenWorkspaceAction, SaveWorkspaceAsAction, OpenWorkspaceConfigFileAction, DuplicateWorkspaceInNewWindowAction, OpenFileFolderAction, OpenFileAction, OpenFolderAction, CloseWorkspaceAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { inQuickOpenContext, getQuickNavigateHandler } from 'vs/workbench/browser/parts/quickopen/quickopen';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ADD_ROOT_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { IsMacContext } from 'vs/platform/workbench/common/contextkeys';
+import { NoEditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/common/editor';
+import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 
 // Contribute Commands
-registerCommands();
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'workbench.action.closeWindow', // close the window when the last editor is closed by reusing the same keybinding
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ContextKeyExpr.and(NoEditorsVisibleContext, SingleEditorGroupsContext),
+	primary: KeyMod.CtrlCmd | KeyCode.KEY_W,
+	handler: accessor => {
+		const windowService = accessor.get(IWindowService);
+		windowService.closeWindow();
+	}
+});
+
+const QUIT_ID = 'workbench.action.quit';
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: QUIT_ID,
+	weight: KeybindingWeight.WorkbenchContrib,
+	handler(accessor: ServicesAccessor) {
+		const windowsService = accessor.get(IWindowsService);
+		windowsService.quit();
+	},
+	when: undefined,
+	primary: KeyMod.CtrlCmd | KeyCode.KEY_Q,
+	win: { primary: undefined }
+});
 
 // Contribute Global Actions
 const viewCategory = nls.localize('view', "View");
@@ -93,16 +118,6 @@ workbenchActionsRegistry.registerWorkbenchAction(
 );
 
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleFullScreenAction, ToggleFullScreenAction.ID, ToggleFullScreenAction.LABEL, { primary: KeyCode.F11, mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_F } }), 'View: Toggle Full Screen', viewCategory);
-if (isWindows || isLinux) {
-	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleMenuBarAction, ToggleMenuBarAction.ID, ToggleMenuBarAction.LABEL), 'View: Toggle Menu Bar', viewCategory);
-}
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(NavigateUpAction, NavigateUpAction.ID, NavigateUpAction.LABEL, undefined), 'View: Navigate to the View Above', viewCategory);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(NavigateDownAction, NavigateDownAction.ID, NavigateDownAction.LABEL, undefined), 'View: Navigate to the View Below', viewCategory);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(NavigateLeftAction, NavigateLeftAction.ID, NavigateLeftAction.LABEL, undefined), 'View: Navigate to the View on the Left', viewCategory);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(NavigateRightAction, NavigateRightAction.ID, NavigateRightAction.LABEL, undefined), 'View: Navigate to the View on the Right', viewCategory);
-
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(IncreaseViewSizeAction, IncreaseViewSizeAction.ID, IncreaseViewSizeAction.LABEL, undefined), 'View: Increase Current View Size', viewCategory);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(DecreaseViewSizeAction, DecreaseViewSizeAction.ID, DecreaseViewSizeAction.LABEL, undefined), 'View: Decrease Current View Size', viewCategory);
 
 const workspacesCategory = nls.localize('workspaces', "Workspaces");
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(AddRootFolderAction, AddRootFolderAction.ID, AddRootFolderAction.LABEL), 'Workspaces: Add Folder to Workspace...', workspacesCategory);
@@ -302,16 +317,6 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	order: 1
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
-	group: '1_toggle_view',
-	command: {
-		id: ToggleMenuBarAction.ID,
-		title: nls.localize({ key: 'miToggleMenuBar', comment: ['&& denotes a mnemonic'] }, "Toggle Menu &&Bar")
-	},
-	when: IsMacContext.toNegated(),
-	order: 4
-});
-
 // Zoom
 
 MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
@@ -466,235 +471,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 	when: IsMacContext.toNegated()
 });
 
-// Configuration: Workbench
-const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-
-configurationRegistry.registerConfiguration({
-	'id': 'workbench',
-	'order': 7,
-	'title': nls.localize('workbenchConfigurationTitle', "Workbench"),
-	'type': 'object',
-	'properties': {
-		'workbench.editor.showTabs': {
-			'type': 'boolean',
-			'description': nls.localize('showEditorTabs', "Controls whether opened editors should show in tabs or not."),
-			'default': true
-		},
-		'workbench.editor.highlightModifiedTabs': {
-			'type': 'boolean',
-			'description': nls.localize('highlightModifiedTabs', "Controls whether a top border is drawn on modified (dirty) editor tabs or not."),
-			'default': false
-		},
-		'workbench.editor.labelFormat': {
-			'type': 'string',
-			'enum': ['default', 'short', 'medium', 'long'],
-			'enumDescriptions': [
-				nls.localize('workbench.editor.labelFormat.default', "Show the name of the file. When tabs are enabled and two files have the same name in one group the distinguishing sections of each file's path are added. When tabs are disabled, the path relative to the workspace folder is shown if the editor is active."),
-				nls.localize('workbench.editor.labelFormat.short', "Show the name of the file followed by its directory name."),
-				nls.localize('workbench.editor.labelFormat.medium', "Show the name of the file followed by its path relative to the workspace folder."),
-				nls.localize('workbench.editor.labelFormat.long', "Show the name of the file followed by its absolute path.")
-			],
-			'default': 'default',
-			'description': nls.localize({
-				comment: ['This is the description for a setting. Values surrounded by parenthesis are not to be translated.'],
-				key: 'tabDescription'
-			}, "Controls the format of the label for an editor."),
-		},
-		'workbench.editor.tabCloseButton': {
-			'type': 'string',
-			'enum': ['left', 'right', 'off'],
-			'default': 'right',
-			'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'editorTabCloseButton' }, "Controls the position of the editor's tabs close buttons, or disables them when set to 'off'.")
-		},
-		'workbench.editor.tabSizing': {
-			'type': 'string',
-			'enum': ['fit', 'shrink'],
-			'default': 'fit',
-			'enumDescriptions': [
-				nls.localize('workbench.editor.tabSizing.fit', "Always keep tabs large enough to show the full editor label."),
-				nls.localize('workbench.editor.tabSizing.shrink', "Allow tabs to get smaller when the available space is not enough to show all tabs at once.")
-			],
-			'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'tabSizing' }, "Controls the sizing of editor tabs.")
-		},
-		'workbench.editor.closeTabsInMRUOrder': {
-			'type': 'boolean',
-			'description': nls.localize('closeTabsInMRUOrder', "Controls whether tabs are closed in most recently used order or from left to right."),
-			'default': true
-		},
-		'workbench.editor.showIcons': {
-			'type': 'boolean',
-			'description': nls.localize('showIcons', "Controls whether opened editors should show with an icon or not. This requires an icon theme to be enabled as well."),
-			'default': true
-		},
-		'workbench.editor.enablePreview': {
-			'type': 'boolean',
-			'description': nls.localize('enablePreview', "Controls whether opened editors show as preview. Preview editors are reused until they are pinned (e.g. via double click or editing) and show up with an italic font style."),
-			'default': true
-		},
-		'workbench.editor.enablePreviewFromQuickOpen': {
-			'type': 'boolean',
-			'description': nls.localize('enablePreviewFromQuickOpen', "Controls whether opened editors from Quick Open show as preview. Preview editors are reused until they are pinned (e.g. via double click or editing)."),
-			'default': true
-		},
-		'workbench.editor.closeOnFileDelete': {
-			'type': 'boolean',
-			'description': nls.localize('closeOnFileDelete', "Controls whether editors showing a file that was opened during the session should close automatically when getting deleted or renamed by some other process. Disabling this will keep the editor open  on such an event. Note that deleting from within the application will always close the editor and that dirty files will never close to preserve your data."),
-			'default': false
-		},
-		'workbench.editor.openPositioning': {
-			'type': 'string',
-			'enum': ['left', 'right', 'first', 'last'],
-			'default': 'right',
-			'markdownDescription': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'editorOpenPositioning' }, "Controls where editors open. Select `left` or `right` to open editors to the left or right of the currently active one. Select `first` or `last` to open editors independently from the currently active one.")
-		},
-		'workbench.editor.openSideBySideDirection': {
-			'type': 'string',
-			'enum': ['right', 'down'],
-			'default': 'right',
-			'markdownDescription': nls.localize('sideBySideDirection', "Controls the default direction of editors that are opened side by side (e.g. from the explorer). By default, editors will open on the right hand side of the currently active one. If changed to `down`, the editors will open below the currently active one.")
-		},
-		'workbench.editor.closeEmptyGroups': {
-			'type': 'boolean',
-			'description': nls.localize('closeEmptyGroups', "Controls the behavior of empty editor groups when the last tab in the group is closed. When enabled, empty groups will automatically close. When disabled, empty groups will remain part of the grid."),
-			'default': true
-		},
-		'workbench.editor.revealIfOpen': {
-			'type': 'boolean',
-			'description': nls.localize('revealIfOpen', "Controls whether an editor is revealed in any of the visible groups if opened. If disabled, an editor will prefer to open in the currently active editor group. If enabled, an already opened editor will be revealed instead of opened again in the currently active editor group. Note that there are some cases where this setting is ignored, e.g. when forcing an editor to open in a specific group or to the side of the currently active group."),
-			'default': false
-		},
-		'workbench.editor.swipeToNavigate': {
-			'type': 'boolean',
-			'description': nls.localize('swipeToNavigate', "Navigate between open files using three-finger swipe horizontally."),
-			'default': false,
-			'included': isMacintosh
-		},
-		'workbench.editor.restoreViewState': {
-			'type': 'boolean',
-			'description': nls.localize('restoreViewState', "Restores the last view state (e.g. scroll position) when re-opening files after they have been closed."),
-			'default': true,
-		},
-		'workbench.editor.centeredLayoutAutoResize': {
-			'type': 'boolean',
-			'default': true,
-			'description': nls.localize('centeredLayoutAutoResize', "Controls if the centered layout should automatically resize to maximum width when more than one group is open. Once only one group is open it will resize back to the original centered width.")
-		},
-		'workbench.commandPalette.history': {
-			'type': 'number',
-			'description': nls.localize('commandHistory', "Controls the number of recently used commands to keep in history for the command palette. Set to 0 to disable command history."),
-			'default': 50
-		},
-		'workbench.commandPalette.preserveInput': {
-			'type': 'boolean',
-			'description': nls.localize('preserveInput', "Controls whether the last typed input to the command palette should be restored when opening it the next time."),
-			'default': false
-		},
-		'workbench.quickOpen.closeOnFocusLost': {
-			'type': 'boolean',
-			'description': nls.localize('closeOnFocusLost', "Controls whether Quick Open should close automatically once it loses focus."),
-			'default': true
-		},
-		'workbench.quickOpen.preserveInput': {
-			'type': 'boolean',
-			'description': nls.localize('workbench.quickOpen.preserveInput', "Controls whether the last typed input to Quick Open should be restored when opening it the next time."),
-			'default': false
-		},
-		'workbench.settings.openDefaultSettings': {
-			'type': 'boolean',
-			'description': nls.localize('openDefaultSettings', "Controls whether opening settings also opens an editor showing all default settings."),
-			'default': false
-		},
-		'workbench.settings.useSplitJSON': {
-			'type': 'boolean',
-			'markdownDescription': nls.localize('useSplitJSON', "Controls whether to use the split JSON editor when editing settings as JSON."),
-			'default': false
-		},
-		'workbench.settings.openDefaultKeybindings': {
-			'type': 'boolean',
-			'description': nls.localize('openDefaultKeybindings', "Controls whether opening keybinding settings also opens an editor showing all default keybindings."),
-			'default': true
-		},
-		'workbench.sideBar.location': {
-			'type': 'string',
-			'enum': ['left', 'right'],
-			'default': 'left',
-			'description': nls.localize('sideBarLocation', "Controls the location of the sidebar. It can either show on the left or right of the workbench.")
-		},
-		'workbench.panel.defaultLocation': {
-			'type': 'string',
-			'enum': ['bottom', 'right'],
-			'default': 'bottom',
-			'description': nls.localize('panelDefaultLocation', "Controls the default location of the panel (terminal, debug console, output, problems). It can either show at the bottom or on the right of the workbench.")
-		},
-		'workbench.statusBar.visible': {
-			'type': 'boolean',
-			'default': true,
-			'description': nls.localize('statusBarVisibility', "Controls the visibility of the status bar at the bottom of the workbench.")
-		},
-		'workbench.activityBar.visible': {
-			'type': 'boolean',
-			'default': true,
-			'description': nls.localize('activityBarVisibility', "Controls the visibility of the activity bar in the workbench.")
-		},
-		'workbench.view.alwaysShowHeaderActions': {
-			'type': 'boolean',
-			'default': false,
-			'description': nls.localize('viewVisibility', "Controls the visibility of view header actions. View header actions may either be always visible, or only visible when that view is focused or hovered over.")
-		},
-		'workbench.fontAliasing': {
-			'type': 'string',
-			'enum': ['default', 'antialiased', 'none', 'auto'],
-			'default': 'default',
-			'description':
-				nls.localize('fontAliasing', "Controls font aliasing method in the workbench."),
-			'enumDescriptions': [
-				nls.localize('workbench.fontAliasing.default', "Sub-pixel font smoothing. On most non-retina displays this will give the sharpest text."),
-				nls.localize('workbench.fontAliasing.antialiased', "Smooth the font on the level of the pixel, as opposed to the subpixel. Can make the font appear lighter overall."),
-				nls.localize('workbench.fontAliasing.none', "Disables font smoothing. Text will show with jagged sharp edges."),
-				nls.localize('workbench.fontAliasing.auto', "Applies `default` or `antialiased` automatically based on the DPI of displays.")
-			],
-			'included': isMacintosh
-		},
-		'workbench.settings.enableNaturalLanguageSearch': {
-			'type': 'boolean',
-			'description': nls.localize('enableNaturalLanguageSettingsSearch', "Controls whether to enable the natural language search mode for settings. The natural language search is provided by a Microsoft online service."),
-			'default': true,
-			'scope': ConfigurationScope.WINDOW,
-			'tags': ['usesOnlineServices']
-		},
-		'workbench.settings.settingsSearchTocBehavior': {
-			'type': 'string',
-			'enum': ['hide', 'filter'],
-			'enumDescriptions': [
-				nls.localize('settingsSearchTocBehavior.hide', "Hide the Table of Contents while searching."),
-				nls.localize('settingsSearchTocBehavior.filter', "Filter the Table of Contents to just categories that have matching settings. Clicking a category will filter the results to that category."),
-			],
-			'description': nls.localize('settingsSearchTocBehavior', "Controls the behavior of the settings editor Table of Contents while searching."),
-			'default': 'filter',
-			'scope': ConfigurationScope.WINDOW
-		},
-		'workbench.settings.editor': {
-			'type': 'string',
-			'enum': ['ui', 'json'],
-			'enumDescriptions': [
-				nls.localize('settings.editor.ui', "Use the settings UI editor."),
-				nls.localize('settings.editor.json', "Use the JSON file editor."),
-			],
-			'description': nls.localize('settings.editor.desc', "Determines which settings editor to use by default."),
-			'default': 'ui',
-			'scope': ConfigurationScope.WINDOW
-		},
-		'workbench.enableExperiments': {
-			'type': 'boolean',
-			'description': nls.localize('workbench.enableExperiments', "Fetches experiments to run from a Microsoft online service."),
-			'default': true,
-			'tags': ['usesOnlineServices']
-		}
-	}
-});
-
 // Configuration: Window
-
+const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 configurationRegistry.registerConfiguration({
 	'id': 'window',
 	'order': 8,
@@ -769,7 +547,7 @@ configurationRegistry.registerConfiguration({
 			'type': 'string',
 			'default': isMacintosh ? '${activeEditorShort}${separator}${rootName}' : '${dirty}${activeEditorShort}${separator}${rootName}${separator}${appName}',
 			'markdownDescription': nls.localize({ comment: ['This is the description for a setting. Values surrounded by parenthesis are not to be translated.'], key: 'title' },
-				"Controls the window title based on the active editor. Variables are substituted based on the context:\n- `\${activeEditorShort}`: the file name (e.g. myFile.txt).\n- `\${activeEditorMedium}`: the path of the file relative to the workspace folder (e.g. myFolder/myFile.txt).\n- `\${activeEditorLong}`: the full path of the file (e.g. /Users/Development/myProject/myFolder/myFile.txt).\n- `\${folderName}`: name of the workspace folder the file is contained in (e.g. myFolder).\n- `\${folderPath}`: file path of the workspace folder the file is contained in (e.g. /Users/Development/myFolder).\n- `\${rootName}`: name of the workspace (e.g. myFolder or myWorkspace).\n- `\${rootPath}`: file path of the workspace (e.g. /Users/Development/myWorkspace).\n- `\${appName}`: e.g. VS Code.\n- `\${dirty}`: a dirty indicator if the active editor is dirty.\n- `\${separator}`: a conditional separator (\" - \") that only shows when surrounded by variables with values or static text.")
+				"Controls the window title based on the active editor. Variables are substituted based on the context:\n- `\${activeEditorShort}`: the file name (e.g. myFile.txt).\n- `\${activeEditorMedium}`: the path of the file relative to the workspace folder (e.g. myFolder/myFileFolder/myFile.txt).\n- `\${activeEditorLong}`: the full path of the file (e.g. /Users/Development/myFolder/myFileFolder/myFile.txt).\n- `\${activeFolderShort}`: the name of the folder the file is contained in (e.g. myFileFolder).\n- `\${activeFolderMedium}`: the path of the folder the file is contained in, relative to the workspace folder (e.g. myFolder/myFileFolder).\n- `\${activeFolderLong}`: the full path of the folder the file is contained in (e.g. /Users/Development/myFolder/myFileFolder).\n- `\${folderName}`: name of the workspace folder the file is contained in (e.g. myFolder).\n- `\${folderPath}`: file path of the workspace folder the file is contained in (e.g. /Users/Development/myFolder).\n- `\${rootName}`: name of the workspace (e.g. myFolder or myWorkspace).\n- `\${rootPath}`: file path of the workspace (e.g. /Users/Development/myWorkspace).\n- `\${appName}`: e.g. VS Code.\n- `\${dirty}`: a dirty indicator if the active editor is dirty.\n- `\${separator}`: a conditional separator (\" - \") that only shows when surrounded by variables with values or static text.")
 		},
 		'window.newWindowDimensions': {
 			'type': 'string',
@@ -820,7 +598,7 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': false,
 			'scope': ConfigurationScope.APPLICATION,
-			'description': nls.localize('window.doubleClickIconToClose', "If enabled, double clicking the application icon in the title bar will close the window and the window cannot be dragged by the icon. This setting only has an effect when `#window.titleBarStyle#` is set to `custom`.")
+			'markdownDescription': nls.localize('window.doubleClickIconToClose', "If enabled, double clicking the application icon in the title bar will close the window and the window cannot be dragged by the icon. This setting only has an effect when `#window.titleBarStyle#` is set to `custom`.")
 		},
 		'window.titleBarStyle': {
 			'type': 'string',
@@ -842,13 +620,6 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('window.nativeFullScreen', "Controls if native full-screen should be used on macOS. Disable this option to prevent macOS from creating a new space when going full-screen."),
 			'included': isMacintosh
 		},
-		'window.smoothScrollingWorkaround': { // TODO@Ben remove once https://github.com/Microsoft/vscode/issues/61824 settles
-			'type': 'boolean',
-			'default': false,
-			'scope': ConfigurationScope.APPLICATION,
-			'markdownDescription': nls.localize('window.smoothScrollingWorkaround', "Enable this workaround if scrolling is no longer smooth after restoring a minimized VS Code window. This is a workaround for an issue (https://github.com/Microsoft/vscode/issues/13612) where scrolling starts to lag on devices with precision trackpads like the Surface devices from Microsoft. Enabling this workaround can result in a little bit of layout flickering after restoring the window from minimized state but is otherwise harmless."),
-			'included': isWindows
-		},
 		'window.clickThroughInactive': {
 			'type': 'boolean',
 			'default': true,
@@ -859,47 +630,3 @@ configurationRegistry.registerConfiguration({
 	}
 });
 
-// Configuration: Zen Mode
-configurationRegistry.registerConfiguration({
-	'id': 'zenMode',
-	'order': 9,
-	'title': nls.localize('zenModeConfigurationTitle', "Zen Mode"),
-	'type': 'object',
-	'properties': {
-		'zenMode.fullScreen': {
-			'type': 'boolean',
-			'default': true,
-			'description': nls.localize('zenMode.fullScreen', "Controls whether turning on Zen Mode also puts the workbench into full screen mode.")
-		},
-		'zenMode.centerLayout': {
-			'type': 'boolean',
-			'default': true,
-			'description': nls.localize('zenMode.centerLayout', "Controls whether turning on Zen Mode also centers the layout.")
-		},
-		'zenMode.hideTabs': {
-			'type': 'boolean',
-			'default': true,
-			'description': nls.localize('zenMode.hideTabs', "Controls whether turning on Zen Mode also hides workbench tabs.")
-		},
-		'zenMode.hideStatusBar': {
-			'type': 'boolean',
-			'default': true,
-			'description': nls.localize('zenMode.hideStatusBar', "Controls whether turning on Zen Mode also hides the status bar at the bottom of the workbench.")
-		},
-		'zenMode.hideActivityBar': {
-			'type': 'boolean',
-			'default': true,
-			'description': nls.localize('zenMode.hideActivityBar', "Controls whether turning on Zen Mode also hides the activity bar at the left of the workbench.")
-		},
-		'zenMode.hideLineNumbers': {
-			'type': 'boolean',
-			'default': true,
-			'description': nls.localize('zenMode.hideLineNumbers', "Controls whether turning on Zen Mode also hides the editor line numbers.")
-		},
-		'zenMode.restore': {
-			'type': 'boolean',
-			'default': false,
-			'description': nls.localize('zenMode.restore', "Controls whether a window should restore to zen mode if it was exited in zen mode.")
-		}
-	}
-});

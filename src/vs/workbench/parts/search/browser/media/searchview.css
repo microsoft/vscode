@@ -177,6 +177,7 @@
 	line-height: 22px;
 	display: flex;
 	overflow: hidden;
+	padding-left: 22px;
 }
 
 .search-view .linematch > .match {
@@ -389,4 +390,8 @@
 .hc-black .monaco-workbench .search-view .filematch,
 .hc-black .monaco-workbench .search-view .linematch {
 	line-height: 20px;
+}
+
+.vs .panel .search-view .monaco-inputbox {
+	border: 1px solid #ddd;
 }

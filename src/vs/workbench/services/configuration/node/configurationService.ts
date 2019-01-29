@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { dirname } from 'path';
 import * as assert from 'vs/base/common/assert';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ResourceMap } from 'vs/base/common/map';
@@ -36,7 +35,7 @@ import { massageFolderPathForWorkspace } from 'vs/platform/workspaces/node/works
 import { UserConfiguration } from 'vs/platform/configuration/node/configuration';
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { localize } from 'vs/nls';
-import { isEqual } from 'vs/base/common/resources';
+import { isEqual, dirname } from 'vs/base/common/resources';
 import { mark } from 'vs/base/common/performance';
 
 export class WorkspaceService extends Disposable implements IWorkspaceConfigurationService, IWorkspaceContextService {
@@ -44,6 +43,8 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	public _serviceBrand: any;
 
 	private workspace: Workspace;
+	private resolvePromise: Promise<void>;
+	private resolveCallback: () => void;
 	private _configuration: Configuration;
 	private defaultConfiguration: DefaultConfigurationModel;
 	private userConfiguration: UserConfiguration;
@@ -71,6 +72,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	constructor(private environmentService: IEnvironmentService, private workspaceSettingsRootFolder: string = FOLDER_CONFIG_FOLDER_NAME) {
 		super();
 
+		this.resolvePromise = new Promise(c => this.resolveCallback = c);
 		this.defaultConfiguration = new DefaultConfigurationModel();
 		this.userConfiguration = this._register(new UserConfiguration(environmentService.appSettingsPath));
 		this.workspaceConfiguration = this._register(new WorkspaceConfiguration(environmentService));
@@ -84,6 +86,10 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	}
 
 	// Workspace Context Service Impl
+
+	public getCompleteWorkspace(): Promise<Workspace> {
+		return this.resolvePromise.then(() => this.getWorkspace());
+	}
 
 	public getWorkspace(): Workspace {
 		return this.workspace;
@@ -162,8 +168,8 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		if (foldersToAdd.length) {
 
 			// Recompute current workspace folders if we have folders to add
-			const workspaceConfigFolder = dirname(this.getWorkspace().configuration.fsPath);
-			currentWorkspaceFolders = toWorkspaceFolders(newStoredFolders, URI.file(workspaceConfigFolder));
+			const workspaceConfigFolder = dirname(this.getWorkspace().configuration);
+			currentWorkspaceFolders = toWorkspaceFolders(newStoredFolders, workspaceConfigFolder);
 			const currentWorkspaceFolderUris = currentWorkspaceFolders.map(folder => folder.uri);
 
 			const storedFoldersToAdd: IStoredWorkspaceFolder[] = [];
@@ -318,6 +324,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 				for (const workspaceFolder of changedWorkspaceFolders) {
 					this.onWorkspaceFolderConfigurationChanged(workspaceFolder);
 				}
+				this.resolveCallback();
 			});
 	}
 
@@ -342,7 +349,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		return this.workspaceConfiguration.load({ id: workspaceIdentifier.id, configPath: URI.file(workspaceIdentifier.configPath) })
 			.then(() => {
 				const workspaceConfigPath = URI.file(workspaceIdentifier.configPath);
-				const workspaceFolders = toWorkspaceFolders(this.workspaceConfiguration.getFolders(), URI.file(dirname(workspaceConfigPath.fsPath)));
+				const workspaceFolders = toWorkspaceFolders(this.workspaceConfiguration.getFolders(), dirname(workspaceConfigPath));
 				const workspaceId = workspaceIdentifier.id;
 				return new Workspace(workspaceId, workspaceFolders, workspaceConfigPath);
 			});
@@ -535,7 +542,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	private onWorkspaceConfigurationChanged(): Promise<void> {
 		if (this.workspace && this.workspace.configuration && this._configuration) {
 			const workspaceConfigurationChangeEvent = this._configuration.compareAndUpdateWorkspaceConfiguration(this.workspaceConfiguration.getConfiguration());
-			let configuredFolders = toWorkspaceFolders(this.workspaceConfiguration.getFolders(), URI.file(dirname(this.workspace.configuration.fsPath)));
+			let configuredFolders = toWorkspaceFolders(this.workspaceConfiguration.getFolders(), dirname(this.workspace.configuration));
 			const changes = this.compareFolders(this.workspace.folders, configuredFolders);
 			if (changes.added.length || changes.removed.length || changes.changed.length) {
 				this.workspace.folders = configuredFolders;

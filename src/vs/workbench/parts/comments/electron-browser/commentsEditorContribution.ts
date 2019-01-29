@@ -35,6 +35,8 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { overviewRulerCommentingRangeForeground } from 'vs/workbench/parts/comments/electron-browser/commentGlyphWidget';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { STATUS_BAR_ITEM_HOVER_BACKGROUND, STATUS_BAR_ITEM_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
 
 export const ctxReviewPanelVisible = new RawContextKey<boolean>('reviewPanelVisible', false);
 
@@ -175,7 +177,8 @@ export class ReviewController implements IEditorContribution {
 		@IModelService private readonly modelService: IModelService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IOpenerService private readonly openerService: IOpenerService,
-		@IDialogService private readonly dialogService: IDialogService
+		@IDialogService private readonly dialogService: IDialogService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) {
 		this.editor = editor;
 		this.globalToDispose = [];
@@ -393,7 +396,7 @@ export class ReviewController implements IEditorContribution {
 				}
 			});
 			added.forEach(thread => {
-				let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.openerService, this.dialogService, this.notificationService, this.editor, e.owner, thread, null, draftMode, {});
+				let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.openerService, this.dialogService, this.notificationService, this.contextMenuService, this.editor, e.owner, thread, null, draftMode);
 				zoneWidget.display(thread.range.startLineNumber);
 				this._commentWidgets.push(zoneWidget);
 				this._commentInfos.filter(info => info.owner === e.owner)[0].threads.push(thread);
@@ -412,7 +415,7 @@ export class ReviewController implements IEditorContribution {
 
 		// add new comment
 		this._reviewPanelVisible.set(true);
-		this._newCommentWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.openerService, this.dialogService, this.notificationService, this.editor, ownerId, {
+		this._newCommentWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.openerService, this.dialogService, this.notificationService, this.contextMenuService, this.editor, ownerId, {
 			extensionId: extensionId,
 			threadId: null,
 			resource: null,
@@ -425,7 +428,7 @@ export class ReviewController implements IEditorContribution {
 			},
 			reply: replyCommand,
 			collapsibleState: CommentThreadCollapsibleState.Expanded,
-		}, pendingComment, draftMode, {});
+		}, pendingComment, draftMode);
 
 		this.localToDispose.push(this._newCommentWidget.onDidClose(e => {
 			this.clearNewCommentWidget();
@@ -570,7 +573,7 @@ export class ReviewController implements IEditorContribution {
 					thread.collapsibleState = modes.CommentThreadCollapsibleState.Expanded;
 				}
 
-				let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.openerService, this.dialogService, this.notificationService, this.editor, info.owner, thread, pendingComment, info.draftMode, {});
+				let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.openerService, this.dialogService, this.notificationService, this.contextMenuService, this.editor, info.owner, thread, pendingComment, info.draftMode);
 				zoneWidget.display(thread.range.startLineNumber);
 				this._commentWidgets.push(zoneWidget);
 			});
@@ -740,5 +743,17 @@ registerThemingParticipant((theme, collector) => {
 				background: ${commentingRangeForeground};
 			}
 		`);
+	}
+
+	const statusBarItemHoverBackground = theme.getColor(STATUS_BAR_ITEM_HOVER_BACKGROUND);
+	if (statusBarItemHoverBackground) {
+		collector.addRule(`.monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label:hover { background-color: ${statusBarItemHoverBackground}; border: 1px solid grey;
+		border-radius: 3px; }`);
+	}
+
+	const statusBarItemActiveBackground = theme.getColor(STATUS_BAR_ITEM_ACTIVE_BACKGROUND);
+	if (statusBarItemActiveBackground) {
+		collector.addRule(`.monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label:active { background-color: ${statusBarItemActiveBackground}; border: 1px solid grey;
+		border-radius: 3px;}`);
 	}
 });

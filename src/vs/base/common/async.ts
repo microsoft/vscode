@@ -44,6 +44,9 @@ export function createCancelablePromise<T>(callback: (token: CancellationToken) 
 		catch<TResult = never>(reject?: ((reason: any) => TResult | Promise<TResult>) | undefined | null): Promise<T | TResult> {
 			return this.then(undefined, reject);
 		}
+		finally(onfinally?: (() => void) | undefined | null): Promise<T> {
+			return always(promise, onfinally || (() => { }));
+		}
 	};
 }
 

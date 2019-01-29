@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWindowsService, IWindowService, IWindowsConfiguration } from 'vs/platform/windows/common/windows';
@@ -15,7 +15,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
 import { isEqual } from 'vs/base/common/resources';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { equals } from 'vs/base/common/objects';
@@ -24,7 +24,7 @@ interface IConfiguration extends IWindowsConfiguration {
 	update: { channel: string; };
 	telemetry: { enableCrashReporter: boolean };
 	keyboard: { touchbar: { enabled: boolean } };
-	workbench: { tree: { horizontalScrolling: boolean } };
+	workbench: { tree: { horizontalScrolling: boolean }, useExperimentalGridLayout: boolean };
 	files: { useExperimentalFileWatcher: boolean, watcherExclude: object };
 }
 
@@ -38,14 +38,9 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private enableCrashReporter: boolean;
 	private touchbarEnabled: boolean;
 	private treeHorizontalScrolling: boolean;
-	private windowsSmoothScrollingWorkaround: boolean;
 	private experimentalFileWatcher: boolean;
 	private fileWatcherExclude: object;
-
-	private firstFolderResource?: URI;
-	private extensionHostRestarter: RunOnceScheduler;
-
-	private onDidChangeWorkspaceFoldersUnbind: IDisposable;
+	private useGridLayout: boolean;
 
 	constructor(
 		@IWindowsService private readonly windowsService: IWindowsService,
@@ -54,23 +49,11 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		@IEnvironmentService private readonly envService: IEnvironmentService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IExtensionService private readonly extensionService: IExtensionService
 	) {
 		super();
 
-		const workspace = this.contextService.getWorkspace();
-		this.firstFolderResource = workspace.folders.length > 0 ? workspace.folders[0].uri : undefined;
-		this.extensionHostRestarter = new RunOnceScheduler(() => this.extensionService.restartExtensionHost(), 10);
-
 		this.onConfigurationChange(configurationService.getValue<IConfiguration>(), false);
-		this.handleWorkbenchState();
-
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChange(this.configurationService.getValue<IConfiguration>(), true)));
-		this._register(this.contextService.onDidChangeWorkbenchState(() => setTimeout(() => this.handleWorkbenchState())));
 	}
 
 	private onConfigurationChange(config: IConfiguration, notify: boolean): void {
@@ -138,9 +121,9 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 			changed = true;
 		}
 
-		// Windows: smooth scrolling workaround
-		if (isWindows && config.window && typeof config.window.smoothScrollingWorkaround === 'boolean' && config.window.smoothScrollingWorkaround !== this.windowsSmoothScrollingWorkaround) {
-			this.windowsSmoothScrollingWorkaround = config.window.smoothScrollingWorkaround;
+		// Workbench Grid Layout
+		if (config.workbench && typeof config.workbench.useExperimentalGridLayout === 'boolean' && config.workbench.useExperimentalGridLayout !== this.useGridLayout) {
+			this.useGridLayout = config.workbench.useExperimentalGridLayout;
 			changed = true;
 		}
 
@@ -153,6 +136,55 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 				() => this.windowsService.relaunch(Object.create(null))
 			);
 		}
+	}
+
+	private doConfirm(message: string, detail: string, primaryButton: string, confirmed: () => void): void {
+		this.windowService.isFocused().then(focused => {
+			if (focused) {
+				return this.dialogService.confirm({
+					type: 'info',
+					message,
+					detail,
+					primaryButton
+				}).then(res => {
+					if (res.confirmed) {
+						confirmed();
+					}
+				});
+			}
+
+			return undefined;
+		});
+	}
+}
+
+export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWorkbenchContribution {
+
+	private firstFolderResource?: URI;
+	private extensionHostRestarter: RunOnceScheduler;
+
+	private onDidChangeWorkspaceFoldersUnbind: IDisposable;
+
+	constructor(
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IExtensionService extensionService: IExtensionService
+	) {
+		super();
+
+		this.extensionHostRestarter = this._register(new RunOnceScheduler(() => extensionService.restartExtensionHost(), 10));
+
+		this.contextService.getCompleteWorkspace()
+			.then(workspace => {
+				this.firstFolderResource = workspace.folders.length > 0 ? workspace.folders[0].uri : undefined;
+				this.handleWorkbenchState();
+				this._register(this.contextService.onDidChangeWorkbenchState(() => setTimeout(() => this.handleWorkbenchState())));
+			});
+
+		this._register(toDisposable(() => {
+			if (this.onDidChangeWorkspaceFoldersUnbind) {
+				this.onDidChangeWorkspaceFoldersUnbind.dispose();
+			}
+		}));
 	}
 
 	private handleWorkbenchState(): void {
@@ -187,26 +219,8 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 			this.extensionHostRestarter.schedule(); // buffer calls to extension host restart
 		}
 	}
-
-	private doConfirm(message: string, detail: string, primaryButton: string, confirmed: () => void): void {
-		this.windowService.isFocused().then(focused => {
-			if (focused) {
-				return this.dialogService.confirm({
-					type: 'info',
-					message,
-					detail,
-					primaryButton
-				}).then(res => {
-					if (res.confirmed) {
-						confirmed();
-					}
-				});
-			}
-
-			return undefined;
-		});
-	}
 }
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(SettingsChangeRelauncher, LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(WorkspaceChangeExtHostRelauncher, LifecyclePhase.Restored);
