@@ -549,22 +549,24 @@ export class SettingsEditor2 extends BaseEditor {
 			this.viewState));
 
 		this._register(this.tocTree.onDidChangeFocus(e => {
-			const element: SettingsTreeGroupElement = e.elements[0];
-			if (this.tocFocusedElement === e.elements[0]) {
-				return;
-			}
-
-			this.tocFocusedElement = element;
-			this.tocTree.setSelection(e.elements);
-			if (this.searchResultModel) {
-				if (this.viewState.filterToCategory !== element) {
-					this.viewState.filterToCategory = element;
-					this.renderTree();
-					this.settingsTree.scrollTop = 0;
+			setTimeout(() => {
+				const element: SettingsTreeGroupElement = e.elements[0];
+				if (this.tocFocusedElement === e.elements[0]) {
+					return;
 				}
-			} else if (element && (!e.browserEvent || !(<any>e.browserEvent).fromScroll)) {
-				this.settingsTree.reveal(element, 0);
-			}
+
+				this.tocFocusedElement = element;
+				this.tocTree.setSelection(e.elements);
+				if (this.searchResultModel) {
+					if (this.viewState.filterToCategory !== element) {
+						this.viewState.filterToCategory = element;
+						this.renderTree();
+						this.settingsTree.scrollTop = 0;
+					}
+				} else if (element && (!e.browserEvent || !(<any>e.browserEvent).fromScroll)) {
+					this.settingsTree.reveal(element, 0);
+				}
+			}, 0);
 		}));
 
 		this._register(this.tocTree.onDidFocus(() => {
