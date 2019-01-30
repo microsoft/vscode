@@ -26,11 +26,15 @@ export function getCustomDataPathsInAllWorkspaces(workspaceFolders: WorkspaceFol
 		if (
 			wfHtmlConfig &&
 			wfHtmlConfig.workspaceFolderValue &&
-			wfHtmlConfig.workspaceFolderValue.experimental
+			wfHtmlConfig.workspaceFolderValue.experimental &&
+			wfHtmlConfig.workspaceFolderValue.experimental.customData
 		) {
-			if (wfHtmlConfig.workspaceFolderValue.experimental.customData) {
-				wfHtmlConfig.workspaceFolderValue.experimental.customData.forEach(t => {
-					dataPaths.push(path.resolve(wf.uri.fsPath, t));
+			const customData = wfHtmlConfig.workspaceFolderValue.experimental.customData;
+			if (Array.isArray(customData)) {
+				customData.forEach(t => {
+					if (typeof t === 'string') {
+						dataPaths.push(path.resolve(wf.uri.fsPath, t));
+					}
 				});
 			}
 		}
@@ -45,7 +49,12 @@ export function getCustomDataPathsFromAllExtensions(): string[] {
 	for (const extension of extensions.all) {
 		const contributes = extension.packageJSON && extension.packageJSON.contributes;
 
-		if (contributes && contributes.html && contributes.html.experimental.customData && Array.isArray(contributes.html.experimental.customData)) {
+		if (
+			contributes &&
+			contributes.html &&
+			contributes.html.experimental.customData &&
+			Array.isArray(contributes.html.experimental.customData)
+		) {
 			const relativePaths: string[] = contributes.html.customData;
 			relativePaths.forEach(rp => {
 				dataPaths.push(path.resolve(extension.extensionPath, rp));
