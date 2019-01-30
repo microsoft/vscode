@@ -160,10 +160,10 @@ export class ExplorerService implements IExplorerService {
 	refresh(): void {
 		this.model.roots.forEach(r => r.forgetChildren());
 		this._onDidChangeItem.fire(undefined);
-		const active = this.editorService.activeEditor;
-		if (active && active.getResource()) {
+		const resource = this.editorService.activeEditor ? this.editorService.activeEditor.getResource() : undefined;
+		if (resource) {
 			// We did a top level refresh, reveal the active file #67118
-			this.select(active.getResource(), true);
+			this.select(resource, true);
 		}
 	}
 
