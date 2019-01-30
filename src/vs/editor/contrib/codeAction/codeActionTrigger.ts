@@ -31,7 +31,6 @@ export class CodeActionKind {
 export const enum CodeActionAutoApply {
 	IfSingle,
 	First,
-	Preferred,
 	Never,
 }
 
