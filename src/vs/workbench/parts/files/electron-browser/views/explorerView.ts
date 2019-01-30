@@ -407,12 +407,7 @@ export class ExplorerView extends ViewletPanel {
 		const recursive = !item;
 		const toRefresh = item || this.tree.getInput();
 
-		return this.tree.updateChildren(toRefresh, recursive).then(() => {
-			if (!item) {
-				// We did a top level refresh, reveal the active file #67118
-				this.selectActiveFile(true);
-			}
-		});
+		return this.tree.updateChildren(toRefresh, recursive);
 	}
 
 	getOptimalWidth(): number {
