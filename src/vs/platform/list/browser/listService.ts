@@ -601,15 +601,14 @@ export interface IResourceResultsNavigationOptions {
 
 export class TreeResourceNavigator2<T, TFilterData> extends Disposable {
 
-	private readonly _openResource = new Emitter<IOpenEvent<T | null>>();
-	readonly openResource: Event<IOpenEvent<T | null>> = this._openResource.event;
+	private readonly _onDidOpenResource = new Emitter<IOpenEvent<T | null>>();
+	readonly onDidOpenResource: Event<IOpenEvent<T | null>> = this._onDidOpenResource.event;
 
 	constructor(
-		private tree: WorkbenchObjectTree<T, TFilterData> | WorkbenchAsyncDataTree<any, T, TFilterData>,
+		private tree: WorkbenchObjectTree<T, TFilterData> | WorkbenchDataTree<any, T, TFilterData> | WorkbenchAsyncDataTree<any, T, TFilterData>,
 		private options?: IResourceResultsNavigationOptions
 	) {
 		super();
-
 		this.registerListeners();
 	}
 
@@ -642,12 +641,15 @@ export class TreeResourceNavigator2<T, TFilterData> extends Disposable {
 		}
 
 		const isDoubleClick = e.browserEvent.detail === 2;
-		const sideBySide = e.browserEvent instanceof MouseEvent && (e.browserEvent.ctrlKey || e.browserEvent.metaKey || e.browserEvent.altKey);
-		this.open(!isDoubleClick, isDoubleClick, sideBySide);
+
+		if (this.tree.openOnSingleClick || isDoubleClick) {
+			const sideBySide = e.browserEvent instanceof MouseEvent && (e.browserEvent.ctrlKey || e.browserEvent.metaKey || e.browserEvent.altKey);
+			this.open(!isDoubleClick, isDoubleClick, sideBySide);
+		}
 	}
 
 	private open(preserveFocus: boolean, pinned: boolean, sideBySide: boolean): void {
-		this._openResource.fire({
+		this._onDidOpenResource.fire({
 			editorOptions: {
 				preserveFocus,
 				pinned,
@@ -904,6 +906,7 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 	private hasDoubleSelection: IContextKey<boolean>;
 	private hasMultiSelection: IContextKey<boolean>;
 
+	private _openOnSingleClick: boolean;
 	private _useAltAsMultipleSelectionModifier: boolean;
 
 	constructor(
@@ -940,6 +943,7 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 		this.hasDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);
 		this.hasMultiSelection = WorkbenchListMultiSelection.bindTo(this.contextKeyService);
 
+		this._openOnSingleClick = useSingleClickToOpen(configurationService);
 		this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
 
 		this.disposables.push(
@@ -961,6 +965,9 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 				this.hasSelectionOrFocus.set(selection.length > 0 || focus.length > 0);
 			}),
 			configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration(openModeSettingKey)) {
+					this._openOnSingleClick = useSingleClickToOpen(configurationService);
+				}
 				if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
 					this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
 				}
@@ -977,6 +984,10 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 				}
 			})
 		);
+	}
+
+	get openOnSingleClick(): boolean {
+		return this._openOnSingleClick;
 	}
 
 	get useAltAsMultipleSelectionModifier(): boolean {
@@ -997,6 +1008,7 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 	private hasDoubleSelection: IContextKey<boolean>;
 	private hasMultiSelection: IContextKey<boolean>;
 
+	private _openOnSingleClick: boolean;
 	private _useAltAsMultipleSelectionModifier: boolean;
 
 	constructor(
@@ -1034,6 +1046,7 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 		this.hasDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);
 		this.hasMultiSelection = WorkbenchListMultiSelection.bindTo(this.contextKeyService);
 
+		this._openOnSingleClick = useSingleClickToOpen(configurationService);
 		this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
 
 		this.disposables.push(
@@ -1055,6 +1068,9 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 				this.hasSelectionOrFocus.set(selection.length > 0 || focus.length > 0);
 			}),
 			configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration(openModeSettingKey)) {
+					this._openOnSingleClick = useSingleClickToOpen(configurationService);
+				}
 				if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
 					this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
 				}
@@ -1073,6 +1089,10 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 		);
 	}
 
+	get openOnSingleClick(): boolean {
+		return this._openOnSingleClick;
+	}
+
 	get useAltAsMultipleSelectionModifier(): boolean {
 		return this._useAltAsMultipleSelectionModifier;
 	}
@@ -1086,6 +1106,7 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 	private hasDoubleSelection: IContextKey<boolean>;
 	private hasMultiSelection: IContextKey<boolean>;
 
+	private _openOnSingleClick: boolean;
 	private _useAltAsMultipleSelectionModifier: boolean;
 
 	constructor(
@@ -1123,6 +1144,7 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 		this.hasDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);
 		this.hasMultiSelection = WorkbenchListMultiSelection.bindTo(this.contextKeyService);
 
+		this._openOnSingleClick = useSingleClickToOpen(configurationService);
 		this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
 
 		this.disposables.push(
@@ -1144,6 +1166,9 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 				this.hasSelectionOrFocus.set(selection.length > 0 || focus.length > 0);
 			}),
 			configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration(openModeSettingKey)) {
+					this._openOnSingleClick = useSingleClickToOpen(configurationService);
+				}
 				if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
 					this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
 				}
@@ -1160,6 +1185,10 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 				}
 			})
 		);
+	}
+
+	get openOnSingleClick(): boolean {
+		return this._openOnSingleClick;
 	}
 
 	get useAltAsMultipleSelectionModifier(): boolean {

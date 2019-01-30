@@ -429,7 +429,7 @@ export class LoadedScriptsView extends ViewletPanel {
 
 		const loadedScriptsNavigator = new TreeResourceNavigator2(this.tree);
 		this.disposables.push(loadedScriptsNavigator);
-		this.disposables.push(loadedScriptsNavigator.openResource(e => {
+		this.disposables.push(loadedScriptsNavigator.onDidOpenResource(e => {
 			if (e.element instanceof BaseTreeItem) {
 				const source = e.element.getSource();
 				if (source && source.available) {

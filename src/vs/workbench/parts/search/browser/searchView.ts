@@ -638,7 +638,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 
 		const resourceNavigator = this._register(new TreeResourceNavigator2(this.tree, { openOnFocus: true }));
-		this._register(Event.debounce(resourceNavigator.openResource, (last, event) => event, 75, true)(options => {
+		this._register(Event.debounce(resourceNavigator.onDidOpenResource, (last, event) => event, 75, true)(options => {
 			if (options.element instanceof Match) {
 				const selectedMatch: Match = options.element;
 				if (this.currentSelectedFileMatch) {

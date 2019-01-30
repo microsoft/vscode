@@ -289,6 +289,8 @@ export class ExplorerView extends ViewletPanel {
 			this.rootContext.set(!stat || (stat && stat.isRoot));
 		}));
 
+		// TODO@Isidor: use TreeResourceNavigator2 just like search and listen to the `onDidOpenResource` instead
+
 		// Open when selecting via keyboard
 		this.disposables.push(this.tree.onDidChangeSelection(e => {
 			if (!e.browserEvent) {
@@ -318,6 +320,11 @@ export class ExplorerView extends ViewletPanel {
 
 				if (e.browserEvent instanceof MouseEvent) {
 					isDoubleClick = e.browserEvent.detail === 2;
+
+					if (!this.tree.openOnSingleClick && !isDoubleClick) {
+						return;
+					}
+
 					isMiddleClick = e.browserEvent.button === 1;
 					sideBySide = this.tree.useAltAsMultipleSelectionModifier ? (e.browserEvent.ctrlKey || e.browserEvent.metaKey) : e.browserEvent.altKey;
 				}
