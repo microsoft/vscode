@@ -351,7 +351,9 @@ class TypeLabelController<T> implements IDisposable {
 	}
 
 	private onDidUpdateListOptions(options: IListOptions<T>): void {
-		if (options.enableKeyboardNavigation) {
+		const enableKeyboardNavigation = typeof options.enableKeyboardNavigation === 'undefined' ? true : !!options.enableKeyboardNavigation;
+
+		if (enableKeyboardNavigation) {
 			this.enable();
 		} else {
 			this.disable();
