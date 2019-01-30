@@ -363,11 +363,12 @@ class TypeFilter<T> implements ITreeFilter<T, FuzzyScore>, IDisposable {
 
 class TypeFilterController<T, TFilterData> implements IDisposable {
 
-	get pattern(): string {
-		return this._pattern;
-	}
+	private _enabled = false;
+	get enabled(): boolean { return this._enabled; }
 
-	private enabled = false;
+	private _pattern = '';
+	get pattern(): string { return this._pattern; }
+
 	private positionClassName = 'ne';
 	private domNode: HTMLElement;
 	private messageDomNode: HTMLElement;
@@ -375,7 +376,6 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 	private filterOnTypeDomNode: HTMLInputElement;
 	private clearDomNode: HTMLElement;
 
-	private _pattern = '';
 	private enabledDisposables: IDisposable[] = [];
 	private disposables: IDisposable[] = [];
 
@@ -425,7 +425,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 	}
 
 	private enable(): void {
-		if (this.enabled) {
+		if (this._enabled) {
 			return;
 		}
 
@@ -456,11 +456,11 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		this.filter.pattern = '';
 		this.tree.refilter();
 		this.render();
-		this.enabled = true;
+		this._enabled = true;
 	}
 
 	private disable(): void {
-		if (!this.enabled) {
+		if (!this._enabled) {
 			return;
 		}
 
@@ -468,7 +468,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		this.enabledDisposables = dispose(this.enabledDisposables);
 		this.tree.refilter();
 		this.render();
-		this.enabled = false;
+		this._enabled = false;
 	}
 
 	private onInput(pattern: string): void {
@@ -559,7 +559,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 	}
 
 	private onDidSpliceModel(): void {
-		if (!this.enabled || this.pattern.length === 0) {
+		if (!this._enabled || this.pattern.length === 0) {
 			return;
 		}
 
@@ -718,7 +718,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		if (_options.keyboardNavigationLabelProvider) {
 			const typeFilterController = new TypeFilterController(this, this.model, this.view, filter!, _options.keyboardNavigationLabelProvider);
 			this.focusNavigationFilter = node => {
-				if (!typeFilterController.pattern) {
+				if (!typeFilterController.enabled || !typeFilterController.pattern) {
 					return true;
 				}
 
