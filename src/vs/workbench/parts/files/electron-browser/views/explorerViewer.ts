@@ -247,7 +247,7 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, FuzzyScore, IF
 	}
 
 	disposeElement?(element: ITreeNode<ExplorerItem, FuzzyScore>, index: number, templateData: IFileTemplateData): void {
-		// noop
+		templateData.elementDisposable.dispose();
 	}
 
 	disposeTemplate(templateData: IFileTemplateData): void {
