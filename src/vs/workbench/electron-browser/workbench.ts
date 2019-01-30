@@ -113,7 +113,7 @@ import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/work
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { FileDialogService } from 'vs/workbench/services/dialogs/electron-browser/dialogService';
 import { LogStorageAction } from 'vs/platform/storage/node/storageService';
-import { Sizing, Direction, Grid, View } from 'vs/base/browser/ui/grid/grid';
+import { Sizing, Direction, ISerializedGrid, SerializableGrid, SerializableView } from 'vs/base/browser/ui/grid/grid';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { WorkbenchLayout } from 'vs/workbench/browser/layout';
 
@@ -178,6 +178,7 @@ interface IWorkbenchUIState {
 
 export class Workbench extends Disposable implements IPartService {
 
+	private static readonly workbenchGridUIStateStorageKey = 'workbench.layout.state';
 	private static readonly sidebarHiddenStorageKey = 'workbench.sidebar.hidden';
 	private static readonly menubarVisibilityConfigurationKey = 'window.menuBarVisibility';
 	private static readonly panelHiddenStorageKey = 'workbench.panel.hidden';
@@ -208,7 +209,7 @@ export class Workbench extends Disposable implements IPartService {
 	private fileService: IFileService;
 	private quickInput: QuickInputService;
 
-	private workbenchGrid: Grid<View> | WorkbenchLayout;
+	private workbenchGrid: SerializableGrid<SerializableView> | WorkbenchLayout;
 
 	private titlebarPart: TitlebarPart;
 	private activitybarPart: ActivitybarPart;
@@ -217,12 +218,12 @@ export class Workbench extends Disposable implements IPartService {
 	private editorPart: EditorPart;
 	private statusbarPart: StatusbarPart;
 
-	private titlebarPartView: View;
-	private activitybarPartView: View;
-	private sidebarPartView: View;
-	private panelPartView: View;
-	private editorPartView: View;
-	private statusbarPartView: View;
+	private titlebarPartView: SerializableView;
+	private activitybarPartView: SerializableView;
+	private sidebarPartView: SerializableView;
+	private panelPartView: SerializableView;
+	private editorPartView: SerializableView;
+	private statusbarPartView: SerializableView;
 
 	private quickOpen: QuickOpenController;
 	private notificationsCenter: NotificationsCenter;
@@ -970,7 +971,7 @@ export class Workbench extends Disposable implements IPartService {
 	}
 
 	private saveLastPanelDimension(): void {
-		if (!(this.workbenchGrid instanceof Grid)) {
+		if (!(this.workbenchGrid instanceof SerializableGrid)) {
 			return;
 		}
 
@@ -997,7 +998,7 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Layout
 		if (!skipLayout) {
-			if (this.workbenchGrid instanceof Grid) {
+			if (this.workbenchGrid instanceof SerializableGrid) {
 				this.layout();
 			} else {
 				this.workbenchGrid.layout();
@@ -1020,14 +1021,34 @@ export class Workbench extends Disposable implements IPartService {
 	private createWorkbenchLayout(): void {
 		if (this.configurationService.getValue('workbench.useExperimentalGridLayout')) {
 			// Create view wrappers for all parts
-			this.titlebarPartView = new View(this.titlebarPart);
-			this.sidebarPartView = new View(this.sidebarPart);
-			this.activitybarPartView = new View(this.activitybarPart);
-			this.editorPartView = new View(this.editorPart);
-			this.panelPartView = new View(this.panelPart);
-			this.statusbarPartView = new View(this.statusbarPart);
+			this.titlebarPartView = new SerializableView(this.titlebarPart);
+			this.sidebarPartView = new SerializableView(this.sidebarPart);
+			this.activitybarPartView = new SerializableView(this.activitybarPart);
+			this.editorPartView = new SerializableView(this.editorPart);
+			this.panelPartView = new SerializableView(this.panelPart);
+			this.statusbarPartView = new SerializableView(this.statusbarPart);
 
-			this.workbenchGrid = new Grid(this.editorPartView, { proportionalLayout: false });
+			const serializedWorkbenchGridString = this.storageService.get(Workbench.workbenchGridUIStateStorageKey, StorageScope.GLOBAL, undefined);
+
+			if (serializedWorkbenchGridString) {
+				const serializedWorkbenchGrid = JSON.parse(serializedWorkbenchGridString) as ISerializedGrid;
+				this.workbenchGrid = SerializableGrid.deserialize(serializedWorkbenchGrid, {
+					fromJSON: (serializedView: { type: Parts }): SerializableView => {
+						switch (serializedView.type) {
+							case Parts.ACTIVITYBAR_PART: return this.activitybarPartView;
+							case Parts.EDITOR_PART: return this.editorPartView;
+							case Parts.PANEL_PART: return this.panelPartView;
+							case Parts.SIDEBAR_PART: return this.sidebarPartView;
+							case Parts.STATUSBAR_PART: return this.statusbarPartView;
+							case Parts.TITLEBAR_PART: return this.titlebarPartView;
+						}
+
+						return null;
+					}
+				});
+			} else {
+				this.workbenchGrid = new SerializableGrid(this.editorPartView, { proportionalLayout: false });
+			}
 
 			this.workbench.prepend(this.workbenchGrid.element);
 			this.layout();
@@ -1193,6 +1214,10 @@ export class Workbench extends Disposable implements IPartService {
 				this.toggleZenMode(true);
 			}
 		}
+
+		if (this.workbenchGrid instanceof SerializableGrid) {
+			this.storageService.store(Workbench.workbenchGridUIStateStorageKey, JSON.stringify(this.workbenchGrid.serialize()), StorageScope.GLOBAL);
+		}
 	}
 
 	dispose(): void {
@@ -1280,7 +1305,7 @@ export class Workbench extends Disposable implements IPartService {
 	getTitleBarOffset(): number {
 		let offset = 0;
 		if (this.isVisible(Parts.TITLEBAR_PART)) {
-			if (this.workbenchGrid instanceof Grid) {
+			if (this.workbenchGrid instanceof SerializableGrid) {
 				offset = this.gridHasView(this.titlebarPartView) ? this.workbenchGrid.getViewSize2(this.titlebarPartView).height : 0;
 			} else {
 				offset = this.workbenchGrid.partLayoutInfo.titlebar.height;
@@ -1383,8 +1408,8 @@ export class Workbench extends Disposable implements IPartService {
 		}
 	}
 
-	private gridHasView(view: View): boolean {
-		if (!(this.workbenchGrid instanceof Grid)) {
+	private gridHasView(view: SerializableView): boolean {
+		if (!(this.workbenchGrid instanceof SerializableGrid)) {
 			return false;
 		}
 
@@ -1397,7 +1422,7 @@ export class Workbench extends Disposable implements IPartService {
 	}
 
 	private updateGrid(): void {
-		if (!(this.workbenchGrid instanceof Grid)) {
+		if (!(this.workbenchGrid instanceof SerializableGrid)) {
 			return;
 		}
 
@@ -1488,7 +1513,7 @@ export class Workbench extends Disposable implements IPartService {
 		this.contextViewService.layout();
 
 		if (this.workbenchStarted && !this.workbenchShutdown) {
-			if (this.workbenchGrid instanceof Grid) {
+			if (this.workbenchGrid instanceof SerializableGrid) {
 				const dimensions = DOM.getClientArea(this.container);
 				DOM.position(this.workbench, 0, 0, 0, 0, 'relative');
 				DOM.size(this.workbench, dimensions.width, dimensions.height);
@@ -1533,7 +1558,7 @@ export class Workbench extends Disposable implements IPartService {
 	}
 
 	resizePart(part: Parts, sizeChange: number): void {
-		let view: View;
+		let view: SerializableView;
 		switch (part) {
 			case Parts.SIDEBAR_PART:
 				view = this.sidebarPartView;
@@ -1541,7 +1566,7 @@ export class Workbench extends Disposable implements IPartService {
 				view = this.panelPartView;
 			case Parts.EDITOR_PART:
 				view = this.editorPartView;
-				if (this.workbenchGrid instanceof Grid) {
+				if (this.workbenchGrid instanceof SerializableGrid) {
 					this.workbenchGrid.resizeView(view, this.workbenchGrid.getViewSize(view) + sizeChange);
 				} else {
 					this.workbenchGrid.resizePart(part, sizeChange);
@@ -1557,7 +1582,7 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Layout
 		if (!skipLayout) {
-			if (this.workbenchGrid instanceof Grid) {
+			if (this.workbenchGrid instanceof SerializableGrid) {
 				this.layout();
 			} else {
 				this.workbenchGrid.layout();
@@ -1566,7 +1591,7 @@ export class Workbench extends Disposable implements IPartService {
 	}
 
 	setEditorHidden(hidden: boolean, skipLayout?: boolean): void {
-		if (!(this.workbenchGrid instanceof Grid)) {
+		if (!(this.workbenchGrid instanceof SerializableGrid)) {
 			return;
 		}
 
@@ -1628,7 +1653,7 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Layout
 		if (!skipLayout) {
-			if (this.workbenchGrid instanceof Grid) {
+			if (this.workbenchGrid instanceof SerializableGrid) {
 				this.layout();
 			} else {
 				this.workbenchGrid.layout();
@@ -1675,7 +1700,7 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Layout
 		if (!skipLayout) {
-			if (this.workbenchGrid instanceof Grid) {
+			if (this.workbenchGrid instanceof SerializableGrid) {
 				this.layout();
 			} else {
 				this.workbenchGrid.layout();
@@ -1684,7 +1709,7 @@ export class Workbench extends Disposable implements IPartService {
 	}
 
 	toggleMaximizedPanel(): void {
-		if (this.workbenchGrid instanceof Grid) {
+		if (this.workbenchGrid instanceof SerializableGrid) {
 			this.workbenchGrid.maximizeViewSize(this.panelPartView);
 		} else {
 			this.workbenchGrid.layout({ toggleMaximizedPanel: true, source: Parts.PANEL_PART });
@@ -1692,7 +1717,7 @@ export class Workbench extends Disposable implements IPartService {
 	}
 
 	isPanelMaximized(): boolean {
-		if (this.workbenchGrid instanceof Grid) {
+		if (this.workbenchGrid instanceof SerializableGrid) {
 			try {
 				return this.workbenchGrid.getViewSize2(this.panelPartView).height === this.panelPart.maximumHeight;
 			} catch (e) {
@@ -1729,7 +1754,7 @@ export class Workbench extends Disposable implements IPartService {
 		this.sidebarPart.updateStyles();
 
 		// Layout
-		if (this.workbenchGrid instanceof Grid) {
+		if (this.workbenchGrid instanceof SerializableGrid) {
 
 			if (!wasHidden) {
 				this.uiState.lastSidebarDimension = this.workbenchGrid.getViewSize(this.sidebarPartView);
@@ -1756,7 +1781,7 @@ export class Workbench extends Disposable implements IPartService {
 
 			// Layout
 			if (!skipLayout) {
-				if (this.workbenchGrid instanceof Grid) {
+				if (this.workbenchGrid instanceof SerializableGrid) {
 					const dimensions = DOM.getClientArea(this.container);
 					this.workbenchGrid.layout(dimensions.width, dimensions.height);
 				} else {
@@ -1796,7 +1821,7 @@ export class Workbench extends Disposable implements IPartService {
 		this.panelPart.updateStyles();
 
 		// Layout
-		if (this.workbenchGrid instanceof Grid) {
+		if (this.workbenchGrid instanceof SerializableGrid) {
 			if (!wasHidden) {
 				this.saveLastPanelDimension();
 				this.workbenchGrid.removeView(this.panelPartView);

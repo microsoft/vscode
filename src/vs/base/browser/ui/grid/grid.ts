@@ -650,7 +650,7 @@ export function createSerializedGrid(gridDescriptor: GridDescriptor): ISerialize
 	};
 }
 
-export class View implements IView {
+export class SerializableView implements ISerializableView {
 
 	readonly element = $('.grid-view-view');
 
@@ -670,7 +670,7 @@ export class View implements IView {
 	get priority(): LayoutPriority | undefined { return this.view.priority; }
 	get snapSize(): number | undefined { return this.visible ? this.view.snapSize : undefined; }
 
-	constructor(private view: IView) {
+	constructor(private view: ISerializableView) {
 		this.show();
 		this.onDidChange = Event.any(this.onDidChangeVisibility.event, Event.filter(view.onDidChange, () => this.visible));
 	}
@@ -712,5 +712,9 @@ export class View implements IView {
 		}
 
 		this.orientation = orientation;
+	}
+
+	toJSON(): object {
+		return this.view.toJSON();
 	}
 }
