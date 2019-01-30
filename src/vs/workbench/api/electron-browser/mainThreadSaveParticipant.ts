@@ -311,7 +311,17 @@ class CodeActionOnSaveParticipant implements ISaveParticipant {
 			return undefined;
 		}
 
-		const codeActionsOnSave = Object.keys(setting).filter(x => setting[x]).map(x => new CodeActionKind(x));
+		const codeActionsOnSave = Object.keys(setting)
+			.filter(x => setting[x]).map(x => new CodeActionKind(x))
+			.sort((a, b) => {
+				if (a.value === CodeActionKind.SourceFixAll.value) {
+					return -1;
+				}
+				if (b.value === CodeActionKind.SourceFixAll.value) {
+					return 1;
+				}
+				return 0;
+			});
 		if (!codeActionsOnSave.length) {
 			return undefined;
 		}
