@@ -196,6 +196,8 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		}));
 	}
 
+	public get onFocus(): Event<void> { return this.inputWidget.onDidFocusEditorText; }
+
 	public setValue(val: string) {
 		val = val.replace(/\s/g, ' ');
 		const fullRange = new Range(1, 1, 1, this.getValue().length + 1);

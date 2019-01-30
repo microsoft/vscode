@@ -370,6 +370,10 @@ export class SettingsEditor2 extends BaseEditor {
 			})
 		);
 
+		this._register(this.searchWidget.onFocus(() => {
+			this.lastFocusedSettingElement = '';
+		}));
+
 		this._register(attachSuggestEnabledInputBoxStyler(this.searchWidget, this.themeService, {
 			inputBorder: settingsTextInputBorder
 		}));
