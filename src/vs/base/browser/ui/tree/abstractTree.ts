@@ -691,6 +691,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		this.model = this.createModel(this.view, _options);
 		onDidChangeCollapseStateRelay.input = this.model.onDidChangeCollapseState;
 
+		this.view.onTap(this.reactOnMouseClick, this, this.disposables);
 		this.view.onMouseClick(this.reactOnMouseClick, this, this.disposables);
 
 		if (_options.keyboardSupport !== false) {
