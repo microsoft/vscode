@@ -95,7 +95,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 			throw new Error('Invalid tree location');
 		}
 
-		const { parentNode, listIndex, revealed } = this.getParentNodeWithListIndex(location);
+		const { parentNode, listIndex, revealed, visible } = this.getParentNodeWithListIndex(location);
 		const treeListElementsToInsert: ITreeNode<T, TFilterData>[] = [];
 		const nodesToInsertIterator = Iterator.map(Iterator.from(toInsert), el => this.createTreeNode(el, parentNode, parentNode.visible ? TreeVisibility.Visible : TreeVisibility.Hidden, revealed, treeListElementsToInsert, onDidCreateNode));
 
@@ -110,7 +110,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		const lastIndex = location[location.length - 1];
 		const deletedNodes = parentNode.children.splice(lastIndex, deleteCount, ...nodesToInsert);
 
-		if (revealed) {
+		if (revealed && visible) {
 			const visibleDeleteCount = deletedNodes.reduce((r, node) => r + node.renderNodeCount, 0);
 
 			this._updateAncestorsRenderNodeCount(parentNode, renderNodeCount - visibleDeleteCount);
