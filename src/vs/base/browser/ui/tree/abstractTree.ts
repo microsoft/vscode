@@ -485,6 +485,17 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		this.filter.pattern = pattern;
 		this.tree.refilter();
 		this.tree.focusNext(0, true);
+
+		const focus = this.tree.getFocus();
+
+		if (focus.length > 0) {
+			const element = focus[0];
+
+			if (this.tree.getRelativeTop(element) === null) {
+				this.tree.reveal(focus[0], 0.5);
+			}
+		}
+
 		this.render();
 	}
 
