@@ -290,7 +290,7 @@ class FormatOnSaveParticipant implements ISaveParticipantParticipant {
 	}
 }
 
-class CodeActionOnParticipant implements ISaveParticipant {
+class CodeActionOnSaveParticipant implements ISaveParticipant {
 
 	constructor(
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
@@ -404,7 +404,7 @@ export class SaveParticipant implements ISaveParticipant {
 	) {
 		this._saveParticipants = new IdleValue(() => [
 			instantiationService.createInstance(TrimWhitespaceParticipant),
-			instantiationService.createInstance(CodeActionOnParticipant),
+			instantiationService.createInstance(CodeActionOnSaveParticipant),
 			instantiationService.createInstance(FormatOnSaveParticipant),
 			instantiationService.createInstance(FinalNewLineParticipant),
 			instantiationService.createInstance(TrimFinalNewLinesParticipant),
