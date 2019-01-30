@@ -959,12 +959,15 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		// Let's remember the second element's position, this helps in scrolling up
 		// and preserving a linear upwards scroll movement
-		let secondElementIndex: number | undefined;
-		let secondElementTopDelta: number | undefined;
+		let anchorElementIndex: number | undefined;
+		let anchorElementTopDelta: number | undefined;
 
-		if (previousRenderRange.end - previousRenderRange.start > 1) {
-			secondElementIndex = previousRenderRange.start + 1;
-			secondElementTopDelta = this.elementTop(secondElementIndex) - renderTop;
+		if (renderTop === this.elementTop(previousRenderRange.start)) {
+			anchorElementIndex = previousRenderRange.start;
+			anchorElementTopDelta = 0;
+		} else if (previousRenderRange.end - previousRenderRange.start > 1) {
+			anchorElementIndex = previousRenderRange.start + 1;
+			anchorElementTopDelta = this.elementTop(anchorElementIndex) - renderTop;
 		}
 
 		let heightDiff = 0;
@@ -1017,8 +1020,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 					}
 				}
 
-				if (typeof secondElementIndex === 'number') {
-					this.scrollTop = this.elementTop(secondElementIndex) - secondElementTopDelta!;
+				if (typeof anchorElementIndex === 'number') {
+					this.scrollTop = this.elementTop(anchorElementIndex) - anchorElementTopDelta!;
 				}
 
 				this._onDidChangeContentHeight.fire(this.contentHeight);
