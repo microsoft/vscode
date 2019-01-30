@@ -997,7 +997,7 @@ declare module 'vscode' {
 		 * terminalRenderer.onDidAcceptInput(data => {
 		 *   console.log(data); // 'Hello world'
 		 * });
-		 * terminalRenderer.terminal.then(t => t.sendText('Hello world'));
+		 * terminalRenderer.terminal.sendText('Hello world');
 		 * ```
 		 */
 		readonly onDidAcceptInput: Event<string>;
