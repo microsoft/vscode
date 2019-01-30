@@ -253,6 +253,8 @@ export class ReferenceWidget extends PeekViewWidget {
 	private _previewNotAvailableMessage: TextModel;
 	private _previewContainer: HTMLElement;
 	private _messageContainer: HTMLElement;
+	private height: number | undefined;
+	private width: number | undefined;
 
 	constructor(
 		editor: ICodeEditor,
@@ -346,7 +348,7 @@ export class ReferenceWidget extends PeekViewWidget {
 			this._previewContainer.style.width = left;
 			this._treeContainer.style.width = right;
 			this._preview.layout();
-			this._tree.layout();
+			this._tree.layout(this.height, this.width && this.width * (1 - this._sash.ratio));
 			this.layoutData.ratio = this._sash.ratio;
 		});
 
@@ -417,6 +419,9 @@ export class ReferenceWidget extends PeekViewWidget {
 	protected _doLayoutBody(heightInPixel: number, widthInPixel: number): void {
 		super._doLayoutBody(heightInPixel, widthInPixel);
 
+		this.height = heightInPixel;
+		this.width = widthInPixel;
+
 		const height = heightInPixel + 'px';
 		this._sash.height = heightInPixel;
 		this._sash.width = widthInPixel;
@@ -428,7 +433,8 @@ export class ReferenceWidget extends PeekViewWidget {
 		this._treeContainer.style.height = height;
 		this._treeContainer.style.width = right;
 		// forward
-		this._tree.layout(heightInPixel, widthInPixel);
+		console.log(widthInPixel, this._sash.ratio, widthInPixel * (1 - this._sash.ratio));
+		this._tree.layout(heightInPixel, widthInPixel * (1 - this._sash.ratio));
 		this._preview.layout();
 
 		// store layout data
