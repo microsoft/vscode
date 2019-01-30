@@ -132,6 +132,7 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 				contributions: [SuggestController, SnippetController2, ContextMenuController, MenuPreventer, SelectionClipboard],
 				isSimpleWidget: true,
 			});
+		this.disposables.push(this.inputWidget);
 
 		let scopeHandle = uri.parse(resourceHandle);
 		this.inputWidget.setModel(modelService.createModel('', null, scopeHandle, true));
