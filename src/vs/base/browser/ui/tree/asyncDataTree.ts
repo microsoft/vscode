@@ -401,6 +401,11 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			throw new Error('Tree input not set');
 		}
 
+		if (this.root.state === AsyncDataTreeNodeState.Loading) {
+			await this.subTreeRefreshPromises.get(this.root)!;
+			await Event.toPromise(this._onDidRender.event);
+		}
+
 		await this.refreshAndRenderNode(this.getDataNode(element), recursive, ChildrenResolutionReason.Refresh, viewStateContext);
 	}
 
@@ -430,6 +435,15 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	}
 
 	async expand(element: T, recursive: boolean = false): Promise<boolean> {
+		if (typeof this.root.element === 'undefined') {
+			throw new Error('Tree input not set');
+		}
+
+		if (this.root.state === AsyncDataTreeNodeState.Loading) {
+			await this.subTreeRefreshPromises.get(this.root)!;
+			await Event.toPromise(this._onDidRender.event);
+		}
+
 		const node = this.getDataNode(element);
 
 		if (node !== this.root && node.state !== AsyncDataTreeNodeState.Loading && !this.tree.isCollapsed(node)) {
