@@ -11,7 +11,7 @@ import { Action } from 'vs/base/common/actions';
 import { VIEWLET_ID, TEXT_FILE_EDITOR_ID, IExplorerService } from 'vs/workbench/parts/files/common/files';
 import { ITextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { BaseTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
-import { EditorOptions, TextEditorOptions } from 'vs/workbench/common/editor';
+import { EditorOptions, TextEditorOptions, IEditorCloseEvent } from 'vs/workbench/common/editor';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -99,11 +99,22 @@ export class TextFileEditor extends BaseTextEditor {
 		// in the onWillCloseEditor because at that time the editor has not yet
 		// been disposed and we can safely persist the view state still as needed.
 		this.groupListener = dispose(this.groupListener);
-		this.groupListener = ((group as IEditorGroupView).onWillCloseEditor(e => {
-			if (e.editor === this.input) {
-				this.doSaveOrClearTextEditorViewState(this.input);
-			}
-		}));
+		this.groupListener = ((group as IEditorGroupView).onWillCloseEditor(e => this.onWillCloseEditorInGroup(e)));
+	}
+
+	private onWillCloseEditorInGroup(e: IEditorCloseEvent): void {
+		const editor = e.editor;
+		if (!(editor instanceof FileEditorInput)) {
+			return; // only handle files
+		}
+
+		// If the editor is currently active we can always save or clear the view state.
+		// If the editor is not active, we can only clear the view state because it needs
+		// an active editor with the file opened, so we check for the restoreViewState flag
+		// being set.
+		if (editor === this.input || !this.restoreViewState) {
+			this.doSaveOrClearTextEditorViewState(editor);
+		}
 	}
 
 	setOptions(options: EditorOptions): void {
