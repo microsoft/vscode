@@ -39,19 +39,24 @@
 	display: none;
 }
 
+.monaco-action-bar .action-item.disabled .action-label.extension-status-label:before {
+	content: '✓';
+	padding-right: 4px;
+}
+
 .monaco-action-bar .action-item .action-label.disable-status,
 .monaco-action-bar .action-item .action-label.malicious-status,
 .monaco-action-bar .action-item.disabled .action-label.extension-status-label {
-	border-radius: 4px;
-	color: inherit;
-	background-color: transparent;
 	opacity: 0.9;
-	padding: 0 5px;
 	line-height: initial;
+	border-radius: 4px;
+	padding: 0 5px;
 }
 
 .monaco-action-bar .action-item .action-label.disable-status,
 .monaco-action-bar .action-item .action-label.malicious-status {
+	color: inherit;
+	background-color: transparent;
 	font-style: italic;
 }
 

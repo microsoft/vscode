@@ -1012,16 +1012,18 @@ export class ReloadAction extends ExtensionAction {
 			if (runningExtension) {
 				const isDifferentVersionRunning = this.extension.version !== runningExtension.version;
 				if (isDifferentVersionRunning && !isDisabled) {
-					// Requires reload to run the updated extension
-					this.enabled = true;
-					this.label = localize('reloadToUpdateAction', "Reload to Update");
-					this.tooltip = localize('postUpdateTooltip', "Please reload Visual Studio Code to complete the updating of this extension.");
+					if (!(this.extension.local && this.extensionService.canAddExtension(toExtensionDescription(this.extension.local)))) {
+						// Requires reload to run the updated extension
+						this.enabled = true;
+						this.label = localize('reloadRequired', "Reload Required");
+						this.tooltip = localize('postUpdateTooltip', "Please reload Visual Studio Code to complete the updating of this extension.");
+					}
 					return;
 				}
 				if (isDisabled) {
 					// Requires reload to disable the extension
 					this.enabled = true;
-					this.label = localize('reloadToDisable', "Reload to Disable");
+					this.label = localize('reloadRequired', "Reload Required");
 					this.tooltip = localize('postDisableTooltip', "Please reload Visual Studio Code to complete the disabling of this extension.");
 					return;
 				}
@@ -1029,10 +1031,10 @@ export class ReloadAction extends ExtensionAction {
 				if (!isDisabled && !(this.extension.local && this.extensionService.canAddExtension(toExtensionDescription(this.extension.local)))) {
 					this.enabled = true;
 					if (isEnabled) {
-						this.label = localize('reloadToEnable', "Reload to Enable");
+						this.label = localize('reloadRequired', "Reload Required");
 						this.tooltip = localize('postEnableTooltip', "Please reload Visual Studio Code to complete the enabling of this extension.");
 					} else {
-						this.label = localize('reloadToInstall', "Reload to Install");
+						this.label = localize('reloadRequired', "Reload Required");
 						this.tooltip = localize('postInstallTooltip', "Please reload Visual Studio Code to complete the installation of this extension.");
 						alert(localize('installExtensionComplete', "Installing extension {0} is completed. Please reload Visual Studio Code to enable it.", this.extension.displayName));
 					}
@@ -1044,7 +1046,7 @@ export class ReloadAction extends ExtensionAction {
 		if (isUninstalled && runningExtension) {
 			// Requires reload to deactivate the extension
 			this.enabled = true;
-			this.label = localize('reloadToUninstall', "Reload to Uninstall");
+			this.label = localize('reloadRequired', "Reload Required");
 			this.tooltip = localize('postUninstallTooltip', "Please reload Visual Studio Code to complete the uninstallation of this extension.");
 			alert(localize('uninstallExtensionComplete', "Please reload Visual Studio Code to complete the uninstallation of the extension {0}.", this.extension.displayName));
 			return;
@@ -2055,6 +2057,7 @@ export class StatusLabelAction extends Action implements IExtensionContainer {
 
 	private status: ExtensionState | null = null;
 	private enablementState: EnablementState | null = null;
+	private version: string | null = null;
 
 	private _extension: IExtension;
 	get extension(): IExtension { return this._extension; }
@@ -2063,6 +2066,7 @@ export class StatusLabelAction extends Action implements IExtensionContainer {
 			// Different extension. Reset
 			this.status = null;
 			this.enablementState = null;
+			this.version = null;
 		}
 		this._extension = extension;
 		this.update();
@@ -2089,16 +2093,35 @@ export class StatusLabelAction extends Action implements IExtensionContainer {
 
 		const currentStatus = this.status;
 		const currentEnablementState = this.enablementState;
+		const currentVersion = this.version;
 		this.status = this.extension.state;
 		this.enablementState = this.extension.enablementState;
+		this.version = this.extension.version;
 
 		const runningExtensions = await this.extensionService.getExtensions();
-		const canAddExtension = () => this.extension.local && (runningExtensions.some(e => areSameExtensions({ id: e.identifier.value }, this.extension.identifier)) || this.extensionService.canAddExtension(toExtensionDescription(this.extension.local)));
-		const canRemoveExtension = () => this.extension.local && (runningExtensions.every(e => !areSameExtensions({ id: e.identifier.value }, this.extension.identifier)) || this.extensionService.canRemoveExtension(toExtensionDescription(this.extension.local)));
+		const canAddExtension = () => {
+			const runningExtension = runningExtensions.filter(e => areSameExtensions({ id: e.identifier.value }, this.extension.identifier))[0];
+			if (this.extension.local) {
+				if (runningExtension && this.extension.version === runningExtension.version) {
+					return true;
+				}
+				return this.extensionService.canAddExtension(toExtensionDescription(this.extension.local));
+			}
+			return false;
+		};
+		const canRemoveExtension = () => {
+			if (this.extension.local) {
+				if (runningExtensions.every(e => !areSameExtensions({ id: e.identifier.value }, this.extension.identifier))) {
+					return true;
+				}
+				return this.extensionService.canRemoveExtension(toExtensionDescription(this.extension.local));
+			}
+			return false;
+		};
 
 		if (currentStatus !== null) {
 			if (currentStatus === ExtensionState.Installing && this.status === ExtensionState.Installed) {
-				return canAddExtension() ? localize('installed', "Installed") : null;
+				return canAddExtension() ? currentVersion !== this.version ? localize('updated', "Updated") : localize('installed', "Installed") : null;
 			}
 			if (currentStatus === ExtensionState.Uninstalling && this.status === ExtensionState.Uninstalled) {
 				return canRemoveExtension() ? localize('uninstalled', "Uninstalled") : null;
@@ -2587,13 +2610,17 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const extensionButtonProminentBackgroundColor = theme.getColor(extensionButtonProminentBackground);
 	if (extensionButtonProminentBackground) {
 		collector.addRule(`.extension .monaco-action-bar .action-item .action-label.extension-action.prominent { background-color: ${extensionButtonProminentBackgroundColor}; }`);
+		collector.addRule(`.extension .monaco-action-bar .action-item .action-label.extension-status-label { background-color: ${extensionButtonProminentBackgroundColor}; }`);
 		collector.addRule(`.extension-editor .monaco-action-bar .action-item .action-label.extension-action.prominent { background-color: ${extensionButtonProminentBackgroundColor}; }`);
+		collector.addRule(`.extension-editor .monaco-action-bar .action-item .action-label.extension-status-label { background-color: ${extensionButtonProminentBackgroundColor}; }`);
 	}
 
 	const extensionButtonProminentForegroundColor = theme.getColor(extensionButtonProminentForeground);
 	if (extensionButtonProminentForeground) {
 		collector.addRule(`.extension .monaco-action-bar .action-item .action-label.extension-action.prominent { color: ${extensionButtonProminentForegroundColor}; }`);
+		collector.addRule(`.extension .monaco-action-bar .action-item .action-label.extension-status-label { color: ${extensionButtonProminentForegroundColor}; }`);
 		collector.addRule(`.extension-editor .monaco-action-bar .action-item .action-label.extension-action.prominent { color: ${extensionButtonProminentForegroundColor}; }`);
+		collector.addRule(`.extension-editor .monaco-action-bar .action-item .action-label.extension-status-label { color: ${extensionButtonProminentForegroundColor}; }`);
 	}
 
 	const extensionButtonProminentHoverBackgroundColor = theme.getColor(extensionButtonProminentHoverBackground);
