@@ -193,13 +193,8 @@ export class ExplorerView extends ViewletPanel {
 
 		// When the explorer viewer is loaded, listen to changes to the editor input
 		this.disposables.push(this.editorService.onDidActiveEditorChange(() => {
-			if (this.autoReveal && !this.ignoreActiveEditorChange) {
-				const activeFile = this.getActiveFile();
-				if (activeFile) {
-					this.explorerService.select(this.getActiveFile());
-				} else {
-					this.tree.setSelection([]);
-				}
+			if (!this.ignoreActiveEditorChange) {
+				this.selectActiveFile();
 			}
 		}));
 
@@ -214,12 +209,7 @@ export class ExplorerView extends ViewletPanel {
 					await this.setTreeInput();
 				}
 				// Find resource to focus from active editor input if set
-				if (this.autoReveal) {
-					const activeFile = this.getActiveFile();
-					if (activeFile) {
-						this.explorerService.select(activeFile, true);
-					}
-				}
+				this.selectActiveFile(true);
 			}
 		}));
 	}
@@ -241,6 +231,17 @@ export class ExplorerView extends ViewletPanel {
 
 	focus(): void {
 		this.tree.domFocus();
+	}
+
+	private selectActiveFile(reveal?: boolean): void {
+		if (this.autoReveal) {
+			const activeFile = this.getActiveFile();
+			if (activeFile) {
+				this.explorerService.select(this.getActiveFile(), reveal);
+			} else {
+				this.tree.setSelection([]);
+			}
+		}
 	}
 
 	private createTree(container: HTMLElement): void {
@@ -406,7 +407,12 @@ export class ExplorerView extends ViewletPanel {
 		const recursive = !item;
 		const toRefresh = item || this.tree.getInput();
 
-		return this.tree.updateChildren(toRefresh, recursive);
+		return this.tree.updateChildren(toRefresh, recursive).then(() => {
+			if (!item) {
+				// We did a top level refresh, reveal the active file #67118
+				this.selectActiveFile(true);
+			}
+		});
 	}
 
 	getOptimalWidth(): number {
