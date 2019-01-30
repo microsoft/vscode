@@ -669,8 +669,25 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		);
 	}
 
-	public $deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void> {
+	public async $deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void> {
 		toAdd.forEach((extension) => (<any>extension).extensionLocation = URI.revive(extension.extensionLocation));
+
+		const trie = await this.getExtensionPathIndex();
+
+		await Promise.all(toRemove.map(async (extensionId) => {
+			const extensionDescription = this._registry.getExtensionDescription(extensionId);
+			if (!extensionDescription) {
+				return;
+			}
+			const realpath = await pfs.realpath(extensionDescription.extensionLocation.fsPath);
+			trie.delete(URI.file(realpath).fsPath);
+		}));
+
+		await Promise.all(toAdd.map(async (extensionDescription) => {
+			const realpath = await pfs.realpath(extensionDescription.extensionLocation.fsPath);
+			trie.set(URI.file(realpath).fsPath, extensionDescription);
+		}));
+
 		this._registry.deltaExtensions(toAdd, toRemove);
 		return Promise.resolve(undefined);
 	}
