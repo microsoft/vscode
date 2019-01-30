@@ -179,10 +179,6 @@
 	overflow: hidden;
 }
 
-.search-view .results.align-icons-and-twisties .linematch {
-	padding-left: 22px;
-}
-
 .search-view .linematch > .match {
 	overflow: hidden;
 	text-overflow: ellipsis;
