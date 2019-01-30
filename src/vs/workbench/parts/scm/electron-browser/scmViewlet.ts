@@ -10,7 +10,7 @@ import { domEvent, stop } from 'vs/base/browser/event';
 import { basename } from 'vs/base/common/paths';
 import { IDisposable, dispose, combinedDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { PanelViewlet, ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
-import { append, $, addClass, toggleClass, trackFocus, Dimension, addDisposableListener, removeClass } from 'vs/base/browser/dom';
+import { append, $, addClass, toggleClass, trackFocus, Dimension, addDisposableListener, removeClass, show, hide } from 'vs/base/browser/dom';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent, IListEvent, IKeyboardNavigationLabelProvider, IIdentityProvider } from 'vs/base/browser/ui/list/list';
@@ -267,6 +267,13 @@ class MainPanel extends ViewletPanel {
 
 		this.viewModel.onDidChangeVisibility(this.onDidChangeVisibility, this, this.disposables);
 		this.onDidChangeVisibility(this.viewModel.isVisible());
+		this.disposables.push(this.onDidChangeBodyVisibility(visible => {
+			if (visible) {
+				show(this.list.getHTMLElement());
+			} else {
+				hide(this.list.getHTMLElement()); // make sure the list goes out of the tabindex world by hiding it
+			}
+		}));
 
 		this.disposables.push(this.list);
 	}
@@ -899,7 +906,15 @@ export class RepositoryPanel extends ViewletPanel {
 
 		this.viewModel.onDidChangeVisibility(this.onDidChangeVisibility, this, this.disposables);
 		this.onDidChangeVisibility(this.viewModel.isVisible());
-		this.onDidChangeBodyVisibility(visible => this.inputBox.setEnabled(visible));
+		this.disposables.push(this.onDidChangeBodyVisibility(visible => {
+			this.inputBox.setEnabled(visible);
+
+			if (visible) {
+				show(this.list.getHTMLElement());
+			} else {
+				hide(this.list.getHTMLElement()); // make sure the list goes out of the tabindex world by hiding it
+			}
+		}));
 	}
 
 	private onDidChangeVisibility(visible: boolean): void {
