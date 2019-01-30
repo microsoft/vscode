@@ -433,7 +433,6 @@ export class ReferenceWidget extends PeekViewWidget {
 		this._treeContainer.style.height = height;
 		this._treeContainer.style.width = right;
 		// forward
-		console.log(widthInPixel, this._sash.ratio, widthInPixel * (1 - this._sash.ratio));
 		this._tree.layout(heightInPixel, widthInPixel * (1 - this._sash.ratio));
 		this._preview.layout();
 
