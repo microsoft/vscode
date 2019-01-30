@@ -769,7 +769,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		// Reuse duplicate action if user copies
 		if (isCopy) {
 
-			return this.fileService.copyFile(source.resource, findValidPasteFileTarget(target, { resource: source.resource, isDirectory: source.isDirectory })).then(stat => {
+			return this.fileService.copyFile(source.resource, findValidPasteFileTarget(target, { resource: source.resource, isDirectory: source.isDirectory, allowOverwirte: false })).then(stat => {
 				if (!stat.isDirectory) {
 					return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } }).then(() => undefined);
 				}
