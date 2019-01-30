@@ -591,6 +591,10 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 			return Promise.resolve(undefined);
 		}
 
+		if (this._initData.autoStart) {
+			return Promise.resolve(undefined); // https://github.com/Microsoft/vscode/issues/66936
+		}
+
 		// Require the test runner via node require from the provided path
 		let testRunner: ITestRunner;
 		let requireError: Error;
