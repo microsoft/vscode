@@ -8,7 +8,7 @@ import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/l
 import { IListOptions, List, IListStyles, mightProducePrintableCharacter, isSelectionRangeChangeEvent, isSelectionSingleChangeEvent } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate, IListRenderer, IListMouseEvent, IListEvent, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/list/list';
 import { append, $, toggleClass, getDomNodePagePosition, removeClass, addClass } from 'vs/base/browser/dom';
-import { Event, Relay, Emitter } from 'vs/base/common/event';
+import { Event, Relay, Emitter, EventBufferer } from 'vs/base/common/event';
 import { StandardKeyboardEvent, IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ITreeModel, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent, ITreeFilter, ITreeNavigator, ICollapseStateChangeEvent, ITreeDragAndDrop, TreeDragOverBubble, TreeVisibility, TreeFilterResult } from 'vs/base/browser/ui/tree/tree';
@@ -22,6 +22,7 @@ import { getVisibleState, isFilterResult } from 'vs/base/browser/ui/tree/indexTr
 import { localize } from 'vs/nls';
 import { disposableTimeout } from 'vs/base/common/async';
 import { isMacintosh } from 'vs/base/common/platform';
+import { values } from 'vs/base/common/map';
 
 function asTreeDragAndDropData<T, TFilterData>(data: IDragAndDropData): IDragAndDropData {
 	if (data instanceof ElementsDragAndDropData) {
@@ -641,12 +642,135 @@ export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTr
 	readonly autoExpandSingleChildren?: boolean;
 }
 
+/**
+ * The trait concept needs to exist at the tree level, because collapsed
+ * tree nodes will not be known by the list.
+ */
+class Trait<T> {
+
+	private nodes: ITreeNode<T, any>[] = [];
+	private elements: T[] | undefined;
+
+	private _onDidChange = new Emitter<ITreeEvent<T>>();
+	readonly onDidChange = this._onDidChange.event;
+
+	private _nodeSet: Set<ITreeNode<T, any>> | undefined;
+	private get nodeSet(): Set<ITreeNode<T, any>> {
+		if (!this._nodeSet) {
+			this._nodeSet = new Set();
+
+			for (const node of this.nodes) {
+				this._nodeSet.add(node);
+			}
+		}
+
+		return this._nodeSet;
+	}
+
+	set(nodes: ITreeNode<T, any>[], browserEvent?: UIEvent): void {
+		this.nodes = [...nodes];
+		this.elements = undefined;
+		this._nodeSet = undefined;
+
+		const that = this;
+		this._onDidChange.fire({ get elements() { return that.get(); }, browserEvent });
+	}
+
+	get(): T[] {
+		if (!this.elements) {
+			this.elements = this.nodes.map(node => node.element);
+		}
+
+		return [...this.elements];
+	}
+
+	has(node: ITreeNode<T, any>): boolean {
+		return this.nodeSet.has(node);
+	}
+
+	remove(nodes: ITreeNode<T, any>[]): void {
+		const set = this.nodeSet;
+
+		for (const node of nodes) {
+			set.delete(node);
+		}
+
+		this.set(values(set));
+	}
+}
+
+/**
+ * We use this List subclass to restore selection and focus as nodes
+ * get rendered in the list, possibly due to a node expand() call.
+ */
+class TreeNodeList<T, TFilterData> extends List<ITreeNode<T, TFilterData>> {
+
+	constructor(
+		container: HTMLElement,
+		virtualDelegate: IListVirtualDelegate<ITreeNode<T, TFilterData>>,
+		renderers: IListRenderer<any /* TODO@joao */, any>[],
+		private focusTrait: Trait<T>,
+		private selectionTrait: Trait<T>,
+		options?: IListOptions<ITreeNode<T, TFilterData>>
+	) {
+		super(container, virtualDelegate, renderers, options);
+	}
+
+	splice(start: number, deleteCount: number, elements: ITreeNode<T, TFilterData>[] = []): void {
+		super.splice(start, deleteCount, elements);
+
+		if (elements.length === 0) {
+			return;
+		}
+
+		const additionalFocus: number[] = [];
+		const additionalSelection: number[] = [];
+
+		elements.forEach((node, index) => {
+			if (this.selectionTrait.has(node)) {
+				additionalFocus.push(start + index);
+			}
+
+			if (this.selectionTrait.has(node)) {
+				additionalSelection.push(start + index);
+			}
+		});
+
+		if (additionalFocus.length > 0) {
+			super.setFocus([...super.getFocus(), ...additionalFocus]);
+		}
+
+		if (additionalSelection.length > 0) {
+			super.setSelection([...super.getSelection(), ...additionalSelection]);
+		}
+	}
+
+	setFocus(indexes: number[], browserEvent?: UIEvent, fromAPI = false): void {
+		super.setFocus(indexes, browserEvent);
+
+		if (!fromAPI) {
+			this.focusTrait.set(indexes.map(i => this.element(i)), browserEvent);
+		}
+	}
+
+	setSelection(indexes: number[], browserEvent?: UIEvent, fromAPI = false): void {
+		super.setSelection(indexes, browserEvent);
+
+		if (!fromAPI) {
+			this.selectionTrait.set(indexes.map(i => this.element(i)), browserEvent);
+		}
+	}
+}
+
 export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable {
 
-	private view: List<ITreeNode<T, TFilterData>>;
+	private view: TreeNodeList<T, TFilterData>;
 	private renderers: TreeRenderer<T, TFilterData, any>[];
 	private focusNavigationFilter: ((node: ITreeNode<T, TFilterData>) => boolean) | undefined;
 	protected model: ITreeModel<T, TFilterData, TRef>;
+	private focus = new Trait<T>();
+	private selection = new Trait<T>();
+	private eventBufferer = new EventBufferer();
 	protected disposables: IDisposable[] = [];
 
 	private _onDidUpdateOptions = new Emitter<IAbstractTreeOptions<T, TFilterData>>();
@@ -654,8 +778,8 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 	get onDidScroll(): Event<void> { return this.view.onDidScroll; }
 
-	get onDidChangeFocus(): Event<ITreeEvent<T>> { return Event.map(this.view.onFocusChange, asTreeEvent); }
-	get onDidChangeSelection(): Event<ITreeEvent<T>> { return Event.map(this.view.onSelectionChange, asTreeEvent); }
+	readonly onDidChangeFocus: Event<ITreeEvent<T>> = this.eventBufferer.wrapEvent(this.focus.onDidChange);
+	readonly onDidChangeSelection: Event<ITreeEvent<T>> = this.eventBufferer.wrapEvent(this.selection.onDidChange);
 	get onDidOpen(): Event<ITreeEvent<T>> { return Event.map(this.view.onDidOpen, asTreeEvent); }
 
 	get onMouseClick(): Event<ITreeMouseEvent<T>> { return Event.map(this.view.onMouseClick, asTreeMouseEvent); }
@@ -697,10 +821,17 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 			this.disposables.push(filter);
 		}
 
-		this.view = new List(container, treeDelegate, this.renderers, asListOptions(() => this.model, _options));
+		this.view = new TreeNodeList(container, treeDelegate, this.renderers, this.focus, this.selection, asListOptions(() => this.model, _options));
 
 		this.model = this.createModel(this.view, _options);
 		onDidChangeCollapseStateRelay.input = this.model.onDidChangeCollapseState;
+
+		this.model.onDidSplice(e => {
+			this.eventBufferer.bufferEvents(() => {
+				this.focus.remove(e.deletedNodes);
+				this.selection.remove(e.deletedNodes);
+			});
+		}, null, this.disposables);
 
 		this.view.onTap(this.reactOnMouseClick, this, this.disposables);
 		this.view.onMouseClick(this.reactOnMouseClick, this, this.disposables);
@@ -853,18 +984,23 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	}
 
 	setSelection(elements: TRef[], browserEvent?: UIEvent): void {
-		const indexes = elements.map(e => this.model.getListIndex(e));
-		this.view.setSelection(indexes, browserEvent);
+		const nodes = elements.map(e => this.model.getNode(e));
+		this.selection.set(nodes, browserEvent);
+
+		const indexes = elements.map(e => this.model.getListIndex(e)).filter(i => i > -1);
+		this.view.setSelection(indexes, browserEvent, true);
 	}
 
 	getSelection(): T[] {
-		const nodes = this.view.getSelectedElements();
-		return nodes.map(n => n.element);
+		return this.selection.get();
 	}
 
 	setFocus(elements: TRef[], browserEvent?: UIEvent): void {
-		const indexes = elements.map(e => this.model.getListIndex(e));
-		this.view.setFocus(indexes, browserEvent);
+		const nodes = elements.map(e => this.model.getNode(e));
+		this.focus.set(nodes, browserEvent);
+
+		const indexes = elements.map(e => this.model.getListIndex(e)).filter(i => i > -1);
+		this.view.setFocus(indexes, browserEvent, true);
 	}
 
 	focusNext(n = 1, loop = false, browserEvent?: UIEvent): void {
@@ -892,8 +1028,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	}
 
 	getFocus(): T[] {
-		const nodes = this.view.getFocusedElements();
-		return nodes.map(n => n.element);
+		return this.focus.get();
 	}
 
 	open(elements: TRef[]): void {

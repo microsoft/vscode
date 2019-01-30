@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICollapseStateChangeEvent, ITreeElement, ITreeFilter, ITreeFilterDataResult, ITreeModel, ITreeNode, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
+import { ICollapseStateChangeEvent, ITreeElement, ITreeFilter, ITreeFilterDataResult, ITreeModel, ITreeNode, TreeVisibility, ITreeModelSpliceEvent } from 'vs/base/browser/ui/tree/tree';
 import { tail2 } from 'vs/base/common/arrays';
 import { Emitter, Event, EventBufferer } from 'vs/base/common/event';
 import { ISequence, Iterator } from 'vs/base/common/iterator';
@@ -61,7 +61,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 	private filter?: ITreeFilter<T, TFilterData>;
 	private autoExpandSingleChildren: boolean;
 
-	private _onDidSplice = new Emitter<void>();
+	private _onDidSplice = new Emitter<ITreeModelSpliceEvent<T, TFilterData>>();
 	readonly onDidSplice = this._onDidSplice.event;
 
 	constructor(private list: ISpliceable<ITreeNode<T, TFilterData>>, rootElement: T, options: IIndexTreeModelOptions<T, TFilterData> = {}) {
@@ -127,7 +127,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		}
 
 		const result = Iterator.map(Iterator.fromArray(deletedNodes), treeNodeToElement);
-		this._onDidSplice.fire(undefined);
+		this._onDidSplice.fire({ deletedNodes });
 		return result;
 	}
 
@@ -144,8 +144,8 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 	}
 
 	getListIndex(location: number[]): number {
-		const { listIndex, visible } = this.getTreeNodeWithListIndex(location);
-		return visible ? listIndex : -1;
+		const { listIndex, visible, revealed } = this.getTreeNodeWithListIndex(location);
+		return visible && revealed ? listIndex : -1;
 	}
 
 	getListRenderCount(location: number[]): number {
