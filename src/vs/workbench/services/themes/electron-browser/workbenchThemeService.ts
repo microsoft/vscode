@@ -200,7 +200,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 				} else {
 					const theme = await this.iconThemeStore.findThemeData(this.currentIconTheme.id);
 					if (!theme) {
-						if (prevFileIconId && await this.iconThemeStore.findThemeData(prevColorId)) {
+						if (prevFileIconId && await this.iconThemeStore.findThemeData(prevFileIconId)) {
 							this.setFileIconTheme(prevFileIconId, 'auto');
 						} else {
 							this.setFileIconTheme(DEFAULT_ICON_THEME_SETTING_VALUE, 'auto');

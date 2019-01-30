@@ -67,8 +67,8 @@ export class ColorThemeStore {
 
 	private initialize() {
 		themesExtPoint.setHandler((extensions, delta) => {
-			const previousIds = {};
-			const added = [];
+			const previousIds: { [key: string]: boolean } = {};
+			const added: ColorThemeData[] = [];
 			for (const theme of this.extensionsColorThemes) {
 				previousIds[theme.id] = true;
 			}

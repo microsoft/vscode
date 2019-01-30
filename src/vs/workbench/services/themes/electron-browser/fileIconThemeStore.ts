@@ -62,8 +62,8 @@ export class FileIconThemeStore {
 
 	private initialize() {
 		iconThemeExtPoint.setHandler((extensions) => {
-			const previousIds = {};
-			const added = [];
+			const previousIds: { [key: string]: boolean } = {};
+			const added: FileIconThemeData[] = [];
 			for (const theme of this.knownIconThemes) {
 				previousIds[theme.id] = true;
 			}
