@@ -282,4 +282,8 @@ suite('SmartSelect', () => {
 			new Range(1, 1, 1, 8),
 		);
 	});
+
+	test('Default selection should select current word/hump first in camelCase #67493', function () {
+
+	});
 });

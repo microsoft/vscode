@@ -204,16 +204,16 @@ registerEditorContribution(SmartSelectController);
 registerEditorAction(GrowSelectionAction);
 registerEditorAction(ShrinkSelectionAction);
 
+// word selection
+modes.SelectionRangeRegistry.register('*', new WordSelectionRangeProvider());
+
 export function provideSelectionRanges(model: ITextModel, position: Position, token: CancellationToken): Promise<Range[] | undefined | null> {
 
 	const provider = modes.SelectionRangeRegistry.orderedGroups(model);
 
-	if (provider.length === 0) {
+	if (provider.length === 1) {
 		// add word selection and bracket selection when no provider exists
-		provider.unshift([new WordSelectionRangeProvider(), new BracketSelectionRangeProvider()]);
-	} else {
-		// only word selections when other providers exist
-		provider.unshift([new WordSelectionRangeProvider()]);
+		provider.unshift([new BracketSelectionRangeProvider()]);
 	}
 
 	interface RankedRange {
