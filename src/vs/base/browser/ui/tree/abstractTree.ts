@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/tree';
 import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IListOptions, List, IListStyles, mightProducePrintableCharacter } from 'vs/base/browser/ui/list/listWidget';
+import { IListOptions, List, IListStyles, mightProducePrintableCharacter, isSelectionRangeChangeEvent, isSelectionSingleChangeEvent } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate, IListRenderer, IListMouseEvent, IListEvent, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/list/list';
 import { append, $, toggleClass, getDomNodePagePosition, removeClass, addClass } from 'vs/base/browser/dom';
 import { Event, Relay, Emitter } from 'vs/base/common/event';
@@ -913,6 +913,9 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		const node = e.element;
 
 		if (!node) {
+			return;
+		}
+		if (isSelectionRangeChangeEvent(e) || isSelectionSingleChangeEvent(e)) {
 			return;
 		}
 
