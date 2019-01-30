@@ -18,6 +18,7 @@ import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { BracketSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/bracketSelections';
 import { provideSelectionRanges } from 'vs/editor/contrib/smartSelect/smartSelect';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { WordSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/wordSelections';
 
 class TestTextResourcePropertiesService implements ITextResourcePropertiesService {
 
@@ -53,7 +54,8 @@ class MockJSMode extends MockMode {
 				['[', ']']
 			],
 
-			onEnterRules: javascriptOnEnterRules
+			onEnterRules: javascriptOnEnterRules,
+			wordPattern: /(-?\d*\.\d\w*)|([^\`\~\!\@\#\$\%\^\&\*\(\)\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g
 		}));
 	}
 }
@@ -204,7 +206,7 @@ suite('SmartSelect', () => {
 		assert.equal(expected.length, ranges!.length);
 		for (const range of ranges!) {
 			let exp = expected.shift() || null;
-			assert.ok(Range.equalsRange(range.range, exp), `A=${range} <> E=${exp}`);
+			assert.ok(Range.equalsRange(range.range, exp), `A=${range.range} <> E=${exp}`);
 		}
 	}
 
@@ -251,6 +253,33 @@ suite('SmartSelect', () => {
 			new Range(3, 7, 3, 8), new Range(3, 6, 3, 9),
 			new Range(2, 2, 4, 1), new Range(2, 1, 4, 2),
 			new Range(1, 1, 4, 2), new Range(1, 1, 4, 2),
+		);
+	});
+
+	test('in-word ranges', async () => {
+
+		await assertRanges(new WordSelectionRangeProvider(), 'fIooBar',
+			new Range(1, 1, 1, 5), // foo
+			new Range(1, 1, 1, 8), // fooBar
+			new Range(1, 1, 1, 8), // line (triva)
+			new Range(1, 1, 1, 8), // line
+			new Range(1, 1, 1, 8), // doc
+		);
+
+		await assertRanges(new WordSelectionRangeProvider(), 'fIoo_Ba',
+			new Range(1, 1, 1, 5),
+			new Range(1, 1, 1, 8),
+			new Range(1, 1, 1, 8),
+			new Range(1, 1, 1, 8),
+			new Range(1, 1, 1, 8),
+		);
+
+		await assertRanges(new WordSelectionRangeProvider(), 'fIoo-Ba',
+			new Range(1, 1, 1, 5),
+			new Range(1, 1, 1, 8),
+			new Range(1, 1, 1, 8),
+			new Range(1, 1, 1, 8),
+			new Range(1, 1, 1, 8),
 		);
 	});
 });

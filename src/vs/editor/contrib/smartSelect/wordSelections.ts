@@ -42,6 +42,12 @@ export class WordSelectionRangeProvider implements SelectionRangeProvider {
 				// ^^^^^^^
 				bucket.push({ range: new Range(pos.lineNumber, startColumn, pos.lineNumber, startColumn + offset), kind: 'statement.word.part' });
 				offset += 1;
+			} else if (ch === CharCode.Dash && lastCh !== CharCode.Dash) {
+				// foo-bar
+				// ^^^
+				// ^^^^^^^
+				bucket.push({ range: new Range(pos.lineNumber, startColumn, pos.lineNumber, startColumn + offset), kind: 'statement.word.part' });
+				offset += 1;
 			}
 			lastCh = ch;
 		}
