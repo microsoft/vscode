@@ -20,6 +20,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { WordSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/wordSelections';
 import { BracketSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/bracketSelections';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 class SelectionRanges {
 
@@ -153,9 +154,9 @@ abstract class AbstractSmartSelect extends EditorAction {
 class GrowSelectionAction extends AbstractSmartSelect {
 	constructor() {
 		super(true, {
-			id: 'editor.action.smartSelect.grow',
-			label: nls.localize('smartSelect.grow', "Expand Select"),
-			alias: 'Expand Select',
+			id: 'editor.action.smartSelect.expand',
+			label: nls.localize('smartSelect.expand', "Expand Selection"),
+			alias: 'Expand Selection',
 			precondition: null,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -173,12 +174,15 @@ class GrowSelectionAction extends AbstractSmartSelect {
 	}
 }
 
+// renamed command id
+CommandsRegistry.registerCommandAlias('editor.action.smartSelect.grow', 'editor.action.smartSelect.expand');
+
 class ShrinkSelectionAction extends AbstractSmartSelect {
 	constructor() {
 		super(false, {
 			id: 'editor.action.smartSelect.shrink',
-			label: nls.localize('smartSelect.shrink', "Shrink Select"),
-			alias: 'Shrink Select',
+			label: nls.localize('smartSelect.shrink', "Shrink Selection"),
+			alias: 'Shrink Selection',
 			precondition: null,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
