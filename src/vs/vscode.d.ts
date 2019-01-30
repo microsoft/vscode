@@ -5932,7 +5932,7 @@ declare module 'vscode' {
 		 * @param target The uri that should be opened.
 		 * @returns A promise indicating if open was successful.
 		 */
-		export function open(target: Uri): Thenable<boolean>;
+		export function openExternal(target: Uri): Thenable<boolean>;
 	}
 
 	/**
