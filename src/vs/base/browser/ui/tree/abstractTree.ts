@@ -689,12 +689,17 @@ class Trait<T> {
 	}
 
 	remove(nodes: ITreeNode<T, any>[]): void {
-		const set = this.nodeSet;
-
-		for (const node of nodes) {
-			set.delete(node);
+		if (nodes.length === 0) {
+			return;
 		}
 
+		const set = this.nodeSet;
+		const visit = (node: ITreeNode<T, any>) => {
+			set.delete(node);
+			node.children.forEach(visit);
+		};
+
+		nodes.forEach(visit);
 		this.set(values(set));
 	}
 }
