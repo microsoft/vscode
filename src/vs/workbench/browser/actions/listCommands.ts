@@ -7,7 +7,7 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { List } from 'vs/base/browser/ui/list/listWidget';
-import { WorkbenchListFocusContextKey, IListService, WorkbenchListSupportsMultiSelectContextKey, ListWidget, WorkbenchListHasSelectionOrFocus } from 'vs/platform/list/browser/listService';
+import { WorkbenchListFocusContextKey, IListService, WorkbenchListSupportsMultiSelectContextKey, ListWidget, WorkbenchListHasSelectionOrFocus, WorkbenchListAutomaticKeyboardNavigationKey } from 'vs/platform/list/browser/listService';
 import { PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { range } from 'vs/base/common/arrays';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -16,6 +16,7 @@ import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { DataTree } from 'vs/base/browser/ui/tree/dataTree';
 import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 function ensureDOMFocus(widget: ListWidget): void {
 	// it can happen that one of the commands is executed while
@@ -740,6 +741,24 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			} else if (tree.getFocus()) {
 				tree.clearFocus({ origin: 'keyboard' });
 			}
+		}
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: 'list.toggleKeyboardNavigation',
+	handler: (accessor) => {
+		const focused = accessor.get(IListService).lastFocusedList;
+
+		// List
+		if (focused instanceof List || focused instanceof PagedList) {
+			// TODO@joao
+		}
+
+		// ObjectTree
+		else if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
+			const tree = focused;
+			tree.toggleKeyboardNavigation();
 		}
 	}
 });

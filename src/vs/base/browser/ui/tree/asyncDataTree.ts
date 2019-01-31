@@ -478,6 +478,10 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		return this.tree.isCollapsed(this.getDataNode(element));
 	}
 
+	toggleKeyboardNavigation(): void {
+		this.tree.toggleKeyboardNavigation();
+	}
+
 	refilter(): void {
 		this.tree.refilter();
 	}

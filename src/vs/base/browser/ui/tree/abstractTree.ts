@@ -377,6 +377,9 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 	private filterOnTypeDomNode: HTMLInputElement;
 	private clearDomNode: HTMLElement;
 
+	private automaticKeyboardNavigation: boolean;
+	private triggered = false;
+
 	private enabledDisposables: IDisposable[] = [];
 	private disposables: IDisposable[] = [];
 
@@ -408,12 +411,10 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		this.clearDomNode.title = localize('clear', "Clear");
 
 		model.onDidSplice(this.onDidSpliceModel, this, this.disposables);
-
-		tree.onDidUpdateOptions(this.onDidUpdateTreeOptions, this, this.disposables);
-		this.onDidUpdateTreeOptions(tree.options);
+		this.updateOptions(tree.options);
 	}
 
-	private onDidUpdateTreeOptions(options: IAbstractTreeOptions<T, TFilterData>): void {
+	updateOptions(options: IAbstractTreeOptions<T, TFilterData>): void {
 		if (options.simpleKeyboardNavigation) {
 			this.disable();
 		} else {
@@ -421,8 +422,17 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		}
 
 		this.filterOnTypeDomNode.checked = !!options.filterOnType;
+		this.automaticKeyboardNavigation = typeof options.automaticKeyboardNavigation === 'undefined' ? true : options.automaticKeyboardNavigation;
 		this.tree.refilter();
 		this.render();
+	}
+
+	toggle(): void {
+		this.triggered = !this.triggered;
+
+		if (!this.triggered) {
+			this.onEventOrInput('');
+		}
 	}
 
 	private enable(): void {
@@ -433,31 +443,22 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		const isPrintableCharEvent = this.keyboardNavigationLabelProvider.mightProducePrintableCharacter ? (e: IKeyboardEvent) => this.keyboardNavigationLabelProvider.mightProducePrintableCharacter!(e) : (e: IKeyboardEvent) => mightProducePrintableCharacter(e);
 		const onKeyDown = Event.chain(domEvent(this.view.getHTMLElement(), 'keydown'))
 			.filter(e => !isInputElement(e.target as HTMLElement) || e.target === this.filterOnTypeDomNode)
+			.filter(() => this.automaticKeyboardNavigation || this.triggered)
 			.map(e => new StandardKeyboardEvent(e))
-			.filter(e => isPrintableCharEvent(e) || (this._pattern.length > 0 && ((e.keyCode === KeyCode.Escape || e.keyCode === KeyCode.Backspace) && !e.altKey && !e.ctrlKey && !e.metaKey) || (e.keyCode === KeyCode.Backspace && (isMacintosh ? e.altKey : e.ctrlKey))))
+			.filter(e => isPrintableCharEvent(e) || ((this._pattern.length > 0 || this.triggered) && ((e.keyCode === KeyCode.Escape || e.keyCode === KeyCode.Backspace) && !e.altKey && !e.ctrlKey && !e.metaKey) || (e.keyCode === KeyCode.Backspace && (isMacintosh ? e.altKey : e.ctrlKey))))
 			.forEach(e => { e.stopPropagation(); e.preventDefault(); })
 			.event;
 
 		const onClear = domEvent(this.clearDomNode, 'click');
-		const onInput = Event.chain(Event.any<MouseEvent | StandardKeyboardEvent>(onKeyDown, onClear))
-			.reduce((previous: string, e) => {
-				if (e instanceof MouseEvent || e.keyCode === KeyCode.Escape || (e.keyCode === KeyCode.Backspace && (isMacintosh ? e.altKey : e.ctrlKey))) {
-					return '';
-				}
 
-				if (e.keyCode === KeyCode.Backspace) {
-					return previous.length === 0 ? '' : previous.substr(0, previous.length - 1);
-				}
+		Event.chain(Event.any<MouseEvent | StandardKeyboardEvent>(onKeyDown, onClear))
+			.event(this.onEventOrInput, this, this.enabledDisposables);
 
-				return previous + e.browserEvent.key;
-			}, '')
-			.event;
-
-		onInput(this.onInput, this, this.enabledDisposables);
 		this.filter.pattern = '';
 		this.tree.refilter();
 		this.render();
 		this._enabled = true;
+		this.triggered = false;
 	}
 
 	private disable(): void {
@@ -470,6 +471,19 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		this.tree.refilter();
 		this.render();
 		this._enabled = false;
+		this.triggered = false;
+	}
+
+	private onEventOrInput(e: MouseEvent | StandardKeyboardEvent | string): void {
+		if (typeof e === 'string') {
+			this.onInput(e);
+		} else if (e instanceof MouseEvent || e.keyCode === KeyCode.Escape || (e.keyCode === KeyCode.Backspace && (isMacintosh ? e.altKey : e.ctrlKey))) {
+			this.onInput('');
+		} else if (e.keyCode === KeyCode.Backspace) {
+			this.onInput(this.pattern.length === 0 ? '' : this.pattern.substr(0, this.pattern.length - 1));
+		} else {
+			this.onInput(this.pattern + e.browserEvent.key);
+		}
 	}
 
 	private onInput(pattern: string): void {
@@ -498,6 +512,10 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		}
 
 		this.render();
+
+		if (!pattern) {
+			this.triggered = false;
+		}
 	}
 
 	private onDragStart(): void {
@@ -631,6 +649,7 @@ function asTreeContextMenuEvent<T>(event: IListContextMenuEvent<ITreeNode<T, any
 }
 
 export interface IAbstractTreeOptionsUpdate extends ITreeRendererOptions {
+	readonly automaticKeyboardNavigation?: boolean;
 	readonly simpleKeyboardNavigation?: boolean;
 	readonly filterOnType?: boolean;
 }
@@ -776,10 +795,8 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	private focus = new Trait<T>();
 	private selection = new Trait<T>();
 	private eventBufferer = new EventBufferer();
+	private typeFilterController?: TypeFilterController<T, TFilterData>;
 	protected disposables: IDisposable[] = [];
-
-	private _onDidUpdateOptions = new Emitter<IAbstractTreeOptions<T, TFilterData>>();
-	readonly onDidUpdateOptions = this._onDidUpdateOptions.event;
 
 	get onDidScroll(): Event<void> { return this.view.onDidScroll; }
 
@@ -852,9 +869,9 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		}
 
 		if (_options.keyboardNavigationLabelProvider) {
-			const typeFilterController = new TypeFilterController(this, this.model, this.view, filter!, _options.keyboardNavigationLabelProvider);
+			this.typeFilterController = new TypeFilterController(this, this.model, this.view, filter!, _options.keyboardNavigationLabelProvider);
 			this.focusNavigationFilter = node => {
-				if (!typeFilterController.enabled || !typeFilterController.pattern) {
+				if (!this.typeFilterController!.enabled || !this.typeFilterController!.pattern) {
 					return true;
 				}
 
@@ -864,7 +881,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 				return !FuzzyScore.isDefault(node.filterData as any as FuzzyScore);
 			};
-			this.disposables.push(typeFilterController);
+			this.disposables.push(this.typeFilterController!);
 		}
 	}
 
@@ -876,7 +893,10 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		}
 
 		this.view.updateOptions({ enableKeyboardNavigation: this._options.simpleKeyboardNavigation });
-		this._onDidUpdateOptions.fire(this._options);
+
+		if (this.typeFilterController) {
+			this.typeFilterController.updateOptions(this._options);
+		}
 	}
 
 	get options(): IAbstractTreeOptions<T, TFilterData> {
@@ -981,6 +1001,14 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 	isCollapsed(location: TRef): boolean {
 		return this.model.isCollapsed(location);
+	}
+
+	toggleKeyboardNavigation(): void {
+		if (!this.typeFilterController) {
+			return;
+		}
+
+		this.typeFilterController.toggle();
 	}
 
 	refilter(): void {
