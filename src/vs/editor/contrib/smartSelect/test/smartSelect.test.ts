@@ -83,7 +83,7 @@ suite('SmartSelect', () => {
 		let actualStr = actual!.map(r => new Range(r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn).toString());
 		let desiredStr = ranges.reverse().map(r => String(r));
 
-		assert.deepEqual(actualStr, desiredStr);
+		assert.deepEqual(actualStr, desiredStr, `\nA: ${actualStr} VS \nE: ${desiredStr}`);
 		modelService.destroyModel(uri);
 	}
 
@@ -99,6 +99,7 @@ suite('SmartSelect', () => {
 				new Range(1, 1, 5, 2), // all
 				new Range(1, 21, 5, 2), // {} outside
 				new Range(1, 22, 5, 1), // {} inside
+				new Range(2, 1, 4, 3), // block
 				new Range(2, 1, 4, 3),
 				new Range(2, 2, 4, 3),
 				new Range(2, 11, 4, 3),
@@ -125,10 +126,10 @@ suite('SmartSelect', () => {
 				new Range(1, 21, 5, 2),
 				new Range(1, 22, 5, 1),
 				new Range(2, 1, 4, 3),
+				new Range(2, 1, 4, 3),
 				new Range(2, 2, 4, 3),
 				new Range(2, 11, 4, 3),
 				new Range(2, 12, 4, 2),
-				new Range(3, 1, 3, 1),
 			]);
 	});
 
@@ -145,10 +146,12 @@ suite('SmartSelect', () => {
 				new Range(1, 21, 5, 2), // {} outside
 				new Range(1, 22, 5, 1), // {} inside
 				new Range(2, 1, 4, 3),
+				new Range(2, 1, 4, 3),
 				new Range(2, 2, 4, 3),
 				new Range(2, 11, 4, 3),
 				new Range(2, 12, 4, 2),
-				new Range(3, 1, 3, 2) // line w/ triva
+				new Range(3, 1, 3, 2), // block
+				new Range(3, 1, 3, 2) // empty line
 			]);
 	});
 
@@ -261,8 +264,6 @@ suite('SmartSelect', () => {
 		await assertRanges(new WordSelectionRangeProvider(), 'fIooBar',
 			new Range(1, 1, 1, 5), // foo
 			new Range(1, 1, 1, 8), // fooBar
-			new Range(1, 1, 1, 8), // line (triva)
-			new Range(1, 1, 1, 8), // line
 			new Range(1, 1, 1, 8), // doc
 		);
 
@@ -270,14 +271,10 @@ suite('SmartSelect', () => {
 			new Range(1, 1, 1, 5),
 			new Range(1, 1, 1, 8),
 			new Range(1, 1, 1, 8),
-			new Range(1, 1, 1, 8),
-			new Range(1, 1, 1, 8),
 		);
 
 		await assertRanges(new WordSelectionRangeProvider(), 'fIoo-Ba',
 			new Range(1, 1, 1, 5),
-			new Range(1, 1, 1, 8),
-			new Range(1, 1, 1, 8),
 			new Range(1, 1, 1, 8),
 			new Range(1, 1, 1, 8),
 		);
