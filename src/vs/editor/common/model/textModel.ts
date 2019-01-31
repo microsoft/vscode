@@ -1823,7 +1823,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 				// We cannot trust these states/tokens to be valid!
 				// (see https://github.com/Microsoft/vscode/issues/67607)
 				this._tokens._setIsInvalid(i - 1, true);
-				this._tokens._setState(i - 1, null);
+				this._tokens._setState(i - 1, state);
 				state = r.endState.clone();
 				eventBuilder.registerChangedTokens(i);
 			} else {
