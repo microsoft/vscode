@@ -762,3 +762,21 @@ CommandsRegistry.registerCommand({
 		}
 	}
 });
+
+CommandsRegistry.registerCommand({
+	id: 'list.toggleFilterOnType',
+	handler: (accessor) => {
+		const focused = accessor.get(IListService).lastFocusedList;
+
+		// List
+		if (focused instanceof List || focused instanceof PagedList) {
+			// TODO@joao
+		}
+
+		// ObjectTree
+		else if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
+			const tree = focused;
+			tree.updateOptions({ filterOnType: !tree.filterOnType });
+		}
+	}
+});

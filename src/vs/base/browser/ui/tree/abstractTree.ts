@@ -831,6 +831,8 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	private _onWillRefilter = new Emitter<void>();
 	readonly onWillRefilter: Event<void> = this._onWillRefilter.event;
 
+	get filterOnType(): boolean { return !!this._options.filterOnType; }
+
 	get onDidDispose(): Event<void> { return this.view.onDidDispose; }
 
 	constructor(
