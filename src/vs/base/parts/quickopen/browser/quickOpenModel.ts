@@ -485,7 +485,6 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		data.container = null;
 		data.entry = null;
 		data.keybinding = null;
-		data.detail.dispose();
 		data.detail = null;
 		data.group = null;
 		data.icon = null;

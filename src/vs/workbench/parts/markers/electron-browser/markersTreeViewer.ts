@@ -305,7 +305,6 @@ class MarkerWidget extends Disposable {
 			lastLineElement = dom.append(messageContainer, dom.$('.marker-message-line'));
 			const highlightedLabel = new HighlightedLabel(lastLineElement, false);
 			highlightedLabel.set(lines[index], lineMatches[index]);
-			this.disposables.push(highlightedLabel);
 		}
 		this.renderDetails(marker, filterData, multiline ? lastLineElement : this.messageAndDetailsContainer);
 	}
@@ -325,8 +324,6 @@ class MarkerWidget extends Disposable {
 
 		const lnCol = dom.append(parent, dom.$('span.marker-line'));
 		lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(marker.startLineNumber, marker.startColumn);
-
-		this.disposables.push(...[source, code]);
 	}
 
 	private static iconClassNameFor(element: IMarker): string {
@@ -382,8 +379,7 @@ export class RelatedInformationRenderer implements ITreeRenderer<RelatedInformat
 	}
 
 	disposeTemplate(templateData: IRelatedInformationTemplateData): void {
-		templateData.description.dispose();
-		templateData.resourceLabel.dispose();
+		// noop
 	}
 }
 
