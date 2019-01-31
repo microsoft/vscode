@@ -425,6 +425,10 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		this.automaticKeyboardNavigation = typeof options.automaticKeyboardNavigation === 'undefined' ? true : options.automaticKeyboardNavigation;
 		this.tree.refilter();
 		this.render();
+
+		if (!this.automaticKeyboardNavigation) {
+			this.onEventOrInput('');
+		}
 	}
 
 	toggle(): void {

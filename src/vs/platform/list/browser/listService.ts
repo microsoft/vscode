@@ -103,6 +103,7 @@ export const WorkbenchListFocusContextKey = ContextKeyExpr.and(RawWorkbenchListF
 export const WorkbenchListHasSelectionOrFocus = new RawContextKey<boolean>('listHasSelectionOrFocus', false);
 export const WorkbenchListDoubleSelection = new RawContextKey<boolean>('listDoubleSelection', false);
 export const WorkbenchListMultiSelection = new RawContextKey<boolean>('listMultiSelection', false);
+export const WorkbenchListSupportsKeyboardNavigation = new RawContextKey<boolean>('listSupportsKeyboardNavigation', true);
 export const WorkbenchListAutomaticKeyboardNavigationKey = 'listAutomaticKeyboardNavigation';
 export const WorkbenchListAutomaticKeyboardNavigation = new RawContextKey<boolean>(WorkbenchListAutomaticKeyboardNavigationKey, true);
 
@@ -922,6 +923,7 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
+		WorkbenchListSupportsKeyboardNavigation.bindTo(contextKeyService);
 		WorkbenchListAutomaticKeyboardNavigation.bindTo(contextKeyService);
 
 		const automaticKeyboardNavigation = contextKeyService.getContextKeyValue<boolean>(WorkbenchListAutomaticKeyboardNavigationKey);
@@ -1040,6 +1042,7 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
+		WorkbenchListSupportsKeyboardNavigation.bindTo(contextKeyService);
 		WorkbenchListAutomaticKeyboardNavigation.bindTo(contextKeyService);
 
 		const automaticKeyboardNavigation = contextKeyService.getContextKeyValue<boolean>(WorkbenchListAutomaticKeyboardNavigationKey);
@@ -1153,6 +1156,7 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
+		WorkbenchListSupportsKeyboardNavigation.bindTo(contextKeyService);
 		WorkbenchListAutomaticKeyboardNavigation.bindTo(contextKeyService);
 
 		const automaticKeyboardNavigation = contextKeyService.getContextKeyValue<boolean>(WorkbenchListAutomaticKeyboardNavigationKey);
