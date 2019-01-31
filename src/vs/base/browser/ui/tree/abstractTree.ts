@@ -493,7 +493,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 			const element = focus[0];
 
 			if (this.tree.getRelativeTop(element) === null) {
-				this.tree.reveal(focus[0], 0.5);
+				this.tree.reveal(element, 0.5);
 			}
 		}
 
@@ -1043,6 +1043,11 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 	reveal(location: TRef, relativeTop?: number): void {
 		const index = this.model.getListIndex(location);
+
+		if (index === -1) {
+			return null;
+		}
+
 		this.view.reveal(index, relativeTop);
 	}
 
@@ -1052,6 +1057,11 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	 */
 	getRelativeTop(location: TRef): number | null {
 		const index = this.model.getListIndex(location);
+
+		if (index === -1) {
+			return null;
+		}
+
 		return this.view.getRelativeTop(index);
 	}
 
