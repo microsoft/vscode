@@ -265,7 +265,13 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			for (let extPointName in extension.contributes) {
 				if (hasOwnProperty.call(extension.contributes, extPointName)) {
 					const extPoint = extensionPoints[extPointName];
-					if (extPoint && !extPoint.isDynamic) {
+					if (extPoint) {
+						if (!extPoint.isDynamic) {
+							return false;
+						}
+					} else {
+						// This extension has a 3rd party (unknown) extension point
+						// ===> require a reload for now...
 						return false;
 					}
 				}
