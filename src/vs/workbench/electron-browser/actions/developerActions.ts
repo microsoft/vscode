@@ -184,10 +184,13 @@ export class ToggleScreencastModeAction extends Action {
 			const keybinding = this.keybindingService.resolveKeyboardEvent(event);
 			const label = keybinding.getLabel();
 			const key = $('span');
-			key.style.paddingLeft = '10px';
-			key.style.paddingRight = '10px';
-			key.style.boxShadow = '0 0 0 1px rgba(255, 255, 255, 0.2)';
-			key.style.marginRight = '1px';
+			key.style.paddingLeft = '8px';
+			key.style.paddingRight = '8px';
+			key.style.boxShadow = 'inset 0 -3px 0 hsla(0,0%,73%,.4)';
+			key.style.marginRight = '6px';
+			key.style.border = '1px solid hsla(0,0%,80%,.4)';
+			key.style.borderRadius = '5px';
+			key.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
 			key.textContent = label;
 
 			if (!event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey && this.keybindingService.mightProducePrintableCharacter(event) && label) {
