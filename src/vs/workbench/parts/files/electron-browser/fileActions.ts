@@ -484,7 +484,7 @@ class PasteFileAction extends BaseErrorReportingAction {
 				}
 
 				return undefined;
-			});
+			}, e => this.onError(e));
 		}, error => {
 			this.onError(new Error(nls.localize('fileDeleted', "File to paste was deleted or moved meanwhile")));
 		});
