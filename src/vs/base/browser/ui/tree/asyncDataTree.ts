@@ -215,11 +215,7 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 				return options.keyboardNavigationLabelProvider!.getKeyboardNavigationLabel(e.element as T);
 			}
 		},
-		sorter: options.sorter && {
-			compare(a, b) {
-				return options.sorter!.compare(a.element as T, b.element as T);
-			}
-		}
+		sorter: undefined
 	};
 }
 
@@ -263,6 +259,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	private readonly tree: ObjectTree<IAsyncDataTreeNode<TInput, T>, TFilterData>;
 	private readonly root: IAsyncDataTreeNode<TInput, T>;
 	private readonly renderedNodes = new Map<null | T, IAsyncDataTreeNode<TInput, T>>();
+	private readonly sorter?: ITreeSorter<T>;
 
 	private readonly subTreeRefreshPromises = new Map<IAsyncDataTreeNode<TInput, T>, Promise<void>>();
 	private readonly refreshPromises = new Map<IAsyncDataTreeNode<TInput, T>, CancelablePromise<T[]>>();
@@ -298,6 +295,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	) {
 		this.identityProvider = options.identityProvider;
 		this.autoExpandSingleChildren = typeof options.autoExpandSingleChildren === 'undefined' ? false : options.autoExpandSingleChildren;
+		this.sorter = options.sorter;
 
 		const objectTreeDelegate = new ComposedTreeDelegate<TInput | T, IAsyncDataTreeNode<TInput, T>>(delegate);
 		const objectTreeRenderers = renderers.map(r => new DataTreeRenderer(r, this._onDidChangeNodeSlowState.event));
@@ -693,7 +691,15 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			return result;
 		}
 
-		result = createCancelablePromise(_ => Promise.resolve(this.dataSource.getChildren(node.element!)));
+		result = createCancelablePromise(async () => {
+			const children = await this.dataSource.getChildren(node.element!);
+
+			if (this.sorter) {
+				children.sort(this.sorter.compare.bind(this.sorter));
+			}
+
+			return children;
+		});
 		this.refreshPromises.set(node, result);
 		return always(result, () => this.refreshPromises.delete(node));
 	}
