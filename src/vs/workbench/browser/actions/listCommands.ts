@@ -310,6 +310,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		// Tree only
 		if (focused && !(focused instanceof List || focused instanceof PagedList)) {
 			if (focused instanceof ObjectTree || focused instanceof DataTree) {
+				// TODO@Joao: instead of doing this here, just delegate to a tree method
 				const tree = focused;
 				const focusedElements = tree.getFocus();
 
@@ -323,12 +324,17 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 					const child = tree.getFirstElementChild(focus);
 
 					if (child) {
-						const fakeKeyboardEvent = new KeyboardEvent('keydown');
-						tree.setFocus([child], fakeKeyboardEvent);
-						tree.reveal(child);
+						const node = tree.getNode(child);
+
+						if (node.visible) {
+							const fakeKeyboardEvent = new KeyboardEvent('keydown');
+							tree.setFocus([child], fakeKeyboardEvent);
+							tree.reveal(child);
+						}
 					}
 				}
 			} else if (focused instanceof AsyncDataTree) {
+				// TODO@Joao: instead of doing this here, just delegate to a tree method
 				const tree = focused;
 				const focusedElements = tree.getFocus();
 
@@ -342,9 +348,13 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 						const child = tree.getFirstElementChild(focus);
 
 						if (child) {
-							const fakeKeyboardEvent = new KeyboardEvent('keydown');
-							tree.setFocus([child], fakeKeyboardEvent);
-							tree.reveal(child);
+							const node = tree.getNode(child);
+
+							if (node.visible) {
+								const fakeKeyboardEvent = new KeyboardEvent('keydown');
+								tree.setFocus([child], fakeKeyboardEvent);
+								tree.reveal(child);
+							}
 						}
 					}
 				});

@@ -1115,7 +1115,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		const didChange = this.model.setCollapsed(location, false);
 
 		if (!didChange) {
-			if (node.children.length === 0) {
+			if (!node.children.some(child => child.visible)) {
 				return;
 			}
 
