@@ -171,8 +171,9 @@ export class ComposedTreeDelegate<T, N extends { element: T }> implements IListV
 }
 
 interface ITreeListTemplateData<T> {
-	twistie: HTMLElement;
-	templateData: T;
+	readonly container: HTMLElement;
+	readonly twistie: HTMLElement;
+	readonly templateData: T;
 }
 
 interface ITreeRendererOptions {
@@ -218,7 +219,7 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 		const contents = append(el, $('.monaco-tl-contents'));
 		const templateData = this.renderer.renderTemplate(contents);
 
-		return { twistie, templateData };
+		return { container, twistie, templateData };
 	}
 
 	renderElement(node: ITreeNode<T, TFilterData>, index: number, templateData: ITreeListTemplateData<TTemplateData>): void {
@@ -227,7 +228,9 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 
 		const indent = TreeRenderer.DefaultIndent + (node.depth - 1) * this.indent;
 		templateData.twistie.style.marginLeft = `${indent}px`;
-		this.renderTwistie(node, templateData.twistie);
+		templateData.container.setAttribute('aria-posinset', String(node.visibleChildIndex + 1));
+		templateData.container.setAttribute('aria-setsize', String(node.parent!.visibleChildrenCount));
+		this.update(node, templateData);
 
 		this.renderer.renderElement(node, index, templateData.templateData);
 	}
@@ -261,16 +264,22 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 			return;
 		}
 
-		this.renderTwistie(node, templateData.twistie);
+		this.update(node, templateData);
 	}
 
-	private renderTwistie(node: ITreeNode<T, TFilterData>, twistieElement: HTMLElement) {
+	private update(node: ITreeNode<T, TFilterData>, templateData: ITreeListTemplateData<TTemplateData>) {
 		if (this.renderer.renderTwistie) {
-			this.renderer.renderTwistie(node.element, twistieElement);
+			this.renderer.renderTwistie(node.element, templateData.twistie);
 		}
 
-		toggleClass(twistieElement, 'collapsible', node.collapsible);
-		toggleClass(twistieElement, 'collapsed', node.collapsible && node.collapsed);
+		toggleClass(templateData.twistie, 'collapsible', node.collapsible);
+		toggleClass(templateData.twistie, 'collapsed', node.collapsible && node.collapsed);
+
+		if (node.collapsible) {
+			templateData.container.setAttribute('aria-expanded', String(!node.collapsed));
+		} else {
+			templateData.container.removeAttribute('aria-expanded');
+		}
 	}
 
 	dispose(): void {
