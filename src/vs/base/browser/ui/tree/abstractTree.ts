@@ -1045,7 +1045,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		const index = this.model.getListIndex(location);
 
 		if (index === -1) {
-			return null;
+			return;
 		}
 
 		this.view.reveal(index, relativeTop);
