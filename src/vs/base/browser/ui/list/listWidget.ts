@@ -505,7 +505,7 @@ const DefaultOpenController: IOpenController = {
 class MouseController<T> implements IDisposable {
 
 	private multipleSelectionSupport: boolean;
-	private multipleSelectionController: IMultipleSelectionController<T>;
+	readonly multipleSelectionController: IMultipleSelectionController<T>;
 	private openController: IOpenController;
 	private disposables: IDisposable[] = [];
 
@@ -1063,6 +1063,11 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	private spliceable: ISpliceable<T>;
 	private styleElement: HTMLStyleElement;
 	private styleController: IStyleController;
+	private mouseController: MouseController<T> | undefined;
+
+	get multipleSelectionController(): IMultipleSelectionController<T> {
+		return this.mouseController ? this.mouseController.multipleSelectionController : DefaultMultipleSelectionContoller;
+	}
 
 	private _onDidUpdateOptions = new Emitter<IListOptions<T>>();
 	readonly onDidUpdateOptions = this._onDidUpdateOptions.event;
@@ -1208,7 +1213,8 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		}
 
 		if (typeof _options.mouseSupport === 'boolean' ? _options.mouseSupport : true) {
-			this.disposables.push(new MouseController(this, this.view, _options));
+			this.mouseController = new MouseController(this, this.view, _options);
+			this.disposables.push(this.mouseController);
 		}
 
 		this.onFocusChange(this._onFocusChange, this, this.disposables);
