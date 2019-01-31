@@ -190,7 +190,7 @@ export class ToggleScreencastModeAction extends Action {
 			key.style.marginRight = '6px';
 			key.style.border = '1px solid hsla(0,0%,80%,.4)';
 			key.style.borderRadius = '5px';
-			key.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+			key.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
 			key.textContent = label;
 
 			if (!event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey && this.keybindingService.mightProducePrintableCharacter(event) && label) {
