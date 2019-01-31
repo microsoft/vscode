@@ -403,8 +403,9 @@ class TypeLabelController<T> implements IDisposable {
 		for (let i = 0; i < this.list.length; i++) {
 			const index = (start + i + delta) % this.list.length;
 			const label = this.keyboardNavigationLabelProvider.getKeyboardNavigationLabel(this.view.element(index));
+			const labelStr = label && label.toString();
 
-			if (matchesPrefix(word, label.toString())) {
+			if (typeof labelStr === 'undefined' || matchesPrefix(word, labelStr)) {
 				this.list.setFocus([index]);
 				this.list.reveal(index);
 				return;

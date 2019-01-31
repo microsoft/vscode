@@ -334,8 +334,14 @@ class TypeFilter<T> implements ITreeFilter<T, FuzzyScore>, IDisposable {
 			return { data: FuzzyScore.Default, visibility: true };
 		}
 
-		const label = this.keyboardNavigationLabelProvider.getKeyboardNavigationLabel(element).toString();
-		const score = fuzzyScore(this._pattern, this._lowercasePattern, 0, label, label.toLowerCase(), 0, true);
+		const label = this.keyboardNavigationLabelProvider.getKeyboardNavigationLabel(element);
+		const labelStr = label && label.toString();
+
+		if (typeof labelStr === 'undefined') {
+			return { data: FuzzyScore.Default, visibility: true };
+		}
+
+		const score = fuzzyScore(this._pattern, this._lowercasePattern, 0, labelStr, labelStr.toLowerCase(), 0, true);
 
 		if (!score) {
 			if (this.tree.options.filterOnType) {

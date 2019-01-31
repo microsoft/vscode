@@ -266,7 +266,13 @@ export class ExplorerView extends ViewletPanel {
 					getId: stat => stat.resource
 				},
 				keyboardNavigationLabelProvider: {
-					getKeyboardNavigationLabel: stat => stat.name
+					getKeyboardNavigationLabel: stat => {
+						if (this.explorerService.isEditable(stat)) {
+							return undefined;
+						}
+
+						return stat.name;
+					}
 				},
 				multipleSelectionSupport: true,
 				filter: this.filter,
