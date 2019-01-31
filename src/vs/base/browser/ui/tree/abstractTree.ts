@@ -879,7 +879,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 					return true;
 				}
 
-				if (filter!.totalCount > 0 && filter!.matchCount === 0) {
+				if (filter!.totalCount > 0 && filter!.matchCount <= 1) {
 					return true;
 				}
 
