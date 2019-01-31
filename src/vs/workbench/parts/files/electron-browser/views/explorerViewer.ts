@@ -247,7 +247,7 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, FuzzyScore, IF
 	}
 
 	disposeElement?(element: ITreeNode<ExplorerItem, FuzzyScore>, index: number, templateData: IFileTemplateData): void {
-		// noop
+		templateData.elementDisposable.dispose();
 	}
 
 	disposeTemplate(templateData: IFileTemplateData): void {
@@ -470,7 +470,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 			if (!target) {
 				// Droping onto the empty area. Do not accept if items dragged are already children of the root
-				if (items.every(i => i.parent.isRoot)) {
+				if (items.every(i => i.parent && i.parent.isRoot)) {
 					return false;
 				}
 
@@ -769,7 +769,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		// Reuse duplicate action if user copies
 		if (isCopy) {
 
-			return this.fileService.copyFile(source.resource, findValidPasteFileTarget(target, { resource: source.resource, isDirectory: source.isDirectory })).then(stat => {
+			return this.fileService.copyFile(source.resource, findValidPasteFileTarget(target, { resource: source.resource, isDirectory: source.isDirectory, allowOverwirte: false })).then(stat => {
 				if (!stat.isDirectory) {
 					return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } }).then(() => undefined);
 				}

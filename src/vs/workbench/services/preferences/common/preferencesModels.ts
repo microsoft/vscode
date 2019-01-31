@@ -469,7 +469,7 @@ export class DefaultSettings extends Disposable {
 
 	private initialize(): void {
 		this._allSettingsGroups = this.parse();
-		this._content = this.toContent(true, this._allSettingsGroups);
+		this._content = this.toContent(this._allSettingsGroups);
 	}
 
 	private parse(): ISettingsGroup[] {
@@ -481,7 +481,7 @@ export class DefaultSettings extends Disposable {
 
 	get raw(): string {
 		if (!DefaultSettings._RAW) {
-			DefaultSettings._RAW = this.toContent(false, this.getRegisteredGroups());
+			DefaultSettings._RAW = this.toContent(this.getRegisteredGroups());
 		}
 
 		return DefaultSettings._RAW;
@@ -673,18 +673,14 @@ export class DefaultSettings extends Disposable {
 		return c1.order - c2.order;
 	}
 
-	private toContent(asArray: boolean, settingsGroups: ISettingsGroup[]): string {
+	private toContent(settingsGroups: ISettingsGroup[]): string {
 		const builder = new SettingsContentBuilder();
-		if (asArray) {
-			builder.pushLine('[');
-		}
+		builder.pushLine('[');
 		settingsGroups.forEach((settingsGroup, i) => {
 			builder.pushGroup(settingsGroup);
 			builder.pushLine(',');
 		});
-		if (asArray) {
-			builder.pushLine(']');
-		}
+		builder.pushLine(']');
 		return builder.getContent();
 	}
 

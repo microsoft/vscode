@@ -624,30 +624,30 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		return !!(extension as Extension).gallery;
 	}
 
-	install(extension: string | IExtension): Promise<void> {
+	install(extension: string | IExtension): Promise<IExtension> {
 		if (typeof extension === 'string') {
-			return this.installWithProgress(() => this.extensionService.install(URI.file(extension)).then(extensionIdentifier => this.checkAndEnableDisabledDependencies(extensionIdentifier)));
-		}
-
-		if (!(extension instanceof Extension)) {
-			return Promise.resolve(undefined);
+			return this.installWithProgress(async () => {
+				const extensionIdentifier = await this.extensionService.install(URI.file(extension));
+				this.checkAndEnableDisabledDependencies(extensionIdentifier);
+				return this.local.filter(local => areSameExtensions(local.identifier, extensionIdentifier))[0];
+			});
 		}
 
 		if (extension.isMalicious) {
 			return Promise.reject(new Error(nls.localize('malicious', "This extension is reported to be problematic.")));
 		}
 
-		const ext = extension as Extension;
-		const gallery = ext.gallery;
+		const gallery = extension.gallery;
 
 		if (!gallery) {
 			return Promise.reject(new Error('Missing gallery'));
 		}
 
-		return this.installWithProgress(
-			() => this.extensionService.installFromGallery(gallery)
-				.then(() => this.checkAndEnableDisabledDependencies(gallery.identifier))
-			, gallery.displayName);
+		return this.installWithProgress(async () => {
+			await this.extensionService.installFromGallery(gallery);
+			this.checkAndEnableDisabledDependencies(gallery.identifier);
+			return this.local.filter(local => areSameExtensions(local.identifier, gallery.identifier))[0];
+		}, gallery.displayName);
 	}
 
 	setEnablement(extensions: IExtension | IExtension[], enablementState: EnablementState): Promise<void> {
@@ -671,7 +671,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		}, () => this.extensionService.uninstall(toUninstall).then(() => undefined));
 	}
 
-	installVersion(extension: IExtension, version: string): Promise<void> {
+	installVersion(extension: IExtension, version: string): Promise<IExtension> {
 		if (!(extension instanceof Extension)) {
 			return Promise.resolve();
 		}
@@ -683,20 +683,20 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		return this.galleryService.getCompatibleExtension(extension.gallery.identifier, version)
 			.then(gallery => {
 				if (!gallery) {
-					return undefined;
+					return Promise.reject(new Error(nls.localize('incompatible', "Unable to install extension '{0}' with version '{1}' as it is not compatible with VS Code.", extension.gallery!.identifier.id, version)));
 				}
-				return this.installWithProgress(
-					() => this.extensionService.installFromGallery(gallery)
-						.then(() => {
-							if (extension.latestVersion !== version) {
-								this.ignoreAutoUpdate(new ExtensionIdentifierWithVersion(gallery.identifier, version));
-							}
-						})
+				return this.installWithProgress(async () => {
+					await this.extensionService.installFromGallery(gallery);
+					if (extension.latestVersion !== version) {
+						this.ignoreAutoUpdate(new ExtensionIdentifierWithVersion(gallery.identifier, version));
+					}
+					return this.local.filter(local => areSameExtensions(local.identifier, gallery.identifier))[0];
+				}
 					, gallery.displayName);
 			});
 	}
 
-	reinstall(extension: IExtension): Promise<void> {
+	reinstall(extension: IExtension): Promise<IExtension> {
 		const ext = extension.local ? extension : this.installed.filter(e => areSameExtensions(e.identifier, extension.identifier))[0];
 		const toReinstall: ILocalExtension | null = ext && ext.local ? ext.local : null;
 
@@ -707,10 +707,10 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		return this.progressService.withProgress({
 			location: ProgressLocation.Extensions,
 			source: `${toReinstall.identifier.id}`
-		}, () => this.extensionService.reinstallFromGallery(toReinstall).then(() => undefined));
+		}, () => this.extensionService.reinstallFromGallery(toReinstall).then(() => this.local.filter(local => areSameExtensions(local.identifier, extension.identifier))[0]));
 	}
 
-	private installWithProgress(installTask: () => Promise<void>, extensionName?: string): Promise<void> {
+	private installWithProgress<T>(installTask: () => Promise<T>, extensionName?: string): Promise<T> {
 		const title = extensionName ? nls.localize('installing named extension', "Installing '{0}' extension....", extensionName) : nls.localize('installing extension', 'Installing extension....');
 		return this.progressService.withProgress({
 			location: ProgressLocation.Extensions,

@@ -290,7 +290,7 @@ class FormatOnSaveParticipant implements ISaveParticipantParticipant {
 	}
 }
 
-class CodeActionOnParticipant implements ISaveParticipant {
+class CodeActionOnSaveParticipant implements ISaveParticipant {
 
 	constructor(
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
@@ -311,7 +311,17 @@ class CodeActionOnParticipant implements ISaveParticipant {
 			return undefined;
 		}
 
-		const codeActionsOnSave = Object.keys(setting).filter(x => setting[x]).map(x => new CodeActionKind(x));
+		const codeActionsOnSave = Object.keys(setting)
+			.filter(x => setting[x]).map(x => new CodeActionKind(x))
+			.sort((a, b) => {
+				if (a.value === CodeActionKind.SourceFixAll.value) {
+					return -1;
+				}
+				if (b.value === CodeActionKind.SourceFixAll.value) {
+					return 1;
+				}
+				return 0;
+			});
 		if (!codeActionsOnSave.length) {
 			return undefined;
 		}
@@ -404,7 +414,7 @@ export class SaveParticipant implements ISaveParticipant {
 	) {
 		this._saveParticipants = new IdleValue(() => [
 			instantiationService.createInstance(TrimWhitespaceParticipant),
-			instantiationService.createInstance(CodeActionOnParticipant),
+			instantiationService.createInstance(CodeActionOnSaveParticipant),
 			instantiationService.createInstance(FormatOnSaveParticipant),
 			instantiationService.createInstance(FinalNewLineParticipant),
 			instantiationService.createInstance(TrimFinalNewLinesParticipant),

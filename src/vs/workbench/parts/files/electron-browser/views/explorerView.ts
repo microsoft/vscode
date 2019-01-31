@@ -193,13 +193,8 @@ export class ExplorerView extends ViewletPanel {
 
 		// When the explorer viewer is loaded, listen to changes to the editor input
 		this.disposables.push(this.editorService.onDidActiveEditorChange(() => {
-			if (this.autoReveal && !this.ignoreActiveEditorChange) {
-				const activeFile = this.getActiveFile();
-				if (activeFile) {
-					this.explorerService.select(this.getActiveFile());
-				} else {
-					this.tree.setSelection([]);
-				}
+			if (!this.ignoreActiveEditorChange) {
+				this.selectActiveFile();
 			}
 		}));
 
@@ -214,12 +209,7 @@ export class ExplorerView extends ViewletPanel {
 					await this.setTreeInput();
 				}
 				// Find resource to focus from active editor input if set
-				if (this.autoReveal) {
-					const activeFile = this.getActiveFile();
-					if (activeFile) {
-						this.explorerService.select(activeFile, true);
-					}
-				}
+				this.selectActiveFile(true);
 			}
 		}));
 	}
@@ -241,6 +231,17 @@ export class ExplorerView extends ViewletPanel {
 
 	focus(): void {
 		this.tree.domFocus();
+	}
+
+	private selectActiveFile(reveal?: boolean): void {
+		if (this.autoReveal) {
+			const activeFile = this.getActiveFile();
+			if (activeFile) {
+				this.explorerService.select(this.getActiveFile(), reveal);
+			} else {
+				this.tree.setSelection([]);
+			}
+		}
 	}
 
 	private createTree(container: HTMLElement): void {
@@ -288,6 +289,8 @@ export class ExplorerView extends ViewletPanel {
 			this.rootContext.set(!stat || (stat && stat.isRoot));
 		}));
 
+		// TODO@Isidor: use TreeResourceNavigator2 just like search and listen to the `onDidOpenResource` instead
+
 		// Open when selecting via keyboard
 		this.disposables.push(this.tree.onDidChangeSelection(e => {
 			if (!e.browserEvent) {
@@ -317,6 +320,11 @@ export class ExplorerView extends ViewletPanel {
 
 				if (e.browserEvent instanceof MouseEvent) {
 					isDoubleClick = e.browserEvent.detail === 2;
+
+					if (!this.tree.openOnSingleClick && !isDoubleClick) {
+						return;
+					}
+
 					isMiddleClick = e.browserEvent.button === 1;
 					sideBySide = this.tree.useAltAsMultipleSelectionModifier ? (e.browserEvent.ctrlKey || e.browserEvent.metaKey) : e.browserEvent.altKey;
 				}

@@ -997,7 +997,7 @@ declare module 'vscode' {
 		 * terminalRenderer.onDidAcceptInput(data => {
 		 *   console.log(data); // 'Hello world'
 		 * });
-		 * terminalRenderer.terminal.then(t => t.sendText('Hello world'));
+		 * terminalRenderer.terminal.sendText('Hello world');
 		 * ```
 		 */
 		readonly onDidAcceptInput: Event<string>;
@@ -1052,15 +1052,6 @@ declare module 'vscode' {
 		 * This rule will only execute if the text above the this line matches this regular expression.
 		 */
 		oneLineAboveText?: RegExp;
-	}
-	//#endregion
-
-	//#region Alex - extensions.all change event
-	export namespace extensions {
-		/**
-		 * An event which fires when `extensions.all` changes.
-		 */
-		export const onDidChange: Event<void>;
 	}
 	//#endregion
 

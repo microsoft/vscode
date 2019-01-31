@@ -62,8 +62,6 @@ import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorG
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPreferencesService, ISettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { createFileIconThemableTreeContainerScope } from 'vs/workbench/browser/parts/views/views';
-import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 
 const $ = dom.$;
 
@@ -145,11 +143,10 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IThemeService protected themeService: IThemeService,
-		@IWorkbenchThemeService protected workbenchThemeService: IWorkbenchThemeService,
 		@ISearchHistoryService private readonly searchHistoryService: ISearchHistoryService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IMenuService private readonly menuService: IMenuService,
+		@IMenuService private readonly menuService: IMenuService
 	) {
 		super(VIEW_ID, configurationService, partService, telemetryService, themeService, storageService);
 
@@ -618,7 +615,6 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	private createSearchResultsView(container: HTMLElement): void {
 		this.resultsElement = dom.append(container, $('.results.show-file-icons'));
 		const delegate = this.instantiationService.createInstance(SearchDelegate);
-		this._register(createFileIconThemableTreeContainerScope(this.resultsElement, this.workbenchThemeService));
 
 		const identityProvider: IIdentityProvider<RenderableMatch> = {
 			getId(element: RenderableMatch) {
@@ -636,22 +632,13 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 				this._register(this.instantiationService.createInstance(MatchRenderer, this.viewModel, this)),
 			],
 			{
-				keyboardNavigationLabelProvider: {
-					getKeyboardNavigationLabel: (element: RenderableMatch) => {
-						if (element instanceof FolderMatch || element instanceof FileMatch) {
-							return element.name();
-						}
-
-						return '';
-					}
-				},
 				identityProvider,
 				accessibilityProvider: this.instantiationService.createInstance(SearchAccessibilityProvider, this.viewModel)
 			}));
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 
 		const resourceNavigator = this._register(new TreeResourceNavigator2(this.tree, { openOnFocus: true }));
-		this._register(Event.debounce(resourceNavigator.openResource, (last, event) => event, 75, true)(options => {
+		this._register(Event.debounce(resourceNavigator.onDidOpenResource, (last, event) => event, 75, true)(options => {
 			if (options.element instanceof Match) {
 				const selectedMatch: Match = options.element;
 				if (this.currentSelectedFileMatch) {
@@ -1730,6 +1717,6 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 
 	const outlineSelectionColor = theme.getColor(listActiveSelectionForeground);
 	if (outlineSelectionColor) {
-		collector.addRule(`.monaco-workbench .search-view .monaco-tree.focused .monaco-tree-row.focused.selected:not(.highlighted) .action-label:focus { outline-color: ${outlineSelectionColor} }`);
+		collector.addRule(`.monaco-workbench .search-view .monaco-list.element-focused .monaco-list-row.focused.selected:not(.highlighted) .action-label:focus { outline-color: ${outlineSelectionColor} }`);
 	}
 });

@@ -300,7 +300,7 @@ class BranchNode implements ISplitView, IDisposable {
 	}
 
 	private onDidChildrenChange(): void {
-		const onDidChildrenChange = Event.any(...this.children.map(c => c.onDidChange));
+		const onDidChildrenChange = Event.map(Event.any(...this.children.map(c => c.onDidChange)), () => undefined);
 		this.childrenChangeDisposable.dispose();
 		this.childrenChangeDisposable = onDidChildrenChange(this._onDidChange.fire, this._onDidChange);
 

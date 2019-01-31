@@ -55,6 +55,8 @@ class SimpleExtensionService implements IExtensionService {
 	}
 	stopExtensionHost(): void {
 	}
+	canAddExtension(): boolean { return false; }
+	canRemoveExtension(): boolean { return false; }
 }
 
 suite('CommandService', function () {

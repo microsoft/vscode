@@ -26,7 +26,6 @@ import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { RemoveAction, ReplaceAction, ReplaceAllAction, ReplaceAllInFolderAction } from 'vs/workbench/parts/search/browser/searchActions';
 import { SearchView } from 'vs/workbench/parts/search/browser/searchView';
 import { FileMatch, FolderMatch, Match, RenderableMatch, SearchModel, BaseFolderMatch } from 'vs/workbench/parts/search/common/searchModel';
-import { createMatches } from 'vs/base/common/filters';
 
 interface IFolderMatchTemplate {
 	label: IResourceLabel;
@@ -163,7 +162,7 @@ export class FileMatchRenderer extends Disposable implements ITreeRenderer<FileM
 	renderTemplate(container: HTMLElement): IFileMatchTemplate {
 		const disposables: IDisposable[] = [];
 		const fileMatchElement = DOM.append(container, DOM.$('.filematch'));
-		const label = this.labels.create(fileMatchElement, { supportHighlights: true });
+		const label = this.labels.create(fileMatchElement);
 		disposables.push(label);
 		const badge = new CountBadge(DOM.append(fileMatchElement, DOM.$('.badge')));
 		disposables.push(attachBadgeStyler(badge, this.themeService));
@@ -183,11 +182,7 @@ export class FileMatchRenderer extends Disposable implements ITreeRenderer<FileM
 	renderElement(node: ITreeNode<FileMatch, any>, index: number, templateData: IFileMatchTemplate): void {
 		const fileMatch = node.element;
 		templateData.el.setAttribute('data-resource', fileMatch.resource().toString());
-		templateData.label.setFile(
-			fileMatch.resource(), {
-				hideIcon: false,
-				matches: createMatches(node.filterData)
-			});
+		templateData.label.setFile(fileMatch.resource(), { hideIcon: false });
 		const count = fileMatch.count();
 		templateData.badge.setCount(count);
 		templateData.badge.setTitleFormat(count > 1 ? nls.localize('searchMatches', "{0} matches found", count) : nls.localize('searchMatch', "{0} match found", count));

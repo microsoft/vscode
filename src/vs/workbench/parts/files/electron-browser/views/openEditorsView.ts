@@ -146,11 +146,8 @@ export class OpenEditorsView extends ViewletPanel {
 						break;
 					}
 					case GroupChangeKind.EDITOR_OPEN: {
-						setTimeout(() => {
-							this.list.splice(index, 0, [new OpenEditor(e.editor, group)]);
-							this.updateSize();
-							this.focusActiveEditor();
-						}, this.structuralRefreshDelay);
+						this.list.splice(index, 0, [new OpenEditor(e.editor, group)]);
+						setTimeout(() => this.updateSize(), this.structuralRefreshDelay);
 						break;
 					}
 					case GroupChangeKind.EDITOR_CLOSE: {
@@ -398,11 +395,9 @@ export class OpenEditorsView extends ViewletPanel {
 	private focusActiveEditor(): void {
 		if (this.list.length && this.editorGroupService.activeGroup) {
 			const index = this.getIndex(this.editorGroupService.activeGroup, this.editorGroupService.activeGroup.activeEditor);
-			if (index < this.list.length) {
-				this.list.setFocus([index]);
-				this.list.setSelection([index]);
-				this.list.reveal(index);
-			}
+			this.list.setFocus([index]);
+			this.list.setSelection([index]);
+			this.list.reveal(index);
 		} else {
 			this.list.setFocus([]);
 			this.list.setSelection([]);

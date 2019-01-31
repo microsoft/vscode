@@ -149,7 +149,7 @@ export class CallStackView extends ViewletPanel {
 
 		const callstackNavigator = new TreeResourceNavigator2(this.tree);
 		this.disposables.push(callstackNavigator);
-		this.disposables.push(callstackNavigator.openResource(e => {
+		this.disposables.push(callstackNavigator.onDidOpenResource(e => {
 			if (this.ignoreSelectionChangedEvent) {
 				return;
 			}

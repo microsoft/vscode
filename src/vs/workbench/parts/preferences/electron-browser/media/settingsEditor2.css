@@ -99,7 +99,7 @@
 	position: relative;
 }
 
-.settings-editor > .settings-body > .no-results {
+.settings-editor > .settings-body > .no-results-message {
 	display: none;
 	max-width: 1000px;
 	margin: auto;
@@ -109,7 +109,16 @@
 	box-sizing: border-box;
 }
 
-.settings-editor > .settings-body > .no-results a.prominent {
+.settings-editor.no-results > .settings-body .settings-toc-container,
+.settings-editor.no-results > .settings-body .settings-tree-container {
+	display: none;
+}
+
+.settings-editor.no-results > .settings-body > .no-results-message {
+	display: block;
+}
+
+.settings-editor > .settings-body > .no-results-message a.prominent {
 	text-decoration: underline;
 }
 

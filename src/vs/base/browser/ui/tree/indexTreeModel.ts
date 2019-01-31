@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICollapseStateChangeEvent, ITreeElement, ITreeFilter, ITreeFilterDataResult, ITreeModel, ITreeNode, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
+import { ICollapseStateChangeEvent, ITreeElement, ITreeFilter, ITreeFilterDataResult, ITreeModel, ITreeNode, TreeVisibility, ITreeModelSpliceEvent } from 'vs/base/browser/ui/tree/tree';
 import { tail2 } from 'vs/base/common/arrays';
 import { Emitter, Event, EventBufferer } from 'vs/base/common/event';
 import { ISequence, Iterator } from 'vs/base/common/iterator';
@@ -61,7 +61,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 	private filter?: ITreeFilter<T, TFilterData>;
 	private autoExpandSingleChildren: boolean;
 
-	private _onDidSplice = new Emitter<void>();
+	private _onDidSplice = new Emitter<ITreeModelSpliceEvent<T, TFilterData>>();
 	readonly onDidSplice = this._onDidSplice.event;
 
 	constructor(private list: ISpliceable<ITreeNode<T, TFilterData>>, rootElement: T, options: IIndexTreeModelOptions<T, TFilterData> = {}) {
@@ -95,7 +95,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 			throw new Error('Invalid tree location');
 		}
 
-		const { parentNode, listIndex, revealed } = this.getParentNodeWithListIndex(location);
+		const { parentNode, listIndex, revealed, visible } = this.getParentNodeWithListIndex(location);
 		const treeListElementsToInsert: ITreeNode<T, TFilterData>[] = [];
 		const nodesToInsertIterator = Iterator.map(Iterator.from(toInsert), el => this.createTreeNode(el, parentNode, parentNode.visible ? TreeVisibility.Visible : TreeVisibility.Hidden, revealed, treeListElementsToInsert, onDidCreateNode));
 
@@ -110,7 +110,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		const lastIndex = location[location.length - 1];
 		const deletedNodes = parentNode.children.splice(lastIndex, deleteCount, ...nodesToInsert);
 
-		if (revealed) {
+		if (revealed && visible) {
 			const visibleDeleteCount = deletedNodes.reduce((r, node) => r + node.renderNodeCount, 0);
 
 			this._updateAncestorsRenderNodeCount(parentNode, renderNodeCount - visibleDeleteCount);
@@ -127,7 +127,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		}
 
 		const result = Iterator.map(Iterator.fromArray(deletedNodes), treeNodeToElement);
-		this._onDidSplice.fire(undefined);
+		this._onDidSplice.fire({ deletedNodes });
 		return result;
 	}
 
@@ -144,8 +144,8 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 	}
 
 	getListIndex(location: number[]): number {
-		const { listIndex, visible } = this.getTreeNodeWithListIndex(location);
-		return visible ? listIndex : -1;
+		const { listIndex, visible, revealed } = this.getTreeNodeWithListIndex(location);
+		return visible && revealed ? listIndex : -1;
 	}
 
 	getListRenderCount(location: number[]): number {
