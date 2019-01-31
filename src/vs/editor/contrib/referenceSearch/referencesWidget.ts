@@ -34,6 +34,7 @@ import { FileReferences, OneReference, ReferencesModel } from './referencesModel
 import { ITreeRenderer, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IAsyncDataTreeOptions } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { FuzzyScore } from 'vs/base/common/filters';
 
 class DecorationsManager implements IDisposable {
 
@@ -245,7 +246,7 @@ export class ReferenceWidget extends PeekViewWidget {
 	private _callOnDispose: IDisposable[] = [];
 	private _onDidSelectReference = new Emitter<SelectionEvent>();
 
-	private _tree: WorkbenchAsyncDataTree<ReferencesModel | FileReferences, TreeElement>;
+	private _tree: WorkbenchAsyncDataTree<ReferencesModel | FileReferences, TreeElement, FuzzyScore>;
 	private _treeContainer: HTMLElement;
 	private _sash: VSash;
 	private _preview: ICodeEditor;
@@ -360,7 +361,7 @@ export class ReferenceWidget extends PeekViewWidget {
 			this._instantiationService.createInstance(OneReferenceRenderer),
 		];
 
-		const treeOptions: IAsyncDataTreeOptions<TreeElement> = {
+		const treeOptions: IAsyncDataTreeOptions<TreeElement, FuzzyScore> = {
 			ariaLabel: nls.localize('treeAriaLabel', "References"),
 			keyboardSupport: this._defaultTreeKeyboardSupport,
 			accessibilityProvider: new AriaProvider(),
@@ -370,7 +371,7 @@ export class ReferenceWidget extends PeekViewWidget {
 
 		const treeDataSource = this._instantiationService.createInstance(DataSource);
 
-		this._tree = this._instantiationService.createInstance<HTMLElement, IListVirtualDelegate<TreeElement>, ITreeRenderer<any, void, any>[], IAsyncDataSource<ReferencesModel | FileReferences, TreeElement>, IAsyncDataTreeOptions<TreeElement, void>, WorkbenchAsyncDataTree<ReferencesModel | FileReferences, TreeElement, void>>(
+		this._tree = this._instantiationService.createInstance<HTMLElement, IListVirtualDelegate<TreeElement>, ITreeRenderer<any, FuzzyScore, any>[], IAsyncDataSource<ReferencesModel | FileReferences, TreeElement>, IAsyncDataTreeOptions<TreeElement, FuzzyScore>, WorkbenchAsyncDataTree<ReferencesModel | FileReferences, TreeElement, FuzzyScore>>(
 			WorkbenchAsyncDataTree,
 			this._treeContainer,
 			new Delegate(),
