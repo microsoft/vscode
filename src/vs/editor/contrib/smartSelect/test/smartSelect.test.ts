@@ -55,7 +55,7 @@ class MockJSMode extends MockMode {
 			],
 
 			onEnterRules: javascriptOnEnterRules,
-			wordPattern: /(-?\d*\.\d\w*)|([^\`\~\!\@\#\$\%\^\&\*\(\)\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g
+			wordPattern: /(-?\d*\.\d\w*)|([^\`\~\!\@\#\$\%\^\&\*\(\)\=\+\[\{\]\}\\\;\:\'\"\,\.\<\>\/\?\s]+)/g
 		}));
 	}
 }
@@ -202,7 +202,7 @@ suite('SmartSelect', () => {
 	async function assertRanges(provider: SelectionRangeProvider, value: string, ...expected: IRange[]): Promise<void> {
 
 		let model = modelService.createModel(value, new StaticLanguageSelector(mode.getLanguageIdentifier()), URI.parse('fake:lang'));
-		let pos = model.getPositionAt(value.indexOf('I'));
+		let pos = model.getPositionAt(value.indexOf('|'));
 		let ranges = await provider.provideSelectionRanges(model, pos, CancellationToken.None);
 		modelService.destroyModel(model.uri);
 
@@ -214,45 +214,45 @@ suite('SmartSelect', () => {
 	}
 
 	test('bracket selection', async () => {
-		await assertRanges(new BracketSelectionRangeProvider(), '(I)',
+		await assertRanges(new BracketSelectionRangeProvider(), '(|)',
 			new Range(1, 2, 1, 3), new Range(1, 1, 1, 4)
 		);
 
-		await assertRanges(new BracketSelectionRangeProvider(), '[[[](I)]]',
+		await assertRanges(new BracketSelectionRangeProvider(), '[[[](|)]]',
 			new Range(1, 6, 1, 7), new Range(1, 5, 1, 8), // ()
 			new Range(1, 3, 1, 8), new Range(1, 2, 1, 9), // [[]()]
 			new Range(1, 2, 1, 9), new Range(1, 1, 1, 10), // [[[]()]]
 		);
 
-		await assertRanges(new BracketSelectionRangeProvider(), '[a[](I)a]',
+		await assertRanges(new BracketSelectionRangeProvider(), '[a[](|)a]',
 			new Range(1, 6, 1, 7), new Range(1, 5, 1, 8),
 			new Range(1, 2, 1, 9), new Range(1, 1, 1, 10),
 		);
 
 		// no bracket
-		await assertRanges(new BracketSelectionRangeProvider(), 'fofofIfofo');
+		await assertRanges(new BracketSelectionRangeProvider(), 'fofof|fofo');
 
 		// empty
-		await assertRanges(new BracketSelectionRangeProvider(), '[[[]()]]I');
-		await assertRanges(new BracketSelectionRangeProvider(), 'I[[[]()]]');
+		await assertRanges(new BracketSelectionRangeProvider(), '[[[]()]]|');
+		await assertRanges(new BracketSelectionRangeProvider(), '|[[[]()]]');
 
 		// edge
-		await assertRanges(new BracketSelectionRangeProvider(), '[I[[]()]]', new Range(1, 2, 1, 9), new Range(1, 1, 1, 10));
-		await assertRanges(new BracketSelectionRangeProvider(), '[[[]()]I]', new Range(1, 2, 1, 9), new Range(1, 1, 1, 10));
+		await assertRanges(new BracketSelectionRangeProvider(), '[|[[]()]]', new Range(1, 2, 1, 9), new Range(1, 1, 1, 10));
+		await assertRanges(new BracketSelectionRangeProvider(), '[[[]()]|]', new Range(1, 2, 1, 9), new Range(1, 1, 1, 10));
 
-		await assertRanges(new BracketSelectionRangeProvider(), 'aaa(aaa)bbb(bIb)ccc(ccc)', new Range(1, 13, 1, 16), new Range(1, 12, 1, 17));
-		await assertRanges(new BracketSelectionRangeProvider(), '(aaa(aaa)bbb(bIb)ccc(ccc))', new Range(1, 14, 1, 17), new Range(1, 13, 1, 18), new Range(1, 2, 1, 26), new Range(1, 1, 1, 27));
+		await assertRanges(new BracketSelectionRangeProvider(), 'aaa(aaa)bbb(b|b)ccc(ccc)', new Range(1, 13, 1, 16), new Range(1, 12, 1, 17));
+		await assertRanges(new BracketSelectionRangeProvider(), '(aaa(aaa)bbb(b|b)ccc(ccc))', new Range(1, 14, 1, 17), new Range(1, 13, 1, 18), new Range(1, 2, 1, 26), new Range(1, 1, 1, 27));
 	});
 
 	test('bracket with leading/trailing', async () => {
 
-		await assertRanges(new BracketSelectionRangeProvider(), 'for(a of b){\n  foo(I);\n}',
+		await assertRanges(new BracketSelectionRangeProvider(), 'for(a of b){\n  foo(|);\n}',
 			new Range(2, 7, 2, 8), new Range(2, 6, 2, 9),
 			new Range(1, 13, 3, 1), new Range(1, 12, 3, 2),
 			new Range(1, 1, 3, 2), new Range(1, 1, 3, 2),
 		);
 
-		await assertRanges(new BracketSelectionRangeProvider(), 'for(a of b)\n{\n  foo(I);\n}',
+		await assertRanges(new BracketSelectionRangeProvider(), 'for(a of b)\n{\n  foo(|);\n}',
 			new Range(3, 7, 3, 8), new Range(3, 6, 3, 9),
 			new Range(2, 2, 4, 1), new Range(2, 1, 4, 2),
 			new Range(1, 1, 4, 2), new Range(1, 1, 4, 2),
@@ -261,26 +261,61 @@ suite('SmartSelect', () => {
 
 	test('in-word ranges', async () => {
 
-		await assertRanges(new WordSelectionRangeProvider(), 'fIooBar',
+		await assertRanges(new WordSelectionRangeProvider(), 'f|ooBar',
 			new Range(1, 1, 1, 5), // foo
 			new Range(1, 1, 1, 8), // fooBar
 			new Range(1, 1, 1, 8), // doc
 		);
 
-		await assertRanges(new WordSelectionRangeProvider(), 'fIoo_Ba',
+		await assertRanges(new WordSelectionRangeProvider(), 'f|oo_Ba',
 			new Range(1, 1, 1, 5),
 			new Range(1, 1, 1, 8),
 			new Range(1, 1, 1, 8),
 		);
 
-		await assertRanges(new WordSelectionRangeProvider(), 'fIoo-Ba',
+		await assertRanges(new WordSelectionRangeProvider(), 'f|oo-Ba',
 			new Range(1, 1, 1, 5),
 			new Range(1, 1, 1, 8),
 			new Range(1, 1, 1, 8),
 		);
 	});
 
-	test('Default selection should select current word/hump first in camelCase #67493', function () {
+	test('Default selection should select current word/hump first in camelCase #67493', async function () {
 
+		await assertRanges(new WordSelectionRangeProvider(), 'Abs|tractSmartSelect',
+			new Range(1, 1, 1, 10),
+			new Range(1, 1, 1, 21),
+			new Range(1, 1, 1, 21),
+		);
+
+		await assertRanges(new WordSelectionRangeProvider(), 'AbstractSma|rtSelect',
+			new Range(1, 9, 1, 15),
+			new Range(1, 1, 1, 21),
+			new Range(1, 1, 1, 21),
+		);
+
+		await assertRanges(new WordSelectionRangeProvider(), 'Abstrac-Sma|rt-elect',
+			new Range(1, 9, 1, 15),
+			new Range(1, 1, 1, 21),
+			new Range(1, 1, 1, 21),
+		);
+
+		await assertRanges(new WordSelectionRangeProvider(), 'Abstrac_Sma|rt_elect',
+			new Range(1, 9, 1, 15),
+			new Range(1, 1, 1, 21),
+			new Range(1, 1, 1, 21),
+		);
+
+		await assertRanges(new WordSelectionRangeProvider(), 'Abstrac_Sma|rt-elect',
+			new Range(1, 9, 1, 15),
+			new Range(1, 1, 1, 21),
+			new Range(1, 1, 1, 21),
+		);
+
+		await assertRanges(new WordSelectionRangeProvider(), 'Abstrac_Sma|rtSelect',
+			new Range(1, 9, 1, 15),
+			new Range(1, 1, 1, 21),
+			new Range(1, 1, 1, 21),
+		);
 	});
 });

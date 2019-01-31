@@ -26,30 +26,42 @@ export class WordSelectionRangeProvider implements SelectionRangeProvider {
 		if (!obj) {
 			return;
 		}
+
 		let { word, startColumn } = obj;
 		let offset = pos.column - startColumn;
+		let start = offset;
+		let end = offset;
 		let lastCh: number = 0;
-		for (; offset < word.length; offset++) {
-			let ch = word.charCodeAt(offset);
-			if (isUpperAsciiLetter(ch) && isLowerAsciiLetter(lastCh)) {
+
+		// LEFT anchor (start)
+		for (; start >= 0; start--) {
+			let ch = word.charCodeAt(start);
+			if (ch === CharCode.Underline || ch === CharCode.Dash) {
+				// foo-bar OR foo_bar
+				break;
+			} else if (isLowerAsciiLetter(ch) && isUpperAsciiLetter(lastCh)) {
 				// fooBar
-				// ^^^
-				// ^^^^^^
-				bucket.push({ range: new Range(pos.lineNumber, startColumn, pos.lineNumber, startColumn + offset), kind: 'statement.word.part' });
-			} else if (ch === CharCode.Underline && lastCh !== CharCode.Underline) {
-				// foo_bar
-				// ^^^
-				// ^^^^^^^
-				bucket.push({ range: new Range(pos.lineNumber, startColumn, pos.lineNumber, startColumn + offset), kind: 'statement.word.part' });
-				offset += 1;
-			} else if (ch === CharCode.Dash && lastCh !== CharCode.Dash) {
-				// foo-bar
-				// ^^^
-				// ^^^^^^^
-				bucket.push({ range: new Range(pos.lineNumber, startColumn, pos.lineNumber, startColumn + offset), kind: 'statement.word.part' });
-				offset += 1;
+				break;
 			}
 			lastCh = ch;
+		}
+		start += 1;
+
+		// RIGHT anchor (end)
+		for (; end < word.length; end++) {
+			let ch = word.charCodeAt(end);
+			if (isUpperAsciiLetter(ch) && isLowerAsciiLetter(lastCh)) {
+				// fooBar
+				break;
+			} else if (ch === CharCode.Underline || ch === CharCode.Dash) {
+				// foo-bar OR foo_bar
+				break;
+			}
+			lastCh = ch;
+		}
+
+		if (start < end) {
+			bucket.push({ range: new Range(pos.lineNumber, startColumn + start, pos.lineNumber, startColumn + end), kind: 'statement.word.part' });
 		}
 	}
 
