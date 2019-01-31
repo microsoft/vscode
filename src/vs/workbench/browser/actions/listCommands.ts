@@ -643,12 +643,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			}
 
 			const newSelection: any[] = [];
-
-			// If the scope isn't the tree root, it should be part of the new selection
-			if (scope) {
-				newSelection.push(scope);
-			}
-
 			const visit = (node: ITreeNode<any, any>) => {
 				for (const child of node.children) {
 					if (child.visible) {
@@ -663,6 +657,11 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 			// Add the whole scope subtree to the new selection
 			visit(tree.getNode(scope));
+
+			// If the scope isn't the tree root, it should be part of the new selection
+			if (scope && selection.length === newSelection.length) {
+				newSelection.unshift(scope);
+			}
 
 			const fakeKeyboardEvent = new KeyboardEvent('keydown');
 			tree.setSelection(newSelection, fakeKeyboardEvent);
