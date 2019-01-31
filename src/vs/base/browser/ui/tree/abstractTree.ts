@@ -23,6 +23,7 @@ import { localize } from 'vs/nls';
 import { disposableTimeout } from 'vs/base/common/async';
 import { isMacintosh } from 'vs/base/common/platform';
 import { values } from 'vs/base/common/map';
+import { clamp } from 'vs/base/common/numbers';
 
 function asTreeDragAndDropData<T, TFilterData>(data: IDragAndDropData): IDragAndDropData {
 	if (data instanceof ElementsDragAndDropData) {
@@ -206,7 +207,7 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 	}
 
 	updateOptions(options: ITreeRendererOptions = {}): void {
-		this.indent = typeof options.indent === 'number' ? Math.max(options.indent, 0) : TreeRenderer.DefaultIndent;
+		this.indent = typeof options.indent === 'number' ? clamp(options.indent, 0, 20) : TreeRenderer.DefaultIndent;
 
 		this.renderedNodes.forEach((templateData, node) => {
 			templateData.twistie.style.marginLeft = `${node.depth * this.indent}px`;
