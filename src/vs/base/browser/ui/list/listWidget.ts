@@ -759,16 +759,16 @@ export class DefaultStyleController implements IStyleController {
 			`);
 		}
 
-		if (styles.listMatchesBackground) {
-			content.push(`.monaco-list-type-filter { background-color: ${styles.listMatchesBackground} }`);
+		if (styles.listFilterWidgetBackground) {
+			content.push(`.monaco-list-type-filter { background-color: ${styles.listFilterWidgetBackground} }`);
 		}
 
-		if (styles.listMatchesOutline) {
-			content.push(`.monaco-list-type-filter { border: 1px solid ${styles.listMatchesOutline}; }`);
+		if (styles.listFilterWidgetOutline) {
+			content.push(`.monaco-list-type-filter { border: 1px solid ${styles.listFilterWidgetOutline}; }`);
 		}
 
-		if (styles.listNoMatchesOutline) {
-			content.push(`.monaco-list-type-filter.no-matches { border: 1px solid ${styles.listNoMatchesOutline}; }`);
+		if (styles.listFilterWidgetNoMatchesOutline) {
+			content.push(`.monaco-list-type-filter.no-matches { border: 1px solid ${styles.listFilterWidgetNoMatchesOutline}; }`);
 		}
 
 		if (styles.listMatchesShadow) {
@@ -822,9 +822,9 @@ export interface IListStyles {
 	listInactiveFocusOutline?: Color;
 	listSelectionOutline?: Color;
 	listHoverOutline?: Color;
-	listMatchesBackground?: Color;
-	listMatchesOutline?: Color;
-	listNoMatchesOutline?: Color;
+	listFilterWidgetBackground?: Color;
+	listFilterWidgetOutline?: Color;
+	listFilterWidgetNoMatchesOutline?: Color;
 	listMatchesShadow?: Color;
 }
 
