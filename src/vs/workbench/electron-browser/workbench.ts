@@ -1738,12 +1738,10 @@ export class Workbench extends Disposable implements IPartService {
 
 			if (!wasHidden) {
 				this.uiState.lastSidebarDimension = this.workbenchGrid.getViewSize(this.sidebarPartView);
-				this.workbenchGrid.removeView(this.sidebarPartView);
 			}
 
-			if (!this.activityBarHidden) {
-				this.workbenchGrid.removeView(this.activitybarPartView);
-			}
+			this.workbenchGrid.removeView(this.sidebarPartView);
+			this.workbenchGrid.removeView(this.activitybarPartView);
 
 			if (!this.panelHidden && this.panelPosition === Position.BOTTOM) {
 				this.workbenchGrid.removeView(this.panelPartView);
