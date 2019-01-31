@@ -354,7 +354,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		}));
 
 		const markersNavigator = this._register(new TreeResourceNavigator2(this.tree, { openOnFocus: true }));
-		this._register(Event.debounce(markersNavigator.openResource, (last, event) => event, 75, true)(options => {
+		this._register(Event.debounce(markersNavigator.onDidOpenResource, (last, event) => event, 75, true)(options => {
 			this.openFileAtElement(options.element, options.editorOptions.preserveFocus, options.sideBySide, options.editorOptions.pinned);
 		}));
 		this._register(this.tree.onDidChangeCollapseState(({ node }) => {

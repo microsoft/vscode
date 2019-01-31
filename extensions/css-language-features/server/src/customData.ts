@@ -43,8 +43,8 @@ function parseCSSData(source: string): CSSDataV1 {
 	return {
 		version: 1,
 		properties: rawData.properties || [],
-		atDirectives: rawData.atdirectives || [],
-		pseudoClasses: rawData.pseudoclasses || [],
-		pseudoElements: rawData.pseudoelements || []
+		atDirectives: rawData.atDirectives || [],
+		pseudoClasses: rawData.pseudoClasses || [],
+		pseudoElements: rawData.pseudoElements || []
 	};
 }

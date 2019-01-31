@@ -7,7 +7,7 @@ import { ISpliceable } from 'vs/base/common/sequence';
 import { Iterator, ISequence, getSequenceIterator } from 'vs/base/common/iterator';
 import { IndexTreeModel, IIndexTreeModelOptions } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { Event } from 'vs/base/common/event';
-import { ITreeModel, ITreeNode, ITreeElement, ITreeSorter, ICollapseStateChangeEvent } from 'vs/base/browser/ui/tree/tree';
+import { ITreeModel, ITreeNode, ITreeElement, ITreeSorter, ICollapseStateChangeEvent, ITreeModelSpliceEvent } from 'vs/base/browser/ui/tree/tree';
 
 export interface IObjectTreeModelOptions<T, TFilterData> extends IIndexTreeModelOptions<T, TFilterData> {
 	readonly sorter?: ITreeSorter<T>;
@@ -21,7 +21,7 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 	private nodes = new Map<T | null, ITreeNode<T, TFilterData>>();
 	private sorter?: ITreeSorter<ITreeElement<T>>;
 
-	readonly onDidSplice: Event<void>;
+	readonly onDidSplice: Event<ITreeModelSpliceEvent<T | null, TFilterData>>;
 	readonly onDidChangeCollapseState: Event<ICollapseStateChangeEvent<T, TFilterData>>;
 	readonly onDidChangeRenderNodeCount: Event<ITreeNode<T, TFilterData>>;
 

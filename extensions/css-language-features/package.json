@@ -37,6 +37,9 @@
             "type": "array",
             "description": "A list of JSON file paths that define custom CSS data that loads custom properties, at directives, pseudo classes / elements.",
             "default": [],
+            "items": {
+              "type": "string"
+            },
             "scope": "resource"
           },
           "css.validate": {

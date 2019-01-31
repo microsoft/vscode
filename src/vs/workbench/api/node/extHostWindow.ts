@@ -8,6 +8,7 @@ import { ExtHostWindowShape, MainContext, MainThreadWindowShape, IMainContext } 
 import { WindowState } from 'vscode';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
+import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 
 export class ExtHostWindow implements ExtHostWindowShape {
 
@@ -38,7 +39,9 @@ export class ExtHostWindow implements ExtHostWindowShape {
 	}
 
 	openUri(uri: URI): Promise<boolean> {
-		if (uri.scheme === Schemas.command) {
+		if (isFalsyOrWhitespace(uri.scheme)) {
+			return Promise.reject('Invalid scheme - cannot be empty');
+		} else if (uri.scheme === Schemas.command) {
 			return Promise.reject(`Invalid scheme '${uri.scheme}'`);
 		}
 		return this._proxy.$openUri(uri);

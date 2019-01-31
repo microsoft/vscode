@@ -110,6 +110,9 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	private _onDidPreferredSizeChange: Emitter<void> = this._register(new Emitter<void>());
 	get onDidPreferredSizeChange(): Event<void> { return this._onDidPreferredSizeChange.event; }
 
+	private _onDidActivateGroup: Emitter<IEditorGroupView> = this._register(new Emitter<IEditorGroupView>());
+	get onDidActivateGroup(): Event<IEditorGroupView> { return this._onDidActivateGroup.event; }
+
 	//#endregion
 
 	private dimension: Dimension;
@@ -319,6 +322,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		const groupView = this.assertGroupView(group);
 		this.doSetGroupActive(groupView);
 
+		this._onDidActivateGroup.fire(groupView);
 		return groupView;
 	}
 

@@ -122,7 +122,7 @@
 	margin-bottom: 0.2em;
 }
 
-.monaco-shell .linux .monaco-menu .monaco-action-bar.vertical .action-label.separator {
+.monaco-shell.linux .monaco-menu .monaco-action-bar.vertical .action-label.separator {
 	margin-left: 0;
 	margin-right: 0;
 }
@@ -132,7 +132,7 @@
 	padding: 0 1.8em;
 }
 
-.monaco-shell .linux .monaco-menu .monaco-action-bar.vertical .submenu-indicator {
+.monaco-shell.linux .monaco-menu .monaco-action-bar.vertical .submenu-indicator {
 	height: 100%;
 	-webkit-mask-size: 10px 10px;
 	mask-size: 10px 10px;

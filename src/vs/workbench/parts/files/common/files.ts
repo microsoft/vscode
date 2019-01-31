@@ -49,6 +49,7 @@ export interface IExplorerService {
 
 	setEditable(stat: ExplorerItem, data: IEditableData): void;
 	getEditableData(stat: ExplorerItem): IEditableData | undefined;
+	isEditable(stat: ExplorerItem): boolean;
 	findClosest(resource: URI): ExplorerItem | null;
 	refresh(): void;
 	setToCopy(stats: ExplorerItem[], cut: boolean): void;

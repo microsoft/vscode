@@ -16,7 +16,7 @@ export class WordSelectionRangeProvider implements SelectionRangeProvider {
 		let result: SelectionRange[] = [];
 		this._addInWordRanges(result, model, position);
 		this._addWordRanges(result, model, position);
-		this._addLineRanges(result, model, position);
+		this._addWhitespaceLine(result, model, position);
 		result.push({ range: model.getFullModelRange(), kind: 'statement.all' });
 		return result;
 	}
@@ -26,24 +26,42 @@ export class WordSelectionRangeProvider implements SelectionRangeProvider {
 		if (!obj) {
 			return;
 		}
+
 		let { word, startColumn } = obj;
 		let offset = pos.column - startColumn;
+		let start = offset;
+		let end = offset;
 		let lastCh: number = 0;
-		for (; offset < word.length; offset++) {
-			let ch = word.charCodeAt(offset);
-			if (isUpperAsciiLetter(ch) && isLowerAsciiLetter(lastCh)) {
+
+		// LEFT anchor (start)
+		for (; start >= 0; start--) {
+			let ch = word.charCodeAt(start);
+			if (ch === CharCode.Underline || ch === CharCode.Dash) {
+				// foo-bar OR foo_bar
+				break;
+			} else if (isLowerAsciiLetter(ch) && isUpperAsciiLetter(lastCh)) {
 				// fooBar
-				// ^^^
-				// ^^^^^^
-				bucket.push({ range: new Range(pos.lineNumber, startColumn, pos.lineNumber, startColumn + offset), kind: 'statement.word.part' });
-			} else if (ch === CharCode.Underline && lastCh !== CharCode.Underline) {
-				// foo_bar
-				// ^^^
-				// ^^^^^^^
-				bucket.push({ range: new Range(pos.lineNumber, startColumn, pos.lineNumber, startColumn + offset), kind: 'statement.word.part' });
-				offset += 1;
+				break;
 			}
 			lastCh = ch;
+		}
+		start += 1;
+
+		// RIGHT anchor (end)
+		for (; end < word.length; end++) {
+			let ch = word.charCodeAt(end);
+			if (isUpperAsciiLetter(ch) && isLowerAsciiLetter(lastCh)) {
+				// fooBar
+				break;
+			} else if (ch === CharCode.Underline || ch === CharCode.Dash) {
+				// foo-bar OR foo_bar
+				break;
+			}
+			lastCh = ch;
+		}
+
+		if (start < end) {
+			bucket.push({ range: new Range(pos.lineNumber, startColumn + start, pos.lineNumber, startColumn + end), kind: 'statement.word.part' });
 		}
 	}
 
@@ -54,12 +72,12 @@ export class WordSelectionRangeProvider implements SelectionRangeProvider {
 		}
 	}
 
-	private _addLineRanges(bucket: SelectionRange[], model: ITextModel, pos: Position): void {
-
-		const nonWhitespaceColumn = model.getLineFirstNonWhitespaceColumn(pos.lineNumber);
-		if (nonWhitespaceColumn > 0) {
-			bucket.push({ range: new Range(pos.lineNumber, nonWhitespaceColumn, pos.lineNumber, model.getLineLastNonWhitespaceColumn(pos.lineNumber)), kind: 'statement.line' });
+	private _addWhitespaceLine(bucket: SelectionRange[], model: ITextModel, pos: Position): void {
+		if (model.getLineLength(pos.lineNumber) > 0
+			&& model.getLineFirstNonWhitespaceColumn(pos.lineNumber) === 0
+			&& model.getLineLastNonWhitespaceColumn(pos.lineNumber) === 0
+		) {
+			bucket.push({ range: new Range(pos.lineNumber, 1, pos.lineNumber, model.getLineMaxColumn(pos.lineNumber)), kind: 'statement.line' });
 		}
-		bucket.push({ range: new Range(pos.lineNumber, model.getLineMinColumn(pos.lineNumber), pos.lineNumber, model.getLineMaxColumn(pos.lineNumber)), kind: 'statement.line.full' });
 	}
 }

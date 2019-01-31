@@ -698,6 +698,8 @@ export class View implements IView {
 	}
 
 	layout(width: number, height: number, orientation: Orientation): void {
+		this.orientation = orientation;
+
 		if (!this.visible) {
 			return;
 		}
@@ -705,6 +707,5 @@ export class View implements IView {
 		this.view.layout(width, height, orientation);
 		this.width = width;
 		this.height = height;
-		this.orientation = orientation;
 	}
 }

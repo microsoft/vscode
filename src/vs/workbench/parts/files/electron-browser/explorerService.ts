@@ -17,6 +17,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IExpression } from 'vs/base/common/glob';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 function getFileEventsExcludes(configurationService: IConfigurationService, root?: URI): IExpression {
 	const scope = root ? { resource: root } : undefined;
@@ -45,7 +46,8 @@ export class ExplorerService implements IExplorerService {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IClipboardService private clipboardService: IClipboardService
+		@IClipboardService private clipboardService: IClipboardService,
+		@IEditorService private editorService: IEditorService
 	) { }
 
 	get roots(): ExplorerItem[] {
@@ -127,6 +129,10 @@ export class ExplorerService implements IExplorerService {
 		return this.editableStats.get(stat);
 	}
 
+	isEditable(stat: ExplorerItem): boolean {
+		return this.editableStats.has(stat);
+	}
+
 	select(resource: URI, reveal?: boolean): Promise<void> {
 		const fileStat = this.findClosest(resource);
 		if (fileStat) {
@@ -158,6 +164,11 @@ export class ExplorerService implements IExplorerService {
 	refresh(): void {
 		this.model.roots.forEach(r => r.forgetChildren());
 		this._onDidChangeItem.fire(undefined);
+		const resource = this.editorService.activeEditor ? this.editorService.activeEditor.getResource() : undefined;
+		if (resource) {
+			// We did a top level refresh, reveal the active file #67118
+			this.select(resource, true);
+		}
 	}
 
 	// File events

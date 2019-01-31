@@ -502,6 +502,9 @@ export class Workbench extends Disposable implements IPartService {
 		// Listen to visible editor changes
 		this._register(this.editorService.onDidVisibleEditorsChange(() => this.onDidVisibleEditorsChange()));
 
+		// Listen to editor group activations when editor is hidden
+		this._register(this.editorPart.onDidActivateGroup(() => { if (this.editorHidden) { this.setEditorHidden(false); } }));
+
 		// Listen to editor closing (if we run with --wait)
 		const filesToWait = this.workbenchParams.configuration.filesToWait;
 		if (filesToWait) {
@@ -577,6 +580,10 @@ export class Workbench extends Disposable implements IPartService {
 			if (closeWhenEmpty || this.environmentService.args.wait) {
 				this.closeEmptyWindowScheduler.schedule();
 			}
+		}
+
+		if (this.editorHidden) {
+			this.setEditorHidden(false);
 		}
 	}
 
@@ -1272,6 +1279,8 @@ export class Workbench extends Disposable implements IPartService {
 				return !this.statusBarHidden;
 			case Parts.ACTIVITYBAR_PART:
 				return !this.activityBarHidden;
+			case Parts.EDITOR_PART:
+				return this.workbenchGrid instanceof Grid ? !this.editorHidden : true;
 		}
 
 		return true; // any other part cannot be hidden
@@ -1733,12 +1742,10 @@ export class Workbench extends Disposable implements IPartService {
 
 			if (!wasHidden) {
 				this.uiState.lastSidebarDimension = this.workbenchGrid.getViewSize(this.sidebarPartView);
-				this.workbenchGrid.removeView(this.sidebarPartView);
 			}
 
-			if (!this.activityBarHidden) {
-				this.workbenchGrid.removeView(this.activitybarPartView);
-			}
+			this.workbenchGrid.removeView(this.sidebarPartView);
+			this.workbenchGrid.removeView(this.activitybarPartView);
 
 			if (!this.panelHidden && this.panelPosition === Position.BOTTOM) {
 				this.workbenchGrid.removeView(this.panelPartView);
@@ -1799,9 +1806,9 @@ export class Workbench extends Disposable implements IPartService {
 		if (this.workbenchGrid instanceof Grid) {
 			if (!wasHidden) {
 				this.saveLastPanelDimension();
-				this.workbenchGrid.removeView(this.panelPartView);
 			}
 
+			this.workbenchGrid.removeView(this.panelPartView);
 			this.layout();
 		} else {
 			this.workbenchGrid.layout();

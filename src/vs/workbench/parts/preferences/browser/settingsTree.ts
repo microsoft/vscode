@@ -13,6 +13,7 @@ import { Button } from 'vs/base/browser/ui/button/button';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IListVirtualDelegate, ListAriaRootRole } from 'vs/base/browser/ui/list/list';
+import { DefaultStyleController } from 'vs/base/browser/ui/list/listWidget';
 import { ISelectOptionItem, SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IObjectTreeOptions, ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
@@ -1306,6 +1307,7 @@ export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 						return e.id;
 					}
 				},
+				styleController: new DefaultStyleController(DOM.createStyleSheet(container), treeClass),
 				filter: new SettingsTreeFilter(viewState)
 			});
 
@@ -1372,7 +1374,9 @@ export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 			listHoverOutline: editorBackground,
 			listFocusOutline: editorBackground,
 			listInactiveSelectionBackground: editorBackground,
-			listInactiveSelectionForeground: foreground
+			listInactiveSelectionForeground: foreground,
+			listInactiveFocusBackground: editorBackground,
+			listInactiveFocusOutline: editorBackground
 		}, colors => {
 			this.style(colors);
 		}));

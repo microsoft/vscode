@@ -84,6 +84,8 @@ export interface ITreeNode<T, TFilterData = void> {
 	readonly parent: ITreeNode<T, TFilterData> | undefined;
 	readonly children: ITreeNode<T, TFilterData>[];
 	readonly depth: number;
+	readonly visibleChildrenCount: number;
+	readonly visibleChildIndex: number;
 	readonly collapsible: boolean;
 	readonly collapsed: boolean;
 	readonly visible: boolean;
@@ -95,10 +97,14 @@ export interface ICollapseStateChangeEvent<T, TFilterData> {
 	deep: boolean;
 }
 
+export interface ITreeModelSpliceEvent<T, TFilterData> {
+	deletedNodes: ITreeNode<T, TFilterData>[];
+}
+
 export interface ITreeModel<T, TFilterData, TRef> {
 	readonly rootRef: TRef;
 
-	readonly onDidSplice: Event<void>;
+	readonly onDidSplice: Event<ITreeModelSpliceEvent<T, TFilterData>>;
 	readonly onDidChangeCollapseState: Event<ICollapseStateChangeEvent<T, TFilterData>>;
 	readonly onDidChangeRenderNodeCount: Event<ITreeNode<T, TFilterData>>;
 

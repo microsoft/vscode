@@ -5,6 +5,7 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { DefaultStyleController } from 'vs/base/browser/ui/list/listWidget';
 import { IObjectTreeOptions, ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { ITreeElement, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { Iterator } from 'vs/base/common/iterator';
@@ -157,14 +158,17 @@ export class TOCTree extends ObjectTree<SettingsTreeGroupElement> {
 	) {
 		// test open mode
 
+		const treeClass = 'settings-toc-tree';
 		const filter = instantiationService.createInstance(SettingsTreeFilter, viewState);
 		const options: IObjectTreeOptions<SettingsTreeGroupElement> = {
 			filter,
+			multipleSelectionSupport: false,
 			identityProvider: {
 				getId(e) {
 					return e.id;
 				}
-			}
+			},
+			styleController: new DefaultStyleController(DOM.createStyleSheet(container), treeClass)
 		};
 
 		super(container,
@@ -172,7 +176,6 @@ export class TOCTree extends ObjectTree<SettingsTreeGroupElement> {
 			[new TOCRenderer()],
 			options);
 
-		const treeClass = 'settings-toc-tree';
 		this.getHTMLElement().classList.add(treeClass);
 
 		this.disposables.push(attachStyler(themeService, {
@@ -186,6 +189,8 @@ export class TOCTree extends ObjectTree<SettingsTreeGroupElement> {
 			listHoverBackground: editorBackground,
 			listInactiveSelectionBackground: editorBackground,
 			listInactiveSelectionForeground: settingsHeaderForeground,
+			listInactiveFocusBackground: editorBackground,
+			listInactiveFocusOutline: editorBackground
 		}, colors => {
 			this.style(colors);
 		}));

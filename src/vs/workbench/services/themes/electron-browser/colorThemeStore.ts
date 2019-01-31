@@ -46,22 +46,32 @@ const themesExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtension
 	}
 });
 
+export interface ColorThemeChangeEvent {
+	themes: ColorThemeData[];
+	added: ColorThemeData[];
+}
+
 export class ColorThemeStore {
 
 	private extensionsColorThemes: ColorThemeData[];
-	private readonly onDidChangeEmitter: Emitter<ColorThemeData[]>;
+	private readonly onDidChangeEmitter: Emitter<ColorThemeChangeEvent>;
 
-	public get onDidChange(): Event<ColorThemeData[]> { return this.onDidChangeEmitter.event; }
+	public get onDidChange(): Event<ColorThemeChangeEvent> { return this.onDidChangeEmitter.event; }
 
 	constructor(@IExtensionService private readonly extensionService: IExtensionService, defaultTheme: ColorThemeData) {
 		this.extensionsColorThemes = [defaultTheme];
-		this.onDidChangeEmitter = new Emitter<ColorThemeData[]>();
+		this.onDidChangeEmitter = new Emitter<ColorThemeChangeEvent>();
 		this.initialize();
 	}
 
 
 	private initialize() {
-		themesExtPoint.setHandler((extensions) => {
+		themesExtPoint.setHandler((extensions, delta) => {
+			const previousIds: { [key: string]: boolean } = {};
+			const added: ColorThemeData[] = [];
+			for (const theme of this.extensionsColorThemes) {
+				previousIds[theme.id] = true;
+			}
 			this.extensionsColorThemes.length = 1; // remove all but the default theme
 			for (let ext of extensions) {
 				let extensionData = {
@@ -72,7 +82,12 @@ export class ColorThemeStore {
 				};
 				this.onThemes(ext.description.extensionLocation, extensionData, ext.value, ext.collector);
 			}
-			this.onDidChangeEmitter.fire(this.extensionsColorThemes);
+			for (const theme of this.extensionsColorThemes) {
+				if (!previousIds[theme.id]) {
+					added.push(theme);
+				}
+			}
+			this.onDidChangeEmitter.fire({ themes: this.extensionsColorThemes, added });
 		});
 	}
 

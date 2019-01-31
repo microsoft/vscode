@@ -370,6 +370,10 @@ export class SettingsEditor2 extends BaseEditor {
 			})
 		);
 
+		this._register(this.searchWidget.onFocus(() => {
+			this.lastFocusedSettingElement = '';
+		}));
+
 		this._register(attachSuggestEnabledInputBoxStyler(this.searchWidget, this.themeService, {
 			inputBorder: settingsTextInputBorder
 		}));
@@ -451,7 +455,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private createBody(parent: HTMLElement): void {
 		const bodyContainer = DOM.append(parent, $('.settings-body'));
 
-		this.noResultsMessage = DOM.append(bodyContainer, $('.no-results'));
+		this.noResultsMessage = DOM.append(bodyContainer, $('.no-results-message'));
 
 		this.noResultsMessage.innerText = localize('noResults', "No Settings Found");
 
@@ -545,22 +549,24 @@ export class SettingsEditor2 extends BaseEditor {
 			this.viewState));
 
 		this._register(this.tocTree.onDidChangeFocus(e => {
-			const element: SettingsTreeGroupElement = e.elements[0];
-			if (this.tocFocusedElement === e.elements[0]) {
-				return;
-			}
-
-			this.tocFocusedElement = element;
-			this.tocTree.setSelection(e.elements);
-			if (this.searchResultModel) {
-				if (this.viewState.filterToCategory !== element) {
-					this.viewState.filterToCategory = element;
-					this.renderTree();
-					this.settingsTree.scrollTop = 0;
+			setTimeout(() => {
+				const element: SettingsTreeGroupElement = e.elements[0];
+				if (this.tocFocusedElement === e.elements[0]) {
+					return;
 				}
-			} else if (element && (!e.browserEvent || !(<any>e.browserEvent).fromScroll)) {
-				this.settingsTree.reveal(element, 0);
-			}
+
+				this.tocFocusedElement = element;
+				this.tocTree.setSelection(e.elements);
+				if (this.searchResultModel) {
+					if (this.viewState.filterToCategory !== element) {
+						this.viewState.filterToCategory = element;
+						this.renderTree();
+						this.settingsTree.scrollTop = 0;
+					}
+				} else if (element && (!e.browserEvent || !(<any>e.browserEvent).fromScroll)) {
+					this.settingsTree.reveal(element, 0);
+				}
+			}, 0);
 		}));
 
 		this._register(this.tocTree.onDidFocus(() => {
@@ -944,6 +950,8 @@ export class SettingsEditor2 extends BaseEditor {
 			}
 		}
 
+		this.renderResultCountMessages();
+
 		if (key) {
 			const elements = this.currentSettingsModel.getElementsByName(key);
 			if (elements && elements.length) {
@@ -1028,13 +1036,13 @@ export class SettingsEditor2 extends BaseEditor {
 				// Added a filter model
 				this.tocTree.setSelection([]);
 				this.tocTree.expandAll();
-				this.refreshTree();
 				this.renderResultCountMessages();
+				this.refreshTree();
 			} else {
 				// Leaving search mode
 				this.tocTree.collapseAll();
-				this.refreshTree();
 				this.renderResultCountMessages();
+				this.refreshTree();
 			}
 
 			this.refreshTOCTree();
@@ -1141,9 +1149,7 @@ export class SettingsEditor2 extends BaseEditor {
 		return Promise.all([
 			this.filterOrSearchPreferences(query, SearchResultIdx.Remote, remoteSearchProvider, token),
 			this.filterOrSearchPreferences(query, SearchResultIdx.NewExtensions, newExtSearchProvider, token)
-		]).then(() => {
-			this.renderResultCountMessages();
-		});
+		]).then(() => { });
 	}
 
 	private filterOrSearchPreferences(query: string, type: SearchResultIdx, searchProvider: ISearchProvider, token?: CancellationToken): Promise<ISearchResult> {
@@ -1158,7 +1164,6 @@ export class SettingsEditor2 extends BaseEditor {
 				this.searchResultModel.setResult(type, result);
 				this.tocTreeModel.currentSearchModel = this.searchResultModel;
 				this.onSearchModeToggled();
-				this.refreshTree();
 			} else {
 				this.searchResultModel.setResult(type, result);
 				this.tocTreeModel.update();
@@ -1168,7 +1173,7 @@ export class SettingsEditor2 extends BaseEditor {
 			this.viewState.filterToCategory = null;
 			this.tocTree.expandAll();
 
-			return this.renderTree().then(() => result);
+			return this.renderTree(undefined, true).then(() => result);
 		});
 	}
 
@@ -1186,7 +1191,7 @@ export class SettingsEditor2 extends BaseEditor {
 			}
 
 			this.countElement.style.display = 'block';
-			this.noResultsMessage.style.display = count === 0 ? 'block' : 'none';
+			DOM.toggleClass(this.rootElement, 'no-results', count === 0);
 			this.clearFilterLinkContainer.style.display = this.viewState.tagFilters && this.viewState.tagFilters.size > 0
 				? 'initial'
 				: 'none';

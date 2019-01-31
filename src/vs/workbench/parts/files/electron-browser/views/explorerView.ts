@@ -63,7 +63,8 @@ export class ExplorerView extends ViewletPanel {
 	private dragHandler: DelayedDragHandler;
 	private decorationProvider: ExplorerDecorationsProvider;
 	private autoReveal = false;
-	private ignoreActiveEditorChange;
+	// Ignore first active editor change, since on startup we already reveal the active editor
+	private ignoreActiveEditorChange = true;
 
 	constructor(
 		options: IViewletPanelOptions,
@@ -193,14 +194,10 @@ export class ExplorerView extends ViewletPanel {
 
 		// When the explorer viewer is loaded, listen to changes to the editor input
 		this.disposables.push(this.editorService.onDidActiveEditorChange(() => {
-			if (this.autoReveal && !this.ignoreActiveEditorChange) {
-				const activeFile = this.getActiveFile();
-				if (activeFile) {
-					this.explorerService.select(this.getActiveFile());
-				} else {
-					this.tree.setSelection([]);
-				}
+			if (!this.ignoreActiveEditorChange) {
+				this.selectActiveFile();
 			}
+			this.ignoreActiveEditorChange = false;
 		}));
 
 		// Also handle configuration updates
@@ -214,12 +211,7 @@ export class ExplorerView extends ViewletPanel {
 					await this.setTreeInput();
 				}
 				// Find resource to focus from active editor input if set
-				if (this.autoReveal) {
-					const activeFile = this.getActiveFile();
-					if (activeFile) {
-						this.explorerService.select(activeFile, true);
-					}
-				}
+				this.selectActiveFile(true);
 			}
 		}));
 	}
@@ -243,6 +235,17 @@ export class ExplorerView extends ViewletPanel {
 		this.tree.domFocus();
 	}
 
+	private selectActiveFile(reveal?: boolean): void {
+		if (this.autoReveal) {
+			const activeFile = this.getActiveFile();
+			if (activeFile) {
+				this.explorerService.select(this.getActiveFile(), reveal);
+			} else {
+				this.tree.setSelection([]);
+			}
+		}
+	}
+
 	private createTree(container: HTMLElement): void {
 		this.filter = this.instantiationService.createInstance(FilesFilter);
 		this.disposables.push(this.filter);
@@ -263,7 +266,13 @@ export class ExplorerView extends ViewletPanel {
 					getId: stat => stat.resource
 				},
 				keyboardNavigationLabelProvider: {
-					getKeyboardNavigationLabel: stat => stat.name
+					getKeyboardNavigationLabel: stat => {
+						if (this.explorerService.isEditable(stat)) {
+							return undefined;
+						}
+
+						return stat.name;
+					}
 				},
 				multipleSelectionSupport: true,
 				filter: this.filter,
@@ -287,6 +296,8 @@ export class ExplorerView extends ViewletPanel {
 			this.readonlyContext.set(stat && stat.isReadonly);
 			this.rootContext.set(!stat || (stat && stat.isRoot));
 		}));
+
+		// TODO@Isidor: use TreeResourceNavigator2 just like search and listen to the `onDidOpenResource` instead
 
 		// Open when selecting via keyboard
 		this.disposables.push(this.tree.onDidChangeSelection(e => {
@@ -317,6 +328,11 @@ export class ExplorerView extends ViewletPanel {
 
 				if (e.browserEvent instanceof MouseEvent) {
 					isDoubleClick = e.browserEvent.detail === 2;
+
+					if (!this.tree.openOnSingleClick && !isDoubleClick) {
+						return;
+					}
+
 					isMiddleClick = e.browserEvent.button === 1;
 					sideBySide = this.tree.useAltAsMultipleSelectionModifier ? (e.browserEvent.ctrlKey || e.browserEvent.metaKey) : e.browserEvent.altKey;
 				}
@@ -330,10 +346,7 @@ export class ExplorerView extends ViewletPanel {
 				this.telemetryService.publicLog('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'explorer' });
 				this.ignoreActiveEditorChange = true;
 				this.editorService.openEditor({ resource: selection[0].resource, options: { preserveFocus: (e.browserEvent instanceof MouseEvent) && !isDoubleClick, pinned: isDoubleClick || isMiddleClick } }, sideBySide ? SIDE_GROUP : ACTIVE_GROUP)
-					.then(() => this.ignoreActiveEditorChange = false).catch(e => {
-						this.ignoreActiveEditorChange = false;
-						onUnexpectedError(e);
-					});
+					.then(undefined, onUnexpectedError);
 			}
 		}));
 

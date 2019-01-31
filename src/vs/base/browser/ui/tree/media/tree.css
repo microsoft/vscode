@@ -57,6 +57,7 @@
 
 .monaco-tl-twistie.loading {
 	background-image: url("loading.svg");
+	background-position: 0 center;
 }
 
 .vs-dark .monaco-tl-twistie.loading {

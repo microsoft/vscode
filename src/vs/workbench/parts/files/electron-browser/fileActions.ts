@@ -45,6 +45,7 @@ import { coalesce } from 'vs/base/common/arrays';
 import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { ExplorerItem } from 'vs/workbench/parts/files/common/explorerModel';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { sequence } from 'vs/base/common/async';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
 export const NEW_FILE_LABEL = nls.localize('newFile', "New File");
@@ -144,6 +145,8 @@ export class NewFileAction extends BaseErrorReportingAction {
 					this.explorerService.setEditable(stat, null);
 					if (success) {
 						onSuccess(value);
+					} else {
+						this.explorerService.select(folder.resource).then(undefined, onUnexpectedError);
 					}
 				}
 			});
@@ -198,6 +201,8 @@ export class NewFolderAction extends BaseErrorReportingAction {
 					this.explorerService.setEditable(stat, null);
 					if (success) {
 						onSuccess(value);
+					} else {
+						this.explorerService.select(folder.resource).then(undefined, onUnexpectedError);
 					}
 				}
 			});
@@ -469,7 +474,7 @@ class PasteFileAction extends BaseErrorReportingAction {
 				target = this.element.isDirectory ? this.element : this.element.parent;
 			}
 
-			const targetFile = findValidPasteFileTarget(target, { resource: fileToPaste, isDirectory: fileToPasteStat.isDirectory });
+			const targetFile = findValidPasteFileTarget(target, { resource: fileToPaste, isDirectory: fileToPasteStat.isDirectory, allowOverwirte: pasteShouldMove });
 
 			// Copy File
 			const promise = pasteShouldMove ? this.fileService.moveFile(fileToPaste, targetFile) : this.fileService.copyFile(fileToPaste, targetFile);
@@ -483,18 +488,18 @@ class PasteFileAction extends BaseErrorReportingAction {
 				}
 
 				return undefined;
-			});
+			}, e => this.onError(e));
 		}, error => {
 			this.onError(new Error(nls.localize('fileDeleted', "File to paste was deleted or moved meanwhile")));
 		});
 	}
 }
 
-export function findValidPasteFileTarget(targetFolder: ExplorerItem, fileToPaste: { resource: URI, isDirectory?: boolean }): URI {
+export function findValidPasteFileTarget(targetFolder: ExplorerItem, fileToPaste: { resource: URI, isDirectory?: boolean, allowOverwirte: boolean }): URI {
 	let name = resources.basenameOrAuthority(fileToPaste.resource);
 
 	let candidate = resources.joinPath(targetFolder.resource, name);
-	while (true) {
+	while (true && !fileToPaste.allowOverwirte) {
 		if (!targetFolder.root.find(candidate)) {
 			break;
 		}
@@ -1126,8 +1131,8 @@ export const pasteFileHandler = (accessor: ServicesAccessor) => {
 	const clipboardService = accessor.get(IClipboardService);
 	const explorerContext = getContext(listService.lastFocusedList);
 
-	return Promise.all(resources.distinctParents(clipboardService.readResources(), r => r).map(toCopy => {
+	return sequence(resources.distinctParents(clipboardService.readResources(), r => r).map(toCopy => {
 		const pasteFileAction = instantationService.createInstance(PasteFileAction, explorerContext.stat);
-		return pasteFileAction.run(toCopy);
+		return () => pasteFileAction.run(toCopy);
 	}));
 };
