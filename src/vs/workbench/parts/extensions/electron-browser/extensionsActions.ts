@@ -569,7 +569,7 @@ export class InstallAnotherVersionAction extends ExtensionAction {
 	}
 
 	update(): void {
-		this.enabled = this.extension && !!this.extension.gallery;
+		this.enabled = this.extension && this.extension.type === ExtensionType.User && !!this.extension.gallery;
 	}
 
 	run(): Promise<any> {
@@ -2483,7 +2483,7 @@ export class InstallSpecificVersionOfExtensionAction extends Action {
 	}
 
 	private isEnabled(extension: IExtension): boolean {
-		return !!extension.gallery && (extension.enablementState === EnablementState.Enabled || extension.enablementState === EnablementState.WorkspaceEnabled);
+		return extension.type === ExtensionType.User && !!extension.gallery && (extension.enablementState === EnablementState.Enabled || extension.enablementState === EnablementState.WorkspaceEnabled);
 	}
 
 	private async getExtensionEntries(): Promise<(IQuickPickItem & { extension: IExtension, versions: IGalleryExtensionVersion[] })[]> {
