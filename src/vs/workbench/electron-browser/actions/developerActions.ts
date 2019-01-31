@@ -168,7 +168,7 @@ export class ToggleScreencastModeAction extends Action {
 		keyboardMarker.style.left = '0';
 		keyboardMarker.style.zIndex = '100000';
 		keyboardMarker.style.pointerEvents = 'none';
-		keyboardMarker.style.color = 'white';
+		keyboardMarker.style.color = '#eee';
 		keyboardMarker.style.lineHeight = '100px';
 		keyboardMarker.style.textAlign = 'center';
 		keyboardMarker.style.fontSize = '56px';
