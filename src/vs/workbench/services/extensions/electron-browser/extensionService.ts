@@ -188,6 +188,12 @@ export class ExtensionService extends Disposable implements IExtensionService {
 				continue;
 			}
 
+			const existingExtensionDescription = this._registry.getExtensionDescription(extension.identifier.id);
+			if (existingExtensionDescription) {
+				// this extension is already running (most likely at a different version)
+				continue;
+			}
+
 			const extensionDescription = await this._extensionScanner.scanSingleExtension(extension.location.fsPath, extension.type === ExtensionType.System, this.createLogger());
 			if (!extensionDescription || !this._usesOnlyDynamicExtensionPoints(extensionDescription)) {
 				// uses non-dynamic extension point
