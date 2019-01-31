@@ -49,12 +49,12 @@
 .monaco-action-bar .action-item.disabled .action-label.extension-status-label {
 	opacity: 0.9;
 	line-height: initial;
-	border-radius: 4px;
 	padding: 0 5px;
 }
 
 .monaco-action-bar .action-item .action-label.disable-status,
 .monaco-action-bar .action-item .action-label.malicious-status {
+	border-radius: 4px;
 	color: inherit;
 	background-color: transparent;
 	font-style: italic;
