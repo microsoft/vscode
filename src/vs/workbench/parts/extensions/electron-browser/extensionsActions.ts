@@ -2062,7 +2062,7 @@ export class StatusLabelAction extends Action implements IExtensionContainer {
 	private _extension: IExtension;
 	get extension(): IExtension { return this._extension; }
 	set extension(extension: IExtension) {
-		if (!(this._extension && areSameExtensions(this._extension.identifier, extension.identifier))) {
+		if (!(this._extension && extension && areSameExtensions(this._extension.identifier, extension.identifier))) {
 			// Different extension. Reset
 			this.status = null;
 			this.enablementState = null;
