@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { focusBorder, inputBackground, inputForeground, ColorIdentifier, selectForeground, selectBackground, selectListBackground, selectBorder, inputBorder, foreground, editorBackground, contrastBorder, inputActiveOptionBorder, listFocusBackground, listFocusForeground, listActiveSelectionBackground, listActiveSelectionForeground, listInactiveSelectionForeground, listInactiveSelectionBackground, listInactiveFocusBackground, listHoverBackground, listHoverForeground, listDropBackground, pickerGroupBorder, pickerGroupForeground, widgetShadow, inputValidationInfoBorder, inputValidationInfoBackground, inputValidationWarningBorder, inputValidationWarningBackground, inputValidationErrorBorder, inputValidationErrorBackground, activeContrastBorder, buttonForeground, buttonBackground, buttonHoverBackground, ColorFunction, badgeBackground, badgeForeground, progressBarBackground, breadcrumbsForeground, breadcrumbsFocusForeground, breadcrumbsActiveSelectionForeground, breadcrumbsBackground, editorWidgetBorder, inputValidationInfoForeground, inputValidationWarningForeground, inputValidationErrorForeground, menuForeground, menuBackground, menuSelectionForeground, menuSelectionBackground, menuSelectionBorder, menuBorder, menuSeparatorBackground, darken, listMatchesOutline, listNoMatchesOutline, listMatchesShadow, listMatchesBackground } from 'vs/platform/theme/common/colorRegistry';
+import { focusBorder, inputBackground, inputForeground, ColorIdentifier, selectForeground, selectBackground, selectListBackground, selectBorder, inputBorder, foreground, editorBackground, contrastBorder, inputActiveOptionBorder, listFocusBackground, listFocusForeground, listActiveSelectionBackground, listActiveSelectionForeground, listInactiveSelectionForeground, listInactiveSelectionBackground, listInactiveFocusBackground, listHoverBackground, listHoverForeground, listDropBackground, pickerGroupBorder, pickerGroupForeground, widgetShadow, inputValidationInfoBorder, inputValidationInfoBackground, inputValidationWarningBorder, inputValidationWarningBackground, inputValidationErrorBorder, inputValidationErrorBackground, activeContrastBorder, buttonForeground, buttonBackground, buttonHoverBackground, ColorFunction, badgeBackground, badgeForeground, progressBarBackground, breadcrumbsForeground, breadcrumbsFocusForeground, breadcrumbsActiveSelectionForeground, breadcrumbsBackground, editorWidgetBorder, inputValidationInfoForeground, inputValidationWarningForeground, inputValidationErrorForeground, menuForeground, menuBackground, menuSelectionForeground, menuSelectionBackground, menuSelectionBorder, menuBorder, menuSeparatorBackground, darken, listMatchesOutline, listNoMatchesOutline, listMatchesBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
@@ -252,7 +252,7 @@ export const defaultListStyles: IColorMapping = {
 	listMatchesBackground,
 	listMatchesOutline,
 	listNoMatchesOutline,
-	listMatchesShadow
+	listMatchesShadow: widgetShadow
 };
 
 export interface IButtonStyleOverrides extends IStyleOverrides {

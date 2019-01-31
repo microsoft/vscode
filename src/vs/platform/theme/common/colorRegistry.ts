@@ -238,7 +238,6 @@ export const listWarningForeground = registerColor('list.warningForeground', { d
 export const listMatchesBackground = registerColor('list.matchesBackground', { light: '#efc1ad', dark: '#653723', hc: Color.black }, nls.localize('listMatchesBackground', 'Background color of the type filter widget in lists and trees.'));
 export const listMatchesOutline = registerColor('list.matchesOutline', { dark: Color.transparent, light: Color.transparent, hc: '#f38518' }, nls.localize('listMatchesOutline', 'Outline color of the type filter widget in lists and trees.'));
 export const listNoMatchesOutline = registerColor('list.noMatchesOutline', { dark: '#B89500', light: '#B89500', hc: contrastBorder }, nls.localize('listNoMatchesOutline', 'Outline color of the type filter widget in lists and trees, when there are no matches.'));
-export const listMatchesShadow = registerColor('list.matchesShadow', { dark: '#000000', light: '#A8A8A8', hc: null }, nls.localize('listMatchesShadow', 'Shadow color of the type filter widget in lists and trees.'));
 
 export const pickerGroupForeground = registerColor('pickerGroup.foreground', { dark: '#3794FF', light: '#0066BF', hc: Color.white }, nls.localize('pickerGroupForeground', "Quick picker color for grouping labels."));
 export const pickerGroupBorder = registerColor('pickerGroup.border', { dark: '#3F3F46', light: '#CCCEDB', hc: Color.white }, nls.localize('pickerGroupBorder', "Quick picker color for grouping borders."));
