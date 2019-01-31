@@ -1804,9 +1804,9 @@ export class Workbench extends Disposable implements IPartService {
 		if (this.workbenchGrid instanceof Grid) {
 			if (!wasHidden) {
 				this.saveLastPanelDimension();
-				this.workbenchGrid.removeView(this.panelPartView);
 			}
 
+			this.workbenchGrid.removeView(this.panelPartView);
 			this.layout();
 		} else {
 			this.workbenchGrid.layout();
