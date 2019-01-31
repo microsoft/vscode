@@ -2610,17 +2610,13 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const extensionButtonProminentBackgroundColor = theme.getColor(extensionButtonProminentBackground);
 	if (extensionButtonProminentBackground) {
 		collector.addRule(`.extension .monaco-action-bar .action-item .action-label.extension-action.prominent { background-color: ${extensionButtonProminentBackgroundColor}; }`);
-		collector.addRule(`.extension .monaco-action-bar .action-item .action-label.extension-status-label { background-color: ${extensionButtonProminentBackgroundColor}; }`);
 		collector.addRule(`.extension-editor .monaco-action-bar .action-item .action-label.extension-action.prominent { background-color: ${extensionButtonProminentBackgroundColor}; }`);
-		collector.addRule(`.extension-editor .monaco-action-bar .action-item .action-label.extension-status-label { background-color: ${extensionButtonProminentBackgroundColor}; }`);
 	}
 
 	const extensionButtonProminentForegroundColor = theme.getColor(extensionButtonProminentForeground);
 	if (extensionButtonProminentForeground) {
 		collector.addRule(`.extension .monaco-action-bar .action-item .action-label.extension-action.prominent { color: ${extensionButtonProminentForegroundColor}; }`);
-		collector.addRule(`.extension .monaco-action-bar .action-item .action-label.extension-status-label { color: ${extensionButtonProminentForegroundColor}; }`);
 		collector.addRule(`.extension-editor .monaco-action-bar .action-item .action-label.extension-action.prominent { color: ${extensionButtonProminentForegroundColor}; }`);
-		collector.addRule(`.extension-editor .monaco-action-bar .action-item .action-label.extension-status-label { color: ${extensionButtonProminentForegroundColor}; }`);
 	}
 
 	const extensionButtonProminentHoverBackgroundColor = theme.getColor(extensionButtonProminentHoverBackground);
