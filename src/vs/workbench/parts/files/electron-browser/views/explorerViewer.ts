@@ -445,6 +445,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 		const isCopy = originalEvent && ((originalEvent.ctrlKey && !isMacintosh) || (originalEvent.altKey && isMacintosh));
 		const fromDesktop = data instanceof DesktopDragAndDropData;
+		const effect = (fromDesktop || isCopy) ? ListDragOverEffect.Copy : ListDragOverEffect.Move;
 
 		// Desktop DND
 		if (fromDesktop) {
@@ -474,7 +475,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 					return false;
 				}
 
-				return { accept: true, bubble: TreeDragOverBubble.Down, autoExpand: false };
+				return { accept: true, bubble: TreeDragOverBubble.Down, effect, autoExpand: false };
 			}
 
 			if (!Array.isArray(items)) {
@@ -511,13 +512,11 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 		// All (target = model)
 		if (!target) {
-			return { accept: true, bubble: TreeDragOverBubble.Down };
+			return { accept: true, bubble: TreeDragOverBubble.Down, effect };
 		}
 
 		// All (target = file/folder)
 		else {
-			const effect = fromDesktop || isCopy ? ListDragOverEffect.Copy : ListDragOverEffect.Move;
-
 			if (target.isDirectory) {
 				if (target.isReadonly) {
 					return false;
