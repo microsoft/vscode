@@ -14,7 +14,7 @@ import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { Iterator } from 'vs/base/common/iterator';
 import { IDragAndDropData } from 'vs/base/browser/dnd';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
 import { toggleClass } from 'vs/base/browser/dom';
 
 const enum AsyncDataTreeNodeState {
@@ -675,12 +675,14 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			const children = await childrenPromise;
 			this.setChildren(node, children, recursive, viewStateContext);
 		} catch (err) {
-			if (isPromiseCanceledError(err)) {
-				return;
-			}
+			node.needsRefresh = true;
 
 			if (node !== this.root) {
 				this.tree.collapse(node === this.root ? null : node);
+			}
+
+			if (isPromiseCanceledError(err)) {
+				return;
 			}
 
 			throw err;
@@ -713,11 +715,12 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	}
 
 	private _onDidChangeCollapseState({ node, deep }: ICollapseStateChangeEvent<IAsyncDataTreeNode<TInput, T>, any>): void {
-		if (!node.collapsed && node.element.state === AsyncDataTreeNodeState.Uninitialized) {
+		if (!node.collapsed && (node.element.state === AsyncDataTreeNodeState.Uninitialized || node.element.needsRefresh)) {
 			if (deep) {
 				this.collapse(node.element.element as T);
 			} else {
-				this.refreshAndRenderNode(node.element, false, ChildrenResolutionReason.Expand);
+				this.refreshAndRenderNode(node.element, false, ChildrenResolutionReason.Expand)
+					.catch(onUnexpectedError);
 			}
 		}
 	}
