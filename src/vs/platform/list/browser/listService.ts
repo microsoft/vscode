@@ -909,7 +909,6 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 	private hasDoubleSelection: IContextKey<boolean>;
 	private hasMultiSelection: IContextKey<boolean>;
 
-	private _openOnSingleClick: boolean;
 	private _useAltAsMultipleSelectionModifier: boolean;
 
 	constructor(
@@ -929,6 +928,7 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 		const automaticKeyboardNavigation = contextKeyService.getContextKeyValue<boolean>(WorkbenchListAutomaticKeyboardNavigationKey);
 		const keyboardNavigation = configurationService.getValue<string>(keyboardNavigationSettingKey);
 		const horizontalScrolling = typeof options.horizontalScrolling !== 'undefined' ? options.horizontalScrolling : configurationService.getValue<boolean>(horizontalScrollingKey);
+		const openOnSingleClick = useSingleClickToOpen(configurationService);
 
 		super(container, delegate, renderers, {
 			keyboardSupport: false,
@@ -939,7 +939,8 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 			automaticKeyboardNavigation,
 			simpleKeyboardNavigation: keyboardNavigation === 'simple',
 			filterOnType: keyboardNavigation === 'filter',
-			horizontalScrolling
+			horizontalScrolling,
+			openOnSingleClick
 		});
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
@@ -951,7 +952,6 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 		this.hasDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);
 		this.hasMultiSelection = WorkbenchListMultiSelection.bindTo(this.contextKeyService);
 
-		this._openOnSingleClick = useSingleClickToOpen(configurationService);
 		this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
 
 		const interestingContextKeys = new Set();
@@ -977,7 +977,7 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 			}),
 			configurationService.onDidChangeConfiguration(e => {
 				if (e.affectsConfiguration(openModeSettingKey)) {
-					this._openOnSingleClick = useSingleClickToOpen(configurationService);
+					this.updateOptions({ openOnSingleClick: useSingleClickToOpen(configurationService) });
 				}
 				if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
 					this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
@@ -1003,10 +1003,6 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 				}
 			})
 		);
-	}
-
-	get openOnSingleClick(): boolean {
-		return this._openOnSingleClick;
 	}
 
 	get useAltAsMultipleSelectionModifier(): boolean {
@@ -1027,7 +1023,6 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 	private hasDoubleSelection: IContextKey<boolean>;
 	private hasMultiSelection: IContextKey<boolean>;
 
-	private _openOnSingleClick: boolean;
 	private _useAltAsMultipleSelectionModifier: boolean;
 
 	constructor(
@@ -1048,6 +1043,7 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 		const automaticKeyboardNavigation = contextKeyService.getContextKeyValue<boolean>(WorkbenchListAutomaticKeyboardNavigationKey);
 		const keyboardNavigation = configurationService.getValue<string>(keyboardNavigationSettingKey);
 		const horizontalScrolling = typeof options.horizontalScrolling !== 'undefined' ? options.horizontalScrolling : configurationService.getValue<boolean>(horizontalScrollingKey);
+		const openOnSingleClick = useSingleClickToOpen(configurationService);
 
 		super(container, delegate, renderers, dataSource, {
 			keyboardSupport: false,
@@ -1058,7 +1054,8 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 			automaticKeyboardNavigation,
 			simpleKeyboardNavigation: keyboardNavigation === 'simple',
 			filterOnType: keyboardNavigation === 'filter',
-			horizontalScrolling
+			horizontalScrolling,
+			openOnSingleClick
 		});
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
@@ -1070,7 +1067,6 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 		this.hasDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);
 		this.hasMultiSelection = WorkbenchListMultiSelection.bindTo(this.contextKeyService);
 
-		this._openOnSingleClick = useSingleClickToOpen(configurationService);
 		this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
 
 		const interestingContextKeys = new Set();
@@ -1096,7 +1092,7 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 			}),
 			configurationService.onDidChangeConfiguration(e => {
 				if (e.affectsConfiguration(openModeSettingKey)) {
-					this._openOnSingleClick = useSingleClickToOpen(configurationService);
+					this.updateOptions({ openOnSingleClick: useSingleClickToOpen(configurationService) });
 				}
 				if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
 					this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
@@ -1124,10 +1120,6 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 		);
 	}
 
-	get openOnSingleClick(): boolean {
-		return this._openOnSingleClick;
-	}
-
 	get useAltAsMultipleSelectionModifier(): boolean {
 		return this._useAltAsMultipleSelectionModifier;
 	}
@@ -1141,7 +1133,6 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 	private hasDoubleSelection: IContextKey<boolean>;
 	private hasMultiSelection: IContextKey<boolean>;
 
-	private _openOnSingleClick: boolean;
 	private _useAltAsMultipleSelectionModifier: boolean;
 
 	constructor(
@@ -1162,6 +1153,7 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 		const automaticKeyboardNavigation = contextKeyService.getContextKeyValue<boolean>(WorkbenchListAutomaticKeyboardNavigationKey);
 		const keyboardNavigation = configurationService.getValue<string>(keyboardNavigationSettingKey);
 		const horizontalScrolling = typeof options.horizontalScrolling !== 'undefined' ? options.horizontalScrolling : configurationService.getValue<boolean>(horizontalScrollingKey);
+		const openOnSingleClick = useSingleClickToOpen(configurationService);
 
 		super(container, delegate, renderers, dataSource, {
 			keyboardSupport: false,
@@ -1172,7 +1164,8 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 			automaticKeyboardNavigation,
 			simpleKeyboardNavigation: keyboardNavigation === 'simple',
 			filterOnType: keyboardNavigation === 'filter',
-			horizontalScrolling
+			horizontalScrolling,
+			openOnSingleClick
 		});
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
@@ -1184,7 +1177,6 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 		this.hasDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);
 		this.hasMultiSelection = WorkbenchListMultiSelection.bindTo(this.contextKeyService);
 
-		this._openOnSingleClick = useSingleClickToOpen(configurationService);
 		this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
 
 		const interestingContextKeys = new Set();
@@ -1210,7 +1202,7 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 			}),
 			configurationService.onDidChangeConfiguration(e => {
 				if (e.affectsConfiguration(openModeSettingKey)) {
-					this._openOnSingleClick = useSingleClickToOpen(configurationService);
+					this.updateOptions({ openOnSingleClick: useSingleClickToOpen(configurationService) });
 				}
 				if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
 					this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
@@ -1236,10 +1228,6 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 				}
 			})
 		);
-	}
-
-	get openOnSingleClick(): boolean {
-		return this._openOnSingleClick;
 	}
 
 	get useAltAsMultipleSelectionModifier(): boolean {

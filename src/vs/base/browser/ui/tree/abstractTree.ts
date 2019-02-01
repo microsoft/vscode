@@ -672,6 +672,7 @@ export interface IAbstractTreeOptionsUpdate extends ITreeRendererOptions {
 	readonly automaticKeyboardNavigation?: boolean;
 	readonly simpleKeyboardNavigation?: boolean;
 	readonly filterOnType?: boolean;
+	readonly openOnSingleClick?: boolean;
 }
 
 export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTreeOptionsUpdate, IListOptions<T> {
@@ -842,6 +843,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	readonly onWillRefilter: Event<void> = this._onWillRefilter.event;
 
 	get filterOnType(): boolean { return !!this._options.filterOnType; }
+	get openOnSingleClick(): boolean { return typeof this._options.openOnSingleClick === 'undefined' ? true : this._options.openOnSingleClick; }
 
 	get onDidDispose(): Event<void> { return this.view.onDidDispose; }
 
@@ -1153,6 +1155,10 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		}
 
 		if (this.view.multipleSelectionController.isSelectionRangeChangeEvent(e) || this.view.multipleSelectionController.isSelectionSingleChangeEvent(e)) {
+			return;
+		}
+
+		if (!this.openOnSingleClick && e.browserEvent.detail !== 2) {
 			return;
 		}
 

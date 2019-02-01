@@ -287,6 +287,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	get onDidBlur(): Event<void> { return this.tree.onDidBlur; }
 
 	get filterOnType(): boolean { return this.tree.filterOnType; }
+	get openOnSingleClick(): boolean { return this.tree.openOnSingleClick; }
 
 	get onDidDispose(): Event<void> { return this.tree.onDidDispose; }
 
