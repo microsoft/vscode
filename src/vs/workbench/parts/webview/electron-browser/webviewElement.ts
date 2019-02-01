@@ -475,16 +475,6 @@ export class WebviewElement extends Disposable {
 
 
 		const styles = {
-			// Old vars
-			'font-family': fontFamily,
-			'font-weight': fontWeight,
-			'font-size': fontSize,
-			'background-color': theme.getColor(colorRegistry.editorBackground).toString(),
-			'color': theme.getColor(colorRegistry.editorForeground).toString(),
-			'link-color': theme.getColor(colorRegistry.textLinkForeground).toString(),
-			'link-active-color': theme.getColor(colorRegistry.textLinkActiveForeground).toString(),
-
-			// Offical API
 			'vscode-editor-font-family': fontFamily,
 			'vscode-editor-font-weight': fontWeight,
 			'vscode-editor-font-size': fontSize,
@@ -495,6 +485,7 @@ export class WebviewElement extends Disposable {
 		this._send('styles', styles, activeTheme);
 
 		this._webviewFindWidget.updateTheme(theme);
+
 	}
 
 	public layout(): void {
