@@ -35,6 +35,7 @@ import { ObjectTree, IObjectTreeOptions } from 'vs/base/browser/ui/tree/objectTr
 import { ITreeEvent, ITreeRenderer, IAsyncDataSource, IDataSource } from 'vs/base/browser/ui/tree/tree';
 import { AsyncDataTree, IAsyncDataTreeOptions } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { DataTree, IDataTreeOptions } from 'vs/base/browser/ui/tree/dataTree';
+import { IKeyboardNavigationEventFilter } from 'vs/base/browser/ui/tree/abstractTree';
 
 export type ListWidget = List<any> | PagedList<any> | ITree | ObjectTree<any, any> | DataTree<any, any, any> | AsyncDataTree<any, any, any>;
 
@@ -899,6 +900,27 @@ export class HighlightingWorkbenchTree extends WorkbenchTree {
 	}
 }
 
+function createKeyboardNavigationEventFilter(container: HTMLElement, keybindingService: IKeybindingService): IKeyboardNavigationEventFilter {
+	let inChord = false;
+
+	return event => {
+		if (inChord) {
+			inChord = false;
+			return false;
+		}
+
+		const result = keybindingService.softDispatch(event, container);
+
+		if (result && result.enterChord) {
+			inChord = true;
+			return false;
+		}
+
+		inChord = false;
+		return true;
+	};
+}
+
 export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void> extends ObjectTree<T, TFilterData> {
 
 	readonly contextKeyService: IContextKeyService;
@@ -940,7 +962,8 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 			simpleKeyboardNavigation: keyboardNavigation === 'simple',
 			filterOnType: keyboardNavigation === 'filter',
 			horizontalScrolling,
-			openOnSingleClick
+			openOnSingleClick,
+			keyboardNavigationEventFilter: createKeyboardNavigationEventFilter(container, keybindingService)
 		});
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
@@ -1055,7 +1078,8 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 			simpleKeyboardNavigation: keyboardNavigation === 'simple',
 			filterOnType: keyboardNavigation === 'filter',
 			horizontalScrolling,
-			openOnSingleClick
+			openOnSingleClick,
+			keyboardNavigationEventFilter: createKeyboardNavigationEventFilter(container, keybindingService)
 		});
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
@@ -1165,7 +1189,8 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 			simpleKeyboardNavigation: keyboardNavigation === 'simple',
 			filterOnType: keyboardNavigation === 'filter',
 			horizontalScrolling,
-			openOnSingleClick
+			openOnSingleClick,
+			keyboardNavigationEventFilter: createKeyboardNavigationEventFilter(container, keybindingService)
 		});
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);

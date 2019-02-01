@@ -392,6 +392,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 	private labelDomNode: HTMLElement;
 	private filterOnTypeDomNode: HTMLInputElement;
 	private clearDomNode: HTMLElement;
+	private keyboardNavigationEventFilter?: IKeyboardNavigationEventFilter;
 
 	private automaticKeyboardNavigation: boolean;
 	private triggered = false;
@@ -425,6 +426,8 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		this.clearDomNode = append(controls, $<HTMLInputElement>('button.clear'));
 		this.clearDomNode.tabIndex = -1;
 		this.clearDomNode.title = localize('clear', "Clear");
+
+		this.keyboardNavigationEventFilter = tree.options.keyboardNavigationEventFilter;
 
 		model.onDidSplice(this.onDidSpliceModel, this, this.disposables);
 		this.updateOptions(tree.options);
@@ -463,6 +466,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		const isPrintableCharEvent = this.keyboardNavigationLabelProvider.mightProducePrintableCharacter ? (e: IKeyboardEvent) => this.keyboardNavigationLabelProvider.mightProducePrintableCharacter!(e) : (e: IKeyboardEvent) => mightProducePrintableCharacter(e);
 		const onKeyDown = Event.chain(domEvent(this.view.getHTMLElement(), 'keydown'))
 			.filter(e => !isInputElement(e.target as HTMLElement) || e.target === this.filterOnTypeDomNode)
+			.filter(this.keyboardNavigationEventFilter || (() => true))
 			.filter(() => this.automaticKeyboardNavigation || this.triggered)
 			.map(e => new StandardKeyboardEvent(e))
 			.filter(e => isPrintableCharEvent(e) || ((this._pattern.length > 0 || this.triggered) && ((e.keyCode === KeyCode.Escape || e.keyCode === KeyCode.Backspace) && !e.altKey && !e.ctrlKey && !e.metaKey) || (e.keyCode === KeyCode.Backspace && (isMacintosh ? e.altKey : e.ctrlKey))))
@@ -668,6 +672,10 @@ function asTreeContextMenuEvent<T>(event: IListContextMenuEvent<ITreeNode<T, any
 	};
 }
 
+export interface IKeyboardNavigationEventFilter {
+	(e: KeyboardEvent): boolean;
+}
+
 export interface IAbstractTreeOptionsUpdate extends ITreeRendererOptions {
 	readonly automaticKeyboardNavigation?: boolean;
 	readonly simpleKeyboardNavigation?: boolean;
@@ -680,6 +688,7 @@ export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTr
 	readonly filter?: ITreeFilter<T, TFilterData>;
 	readonly dnd?: ITreeDragAndDrop<T>;
 	readonly autoExpandSingleChildren?: boolean;
+	readonly keyboardNavigationEventFilter?: IKeyboardNavigationEventFilter;
 }
 
 /**
