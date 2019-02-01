@@ -240,7 +240,7 @@ export class RemoteBadgeWidget extends ExtensionWidget {
 			this.themeService.onThemeChange(applyBadgeStyle, this, this.disposables);
 			this.workspaceContextService.onDidChangeWorkbenchState(applyBadgeStyle, this, this.disposables);
 
-			const updateTitle = () => this.element.title = this.labelService.getHostLabel();
+			const updateTitle = () => this.element.title = localize('remote extension title', "Extension in {0}", this.labelService.getHostLabel());
 			this.labelService.onDidChangeFormatters(() => updateTitle(), this, this.disposables);
 			updateTitle();
 		}

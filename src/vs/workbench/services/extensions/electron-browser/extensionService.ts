@@ -188,6 +188,12 @@ export class ExtensionService extends Disposable implements IExtensionService {
 				continue;
 			}
 
+			const existingExtensionDescription = this._registry.getExtensionDescription(extension.identifier.id);
+			if (existingExtensionDescription) {
+				// this extension is already running (most likely at a different version)
+				continue;
+			}
+
 			const extensionDescription = await this._extensionScanner.scanSingleExtension(extension.location.fsPath, extension.type === ExtensionType.System, this.createLogger());
 			if (!extensionDescription || !this._usesOnlyDynamicExtensionPoints(extensionDescription)) {
 				// uses non-dynamic extension point
@@ -265,7 +271,13 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			for (let extPointName in extension.contributes) {
 				if (hasOwnProperty.call(extension.contributes, extPointName)) {
 					const extPoint = extensionPoints[extPointName];
-					if (extPoint && !extPoint.isDynamic) {
+					if (extPoint) {
+						if (!extPoint.isDynamic) {
+							return false;
+						}
+					} else {
+						// This extension has a 3rd party (unknown) extension point
+						// ===> require a reload for now...
 						return false;
 					}
 				}

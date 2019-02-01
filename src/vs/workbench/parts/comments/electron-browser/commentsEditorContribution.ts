@@ -708,7 +708,8 @@ registerThemingParticipant((theme, collector) => {
 			`	color: ${monacoEditorForeground}` +
 			`}` +
 			`.monaco-editor .review-widget .body .comment-form .review-thread-reply-button {` +
-			`	color: ${monacoEditorForeground}` +
+			`	color: ${monacoEditorForeground};` +
+			`	font-size: inherit` +
 			`}`
 		);
 	}

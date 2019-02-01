@@ -971,11 +971,15 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	private refreshTree(): void {
-		this.settingsTree.setChildren(null, createGroupIterator(this.currentSettingsModel.root));
+		if (this.isVisible()) {
+			this.settingsTree.setChildren(null, createGroupIterator(this.currentSettingsModel.root));
+		}
 	}
 
 	private refreshTOCTree(): void {
-		this.tocTree.setChildren(null, createTOCIterator(this.tocTreeModel, this.tocTree));
+		if (this.isVisible()) {
+			this.tocTree.setChildren(null, createTOCIterator(this.tocTreeModel, this.tocTree));
+		}
 	}
 
 	private updateModifiedLabelForKey(key: string): void {

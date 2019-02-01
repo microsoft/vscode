@@ -59,6 +59,8 @@ class AsyncDataTreeNodeWrapper<TInput, T, TFilterData> implements ITreeNode<TInp
 	get parent(): ITreeNode<T, TFilterData> | undefined { return this.node.parent && new AsyncDataTreeNodeWrapper(this.node.parent); }
 	get children(): ITreeNode<T, TFilterData>[] { return this.node.children.map(node => new AsyncDataTreeNodeWrapper(node)); }
 	get depth(): number { return this.node.depth; }
+	get visibleChildrenCount(): number { return this.node.visibleChildrenCount; }
+	get visibleChildIndex(): number { return this.node.visibleChildIndex; }
 	get collapsible(): boolean { return this.node.collapsible; }
 	get collapsed(): boolean { return this.node.collapsed; }
 	get visible(): boolean { return this.node.visible; }
@@ -215,11 +217,7 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 				return options.keyboardNavigationLabelProvider!.getKeyboardNavigationLabel(e.element as T);
 			}
 		},
-		sorter: options.sorter && {
-			compare(a, b) {
-				return options.sorter!.compare(a.element as T, b.element as T);
-			}
-		}
+		sorter: undefined
 	};
 }
 
@@ -263,6 +261,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	private readonly tree: ObjectTree<IAsyncDataTreeNode<TInput, T>, TFilterData>;
 	private readonly root: IAsyncDataTreeNode<TInput, T>;
 	private readonly renderedNodes = new Map<null | T, IAsyncDataTreeNode<TInput, T>>();
+	private readonly sorter?: ITreeSorter<T>;
 
 	private readonly subTreeRefreshPromises = new Map<IAsyncDataTreeNode<TInput, T>, Promise<void>>();
 	private readonly refreshPromises = new Map<IAsyncDataTreeNode<TInput, T>, CancelablePromise<T[]>>();
@@ -287,6 +286,8 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	get onDidFocus(): Event<void> { return this.tree.onDidFocus; }
 	get onDidBlur(): Event<void> { return this.tree.onDidBlur; }
 
+	get filterOnType(): boolean { return this.tree.filterOnType; }
+
 	get onDidDispose(): Event<void> { return this.tree.onDidDispose; }
 
 	constructor(
@@ -298,6 +299,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	) {
 		this.identityProvider = options.identityProvider;
 		this.autoExpandSingleChildren = typeof options.autoExpandSingleChildren === 'undefined' ? false : options.autoExpandSingleChildren;
+		this.sorter = options.sorter;
 
 		const objectTreeDelegate = new ComposedTreeDelegate<TInput | T, IAsyncDataTreeNode<TInput, T>>(delegate);
 		const objectTreeRenderers = renderers.map(r => new DataTreeRenderer(r, this._onDidChangeNodeSlowState.event));
@@ -478,6 +480,10 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 	isCollapsed(element: T): boolean {
 		return this.tree.isCollapsed(this.getDataNode(element));
+	}
+
+	toggleKeyboardNavigation(): void {
+		this.tree.toggleKeyboardNavigation();
 	}
 
 	refilter(): void {
@@ -693,7 +699,15 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			return result;
 		}
 
-		result = createCancelablePromise(_ => Promise.resolve(this.dataSource.getChildren(node.element!)));
+		result = createCancelablePromise(async () => {
+			const children = await this.dataSource.getChildren(node.element!);
+
+			if (this.sorter) {
+				children.sort(this.sorter.compare.bind(this.sorter));
+			}
+
+			return children;
+		});
 		this.refreshPromises.set(node, result);
 		return always(result, () => this.refreshPromises.delete(node));
 	}

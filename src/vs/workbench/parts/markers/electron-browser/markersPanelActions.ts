@@ -354,6 +354,9 @@ export class QuickFixActionItem extends ActionItem {
 		if (!this.element) {
 			return;
 		}
+		if (!this.isEnabled()) {
+			return;
+		}
 		const elementPosition = DOM.getDomNodePagePosition(this.element);
 		this.markerWorkbenchService.getQuickFixActions((<QuickFixAction>this.getAction()).marker).then(actions => {
 			this.contextMenuService.showContextMenu({

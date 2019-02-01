@@ -31,6 +31,7 @@ import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/cont
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ISerializableView } from 'vs/base/browser/ui/grid/grid';
+import { LayoutPriority } from 'vs/base/browser/ui/grid/gridview';
 
 export const SidebarFocusContext = new RawContextKey<boolean>('sideBarFocus', false);
 export const ActiveViewletContext = new RawContextKey<string>('activeViewlet', '');
@@ -52,6 +53,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements ISerializable
 	minimumHeight: number = 0;
 	maximumHeight: number = Number.POSITIVE_INFINITY;
 	snapSize: number = 50;
+	priority: LayoutPriority = LayoutPriority.Low;
 
 	private _onDidChange = new Emitter<{ width: number; height: number; }>();
 	readonly onDidChange = this._onDidChange.event;

@@ -34,6 +34,10 @@
 	display: none !important;
 }
 
+.monaco-editor .review-widget .body {
+	overflow: hidden;
+}
+
 .monaco-editor .review-widget .body .review-comment {
 	padding: 8px 16px 8px 20px;
 	display: flex;
@@ -198,8 +202,7 @@
 }
 
 .monaco-editor .review-widget .body .comment-form {
-	margin: 0 20px;
-	padding: 8px 0;
+	margin: 8px 20px;
 }
 
 .monaco-editor .review-widget .validation-error {

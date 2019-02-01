@@ -45,7 +45,7 @@ export class DebugHoverWidget implements IContentWidget {
 
 	private _isVisible: boolean;
 	private domNode: HTMLElement;
-	private tree: AsyncDataTree<IExpression, IExpression>;
+	private tree: AsyncDataTree<IExpression, IExpression, any>;
 	private showAtPosition: Position;
 	private highlightDecorations: string[];
 	private complexValueContainer: HTMLElement;

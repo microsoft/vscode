@@ -103,6 +103,9 @@ export const WorkbenchListFocusContextKey = ContextKeyExpr.and(RawWorkbenchListF
 export const WorkbenchListHasSelectionOrFocus = new RawContextKey<boolean>('listHasSelectionOrFocus', false);
 export const WorkbenchListDoubleSelection = new RawContextKey<boolean>('listDoubleSelection', false);
 export const WorkbenchListMultiSelection = new RawContextKey<boolean>('listMultiSelection', false);
+export const WorkbenchListSupportsKeyboardNavigation = new RawContextKey<boolean>('listSupportsKeyboardNavigation', true);
+export const WorkbenchListAutomaticKeyboardNavigationKey = 'listAutomaticKeyboardNavigation';
+export const WorkbenchListAutomaticKeyboardNavigation = new RawContextKey<boolean>(WorkbenchListAutomaticKeyboardNavigationKey, true);
 
 function createScopedContextKeyService(contextKeyService: IContextKeyService, widget: ListWidget): IContextKeyService {
 	const result = contextKeyService.createScoped(widget.getHTMLElement());
@@ -920,6 +923,10 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
+		WorkbenchListSupportsKeyboardNavigation.bindTo(contextKeyService);
+		WorkbenchListAutomaticKeyboardNavigation.bindTo(contextKeyService);
+
+		const automaticKeyboardNavigation = contextKeyService.getContextKeyValue<boolean>(WorkbenchListAutomaticKeyboardNavigationKey);
 		const keyboardNavigation = configurationService.getValue<string>(keyboardNavigationSettingKey);
 		const horizontalScrolling = typeof options.horizontalScrolling !== 'undefined' ? options.horizontalScrolling : configurationService.getValue<boolean>(horizontalScrollingKey);
 
@@ -929,6 +936,7 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 			...computeStyles(themeService.getTheme(), defaultListStyles),
 			...toWorkbenchListOptions(options, configurationService, keybindingService),
 			indent: configurationService.getValue(treeIndentKey),
+			automaticKeyboardNavigation,
 			simpleKeyboardNavigation: keyboardNavigation === 'simple',
 			filterOnType: keyboardNavigation === 'filter',
 			horizontalScrolling
@@ -945,6 +953,9 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 
 		this._openOnSingleClick = useSingleClickToOpen(configurationService);
 		this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
+
+		const interestingContextKeys = new Set();
+		interestingContextKeys.add(WorkbenchListAutomaticKeyboardNavigationKey);
 
 		this.disposables.push(
 			this.contextKeyService,
@@ -980,6 +991,14 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 					this.updateOptions({
 						simpleKeyboardNavigation: keyboardNavigation === 'simple',
 						filterOnType: keyboardNavigation === 'filter'
+					});
+				}
+			}),
+			this.contextKeyService.onDidChangeContext(e => {
+				if (e.affectsSome(interestingContextKeys)) {
+					const automaticKeyboardNavigation = this.contextKeyService.getContextKeyValue<boolean>(WorkbenchListAutomaticKeyboardNavigationKey);
+					this.updateOptions({
+						automaticKeyboardNavigation
 					});
 				}
 			})
@@ -1023,6 +1042,10 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
+		WorkbenchListSupportsKeyboardNavigation.bindTo(contextKeyService);
+		WorkbenchListAutomaticKeyboardNavigation.bindTo(contextKeyService);
+
+		const automaticKeyboardNavigation = contextKeyService.getContextKeyValue<boolean>(WorkbenchListAutomaticKeyboardNavigationKey);
 		const keyboardNavigation = configurationService.getValue<string>(keyboardNavigationSettingKey);
 		const horizontalScrolling = typeof options.horizontalScrolling !== 'undefined' ? options.horizontalScrolling : configurationService.getValue<boolean>(horizontalScrollingKey);
 
@@ -1032,6 +1055,7 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 			...computeStyles(themeService.getTheme(), defaultListStyles),
 			...toWorkbenchListOptions(options, configurationService, keybindingService),
 			indent: configurationService.getValue(treeIndentKey),
+			automaticKeyboardNavigation,
 			simpleKeyboardNavigation: keyboardNavigation === 'simple',
 			filterOnType: keyboardNavigation === 'filter',
 			horizontalScrolling
@@ -1048,6 +1072,9 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 
 		this._openOnSingleClick = useSingleClickToOpen(configurationService);
 		this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
+
+		const interestingContextKeys = new Set();
+		interestingContextKeys.add(WorkbenchListAutomaticKeyboardNavigationKey);
 
 		this.disposables.push(
 			this.contextKeyService,
@@ -1083,6 +1110,14 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 					this.updateOptions({
 						simpleKeyboardNavigation: keyboardNavigation === 'simple',
 						filterOnType: keyboardNavigation === 'filter'
+					});
+				}
+			}),
+			this.contextKeyService.onDidChangeContext(e => {
+				if (e.affectsSome(interestingContextKeys)) {
+					const automaticKeyboardNavigation = this.contextKeyService.getContextKeyValue<boolean>(WorkbenchListAutomaticKeyboardNavigationKey);
+					this.updateOptions({
+						automaticKeyboardNavigation
 					});
 				}
 			})
@@ -1121,6 +1156,10 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
+		WorkbenchListSupportsKeyboardNavigation.bindTo(contextKeyService);
+		WorkbenchListAutomaticKeyboardNavigation.bindTo(contextKeyService);
+
+		const automaticKeyboardNavigation = contextKeyService.getContextKeyValue<boolean>(WorkbenchListAutomaticKeyboardNavigationKey);
 		const keyboardNavigation = configurationService.getValue<string>(keyboardNavigationSettingKey);
 		const horizontalScrolling = typeof options.horizontalScrolling !== 'undefined' ? options.horizontalScrolling : configurationService.getValue<boolean>(horizontalScrollingKey);
 
@@ -1130,6 +1169,7 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 			...computeStyles(themeService.getTheme(), defaultListStyles),
 			...toWorkbenchListOptions(options, configurationService, keybindingService),
 			indent: configurationService.getValue<number>(treeIndentKey),
+			automaticKeyboardNavigation,
 			simpleKeyboardNavigation: keyboardNavigation === 'simple',
 			filterOnType: keyboardNavigation === 'filter',
 			horizontalScrolling
@@ -1146,6 +1186,9 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 
 		this._openOnSingleClick = useSingleClickToOpen(configurationService);
 		this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
+
+		const interestingContextKeys = new Set();
+		interestingContextKeys.add(WorkbenchListAutomaticKeyboardNavigationKey);
 
 		this.disposables.push(
 			this.contextKeyService,
@@ -1181,6 +1224,14 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 					this.updateOptions({
 						simpleKeyboardNavigation: keyboardNavigation === 'simple',
 						filterOnType: keyboardNavigation === 'filter'
+					});
+				}
+			}),
+			this.contextKeyService.onDidChangeContext(e => {
+				if (e.affectsSome(interestingContextKeys)) {
+					const automaticKeyboardNavigation = this.contextKeyService.getContextKeyValue<boolean>(WorkbenchListAutomaticKeyboardNavigationKey);
+					this.updateOptions({
+						automaticKeyboardNavigation
 					});
 				}
 			})
@@ -1237,6 +1288,8 @@ configurationRegistry.registerConfiguration({
 		[treeIndentKey]: {
 			'type': 'number',
 			'default': 8,
+			minimum: 0,
+			maximum: 20,
 			'description': localize('tree indent setting', "Controls tree indentation in pixels.")
 		},
 		[keyboardNavigationSettingKey]: {

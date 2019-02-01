@@ -145,6 +145,8 @@ export class NewFileAction extends BaseErrorReportingAction {
 					this.explorerService.setEditable(stat, null);
 					if (success) {
 						onSuccess(value);
+					} else {
+						this.explorerService.select(folder.resource).then(undefined, onUnexpectedError);
 					}
 				}
 			});
@@ -199,6 +201,8 @@ export class NewFolderAction extends BaseErrorReportingAction {
 					this.explorerService.setEditable(stat, null);
 					if (success) {
 						onSuccess(value);
+					} else {
+						this.explorerService.select(folder.resource).then(undefined, onUnexpectedError);
 					}
 				}
 			});
@@ -484,7 +488,7 @@ class PasteFileAction extends BaseErrorReportingAction {
 				}
 
 				return undefined;
-			});
+			}, e => this.onError(e));
 		}, error => {
 			this.onError(new Error(nls.localize('fileDeleted', "File to paste was deleted or moved meanwhile")));
 		});

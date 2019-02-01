@@ -84,6 +84,8 @@ export interface ITreeNode<T, TFilterData = void> {
 	readonly parent: ITreeNode<T, TFilterData> | undefined;
 	readonly children: ITreeNode<T, TFilterData>[];
 	readonly depth: number;
+	readonly visibleChildrenCount: number;
+	readonly visibleChildIndex: number;
 	readonly collapsible: boolean;
 	readonly collapsed: boolean;
 	readonly visible: boolean;

@@ -581,6 +581,10 @@ export class Workbench extends Disposable implements IPartService {
 				this.closeEmptyWindowScheduler.schedule();
 			}
 		}
+
+		if (this.editorHidden) {
+			this.setEditorHidden(false);
+		}
 	}
 
 	private onAllEditorsClosed(): void {

@@ -129,6 +129,10 @@ export class ExplorerService implements IExplorerService {
 		return this.editableStats.get(stat);
 	}
 
+	isEditable(stat: ExplorerItem): boolean {
+		return this.editableStats.has(stat);
+	}
+
 	select(resource: URI, reveal?: boolean): Promise<void> {
 		const fileStat = this.findClosest(resource);
 		if (fileStat) {
