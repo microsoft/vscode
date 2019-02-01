@@ -171,17 +171,16 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			configurationRegistry.notifyConfigurationSchemaUpdated(themeSettingsConfiguration, tokenColorCustomizationConfiguration);
 
 			if (this.currentColorTheme.isLoaded) {
-				if (event.added.length > 0 && event.added.length < event.themes.length) {
+				const themeData = await this.colorThemeStore.findThemeData(this.currentColorTheme.id);
+				if (!themeData) {
+					// current theme is no longer available
 					prevColorId = this.currentColorTheme.id;
-					this.setColorTheme(event.added[0].id, 'auto');
+					this.setColorTheme(DEFAULT_THEME_ID, 'auto');
 				} else {
-					const themeData = await this.colorThemeStore.findThemeData(this.currentColorTheme.id);
-					if (!themeData) {
-						if (prevColorId && await this.colorThemeStore.findThemeData(prevColorId)) {
-							this.setColorTheme(prevColorId, 'auto');
-						} else {
-							this.setColorTheme(DEFAULT_THEME_ID, 'auto');
-						}
+					if (this.currentColorTheme.id === DEFAULT_THEME_ID && !types.isUndefined(prevColorId) && await this.colorThemeStore.findThemeData(prevColorId)) {
+						// restore color
+						this.setColorTheme(prevColorId, 'auto');
+						prevColorId = undefined;
 					}
 				}
 			}
@@ -194,17 +193,16 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			configurationRegistry.notifyConfigurationSchemaUpdated(themeSettingsConfiguration);
 
 			if (this.currentIconTheme.isLoaded) {
-				if (event.added.length > 0 && event.added.length < event.themes.length) {
+				const theme = await this.iconThemeStore.findThemeData(this.currentIconTheme.id);
+				if (!theme) {
+					// current theme is no longer available
 					prevFileIconId = this.currentIconTheme.id;
-					this.setFileIconTheme(event.added[0].id, 'auto');
+					this.setFileIconTheme(DEFAULT_ICON_THEME_SETTING_VALUE, 'auto');
 				} else {
-					const theme = await this.iconThemeStore.findThemeData(this.currentIconTheme.id);
-					if (!theme) {
-						if (prevFileIconId && await this.iconThemeStore.findThemeData(prevFileIconId)) {
-							this.setFileIconTheme(prevFileIconId, 'auto');
-						} else {
-							this.setFileIconTheme(DEFAULT_ICON_THEME_SETTING_VALUE, 'auto');
-						}
+					// restore color
+					if (this.currentIconTheme.id === DEFAULT_ICON_THEME_SETTING_VALUE && !types.isUndefined(prevFileIconId) && await this.iconThemeStore.findThemeData(prevFileIconId)) {
+						this.setFileIconTheme(prevFileIconId, 'auto');
+						prevFileIconId = undefined;
 					}
 				}
 			}
