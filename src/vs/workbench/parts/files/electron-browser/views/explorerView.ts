@@ -503,7 +503,7 @@ export class ExplorerView extends ViewletPanel {
 	}
 
 	private onSelectItem(fileStat: ExplorerItem, reveal = this.autoReveal): Promise<void> {
-		if (!fileStat || !this.isBodyVisible()) {
+		if (!fileStat || !this.isBodyVisible() || this.tree.getInput() === fileStat) {
 			return Promise.resolve(undefined);
 		}
 
