@@ -84,6 +84,7 @@ gulp.task('extract-editor-src', ['clean-editor-src'], function () {
 			'typings/thenable.d.ts',
 			'typings/es6-promise.d.ts',
 			'typings/require-monaco.d.ts',
+			"typings/lib.es2018.promise.d.ts",
 			'vs/monaco.d.ts'
 		],
 		libs: [
