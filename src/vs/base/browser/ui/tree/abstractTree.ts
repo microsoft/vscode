@@ -870,12 +870,36 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		this.model = this.createModel(this.view, _options);
 		onDidChangeCollapseStateRelay.input = this.model.onDidChangeCollapseState;
 
-		this.model.onDidSplice(e => {
-			this.eventBufferer.bufferEvents(() => {
-				this.focus.remove(e.deletedNodes);
-				this.selection.remove(e.deletedNodes);
-			});
-		}, null, this.disposables);
+		if (this.options.identityProvider) {
+			const identityProvider = this.options.identityProvider;
+
+			this.model.onDidSplice(e => {
+				if (e.deletedNodes.length === 0) {
+					return;
+				}
+
+				this.eventBufferer.bufferEvents(() => {
+					const map = new Map<string, ITreeNode<T, TFilterData>>();
+
+					for (const node of e.deletedNodes) {
+						map.set(identityProvider.getId(node.element).toString(), node);
+					}
+
+					for (const node of e.insertedNodes) {
+						map.delete(identityProvider.getId(node.element).toString());
+					}
+
+					if (map.size === 0) {
+						return;
+					}
+
+					const deletedNodes = values(map);
+
+					this.focus.remove(deletedNodes);
+					this.selection.remove(deletedNodes);
+				});
+			}, null, this.disposables);
+		}
 
 		this.view.onTap(this.reactOnMouseClick, this, this.disposables);
 		this.view.onMouseClick(this.reactOnMouseClick, this, this.disposables);
