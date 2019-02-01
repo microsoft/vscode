@@ -224,9 +224,14 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
 				// Print out extension host output
 				onDebouncedOutput(output => {
-					const inspectorUrlMatch = !this._environmentService.isBuilt && output.data && output.data.match(/ws:\/\/([^\s]+)/);
+					const inspectorUrlMatch = output.data && output.data.match(/ws:\/\/([^\s]+:(\d+)\/[^\s]+)/);
 					if (inspectorUrlMatch) {
-						console.log(`%c[Extension Host] %cdebugger inspector at chrome-devtools://devtools/bundled/inspector.html?experiments=true&v8only=true&ws=${inspectorUrlMatch[1]}`, 'color: blue', 'color: black');
+						if (!this._environmentService.isBuilt) {
+							console.log(`%c[Extension Host] %cdebugger inspector at chrome-devtools://devtools/bundled/inspector.html?experiments=true&v8only=true&ws=${inspectorUrlMatch[1]}`, 'color: blue', 'color: black');
+						}
+						if (!this._inspectPort) {
+							this._inspectPort = Number(inspectorUrlMatch[2]);
+						}
 					} else {
 						console.group('Extension Host');
 						console.log(output.data, ...output.format);
@@ -496,6 +501,15 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		else {
 			ipc.send('vscode:exit', code);
 		}
+	}
+
+	public enableInspector(): Promise<void> {
+		if (this._inspectPort) {
+			return Promise.resolve();
+		}
+		// send SIGUSR1 and wait a little
+		this._extensionHostProcess.kill('SIGUSR1');
+		return timeout(1000);
 	}
 
 	public getInspectPort(): number {
