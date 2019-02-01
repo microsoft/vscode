@@ -149,16 +149,16 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 		// update settings schema setting for theme specific settings
 		this.colorThemeStore.onDidChange(async event => {
+			// updates enum for the 'workbench.colorTheme` setting
+			colorThemeSettingSchema.enum = event.themes.map(t => t.settingsId);
+			colorThemeSettingSchema.enumDescriptions = event.themes.map(t => t.description || '');
+
 			const themeSpecificWorkbenchColors: IJSONSchema = { properties: {} };
 			const themeSpecificTokenColors: IJSONSchema = { properties: {} };
 
 			const workbenchColors = { $ref: workbenchColorsSchemaId, additionalProperties: false };
 			const tokenColors = { properties: tokenColorSchema.properties, additionalProperties: false };
 			for (let t of event.themes) {
-				// add a enum value to the 'workbench.colorTheme` setting
-				colorThemeSettingSchema.enum!.push(t.settingsId);
-				colorThemeSettingSchema.enumDescriptions!.push(t.description || '');
-
 				// add theme specific color customization ("[Abyss]":{ ... })
 				const themeId = `[${t.settingsId}]`;
 				themeSpecificWorkbenchColors.properties![themeId] = workbenchColors;
