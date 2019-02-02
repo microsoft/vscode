@@ -288,12 +288,10 @@ export class SendSequenceTerminalCommand extends Command {
 		}
 
 		const configurationResolverService = accessor.get(IConfigurationResolverService);
-
 		const workspaceContextService = accessor.get(IWorkspaceContextService);
 		const historyService = accessor.get(IHistoryService);
 		const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(Schemas.file);
 		const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) : null;
-
 		const resolvedText = configurationResolverService.resolve(lastActiveWorkspaceRoot, args.text);
 		terminalInstance.sendText(resolvedText, false);
 	}
