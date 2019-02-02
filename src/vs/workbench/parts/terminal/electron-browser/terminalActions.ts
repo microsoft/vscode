@@ -30,13 +30,10 @@ import { Command } from 'vs/editor/browser/editorExtensions';
 import { timeout } from 'vs/base/common/async';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
-<<<<<<< HEAD
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { Schemas } from 'vs/base/common/network';
-=======
 import { URI } from 'vs/base/common/uri';
->>>>>>> origin/master
 
 export const TERMINAL_PICKER_PREFIX = 'term ';
 
