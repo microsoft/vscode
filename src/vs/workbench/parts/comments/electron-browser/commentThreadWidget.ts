@@ -622,7 +622,6 @@ export class ReviewZoneWidget extends ZoneWidget {
 			const lineHeight = this.editor.getConfiguration().lineHeight;
 			const arrowHeight = Math.round(lineHeight / 3);
 			const frameThickness = Math.round(lineHeight / 9) * 2;
-			console.log(dimensions);
 
 			const computedLinesNumber = Math.ceil((headHeight + dimensions.height + arrowHeight + frameThickness + 8 /** margin bottom to avoid margin collapse */) / lineHeight);
 			this._relayout(computedLinesNumber);
