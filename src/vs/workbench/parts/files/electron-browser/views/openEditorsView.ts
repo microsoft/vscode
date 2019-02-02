@@ -18,7 +18,7 @@ import { OpenEditorsFocusedContext, ExplorerFocusedContext, IFilesConfiguration,
 import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { CloseAllEditorsAction, CloseEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
-import { ToggleEditorLayoutAction } from 'vs/workbench/browser/actions/toggleEditorLayout';
+import { ToggleEditorLayoutAction } from 'vs/workbench/browser/actions/layoutActions';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -34,12 +34,13 @@ import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemAc
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { DirtyEditorContext, OpenEditorsGroupContext } from 'vs/workbench/parts/files/electron-browser/fileCommands';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
-import { ResourcesDropHandler } from 'vs/workbench/browser/dnd';
+import { ResourcesDropHandler, fillResourceDataTransfers } from 'vs/workbench/browser/dnd';
 import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDragAndDropData } from 'vs/base/browser/dnd';
 import { memoize } from 'vs/base/common/decorators';
 import { DesktopDragAndDropData, ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
+import { URI } from 'vs/base/common/uri';
 
 const $ = dom.$;
 
@@ -303,9 +304,9 @@ export class OpenEditorsView extends ViewletPanel {
 		return this.list;
 	}
 
-	protected layoutBody(size: number): void {
+	protected layoutBody(height: number, width: number): void {
 		if (this.list) {
-			this.list.layout(size);
+			this.list.layout(height, width);
 		}
 	}
 
@@ -608,7 +609,13 @@ class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGro
 	}
 
 	getDragURI(element: OpenEditor | IEditorGroup): string | null {
-		return element instanceof OpenEditor ? element.getResource().toString() : null;
+		if (element instanceof OpenEditor) {
+			const resource = element.getResource();
+			if (resource) {
+				return resource.toString();
+			}
+		}
+		return null;
 	}
 
 	getDragLabel?(elements: (OpenEditor | IEditorGroup)[]): string {
@@ -618,6 +625,23 @@ class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGro
 		const element = elements[0];
 
 		return element instanceof OpenEditor ? element.editor.getName() : element.label;
+	}
+
+	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
+		const items = (data as ElementsDragAndDropData<OpenEditor | IEditorGroup>).elements;
+		const resources: URI[] = [];
+		if (items) {
+			items.forEach(i => {
+				if (i instanceof OpenEditor) {
+					resources.push(i.getResource());
+				}
+			});
+		}
+
+		if (resources.length) {
+			// Apply some datatransfer types to allow for dragging the element outside of the application
+			this.instantiationService.invokeFunction(fillResourceDataTransfers, resources, originalEvent);
+		}
 	}
 
 	onDragOver(data: IDragAndDropData, targetElement: OpenEditor | IEditorGroup, targetIndex: number, originalEvent: DragEvent): boolean | IListDragOverReaction {

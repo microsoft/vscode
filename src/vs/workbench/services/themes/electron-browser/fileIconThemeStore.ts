@@ -16,6 +16,7 @@ import { URI } from 'vs/base/common/uri';
 
 const iconThemeExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPoint[]>({
 	extensionPoint: 'iconThemes',
+	isDynamic: true,
 	jsonSchema: {
 		description: nls.localize('vscode.extension.contributes.iconThemes', 'Contributes file icon themes.'),
 		type: 'array',
@@ -41,21 +42,32 @@ const iconThemeExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtens
 	}
 });
 
+export interface FileIconThemeChangeEvent {
+	themes: FileIconThemeData[];
+	added: FileIconThemeData[];
+}
+
 export class FileIconThemeStore {
 
 	private knownIconThemes: FileIconThemeData[];
-	private readonly onDidChangeEmitter: Emitter<FileIconThemeData[]>;
+	private readonly onDidChangeEmitter: Emitter<FileIconThemeChangeEvent>;
 
-	public get onDidChange(): Event<FileIconThemeData[]> { return this.onDidChangeEmitter.event; }
+	public get onDidChange(): Event<FileIconThemeChangeEvent> { return this.onDidChangeEmitter.event; }
 
 	constructor(@IExtensionService private readonly extensionService: IExtensionService) {
 		this.knownIconThemes = [];
-		this.onDidChangeEmitter = new Emitter<FileIconThemeData[]>();
+		this.onDidChangeEmitter = new Emitter<FileIconThemeChangeEvent>();
 		this.initialize();
 	}
 
 	private initialize() {
 		iconThemeExtPoint.setHandler((extensions) => {
+			const previousIds: { [key: string]: boolean } = {};
+			const added: FileIconThemeData[] = [];
+			for (const theme of this.knownIconThemes) {
+				previousIds[theme.id] = true;
+			}
+			this.knownIconThemes.length = 0;
 			for (let ext of extensions) {
 				let extensionData = {
 					extensionId: ext.description.identifier.value,
@@ -65,7 +77,12 @@ export class FileIconThemeStore {
 				};
 				this.onIconThemes(ext.description.extensionLocation, extensionData, ext.value, ext.collector);
 			}
-			this.onDidChangeEmitter.fire(this.knownIconThemes);
+			for (const theme of this.knownIconThemes) {
+				if (!previousIds[theme.id]) {
+					added.push(theme);
+				}
+			}
+			this.onDidChangeEmitter.fire({ themes: this.knownIconThemes, added });
 		});
 	}
 
@@ -109,25 +126,31 @@ export class FileIconThemeStore {
 
 	}
 
-	public findThemeData(iconTheme: string): Promise<FileIconThemeData | null> {
+	public findThemeData(iconTheme: string): Promise<FileIconThemeData | undefined> {
+		if (iconTheme.length === 0) {
+			return Promise.resolve(FileIconThemeData.noIconTheme());
+		}
 		return this.getFileIconThemes().then(allIconSets => {
 			for (let iconSet of allIconSets) {
 				if (iconSet.id === iconTheme) {
 					return iconSet;
 				}
 			}
-			return null;
+			return undefined;
 		});
 	}
 
-	public findThemeBySettingsId(settingsId: string): Promise<FileIconThemeData | null> {
+	public findThemeBySettingsId(settingsId: string | null): Promise<FileIconThemeData | undefined> {
+		if (!settingsId) {
+			return Promise.resolve(FileIconThemeData.noIconTheme());
+		}
 		return this.getFileIconThemes().then(allIconSets => {
 			for (let iconSet of allIconSets) {
 				if (iconSet.settingsId === settingsId) {
 					return iconSet;
 				}
 			}
-			return null;
+			return undefined;
 		});
 	}
 

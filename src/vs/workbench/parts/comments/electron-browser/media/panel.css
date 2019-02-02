@@ -41,6 +41,10 @@
 	overflow: hidden;
 }
 
+.comments-panel .comments-panel-container .tree-container .comment-container .text code {
+	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+}
+
 .comments-panel .comments-panel-container .message-box-container {
 	line-height: 22px;
 	padding-left: 20px;

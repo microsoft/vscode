@@ -5,7 +5,7 @@
 
 import { spawn, ChildProcess } from 'child_process';
 import { assign } from 'vs/base/common/objects';
-import { parseCLIProcessArgv, buildHelpMessage } from 'vs/platform/environment/node/argv';
+import { buildHelpMessage, buildVersionMessage } from 'vs/platform/environment/node/argv';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
@@ -20,6 +20,7 @@ import { writeFileAndFlushSync } from 'vs/base/node/extfs';
 import { isWindows } from 'vs/base/common/platform';
 import { ProfilingSession, Target } from 'v8-inspect-profiler';
 import { createWaitMarkerFile } from 'vs/code/node/wait';
+import { parseCLIProcessArgv } from 'vs/platform/environment/node/argvHelper';
 
 function shouldSpawnCliProcess(argv: ParsedArgs): boolean {
 	return !!argv['install-source']
@@ -44,12 +45,13 @@ export async function main(argv: string[]): Promise<any> {
 
 	// Help
 	if (args.help) {
-		console.log(buildHelpMessage(product.nameLong, product.applicationName, pkg.version));
+		const executable = `${product.applicationName}${os.platform() === 'win32' ? '.exe' : ''}`;
+		console.log(buildHelpMessage(product.nameLong, executable, pkg.version));
 	}
 
 	// Version Info
 	else if (args.version) {
-		console.log(`${pkg.version}\n${product.commit}\n${process.arch}`);
+		console.log(buildVersionMessage(pkg.version, product.commit));
 	}
 
 	// Extensions Management

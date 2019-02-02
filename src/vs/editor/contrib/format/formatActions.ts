@@ -3,31 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import { alert } from 'vs/base/browser/ui/aria/aria';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { registerEditorAction, ServicesAccessor, EditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { OnTypeFormattingEditProviderRegistry, DocumentRangeFormattingEditProviderRegistry, DocumentFormattingEditProviderRegistry, FormattingOptions } from 'vs/editor/common/modes';
-import { getOnTypeFormattingEdits, NoProviderError } from 'vs/editor/contrib/format/format';
-import { FormattingEdit } from 'vs/editor/contrib/format/formattingEdit';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { sequence } from 'vs/base/common/async';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { CodeEditorStateFlag, EditorState } from 'vs/editor/browser/core/editorState';
+import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { CharacterSet } from 'vs/editor/common/core/characterClassifier';
 import { Range } from 'vs/editor/common/core/range';
-import { alert } from 'vs/base/browser/ui/aria/aria';
-import { EditorState, CodeEditorStateFlag } from 'vs/editor/browser/core/editorState';
+import * as editorCommon from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ICodeEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ISingleEditOperation } from 'vs/editor/common/model';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { DocumentFormattingEditProviderRegistry, DocumentRangeFormattingEditProviderRegistry, FormattingOptions, OnTypeFormattingEditProviderRegistry } from 'vs/editor/common/modes';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { getOnTypeFormattingEdits, NoProviderError } from 'vs/editor/contrib/format/format';
+import { FormattingEdit } from 'vs/editor/contrib/format/formattingEdit';
+import * as nls from 'vs/nls';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { sequence } from 'vs/base/common/async';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { MenuRegistry } from 'vs/platform/actions/common/actions';
 
 function alertFormattingEdits(edits: ISingleEditOperation[]): void {
 
@@ -73,8 +74,8 @@ export function formatDocumentRange(telemetryService: ITelemetryService, workerS
 	if (provider.length !== 1) {
 		/* __GDPR__
 			"manyformatters" : {
-				"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				"language" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"language" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 			}
 		 */
@@ -142,8 +143,8 @@ export function formatDocument(telemetryService: ITelemetryService, workerServic
 	if (provider.length !== 1) {
 		/* __GDPR__
 			"manyformatters" : {
-				"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				"language" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"language" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 			}
 		 */
@@ -483,4 +484,39 @@ CommandsRegistry.registerCommand('editor.action.format', accessor => {
 	} else {
 		return formatDocumentRange(telemetryService, workerService, editor, FormatRangeType.Selection, { tabSize, insertSpaces }, CancellationToken.None);
 	}
+});
+
+
+CommandsRegistry.registerCommand('editor.action.formatInspect', accessor => {
+
+	const editor = accessor.get(ICodeEditorService).getActiveCodeEditor();
+	if (!editor || !editor.hasModel()) {
+		return;
+	}
+	console.log(`Available Formatters for: ${editor.getModel().uri.toString(true)}`);
+	// range formatters
+	const documentRangeProvider = DocumentRangeFormattingEditProviderRegistry.ordered(editor.getModel());
+	console.group('Range Formatters');
+	if (documentRangeProvider.length === 0) {
+		console.log('none');
+	} else {
+		documentRangeProvider.forEach(value => console.log(value.displayName));
+	}
+	console.groupEnd();
+
+	// whole document formatters
+	const documentProvider = DocumentFormattingEditProviderRegistry.ordered(editor.getModel());
+	console.group('Document Formatters');
+	if (documentProvider.length === 0) {
+		console.log('none');
+	} else {
+		documentProvider.forEach(value => console.log(value.displayName));
+	}
+	console.groupEnd();
+});
+
+MenuRegistry.addCommand({
+	id: 'editor.action.formatInspect',
+	category: nls.localize('cat', "Developer"),
+	title: nls.localize('title', "Print Available Formatters..."),
 });

@@ -394,21 +394,6 @@
 				]
 			},
 			{
-				"target": "**/vs/workbench/node/**",
-				"restrictions": [
-					"vs/nls",
-					"**/vs/base/{common,node}/**",
-					"**/vs/base/parts/*/{common,node}/**",
-					"**/vs/platform/node/**",
-					"**/vs/platform/*/{common,node}/**",
-					"**/vs/editor/{common,node}/**",
-					"**/vs/editor/contrib/*/{common,node}/**",
-					"**/vs/workbench/{common,node,api}/**",
-					"**/vs/workbench/services/*/{common,node}/**",
-					"*" // node modules
-				]
-			},
-			{
 				"target": "**/vs/workbench/services/**/test/**",
 				"restrictions": [
 					"vs/nls",
@@ -454,6 +439,7 @@
 					"**/vs/platform/**/{common,node}/**",
 					"**/vs/editor/{common,node}/**",
 					"**/vs/workbench/{common,node}/**",
+					"**/vs/workbench/api/{common,node}/**",
 					"**/vs/workbench/services/**/{common,node}/**",
 					"*" // node modules
 				]

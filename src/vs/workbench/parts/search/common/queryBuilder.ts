@@ -51,7 +51,6 @@ export interface ICommonQueryBuilderOptions {
 
 	maxResults?: number;
 	maxFileSize?: number;
-	useRipgrep?: boolean;
 	disregardIgnoreFiles?: boolean;
 	disregardGlobalIgnoreFiles?: boolean;
 	disregardExcludeSettings?: boolean;
@@ -150,11 +149,6 @@ export class QueryBuilder {
 			folderResources.map(uri => this.getFolderQueryForRoot(uri, options, excludePattern)))
 			.filter(query => !!query) as IFolderQuery[];
 
-		// const useRipgrep = !folderResources || folderResources.every(folder => {
-		// 	const folderConfig = this.configurationService.getValue<ISearchConfiguration>({ resource: folder });
-		// 	return !folderConfig.search.useLegacySearch;
-		// });
-
 		const queryProps: ICommonQueryProps<uri> = {
 			_reason: options._reason,
 			folderQueries,
@@ -163,8 +157,7 @@ export class QueryBuilder {
 
 			excludePattern: excludePattern.pattern,
 			includePattern,
-			maxResults: options.maxResults,
-			useRipgrep: true
+			maxResults: options.maxResults
 		};
 
 		// Filter extraFileResources against global include/exclude patterns - they are already expected to not belong to a workspace

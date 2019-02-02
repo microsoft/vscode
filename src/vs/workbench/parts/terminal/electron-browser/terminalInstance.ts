@@ -3,42 +3,42 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as lifecycle from 'vs/base/common/lifecycle';
-import * as nls from 'vs/nls';
-import * as platform from 'vs/base/common/platform';
-import * as dom from 'vs/base/browser/dom';
-import * as paths from 'vs/base/common/paths';
+import { execFile } from 'child_process';
 import * as os from 'os';
 import * as path from 'path';
-import { Event, Emitter } from 'vs/base/common/event';
-import { debounce } from 'vs/base/common/decorators';
-import { WindowsShellHelper } from 'vs/workbench/parts/terminal/node/windowsShellHelper';
-import { Terminal as XTermTerminal, ISearchOptions } from 'vscode-xterm';
-import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { ITerminalInstance, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, IShellLaunchConfig, ITerminalProcessManager, ProcessState, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ITerminalDimensions } from 'vs/workbench/parts/terminal/common/terminal';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { KeyCode } from 'vs/base/common/keyCodes';
+import * as browser from 'vs/base/browser/browser';
+import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { debounce } from 'vs/base/common/decorators';
+import { Emitter, Event } from 'vs/base/common/event';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import * as lifecycle from 'vs/base/common/lifecycle';
+import * as paths from 'vs/base/common/paths';
+import * as platform from 'vs/base/common/platform';
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
+import * as nls from 'vs/nls';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ILogService } from 'vs/platform/log/common/log';
+import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { activeContrastBorder, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
+import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
+import { TerminalWidgetManager } from 'vs/workbench/parts/terminal/browser/terminalWidgetManager';
+import { IShellLaunchConfig, ITerminalDimensions, ITerminalInstance, ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ProcessState, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
+import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/parts/terminal/common/terminalColorRegistry';
+import { TERMINAL_COMMAND_ID } from 'vs/workbench/parts/terminal/common/terminalCommands';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import { TerminalLinkHandler } from 'vs/workbench/parts/terminal/electron-browser/terminalLinkHandler';
-import { TerminalWidgetManager } from 'vs/workbench/parts/terminal/browser/terminalWidgetManager';
-import { registerThemingParticipant, ITheme, ICssStyleCollector, IThemeService } from 'vs/platform/theme/common/themeService';
-import { scrollbarSliderBackground, scrollbarSliderHoverBackground, scrollbarSliderActiveBackground, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/parts/terminal/common/terminalColorRegistry';
-import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
-import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { INotificationService, Severity, IPromptChoice } from 'vs/platform/notification/common/notification';
-import { ILogService } from 'vs/platform/log/common/log';
-import { TerminalCommandTracker } from 'vs/workbench/parts/terminal/node/terminalCommandTracker';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { execFile, exec } from 'child_process';
-import { TERMINAL_COMMAND_ID } from 'vs/workbench/parts/terminal/common/terminalCommands';
 import { TerminalProcessManager } from 'vs/workbench/parts/terminal/electron-browser/terminalProcessManager';
+import { TerminalCommandTracker } from 'vs/workbench/parts/terminal/node/terminalCommandTracker';
+import { WindowsShellHelper } from 'vs/workbench/parts/terminal/node/windowsShellHelper';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { ISearchOptions, Terminal as XTermTerminal } from 'vscode-xterm';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -399,7 +399,6 @@ export class TerminalInstance implements ITerminalInstance {
 			Terminal.strings.promptLabel = nls.localize('terminal.integrated.a11yPromptLabel', 'Terminal input');
 			Terminal.strings.tooMuchOutput = nls.localize('terminal.integrated.a11yTooMuchOutput', 'Too much output to announce, navigate to rows manually to read');
 		}
-		const accessibilitySupport = this._configurationService.getValue<IEditorOptions>('editor').accessibilitySupport;
 		const font = this._configHelper.getFont(undefined, true);
 		const config = this._configHelper.config;
 		this._xterm = new Terminal({
@@ -413,7 +412,7 @@ export class TerminalInstance implements ITerminalInstance {
 			letterSpacing: font.letterSpacing,
 			lineHeight: font.lineHeight,
 			bellStyle: config.enableBell ? 'sound' : 'none',
-			screenReaderMode: accessibilitySupport === 'on',
+			screenReaderMode: this._isScreenReaderOptimized(),
 			macOptionIsMeta: config.macOptionIsMeta,
 			macOptionClickForcesSelection: config.macOptionClickForcesSelection,
 			rightClickSelectsWord: config.rightClickBehavior === 'selectWord',
@@ -435,8 +434,8 @@ export class TerminalInstance implements ITerminalInstance {
 			this._xterm.on('data', data => this._processManager!.write(data));
 			// TODO: How does the cwd work on detached processes?
 			this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._xterm, platform.platform);
-			this.processReady.then(() => {
-				this._linkHandler.processCwd = this._processManager!.initialCwd;
+			this.processReady.then(async () => {
+				this._linkHandler.processCwd = await this._processManager!.getInitialCwd();
 			});
 		}
 		this._xterm.on('focus', () => this._onFocus.fire(this));
@@ -448,6 +447,12 @@ export class TerminalInstance implements ITerminalInstance {
 
 		this._commandTracker = new TerminalCommandTracker(this._xterm);
 		this._disposables.push(this._themeService.onThemeChange(theme => this._updateTheme(theme)));
+	}
+
+	private _isScreenReaderOptimized(): boolean {
+		const detected = browser.getAccessibilitySupport() === platform.AccessibilitySupport.Enabled;
+		const config = this._configurationService.getValue('editor.accessibilitySupport');
+		return config === 'on' || (config === 'auto' && detected);
 	}
 
 	public reattachToElement(container: HTMLElement): void {
@@ -575,6 +580,10 @@ export class TerminalInstance implements ITerminalInstance {
 
 			if (this._processManager) {
 				this._widgetManager = new TerminalWidgetManager(this._wrapperElement);
+				// HACK: This can be removed once this is fixed upstream xtermjs/xterm.js#1908
+				this._disposables.push(dom.addDisposableListener(this._xterm.element, 'mouseleave', () => {
+					this._widgetManager.closeMessage();
+				}));
 				this._linkHandler.setWidgetManager(this._widgetManager);
 			}
 
@@ -1110,8 +1119,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public updateAccessibilitySupport(): void {
-		const value = this._configurationService.getValue('editor.accessibilitySupport');
-		this._xterm.setOption('screenReaderMode', value === 'on');
+		this._xterm.setOption('screenReaderMode', this._isScreenReaderOptimized());
 	}
 
 	private _setCursorBlink(blink: boolean): void {
@@ -1177,20 +1185,20 @@ export class TerminalInstance implements ITerminalInstance {
 		this._resize();
 	}
 
+	@debounce(50)
 	private _resize(): void {
 		let cols = this._cols;
 		let rows = this._rows;
 		if (this._dimensionsOverride && this._dimensionsOverride.cols && this._dimensionsOverride.rows) {
-			cols = Math.min(Math.max(this._dimensionsOverride.cols, 2), this._cols);
-			rows = Math.min(Math.max(this._dimensionsOverride.rows, 2), this._rows);
+			cols = Math.min(Math.max(this._dimensionsOverride.cols, 2), cols);
+			rows = Math.min(Math.max(this._dimensionsOverride.rows, 2), rows);
 		}
 
 		if (this._xterm) {
-			const font = this._configHelper.getFont(this._xterm);
-
 			// Only apply these settings when the terminal is visible so that
 			// the characters are measured correctly.
 			if (this._isVisible) {
+				const font = this._configHelper.getFont(this._xterm);
 				const config = this._configHelper.config;
 				this._safeSetOption('letterSpacing', font.letterSpacing);
 				this._safeSetOption('lineHeight', font.lineHeight);
@@ -1307,28 +1315,18 @@ export class TerminalInstance implements ITerminalInstance {
 		this._xterm.setOption('debug', this._xterm._core.debug);
 	}
 
-	public get initialCwd(): string {
-		if (this._processManager) {
-			return this._processManager.initialCwd;
+	public getInitialCwd(): Promise<string> {
+		if (!this._processManager) {
+			return Promise.resolve('');
 		}
-		return '';
+		return this._processManager.getInitialCwd();
 	}
 
 	public getCwd(): Promise<string> {
-		if (!platform.isWindows) {
-			let pid = this.processId;
-			return new Promise<string>(resolve => {
-				exec('lsof -p ' + pid + ' | grep cwd', (error, stdout, stderr) => {
-					if (stdout !== '') {
-						resolve(stdout.substring(stdout.indexOf('/'), stdout.length - 1));
-					}
-				});
-			});
-		} else {
-			return new Promise<string>(resolve => {
-				resolve(this.initialCwd);
-			});
+		if (!this._processManager) {
+			return Promise.resolve('');
 		}
+		return this._processManager.getCwd();
 	}
 }
 

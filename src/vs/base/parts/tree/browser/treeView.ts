@@ -1043,21 +1043,6 @@ export class TreeView extends HeightMap {
 		}
 	}
 
-	public updateWidth(item: Model.Item): void {
-		if (!item || !item.isVisible()) {
-			return;
-		}
-
-		const viewItem = this.items[item.id];
-
-		if (!viewItem) {
-			return;
-		}
-
-		viewItem.updateWidth();
-		this.updateScrollWidth();
-	}
-
 	public getRelativeTop(item: Model.Item): number {
 		if (item && item.isVisible()) {
 			let viewItem = this.items[item.id];

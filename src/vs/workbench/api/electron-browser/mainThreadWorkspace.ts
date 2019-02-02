@@ -131,11 +131,6 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 			return undefined; // invalid query parameters
 		}
 
-		const useRipgrep = folderQueries.every(folderQuery => {
-			const folderConfig = this._configurationService.getValue<ISearchConfiguration>({ resource: folderQuery.folder });
-			return folderConfig.search.useRipgrep;
-		});
-
 		const ignoreSymlinks = folderQueries.every(folderQuery => {
 			const folderConfig = this._configurationService.getValue<ISearchConfiguration>({ resource: folderQuery.folder });
 			return !folderConfig.search.followSymlinks;
@@ -151,7 +146,6 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 			type: QueryType.File,
 			maxResults,
 			disregardExcludeSettings: excludePatternOrDisregardExcludes === false,
-			useRipgrep,
 			_reason: 'startFileSearch'
 		};
 		if (typeof includePattern === 'string') {
@@ -251,5 +245,5 @@ CommandsRegistry.registerCommand('_workbench.enterWorkspace', async function (ac
 		}
 	}
 
-	return workspaceEditingService.enterWorkspace(workspace.fsPath);
+	return workspaceEditingService.enterWorkspace(workspace);
 });

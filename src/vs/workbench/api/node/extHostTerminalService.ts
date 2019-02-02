@@ -14,6 +14,11 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { EXT_HOST_CREATION_DELAY } from 'vs/workbench/parts/terminal/common/terminal';
 import { TerminalProcess } from 'vs/workbench/parts/terminal/node/terminalProcess';
 import { timeout } from 'vs/base/common/async';
+import { generateRandomPipeName } from 'vs/base/parts/ipc/node/ipc.net';
+import * as http from 'http';
+import * as fs from 'fs';
+import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
+import { sanitizeProcessEnvironment } from 'vs/base/node/processes';
 
 const RENDERER_NO_PROCESS_ID = -1;
 
@@ -242,6 +247,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	private _terminalProcesses: { [id: number]: TerminalProcess } = {};
 	private _terminalRenderers: ExtHostTerminalRenderer[] = [];
 	private _getTerminalPromises: { [id: number]: Promise<ExtHostTerminal> } = {};
+	private _cliServer: CLIServer | undefined;
 
 	public get activeTerminal(): ExtHostTerminal { return this._activeTerminal; }
 	public get terminals(): ExtHostTerminal[] { return this._terminals; }
@@ -256,7 +262,8 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	constructor(
 		mainContext: IMainContext,
 		private _extHostConfiguration: ExtHostConfiguration,
-		private _logService: ILogService
+		private _logService: ILogService,
+		private _commands: ExtHostCommands
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadTerminalService);
 	}
@@ -399,27 +406,39 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		// TODO: Pull in and resolve config settings
 		// // Resolve env vars from config and shell
 		// const lastActiveWorkspaceRoot = this._workspaceContextService.getWorkspaceFolder(lastActiveWorkspaceRootUri);
-		// const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
-		// const envFromConfig = terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, { ...this._configHelper.config.env[platformKey] }, lastActiveWorkspaceRoot);
+		const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
+		// const envFromConfig = terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, { ...terminalConfig.env[platformKey] }, lastActiveWorkspaceRoot);
+		const envFromConfig = { ...terminalConfig.env[platformKey] };
 		// const envFromShell = terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, { ...shellLaunchConfig.env }, lastActiveWorkspaceRoot);
 
 		// Merge process env with the env from config
 		const env = { ...process.env };
-		// terminalEnvironment.mergeEnvironments(env, envFromConfig);
+		terminalEnvironment.mergeEnvironments(env, envFromConfig);
 		terminalEnvironment.mergeEnvironments(env, shellLaunchConfig.env);
+
+		// Sanitize the environment, removing any undesirable VS Code and Electron environment
+		// variables
+		sanitizeProcessEnvironment(env);
 
 		// Continue env initialization, merging in the env from the launch
 		// config and adding keys that are needed to create the process
 		terminalEnvironment.addTerminalEnvironmentKeys(env, platform.locale, terminalConfig.get('setLocaleVariables'));
 
+		if (!this._cliServer) {
+			this._cliServer = new CLIServer(this._commands);
+		}
+		env['VSCODE_IPC_HOOK_CLI'] = this._cliServer.ipcHandlePath;
+
 		// Fork the process and listen for messages
 		this._logService.debug(`Terminal process launching on ext host`, shellLaunchConfig, initialCwd, cols, rows, env);
-		this._terminalProcesses[id] = new TerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, terminalConfig.get('windowsEnableConpty'));
-		this._terminalProcesses[id].onProcessIdReady(pid => this._proxy.$sendProcessPid(id, pid));
-		this._terminalProcesses[id].onProcessTitleChanged(title => this._proxy.$sendProcessTitle(id, title));
-		this._terminalProcesses[id].onProcessData(data => this._proxy.$sendProcessData(id, data));
-		this._terminalProcesses[id].onProcessExit((exitCode) => this._onProcessExit(id, exitCode));
+		const p = new TerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, terminalConfig.get('windowsEnableConpty'));
+		p.onProcessIdReady(pid => this._proxy.$sendProcessPid(id, pid));
+		p.onProcessTitleChanged(title => this._proxy.$sendProcessTitle(id, title));
+		p.onProcessData(data => this._proxy.$sendProcessData(id, data));
+		p.onProcessExit((exitCode) => this._onProcessExit(id, exitCode));
+		this._terminalProcesses[id] = p;
 	}
+
 
 	public $acceptProcessInput(id: number, data: string): void {
 		this._terminalProcesses[id].input(data);
@@ -440,6 +459,14 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		this._terminalProcesses[id].shutdown(immediate);
 	}
 
+	public $acceptProcessRequestInitialCwd(id: number): void {
+		this._terminalProcesses[id].getInitialCwd().then(initialCwd => this._proxy.$sendProcessInitialCwd(id, initialCwd));
+	}
+
+	public $acceptProcessRequestCwd(id: number): void {
+		this._terminalProcesses[id].getCwd().then(cwd => this._proxy.$sendProcessCwd(id, cwd));
+	}
+
 	private _onProcessExit(id: number, exitCode: number): void {
 		// Remove listeners
 		this._terminalProcesses[id].dispose();
@@ -449,6 +476,12 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 
 		// Send exit event to main side
 		this._proxy.$sendProcessExit(id, exitCode);
+
+		if (this._cliServer && !Object.keys(this._terminalProcesses).length) {
+			this._cliServer.dispose();
+			this._cliServer = undefined;
+		}
+
 	}
 
 	private _getTerminalByIdEventually(id: number, retries: number = 5): Promise<ExtHostTerminal> {
@@ -518,5 +551,75 @@ class ApiRequest {
 
 	public run(proxy: MainThreadTerminalServiceShape, id: number) {
 		this._callback.apply(proxy, [id].concat(this._args));
+	}
+}
+
+
+class CLIServer {
+
+	private _server: http.Server;
+	private _ipcHandlePath: string | undefined;
+
+	constructor(private _commands: ExtHostCommands) {
+		this._server = http.createServer((req, res) => this.onRequest(req, res));
+		this.setup().catch(err => {
+			console.error(err);
+			return '';
+		});
+	}
+
+	public get ipcHandlePath() {
+		return this._ipcHandlePath;
+	}
+
+	private async setup(): Promise<string> {
+		this._ipcHandlePath = generateRandomPipeName();
+
+		try {
+			this._server.listen(this.ipcHandlePath);
+			this._server.on('error', err => console.error(err));
+		} catch (err) {
+			console.error('Could not start open from terminal server.');
+		}
+
+		return this.ipcHandlePath;
+	}
+	private toURIs(strs: string[]): URI[] {
+		const result: URI[] = [];
+		if (Array.isArray(strs)) {
+			for (const s of strs) {
+				try {
+					result.push(URI.parse(s));
+				} catch (e) {
+					// ignore
+				}
+			}
+		}
+		return result;
+	}
+
+	private onRequest(req: http.IncomingMessage, res: http.ServerResponse): void {
+		const chunks: string[] = [];
+		req.setEncoding('utf8');
+		req.on('data', (d: string) => chunks.push(d));
+		req.on('end', () => {
+			let { fileURIs, folderURIs, forceNewWindow, diffMode, addMode, forceReuseWindow } = JSON.parse(chunks.join(''));
+			if (folderURIs && folderURIs.length || fileURIs && fileURIs.length) {
+				if (folderURIs && folderURIs.length && !forceReuseWindow) {
+					forceNewWindow = true;
+				}
+				this._commands.executeCommand('_files.windowOpen', { folderURIs: this.toURIs(folderURIs), fileURIs: this.toURIs(fileURIs), forceNewWindow, diffMode, addMode, forceReuseWindow });
+			}
+			res.writeHead(200);
+			res.end();
+		});
+	}
+
+	dispose(): void {
+		this._server.close();
+
+		if (this._ipcHandlePath && process.platform !== 'win32' && fs.existsSync(this._ipcHandlePath)) {
+			fs.unlinkSync(this._ipcHandlePath);
+		}
 	}
 }

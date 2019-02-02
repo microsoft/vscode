@@ -9,7 +9,7 @@ import * as perf from 'vs/base/common/performance';
 import { sequence } from 'vs/base/common/async';
 import { Action, IAction } from 'vs/base/common/actions';
 import { memoize } from 'vs/base/common/decorators';
-import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, IExplorerService } from 'vs/workbench/parts/files/common/files';
+import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, IExplorerService, ExplorerResourceCut } from 'vs/workbench/parts/files/common/files';
 import { NewFolderAction, NewFileAction, FileCopiedContext, RefreshExplorerView } from 'vs/workbench/parts/files/electron-browser/fileActions';
 import { toResource } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -37,7 +37,6 @@ import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/work
 import { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ExplorerItem } from 'vs/workbench/parts/files/common/explorerModel';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -64,8 +63,8 @@ export class ExplorerView extends ViewletPanel {
 	private dragHandler: DelayedDragHandler;
 	private decorationProvider: ExplorerDecorationsProvider;
 	private autoReveal = false;
-	private ignoreActiveEditorChange;
-	private previousSelection: ExplorerItem[] = [];
+	// Ignore first active editor change, since on startup we already reveal the active editor
+	private ignoreActiveEditorChange = true;
 
 	constructor(
 		options: IViewletPanelOptions,
@@ -83,7 +82,6 @@ export class ExplorerView extends ViewletPanel {
 		@IThemeService private readonly themeService: IWorkbenchThemeService,
 		@IListService private readonly listService: IListService,
 		@IMenuService private readonly menuService: IMenuService,
-		@IClipboardService private readonly clipboardService: IClipboardService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IExplorerService private readonly explorerService: IExplorerService,
 		@IStorageService private readonly storageService: IStorageService
@@ -125,6 +123,10 @@ export class ExplorerView extends ViewletPanel {
 		return FileCopiedContext.bindTo(this.contextKeyService);
 	}
 
+	@memoize private get resourceCutContextKey(): IContextKey<boolean> {
+		return ExplorerResourceCut.bindTo(this.contextKeyService);
+	}
+
 	// Split view methods
 
 	protected renderHeader(container: HTMLElement): void {
@@ -146,8 +148,8 @@ export class ExplorerView extends ViewletPanel {
 		setHeader();
 	}
 
-	protected layoutBody(size: number): void {
-		this.tree.layout(size);
+	protected layoutBody(height: number, width: number): void {
+		this.tree.layout(height, width);
 	}
 
 	renderBody(container: HTMLElement): void {
@@ -158,7 +160,6 @@ export class ExplorerView extends ViewletPanel {
 			this.toolbar.setActions(this.getActions(), this.getSecondaryActions())();
 		}
 
-		this.disposables.push(this.contextService.onDidChangeWorkbenchState(() => this.setTreeInput()));
 		this.disposables.push(this.labelService.onDidChangeFormatters(() => {
 			this._onDidChangeTitleArea.fire();
 			this.refresh();
@@ -185,6 +186,7 @@ export class ExplorerView extends ViewletPanel {
 			}
 		}));
 		this.disposables.push(this.explorerService.onDidSelectItem(e => this.onSelectItem(e.item, e.reveal)));
+		this.disposables.push(this.explorerService.onDidCopyItems(e => this.onCopyItems(e.items, e.cut, e.previouslyCutItems)));
 
 		// Update configuration
 		const configuration = this.configurationService.getValue<IFilesConfiguration>();
@@ -192,14 +194,10 @@ export class ExplorerView extends ViewletPanel {
 
 		// When the explorer viewer is loaded, listen to changes to the editor input
 		this.disposables.push(this.editorService.onDidActiveEditorChange(() => {
-			if (this.autoReveal && !this.ignoreActiveEditorChange) {
-				const activeFile = this.getActiveFile();
-				if (activeFile) {
-					this.explorerService.select(this.getActiveFile());
-				} else {
-					this.tree.setSelection([]);
-				}
+			if (!this.ignoreActiveEditorChange) {
+				this.selectActiveFile();
 			}
+			this.ignoreActiveEditorChange = false;
 		}));
 
 		// Also handle configuration updates
@@ -213,12 +211,7 @@ export class ExplorerView extends ViewletPanel {
 					await this.setTreeInput();
 				}
 				// Find resource to focus from active editor input if set
-				if (this.autoReveal) {
-					const activeFile = this.getActiveFile();
-					if (activeFile) {
-						this.explorerService.select(activeFile, true);
-					}
-				}
+				this.selectActiveFile(true);
 			}
 		}));
 	}
@@ -240,6 +233,31 @@ export class ExplorerView extends ViewletPanel {
 
 	focus(): void {
 		this.tree.domFocus();
+
+		const focused = this.tree.getFocus();
+		if (focused.length === 1) {
+			if (this.autoReveal) {
+				this.tree.reveal(focused[0], 0.5);
+			}
+
+			const activeFile = this.getActiveFile();
+			if (!activeFile && !focused[0].isDirectory) {
+				// Open the focused element in the editor if there is currently no file opened #67708
+				this.editorService.openEditor({ resource: focused[0].resource, options: { preserveFocus: true, revealIfVisible: true } })
+					.then(undefined, onUnexpectedError);
+			}
+		}
+	}
+
+	private selectActiveFile(reveal?: boolean): void {
+		if (this.autoReveal) {
+			const activeFile = this.getActiveFile();
+			if (activeFile) {
+				this.explorerService.select(this.getActiveFile(), reveal);
+			} else {
+				this.tree.setSelection([]);
+			}
+		}
 	}
 
 	private createTree(container: HTMLElement): void {
@@ -248,7 +266,8 @@ export class ExplorerView extends ViewletPanel {
 		const explorerLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility } as IResourceLabelsContainer);
 		this.disposables.push(explorerLabels);
 
-		const filesRenderer = this.instantiationService.createInstance(FilesRenderer, explorerLabels);
+		const updateWidth = (stat: ExplorerItem) => this.tree.updateWidth(stat);
+		const filesRenderer = this.instantiationService.createInstance(FilesRenderer, explorerLabels, updateWidth);
 		this.disposables.push(filesRenderer);
 
 		this.disposables.push(createFileIconThemableTreeContainerScope(container, this.themeService));
@@ -261,7 +280,13 @@ export class ExplorerView extends ViewletPanel {
 					getId: stat => stat.resource
 				},
 				keyboardNavigationLabelProvider: {
-					getKeyboardNavigationLabel: stat => stat.name
+					getKeyboardNavigationLabel: stat => {
+						if (this.explorerService.isEditable(stat)) {
+							return undefined;
+						}
+
+						return stat.name;
+					}
 				},
 				multipleSelectionSupport: true,
 				filter: this.filter,
@@ -286,6 +311,8 @@ export class ExplorerView extends ViewletPanel {
 			this.rootContext.set(!stat || (stat && stat.isRoot));
 		}));
 
+		// TODO@Isidor: use TreeResourceNavigator2 just like search and listen to the `onDidOpenResource` instead
+
 		// Open when selecting via keyboard
 		this.disposables.push(this.tree.onDidChangeSelection(e => {
 			if (!e.browserEvent) {
@@ -295,9 +322,9 @@ export class ExplorerView extends ViewletPanel {
 			const selection = e.elements;
 			// Do not react if the user is expanding selection via keyboard.
 			// Check if the item was previously also selected, if yes the user is simply expanding / collapsing current selection #66589.
-			const wasMultiSelectedAndKeyboard = (e.browserEvent instanceof KeyboardEvent) && this.previousSelection.length > 1 && this.previousSelection.indexOf(selection[0]) >= 0;
-			this.previousSelection = selection;
-			if (selection.length === 1 && !wasMultiSelectedAndKeyboard) {
+
+			const shiftDown = e.browserEvent instanceof KeyboardEvent && e.browserEvent.shiftKey;
+			if (selection.length === 1 && !shiftDown) {
 				// Do not react if user is clicking on explorer items which are input placeholders
 				if (!selection[0].name) {
 					// Do not react if user is clicking on explorer items which are input placeholders
@@ -315,6 +342,11 @@ export class ExplorerView extends ViewletPanel {
 
 				if (e.browserEvent instanceof MouseEvent) {
 					isDoubleClick = e.browserEvent.detail === 2;
+
+					if (!this.tree.openOnSingleClick && !isDoubleClick) {
+						return;
+					}
+
 					isMiddleClick = e.browserEvent.button === 1;
 					sideBySide = this.tree.useAltAsMultipleSelectionModifier ? (e.browserEvent.ctrlKey || e.browserEvent.metaKey) : e.browserEvent.altKey;
 				}
@@ -328,10 +360,7 @@ export class ExplorerView extends ViewletPanel {
 				this.telemetryService.publicLog('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'explorer' });
 				this.ignoreActiveEditorChange = true;
 				this.editorService.openEditor({ resource: selection[0].resource, options: { preserveFocus: (e.browserEvent instanceof MouseEvent) && !isDoubleClick, pinned: isDoubleClick || isMiddleClick } }, sideBySide ? SIDE_GROUP : ACTIVE_GROUP)
-					.then(() => this.ignoreActiveEditorChange = false).catch(e => {
-						this.ignoreActiveEditorChange = false;
-						onUnexpectedError(e);
-					});
+					.then(undefined, onUnexpectedError);
 			}
 		}));
 
@@ -368,15 +397,15 @@ export class ExplorerView extends ViewletPanel {
 	private onContextMenu(e: ITreeContextMenuEvent<ExplorerItem>): void {
 		const stat = e.element;
 
-		// update dynamic contexts
-		this.fileCopiedContextKey.set(this.clipboardService.hasResources());
-
 		const selection = this.tree.getSelection();
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
 			getActions: () => {
 				const actions: IAction[] = [];
-				fillInContextMenuActions(this.contributedContextMenu, { arg: stat instanceof ExplorerItem ? stat.resource : {}, shouldForwardArgs: true }, actions, this.contextMenuService);
+				// If the click is outside of the elements pass the root resource if there is only one root. If there are multiple roots pass empty object.
+				const roots = this.explorerService.roots;
+				const arg = stat instanceof ExplorerItem ? stat.resource : roots.length === 1 ? roots[0].resource : {};
+				fillInContextMenuActions(this.contributedContextMenu, { arg, shouldForwardArgs: true }, actions, this.contextMenuService);
 				return actions;
 			},
 			onHide: (wasCancelled?: boolean) => {
@@ -440,7 +469,18 @@ export class ExplorerView extends ViewletPanel {
 			viewState = JSON.parse(rawViewState) as IAsyncDataTreeViewState;
 		}
 
+		const previousInput = this.tree.getInput();
 		const promise = this.tree.setInput(input, viewState).then(() => {
+			if (Array.isArray(input)) {
+				if (!viewState || previousInput instanceof ExplorerItem) {
+					// There is no view state for this workspace, expand all roots. Or we transitioned from a folder workspace.
+					input.forEach(item => this.tree.expand(item).then(undefined, onUnexpectedError));
+				}
+				if (Array.isArray(previousInput) && previousInput.length < input.length) {
+					// Roots added to the explorer -> expand them.
+					input.slice(previousInput.length).forEach(item => this.tree.expand(item).then(undefined, onUnexpectedError));
+				}
+			}
 			if (initialInputSetup) {
 				perf.mark('didResolveExplorer');
 			}
@@ -463,7 +503,7 @@ export class ExplorerView extends ViewletPanel {
 	}
 
 	private onSelectItem(fileStat: ExplorerItem, reveal = this.autoReveal): Promise<void> {
-		if (!fileStat || !this.isBodyVisible()) {
+		if (!fileStat || !this.isBodyVisible() || this.tree.getInput() === fileStat) {
 			return Promise.resolve(undefined);
 		}
 
@@ -482,6 +522,17 @@ export class ExplorerView extends ViewletPanel {
 
 			this.tree.setFocus([fileStat]);
 		});
+	}
+
+	private onCopyItems(stats: ExplorerItem[], cut: boolean, previousCut: ExplorerItem[]): void {
+		this.fileCopiedContextKey.set(stats.length > 0);
+		this.resourceCutContextKey.set(cut && stats.length > 0);
+		if (previousCut) {
+			previousCut.forEach(item => this.tree.refresh(item));
+		}
+		if (cut) {
+			stats.forEach(s => this.tree.refresh(s));
+		}
 	}
 
 	collapseAll(): void {

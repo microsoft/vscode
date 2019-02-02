@@ -47,7 +47,7 @@ export interface IConfigurationRegistry {
 	 * Signal that the schema of a configuration setting has changes. It is currently only supported to change enumeration values.
 	 * Property or default value changes are not allowed.
 	 */
-	notifyConfigurationSchemaUpdated(configuration: IConfigurationNode): void;
+	notifyConfigurationSchemaUpdated(...configurations: IConfigurationNode[]): void;
 
 	/**
 	 * Event that fires whenver a configuration has been
@@ -251,8 +251,8 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		this._onDidUpdateConfiguration.fire(properties);
 	}
 
-	public notifyConfigurationSchemaUpdated(configuration: IConfigurationNode) {
-		contributionRegistry.notifySchemaChanged(editorConfigurationSchemaId);
+	public notifyConfigurationSchemaUpdated(...configurations: IConfigurationNode[]) {
+		this._onDidSchemaChange.fire();
 	}
 
 	public registerOverrideIdentifiers(overrideIdentifiers: string[]): void {

@@ -234,7 +234,7 @@ export interface ITerminalService {
 	setActiveInstance(terminalInstance: ITerminalInstance): void;
 	setActiveInstanceByIndex(terminalIndex: number): void;
 	getActiveOrCreateInstance(wasNewTerminalAction?: boolean): ITerminalInstance;
-	splitInstance(instance: ITerminalInstance, shell?: IShellLaunchConfig): void;
+	splitInstance(instance: ITerminalInstance, shell?: IShellLaunchConfig): ITerminalInstance | null;
 
 	getActiveTab(): ITerminalTab | null;
 	setActiveTabToNext(): void;
@@ -416,11 +416,6 @@ export interface ITerminalInstance {
 	 * them.
 	 */
 	readonly commandTracker: ITerminalCommandTracker;
-
-	/**
-	 * The cwd that the terminal instance was initialized with.
-	 */
-	readonly initialCwd: string;
 
 	/**
 	 * Dispose the terminal instance, removing it from the panel/service and freeing up resources.
@@ -614,6 +609,7 @@ export interface ITerminalInstance {
 
 	toggleEscapeSequenceLogging(): void;
 
+	getInitialCwd(): Promise<string>;
 	getCwd(): Promise<string>;
 }
 
@@ -630,7 +626,6 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly processState: ProcessState;
 	readonly ptyProcessReady: Promise<void>;
 	readonly shellProcessId: number;
-	readonly initialCwd: string;
 
 	readonly onProcessReady: Event<void>;
 	readonly onProcessData: Event<string>;
@@ -642,6 +637,9 @@ export interface ITerminalProcessManager extends IDisposable {
 	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number);
 	write(data: string): void;
 	setDimensions(cols: number, rows: number): void;
+
+	getInitialCwd(): Promise<string>;
+	getCwd(): Promise<string>;
 }
 
 export const enum ProcessState {
@@ -671,10 +669,14 @@ export interface ITerminalProcessExtHostProxy extends IDisposable {
 	emitTitle(title: string): void;
 	emitPid(pid: number): void;
 	emitExit(exitCode: number): void;
+	emitInitialCwd(initialCwd: string): void;
+	emitCwd(cwd: string): void;
 
 	onInput: Event<string>;
 	onResize: Event<{ cols: number, rows: number }>;
 	onShutdown: Event<boolean>;
+	onRequestInitialCwd: Event<void>;
+	onRequestCwd: Event<void>;
 }
 
 export interface ITerminalProcessExtHostRequest {

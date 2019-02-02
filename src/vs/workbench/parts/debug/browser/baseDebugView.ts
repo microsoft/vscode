@@ -14,6 +14,8 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
+import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 
 export const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
 export const twistiePixels = 20;
@@ -33,6 +35,7 @@ export interface IVariableTemplateData {
 	expression: HTMLElement;
 	name: HTMLElement;
 	value: HTMLElement;
+	label: HighlightedLabel;
 }
 
 export function renderViewTree(container: HTMLElement): HTMLElement {
@@ -88,11 +91,16 @@ export function renderExpressionValue(expressionOrValue: IExpression | string, c
 	}
 }
 
-export function renderVariable(variable: Variable, data: IVariableTemplateData, showChanged: boolean): void {
+export function renderVariable(variable: Variable, data: IVariableTemplateData, showChanged: boolean, highlights: IHighlight[]): void {
 	if (variable.available) {
-		data.name.textContent = replaceWhitespace(variable.name);
-		data.name.title = variable.type ? variable.type : variable.name;
+		let text = replaceWhitespace(variable.name);
+		if (variable.value && typeof variable.name === 'string') {
+			text += ':';
+		}
+		data.label.set(text, highlights, variable.type ? variable.type : variable.name);
 		dom.toggleClass(data.name, 'virtual', !!variable.presentationHint && variable.presentationHint.kind === 'virtual');
+	} else if (variable.value && typeof variable.name === 'string') {
+		data.label.set(':');
 	}
 
 	renderExpressionValue(variable, data.value, {
@@ -102,9 +110,6 @@ export function renderVariable(variable: Variable, data: IVariableTemplateData, 
 		showHover: true,
 		colorize: true
 	});
-	if (variable.value && typeof variable.name === 'string') {
-		data.name.textContent += ':';
-	}
 }
 
 export interface IInputBoxOptions {
@@ -122,9 +127,10 @@ export interface IExpressionTemplateData {
 	inputBoxContainer: HTMLElement;
 	enableInputBox(expression: IExpression, options: IInputBoxOptions);
 	toDispose: IDisposable[];
+	label: HighlightedLabel;
 }
 
-export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpression, void, IExpressionTemplateData> {
+export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpression, FuzzyScore, IExpressionTemplateData> {
 
 	constructor(
 		@IDebugService protected debugService: IDebugService,
@@ -139,6 +145,8 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 		data.expression = dom.append(container, $('.expression'));
 		data.name = dom.append(data.expression, $('span.name'));
 		data.value = dom.append(data.expression, $('span.value'));
+		data.label = new HighlightedLabel(data.name, false);
+
 		data.inputBoxContainer = dom.append(data.expression, $('.inputBoxContainer'));
 
 		data.enableInputBox = (expression: IExpression, options: IInputBoxOptions) => {
@@ -196,16 +204,16 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 		return data;
 	}
 
-	renderElement(node: ITreeNode<IExpression>, index: number, data: IExpressionTemplateData): void {
+	renderElement(node: ITreeNode<IExpression, FuzzyScore>, index: number, data: IExpressionTemplateData): void {
 		const { element } = node;
 		if (element === this.debugService.getViewModel().getSelectedExpression()) {
 			data.enableInputBox(element, this.getInputBoxOptions(element));
 		} else {
-			this.renderExpression(element, data);
+			this.renderExpression(element, data, createMatches(node.filterData));
 		}
 	}
 
-	protected abstract renderExpression(expression: IExpression, data: IExpressionTemplateData): void;
+	protected abstract renderExpression(expression: IExpression, data: IExpressionTemplateData, highlights: IHighlight[]): void;
 	protected abstract getInputBoxOptions(expression: IExpression): IInputBoxOptions;
 
 	disposeTemplate(templateData: IExpressionTemplateData): void {

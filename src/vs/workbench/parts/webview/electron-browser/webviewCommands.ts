@@ -43,6 +43,61 @@ export class SelectAllWebviewEditorCommand extends Command {
 	}
 }
 
+export class CopyWebviewEditorCommand extends Command {
+	public static readonly ID = 'editor.action.webvieweditor.copy';
+
+	public runCommand(accessor: ServicesAccessor, args: any): void {
+		const webViewEditor = getActiveWebviewEditor(accessor);
+		if (webViewEditor) {
+			webViewEditor.copy();
+		}
+	}
+}
+
+export class PasteWebviewEditorCommand extends Command {
+	public static readonly ID = 'editor.action.webvieweditor.paste';
+
+	public runCommand(accessor: ServicesAccessor, args: any): void {
+		const webViewEditor = getActiveWebviewEditor(accessor);
+		if (webViewEditor) {
+			webViewEditor.paste();
+		}
+	}
+}
+
+export class CutWebviewEditorCommand extends Command {
+	public static readonly ID = 'editor.action.webvieweditor.cut';
+
+	public runCommand(accessor: ServicesAccessor, args: any): void {
+		const webViewEditor = getActiveWebviewEditor(accessor);
+		if (webViewEditor) {
+			webViewEditor.cut();
+		}
+	}
+}
+
+export class UndoWebviewEditorCommand extends Command {
+	public static readonly ID = 'editor.action.webvieweditor.undo';
+
+	public runCommand(accessor: ServicesAccessor, args: any): void {
+		const webViewEditor = getActiveWebviewEditor(accessor);
+		if (webViewEditor) {
+			webViewEditor.undo();
+		}
+	}
+}
+
+export class RedoWebviewEditorCommand extends Command {
+	public static readonly ID = 'editor.action.webvieweditor.redo';
+
+	public runCommand(accessor: ServicesAccessor, args: any): void {
+		const webViewEditor = getActiveWebviewEditor(accessor);
+		if (webViewEditor) {
+			webViewEditor.redo();
+		}
+	}
+}
+
 export class OpenWebviewDeveloperToolsAction extends Action {
 	static readonly ID = 'workbench.action.webview.openDeveloperTools';
 	static readonly LABEL = nls.localize('openToolsLabel', "Open Webview Developer Tools");

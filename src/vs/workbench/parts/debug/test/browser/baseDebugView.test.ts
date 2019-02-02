@@ -8,6 +8,7 @@ import { replaceWhitespace, renderExpressionValue, renderVariable } from 'vs/wor
 import * as dom from 'vs/base/browser/dom';
 import { Expression, Variable, Scope, StackFrame, Thread } from 'vs/workbench/parts/debug/common/debugModel';
 import { MockSession } from 'vs/workbench/parts/debug/test/common/mockDebug';
+import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 const $ = dom.$;
 
 suite('Debug - Base Debug View', () => {
@@ -61,9 +62,10 @@ suite('Debug - Base Debug View', () => {
 		let expression = $('.');
 		let name = $('.');
 		let value = $('.');
-		renderVariable(variable, { expression, name, value }, false);
+		let label = new HighlightedLabel(name, false);
+		renderVariable(variable, { expression, name, value, label }, false, []);
 
-		assert.equal(name.textContent, 'foo');
+		assert.equal(label.element.textContent, 'foo');
 		assert.equal(value.textContent, '');
 		assert.equal(value.title, '');
 
@@ -71,19 +73,19 @@ suite('Debug - Base Debug View', () => {
 		expression = $('.');
 		name = $('.');
 		value = $('.');
-		renderVariable(variable, { expression, name, value }, false);
+		renderVariable(variable, { expression, name, value, label }, false, []);
 		assert.equal(value.textContent, 'hey');
-		assert.equal(name.textContent, 'foo:');
-		assert.equal(name.title, 'string');
+		assert.equal(label.element.textContent, 'foo:');
+		assert.equal(label.element.title, 'string');
 
 		variable = new Variable(session, scope, 2, 'console', 'console', '5', 0, 0, { kind: 'virtual' });
 		expression = $('.');
 		name = $('.');
 		value = $('.');
-		renderVariable(variable, { expression, name, value }, false);
+		renderVariable(variable, { expression, name, value, label }, false, []);
 		assert.equal(name.className, 'virtual');
-		assert.equal(name.textContent, 'console:');
-		assert.equal(name.title, 'console');
+		assert.equal(label.element.textContent, 'console:');
+		assert.equal(label.element.title, 'console');
 		assert.equal(value.className, 'value number');
 	});
 });

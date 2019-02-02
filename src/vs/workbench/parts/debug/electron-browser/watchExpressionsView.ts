@@ -30,6 +30,8 @@ import { IAsyncDataSource, ITreeMouseEvent, ITreeContextMenuEvent, ITreeDragAndD
 import { IDragAndDropData } from 'vs/base/browser/dnd';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
+import { FuzzyScore } from 'vs/base/common/filters';
+import { IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 
 const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
 
@@ -37,7 +39,7 @@ export class WatchExpressionsView extends ViewletPanel {
 
 	private onWatchExpressionsUpdatedScheduler: RunOnceScheduler;
 	private needsRefresh: boolean;
-	private tree: WorkbenchAsyncDataTree<IDebugService, IExpression>;
+	private tree: WorkbenchAsyncDataTree<IDebugService, IExpression, FuzzyScore>;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -113,8 +115,12 @@ export class WatchExpressionsView extends ViewletPanel {
 		}));
 	}
 
-	layoutBody(size: number): void {
-		this.tree.layout(size);
+	layoutBody(height: number, width: number): void {
+		this.tree.layout(height, width);
+	}
+
+	focus(): void {
+		this.tree.domFocus();
 	}
 
 	private onMouseDblClick(e: ITreeMouseEvent<IExpression>): void {
@@ -219,8 +225,9 @@ export class WatchExpressionsRenderer extends AbstractExpressionsRenderer {
 		return WatchExpressionsRenderer.ID;
 	}
 
-	protected renderExpression(expression: IExpression, data: IExpressionTemplateData): void {
-		data.name.textContent = expression.name;
+	protected renderExpression(expression: IExpression, data: IExpressionTemplateData, highlights: IHighlight[]): void {
+		const text = typeof expression.value === 'string' ? `${expression.name}:` : expression.name;
+		data.label.set(text, highlights, expression.type ? expression.type : expression.value);
 		renderExpressionValue(expression, data.value, {
 			showChanged: true,
 			maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
@@ -228,11 +235,6 @@ export class WatchExpressionsRenderer extends AbstractExpressionsRenderer {
 			showHover: true,
 			colorize: true
 		});
-		data.name.title = expression.type ? expression.type : expression.value;
-
-		if (typeof expression.value === 'string') {
-			data.name.textContent += ':';
-		}
 	}
 
 	protected getInputBoxOptions(expression: IExpression): IInputBoxOptions {

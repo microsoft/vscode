@@ -55,26 +55,44 @@ export abstract class BaseWebviewEditor extends BaseEditor {
 	}
 
 	public reload() {
-		if (this._webview) {
-			this._webview.reload();
-		}
+		this.withWebviewElement(webview => webview.reload());
 	}
 
 	public layout(dimension: Dimension): void {
-		if (this._webview) {
-			this._webview.layout();
-		}
+		this.withWebviewElement(webview => webview.layout());
 	}
 
 	public focus(): void {
-		if (this._webview) {
-			this._webview.focus();
-		}
+		this.withWebviewElement(webview => webview.focus());
 	}
 
 	public selectAll(): void {
+		this.withWebviewElement(webview => webview.selectAll());
+	}
+
+	public copy(): void {
+		this.withWebviewElement(webview => webview.copy());
+	}
+
+	public paste(): void {
+		this.withWebviewElement(webview => webview.paste());
+	}
+
+	public cut(): void {
+		this.withWebviewElement(webview => webview.cut());
+	}
+
+	public undo(): void {
+		this.withWebviewElement(webview => webview.undo());
+	}
+
+	public redo(): void {
+		this.withWebviewElement(webview => webview.redo());
+	}
+
+	private withWebviewElement(f: (element: WebviewElement) => void): void {
 		if (this._webview) {
-			this._webview.selectAll();
+			f(this._webview);
 		}
 	}
 }

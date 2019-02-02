@@ -182,6 +182,18 @@ export interface IExtensionService extends ICpuProfilerTarget {
 	getExtension(id: string): Promise<IExtensionDescription | undefined>;
 
 	/**
+	 * Returns `true` if the given extension can be added. Otherwise `false`.
+	 * @param extension An extension
+	 */
+	canAddExtension(extension: IExtensionDescription): boolean;
+
+	/**
+	 * Returns `true` if the given extension can be removed. Otherwise `false`.
+	 * @param extension An extension
+	 */
+	canRemoveExtension(extension: IExtensionDescription): boolean;
+
+	/**
 	 * Read all contributions to an extension point.
 	 */
 	readExtensionPointContributions<T>(extPoint: IExtensionPoint<T>): Promise<ExtensionPointContribution<T>[]>;

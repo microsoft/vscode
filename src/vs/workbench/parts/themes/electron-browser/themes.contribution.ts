@@ -21,7 +21,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { Color } from 'vs/base/common/color';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { LIGHT, DARK, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
-import { schemaId } from 'vs/workbench/services/themes/common/colorThemeSchema';
+import { colorThemeSchemaId } from 'vs/workbench/services/themes/common/colorThemeSchema';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 
@@ -60,7 +60,7 @@ export class SelectColorThemeAction extends Action {
 					}
 					theme = currentTheme;
 				}
-				let target: ConfigurationTarget | null = null;
+				let target: ConfigurationTarget | undefined = undefined;
 				if (applyTheme) {
 					let confValue = this.configurationService.inspect(COLOR_THEME_SETTING);
 					target = typeof confValue.workspace !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
@@ -69,7 +69,7 @@ export class SelectColorThemeAction extends Action {
 				this.themeService.setColorTheme(theme.id, target).then(undefined,
 					err => {
 						onUnexpectedError(err);
-						this.themeService.setColorTheme(currentTheme.id, null);
+						this.themeService.setColorTheme(currentTheme.id, undefined);
 					}
 				);
 			};
@@ -216,7 +216,7 @@ class GenerateColorThemeAction extends Action {
 			}
 		}
 		let contents = JSON.stringify({
-			'$schema': schemaId,
+			'$schema': colorThemeSchemaId,
 			type: theme.type,
 			colors: resultingColors,
 			tokenColors: theme.tokenColors.filter(t => !!t.scope)

@@ -240,9 +240,8 @@ export class OutlineRenderer implements IRenderer {
 	};
 
 	disposeTemplate(tree: ITree, templateId: string, template: OutlineTemplate): void {
-		template.label.dispose();
+		// noop
 	}
-
 }
 
 export class OutlineTreeState {

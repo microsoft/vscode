@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 /* Activity Bar */
-.monaco-workbench > .activitybar .monaco-action-bar .action-label.explore {
+.monaco-workbench .activitybar .monaco-action-bar .action-label.explore {
 	-webkit-mask: url('files-dark.svg') no-repeat 50% 50%;
 }
 
@@ -45,6 +45,10 @@
 .explorer-viewlet .explorer-item,
 .explorer-viewlet .explorer-item .monaco-inputbox {
 	flex: 1;
+}
+
+.explorer-viewlet .explorer-item.cut {
+	opacity: 0.5;
 }
 
 .explorer-viewlet .explorer-item.explorer-item-edited .label-name {
@@ -121,12 +125,7 @@
 	height: 22px;
 }
 
-.explorer-viewlet .explorer-item .monaco-inputbox > .wrapper > .input {
-	padding: 1px 2px;
-}
-
-.linux > .monaco-workbench .explorer-viewlet .explorer-item .monaco-inputbox > .wrapper > .input,
-.mac > .monaco-workbench .explorer-viewlet .explorer-item .monaco-inputbox > .wrapper > .input {
+.monaco-workbench .explorer-viewlet .explorer-item .monaco-inputbox > .wrapper > .input {
 	padding: 0;
 	height: 20px;
 }

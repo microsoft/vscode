@@ -133,15 +133,20 @@ export interface ICommandsMap {
 export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 
 	private readonly _commands: { [id: string]: ICommandAction } = Object.create(null);
-	private readonly _menuItems: { [loc: string]: Array<IMenuItem | ISubmenuItem> } = Object.create(null);
+	private readonly _menuItems: { [loc: number]: Array<IMenuItem | ISubmenuItem> } = Object.create(null);
 	private readonly _onDidChangeMenu = new Emitter<MenuId>();
 
 	readonly onDidChangeMenu: Event<MenuId> = this._onDidChangeMenu.event;
 
 	addCommand(command: ICommandAction): IDisposable {
 		this._commands[command.id] = command;
+		this._onDidChangeMenu.fire(MenuId.CommandPalette);
 		return {
-			dispose: () => delete this._commands[command.id]
+			dispose: () => {
+				if (delete this._commands[command.id]) {
+					this._onDidChangeMenu.fire(MenuId.CommandPalette);
+				}
+			}
 		};
 	}
 
@@ -177,7 +182,7 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 	}
 
 	getMenuItems(id: MenuId): Array<IMenuItem | ISubmenuItem> {
-		const result = this._menuItems[id] || [];
+		const result = (this._menuItems[id] || []).slice(0);
 
 		if (id === MenuId.CommandPalette) {
 			// CommandPalette is special because it shows

@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import * as perf from 'vs/base/common/performance';
-import { WorkbenchShell } from 'vs/workbench/electron-browser/shell';
+import { Shell } from 'vs/workbench/electron-browser/shell';
 import * as browser from 'vs/base/browser/browser';
 import { domContentLoaded } from 'vs/base/browser/dom';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -127,7 +127,7 @@ function openWorkbench(configuration: IWindowConfiguration): Promise<void> {
 				perf.mark('willStartWorkbench');
 
 				// Create Shell
-				const shell = new WorkbenchShell(document.body, {
+				const shell = new Shell(document.body, {
 					contextService: workspaceService,
 					configurationService: workspaceService,
 					environmentService,

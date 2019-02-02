@@ -28,6 +28,8 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { WorkbenchAsyncDataTree, IListService } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { FuzzyScore, createMatches } from 'vs/base/common/filters';
+import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 
 const $ = dom.$;
 
@@ -37,7 +39,7 @@ export class VariablesView extends ViewletPanel {
 
 	private onFocusStackFrameScheduler: RunOnceScheduler;
 	private needsRefresh: boolean;
-	private tree: WorkbenchAsyncDataTree<IViewModel, IExpression | IScope>;
+	private tree: WorkbenchAsyncDataTree<IViewModel, IExpression | IScope, FuzzyScore>;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -117,8 +119,12 @@ export class VariablesView extends ViewletPanel {
 		}));
 	}
 
-	layoutBody(size: number): void {
-		this.tree.layout(size);
+	layoutBody(width: number, height: number): void {
+		this.tree.layout(width, height);
+	}
+
+	focus(): void {
+		this.tree.domFocus();
 	}
 
 	private onMouseDblClick(e: ITreeMouseEvent<IExpression | IScope>): void {
@@ -174,6 +180,7 @@ export class VariablesDataSource implements IAsyncDataSource<IViewModel, IExpres
 
 interface IScopeTemplateData {
 	name: HTMLElement;
+	label: HighlightedLabel;
 }
 
 class VariablesDelegate implements IListVirtualDelegate<IExpression | IScope> {
@@ -194,7 +201,7 @@ class VariablesDelegate implements IListVirtualDelegate<IExpression | IScope> {
 	}
 }
 
-class ScopesRenderer implements ITreeRenderer<IScope, void, IScopeTemplateData> {
+class ScopesRenderer implements ITreeRenderer<IScope, FuzzyScore, IScopeTemplateData> {
 
 	static readonly ID = 'scope';
 
@@ -205,12 +212,13 @@ class ScopesRenderer implements ITreeRenderer<IScope, void, IScopeTemplateData> 
 	renderTemplate(container: HTMLElement): IScopeTemplateData {
 		let data: IScopeTemplateData = Object.create(null);
 		data.name = dom.append(container, $('.scope'));
+		data.label = new HighlightedLabel(data.name, false);
 
 		return data;
 	}
 
-	renderElement(element: ITreeNode<IScope, void>, index: number, templateData: IScopeTemplateData): void {
-		templateData.name.textContent = element.element.name;
+	renderElement(element: ITreeNode<IScope, FuzzyScore>, index: number, templateData: IScopeTemplateData): void {
+		templateData.label.set(element.element.name, createMatches(element.filterData));
 	}
 
 	disposeTemplate(templateData: IScopeTemplateData): void {
@@ -226,8 +234,8 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 		return VariablesRenderer.ID;
 	}
 
-	protected renderExpression(expression: IExpression, data: IExpressionTemplateData): void {
-		renderVariable(expression as Variable, data, true);
+	protected renderExpression(expression: IExpression, data: IExpressionTemplateData, highlights: IHighlight[]): void {
+		renderVariable(expression as Variable, data, true, highlights);
 	}
 
 	protected getInputBoxOptions(expression: IExpression): IInputBoxOptions {

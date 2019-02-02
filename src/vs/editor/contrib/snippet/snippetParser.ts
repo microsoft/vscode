@@ -930,7 +930,7 @@ export class SnippetParser {
 
 			let escaped: string;
 			if (escaped = this._accept(TokenType.Backslash, true)) {
-				escaped = this._accept(TokenType.Forwardslash, true) || escaped;
+				escaped = this._accept(TokenType.Backslash, true) || this._accept(TokenType.Forwardslash, true) || escaped;
 				transform.appendChild(new Text(escaped));
 				continue;
 			}

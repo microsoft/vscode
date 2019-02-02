@@ -15,7 +15,7 @@ import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 export class FileIconThemeData implements IFileIconTheme {
 	id: string;
 	label: string;
-	settingsId?: string;
+	settingsId: string | null;
 	description?: string;
 	hasFileIcons: boolean;
 	hasFolderIcons: boolean;
@@ -73,7 +73,7 @@ export class FileIconThemeData implements IFileIconTheme {
 			themeData = FileIconThemeData._noIconTheme = new FileIconThemeData();
 			themeData.id = '';
 			themeData.label = '';
-			themeData.settingsId = undefined;
+			themeData.settingsId = null;
 			themeData.hasFileIcons = false;
 			themeData.hasFolderIcons = false;
 			themeData.hidesExplorerArrows = false;
@@ -86,9 +86,9 @@ export class FileIconThemeData implements IFileIconTheme {
 
 	static createUnloadedTheme(id: string): FileIconThemeData {
 		let themeData = new FileIconThemeData();
-		themeData.id = '';
+		themeData.id = id;
 		themeData.label = '';
-		themeData.settingsId = undefined;
+		themeData.settingsId = '__' + id;
 		themeData.isLoaded = false;
 		themeData.hasFileIcons = false;
 		themeData.hasFolderIcons = false;

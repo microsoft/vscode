@@ -143,6 +143,9 @@ class ProviderRenderer implements IListRenderer<ISCMRepository, RepositoryTempla
 
 	readonly templateId = 'provider';
 
+	private _onDidRenderElement = new Emitter<ISCMRepository>();
+	readonly onDidRenderElement = this._onDidRenderElement.event;
+
 	constructor(
 		@ICommandService protected commandService: ICommandService,
 		@IThemeService protected themeService: IThemeService
@@ -197,6 +200,8 @@ class ProviderRenderer implements IListRenderer<ISCMRepository, RepositoryTempla
 			const count = repository.provider.count || 0;
 			toggleClass(templateData.countContainer, 'hidden', count === 0);
 			templateData.count.setCount(repository.provider.count);
+
+			this._onDidRenderElement.fire(repository);
 		};
 
 		repository.provider.onDidChange(update, null, disposables);
@@ -262,6 +267,7 @@ class MainPanel extends ViewletPanel {
 
 		this.list = this.instantiationService.createInstance(WorkbenchList, container, delegate, [renderer], { identityProvider }) as WorkbenchList<ISCMRepository>;
 
+		renderer.onDidRenderElement(e => this.list.updateWidth(this.viewModel.repositories.indexOf(e)), null, this.disposables);
 		this.list.onSelectionChange(this.onListSelectionChange, this, this.disposables);
 		this.list.onContextMenu(this.onListContextMenu, this, this.disposables);
 
@@ -293,8 +299,8 @@ class MainPanel extends ViewletPanel {
 		}
 	}
 
-	protected layoutBody(size: number): void {
-		this.list.layout(size);
+	protected layoutBody(height: number, width: number): void {
+		this.list.layout(height, width);
 	}
 
 	private updateBodySize(): void {
@@ -724,6 +730,7 @@ function convertValidationType(type: InputValidationType): MessageType {
 export class RepositoryPanel extends ViewletPanel {
 
 	private cachedHeight: number | undefined = undefined;
+	private cachedWidth: number | undefined = undefined;
 	private inputBoxContainer: HTMLElement;
 	private inputBox: InputBox;
 	private listContainer: HTMLElement;
@@ -910,7 +917,7 @@ export class RepositoryPanel extends ViewletPanel {
 		}
 	}
 
-	layoutBody(height: number = this.cachedHeight): void {
+	layoutBody(height: number = this.cachedHeight, width: number = this.cachedWidth): void {
 		if (height === undefined) {
 			return;
 		}
@@ -924,7 +931,7 @@ export class RepositoryPanel extends ViewletPanel {
 			const editorHeight = this.inputBox.height;
 			const listHeight = height - (editorHeight + 12 /* margin */);
 			this.listContainer.style.height = `${listHeight}px`;
-			this.list.layout(listHeight);
+			this.list.layout(listHeight, width);
 
 			toggleClass(this.inputBoxContainer, 'scroll', editorHeight >= 134);
 		} else {
@@ -932,7 +939,7 @@ export class RepositoryPanel extends ViewletPanel {
 			removeClass(this.inputBoxContainer, 'scroll');
 
 			this.listContainer.style.height = `${height}px`;
-			this.list.layout(height);
+			this.list.layout(height, width);
 		}
 	}
 

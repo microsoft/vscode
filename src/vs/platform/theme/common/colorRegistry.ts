@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as platform from 'vs/platform/registry/common/platform';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { Color, RGBA } from 'vs/base/common/color';
 import { ITheme } from 'vs/platform/theme/common/themeService';
+import { Event, Emitter } from 'vs/base/common/event';
 
 import * as nls from 'vs/nls';
+import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 //  ------ API types
 
@@ -45,13 +48,20 @@ export const Extensions = {
 
 export interface IColorRegistry {
 
+	readonly onDidChangeSchema: Event<void>;
+
 	/**
 	 * Register a color to the registry.
-	 * @param id The color id as used in theme descrition files
+	 * @param id The color id as used in theme description files
 	 * @param defaults The default values
 	 * @description the description
 	 */
 	registerColor(id: string, defaults: ColorDefaults, description: string): ColorIdentifier;
+
+	/**
+	 * Register a color to the registry.
+	 */
+	deregisterColor(id: string);
 
 	/**
 	 * Get all color contributions
@@ -64,12 +74,12 @@ export interface IColorRegistry {
 	resolveDefaultColor(id: ColorIdentifier, theme: ITheme): Color | null;
 
 	/**
-	 * JSON schema for an object to assign color values to one of the color contrbutions.
+	 * JSON schema for an object to assign color values to one of the color contributions.
 	 */
 	getColorSchema(): IJSONSchema;
 
 	/**
-	 * JSON schema to for a reference to a color contrbution.
+	 * JSON schema to for a reference to a color contribution.
 	 */
 	getColorReferenceSchema(): IJSONSchema;
 
@@ -78,9 +88,13 @@ export interface IColorRegistry {
 
 
 class ColorRegistry implements IColorRegistry {
+
+	private readonly _onDidChangeSchema = new Emitter<void>();
+	readonly onDidChangeSchema: Event<void> = this._onDidChangeSchema.event;
+
 	private colorsById: { [key: string]: ColorContribution };
-	private colorSchema: IJSONSchema = { type: 'object', description: nls.localize('schema.colors', "Colors used in the workbench."), properties: {}, additionalProperties: false };
-	private colorReferenceSchema: IJSONSchema = { type: 'string', enum: [], enumDescriptions: [] };
+	private colorSchema: IJSONSchema & { properties: IJSONSchemaMap } = { type: 'object', properties: {} };
+	private colorReferenceSchema: IJSONSchema & { enum: string[], enumDescriptions: string[] } = { type: 'string', enum: [], enumDescriptions: [] };
 
 	constructor() {
 		this.colorsById = {};
@@ -93,10 +107,24 @@ class ColorRegistry implements IColorRegistry {
 		if (deprecationMessage) {
 			propertySchema.deprecationMessage = deprecationMessage;
 		}
-		this.colorSchema.properties![id] = propertySchema;
-		this.colorReferenceSchema.enum!.push(id);
-		this.colorReferenceSchema.enumDescriptions!.push(description);
+		this.colorSchema.properties[id] = propertySchema;
+		this.colorReferenceSchema.enum.push(id);
+		this.colorReferenceSchema.enumDescriptions.push(description);
+
+		this._onDidChangeSchema.fire();
 		return id;
+	}
+
+
+	public deregisterColor(id: string): void {
+		delete this.colorsById[id];
+		delete this.colorSchema.properties[id];
+		const index = this.colorReferenceSchema.enum.indexOf(id);
+		if (index !== -1) {
+			this.colorReferenceSchema.enum.splice(index, 1);
+			this.colorReferenceSchema.enumDescriptions.splice(index, 1);
+		}
+		this._onDidChangeSchema.fire();
 	}
 
 	public getColors(): ColorContribution[] {
@@ -207,6 +235,9 @@ export const listHighlightForeground = registerColor('list.highlightForeground',
 export const listInvalidItemForeground = registerColor('list.invalidItemForeground', { dark: '#B89500', light: '#B89500', hc: '#B89500' }, nls.localize('invalidItemForeground', 'List/Tree foreground color for invalid items, for example an unresolved root in explorer.'));
 export const listErrorForeground = registerColor('list.errorForeground', { dark: '#F88070', light: '#B01011', hc: null }, nls.localize('listErrorForeground', 'Foreground color of list items containing errors.'));
 export const listWarningForeground = registerColor('list.warningForeground', { dark: '#4d9e4d', light: '#117711', hc: null }, nls.localize('listWarningForeground', 'Foreground color of list items containing warnings.'));
+export const listFilterWidgetBackground = registerColor('listFilterWidget.background', { light: '#efc1ad', dark: '#653723', hc: Color.black }, nls.localize('listFilterWidgetBackground', 'Background color of the type filter widget in lists and trees.'));
+export const listFilterWidgetOutline = registerColor('listFilterWidget.outline', { dark: Color.transparent, light: Color.transparent, hc: '#f38518' }, nls.localize('listFilterWidgetOutline', 'Outline color of the type filter widget in lists and trees.'));
+export const listFilterWidgetNoMatchesOutline = registerColor('listFilterWidget.noMatchesOutline', { dark: '#BE1100', light: '#BE1100', hc: contrastBorder }, nls.localize('listFilterWidgetNoMatchesOutline', 'Outline color of the type filter widget in lists and trees, when there are no matches.'));
 
 export const pickerGroupForeground = registerColor('pickerGroup.foreground', { dark: '#3794FF', light: '#0066BF', hc: Color.white }, nls.localize('pickerGroupForeground', "Quick picker color for grouping labels."));
 export const pickerGroupBorder = registerColor('pickerGroup.border', { dark: '#3F3F46', light: '#CCCEDB', hc: Color.white }, nls.localize('pickerGroupBorder', "Quick picker color for grouping borders."));
@@ -407,21 +438,6 @@ function lessProminent(colorValue: ColorValue, backgroundColorValue: ColorValue,
 	};
 }
 
-export function blend2(transparentColorValue: ColorValue, opaqueColorValue: ColorValue): ColorFunction {
-	return (theme) => {
-		let transparentColor = resolveColorValue(transparentColorValue, theme);
-		let opaqueColor = resolveColorValue(opaqueColorValue, theme);
-		if (transparentColor && opaqueColor) {
-			return opaqueColor.blend2(transparentColor);
-		} else if (transparentColor) {
-			return transparentColor;
-		} else if (opaqueColor) {
-			return opaqueColor;
-		}
-		return null;
-	};
-}
-
 // ----- implementation
 
 /**
@@ -442,6 +458,18 @@ function resolveColorValue(colorValue: ColorValue | null, theme: ITheme): Color 
 	}
 	return null;
 }
+
+export const workbenchColorsSchemaId = 'vscode://schemas/workbench-colors';
+
+let schemaRegistry = platform.Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
+schemaRegistry.registerSchema(workbenchColorsSchemaId, colorRegistry.getColorSchema());
+
+const delayer = new RunOnceScheduler(() => schemaRegistry.notifySchemaChanged(workbenchColorsSchemaId), 200);
+colorRegistry.onDidChangeSchema(() => {
+	if (!delayer.isScheduled()) {
+		delayer.schedule();
+	}
+});
 
 // setTimeout(_ => console.log(colorRegistry.toString()), 5000);
 

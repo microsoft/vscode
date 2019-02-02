@@ -31,6 +31,8 @@ import { ITreeRenderer, ITreeNode, ITreeContextMenuEvent, IAsyncDataSource } fro
 import { TreeResourceNavigator2, WorkbenchAsyncDataTree, IListService } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
+import { createMatches, FuzzyScore } from 'vs/base/common/filters';
 
 const $ = dom.$;
 
@@ -46,7 +48,7 @@ export class CallStackView extends ViewletPanel {
 	private ignoreFocusStackFrameEvent: boolean;
 	private callStackItemType: IContextKey<string>;
 	private dataSource: CallStackDataSource;
-	private tree: WorkbenchAsyncDataTree<IDebugModel, CallStackItem>;
+	private tree: WorkbenchAsyncDataTree<IDebugModel, CallStackItem, FuzzyScore>;
 	private contributedContextMenu: IMenu;
 
 	constructor(
@@ -149,7 +151,7 @@ export class CallStackView extends ViewletPanel {
 
 		const callstackNavigator = new TreeResourceNavigator2(this.tree);
 		this.disposables.push(callstackNavigator);
-		this.disposables.push(callstackNavigator.openResource(e => {
+		this.disposables.push(callstackNavigator.onDidOpenResource(e => {
 			if (this.ignoreSelectionChangedEvent) {
 				return;
 			}
@@ -223,8 +225,12 @@ export class CallStackView extends ViewletPanel {
 		}));
 	}
 
-	layoutBody(size: number): void {
-		this.tree.layout(size);
+	layoutBody(height: number, width: number): void {
+		this.tree.layout(height, width);
+	}
+
+	focus(): void {
+		this.tree.domFocus();
 	}
 
 	private updateTreeSelection(): void {
@@ -324,6 +330,7 @@ interface IThreadTemplateData {
 	name: HTMLElement;
 	state: HTMLElement;
 	stateLabel: HTMLSpanElement;
+	label: HighlightedLabel;
 }
 
 interface ISessionTemplateData {
@@ -331,6 +338,7 @@ interface ISessionTemplateData {
 	name: HTMLElement;
 	state: HTMLElement;
 	stateLabel: HTMLSpanElement;
+	label: HighlightedLabel;
 }
 
 interface IErrorTemplateData {
@@ -343,13 +351,13 @@ interface ILabelTemplateData {
 
 interface IStackFrameTemplateData {
 	stackFrame: HTMLElement;
-	label: HTMLElement;
 	file: HTMLElement;
 	fileName: HTMLElement;
 	lineNumber: HTMLElement;
+	label: HighlightedLabel;
 }
 
-class SessionsRenderer implements ITreeRenderer<IDebugSession, void, ISessionTemplateData> {
+class SessionsRenderer implements ITreeRenderer<IDebugSession, FuzzyScore, ISessionTemplateData> {
 	static readonly ID = 'session';
 
 	get templateId(): string {
@@ -362,14 +370,15 @@ class SessionsRenderer implements ITreeRenderer<IDebugSession, void, ISessionTem
 		data.name = dom.append(data.session, $('.name'));
 		data.state = dom.append(data.session, $('.state'));
 		data.stateLabel = dom.append(data.state, $('span.label'));
+		data.label = new HighlightedLabel(data.name, false);
 
 		return data;
 	}
 
-	renderElement(element: ITreeNode<IDebugSession, void>, index: number, data: ISessionTemplateData): void {
+	renderElement(element: ITreeNode<IDebugSession, FuzzyScore>, index: number, data: ISessionTemplateData): void {
 		const session = element.element;
 		data.session.title = nls.localize({ key: 'session', comment: ['Session is a noun'] }, "Session");
-		data.name.textContent = session.getLabel();
+		data.label.set(session.getLabel(), createMatches(element.filterData));
 		const stoppedThread = session.getAllThreads().filter(t => t.stopped).pop();
 
 		data.stateLabel.textContent = stoppedThread ? nls.localize('paused', "Paused")
@@ -381,7 +390,7 @@ class SessionsRenderer implements ITreeRenderer<IDebugSession, void, ISessionTem
 	}
 }
 
-class ThreadsRenderer implements ITreeRenderer<IThread, void, IThreadTemplateData> {
+class ThreadsRenderer implements ITreeRenderer<IThread, FuzzyScore, IThreadTemplateData> {
 	static readonly ID = 'thread';
 
 	get templateId(): string {
@@ -398,10 +407,10 @@ class ThreadsRenderer implements ITreeRenderer<IThread, void, IThreadTemplateDat
 		return data;
 	}
 
-	renderElement(element: ITreeNode<IThread, void>, index: number, data: IThreadTemplateData): void {
+	renderElement(element: ITreeNode<IThread, FuzzyScore>, index: number, data: IThreadTemplateData): void {
 		const thread = element.element;
 		data.thread.title = nls.localize('thread', "Thread");
-		data.name.textContent = thread.name;
+		data.label.set(thread.name, createMatches(element.filterData));
 
 		if (thread.stopped) {
 			data.stateLabel.textContent = thread.stoppedDetails.description ||
@@ -416,7 +425,7 @@ class ThreadsRenderer implements ITreeRenderer<IThread, void, IThreadTemplateDat
 	}
 }
 
-class StackFramesRenderer implements ITreeRenderer<IStackFrame, void, IStackFrameTemplateData> {
+class StackFramesRenderer implements ITreeRenderer<IStackFrame, FuzzyScore, IStackFrameTemplateData> {
 	static readonly ID = 'stackFrame';
 
 	constructor(@ILabelService private readonly labelService: ILabelService) { }
@@ -428,16 +437,17 @@ class StackFramesRenderer implements ITreeRenderer<IStackFrame, void, IStackFram
 	renderTemplate(container: HTMLElement): IStackFrameTemplateData {
 		const data: IStackFrameTemplateData = Object.create(null);
 		data.stackFrame = dom.append(container, $('.stack-frame'));
-		data.label = dom.append(data.stackFrame, $('span.label.expression'));
+		const labelDiv = dom.append(data.stackFrame, $('span.label.expression'));
 		data.file = dom.append(data.stackFrame, $('.file'));
 		data.fileName = dom.append(data.file, $('span.file-name'));
 		const wrapper = dom.append(data.file, $('span.line-number-wrapper'));
 		data.lineNumber = dom.append(wrapper, $('span.line-number'));
+		data.label = new HighlightedLabel(labelDiv, false);
 
 		return data;
 	}
 
-	renderElement(element: ITreeNode<IStackFrame, void>, index: number, data: IStackFrameTemplateData): void {
+	renderElement(element: ITreeNode<IStackFrame, FuzzyScore>, index: number, data: IStackFrameTemplateData): void {
 		const stackFrame = element.element;
 		dom.toggleClass(data.stackFrame, 'disabled', !stackFrame.source || !stackFrame.source.available || stackFrame.source.presentationHint === 'deemphasize');
 		dom.toggleClass(data.stackFrame, 'label', stackFrame.presentationHint === 'label');
@@ -447,8 +457,7 @@ class StackFramesRenderer implements ITreeRenderer<IStackFrame, void, IStackFram
 		if (stackFrame.source.raw.origin) {
 			data.file.title += `\n${stackFrame.source.raw.origin}`;
 		}
-		data.label.textContent = stackFrame.name;
-		data.label.title = stackFrame.name;
+		data.label.set(stackFrame.name, createMatches(element.filterData), stackFrame.name);
 		data.fileName.textContent = stackFrame.getSpecificSourceName();
 		if (stackFrame.range.startLineNumber !== undefined) {
 			data.lineNumber.textContent = `${stackFrame.range.startLineNumber}`;
@@ -466,7 +475,7 @@ class StackFramesRenderer implements ITreeRenderer<IStackFrame, void, IStackFram
 	}
 }
 
-class ErrorsRenderer implements ITreeRenderer<string, void, IErrorTemplateData> {
+class ErrorsRenderer implements ITreeRenderer<string, FuzzyScore, IErrorTemplateData> {
 	static readonly ID = 'error';
 
 	get templateId(): string {
@@ -480,7 +489,7 @@ class ErrorsRenderer implements ITreeRenderer<string, void, IErrorTemplateData> 
 		return data;
 	}
 
-	renderElement(element: ITreeNode<string, void>, index: number, data: IErrorTemplateData): void {
+	renderElement(element: ITreeNode<string, FuzzyScore>, index: number, data: IErrorTemplateData): void {
 		const error = element.element;
 		data.label.textContent = error;
 		data.label.title = error;
@@ -491,7 +500,7 @@ class ErrorsRenderer implements ITreeRenderer<string, void, IErrorTemplateData> 
 	}
 }
 
-class LoadMoreRenderer implements ITreeRenderer<ThreadAndSessionIds, void, ILabelTemplateData> {
+class LoadMoreRenderer implements ITreeRenderer<ThreadAndSessionIds, FuzzyScore, ILabelTemplateData> {
 	static readonly ID = 'loadMore';
 	static readonly LABEL = nls.localize('loadMoreStackFrames', "Load More Stack Frames");
 
@@ -506,7 +515,7 @@ class LoadMoreRenderer implements ITreeRenderer<ThreadAndSessionIds, void, ILabe
 		return data;
 	}
 
-	renderElement(element: ITreeNode<ThreadAndSessionIds, void>, index: number, data: ILabelTemplateData): void {
+	renderElement(element: ITreeNode<ThreadAndSessionIds, FuzzyScore>, index: number, data: ILabelTemplateData): void {
 		data.label.textContent = LoadMoreRenderer.LABEL;
 	}
 
@@ -515,7 +524,7 @@ class LoadMoreRenderer implements ITreeRenderer<ThreadAndSessionIds, void, ILabe
 	}
 }
 
-class ShowMoreRenderer implements ITreeRenderer<IStackFrame[], void, ILabelTemplateData> {
+class ShowMoreRenderer implements ITreeRenderer<IStackFrame[], FuzzyScore, ILabelTemplateData> {
 	static readonly ID = 'showMore';
 
 	get templateId(): string {
@@ -529,7 +538,7 @@ class ShowMoreRenderer implements ITreeRenderer<IStackFrame[], void, ILabelTempl
 		return data;
 	}
 
-	renderElement(element: ITreeNode<IStackFrame[], void>, index: number, data: ILabelTemplateData): void {
+	renderElement(element: ITreeNode<IStackFrame[], FuzzyScore>, index: number, data: ILabelTemplateData): void {
 		const stackFrames = element.element;
 		if (stackFrames.every(sf => sf.source && sf.source.origin && sf.source.origin === stackFrames[0].source.origin)) {
 			data.label.textContent = nls.localize('showMoreAndOrigin', "Show {0} More: {1}", stackFrames.length, stackFrames[0].source.origin);

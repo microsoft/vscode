@@ -6,9 +6,9 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { IProcessEnvironment, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
 import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { ExportData } from 'vs/base/common/performance';
@@ -114,9 +114,7 @@ export interface IWindowsService {
 	openDevTools(windowId: number, options?: IDevToolsOptions): Promise<void>;
 	toggleDevTools(windowId: number): Promise<void>;
 	closeWorkspace(windowId: number): Promise<void>;
-	enterWorkspace(windowId: number, path: string): Promise<IEnterWorkspaceResult | undefined>;
-	createAndEnterWorkspace(windowId: number, folders?: IWorkspaceFolderCreationData[], path?: string): Promise<IEnterWorkspaceResult | undefined>;
-	saveAndEnterWorkspace(windowId: number, path: string): Promise<IEnterWorkspaceResult | undefined>;
+	enterWorkspace(windowId: number, path: URI): Promise<IEnterWorkspaceResult | undefined>;
 	toggleFullScreen(windowId: number): Promise<void>;
 	setRepresentedFilename(windowId: number, fileName: string): Promise<void>;
 	addRecentlyOpened(files: URI[]): Promise<void>;
@@ -151,7 +149,7 @@ export interface IWindowsService {
 	toggleSharedProcess(): Promise<void>;
 
 	// Global methods
-	openWindow(windowId: number, paths: URI[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean, args?: ParsedArgs }): Promise<void>;
+	openWindow(windowId: number, paths: URI[], options?: IOpenSettings): Promise<void>;
 	openNewWindow(options?: INewWindowOptions): Promise<void>;
 	showWindow(windowId: number): Promise<void>;
 	getWindows(): Promise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]>;
@@ -178,6 +176,15 @@ export interface IMessageBoxResult {
 	checkboxChecked?: boolean;
 }
 
+export interface IOpenSettings {
+	forceNewWindow?: boolean;
+	forceReuseWindow?: boolean;
+	forceOpenWorkspaceAsFile?: boolean;
+	diffMode?: boolean;
+	addMode?: boolean;
+	args?: ParsedArgs;
+}
+
 export interface IWindowService {
 
 	_serviceBrand: any;
@@ -198,15 +205,13 @@ export interface IWindowService {
 	toggleDevTools(): Promise<void>;
 	closeWorkspace(): Promise<void>;
 	updateTouchBar(items: ISerializableCommandAction[][]): Promise<void>;
-	enterWorkspace(path: string): Promise<IEnterWorkspaceResult | undefined>;
-	createAndEnterWorkspace(folders?: IWorkspaceFolderCreationData[], path?: string): Promise<IEnterWorkspaceResult | undefined>;
-	saveAndEnterWorkspace(path: string): Promise<IEnterWorkspaceResult | undefined>;
+	enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | undefined>;
 	toggleFullScreen(): Promise<void>;
 	setRepresentedFilename(fileName: string): Promise<void>;
 	getRecentlyOpened(): Promise<IRecentlyOpened>;
 	focusWindow(): Promise<void>;
 	closeWindow(): Promise<void>;
-	openWindow(paths: URI[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean, args?: ParsedArgs }): Promise<void>;
+	openWindow(paths: URI[], options?: IOpenSettings): Promise<void>;
 	isFocused(): Promise<boolean>;
 	setDocumentEdited(flag: boolean): Promise<void>;
 	isMaximized(): Promise<boolean>;
@@ -242,7 +247,6 @@ export interface IWindowSettings {
 	nativeFullScreen: boolean;
 	enableMenuBarMnemonics: boolean;
 	closeWhenEmpty: boolean;
-	smoothScrollingWorkaround: boolean;
 	clickThroughInactive: boolean;
 }
 
@@ -263,11 +267,6 @@ export function getTitleBarStyle(configurationService: IConfigurationService, en
 		const useSimpleFullScreen = isMacintosh && configuration.nativeFullScreen === false;
 		if (useSimpleFullScreen) {
 			return 'native'; // simple fullscreen does not work well with custom title style (https://github.com/Microsoft/vscode/issues/63291)
-		}
-
-		const smoothScrollingWorkaround = isWindows && configuration.smoothScrollingWorkaround === true;
-		if (smoothScrollingWorkaround) {
-			return 'native'; // smooth scrolling workaround does not work with custom title style
 		}
 
 		const style = configuration.titleBarStyle;

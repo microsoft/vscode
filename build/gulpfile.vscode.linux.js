@@ -215,13 +215,10 @@ function prepareSnapPackage(arch) {
 			.pipe(replace('@@VERSION@@', commit.substr(0, 8)))
 			.pipe(rename('snap/snapcraft.yaml'));
 
-		const snapUpdate = gulp.src('resources/linux/snap/snapUpdate.sh', { base: '.' })
-			.pipe(rename(`usr/share/${product.applicationName}/snapUpdate.sh`));
-
 		const electronLaunch = gulp.src('resources/linux/snap/electron-launch', { base: '.' })
 			.pipe(rename('electron-launch'));
 
-		const all = es.merge(desktop, icon, code, snapcraft, electronLaunch, snapUpdate);
+		const all = es.merge(desktop, icon, code, snapcraft, electronLaunch);
 
 		return all.pipe(vfs.dest(destination));
 	};

@@ -22,10 +22,20 @@
 	font-size: 14px;
 }
 
-.extension-editor > .header > .icon {
+.extension-editor > .header > .icon-container {
+	position: relative;
+}
+
+.extension-editor > .header > .icon-container .icon {
 	height: 128px;
 	width: 128px;
 	object-fit: contain;
+}
+
+.extension-editor > .header > .icon-container .extension-remote-badge {
+	position: absolute;
+	right: 0px;
+	top: 94px;
 }
 
 .extension-editor > .header > .details {
@@ -121,7 +131,7 @@
 
 .extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .action-label {
 	font-weight: 600;
-	margin: 4px;
+	margin: 4px 8px 4px 0px;
 	padding: 1px 6px;
 }
 

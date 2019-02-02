@@ -7,7 +7,6 @@ import 'vs/css!./media/fileactions';
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import { isWindows, isLinux } from 'vs/base/common/platform';
-import { always } from 'vs/base/common/async';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
@@ -46,6 +45,7 @@ import { coalesce } from 'vs/base/common/arrays';
 import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { ExplorerItem } from 'vs/workbench/parts/files/common/explorerModel';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { sequence } from 'vs/base/common/async';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
 export const NEW_FILE_LABEL = nls.localize('newFile', "New File");
@@ -145,6 +145,8 @@ export class NewFileAction extends BaseErrorReportingAction {
 					this.explorerService.setEditable(stat, null);
 					if (success) {
 						onSuccess(value);
+					} else {
+						this.explorerService.select(folder.resource).then(undefined, onUnexpectedError);
 					}
 				}
 			});
@@ -199,6 +201,8 @@ export class NewFolderAction extends BaseErrorReportingAction {
 					this.explorerService.setEditable(stat, null);
 					if (success) {
 						onSuccess(value);
+					} else {
+						this.explorerService.select(folder.resource).then(undefined, onUnexpectedError);
 					}
 				}
 			});
@@ -434,27 +438,6 @@ class BaseDeleteFileAction extends BaseErrorReportingAction {
 }
 
 let pasteShouldMove = false;
-// Copy File/Folder
-class CopyFileAction extends BaseErrorReportingAction {
-
-	constructor(
-		private elements: ExplorerItem[],
-		@INotificationService notificationService: INotificationService,
-		@IClipboardService private readonly clipboardService: IClipboardService
-	) {
-		super('filesExplorer.copy', COPY_FILE_LABEL, notificationService);
-	}
-
-	public run(): Promise<any> {
-
-		// Write to clipboard as file/folder to copy
-		this.clipboardService.writeResources(this.elements.map(e => e.resource));
-		pasteShouldMove = false;
-
-		return Promise.resolve(null);
-	}
-}
-
 // Paste File/Folder
 class PasteFileAction extends BaseErrorReportingAction {
 
@@ -491,28 +474,32 @@ class PasteFileAction extends BaseErrorReportingAction {
 				target = this.element.isDirectory ? this.element : this.element.parent;
 			}
 
-			const targetFile = findValidPasteFileTarget(target, { resource: fileToPaste, isDirectory: fileToPasteStat.isDirectory });
+			const targetFile = findValidPasteFileTarget(target, { resource: fileToPaste, isDirectory: fileToPasteStat.isDirectory, allowOverwirte: pasteShouldMove });
 
 			// Copy File
 			const promise = pasteShouldMove ? this.fileService.moveFile(fileToPaste, targetFile) : this.fileService.copyFile(fileToPaste, targetFile);
 			return promise.then(stat => {
+				if (pasteShouldMove) {
+					// Cut is done. Make sure to clear cut state.
+					this.explorerService.setToCopy([], false);
+				}
 				if (!stat.isDirectory) {
 					return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true, preserveFocus: true } });
 				}
 
 				return undefined;
-			});
+			}, e => this.onError(e));
 		}, error => {
 			this.onError(new Error(nls.localize('fileDeleted', "File to paste was deleted or moved meanwhile")));
 		});
 	}
 }
 
-export function findValidPasteFileTarget(targetFolder: ExplorerItem, fileToPaste: { resource: URI, isDirectory?: boolean }): URI {
+export function findValidPasteFileTarget(targetFolder: ExplorerItem, fileToPaste: { resource: URI, isDirectory?: boolean, allowOverwirte: boolean }): URI {
 	let name = resources.basenameOrAuthority(fileToPaste.resource);
 
 	let candidate = resources.joinPath(targetFolder.resource, name);
-	while (true) {
+	while (true && !fileToPaste.allowOverwirte) {
 		if (!targetFolder.root.find(candidate)) {
 			break;
 		}
@@ -917,8 +904,8 @@ export function validateFileName(item: ExplorerItem, name: string): string {
 
 	if (name !== item.name) {
 		// Do not allow to overwrite existing file
-		const childExists = parent && !!parent.getChild(name);
-		if (childExists) {
+		const child = parent && parent.getChild(name);
+		if (child && child !== item) {
 			return nls.localize('fileNameExistsError', "A file or folder **{0}** already exists at this location. Please choose a different name.", name);
 		}
 	}
@@ -996,11 +983,9 @@ export class CompareWithClipboardAction extends Action {
 			const name = resources.basename(resource);
 			const editorLabel = nls.localize('clipboardComparisonLabel', "Clipboard ↔ {0}", name);
 
-			const cleanUp = () => {
+			return this.editorService.openEditor({ leftResource: resource.with({ scheme: CompareWithClipboardAction.SCHEME }), rightResource: resource, label: editorLabel }).finally(() => {
 				this.registrationDisposal = dispose(this.registrationDisposal);
-			};
-
-			return always(this.editorService.openEditor({ leftResource: resource.with({ scheme: CompareWithClipboardAction.SCHEME }), rightResource: resource, label: editorLabel }), cleanUp);
+			});
 		}
 
 		return Promise.resolve(true);
@@ -1123,21 +1108,20 @@ export const deleteFileHandler = (accessor: ServicesAccessor) => {
 };
 
 export const copyFileHandler = (accessor: ServicesAccessor) => {
-	const instantationService = accessor.get(IInstantiationService);
 	const listService = accessor.get(IListService);
 	const explorerContext = getContext(listService.lastFocusedList);
+	const explorerService = accessor.get(IExplorerService);
 	const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
-
-	const copyFileAction = instantationService.createInstance(CopyFileAction, stats);
-	return copyFileAction.run();
+	explorerService.setToCopy(stats, false);
+	pasteShouldMove = false;
 };
 
 export const cutFileHandler = (accessor: ServicesAccessor) => {
 	const listService = accessor.get(IListService);
 	const explorerContext = getContext(listService.lastFocusedList);
-	const clipboardService = accessor.get(IClipboardService);
+	const explorerService = accessor.get(IExplorerService);
 	const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
-	clipboardService.writeResources(stats.map(s => s.resource));
+	explorerService.setToCopy(stats, true);
 	pasteShouldMove = true;
 };
 
@@ -1147,8 +1131,8 @@ export const pasteFileHandler = (accessor: ServicesAccessor) => {
 	const clipboardService = accessor.get(IClipboardService);
 	const explorerContext = getContext(listService.lastFocusedList);
 
-	return Promise.all(resources.distinctParents(clipboardService.readResources(), r => r).map(toCopy => {
+	return sequence(resources.distinctParents(clipboardService.readResources(), r => r).map(toCopy => {
 		const pasteFileAction = instantationService.createInstance(PasteFileAction, explorerContext.stat);
-		return pasteFileAction.run(toCopy);
+		return () => pasteFileAction.run(toCopy);
 	}));
 };

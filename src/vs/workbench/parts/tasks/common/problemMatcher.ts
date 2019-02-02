@@ -20,6 +20,7 @@ import { IStringDictionary } from 'vs/base/common/collections';
 
 import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { Event, Emitter } from 'vs/base/common/event';
 
 export enum FileLocationKind {
 	Auto,
@@ -1092,7 +1093,8 @@ const problemPatternExtPoint = ExtensionsRegistry.registerExtensionPoint<Config.
 				Schemas.NamedMultiLineProblemPattern
 			]
 		}
-	}
+	},
+	isDynamic: true
 });
 
 export interface IProblemPatternRegistry {
@@ -1110,10 +1112,18 @@ class ProblemPatternRegistryImpl implements IProblemPatternRegistry {
 		this.patterns = Object.create(null);
 		this.fillDefaults();
 		this.readyPromise = new Promise<void>((resolve, reject) => {
-			problemPatternExtPoint.setHandler((extensions) => {
+			problemPatternExtPoint.setHandler((extensions, delta) => {
 				// We get all statically know extension during startup in one batch
 				try {
-					extensions.forEach(extension => {
+					delta.removed.forEach(extension => {
+						let problemPatterns = extension.value as Config.NamedProblemPatterns;
+						for (let pattern of problemPatterns) {
+							if (this.patterns[pattern.name]) {
+								delete this.patterns[pattern.name];
+							}
+						}
+					});
+					delta.added.forEach(extension => {
 						let problemPatterns = extension.value as Config.NamedProblemPatterns;
 						let parser = new ProblemPatternParser(new ExtensionRegistryReporter(extension.collector));
 						for (let pattern of problemPatterns) {
@@ -1664,27 +1674,40 @@ const problemMatchersExtPoint = ExtensionsRegistry.registerExtensionPoint<Config
 		description: localize('ProblemMatcherExtPoint', 'Contributes problem matchers'),
 		type: 'array',
 		items: Schemas.NamedProblemMatcher
-	}
+	},
+	isDynamic: true
 });
 
 export interface IProblemMatcherRegistry {
 	onReady(): Promise<void>;
 	get(name: string): NamedProblemMatcher;
 	keys(): string[];
+	readonly onMatcherChanged;
 }
 
 class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 
 	private matchers: IStringDictionary<NamedProblemMatcher>;
 	private readyPromise: Promise<void>;
+	private _onMatchersChanged: Emitter<void> = new Emitter<void>();
+	public get onMatcherChanged(): Event<void> { return this._onMatchersChanged.event; }
+
 
 	constructor() {
 		this.matchers = Object.create(null);
 		this.fillDefaults();
 		this.readyPromise = new Promise<void>((resolve, reject) => {
-			problemMatchersExtPoint.setHandler((extensions) => {
+			problemMatchersExtPoint.setHandler((extensions, delta) => {
 				try {
-					extensions.forEach(extension => {
+					delta.removed.forEach(extension => {
+						let problemMatchers = extension.value;
+						for (let matcher of problemMatchers) {
+							if (this.matchers[matcher.name]) {
+								delete this.matchers[matcher.name];
+							}
+						}
+					});
+					delta.added.forEach(extension => {
 						let problemMatchers = extension.value;
 						let parser = new ProblemMatcherParser(new ExtensionRegistryReporter(extension.collector));
 						for (let matcher of problemMatchers) {
@@ -1694,6 +1717,9 @@ class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 							}
 						}
 					});
+					if ((delta.removed.length > 0) || (delta.added.length > 0)) {
+						this._onMatchersChanged.fire();
+					}
 				} catch (error) {
 				}
 				let matcher = this.get('tsc-watch');
