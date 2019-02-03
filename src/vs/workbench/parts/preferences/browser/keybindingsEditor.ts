@@ -401,6 +401,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			$('.header.command', null, localize('command', "Command")),
 			$('.header.keybinding', null, localize('keybinding', "Keybinding")),
 			$('.header.source', null, localize('source', "Source")),
+			$('.header.extension', null, localize('extension', "Extension")),
 			$('.header.when', null, localize('when', "When")));
 	}
 
@@ -457,6 +458,12 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 						return undefined;
 					}
 
+					this.renderKeybindingsEntries(false, preserveFocus);
+				})
+				.then(() => {
+					return this.keybindingsEditorModel.updateExtensionColumn();
+				})
+				.then(() => {
 					this.renderKeybindingsEntries(false, preserveFocus);
 				});
 		}
@@ -715,6 +722,7 @@ interface KeybindingItemTemplate {
 	command: CommandColumn;
 	keybinding: KeybindingColumn;
 	source: SourceColumn;
+	extension: ExtensionColumn;
 	when: WhenColumn;
 }
 
@@ -730,6 +738,7 @@ class KeybindingItemRenderer implements IListRenderer<IKeybindingItemEntry, Keyb
 		const command = new CommandColumn(container, this.keybindingsEditor);
 		const keybinding = new KeybindingColumn(container, this.keybindingsEditor);
 		const source = new SourceColumn(container, this.keybindingsEditor);
+		const extension = new ExtensionColumn(container, this.keybindingsEditor);
 		const when = new WhenColumn(container, this.keybindingsEditor);
 		container.setAttribute('aria-labelledby', [command.id, keybinding.id, source.id, when.id].join(' '));
 		return {
@@ -738,6 +747,7 @@ class KeybindingItemRenderer implements IListRenderer<IKeybindingItemEntry, Keyb
 			command,
 			keybinding,
 			source,
+			extension,
 			when
 		};
 	}
@@ -748,6 +758,7 @@ class KeybindingItemRenderer implements IListRenderer<IKeybindingItemEntry, Keyb
 		template.command.render(keybindingEntry);
 		template.keybinding.render(keybindingEntry);
 		template.source.render(keybindingEntry);
+		template.extension.render(keybindingEntry);
 		template.when.render(keybindingEntry);
 	}
 
@@ -901,6 +912,33 @@ class SourceColumn extends Column {
 
 	private getAriaLabel(keybindingItemEntry: IKeybindingItemEntry): string {
 		return localize('sourceAriaLabel', "Source is {0}.", keybindingItemEntry.keybindingItem.source);
+	}
+}
+
+class ExtensionColumn extends Column {
+
+	private extensionColumn: HTMLElement;
+
+	create(parent: HTMLElement): HTMLElement {
+		this.extensionColumn = DOM.append(parent, $('.column.extension', { id: 'extension_' + ++Column.COUNTER }));
+		return this.extensionColumn;
+	}
+
+	render(keybindingItemEntry: IKeybindingItemEntry): void {
+		DOM.clearNode(this.extensionColumn);
+		this.extensionColumn.setAttribute('aria-label', this.getAriaLabel(keybindingItemEntry));
+		if (keybindingItemEntry.keybindingItem.extension) {
+			const extensionLabel = new HighlightedLabel(this.extensionColumn, false);
+			extensionLabel.set(keybindingItemEntry.keybindingItem.extension, keybindingItemEntry.extensionMatches);
+			this.extensionColumn.title = keybindingItemEntry.keybindingItem.extension;
+			extensionLabel.element.title = keybindingItemEntry.keybindingItem.extension;
+		} else {
+			this.extensionColumn.title = '';
+		}
+	}
+
+	private getAriaLabel(keybindingItemEntry: IKeybindingItemEntry): string {
+		return keybindingItemEntry.keybindingItem.extension ? localize('fromExtensionAriaLabel', "Originates from extension: {0}.", keybindingItemEntry.keybindingItem.when) : localize('notFromExtension', "Built-in command or keybinding.");
 	}
 }
 

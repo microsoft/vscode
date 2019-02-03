@@ -167,12 +167,18 @@
 	flex: 1;
 }
 
+.keybindings-editor > .keybindings-body > .keybindings-list-header > .extension,
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row > .extension {
+	flex: 0.3;
+}
+
 .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row > .when .empty {
 	padding-left: 4px;
 }
 
 .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .command .monaco-highlighted-label,
 .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .source .monaco-highlighted-label,
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .extension .monaco-highlighted-label,
 .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .when .monaco-highlighted-label {
 	overflow: hidden;
 	text-overflow: ellipsis;
