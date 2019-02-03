@@ -172,7 +172,10 @@ export class ToggleScreencastModeAction extends Action {
 		keyboardMarker.style.lineHeight = '100px';
 		keyboardMarker.style.textAlign = 'center';
 		keyboardMarker.style.fontSize = '56px';
-		keyboardMarker.style.display = 'none';
+		keyboardMarker.style.transitionProperty = 'opacity';
+		keyboardMarker.style.transitionDuration = '0.4s';
+		keyboardMarker.style.pointerEvents = 'none';
+		keyboardMarker.style.opacity = '0';
 
 		const onKeyDown = domEvent(document.body, 'keydown', true);
 		let keyboardTimeout: IDisposable = Disposable.None;
@@ -190,14 +193,14 @@ export class ToggleScreencastModeAction extends Action {
 				keyboardMarker.textContent = label;
 			}
 
-			keyboardMarker.style.display = 'block';
+			keyboardMarker.style.opacity = '1';
 
 			const promise = timeout(800);
 			keyboardTimeout = toDisposable(() => promise.cancel());
 
 			promise.then(() => {
 				keyboardMarker.textContent = '';
-				keyboardMarker.style.display = 'none';
+				keyboardMarker.style.opacity = '0';
 			});
 		});
 
