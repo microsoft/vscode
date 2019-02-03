@@ -386,6 +386,9 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 	private _pattern = '';
 	get pattern(): string { return this._pattern; }
 
+	private _filterOnType: boolean;
+	get filterOnType(): boolean { return this._filterOnType; }
+
 	private positionClassName = 'ne';
 	private domNode: HTMLElement;
 	private messageDomNode: HTMLElement;
@@ -416,9 +419,10 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		this.labelDomNode = append(this.domNode, $('span.label'));
 		const controls = append(this.domNode, $('.controls'));
 
+		this._filterOnType = !!tree.options.filterOnType;
 		this.filterOnTypeDomNode = append(controls, $<HTMLInputElement>('input.filter'));
 		this.filterOnTypeDomNode.type = 'checkbox';
-		this.filterOnTypeDomNode.checked = !!tree.options.filterOnType;
+		this.filterOnTypeDomNode.checked = this._filterOnType;
 		this.filterOnTypeDomNode.tabIndex = -1;
 		this.updateFilterOnTypeTitle();
 		domEvent(this.filterOnTypeDomNode, 'input')(this.onDidChangeFilterOnType, this, this.disposables);
@@ -440,7 +444,11 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 			this.enable();
 		}
 
-		this.filterOnTypeDomNode.checked = !!options.filterOnType;
+		if (typeof options.filterOnType !== 'undefined') {
+			this._filterOnType = !!options.filterOnType;
+			this.filterOnTypeDomNode.checked = this._filterOnType;
+		}
+
 		this.automaticKeyboardNavigation = typeof options.automaticKeyboardNavigation === 'undefined' ? true : options.automaticKeyboardNavigation;
 		this.tree.refilter();
 		this.render();
@@ -619,7 +627,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 	}
 
 	private updateFilterOnTypeTitle(): void {
-		if (this.filterOnTypeDomNode.checked) {
+		if (this.filterOnType) {
 			this.filterOnTypeDomNode.title = localize('disable filter on type', "Disable Filter on Type");
 		} else {
 			this.filterOnTypeDomNode.title = localize('enable filter on type', "Enable Filter on Type");
@@ -928,7 +936,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		if (_options.keyboardNavigationLabelProvider) {
 			this.typeFilterController = new TypeFilterController(this, this.model, this.view, filter!, _options.keyboardNavigationLabelProvider);
 			this.focusNavigationFilter = node => {
-				if (!this.typeFilterController!.enabled || !this.typeFilterController!.pattern) {
+				if (!this.typeFilterController!.enabled || !this.typeFilterController!.pattern || this.typeFilterController!.filterOnType) {
 					return true;
 				}
 
