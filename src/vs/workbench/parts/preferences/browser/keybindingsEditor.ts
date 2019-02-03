@@ -926,6 +926,7 @@ class WhenColumn extends Column {
 			whenLabel.element.title = keybindingItemEntry.keybindingItem.when;
 		} else {
 			this.whenColumn.textContent = '—';
+			this.whenColumn.title = '';
 		}
 	}
 
