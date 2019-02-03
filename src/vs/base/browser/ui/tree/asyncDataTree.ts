@@ -412,6 +412,10 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		await this.refreshAndRenderNode(this.getDataNode(element), recursive, ChildrenResolutionReason.Refresh, viewStateContext);
 	}
 
+	hasNode(element: T): boolean {
+		return this.renderedNodes.has(element);
+	}
+
 	// View
 
 	refresh(element: T): void {
