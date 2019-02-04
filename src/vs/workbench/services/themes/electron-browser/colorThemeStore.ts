@@ -155,7 +155,7 @@ export class ColorThemeStore {
 		});
 	}
 
-	public findThemeDataByParentLocation(parentLocation: URI): Promise<ColorThemeData[]> {
+	public findThemeDataByParentLocation(parentLocation: URI | undefined): Promise<ColorThemeData[]> {
 		if (parentLocation) {
 			return this.getColorThemes().then(allThemes => {
 				return allThemes.filter(t => t.location && resources.isEqualOrParent(t.location, parentLocation));
