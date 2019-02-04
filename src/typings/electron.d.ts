@@ -1,4 +1,4 @@
-// Type definitions for Electron 4.0.2
+// Type definitions for Electron 4.0.4
 // Project: http://electronjs.org/
 // Definitions by: The Electron Team <https://github.com/electron/electron>
 // Definitions: https://github.com/electron/electron-typescript-definitions
@@ -8458,6 +8458,7 @@ declare namespace Electron {
 		method: string;
 		webContentsId?: number;
 		resourceType: string;
+		referrer: string;
 		timestamp: number;
 		responseHeaders: ResponseHeaders;
 		fromCache: boolean;
@@ -8516,7 +8517,7 @@ declare namespace Electron {
 	}
 
 	interface OnHeadersReceivedResponse {
-		cancel: boolean;
+		cancel?: boolean;
 		/**
 		 * When provided, the server is assumed to have responded with these headers.
 		 */
@@ -8756,6 +8757,23 @@ declare namespace Electron {
 		 * true for landscape, false for portrait.
 		 */
 		landscape?: boolean;
+	}
+
+	interface ProcessMemoryInfo {
+		/**
+		 * and The amount of memory currently pinned to actual physical RAM in Kilobytes.
+		 */
+		residentSet: number;
+		/**
+		 * The amount of memory not shared by other processes, such as JS heap or HTML
+		 * content in Kilobytes.
+		 */
+		private: number;
+		/**
+		 * The amount of memory shared between processes, typically memory consumed by the
+		 * Electron code itself in Kilobytes.
+		 */
+		shared: number;
 	}
 
 	interface ProgressBarOptions {
@@ -9635,6 +9653,16 @@ declare namespace NodeJS {
 		 */
 		getHeapStatistics(): Electron.HeapStatistics;
 		getIOCounters(): Electron.IOCounters;
+		/**
+		 * Returns an object giving memory usage statistics about the current process. Note
+		 * that all statistics are reported in Kilobytes. This api should be called after
+		 * app ready. Chromium does not provide residentSet value for macOS. This is
+		 * because macOS performs in-memory compression of pages that haven't been recently
+		 * used. As a result the resident set size value is not what one would expect.
+		 * private memory is more representative of the actual pre-compression memory usage
+		 * of the process on macOS.
+		 */
+		getProcessMemoryInfo(): Electron.ProcessMemoryInfo;
 		/**
 		 * Returns an object giving memory usage statistics about the entire system. Note
 		 * that all statistics are reported in Kilobytes.
