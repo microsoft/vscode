@@ -110,12 +110,12 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 	private visible: boolean;
 	private isLoosingFocus: boolean;
 	private callbacks: IQuickOpenCallbacks;
-	private quickNavigateConfiguration: IQuickNavigateConfiguration;
+	private quickNavigateConfiguration: IQuickNavigateConfiguration | undefined;
 	private container: HTMLElement;
 	private treeElement: HTMLElement;
 	private inputElement: HTMLElement;
 	private layoutDimensions: DOM.Dimension;
-	private model: IModel<any>;
+	private model: IModel<any> | null;
 	private inputChangingTimeoutHandle: any;
 	private styles: IQuickOpenStyles;
 	private renderer: Renderer;
@@ -137,7 +137,7 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 	}
 
 	getModel(): IModel<any> {
-		return this.model;
+		return this.model!;
 	}
 
 	setCallbacks(callbacks: IQuickOpenCallbacks): void {
@@ -181,7 +181,7 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 		DOM.addClass(this.inputContainer, 'quick-open-input');
 		this.element.appendChild(this.inputContainer);
 
-		this.inputBox = this._register(new InputBox(this.inputContainer, null, {
+		this.inputBox = this._register(new InputBox(this.inputContainer, undefined, {
 			placeholder: this.options.inputPlaceHolder || '',
 			ariaLabel: DEFAULT_INPUT_ARIA_LABEL,
 			inputBackground: this.styles.inputBackground,
@@ -538,10 +538,15 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 		}
 
 		// ARIA
-		this.inputElement.setAttribute('aria-activedescendant', this.treeElement.getAttribute('aria-activedescendant'));
+		const arivaActiveDescendant = this.treeElement.getAttribute('aria-activedescendant');
+		if (arivaActiveDescendant) {
+			this.inputElement.setAttribute('aria-activedescendant', arivaActiveDescendant);
+		} else {
+			this.inputElement.removeAttribute('aria-activedescendant');
+		}
 
 		const context: IEntryRunContext = { event: event, keymods: this.extractKeyMods(event), quickNavigateConfiguration: this.quickNavigateConfiguration };
-		this.model.runner.run(value, Mode.PREVIEW, context);
+		this.model!.runner.run(value, Mode.PREVIEW, context);
 	}
 
 	private elementSelected(value: any, event?: any, preferredMode?: Mode): void {
@@ -553,7 +558,7 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 
 			const context: IEntryRunContext = { event, keymods: this.extractKeyMods(event), quickNavigateConfiguration: this.quickNavigateConfiguration };
 
-			hide = this.model.runner.run(value, mode, context);
+			hide = this.model!.runner.run(value, mode, context);
 		}
 
 		// Hide if command was run successfully
@@ -603,7 +608,7 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 		if (types.isString(param)) {
 			this.doShowWithPrefix(param);
 		} else {
-			if (options.value) {
+			if (options && options.value) {
 				this.restoreLastInput(options.value);
 			}
 			this.doShowWithInput(param, options && options.autoFocus ? options.autoFocus : {});
@@ -747,13 +752,13 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 			// Indicate entries to tree
 			this.tree.layout();
 
-			const entries = input ? input.entries.filter(e => this.isElementVisible(input, e)) : [];
+			const entries = input ? input.entries!.filter(e => this.isElementVisible(input!, e)) : [];
 			this.updateResultCount(entries.length);
 
 			// Handle auto focus
 			if (autoFocus) {
 				if (entries.length) {
-					this.autoFocus(input, entries, autoFocus);
+					this.autoFocus(input!, entries, autoFocus);
 				}
 			}
 		});
@@ -770,7 +775,7 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 
 		let height = 0;
 
-		let preferredItemsHeight: number;
+		let preferredItemsHeight: number | undefined;
 		if (this.layoutDimensions && this.layoutDimensions.height) {
 			preferredItemsHeight = (this.layoutDimensions.height - 50 /* subtract height of input field (30px) and some spacing (drop shadow) to fit */) * 0.4 /* max 40% of screen */;
 		}
@@ -834,12 +839,12 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 		}
 
 		if (this.callbacks.onHide) {
-			this.callbacks.onHide(reason);
+			this.callbacks.onHide(reason!);
 		}
 	}
 
 	getQuickNavigateConfiguration(): IQuickNavigateConfiguration {
-		return this.quickNavigateConfiguration;
+		return this.quickNavigateConfiguration!;
 	}
 
 	setPlaceHolder(placeHolder: string): void {

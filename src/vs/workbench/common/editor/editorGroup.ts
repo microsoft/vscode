@@ -98,7 +98,7 @@ export class EditorGroup extends Disposable {
 	private active: EditorInput | null;  // editor in active state
 
 	private editorOpenPositioning: 'left' | 'right' | 'first' | 'last';
-	private closeTabsInMRUOrder: boolean;
+	private focusRecentEditorAfterClose: boolean;
 
 	constructor(
 		labelOrSerializedGroup: ISerializedEditorGroup,
@@ -123,7 +123,7 @@ export class EditorGroup extends Disposable {
 
 	private onConfigurationUpdated(event?: IConfigurationChangeEvent): void {
 		this.editorOpenPositioning = this.configurationService.getValue('workbench.editor.openPositioning');
-		this.closeTabsInMRUOrder = this.configurationService.getValue('workbench.editor.closeTabsInMRUOrder');
+		this.focusRecentEditorAfterClose = this.configurationService.getValue('workbench.editor.focusRecentEditorAfterClose');
 	}
 
 	get id(): GroupIdentifier {
@@ -335,7 +335,7 @@ export class EditorGroup extends Disposable {
 			// More than one editor
 			if (this.mru.length > 1) {
 				let newActive: EditorInput;
-				if (this.closeTabsInMRUOrder) {
+				if (this.focusRecentEditorAfterClose) {
 					newActive = this.mru[1]; // active editor is always first in MRU, so pick second editor after as new active
 				} else {
 					if (index === this.editors.length - 1) {

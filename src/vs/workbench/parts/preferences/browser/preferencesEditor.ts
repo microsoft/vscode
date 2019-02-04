@@ -44,7 +44,6 @@ import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { EditorInput, EditorOptions, IEditorControl } from 'vs/workbench/common/editor';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
-import { PREFERENCES_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
 import { DefaultSettingsRenderer, FolderSettingsRenderer, IPreferencesRenderer, UserSettingsRenderer, WorkspaceSettingsRenderer } from 'vs/workbench/parts/preferences/browser/preferencesRenderers';
 import { SearchWidget, SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, IPreferencesSearchService, ISearchProvider, CONTEXT_SETTINGS_JSON_EDITOR } from 'vs/workbench/parts/preferences/common/preferences';
@@ -58,7 +57,7 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 
 export class PreferencesEditor extends BaseEditor {
 
-	static readonly ID: string = PREFERENCES_EDITOR_ID;
+	static readonly ID: string = 'workbench.editor.preferencesEditor';
 
 	private defaultSettingsEditorContextKey: IContextKey<boolean>;
 	private defaultSettingsJSONEditorContextKey: IContextKey<boolean>;

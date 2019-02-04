@@ -505,7 +505,7 @@ const DefaultOpenController: IOpenController = {
 class MouseController<T> implements IDisposable {
 
 	private multipleSelectionSupport: boolean;
-	private multipleSelectionController: IMultipleSelectionController<T>;
+	readonly multipleSelectionController: IMultipleSelectionController<T>;
 	private openController: IOpenController;
 	private disposables: IDisposable[] = [];
 
@@ -759,16 +759,16 @@ export class DefaultStyleController implements IStyleController {
 			`);
 		}
 
-		if (styles.listMatchesBackground) {
-			content.push(`.monaco-list-type-filter { background-color: ${styles.listMatchesBackground} }`);
+		if (styles.listFilterWidgetBackground) {
+			content.push(`.monaco-list-type-filter { background-color: ${styles.listFilterWidgetBackground} }`);
 		}
 
-		if (styles.listMatchesOutline) {
-			content.push(`.monaco-list-type-filter { border: 1px solid ${styles.listMatchesOutline}; }`);
+		if (styles.listFilterWidgetOutline) {
+			content.push(`.monaco-list-type-filter { border: 1px solid ${styles.listFilterWidgetOutline}; }`);
 		}
 
-		if (styles.listNoMatchesOutline) {
-			content.push(`.monaco-list-type-filter.no-matches { border: 1px solid ${styles.listNoMatchesOutline}; }`);
+		if (styles.listFilterWidgetNoMatchesOutline) {
+			content.push(`.monaco-list-type-filter.no-matches { border: 1px solid ${styles.listFilterWidgetNoMatchesOutline}; }`);
 		}
 
 		if (styles.listMatchesShadow) {
@@ -822,9 +822,9 @@ export interface IListStyles {
 	listInactiveFocusOutline?: Color;
 	listSelectionOutline?: Color;
 	listHoverOutline?: Color;
-	listMatchesBackground?: Color;
-	listMatchesOutline?: Color;
-	listNoMatchesOutline?: Color;
+	listFilterWidgetBackground?: Color;
+	listFilterWidgetOutline?: Color;
+	listFilterWidgetNoMatchesOutline?: Color;
 	listMatchesShadow?: Color;
 }
 
@@ -1063,6 +1063,11 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	private spliceable: ISpliceable<T>;
 	private styleElement: HTMLStyleElement;
 	private styleController: IStyleController;
+	private mouseController: MouseController<T> | undefined;
+
+	get multipleSelectionController(): IMultipleSelectionController<T> {
+		return (this.mouseController && this.mouseController.multipleSelectionController) || DefaultMultipleSelectionContoller;
+	}
 
 	private _onDidUpdateOptions = new Emitter<IListOptions<T>>();
 	readonly onDidUpdateOptions = this._onDidUpdateOptions.event;
@@ -1208,7 +1213,8 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		}
 
 		if (typeof _options.mouseSupport === 'boolean' ? _options.mouseSupport : true) {
-			this.disposables.push(new MouseController(this, this.view, _options));
+			this.mouseController = new MouseController(this, this.view, _options);
+			this.disposables.push(this.mouseController);
 		}
 
 		this.onFocusChange(this._onFocusChange, this, this.disposables);

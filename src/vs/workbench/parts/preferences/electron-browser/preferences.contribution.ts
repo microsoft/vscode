@@ -27,7 +27,7 @@ import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchCo
 import { EditorInput, Extensions as EditorInputExtensions, IEditorInputFactory, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { KeybindingsEditor } from 'vs/workbench/parts/preferences/browser/keybindingsEditor';
-import { ConfigureLanguageBasedSettingsAction, OpenDefaultKeybindingsFileAction, OpenFolderSettingsAction, OpenGlobalKeybindingsAction, OpenGlobalKeybindingsFileAction, OpenGlobalSettingsAction, OpenRawDefaultSettingsAction, OpenSettings2Action, OpenSettingsJsonAction, OpenWorkspaceSettingsAction, OPEN_FOLDER_SETTINGS_COMMAND } from 'vs/workbench/parts/preferences/browser/preferencesActions';
+import { ConfigureLanguageBasedSettingsAction, OpenDefaultKeybindingsFileAction, OpenFolderSettingsAction, OpenGlobalKeybindingsAction, OpenGlobalKeybindingsFileAction, OpenGlobalSettingsAction, OpenRawDefaultSettingsAction, OpenSettings2Action, OpenSettingsJsonAction, OpenWorkspaceSettingsAction, OPEN_FOLDER_SETTINGS_COMMAND, OPEN_FOLDER_SETTINGS_LABEL } from 'vs/workbench/parts/preferences/browser/preferencesActions';
 import { PreferencesEditor } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
 import { CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, CONTEXT_KEYBINDING_FOCUS, CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_JSON_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, IKeybindingsEditor, IPreferencesSearchService, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_FOCUS_KEYBINDINGS, KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_SEARCH, KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR, KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE, KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS, KEYBINDINGS_EDITOR_SHOW_USER_KEYBINDINGS, MODIFIED_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_EDIT_FOCUSED_SETTING, SETTINGS_EDITOR_COMMAND_FILTER_MODIFIED, SETTINGS_EDITOR_COMMAND_FILTER_ONLINE, SETTINGS_EDITOR_COMMAND_FOCUS_FILE, SETTINGS_EDITOR_COMMAND_FOCUS_NEXT_SETTING, SETTINGS_EDITOR_COMMAND_FOCUS_PREVIOUS_SETTING, SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_FROM_SEARCH, SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_LIST, SETTINGS_EDITOR_COMMAND_SEARCH, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU, SETTINGS_EDITOR_COMMAND_SWITCH_TO_JSON, SETTINGS_COMMAND_OPEN_SETTINGS } from 'vs/workbench/parts/preferences/common/preferences';
 import { PreferencesContribution } from 'vs/workbench/parts/preferences/common/preferencesContribution';
@@ -36,6 +36,7 @@ import { SettingsEditor2 } from 'vs/workbench/parts/preferences/electron-browser
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { DefaultPreferencesEditorInput, KeybindingsEditorInput, PreferencesEditorInput, SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
+import { ExplorerRootContext, ExplorerFolderContext } from 'vs/workbench/parts/files/common/files';
 
 registerSingleton(IPreferencesSearchService, PreferencesSearchService, true);
 
@@ -772,4 +773,14 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		CONTEXT_SETTINGS_EDITOR,
 		CONTEXT_SETTINGS_JSON_EDITOR.toNegated()
 	)
+});
+
+MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+	group: '2_workspace',
+	order: 20,
+	command: {
+		id: OPEN_FOLDER_SETTINGS_COMMAND,
+		title: OPEN_FOLDER_SETTINGS_LABEL
+	},
+	when: ContextKeyExpr.and(ExplorerRootContext, ExplorerFolderContext)
 });

@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/tree';
 import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IListOptions, List, IListStyles, mightProducePrintableCharacter, isSelectionRangeChangeEvent, isSelectionSingleChangeEvent } from 'vs/base/browser/ui/list/listWidget';
+import { IListOptions, List, IListStyles, mightProducePrintableCharacter } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate, IListRenderer, IListMouseEvent, IListEvent, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/list/list';
 import { append, $, toggleClass, getDomNodePagePosition, removeClass, addClass } from 'vs/base/browser/dom';
 import { Event, Relay, Emitter, EventBufferer } from 'vs/base/common/event';
@@ -386,12 +386,16 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 	private _pattern = '';
 	get pattern(): string { return this._pattern; }
 
+	private _filterOnType: boolean;
+	get filterOnType(): boolean { return this._filterOnType; }
+
 	private positionClassName = 'ne';
 	private domNode: HTMLElement;
 	private messageDomNode: HTMLElement;
 	private labelDomNode: HTMLElement;
 	private filterOnTypeDomNode: HTMLInputElement;
 	private clearDomNode: HTMLElement;
+	private keyboardNavigationEventFilter?: IKeyboardNavigationEventFilter;
 
 	private automaticKeyboardNavigation: boolean;
 	private triggered = false;
@@ -415,9 +419,10 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		this.labelDomNode = append(this.domNode, $('span.label'));
 		const controls = append(this.domNode, $('.controls'));
 
+		this._filterOnType = !!tree.options.filterOnType;
 		this.filterOnTypeDomNode = append(controls, $<HTMLInputElement>('input.filter'));
 		this.filterOnTypeDomNode.type = 'checkbox';
-		this.filterOnTypeDomNode.checked = !!tree.options.filterOnType;
+		this.filterOnTypeDomNode.checked = this._filterOnType;
 		this.filterOnTypeDomNode.tabIndex = -1;
 		this.updateFilterOnTypeTitle();
 		domEvent(this.filterOnTypeDomNode, 'input')(this.onDidChangeFilterOnType, this, this.disposables);
@@ -425,6 +430,8 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		this.clearDomNode = append(controls, $<HTMLInputElement>('button.clear'));
 		this.clearDomNode.tabIndex = -1;
 		this.clearDomNode.title = localize('clear', "Clear");
+
+		this.keyboardNavigationEventFilter = tree.options.keyboardNavigationEventFilter;
 
 		model.onDidSplice(this.onDidSpliceModel, this, this.disposables);
 		this.updateOptions(tree.options);
@@ -437,7 +444,11 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 			this.enable();
 		}
 
-		this.filterOnTypeDomNode.checked = !!options.filterOnType;
+		if (typeof options.filterOnType !== 'undefined') {
+			this._filterOnType = !!options.filterOnType;
+			this.filterOnTypeDomNode.checked = this._filterOnType;
+		}
+
 		this.automaticKeyboardNavigation = typeof options.automaticKeyboardNavigation === 'undefined' ? true : options.automaticKeyboardNavigation;
 		this.tree.refilter();
 		this.render();
@@ -463,6 +474,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		const isPrintableCharEvent = this.keyboardNavigationLabelProvider.mightProducePrintableCharacter ? (e: IKeyboardEvent) => this.keyboardNavigationLabelProvider.mightProducePrintableCharacter!(e) : (e: IKeyboardEvent) => mightProducePrintableCharacter(e);
 		const onKeyDown = Event.chain(domEvent(this.view.getHTMLElement(), 'keydown'))
 			.filter(e => !isInputElement(e.target as HTMLElement) || e.target === this.filterOnTypeDomNode)
+			.filter(this.keyboardNavigationEventFilter || (() => true))
 			.filter(() => this.automaticKeyboardNavigation || this.triggered)
 			.map(e => new StandardKeyboardEvent(e))
 			.filter(e => isPrintableCharEvent(e) || ((this._pattern.length > 0 || this.triggered) && ((e.keyCode === KeyCode.Escape || e.keyCode === KeyCode.Backspace) && !e.altKey && !e.ctrlKey && !e.metaKey) || (e.keyCode === KeyCode.Backspace && (isMacintosh ? e.altKey : e.ctrlKey))))
@@ -615,7 +627,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 	}
 
 	private updateFilterOnTypeTitle(): void {
-		if (this.filterOnTypeDomNode.checked) {
+		if (this.filterOnType) {
 			this.filterOnTypeDomNode.title = localize('disable filter on type', "Disable Filter on Type");
 		} else {
 			this.filterOnTypeDomNode.title = localize('enable filter on type', "Enable Filter on Type");
@@ -668,10 +680,15 @@ function asTreeContextMenuEvent<T>(event: IListContextMenuEvent<ITreeNode<T, any
 	};
 }
 
+export interface IKeyboardNavigationEventFilter {
+	(e: KeyboardEvent): boolean;
+}
+
 export interface IAbstractTreeOptionsUpdate extends ITreeRendererOptions {
 	readonly automaticKeyboardNavigation?: boolean;
 	readonly simpleKeyboardNavigation?: boolean;
 	readonly filterOnType?: boolean;
+	readonly openOnSingleClick?: boolean;
 }
 
 export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTreeOptionsUpdate, IListOptions<T> {
@@ -679,6 +696,7 @@ export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTr
 	readonly filter?: ITreeFilter<T, TFilterData>;
 	readonly dnd?: ITreeDragAndDrop<T>;
 	readonly autoExpandSingleChildren?: boolean;
+	readonly keyboardNavigationEventFilter?: IKeyboardNavigationEventFilter;
 }
 
 /**
@@ -842,6 +860,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	readonly onWillRefilter: Event<void> = this._onWillRefilter.event;
 
 	get filterOnType(): boolean { return !!this._options.filterOnType; }
+	get openOnSingleClick(): boolean { return typeof this._options.openOnSingleClick === 'undefined' ? true : this._options.openOnSingleClick; }
 
 	get onDidDispose(): Event<void> { return this.view.onDidDispose; }
 
@@ -870,12 +889,36 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		this.model = this.createModel(this.view, _options);
 		onDidChangeCollapseStateRelay.input = this.model.onDidChangeCollapseState;
 
-		this.model.onDidSplice(e => {
-			this.eventBufferer.bufferEvents(() => {
-				this.focus.remove(e.deletedNodes);
-				this.selection.remove(e.deletedNodes);
-			});
-		}, null, this.disposables);
+		if (this.options.identityProvider) {
+			const identityProvider = this.options.identityProvider;
+
+			this.model.onDidSplice(e => {
+				if (e.deletedNodes.length === 0) {
+					return;
+				}
+
+				this.eventBufferer.bufferEvents(() => {
+					const map = new Map<string, ITreeNode<T, TFilterData>>();
+
+					for (const node of e.deletedNodes) {
+						map.set(identityProvider.getId(node.element).toString(), node);
+					}
+
+					for (const node of e.insertedNodes) {
+						map.delete(identityProvider.getId(node.element).toString());
+					}
+
+					if (map.size === 0) {
+						return;
+					}
+
+					const deletedNodes = values(map);
+
+					this.focus.remove(deletedNodes);
+					this.selection.remove(deletedNodes);
+				});
+			}, null, this.disposables);
+		}
 
 		this.view.onTap(this.reactOnMouseClick, this, this.disposables);
 		this.view.onMouseClick(this.reactOnMouseClick, this, this.disposables);
@@ -893,7 +936,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		if (_options.keyboardNavigationLabelProvider) {
 			this.typeFilterController = new TypeFilterController(this, this.model, this.view, filter!, _options.keyboardNavigationLabelProvider);
 			this.focusNavigationFilter = node => {
-				if (!this.typeFilterController!.enabled || !this.typeFilterController!.pattern) {
+				if (!this.typeFilterController!.enabled || !this.typeFilterController!.pattern || this.typeFilterController!.filterOnType) {
 					return true;
 				}
 
@@ -1127,7 +1170,12 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		if (!node) {
 			return;
 		}
-		if (isSelectionRangeChangeEvent(e) || isSelectionSingleChangeEvent(e)) {
+
+		if (this.view.multipleSelectionController.isSelectionRangeChangeEvent(e) || this.view.multipleSelectionController.isSelectionSingleChangeEvent(e)) {
+			return;
+		}
+
+		if (!this.openOnSingleClick && e.browserEvent.detail !== 2) {
 			return;
 		}
 

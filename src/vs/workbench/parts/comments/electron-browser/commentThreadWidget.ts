@@ -623,7 +623,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 			const arrowHeight = Math.round(lineHeight / 3);
 			const frameThickness = Math.round(lineHeight / 9) * 2;
 
-			const computedLinesNumber = Math.ceil((headHeight + dimensions.height + arrowHeight + frameThickness) / lineHeight);
+			const computedLinesNumber = Math.ceil((headHeight + dimensions.height + arrowHeight + frameThickness + 8 /** margin bottom to avoid margin collapse */) / lineHeight);
 			this._relayout(computedLinesNumber);
 		}
 	}

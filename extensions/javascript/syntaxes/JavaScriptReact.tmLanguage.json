@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/444971648e9e1e41c54c62f41d1310f2816965c4",
+	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/a42e5cbe14945ccc0493f62b1e2d63eddcdaa6f6",
 	"name": "JavaScript (with React support)",
 	"scopeName": "source.js.jsx",
 	"patterns": [
@@ -1581,7 +1581,7 @@
 					"include": "#parameter-name"
 				},
 				{
-					"include": "#type-annotation"
+					"include": "#parameter-type-annotation"
 				},
 				{
 					"include": "#variable-initializer"
@@ -3571,6 +3571,25 @@
 						}
 					},
 					"end": "(?<![:|&])((?=[,);\\}\\]]|//)|(?==[^>])|(?=^\\s*$)|((?<=\\S)(?=\\s*$))|((?<=[\\}>\\]\\)]|[_$[:alpha:]])\\s*(?=\\{)))",
+					"patterns": [
+						{
+							"include": "#type"
+						}
+					]
+				}
+			]
+		},
+		"parameter-type-annotation": {
+			"patterns": [
+				{
+					"name": "meta.type.annotation.js.jsx",
+					"begin": "(:)",
+					"beginCaptures": {
+						"1": {
+							"name": "keyword.operator.type.annotation.js.jsx"
+						}
+					},
+					"end": "(?=[,)])|(?==[^>])",
 					"patterns": [
 						{
 							"include": "#type"

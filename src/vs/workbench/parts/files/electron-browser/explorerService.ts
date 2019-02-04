@@ -151,10 +151,11 @@ export class ExplorerService implements IExplorerService {
 			const modelStat = ExplorerItem.create(stat, undefined, options.resolveTo);
 			// Update Input with disk Stat
 			ExplorerItem.mergeLocalWithDisk(modelStat, root);
-			this._onDidChangeItem.fire(root);
+			const item = root.find(resource);
+			this._onDidChangeItem.fire(item ? item.parent : undefined);
 
 			// Select and Reveal
-			this._onDidSelectItem.fire({ item: root.find(resource) || undefined, reveal });
+			this._onDidSelectItem.fire({ item: item || undefined, reveal });
 		}, () => {
 			root.isError = true;
 			this._onDidChangeItem.fire(root);

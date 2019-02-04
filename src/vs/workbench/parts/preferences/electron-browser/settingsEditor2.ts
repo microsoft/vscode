@@ -549,24 +549,25 @@ export class SettingsEditor2 extends BaseEditor {
 			this.viewState));
 
 		this._register(this.tocTree.onDidChangeFocus(e => {
-			setTimeout(() => {
-				const element: SettingsTreeGroupElement = e.elements[0];
-				if (this.tocFocusedElement === e.elements[0]) {
-					return;
-				}
+			const element: SettingsTreeGroupElement = e.elements[0];
+			if (this.tocFocusedElement === element) {
+				return;
+			}
 
-				this.tocFocusedElement = element;
-				this.tocTree.setSelection(e.elements);
-				if (this.searchResultModel) {
-					if (this.viewState.filterToCategory !== element) {
-						this.viewState.filterToCategory = element;
+			this.tocFocusedElement = element;
+			this.tocTree.setSelection(element ? [element] : []);
+			if (this.searchResultModel) {
+				if (this.viewState.filterToCategory !== element) {
+					this.viewState.filterToCategory = element;
+					// see https://github.com/Microsoft/vscode/issues/66796
+					setTimeout(() => {
 						this.renderTree();
 						this.settingsTree.scrollTop = 0;
-					}
-				} else if (element && (!e.browserEvent || !(<any>e.browserEvent).fromScroll)) {
-					this.settingsTree.reveal(element, 0);
+					}, 0);
 				}
-			}, 0);
+			} else if (element && (!e.browserEvent || !(<any>e.browserEvent).fromScroll)) {
+				this.settingsTree.reveal(element, 0);
+			}
 		}));
 
 		this._register(this.tocTree.onDidFocus(() => {
@@ -971,11 +972,15 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	private refreshTree(): void {
-		this.settingsTree.setChildren(null, createGroupIterator(this.currentSettingsModel.root));
+		if (this.isVisible()) {
+			this.settingsTree.setChildren(null, createGroupIterator(this.currentSettingsModel.root));
+		}
 	}
 
 	private refreshTOCTree(): void {
-		this.tocTree.setChildren(null, createTOCIterator(this.tocTreeModel, this.tocTree));
+		if (this.isVisible()) {
+			this.tocTree.setChildren(null, createTOCIterator(this.tocTreeModel, this.tocTree));
+		}
 	}
 
 	private updateModifiedLabelForKey(key: string): void {
