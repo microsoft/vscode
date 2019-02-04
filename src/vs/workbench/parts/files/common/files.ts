@@ -92,11 +92,6 @@ export const FilesExplorerFocusCondition = ContextKeyExpr.and(ContextKeyExpr.has
 export const ExplorerFocusCondition = ContextKeyExpr.and(ContextKeyExpr.has(explorerViewletVisibleId), ContextKeyExpr.has(explorerViewletFocusId), ContextKeyExpr.not(InputFocusedContextKey));
 
 /**
- * Preferences editor id.
- */
-export const PREFERENCES_EDITOR_ID = 'workbench.editor.preferencesEditor';
-
-/**
  * Text file editor id.
  */
 export const TEXT_FILE_EDITOR_ID = 'workbench.editors.files.textFileEditor';
