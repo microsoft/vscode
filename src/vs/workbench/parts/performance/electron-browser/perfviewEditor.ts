@@ -146,8 +146,6 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		table.push(['require & init global storage', metrics.timers.ellapsedGlobalStorageInitMain, '[main]', `initial startup: ${metrics.initialStartup}`]);
 		table.push(['window.loadUrl() => begin to require(workbench.main.js)', metrics.timers.ellapsedWindowLoadToRequire, '[main->renderer]', StartupKindToString(metrics.windowKind)]);
 		table.push(['require(workbench.main.js)', metrics.timers.ellapsedRequire, '[renderer]', `cached data: ${(metrics.didUseCachedData ? 'YES' : 'NO')}${stats ? `, node_modules took ${stats.nodeRequireTotal}ms` : ''}`]);
-		table.push(['init global storage', metrics.timers.ellapsedGlobalStorageInitRenderer, '[renderer]', undefined]);
-		table.push(['require workspace storage', metrics.timers.ellapsedWorkspaceStorageRequire, '[renderer]', undefined]);
 		table.push(['require & init workspace storage', metrics.timers.ellapsedWorkspaceStorageInit, '[renderer]', undefined]);
 		table.push(['init workspace service', metrics.timers.ellapsedWorkspaceServiceInit, '[renderer]', undefined]);
 		table.push(['register extensions & spawn extension host', metrics.timers.ellapsedExtensions, '[renderer]', undefined]);
