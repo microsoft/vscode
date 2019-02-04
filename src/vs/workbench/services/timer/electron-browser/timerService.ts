@@ -24,14 +24,12 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 /* __GDPR__FRAGMENT__
 	"IMemoryInfo" : {
 		"workingSetSize" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"peakWorkingSetSize": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"privateBytes": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"sharedBytes": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
 	}
 */
 export interface IMemoryInfo {
 	readonly workingSetSize: number;
-	readonly peakWorkingSetSize: number;
 	readonly privateBytes: number;
 	readonly sharedBytes: number;
 }
@@ -383,7 +381,13 @@ class TimerService implements ITimerService {
 			release = os.release();
 			arch = os.arch();
 			loadavg = os.loadavg();
-			meminfo = Object.create(null); // TODO@Ben electron 4.0.x https://github.com/electron/electron/issues/13447
+
+			const processMemoryInfo = await process.getProcessMemoryInfo();
+			meminfo = {
+				workingSetSize: processMemoryInfo.residentSet,
+				privateBytes: processMemoryInfo.private,
+				sharedBytes: processMemoryInfo.shared
+			};
 
 			isVMLikelyhood = Math.round((virtualMachineHint.value() * 100));
 
