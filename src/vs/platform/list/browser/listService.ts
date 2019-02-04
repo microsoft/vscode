@@ -359,17 +359,18 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		const horizontalScrolling = typeof options.horizontalScrolling !== 'undefined' ? options.horizontalScrolling : configurationService.getValue<boolean>(horizontalScrollingKey);
+		const [workbenchListOptions, workbenchListOptionsDisposable] = toWorkbenchListOptions(options, configurationService, keybindingService);
 		super(container, delegate, renderers,
 			{
 				keyboardSupport: false,
 				styleController: new DefaultStyleController(getSharedListStyleSheet()),
 				...computeStyles(themeService.getTheme(), defaultListStyles),
-				...toWorkbenchListOptions(options, configurationService, keybindingService),
+				...workbenchListOptions,
 				horizontalScrolling
 			} as IListOptions<T>
 		);
 
-		this.disposables = [];
+		this.disposables = [workbenchListOptionsDisposable];
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
 		this.configurationService = configurationService;
