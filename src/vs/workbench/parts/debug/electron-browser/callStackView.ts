@@ -398,13 +398,13 @@ class ThreadsRenderer implements ITreeRenderer<IThread, FuzzyScore, IThreadTempl
 	}
 
 	renderTemplate(container: HTMLElement): IThreadTemplateData {
-		const data: IThreadTemplateData = Object.create(null);
-		data.thread = dom.append(container, $('.thread'));
-		data.name = dom.append(data.thread, $('.name'));
-		data.state = dom.append(data.thread, $('.state'));
-		data.stateLabel = dom.append(data.state, $('span.label'));
+		const thread = dom.append(container, $('.thread'));
+		const name = dom.append(thread, $('.name'));
+		const state = dom.append(thread, $('.state'));
+		const stateLabel = dom.append(state, $('span.label'));
+		const label = new HighlightedLabel(name, false);
 
-		return data;
+		return { thread, name, state, stateLabel, label };
 	}
 
 	renderElement(element: ITreeNode<IThread, FuzzyScore>, index: number, data: IThreadTemplateData): void {
@@ -483,7 +483,7 @@ class ErrorsRenderer implements ITreeRenderer<string, FuzzyScore, IErrorTemplate
 	}
 
 	renderTemplate(container: HTMLElement): IErrorTemplateData {
-		const data: ILabelTemplateData = Object.create(null);
+		const data: IErrorTemplateData = Object.create(null);
 		data.label = dom.append(container, $('.error'));
 
 		return data;

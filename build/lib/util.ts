@@ -237,6 +237,49 @@ export function rimraf(dir: string): (cb: any) => void {
 	return cb => retry(cb);
 }
 
+/**
+ * Like rimraf (with 5 retries), but with a promise instead of a callback.
+ */
+export function primraf(dir: string): Promise<void> {
+	const fn = rimraf(dir);
+	return new Promise((resolve, reject) => {
+		fn((err: any) => {
+			if (err) {
+				return reject(err);
+			}
+			resolve();
+		});
+	});
+}
+
+/**
+ * Convert a stream to a promise.
+ */
+export function streamToPromise(stream: NodeJS.ReadWriteStream): Promise<void> {
+	return new Promise((resolve, reject) => {
+		stream.on('end', _ => resolve());
+		stream.on('error', err => reject(err));
+	});
+}
+
+export type PromiseTask = () => Promise<void>;
+
+export namespace task {
+	export function series(...tasks: PromiseTask[]): () => Promise<void> {
+		return async () => {
+			for (let i = 0; i < tasks.length; i++) {
+				await tasks[i]();
+			}
+		};
+	}
+
+	export function parallel(...tasks: PromiseTask[]): () => Promise<void> {
+		return async () => {
+			await Promise.all(tasks.map(t => t()));
+		};
+	}
+}
+
 export function getVersion(root: string): string | undefined {
 	let version = process.env['BUILD_SOURCEVERSION'];
 

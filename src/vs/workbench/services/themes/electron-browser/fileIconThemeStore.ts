@@ -154,6 +154,15 @@ export class FileIconThemeStore {
 		});
 	}
 
+	public findThemeDataByParentLocation(parentLocation: URI | undefined): any {
+		if (parentLocation) {
+			return this.getFileIconThemes().then(allThemes => {
+				return allThemes.filter(t => t.location && resources.isEqualOrParent(t.location, parentLocation));
+			});
+		}
+		return Promise.resolve([]);
+	}
+
 	public getFileIconThemes(): Promise<FileIconThemeData[]> {
 		return this.extensionService.whenInstalledExtensionsRegistered().then(isReady => {
 			return this.knownIconThemes;

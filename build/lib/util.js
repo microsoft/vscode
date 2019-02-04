@@ -183,6 +183,48 @@ function rimraf(dir) {
     return cb => retry(cb);
 }
 exports.rimraf = rimraf;
+/**
+ * Like rimraf (with 5 retries), but with a promise instead of a callback.
+ */
+function primraf(dir) {
+    const fn = rimraf(dir);
+    return new Promise((resolve, reject) => {
+        fn((err) => {
+            if (err) {
+                return reject(err);
+            }
+            resolve();
+        });
+    });
+}
+exports.primraf = primraf;
+/**
+ * Convert a stream to a promise.
+ */
+function streamToPromise(stream) {
+    return new Promise((resolve, reject) => {
+        stream.on('end', _ => resolve());
+        stream.on('error', err => reject(err));
+    });
+}
+exports.streamToPromise = streamToPromise;
+var task;
+(function (task) {
+    function series(...tasks) {
+        return async () => {
+            for (let i = 0; i < tasks.length; i++) {
+                await tasks[i]();
+            }
+        };
+    }
+    task.series = series;
+    function parallel(...tasks) {
+        return async () => {
+            await Promise.all(tasks.map(t => t()));
+        };
+    }
+    task.parallel = parallel;
+})(task = exports.task || (exports.task = {}));
 function getVersion(root) {
     let version = process.env['BUILD_SOURCEVERSION'];
     if (!version || !/^[0-9a-f]{40}$/i.test(version)) {

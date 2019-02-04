@@ -257,10 +257,22 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 		return Promise.all([
 			this.colorThemeStore.findThemeDataBySettingsId(colorThemeSetting, DEFAULT_THEME_ID).then(theme => {
-				return this.setColorTheme(theme && theme.id, undefined);
+				return this.colorThemeStore.findThemeDataByParentLocation(this.environmentService.extensionDevelopmentLocationURI).then(devThemes => {
+					if (devThemes.length) {
+						return this.setColorTheme(devThemes[0].id, ConfigurationTarget.MEMORY);
+					} else {
+						return this.setColorTheme(theme && theme.id, undefined);
+					}
+				});
 			}),
 			this.iconThemeStore.findThemeBySettingsId(iconThemeSetting).then(theme => {
-				return this.setFileIconTheme(theme && theme.id, undefined);
+				return this.iconThemeStore.findThemeDataByParentLocation(this.environmentService.extensionDevelopmentLocationURI).then(devThemes => {
+					if (devThemes.length) {
+						return this.setFileIconTheme(devThemes[0].id, ConfigurationTarget.MEMORY);
+					} else {
+						return this.setFileIconTheme(theme && theme.id, undefined);
+					}
+				});
 			}),
 		]);
 	}
