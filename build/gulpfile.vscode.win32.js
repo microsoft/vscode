@@ -124,11 +124,8 @@ function archiveWin32Setup(arch) {
 	};
 }
 
-gulp.task('clean-vscode-win32-ia32-archive', util.rimraf(zipDir('ia32')));
-gulp.task('vscode-win32-ia32-archive', ['clean-vscode-win32-ia32-archive'], archiveWin32Setup('ia32'));
-
-gulp.task('clean-vscode-win32-x64-archive', util.rimraf(zipDir('x64')));
-gulp.task('vscode-win32-x64-archive', ['clean-vscode-win32-x64-archive'], archiveWin32Setup('x64'));
+gulp.task('vscode-win32-ia32-archive', util.task.series(util.rimraf(zipDir('ia32')), archiveWin32Setup('ia32')));
+gulp.task('vscode-win32-x64-archive', util.task.series(util.rimraf(zipDir('x64')), archiveWin32Setup('x64')));
 
 function copyInnoUpdater(arch) {
 	return () => {

@@ -63,8 +63,7 @@ var BUNDLED_FILE_HEADER = [
 
 const languages = i18n.defaultLanguages.concat([]);  // i18n.defaultLanguages.concat(process.env.VSCODE_QUALITY !== 'stable' ? i18n.extraLanguages : []);
 
-gulp.task('clean-editor-src', util.rimraf('out-editor-src'));
-gulp.task('extract-editor-src', ['clean-editor-src'], function () {
+gulp.task('extract-editor-src', util.task.series(util.rimraf('out-editor-src'), function () {
 	console.log(`If the build fails, consider tweaking shakeLevel below to a lower value.`);
 	const apiusages = monacoapi.execute().usageContent;
 	const extrausages = fs.readFileSync(path.join(root, 'build', 'monaco', 'monaco.usage.recipe')).toString();
@@ -99,7 +98,7 @@ gulp.task('extract-editor-src', ['clean-editor-src'], function () {
 		importIgnorePattern: /(^vs\/css!)|(promise-polyfill\/polyfill)/,
 		destRoot: path.join(root, 'out-editor-src')
 	});
-});
+}));
 
 // Full compile, including nls and inline sources in sourcemaps, for build
 gulp.task('clean-editor-build', util.rimraf('out-editor-build'));

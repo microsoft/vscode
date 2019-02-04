@@ -197,12 +197,11 @@ function getElectron(arch) {
 	};
 }
 
-gulp.task('clean-electron', util.rimraf('.build/electron'));
-gulp.task('electron', ['clean-electron'], getElectron(process.arch));
-gulp.task('electron-ia32', ['clean-electron'], getElectron('ia32'));
-gulp.task('electron-x64', ['clean-electron'], getElectron('x64'));
-gulp.task('electron-arm', ['clean-electron'], getElectron('arm'));
-gulp.task('electron-arm64', ['clean-electron'], getElectron('arm64'));
+gulp.task('electron', util.task.series(util.rimraf('.build/electron'), getElectron(process.arch)));
+gulp.task('electron-ia32', util.task.series(util.rimraf('.build/electron'), getElectron('ia32')));
+gulp.task('electron-x64', util.task.series(util.rimraf('.build/electron'), getElectron('x64')));
+gulp.task('electron-arm', util.task.series(util.rimraf('.build/electron'), getElectron('arm')));
+gulp.task('electron-arm64', util.task.series(util.rimraf('.build/electron'), getElectron('arm64')));
 
 
 /**
