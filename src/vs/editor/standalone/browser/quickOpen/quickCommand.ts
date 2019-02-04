@@ -8,8 +8,8 @@ import * as browser from 'vs/base/browser/browser';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { matchesFuzzy } from 'vs/base/common/filters';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IContext, IHighlight, QuickOpenEntryGroup, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import { IAutoFocus, Mode } from 'vs/base/parts/quickopen/common/quickOpen';
+import { IHighlight, QuickOpenEntryGroup, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import { IAutoFocus, Mode, IEntryRunContext } from 'vs/base/parts/quickopen/common/quickOpen';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { IEditor, IEditorAction } from 'vs/editor/common/editorCommon';
@@ -50,7 +50,7 @@ export class EditorActionCommandEntry extends QuickOpenEntryGroup {
 		return this.key;
 	}
 
-	public run(mode: Mode, context: IContext): boolean {
+	public run(mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.OPEN) {
 
 			// Use a timeout to give the quick open widget a chance to close itself first
@@ -112,8 +112,8 @@ export class QuickCommandAction extends BaseEditorQuickOpenAction {
 	}
 
 	private _sort(elementA: QuickOpenEntryGroup, elementB: QuickOpenEntryGroup): number {
-		let elementAName = elementA.getLabel().toLowerCase();
-		let elementBName = elementB.getLabel().toLowerCase();
+		let elementAName = (elementA.getLabel() || '').toLowerCase();
+		let elementBName = (elementB.getLabel() || '').toLowerCase();
 
 		return elementAName.localeCompare(elementBName);
 	}
@@ -129,7 +129,7 @@ export class QuickCommandAction extends BaseEditorQuickOpenAction {
 			if (action.label) {
 				let highlights = matchesFuzzy(searchValue, action.label);
 				if (highlights) {
-					entries.push(new EditorActionCommandEntry(keybinding ? keybinding.getLabel() : '', keybinding ? keybinding.getAriaLabel() : '', highlights, action, editor));
+					entries.push(new EditorActionCommandEntry(keybinding ? keybinding.getLabel() || '' : '', keybinding ? keybinding.getAriaLabel() || '' : '', highlights, action, editor));
 				}
 			}
 		}

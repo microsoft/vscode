@@ -36,7 +36,7 @@ export interface IQuickOpenCallbacks {
 export interface IQuickOpenOptions extends IQuickOpenStyles {
 	minItemsToShow?: number;
 	maxItemsToShow?: number;
-	inputPlaceHolder: string;
+	inputPlaceHolder?: string;
 	inputAriaLabel?: string;
 	actionProvider?: IActionProvider;
 	keyboardSupport?: boolean;
