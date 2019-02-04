@@ -198,32 +198,50 @@ function primraf(dir) {
     });
 }
 exports.primraf = primraf;
-/**
- * Convert a stream to a promise.
- */
-function streamToPromise(stream) {
-    return new Promise((resolve, reject) => {
-        stream.on('end', _ => resolve());
-        stream.on('error', err => reject(err));
-    });
-}
-exports.streamToPromise = streamToPromise;
 var task;
-(function (task) {
+(function (task_1) {
+    function _isPromise(p) {
+        if (typeof p.then === 'function') {
+            return true;
+        }
+        return false;
+    }
+    async function _execute(task) {
+        // Always invoke as if it were a callback task
+        return new Promise((resolve, reject) => {
+            const taskResult = task((err) => {
+                if (err) {
+                    return reject(err);
+                }
+                resolve();
+            });
+            if (typeof taskResult === 'undefined') {
+                // this was a callback task
+                return;
+            }
+            if (_isPromise(taskResult)) {
+                // this was a promise returning task
+                taskResult.then(resolve, reject);
+                return;
+            }
+            taskResult.on('end', _ => resolve());
+            taskResult.on('error', err => reject(err));
+        });
+    }
     function series(...tasks) {
         return async () => {
             for (let i = 0; i < tasks.length; i++) {
-                await tasks[i]();
+                await _execute(tasks[i]);
             }
         };
     }
-    task.series = series;
+    task_1.series = series;
     function parallel(...tasks) {
         return async () => {
-            await Promise.all(tasks.map(t => t()));
+            await Promise.all(tasks.map(t => _execute(t)));
         };
     }
-    task.parallel = parallel;
+    task_1.parallel = parallel;
 })(task = exports.task || (exports.task = {}));
 function getVersion(root) {
     let version = process.env['BUILD_SOURCEVERSION'];

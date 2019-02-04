@@ -105,8 +105,8 @@ function buildWin32Setup(arch, target) {
 }
 
 function defineWin32SetupTasks(arch, target) {
-	gulp.task(`clean-vscode-win32-${arch}-${target}-setup`, util.rimraf(setupDir(arch, target)));
-	gulp.task(`vscode-win32-${arch}-${target}-setup`, [`clean-vscode-win32-${arch}-${target}-setup`], buildWin32Setup(arch, target));
+	const cleanTask = () => util.primraf(setupDir(arch, target));
+	gulp.task(`vscode-win32-${arch}-${target}-setup`, util.task.series(cleanTask, buildWin32Setup(arch, target)));
 }
 
 defineWin32SetupTasks('ia32', 'system');

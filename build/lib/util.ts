@@ -252,30 +252,57 @@ export function primraf(dir: string): Promise<void> {
 	});
 }
 
-/**
- * Convert a stream to a promise.
- */
-export function streamToPromise(stream: NodeJS.ReadWriteStream): Promise<void> {
-	return new Promise((resolve, reject) => {
-		stream.on('end', _ => resolve());
-		stream.on('error', err => reject(err));
-	});
-}
-
 export type PromiseTask = () => Promise<void>;
+export type StreamTask = () => NodeJS.ReadWriteStream;
+export type CallbackTask = (cb: (err?: any) => void) => void;
+export type Task = PromiseTask | StreamTask | CallbackTask;
 
 export namespace task {
-	export function series(...tasks: PromiseTask[]): () => Promise<void> {
+
+	function _isPromise(p: Promise<void> | NodeJS.ReadWriteStream): p is Promise<void> {
+		if (typeof (<any>p).then === 'function') {
+			return true;
+		}
+		return false;
+	}
+
+	async function _execute(task: Task): Promise<void> {
+		// Always invoke as if it were a callback task
+		return new Promise((resolve, reject) => {
+			const taskResult = task((err) => {
+				if (err) {
+					return reject(err);
+				}
+				resolve();
+			});
+
+			if (typeof taskResult === 'undefined') {
+				// this was a callback task
+				return;
+			}
+
+			if (_isPromise(taskResult)) {
+				// this was a promise returning task
+				taskResult.then(resolve, reject);
+				return;
+			}
+
+			taskResult.on('end', _ => resolve());
+			taskResult.on('error', err => reject(err));
+		});
+	}
+
+	export function series(...tasks: Task[]): () => Promise<void> {
 		return async () => {
 			for (let i = 0; i < tasks.length; i++) {
-				await tasks[i]();
+				await _execute(tasks[i]);
 			}
 		};
 	}
 
-	export function parallel(...tasks: PromiseTask[]): () => Promise<void> {
+	export function parallel(...tasks: Task[]): () => Promise<void> {
 		return async () => {
-			await Promise.all(tasks.map(t => t()));
+			await Promise.all(tasks.map(t => _execute(t)));
 		};
 	}
 }
