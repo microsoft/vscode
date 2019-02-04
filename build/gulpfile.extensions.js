@@ -163,10 +163,8 @@ const tasks = compilations.map(function (tsconfigFile) {
 	};
 });
 
-gulp.task('clean-extensions', tasks.map(t => t.clean));
 gulp.task('compile-extensions', tasks.map(t => t.compile));
 gulp.task('watch-extensions', tasks.map(t => t.watch));
 
-gulp.task('clean-extensions-build', tasks.map(t => t.cleanBuild));
 gulp.task('compile-extensions-build', tasks.map(t => t.compileBuild));
 gulp.task('watch-extensions-build', tasks.map(t => t.watchBuild));
