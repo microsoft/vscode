@@ -208,14 +208,23 @@ function streamToPromise(stream) {
     });
 }
 exports.streamToPromise = streamToPromise;
-function taskSeries(...tasks) {
-    return async () => {
-        for (let i = 0; i < tasks.length; i++) {
-            await tasks[i]();
-        }
-    };
-}
-exports.taskSeries = taskSeries;
+var task;
+(function (task) {
+    function series(...tasks) {
+        return async () => {
+            for (let i = 0; i < tasks.length; i++) {
+                await tasks[i]();
+            }
+        };
+    }
+    task.series = series;
+    function parallel(...tasks) {
+        return async () => {
+            await Promise.all(tasks.map(t => t()));
+        };
+    }
+    task.parallel = parallel;
+})(task = exports.task || (exports.task = {}));
 function getVersion(root) {
     let version = process.env['BUILD_SOURCEVERSION'];
     if (!version || !/^[0-9a-f]{40}$/i.test(version)) {

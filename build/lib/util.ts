@@ -263,12 +263,21 @@ export function streamToPromise(stream: NodeJS.ReadWriteStream): Promise<void> {
 }
 
 export type PromiseTask = () => Promise<void>;
-export function taskSeries(...tasks: PromiseTask[]): () => Promise<void> {
-	return async () => {
-		for (let i = 0; i < tasks.length; i++) {
-			await tasks[i]();
-		}
-	};
+
+export namespace task {
+	export function series(...tasks: PromiseTask[]): () => Promise<void> {
+		return async () => {
+			for (let i = 0; i < tasks.length; i++) {
+				await tasks[i]();
+			}
+		};
+	}
+
+	export function parallel(...tasks: PromiseTask[]): () => Promise<void> {
+		return async () => {
+			await Promise.all(tasks.map(t => t()));
+		};
+	}
 }
 
 export function getVersion(root: string): string | undefined {
