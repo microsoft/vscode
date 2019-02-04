@@ -143,8 +143,10 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 		this._extensionManagementService.onDidInstallExtension((event) => {
 			if (event.local) {
-				// an extension has been installed
-				this._handleDeltaExtensions(new DeltaExtensionsQueueItem([event.local], []));
+				if (this._extensionEnablementService.isEnabled(event.local)) {
+					// an extension has been installed
+					this._handleDeltaExtensions(new DeltaExtensionsQueueItem([event.local], []));
+				}
 			}
 		});
 

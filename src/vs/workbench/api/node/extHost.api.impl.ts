@@ -177,11 +177,11 @@ export function createApiFactory(
 		// Warn when trying to use the vscode.previewHtml command as it does not work properly in all scenarios and
 		// has security concerns.
 		const checkCommand = (() => {
-			let done = !extension.isUnderDevelopment;
+			let done = false;
 			const informOnce = () => {
 				if (!done) {
 					done = true;
-					console.warn(`Extension '${extension.identifier.value}' uses the 'vscode.previewHtml' command which is deprecated and will be removed. Please update your extension to use the Webview API: https://go.microsoft.com/fwlink/?linkid=2039309`);
+					window.showWarningMessage(localize('previewHtml.deprecated', "Extension '{0}' uses the 'vscode.previewHtml' command which is deprecated and will be removed soon. Please file an issue against this extension to update to use VS Code's webview API.", extension.identifier.value));
 				}
 			};
 			return (commandId: string) => {

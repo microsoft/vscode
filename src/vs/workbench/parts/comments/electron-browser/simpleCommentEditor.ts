@@ -63,7 +63,6 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 				verticalHasArrows: false,
 				horizontalHasArrows: false
 			},
-			automaticLayout: true,
 			overviewRulerLanes: 2,
 			lineDecorationsWidth: 0,
 			scrollBeyondLastLine: false,

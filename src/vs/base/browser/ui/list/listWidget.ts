@@ -1066,7 +1066,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	private mouseController: MouseController<T> | undefined;
 
 	get multipleSelectionController(): IMultipleSelectionController<T> {
-		return this.mouseController ? this.mouseController.multipleSelectionController : DefaultMultipleSelectionContoller;
+		return (this.mouseController && this.mouseController.multipleSelectionController) || DefaultMultipleSelectionContoller;
 	}
 
 	private _onDidUpdateOptions = new Emitter<IListOptions<T>>();

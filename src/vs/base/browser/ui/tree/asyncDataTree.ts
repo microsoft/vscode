@@ -14,7 +14,7 @@ import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { Iterator } from 'vs/base/common/iterator';
 import { IDragAndDropData } from 'vs/base/browser/dnd';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
 import { toggleClass } from 'vs/base/browser/dom';
 
 const enum AsyncDataTreeNodeState {
@@ -287,6 +287,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	get onDidBlur(): Event<void> { return this.tree.onDidBlur; }
 
 	get filterOnType(): boolean { return this.tree.filterOnType; }
+	get openOnSingleClick(): boolean { return this.tree.openOnSingleClick; }
 
 	get onDidDispose(): Event<void> { return this.tree.onDidDispose; }
 
@@ -409,6 +410,10 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		}
 
 		await this.refreshAndRenderNode(this.getDataNode(element), recursive, ChildrenResolutionReason.Refresh, viewStateContext);
+	}
+
+	hasNode(element: T): boolean {
+		return this.renderedNodes.has(element);
 	}
 
 	// View
@@ -675,12 +680,14 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			const children = await childrenPromise;
 			this.setChildren(node, children, recursive, viewStateContext);
 		} catch (err) {
-			if (isPromiseCanceledError(err)) {
-				return;
-			}
+			node.needsRefresh = true;
 
 			if (node !== this.root) {
 				this.tree.collapse(node === this.root ? null : node);
+			}
+
+			if (isPromiseCanceledError(err)) {
+				return;
 			}
 
 			throw err;
@@ -713,11 +720,12 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	}
 
 	private _onDidChangeCollapseState({ node, deep }: ICollapseStateChangeEvent<IAsyncDataTreeNode<TInput, T>, any>): void {
-		if (!node.collapsed && node.element.state === AsyncDataTreeNodeState.Uninitialized) {
+		if (!node.collapsed && (node.element.state === AsyncDataTreeNodeState.Uninitialized || node.element.needsRefresh)) {
 			if (deep) {
 				this.collapse(node.element.element as T);
 			} else {
-				this.refreshAndRenderNode(node.element, false, ChildrenResolutionReason.Expand);
+				this.refreshAndRenderNode(node.element, false, ChildrenResolutionReason.Expand)
+					.catch(onUnexpectedError);
 			}
 		}
 	}

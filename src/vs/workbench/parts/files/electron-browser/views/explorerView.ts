@@ -233,6 +233,20 @@ export class ExplorerView extends ViewletPanel {
 
 	focus(): void {
 		this.tree.domFocus();
+
+		const focused = this.tree.getFocus();
+		if (focused.length === 1) {
+			if (this.autoReveal) {
+				this.tree.reveal(focused[0], 0.5);
+			}
+
+			const activeFile = this.getActiveFile();
+			if (!activeFile && !focused[0].isDirectory) {
+				// Open the focused element in the editor if there is currently no file opened #67708
+				this.editorService.openEditor({ resource: focused[0].resource, options: { preserveFocus: true, revealIfVisible: true } })
+					.then(undefined, onUnexpectedError);
+			}
+		}
 	}
 
 	private selectActiveFile(reveal?: boolean): void {
@@ -416,6 +430,12 @@ export class ExplorerView extends ViewletPanel {
 			this.shouldRefresh = true;
 			return Promise.resolve(undefined);
 		}
+
+		// Tree node doesn't exist yet
+		if (item && !this.tree.hasNode(item)) {
+			return Promise.resolve(undefined);
+		}
+
 		const recursive = !item;
 		const toRefresh = item || this.tree.getInput();
 
@@ -489,7 +509,7 @@ export class ExplorerView extends ViewletPanel {
 	}
 
 	private onSelectItem(fileStat: ExplorerItem, reveal = this.autoReveal): Promise<void> {
-		if (!fileStat || !this.isBodyVisible()) {
+		if (!fileStat || !this.isBodyVisible() || this.tree.getInput() === fileStat) {
 			return Promise.resolve(undefined);
 		}
 

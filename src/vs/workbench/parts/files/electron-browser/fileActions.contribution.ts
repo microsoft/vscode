@@ -25,6 +25,8 @@ import { WorkbenchListDoubleSelection } from 'vs/platform/list/browser/listServi
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { WebviewEditor } from 'vs/workbench/parts/webview/electron-browser/webviewEditor';
+import { WalkThroughPart } from 'vs/workbench/parts/welcome/walkThrough/electron-browser/walkThroughPart';
 
 // Contribute Global Actions
 const category = nls.localize('filesCategory', "File");
@@ -559,7 +561,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	group: '4_save',
 	command: {
 		id: SAVE_FILE_COMMAND_ID,
-		title: nls.localize({ key: 'miSave', comment: ['&& denotes a mnemonic'] }, "&&Save")
+		title: nls.localize({ key: 'miSave', comment: ['&& denotes a mnemonic'] }, "&&Save"),
+		precondition: ContextKeyExpr.and(ContextKeyExpr.notEquals('activeEditor', WebviewEditor.ID), ContextKeyExpr.notEquals('activeEditor', WalkThroughPart.ID))
 	},
 	order: 1
 });
@@ -568,7 +571,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	group: '4_save',
 	command: {
 		id: SAVE_FILE_AS_COMMAND_ID,
-		title: nls.localize({ key: 'miSaveAs', comment: ['&& denotes a mnemonic'] }, "Save &&As...")
+		title: nls.localize({ key: 'miSaveAs', comment: ['&& denotes a mnemonic'] }, "Save &&As..."),
+		precondition: ContextKeyExpr.and(ContextKeyExpr.notEquals('activeEditor', WebviewEditor.ID), ContextKeyExpr.notEquals('activeEditor', WalkThroughPart.ID))
 	},
 	order: 2
 });
