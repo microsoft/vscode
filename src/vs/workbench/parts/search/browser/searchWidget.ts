@@ -397,14 +397,11 @@ export class SearchWidget extends Widget {
 		if (!this.searchInput.getRegex()) {
 			return null;
 		}
-		let regExp: RegExp;
 		try {
-			regExp = new RegExp(value);
+			// tslint:disable-next-line: no-unused-expression
+			new RegExp(value);
 		} catch (e) {
 			return { content: e.message };
-		}
-		if (strings.regExpLeadsToEndlessLoop(regExp)) {
-			return { content: nls.localize('regexp.validationFailure', "Expression matches everything") };
 		}
 
 		if (strings.regExpContainsBackreference(value)) {

@@ -1143,20 +1143,6 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			return;
 		}
 
-		// Validate regex is OK
-		if (isRegex) {
-			let regExp: RegExp;
-			try {
-				regExp = new RegExp(contentPattern);
-			} catch (e) {
-				return; // malformed regex
-			}
-
-			if (strings.regExpLeadsToEndlessLoop(regExp)) {
-				return; // endless regex
-			}
-		}
-
 		const content: IPatternInfo = {
 			pattern: contentPattern,
 			isRegExp: isRegex,
