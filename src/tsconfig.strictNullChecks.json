@@ -37,6 +37,7 @@
 		"./vs/code/electron-main/logUploader.ts",
 		"./vs/code/electron-main/sharedProcess.ts",
 		"./vs/code/electron-main/theme.ts",
+		"./vs/code/electron-main/window.ts",
 		"./vs/code/node/cli.ts",
 		"./vs/code/node/cliProcessMain.ts",
 		"./vs/code/node/paths.ts",
