@@ -8,7 +8,7 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
+import { ITreeNode, ITreeRenderer, ITreeDragAndDrop, ITreeDragOverReaction } from 'vs/base/browser/ui/tree/tree';
 import { IAction } from 'vs/base/common/actions';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as paths from 'vs/base/common/paths';
@@ -26,6 +26,10 @@ import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { RemoveAction, ReplaceAction, ReplaceAllAction, ReplaceAllInFolderAction } from 'vs/workbench/parts/search/browser/searchActions';
 import { SearchView } from 'vs/workbench/parts/search/browser/searchView';
 import { FileMatch, FolderMatch, Match, RenderableMatch, SearchModel, BaseFolderMatch } from 'vs/workbench/parts/search/common/searchModel';
+import { IDragAndDropData } from 'vs/base/browser/dnd';
+import { fillResourceDataTransfers } from 'vs/workbench/browser/dnd';
+import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
+import { URI } from 'vs/base/common/uri';
 
 interface IFolderMatchTemplate {
 	label: IResourceLabel;
@@ -331,5 +335,49 @@ export class SearchAccessibilityProvider implements IAccessibilityProvider<Rende
 			return nls.localize('searchResultAria', "Found term {0} at column position {1} in line with text {2}", matchString, range.startColumn + 1, matchText);
 		}
 		return undefined;
+	}
+}
+
+export class SearchDND implements ITreeDragAndDrop<RenderableMatch> {
+	constructor(
+		@IInstantiationService private instantiationService: IInstantiationService
+	) { }
+
+	onDragOver(data: IDragAndDropData, targetElement: RenderableMatch, targetIndex: number, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
+		return false;
+	}
+
+	getDragURI(element: RenderableMatch): string | null {
+		if (element instanceof FileMatch) {
+			return element.remove.toString();
+		}
+
+		return null;
+	}
+
+	getDragLabel?(elements: RenderableMatch[]): string | undefined {
+		if (elements.length > 1) {
+			return String(elements.length);
+		}
+
+		const element = elements[0];
+		return element instanceof FileMatch ?
+			resources.basename(element.resource()) :
+			undefined;
+	}
+
+	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
+		const elements = (data as ElementsDragAndDropData<RenderableMatch>).elements;
+		const resources: URI[] = elements
+			.filter(e => e instanceof FileMatch)
+			.map((fm: FileMatch) => fm.resource());
+
+		if (resources.length) {
+			// Apply some datatransfer types to allow for dragging the element outside of the application
+			this.instantiationService.invokeFunction(fillResourceDataTransfers, resources, originalEvent);
+		}
+	}
+
+	drop(data: IDragAndDropData, targetElement: RenderableMatch, targetIndex: number, originalEvent: DragEvent): void {
 	}
 }
