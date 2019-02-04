@@ -139,7 +139,6 @@ const tasks = compilations.map(function (tsconfigFile) {
 	// Tasks
 	gulp.task('compile-extension:' + name, compileTask);
 	gulp.task('watch-extension:' + name, watchTask);
-	gulp.task('compile-extension-build:' + name, compileBuildTask);
 
 	return {
 		compileTask: compileTask,
