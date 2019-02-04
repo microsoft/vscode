@@ -403,6 +403,7 @@ class ThreadsRenderer implements ITreeRenderer<IThread, FuzzyScore, IThreadTempl
 		data.name = dom.append(data.thread, $('.name'));
 		data.state = dom.append(data.thread, $('.state'));
 		data.stateLabel = dom.append(data.state, $('span.label'));
+		data.label = new HighlightedLabel(data.name, false);
 
 		return data;
 	}
