@@ -507,7 +507,8 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		if (this._inspectPort) {
 			return Promise.resolve();
 		}
-		// send SIGUSR1 and wait a little
+		// send SIGUSR1 and wait a little the actual port is read from the process stdout which we
+		// scan here: https://github.com/Microsoft/vscode/blob/67ffab8dcd1a6752d8b62bcd13d7020101eef568/src/vs/workbench/services/extensions/electron-browser/extensionHost.ts#L225-L240
 		this._extensionHostProcess.kill('SIGUSR1');
 		return timeout(1000);
 	}
