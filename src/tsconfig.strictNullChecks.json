@@ -791,6 +791,7 @@
 		"./vs/workbench/services/extensions/node/rpcProtocol.ts",
 		"./vs/workbench/services/extensions/test/node/rpcProtocol.test.ts",
 		"./vs/workbench/services/files/electron-browser/encoding.ts",
+		"./vs/workbench/services/files/electron-browser/streams.ts",
 		"./vs/workbench/services/files/node/watcher/common.ts",
 		"./vs/workbench/services/files/node/watcher/nsfw/nsfwWatcherService.ts",
 		"./vs/workbench/services/files/node/watcher/nsfw/test/nsfwWatcherService.test.ts",

@@ -31,7 +31,7 @@ function createSimpleWritable(provider: IFileSystemProvider, resource: URI, opts
 		}
 		end() {
 			// todo@joh - end might have another chunk...
-			provider.writeFile(resource, Buffer.concat(this._chunks), opts).then(_ => {
+			provider.writeFile!(resource, Buffer.concat(this._chunks), opts).then(_ => {
 				super.end();
 			}, err => {
 				this.emit('error', err);
@@ -50,9 +50,9 @@ function createWritable(provider: IFileSystemProvider, resource: URI, opts: File
 		async _write(chunk: Buffer, encoding, callback: Function) {
 			try {
 				if (typeof this._fd !== 'number') {
-					this._fd = await provider.open(resource, { create: true });
+					this._fd = await provider.open!(resource, { create: true });
 				}
-				let bytesWritten = await provider.write(this._fd, this._pos, chunk, 0, chunk.length);
+				let bytesWritten = await provider.write!(this._fd, this._pos, chunk, 0, chunk.length);
 				this._pos += bytesWritten;
 				callback();
 			} catch (err) {
@@ -61,9 +61,9 @@ function createWritable(provider: IFileSystemProvider, resource: URI, opts: File
 		}
 		_final(callback: (err?: any) => any) {
 			if (typeof this._fd !== 'number') {
-				provider.open(resource, { create: true }).then(fd => provider.close(fd)).finally(callback);
+				provider.open!(resource, { create: true }).then(fd => provider.close!(fd)).finally(callback);
 			} else {
-				provider.close(this._fd).finally(callback);
+				provider.close!(this._fd).finally(callback);
 			}
 		}
 	};
@@ -85,20 +85,20 @@ function createReadable(provider: IFileSystemProvider, resource: URI, position: 
 		_pos: number = position;
 		_reading: boolean = false;
 
-		async _read(size?: number) {
+		async _read(size: number = 2 ** 10) {
 			if (this._reading) {
 				return;
 			}
 			this._reading = true;
 			try {
 				if (typeof this._fd !== 'number') {
-					this._fd = await provider.open(resource, { create: false });
+					this._fd = await provider.open!(resource, { create: false });
 				}
 				while (this._reading) {
 					let buffer = Buffer.allocUnsafe(size);
-					let bytesRead = await provider.read(this._fd, this._pos, buffer, 0, buffer.length);
+					let bytesRead = await provider.read!(this._fd, this._pos, buffer, 0, buffer.length);
 					if (bytesRead === 0) {
-						await provider.close(this._fd);
+						await provider.close!(this._fd);
 						this._reading = false;
 						this.push(null);
 					} else {
@@ -113,7 +113,7 @@ function createReadable(provider: IFileSystemProvider, resource: URI, position: 
 		}
 		_destroy(_err: any, callback: (err?: any) => any) {
 			if (typeof this._fd === 'number') {
-				provider.close(this._fd).then(callback, callback);
+				provider.close!(this._fd).then(callback, callback);
 			}
 		}
 	};
@@ -126,7 +126,7 @@ function createSimpleReadable(provider: IFileSystemProvider, resource: URI, posi
 			if (this._readOperation) {
 				return;
 			}
-			this._readOperation = provider.readFile(resource).then(data => {
+			this._readOperation = provider.readFile!(resource).then(data => {
 				this.push(data.slice(position));
 				this.push(null);
 			}, err => {
@@ -141,7 +141,7 @@ export function createReadableOfSnapshot(snapshot: ITextSnapshot): Readable {
 	return new Readable({
 		read: function () {
 			try {
-				let chunk: string;
+				let chunk: string | null = null;
 				let canPush = true;
 
 				// Push all chunks as long as we can push and as long as
