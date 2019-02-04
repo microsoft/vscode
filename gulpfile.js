@@ -17,18 +17,12 @@ const compilation = require('./build/lib/compilation');
 gulp.task('compile-client', util.task.series(util.rimraf('out'), compilation.compileTask('src', 'out', false)));
 gulp.task('watch-client', util.task.series(util.rimraf('out'), compilation.watchTask('out', false)));
 
-// Full compile, including nls and inline sources in sourcemaps, for build
-gulp.task('compile-client-build', util.task.series(util.rimraf('out-build'), compilation.compileTask('src', 'out-build', true)));
-
 // Default
 gulp.task('default', ['compile']);
 
 // All
 gulp.task('compile', ['monaco-typecheck', 'compile-client', 'compile-extensions']);
 gulp.task('watch', [/* 'monaco-typecheck-watch', */ 'watch-client', 'watch-extensions']);
-
-// All Build
-gulp.task('compile-build', ['compile-client-build', 'compile-extensions-build']);
 
 process.on('unhandledRejection', (reason, p) => {
 	console.log('Unhandled Rejection at: Promise', p, 'reason:', reason);

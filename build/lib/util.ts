@@ -292,7 +292,7 @@ export namespace task {
 		});
 	}
 
-	export function series(...tasks: Task[]): () => Promise<void> {
+	export function series(...tasks: Task[]): PromiseTask {
 		return async () => {
 			for (let i = 0; i < tasks.length; i++) {
 				await _execute(tasks[i]);
@@ -300,7 +300,7 @@ export namespace task {
 		};
 	}
 
-	export function parallel(...tasks: Task[]): () => Promise<void> {
+	export function parallel(...tasks: Task[]): PromiseTask {
 		return async () => {
 			await Promise.all(tasks.map(t => _execute(t)));
 		};

@@ -143,4 +143,4 @@ const tasks = compilations.map(function (tsconfigFile) {
 
 gulp.task('compile-extensions', util.task.parallel(...tasks.map(t => t.compileTask)));
 gulp.task('watch-extensions', util.task.parallel(...tasks.map(t => t.watchTask)));
-gulp.task('compile-extensions-build', util.task.parallel(...tasks.map(t => t.compileBuildTask)));
+exports.compileExtensionsBuildTask = util.task.parallel(...tasks.map(t => t.compileBuildTask));
