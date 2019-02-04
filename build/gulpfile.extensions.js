@@ -47,11 +47,7 @@ const tasks = compilations.map(function (tsconfigFile) {
 	const clean = 'clean-extension:' + name;
 	const compile = 'compile-extension:' + name;
 	const watch = 'watch-extension:' + name;
-
-	// Build Tasks
-	const cleanBuild = 'clean-extension-build:' + name;
 	const compileBuild = 'compile-extension-build:' + name;
-	const watchBuild = 'watch-extension-build:' + name;
 
 	const root = path.join('extensions', relativeDirname);
 	const srcBase = path.join(root, 'src');
@@ -112,15 +108,18 @@ const tasks = compilations.map(function (tsconfigFile) {
 	const srcOpts = { cwd: path.dirname(__dirname), base: srcBase };
 
 	gulp.task(clean, cb => rimraf(out, cb));
+	const cleanTask = () => util.primraf(out);
 
-	gulp.task(compile, [clean], () => {
+	gulp.task(compile, util.taskSeries(cleanTask, () => {
 		const pipeline = createPipeline(false, true);
 		const input = gulp.src(src, srcOpts);
 
-		return input
+		return util.streamToPromise(
+			input
 			.pipe(pipeline())
-			.pipe(gulp.dest(out));
-	});
+			.pipe(gulp.dest(out))
+		);
+	}));
 
 	gulp.task(watch, [clean], () => {
 		const pipeline = createPipeline(false);
@@ -132,39 +131,24 @@ const tasks = compilations.map(function (tsconfigFile) {
 			.pipe(gulp.dest(out));
 	});
 
-	gulp.task(cleanBuild, cb => rimraf(out, cb));
-
-	gulp.task(compileBuild, [clean], () => {
+	gulp.task(compileBuild, util.taskSeries(cleanTask, () => {
 		const pipeline = createPipeline(true, true);
 		const input = gulp.src(src, srcOpts);
 
-		return input
+		return util.streamToPromise(
+			input
 			.pipe(pipeline())
-			.pipe(gulp.dest(out));
-	});
-
-	gulp.task(watchBuild, [clean], () => {
-		const pipeline = createPipeline(true);
-		const input = gulp.src(src, srcOpts);
-		const watchInput = watcher(src, srcOpts);
-
-		return watchInput
-			.pipe(util.incremental(() => pipeline(), input))
-			.pipe(gulp.dest(out));
-	});
+			.pipe(gulp.dest(out))
+		);
+	}));
 
 	return {
-		clean: clean,
 		compile: compile,
 		watch: watch,
-		cleanBuild: cleanBuild,
-		compileBuild: compileBuild,
-		watchBuild: watchBuild
+		compileBuild: compileBuild
 	};
 });
 
 gulp.task('compile-extensions', tasks.map(t => t.compile));
 gulp.task('watch-extensions', tasks.map(t => t.watch));
-
 gulp.task('compile-extensions-build', tasks.map(t => t.compileBuild));
-gulp.task('watch-extensions-build', tasks.map(t => t.watchBuild));
