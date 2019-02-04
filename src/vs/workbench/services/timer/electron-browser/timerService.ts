@@ -54,8 +54,6 @@ export interface IMemoryInfo {
 		"timers.ellapsedExtensionsReady" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedRequire" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedGlobalStorageInitMain" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"timers.ellapsedGlobalStorageInitRenderer" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"timers.ellapsedWorkspaceStorageRequire" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedWorkspaceStorageInit" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedWorkspaceServiceInit" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedViewletRestore" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
@@ -205,22 +203,6 @@ export interface IStartupMetrics {
 		 * * Measured with the `main:willInitGlobalStorage` and `main:didInitGlobalStorage` performance marks.
 		 */
 		readonly ellapsedGlobalStorageInitMain: number;
-
-		/**
-		 * The time it took to load the initial set of values from the global storage.
-		 *
-		 * * Happens in the renderer-process
-		 * * Measured with the `willInitGlobalStorage` and `didInitGlobalStorage` performance marks.
-		 */
-		readonly ellapsedGlobalStorageInitRenderer: number;
-
-		/**
-		 * The time it took to require the workspace storage DB.
-		 *
-		 * * Happens in the renderer-process
-		 * * Measured with the `willRequireSQLite` and `didRequireSQLite` performance marks.
-		 */
-		readonly ellapsedWorkspaceStorageRequire: number;
 
 		/**
 		 * The time it took to require the workspace storage DB, connect to it
@@ -416,8 +398,6 @@ class TimerService implements ITimerService {
 				ellapsedWindowLoadToRequire: perf.getDuration('main:loadWindow', 'willLoadWorkbenchMain'),
 				ellapsedRequire: perf.getDuration('willLoadWorkbenchMain', 'didLoadWorkbenchMain'),
 				ellapsedGlobalStorageInitMain: perf.getDuration('main:willInitGlobalStorage', 'main:didInitGlobalStorage'),
-				ellapsedGlobalStorageInitRenderer: perf.getDuration('willInitGlobalStorage', 'didInitGlobalStorage'),
-				ellapsedWorkspaceStorageRequire: perf.getDuration('willRequireSQLite', 'didRequireSQLite'),
 				ellapsedWorkspaceStorageInit: perf.getDuration('willInitWorkspaceStorage', 'didInitWorkspaceStorage'),
 				ellapsedWorkspaceServiceInit: perf.getDuration('willInitWorkspaceService', 'didInitWorkspaceService'),
 				ellapsedExtensions: perf.getDuration('willLoadExtensions', 'didLoadExtensions'),

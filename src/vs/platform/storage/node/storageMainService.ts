@@ -10,8 +10,7 @@ import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IStorage, Storage, SQLiteStorageDatabase, ISQLiteStorageDatabaseLoggingOptions, InMemoryStorageDatabase } from 'vs/base/node/storage';
 import { join } from 'path';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { mark, getDuration } from 'vs/base/common/performance';
+import { mark } from 'vs/base/common/performance';
 import { exists, readdir } from 'vs/base/node/pfs';
 import { Database } from 'vscode-sqlite3';
 import { endsWith, startsWith } from 'vs/base/common/strings';
@@ -91,8 +90,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
 		super();
 
@@ -109,27 +107,9 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 	}
 
 	private createLogginOptions(): ISQLiteStorageDatabaseLoggingOptions {
-		const loggedStorageErrors = new Set<string>();
-
 		return {
 			logTrace: (this.logService.getLevel() === LogLevel.Trace) ? msg => this.logService.trace(msg) : undefined,
-			logError: error => {
-				this.logService.error(error);
-
-				const errorStr = `${error}`;
-				if (!loggedStorageErrors.has(errorStr)) {
-					loggedStorageErrors.add(errorStr);
-
-					/* __GDPR__
-						"sqliteMainStorageError" : {
-							"storageError": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-						}
-					*/
-					this.telemetryService.publicLog('sqliteMainStorageError', {
-						'storageError': errorStr
-					});
-				}
-			}
+			logError: error => this.logService.error(error)
 		} as ISQLiteStorageDatabaseLoggingOptions;
 	}
 
@@ -375,18 +355,12 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 	}
 
 	close(): Promise<void> {
-		this.logService.trace('StorageMainService#close() - begin');
 
 		// Signal as event so that clients can still store data
 		this._onWillSaveState.fire();
 
 		// Do it
-		mark('main:willCloseGlobalStorage');
-		return this.storage.close().then(() => {
-			mark('main:didCloseGlobalStorage');
-
-			this.logService.trace(`StorageMainService#close() - finished in ${getDuration('main:willCloseGlobalStorage', 'main:didCloseGlobalStorage')}ms`);
-		});
+		return this.storage.close();
 	}
 
 	checkIntegrity(full: boolean): Promise<string> {
