@@ -430,6 +430,12 @@ export class ExplorerView extends ViewletPanel {
 			this.shouldRefresh = true;
 			return Promise.resolve(undefined);
 		}
+
+		// Tree node doesn't exist yet
+		if (item && !this.tree.hasNode(item)) {
+			return Promise.resolve(undefined);
+		}
+
 		const recursive = !item;
 		const toRefresh = item || this.tree.getInput();
 
