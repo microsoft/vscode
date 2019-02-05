@@ -44,7 +44,11 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 	}
 
 	$onFileSystemChange(handle: number, changes: IFileChangeDto[]): void {
-		this._fileProvider.get(handle).$onFileSystemChange(changes);
+		const fileProvider = this._fileProvider.get(handle);
+		if (!fileProvider) {
+			throw new Error('Unknown file provider');
+		}
+		fileProvider.$onFileSystemChange(changes);
 	}
 }
 
