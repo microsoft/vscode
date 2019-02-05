@@ -424,6 +424,9 @@ export function createApiFactory(
 			onDidChangeActiveTerminal(listener, thisArg?, disposables?) {
 				return extHostTerminalService.onDidChangeActiveTerminal(listener, thisArg, disposables);
 			},
+			onDidChangeTerminalDimensions(listener, thisArg?, disposables?) {
+				return extHostTerminalService.onDidChangeTerminalDimensions(listener, thisArg, disposables);
+			},
 			get state() {
 				return extHostWindow.state;
 			},
@@ -479,9 +482,9 @@ export function createApiFactory(
 				}
 				return extHostTerminalService.createTerminal(<string>nameOrOptions, shellPath, shellArgs);
 			},
-			createTerminalRenderer: proposedApiFunction(extension, (name: string) => {
+			createTerminalRenderer(name: string): vscode.TerminalRenderer {
 				return extHostTerminalService.createTerminalRenderer(name);
-			}),
+			},
 			registerTreeDataProvider(viewId: string, treeDataProvider: vscode.TreeDataProvider<any>): vscode.Disposable {
 				return extHostTreeViews.registerTreeDataProvider(viewId, treeDataProvider, extension);
 			},
