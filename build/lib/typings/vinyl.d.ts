@@ -11,6 +11,9 @@ declare module "vinyl" {
 	 * A virtual file format.
 	 */
 	class File {
+
+		public static isVinyl(t: any): t is File;
+
 		constructor(options?: {
 			/**
 			* Default: process.cwd()

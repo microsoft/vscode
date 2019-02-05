@@ -58,6 +58,7 @@ function createCompile(src, build, emitError) {
             .pipe(tsFilter)
             .pipe(util.loadSourcemaps())
             .pipe(ts(token))
+            .pipe(util.toLatestVinylFile())
             .pipe(noDeclarationsFilter)
             .pipe(build ? nls() : es.through())
             .pipe(noDeclarationsFilter.restore)
