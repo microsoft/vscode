@@ -358,11 +358,11 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 					return;
 				}
 
-				let container = this.getViewContainer(entry.key);
-				if (!container) {
+				const viewContainer = this.getViewContainer(entry.key);
+				if (!viewContainer) {
 					collector.warn(localize('ViewContainerDoesnotExist', "View container '{0}' does not exist and all views registered to it will be added to 'Explorer'.", entry.key));
-					container = this.getDefaultViewContainer();
 				}
+				const container = viewContainer || this.getDefaultViewContainer();
 				const registeredViews = ViewsRegistry.getViews(container);
 				const viewIds: string[] = [];
 				const viewDescriptors = coalesce(entry.value.map((item, index) => {
@@ -398,7 +398,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 	}
 
 	private getDefaultViewContainer(): ViewContainer {
-		return this.viewContainersRegistry.get(EXPLORER);
+		return this.viewContainersRegistry.get(EXPLORER)!;
 	}
 
 	private removeViews(extensions: IExtensionPointUser<ViewExtensionPointType>[]): void {
@@ -435,7 +435,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 		return true;
 	}
 
-	private getViewContainer(value: string): ViewContainer {
+	private getViewContainer(value: string): ViewContainer | undefined {
 		switch (value) {
 			case 'explorer': return this.viewContainersRegistry.get(EXPLORER);
 			case 'debug': return this.viewContainersRegistry.get(DEBUG);
