@@ -276,7 +276,7 @@ const finalEditorResourcesTask = function () {
 
 			var strContents = data.contents.toString();
 			var newStr = '//# sourceMappingURL=' + relativePathToMap.replace(/\\/g, '/');
-			strContents = strContents.replace(/\/\/\# sourceMappingURL=[^ ]+$/, newStr);
+			strContents = strContents.replace(/\/\/# sourceMappingURL=[^ ]+$/, newStr);
 
 			data.contents = Buffer.from(strContents);
 			this.emit('data', data);
@@ -337,6 +337,7 @@ function createTscCompileTask(watch) {
 			let errors = [];
 			let reporter = createReporter();
 			let report;
+			// eslint-disable-next-line no-control-regex
 			let magic = /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g; // https://stackoverflow.com/questions/25245716/remove-all-ansi-colors-styles-from-strings
 
 			child.stdout.on('data', data => {
