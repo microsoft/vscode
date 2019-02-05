@@ -19,6 +19,9 @@ import { IKeybindingService, IKeyboardEvent } from 'vs/platform/keybinding/commo
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { OutlineConfigKeys } from 'vs/editor/contrib/documentSymbols/outline';
+import { MarkerSeverity } from 'vs/platform/markers/common/markers';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
 
 export type OutlineItem = OutlineGroup | OutlineElement;
 
@@ -55,6 +58,7 @@ export class OutlineGroupTemplate {
 
 export class OutlineElementTemplate {
 	static id = 'OutlineElementTemplate';
+	container: HTMLElement;
 	iconLabel: IconLabel;
 	decoration: HTMLElement;
 }
@@ -101,20 +105,17 @@ export class OutlineElementRenderer implements ITreeRenderer<OutlineElement, Fuz
 
 	readonly templateId: string = OutlineElementTemplate.id;
 
-	renderProblemColors = true;
-	renderProblemBadges = true;
-
 	constructor(
-		// @IMarkerService private readonly _markerService: IMarkerService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IThemeService private readonly _themeService: IThemeService,
 	) { }
 
 	renderTemplate(container: HTMLElement): OutlineElementTemplate {
-		// const labelContainer = dom.$('.outline-element-label');
+		dom.addClass(container, 'outline-element');
 		const iconLabel = new IconLabel(container, { supportHighlights: true });
 		const decoration = dom.$('.outline-element-decoration');
 		container.appendChild(decoration);
-		return { iconLabel, decoration };
+		return { container, iconLabel, decoration };
 	}
 
 	renderElement(node: ITreeNode<OutlineElement, FuzzyScore>, index: number, template: OutlineElementTemplate): void {
@@ -125,50 +126,51 @@ export class OutlineElementRenderer implements ITreeRenderer<OutlineElement, Fuz
 			title: localize('title.template', "{0} ({1})", element.symbol.name, OutlineElementRenderer._symbolKindNames[element.symbol.kind])
 		};
 		if (this._configurationService.getValue(OutlineConfigKeys.icons)) {
+			// add styles for the icons
 			options.extraClasses.push(`outline-element-icon ${symbolKindToCssClass(element.symbol.kind, true)}`);
 		}
 		template.iconLabel.setLabel(element.symbol.name, element.symbol.detail, options);
-		// this._renderMarkerInfo(element, template);
+		this._renderMarkerInfo(element, template);
 	}
 
-	// private _renderMarkerInfo(element: OutlineElement, template: NOutlineElementTemplate): void {
+	private _renderMarkerInfo(element: OutlineElement, template: OutlineElementTemplate): void {
 
-	// 	if (!element.marker) {
-	// 		dom.hide(template.decoration);
-	// 		template.labelContainer.style.removeProperty('--outline-element-color');
-	// 		return;
-	// 	}
+		if (!element.marker) {
+			dom.hide(template.decoration);
+			template.container.style.removeProperty('--outline-element-color');
+			return;
+		}
 
-	// 	const { count, topSev } = element.marker;
-	// 	const color = this._themeService.getTheme().getColor(topSev === MarkerSeverity.Error ? listErrorForeground : listWarningForeground);
-	// 	const cssColor = color ? color.toString() : 'inherit';
+		const { count, topSev } = element.marker;
+		const color = this._themeService.getTheme().getColor(topSev === MarkerSeverity.Error ? listErrorForeground : listWarningForeground);
+		const cssColor = color ? color.toString() : 'inherit';
 
-	// 	// color of the label
-	// 	if (this.renderProblemColors) {
-	// 		template.labelContainer.style.setProperty('--outline-element-color', cssColor);
-	// 	} else {
-	// 		template.labelContainer.style.removeProperty('--outline-element-color');
-	// 	}
+		// color of the label
+		if (this._configurationService.getValue(OutlineConfigKeys.problemsColors)) {
+			template.container.style.setProperty('--outline-element-color', cssColor);
+		} else {
+			template.container.style.removeProperty('--outline-element-color');
+		}
 
-	// 	// badge with color/rollup
-	// 	if (!this.renderProblemBadges) {
-	// 		dom.hide(template.decoration);
+		// badge with color/rollup
+		if (!this._configurationService.getValue(OutlineConfigKeys.problemsBadges)) {
+			dom.hide(template.decoration);
 
-	// 	} else if (count > 0) {
-	// 		dom.show(template.decoration);
-	// 		dom.removeClass(template.decoration, 'bubble');
-	// 		template.decoration.innerText = count < 10 ? count.toString() : '+9';
-	// 		template.decoration.title = count === 1 ? localize('1.problem', "1 problem in this element") : localize('N.problem', "{0} problems in this element", count);
-	// 		template.decoration.style.setProperty('--outline-element-color', cssColor);
+		} else if (count > 0) {
+			dom.show(template.decoration);
+			dom.removeClass(template.decoration, 'bubble');
+			template.decoration.innerText = count < 10 ? count.toString() : '+9';
+			template.decoration.title = count === 1 ? localize('1.problem', "1 problem in this element") : localize('N.problem', "{0} problems in this element", count);
+			template.decoration.style.setProperty('--outline-element-color', cssColor);
 
-	// 	} else {
-	// 		dom.show(template.decoration);
-	// 		dom.addClass(template.decoration, 'bubble');
-	// 		template.decoration.innerText = '\uf052';
-	// 		template.decoration.title = localize('deep.problem', "Contains elements with problems");
-	// 		template.decoration.style.setProperty('--outline-element-color', cssColor);
-	// 	}
-	// }
+		} else {
+			dom.show(template.decoration);
+			dom.addClass(template.decoration, 'bubble');
+			template.decoration.innerText = '\uf052';
+			template.decoration.title = localize('deep.problem', "Contains elements with problems");
+			template.decoration.style.setProperty('--outline-element-color', cssColor);
+		}
+	}
 
 	private static _symbolKindNames: { [symbol: number]: string } = {
 		[SymbolKind.Array]: localize('Array', "array"),

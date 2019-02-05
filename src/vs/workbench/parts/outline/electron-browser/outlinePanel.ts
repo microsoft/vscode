@@ -316,9 +316,6 @@ export class OutlinePanel extends ViewletPanel {
 			}
 		) as WorkbenchDataTree<OutlineModel, OutlineItem, FuzzyScore>;
 
-		this._treeRenderer.renderProblemColors = this._configurationService.getValue(OutlineConfigKeys.problemsColors);
-		this._treeRenderer.renderProblemBadges = this._configurationService.getValue(OutlineConfigKeys.problemsBadges);
-
 		this._disposables.push(this._tree);
 		this._disposables.push(this._outlineViewState.onDidChange(this._onDidChangeUserState, this));
 
@@ -551,7 +548,6 @@ export class OutlinePanel extends ViewletPanel {
 			if (marker.length > 0 || !ignoreEmpty) {
 				model.updateMarker(marker);
 				this._tree.updateChildren();
-				// this._tree.refresh(undefined, true);
 			}
 		};
 		updateMarker([textModel.uri], true);
@@ -559,8 +555,6 @@ export class OutlinePanel extends ViewletPanel {
 
 		this._editorDisposables.push(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(OutlineConfigKeys.problemsBadges) || e.affectsConfiguration(OutlineConfigKeys.problemsColors)) {
-				this._treeRenderer.renderProblemColors = this._configurationService.getValue(OutlineConfigKeys.problemsColors);
-				this._treeRenderer.renderProblemBadges = this._configurationService.getValue(OutlineConfigKeys.problemsBadges);
 				this._tree.updateChildren();
 				return;
 			}
