@@ -50,7 +50,7 @@ import { IPanel } from 'vs/workbench/common/panel';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { ExcludePatternInputWidget, PatternInputWidget } from 'vs/workbench/parts/search/browser/patternInputWidget';
 import { CancelSearchAction, ClearSearchResultsAction, CollapseDeepestExpandedLevelAction, getKeyboardEventForEditorOpen, RefreshAction } from 'vs/workbench/parts/search/browser/searchActions';
-import { FileMatchRenderer, FolderMatchRenderer, MatchRenderer, SearchAccessibilityProvider, SearchDelegate } from 'vs/workbench/parts/search/browser/searchResultsView';
+import { FileMatchRenderer, FolderMatchRenderer, MatchRenderer, SearchAccessibilityProvider, SearchDelegate, SearchDND } from 'vs/workbench/parts/search/browser/searchResultsView';
 import { ISearchWidgetOptions, SearchWidget } from 'vs/workbench/parts/search/browser/searchWidget';
 import * as Constants from 'vs/workbench/parts/search/common/constants';
 import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/parts/search/common/queryBuilder';
@@ -633,7 +633,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			],
 			{
 				identityProvider,
-				accessibilityProvider: this.instantiationService.createInstance(SearchAccessibilityProvider, this.viewModel)
+				accessibilityProvider: this.instantiationService.createInstance(SearchAccessibilityProvider, this.viewModel),
+				dnd: this.instantiationService.createInstance(SearchDND)
 			}));
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 
@@ -1140,20 +1141,6 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 		if (contentPattern.length === 0) {
 			return;
-		}
-
-		// Validate regex is OK
-		if (isRegex) {
-			let regExp: RegExp;
-			try {
-				regExp = new RegExp(contentPattern);
-			} catch (e) {
-				return; // malformed regex
-			}
-
-			if (strings.regExpLeadsToEndlessLoop(regExp)) {
-				return; // endless regex
-			}
 		}
 
 		const content: IPatternInfo = {

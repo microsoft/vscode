@@ -10,7 +10,6 @@ import { ThrottledDelayer, timeout } from 'vs/base/common/async';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { mapToString, setToString } from 'vs/base/common/map';
 import { basename } from 'path';
-import { mark } from 'vs/base/common/performance';
 import { copy, renameIgnoreError, unlink } from 'vs/base/node/pfs';
 import { fill } from 'vs/base/common/arrays';
 
@@ -326,8 +325,6 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 
 	get onDidChangeItemsExternal(): Event<IStorageItemsChangeEvent> { return Event.None; } // since we are the only client, there can be no external changes
 
-	private static measuredRequireDuration: boolean; // TODO@Ben remove me after a while
-
 	private static BUSY_OPEN_TIMEOUT = 2000; // timeout in ms to retry when opening DB fails with SQLITE_BUSY
 	private static MAX_HOST_PARAMETERS = 256; // maximum number of parameters within a statement
 
@@ -598,21 +595,8 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 	}
 
 	private doConnect(path: string): Promise<IDatabaseConnection> {
-
-		// TODO@Ben clean up performance markers
 		return new Promise((resolve, reject) => {
-			let measureRequireDuration = false;
-			if (!SQLiteStorageDatabase.measuredRequireDuration) {
-				SQLiteStorageDatabase.measuredRequireDuration = true;
-				measureRequireDuration = true;
-
-				mark('willRequireSQLite');
-			}
 			import('vscode-sqlite3').then(sqlite3 => {
-				if (measureRequireDuration) {
-					mark('didRequireSQLite');
-				}
-
 				const connection: IDatabaseConnection = {
 					db: new (this.logger.isTracing ? sqlite3.verbose().Database : sqlite3.Database)(path, error => {
 						if (error) {
@@ -622,17 +606,12 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 						// The following exec() statement serves two purposes:
 						// - create the DB if it does not exist yet
 						// - validate that the DB is not corrupt (the open() call does not throw otherwise)
-						mark('willSetupSQLiteSchema');
 						return this.exec(connection, [
 							'PRAGMA user_version = 1;',
 							'CREATE TABLE IF NOT EXISTS ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB)'
 						].join('')).then(() => {
-							mark('didSetupSQLiteSchema');
-
 							return resolve(connection);
 						}, error => {
-							mark('didSetupSQLiteSchema');
-
 							return connection.db.close(() => reject(error));
 						});
 					}),

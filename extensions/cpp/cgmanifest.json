@@ -6,11 +6,11 @@
 				"git": {
 					"name": "atom/language-c",
 					"repositoryUrl": "https://github.com/atom/language-c",
-					"commitHash": "9c0c5f202741a5647025db8d5df5fefba47b036c"
+					"commitHash": "3a269f88b12e512fb9495dc006a1dabf325d3d7f"
 				}
 			},
 			"license": "MIT",
-			"version": "0.58.1",
+			"version": "0.58.0",
 			"description": "The files syntaxes/c.json and syntaxes/c++.json were derived from the Atom package https://atom.io/packages/language-c which was originally converted from the C TextMate bundle https://github.com/textmate/c.tmbundle."
 		},
 		{

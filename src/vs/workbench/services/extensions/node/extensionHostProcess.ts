@@ -107,9 +107,14 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 				setTimeout(() => {
 					const idx = unhandledPromises.indexOf(promise);
 					if (idx >= 0) {
-						unhandledPromises.splice(idx, 1);
-						console.warn('rejected promise not handled within 1 second');
-						onUnexpectedError(reason);
+						promise.catch(e => {
+							unhandledPromises.splice(idx, 1);
+							console.warn(`rejected promise not handled within 1 second: ${e}`);
+							if (e.stack) {
+								console.warn(`stack trace: ${e.stack}`);
+							}
+							onUnexpectedError(reason);
+						});
 					}
 				}, 1000);
 			});

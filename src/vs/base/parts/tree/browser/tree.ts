@@ -716,12 +716,12 @@ export interface IActionProvider {
 	/**
 	 * Returns whether or not the element has actions. These show up in place right to the element in the tree.
 	 */
-	hasActions(tree: ITree, element: any): boolean;
+	hasActions(tree: ITree | null, element: any): boolean;
 
 	/**
 	 * Returns a promise of an array with the actions of the element that should show up in place right to the element in the tree.
 	 */
-	getActions(tree: ITree, element: any): IAction[];
+	getActions(tree: ITree | null, element: any): IAction[] | null;
 
 	/**
 	 * Returns whether or not the element has secondary actions. These show up once the user has expanded the element's action bar.
@@ -731,7 +731,7 @@ export interface IActionProvider {
 	/**
 	 * Returns a promise of an array with the secondary actions of the element that should show up once the user has expanded the element's action bar.
 	 */
-	getSecondaryActions(tree: ITree, element: any): IAction[];
+	getSecondaryActions(tree: ITree, element: any): IAction[] | null;
 
 	/**
 	 * Returns an action item to render an action.

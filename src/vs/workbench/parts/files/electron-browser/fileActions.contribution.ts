@@ -18,15 +18,12 @@ import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import { FilesExplorerFocusCondition, ExplorerRootContext, ExplorerFolderContext, ExplorerResourceNotReadonlyContext, ExplorerResourceCut, IExplorerService } from 'vs/workbench/parts/files/common/files';
 import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL } from 'vs/workbench/browser/actions/workspaceCommands';
 import { CLOSE_SAVED_EDITORS_COMMAND_ID, CLOSE_EDITORS_IN_GROUP_COMMAND_ID, CLOSE_EDITOR_COMMAND_ID, CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { OPEN_FOLDER_SETTINGS_COMMAND, OPEN_FOLDER_SETTINGS_LABEL } from 'vs/workbench/parts/preferences/browser/preferencesActions';
 import { AutoSaveContext } from 'vs/workbench/services/textfile/common/textfiles';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { WorkbenchListDoubleSelection } from 'vs/platform/list/browser/listService';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { WebviewEditor } from 'vs/workbench/parts/webview/electron-browser/webviewEditor';
-import { WalkThroughPart } from 'vs/workbench/parts/welcome/walkThrough/electron-browser/walkThroughPart';
 
 // Contribute Global Actions
 const category = nls.localize('filesCategory', "File");
@@ -486,16 +483,6 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	group: '2_workspace',
-	order: 20,
-	command: {
-		id: OPEN_FOLDER_SETTINGS_COMMAND,
-		title: OPEN_FOLDER_SETTINGS_LABEL
-	},
-	when: ContextKeyExpr.and(ExplorerRootContext, ExplorerFolderContext)
-});
-
-MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
-	group: '2_workspace',
 	order: 30,
 	command: {
 		id: REMOVE_ROOT_FOLDER_COMMAND_ID,
@@ -561,8 +548,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	group: '4_save',
 	command: {
 		id: SAVE_FILE_COMMAND_ID,
-		title: nls.localize({ key: 'miSave', comment: ['&& denotes a mnemonic'] }, "&&Save"),
-		precondition: ContextKeyExpr.and(ContextKeyExpr.notEquals('activeEditor', WebviewEditor.ID), ContextKeyExpr.notEquals('activeEditor', WalkThroughPart.ID))
+		title: nls.localize({ key: 'miSave', comment: ['&& denotes a mnemonic'] }, "&&Save")
 	},
 	order: 1
 });
@@ -571,8 +557,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	group: '4_save',
 	command: {
 		id: SAVE_FILE_AS_COMMAND_ID,
-		title: nls.localize({ key: 'miSaveAs', comment: ['&& denotes a mnemonic'] }, "Save &&As..."),
-		precondition: ContextKeyExpr.and(ContextKeyExpr.notEquals('activeEditor', WebviewEditor.ID), ContextKeyExpr.notEquals('activeEditor', WalkThroughPart.ID))
+		title: nls.localize({ key: 'miSaveAs', comment: ['&& denotes a mnemonic'] }, "Save &&As...")
 	},
 	order: 2
 });

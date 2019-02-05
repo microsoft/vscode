@@ -33,6 +33,8 @@ const deps = require('./dependencies');
 const getElectronVersion = require('./lib/electron').getElectronVersion;
 const createAsar = require('./lib/asar').createAsar;
 const minimist = require('minimist');
+const compilation = require('./lib/compilation');
+const { compileExtensionsBuildTask } = require('./gulpfile.extensions');
 
 const productionDependencies = deps.getProductionDependencies(path.dirname(__dirname));
 // @ts-ignore
@@ -86,17 +88,25 @@ const BUNDLED_FILE_HEADER = [
 	' *--------------------------------------------------------*/'
 ].join('\n');
 
-gulp.task('clean-optimized-vscode', util.rimraf('out-vscode'));
-gulp.task('optimize-vscode', ['clean-optimized-vscode', 'compile-build', 'compile-extensions-build'], common.optimizeTask({
-	src: 'out-build',
-	entryPoints: vscodeEntryPoints,
-	otherSources: [],
-	resources: vscodeResources,
-	loaderConfig: common.loaderConfig(nodeModules),
-	header: BUNDLED_FILE_HEADER,
-	out: 'out-vscode',
-	bundleInfo: undefined
-}));
+// Full compile, including nls and inline sources in sourcemaps, for build
+const compileClientBuildTask = util.task.series(util.rimraf('out-build'), compilation.compileTask('src', 'out-build', true));
+
+// All Build
+const compileBuildTask = util.task.parallel(compileClientBuildTask, compileExtensionsBuildTask);
+
+gulp.task('optimize-vscode', util.task.series(
+	util.task.parallel(util.rimraf('out-vscode'), compileBuildTask),
+	common.optimizeTask({
+		src: 'out-build',
+		entryPoints: vscodeEntryPoints,
+		otherSources: [],
+		resources: vscodeResources,
+		loaderConfig: common.loaderConfig(nodeModules),
+		header: BUNDLED_FILE_HEADER,
+		out: 'out-vscode',
+		bundleInfo: undefined
+	}))
+);
 
 
 gulp.task('optimize-index-js', ['optimize-vscode'], () => {
@@ -197,12 +207,11 @@ function getElectron(arch) {
 	};
 }
 
-gulp.task('clean-electron', util.rimraf('.build/electron'));
-gulp.task('electron', ['clean-electron'], getElectron(process.arch));
-gulp.task('electron-ia32', ['clean-electron'], getElectron('ia32'));
-gulp.task('electron-x64', ['clean-electron'], getElectron('x64'));
-gulp.task('electron-arm', ['clean-electron'], getElectron('arm'));
-gulp.task('electron-arm64', ['clean-electron'], getElectron('arm64'));
+gulp.task('electron', util.task.series(util.rimraf('.build/electron'), getElectron(process.arch)));
+gulp.task('electron-ia32', util.task.series(util.rimraf('.build/electron'), getElectron('ia32')));
+gulp.task('electron-x64', util.task.series(util.rimraf('.build/electron'), getElectron('x64')));
+gulp.task('electron-arm', util.task.series(util.rimraf('.build/electron'), getElectron('arm')));
+gulp.task('electron-arm64', util.task.series(util.rimraf('.build/electron'), getElectron('arm64')));
 
 
 /**
@@ -517,7 +526,7 @@ gulp.task('vscode-translations-import', function () {
 
 // Sourcemaps
 
-gulp.task('upload-vscode-sourcemaps', ['vscode-darwin-min', 'minify-vscode'], () => {
+gulp.task('upload-vscode-sourcemaps', () => {
 	const vs = gulp.src('out-vscode-min/**/*.map', { base: 'out-vscode-min' })
 		.pipe(es.mapSync(f => {
 			f.path = `${f.base}/core/${f.relative}`;
