@@ -39,7 +39,7 @@ import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/v
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDragAndDropData } from 'vs/base/browser/dnd';
 import { memoize } from 'vs/base/common/decorators';
-import { DesktopDragAndDropData, ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
+import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { URI } from 'vs/base/common/uri';
 
 const $ = dom.$;
@@ -652,15 +652,14 @@ class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGro
 		const group = targetElement instanceof OpenEditor ? targetElement.group : targetElement;
 		const index = targetElement instanceof OpenEditor ? targetElement.group.getIndexOfEditor(targetElement.editor) : 0;
 
-		if (data instanceof DesktopDragAndDropData) {
-			this.dropHandler.handleDrop(originalEvent, () => group, () => group.focus(), index);
-		} else {
-			const elementsData = (data as ElementsDragAndDropData<OpenEditor>).elements;
+		if (data instanceof ElementsDragAndDropData) {
+			const elementsData = data.elements;
 			elementsData.forEach((oe, offset) => {
 				oe.group.moveEditor(oe.editor, group, { index: index + offset, preserveFocus: true });
 			});
 			this.editorGroupService.activateGroup(group);
+		} else {
+			this.dropHandler.handleDrop(originalEvent, () => group, () => group.focus(), index);
 		}
-
 	}
 }
