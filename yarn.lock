@@ -3689,18 +3689,6 @@ gulp-json-editor@^2.2.1:
     js-beautify "~1.5.4"
     through2 "~0.5.0"
 
-gulp-mocha@^2.1.3:
-  version "2.2.0"
-  resolved "https://registry.yarnpkg.com/gulp-mocha/-/gulp-mocha-2.2.0.tgz#1ce5eba4b94b40c7436afec3c4982c8eea894192"
-  integrity sha1-HOXrpLlLQMdDav7DxJgsjuqJQZI=
-  dependencies:
-    gulp-util "^3.0.0"
-    mocha "^2.0.1"
-    plur "^2.1.0"
-    resolve-from "^1.0.0"
-    temp "^0.8.3"
-    through "^2.3.4"
-
 gulp-plumber@^1.2.0:
   version "1.2.0"
   resolved "https://registry.yarnpkg.com/gulp-plumber/-/gulp-plumber-1.2.0.tgz#18ea03912c9ee483f8a5499973b5954cd90f6ad8"
@@ -4337,11 +4325,6 @@ ipaddr.js@1.5.2:
   version "1.5.2"
   resolved "https://registry.yarnpkg.com/ipaddr.js/-/ipaddr.js-1.5.2.tgz#d4b505bde9946987ccf0fc58d9010ff9607e3fa0"
   integrity sha1-1LUFvemUaYfM8PxY2QEP+WB+P6A=
-
-irregular-plurals@^1.0.0:
-  version "1.4.0"
-  resolved "https://registry.yarnpkg.com/irregular-plurals/-/irregular-plurals-1.4.0.tgz#2ca9b033651111855412f16be5d77c62a458a766"
-  integrity sha1-LKmwM2UREYVUEvFr5dd8YqRYp2Y=
 
 is-absolute-url@^2.0.0:
   version "2.1.0"
@@ -5805,7 +5788,7 @@ mocha-junit-reporter@^1.17.0:
     strip-ansi "^4.0.0"
     xml "^1.0.0"
 
-mocha@^2.0.1, mocha@^2.2.5:
+mocha@^2.2.5:
   version "2.5.3"
   resolved "https://registry.yarnpkg.com/mocha/-/mocha-2.5.3.tgz#161be5bdeb496771eb9b35745050b622b5aefc58"
   integrity sha1-FhvlvetJZ3HrmzV0UFC2IrWu/Fg=
@@ -6710,13 +6693,6 @@ plugin-error@^1.0.1:
     arr-diff "^4.0.0"
     arr-union "^3.1.0"
     extend-shallow "^3.0.2"
-
-plur@^2.1.0:
-  version "2.1.2"
-  resolved "https://registry.yarnpkg.com/plur/-/plur-2.1.2.tgz#7482452c1a0f508e3e344eaec312c91c29dc655a"
-  integrity sha1-dIJFLBoPUI4+NE6uwxLJHCncZVo=
-  dependencies:
-    irregular-plurals "^1.0.0"
 
 pluralize@^1.2.1:
   version "1.2.1"
@@ -8580,7 +8556,7 @@ through2@~0.4.0:
     readable-stream "~1.0.17"
     xtend "~2.1.1"
 
-through@2, through@^2.3.4, through@^2.3.6, through@^2.3.8, through@~2.3, through@~2.3.1, through@~2.3.8:
+through@2, through@^2.3.6, through@^2.3.8, through@~2.3, through@~2.3.1, through@~2.3.8:
   version "2.3.8"
   resolved "https://registry.yarnpkg.com/through/-/through-2.3.8.tgz#0dd4c9ffaabc357960b1b724115d7e0e86a2e1f5"
   integrity sha1-DdTJ/6q8NXlgsbckEV1+Doai4fU=
