@@ -28,6 +28,13 @@ export class TerminalProcessExtHostProxy implements ITerminalChildProcess, ITerm
 	public get onResize(): Event<{ cols: number, rows: number }> { return this._onResize.event; }
 	private readonly _onShutdown = new Emitter<boolean>();
 	public get onShutdown(): Event<boolean> { return this._onShutdown.event; }
+	private readonly _onRequestInitialCwd = new Emitter<void>();
+	public get onRequestInitialCwd(): Event<void> { return this._onRequestInitialCwd.event; }
+	private readonly _onRequestCwd = new Emitter<void>();
+	public get onRequestCwd(): Event<void> { return this._onRequestCwd.event; }
+
+	private _pendingInitialCwdRequests: ((value?: string | Thenable<string>) => void)[] = [];
+	private _pendingCwdRequests: ((value?: string | Thenable<string>) => void)[] = [];
 
 	constructor(
 		public terminalId: number,
@@ -68,6 +75,18 @@ export class TerminalProcessExtHostProxy implements ITerminalChildProcess, ITerm
 		this.dispose();
 	}
 
+	public emitInitialCwd(initialCwd: string): void {
+		while (this._pendingInitialCwdRequests.length > 0) {
+			this._pendingInitialCwdRequests.pop()!(initialCwd);
+		}
+	}
+
+	public emitCwd(cwd: string): void {
+		while (this._pendingCwdRequests.length > 0) {
+			this._pendingCwdRequests.pop()!(cwd);
+		}
+	}
+
 	public shutdown(immediate: boolean): void {
 		this._onShutdown.fire(immediate);
 	}
@@ -78,5 +97,19 @@ export class TerminalProcessExtHostProxy implements ITerminalChildProcess, ITerm
 
 	public resize(cols: number, rows: number): void {
 		this._onResize.fire({ cols, rows });
+	}
+
+	public getInitialCwd(): Promise<string> {
+		return new Promise<string>(resolve => {
+			this._onRequestInitialCwd.fire();
+			this._pendingInitialCwdRequests.push(resolve);
+		});
+	}
+
+	public getCwd(): Promise<string> {
+		return new Promise<string>(resolve => {
+			this._onRequestCwd.fire();
+			this._pendingCwdRequests.push(resolve);
+		});
 	}
 }

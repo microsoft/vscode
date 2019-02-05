@@ -8,9 +8,9 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
+import { ITreeNode, ITreeRenderer, ITreeDragAndDrop, ITreeDragOverReaction } from 'vs/base/browser/ui/tree/tree';
 import { IAction } from 'vs/base/common/actions';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
 import * as nls from 'vs/nls';
@@ -25,12 +25,17 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { RemoveAction, ReplaceAction, ReplaceAllAction, ReplaceAllInFolderAction } from 'vs/workbench/parts/search/browser/searchActions';
 import { SearchView } from 'vs/workbench/parts/search/browser/searchView';
-import { FileMatch, FolderMatch, Match, RenderableMatch, SearchModel } from 'vs/workbench/parts/search/common/searchModel';
+import { FileMatch, FolderMatch, Match, RenderableMatch, SearchModel, BaseFolderMatch } from 'vs/workbench/parts/search/common/searchModel';
+import { IDragAndDropData } from 'vs/base/browser/dnd';
+import { fillResourceDataTransfers } from 'vs/workbench/browser/dnd';
+import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
+import { URI } from 'vs/base/common/uri';
 
 interface IFolderMatchTemplate {
 	label: IResourceLabel;
 	badge: CountBadge;
 	actions: ActionBar;
+	disposables: IDisposable[];
 }
 
 interface IFileMatchTemplate {
@@ -38,6 +43,7 @@ interface IFileMatchTemplate {
 	label: IResourceLabel;
 	badge: CountBadge;
 	actions: ActionBar;
+	disposables: IDisposable[];
 }
 
 interface IMatchTemplate {
@@ -57,7 +63,7 @@ export class SearchDelegate implements IListVirtualDelegate<RenderableMatch> {
 	}
 
 	getTemplateId(element: RenderableMatch): string {
-		if (element instanceof FolderMatch) {
+		if (element instanceof BaseFolderMatch) {
 			return FolderMatchRenderer.TEMPLATE_ID;
 		} else if (element instanceof FileMatch) {
 			return FileMatchRenderer.TEMPLATE_ID;
@@ -87,14 +93,23 @@ export class FolderMatchRenderer extends Disposable implements ITreeRenderer<Fol
 	}
 
 	renderTemplate(container: HTMLElement): IFolderMatchTemplate {
+		const disposables: IDisposable[] = [];
+
 		const folderMatchElement = DOM.append(container, DOM.$('.foldermatch'));
 		const label = this.labels.create(folderMatchElement);
+		disposables.push(label);
 		const badge = new CountBadge(DOM.append(folderMatchElement, DOM.$('.badge')));
-		this._register(attachBadgeStyler(badge, this.themeService));
+		disposables.push(attachBadgeStyler(badge, this.themeService));
 		const actionBarContainer = DOM.append(folderMatchElement, DOM.$('.actionBarContainer'));
 		const actions = new ActionBar(actionBarContainer, { animated: false });
+		disposables.push(actions);
 
-		return { label, badge, actions };
+		return {
+			label,
+			badge,
+			actions,
+			disposables
+		};
 	}
 
 	renderElement(node: ITreeNode<FolderMatch, any>, index: number, templateData: IFolderMatchTemplate): void {
@@ -128,8 +143,7 @@ export class FolderMatchRenderer extends Disposable implements ITreeRenderer<Fol
 	}
 
 	disposeTemplate(templateData: IFolderMatchTemplate): void {
-		templateData.label.dispose();
-		templateData.actions.dispose();
+		dispose(templateData.disposables);
 	}
 }
 
@@ -150,13 +164,23 @@ export class FileMatchRenderer extends Disposable implements ITreeRenderer<FileM
 	}
 
 	renderTemplate(container: HTMLElement): IFileMatchTemplate {
+		const disposables: IDisposable[] = [];
 		const fileMatchElement = DOM.append(container, DOM.$('.filematch'));
 		const label = this.labels.create(fileMatchElement);
+		disposables.push(label);
 		const badge = new CountBadge(DOM.append(fileMatchElement, DOM.$('.badge')));
-		this._register(attachBadgeStyler(badge, this.themeService));
+		disposables.push(attachBadgeStyler(badge, this.themeService));
 		const actionBarContainer = DOM.append(fileMatchElement, DOM.$('.actionBarContainer'));
 		const actions = new ActionBar(actionBarContainer, { animated: false });
-		return { el: fileMatchElement, label, badge, actions };
+		disposables.push(actions);
+
+		return {
+			el: fileMatchElement,
+			label,
+			badge,
+			actions,
+			disposables
+		};
 	}
 
 	renderElement(node: ITreeNode<FileMatch, any>, index: number, templateData: IFileMatchTemplate): void {
@@ -181,8 +205,7 @@ export class FileMatchRenderer extends Disposable implements ITreeRenderer<FileM
 	}
 
 	disposeTemplate(templateData: IFolderMatchTemplate): void {
-		templateData.label.dispose();
-		templateData.actions.dispose();
+		dispose(templateData.disposables);
 	}
 }
 
@@ -312,5 +335,49 @@ export class SearchAccessibilityProvider implements IAccessibilityProvider<Rende
 			return nls.localize('searchResultAria', "Found term {0} at column position {1} in line with text {2}", matchString, range.startColumn + 1, matchText);
 		}
 		return undefined;
+	}
+}
+
+export class SearchDND implements ITreeDragAndDrop<RenderableMatch> {
+	constructor(
+		@IInstantiationService private instantiationService: IInstantiationService
+	) { }
+
+	onDragOver(data: IDragAndDropData, targetElement: RenderableMatch, targetIndex: number, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
+		return false;
+	}
+
+	getDragURI(element: RenderableMatch): string | null {
+		if (element instanceof FileMatch) {
+			return element.remove.toString();
+		}
+
+		return null;
+	}
+
+	getDragLabel?(elements: RenderableMatch[]): string | undefined {
+		if (elements.length > 1) {
+			return String(elements.length);
+		}
+
+		const element = elements[0];
+		return element instanceof FileMatch ?
+			resources.basename(element.resource()) :
+			undefined;
+	}
+
+	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
+		const elements = (data as ElementsDragAndDropData<RenderableMatch>).elements;
+		const resources: URI[] = elements
+			.filter(e => e instanceof FileMatch)
+			.map((fm: FileMatch) => fm.resource());
+
+		if (resources.length) {
+			// Apply some datatransfer types to allow for dragging the element outside of the application
+			this.instantiationService.invokeFunction(fillResourceDataTransfers, resources, originalEvent);
+		}
+	}
+
+	drop(data: IDragAndDropData, targetElement: RenderableMatch, targetIndex: number, originalEvent: DragEvent): void {
 	}
 }

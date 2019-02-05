@@ -9,14 +9,9 @@ import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as glob from 'vs/base/common/glob';
 import { URI } from 'vs/base/common/uri';
-import { IFolderQuery, ISearchRange, ITextQuery, ITextSearchMatch, QueryType, ITextSearchContext, deserializeSearchError, SearchErrorCode } from 'vs/platform/search/common/search';
-import { LegacyTextSearchService } from 'vs/workbench/services/search/node/legacy/rawLegacyTextSearchService';
+import { deserializeSearchError, IFolderQuery, ISearchRange, ITextQuery, ITextSearchContext, ITextSearchMatch, QueryType, SearchErrorCode } from 'vs/platform/search/common/search';
 import { ISerializedFileMatch } from 'vs/workbench/services/search/node/search';
 import { TextSearchEngineAdapter } from 'vs/workbench/services/search/node/textSearchAdapter';
-
-function countAll(matches: ISerializedFileMatch[]): number {
-	return matches.reduce((acc, m) => acc + m.numMatches!, 0);
-}
 
 const TEST_FIXTURES = path.normalize(getPathFromAmdModule(require, './fixtures'));
 const EXAMPLES_FIXTURES = path.join(TEST_FIXTURES, 'examples');
@@ -31,24 +26,7 @@ const MULTIROOT_QUERIES: IFolderQuery[] = [
 	{ folder: URI.file(MORE_FIXTURES) }
 ];
 
-function doLegacySearchTest(config: ITextQuery, expectedResultCount: number | Function): Promise<void> {
-	const engine = new LegacyTextSearchService();
-
-	let c = 0;
-	return engine.textSearch(config, (result) => {
-		if (result && Array.isArray(result)) {
-			c += countAll(result);
-		}
-	}, null!).then(() => {
-		if (typeof expectedResultCount === 'function') {
-			assert(expectedResultCount(c));
-		} else {
-			assert.equal(c, expectedResultCount, 'legacy');
-		}
-	});
-}
-
-function doRipgrepSearchTest(query: ITextQuery, expectedResultCount: number | Function): Promise<ISerializedFileMatch[]> {
+function doSearchTest(query: ITextQuery, expectedResultCount: number | Function): Promise<ISerializedFileMatch[]> {
 	const engine = new TextSearchEngineAdapter(query);
 
 	let c = 0;
@@ -67,11 +45,6 @@ function doRipgrepSearchTest(query: ITextQuery, expectedResultCount: number | Fu
 
 		return results;
 	});
-}
-
-function doSearchTest(query: ITextQuery, expectedResultCount: number) {
-	return doLegacySearchTest(query, expectedResultCount)
-		.then(() => doRipgrepSearchTest(query, expectedResultCount));
 }
 
 suite('Search-integration', function () {
@@ -240,10 +213,7 @@ suite('Search-integration', function () {
 			maxResults
 		};
 
-		// (Legacy) search can go over the maxResults because it doesn't trim the results from its worker processes to the exact max size.
-		// But the worst-case scenario should be 2*max-1
-		return doLegacySearchTest(config, count => count < maxResults * 2)
-			.then(() => doRipgrepSearchTest(config, maxResults));
+		return doSearchTest(config, maxResults);
 	});
 
 	test('Text: a (no results)', () => {
@@ -318,7 +288,7 @@ suite('Search-integration', function () {
 			contentPattern: { pattern: '语' }
 		};
 
-		return doRipgrepSearchTest(config, 1).then(results => {
+		return doSearchTest(config, 1).then(results => {
 			const matchRange = (<ITextSearchMatch>results[0].results![0]).ranges;
 			assert.deepEqual(matchRange, [{
 				startLineNumber: 0,
@@ -336,7 +306,7 @@ suite('Search-integration', function () {
 			contentPattern: { pattern: 'h\\d,', isRegExp: true }
 		};
 
-		return doRipgrepSearchTest(config, 15).then(results => {
+		return doSearchTest(config, 15).then(results => {
 			assert.equal(results.length, 3);
 			assert.equal(results[0].results!.length, 1);
 			const match = <ITextSearchMatch>results[0].results![0];
@@ -353,7 +323,7 @@ suite('Search-integration', function () {
 			afterContext: 2
 		};
 
-		return doRipgrepSearchTest(config, 4).then(results => {
+		return doSearchTest(config, 4).then(results => {
 			assert.equal(results.length, 4);
 			assert.equal((<ITextSearchContext>results[0].results![0]).lineNumber, 25);
 			assert.equal((<ITextSearchContext>results[0].results![0]).text, '        compiler.addUnit(prog,"input.ts");');
@@ -378,7 +348,7 @@ suite('Search-integration', function () {
 				contentPattern: { pattern: 'test' },
 			};
 
-			return doRipgrepSearchTest(config, 0).then(() => {
+			return doSearchTest(config, 0).then(() => {
 				throw new Error('expected fail');
 			}, err => {
 				const searchError = deserializeSearchError(err.message);
@@ -394,7 +364,7 @@ suite('Search-integration', function () {
 				contentPattern: { pattern: ')', isRegExp: true },
 			};
 
-			return doRipgrepSearchTest(config, 0).then(() => {
+			return doSearchTest(config, 0).then(() => {
 				throw new Error('expected fail');
 			}, err => {
 				const searchError = deserializeSearchError(err.message);
@@ -413,7 +383,7 @@ suite('Search-integration', function () {
 				}
 			};
 
-			return doRipgrepSearchTest(config, 0).then(() => {
+			return doSearchTest(config, 0).then(() => {
 				throw new Error('expected fail');
 			}, err => {
 				const searchError = deserializeSearchError(err.message);
@@ -429,7 +399,7 @@ suite('Search-integration', function () {
 				contentPattern: { pattern: 'foo\nbar', isRegExp: true }
 			};
 
-			return doRipgrepSearchTest(config, 0).then(() => {
+			return doSearchTest(config, 0).then(() => {
 				throw new Error('expected fail');
 			}, err => {
 				const searchError = deserializeSearchError(err.message);

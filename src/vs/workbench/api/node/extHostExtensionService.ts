@@ -21,7 +21,7 @@ import { ExtHostStorage } from 'vs/workbench/api/node/extHostStorage';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
-import { connectProxyResolver } from 'vs/workbench/node/proxyResolver';
+import { connectProxyResolver } from 'vs/workbench/services/extensions/node/proxyResolver';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 import { ResolvedAuthority } from 'vs/platform/remote/common/remoteAuthorityResolver';
@@ -192,7 +192,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		this._registry = new ExtensionDescriptionRegistry(initData.extensions);
 		this._storage = new ExtHostStorage(this._extHostContext);
 		this._storagePath = new ExtensionStoragePath(initData.workspace, initData.environment);
-		this._activator = new ExtensionsActivator(this._registry, {
+		this._activator = new ExtensionsActivator(this._registry, initData.resolvedExtensions, {
 			showMessage: (severity: Severity, message: string): void => {
 				this._mainThreadExtensionsProxy.$localShowMessage(severity, message);
 
@@ -591,6 +591,10 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 			return Promise.resolve(undefined);
 		}
 
+		if (this._initData.autoStart) {
+			return Promise.resolve(undefined); // https://github.com/Microsoft/vscode/issues/66936
+		}
+
 		// Require the test runner via node require from the provided path
 		let testRunner: ITestRunner;
 		let requireError: Error;
@@ -669,8 +673,25 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		);
 	}
 
-	public $deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void> {
+	public async $deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void> {
 		toAdd.forEach((extension) => (<any>extension).extensionLocation = URI.revive(extension.extensionLocation));
+
+		const trie = await this.getExtensionPathIndex();
+
+		await Promise.all(toRemove.map(async (extensionId) => {
+			const extensionDescription = this._registry.getExtensionDescription(extensionId);
+			if (!extensionDescription) {
+				return;
+			}
+			const realpath = await pfs.realpath(extensionDescription.extensionLocation.fsPath);
+			trie.delete(URI.file(realpath).fsPath);
+		}));
+
+		await Promise.all(toAdd.map(async (extensionDescription) => {
+			const realpath = await pfs.realpath(extensionDescription.extensionLocation.fsPath);
+			trie.set(URI.file(realpath).fsPath, extensionDescription);
+		}));
+
 		this._registry.deltaExtensions(toAdd, toRemove);
 		return Promise.resolve(undefined);
 	}

@@ -118,6 +118,7 @@ export abstract class BaseEditor extends Panel implements IEditor {
 
 	setVisible(visible: boolean, group?: IEditorGroup): void {
 		super.setVisible(visible);
+
 		// Propagate to Editor
 		this.setEditorVisible(visible, group);
 	}

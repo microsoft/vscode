@@ -445,6 +445,7 @@ export class View extends ViewEventHandler {
 
 	public restoreState(scrollPosition: { scrollLeft: number; scrollTop: number; }): void {
 		this._context.viewLayout.setScrollPositionNow({ scrollTop: scrollPosition.scrollTop });
+		this._context.model.tokenizeViewport();
 		this._renderNow();
 		this.viewLines.updateLineWidths();
 		this._context.viewLayout.setScrollPositionNow({ scrollLeft: scrollPosition.scrollLeft });

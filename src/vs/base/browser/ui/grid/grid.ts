@@ -8,7 +8,9 @@ import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { tail2 as tail, equals } from 'vs/base/common/arrays';
 import { orthogonal, IView, GridView, Sizing as GridViewSizing, Box, IGridViewStyles } from './gridview';
-import { Event } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
+import { $ } from 'vs/base/browser/dom';
+import { LayoutPriority } from 'vs/base/browser/ui/splitview/splitview';
 
 export { Orientation } from './gridview';
 
@@ -186,6 +188,7 @@ export interface IGridStyles extends IGridViewStyles { }
 
 export interface IGridOptions {
 	styles?: IGridStyles;
+	proportionalLayout?: boolean;
 }
 
 export class Grid<T extends IView> implements IDisposable {
@@ -645,4 +648,64 @@ export function createSerializedGrid(gridDescriptor: GridDescriptor): ISerialize
 		width: width || 1,
 		height: height || 1
 	};
+}
+
+export class View implements IView {
+
+	readonly element = $('.grid-view-view');
+
+	private visible = false;
+	private width: number | undefined;
+	private height: number | undefined;
+	private orientation: Orientation = Orientation.HORIZONTAL;
+
+	get minimumWidth(): number { return this.visible ? this.view.minimumWidth : 0; }
+	get maximumWidth(): number { return this.visible ? this.view.maximumWidth : (this.orientation === Orientation.HORIZONTAL ? 0 : Number.POSITIVE_INFINITY); }
+	get minimumHeight(): number { return this.visible ? this.view.minimumHeight : 0; }
+	get maximumHeight(): number { return this.visible ? this.view.maximumHeight : (this.orientation === Orientation.VERTICAL ? 0 : Number.POSITIVE_INFINITY); }
+
+	private onDidChangeVisibility = new Emitter<{ width: number; height: number; } | undefined>();
+	readonly onDidChange: Event<{ width: number; height: number; } | undefined>;
+
+	get priority(): LayoutPriority | undefined { return this.view.priority; }
+	get snapSize(): number | undefined { return this.visible ? this.view.snapSize : undefined; }
+
+	constructor(private view: IView) {
+		this.show();
+		this.onDidChange = Event.any(this.onDidChangeVisibility.event, Event.filter(view.onDidChange, () => this.visible));
+	}
+
+	show(): void {
+		if (this.visible) {
+			return;
+		}
+
+		this.visible = true;
+
+		this.element.appendChild(this.view.element);
+		this.onDidChangeVisibility.fire(typeof this.width === 'number' ? { width: this.width, height: this.height! } : undefined);
+	}
+
+	hide(): void {
+		if (!this.visible) {
+			return;
+		}
+
+		this.visible = false;
+
+		this.element.removeChild(this.view.element);
+		this.onDidChangeVisibility.fire(undefined);
+	}
+
+	layout(width: number, height: number, orientation: Orientation): void {
+		this.orientation = orientation;
+
+		if (!this.visible) {
+			return;
+		}
+
+		this.view.layout(width, height, orientation);
+		this.width = width;
+		this.height = height;
+	}
 }

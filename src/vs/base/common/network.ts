@@ -42,4 +42,6 @@ export namespace Schemas {
 	export const untitled: string = 'untitled';
 
 	export const data: string = 'data';
+
+	export const command: string = 'command';
 }

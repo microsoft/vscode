@@ -5,8 +5,12 @@
 
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { Emitter } from 'vs/base/common/event';
 
 export class ExtensionDescriptionRegistry {
+	private readonly _onDidChange = new Emitter<void>();
+	public readonly onDidChange = this._onDidChange.event;
+
 	private _extensionDescriptions: IExtensionDescription[];
 	private _extensionsMap: Map<string, IExtensionDescription>;
 	private _extensionsArr: IExtensionDescription[];
@@ -53,6 +57,7 @@ export class ExtensionDescriptionRegistry {
 		extensionIds.forEach(extensionId => toKeep.add(ExtensionIdentifier.toKey(extensionId)));
 		this._extensionDescriptions = this._extensionDescriptions.filter(extension => toKeep.has(ExtensionIdentifier.toKey(extension.identifier)));
 		this._initialize();
+		this._onDidChange.fire(undefined);
 	}
 
 	public deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]) {
@@ -61,6 +66,7 @@ export class ExtensionDescriptionRegistry {
 		toRemove.forEach(extensionId => toRemoveSet.add(ExtensionIdentifier.toKey(extensionId)));
 		this._extensionDescriptions = this._extensionDescriptions.filter(extension => !toRemoveSet.has(ExtensionIdentifier.toKey(extension.identifier)));
 		this._initialize();
+		this._onDidChange.fire(undefined);
 	}
 
 	public containsActivationEvent(activationEvent: string): boolean {

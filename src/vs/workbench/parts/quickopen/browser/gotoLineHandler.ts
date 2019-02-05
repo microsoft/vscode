@@ -61,7 +61,7 @@ export class GotoLineAction extends QuickOpenAction {
 
 		if (restoreOptions) {
 			Event.once(this._quickOpenService.onHide)(() => {
-				activeTextEditorWidget.updateOptions(restoreOptions);
+				activeTextEditorWidget.updateOptions(restoreOptions!);
 			});
 		}
 
@@ -93,13 +93,16 @@ class GotoLineEntry extends EditorQuickOpenEntry {
 		const maxLineNumber = this.getMaxLineNumber();
 
 		if (this.invalidRange(maxLineNumber)) {
-			const currentLine = this.editorService.activeTextEditorWidget.getPosition().lineNumber;
+			const position = this.editorService.activeTextEditorWidget.getPosition();
+			if (position) {
+				const currentLine = position.lineNumber;
 
-			if (maxLineNumber > 0) {
-				return nls.localize('gotoLineLabelEmptyWithLimit', "Current Line: {0}. Type a line number between 1 and {1} to navigate to.", currentLine, maxLineNumber);
+				if (maxLineNumber > 0) {
+					return nls.localize('gotoLineLabelEmptyWithLimit', "Current Line: {0}. Type a line number between 1 and {1} to navigate to.", currentLine, maxLineNumber);
+				}
+
+				return nls.localize('gotoLineLabelEmpty', "Current Line: {0}. Type a line number to navigate to.", currentLine);
 			}
-
-			return nls.localize('gotoLineLabelEmpty', "Current Line: {0}. Type a line number to navigate to.", currentLine);
 		}
 
 		// Input valid, indicate action
@@ -181,7 +184,7 @@ class GotoLineEntry extends EditorQuickOpenEntry {
 
 			// Decorate if possible
 			if (types.isFunction(activeTextEditorWidget.changeDecorations)) {
-				this.handler.decorateOutline(range, activeTextEditorWidget, this.editorService.activeControl.group);
+				this.handler.decorateOutline(range, activeTextEditorWidget, this.editorService.activeControl.group!);
 			}
 		}
 
@@ -208,8 +211,8 @@ export class GotoLineHandler extends QuickOpenHandler {
 
 	static readonly ID = 'workbench.picker.line';
 
-	private rangeHighlightDecorationId: IEditorLineDecoration;
-	private lastKnownEditorViewState: IEditorViewState;
+	private rangeHighlightDecorationId: IEditorLineDecoration | null;
+	private lastKnownEditorViewState: IEditorViewState | null;
 
 	constructor(@IEditorService private readonly editorService: IEditorService) {
 		super();
@@ -217,9 +220,11 @@ export class GotoLineHandler extends QuickOpenHandler {
 
 	getAriaLabel(): string {
 		if (this.editorService.activeTextEditorWidget) {
-			const currentLine = this.editorService.activeTextEditorWidget.getPosition().lineNumber;
-
-			return nls.localize('gotoLineLabelEmpty', "Current Line: {0}. Type a line number to navigate to.", currentLine);
+			const position = this.editorService.activeTextEditorWidget.getPosition();
+			if (position) {
+				const currentLine = position.lineNumber;
+				return nls.localize('gotoLineLabelEmpty', "Current Line: {0}. Type a line number to navigate to.", currentLine);
+			}
 		}
 
 		return nls.localize('cannotRunGotoLine', "Open a text file first to go to a line.");
@@ -288,14 +293,15 @@ export class GotoLineHandler extends QuickOpenHandler {
 	}
 
 	clearDecorations(): void {
-		if (this.rangeHighlightDecorationId) {
+		const rangeHighlightDecorationId = this.rangeHighlightDecorationId;
+		if (rangeHighlightDecorationId) {
 			this.editorService.visibleControls.forEach(editor => {
-				if (editor.group.id === this.rangeHighlightDecorationId.groupId) {
+				if (editor.group && editor.group.id === rangeHighlightDecorationId.groupId) {
 					const editorControl = <IEditor>editor.getControl();
 					editorControl.changeDecorations(changeAccessor => {
 						changeAccessor.deltaDecorations([
-							this.rangeHighlightDecorationId.lineDecorationId,
-							this.rangeHighlightDecorationId.rangeHighlightId
+							rangeHighlightDecorationId.lineDecorationId,
+							rangeHighlightDecorationId.rangeHighlightId
 						], []);
 					});
 				}

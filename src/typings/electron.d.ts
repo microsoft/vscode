@@ -1,4 +1,4 @@
-// Type definitions for Electron 3.0.13
+// Type definitions for Electron 3.1.2
 // Project: http://electronjs.org/
 // Definitions by: The Electron Team <https://github.com/electron/electron>
 // Definitions: https://github.com/electron/electron-typescript-definitions
@@ -86,7 +86,7 @@ declare namespace Electron {
 		webviewTag: WebviewTag;
 	}
 
-  interface AllElectron extends MainInterface, RendererInterface {}
+	interface AllElectron extends MainInterface, RendererInterface { }
 
 	const app: App;
 	const autoUpdater: AutoUpdater;
@@ -2179,20 +2179,9 @@ declare namespace Electron {
 		 * Start recording on all processes. Recording begins immediately locally and
 		 * asynchronously on child processes as soon as they receive the EnableRecording
 		 * request. The callback will be called once all child processes have acknowledged
-		 * the startRecording request. categoryFilter is a filter to control what category
-		 * groups should be traced. A filter can have an optional - prefix to exclude
-		 * category groups that contain a matching category. Having both included and
-		 * excluded category patterns in the same list is not supported. Examples:
-		 * traceOptions controls what kind of tracing is enabled, it is a comma-delimited
-		 * list. Possible options are: The first 3 options are trace recording modes and
-		 * hence mutually exclusive. If more than one trace recording modes appear in the
-		 * traceOptions string, the last one takes precedence. If none of the trace
-		 * recording modes are specified, recording mode is record-until-full. The trace
-		 * option will first be reset to the default option (record_mode set to
-		 * record-until-full, enable_sampling and enable_systrace set to false) before
-		 * options parsed from traceOptions are applied on it.
+		 * the startRecording request.
 		 */
-		startRecording(options: StartRecordingOptions, callback: Function): void;
+		startRecording(options: TraceCategoriesAndOptions | TraceConfig, callback: Function): void;
 		/**
 		 * Stop monitoring on all processes. Once all child processes have acknowledged the
 		 * stopMonitoring request the callback is called.
@@ -2805,7 +2794,9 @@ declare namespace Electron {
 		 * registered shortcut is pressed by the user. When the accelerator is already
 		 * taken by other applications, this call will silently fail. This behavior is
 		 * intended by operating systems, since they don't want applications to fight for
-		 * global shortcuts.
+		 * global shortcuts. The following accelerators will not be registered successfully
+		 * on macOS 10.14 Mojave unless the app has been authorized as a trusted
+		 * accessibility client:
 		 */
 		register(accelerator: Accelerator, callback: Function): void;
 		/**
@@ -4102,6 +4093,7 @@ declare namespace Electron {
 		 */
 		setUserAgent(userAgent: string, acceptLanguages?: string): void;
 		cookies: Cookies;
+		netLog: NetLog;
 		protocol: Protocol;
 		webRequest: WebRequest;
 	}
@@ -4494,6 +4486,42 @@ declare namespace Electron {
 		static TouchBarSegmentedControl: typeof TouchBarSegmentedControl;
 		static TouchBarSlider: typeof TouchBarSlider;
 		static TouchBarSpacer: typeof TouchBarSpacer;
+	}
+
+	interface TraceCategoriesAndOptions {
+
+		// Docs: http://electron.atom.io/docs/api/structures/trace-categories-and-options
+
+		/**
+		 * – is a filter to control what category groups should be traced. A filter can
+		 * have an optional prefix to exclude category groups that contain a matching
+		 * category. Having both included and excluded category patterns in the same list
+		 * is not supported. Examples: test_MyTest*, test_MyTest*,test_OtherStuff,
+		 * -excluded_category1,-excluded_category2.
+		 */
+		categoryFilter: string;
+		/**
+		 * Controls what kind of tracing is enabled, it is a comma-delimited sequence of
+		 * the following strings: record-until-full, record-continuously, trace-to-console,
+		 * enable-sampling, enable-systrace, e.g. 'record-until-full,enable-sampling'. The
+		 * first 3 options are trace recording modes and hence mutually exclusive. If more
+		 * than one trace recording modes appear in the traceOptions string, the last one
+		 * takes precedence. If none of the trace recording modes are specified, recording
+		 * mode is record-until-full. The trace option will first be reset to the default
+		 * option (record_mode set to record-until-full, enable_sampling and
+		 * enable_systrace set to false) before options parsed from traceOptions are
+		 * applied on it.
+		 */
+		traceOptions: string;
+	}
+
+	interface TraceConfig {
+
+		// Docs: http://electron.atom.io/docs/api/structures/trace-config
+
+		excluded_categories?: string[];
+		included_categories?: string[];
+		memory_dump_config?: MemoryDumpConfig;
 	}
 
 	interface Transaction {
@@ -6281,14 +6309,14 @@ declare namespace Electron {
 		 * connection is made to the server, but before any http data is sent. The callback
 		 * has to be called with an response object.
 		 */
-		onBeforeSendHeaders(filter: OnBeforeSendHeadersFilter, listener: Function): void;
+		onBeforeSendHeaders(filter: OnBeforeSendHeadersFilter, listener: (details: OnBeforeSendHeadersDetails, callback: (response: OnBeforeSendHeadersResponse) => void) => void): void;
 		/**
 		 * The listener will be called with listener(details, callback) before sending an
 		 * HTTP request, once the request headers are available. This may occur after a TCP
 		 * connection is made to the server, but before any http data is sent. The callback
 		 * has to be called with an response object.
 		 */
-		onBeforeSendHeaders(listener: Function): void;
+		onBeforeSendHeaders(listener: (details: OnBeforeSendHeadersDetails, callback: (response: OnBeforeSendHeadersResponse) => void) => void): void;
 		/**
 		 * The listener will be called with listener(details) when a request is completed.
 		 */
@@ -6310,13 +6338,13 @@ declare namespace Electron {
 		 * headers of a request have been received. The callback has to be called with an
 		 * response object.
 		 */
-		onHeadersReceived(filter: OnHeadersReceivedFilter, listener: Function): void;
+		onHeadersReceived(filter: OnHeadersReceivedFilter, listener: (details: OnHeadersReceivedDetails, callback: (response: OnHeadersReceivedResponse) => void) => void): void;
 		/**
 		 * The listener will be called with listener(details, callback) when HTTP response
 		 * headers of a request have been received. The callback has to be called with an
 		 * response object.
 		 */
-		onHeadersReceived(listener: Function): void;
+		onHeadersReceived(listener: (details: OnHeadersReceivedDetails, callback: (response: OnHeadersReceivedResponse) => void) => void): void;
 		/**
 		 * The listener will be called with listener(details) when first byte of the
 		 * response body is received. For HTTP requests, this means that the status line
@@ -7807,6 +7835,9 @@ declare namespace Electron {
 		args?: string[];
 	}
 
+	interface MemoryDumpConfig {
+	}
+
 	interface MenuItemConstructorOptions {
 		/**
 		 * Will be called with click(menuItem, browserWindow, event) when the menu item is
@@ -8025,12 +8056,30 @@ declare namespace Electron {
 		urls: string[];
 	}
 
+	interface OnBeforeSendHeadersDetails {
+		id: number;
+		url: string;
+		method: string;
+		webContentsId?: number;
+		resourceType: string;
+		timestamp: number;
+		requestHeaders: RequestHeaders;
+	}
+
 	interface OnBeforeSendHeadersFilter {
 		/**
 		 * Array of URL patterns that will be used to filter out the requests that do not
 		 * match the URL patterns.
 		 */
 		urls: string[];
+	}
+
+	interface OnBeforeSendHeadersResponse {
+		cancel?: boolean;
+		/**
+		 * When provided, request will be made with these headers.
+		 */
+		requestHeaders?: RequestHeaders;
 	}
 
 	interface OnCompletedDetails {
@@ -8076,12 +8125,37 @@ declare namespace Electron {
 		urls: string[];
 	}
 
+	interface OnHeadersReceivedDetails {
+		id: number;
+		url: string;
+		method: string;
+		webContentsId?: number;
+		resourceType: string;
+		timestamp: number;
+		statusLine: string;
+		statusCode: number;
+		responseHeaders: ResponseHeaders;
+	}
+
 	interface OnHeadersReceivedFilter {
 		/**
 		 * Array of URL patterns that will be used to filter out the requests that do not
 		 * match the URL patterns.
 		 */
 		urls: string[];
+	}
+
+	interface OnHeadersReceivedResponse {
+		cancel: boolean;
+		/**
+		 * When provided, the server is assumed to have responded with these headers.
+		 */
+		responseHeaders?: ResponseHeaders;
+		/**
+		 * Should be provided when overriding responseHeaders to change header status
+		 * otherwise original response header's status will be used.
+		 */
+		statusLine?: string;
 	}
 
 	interface OnResponseStartedDetails {
@@ -8542,11 +8616,6 @@ declare namespace Electron {
 	}
 
 	interface StartMonitoringOptions {
-		categoryFilter: string;
-		traceOptions: string;
-	}
-
-	interface StartRecordingOptions {
 		categoryFilter: string;
 		traceOptions: string;
 	}

@@ -563,17 +563,19 @@ export class RemoteFileService extends FileService {
 			: Promise.resolve(null);
 
 		return prepare.then(() => this._withProvider(source)).then(RemoteFileService._throwIfFileSystemIsReadonly).then(provider => {
-			return provider.rename(source, target, { overwrite }).then(() => {
-				return this.resolveFile(target);
-			}).then(fileStat => {
-				this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.MOVE, fileStat));
-				return fileStat;
-			}, err => {
-				const result = this._tryParseFileOperationResult(err);
-				if (result === FileOperationResult.FILE_MOVE_CONFLICT) {
-					throw new FileOperationError(localize('fileMoveConflict', "Unable to move/copy. File already exists at destination."), result);
-				}
-				throw err;
+			return RemoteFileService._mkdirp(provider, resources.dirname(target)).then(() => {
+				return provider.rename(source, target, { overwrite }).then(() => {
+					return this.resolveFile(target);
+				}).then(fileStat => {
+					this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.MOVE, fileStat));
+					return fileStat;
+				}, err => {
+					const result = this._tryParseFileOperationResult(err);
+					if (result === FileOperationResult.FILE_MOVE_CONFLICT) {
+						throw new FileOperationError(localize('fileMoveConflict', "Unable to move/copy. File already exists at destination."), result);
+					}
+					throw err;
+				});
 			});
 		});
 	}

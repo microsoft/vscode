@@ -14,7 +14,7 @@ import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostC
 import severity from 'vs/base/common/severity';
 import { AbstractDebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { convertToVSCPaths, convertToDAPaths, stringToUri, uriToString } from 'vs/workbench/parts/debug/common/debugUtils';
+import { convertToVSCPaths, convertToDAPaths } from 'vs/workbench/parts/debug/common/debugUtils';
 
 @extHostNamedCustomer(MainContext.MainThreadDebugService)
 export class MainThreadDebugService implements MainThreadDebugServiceShape, IDebugAdapterFactory {
@@ -259,8 +259,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	}
 
 	public $acceptDAMessage(handle: number, message: DebugProtocol.ProtocolMessage) {
-
-		this._debugAdapters.get(handle).acceptMessage(convertToVSCPaths(message, source => uriToString(source)));
+		this._debugAdapters.get(handle).acceptMessage(convertToVSCPaths(message, false));
 	}
 
 	public $acceptDAError(handle: number, name: string, message: string, stack: string) {
@@ -345,8 +344,7 @@ class ExtensionHostDebugAdapter extends AbstractDebugAdapter {
 	}
 
 	public sendMessage(message: DebugProtocol.ProtocolMessage): void {
-
-		this._proxy.$sendDAMessage(this._handle, convertToDAPaths(message, source => stringToUri(source)));
+		this._proxy.$sendDAMessage(this._handle, convertToDAPaths(message, true));
 	}
 
 	public stopSession(): Promise<void> {

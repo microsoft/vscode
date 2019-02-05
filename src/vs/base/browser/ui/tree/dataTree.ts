@@ -17,7 +17,7 @@ export interface IDataTreeOptions<T, TFilterData = void> extends IAbstractTreeOp
 export interface IDataTreeViewState {
 	readonly focus: string[];
 	readonly selection: string[];
-	readonly collapsed: string[];
+	readonly expanded: string[];
 }
 
 export class DataTree<TInput, T, TFilterData = void> extends AbstractTree<T | null, TFilterData, T | null> {
@@ -70,7 +70,7 @@ export class DataTree<TInput, T, TFilterData = void> extends AbstractTree<T | nu
 				selection.push(element);
 			}
 
-			return id in viewState.collapsed;
+			return viewState.expanded.indexOf(id) === -1;
 		};
 
 		this._refresh(input, isCollapsed);
@@ -123,20 +123,20 @@ export class DataTree<TInput, T, TFilterData = void> extends AbstractTree<T | nu
 		const focus = this.getFocus().map(getId);
 		const selection = this.getSelection().map(getId);
 
-		const collapsed: string[] = [];
+		const expanded: string[] = [];
 		const root = this.model.getNode();
 		const queue = [root];
 
 		while (queue.length > 0) {
 			const node = queue.shift()!;
 
-			if (node !== root && node.collapsed) {
-				collapsed.push(getId(node.element!));
+			if (node !== root && node.collapsible && !node.collapsed) {
+				expanded.push(getId(node.element!));
 			}
 
 			queue.push(...node.children);
 		}
 
-		return { focus, selection, collapsed };
+		return { focus, selection, expanded };
 	}
 }

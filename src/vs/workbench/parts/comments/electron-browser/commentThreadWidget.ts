@@ -39,6 +39,7 @@ import { CommentNode } from 'vs/workbench/parts/comments/electron-browser/commen
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ITextModel } from 'vs/editor/common/model';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
 const COLLAPSE_ACTION_CLASS = 'expand-review-action octicon octicon-x';
@@ -97,12 +98,13 @@ export class ReviewZoneWidget extends ZoneWidget {
 		private openerService: IOpenerService,
 		private dialogService: IDialogService,
 		private notificationService: INotificationService,
+		private contextMenuService: IContextMenuService,
 		editor: ICodeEditor,
 		owner: string,
 		commentThread: modes.CommentThread,
 		pendingComment: string,
 		draftMode: modes.DraftMode,
-		options: IOptions = {}
+		options: IOptions = { keepEditorSelection: true }
 	) {
 		super(editor, options);
 		this._resizeObserver = null;
@@ -240,7 +242,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 		// del removed elements
 		for (let i = commentElementsToDel.length - 1; i >= 0; i--) {
-			this._commentElements.splice(commentElementsToDelIndex[i]);
+			this._commentElements.splice(commentElementsToDelIndex[i], 1);
 			this._commentsElement.removeChild(commentElementsToDel[i].domNode);
 		}
 
@@ -269,6 +271,16 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._commentThread = commentThread;
 		this._commentElements = newCommentNodeList;
 		this.createThreadLabel();
+
+		// Move comment glyph widget and show position if the line has changed.
+		const lineNumber = this._commentThread.range.startLineNumber;
+		if (this._commentGlyph.getPosition().position.lineNumber !== lineNumber) {
+			this._commentGlyph.setLineNumber(lineNumber);
+		}
+
+		if (!this._isCollapsed) {
+			this.show({ lineNumber, column: 1 }, 2);
+		}
 	}
 
 	updateDraftMode(draftMode: modes.DraftMode) {
@@ -388,7 +400,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 	private createCommentWidgetActions(container: HTMLElement, model: ITextModel) {
 		const button = new Button(container);
-		this._disposables.push(attachButtonStyler(button, this.themeService));
+		this._localToDispose.push(attachButtonStyler(button, this.themeService));
 		button.label = 'Add comment';
 
 		button.enabled = model.getValueLength() > 0;
@@ -491,7 +503,8 @@ export class ReviewZoneWidget extends ZoneWidget {
 			this.modelService,
 			this.modeService,
 			this.dialogService,
-			this.notificationService);
+			this.notificationService,
+			this.contextMenuService);
 
 		this._disposables.push(newCommentNode);
 		this._disposables.push(newCommentNode.onDidDelete(deletedNode => {
@@ -610,7 +623,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 			const arrowHeight = Math.round(lineHeight / 3);
 			const frameThickness = Math.round(lineHeight / 9) * 2;
 
-			const computedLinesNumber = Math.ceil((headHeight + dimensions.height + arrowHeight + frameThickness) / lineHeight);
+			const computedLinesNumber = Math.ceil((headHeight + dimensions.height + arrowHeight + frameThickness + 8 /** margin bottom to avoid margin collapse */) / lineHeight);
 			this._relayout(computedLinesNumber);
 		}
 	}

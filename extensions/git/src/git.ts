@@ -12,9 +12,9 @@ import { EventEmitter } from 'events';
 import iconv = require('iconv-lite');
 import * as filetype from 'file-type';
 import { assign, groupBy, denodeify, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent } from './util';
-import { CancellationToken } from 'vscode';
+import { CancellationToken, Uri } from 'vscode';
 import { detectEncoding } from './encoding';
-import { Ref, RefType, Branch, Remote, GitErrorCodes } from './api/git';
+import { Ref, RefType, Branch, Remote, GitErrorCodes, LogOptions, Change, Status } from './api/git';
 
 const readfile = denodeify<string, string | null, string>(fs.readFile);
 
@@ -311,6 +311,8 @@ function getGitErrorCode(stderr: string): string | undefined {
 	return undefined;
 }
 
+const COMMIT_FORMAT = '%H\n%ae\n%P\n%B';
+
 export class Git {
 
 	readonly path: string;
@@ -450,6 +452,7 @@ export interface Commit {
 	hash: string;
 	message: string;
 	parents: string[];
+	authorEmail?: string | undefined;
 }
 
 export class GitStatusParser {
@@ -581,13 +584,13 @@ export function parseGitmodules(raw: string): Submodule[] {
 }
 
 export function parseGitCommit(raw: string): Commit | null {
-	const match = /^([0-9a-f]{40})\n(.*)\n([^]*)$/m.exec(raw.trim());
+	const match = /^([0-9a-f]{40})\n(.*)\n(.*)\n([^]*)$/m.exec(raw.trim());
 	if (!match) {
 		return null;
 	}
 
-	const parents = match[2] ? match[2].split(' ') : [];
-	return { hash: match[1], message: match[3], parents };
+	const parents = match[3] ? match[3].split(' ') : [];
+	return { hash: match[1], message: match[4], parents, authorEmail: match[2] };
 }
 
 interface LsTreeElement {
@@ -699,6 +702,41 @@ export class Repository {
 			const equalsIndex = entry.indexOf('=');
 			return { key: entry.substr(0, equalsIndex), value: entry.substr(equalsIndex + 1) };
 		});
+	}
+
+	async log(options?: LogOptions): Promise<Commit[]> {
+		const maxEntries = options && typeof options.maxEntries === 'number' && options.maxEntries > 0 ? options.maxEntries : 32;
+		const args = ['log', '-' + maxEntries, `--pretty=format:${COMMIT_FORMAT}%x00%x00`];
+		const gitResult = await this.run(args);
+		if (gitResult.exitCode) {
+			// An empty repo.
+			return [];
+		}
+
+		const s = gitResult.stdout;
+		const result: Commit[] = [];
+		let index = 0;
+		while (index < s.length) {
+			let nextIndex = s.indexOf('\x00\x00', index);
+			if (nextIndex === -1) {
+				nextIndex = s.length;
+			}
+
+			let entry = s.substr(index, nextIndex - index);
+			if (entry.startsWith('\n')) {
+				entry = entry.substring(1);
+			}
+
+			const commit = parseGitCommit(entry);
+			if (!commit) {
+				break;
+			}
+
+			result.push(commit);
+			index = nextIndex + 2;
+		}
+
+		return result;
 	}
 
 	async bufferString(object: string, encoding: string = 'utf8', autoGuessEncoding = false): Promise<string> {
@@ -855,25 +893,53 @@ export class Repository {
 		return result.stdout;
 	}
 
-	async diffWithHEAD(path: string): Promise<string> {
+	diffWithHEAD(): Promise<Change[]>;
+	diffWithHEAD(path: string): Promise<string>;
+	diffWithHEAD(path?: string | undefined): Promise<string | Change[]>;
+	async diffWithHEAD(path?: string | undefined): Promise<string | Change[]> {
+		if (!path) {
+			return await this.diffFiles(false);
+		}
+
 		const args = ['diff', '--', path];
 		const result = await this.run(args);
 		return result.stdout;
 	}
 
-	async diffWith(ref: string, path: string): Promise<string> {
+	diffWith(ref: string): Promise<Change[]>;
+	diffWith(ref: string, path: string): Promise<string>;
+	diffWith(ref: string, path?: string | undefined): Promise<string | Change[]>;
+	async diffWith(ref: string, path?: string): Promise<string | Change[]> {
+		if (!path) {
+			return await this.diffFiles(false, ref);
+		}
+
 		const args = ['diff', ref, '--', path];
 		const result = await this.run(args);
 		return result.stdout;
 	}
 
-	async diffIndexWithHEAD(path: string): Promise<string> {
+	diffIndexWithHEAD(): Promise<Change[]>;
+	diffIndexWithHEAD(path: string): Promise<string>;
+	diffIndexWithHEAD(path?: string | undefined): Promise<string | Change[]>;
+	async diffIndexWithHEAD(path?: string): Promise<string | Change[]> {
+		if (!path) {
+			return await this.diffFiles(true);
+		}
+
 		const args = ['diff', '--cached', '--', path];
 		const result = await this.run(args);
 		return result.stdout;
 	}
 
-	async diffIndexWith(ref: string, path: string): Promise<string> {
+	diffIndexWith(ref: string): Promise<Change[]>;
+	diffIndexWith(ref: string, path: string): Promise<string>;
+	diffIndexWith(ref: string, path?: string | undefined): Promise<string | Change[]>;
+	async diffIndexWith(ref: string, path?: string): Promise<string | Change[]> {
+		if (!path) {
+			return await this.diffFiles(true, ref);
+		}
+
 		const args = ['diff', '--cached', ref, '--', path];
 		const result = await this.run(args);
 		return result.stdout;
@@ -885,11 +951,100 @@ export class Repository {
 		return result.stdout;
 	}
 
-	async diffBetween(ref1: string, ref2: string, path: string): Promise<string> {
-		const args = ['diff', `${ref1}...${ref2}`, '--', path];
+	diffBetween(ref1: string, ref2: string): Promise<Change[]>;
+	diffBetween(ref1: string, ref2: string, path: string): Promise<string>;
+	diffBetween(ref1: string, ref2: string, path?: string | undefined): Promise<string | Change[]>;
+	async diffBetween(ref1: string, ref2: string, path?: string): Promise<string | Change[]> {
+		const range = `${ref1}...${ref2}`;
+		if (!path) {
+			return await this.diffFiles(false, range);
+		}
+
+		const args = ['diff', range, '--', path];
 		const result = await this.run(args);
 
 		return result.stdout.trim();
+	}
+
+	private async diffFiles(cached: boolean, ref?: string): Promise<Change[]> {
+		const args = ['diff', '--name-status', '-z', '--diff-filter=ADMR'];
+		if (cached) {
+			args.push('--cached');
+		}
+
+		if (ref) {
+			args.push(ref);
+		}
+
+		const gitResult = await this.run(args);
+		if (gitResult.exitCode) {
+			return [];
+		}
+
+		const entries = gitResult.stdout.split('\x00');
+		let index = 0;
+		const result: Change[] = [];
+
+		entriesLoop:
+		while (index < entries.length - 1) {
+			const change = entries[index++];
+			const resourcePath = entries[index++];
+			if (!change || !resourcePath) {
+				break;
+			}
+
+			const originalUri = Uri.file(path.isAbsolute(resourcePath) ? resourcePath : path.join(this.repositoryRoot, resourcePath));
+			let status: Status = Status.UNTRACKED;
+
+			// Copy or Rename status comes with a number, e.g. 'R100'. We don't need the number, so we use only first character of the status.
+			switch (change[0]) {
+				case 'M':
+					status = Status.MODIFIED;
+					break;
+
+				case 'A':
+					status = Status.INDEX_ADDED;
+					break;
+
+				case 'D':
+					status = Status.DELETED;
+					break;
+
+				// Rename contains two paths, the second one is what the file is renamed/copied to.
+				case 'R':
+					if (index >= entries.length) {
+						break;
+					}
+
+					const newPath = entries[index++];
+					if (!newPath) {
+						break;
+					}
+
+					const uri = Uri.file(path.isAbsolute(newPath) ? newPath : path.join(this.repositoryRoot, newPath));
+					result.push({
+						uri,
+						renameUri: uri,
+						originalUri,
+						status: Status.INDEX_RENAMED
+					});
+
+					continue;
+
+				default:
+					// Unknown status
+					break entriesLoop;
+			}
+
+			result.push({
+				status,
+				originalUri,
+				uri: originalUri,
+				renameUri: originalUri,
+			});
+		}
+
+		return result;
 	}
 
 	async getMergeBase(ref1: string, ref2: string): Promise<string> {
@@ -1557,7 +1712,7 @@ export class Repository {
 	}
 
 	async getCommit(ref: string): Promise<Commit> {
-		const result = await this.run(['show', '-s', '--format=%H\n%P\n%B', ref]);
+		const result = await this.run(['show', '-s', `--format=${COMMIT_FORMAT}`, ref]);
 		return parseGitCommit(result.stdout) || Promise.reject<Commit>('bad commit format');
 	}
 

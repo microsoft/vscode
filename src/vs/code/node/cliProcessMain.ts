@@ -136,7 +136,7 @@ export class Main {
 
 		const [id, version] = getIdAndVersion(extension);
 		return this.extensionManagementService.getInstalled(ExtensionType.User)
-			.then(installed => this.extensionGalleryService.getExtension({ id }, version)
+			.then(installed => this.extensionGalleryService.getCompatibleExtension({ id }, version)
 				.then<IGalleryExtension>(null, err => {
 					if (err.responseText) {
 						try {
@@ -268,7 +268,7 @@ export function main(argv: ParsedArgs): Promise<void> {
 			const services = new ServiceCollection();
 			services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
 			services.set(IRequestService, new SyncDescriptor(RequestService));
-			services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
+			services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService, [false]));
 			services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
 
 			const appenders: AppInsightsAppender[] = [];

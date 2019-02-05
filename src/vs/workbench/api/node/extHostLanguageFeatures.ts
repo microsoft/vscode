@@ -347,7 +347,7 @@ class CodeActionAdapter {
 						diagnostics: candidate.diagnostics && candidate.diagnostics.map(typeConvert.Diagnostic.from),
 						edit: candidate.edit && typeConvert.WorkspaceEdit.from(candidate.edit),
 						kind: candidate.kind && candidate.kind.value,
-						canAutoApply: candidate.canAutoApply,
+						isPreferred: candidate.isPreferred,
 					});
 				}
 			}
@@ -756,11 +756,14 @@ class SignatureHelpAdapter {
 	private reviveContext(context: modes.SignatureHelpContext): vscode.SignatureHelpContext {
 		let activeSignatureHelp: vscode.SignatureHelp | undefined = undefined;
 		if (context.activeSignatureHelp) {
+			const revivedSignatureHelp = typeConvert.SignatureHelp.to(context.activeSignatureHelp);
 			const saved = this._heap.get<vscode.SignatureHelp>(ObjectIdentifier.of(context.activeSignatureHelp));
 			if (saved) {
 				activeSignatureHelp = saved;
+				activeSignatureHelp.activeSignature = revivedSignatureHelp.activeSignature;
+				activeSignatureHelp.activeParameter = revivedSignatureHelp.activeParameter;
 			} else {
-				activeSignatureHelp = typeConvert.SignatureHelp.to(context.activeSignatureHelp);
+				activeSignatureHelp = revivedSignatureHelp;
 			}
 		}
 		return { ...context, activeSignatureHelp };
@@ -1018,12 +1021,16 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return handle;
 	}
 
+	private static _extLabel(ext: IExtensionDescription): string {
+		return ext.displayName || ext.name;
+	}
+
 	// --- outline
 
 	registerDocumentSymbolProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentSymbolProvider, metadata?: vscode.DocumentSymbolProviderMetadata): vscode.Disposable {
 		const handle = this._addNewAdapter(new DocumentSymbolAdapter(this._documents, provider), extension);
-		const displayName = (metadata && metadata.label) || (extension && (extension.displayName || extension.name)) || undefined;
-		this._proxy.$registerOutlineSupport(handle, this._transformDocumentSelector(selector), displayName);
+		const displayName = (metadata && metadata.label) || ExtHostLanguageFeatures._extLabel(extension);
+		this._proxy.$registerDocumentSymbolProvider(handle, this._transformDocumentSelector(selector), displayName);
 		return this._createDisposable(handle);
 	}
 
@@ -1152,7 +1159,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	registerDocumentFormattingEditProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentFormattingEditProvider): vscode.Disposable {
 		const handle = this._addNewAdapter(new DocumentFormattingAdapter(this._documents, provider), extension);
-		this._proxy.$registerDocumentFormattingSupport(handle, this._transformDocumentSelector(selector));
+		this._proxy.$registerDocumentFormattingSupport(handle, this._transformDocumentSelector(selector), ExtHostLanguageFeatures._extLabel(extension));
 		return this._createDisposable(handle);
 	}
 
@@ -1162,7 +1169,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	registerDocumentRangeFormattingEditProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentRangeFormattingEditProvider): vscode.Disposable {
 		const handle = this._addNewAdapter(new RangeFormattingAdapter(this._documents, provider), extension);
-		this._proxy.$registerRangeFormattingSupport(handle, this._transformDocumentSelector(selector));
+		this._proxy.$registerRangeFormattingSupport(handle, this._transformDocumentSelector(selector), ExtHostLanguageFeatures._extLabel(extension));
 		return this._createDisposable(handle);
 	}
 

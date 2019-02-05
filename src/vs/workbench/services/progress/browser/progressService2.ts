@@ -10,7 +10,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IProgressService2, IProgressOptions, IProgressStep, ProgressLocation, IProgress, emptyProgress, Progress } from 'vs/platform/progress/common/progress';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { StatusbarAlignment, IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
-import { always, timeout } from 'vs/base/common/async';
+import { timeout } from 'vs/base/common/async';
 import { ProgressBadge, IActivityService } from 'vs/workbench/services/activity/common/activity';
 import { INotificationService, Severity, INotificationHandle, INotificationActions } from 'vs/platform/notification/common/notification';
 import { Action } from 'vs/base/common/actions';
@@ -30,7 +30,7 @@ export class ProgressService2 implements IProgressService2 {
 		@IStatusbarService private readonly _statusbarService: IStatusbarService,
 	) { }
 
-	withProgress<P extends Promise<R>, R=any>(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => P, onDidCancel?: () => void): P {
+	withProgress<R=any>(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => Promise<R>, onDidCancel?: () => void): Promise<R> {
 
 		const { location } = options;
 		if (typeof location === 'string') {
@@ -59,7 +59,7 @@ export class ProgressService2 implements IProgressService2 {
 		}
 	}
 
-	private _withWindowProgress<P extends Promise<R>, R=any>(options: IProgressOptions, callback: (progress: IProgress<{ message?: string }>) => P): P {
+	private _withWindowProgress<R=any>(options: IProgressOptions, callback: (progress: IProgress<{ message?: string }>) => Promise<R>): Promise<R> {
 
 		const task: [IProgressOptions, Progress<IProgressStep>] = [options, new Progress<IProgressStep>(() => this._updateWindowProgress())];
 
@@ -71,10 +71,10 @@ export class ProgressService2 implements IProgressService2 {
 			this._updateWindowProgress();
 
 			// show progress for at least 150ms
-			always(Promise.all([
+			Promise.all([
 				timeout(150),
 				promise
-			]), () => {
+			]).finally(() => {
 				const idx = this._stack.indexOf(task);
 				this._stack.splice(idx, 1);
 				this._updateWindowProgress();
@@ -83,8 +83,7 @@ export class ProgressService2 implements IProgressService2 {
 		}, 150);
 
 		// cancel delay if promise finishes below 150ms
-		always(promise, () => clearTimeout(delayHandle));
-		return promise;
+		return promise.finally(() => clearTimeout(delayHandle));
 	}
 
 	private _updateWindowProgress(idx: number = 0) {
@@ -214,7 +213,7 @@ export class ProgressService2 implements IProgressService2 {
 		});
 
 		// Show progress for at least 800ms and then hide once done or canceled
-		always(Promise.all([timeout(800), p]), () => {
+		Promise.all([timeout(800), p]).finally(() => {
 			if (handle) {
 				handle.close();
 			}

@@ -187,7 +187,7 @@ async function createLanguageSnippetFile(pick: ISnippetPick, fileService: IFileS
 	await fileService.updateContent(URI.file(pick.filepath), contents);
 }
 
-CommandsRegistry.registerCommand(id, async accessor => {
+CommandsRegistry.registerCommand(id, async (accessor): Promise<any> => {
 
 	const snippetService = accessor.get(ISnippetsService);
 	const quickInputService = accessor.get(IQuickInputService);

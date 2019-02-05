@@ -157,7 +157,9 @@ class WebviewKeyboardHandler extends Disposable {
 				const contents = this.getWebContents();
 				if (contents) {
 					contents.on('before-input-event', (_event, input) => {
-						this.setIgnoreMenuShortcuts(input.control || input.meta);
+						if (input.type === 'keyDown') {
+							this.setIgnoreMenuShortcuts(input.control || input.meta);
+						}
 					});
 				}
 			}));
@@ -473,16 +475,6 @@ export class WebviewElement extends Disposable {
 
 
 		const styles = {
-			// Old vars
-			'font-family': fontFamily,
-			'font-weight': fontWeight,
-			'font-size': fontSize,
-			'background-color': theme.getColor(colorRegistry.editorBackground).toString(),
-			'color': theme.getColor(colorRegistry.editorForeground).toString(),
-			'link-color': theme.getColor(colorRegistry.textLinkForeground).toString(),
-			'link-active-color': theme.getColor(colorRegistry.textLinkActiveForeground).toString(),
-
-			// Offical API
 			'vscode-editor-font-family': fontFamily,
 			'vscode-editor-font-weight': fontWeight,
 			'vscode-editor-font-size': fontSize,
@@ -493,6 +485,7 @@ export class WebviewElement extends Disposable {
 		this._send('styles', styles, activeTheme);
 
 		this._webviewFindWidget.updateTheme(theme);
+
 	}
 
 	public layout(): void {
@@ -573,6 +566,26 @@ export class WebviewElement extends Disposable {
 
 	public selectAll() {
 		this._webview.selectAll();
+	}
+
+	public copy() {
+		this._webview.copy();
+	}
+
+	public paste() {
+		this._webview.paste();
+	}
+
+	public cut() {
+		this._webview.cut();
+	}
+
+	public undo() {
+		this._webview.undo();
+	}
+
+	public redo() {
+		this._webview.redo();
 	}
 }
 

@@ -143,8 +143,10 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 		this._extensionManagementService.onDidInstallExtension((event) => {
 			if (event.local) {
-				// an extension has been installed
-				this._handleDeltaExtensions(new DeltaExtensionsQueueItem([event.local], []));
+				if (this._extensionEnablementService.isEnabled(event.local)) {
+					// an extension has been installed
+					this._handleDeltaExtensions(new DeltaExtensionsQueueItem([event.local], []));
+				}
 			}
 		});
 
@@ -185,6 +187,12 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			const extension = _toAdd[i];
 
 			if (extension.location.scheme !== Schemas.file) {
+				continue;
+			}
+
+			const existingExtensionDescription = this._registry.getExtensionDescription(extension.identifier.id);
+			if (existingExtensionDescription) {
+				// this extension is already running (most likely at a different version)
 				continue;
 			}
 
@@ -265,7 +273,13 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			for (let extPointName in extension.contributes) {
 				if (hasOwnProperty.call(extension.contributes, extPointName)) {
 					const extPoint = extensionPoints[extPointName];
-					if (extPoint && !extPoint.isDynamic) {
+					if (extPoint) {
+						if (!extPoint.isDynamic) {
+							return false;
+						}
+					} else {
+						// This extension has a 3rd party (unknown) extension point
+						// ===> require a reload for now...
 						return false;
 					}
 				}
@@ -273,6 +287,44 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		}
 
 		return true;
+	}
+
+	public canAddExtension(extension: IExtensionDescription): boolean {
+		if (this._windowService.getConfiguration().remoteAuthority) {
+			return false;
+		}
+
+		if (extension.extensionLocation.scheme !== Schemas.file) {
+			return false;
+		}
+
+		const extensionDescription = this._registry.getExtensionDescription(extension.identifier);
+		if (extensionDescription) {
+			// ignore adding an extension which is already running and cannot be removed
+			if (!this._canRemoveExtension(extensionDescription)) {
+				return false;
+			}
+		}
+
+		return this._usesOnlyDynamicExtensionPoints(extension);
+	}
+
+	public canRemoveExtension(extension: IExtensionDescription): boolean {
+		if (this._windowService.getConfiguration().remoteAuthority) {
+			return false;
+		}
+
+		if (extension.extensionLocation.scheme !== Schemas.file) {
+			return false;
+		}
+
+		const extensionDescription = this._registry.getExtensionDescription(extension.identifier);
+		if (!extensionDescription) {
+			// ignore removing an extension which is not running
+			return false;
+		}
+
+		return this._canRemoveExtension(extensionDescription);
 	}
 
 	private _canRemoveExtension(extension: IExtensionDescription): boolean {

@@ -29,7 +29,7 @@ function inst(): IInstantiationService {
 	inst.stub(ITelemetryService, NullTelemetryService);
 
 	const config = new TestConfigurationService();
-	config.setUserConfiguration('workbench', { editor: { openPositioning: 'right', closeTabsInMRUOrder: true } });
+	config.setUserConfiguration('workbench', { editor: { openPositioning: 'right', focusRecentEditorAfterClose: true } });
 	inst.stub(IConfigurationService, config);
 
 	return inst;
@@ -653,7 +653,7 @@ suite('Workbench editor groups', () => {
 		inst.stub(ITelemetryService, NullTelemetryService);
 
 		const config = new TestConfigurationService();
-		config.setUserConfiguration('workbench', { editor: { closeTabsInMRUOrder: false } });
+		config.setUserConfiguration('workbench', { editor: { focusRecentEditorAfterClose: false } });
 		inst.stub(IConfigurationService, config);
 
 		const group = inst.createInstance(EditorGroup);

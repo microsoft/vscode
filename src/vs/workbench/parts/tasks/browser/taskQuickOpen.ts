@@ -19,7 +19,7 @@ class TaskEntry extends base.TaskEntry {
 		super(quickOpenService, taskService, task, highlights);
 	}
 
-	public run(mode: QuickOpen.Mode, context: Model.IContext): boolean {
+	public run(mode: QuickOpen.Mode, context: QuickOpen.IEntryRunContext): boolean {
 		if (mode === QuickOpen.Mode.PREVIEW) {
 			return false;
 		}
