@@ -114,13 +114,17 @@ export class KeybindingsEditorModel extends EditorModel {
 		if (/@user/i.test(searchValue)) {
 			return keybindingItems.filter(k => k.source === SOURCE_USER);
 		}
-		if (/@source:\s*"(.+?)"\s?/i.test(searchValue)) {
-			const match = searchValue.match(/@source:\s*"(.+?)"\s?/i);
+		const quotesRegex = /@source:\s*"(.+?)"\s?/i;
+		if (quotesRegex.test(searchValue)) {
+			const match = searchValue.match(quotesRegex);
+			if (!match) { return keybindingItems; }
 			const extensionQuery = new RegExp(match[1], 'i');
 			return keybindingItems.filter(k => extensionQuery.test(k.source));
 		}
-		if (/@source:\s*([\S]+)\s?/i.test(searchValue)) {
-			const match = searchValue.match(/@source:\s*([\S]+)\s?/i);
+		const withoutQuotesRegex = /@source:\s*([\S]+)\s?/i;
+		if (withoutQuotesRegex.test(searchValue)) {
+			const match = searchValue.match(withoutQuotesRegex);
+			if (!match) { return keybindingItems; }
 			const extensionQuery = new RegExp(match[1], 'i');
 			return keybindingItems.filter(k => extensionQuery.test(k.source));
 		}
