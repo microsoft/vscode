@@ -440,14 +440,16 @@ export class SearchWidget extends Widget {
 
 		else if (keyboardEvent.equals(KeyCode.UpArrow)) {
 			const ta = this.searchInput.domNode.querySelector('textarea');
-			if (ta && ta.selectionStart > 0) {
+			const isMultiline = !!this.searchInput.getValue().match(/\n/);
+			if (ta && isMultiline && ta.selectionStart > 0) {
 				keyboardEvent.stopPropagation();
 			}
 		}
 
 		else if (keyboardEvent.equals(KeyCode.DownArrow)) {
 			const ta = this.searchInput.domNode.querySelector('textarea');
-			if (ta && ta.selectionEnd < ta.value.length) {
+			const isMultiline = !!this.searchInput.getValue().match(/\n/);
+			if (ta && isMultiline && ta.selectionEnd < ta.value.length) {
 				keyboardEvent.stopPropagation();
 			}
 		}
