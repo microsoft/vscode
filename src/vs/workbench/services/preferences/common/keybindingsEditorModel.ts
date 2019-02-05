@@ -93,9 +93,10 @@ export class KeybindingsEditorModel extends EditorModel {
 	fetch(searchValue: string, sortByPrecedence: boolean = false): IKeybindingItemEntry[] {
 		let keybindingItems = sortByPrecedence ? this._keybindingItemsSortedByPrecedence : this._keybindingItems;
 
-		if (/@source:\s*(.+)/i.test(searchValue)) {
+		const sourceRegex = /(@user)|(@default)|(@source:\s*"(.+?)"\s?)|(@source:\s*([\S]+)\s?)/i;
+		if (sourceRegex.test(searchValue)) {
 			keybindingItems = this.filterBySource(keybindingItems, searchValue);
-			searchValue = searchValue.replace(/@source:\s*(.+)/i, '');
+			searchValue = searchValue.replace(sourceRegex, '');
 		}
 
 		searchValue = searchValue.trim();
@@ -107,14 +108,23 @@ export class KeybindingsEditorModel extends EditorModel {
 	}
 
 	private filterBySource(keybindingItems: IKeybindingItem[], searchValue: string): IKeybindingItem[] {
-		if (/@source:\s*default/i.test(searchValue)) {
+		if (/@default/i.test(searchValue)) {
 			return keybindingItems.filter(k => k.source === SOURCE_DEFAULT);
 		}
-		if (/@source:\s*user/i.test(searchValue)) {
-			return keybindingItems.filter(k => k.source.indexOf(SOURCE_USER) !== -1);
+		if (/@user/i.test(searchValue)) {
+			return keybindingItems.filter(k => k.source === SOURCE_USER);
 		}
-		const extensionSearchRegex = new RegExp(searchValue.split(/@source:\s*/i)[1], 'i');
-		return keybindingItems.filter(k => extensionSearchRegex.test(k.source));
+		if (/@source:\s*"(.+?)"\s?/i.test(searchValue)) {
+			const match = searchValue.match(/@source:\s*"(.+?)"\s?/i);
+			const extensionQuery = new RegExp(match[1], 'i');
+			return keybindingItems.filter(k => extensionQuery.test(k.source));
+		}
+		if (/@source:\s*([\S]+)\s?/i.test(searchValue)) {
+			const match = searchValue.match(/@source:\s*([\S]+)\s?/i);
+			const extensionQuery = new RegExp(match[1], 'i');
+			return keybindingItems.filter(k => extensionQuery.test(k.source));
+		}
+		return keybindingItems;
 	}
 
 	private filterByText(keybindingItems: IKeybindingItem[], searchValue: string): IKeybindingItemEntry[] {
@@ -206,9 +216,7 @@ export class KeybindingsEditorModel extends EditorModel {
 
 		for (const keybinding of this._keybindingItems) {
 			if (keybinding.command in contributed) {
-				if (keybinding.source.indexOf(SOURCE_USER) !== -1) {
-					keybinding.source = `${SOURCE_USER} ⮜ ${contributed[keybinding.command]}`;
-				} else {
+				if (keybinding.source !== SOURCE_USER) {
 					keybinding.source = contributed[keybinding.command];
 				}
 			}
