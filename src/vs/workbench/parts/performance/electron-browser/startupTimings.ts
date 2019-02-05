@@ -65,18 +65,11 @@ export class StartupTimings implements IWorkbenchContribution {
 			return;
 		}
 
-		const waitWhenNoCachedData: () => Promise<void> = () => {
-			// wait 15s for cached data to be produced
-			return !didUseCachedData()
-				? timeout(15000)
-				: Promise.resolve<void>();
-		};
-
 		const { sessionId } = await this._telemetryService.getTelemetryInfo();
 
 		Promise.all([
 			this._timerService.startupMetrics,
-			waitWhenNoCachedData(),
+			timeout(15000), // wait: cached data creation, telemetry sending
 		]).then(([startupMetrics]) => {
 			return nfcall(appendFile, appendTo, `${startupMetrics.ellapsed}\t${product.nameShort}\t${(product.commit || '').slice(0, 10) || '0000000000'}\t${sessionId}\t${isStandardStartup ? 'standard_start' : 'NO_standard_start'}\n`);
 		}).then(() => {

@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.31.0",
-  "distro": "455b23e66edb0fb17a1d7f5764ff35eec7c1b2d1",
+  "version": "1.32.0",
+  "distro": "d274a23e463c080a0a3ba6278d43431d187e05f5",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -49,11 +49,11 @@
     "vscode-chokidar": "1.6.5",
     "vscode-debugprotocol": "1.33.0",
     "vscode-nsfw": "1.1.1",
-    "vscode-proxy-agent": "0.2.0",
+    "vscode-proxy-agent": "0.3.0",
     "vscode-ripgrep": "^1.2.5",
     "vscode-sqlite3": "4.0.7",
     "vscode-textmate": "^4.0.1",
-    "vscode-xterm": "3.10.0-beta11-reflow",
+    "vscode-xterm": "3.12.0-beta2",
     "winreg": "^1.2.4",
     "yauzl": "^2.9.1",
     "yazl": "^2.4.3"
@@ -125,7 +125,7 @@
     "source-map": "^0.4.4",
     "ts-loader": "^4.4.2",
     "tslint": "^5.11.0",
-    "typescript": "3.2.2",
+    "typescript": "3.3.1",
     "typescript-formatter": "7.1.0",
     "typescript-tslint-plugin": "^0.0.7",
     "uglify-es": "^3.0.18",

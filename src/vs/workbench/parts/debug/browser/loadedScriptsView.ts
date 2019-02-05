@@ -33,6 +33,7 @@ import { WorkbenchAsyncDataTree, IListService, TreeResourceNavigator2 } from 'vs
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { DebugContentProvider } from 'vs/workbench/parts/debug/browser/debugContentProvider';
 import { dispose } from 'vs/base/common/lifecycle';
+import { createMatches, FuzzyScore } from 'vs/base/common/filters';
 
 const SMART = true;
 
@@ -363,7 +364,7 @@ export class LoadedScriptsView extends ViewletPanel {
 
 	private treeContainer: HTMLElement;
 	private loadedScriptsItemType: IContextKey<string>;
-	private tree: WorkbenchAsyncDataTree<LoadedScriptsItem, LoadedScriptsItem>;
+	private tree: WorkbenchAsyncDataTree<LoadedScriptsItem, LoadedScriptsItem, FuzzyScore>;
 	private treeLabels: ResourceLabels;
 	private changeScheduler: RunOnceScheduler;
 	private treeNeedsRefreshOnVisible: boolean;
@@ -429,7 +430,7 @@ export class LoadedScriptsView extends ViewletPanel {
 
 		const loadedScriptsNavigator = new TreeResourceNavigator2(this.tree);
 		this.disposables.push(loadedScriptsNavigator);
-		this.disposables.push(loadedScriptsNavigator.openResource(e => {
+		this.disposables.push(loadedScriptsNavigator.onDidOpenResource(e => {
 			if (e.element instanceof BaseTreeItem) {
 				const source = e.element.getSource();
 				if (source && source.available) {
@@ -500,8 +501,8 @@ export class LoadedScriptsView extends ViewletPanel {
 		}));
 	}
 
-	layoutBody(size: number): void {
-		this.tree.layout(size);
+	layoutBody(height: number, width: number): void {
+		this.tree.layout(height, width);
 	}
 
 	dispose(): void {
@@ -540,7 +541,7 @@ interface ILoadedScriptsItemTemplateData {
 	label: IResourceLabel;
 }
 
-class LoadedScriptsRenderer implements ITreeRenderer<BaseTreeItem, void, ILoadedScriptsItemTemplateData> {
+class LoadedScriptsRenderer implements ITreeRenderer<BaseTreeItem, FuzzyScore, ILoadedScriptsItemTemplateData> {
 
 	static readonly ID = 'lsrenderer';
 
@@ -555,11 +556,11 @@ class LoadedScriptsRenderer implements ITreeRenderer<BaseTreeItem, void, ILoaded
 
 	renderTemplate(container: HTMLElement): ILoadedScriptsItemTemplateData {
 		let data: ILoadedScriptsItemTemplateData = Object.create(null);
-		data.label = this.labels.create(container);
+		data.label = this.labels.create(container, { supportHighlights: true });
 		return data;
 	}
 
-	renderElement(node: ITreeNode<BaseTreeItem, void>, index: number, data: ILoadedScriptsItemTemplateData): void {
+	renderElement(node: ITreeNode<BaseTreeItem, FuzzyScore>, index: number, data: ILoadedScriptsItemTemplateData): void {
 
 		const element = node.element;
 
@@ -589,6 +590,7 @@ class LoadedScriptsRenderer implements ITreeRenderer<BaseTreeItem, void, ILoaded
 				options.fileKind = FileKind.FOLDER;
 			}
 		}
+		options.matches = createMatches(node.filterData);
 
 		data.label.setResource(label, options);
 	}
@@ -622,7 +624,7 @@ class LoadedSciptsAccessibilityProvider implements IAccessibilityProvider<Loaded
 	}
 }
 
-class LoadedScriptsFilter implements ITreeFilter<BaseTreeItem> {
+class LoadedScriptsFilter implements ITreeFilter<BaseTreeItem, FuzzyScore> {
 
 	private filterText: string;
 
@@ -630,7 +632,7 @@ class LoadedScriptsFilter implements ITreeFilter<BaseTreeItem> {
 		this.filterText = filterText;
 	}
 
-	filter(element: BaseTreeItem, parentVisibility: TreeVisibility): TreeFilterResult<void> {
+	filter(element: BaseTreeItem, parentVisibility: TreeVisibility): TreeFilterResult<FuzzyScore> {
 
 		if (!this.filterText) {
 			return TreeVisibility.Visible;

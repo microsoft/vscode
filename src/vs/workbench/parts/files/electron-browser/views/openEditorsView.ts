@@ -39,7 +39,7 @@ import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/v
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDragAndDropData } from 'vs/base/browser/dnd';
 import { memoize } from 'vs/base/common/decorators';
-import { DesktopDragAndDropData, ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
+import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { URI } from 'vs/base/common/uri';
 
 const $ = dom.$;
@@ -146,11 +146,8 @@ export class OpenEditorsView extends ViewletPanel {
 						break;
 					}
 					case GroupChangeKind.EDITOR_OPEN: {
-						setTimeout(() => {
-							this.list.splice(index, 0, [new OpenEditor(e.editor, group)]);
-							this.updateSize();
-							this.focusActiveEditor();
-						}, this.structuralRefreshDelay);
+						this.list.splice(index, 0, [new OpenEditor(e.editor, group)]);
+						setTimeout(() => this.updateSize(), this.structuralRefreshDelay);
 						break;
 					}
 					case GroupChangeKind.EDITOR_CLOSE: {
@@ -307,9 +304,9 @@ export class OpenEditorsView extends ViewletPanel {
 		return this.list;
 	}
 
-	protected layoutBody(size: number): void {
+	protected layoutBody(height: number, width: number): void {
 		if (this.list) {
-			this.list.layout(size);
+			this.list.layout(height, width);
 		}
 	}
 
@@ -398,11 +395,9 @@ export class OpenEditorsView extends ViewletPanel {
 	private focusActiveEditor(): void {
 		if (this.list.length && this.editorGroupService.activeGroup) {
 			const index = this.getIndex(this.editorGroupService.activeGroup, this.editorGroupService.activeGroup.activeEditor);
-			if (index < this.list.length) {
-				this.list.setFocus([index]);
-				this.list.setSelection([index]);
-				this.list.reveal(index);
-			}
+			this.list.setFocus([index]);
+			this.list.setSelection([index]);
+			this.list.reveal(index);
 		} else {
 			this.list.setFocus([]);
 			this.list.setSelection([]);
@@ -657,15 +652,14 @@ class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGro
 		const group = targetElement instanceof OpenEditor ? targetElement.group : targetElement;
 		const index = targetElement instanceof OpenEditor ? targetElement.group.getIndexOfEditor(targetElement.editor) : 0;
 
-		if (data instanceof DesktopDragAndDropData) {
-			this.dropHandler.handleDrop(originalEvent, () => group, () => group.focus(), index);
-		} else {
-			const elementsData = (data as ElementsDragAndDropData<OpenEditor>).elements;
+		if (data instanceof ElementsDragAndDropData) {
+			const elementsData = data.elements;
 			elementsData.forEach((oe, offset) => {
 				oe.group.moveEditor(oe.editor, group, { index: index + offset, preserveFocus: true });
 			});
 			this.editorGroupService.activateGroup(group);
+		} else {
+			this.dropHandler.handleDrop(originalEvent, () => group, () => group.focus(), index);
 		}
-
 	}
 }

@@ -107,6 +107,7 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, FuzzyScore, IF
 
 	constructor(
 		private labels: ResourceLabels,
+		private updateWidth: (stat: ExplorerItem) => void,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -152,8 +153,7 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, FuzzyScore, IF
 			});
 
 			templateData.elementDisposable = templateData.label.onDidRender(() => {
-				// todo@isidor horizontal scrolling
-				// this.tree.updateWidth(stat);
+				this.updateWidth(stat);
 			});
 		}
 
@@ -247,7 +247,7 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, FuzzyScore, IF
 	}
 
 	disposeElement?(element: ITreeNode<ExplorerItem, FuzzyScore>, index: number, templateData: IFileTemplateData): void {
-		// noop
+		templateData.elementDisposable.dispose();
 	}
 
 	disposeTemplate(templateData: IFileTemplateData): void {
@@ -445,6 +445,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 		const isCopy = originalEvent && ((originalEvent.ctrlKey && !isMacintosh) || (originalEvent.altKey && isMacintosh));
 		const fromDesktop = data instanceof DesktopDragAndDropData;
+		const effect = (fromDesktop || isCopy) ? ListDragOverEffect.Copy : ListDragOverEffect.Move;
 
 		// Desktop DND
 		if (fromDesktop) {
@@ -470,11 +471,11 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 			if (!target) {
 				// Droping onto the empty area. Do not accept if items dragged are already children of the root
-				if (items.every(i => i.parent.isRoot)) {
+				if (items.every(i => i.parent && i.parent.isRoot)) {
 					return false;
 				}
 
-				return { accept: true, bubble: TreeDragOverBubble.Down, autoExpand: false };
+				return { accept: true, bubble: TreeDragOverBubble.Down, effect, autoExpand: false };
 			}
 
 			if (!Array.isArray(items)) {
@@ -511,13 +512,11 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 		// All (target = model)
 		if (!target) {
-			return { accept: true, bubble: TreeDragOverBubble.Down };
+			return { accept: true, bubble: TreeDragOverBubble.Down, effect };
 		}
 
 		// All (target = file/folder)
 		else {
-			const effect = fromDesktop || isCopy ? ListDragOverEffect.Copy : ListDragOverEffect.Move;
-
 			if (target.isDirectory) {
 				if (target.isReadonly) {
 					return false;
@@ -769,7 +768,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		// Reuse duplicate action if user copies
 		if (isCopy) {
 
-			return this.fileService.copyFile(source.resource, findValidPasteFileTarget(target, { resource: source.resource, isDirectory: source.isDirectory })).then(stat => {
+			return this.fileService.copyFile(source.resource, findValidPasteFileTarget(target, { resource: source.resource, isDirectory: source.isDirectory, allowOverwirte: false })).then(stat => {
 				if (!stat.isDirectory) {
 					return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } }).then(() => undefined);
 				}

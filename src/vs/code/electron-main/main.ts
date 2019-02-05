@@ -158,7 +158,7 @@ function setupIPC(accessor: ServicesAccessor): Promise<Server> {
 					logService.trace('Sending env to running instance...');
 
 					return allowSetForegroundWindow(service)
-						.then(() => service.start(environmentService.args, process.env))
+						.then(() => service.start(environmentService.args, process.env as platform.IProcessEnvironment))
 						.then(() => client.dispose())
 						.then(() => {
 
@@ -316,14 +316,14 @@ function createServices(args: ParsedArgs, bufferLogService: BufferLogService): I
 function initServices(environmentService: IEnvironmentService, stateService: StateService): Promise<any> {
 
 	// Ensure paths for environment service exist
-	const environmentServiceInitialization = Promise.all([
+	const environmentServiceInitialization = Promise.all<boolean | undefined>([
 		environmentService.extensionsPath,
 		environmentService.nodeCachedDataDir,
 		environmentService.logsPath,
 		environmentService.globalStorageHome,
 		environmentService.workspaceStorageHome,
 		environmentService.backupHome
-	].map(path => path && mkdirp(path)));
+	].map((path): undefined | Promise<boolean> => path ? mkdirp(path) : undefined));
 
 	// State service
 	const stateServiceInitialization = stateService.init();

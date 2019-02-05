@@ -73,7 +73,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private whenReadyCallbacks: { (window: ICodeWindow): void }[];
 
 	private currentConfig: IWindowConfiguration;
-	private pendingLoadConfig: IWindowConfiguration;
+	private pendingLoadConfig?: IWindowConfiguration;
 
 	private marketplaceHeadersPromise: Promise<object>;
 
@@ -205,7 +205,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		return !!this.config.extensionTestsPath;
 	}
 
-	get extensionDevelopmentPath(): string {
+	get extensionDevelopmentPath(): string | undefined {
 		return this.config.extensionDevelopmentPath;
 	}
 
@@ -253,19 +253,19 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		return this._lastFocusTime;
 	}
 
-	get backupPath(): string {
+	get backupPath(): string | undefined {
 		return this.currentConfig ? this.currentConfig.backupPath : undefined;
 	}
 
-	get openedWorkspace(): IWorkspaceIdentifier {
+	get openedWorkspace(): IWorkspaceIdentifier | undefined {
 		return this.currentConfig ? this.currentConfig.workspace : undefined;
 	}
 
-	get openedFolderUri(): URI {
+	get openedFolderUri(): URI | undefined {
 		return this.currentConfig ? this.currentConfig.folderUri : undefined;
 	}
 
-	get remoteAuthority(): string {
+	get remoteAuthority(): string | undefined {
 		return this.currentConfig ? this.currentConfig.remoteAuthority : undefined;
 	}
 
@@ -310,7 +310,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private registerListeners(): void {
 
 		// Prevent loading of svgs
-		this._win.webContents.session.webRequest.onBeforeRequest(null, (details, callback) => {
+		this._win.webContents.session.webRequest.onBeforeRequest(null!, (details, callback) => {
 			if (details.url.indexOf('.svg') > 0) {
 				const uri = URI.parse(details.url);
 				if (uri && !uri.scheme.match(/file/i) && (uri.path as any).endsWith('.svg')) {
@@ -321,7 +321,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			return callback({});
 		});
 
-		this._win.webContents.session.webRequest.onHeadersReceived(null, (details: any, callback: any) => {
+		this._win.webContents.session.webRequest.onHeadersReceived(null!, (details: any, callback: any) => {
 			const contentType: string[] = (details.responseHeaders['content-type'] || details.responseHeaders['Content-Type']) as any;
 			if (contentType && Array.isArray(contentType) && contentType.some(x => x.toLowerCase().indexOf('image/svg') >= 0)) {
 				return callback({ cancel: true });
@@ -338,7 +338,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			if (this.pendingLoadConfig) {
 				this.currentConfig = this.pendingLoadConfig;
 
-				this.pendingLoadConfig = null;
+				this.pendingLoadConfig = undefined;
 			}
 
 			// To prevent flashing, we set the window visible after the page has finished to load but before Code is loaded
@@ -424,34 +424,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Handle Workspace events
 		this._register(this.workspacesMainService.onUntitledWorkspaceDeleted(e => this.onUntitledWorkspaceDeleted(e)));
-
-		// TODO@Ben workaround for https://github.com/Microsoft/vscode/issues/13612
-		// It looks like smooth scrolling disappears as soon as the window is minimized
-		// and maximized again. Touching some window properties "fixes" it, like toggling
-		// the visibility of the menu.
-		if (isWindows) {
-			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
-			if (windowConfig && windowConfig.smoothScrollingWorkaround === true) {
-				let minimized = false;
-
-				const restoreSmoothScrolling = () => {
-					if (minimized) {
-						const visibility = this.getMenuBarVisibility();
-						const temporaryVisibility: MenuBarVisibility = (visibility === 'hidden' || visibility === 'toggle') ? 'default' : 'hidden';
-						setTimeout(() => {
-							this.doSetMenuBarVisibility(temporaryVisibility);
-							this.doSetMenuBarVisibility(visibility);
-						}, 0);
-					}
-
-					minimized = false;
-				};
-
-				this._win.on('minimize', () => minimized = true);
-				this._win.on('restore', () => restoreSmoothScrolling());
-				this._win.on('maximize', () => restoreSmoothScrolling());
-			}
-		}
 	}
 
 	private onUntitledWorkspaceDeleted(workspace: IWorkspaceIdentifier): void {
@@ -713,7 +685,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private restoreWindowState(state?: IWindowState): IWindowState {
 		if (state) {
 			try {
-				state = this.validateWindowState(state);
+				state = this.validateWindowState(state) || undefined;
 			} catch (err) {
 				this.logService.warn(`Unexpected error validating window state: ${err}\n${err.stack}`); // somehow display API can be picky about the state to validate
 			}
@@ -731,7 +703,11 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			return null;
 		}
 
-		if ([state.x, state.y, state.width, state.height].some(n => typeof n !== 'number')) {
+		if (typeof state.x !== 'number'
+			|| typeof state.y !== 'number'
+			|| typeof state.width !== 'number'
+			|| typeof state.height !== 'number'
+		) {
 			return null;
 		}
 
@@ -1070,6 +1046,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			clearTimeout(this.showTimeoutHandle);
 		}
 
-		this._win = null; // Important to dereference the window object to allow for GC
+		this._win = null!; // Important to dereference the window object to allow for GC
 	}
 }

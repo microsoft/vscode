@@ -14,7 +14,7 @@ import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/
 import Constants from 'vs/workbench/parts/markers/electron-browser/constants';
 import { Marker, ResourceMarkers, RelatedInformation, MarkersModel } from 'vs/workbench/parts/markers/electron-browser/markersModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { MarkersFilterActionItem, MarkersFilterAction, QuickFixAction, QuickFixActionItem, IMarkersFilterActionChangeEvent, IMarkerFilterController } from 'vs/workbench/parts/markers/electron-browser/markersPanelActions';
+import { MarkersFilterActionItem, MarkersFilterAction, IMarkersFilterActionChangeEvent, IMarkerFilterController } from 'vs/workbench/parts/markers/electron-browser/markersPanelActions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import Messages from 'vs/workbench/parts/markers/electron-browser/messages';
 import { RangeHighlightDecorations } from 'vs/workbench/browser/parts/editor/rangeDecorations';
@@ -33,7 +33,7 @@ import { IExpression, getEmptyExpression } from 'vs/base/common/glob';
 import { mixin, deepClone } from 'vs/base/common/objects';
 import { IWorkspaceFolder, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { isAbsolute, join } from 'vs/base/common/paths';
-import { FilterData, Filter, VirtualDelegate, ResourceMarkersRenderer, MarkerRenderer, RelatedInformationRenderer, TreeElement, MarkersTreeAccessibilityProvider, MarkersViewState } from 'vs/workbench/parts/markers/electron-browser/markersTreeViewer';
+import { FilterData, Filter, VirtualDelegate, ResourceMarkersRenderer, MarkerRenderer, RelatedInformationRenderer, TreeElement, MarkersTreeAccessibilityProvider, MarkersViewModel, ResourceDragAndDrop } from 'vs/workbench/parts/markers/electron-browser/markersTreeViewer';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Separator, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
@@ -89,7 +89,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 	private cachedFilterStats: { total: number; filtered: number; } | undefined = undefined;
 
 	private currentResourceGotAddedToMarkersData: boolean = false;
-	readonly markersViewState: MarkersViewState;
+	readonly markersViewModel: MarkersViewModel;
 	private disposables: IDisposable[] = [];
 
 	constructor(
@@ -109,8 +109,8 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		super(Constants.MARKERS_PANEL_ID, telemetryService, themeService, storageService);
 		this.panelFoucusContextKey = Constants.MarkerPanelFocusContextKey.bindTo(contextKeyService);
 		this.panelState = this.getMemento(StorageScope.WORKSPACE);
-		this.markersViewState = new MarkersViewState(this.panelState['multiline']);
-		this.markersViewState.onDidChangeViewState(this.onDidChangeViewState, this, this.disposables);
+		this.markersViewModel = instantiationService.createInstance(MarkersViewModel, this.panelState['multiline']);
+		this.markersViewModel.onDidChange(this.onDidChangeViewState, this, this.disposables);
 		this.setCurrentActiveEditor();
 	}
 
@@ -151,7 +151,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 
 	public layout(dimension: dom.Dimension): void {
 		this.treeContainer.style.height = `${dimension.height}px`;
-		this.tree.layout(dimension.height);
+		this.tree.layout(dimension.height, dimension.width);
 		if (this.filterInputActionItem) {
 			this.filterInputActionItem.toggleLayout(dimension.width < 1200);
 		}
@@ -176,6 +176,13 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 			this.createActions();
 		}
 		return this.actions;
+	}
+
+	public showQuickFixes(marker: Marker): void {
+		const viewModel = this.markersViewModel.getViewModel(marker);
+		if (viewModel) {
+			viewModel.quickFixAction.run();
+		}
 	}
 
 	public openFileAtElement(element: any, preserveFocus: boolean, sideByside: boolean, pinned: boolean): boolean {
@@ -306,10 +313,10 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 
 		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels, this));
 
-		const virtualDelegate = new VirtualDelegate(this.markersViewState);
+		const virtualDelegate = new VirtualDelegate(this.markersViewModel);
 		const renderers = [
 			this.instantiationService.createInstance(ResourceMarkersRenderer, this.treeLabels, onDidChangeRenderNodeCount.event),
-			this.instantiationService.createInstance(MarkerRenderer, this.markersViewState, a => this.getActionItem(a)),
+			this.instantiationService.createInstance(MarkerRenderer, this.markersViewModel),
 			this.instantiationService.createInstance(RelatedInformationRenderer)
 		];
 		this.filter = new Filter();
@@ -328,7 +335,8 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 			{
 				filter: this.filter,
 				accessibilityProvider,
-				identityProvider
+				identityProvider,
+				dnd: new ResourceDragAndDrop(this.instantiationService)
 			}
 		) as any as WorkbenchObjectTree<TreeElement, FilterData>;
 
@@ -347,7 +355,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		}));
 
 		const markersNavigator = this._register(new TreeResourceNavigator2(this.tree, { openOnFocus: true }));
-		this._register(Event.debounce(markersNavigator.openResource, (last, event) => event, 75, true)(options => {
+		this._register(Event.debounce(markersNavigator.onDidOpenResource, (last, event) => event, 75, true)(options => {
 			this.openFileAtElement(options.element, options.editorOptions.preserveFocus, options.sideBySide, options.editorOptions.pinned);
 		}));
 		this._register(this.tree.onDidChangeCollapseState(({ node }) => {
@@ -408,11 +416,11 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 
 	private onDidChangeModel(resources: URI[]) {
 		for (const resource of resources) {
-			this.markersViewState.remove(resource);
+			this.markersViewModel.remove(resource);
 			const resourceMarkers = this.markersWorkbenchService.markersModel.getResourceMarkers(resource);
 			if (resourceMarkers) {
 				for (const marker of resourceMarkers.markers) {
-					this.markersViewState.add(marker);
+					this.markersViewModel.add(marker);
 				}
 			}
 		}
@@ -657,9 +665,6 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 			this.filterInputActionItem = this.instantiationService.createInstance(MarkersFilterActionItem, this.filterAction, this);
 			return this.filterInputActionItem;
 		}
-		if (action.id === QuickFixAction.ID) {
-			return this.instantiationService.createInstance(QuickFixActionItem, action);
-		}
 		return super.getActionItem(action);
 	}
 
@@ -701,7 +706,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		this.panelState['filter'] = this.filterAction.filterText;
 		this.panelState['filterHistory'] = this.filterAction.filterHistory;
 		this.panelState['useFilesExclude'] = this.filterAction.useFilesExclude;
-		this.panelState['multiline'] = this.markersViewState.multiline;
+		this.panelState['multiline'] = this.markersViewModel.multiline;
 
 		super.saveState();
 	}
@@ -709,7 +714,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 	public dispose(): void {
 		super.dispose();
 		this.tree.dispose();
-		this.markersViewState.dispose();
+		this.markersViewModel.dispose();
 		this.disposables = dispose(this.disposables);
 	}
 }

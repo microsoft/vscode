@@ -110,7 +110,8 @@ export class ExtensionsListView extends ViewletPanel {
 		this.list = this.instantiationService.createInstance(WorkbenchPagedList, this.extensionsList, delegate, [renderer], {
 			ariaLabel: localize('extensions', "Extensions"),
 			multipleSelectionSupport: false,
-			setRowLineHeight: false
+			setRowLineHeight: false,
+			horizontalScrolling: false
 		}) as WorkbenchPagedList<IExtension>;
 		this.list.onContextMenu(e => this.onContextMenu(e), this, this.disposables);
 		this.list.onFocusChange(e => extensionsViewState.onFocusChange(e.elements), this, this.disposables);
@@ -128,9 +129,9 @@ export class ExtensionsListView extends ViewletPanel {
 			.on(this.pin, this, this.disposables);
 	}
 
-	layoutBody(size: number): void {
-		this.extensionsList.style.height = size + 'px';
-		this.list.layout(size);
+	protected layoutBody(height: number, width: number): void {
+		this.extensionsList.style.height = height + 'px';
+		this.list.layout(height, width);
 	}
 
 	async show(query: string): Promise<IPagedModel<IExtension>> {

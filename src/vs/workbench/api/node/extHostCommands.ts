@@ -15,6 +15,9 @@ import * as modes from 'vs/editor/common/modes';
 import * as vscode from 'vscode';
 import { ILogService } from 'vs/platform/log/common/log';
 import { revive } from 'vs/base/common/marshalling';
+import { Range } from 'vs/editor/common/core/range';
+import { Position } from 'vs/editor/common/core/position';
+import { URI } from 'vs/base/common/uri';
 
 interface CommandHandler {
 	callback: Function;
@@ -42,7 +45,33 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadCommands);
 		this._logService = logService;
 		this._converter = new CommandsConverter(this, heapService);
-		this._argumentProcessors = [{ processArgument(a) { return revive(a, 0); } }];
+		this._argumentProcessors = [
+			{
+				processArgument(a) {
+					// URI, Regex
+					return revive(a, 0);
+				}
+			},
+			{
+				processArgument(arg) {
+					return cloneAndChange(arg, function (obj) {
+						// Reverse of https://github.com/Microsoft/vscode/blob/1f28c5fc681f4c01226460b6d1c7e91b8acb4a5b/src/vs/workbench/api/node/extHostCommands.ts#L112-L127
+						if (Range.isIRange(obj)) {
+							return extHostTypeConverter.Range.to(obj);
+						}
+						if (Position.isIPosition(obj)) {
+							return extHostTypeConverter.Position.to(obj);
+						}
+						if (Range.isIRange((obj as modes.Location).range) && URI.isUri((obj as modes.Location).uri)) {
+							return extHostTypeConverter.location.to(obj);
+						}
+						if (!Array.isArray(obj)) {
+							return obj;
+						}
+					});
+				}
+			}
+		];
 	}
 
 	get converter(): CommandsConverter {

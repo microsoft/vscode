@@ -66,6 +66,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { FuzzyScore, createMatches } from 'vs/base/common/filters';
+import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 
 const $ = dom.$;
 
@@ -81,7 +83,7 @@ interface IPrivateReplService {
 	clearRepl(): void;
 }
 
-function revealLastElement(tree: WorkbenchAsyncDataTree<any, any>) {
+function revealLastElement(tree: WorkbenchAsyncDataTree<any, any, any>) {
 	tree.scrollTop = tree.scrollHeight - tree.renderHeight;
 }
 
@@ -95,7 +97,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	private static readonly REPL_INPUT_MAX_HEIGHT = 170;
 
 	private history: HistoryNavigator<string>;
-	private tree: WorkbenchAsyncDataTree<IDebugSession, IReplElement>;
+	private tree: WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>;
 	private replDelegate: ReplDelegate;
 	private container: HTMLElement;
 	private treeContainer: HTMLElement;
@@ -250,7 +252,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	getVisibleContent(): string {
 		let text = '';
 		const lineDelimiter = this.textResourcePropertiesService.getEOL(this.model.uri);
-		const traverseAndAppend = (node: ITreeNode<IReplElement, void>) => {
+		const traverseAndAppend = (node: ITreeNode<IReplElement, FuzzyScore>) => {
 			node.children.forEach(child => {
 				text += child.element.toString() + lineDelimiter;
 				if (!child.collapsed && child.children.length) {
@@ -269,7 +271,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			this.replDelegate.setWidth(dimension.width - 25, this.characterWidth);
 			const treeHeight = dimension.height - this.replInputHeight;
 			this.treeContainer.style.height = `${treeHeight}px`;
-			this.tree.layout(treeHeight);
+			this.tree.layout(treeHeight, dimension.width);
 		}
 		this.replInputContainer.style.height = `${this.replInputHeight}px`;
 
@@ -358,7 +360,8 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 				accessibilityProvider: new ReplAccessibilityProvider(),
 				identityProvider: { getId: element => element.getId() },
 				mouseSupport: false,
-				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: e => e }
+				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: e => e },
+				horizontalScrolling: false
 			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
 
 		this.toDispose.push(this.tree.onContextMenu(e => this.onContextMenu(e)));
@@ -506,6 +509,7 @@ interface IExpressionTemplateData {
 	output: HTMLElement;
 	value: HTMLElement;
 	annotation: HTMLElement;
+	label: HighlightedLabel;
 }
 
 interface ISimpleReplElementTemplateData {
@@ -514,6 +518,7 @@ interface ISimpleReplElementTemplateData {
 	source: HTMLElement;
 	getReplElementSource(): IReplElementSource;
 	toDispose: IDisposable[];
+	label: HighlightedLabel;
 }
 
 interface IRawObjectReplTemplateData {
@@ -522,9 +527,10 @@ interface IRawObjectReplTemplateData {
 	name: HTMLElement;
 	value: HTMLElement;
 	annotation: HTMLElement;
+	label: HighlightedLabel;
 }
 
-class ReplExpressionsRenderer implements ITreeRenderer<Expression, void, IExpressionTemplateData> {
+class ReplExpressionsRenderer implements ITreeRenderer<Expression, FuzzyScore, IExpressionTemplateData> {
 	static readonly ID = 'expressionRepl';
 
 	get templateId(): string {
@@ -535,6 +541,7 @@ class ReplExpressionsRenderer implements ITreeRenderer<Expression, void, IExpres
 		const data: IExpressionTemplateData = Object.create(null);
 		dom.addClass(container, 'input-output-pair');
 		data.input = dom.append(container, $('.input.expression'));
+		data.label = new HighlightedLabel(data.input, false);
 		data.output = dom.append(container, $('.output.expression'));
 		data.value = dom.append(data.output, $('span.value'));
 		data.annotation = dom.append(data.output, $('span'));
@@ -542,9 +549,9 @@ class ReplExpressionsRenderer implements ITreeRenderer<Expression, void, IExpres
 		return data;
 	}
 
-	renderElement(element: ITreeNode<Expression, void>, index: number, templateData: IExpressionTemplateData): void {
+	renderElement(element: ITreeNode<Expression, FuzzyScore>, index: number, templateData: IExpressionTemplateData): void {
 		const expression = element.element;
-		templateData.input.textContent = expression.name;
+		templateData.label.set(expression.name, createMatches(element.filterData));
 		renderExpressionValue(expression, templateData.value, {
 			preserveWhitespace: !expression.hasChildren,
 			showHover: false,
@@ -561,7 +568,7 @@ class ReplExpressionsRenderer implements ITreeRenderer<Expression, void, IExpres
 	}
 }
 
-class ReplSimpleElementsRenderer implements ITreeRenderer<SimpleReplElement, void, ISimpleReplElementTemplateData> {
+class ReplSimpleElementsRenderer implements ITreeRenderer<SimpleReplElement, FuzzyScore, ISimpleReplElementTemplateData> {
 	static readonly ID = 'simpleReplElement';
 
 	constructor(
@@ -605,7 +612,7 @@ class ReplSimpleElementsRenderer implements ITreeRenderer<SimpleReplElement, voi
 		return data;
 	}
 
-	renderElement({ element }: ITreeNode<SimpleReplElement, void>, index: number, templateData: ISimpleReplElementTemplateData): void {
+	renderElement({ element }: ITreeNode<SimpleReplElement, FuzzyScore>, index: number, templateData: ISimpleReplElementTemplateData): void {
 		// value
 		dom.clearNode(templateData.value);
 		// Reset classes to clear ansi decorations since templates are reused
@@ -624,7 +631,7 @@ class ReplSimpleElementsRenderer implements ITreeRenderer<SimpleReplElement, voi
 	}
 }
 
-class ReplRawObjectsRenderer implements ITreeRenderer<RawObjectReplElement, void, IRawObjectReplTemplateData> {
+class ReplRawObjectsRenderer implements ITreeRenderer<RawObjectReplElement, FuzzyScore, IRawObjectReplTemplateData> {
 	static readonly ID = 'rawObject';
 
 	get templateId(): string {
@@ -638,14 +645,17 @@ class ReplRawObjectsRenderer implements ITreeRenderer<RawObjectReplElement, void
 		data.container = container;
 		data.expression = dom.append(container, $('.output.expression'));
 		data.name = dom.append(data.expression, $('span.name'));
+		data.label = new HighlightedLabel(data.name, false);
 		data.value = dom.append(data.expression, $('span.value'));
 		data.annotation = dom.append(data.expression, $('span'));
 
 		return data;
 	}
 
-	renderElement({ element }: ITreeNode<RawObjectReplElement, void>, index: number, templateData: IRawObjectReplTemplateData): void {
+	renderElement(node: ITreeNode<RawObjectReplElement, FuzzyScore>, index: number, templateData: IRawObjectReplTemplateData): void {
 		// key
+		const element = node.element;
+		templateData.label.set(element.name ? `${element.name}:` : '', createMatches(node.filterData));
 		if (element.name) {
 			templateData.name.textContent = `${element.name}:`;
 		} else {

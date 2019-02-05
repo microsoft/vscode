@@ -20,7 +20,7 @@ import { CharacterPair, CommentRule, EnterAction } from 'vs/editor/common/modes/
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationData, IConfigurationModel } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { FileChangeType, FileDeleteOptions, FileOverwriteOptions, FileSystemProviderCapabilities, FileType, FileWriteOptions, IStat, IWatchOptions } from 'vs/platform/files/common/files';
+import { FileChangeType, FileDeleteOptions, FileOverwriteOptions, FileSystemProviderCapabilities, FileType, FileWriteOptions, IStat, IWatchOptions, FileOpenOptions } from 'vs/platform/files/common/files';
 import { ResourceLabelFormatter } from 'vs/platform/label/common/label';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
@@ -110,6 +110,7 @@ export interface CommentProviderFeatures {
 	startDraftLabel?: string;
 	deleteDraftLabel?: string;
 	finishDraftLabel?: string;
+	reactionGroup?: vscode.CommentReaction[];
 }
 
 export interface MainThreadCommentsShape extends IDisposable {
@@ -362,6 +363,8 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 	$sendProcessData(terminalId: number, data: string): void;
 	$sendProcessPid(terminalId: number, pid: number): void;
 	$sendProcessExit(terminalId: number, exitCode: number): void;
+	$sendProcessInitialCwd(terminalId: number, cwd: string): void;
+	$sendProcessCwd(terminalId: number, initialCwd: string): void;
 
 	// Renderer
 	$terminalRendererSetName(terminalId: number, name: string): void;
@@ -730,7 +733,7 @@ export interface ExtHostFileSystemShape {
 	$delete(handle: number, resource: UriComponents, opts: FileDeleteOptions): Promise<void>;
 	$watch(handle: number, session: number, resource: UriComponents, opts: IWatchOptions): void;
 	$unwatch(handle: number, session: number): void;
-	$open(handle: number, resource: UriComponents): Promise<number>;
+	$open(handle: number, resource: UriComponents, opts: FileOpenOptions): Promise<number>;
 	$close(handle: number, fd: number): Promise<void>;
 	$read(handle: number, fd: number, pos: number, length: number): Promise<Buffer>;
 	$write(handle: number, fd: number, pos: number, data: Buffer): Promise<number>;
@@ -932,11 +935,13 @@ export interface ExtHostTerminalServiceShape {
 	$acceptTerminalProcessData(id: number, data: string): void;
 	$acceptTerminalRendererInput(id: number, data: string): void;
 	$acceptTerminalTitleChange(id: number, name: string): void;
-	$acceptTerminalRendererDimensions(id: number, cols: number, rows: number): void;
+	$acceptTerminalDimensions(id: number, cols: number, rows: number): void;
 	$createProcess(id: number, shellLaunchConfig: ShellLaunchConfigDto, activeWorkspaceRootUri: URI, cols: number, rows: number): void;
 	$acceptProcessInput(id: number, data: string): void;
 	$acceptProcessResize(id: number, cols: number, rows: number): void;
 	$acceptProcessShutdown(id: number, immediate: boolean): void;
+	$acceptProcessRequestInitialCwd(id: number): void;
+	$acceptProcessRequestCwd(id: number): void;
 }
 
 export interface ExtHostSCMShape {
@@ -1063,6 +1068,8 @@ export interface ExtHostCommentsShape {
 	$startDraft(handle: number, document: UriComponents): Promise<void>;
 	$deleteDraft(handle: number, document: UriComponents): Promise<void>;
 	$finishDraft(handle: number, document: UriComponents): Promise<void>;
+	$addReaction(handle: number, document: UriComponents, comment: modes.Comment, reaction: modes.CommentReaction): Promise<void>;
+	$deleteReaction(handle: number, document: UriComponents, comment: modes.Comment, reaction: modes.CommentReaction): Promise<void>;
 	$provideWorkspaceComments(handle: number): Promise<modes.CommentThread[]>;
 }
 

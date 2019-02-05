@@ -65,7 +65,7 @@ export default class LanguageProvider extends Disposable {
 		this._register((await import('./features/hover')).register(selector, this.client));
 		this._register((await import('./features/implementations')).register(selector, this.client));
 		this._register((await import('./features/implementationsCodeLens')).register(selector, this.description.id, this.client, cachedResponse));
-		this._register((await import('./features/jsDocCompletions')).register(selector, this.client));
+		this._register((await import('./features/jsDocCompletions')).register(selector, this.description.id, this.client));
 		this._register((await import('./features/organizeImports')).register(selector, this.client, this.commandManager, this.fileConfigurationManager, this.telemetryReporter));
 		this._register((await import('./features/quickFix')).register(selector, this.client, this.fileConfigurationManager, this.commandManager, this.client.diagnosticsManager, this.telemetryReporter));
 		this._register((await import('./features/fixAll')).register(selector, this.client, this.fileConfigurationManager, this.client.diagnosticsManager));

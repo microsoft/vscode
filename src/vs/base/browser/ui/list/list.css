@@ -29,6 +29,11 @@
 	height: 100%;
 }
 
+.monaco-list.horizontal-scrolling .monaco-list-rows {
+	width: auto;
+	min-width: 100%;
+}
+
 .monaco-list-row {
 	position: absolute;
 	-moz-box-sizing:	border-box;

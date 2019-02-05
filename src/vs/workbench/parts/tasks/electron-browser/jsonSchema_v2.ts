@@ -105,7 +105,7 @@ const presentation: IJSONSchema = {
 			enum: ['always', 'silent', 'never'],
 			enumDescriptions: [
 				nls.localize('JsonSchema.tasks.presentation.reveal.always', 'Always reveals the terminal when this task is executed.'),
-				nls.localize('JsonSchema.tasks.presentation.reveal.silent', 'Only reveals the terminal if no problem matcher is associated with the task and an errors occurs executing it.'),
+				nls.localize('JsonSchema.tasks.presentation.reveal.silent', 'Only reveals the terminal if the task exits with an error.'),
 				nls.localize('JsonSchema.tasks.presentation.reveal.never', 'Never reveals the terminal when this task is executed.'),
 			],
 			default: 'always',
@@ -341,6 +341,7 @@ let taskConfiguration: IJSONSchema = {
 			description: nls.localize('JsonSchema.tasks.matchers', 'The problem matcher(s) to use. Can either be a string or a problem matcher definition or an array of strings and problem matchers.')
 		},
 		runOptions: Objects.deepClone(runOptions),
+		dependsOn: Objects.deepClone(dependsOn),
 	}
 };
 
@@ -512,7 +513,7 @@ Object.getOwnPropertyNames(definitions).forEach(key => {
 });
 fixReferences(schema);
 
-ProblemMatcherRegistry.onReady().then(() => {
+export function updateProblemMatchers() {
 	try {
 		let matcherIds = ProblemMatcherRegistry.keys().map(key => '$' + key);
 		definitions.problemMatcherType2.oneOf![0].enum = matcherIds;
@@ -520,6 +521,10 @@ ProblemMatcherRegistry.onReady().then(() => {
 	} catch (err) {
 		console.log('Installing problem matcher ids failed');
 	}
+}
+
+ProblemMatcherRegistry.onReady().then(() => {
+	updateProblemMatchers();
 });
 
 export default schema;

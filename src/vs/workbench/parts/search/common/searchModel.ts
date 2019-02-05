@@ -135,6 +135,10 @@ export class Match {
 		return thisMatchPreviewLines.join('\n');
 	}
 
+	fullPreviewLines(): string[] {
+		return this._fullPreviewLines.slice(this._fullPreviewRange.startLineNumber, this._fullPreviewRange.endLineNumber + 1);
+	}
+
 	getMatchString(): string {
 		return this._oneLinePreviewText.substring(this._rangeInPreviewText.startColumn - 1, this._rangeInPreviewText.endColumn - 1);
 	}

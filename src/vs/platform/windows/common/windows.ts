@@ -6,7 +6,7 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { IProcessEnvironment, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
 import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
@@ -31,7 +31,7 @@ export interface INativeOpenDialogOptions {
 
 export interface IEnterWorkspaceResult {
 	workspace: IWorkspaceIdentifier;
-	backupPath: string;
+	backupPath?: string;
 }
 
 export interface CrashReporterStartOptions {
@@ -247,7 +247,6 @@ export interface IWindowSettings {
 	nativeFullScreen: boolean;
 	enableMenuBarMnemonics: boolean;
 	closeWhenEmpty: boolean;
-	smoothScrollingWorkaround: boolean;
 	clickThroughInactive: boolean;
 }
 
@@ -268,11 +267,6 @@ export function getTitleBarStyle(configurationService: IConfigurationService, en
 		const useSimpleFullScreen = isMacintosh && configuration.nativeFullScreen === false;
 		if (useSimpleFullScreen) {
 			return 'native'; // simple fullscreen does not work well with custom title style (https://github.com/Microsoft/vscode/issues/63291)
-		}
-
-		const smoothScrollingWorkaround = isWindows && configuration.smoothScrollingWorkaround === true;
-		if (smoothScrollingWorkaround) {
-			return 'native'; // smooth scrolling workaround does not work with custom title style
 		}
 
 		const style = configuration.titleBarStyle;

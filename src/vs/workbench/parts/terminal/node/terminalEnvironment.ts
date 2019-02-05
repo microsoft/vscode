@@ -51,24 +51,6 @@ function _mergeEnvironmentValue(env: ITerminalEnvironment, key: string, value: s
 	}
 }
 
-export function sanitizeEnvironment(env: ITerminalEnvironment): void {
-	// Remove keys based on strings
-	const keysToRemove = [
-		/^ELECTRON_.+$/,
-		/^GOOGLE_API_KEY$/,
-		/^VSCODE_.+$/
-	];
-	const envKeys = Object.keys(env);
-	envKeys.forEach(envKey => {
-		for (let i = 0; i < keysToRemove.length; i++) {
-			if (envKey.search(keysToRemove[i]) !== -1) {
-				delete env[envKey];
-				break;
-			}
-		}
-	});
-}
-
 export function addTerminalEnvironmentKeys(env: ITerminalEnvironment, locale: string | undefined, setLocaleVariables: boolean): void {
 	env['TERM_PROGRAM'] = 'vscode';
 	env['TERM_PROGRAM_VERSION'] = pkg.version;

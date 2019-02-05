@@ -49,6 +49,7 @@ export interface IExplorerService {
 
 	setEditable(stat: ExplorerItem, data: IEditableData): void;
 	getEditableData(stat: ExplorerItem): IEditableData | undefined;
+	isEditable(stat: ExplorerItem): boolean;
 	findClosest(resource: URI): ExplorerItem | null;
 	refresh(): void;
 	setToCopy(stats: ExplorerItem[], cut: boolean): void;
@@ -89,11 +90,6 @@ export const ExplorerFocusedContext = new RawContextKey<boolean>(explorerViewlet
 export const OpenEditorsVisibleCondition = ContextKeyExpr.has(openEditorsVisibleId);
 export const FilesExplorerFocusCondition = ContextKeyExpr.and(ContextKeyExpr.has(explorerViewletVisibleId), ContextKeyExpr.has(filesExplorerFocusId), ContextKeyExpr.not(InputFocusedContextKey));
 export const ExplorerFocusCondition = ContextKeyExpr.and(ContextKeyExpr.has(explorerViewletVisibleId), ContextKeyExpr.has(explorerViewletFocusId), ContextKeyExpr.not(InputFocusedContextKey));
-
-/**
- * Preferences editor id.
- */
-export const PREFERENCES_EDITOR_ID = 'workbench.editor.preferencesEditor';
 
 /**
  * Text file editor id.

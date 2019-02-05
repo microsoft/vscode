@@ -1819,12 +1819,10 @@ export class TextModel extends Disposable implements model.ITextModel {
 			let r = this._tokens._tokenizeText(this._buffer, text, state);
 			if (r) {
 				this._tokens._setTokens(this._tokens.languageIdentifier.id, i - 1, text.length, r.tokens);
-				/*
-				 * we think it's valid and give it a state but we don't update `_invalidLineStartIndex` then the top-to-bottom tokenization
-				 * goes through the viewport, it can skip them if they already have correct tokens and state, and the lines after the viewport
-				 * can still be tokenized.
-				 */
-				this._tokens._setIsInvalid(i - 1, false);
+
+				// We cannot trust these states/tokens to be valid!
+				// (see https://github.com/Microsoft/vscode/issues/67607)
+				this._tokens._setIsInvalid(i - 1, true);
 				this._tokens._setState(i - 1, state);
 				state = r.endState.clone();
 				eventBuilder.registerChangedTokens(i);

@@ -58,9 +58,9 @@ configurationRegistry.registerConfiguration({
 			],
 			'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'tabSizing' }, "Controls the sizing of editor tabs.")
 		},
-		'workbench.editor.closeTabsInMRUOrder': {
+		'workbench.editor.focusRecentEditorAfterClose': {
 			'type': 'boolean',
-			'description': nls.localize('closeTabsInMRUOrder', "Controls whether tabs are closed in most recently used order or from left to right."),
+			'description': nls.localize('focusRecentEditorAfterClose', "Controls whether tabs are closed in most recently used order or from left to right."),
 			'default': true
 		},
 		'workbench.editor.showIcons': {

@@ -84,7 +84,7 @@ export class ExtensionPointUserDelta<T> {
 			return new ExtensionPointUserDelta<T>(current, []);
 		}
 		if (!current || !current.length) {
-			return new ExtensionPointUserDelta<T>([], current);
+			return new ExtensionPointUserDelta<T>([], previous);
 		}
 
 		const previousSet = this._toSet(previous);

@@ -45,7 +45,7 @@ export class DebugHoverWidget implements IContentWidget {
 
 	private _isVisible: boolean;
 	private domNode: HTMLElement;
-	private tree: AsyncDataTree<IExpression, IExpression>;
+	private tree: AsyncDataTree<IExpression, IExpression, any>;
 	private showAtPosition: Position;
 	private highlightDecorations: string[];
 	private complexValueContainer: HTMLElement;
@@ -85,7 +85,8 @@ export class DebugHoverWidget implements IContentWidget {
 			this.dataSource, {
 				ariaLabel: nls.localize('treeAriaLabel', "Debug Hover"),
 				accessibilityProvider: new DebugHoverAccessibilityProvider(),
-				mouseSupport: false
+				mouseSupport: false,
+				horizontalScrolling: true
 			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
 
 		this.valueContainer = $('.value');
@@ -254,7 +255,7 @@ export class DebugHoverWidget implements IContentWidget {
 	private layoutTreeAndContainer(): void {
 		const treeHeight = Math.min(MAX_TREE_HEIGHT, this.tree.visibleNodeCount * 18);
 		this.treeContainer.style.height = `${treeHeight}px`;
-		this.tree.layout(treeHeight);
+		this.tree.layout(treeHeight, 324);
 	}
 
 	hide(): void {

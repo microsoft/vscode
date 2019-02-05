@@ -415,12 +415,12 @@ export class WindowsManager implements IWindowsMainService {
 		// folders that should be added to the currently active window.
 		let foldersToAdd: URI[] = [];
 		if (openConfig.addMode) {
-			foldersToAdd = pathsToOpen.filter(path => !!path.folderUri).map(path => path.folderUri);
+			foldersToAdd = pathsToOpen.filter(path => !!path.folderUri).map(path => path.folderUri!);
 			pathsToOpen = pathsToOpen.filter(path => !path.folderUri);
 		}
 
 		// collect all file inputs
-		let fileInputs: IFileInputs = undefined;
+		let fileInputs: IFileInputs | undefined;
 		for (const path of pathsToOpen) {
 			if (path.fileUri) {
 				if (!fileInputs) {
@@ -1028,7 +1028,7 @@ export class WindowsManager implements IWindowsMainService {
 		return restoreWindows;
 	}
 
-	private argToUri(arg: string): URI {
+	private argToUri(arg: string): URI | null {
 		try {
 			let uri = URI.parse(arg);
 			if (!uri.scheme) {
@@ -1042,7 +1042,7 @@ export class WindowsManager implements IWindowsMainService {
 		return null;
 	}
 
-	private parseUri(uri: URI, type: URIType, options?: IPathParseOptions): IPathToOpen {
+	private parseUri(uri: URI, type: URIType, options?: IPathParseOptions): IPathToOpen | null {
 		if (!uri || !uri.scheme) {
 			return null;
 		}
@@ -1085,7 +1085,7 @@ export class WindowsManager implements IWindowsMainService {
 		};
 	}
 
-	private parsePath(anyPath: string, options?: IPathParseOptions): IPathToOpen {
+	private parsePath(anyPath: string, options?: IPathParseOptions): IPathToOpen | null {
 		if (!anyPath) {
 			return null;
 		}
@@ -1282,7 +1282,7 @@ export class WindowsManager implements IWindowsMainService {
 			configuration.backupPath = join(this.environmentService.backupHome, options.emptyWindowBackupInfo.backupFolder);
 		}
 
-		let window: ICodeWindow;
+		let window: ICodeWindow | undefined;
 		if (!options.forceNewWindow && !options.forceNewTabbedWindow) {
 			window = options.windowToUse || this.getLastActiveWindow();
 			if (window) {
@@ -1442,7 +1442,7 @@ export class WindowsManager implements IWindowsMainService {
 		//
 
 		// We want the new window to open on the same display that the last active one is in
-		let displayToUse: Electron.Display;
+		let displayToUse: Electron.Display | undefined;
 		const displays = screen.getAllDisplays();
 
 		// Single Display
@@ -1636,7 +1636,7 @@ export class WindowsManager implements IWindowsMainService {
 					closeListener.dispose();
 					loadListener.dispose();
 
-					resolve(null);
+					resolve();
 				}
 			}
 
@@ -2075,7 +2075,7 @@ class WorkspacesManager {
 		window.focus();
 
 		// Register window for backups and migrate current backups over
-		let backupPath: string;
+		let backupPath: string | undefined;
 		if (!window.config.extensionDevelopmentPath) {
 			backupPath = this.backupMainService.registerWorkspaceBackupSync(workspace, window.config.backupPath);
 		}
@@ -2180,7 +2180,7 @@ class WorkspacesManager {
 		});
 	}
 
-	private getUntitledWorkspaceSaveDialogDefaultPath(workspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier): string {
+	private getUntitledWorkspaceSaveDialogDefaultPath(workspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier): string | undefined {
 		if (workspace) {
 			if (isSingleFolderWorkspaceIdentifier(workspace)) {
 				return workspace.scheme === Schemas.file ? dirname(workspace.fsPath) : undefined;

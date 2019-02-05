@@ -17,6 +17,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IExpression } from 'vs/base/common/glob';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 function getFileEventsExcludes(configurationService: IConfigurationService, root?: URI): IExpression {
 	const scope = root ? { resource: root } : undefined;
@@ -45,7 +46,8 @@ export class ExplorerService implements IExplorerService {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IClipboardService private clipboardService: IClipboardService
+		@IClipboardService private clipboardService: IClipboardService,
+		@IEditorService private editorService: IEditorService
 	) { }
 
 	get roots(): ExplorerItem[] {
@@ -127,6 +129,10 @@ export class ExplorerService implements IExplorerService {
 		return this.editableStats.get(stat);
 	}
 
+	isEditable(stat: ExplorerItem): boolean {
+		return this.editableStats.has(stat);
+	}
+
 	select(resource: URI, reveal?: boolean): Promise<void> {
 		const fileStat = this.findClosest(resource);
 		if (fileStat) {
@@ -145,10 +151,11 @@ export class ExplorerService implements IExplorerService {
 			const modelStat = ExplorerItem.create(stat, undefined, options.resolveTo);
 			// Update Input with disk Stat
 			ExplorerItem.mergeLocalWithDisk(modelStat, root);
-			this._onDidChangeItem.fire(root);
+			const item = root.find(resource);
+			this._onDidChangeItem.fire(item ? item.parent : undefined);
 
 			// Select and Reveal
-			this._onDidSelectItem.fire({ item: root.find(resource) || undefined, reveal });
+			this._onDidSelectItem.fire({ item: item || undefined, reveal });
 		}, () => {
 			root.isError = true;
 			this._onDidChangeItem.fire(root);
@@ -156,8 +163,13 @@ export class ExplorerService implements IExplorerService {
 	}
 
 	refresh(): void {
-		this.model.roots.forEach(r => r.isDirectoryResolved = false);
+		this.model.roots.forEach(r => r.forgetChildren());
 		this._onDidChangeItem.fire(undefined);
+		const resource = this.editorService.activeEditor ? this.editorService.activeEditor.getResource() : undefined;
+		if (resource) {
+			// We did a top level refresh, reveal the active file #67118
+			this.select(resource, true);
+		}
 	}
 
 	// File events
@@ -249,7 +261,7 @@ export class ExplorerService implements IExplorerService {
 			// Filter to the ones we care
 			e = this.filterToViewRelevantEvents(e);
 			const explorerItemChanged = (item: ExplorerItem) => {
-				item.isDirectoryResolved = false;
+				item.forgetChildren();
 				this._onDidChangeItem.fire(item);
 			};
 

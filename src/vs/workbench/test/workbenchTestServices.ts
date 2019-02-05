@@ -132,6 +132,10 @@ export class TestContextService implements IWorkspaceContextService {
 		return WorkbenchState.EMPTY;
 	}
 
+	getCompleteWorkspace(): Promise<IWorkbenchWorkspace> {
+		return Promise.resolve(this.getWorkspace());
+	}
+
 	public getWorkspace(): IWorkbenchWorkspace {
 		return this.workspace;
 	}
@@ -325,6 +329,8 @@ export class TestExtensionService implements IExtensionService {
 	restartExtensionHost(): void { }
 	startExtensionHost(): void { }
 	stopExtensionHost(): void { }
+	canAddExtension(): boolean { return false; }
+	canRemoveExtension(): boolean { return false; }
 }
 
 export class TestMenuService implements IMenuService {
@@ -487,6 +493,8 @@ export class TestPartService implements IPartService {
 	public isSideBarHidden(): boolean {
 		return false;
 	}
+
+	public setEditorHidden(_hidden: boolean): Promise<void> { return Promise.resolve(null); }
 
 	public setSideBarHidden(_hidden: boolean): Promise<void> { return Promise.resolve(null); }
 

@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import * as resources from 'vs/base/common/resources';
 import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IColorTheme, ExtensionData, IThemeExtensionPoint, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { ExtensionData, IThemeExtensionPoint, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ColorThemeData } from 'vs/workbench/services/themes/electron-browser/colorThemeData';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -46,22 +46,32 @@ const themesExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtension
 	}
 });
 
+export interface ColorThemeChangeEvent {
+	themes: ColorThemeData[];
+	added: ColorThemeData[];
+}
+
 export class ColorThemeStore {
 
 	private extensionsColorThemes: ColorThemeData[];
-	private readonly onDidChangeEmitter: Emitter<ColorThemeData[]>;
+	private readonly onDidChangeEmitter: Emitter<ColorThemeChangeEvent>;
 
-	public get onDidChange(): Event<ColorThemeData[]> { return this.onDidChangeEmitter.event; }
+	public get onDidChange(): Event<ColorThemeChangeEvent> { return this.onDidChangeEmitter.event; }
 
 	constructor(@IExtensionService private readonly extensionService: IExtensionService, defaultTheme: ColorThemeData) {
 		this.extensionsColorThemes = [defaultTheme];
-		this.onDidChangeEmitter = new Emitter<ColorThemeData[]>();
+		this.onDidChangeEmitter = new Emitter<ColorThemeChangeEvent>();
 		this.initialize();
 	}
 
 
 	private initialize() {
-		themesExtPoint.setHandler((extensions) => {
+		themesExtPoint.setHandler((extensions, delta) => {
+			const previousIds: { [key: string]: boolean } = {};
+			const added: ColorThemeData[] = [];
+			for (const theme of this.extensionsColorThemes) {
+				previousIds[theme.id] = true;
+			}
 			this.extensionsColorThemes.length = 1; // remove all but the default theme
 			for (let ext of extensions) {
 				let extensionData = {
@@ -72,7 +82,12 @@ export class ColorThemeStore {
 				};
 				this.onThemes(ext.description.extensionLocation, extensionData, ext.value, ext.collector);
 			}
-			this.onDidChangeEmitter.fire(this.extensionsColorThemes);
+			for (const theme of this.extensionsColorThemes) {
+				if (!previousIds[theme.id]) {
+					added.push(theme);
+				}
+			}
+			this.onDidChangeEmitter.fire({ themes: this.extensionsColorThemes, added });
 		});
 	}
 
@@ -140,7 +155,17 @@ export class ColorThemeStore {
 		});
 	}
 
-	public getColorThemes(): Promise<IColorTheme[]> {
+	public findThemeDataByParentLocation(parentLocation: URI | undefined): Promise<ColorThemeData[]> {
+		if (parentLocation) {
+			return this.getColorThemes().then(allThemes => {
+				return allThemes.filter(t => t.location && resources.isEqualOrParent(t.location, parentLocation));
+			});
+		}
+		return Promise.resolve([]);
+
+	}
+
+	public getColorThemes(): Promise<ColorThemeData[]> {
 		return this.extensionService.whenInstalledExtensionsRegistered().then(_ => {
 			return this.extensionsColorThemes;
 		});
