@@ -43,7 +43,7 @@ export class FileQuickOpenModel extends QuickOpenModel {
 }
 
 export class FileEntry extends EditorQuickOpenEntry {
-	private range: IRange;
+	private range: IRange | null;
 
 	constructor(
 		private resource: URI,
@@ -85,7 +85,7 @@ export class FileEntry extends EditorQuickOpenEntry {
 		return this.resource;
 	}
 
-	setRange(range: IRange): void {
+	setRange(range: IRange | null): void {
 		this.range = range;
 	}
 
