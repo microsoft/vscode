@@ -701,14 +701,17 @@ export class CodeApplication extends Disposable {
 
 		const resolvedAuthorities = new Map<string, ResolvedAuthority>();
 		ipc.on('vscode:remoteAuthorityResolved', (event: any, data: ResolvedAuthority) => {
+			this.logService.info('Receieved resolved authority', data.authority);
 			resolvedAuthorities.set(data.authority, data);
 		});
 
 		const resolveAuthority = (authority: string): ResolvedAuthority | null => {
+			this.logService.info('Resolving authority', authority);
 			if (authority.indexOf('+') >= 0) {
 				if (resolvedAuthorities.has(authority)) {
 					return resolvedAuthorities.get(authority) || null;
 				}
+				this.logService.info('Didnot find resolved authority for', authority);
 				return null;
 			} else {
 				const [host, strPort] = authority.split(':');
