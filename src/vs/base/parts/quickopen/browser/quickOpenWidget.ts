@@ -36,7 +36,7 @@ export interface IQuickOpenCallbacks {
 export interface IQuickOpenOptions extends IQuickOpenStyles {
 	minItemsToShow?: number;
 	maxItemsToShow?: number;
-	inputPlaceHolder: string;
+	inputPlaceHolder?: string;
 	inputAriaLabel?: string;
 	actionProvider?: IActionProvider;
 	keyboardSupport?: boolean;
@@ -681,7 +681,7 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 			const prefix = autoFocus.autoFocusPrefixMatch;
 			const lowerCasePrefix = prefix.toLowerCase();
 			for (const entry of entries) {
-				const label = input.dataSource.getLabel(entry);
+				const label = input.dataSource.getLabel(entry) || '';
 
 				if (!caseSensitiveMatch && label.indexOf(prefix) === 0) {
 					caseSensitiveMatch = entry;

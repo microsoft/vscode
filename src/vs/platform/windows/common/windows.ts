@@ -31,7 +31,7 @@ export interface INativeOpenDialogOptions {
 
 export interface IEnterWorkspaceResult {
 	workspace: IWorkspaceIdentifier;
-	backupPath: string;
+	backupPath?: string;
 }
 
 export interface CrashReporterStartOptions {

@@ -5,9 +5,9 @@
 
 import 'vs/css!./media/tree';
 import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IListOptions, List, IListStyles, mightProducePrintableCharacter } from 'vs/base/browser/ui/list/listWidget';
+import { IListOptions, List, IListStyles, mightProducePrintableCharacter, MouseController } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate, IListRenderer, IListMouseEvent, IListEvent, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/list/list';
-import { append, $, toggleClass, getDomNodePagePosition, removeClass, addClass } from 'vs/base/browser/dom';
+import { append, $, toggleClass, getDomNodePagePosition, removeClass, addClass, hasClass, createStyleSheet } from 'vs/base/browser/dom';
 import { Event, Relay, Emitter, EventBufferer } from 'vs/base/common/event';
 import { StandardKeyboardEvent, IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -697,6 +697,7 @@ export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTr
 	readonly dnd?: ITreeDragAndDrop<T>;
 	readonly autoExpandSingleChildren?: boolean;
 	readonly keyboardNavigationEventFilter?: IKeyboardNavigationEventFilter;
+	readonly expandOnlyOnTwistieClick?: boolean;
 }
 
 /**
@@ -761,11 +762,55 @@ class Trait<T> {
 	}
 }
 
+class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<ITreeNode<T, TFilterData>> {
+
+	constructor(list: TreeNodeList<T, TFilterData, TRef>, private tree: AbstractTree<T, TFilterData, TRef>) {
+		super(list);
+	}
+
+	protected onPointer(e: IListMouseEvent<ITreeNode<T, TFilterData>>): void {
+		const node = e.element;
+
+		if (!node) {
+			return super.onPointer(e);
+		}
+
+		if (this.multipleSelectionController.isSelectionRangeChangeEvent(e) || this.multipleSelectionController.isSelectionSingleChangeEvent(e)) {
+			return super.onPointer(e);
+		}
+
+		if (!this.tree.openOnSingleClick && e.browserEvent.detail !== 2) {
+			return super.onPointer(e);
+		}
+
+		const onTwistie = hasClass(e.browserEvent.target as HTMLElement, 'monaco-tl-twistie');
+
+		if (this.tree.expandOnlyOnTwistieClick && !onTwistie) {
+			return super.onPointer(e);
+		}
+
+		const model = ((this.tree as any).model as ITreeModel<T, TFilterData, TRef>); // internal
+		const location = model.getNodeLocation(node);
+		const recursive = e.browserEvent.altKey;
+		model.setCollapsed(location, undefined, recursive);
+
+		if (this.tree.expandOnlyOnTwistieClick && onTwistie) {
+			return;
+		}
+
+		super.onPointer(e);
+	}
+}
+
+interface ITreeNodeListOptions<T, TFilterData, TRef> extends IListOptions<ITreeNode<T, TFilterData>> {
+	readonly tree: AbstractTree<T, TFilterData, TRef>;
+}
+
 /**
  * We use this List subclass to restore selection and focus as nodes
  * get rendered in the list, possibly due to a node expand() call.
  */
-class TreeNodeList<T, TFilterData> extends List<ITreeNode<T, TFilterData>> {
+class TreeNodeList<T, TFilterData, TRef> extends List<ITreeNode<T, TFilterData>> {
 
 	constructor(
 		container: HTMLElement,
@@ -773,9 +818,13 @@ class TreeNodeList<T, TFilterData> extends List<ITreeNode<T, TFilterData>> {
 		renderers: IListRenderer<any /* TODO@joao */, any>[],
 		private focusTrait: Trait<T>,
 		private selectionTrait: Trait<T>,
-		options?: IListOptions<ITreeNode<T, TFilterData>>
+		options: ITreeNodeListOptions<T, TFilterData, TRef>
 	) {
 		super(container, virtualDelegate, renderers, options);
+	}
+
+	protected createMouseController(options: ITreeNodeListOptions<T, TFilterData, TRef>): MouseController<ITreeNode<T, TFilterData>> {
+		return new TreeNodeListMouseController(this, options.tree);
 	}
 
 	splice(start: number, deleteCount: number, elements: ITreeNode<T, TFilterData>[] = []): void {
@@ -826,7 +875,7 @@ class TreeNodeList<T, TFilterData> extends List<ITreeNode<T, TFilterData>> {
 
 export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable {
 
-	private view: TreeNodeList<T, TFilterData>;
+	private view: TreeNodeList<T, TFilterData, TRef>;
 	private renderers: TreeRenderer<T, TFilterData, any>[];
 	private focusNavigationFilter: ((node: ITreeNode<T, TFilterData>) => boolean) | undefined;
 	protected model: ITreeModel<T, TFilterData, TRef>;
@@ -860,7 +909,10 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	readonly onWillRefilter: Event<void> = this._onWillRefilter.event;
 
 	get filterOnType(): boolean { return !!this._options.filterOnType; }
+
+	// Options TODO@joao expose options only, not Optional<>
 	get openOnSingleClick(): boolean { return typeof this._options.openOnSingleClick === 'undefined' ? true : this._options.openOnSingleClick; }
+	get expandOnlyOnTwistieClick(): boolean { return typeof this._options.expandOnlyOnTwistieClick === 'undefined' ? false : this._options.expandOnlyOnTwistieClick; }
 
 	get onDidDispose(): Event<void> { return this.view.onDidDispose; }
 
@@ -884,7 +936,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 			this.disposables.push(filter);
 		}
 
-		this.view = new TreeNodeList(container, treeDelegate, this.renderers, this.focus, this.selection, asListOptions(() => this.model, _options));
+		this.view = new TreeNodeList(container, treeDelegate, this.renderers, this.focus, this.selection, { ...asListOptions(() => this.model, _options), tree: this });
 
 		this.model = this.createModel(this.view, _options);
 		onDidChangeCollapseStateRelay.input = this.model.onDidChangeCollapseState;
@@ -919,9 +971,6 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 				});
 			}, null, this.disposables);
 		}
-
-		this.view.onTap(this.reactOnMouseClick, this, this.disposables);
-		this.view.onMouseClick(this.reactOnMouseClick, this, this.disposables);
 
 		if (_options.keyboardSupport !== false) {
 			const onKeyDown = Event.chain(this.view.onKeyDown)
@@ -1162,27 +1211,6 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 	get visibleNodeCount(): number {
 		return this.view.length;
-	}
-
-	private reactOnMouseClick(e: IListMouseEvent<ITreeNode<T, TFilterData>>): void {
-		const node = e.element;
-
-		if (!node) {
-			return;
-		}
-
-		if (this.view.multipleSelectionController.isSelectionRangeChangeEvent(e) || this.view.multipleSelectionController.isSelectionSingleChangeEvent(e)) {
-			return;
-		}
-
-		if (!this.openOnSingleClick && e.browserEvent.detail !== 2) {
-			return;
-		}
-
-		const location = this.model.getNodeLocation(node);
-		const recursive = e.browserEvent.altKey;
-
-		this.model.setCollapsed(location, undefined, recursive);
 	}
 
 	private onLeftArrow(e: StandardKeyboardEvent): void {

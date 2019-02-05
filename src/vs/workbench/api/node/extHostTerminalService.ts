@@ -78,6 +78,8 @@ export class BaseExtHostTerminal {
 export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Terminal {
 	private _pidPromise: Promise<number>;
 	private _pidPromiseComplete: (value: number) => any;
+	private _cols: number | undefined;
+	private _rows: number | undefined;
 
 	private readonly _onData = new Emitter<string>();
 	public get onDidWriteData(): Event<string> {
@@ -124,6 +126,26 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 
 	public set name(name: string) {
 		this._name = name;
+	}
+
+	public get dimensions(): vscode.TerminalDimensions | undefined {
+		if (this._cols === undefined && this._rows === undefined) {
+			return undefined;
+		}
+		return {
+			columns: this._cols,
+			rows: this._rows
+		};
+	}
+
+	public setDimensions(cols: number, rows: number): boolean {
+		if (cols === this._cols && rows === this._rows) {
+			// Nothing changed
+			return false;
+		}
+		this._cols = cols;
+		this._rows = rows;
+		return true;
 	}
 
 	public get processId(): Promise<number> {
@@ -258,6 +280,8 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	public get onDidOpenTerminal(): Event<vscode.Terminal> { return this._onDidOpenTerminal && this._onDidOpenTerminal.event; }
 	private readonly _onDidChangeActiveTerminal: Emitter<vscode.Terminal | undefined> = new Emitter<vscode.Terminal | undefined>();
 	public get onDidChangeActiveTerminal(): Event<vscode.Terminal | undefined> { return this._onDidChangeActiveTerminal && this._onDidChangeActiveTerminal.event; }
+	private readonly _onDidChangeTerminalDimensions: Emitter<vscode.TerminalDimensionsChangeEvent> = new Emitter<vscode.TerminalDimensionsChangeEvent>();
+	public get onDidChangeTerminalDimensions(): Event<vscode.TerminalDimensionsChangeEvent> { return this._onDidChangeTerminalDimensions && this._onDidChangeTerminalDimensions.event; }
 
 	constructor(
 		mainContext: IMainContext,
@@ -319,7 +343,17 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		});
 	}
 
-	public $acceptTerminalRendererDimensions(id: number, cols: number, rows: number): void {
+	public async $acceptTerminalDimensions(id: number, cols: number, rows: number): Promise<void> {
+		const terminal = this._getTerminalById(id);
+		if (terminal) {
+			if (terminal.setDimensions(cols, rows)) {
+				this._onDidChangeTerminalDimensions.fire({
+					terminal: terminal,
+					dimensions: terminal.dimensions
+				});
+			}
+		}
+		// When a terminal's dimensions change, a renderer's _maximum_ dimensions change
 		const renderer = this._getTerminalRendererById(id);
 		if (renderer) {
 			renderer._setMaximumDimensions(cols, rows);

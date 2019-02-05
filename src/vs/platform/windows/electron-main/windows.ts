@@ -33,11 +33,11 @@ export interface ICodeWindow {
 	readonly win: Electron.BrowserWindow;
 	readonly config: IWindowConfiguration;
 
-	readonly openedFolderUri: URI;
-	readonly openedWorkspace: IWorkspaceIdentifier;
-	readonly backupPath: string;
+	readonly openedFolderUri?: URI;
+	readonly openedWorkspace?: IWorkspaceIdentifier;
+	readonly backupPath?: string;
 
-	readonly remoteAuthority: string;
+	readonly remoteAuthority?: string;
 
 	readonly isExtensionDevelopmentHost: boolean;
 	readonly isExtensionTestHost: boolean;

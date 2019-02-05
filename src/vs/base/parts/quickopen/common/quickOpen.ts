@@ -59,7 +59,7 @@ export interface IKeyMods {
 
 export interface IDataSource<T> {
 	getId(entry: T): string;
-	getLabel(entry: T): string;
+	getLabel(entry: T): string | null;
 }
 
 /**

@@ -31,6 +31,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { timeout } from 'vs/base/common/async';
 
 export const ALL_COMMANDS_PREFIX = '>';
 
@@ -376,6 +377,7 @@ export class CommandsHandler extends QuickOpenHandler {
 
 	private commandHistoryEnabled: boolean;
 	private commandsHistory: CommandsHistory;
+	private extensionsRegistered: boolean;
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
@@ -389,6 +391,8 @@ export class CommandsHandler extends QuickOpenHandler {
 
 		this.commandsHistory = this.instantiationService.createInstance(CommandsHistory);
 
+		this.extensionService.whenInstalledExtensionsRegistered().then(() => this.extensionsRegistered = true);
+
 		this.configurationService.onDidChangeConfiguration(e => this.updateConfiguration());
 		this.updateConfiguration();
 	}
@@ -398,89 +402,96 @@ export class CommandsHandler extends QuickOpenHandler {
 	}
 
 	getResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel> {
+		if (this.extensionsRegistered) {
+			return this.doGetResults(searchValue, token);
+		}
 
-		// wait for extensions being registered to cover all commands
-		// also from extensions
-		return this.extensionService.whenInstalledExtensionsRegistered().then(() => {
-			if (token.isCancellationRequested) {
-				return new QuickOpenModel([]);
+		// If extensions are not yet registered, we wait for a little moment to give them
+		// a chance to register so that the complete set of commands shows up as result
+		// We do not want to delay functionality beyond that time though to keep the commands
+		// functional.
+		return Promise.race([timeout(800), this.extensionService.whenInstalledExtensionsRegistered().then(() => undefined)]).then(() => this.doGetResults(searchValue, token));
+	}
+
+	private doGetResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel> {
+		if (token.isCancellationRequested) {
+			return Promise.resolve(new QuickOpenModel([]));
+		}
+
+		searchValue = searchValue.trim();
+
+		// Remember as last command palette input
+		lastCommandPaletteInput = searchValue;
+
+		// Editor Actions
+		const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
+		let editorActions: IEditorAction[] = [];
+		if (activeTextEditorWidget && types.isFunction(activeTextEditorWidget.getSupportedActions)) {
+			editorActions = activeTextEditorWidget.getSupportedActions();
+		}
+
+		const editorEntries = this.editorActionsToEntries(editorActions, searchValue);
+
+		// Other Actions
+		const menu = this.editorService.invokeWithinEditorContext(accessor => this.menuService.createMenu(MenuId.CommandPalette, accessor.get(IContextKeyService)));
+		const menuActions = menu.getActions().reduce((r, [, actions]) => [...r, ...actions], <MenuItemAction[]>[]).filter(action => action instanceof MenuItemAction) as MenuItemAction[];
+		const commandEntries = this.menuItemActionsToEntries(menuActions, searchValue);
+		menu.dispose();
+
+		// Concat
+		let entries = [...editorEntries, ...commandEntries];
+
+		// Remove duplicates
+		entries = arrays.distinct(entries, entry => `${entry.getLabel()}${entry.getGroupLabel()}${entry.getCommandId()}`);
+
+		// Handle label clashes
+		const commandLabels = new Set<string>();
+		entries.forEach(entry => {
+			const commandLabel = `${entry.getLabel()}${entry.getGroupLabel()}`;
+			if (commandLabels.has(commandLabel)) {
+				entry.setDescription(entry.getCommandId());
+			} else {
+				commandLabels.add(commandLabel);
 			}
-
-			searchValue = searchValue.trim();
-
-			// Remember as last command palette input
-			lastCommandPaletteInput = searchValue;
-
-			// Editor Actions
-			const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
-			let editorActions: IEditorAction[] = [];
-			if (activeTextEditorWidget && types.isFunction(activeTextEditorWidget.getSupportedActions)) {
-				editorActions = activeTextEditorWidget.getSupportedActions();
-			}
-
-			const editorEntries = this.editorActionsToEntries(editorActions, searchValue);
-
-			// Other Actions
-			const menu = this.editorService.invokeWithinEditorContext(accessor => this.menuService.createMenu(MenuId.CommandPalette, accessor.get(IContextKeyService)));
-			const menuActions = menu.getActions().reduce((r, [, actions]) => [...r, ...actions], <MenuItemAction[]>[]).filter(action => action instanceof MenuItemAction) as MenuItemAction[];
-			const commandEntries = this.menuItemActionsToEntries(menuActions, searchValue);
-			menu.dispose();
-
-			// Concat
-			let entries = [...editorEntries, ...commandEntries];
-
-			// Remove duplicates
-			entries = arrays.distinct(entries, entry => `${entry.getLabel()}${entry.getGroupLabel()}${entry.getCommandId()}`);
-
-			// Handle label clashes
-			const commandLabels = new Set<string>();
-			entries.forEach(entry => {
-				const commandLabel = `${entry.getLabel()}${entry.getGroupLabel()}`;
-				if (commandLabels.has(commandLabel)) {
-					entry.setDescription(entry.getCommandId());
-				} else {
-					commandLabels.add(commandLabel);
-				}
-			});
-
-			// Sort by MRU order and fallback to name otherwie
-			entries = entries.sort((elementA, elementB) => {
-				const counterA = this.commandsHistory.peek(elementA.getCommandId());
-				const counterB = this.commandsHistory.peek(elementB.getCommandId());
-
-				if (counterA && counterB) {
-					return counterA > counterB ? -1 : 1; // use more recently used command before older
-				}
-
-				if (counterA) {
-					return -1; // first command was used, so it wins over the non used one
-				}
-
-				if (counterB) {
-					return 1; // other command was used so it wins over the command
-				}
-
-				// both commands were never used, so we sort by name
-				return elementA.getSortLabel().localeCompare(elementB.getSortLabel());
-			});
-
-			// Introduce group marker border between recently used and others
-			// only if we have recently used commands in the result set
-			const firstEntry = entries[0];
-			if (firstEntry && this.commandsHistory.peek(firstEntry.getCommandId())) {
-				firstEntry.setGroupLabel(nls.localize('recentlyUsed', "recently used"));
-				for (let i = 1; i < entries.length; i++) {
-					const entry = entries[i];
-					if (!this.commandsHistory.peek(entry.getCommandId())) {
-						entry.setShowBorder(true);
-						entry.setGroupLabel(nls.localize('morecCommands', "other commands"));
-						break;
-					}
-				}
-			}
-
-			return new QuickOpenModel(entries);
 		});
+
+		// Sort by MRU order and fallback to name otherwie
+		entries = entries.sort((elementA, elementB) => {
+			const counterA = this.commandsHistory.peek(elementA.getCommandId());
+			const counterB = this.commandsHistory.peek(elementB.getCommandId());
+
+			if (counterA && counterB) {
+				return counterA > counterB ? -1 : 1; // use more recently used command before older
+			}
+
+			if (counterA) {
+				return -1; // first command was used, so it wins over the non used one
+			}
+
+			if (counterB) {
+				return 1; // other command was used so it wins over the command
+			}
+
+			// both commands were never used, so we sort by name
+			return elementA.getSortLabel().localeCompare(elementB.getSortLabel());
+		});
+
+		// Introduce group marker border between recently used and others
+		// only if we have recently used commands in the result set
+		const firstEntry = entries[0];
+		if (firstEntry && this.commandsHistory.peek(firstEntry.getCommandId())) {
+			firstEntry.setGroupLabel(nls.localize('recentlyUsed', "recently used"));
+			for (let i = 1; i < entries.length; i++) {
+				const entry = entries[i];
+				if (!this.commandsHistory.peek(entry.getCommandId())) {
+					entry.setShowBorder(true);
+					entry.setGroupLabel(nls.localize('morecCommands', "other commands"));
+					break;
+				}
+			}
+		}
+
+		return Promise.resolve(new QuickOpenModel(entries));
 	}
 
 	private editorActionsToEntries(actions: IEditorAction[], searchValue: string): EditorActionCommandEntry[] {

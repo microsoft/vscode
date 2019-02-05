@@ -106,11 +106,9 @@ const tasks = compilations.map(function (tsconfigFile) {
 		const pipeline = createPipeline(false, true);
 		const input = gulp.src(src, srcOpts);
 
-		return util.streamToPromise(
-			input
+		return input
 			.pipe(pipeline())
-			.pipe(gulp.dest(out))
-		);
+			.pipe(gulp.dest(out));
 	});
 
 	const watchTask = util.task.series(cleanTask, () => {
@@ -118,22 +116,18 @@ const tasks = compilations.map(function (tsconfigFile) {
 		const input = gulp.src(src, srcOpts);
 		const watchInput = watcher(src, srcOpts);
 
-		return util.streamToPromise(
-			watchInput
+		return watchInput
 			.pipe(util.incremental(pipeline, input))
-			.pipe(gulp.dest(out))
-		);
+			.pipe(gulp.dest(out));
 	});
 
 	const compileBuildTask = util.task.series(cleanTask, () => {
 		const pipeline = createPipeline(true, true);
 		const input = gulp.src(src, srcOpts);
 
-		return util.streamToPromise(
-			input
+		return input
 			.pipe(pipeline())
-			.pipe(gulp.dest(out))
-		);
+			.pipe(gulp.dest(out));
 	});
 
 	// Tasks
@@ -149,4 +143,8 @@ const tasks = compilations.map(function (tsconfigFile) {
 
 gulp.task('compile-extensions', util.task.parallel(...tasks.map(t => t.compileTask)));
 gulp.task('watch-extensions', util.task.parallel(...tasks.map(t => t.watchTask)));
-gulp.task('compile-extensions-build', util.task.parallel(...tasks.map(t => t.compileBuildTask)));
+
+const compileExtensionsBuildTask = util.task.parallel(...tasks.map(t => t.compileBuildTask));
+compileExtensionsBuildTask.displayName = 'compile-extensions-build';
+
+exports.compileExtensionsBuildTask = compileExtensionsBuildTask;
