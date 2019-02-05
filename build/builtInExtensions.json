@@ -43,5 +43,20 @@
 			},
 			"publisherDisplayName": "Microsoft"
 		}
+	},
+	{
+		"name": "ms-vscode.cpptools",
+		"version": "0.20.1",
+		"repo": "https://github.com/Microsoft/vscode-cpptools",
+		"metadata": {
+			"id": "36d19e17-7569-4841-a001-947eb18602b2",
+			"publisherId": {
+				"publisherId": "5f5636e7-69ed-4afe-b5d6-8d231fb3d3ee",
+				"publisherName": "ms-vscode",
+				"displayName": "Microsoft",
+				"flags": "verified"
+			},
+			"publisherDisplayName": "Microsoft"
+		}
 	}
 ]

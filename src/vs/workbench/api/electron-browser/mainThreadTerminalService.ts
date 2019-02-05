@@ -113,6 +113,15 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		}
 	}
 
+	public $terminalGetDimensions(terminalId: number): Promise<ITerminalDimensions> {
+		const terminalInstance = this.terminalService.getInstanceFromId(terminalId);
+		if (terminalInstance && terminalInstance.shellLaunchConfig.isRendererOnly) {
+			return Promise.resolve({ cols: terminalInstance.cols, rows: terminalInstance.rows });
+		}
+
+		return Promise.reject(new Error('Dimensions cannot be retrieved'));
+	}
+
 	public $terminalRendererSetDimensions(terminalId: number, dimensions: ITerminalDimensions): void {
 		const terminalInstance = this.terminalService.getInstanceFromId(terminalId);
 		if (terminalInstance && terminalInstance.shellLaunchConfig.isRendererOnly) {

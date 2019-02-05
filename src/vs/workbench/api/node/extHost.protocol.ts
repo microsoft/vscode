@@ -369,6 +369,7 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 	// Renderer
 	$terminalRendererSetName(terminalId: number, name: string): void;
 	$terminalRendererSetDimensions(terminalId: number, dimensions: ITerminalDimensions): void;
+	$terminalGetDimensions(terminalId: number): Promise<ITerminalDimensions>;
 	$terminalRendererWrite(terminalId: number, text: string): void;
 	$terminalRendererRegisterOnInputListener(terminalId: number): void;
 }

@@ -269,12 +269,8 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 
 	private readonly _onDidCloseTerminal: Emitter<vscode.Terminal> = new Emitter<vscode.Terminal>();
 	public get onDidCloseTerminal(): Event<vscode.Terminal> { return this._onDidCloseTerminal && this._onDidCloseTerminal.event; }
-	private readonly _onDidCloseTerminalRenderer: Emitter<vscode.TerminalRenderer> = new Emitter<vscode.TerminalRenderer>();
-	public get onDidCloseTerminalRenderer(): Event<vscode.TerminalRenderer> { return this._onDidCloseTerminalRenderer && this._onDidCloseTerminalRenderer.event; }
 	private readonly _onDidOpenTerminal: Emitter<vscode.Terminal> = new Emitter<vscode.Terminal>();
 	public get onDidOpenTerminal(): Event<vscode.Terminal> { return this._onDidOpenTerminal && this._onDidOpenTerminal.event; }
-	private readonly _onDidOpenTerminalRenderer: Emitter<vscode.TerminalRenderer> = new Emitter<vscode.TerminalRenderer>();
-	public get onDidOpenTerminalRenderer(): Event<vscode.TerminalRenderer> { return this._onDidOpenTerminalRenderer && this._onDidOpenTerminalRenderer.event; }
 	private readonly _onDidChangeActiveTerminal: Emitter<vscode.Terminal | undefined> = new Emitter<vscode.Terminal | undefined>();
 	public get onDidChangeActiveTerminal(): Event<vscode.Terminal | undefined> { return this._onDidChangeActiveTerminal && this._onDidChangeActiveTerminal.event; }
 
@@ -307,6 +303,24 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		this._terminals.push(terminal);
 
 		const renderer = new ExtHostTerminalRenderer(this._proxy, name, terminal);
+		this._terminalRenderers.push(renderer);
+
+		return renderer;
+	}
+
+	public async createTerminalRendererForTerminal(terminal: vscode.Terminal): Promise<vscode.TerminalRenderer> {
+		if (!(terminal instanceof ExtHostTerminal)) {
+			throw new Error('Only expected instance extension host terminal type');
+		}
+		// Check to see if the extension host already knows about this terminal.
+		for (const terminalRenderer of this.terminalRenderers) {
+			if (terminalRenderer._id === terminal._id) {
+				return terminalRenderer;
+			}
+		}
+
+		const dimensions = await this._proxy.$terminalGetDimensions(terminal._id);
+		const renderer = new ExtHostTerminalRenderer(this._proxy, terminal.name, terminal, terminal._id, dimensions.cols, dimensions.rows);
 		this._terminalRenderers.push(renderer);
 
 		return renderer;
@@ -365,24 +379,15 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 			const terminal = this._terminals.splice(index, 1)[0];
 			this._onDidCloseTerminal.fire(terminal);
 		}
-
-		const renderer = this._getTerminalRendererById(id);
-		if (renderer) {
-			this._onDidCloseTerminalRenderer.fire(renderer);
-		}
 	}
 
 	public $acceptTerminalOpened(id: number, name: string, isRendererOnly: boolean, cols: number, rows: number): void {
-		const index = this._getTerminalObjectIndexById(this._terminals, id);
+		let index = this._getTerminalObjectIndexById(this._terminals, id);
 		if (index !== null) {
 			this._onDidOpenTerminal.fire(this.terminals[index]);
 		}
 
 		let renderer = this._getTerminalRendererById(id);
-		if (renderer) {
-			// The terminal has already been created (via createTerminal*), only fire the event
-			this._onDidOpenTerminalRenderer.fire(renderer);
-		}
 
 		// If this is a terminal created by one of the public createTerminal* APIs
 		// then @acceptTerminalOpened was called from the main thread task
@@ -398,14 +403,8 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		// objects to represent them.
 		if (!index) {
 			const terminal = new ExtHostTerminal(this._proxy, name, id, renderer ? RENDERER_NO_PROCESS_ID : undefined);
-			this._terminals.push(terminal);
+			index = this._terminals.push(terminal);
 			this._onDidOpenTerminal.fire(terminal);
-
-			if (!renderer && isRendererOnly) {
-				renderer = new ExtHostTerminalRenderer(this._proxy, name, terminal, id, cols, rows);
-				this.terminalRenderers.push(renderer);
-				this._onDidOpenTerminalRenderer.fire(renderer);
-			}
 		}
 	}
 
