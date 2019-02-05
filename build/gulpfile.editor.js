@@ -370,7 +370,12 @@ function createTscCompileTask(watch) {
 	};
 }
 
-gulp.task('monaco-typecheck-watch', createTscCompileTask(true));
-gulp.task('monaco-typecheck', createTscCompileTask(false));
+const monacoTypecheckWatchTask = createTscCompileTask(true);
+monacoTypecheckWatchTask.displayName = 'monaco-typecheck-watch';
+exports.monacoTypecheckWatchTask = monacoTypecheckWatchTask;
+
+const monacoTypecheckTask = createTscCompileTask(false);
+monacoTypecheckTask.displayName = 'monaco-typecheck';
+exports.monacoTypecheckTask = monacoTypecheckTask;
 
 //#endregion
