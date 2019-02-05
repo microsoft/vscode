@@ -49,7 +49,6 @@ export interface IKeybindingItemEntry extends IListEntry {
 	commandLabelMatches: IMatch[] | null;
 	commandDefaultLabelMatches: IMatch[] | null;
 	sourceMatches: IMatch[] | null;
-	extensionMatches: IMatch[] | null;
 	whenMatches: IMatch[] | null;
 	keybindingMatches: KeybindingMatches | null;
 }
@@ -61,7 +60,6 @@ export interface IKeybindingItem {
 	commandDefaultLabel: string;
 	command: string;
 	source: string;
-	extension: string;
 	when: string;
 }
 
@@ -95,9 +93,9 @@ export class KeybindingsEditorModel extends EditorModel {
 	fetch(searchValue: string, sortByPrecedence: boolean = false): IKeybindingItemEntry[] {
 		let keybindingItems = sortByPrecedence ? this._keybindingItemsSortedByPrecedence : this._keybindingItems;
 
-		if (/@source:\s*(user|default)/i.test(searchValue)) {
+		if (/@source:\s*(.+)/i.test(searchValue)) {
 			keybindingItems = this.filterBySource(keybindingItems, searchValue);
-			searchValue = searchValue.replace(/@source:\s*(user|default)/i, '');
+			searchValue = searchValue.replace(/@source:\s*(.+)/i, '');
 		}
 
 		searchValue = searchValue.trim();
@@ -113,9 +111,10 @@ export class KeybindingsEditorModel extends EditorModel {
 			return keybindingItems.filter(k => k.source === SOURCE_DEFAULT);
 		}
 		if (/@source:\s*user/i.test(searchValue)) {
-			return keybindingItems.filter(k => k.source === SOURCE_USER);
+			return keybindingItems.filter(k => k.source.indexOf(SOURCE_USER) !== -1);
 		}
-		return keybindingItems;
+		const extensionSearchRegex = new RegExp(searchValue.split(/@source:\s*/i)[1], 'i');
+		return keybindingItems.filter(k => extensionSearchRegex.test(k.source));
 	}
 
 	private filterByText(keybindingItems: IKeybindingItem[], searchValue: string): IKeybindingItemEntry[] {
@@ -139,7 +138,6 @@ export class KeybindingsEditorModel extends EditorModel {
 				|| keybindingMatches.commandLabelMatches
 				|| keybindingMatches.commandDefaultLabelMatches
 				|| keybindingMatches.sourceMatches
-				|| keybindingMatches.extensionMatches
 				|| keybindingMatches.whenMatches
 				|| keybindingMatches.keybindingMatches) {
 				result.push({
@@ -151,7 +149,6 @@ export class KeybindingsEditorModel extends EditorModel {
 					keybindingMatches: keybindingMatches.keybindingMatches,
 					commandIdMatches: keybindingMatches.commandIdMatches,
 					sourceMatches: keybindingMatches.sourceMatches,
-					extensionMatches: keybindingMatches.extensionMatches,
 					whenMatches: keybindingMatches.whenMatches
 				});
 			}
@@ -209,7 +206,11 @@ export class KeybindingsEditorModel extends EditorModel {
 
 		for (const keybinding of this._keybindingItems) {
 			if (keybinding.command in contributed) {
-				keybinding.extension = contributed[keybinding.command];
+				if (keybinding.source.indexOf(SOURCE_USER) !== -1) {
+					keybinding.source = `User ⮜ ${contributed[keybinding.command]}`;
+				} else {
+					keybinding.source = contributed[keybinding.command];
+				}
 			}
 		}
 	}
@@ -288,7 +289,6 @@ class KeybindingItemMatches {
 	readonly commandLabelMatches: IMatch[] | null = null;
 	readonly commandDefaultLabelMatches: IMatch[] | null = null;
 	readonly sourceMatches: IMatch[] | null = null;
-	readonly extensionMatches: IMatch[] | null = null;
 	readonly whenMatches: IMatch[] | null = null;
 	readonly keybindingMatches: KeybindingMatches | null = null;
 
@@ -298,7 +298,6 @@ class KeybindingItemMatches {
 			this.commandLabelMatches = keybindingItem.commandLabel ? this.matches(searchValue, keybindingItem.commandLabel, (word, wordToMatchAgainst) => matchesWords(word, keybindingItem.commandLabel, true), words) : null;
 			this.commandDefaultLabelMatches = keybindingItem.commandDefaultLabel ? this.matches(searchValue, keybindingItem.commandDefaultLabel, (word, wordToMatchAgainst) => matchesWords(word, keybindingItem.commandDefaultLabel, true), words) : null;
 			this.sourceMatches = this.matches(searchValue, keybindingItem.source, (word, wordToMatchAgainst) => matchesWords(word, keybindingItem.source, true), words);
-			this.extensionMatches = this.matches(searchValue, keybindingItem.extension || '', (word, wordToMatchAgainst) => matchesWords(word, keybindingItem.extension, true), words);
 			this.whenMatches = keybindingItem.when ? this.matches(searchValue, keybindingItem.when, or(matchesWords, matchesCamelCase), words) : null;
 		}
 		this.keybindingMatches = keybindingItem.keybinding ? this.matchesKeybinding(keybindingItem.keybinding, searchValue, keybindingWords, completeMatch) : null;
