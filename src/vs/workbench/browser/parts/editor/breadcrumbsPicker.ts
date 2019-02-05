@@ -478,6 +478,7 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 			new NOutlineDataSource(),
 			{
 				filterOnType: true,
+				expandOnlyOnTwistieClick: true,
 				sorter: new NOutlineItemComparator(this._getOutlineItemCompareType()),
 				identityProvider: new NOutlineIdentityProvider(),
 				keyboardNavigationLabelProvider: this._instantiationService.createInstance(NOutlineNavigationLabelProvider)

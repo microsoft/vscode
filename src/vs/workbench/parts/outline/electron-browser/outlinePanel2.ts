@@ -308,6 +308,7 @@ export class OutlinePanel extends ViewletPanel {
 			[new NOutlineGroupRenderer(), this._treeRenderer],
 			this._treeDataSource,
 			{
+				expandOnlyOnTwistieClick: true,
 				filterOnType: this._outlineViewState.filterOnType,
 				sorter: new NOutlineItemComparator(),
 				identityProvider: new NOutlineIdentityProvider(),
