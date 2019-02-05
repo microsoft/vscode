@@ -5,11 +5,11 @@
 
 import { localize } from 'vs/nls';
 import { ViewsRegistry, IViewDescriptor } from 'vs/workbench/common/views';
-import { OutlinePanel } from './outlinePanel';
+import { OutlinePanel } from './outlinePanel2';
 import { VIEW_CONTAINER } from 'vs/workbench/parts/files/common/files';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { OutlineConfigKeys, OutlineViewId } from 'vs/workbench/parts/outline/electron-browser/outline';
+import { OutlineConfigKeys, OutlineViewId } from 'vs/editor/contrib/documentSymbols/outline';
 
 const _outlineDesc = <IViewDescriptor>{
 	id: OutlineViewId,
