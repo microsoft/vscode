@@ -7,7 +7,7 @@ import 'vs/css!./media/tree';
 import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IListOptions, List, IListStyles, mightProducePrintableCharacter, MouseController } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate, IListRenderer, IListMouseEvent, IListEvent, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/list/list';
-import { append, $, toggleClass, getDomNodePagePosition, removeClass, addClass } from 'vs/base/browser/dom';
+import { append, $, toggleClass, getDomNodePagePosition, removeClass, addClass, hasClass, createStyleSheet } from 'vs/base/browser/dom';
 import { Event, Relay, Emitter, EventBufferer } from 'vs/base/common/event';
 import { StandardKeyboardEvent, IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -697,6 +697,7 @@ export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTr
 	readonly dnd?: ITreeDragAndDrop<T>;
 	readonly autoExpandSingleChildren?: boolean;
 	readonly keyboardNavigationEventFilter?: IKeyboardNavigationEventFilter;
+	readonly expandOnlyOnTwistieClick?: boolean;
 }
 
 /**
@@ -761,7 +762,7 @@ class Trait<T> {
 	}
 }
 
-export class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<ITreeNode<T, TFilterData>> {
+class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<ITreeNode<T, TFilterData>> {
 
 	constructor(list: TreeNodeList<T, TFilterData, TRef>, private tree: AbstractTree<T, TFilterData, TRef>) {
 		super(list);
@@ -771,24 +772,32 @@ export class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseCont
 		const node = e.element;
 
 		if (!node) {
-			super.onPointer(e);
-			return;
+			return super.onPointer(e);
 		}
 
 		if (this.multipleSelectionController.isSelectionRangeChangeEvent(e) || this.multipleSelectionController.isSelectionSingleChangeEvent(e)) {
-			super.onPointer(e);
-			return;
+			return super.onPointer(e);
 		}
 
-		if (!this.tree.options.openOnSingleClick && e.browserEvent.detail !== 2) {
-			super.onPointer(e);
-			return;
+		if (!this.tree.openOnSingleClick && e.browserEvent.detail !== 2) {
+			return super.onPointer(e);
+		}
+
+		const onTwistie = hasClass(e.browserEvent.target as HTMLElement, 'monaco-tl-twistie');
+
+		if (this.tree.expandOnlyOnTwistieClick && !onTwistie) {
+			return super.onPointer(e);
 		}
 
 		const model = ((this.tree as any).model as ITreeModel<T, TFilterData, TRef>); // internal
 		const location = model.getNodeLocation(node);
 		const recursive = e.browserEvent.altKey;
 		model.setCollapsed(location, undefined, recursive);
+
+		if (this.tree.expandOnlyOnTwistieClick && onTwistie) {
+			return;
+		}
+
 		super.onPointer(e);
 	}
 }
@@ -900,7 +909,10 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	readonly onWillRefilter: Event<void> = this._onWillRefilter.event;
 
 	get filterOnType(): boolean { return !!this._options.filterOnType; }
+
+	// Options TODO@joao expose options only, not Optional<>
 	get openOnSingleClick(): boolean { return typeof this._options.openOnSingleClick === 'undefined' ? true : this._options.openOnSingleClick; }
+	get expandOnlyOnTwistieClick(): boolean { return typeof this._options.expandOnlyOnTwistieClick === 'undefined' ? false : this._options.expandOnlyOnTwistieClick; }
 
 	get onDidDispose(): Event<void> { return this.view.onDidDispose; }
 
