@@ -199,7 +199,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 			}
 			let envString: string | undefined;
 			if (envConfigValue.workspace) {
-				envString = `env: {${Object.keys(envConfigValue.workspace).map(k => `${k}:${envConfigValue.workspace[k]}`).join(', ')}}`;
+				envString = `env: {${Object.keys(envConfigValue.workspace).map(k => `${k}:${envConfigValue.workspace![k]}`).join(', ')}}`;
 			}
 			// Should not be localized as it's json-like syntax referencing settings keys
 			const workspaceConfigStrings: string[] = [];
