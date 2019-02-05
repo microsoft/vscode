@@ -256,6 +256,8 @@ export abstract class AbstractSettingRenderer implements ITreeRenderer<SettingsT
 
 	static readonly CONTROL_CLASS = 'setting-control-focus-target';
 	static readonly CONTROL_SELECTOR = '.' + AbstractSettingRenderer.CONTROL_CLASS;
+	static readonly CONTENTS_CLASS = 'setting-item-contents';
+	static readonly CONTENTS_SELECTOR = '.' + AbstractSettingRenderer.CONTENTS_CLASS;
 
 	static readonly SETTING_KEY_ATTR = 'data-key';
 	static readonly SETTING_ID_ATTR = 'data-id';
@@ -296,9 +298,11 @@ export abstract class AbstractSettingRenderer implements ITreeRenderer<SettingsT
 		throw new Error('to override');
 	}
 
-	protected renderCommonTemplate(tree: any, container: HTMLElement, typeClass: string): ISettingItemTemplate {
-		DOM.addClass(container, 'setting-item');
-		DOM.addClass(container, 'setting-item-' + typeClass);
+	protected renderCommonTemplate(tree: any, _container: HTMLElement, typeClass: string): ISettingItemTemplate {
+		DOM.addClass(_container, 'setting-item');
+		DOM.addClass(_container, 'setting-item-' + typeClass);
+
+		const container = DOM.append(_container, $(AbstractSettingRenderer.CONTENTS_SELECTOR));
 		const titleElement = DOM.append(container, $('.setting-item-title'));
 		const labelCategoryContainer = DOM.append(titleElement, $('.setting-item-cat-label-container'));
 		const categoryElement = DOM.append(labelCategoryContainer, $('span.setting-item-category'));
@@ -729,9 +733,9 @@ export class SettingExcludeRenderer extends AbstractSettingRenderer implements I
 export class SettingTextRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingTextItemTemplate> {
 	templateId = SETTINGS_TEXT_TEMPLATE_ID;
 
-	renderTemplate(container: HTMLElement): ISettingTextItemTemplate {
-		const common = this.renderCommonTemplate(null, container, 'text');
-		const validationErrorMessageElement = DOM.append(container, $('.setting-item-validation-message'));
+	renderTemplate(_container: HTMLElement): ISettingTextItemTemplate {
+		const common = this.renderCommonTemplate(null, _container, 'text');
+		const validationErrorMessageElement = DOM.append(common.containerElement, $('.setting-item-validation-message'));
 
 		const inputBox = new InputBox(common.controlElement, this._contextViewService);
 		common.toDispose.push(inputBox);
@@ -851,9 +855,9 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 export class SettingNumberRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingNumberItemTemplate> {
 	templateId = SETTINGS_NUMBER_TEMPLATE_ID;
 
-	renderTemplate(container: HTMLElement): ISettingNumberItemTemplate {
-		const common = super.renderCommonTemplate(null, container, 'number');
-		const validationErrorMessageElement = DOM.append(container, $('.setting-item-validation-message'));
+	renderTemplate(_container: HTMLElement): ISettingNumberItemTemplate {
+		const common = super.renderCommonTemplate(null, _container, 'number');
+		const validationErrorMessageElement = DOM.append(common.containerElement, $('.setting-item-validation-message'));
 
 		const inputBox = new InputBox(common.controlElement, this._contextViewService, { type: 'number' });
 		common.toDispose.push(inputBox);
@@ -906,9 +910,11 @@ export class SettingNumberRenderer extends AbstractSettingRenderer implements IT
 export class SettingBoolRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingBoolItemTemplate> {
 	templateId = SETTINGS_BOOL_TEMPLATE_ID;
 
-	renderTemplate(container: HTMLElement): ISettingBoolItemTemplate {
-		DOM.addClass(container, 'setting-item');
-		DOM.addClass(container, 'setting-item-bool');
+	renderTemplate(_container: HTMLElement): ISettingBoolItemTemplate {
+		DOM.addClass(_container, 'setting-item');
+		DOM.addClass(_container, 'setting-item-bool');
+
+		const container = DOM.append(_container, $(AbstractSettingRenderer.CONTENTS_SELECTOR));
 
 		const titleElement = DOM.append(container, $('.setting-item-title'));
 		const categoryElement = DOM.append(titleElement, $('span.setting-item-category'));
@@ -1073,7 +1079,7 @@ export class SettingTreeRenderers {
 	}
 
 	getSettingDOMElementForDOMElement(domElement: HTMLElement): HTMLElement {
-		const parent = DOM.findParentWithClass(domElement, 'setting-item');
+		const parent = DOM.findParentWithClass(domElement, AbstractSettingRenderer.CONTENTS_CLASS);
 		if (parent) {
 			return parent;
 		}
@@ -1324,27 +1330,27 @@ export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 				// Links appear inside other elements in markdown. CSS opacity acts like a mask. So we have to dynamically compute the description color to avoid
 				// applying an opacity to the link color.
 				const fgWithOpacity = new Color(new RGBA(foregroundColor.rgba.r, foregroundColor.rgba.g, foregroundColor.rgba.b, 0.9));
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description { color: ${fgWithOpacity}; }`);
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-description { color: ${fgWithOpacity}; }`);
 			}
 
 			const errorColor = theme.getColor(errorForeground);
 			if (errorColor) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-deprecation-message { color: ${errorColor}; }`);
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-deprecation-message { color: ${errorColor}; }`);
 			}
 
 			const invalidInputBackground = theme.getColor(inputValidationErrorBackground);
 			if (invalidInputBackground) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-validation-message { background-color: ${invalidInputBackground}; }`);
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-validation-message { background-color: ${invalidInputBackground}; }`);
 			}
 
 			const invalidInputForeground = theme.getColor(inputValidationErrorForeground);
 			if (invalidInputForeground) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-validation-message { color: ${invalidInputForeground}; }`);
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-validation-message { color: ${invalidInputForeground}; }`);
 			}
 
 			const invalidInputBorder = theme.getColor(inputValidationErrorBorder);
 			if (invalidInputBorder) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-validation-message { border-style:solid; border-width: 1px; border-color: ${invalidInputBorder}; }`);
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-validation-message { border-style:solid; border-width: 1px; border-color: ${invalidInputBorder}; }`);
 				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.invalid-input .setting-item-control .monaco-inputbox.idle { outline-width: 0; border-style:solid; border-width: 1px; border-color: ${invalidInputBorder}; }`);
 			}
 
@@ -1356,7 +1362,7 @@ export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 
 			const focusBorderColor = theme.getColor(focusBorder);
 			if (focusBorderColor) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description-markdown a:focus { outline-color: ${focusBorderColor} }`);
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-description-markdown a:focus { outline-color: ${focusBorderColor} }`);
 			}
 		}));
 

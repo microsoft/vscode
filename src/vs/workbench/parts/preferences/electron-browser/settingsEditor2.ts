@@ -664,7 +664,7 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 
 		// Hack, see https://github.com/Microsoft/vscode/issues/64749
-		const settingItems = this.settingsTree.getHTMLElement().querySelectorAll('.setting-item');
+		const settingItems = this.settingsTree.getHTMLElement().querySelectorAll(AbstractSettingRenderer.CONTENTS_SELECTOR);
 		const firstEl = settingItems[1] || settingItems[0];
 		if (!firstEl) {
 			return;
