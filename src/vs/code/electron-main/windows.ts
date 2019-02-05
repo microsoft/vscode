@@ -18,7 +18,7 @@ import { IPathWithLineAndColumn, parseLineAndColumnAware } from 'vs/code/node/pa
 import { ILifecycleService, UnloadReason, IWindowUnloadEvent, LifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IWindowSettings, OpenContext, IPath, IWindowConfiguration, INativeOpenDialogOptions, IPathsToWaitFor, IEnterWorkspaceResult, IMessageBoxResult, INewWindowOptions } from 'vs/platform/windows/common/windows';
+import { IWindowSettings, OpenContext, IPath, IWindowConfiguration, INativeOpenDialogOptions, IPathsToWaitFor, IEnterWorkspaceResult, IMessageBoxResult, INewWindowOptions, OpenDialogOptions } from 'vs/platform/windows/common/windows';
 import { getLastActiveWindow, findBestWindowOrFolderForFile, findWindowOnWorkspace, findWindowOnExtensionDevelopmentPath, findWindowOnWorkspaceOrFolderUri } from 'vs/code/node/windowsFinder';
 import { Event as CommonEvent, Emitter } from 'vs/base/common/event';
 import product from 'vs/platform/node/product';
@@ -50,7 +50,7 @@ interface INewWindowState extends ISingleWindowState {
 interface IWindowState {
 	workspace?: IWorkspaceIdentifier;
 	folderUri?: URI;
-	backupPath: string;
+	backupPath?: string;
 	remoteAuthority?: string;
 	uiState: ISingleWindowState;
 }
@@ -131,7 +131,7 @@ export class WindowsManager implements IWindowsMainService {
 	private initialUserEnv: IProcessEnvironment;
 
 	private windowsState: IWindowsState;
-	private lastClosedWindowState: IWindowState;
+	private lastClosedWindowState?: IWindowState;
 
 	private dialogs: Dialogs;
 	private workspacesManager: WorkspacesManager;
@@ -188,8 +188,9 @@ export class WindowsManager implements IWindowsMainService {
 		if (windowState.folderUri) {
 			windowState.folderUri = URI.revive(windowState.folderUri);
 		}
-		if ((<IBackwardCompatibleWindowState>windowState).folderPath) {
-			windowState.folderUri = URI.file((<IBackwardCompatibleWindowState>windowState).folderPath);
+		const folderPath = (windowState as IBackwardCompatibleWindowState).folderPath;
+		if (folderPath) {
+			windowState.folderUri = URI.file(folderPath);
 		}
 		return windowState;
 	}
@@ -403,12 +404,12 @@ export class WindowsManager implements IWindowsMainService {
 		//
 		// These are windows to open to show workspaces
 		//
-		const workspacesToOpen = arrays.distinct(pathsToOpen.filter(win => !!win.workspace).map(win => win.workspace), workspace => workspace.id); // prevent duplicates
+		const workspacesToOpen = arrays.distinct(arrays.coalesce(pathsToOpen.map(win => win.workspace)), workspace => workspace.id); // prevent duplicates
 
 		//
 		// These are windows to open to show either folders or files (including diffing files or creating them)
 		//
-		const foldersToOpen = arrays.distinct(pathsToOpen.filter(win => win.folderUri && !win.fileUri).map(win => win.folderUri), folder => getComparisonKey(folder)); // prevent duplicates
+		const foldersToOpen = arrays.distinct(arrays.coalesce(pathsToOpen.filter(win => win.folderUri && !win.fileUri).map(win => win.folderUri)), folder => getComparisonKey(folder)); // prevent duplicates
 
 		//
 		// These are windows to restore because of hot-exit or from previous session (only performed once on startup!)
@@ -423,7 +424,7 @@ export class WindowsManager implements IWindowsMainService {
 			workspacesToRestore.push(...this.workspacesMainService.getUntitledWorkspacesSync());	// collect from previous window session
 
 			emptyToRestore = this.backupMainService.getEmptyWindowBackupPaths();
-			emptyToRestore.push(...pathsToOpen.filter(w => !w.workspace && !w.folderUri && w.backupPath).map(w => ({ backupFolder: basename(w.backupPath), remoteAuthority: w.remoteAuthority }))); // add empty windows with backupPath
+			emptyToRestore.push(...pathsToOpen.filter(w => !w.workspace && !w.folderUri && w.backupPath).map(w => ({ backupFolder: basename(w.backupPath!), remoteAuthority: w.remoteAuthority }))); // add empty windows with backupPath
 			emptyToRestore = arrays.distinct(emptyToRestore, info => info.backupFolder); // prevent duplicates
 		}
 
@@ -444,9 +445,9 @@ export class WindowsManager implements IWindowsMainService {
 
 			// 1.) focus last active window if we are not instructed to open any paths
 			if (focusLastActive) {
-				const lastActiveWindw = usedWindows.filter(w => w.backupPath === this.windowsState.lastActiveWindow.backupPath);
-				if (lastActiveWindw.length) {
-					lastActiveWindw[0].focus();
+				const lastActiveWindow = usedWindows.filter(w => w.backupPath === this.windowsState.lastActiveWindow!.backupPath);
+				if (lastActiveWindow.length) {
+					lastActiveWindow[0].focus();
 					focusLastOpened = false;
 					focusLastWindow = false;
 				}
@@ -1593,7 +1594,7 @@ export class WindowsManager implements IWindowsMainService {
 		});
 	}
 
-	getFocusedWindow(): ICodeWindow {
+	getFocusedWindow(): ICodeWindow | null {
 		const win = BrowserWindow.getFocusedWindow();
 		if (win) {
 			return this.getWindowById(win.id);
@@ -1602,7 +1603,7 @@ export class WindowsManager implements IWindowsMainService {
 		return null;
 	}
 
-	getWindowById(windowId: number): ICodeWindow {
+	getWindowById(windowId: number): ICodeWindow | null {
 		const res = WindowsManager.WINDOWS.filter(w => w.id === windowId);
 		if (res && res.length === 1) {
 			return res[0];
@@ -1719,9 +1720,8 @@ export class WindowsManager implements IWindowsMainService {
 		internalOptions.pickFolders = pickFolders;
 		internalOptions.pickFiles = pickFiles;
 
-		if (!internalOptions.dialogOptions) {
-			internalOptions.dialogOptions = Object.create(null);
-		}
+		const dialogOptions: OpenDialogOptions = internalOptions.dialogOptions || Object.create(null);
+		internalOptions.dialogOptions = dialogOptions;
 
 		if (!internalOptions.dialogOptions.title) {
 			if (pickFolders && pickFiles) {
@@ -1952,13 +1952,12 @@ class Dialogs {
 class WorkspacesManager {
 
 	constructor(
-		private workspacesMainService: IWorkspacesMainService,
-		private backupMainService: IBackupMainService,
-		private environmentService: IEnvironmentService,
-		private historyMainService: IHistoryMainService,
-		private windowsMainService: IWindowsMainService,
-	) {
-	}
+		private readonly workspacesMainService: IWorkspacesMainService,
+		private readonly backupMainService: IBackupMainService,
+		private readonly environmentService: IEnvironmentService,
+		private readonly historyMainService: IHistoryMainService,
+		private readonly windowsMainService: IWindowsMainService,
+	) { }
 
 	enterWorkspace(window: ICodeWindow, path: URI): Promise<IEnterWorkspaceResult | null> {
 		if (!window || !window.win || !window.isReady) {

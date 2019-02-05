@@ -112,8 +112,8 @@ export interface IWindowsMainService {
 	openNewTabbedWindow(context: OpenContext): ICodeWindow[];
 	sendToFocused(channel: string, ...args: any[]): void;
 	sendToAll(channel: string, payload: any, windowIdsToIgnore?: number[]): void;
-	getFocusedWindow(): ICodeWindow;
-	getWindowById(windowId: number): ICodeWindow;
+	getFocusedWindow(): ICodeWindow | null;
+	getWindowById(windowId: number): ICodeWindow | null;
 	getWindows(): ICodeWindow[];
 	getWindowCount(): number;
 	quit(): void;
