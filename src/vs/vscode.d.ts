@@ -4623,6 +4623,13 @@ declare module 'vscode' {
 		 * Dispose and free associated resources.
 		 */
 		dispose(): void;
+
+		/**
+		 * Fires when the terminal's pty slave pseudo-device is written to. In other words, this
+		 * provides access to the raw data stream from the process running within the terminal,
+		 * including VT sequences.
+		 */
+		readonly onDidWriteData: Event<string>;
 	}
 
 	/**
