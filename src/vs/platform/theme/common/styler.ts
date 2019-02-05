@@ -327,10 +327,5 @@ export const defaultMenuStyles = <IMenuStyleOverrides>{
 };
 
 export function attachMenuStyler(widget: IThemable, themeService, style?: IMenuStyleOverrides): IDisposable {
-	const styles = { ...defaultMenuStyles, ...style };
-	const fallback: IMenuStyleOverrides = {
-		foregroundColor: !!styles.foregroundColor && !!themeService && !!themeService.getTheme().getColor(styles.foregroundColor) ? styles.foregroundColor : foreground
-	};
-
-	return attachStyler(themeService, { ...styles, ...fallback }, widget);
+	return attachStyler(themeService, { ...defaultMenuStyles, ...style }, widget);
 }
