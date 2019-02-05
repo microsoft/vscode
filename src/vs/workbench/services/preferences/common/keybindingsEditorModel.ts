@@ -198,8 +198,8 @@ export class KeybindingsEditorModel extends EditorModel {
 				}
 			}
 			if (Array.isArray(contributes.keybindings)) {
-				for (const command of contributes.keybindings) {
-					contributed[command.command] = extensionName;
+				for (const keybinding of contributes.keybindings) {
+					contributed[keybinding.command] = extensionName;
 				}
 			}
 		}
@@ -207,7 +207,7 @@ export class KeybindingsEditorModel extends EditorModel {
 		for (const keybinding of this._keybindingItems) {
 			if (keybinding.command in contributed) {
 				if (keybinding.source.indexOf(SOURCE_USER) !== -1) {
-					keybinding.source = `User ⮜ ${contributed[keybinding.command]}`;
+					keybinding.source = `${SOURCE_USER} ⮜ ${contributed[keybinding.command]}`;
 				} else {
 					keybinding.source = contributed[keybinding.command];
 				}
