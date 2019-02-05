@@ -52,12 +52,12 @@ export abstract class BreadcrumbsPicker {
 
 	protected readonly _disposables = new Array<IDisposable>();
 	protected readonly _domNode: HTMLDivElement;
-	protected readonly _arrow: HTMLDivElement;
-	protected readonly _treeContainer: HTMLDivElement;
-	protected readonly _tree: Tree<any, any>;
-	protected readonly _fakeEvent = new UIEvent('fakeEvent');
-	protected readonly _focus: dom.IFocusTracker;
-	private _layoutInfo: ILayoutInfo;
+	protected _arrow: HTMLDivElement;
+	protected _treeContainer: HTMLDivElement;
+	protected _tree: Tree<any, any>;
+	protected _fakeEvent = new UIEvent('fakeEvent');
+	protected _focus: dom.IFocusTracker;
+	protected _layoutInfo: ILayoutInfo;
 
 	private readonly _onDidPickElement = new Emitter<{ target: any, payload: any }>();
 	readonly onDidPickElement: Event<{ target: any, payload: any }> = this._onDidPickElement.event;
@@ -78,6 +78,16 @@ export abstract class BreadcrumbsPicker {
 		this._focus = dom.trackFocus(this._domNode);
 		this._focus.onDidBlur(_ => this._onDidPickElement.fire({ target: undefined, payload: undefined }), undefined, this._disposables);
 		this._disposables.push(onDidChangeZoomLevel(_ => this._onDidPickElement.fire({ target: undefined, payload: undefined })));
+	}
+
+	dispose(): void {
+		dispose(this._disposables);
+		this._onDidPickElement.dispose();
+		this._tree.dispose();
+		this._focus.dispose();
+	}
+
+	show(input: any, maxHeight: number, width: number, arrowSize: number, arrowOffset: number): void {
 
 		const theme = this._themeService.getTheme();
 		const color = theme.getColor(breadcrumbsPickerBackground);
@@ -126,21 +136,10 @@ export abstract class BreadcrumbsPicker {
 			dom.toggleClass(this._treeContainer, 'align-icons-and-twisties', fileIconTheme.hasFileIcons && !fileIconTheme.hasFolderIcons);
 			dom.toggleClass(this._treeContainer, 'hide-arrows', fileIconTheme.hidesExplorerArrows === true);
 		};
-		this._disposables.push(_themeService.onDidFileIconThemeChange(onFileIconThemeChange));
-		onFileIconThemeChange(_themeService.getFileIconTheme());
+		this._disposables.push(this._themeService.onDidFileIconThemeChange(onFileIconThemeChange));
+		onFileIconThemeChange(this._themeService.getFileIconTheme());
 
 		this._domNode.focus();
-	}
-
-	dispose(): void {
-		dispose(this._disposables);
-		this._onDidPickElement.dispose();
-		this._tree.dispose();
-		this._focus.dispose();
-	}
-
-	setInput(input: any, maxHeight: number, width: number, arrowSize: number, arrowOffset: number): void {
-
 		this._layoutInfo = { maxHeight, width, arrowSize, arrowOffset, inputHeight: 0 };
 
 		this._setInput(input).then(() => {
@@ -167,7 +166,6 @@ export abstract class BreadcrumbsPicker {
 	}
 
 	protected abstract _setInput(element: BreadcrumbElement): Promise<void>;
-
 	protected abstract _createTree(container: HTMLElement): Tree<any, any>;
 	protected abstract _getTargetFromEvent(element: any, payload: UIEvent): any | undefined;
 }
@@ -492,11 +490,7 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 		return Promise.resolve();
 	}
 
-	protected _getTargetFromEvent(element: any, payload: any): any | undefined {
-		// todo@joh
-		if (payload && payload.didClickOnTwistie) {
-			return;
-		}
+	protected _getTargetFromEvent(element: any): any | undefined {
 		if (element instanceof OutlineElement) {
 			return element;
 		}
