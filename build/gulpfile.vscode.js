@@ -33,8 +33,7 @@ const deps = require('./dependencies');
 const getElectronVersion = require('./lib/electron').getElectronVersion;
 const createAsar = require('./lib/asar').createAsar;
 const minimist = require('minimist');
-const compilation = require('./lib/compilation');
-const { compileExtensionsBuildTask } = require('./gulpfile.extensions');
+const { compileBuildTask } = require('./gulpfile.compile');
 
 const productionDependencies = deps.getProductionDependencies(path.dirname(__dirname));
 // @ts-ignore
@@ -88,24 +87,23 @@ const BUNDLED_FILE_HEADER = [
 	' *--------------------------------------------------------*/'
 ].join('\n');
 
-// Full compile, including nls and inline sources in sourcemaps, for build
-const compileClientBuildTask = util.task.series(util.rimraf('out-build'), compilation.compileTask('src', 'out-build', true));
-
-// All Build
-const compileBuildTask = util.task.parallel(compileClientBuildTask, compileExtensionsBuildTask);
-
-gulp.task('optimize-vscode', util.task.series(
-	util.task.parallel(util.rimraf('out-vscode'), compileBuildTask),
-	common.optimizeTask({
-		src: 'out-build',
-		entryPoints: vscodeEntryPoints,
-		otherSources: [],
-		resources: vscodeResources,
-		loaderConfig: common.loaderConfig(nodeModules),
-		header: BUNDLED_FILE_HEADER,
-		out: 'out-vscode',
-		bundleInfo: undefined
-	}))
+gulp.task('optimize-vscode',
+	util.task.series(
+		util.task.parallel(
+			util.rimraf('out-vscode'),
+			compileBuildTask
+		),
+		common.optimizeTask({
+			src: 'out-build',
+			entryPoints: vscodeEntryPoints,
+			otherSources: [],
+			resources: vscodeResources,
+			loaderConfig: common.loaderConfig(nodeModules),
+			header: BUNDLED_FILE_HEADER,
+			out: 'out-vscode',
+			bundleInfo: undefined
+		})
+	)
 );
 
 

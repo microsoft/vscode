@@ -190,8 +190,18 @@ export class TerminalInstance implements ITerminalInstance {
 
 	public disableLayout: boolean;
 	public get id(): number { return this._id; }
-	public get cols(): number { return this._cols; }
-	public get rows(): number { return this._rows; }
+	public get cols(): number {
+		if (this._dimensionsOverride && this._dimensionsOverride.cols) {
+			return Math.min(Math.max(this._dimensionsOverride.cols, 2), this._cols);
+		}
+		return this._cols;
+	}
+	public get rows(): number {
+		if (this._dimensionsOverride && this._dimensionsOverride.rows) {
+			return Math.min(Math.max(this._dimensionsOverride.rows, 2), this._rows);
+		}
+		return this._rows;
+	}
 	// TODO: Ideally processId would be merged into processReady
 	public get processId(): number | undefined { return this._processManager ? this._processManager.shellProcessId : undefined; }
 	// TODO: How does this work with detached processes?
@@ -1173,6 +1183,7 @@ export class TerminalInstance implements ITerminalInstance {
 			return;
 		}
 
+
 		const terminalWidth = this._evaluateColsAndRows(dimension.width, dimension.height);
 		if (!terminalWidth) {
 			return;
@@ -1187,12 +1198,8 @@ export class TerminalInstance implements ITerminalInstance {
 
 	@debounce(50)
 	private _resize(): void {
-		let cols = this._cols;
-		let rows = this._rows;
-		if (this._dimensionsOverride && this._dimensionsOverride.cols && this._dimensionsOverride.rows) {
-			cols = Math.min(Math.max(this._dimensionsOverride.cols, 2), cols);
-			rows = Math.min(Math.max(this._dimensionsOverride.rows, 2), rows);
-		}
+		let cols = this.cols;
+		let rows = this.rows;
 
 		if (this._xterm) {
 			// Only apply these settings when the terminal is visible so that
