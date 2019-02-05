@@ -424,6 +424,9 @@ export function createApiFactory(
 			onDidChangeActiveTerminal(listener, thisArg?, disposables?) {
 				return extHostTerminalService.onDidChangeActiveTerminal(listener, thisArg, disposables);
 			},
+			onDidChangeTerminalDimensions(listener, thisArg?, disposables?) {
+				return extHostTerminalService.onDidChangeTerminalDimensions(listener, thisArg, disposables);
+			},
 			get state() {
 				return extHostWindow.state;
 			},

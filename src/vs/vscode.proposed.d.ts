@@ -911,9 +911,11 @@ declare module 'vscode' {
 
 	export interface Terminal {
 		/**
-		 * The current dimensions of the terminal.
+		 * The current dimensions of the terminal. This will be `undefined` immediately after the
+		 * terminal is created as the dimensions are not known until shortly after the terminal is
+		 * created.
 		 */
-		readonly dimensions: TerminalDimensions;
+		readonly dimensions: TerminalDimensions | undefined;
 
 		/**
 		 * Fires when the terminal's pty slave pseudo-device is written to. In other words, this

@@ -28,7 +28,10 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			// Delay this message so the TerminalInstance constructor has a chance to finish and
 			// return the ID normally to the extension host. The ID that is passed here will be used
 			// to register non-extension API terminals in the extension host.
-			setTimeout(() => this._onTerminalOpened(instance), EXT_HOST_CREATION_DELAY);
+			setTimeout(() => {
+				this._onTerminalOpened(instance);
+				this._onInstanceDimensionsChanged(instance);
+			}, EXT_HOST_CREATION_DELAY);
 		}));
 		this._toDispose.push(terminalService.onInstanceDisposed(instance => this._onTerminalDisposed(instance)));
 		this._toDispose.push(terminalService.onInstanceProcessIdReady(instance => this._onTerminalProcessIdReady(instance)));
@@ -196,11 +199,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	}
 
 	private _onInstanceDimensionsChanged(instance: ITerminalInstance): void {
-		// Only send the dimensions if the terminal is a renderer only as there is no API to access
-		// dimensions on a plain Terminal.
-		if (instance.shellLaunchConfig.isRendererOnly) {
-			this._proxy.$acceptTerminalRendererDimensions(instance.id, instance.cols, instance.rows);
-		}
+		this._proxy.$acceptTerminalDimensions(instance.id, instance.cols, instance.rows);
 	}
 
 	private _onTerminalRequestExtHostProcess(request: ITerminalProcessExtHostRequest): void {
