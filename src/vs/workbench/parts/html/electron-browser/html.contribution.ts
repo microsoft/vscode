@@ -23,7 +23,7 @@ function getActivePreviewsForResource(accessor: ServicesAccessor, resource: URI 
 	return accessor.get(IEditorService).visibleControls
 		.filter(c => c instanceof HtmlPreviewPart && c.model)
 		.map(e => e as HtmlPreviewPart)
-		.filter(e => e.model.uri.scheme === uri.scheme && e.model.uri.toString() === uri.toString());
+		.filter(e => e.model!.uri.scheme === uri.scheme && e.model!.uri.toString() === uri.toString());
 }
 
 // --- Register Editor
@@ -45,7 +45,7 @@ CommandsRegistry.registerCommand('_workbench.previewHtml', function (
 	const uri = resource instanceof URI ? resource : URI.parse(resource);
 	label = label || uri.fsPath;
 
-	let input: HtmlInput;
+	let input: HtmlInput | undefined;
 
 	const editorGroupService = accessor.get(IEditorGroupsService);
 

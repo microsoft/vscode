@@ -44,7 +44,7 @@ interface IKeydownEvent {
 class WebviewProtocolProvider extends Disposable {
 	constructor(
 		webview: Electron.WebviewTag,
-		private readonly _extensionLocation: URI,
+		private readonly _extensionLocation: URI | undefined,
 		private readonly _getLocalResourceRoots: () => ReadonlyArray<URI>,
 		private readonly _environmentService: IEnvironmentService,
 		private readonly _fileService: IFileService,
@@ -356,7 +356,7 @@ export class WebviewElement extends Disposable {
 	}
 
 	public mountTo(parent: HTMLElement) {
-		parent.appendChild(this._webviewFindWidget.getDomNode());
+		parent.appendChild(this._webviewFindWidget.getDomNode()!);
 		parent.appendChild(this._webview);
 	}
 
