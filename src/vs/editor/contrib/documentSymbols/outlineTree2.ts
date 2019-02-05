@@ -20,13 +20,13 @@ import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { OutlineConfigKeys } from 'vs/editor/contrib/documentSymbols/outline';
 
-export type NOutlineItem = OutlineGroup | OutlineElement;
+export type OutlineItem = OutlineGroup | OutlineElement;
 
-export class NOutlineNavigationLabelProvider implements IKeyboardNavigationLabelProvider<NOutlineItem> {
+export class OutlineNavigationLabelProvider implements IKeyboardNavigationLabelProvider<OutlineItem> {
 
 	constructor(@IKeybindingService private readonly _keybindingService: IKeybindingService) { }
 
-	getKeyboardNavigationLabel(element: NOutlineItem): { toString(): string; } {
+	getKeyboardNavigationLabel(element: OutlineItem): { toString(): string; } {
 		if (element instanceof OutlineGroup) {
 			return element.provider.displayName;
 		} else {
@@ -40,66 +40,66 @@ export class NOutlineNavigationLabelProvider implements IKeyboardNavigationLabel
 }
 
 
-export class NOutlineIdentityProvider implements IIdentityProvider<NOutlineItem> {
+export class OutlineIdentityProvider implements IIdentityProvider<OutlineItem> {
 	getId(element: TreeElement): { toString(): string; } {
 		return element.id;
 	}
 }
 
-export class NOutlineGroupTemplate {
+export class OutlineGroupTemplate {
 	static id = 'OutlineGroupTemplate';
 
 	labelContainer: HTMLElement;
 	label: HighlightedLabel;
 }
 
-export class NOutlineElementTemplate {
+export class OutlineElementTemplate {
 	static id = 'OutlineElementTemplate';
 	iconLabel: IconLabel;
 	decoration: HTMLElement;
 }
 
-export class NOutlineVirtualDelegate implements IListVirtualDelegate<NOutlineItem> {
+export class OutlineVirtualDelegate implements IListVirtualDelegate<OutlineItem> {
 
-	getHeight(_element: NOutlineItem): number {
+	getHeight(_element: OutlineItem): number {
 		return 22;
 	}
 
-	getTemplateId(element: NOutlineItem): string {
+	getTemplateId(element: OutlineItem): string {
 		if (element instanceof OutlineGroup) {
-			return NOutlineGroupTemplate.id;
+			return OutlineGroupTemplate.id;
 		} else {
-			return NOutlineElementTemplate.id;
+			return OutlineElementTemplate.id;
 		}
 	}
 }
 
-export class NOutlineGroupRenderer implements ITreeRenderer<OutlineGroup, FuzzyScore, NOutlineGroupTemplate> {
+export class OutlineGroupRenderer implements ITreeRenderer<OutlineGroup, FuzzyScore, OutlineGroupTemplate> {
 
-	readonly templateId: string = NOutlineGroupTemplate.id;
+	readonly templateId: string = OutlineGroupTemplate.id;
 
-	renderTemplate(container: HTMLElement): NOutlineGroupTemplate {
+	renderTemplate(container: HTMLElement): OutlineGroupTemplate {
 		const labelContainer = dom.$('.outline-element-label');
 		dom.addClass(container, 'outline-element');
 		dom.append(container, labelContainer);
 		return { labelContainer, label: new HighlightedLabel(labelContainer, true) };
 	}
 
-	renderElement(node: ITreeNode<OutlineGroup, FuzzyScore>, index: number, template: NOutlineGroupTemplate): void {
+	renderElement(node: ITreeNode<OutlineGroup, FuzzyScore>, index: number, template: OutlineGroupTemplate): void {
 		template.label.set(
 			node.element.provider.displayName || localize('provider', "Outline Provider"),
 			createMatches(node.filterData)
 		);
 	}
 
-	disposeTemplate(_template: NOutlineGroupTemplate): void {
+	disposeTemplate(_template: OutlineGroupTemplate): void {
 		// nothing
 	}
 }
 
-export class NOutlineElementRenderer implements ITreeRenderer<OutlineElement, FuzzyScore, NOutlineElementTemplate> {
+export class OutlineElementRenderer implements ITreeRenderer<OutlineElement, FuzzyScore, OutlineElementTemplate> {
 
-	readonly templateId: string = NOutlineElementTemplate.id;
+	readonly templateId: string = OutlineElementTemplate.id;
 
 	renderProblemColors = true;
 	renderProblemBadges = true;
@@ -109,7 +109,7 @@ export class NOutlineElementRenderer implements ITreeRenderer<OutlineElement, Fu
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) { }
 
-	renderTemplate(container: HTMLElement): NOutlineElementTemplate {
+	renderTemplate(container: HTMLElement): OutlineElementTemplate {
 		// const labelContainer = dom.$('.outline-element-label');
 		const iconLabel = new IconLabel(container, { supportHighlights: true });
 		const decoration = dom.$('.outline-element-decoration');
@@ -117,12 +117,12 @@ export class NOutlineElementRenderer implements ITreeRenderer<OutlineElement, Fu
 		return { iconLabel, decoration };
 	}
 
-	renderElement(node: ITreeNode<OutlineElement, FuzzyScore>, index: number, template: NOutlineElementTemplate): void {
+	renderElement(node: ITreeNode<OutlineElement, FuzzyScore>, index: number, template: OutlineElementTemplate): void {
 		const { element } = node;
 		const options = {
 			matches: createMatches(node.filterData),
 			extraClasses: [],
-			title: localize('title.template', "{0} ({1})", element.symbol.name, NOutlineElementRenderer._symbolKindNames[element.symbol.kind])
+			title: localize('title.template', "{0} ({1})", element.symbol.name, OutlineElementRenderer._symbolKindNames[element.symbol.kind])
 		};
 		if (this._configurationService.getValue(OutlineConfigKeys.icons)) {
 			options.extraClasses.push(`outline-element-icon ${symbolKindToCssClass(element.symbol.kind, true)}`);
@@ -199,33 +199,33 @@ export class NOutlineElementRenderer implements ITreeRenderer<OutlineElement, Fu
 		[SymbolKind.Variable]: localize('Variable', "variable"),
 	};
 
-	disposeTemplate(_template: NOutlineElementTemplate): void {
+	disposeTemplate(_template: OutlineElementTemplate): void {
 		_template.iconLabel.dispose();
 	}
 }
 
-export const enum NOutlineItemCompareType {
+export const enum OutlineSortOrder {
 	ByPosition,
 	ByName,
 	ByKind
 }
 
-export class NOutlineItemComparator implements ITreeSorter<NOutlineItem> {
+export class OutlineItemComparator implements ITreeSorter<OutlineItem> {
 
 	constructor(
-		public type: NOutlineItemCompareType = NOutlineItemCompareType.ByPosition
+		public type: OutlineSortOrder = OutlineSortOrder.ByPosition
 	) { }
 
-	compare(a: NOutlineItem, b: NOutlineItem): number {
+	compare(a: OutlineItem, b: OutlineItem): number {
 		if (a instanceof OutlineGroup && b instanceof OutlineGroup) {
 			return a.providerIndex - b.providerIndex;
 
 		} else if (a instanceof OutlineElement && b instanceof OutlineElement) {
-			if (this.type === NOutlineItemCompareType.ByKind) {
+			if (this.type === OutlineSortOrder.ByKind) {
 				return a.symbol.kind - b.symbol.kind || a.symbol.name.localeCompare(b.symbol.name);
-			} else if (this.type === NOutlineItemCompareType.ByName) {
+			} else if (this.type === OutlineSortOrder.ByName) {
 				return a.symbol.name.localeCompare(b.symbol.name) || Range.compareRangesUsingStarts(a.symbol.range, b.symbol.range);
-			} else if (this.type === NOutlineItemCompareType.ByPosition) {
+			} else if (this.type === OutlineSortOrder.ByPosition) {
 				return Range.compareRangesUsingStarts(a.symbol.range, b.symbol.range) || a.symbol.name.localeCompare(b.symbol.name);
 			}
 		}
@@ -233,9 +233,9 @@ export class NOutlineItemComparator implements ITreeSorter<NOutlineItem> {
 	}
 }
 
-export class NOutlineDataSource implements IDataSource<OutlineModel, NOutlineItem> {
+export class OutlineDataSource implements IDataSource<OutlineModel, OutlineItem> {
 
-	getChildren(element: undefined | OutlineModel | OutlineGroup | OutlineElement): NOutlineItem[] {
+	getChildren(element: undefined | OutlineModel | OutlineGroup | OutlineElement): OutlineItem[] {
 		if (!element) {
 			return [];
 		}

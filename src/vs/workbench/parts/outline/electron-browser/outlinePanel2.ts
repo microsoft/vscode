@@ -44,7 +44,7 @@ import { CollapseAction2 } from 'vs/workbench/browser/viewlet';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { OutlineConfigKeys, OutlineViewFiltered, OutlineViewFocused } from '../../../../editor/contrib/documentSymbols/outline';
 import { FuzzyScore } from 'vs/base/common/filters';
-import { NOutlineDataSource, NOutlineItemComparator, NOutlineItemCompareType, NOutlineVirtualDelegate, NOutlineGroupRenderer, NOutlineElementRenderer, NOutlineItem, NOutlineIdentityProvider, NOutlineNavigationLabelProvider } from 'vs/editor/contrib/documentSymbols/outlineTree2';
+import { OutlineDataSource, OutlineItemComparator, OutlineSortOrder, OutlineVirtualDelegate, OutlineGroupRenderer, OutlineElementRenderer, OutlineItem, OutlineIdentityProvider, OutlineNavigationLabelProvider } from 'vs/editor/contrib/documentSymbols/outlineTree2';
 import { IDataTreeViewState } from 'vs/base/browser/ui/tree/dataTree';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 
@@ -159,7 +159,7 @@ class OutlineViewState {
 
 	private _followCursor = false;
 	private _filterOnType = true;
-	private _sortBy = NOutlineItemCompareType.ByKind;
+	private _sortBy = OutlineSortOrder.ByKind;
 
 	private _onDidChange = new Emitter<{ followCursor?: boolean, sortBy?: boolean, filterOnType?: boolean }>();
 	readonly onDidChange = this._onDidChange.event;
@@ -186,14 +186,14 @@ class OutlineViewState {
 		}
 	}
 
-	set sortBy(value: NOutlineItemCompareType) {
+	set sortBy(value: OutlineSortOrder) {
 		if (value !== this._sortBy) {
 			this._sortBy = value;
 			this._onDidChange.fire({ sortBy: true });
 		}
 	}
 
-	get sortBy(): NOutlineItemCompareType {
+	get sortBy(): OutlineSortOrder {
 		return this._sortBy;
 	}
 
@@ -229,10 +229,10 @@ export class OutlinePanel extends ViewletPanel {
 	private _message: HTMLDivElement;
 	private _inputContainer: HTMLDivElement;
 	private _progressBar: ProgressBar;
-	private _tree: WorkbenchDataTree<OutlineModel, NOutlineItem, FuzzyScore>;
-	private _treeDataSource: NOutlineDataSource;
-	private _treeRenderer: NOutlineElementRenderer;
-	private _treeComparator: NOutlineItemComparator;
+	private _tree: WorkbenchDataTree<OutlineModel, OutlineItem, FuzzyScore>;
+	private _treeDataSource: OutlineDataSource;
+	private _treeRenderer: OutlineElementRenderer;
+	private _treeComparator: OutlineItemComparator;
 	private _treeStates = new LRUCache<string, IDataTreeViewState>(10);
 
 	private _treeFakeUIEvent = new UIEvent('me');
@@ -298,23 +298,23 @@ export class OutlinePanel extends ViewletPanel {
 			progressContainer, this._message, this._inputContainer, treeContainer
 		);
 
-		this._treeRenderer = this._instantiationService.createInstance(NOutlineElementRenderer);
-		this._treeDataSource = new NOutlineDataSource();
-		this._treeComparator = new NOutlineItemComparator(this._outlineViewState.sortBy);
+		this._treeRenderer = this._instantiationService.createInstance(OutlineElementRenderer);
+		this._treeDataSource = new OutlineDataSource();
+		this._treeComparator = new OutlineItemComparator(this._outlineViewState.sortBy);
 		this._tree = this._instantiationService.createInstance(
 			WorkbenchDataTree,
 			treeContainer,
-			new NOutlineVirtualDelegate(),
-			[new NOutlineGroupRenderer(), this._treeRenderer],
+			new OutlineVirtualDelegate(),
+			[new OutlineGroupRenderer(), this._treeRenderer],
 			this._treeDataSource,
 			{
 				expandOnlyOnTwistieClick: true,
 				filterOnType: this._outlineViewState.filterOnType,
-				sorter: new NOutlineItemComparator(),
-				identityProvider: new NOutlineIdentityProvider(),
-				keyboardNavigationLabelProvider: this._instantiationService.createInstance(NOutlineNavigationLabelProvider)
+				sorter: new OutlineItemComparator(),
+				identityProvider: new OutlineIdentityProvider(),
+				keyboardNavigationLabelProvider: this._instantiationService.createInstance(OutlineNavigationLabelProvider)
 			}
-		) as WorkbenchDataTree<OutlineModel, NOutlineItem, FuzzyScore>;
+		) as WorkbenchDataTree<OutlineModel, OutlineItem, FuzzyScore>;
 
 		this._treeRenderer.renderProblemColors = this._configurationService.getValue(OutlineConfigKeys.problemsColors);
 		this._treeRenderer.renderProblemBadges = this._configurationService.getValue(OutlineConfigKeys.problemsBadges);
@@ -356,9 +356,9 @@ export class OutlinePanel extends ViewletPanel {
 
 	getSecondaryActions(): IAction[] {
 		let group = new RadioGroup([
-			new SimpleToggleAction(localize('sortByPosition', "Sort By: Position"), this._outlineViewState.sortBy === NOutlineItemCompareType.ByPosition, _ => this._outlineViewState.sortBy = NOutlineItemCompareType.ByPosition),
-			new SimpleToggleAction(localize('sortByName', "Sort By: Name"), this._outlineViewState.sortBy === NOutlineItemCompareType.ByName, _ => this._outlineViewState.sortBy = NOutlineItemCompareType.ByName),
-			new SimpleToggleAction(localize('sortByKind', "Sort By: Type"), this._outlineViewState.sortBy === NOutlineItemCompareType.ByKind, _ => this._outlineViewState.sortBy = NOutlineItemCompareType.ByKind),
+			new SimpleToggleAction(localize('sortByPosition', "Sort By: Position"), this._outlineViewState.sortBy === OutlineSortOrder.ByPosition, _ => this._outlineViewState.sortBy = OutlineSortOrder.ByPosition),
+			new SimpleToggleAction(localize('sortByName', "Sort By: Name"), this._outlineViewState.sortBy === OutlineSortOrder.ByName, _ => this._outlineViewState.sortBy = OutlineSortOrder.ByName),
+			new SimpleToggleAction(localize('sortByKind', "Sort By: Type"), this._outlineViewState.sortBy === OutlineSortOrder.ByKind, _ => this._outlineViewState.sortBy = OutlineSortOrder.ByKind),
 		]);
 		let result = [
 			new SimpleToggleAction(localize('followCur', "Follow Cursor"), this._outlineViewState.followCursor, action => this._outlineViewState.followCursor = action.checked),
