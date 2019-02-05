@@ -87,18 +87,23 @@ const BUNDLED_FILE_HEADER = [
 	' *--------------------------------------------------------*/'
 ].join('\n');
 
-gulp.task('optimize-vscode', util.task.series(
-	util.task.parallel(util.rimraf('out-vscode'), compileBuildTask),
-	common.optimizeTask({
-		src: 'out-build',
-		entryPoints: vscodeEntryPoints,
-		otherSources: [],
-		resources: vscodeResources,
-		loaderConfig: common.loaderConfig(nodeModules),
-		header: BUNDLED_FILE_HEADER,
-		out: 'out-vscode',
-		bundleInfo: undefined
-	}))
+gulp.task('optimize-vscode',
+	util.task.series(
+		util.task.parallel(
+			util.rimraf('out-vscode'),
+			compileBuildTask
+		),
+		common.optimizeTask({
+			src: 'out-build',
+			entryPoints: vscodeEntryPoints,
+			otherSources: [],
+			resources: vscodeResources,
+			loaderConfig: common.loaderConfig(nodeModules),
+			header: BUNDLED_FILE_HEADER,
+			out: 'out-vscode',
+			bundleInfo: undefined
+		})
+	)
 );
 
 
