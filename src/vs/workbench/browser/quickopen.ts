@@ -50,14 +50,14 @@ export class QuickOpenHandler {
 	/**
 	 * The ARIA label to apply when this quick open handler is active in quick open.
 	 */
-	getAriaLabel() {
+	getAriaLabel(): string | null {
 		return null;
 	}
 
 	/**
 	 * Extra CSS class name to add to the quick open widget to do custom styling of entries.
 	 */
-	getClass() {
+	getClass(): string | null {
 		return null;
 	}
 
@@ -102,7 +102,7 @@ export class QuickOpenHandler {
 	/**
 	 * Allows to return a label that will be placed to the side of the results from this handler or null if none.
 	 */
-	getGroupLabel() {
+	getGroupLabel(): string | null {
 		return null;
 	}
 

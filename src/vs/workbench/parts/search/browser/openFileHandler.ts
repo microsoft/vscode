@@ -97,13 +97,10 @@ export class FileEntry extends EditorQuickOpenEntry {
 		const input: IResourceInput = {
 			resource: this.resource,
 			options: {
-				pinned: !this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromQuickOpen
+				pinned: !this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromQuickOpen,
+				selection: this.range ? this.range : undefined
 			}
 		};
-
-		if (this.range) {
-			input.options.selection = this.range;
-		}
 
 		return input;
 	}
@@ -178,7 +175,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 				for (const fileMatch of complete.results) {
 
 					const label = paths.basename(fileMatch.resource.fsPath);
-					const description = this.labelService.getUriLabel(resources.dirname(fileMatch.resource), { relative: true });
+					const description = this.labelService.getUriLabel(resources.dirname(fileMatch.resource)!, { relative: true });
 
 					results.push(this.instantiationService.createInstance(FileEntry, fileMatch.resource, label, description, iconClass));
 				}
@@ -188,14 +185,14 @@ export class OpenFileHandler extends QuickOpenHandler {
 		});
 	}
 
-	private getAbsolutePathResult(query: IPreparedQuery): Promise<URI | null> {
+	private getAbsolutePathResult(query: IPreparedQuery): Promise<URI | undefined> {
 		if (paths.isAbsolute(query.original)) {
 			const resource = URI.file(query.original);
 
 			return this.fileService.resolveFile(resource).then(stat => stat.isDirectory ? undefined : resource, error => undefined);
 		}
 
-		return Promise.resolve(null);
+		return Promise.resolve(undefined);
 	}
 
 	private doResolveQueryOptions(query: IPreparedQuery, cacheKey?: string, maxSortedResults?: number): IFileQueryBuilderOptions {
@@ -273,7 +270,7 @@ export class CacheState {
 	private loadingPhase = LoadingPhase.Created;
 	private promise: Promise<void>;
 
-	constructor(cacheQuery: (cacheKey: string) => IFileQuery, private doLoad: (query: IFileQuery) => Promise<any>, private doDispose: (cacheKey: string) => Promise<void>, private previous: CacheState) {
+	constructor(cacheQuery: (cacheKey: string) => IFileQuery, private doLoad: (query: IFileQuery) => Promise<any>, private doDispose: (cacheKey: string) => Promise<void>, private previous: CacheState | null) {
 		this.query = cacheQuery(this._cacheKey);
 		if (this.previous) {
 			const current = objects.assign({}, this.query, { cacheKey: null });
