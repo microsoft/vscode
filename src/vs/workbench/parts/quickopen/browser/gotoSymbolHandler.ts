@@ -82,9 +82,9 @@ class OutlineModel extends QuickOpenModel {
 		this.entries.forEach((entry: SymbolEntry) => {
 
 			// Clear all state first
-			entry.setGroupLabel(null);
+			entry.setGroupLabel(undefined);
 			entry.setShowBorder(false);
-			entry.setHighlights(null);
+			entry.setHighlights([]);
 			entry.setHidden(false);
 
 			// Filter by search

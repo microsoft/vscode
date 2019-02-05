@@ -606,6 +606,8 @@
 		"./vs/workbench/parts/stats/test/workspaceStats.test.ts",
 		"./vs/workbench/parts/surveys/electron-browser/languageSurveys.contribution.ts",
 		"./vs/workbench/parts/surveys/electron-browser/nps.contribution.ts",
+		"./vs/workbench/parts/tasks/browser/quickOpen.ts",
+		"./vs/workbench/parts/tasks/browser/taskQuickOpen.ts",
 		"./vs/workbench/parts/tasks/common/problemCollectors.ts",
 		"./vs/workbench/parts/tasks/common/problemMatcher.ts",
 		"./vs/workbench/parts/tasks/common/taskDefinitionRegistry.ts",
