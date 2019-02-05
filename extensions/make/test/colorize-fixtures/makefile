@@ -75,3 +75,10 @@ var:=123
 var!=echo val
 var:=val \
 notvar=butval
+
+var-$(nested-var)=val
+
+# Spaces in a nested shell will hurt a colorizing of variable,
+# but not so much.
+var-$(shell printf 2) := val2
+$(info Should be 'val2' here: $(var-2))
