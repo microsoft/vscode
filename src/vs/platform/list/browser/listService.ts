@@ -232,27 +232,6 @@ function getSharedListStyleSheet(): HTMLStyleElement {
 	return sharedListStyleSheet;
 }
 
-let sharedTreeStyleSheet: HTMLStyleElement;
-function getSharedTreeStyleSheet(): HTMLStyleElement {
-	if (!sharedTreeStyleSheet) {
-		sharedTreeStyleSheet = createStyleSheet();
-	}
-
-	return sharedTreeStyleSheet;
-}
-
-function handleTreeController(configuration: ITreeConfiguration, instantiationService: IInstantiationService): ITreeConfiguration {
-	if (!configuration.controller) {
-		configuration.controller = instantiationService.createInstance(WorkbenchTreeController, {});
-	}
-
-	if (!configuration.styler) {
-		configuration.styler = new DefaultTreestyler(getSharedTreeStyleSheet());
-	}
-
-	return configuration;
-}
-
 export class WorkbenchList<T> extends List<T> {
 
 	readonly contextKeyService: IContextKeyService;
@@ -408,6 +387,36 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 	}
 }
 
+/**
+ * @deprecated
+ */
+let sharedTreeStyleSheet: HTMLStyleElement;
+function getSharedTreeStyleSheet(): HTMLStyleElement {
+	if (!sharedTreeStyleSheet) {
+		sharedTreeStyleSheet = createStyleSheet();
+	}
+
+	return sharedTreeStyleSheet;
+}
+
+/**
+ * @deprecated
+ */
+function handleTreeController(configuration: ITreeConfiguration, instantiationService: IInstantiationService): ITreeConfiguration {
+	if (!configuration.controller) {
+		configuration.controller = instantiationService.createInstance(WorkbenchTreeController, {});
+	}
+
+	if (!configuration.styler) {
+		configuration.styler = new DefaultTreestyler(getSharedTreeStyleSheet());
+	}
+
+	return configuration;
+}
+
+/**
+ * @deprecated
+ */
 export class WorkbenchTree extends Tree {
 
 	readonly contextKeyService: IContextKeyService;
@@ -502,6 +511,9 @@ export class WorkbenchTree extends Tree {
 	}
 }
 
+/**
+ * @deprecated
+ */
 function massageControllerOptions(options: IControllerOptions): IControllerOptions {
 	if (typeof options.keyboardSupport !== 'boolean') {
 		options.keyboardSupport = false;
@@ -514,6 +526,9 @@ function massageControllerOptions(options: IControllerOptions): IControllerOptio
 	return options;
 }
 
+/**
+ * @deprecated
+ */
 export class WorkbenchTreeController extends DefaultController {
 
 	protected disposables: IDisposable[] = [];
@@ -559,6 +574,9 @@ export interface IResourceResultsNavigationOptions {
 	openOnFocus: boolean;
 }
 
+/**
+ * @deprecated
+ */
 export class TreeResourceNavigator extends Disposable {
 
 	private readonly _openResource = new Emitter<IOpenResourceOptions>();
