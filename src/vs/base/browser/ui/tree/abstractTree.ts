@@ -6,12 +6,12 @@
 import 'vs/css!./media/tree';
 import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IListOptions, List, IListStyles, mightProducePrintableCharacter, MouseController } from 'vs/base/browser/ui/list/listWidget';
-import { IListVirtualDelegate, IListRenderer, IListMouseEvent, IListEvent, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate, IListRenderer, IListMouseEvent, IListEvent, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IKeyboardNavigationLabelProvider, IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { append, $, toggleClass, getDomNodePagePosition, removeClass, addClass, hasClass } from 'vs/base/browser/dom';
 import { Event, Relay, Emitter, EventBufferer } from 'vs/base/common/event';
 import { StandardKeyboardEvent, IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { ITreeModel, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent, ITreeFilter, ITreeNavigator, ICollapseStateChangeEvent, ITreeDragAndDrop, TreeDragOverBubble, TreeVisibility, TreeFilterResult } from 'vs/base/browser/ui/tree/tree';
+import { ITreeModel, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent, ITreeFilter, ITreeNavigator, ICollapseStateChangeEvent, ITreeDragAndDrop, TreeDragOverBubble, TreeVisibility, TreeFilterResult, ITreeModelSpliceEvent } from 'vs/base/browser/ui/tree/tree';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { IDragAndDropData, StaticDND, DragAndDropData } from 'vs/base/browser/dnd';
 import { range } from 'vs/base/common/arrays';
@@ -700,6 +700,11 @@ export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTr
 	readonly expandOnlyOnTwistieClick?: boolean;
 }
 
+function dfs<T, TFilterData>(node: ITreeNode<T, TFilterData>, fn: (node: ITreeNode<T, TFilterData>) => void): void {
+	fn(node);
+	node.children.forEach(child => dfs(child, fn));
+}
+
 /**
  * The trait concept needs to exist at the tree level, because collapsed
  * tree nodes will not be known by the list.
@@ -715,15 +720,13 @@ class Trait<T> {
 	private _nodeSet: Set<ITreeNode<T, any>> | undefined;
 	private get nodeSet(): Set<ITreeNode<T, any>> {
 		if (!this._nodeSet) {
-			this._nodeSet = new Set();
-
-			for (const node of this.nodes) {
-				this._nodeSet.add(node);
-			}
+			this._nodeSet = this.createNodeSet();
 		}
 
 		return this._nodeSet;
 	}
+
+	constructor(private identityProvider?: IIdentityProvider<T>) { }
 
 	set(nodes: ITreeNode<T, any>[], browserEvent?: UIEvent): void {
 		this.nodes = [...nodes];
@@ -746,19 +749,37 @@ class Trait<T> {
 		return this.nodeSet.has(node);
 	}
 
-	remove(nodes: ITreeNode<T, any>[]): void {
-		if (nodes.length === 0) {
+	onDidModelSplice({ insertedNodes, deletedNodes }: ITreeModelSpliceEvent<T, any>): void {
+		if (!this.identityProvider) {
+			const set = this.createNodeSet();
+			const visit = node => set.delete(node);
+			deletedNodes.forEach(node => dfs(node, visit));
+			this.set(values(set));
 			return;
 		}
 
-		const set = this.nodeSet;
-		const visit = (node: ITreeNode<T, any>) => {
-			set.delete(node);
-			node.children.forEach(visit);
-		};
+		const identityProvider = this.identityProvider;
+		const nodesByIdentity = new Map<string, ITreeNode<T, any>>();
+		this.nodes.forEach(node => nodesByIdentity.set(identityProvider.getId(node.element).toString(), node));
 
-		nodes.forEach(visit);
-		this.set(values(set));
+		const toDeleteByIdentity = new Map<string, ITreeNode<T, any>>();
+		const toRemoveSetter = node => toDeleteByIdentity.set(identityProvider.getId(node.element).toString(), node);
+		const toRemoveDeleter = node => toDeleteByIdentity.delete(identityProvider.getId(node.element).toString());
+		deletedNodes.forEach(node => dfs(node, toRemoveSetter));
+		insertedNodes.forEach(node => dfs(node, toRemoveDeleter));
+
+		toDeleteByIdentity.forEach((_, id) => nodesByIdentity.delete(id));
+		this.set(values(nodesByIdentity));
+	}
+
+	private createNodeSet(): Set<ITreeNode<T, any>> {
+		const set = new Set<ITreeNode<T, any>>();
+
+		for (const node of this.nodes) {
+			set.add(node);
+		}
+
+		return set;
 	}
 }
 
@@ -879,16 +900,16 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	private renderers: TreeRenderer<T, TFilterData, any>[];
 	private focusNavigationFilter: ((node: ITreeNode<T, TFilterData>) => boolean) | undefined;
 	protected model: ITreeModel<T, TFilterData, TRef>;
-	private focus = new Trait<T>();
-	private selection = new Trait<T>();
+	private focus: Trait<T>;
+	private selection: Trait<T>;
 	private eventBufferer = new EventBufferer();
 	private typeFilterController?: TypeFilterController<T, TFilterData>;
 	protected disposables: IDisposable[] = [];
 
 	get onDidScroll(): Event<void> { return this.view.onDidScroll; }
 
-	readonly onDidChangeFocus: Event<ITreeEvent<T>> = this.eventBufferer.wrapEvent(this.focus.onDidChange);
-	readonly onDidChangeSelection: Event<ITreeEvent<T>> = this.eventBufferer.wrapEvent(this.selection.onDidChange);
+	get onDidChangeFocus(): Event<ITreeEvent<T>> { return this.eventBufferer.wrapEvent(this.focus.onDidChange); }
+	get onDidChangeSelection(): Event<ITreeEvent<T>> { return this.eventBufferer.wrapEvent(this.selection.onDidChange); }
 	get onDidOpen(): Event<ITreeEvent<T>> { return Event.map(this.view.onDidOpen, asTreeEvent); }
 
 	get onMouseClick(): Event<ITreeMouseEvent<T>> { return Event.map(this.view.onMouseClick, asTreeMouseEvent); }
@@ -936,41 +957,17 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 			this.disposables.push(filter);
 		}
 
+		this.focus = new Trait(_options.identityProvider);
+		this.selection = new Trait(_options.identityProvider);
 		this.view = new TreeNodeList(container, treeDelegate, this.renderers, this.focus, this.selection, { ...asListOptions(() => this.model, _options), tree: this });
 
 		this.model = this.createModel(this.view, _options);
 		onDidChangeCollapseStateRelay.input = this.model.onDidChangeCollapseState;
 
-		if (this.options.identityProvider) {
-			const identityProvider = this.options.identityProvider;
-
-			this.model.onDidSplice(e => {
-				if (e.deletedNodes.length === 0) {
-					return;
-				}
-
-				this.eventBufferer.bufferEvents(() => {
-					const map = new Map<string, ITreeNode<T, TFilterData>>();
-
-					for (const node of e.deletedNodes) {
-						map.set(identityProvider.getId(node.element).toString(), node);
-					}
-
-					for (const node of e.insertedNodes) {
-						map.delete(identityProvider.getId(node.element).toString());
-					}
-
-					if (map.size === 0) {
-						return;
-					}
-
-					const deletedNodes = values(map);
-
-					this.focus.remove(deletedNodes);
-					this.selection.remove(deletedNodes);
-				});
-			}, null, this.disposables);
-		}
+		this.model.onDidSplice(e => {
+			this.focus.onDidModelSplice(e);
+			this.selection.onDidModelSplice(e);
+		}, null, this.disposables);
 
 		if (_options.keyboardSupport !== false) {
 			const onKeyDown = Event.chain(this.view.onKeyDown)
