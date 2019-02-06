@@ -16,38 +16,23 @@
 /* Font Families (with CJK support) */
 
 /* mac */
-.monaco-shell.mac,
-.monaco-shell.mac .monaco-menu-container .monaco-menu { font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
-.monaco-shell.mac:lang(zh-Hans),
-.monaco-shell.mac:lang(zh-Hans) .monaco-menu-container .monaco-menu { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", sans-serif; }
-.monaco-shell.mac:lang(zh-Hant),
-.monaco-shell.mac:lang(zh-Hant) .monaco-menu-container .monaco-menu { font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", sans-serif; }
-.monaco-shell.mac:lang(ja),
-.monaco-shell.mac:lang(ja) .monaco-menu-container .monaco-menu { font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic Pro", sans-serif; }
-.monaco-shell.mac:lang(ko),
-.monaco-shell.mac:lang(ko) .monaco-menu-container .monaco-menu { font-family: -apple-system, BlinkMacSystemFont, "Nanum Gothic", "Apple SD Gothic Neo", "AppleGothic", sans-serif; }
+.monaco-shell.mac { font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+.monaco-shell.mac:lang(zh-Hans) { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", sans-serif; }
+.monaco-shell.mac:lang(zh-Hant) { font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", sans-serif; }
+.monaco-shell.mac:lang(ja) { font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic Pro", sans-serif; }
+.monaco-shell.mac:lang(ko) { font-family: -apple-system, BlinkMacSystemFont, "Nanum Gothic", "Apple SD Gothic Neo", "AppleGothic", sans-serif; }
 /* windows */
-.monaco-shell.windows,
-.monaco-shell.windows .monaco-menu-container .monaco-menu { font-family: "Segoe WPC", "Segoe UI", sans-serif; }
-.monaco-shell.windows:lang(zh-Hans),
-.monaco-shell.windows:lang(zh-Hans) .monaco-menu-container .monaco-menu { font-family: "Segoe WPC", "Segoe UI", "Microsoft YaHei", sans-serif; }
-.monaco-shell.windows:lang(zh-Hant),
-.monaco-shell.windows:lang(zh-Hant) .monaco-menu-container .monaco-menu { font-family: "Segoe WPC", "Segoe UI", "Microsoft Jhenghei", sans-serif; }
-.monaco-shell.windows:lang(ja),
-.monaco-shell.windows:lang(ja) .monaco-menu-container .monaco-menu { font-family: "Segoe WPC", "Segoe UI", "Meiryo", sans-serif; }
-.monaco-shell.windows:lang(ko),
-.monaco-shell.windows:lang(ko) .monaco-menu-container .monaco-menu { font-family: "Segoe WPC", "Segoe UI", "Malgun Gothic", "Dotom", sans-serif; }
+.monaco-shell.windows { font-family: "Segoe WPC", "Segoe UI", sans-serif; }
+.monaco-shell.windows:lang(zh-Hans) { font-family: "Segoe WPC", "Segoe UI", "Microsoft YaHei", sans-serif; }
+.monaco-shell.windows:lang(zh-Hant) { font-family: "Segoe WPC", "Segoe UI", "Microsoft Jhenghei", sans-serif; }
+.monaco-shell.windows:lang(ja) { font-family: "Segoe WPC", "Segoe UI", "Meiryo", sans-serif; }
+.monaco-shell.windows:lang(ko) { font-family: "Segoe WPC", "Segoe UI", "Malgun Gothic", "Dotom", sans-serif; }
 /* linux */
-.monaco-shell.linux,
-.monaco-shell.linux .monaco-menu-container .monaco-menu { font-family: "Ubuntu", "Droid Sans", sans-serif; }
-.monaco-shell.linux:lang(zh-Hans),
-.monaco-shell.linux:lang(zh-Hans) .monaco-menu-container .monaco-menu { font-family: "Ubuntu", "Droid Sans", "Source Han Sans SC", "Source Han Sans CN", "Source Han Sans", sans-serif; }
-.monaco-shell.linux:lang(zh-Hant),
-.monaco-shell.linux:lang(zh-Hant) .monaco-menu-container .monaco-menu { font-family: "Ubuntu", "Droid Sans", "Source Han Sans TC", "Source Han Sans TW", "Source Han Sans", sans-serif; }
-.monaco-shell.linux:lang(ja),
-.monaco-shell.linux:lang(ja) .monaco-menu-container .monaco-menu { font-family: "Ubuntu", "Droid Sans", "Source Han Sans J", "Source Han Sans JP", "Source Han Sans", sans-serif; }
-.monaco-shell.linux:lang(ko),
-.monaco-shell.linux:lang(ko) .monaco-menu-container .monaco-menu { font-family: "Ubuntu", "Droid Sans", "Source Han Sans K", "Source Han Sans JR", "Source Han Sans", "UnDotum", "FBaekmuk Gulim", sans-serif; }
+.monaco-shell.linux { font-family: "Ubuntu", "Droid Sans", sans-serif; }
+.monaco-shell.linux:lang(zh-Hans) { font-family: "Ubuntu", "Droid Sans", "Source Han Sans SC", "Source Han Sans CN", "Source Han Sans", sans-serif; }
+.monaco-shell.linux:lang(zh-Hant) { font-family: "Ubuntu", "Droid Sans", "Source Han Sans TC", "Source Han Sans TW", "Source Han Sans", sans-serif; }
+.monaco-shell.linux:lang(ja) { font-family: "Ubuntu", "Droid Sans", "Source Han Sans J", "Source Han Sans JP", "Source Han Sans", sans-serif; }
+.monaco-shell.linux:lang(ko) { font-family: "Ubuntu", "Droid Sans", "Source Han Sans K", "Source Han Sans JR", "Source Han Sans", "UnDotum", "FBaekmuk Gulim", sans-serif; }
 
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
