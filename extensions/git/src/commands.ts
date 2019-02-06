@@ -1200,21 +1200,19 @@ export class CommandCenter {
 		const promptToSaveFilesBeforeCommit = config.get<boolean>('promptToSaveFilesBeforeCommit') === true;
 
 		if (promptToSaveFilesBeforeCommit) {
-			const stagedUnsavedTextDocuments = workspace.textDocuments
-				.filter(d => !d.isUntitled && d.isDirty && isDescendant(repository.root, d.uri.fsPath))
-				.filter(d => repository.indexGroup.resourceStates.some(s =>
-					s.resourceUri.path === d.uri.fsPath));
+			const unsavedTextDocuments = workspace.textDocuments
+				.filter(d => !d.isUntitled && d.isDirty && isDescendant(repository.root, d.uri.fsPath));
 
-			if (stagedUnsavedTextDocuments.length > 0) {
-				const message = stagedUnsavedTextDocuments.length === 1
-					? localize('unsaved files single', "The following file is unsaved: {0}.\n\nWould you like to save it before committing?", path.basename(stagedUnsavedTextDocuments[0].uri.fsPath))
-					: localize('unsaved files', "There are {0} unsaved files.\n\nWould you like to save them before committing?", stagedUnsavedTextDocuments.length);
+			if (unsavedTextDocuments.length > 0) {
+				const message = unsavedTextDocuments.length === 1
+					? localize('unsaved files single', "The following file is unsaved: {0}.\n\nWould you like to save it before committing?", path.basename(unsavedTextDocuments[0].uri.fsPath))
+					: localize('unsaved files', "There are {0} unsaved files.\n\nWould you like to save them before committing?", unsavedTextDocuments.length);
 				const saveAndCommit = localize('save and commit', "Save All & Commit");
 				const commit = localize('commit', "Commit Anyway");
 				const pick = await window.showWarningMessage(message, { modal: true }, saveAndCommit, commit);
 
 				if (pick === saveAndCommit) {
-					await Promise.all(stagedUnsavedTextDocuments.map(d => d.save()));
+					await Promise.all(unsavedTextDocuments.map(d => d.save()));
 					await repository.status();
 				} else if (pick !== commit) {
 					return false; // do not commit on cancel
