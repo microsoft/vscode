@@ -486,6 +486,7 @@
 		"./vs/workbench/parts/comments/electron-browser/simpleCommentEditor.ts",
 		"./vs/workbench/parts/debug/browser/debugANSIHandling.ts",
 		"./vs/workbench/parts/debug/browser/linkDetector.ts",
+		"./vs/workbench/parts/debug/common/debugProtocol.d.ts",
 		"./vs/workbench/parts/debug/node/telemetryApp.ts",
 		"./vs/workbench/parts/emmet/browser/actions/showEmmetCommands.ts",
 		"./vs/workbench/parts/emmet/browser/emmet.browser.contribution.ts",
