@@ -34,12 +34,12 @@ import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemAc
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { DirtyEditorContext, OpenEditorsGroupContext } from 'vs/workbench/parts/files/electron-browser/fileCommands';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
-import { ResourcesDropHandler, fillResourceDataTransfers } from 'vs/workbench/browser/dnd';
+import { ResourcesDropHandler, fillResourceDataTransfers, CodeDataTransfers } from 'vs/workbench/browser/dnd';
 import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IDragAndDropData } from 'vs/base/browser/dnd';
+import { IDragAndDropData, DataTransfers } from 'vs/base/browser/dnd';
 import { memoize } from 'vs/base/common/decorators';
-import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
+import { ElementsDragAndDropData, DesktopDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { URI } from 'vs/base/common/uri';
 
 const $ = dom.$;
@@ -645,6 +645,18 @@ class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGro
 	}
 
 	onDragOver(data: IDragAndDropData, targetElement: OpenEditor | IEditorGroup, targetIndex: number, originalEvent: DragEvent): boolean | IListDragOverReaction {
+		if (data instanceof DesktopDragAndDropData) {
+			const types = originalEvent.dataTransfer.types;
+			const typesArray: string[] = [];
+			for (let i = 0; i < types.length; i++) {
+				typesArray.push(types[i].toLowerCase()); // somehow the types are lowercase
+			}
+
+			if (typesArray.indexOf(DataTransfers.FILES.toLowerCase()) === -1 && typesArray.indexOf(CodeDataTransfers.FILES.toLowerCase()) === -1) {
+				return false;
+			}
+		}
+
 		return true;
 	}
 
