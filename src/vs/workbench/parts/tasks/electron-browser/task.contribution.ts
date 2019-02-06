@@ -1824,6 +1824,7 @@ class TaskService extends Disposable implements ITaskService {
 		} else if (err instanceof Error) {
 			let error = <Error>err;
 			this.notificationService.error(error.message);
+			showOutput = false;
 		} else if (Types.isString(err)) {
 			this.notificationService.error(<string>err);
 		} else {
