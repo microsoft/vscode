@@ -296,23 +296,13 @@ suite('BackupMainService', () => {
 
 		test('migrate storage file', async () => {
 			let folderPath = path.join(parentDir, 'f1');
+			ensureFolderExists(URI.file(folderPath));
 			const backupFolderPath = service.toLegacyBackupPath(folderPath);
-			if (!fs.existsSync(backupFolderPath)) {
-				fs.mkdirSync(backupFolderPath);
-				fs.mkdirSync(path.join(backupFolderPath, Schemas.file));
-				await pfs.writeFile(path.join(backupFolderPath, Schemas.file, 'unsaved1.txt'), 'Legacy');
-			}
+			await createBackupFolder(backupFolderPath);
 
 			let workspacePath = path.join(parentDir, 'f2.code-workspace');
 			const workspace = toWorkspace(workspacePath);
-
-			const backupWorkspacePath = service.toBackupPath(workspace.id);
-			if (!fs.existsSync(backupWorkspacePath)) {
-				fs.mkdirSync(backupWorkspacePath);
-				fs.mkdirSync(path.join(backupWorkspacePath, Schemas.file));
-				await pfs.writeFile(path.join(backupWorkspacePath, Schemas.file, 'unsaved2.txt'), 'Legacy');
-			}
-
+			await ensureWorkspaceExists(workspace);
 
 			const workspacesJson = { rootWorkspaces: [{ id: workspace.id, configPath: workspacePath }], folderWorkspaces: [folderPath], emptyWorkspaces: [] };
 			await pfs.writeFile(backupWorkspacesPath, JSON.stringify(workspacesJson));
@@ -320,7 +310,9 @@ suite('BackupMainService', () => {
 			const content = await pfs.readFile(backupWorkspacesPath, 'utf-8');
 			const json = (<IBackupWorkspacesFormat>JSON.parse(content));
 			assert.deepEqual(json.folderURIWorkspaces, [URI.file(folderPath).toString()]);
-			assert.deepEqual(json.rootURIWorkspaces, [{ id: workspace.id, configPath: URI.file(workspacePath).toString() }]);
+			assert.deepEqual(json.rootURIWorkspaces, [{ id: workspace.id, configURIPath: URI.file(workspacePath).toString() }]);
+
+			assertEqualUris(service.getWorkspaceBackups().map(w => w.configPath), [workspace.configPath]);
 		});
 	});
 
