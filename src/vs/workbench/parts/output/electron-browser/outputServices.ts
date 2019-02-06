@@ -340,7 +340,7 @@ class FileOutputChannel extends AbstractFileOutputChannel implements OutputChann
 
 	private updateInProgress: boolean = false;
 	private etag: string = '';
-	private loadModelPromise: Promise<ITextModel> = Promise.resolve();
+	private loadModelPromise: Promise<ITextModel> = Promise.resolve(undefined);
 
 	constructor(
 		outputChannelDescriptor: IOutputChannelDescriptor,

@@ -553,7 +553,7 @@ class RenameAdapter {
 			if (rejectReason) {
 				return <modes.RenameLocation & modes.Rejection>{ rejectReason, range: undefined, text: undefined };
 			} else {
-				return Promise.reject(err);
+				return Promise.reject<any>(err);
 			}
 		});
 	}

@@ -215,7 +215,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// Unset flags
 		const undo = this.setDirty(false);
 
-		let loadPromise: Promise<TextFileEditorModel>;
+		let loadPromise: Promise<any>;
 		if (soft) {
 			loadPromise = Promise.resolve();
 		} else {

@@ -241,7 +241,7 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 			this.renderer.disposeElement(node, index, templateData.templateData);
 		}
 		this.renderedNodes.delete(node);
-		this.renderedElements.set(node.element);
+		this.renderedElements.delete(node.element);
 	}
 
 	disposeTemplate(templateData: ITreeListTemplateData<TTemplateData>): void {

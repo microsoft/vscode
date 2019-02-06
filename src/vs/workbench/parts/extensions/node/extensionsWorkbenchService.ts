@@ -673,7 +673,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 
 	installVersion(extension: IExtension, version: string): Promise<IExtension> {
 		if (!(extension instanceof Extension)) {
-			return Promise.resolve();
+			return Promise.resolve(extension);
 		}
 
 		if (!extension.gallery) {

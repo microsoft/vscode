@@ -41,7 +41,7 @@ export class TestEditorInput extends EditorInput implements IFileEditorInput {
 	constructor(private resource: URI) { super(); }
 
 	getTypeId() { return 'testEditorInputForEditorGroupService'; }
-	resolve(): Promise<IEditorModel> { return Promise.resolve(); }
+	resolve(): Promise<IEditorModel> { return Promise.resolve(undefined); }
 	matches(other: TestEditorInput): boolean { return other && this.resource.toString() === other.resource.toString() && other instanceof TestEditorInput; }
 	setEncoding(encoding: string) { }
 	getEncoding(): string { return null!; }

@@ -177,7 +177,7 @@ export class TextFileEditor extends BaseTextEditor {
 				if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_IS_DIRECTORY) {
 					this.openAsFolder(input);
 
-					return Promise.reject(new Error(nls.localize('openFolderError', "File is a directory")));
+					return Promise.reject<any>(new Error(nls.localize('openFolderError', "File is a directory")));
 				}
 
 				// Offer to create a file from the error if we have a file not found and the name is valid

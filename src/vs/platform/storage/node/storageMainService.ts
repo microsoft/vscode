@@ -236,7 +236,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 
 				return import('vscode-sqlite3').then(sqlite3 => {
 
-					return new Promise((resolve, reject) => {
+					return new Promise<void>((resolve, reject) => {
 						const handleSuffixKey = (row, key: string, suffix: string) => {
 							if (endsWith(key, suffix.toLowerCase())) {
 								const value: string = row.value.toString('utf16le');

@@ -386,7 +386,7 @@ export class RemoteFileService extends FileService {
 				return toDecodeStream(readable, decodeStreamOpts).then(data => {
 
 					if (options.acceptTextOnly && data.detected.seemsBinary) {
-						return Promise.reject(new FileOperationError(
+						return Promise.reject<any>(new FileOperationError(
 							localize('fileBinaryError', "File seems to be binary and cannot be opened as text"),
 							FileOperationResult.FILE_IS_BINARY,
 							options
