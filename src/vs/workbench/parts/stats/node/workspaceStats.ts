@@ -747,7 +747,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 	*/
 	private reportWorkspaceMetadata(stats: WorkspaceStatsType[]): void {
 		for (let stat of stats) { // one event for each root folder in the workspace
-			this.telemetryService.publicLog('workspce.metadata', {
+			this.telemetryService.publicLog('workspace.metadata', {
 				'fileTypes': stat.fileTypes,
 				'configTypes': stat.configFiles,
 				'launchConfigs': stat.launchConfigFiles

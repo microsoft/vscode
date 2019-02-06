@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { WorkspaceStats, collectWorkspaceStats, WorkspaceStatItem } from 'vs/base/node/stats';
+import { WorkspaceStats, collectWorkspaceStats } from 'vs/base/node/stats';
 import { IMainProcessInfo } from 'vs/platform/launch/electron-main/launchService';
 import { ProcessItem, listProcesses } from 'vs/base/node/ps';
 import product from 'vs/platform/node/product';
@@ -109,10 +109,6 @@ export class DiagnosticsService implements IDiagnosticsService {
 								}
 								workspaceInfoMessages.push(`|    Folder (${basename(folder)}): ${countMessage}`);
 								workspaceInfoMessages.push(this.formatWorkspaceStats(stats));
-
-								if (stats.launchConfigFiles.length > 0) {
-									workspaceInfoMessages.push(this.formatLaunchConfigs(stats.launchConfigFiles));
-								}
 							}));
 						} else {
 							workspaceInfoMessages.push(`|    Folder (${folderUri.toString()}): RPerformance stats not available.`);
@@ -195,9 +191,6 @@ export class DiagnosticsService implements IDiagnosticsService {
 								console.log(`|    Folder (${basename(folder)}): ${countMessage}`);
 								console.log(this.formatWorkspaceStats(stats));
 
-								if (stats.launchConfigFiles.length > 0) {
-									console.log(this.formatLaunchConfigs(stats.launchConfigFiles));
-								}
 							}).catch(error => {
 								console.log(`|      Error: Unable to collect workspace stats for folder ${folder} (${error.toString()})`);
 							}));
@@ -254,17 +247,14 @@ export class DiagnosticsService implements IDiagnosticsService {
 			output.push(line);
 		}
 
-		return output.join('\n');
-	}
-
-	private formatLaunchConfigs(configs: WorkspaceStatItem[]): string {
-		const output: string[] = [];
-		let line = '|      Launch Configs:';
-		configs.forEach(each => {
-			const item = each.count > 1 ? ` ${each.name}(${each.count})` : ` ${each.name}`;
-			line += item;
-		});
-		output.push(line);
+		if (workspaceStats.launchConfigFiles.length > 0) {
+			let line = '|      Launch Configs:';
+			workspaceStats.launchConfigFiles.forEach(each => {
+				const item = each.count > 1 ? ` ${each.name}(${each.count})` : ` ${each.name}`;
+				line += item;
+			});
+			output.push(line);
+		}
 		return output.join('\n');
 	}
 
