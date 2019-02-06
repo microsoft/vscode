@@ -129,18 +129,6 @@ export function skipDirectories(): NodeJS.ReadWriteStream {
 	});
 }
 
-/**
- * gulp does not like anything except the latest VinylFile (it checks for VinylFile.isVinyl)
- */
-export function toLatestVinylFile(): NodeJS.ReadWriteStream {
-	return es.mapSync<VinylFile, VinylFile>(f => {
-		if (VinylFile.isVinyl(f)) {
-			return f;
-		}
-		return new VinylFile(f);
-	});
-}
-
 export function cleanNodeModule(name: string, excludes: string[], includes?: string[]): NodeJS.ReadWriteStream {
 	const toGlob = (path: string) => '**/node_modules/' + name + (path ? '/' + path : '');
 	const negate = (str: string) => '!' + str;

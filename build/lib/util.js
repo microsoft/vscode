@@ -98,18 +98,6 @@ function skipDirectories() {
     });
 }
 exports.skipDirectories = skipDirectories;
-/**
- * gulp does not like anything except the latest VinylFile (it checks for VinylFile.isVinyl)
- */
-function toLatestVinylFile() {
-    return es.mapSync(f => {
-        if (VinylFile.isVinyl(f)) {
-            return f;
-        }
-        return new VinylFile(f);
-    });
-}
-exports.toLatestVinylFile = toLatestVinylFile;
 function cleanNodeModule(name, excludes, includes) {
     const toGlob = (path) => '**/node_modules/' + name + (path ? '/' + path : '');
     const negate = (str) => '!' + str;
