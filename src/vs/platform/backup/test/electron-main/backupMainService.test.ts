@@ -255,9 +255,9 @@ suite('BackupMainService', () => {
 		assert.equal(1, fs.readdirSync(path.join(backupHome, emptyBackups[0].backupFolder)).length);
 	});
 
-	suite('migrate folderPath to folderURI', () => {
+	suite('migrate path to URI', () => {
 
-		test('migration makes sure to preserve existing backups', async () => {
+		test('migration folder path to URI makes sure to preserve existing backups', async () => {
 			let path1 = path.join(parentDir, 'folder1');
 			let path2 = path.join(parentDir, 'FOLDER2');
 			let uri1 = Uri.file(path1);
@@ -293,7 +293,37 @@ suite('BackupMainService', () => {
 			const newBackupFolder2 = service.toBackupPath(uri2);
 			assert.ok(fs.existsSync(path.join(newBackupFolder2, Schemas.file, 'unsaved2.txt')));
 		});
+
+		test('migrate storage file', async () => {
+			let folderPath = path.join(parentDir, 'f1');
+			const backupFolderPath = service.toLegacyBackupPath(folderPath);
+			if (!fs.existsSync(backupFolderPath)) {
+				fs.mkdirSync(backupFolderPath);
+				fs.mkdirSync(path.join(backupFolderPath, Schemas.file));
+				await pfs.writeFile(path.join(backupFolderPath, Schemas.file, 'unsaved1.txt'), 'Legacy');
+			}
+
+			let workspacePath = path.join(parentDir, 'f2.code-workspace');
+			const workspace = toWorkspace(workspacePath);
+
+			const backupWorkspacePath = service.toBackupPath(workspace.id);
+			if (!fs.existsSync(backupWorkspacePath)) {
+				fs.mkdirSync(backupWorkspacePath);
+				fs.mkdirSync(path.join(backupWorkspacePath, Schemas.file));
+				await pfs.writeFile(path.join(backupWorkspacePath, Schemas.file, 'unsaved2.txt'), 'Legacy');
+			}
+
+
+			const workspacesJson = { rootWorkspaces: [{ id: workspace.id, configPath: workspacePath }], folderWorkspaces: [folderPath], emptyWorkspaces: [] };
+			await pfs.writeFile(backupWorkspacesPath, JSON.stringify(workspacesJson));
+			await service.initialize();
+			const content = await pfs.readFile(backupWorkspacesPath, 'utf-8');
+			const json = (<IBackupWorkspacesFormat>JSON.parse(content));
+			assert.deepEqual(json.folderURIWorkspaces, [URI.file(folderPath).toString()]);
+			assert.deepEqual(json.rootURIWorkspaces, [{ id: workspace.id, configPath: URI.file(workspacePath).toString() }]);
+		});
 	});
+
 
 	suite('loadSync', () => {
 		test('getFolderBackupPaths() should return [] when workspaces.json doesn\'t exist', () => {
