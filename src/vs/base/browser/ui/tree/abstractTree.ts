@@ -531,7 +531,10 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		this._pattern = pattern;
 		this.filter.pattern = pattern;
 		this.tree.refilter();
-		this.tree.focusNext(0, true);
+
+		if (pattern) {
+			this.tree.focusNext(0, true, undefined, node => !FuzzyScore.isDefault(node.filterData as any as FuzzyScore));
+		}
 
 		const focus = this.tree.getFocus();
 
@@ -646,6 +649,18 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		toggleClass(this.domNode, 'no-matches', noMatches);
 		this.domNode.title = localize('found', "Matched {0} out of {1} elements", this.filter.matchCount, this.filter.totalCount);
 		this.labelDomNode.textContent = this.pattern.length > 16 ? '…' + this.pattern.substr(this.pattern.length - 16) : this.pattern;
+	}
+
+	shouldAllowFocus(node: ITreeNode<T, TFilterData>): boolean {
+		if (!this.enabled || !this.pattern || this.filterOnType) {
+			return true;
+		}
+
+		if (this.filter.totalCount > 0 && this.filter.matchCount <= 1) {
+			return true;
+		}
+
+		return !FuzzyScore.isDefault(node.filterData as any as FuzzyScore);
 	}
 
 	dispose() {
@@ -898,12 +913,12 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 	private view: TreeNodeList<T, TFilterData, TRef>;
 	private renderers: TreeRenderer<T, TFilterData, any>[];
-	private focusNavigationFilter: ((node: ITreeNode<T, TFilterData>) => boolean) | undefined;
 	protected model: ITreeModel<T, TFilterData, TRef>;
 	private focus: Trait<T>;
 	private selection: Trait<T>;
 	private eventBufferer = new EventBufferer();
 	private typeFilterController?: TypeFilterController<T, TFilterData>;
+	private focusNavigationFilter: ((node: ITreeNode<T, TFilterData>) => boolean) | undefined;
 	protected disposables: IDisposable[] = [];
 
 	get onDidScroll(): Event<void> { return this.view.onDidScroll; }
@@ -981,17 +996,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 		if (_options.keyboardNavigationLabelProvider) {
 			this.typeFilterController = new TypeFilterController(this, this.model, this.view, filter!, _options.keyboardNavigationLabelProvider);
-			this.focusNavigationFilter = node => {
-				if (!this.typeFilterController!.enabled || !this.typeFilterController!.pattern || this.typeFilterController!.filterOnType) {
-					return true;
-				}
-
-				if (filter!.totalCount > 0 && filter!.matchCount <= 1) {
-					return true;
-				}
-
-				return !FuzzyScore.isDefault(node.filterData as any as FuzzyScore);
-			};
+			this.focusNavigationFilter = node => this.typeFilterController!.shouldAllowFocus(node);
 			this.disposables.push(this.typeFilterController!);
 		}
 	}
@@ -1147,28 +1152,28 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		this.view.setFocus(indexes, browserEvent, true);
 	}
 
-	focusNext(n = 1, loop = false, browserEvent?: UIEvent): void {
-		this.view.focusNext(n, loop, browserEvent, this.focusNavigationFilter);
+	focusNext(n = 1, loop = false, browserEvent?: UIEvent, filter = this.focusNavigationFilter): void {
+		this.view.focusNext(n, loop, browserEvent, filter);
 	}
 
-	focusPrevious(n = 1, loop = false, browserEvent?: UIEvent): void {
-		this.view.focusPrevious(n, loop, browserEvent, this.focusNavigationFilter);
+	focusPrevious(n = 1, loop = false, browserEvent?: UIEvent, filter = this.focusNavigationFilter): void {
+		this.view.focusPrevious(n, loop, browserEvent, filter);
 	}
 
-	focusNextPage(browserEvent?: UIEvent): void {
-		this.view.focusNextPage(browserEvent, this.focusNavigationFilter);
+	focusNextPage(browserEvent?: UIEvent, filter = this.focusNavigationFilter): void {
+		this.view.focusNextPage(browserEvent, filter);
 	}
 
-	focusPreviousPage(browserEvent?: UIEvent): void {
-		this.view.focusPreviousPage(browserEvent, this.focusNavigationFilter);
+	focusPreviousPage(browserEvent?: UIEvent, filter = this.focusNavigationFilter): void {
+		this.view.focusPreviousPage(browserEvent, filter);
 	}
 
-	focusLast(browserEvent?: UIEvent): void {
-		this.view.focusLast(browserEvent, this.focusNavigationFilter);
+	focusLast(browserEvent?: UIEvent, filter = this.focusNavigationFilter): void {
+		this.view.focusLast(browserEvent, filter);
 	}
 
-	focusFirst(browserEvent?: UIEvent): void {
-		this.view.focusFirst(browserEvent, this.focusNavigationFilter);
+	focusFirst(browserEvent?: UIEvent, filter = this.focusNavigationFilter): void {
+		this.view.focusFirst(browserEvent, filter);
 	}
 
 	getFocus(): T[] {
