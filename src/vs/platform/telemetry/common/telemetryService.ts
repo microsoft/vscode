@@ -63,7 +63,7 @@ export class TelemetryService implements ITelemetryService {
 		}
 
 		this._commonProperties.then(values => {
-			const isHashedId = /[a-z0-9]+/i.test(values['common.machineId']);
+			const isHashedId = /[a-f0-9]+/i.test(values['common.machineId']);
 
 			/* __GDPR__
 				"machineIdFallback" : {
