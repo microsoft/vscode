@@ -373,7 +373,7 @@ export interface IWindowConfiguration extends ParsedArgs {
 	isInitialStartup?: boolean;
 
 	userEnv: IProcessEnvironment;
-	nodeCachedDataDir: string;
+	nodeCachedDataDir?: string;
 
 	backupPath?: string;
 

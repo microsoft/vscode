@@ -1039,7 +1039,7 @@ export class TestWindowService implements IWindowService {
 		return Promise.resolve();
 	}
 
-	enterWorkspace(_path: URI): Promise<IEnterWorkspaceResult> {
+	enterWorkspace(_path: URI): Promise<IEnterWorkspaceResult | undefined> {
 		return Promise.resolve(undefined);
 	}
 
