@@ -366,9 +366,9 @@ export abstract class BaseOpenRecentAction extends Action {
 			};
 		};
 
-		const runPick = (resource: URI, isFile: boolean, keyMods: IKeyMods) => {
+		const runPick = (uri: URI, isFile: boolean, keyMods: IKeyMods) => {
 			const forceNewWindow = keyMods.ctrlCmd;
-			return this.windowService.openWindow([resource], { forceNewWindow, forceOpenWorkspaceAsFile: isFile });
+			return this.windowService.openWindow([{ uri, typeHint: isFile ? 'file' : 'folder' }], { forceNewWindow, forceOpenWorkspaceAsFile: isFile });
 		};
 
 		const workspacePicks = recentWorkspaces.map(workspace => toPick(workspace, isSingleFolderWorkspaceIdentifier(workspace) ? FileKind.FOLDER : FileKind.ROOT_FOLDER, this.labelService, !this.isQuickNavigate() ? [this.removeFromRecentlyOpened] : undefined));
