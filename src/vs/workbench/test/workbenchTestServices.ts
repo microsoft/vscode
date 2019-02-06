@@ -471,15 +471,15 @@ export class TestPartService implements IPartService {
 		return false;
 	}
 
-	public setEditorHidden(_hidden: boolean): Promise<void> { return Promise.resolve(null); }
+	public setEditorHidden(_hidden: boolean): Promise<void> { return Promise.resolve(); }
 
-	public setSideBarHidden(_hidden: boolean): Promise<void> { return Promise.resolve(null); }
+	public setSideBarHidden(_hidden: boolean): Promise<void> { return Promise.resolve(); }
 
 	public isPanelHidden(): boolean {
 		return false;
 	}
 
-	public setPanelHidden(_hidden: boolean): Promise<void> { return Promise.resolve(null); }
+	public setPanelHidden(_hidden: boolean): Promise<void> { return Promise.resolve(); }
 
 	public toggleMaximizedPanel(): void { }
 
@@ -500,7 +500,7 @@ export class TestPartService implements IPartService {
 	}
 
 	public setPanelPosition(_position: PartPosition): Promise<void> {
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 
 	public addClass(_clazz: string): void { }
@@ -972,14 +972,14 @@ export class TestCodeEditorService implements ICodeEditorService {
 	addDiffEditor(_editor: IDiffEditor): void { }
 	removeDiffEditor(_editor: IDiffEditor): void { }
 	listDiffEditors(): IDiffEditor[] { return []; }
-	getFocusedCodeEditor(): ICodeEditor { return null; }
+	getFocusedCodeEditor(): ICodeEditor | null { return null; }
 	registerDecorationType(_key: string, _options: IDecorationRenderOptions, _parentTypeKey?: string): void { }
 	removeDecorationType(_key: string): void { }
 	resolveDecorationOptions(_typeKey: string, _writable: boolean): IModelDecorationOptions { return Object.create(null); }
 	setTransientModelProperty(_model: ITextModel, _key: string, _value: any): void { }
 	getTransientModelProperty(_model: ITextModel, _key: string) { }
-	getActiveCodeEditor(): ICodeEditor { return null; }
-	openCodeEditor(_input: IResourceInput, _source: ICodeEditor, _sideBySide?: boolean): Promise<ICodeEditor> { return Promise.resolve(undefined); }
+	getActiveCodeEditor(): ICodeEditor | null { return null; }
+	openCodeEditor(_input: IResourceInput, _source: ICodeEditor, _sideBySide?: boolean): Promise<ICodeEditor | null> { return Promise.resolve(null); }
 }
 
 export class TestWindowService implements IWindowService {
@@ -1200,7 +1200,7 @@ export class TestWindowsService implements IWindowsService {
 		return Promise.resolve();
 	}
 
-	enterWorkspace(_windowId: number, _path: URI): Promise<IEnterWorkspaceResult> {
+	enterWorkspace(_windowId: number, _path: URI): Promise<IEnterWorkspaceResult | undefined> {
 		return Promise.resolve(undefined);
 	}
 
@@ -1237,7 +1237,7 @@ export class TestWindowsService implements IWindowsService {
 	}
 
 	isMaximized(_windowId: number): Promise<boolean> {
-		return Promise.resolve(undefined);
+		return Promise.resolve(false);
 	}
 
 	maximizeWindow(_windowId: number): Promise<void> {
@@ -1381,8 +1381,8 @@ export class TestTextResourceConfigurationService implements ITextResourceConfig
 	}
 
 	getValue<T>(resource: URI, arg2?: any, arg3?: any): T {
-		const position: IPosition = EditorPosition.isIPosition(arg2) ? arg2 : null;
-		const section: string = position ? (typeof arg3 === 'string' ? arg3 : undefined) : (typeof arg2 === 'string' ? arg2 : undefined);
+		const position: IPosition | null = EditorPosition.isIPosition(arg2) ? arg2 : null;
+		const section: string | undefined = position ? (typeof arg3 === 'string' ? arg3 : undefined) : (typeof arg2 === 'string' ? arg2 : undefined);
 		return this.configurationService.getValue(section, { resource });
 	}
 }
@@ -1425,19 +1425,19 @@ export class TestViewletService implements IViewletService {
 	onDidViewletOpen: Event<IViewlet> = new Emitter<IViewlet>().event;
 	onDidViewletClose: Event<IViewlet> = new Emitter<IViewlet>().event;
 
-	openViewlet(_id: string, _focus?: boolean): Promise<IViewlet> { return null; }
+	openViewlet(_id: string, _focus?: boolean): Promise<IViewlet | null> { return Promise.resolve(null); }
 
-	getActiveViewlet(): IViewlet { return null; }
+	getActiveViewlet(): IViewlet | null { return null; }
 
-	getDefaultViewletId(): string { return null; }
+	getDefaultViewletId(): string { return ''; }
 
-	getViewlet(_id: string): ViewletDescriptor { return null; }
+	getViewlet(_id: string): ViewletDescriptor | undefined { return undefined; }
 
-	getAllViewlets(): ViewletDescriptor[] { return null; }
+	getAllViewlets(): ViewletDescriptor[] { return []; }
 
-	getViewlets(): ViewletDescriptor[] { return null; }
+	getViewlets(): ViewletDescriptor[] { return []; }
 
-	getProgressIndicator(_id: string): IProgressService { return null; }
+	getProgressIndicator(_id: string): IProgressService | null { return null; }
 
 }
 
