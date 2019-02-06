@@ -336,7 +336,6 @@ class PanelDraggable extends Disposable {
 			backgroundColor = (this.panel.dropBackground || PanelDraggable.DefaultDragOverBackgroundColor).toString();
 		}
 
-		console.log(backgroundColor);
 		this.panel.dropTargetElement.style.backgroundColor = backgroundColor;
 	}
 }
