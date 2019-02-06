@@ -63,14 +63,14 @@ export class TelemetryService implements ITelemetryService {
 		}
 
 		this._commonProperties.then(values => {
-			const isFallback = (values['common.machineId'] as string).indexOf('-') >= 0;
+			const isHashedId = /[a-z0-9]+/i.test(values['common.machineId']);
 
 			/* __GDPR__
 				"machineIdFallback" : {
 					"usingFallbackGuid" : { "classification": "SystemMetaData", "purpose": "BusinessInsight", "isMeasurement": true }
 				}
 			*/
-			this.publicLog('machineIdFallback', { usingFallbackGuid: isFallback });
+			this.publicLog('machineIdFallback', { usingFallbackGuid: !isHashedId });
 		});
 	}
 
