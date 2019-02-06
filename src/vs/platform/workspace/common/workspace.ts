@@ -183,12 +183,12 @@ export class Workspace implements IWorkspace {
 		this._configuration = configuration;
 	}
 
-	getFolder(resource: URI): IWorkspaceFolder | null | undefined {
+	getFolder(resource: URI): IWorkspaceFolder | null {
 		if (!resource) {
 			return null;
 		}
 
-		return this._foldersMap.findSubstr(resource.toString());
+		return this._foldersMap.findSubstr(resource.toString()) || null;
 	}
 
 	private updateFoldersMap(): void {

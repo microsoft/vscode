@@ -1229,30 +1229,23 @@ export class Workbench extends Disposable implements IPartService {
 		return DOM.isAncestor(activeElement, container);
 	}
 
-	getContainer(part: Parts): HTMLElement {
-		let container: HTMLElement | null = null;
+	getContainer(part: Parts): HTMLElement | null {
 		switch (part) {
 			case Parts.TITLEBAR_PART:
-				container = this.titlebarPart.getContainer();
-				break;
+				return this.titlebarPart.getContainer();
 			case Parts.ACTIVITYBAR_PART:
-				container = this.activitybarPart.getContainer();
-				break;
+				return this.activitybarPart.getContainer();
 			case Parts.SIDEBAR_PART:
-				container = this.sidebarPart.getContainer();
-				break;
+				return this.sidebarPart.getContainer();
 			case Parts.PANEL_PART:
-				container = this.panelPart.getContainer();
-				break;
+				return this.panelPart.getContainer();
 			case Parts.EDITOR_PART:
-				container = this.editorPart.getContainer();
-				break;
+				return this.editorPart.getContainer();
 			case Parts.STATUSBAR_PART:
-				container = this.statusbarPart.getContainer();
-				break;
+				return this.statusbarPart.getContainer();
 		}
 
-		return container;
+		return null;
 	}
 
 	isVisible(part: Parts): boolean {

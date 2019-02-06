@@ -138,7 +138,7 @@ export class TestContextService implements IWorkspaceContextService {
 		return this.workspace;
 	}
 
-	public getWorkspaceFolder(resource: URI): IWorkspaceFolder {
+	public getWorkspaceFolder(resource: URI): IWorkspaceFolder | null {
 		return this.workspace.getFolder(resource);
 	}
 
@@ -176,7 +176,7 @@ export class TestTextFileService extends TextFileService {
 
 	private promptPath: URI;
 	private confirmResult: ConfirmResult;
-	private resolveTextContentError: FileOperationError;
+	private resolveTextContentError: FileOperationError | null;
 
 	constructor(
 		@ILifecycleService lifecycleService: ILifecycleService,
@@ -305,7 +305,7 @@ export class TestDecorationsService implements IDecorationsService {
 	_serviceBrand: any;
 	onDidChangeDecorations: Event<IResourceDecorationChangeEvent> = Event.None;
 	registerDecorationsProvider(_provider: IDecorationsProvider): IDisposable { return Disposable.None; }
-	getDecoration(_uri: URI, _includeChildren: boolean, _overwrite?: IDecorationData): IDecoration { return undefined; }
+	getDecoration(_uri: URI, _includeChildren: boolean, _overwrite?: IDecorationData): IDecoration | undefined { return undefined; }
 }
 
 export class TestExtensionService extends NullExtensionService { }
@@ -355,11 +355,11 @@ export class TestHistoryService implements IHistoryService {
 		return [];
 	}
 
-	public getLastActiveWorkspaceRoot(_schemeFilter: string): URI {
+	public getLastActiveWorkspaceRoot(_schemeFilter: string): URI | undefined {
 		return this.root;
 	}
 
-	public getLastActiveFile(_schemeFilter: string): URI {
+	public getLastActiveFile(_schemeFilter: string): URI | undefined {
 		return undefined;
 	}
 
@@ -384,13 +384,13 @@ export class TestFileDialogService implements IFileDialogService {
 
 	public _serviceBrand: any;
 
-	public defaultFilePath(_schemeFilter: string): URI {
+	public defaultFilePath(_schemeFilter: string): URI | undefined {
 		return undefined;
 	}
-	public defaultFolderPath(_schemeFilter: string): URI {
+	public defaultFolderPath(_schemeFilter: string): URI | undefined {
 		return undefined;
 	}
-	public defaultWorkspacePath(_schemeFilter: string): URI {
+	public defaultWorkspacePath(_schemeFilter: string): URI | undefined {
 		return undefined;
 	}
 	public pickFileFolderAndOpen(_options: IPickAndOpenOptions): Promise<any> {
@@ -405,10 +405,10 @@ export class TestFileDialogService implements IFileDialogService {
 	public pickWorkspaceAndOpen(_options: IPickAndOpenOptions): Promise<any> {
 		return Promise.resolve(0);
 	}
-	public showSaveDialog(_options: ISaveDialogOptions): Promise<URI> {
+	public showSaveDialog(_options: ISaveDialogOptions): Promise<URI | undefined> {
 		return Promise.resolve(undefined);
 	}
-	public showOpenDialog(_options: IOpenDialogOptions): Promise<URI[]> {
+	public showOpenDialog(_options: IOpenDialogOptions): Promise<URI[] | undefined> {
 		return Promise.resolve(undefined);
 	}
 }
@@ -445,7 +445,7 @@ export class TestPartService implements IPartService {
 		return true;
 	}
 
-	public getContainer(_part: Parts): HTMLElement {
+	public getContainer(_part: Parts): HTMLElement | null {
 		return null;
 	}
 
