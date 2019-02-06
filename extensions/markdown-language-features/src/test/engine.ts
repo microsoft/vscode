@@ -7,11 +7,12 @@ import * as vscode from 'vscode';
 import { MarkdownEngine } from '../markdownEngine';
 import { MarkdownContributionProvider, MarkdownContributions } from '../markdownExtensions';
 import { githubSlugifier } from '../slugify';
+import { Disposable } from '../util/dispose';
 
-const emptyContributions = new class implements MarkdownContributionProvider {
+const emptyContributions = new class extends Disposable implements MarkdownContributionProvider {
 	readonly extensionPath = '';
 	readonly contributions = MarkdownContributions.Empty;
-	readonly onContributionsChanged = new vscode.EventEmitter<this>().event;
+	readonly onContributionsChanged = this._register(new vscode.EventEmitter<this>()).event;
 };
 
 export function createNewMarkdownEngine(): MarkdownEngine {

@@ -118,6 +118,8 @@ export interface MarkdownContributionProvider {
 	readonly extensionPath: string;
 	readonly contributions: MarkdownContributions;
 	readonly onContributionsChanged: vscode.Event<this>;
+
+	dispose(): void;
 }
 
 class VSCodeExtensionMarkdownContributionProvider extends Disposable implements MarkdownContributionProvider {
@@ -138,7 +140,7 @@ class VSCodeExtensionMarkdownContributionProvider extends Disposable implements 
 		}, undefined, this._disposables);
 	}
 
-	private readonly _onContributionsChanged = new vscode.EventEmitter<this>();
+	private readonly _onContributionsChanged = this._register(new vscode.EventEmitter<this>());
 	public readonly onContributionsChanged = this._onContributionsChanged.event;
 
 	public get contributions(): MarkdownContributions {

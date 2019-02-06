@@ -25,6 +25,7 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(telemetryReporter);
 
 	const contributions = getMarkdownExtensionContributions(context);
+	context.subscriptions.push(contributions);
 
 	const cspArbiter = new ExtensionContentSecurityPolicyArbiter(context.globalState, context.workspaceState);
 	const engine = new MarkdownEngine(contributions, githubSlugifier);
