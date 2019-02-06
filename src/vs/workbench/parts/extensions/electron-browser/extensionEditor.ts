@@ -604,7 +604,7 @@ export class ExtensionEditor extends BaseEditor {
 		}
 
 		return this.loadContents(() => this.extensionDependencies.get())
-			.then<IActiveElement>(extensionDependencies => {
+			.then<IActiveElement, IActiveElement>(extensionDependencies => {
 				if (extensionDependencies) {
 					const content = $('div', { class: 'subcontent' });
 					const scrollableContent = new DomScrollableElement(content, {});

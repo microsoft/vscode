@@ -743,7 +743,7 @@ export class Workbench extends Disposable implements IPartService {
 					return editorService.openEditors(editors);
 				}
 
-				return Promise.resolve();
+				return Promise.resolve(undefined);
 			}
 
 			const editorsToOpen = this.resolveEditorsToOpen();

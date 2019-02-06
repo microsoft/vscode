@@ -59,7 +59,7 @@ class VariableResolver {
 		return value.replace(/\$\{(.*?)\}/g, (match: string, variable: string) => {
 			// Strip out the ${} because the map contains them variables without those characters.
 			let result = this._values.get(match.substring(2, match.length - 1));
-			if (result) {
+			if ((result !== undefined) && (result !== null)) {
 				return result;
 			}
 			if (this._service) {

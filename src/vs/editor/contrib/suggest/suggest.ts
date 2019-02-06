@@ -170,7 +170,7 @@ export function provideSuggestionItems(
 		return hasResult || token.isCancellationRequested;
 	}).then(() => {
 		if (token.isCancellationRequested) {
-			return Promise.reject(canceled());
+			return Promise.reject<any>(canceled());
 		}
 		return allSuggestions.sort(getSuggestionComparator(snippetConfig));
 	});

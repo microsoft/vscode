@@ -545,8 +545,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// in extension development mode. These options are all development related.
 		if (this.isExtensionDevelopmentHost && cli) {
 			configuration.verbose = cli.verbose;
-			configuration.debugPluginHost = cli.debugPluginHost;
-			configuration.debugBrkPluginHost = cli.debugBrkPluginHost;
+			configuration['inspect-extensions'] = cli['inspect-extensions'];
+			configuration['inspect-brk-extensions'] = cli['inspect-brk-extensions'];
 			configuration.debugId = cli.debugId;
 			configuration['extensions-dir'] = cli['extensions-dir'];
 		}

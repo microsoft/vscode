@@ -57,8 +57,8 @@ export const options: Option[] = [
 	{ id: 'disable-extensions', type: 'boolean', deprecates: 'disableExtensions', cat: 't', description: localize('disableExtensions', "Disable all installed extensions.") },
 	{ id: 'disable-extension', type: 'string', cat: 't', args: 'extension-id', description: localize('disableExtension', "Disable an extension.") },
 
-	{ id: 'inspect-extensions', type: 'string', args: 'port', cat: 't', description: localize('inspect-extensions', "Allow debugging and profiling of extensions. Check the developer tools for the connection URI.") },
-	{ id: 'inspect-brk-search', type: 'string', args: 'port', cat: 't', description: localize('inspect-brk-extensions', "Allow debugging and profiling of extensions with the extension host being paused after start. Check the developer tools for the connection URI.") },
+	{ id: 'inspect-extensions', type: 'string', deprecates: 'debugPluginHost', args: 'port', cat: 't', description: localize('inspect-extensions', "Allow debugging and profiling of extensions. Check the developer tools for the connection URI.") },
+	{ id: 'inspect-brk-extensions', type: 'string', deprecates: 'debugBrkPluginHost', args: 'port', cat: 't', description: localize('inspect-brk-extensions', "Allow debugging and profiling of extensions with the extension host being paused after start. Check the developer tools for the connection URI.") },
 	{ id: 'disable-gpu', type: 'boolean', cat: 't', description: localize('disableGPU', "Disable GPU hardware acceleration.") },
 	{ id: 'upload-logs', type: 'string', cat: 't', description: localize('uploadLogs', "Uploads logs from current session to a secure endpoint.") },
 	{ id: 'max-memory', type: 'boolean', cat: 't', description: localize('maxMemory', "Max memory size for a window (in Mbytes).") },
@@ -68,7 +68,7 @@ export const options: Option[] = [
 	{ id: 'extensionTestsPath', type: 'string' },
 	{ id: 'debugId', type: 'string' },
 	{ id: 'inspect-search', type: 'string', deprecates: 'debugSearch' },
-	{ id: 'inspect-brk-extensions', type: 'string', deprecates: 'debugBrkSearch' },
+	{ id: 'inspect-brk-search', type: 'string', deprecates: 'debugBrkSearch' },
 	{ id: 'export-default-configuration', type: 'string' },
 	{ id: 'install-source', type: 'string' },
 	{ id: 'driver', type: 'string' },
@@ -91,10 +91,7 @@ export const options: Option[] = [
 	{ id: 'force', type: 'boolean' },
 	{ id: 'trace-category-filter', type: 'string' },
 	{ id: 'trace-options', type: 'string' },
-	{ id: 'prof-code-loading', type: 'boolean' },
-
-	{ id: 'debugPluginHost', type: 'string', alias: 'inspect-extensions' },
-	{ id: 'debugBrkPluginHost', type: 'string', alias: 'inspect-brk-extensions' }
+	{ id: 'prof-code-loading', type: 'boolean' }
 ];
 
 export function parseArgs(args: string[], isOptionSupported = (_: Option) => true): ParsedArgs {
@@ -110,8 +107,14 @@ export function parseArgs(args: string[], isOptionSupported = (_: Option) => tru
 
 		if (o.type === 'string') {
 			string.push(o.id);
+			if (o.deprecates) {
+				string.push(o.deprecates);
+			}
 		} else if (o.type === 'boolean') {
 			boolean.push(o.id);
+			if (o.deprecates) {
+				boolean.push(o.deprecates);
+			}
 		}
 	}
 	// remote aliases to avoid confusion
@@ -120,7 +123,7 @@ export function parseArgs(args: string[], isOptionSupported = (_: Option) => tru
 		if (o.alias) {
 			delete parsedArgs[o.alias];
 		}
-		if (o.deprecates && parsedArgs[o.deprecates] && !parsedArgs[o.id]) {
+		if (o.deprecates && parsedArgs.hasOwnProperty(o.deprecates) && !parsedArgs[o.id]) {
 			parsedArgs[o.id] = parsedArgs[o.deprecates];
 			delete parsedArgs[o.deprecates];
 		}

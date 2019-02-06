@@ -164,7 +164,7 @@ function createWorkspaceInitializationPayload(configuration: IWindowConfiguratio
 	}
 
 	// Single-folder workspace
-	let workspaceInitializationPayload: Promise<IWorkspaceInitializationPayload | undefined> = Promise.resolve();
+	let workspaceInitializationPayload: Promise<IWorkspaceInitializationPayload | undefined> = Promise.resolve(undefined);
 	if (configuration.folderUri) {
 		workspaceInitializationPayload = resolveSingleFolderWorkspaceInitializationPayload(configuration.folderUri);
 	}
@@ -179,7 +179,7 @@ function createWorkspaceInitializationPayload(configuration: IWindowConfiguratio
 			} else if (environmentService.isExtensionDevelopment) {
 				id = 'ext-dev'; // extension development window never stores backups and is a singleton
 			} else {
-				return Promise.reject(new Error('Unexpected window configuration without backupPath'));
+				return Promise.reject<any>(new Error('Unexpected window configuration without backupPath'));
 			}
 
 			payload = { id } as IEmptyWorkspaceInitializationPayload;

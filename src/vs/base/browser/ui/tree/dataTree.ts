@@ -95,17 +95,19 @@ export class DataTree<TInput, T, TFilterData = void> extends AbstractTree<T | nu
 	// Implementation
 
 	private _refresh(element: TInput | T, isCollapsed?: (el: T) => boolean): void {
-		this.model.setChildren((element === this.input ? null : element) as T, this.createIterator(element, isCollapsed));
+		this.model.setChildren((element === this.input ? null : element) as T, this.iterate(element, isCollapsed).elements);
 	}
 
-	private createIterator(element: TInput | T, isCollapsed?: (el: T) => boolean): Iterator<ITreeElement<T>> {
-		const children = Iterator.fromArray(this.dataSource.getChildren(element));
+	private iterate(element: TInput | T, isCollapsed?: (el: T) => boolean): { elements: Iterator<ITreeElement<T>>, size: number } {
+		const children = this.dataSource.getChildren(element);
+		const elements = Iterator.map<any, ITreeElement<T>>(Iterator.fromArray(children), element => {
+			const { elements: children, size } = this.iterate(element, isCollapsed);
+			const collapsed = size === 0 ? undefined : (isCollapsed && isCollapsed(element));
 
-		return Iterator.map<any, ITreeElement<T>>(children, element => ({
-			element,
-			children: this.createIterator(element),
-			collapsed: isCollapsed && isCollapsed(element)
-		}));
+			return { element, children, collapsed };
+		});
+
+		return { elements, size: children.length };
 	}
 
 	protected createModel(view: ISpliceable<ITreeNode<T, TFilterData>>, options: IDataTreeOptions<T, TFilterData>): ITreeModel<T | null, TFilterData, T | null> {
