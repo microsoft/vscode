@@ -18,14 +18,6 @@ import { IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/commo
 import { IEditorRegistry, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 import { registerWebViewCommands } from 'vs/workbench/parts/webview/electron-browser/webview.contribution';
 
-function getActivePreviewsForResource(accessor: ServicesAccessor, resource: URI | string) {
-	const uri = resource instanceof URI ? resource : URI.parse(resource);
-	return accessor.get(IEditorService).visibleControls
-		.filter(c => c instanceof HtmlPreviewPart && c.model)
-		.map(e => e as HtmlPreviewPart)
-		.filter(e => e.model!.uri.scheme === uri.scheme && e.model!.uri.toString() === uri.toString());
-}
-
 // --- Register Editor
 
 (Registry.as<IEditorRegistry>(EditorExtensions.Editors)).registerEditor(new EditorDescriptor(
@@ -84,18 +76,6 @@ CommandsRegistry.registerCommand('_workbench.previewHtml', function (
 	return accessor.get(IEditorService)
 		.openEditor(input, { pinned: true }, viewColumnToEditorGroup(editorGroupService, position))
 		.then(editor => true);
-});
-
-CommandsRegistry.registerCommand('_workbench.htmlPreview.postMessage', function (
-	accessor: ServicesAccessor,
-	resource: URI | string,
-	message: any
-) {
-	const activePreviews = getActivePreviewsForResource(accessor, resource);
-	for (const preview of activePreviews) {
-		preview.sendMessage(message);
-	}
-	return activePreviews.length > 0;
 });
 
 registerWebViewCommands(HtmlPreviewPart.ID);

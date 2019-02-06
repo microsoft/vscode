@@ -184,7 +184,6 @@ export class WebviewEditor extends BaseWebviewEditor {
 		webview.update(input.html, {
 			allowScripts: input.options.enableScripts,
 			allowSvgs: true,
-			enableWrappedPostMessage: true,
 			useSameOriginForRoot: false,
 			localResourceRoots: input.options.localResourceRoots || this.getDefaultLocalResourceRoots(),
 			extensionLocation: input.extensionLocation
@@ -224,7 +223,6 @@ export class WebviewEditor extends BaseWebviewEditor {
 			this._webview = this._instantiationService.createInstance(WebviewElement,
 				this._partService.getContainer(Parts.EDITOR_PART),
 				{
-					enableWrappedPostMessage: true,
 					useSameOriginForRoot: false,
 					extensionLocation: input.extensionLocation
 				});

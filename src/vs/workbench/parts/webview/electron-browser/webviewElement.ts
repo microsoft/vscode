@@ -24,7 +24,6 @@ export interface WebviewOptions {
 	readonly allowScripts?: boolean;
 	readonly allowSvgs?: boolean;
 	readonly svgWhiteList?: string[];
-	readonly enableWrappedPostMessage?: boolean;
 	readonly useSameOriginForRoot?: boolean;
 	readonly localResourceRoots?: ReadonlyArray<URI>;
 	readonly extensionLocation?: URI;
@@ -304,7 +303,7 @@ export class WebviewElement extends Disposable {
 		this._register(addDisposableListener(this._webview, 'ipc-message', (event) => {
 			switch (event.channel) {
 				case 'onmessage':
-					if (this._options.enableWrappedPostMessage && event.args && event.args.length) {
+					if (event.args && event.args.length) {
 						this._onMessage.fire(event.args[0]);
 					}
 					return;
