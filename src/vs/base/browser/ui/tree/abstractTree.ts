@@ -796,7 +796,7 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 			return super.onPointer(e);
 		}
 
-		if (this.multipleSelectionController.isSelectionRangeChangeEvent(e) || this.multipleSelectionController.isSelectionSingleChangeEvent(e)) {
+		if (this.isSelectionRangeChangeEvent(e) || this.isSelectionSingleChangeEvent(e)) {
 			return super.onPointer(e);
 		}
 
