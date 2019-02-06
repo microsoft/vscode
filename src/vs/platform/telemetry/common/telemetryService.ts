@@ -61,6 +61,17 @@ export class TelemetryService implements ITelemetryService {
 			*/
 			this.publicLog('optInStatus', { optIn: this._userOptIn });
 		}
+
+		this._commonProperties.then(values => {
+			const isFallback = (values['common.machineId'] as string).indexOf('-') >= 0;
+
+			/* __GDPR__
+				"machineIdFallback" : {
+					"usingFallbackGuid" : { "classification": "SystemMetaData", "purpose": "BusinessInsight", "isMeasurement": true }
+				}
+			*/
+			this.publicLog('machineIdFallback', { usingFallbackGuid: isFallback });
+		});
 	}
 
 	private _updateUserOptIn(): void {
