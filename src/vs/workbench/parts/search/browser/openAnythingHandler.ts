@@ -120,7 +120,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 				}
 
 				// Combine results.
-				const mergedResults: QuickOpenEntry[] = [].concat(...results.map(r => r.entries));
+				const mergedResults: QuickOpenEntry[] = ([] as QuickOpenEntry[]).concat(...results.map(r => r.entries));
 
 				// Sort
 				const compare = (elementA: QuickOpenEntry, elementB: QuickOpenEntry) => compareItemsByScore(elementA, elementB, query, true, QuickOpenItemAccessor, this.scorerCache);
@@ -132,7 +132,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 						entry.setRange(searchWithRange ? searchWithRange.range : null);
 
 						const itemScore = scoreItem(entry, query, true, QuickOpenItemAccessor, this.scorerCache);
-						entry.setHighlights(itemScore.labelMatch, itemScore.descriptionMatch);
+						entry.setHighlights(itemScore.labelMatch || [], itemScore.descriptionMatch);
 					}
 				});
 
@@ -165,7 +165,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		return this.openFileHandler.hasShortResponseTime() && this.openSymbolHandler.hasShortResponseTime();
 	}
 
-	private extractRange(value: string): ISearchWithRange {
+	private extractRange(value: string): ISearchWithRange | null {
 		if (!value) {
 			return null;
 		}
@@ -211,7 +211,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 			}
 		}
 
-		if (range) {
+		if (patternMatch && range) {
 			return {
 				search: value.substr(0, patternMatch.index), // clear range suffix from search value
 				range: range

@@ -95,7 +95,11 @@ export class TerminalPickerHandler extends QuickOpenHandler {
 				return true;
 			}
 
-			const highlights = matchesFuzzy(normalizedSearchValueLowercase, e.getLabel(), true);
+			const label = e.getLabel();
+			if (!label) {
+				return false;
+			}
+			const highlights = matchesFuzzy(normalizedSearchValueLowercase, label, true);
 			if (!highlights) {
 				return false;
 			}

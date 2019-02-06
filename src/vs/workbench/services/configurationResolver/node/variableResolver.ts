@@ -43,10 +43,10 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 		}
 	}
 
-	public resolve(root: IWorkspaceFolder, value: string): string;
-	public resolve(root: IWorkspaceFolder, value: string[]): string[];
-	public resolve(root: IWorkspaceFolder, value: IStringDictionary<string>): IStringDictionary<string>;
-	public resolve(root: IWorkspaceFolder, value: any): any {
+	public resolve(root: IWorkspaceFolder | undefined, value: string): string;
+	public resolve(root: IWorkspaceFolder | undefined, value: string[]): string[];
+	public resolve(root: IWorkspaceFolder | undefined, value: IStringDictionary<string>): IStringDictionary<string>;
+	public resolve(root: IWorkspaceFolder | undefined, value: any): any {
 		return this.recursiveResolve(root ? root.uri : undefined, value);
 	}
 

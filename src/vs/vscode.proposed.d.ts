@@ -1126,18 +1126,6 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	//#region SignatureHelpContext active parameters - mjbvz
-	export interface SignatureHelpContext {
-		/**
-		 * The currently active [`SignatureHelp`](#SignatureHelp).
-		 *
-		 * The `activeSignatureHelp` has its [`SignatureHelp.activeSignature`] field updated based on
-		 * the user arrowing through available signatures.
-		 */
-		readonly activeSignatureHelp?: SignatureHelp;
-	}
-	//#endregion
-
 	//#region CodeAction.isPreferred - mjbvz
 	export interface CodeAction {
 		/**

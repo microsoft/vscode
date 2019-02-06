@@ -499,9 +499,9 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let value = await getOccurrencesAtPosition(model, new EditorPosition(1, 2), CancellationToken.None);
+		const value = (await getOccurrencesAtPosition(model, new EditorPosition(1, 2), CancellationToken.None))!;
 		assert.equal(value.length, 1);
-		let [entry] = value;
+		const [entry] = value;
 		assert.deepEqual(entry.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 3 });
 		assert.equal(entry.kind, modes.DocumentHighlightKind.Text);
 	});

@@ -488,57 +488,81 @@ export class SettingsEditor2 extends BaseEditor {
 
 		this.createTOC(bodyContainer);
 
-		// this.createFocusSink(
-		// 	bodyContainer,
-		// 	e => {
-		// 		if (DOM.findParentWithClass(e.relatedTarget, 'settings-editor-tree')) {
-		// 			if (this.settingsTree.getScrollPosition() > 0) {
-		// 				const firstElement = this.settingsTree.getFirstVisibleElement();
-		// 				this.settingsTree.reveal(firstElement, 0.1);
-		// 				return true;
-		// 			}
-		// 		} else {
-		// 			const firstControl = this.settingsTree.getHTMLElement().querySelector(SettingsRenderer.CONTROL_SELECTOR);
-		// 			if (firstControl) {
-		// 				(<HTMLElement>firstControl).focus();
-		// 			}
-		// 		}
+		this.createFocusSink(
+			bodyContainer,
+			e => {
+				if (DOM.findParentWithClass(e.relatedTarget, 'settings-editor-tree')) {
+					if (this.settingsTree.scrollTop > 0) {
+						const firstElement = this.getFirstVisibleElement();
+						this.settingsTree.reveal(firstElement, 0.1);
+						return true;
+					}
+				} else {
+					const firstControl = this.settingsTree.getHTMLElement().querySelector(AbstractSettingRenderer.CONTROL_SELECTOR);
+					if (firstControl) {
+						(<HTMLElement>firstControl).focus();
+					}
+				}
 
-		// 		return false;
-		// 	},
-		// 	'settings list focus helper');
+				return false;
+			},
+			'settings list focus helper');
 
 		this.createSettingsTree(bodyContainer);
 
-		// this.createFocusSink(
-		// 	bodyContainer,
-		// 	e => {
-		// 		if (DOM.findParentWithClass(e.relatedTarget, 'settings-editor-tree')) {
-		// 			if (this.settingsTree.getScrollPosition() < 1) {
-		// 				const lastElement = this.settingsTree.getLastVisibleElement();
-		// 				this.settingsTree.reveal(lastElement, 0.9);
-		// 				return true;
-		// 			}
-		// 		}
+		this.createFocusSink(
+			bodyContainer,
+			e => {
+				if (DOM.findParentWithClass(e.relatedTarget, 'settings-editor-tree')) {
+					if (this.settingsTree.scrollTop < this.settingsTree.scrollHeight) {
+						const lastElement = this.getLastVisibleElement();
+						this.settingsTree.reveal(lastElement, 0.9);
+						return true;
+					}
+				}
 
-		// 		return false;
-		// 	},
-		// 	'settings list focus helper'
-		// );
+				return false;
+			},
+			'settings list focus helper'
+		);
 	}
 
-	// private createFocusSink(container: HTMLElement, callback: (e: any) => boolean, label: string): HTMLElement {
-	// 	const listFocusSink = DOM.append(container, $('.settings-tree-focus-sink'));
-	// 	listFocusSink.setAttribute('aria-label', label);
-	// 	listFocusSink.tabIndex = 0;
-	// 	this._register(DOM.addDisposableListener(listFocusSink, 'focus', (e: any) => {
-	// 		if (e.relatedTarget && callback(e)) {
-	// 			e.relatedTarget.focus();
-	// 		}
-	// 	}));
+	private getFirstVisibleElement(nth = 0): SettingsTreeElement | null {
+		// Hack, see https://github.com/Microsoft/vscode/issues/64749
+		const settingItems = this.settingsTree.getHTMLElement().querySelectorAll(AbstractSettingRenderer.CONTENTS_SELECTOR);
+		const firstEl = settingItems[nth] || settingItems[0];
+		if (!firstEl) {
+			return null;
+		}
 
-	// 	return listFocusSink;
-	// }
+		const firstSettingId = this.settingRenderers.getIdForDOMElementInSetting(<HTMLElement>firstEl);
+		return this.settingsTreeModel.getElementById(firstSettingId);
+	}
+
+	private getLastVisibleElement(): SettingsTreeElement | null {
+		// Hack, see https://github.com/Microsoft/vscode/issues/64749
+		const settingItems = this.settingsTree.getHTMLElement().querySelectorAll(AbstractSettingRenderer.CONTENTS_SELECTOR);
+		const firstEl = settingItems[settingItems.length - 1];
+		if (!firstEl) {
+			return null;
+		}
+
+		const firstSettingId = this.settingRenderers.getIdForDOMElementInSetting(<HTMLElement>firstEl);
+		return this.settingsTreeModel.getElementById(firstSettingId);
+	}
+
+	private createFocusSink(container: HTMLElement, callback: (e: any) => boolean, label: string): HTMLElement {
+		const listFocusSink = DOM.append(container, $('.settings-tree-focus-sink'));
+		listFocusSink.setAttribute('aria-label', label);
+		listFocusSink.tabIndex = 0;
+		this._register(DOM.addDisposableListener(listFocusSink, 'focus', (e: any) => {
+			if (e.relatedTarget && callback(e)) {
+				e.relatedTarget.focus();
+			}
+		}));
+
+		return listFocusSink;
+	}
 
 	private createTOC(parent: HTMLElement): void {
 		this.tocTreeModel = new TOCTreeModel(this.viewState);
@@ -663,15 +687,7 @@ export class SettingsEditor2 extends BaseEditor {
 			return;
 		}
 
-		// Hack, see https://github.com/Microsoft/vscode/issues/64749
-		const settingItems = this.settingsTree.getHTMLElement().querySelectorAll('.setting-item');
-		const firstEl = settingItems[1] || settingItems[0];
-		if (!firstEl) {
-			return;
-		}
-
-		const firstSettingId = this.settingRenderers.getIdForDOMElementInSetting(<HTMLElement>firstEl);
-		const elementToSync = this.settingsTreeModel.getElementById(firstSettingId);
+		const elementToSync = this.getFirstVisibleElement(1);
 		const element = elementToSync instanceof SettingsTreeSettingElement ? elementToSync.parent :
 			elementToSync instanceof SettingsTreeGroupElement ? elementToSync :
 				null;

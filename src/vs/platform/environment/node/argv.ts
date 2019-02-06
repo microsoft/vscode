@@ -22,6 +22,7 @@ export interface Option {
 	id: string;
 	type: 'boolean' | 'string';
 	alias?: string;
+	deprecates?: string; // old deprecated id
 	args?: string | string[];
 	description?: string;
 	cat?: keyof HelpCategories;
@@ -41,7 +42,7 @@ export const options: Option[] = [
 	{ id: 'folder-uri', type: 'string', cat: 'o', args: 'uri', description: localize('folderUri', "Opens a window with given folder uri(s)") },
 	{ id: 'file-uri', type: 'string', cat: 'o', args: 'uri', description: localize('fileUri', "Opens a window with given file uri(s)") },
 
-	{ id: 'extensions-dir', type: 'string', cat: 'e', args: 'dir', description: localize('extensionHomePath', "Set the root path for extensions.") },
+	{ id: 'extensions-dir', type: 'string', deprecates: 'extensionHomePath', cat: 'e', args: 'dir', description: localize('extensionHomePath', "Set the root path for extensions.") },
 	{ id: 'list-extensions', type: 'boolean', cat: 'e', description: localize('listExtensions', "List the installed extensions.") },
 	{ id: 'show-versions', type: 'boolean', cat: 'e', description: localize('showVersions', "Show versions of installed extensions, when using --list-extension.") },
 	{ id: 'install-extension', type: 'string', cat: 'e', args: 'extension-id', description: localize('installExtension', "Installs or updates the extension. Use `--force` argument to avoid prompts.") },
@@ -53,7 +54,7 @@ export const options: Option[] = [
 	{ id: 'status', type: 'boolean', alias: 's', cat: 't', description: localize('status', "Print process usage and diagnostics information.") },
 	{ id: 'prof-modules', type: 'boolean', alias: 'p', cat: 't', description: localize('prof-modules', "Capture performance markers while loading JS modules and print them with 'F1 > Developer: Startup Performance") },
 	{ id: 'prof-startup', type: 'boolean', cat: 't', description: localize('prof-startup', "Run CPU profiler during startup") },
-	{ id: 'disable-extensions', type: 'boolean', cat: 't', description: localize('disableExtensions', "Disable all installed extensions.") },
+	{ id: 'disable-extensions', type: 'boolean', deprecates: 'disableExtensions', cat: 't', description: localize('disableExtensions', "Disable all installed extensions.") },
 	{ id: 'disable-extension', type: 'string', cat: 't', args: 'extension-id', description: localize('disableExtension', "Disable an extension.") },
 
 	{ id: 'inspect-extensions', type: 'string', args: 'port', cat: 't', description: localize('inspect-extensions', "Allow debugging and profiling of extensions. Check the developer tools for the connection URI.") },
@@ -66,8 +67,8 @@ export const options: Option[] = [
 	{ id: 'extensionDevelopmentPath', type: 'string' },
 	{ id: 'extensionTestsPath', type: 'string' },
 	{ id: 'debugId', type: 'string' },
-	{ id: 'inspect-search', type: 'string' },
-	{ id: 'inspect-brk-extensions', type: 'string' },
+	{ id: 'inspect-search', type: 'string', deprecates: 'debugSearch' },
+	{ id: 'inspect-brk-extensions', type: 'string', deprecates: 'debugBrkSearch' },
 	{ id: 'export-default-configuration', type: 'string' },
 	{ id: 'install-source', type: 'string' },
 	{ id: 'driver', type: 'string' },
@@ -101,9 +102,12 @@ export function parseArgs(args: string[], isOptionSupported = (_: Option) => tru
 	const string: string[] = [];
 	const boolean: string[] = [];
 	for (let o of options) {
-		if (o.alias && isOptionSupported(o)) {
-			alias[o.id] = o.alias;
+		if (isOptionSupported(o)) {
+			if (o.alias) {
+				alias[o.id] = o.alias;
+			}
 		}
+
 		if (o.type === 'string') {
 			string.push(o.id);
 		} else if (o.type === 'boolean') {
@@ -115,6 +119,10 @@ export function parseArgs(args: string[], isOptionSupported = (_: Option) => tru
 	for (let o of options) {
 		if (o.alias) {
 			delete parsedArgs[o.alias];
+		}
+		if (o.deprecates && parsedArgs[o.deprecates] && !parsedArgs[o.id]) {
+			parsedArgs[o.id] = parsedArgs[o.deprecates];
+			delete parsedArgs[o.deprecates];
 		}
 	}
 	return parsedArgs;

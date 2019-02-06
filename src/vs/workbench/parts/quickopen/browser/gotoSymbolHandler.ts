@@ -82,9 +82,9 @@ class OutlineModel extends QuickOpenModel {
 		this.entries.forEach((entry: SymbolEntry) => {
 
 			// Clear all state first
-			entry.setGroupLabel(null);
+			entry.setGroupLabel(undefined);
 			entry.setShowBorder(false);
-			entry.setHighlights(null);
+			entry.setHighlights([]);
 			entry.setHidden(false);
 
 			// Filter by search
@@ -128,7 +128,7 @@ class OutlineModel extends QuickOpenModel {
 
 					// Update previous result with count
 					if (currentResult) {
-						currentResult.setGroupLabel(this.renderGroupLabel(currentType, typeCounter));
+						currentResult.setGroupLabel(typeof currentType === 'number' ? this.renderGroupLabel(currentType, typeCounter) : undefined);
 					}
 
 					currentType = result.getKind();
@@ -146,7 +146,7 @@ class OutlineModel extends QuickOpenModel {
 
 			// Update previous result with count
 			if (currentResult) {
-				currentResult.setGroupLabel(this.renderGroupLabel(currentType, typeCounter));
+				currentResult.setGroupLabel(typeof currentType === 'number' ? this.renderGroupLabel(currentType, typeCounter) : undefined);
 			}
 		}
 
@@ -338,7 +338,7 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 
 			// Decorate if possible
 			if (types.isFunction(activeTextEditorWidget.changeDecorations)) {
-				this.handler.decorateOutline(this.range, range, activeTextEditorWidget, this.editorService.activeControl.group);
+				this.handler.decorateOutline(this.range, range, activeTextEditorWidget, this.editorService.activeControl.group!);
 			}
 		}
 
@@ -365,11 +365,11 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 
 	static readonly ID = 'workbench.picker.filesymbols';
 
-	private rangeHighlightDecorationId: IEditorLineDecoration;
-	private lastKnownEditorViewState: IEditorViewState;
+	private rangeHighlightDecorationId?: IEditorLineDecoration;
+	private lastKnownEditorViewState: IEditorViewState | null;
 
-	private cachedOutlineRequest: Promise<OutlineModel>;
-	private pendingOutlineRequest: CancellationTokenSource;
+	private cachedOutlineRequest?: Promise<OutlineModel | null>;
+	private pendingOutlineRequest?: CancellationTokenSource;
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService
@@ -386,11 +386,11 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 	private onDidActiveEditorChange(): void {
 		this.clearOutlineRequest();
 
-		this.lastKnownEditorViewState = undefined;
+		this.lastKnownEditorViewState = null;
 		this.rangeHighlightDecorationId = undefined;
 	}
 
-	getResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel> {
+	getResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel | null> {
 		searchValue = searchValue.trim();
 
 		// Support to cancel pending outline requests
@@ -406,6 +406,10 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 
 		// Resolve Outline Model
 		return this.getOutline().then(outline => {
+			if (!outline) {
+				return outline;
+			}
+
 			if (token.isCancellationRequested) {
 				return outline;
 			}
@@ -469,20 +473,20 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 			const label = strings.trim(element.name);
 
 			// Show parent scope as description
-			const description: string = element.containerName;
+			const description = element.containerName || '';
 			const icon = symbolKindToCssClass(element.kind);
 
 			// Add
 			results.push(new SymbolEntry(i,
 				label, element.kind, description, `symbol-icon ${icon}`,
-				element.range, element.selectionRange, null, this.editorService, this
+				element.range, element.selectionRange, [], this.editorService, this
 			));
 		}
 
 		return results;
 	}
 
-	private getOutline(): Promise<OutlineModel> {
+	private getOutline(): Promise<OutlineModel | null> {
 		if (!this.cachedOutlineRequest) {
 			this.cachedOutlineRequest = this.doGetActiveOutline();
 		}
@@ -499,7 +503,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 			}
 
 			if (model && types.isFunction((<ITextModel>model).getLanguageIdentifier)) {
-				return Promise.resolve(asPromise(() => getDocumentSymbols(<ITextModel>model, true, this.pendingOutlineRequest.token)).then(entries => {
+				return Promise.resolve(asPromise(() => getDocumentSymbols(<ITextModel>model, true, this.pendingOutlineRequest!.token)).then(entries => {
 					return new OutlineModel(this.toQuickOpenEntries(entries));
 				}));
 			}
@@ -515,7 +519,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 			if (this.rangeHighlightDecorationId) {
 				deleteDecorations.push(this.rangeHighlightDecorationId.lineDecorationId);
 				deleteDecorations.push(this.rangeHighlightDecorationId.rangeHighlightId);
-				this.rangeHighlightDecorationId = null;
+				this.rangeHighlightDecorationId = undefined;
 			}
 
 			const newDecorations: IModelDeltaDecoration[] = [
@@ -555,20 +559,21 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 	}
 
 	private clearDecorations(): void {
-		if (this.rangeHighlightDecorationId) {
+		const rangeHighlightDecorationId = this.rangeHighlightDecorationId;
+		if (rangeHighlightDecorationId) {
 			this.editorService.visibleControls.forEach(editor => {
-				if (editor.group.id === this.rangeHighlightDecorationId.groupId) {
+				if (editor.group && editor.group.id === rangeHighlightDecorationId.groupId) {
 					const editorControl = <IEditor>editor.getControl();
 					editorControl.changeDecorations((changeAccessor: IModelDecorationsChangeAccessor) => {
 						changeAccessor.deltaDecorations([
-							this.rangeHighlightDecorationId.lineDecorationId,
-							this.rangeHighlightDecorationId.rangeHighlightId
+							rangeHighlightDecorationId.lineDecorationId,
+							rangeHighlightDecorationId.rangeHighlightId
 						], []);
 					});
 				}
 			});
 
-			this.rangeHighlightDecorationId = null;
+			this.rangeHighlightDecorationId = undefined;
 		}
 	}
 
@@ -598,6 +603,6 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 			this.pendingOutlineRequest = undefined;
 		}
 
-		this.cachedOutlineRequest = null;
+		this.cachedOutlineRequest = undefined;
 	}
 }

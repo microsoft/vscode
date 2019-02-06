@@ -137,7 +137,7 @@ export class ViewPickerHandler extends QuickOpenHandler {
 			const result: ViewEntry[] = [];
 			if (views.length) {
 				for (const view of views) {
-					if (this.contextKeyService.contextMatchesRules(view.when)) {
+					if (this.contextKeyService.contextMatchesRules(view.when || null)) {
 						result.push(new ViewEntry(view.name, viewlet.name, () => this.viewsService.openView(view.id, true)));
 					}
 				}
@@ -155,7 +155,7 @@ export class ViewPickerHandler extends QuickOpenHandler {
 
 		// Viewlet Views
 		viewlets.forEach((viewlet, index) => {
-			const viewContainer: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).get(viewlet.id);
+			const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).get(viewlet.id);
 			if (viewContainer) {
 				const viewEntriesForViewlet: ViewEntry[] = getViewEntriesForViewlet(viewlet, viewContainer);
 				viewEntries.push(...viewEntriesForViewlet);

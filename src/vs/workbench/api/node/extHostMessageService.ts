@@ -42,7 +42,7 @@ export class ExtHostMessageService {
 				commands.push({ title: command, handle, isCloseAffordance: false });
 			} else if (typeof command === 'object') {
 				let { title, isCloseAffordance } = command;
-				commands.push({ title, isCloseAffordance, handle });
+				commands.push({ title, isCloseAffordance: !!isCloseAffordance, handle });
 			} else {
 				console.warn('Invalid message item:', command);
 			}

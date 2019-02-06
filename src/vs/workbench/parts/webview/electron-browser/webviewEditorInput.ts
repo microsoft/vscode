@@ -56,7 +56,7 @@ export class WebviewEditorInput extends EditorInput {
 	private _html: string = '';
 	private _currentWebviewHtml: string = '';
 	public _events: WebviewEvents | undefined;
-	private _container: HTMLElement;
+	private _container?: HTMLElement;
 	private _webview: WebviewElement | undefined;
 	private _webviewOwner: any;
 	private _webviewDisposables: IDisposable[] = [];
@@ -139,7 +139,7 @@ export class WebviewEditorInput extends EditorInput {
 		return this.getName();
 	}
 
-	public getDescription(): string {
+	public getDescription() {
 		return null;
 	}
 
@@ -208,7 +208,6 @@ export class WebviewEditorInput extends EditorInput {
 			this._webview.options = {
 				allowScripts: this._options.enableScripts,
 				allowSvgs: true,
-				enableWrappedPostMessage: true,
 				useSameOriginForRoot: false,
 				localResourceRoots: this._options.localResourceRoots
 			};
@@ -240,10 +239,13 @@ export class WebviewEditorInput extends EditorInput {
 		return this._webview;
 	}
 
-	public set webview(value: WebviewElement) {
+	public set webview(value: WebviewElement | undefined) {
 		this._webviewDisposables = dispose(this._webviewDisposables);
 
 		this._webview = value;
+		if (!this._webview) {
+			return;
+		}
 
 		this._webview.onDidClickLink(link => {
 			if (this._events && this._events.onDidClickLink) {

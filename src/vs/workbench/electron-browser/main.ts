@@ -164,7 +164,7 @@ function createWorkspaceInitializationPayload(configuration: IWindowConfiguratio
 	}
 
 	// Single-folder workspace
-	let workspaceInitializationPayload: Promise<IWorkspaceInitializationPayload> = Promise.resolve();
+	let workspaceInitializationPayload: Promise<IWorkspaceInitializationPayload | undefined> = Promise.resolve();
 	if (configuration.folderUri) {
 		workspaceInitializationPayload = resolveSingleFolderWorkspaceInitializationPayload(configuration.folderUri);
 	}
@@ -189,7 +189,7 @@ function createWorkspaceInitializationPayload(configuration: IWindowConfiguratio
 	});
 }
 
-function resolveSingleFolderWorkspaceInitializationPayload(folderUri: ISingleFolderWorkspaceIdentifier): Promise<ISingleFolderWorkspaceInitializationPayload> {
+function resolveSingleFolderWorkspaceInitializationPayload(folderUri: ISingleFolderWorkspaceIdentifier): Promise<ISingleFolderWorkspaceInitializationPayload | undefined> {
 
 	// Return early the folder is not local
 	if (folderUri.scheme !== Schemas.file) {
@@ -197,7 +197,7 @@ function resolveSingleFolderWorkspaceInitializationPayload(folderUri: ISingleFol
 	}
 
 	function computeLocalDiskFolderId(folder: uri, stat: fs.Stats): string {
-		let ctime: number;
+		let ctime: number | undefined;
 		if (platform.isLinux) {
 			ctime = stat.ino; // Linux: birthtime is ctime, so we cannot use it! We use the ino instead!
 		} else if (platform.isMacintosh) {

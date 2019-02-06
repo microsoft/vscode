@@ -57,7 +57,6 @@
 	let firstLoad = true;
 	let loadTimeout;
 	let pendingMessages = [];
-	let enableWrappedPostMessage = false;
 	let isInDevelopmentMode = false;
 
 	const initData = {
@@ -190,11 +189,8 @@
 		// update iframe-contents
 		ipcRenderer.on('content', (_event, data) => {
 			const options = data.options;
-			enableWrappedPostMessage = options && options.enableWrappedPostMessage;
 
-			if (enableWrappedPostMessage) {
-				registerVscodeResourceScheme();
-			}
+			registerVscodeResourceScheme();
 
 			const text = data.contents;
 			const newDocument = new DOMParser().parseFromString(text, 'text/html');
@@ -213,7 +209,7 @@
 			}
 
 			// apply default script
-			if (enableWrappedPostMessage && options.allowScripts) {
+			if (options.allowScripts) {
 				const defaultScript = newDocument.createElement('script');
 				defaultScript.textContent = `
 					const acquireVsCodeApi = (function() {

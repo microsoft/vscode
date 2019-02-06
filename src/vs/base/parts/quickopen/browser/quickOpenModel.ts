@@ -214,7 +214,7 @@ export class QuickOpenEntryGroup extends QuickOpenEntry {
 		return this.groupLabel;
 	}
 
-	setGroupLabel(groupLabel: string): void {
+	setGroupLabel(groupLabel: string | undefined): void {
 		this.groupLabel = groupLabel;
 	}
 
