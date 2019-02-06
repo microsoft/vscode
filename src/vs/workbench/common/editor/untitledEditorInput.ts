@@ -27,7 +27,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 
 	private _hasAssociatedFilePath: boolean;
 	private cachedModel: UntitledEditorModel;
-	private modelResolve: Promise<UntitledEditorModel>;
+	private modelResolve?: Promise<UntitledEditorModel>;
 
 	private readonly _onDidModelChangeContent: Emitter<void> = this._register(new Emitter<void>());
 	get onDidModelChangeContent(): Event<void> { return this._onDidModelChangeContent.event; }
@@ -90,7 +90,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		return this.labelService.getUriLabel(resources.dirname(this.resource));
 	}
 
-	getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string {
+	getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string | null {
 		if (!this.hasAssociatedFilePath) {
 			return null;
 		}

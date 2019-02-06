@@ -2,7 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-.monaco-shell .feedback-form {
+
+.monaco-workbench .feedback-form {
 	width: 420px;
 	top: 30px;
 	right: 6px;
@@ -10,53 +11,53 @@
 	cursor: default;
 }
 
-.monaco-shell .feedback-form h2 {
+.monaco-workbench .feedback-form h2 {
 	margin: 0;
 	padding: 0;
 	font-weight: normal;
 	font-size: 1.8em;
 }
 
-.monaco-shell .feedback-form h3 {
+.monaco-workbench .feedback-form h3 {
 	margin: 1em 0 0;
 	padding: 0;
 	font-weight: normal;
 	font-size: 1.2em;
 }
 
-.monaco-shell .feedback-form .content {
+.monaco-workbench .feedback-form .content {
 	font-size: 1.2em;
 }
 
-.monaco-shell .feedback-form .content > div {
+.monaco-workbench .feedback-form .content > div {
 	display: inline-block;
 	vertical-align: top;
 	margin-top: 20px;
 }
 
-.monaco-shell .feedback-form .content .contactus {
+.monaco-workbench .feedback-form .content .contactus {
 	padding: 10px;
 	float: right;
 }
 
-.monaco-shell .feedback-form .content .channels {
+.monaco-workbench .feedback-form .content .channels {
 	margin-top: 5px;
 	font-size: 0.9em;
 }
 
-.monaco-shell .char-counter {
+.monaco-workbench .char-counter {
 	padding-left: 3px;
 }
 
-.monaco-shell .feedback-form .content .channels a {
+.monaco-workbench .feedback-form .content .channels a {
 	padding: 2px 0;
 }
 
-.monaco-shell .feedback-form .content .channels a:hover {
+.monaco-workbench .feedback-form .content .channels a:hover {
 	text-decoration: underline;
 }
 
-.monaco-shell .feedback-form .feedback-alias, .monaco-shell .feedback-form .feedback-description {
+.monaco-workbench .feedback-form .feedback-alias, .monaco-workbench .feedback-form .feedback-description {
 	resize: none;
 	font-size: 1.1em;
 	margin: 6px 0 0;
@@ -65,25 +66,25 @@
 	box-sizing:			border-box;
 }
 
-.monaco-shell .feedback-form .feedback-empty {
+.monaco-workbench .feedback-form .feedback-empty {
 	margin-top: .2em;
 }
 
-.monaco-shell .feedback-form .feedback-alias-checkbox {
+.monaco-workbench .feedback-form .feedback-alias-checkbox {
 	display: inline-block;
 	vertical-align: text-top;
 	margin-left: 0;
 }
 
-.monaco-shell .feedback-form .feedback-alias {
+.monaco-workbench .feedback-form .feedback-alias {
 	height: 26px;
 }
 
-.monaco-shell .feedback-form .feedback-alias:disabled {
+.monaco-workbench .feedback-form .feedback-alias:disabled {
 	opacity: 0.6;
 }
 
-.monaco-shell .feedback-form .cancel {
+.monaco-workbench .feedback-form .cancel {
 	position: absolute;
 	top: 0;
 	right: 0;
@@ -94,12 +95,12 @@
 	cursor: pointer;
 }
 
-.monaco-shell .feedback-form .form-buttons {
+.monaco-workbench .feedback-form .form-buttons {
 	margin-top: 18px;
 	text-align: right;
 }
 
-.monaco-shell .feedback-form .sentiment {
+.monaco-workbench .feedback-form .sentiment {
 	height: 32px;
 	width: 32px;
 	display: inline-block;
@@ -108,45 +109,45 @@
 	box-sizing:			border-box;
 }
 
-.monaco-shell .feedback-form .sentiment:hover {
+.monaco-workbench .feedback-form .sentiment:hover {
 	background-color: #eaeaea;
 }
 
 /* Statusbar */
-.monaco-shell .statusbar-item > .monaco-dropdown.send-feedback {
+.monaco-workbench .statusbar-item > .monaco-dropdown.send-feedback {
 	display: inline-block;
 }
 
-.monaco-shell .statusbar-item > .monaco-dropdown.send-feedback > .dropdown-label.send-feedback {
+.monaco-workbench .statusbar-item > .monaco-dropdown.send-feedback > .dropdown-label.send-feedback {
 	-webkit-mask: url('smiley.svg') no-repeat 50% 50%; /* use mask to be able to change color dynamically */
 	width: 26px;
 }
 
 /* Theming */
-.monaco-shell.vs .feedback-form .feedback-alias, .monaco-shell.vs .feedback-form .feedback-description {
+.vs .monaco-workbench .feedback-form .feedback-alias, .vs .monaco-workbench .feedback-form .feedback-description {
 	font-family: inherit;
 	border: 1px solid transparent;
 }
 
 
-.monaco-shell.vs .feedback-form .cancel {
+.vs .monaco-workbench .feedback-form .cancel {
 	background: url('close.svg') center center no-repeat;
 }
 
-.monaco-shell .feedback-form .form-buttons {
+.monaco-workbench .feedback-form .form-buttons {
 	display: flex;
 }
 
-.monaco-shell .feedback-form .form-buttons .hide-button-container {
+.monaco-workbench .feedback-form .form-buttons .hide-button-container {
 	display: flex;
 }
 
-.monaco-shell .feedback-form .form-buttons .hide-button-container input,
-.monaco-shell .feedback-form .form-buttons .hide-button-container label {
+.monaco-workbench .feedback-form .form-buttons .hide-button-container input,
+.monaco-workbench .feedback-form .form-buttons .hide-button-container label {
 	align-self: center;
 }
 
-.monaco-shell .feedback-form .form-buttons .send {
+.monaco-workbench .feedback-form .form-buttons .send {
 	width: auto;
 	background-image: url('twitter.svg');
 	background-position: 12px center;
@@ -157,56 +158,56 @@
 	transition: width 200ms ease-out;
 }
 
-.monaco-shell .feedback-form .form-buttons .send.in-progress,
-.monaco-shell .feedback-form .form-buttons .send:hover {
+.monaco-workbench .feedback-form .form-buttons .send.in-progress,
+.monaco-workbench .feedback-form .form-buttons .send:hover {
 	background-color: #006BB3;
 }
 
-.monaco-shell .feedback-form .form-buttons .send:disabled {
+.monaco-workbench .feedback-form .form-buttons .send:disabled {
 	pointer-events: none;
 	cursor: not-allowed;
 	opacity: .65;
 }
 
-.monaco-shell .feedback-form .form-buttons .send.success {
+.monaco-workbench .feedback-form .form-buttons .send.success {
 	background-color: #2d883e;
 }
 
-.monaco-shell .feedback-form .form-buttons .send.error {
+.monaco-workbench .feedback-form .form-buttons .send.error {
 	background-color: #E51400;
 }
 
-.monaco-shell.vs-dark .feedback-form h3 {
+.vs-dark .monaco-workbench .feedback-form h3 {
 	font-weight: normal;
 	font-size: 1.2em;
 }
 
-.monaco-shell.vs-dark .feedback-form .sentiment:hover {
+.vs-dark .monaco-workbench .feedback-form .sentiment:hover {
 	background-color: rgba(30,30,30,0.8);
 }
 
-.monaco-shell.vs-dark .feedback-form .feedback-alias, .monaco-shell.vs-dark .feedback-form .feedback-description {
+.vs-dark .monaco-workbench .feedback-form .feedback-alias, .vs-dark .monaco-workbench .feedback-form .feedback-description {
 	font-family: inherit;
 }
 
-.monaco-shell.vs-dark .feedback-form .cancel,
-.monaco-shell.hc-black .feedback-form .cancel {
+.vs-dark .monaco-workbench .feedback-form .cancel,
+.hc-black .monaco-workbench .feedback-form .cancel {
 	background: url('close-dark.svg') center center no-repeat;
 }
 
-.monaco-shell .feedback-form .sentiment.smile {
+.monaco-workbench .feedback-form .sentiment.smile {
 	background-image: url('happy.svg');
 	background-position: center;
 	background-repeat: no-repeat;
 }
 
-.monaco-shell .feedback-form .sentiment.frown {
+.monaco-workbench .feedback-form .sentiment.frown {
 	background-image: url('sad.svg');
 	background-position: center;
 	background-repeat: no-repeat;
 }
 
-.monaco-shell .feedback-form .infotip {
+.monaco-workbench .feedback-form .infotip {
 	background-image: url('info.svg');
 	background-position: center;
 	background-repeat: no-repeat;
@@ -220,38 +221,38 @@
 }
 
 /* High Contrast Theming */
-.monaco-shell.hc-black .feedback-form {
+.hc-black .monaco-workbench .feedback-form {
 	outline: 2px solid #6fc3df;
 	outline-offset: -2px;
 }
 
-.monaco-shell.hc-black .feedback-form .feedback-alias, .monaco-shell.hc-black .feedback-form .feedback-description {
+.hc-black .monaco-workbench .feedback-form .feedback-alias, .hc-black .monaco-workbench .feedback-form .feedback-description {
 	font-family: inherit;
 }
 
-.monaco-shell.hc-black .feedback-form .content .contactus {
+.hc-black .monaco-workbench .feedback-form .content .contactus {
 	padding: 10px;
 	float: right;
 }
 
-.monaco-shell.hc-black .feedback-form .form-buttons .send,
-.monaco-shell.hc-black .feedback-form .form-buttons .send.in-progress,
-.monaco-shell.hc-black .feedback-form .form-buttons .send.success {
+.hc-black .monaco-workbench .feedback-form .form-buttons .send,
+.hc-black .monaco-workbench .feedback-form .form-buttons .send.in-progress,
+.hc-black .monaco-workbench .feedback-form .form-buttons .send.success {
 	background-color: #0C141F;
 	color: #D4D4D4;
 	border: 1px solid #6FC3DF;
 }
 
-.monaco-shell.hc-black .feedback-form .form-buttons .send:hover {
+.hc-black .monaco-workbench .feedback-form .form-buttons .send:hover {
 	background-color: #0C141F;
 }
 
 
-.monaco-shell .feedback-form .infotip {
+.monaco-workbench .feedback-form .infotip {
 	background: none;
 }
 
-.monaco-shell .feedback-form .infotip:before {
+.monaco-workbench .feedback-form .infotip:before {
 	content: url('info.svg');
 	height: 16px;
 	width: 16px;

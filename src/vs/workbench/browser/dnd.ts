@@ -295,13 +295,15 @@ export class ResourcesDropHandler {
 
 			// Multiple folders: Create new workspace with folders and open
 			else if (folders.length > 1) {
-				workspacesToOpen = this.workspacesService.createWorkspace(folders.map(folder => ({ uri: folder }))).then(workspace => [URI.file(workspace.configPath)]);
+				workspacesToOpen = this.workspacesService.createUntitledWorkspace(folders.map(folder => ({ uri: folder }))).then(workspace => [URI.file(workspace.configPath)]);
 			}
 
 			// Open
-			workspacesToOpen.then(workspaces => {
-				this.windowService.openWindow(workspaces, { forceReuseWindow: true });
-			});
+			if (workspacesToOpen) {
+				workspacesToOpen.then(workspaces => {
+					this.windowService.openWindow(workspaces, { forceReuseWindow: true });
+				});
+			}
 
 			return true;
 		});
@@ -317,7 +319,7 @@ export class SimpleFileResourceDragAndDrop extends DefaultDragAndDrop {
 		super();
 	}
 
-	getDragURI(tree: ITree, obj: any): string {
+	getDragURI(tree: ITree, obj: any): string | undefined {
 		const resource = this.toResource(obj);
 		if (resource) {
 			return resource.toString();
@@ -326,7 +328,7 @@ export class SimpleFileResourceDragAndDrop extends DefaultDragAndDrop {
 		return undefined;
 	}
 
-	getDragLabel(tree: ITree, elements: any[]): string {
+	getDragLabel(tree: ITree, elements: any[]): string | undefined {
 		if (elements.length > 1) {
 			return String(elements.length);
 		}

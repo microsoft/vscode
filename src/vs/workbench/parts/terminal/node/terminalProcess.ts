@@ -11,6 +11,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { ITerminalChildProcess } from 'vs/workbench/parts/terminal/node/terminal';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
+import { exec } from 'child_process';
 
 export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 	private _exitCode: number;
@@ -20,6 +21,7 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 	private _processStartupComplete: Promise<void>;
 	private _isDisposed: boolean = false;
 	private _titleInterval: NodeJS.Timer | null = null;
+	private _initialCwd: string;
 
 	private readonly _onProcessData = new Emitter<string>();
 	public get onProcessData(): Event<string> { return this._onProcessData.event; }
@@ -47,13 +49,15 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 			shellName = 'xterm-256color';
 		}
 
+		this._initialCwd = cwd;
+		const useConpty = windowsEnableConpty && process.platform === 'win32' && this._getWindowsBuildNumber() >= 18309;
 		const options: pty.IPtyForkOptions = {
 			name: shellName,
 			cwd,
 			env,
 			cols,
 			rows,
-			experimentalUseConpty: windowsEnableConpty
+			experimentalUseConpty: useConpty
 		};
 
 		try {
@@ -99,6 +103,15 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 		this._onProcessExit.dispose();
 		this._onProcessIdReady.dispose();
 		this._onProcessTitleChanged.dispose();
+	}
+
+	private _getWindowsBuildNumber(): number {
+		const osVersion = (/(\d+)\.(\d+)\.(\d+)/g).exec(os.release());
+		let buildNumber: number = 0;
+		if (osVersion && osVersion.length === 4) {
+			buildNumber = parseInt(osVersion[3]);
+		}
+		return buildNumber;
 	}
 
 	private _setupTitlePolling() {
@@ -176,5 +189,25 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 		// Ensure that cols and rows are always >= 1, this prevents a native
 		// exception in winpty.
 		this._ptyProcess.resize(Math.max(cols, 1), Math.max(rows, 1));
+	}
+
+	public getInitialCwd(): Promise<string> {
+		return Promise.resolve(this._initialCwd);
+	}
+
+	public getCwd(): Promise<string> {
+		if (platform.isWindows) {
+			return new Promise<string>(resolve => {
+				resolve(this._initialCwd);
+			});
+		}
+
+		return new Promise<string>(resolve => {
+			exec('lsof -p ' + this._ptyProcess.pid + ' | grep cwd', (error, stdout, stderr) => {
+				if (stdout !== '') {
+					resolve(stdout.substring(stdout.indexOf('/'), stdout.length - 1));
+				}
+			});
+		});
 	}
 }

@@ -19,6 +19,8 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { Schemas } from 'vs/base/common/network';
 import { REMOTE_HOST_SCHEME, getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
+import { sanitizeProcessEnvironment } from 'vs/base/node/processes';
+import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -35,7 +37,6 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	public processState: ProcessState = ProcessState.UNINITIALIZED;
 	public ptyProcessReady: Promise<void>;
 	public shellProcessId: number;
-	public initialCwd: string;
 
 	private _process: ITerminalChildProcess | null = null;
 	private _preLaunchInputQueue: string[] = [];
@@ -58,7 +59,8 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		@ILogService private readonly _logService: ILogService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService,
-		@IWindowService private readonly _windowService: IWindowService
+		@IWindowService private readonly _windowService: IWindowService,
+		@IWorkspaceConfigurationService private readonly _workspaceConfigurationService: IWorkspaceConfigurationService,
 	) {
 		this.ptyProcessReady = new Promise<void>(c => {
 			this.onProcessReady(() => {
@@ -90,8 +92,8 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		cols: number,
 		rows: number
 	): void {
-
 		let launchRemotely = false;
+		const forceExtHostProcess = (this._configHelper.config as any).extHostProcess;
 
 		if (shellLaunchConfig.cwd && typeof shellLaunchConfig.cwd === 'object') {
 			launchRemotely = !!getRemoteAuthority(shellLaunchConfig.cwd);
@@ -100,16 +102,16 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 			launchRemotely = !!this._windowService.getConfiguration().remoteAuthority;
 		}
 
-		if (launchRemotely) {
-			const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(REMOTE_HOST_SCHEME);
+		if (launchRemotely || forceExtHostProcess) {
+			const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(forceExtHostProcess ? undefined : REMOTE_HOST_SCHEME);
 			this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows);
 		} else {
 			if (!shellLaunchConfig.executable) {
 				this._configHelper.mergeDefaultShellPathAndArgs(shellLaunchConfig);
 			}
-			// TODO: @daniel
+
 			const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.file);
-			this.initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, activeWorkspaceRootUri, this._configHelper.config.cwd);
+			const initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, activeWorkspaceRootUri, this._configHelper.config.cwd);
 
 			// Compel type system as process.env should not have any undefined entries
 			let env: platform.IProcessEnvironment = {};
@@ -125,7 +127,10 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 				// Resolve env vars from config and shell
 				const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) : null;
 				const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
-				const envFromConfig = terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, { ...this._configHelper.config.env[platformKey] }, lastActiveWorkspaceRoot);
+				const isWorkspaceShellAllowed = this._configHelper.checkWorkspaceShellPermissions();
+				const envFromConfigValue = this._workspaceConfigurationService.inspect<{ [key: string]: string }>(`terminal.integrated.env.${platformKey}`);
+				const allowedEnvFromConfig = (isWorkspaceShellAllowed ? envFromConfigValue.value : envFromConfigValue.user);
+				const envFromConfig = terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, { ...allowedEnvFromConfig }, lastActiveWorkspaceRoot);
 				const envFromShell = terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, { ...shellLaunchConfig.env }, lastActiveWorkspaceRoot);
 				shellLaunchConfig.env = envFromShell;
 
@@ -134,14 +139,14 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 
 				// Sanitize the environment, removing any undesirable VS Code and Electron environment
 				// variables
-				terminalEnvironment.sanitizeEnvironment(env);
+				sanitizeProcessEnvironment(env);
 
 				// Adding other env keys necessary to create the process
 				terminalEnvironment.addTerminalEnvironmentKeys(env, platform.locale, this._configHelper.config.setLocaleVariables);
 			}
 
-			this._logService.debug(`Terminal process launching`, shellLaunchConfig, this.initialCwd, cols, rows, env);
-			this._process = new TerminalProcess(shellLaunchConfig, this.initialCwd, cols, rows, env, this._configHelper.config.windowsEnableConpty);
+			this._logService.debug(`Terminal process launching`, shellLaunchConfig, initialCwd, cols, rows, env);
+			this._process = new TerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, this._configHelper.config.windowsEnableConpty);
 		}
 		this.processState = ProcessState.LAUNCHING;
 
@@ -199,6 +204,20 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 			// If the pty is not ready, queue the data received to send later
 			this._preLaunchInputQueue.push(data);
 		}
+	}
+
+	public getInitialCwd(): Promise<string> {
+		if (!this._process) {
+			return Promise.resolve('');
+		}
+		return this._process.getInitialCwd();
+	}
+
+	public getCwd(): Promise<string> {
+		if (!this._process) {
+			return Promise.resolve('');
+		}
+		return this._process.getCwd();
 	}
 
 	private _onExit(exitCode: number): void {

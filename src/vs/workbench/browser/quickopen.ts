@@ -50,14 +50,14 @@ export class QuickOpenHandler {
 	/**
 	 * The ARIA label to apply when this quick open handler is active in quick open.
 	 */
-	getAriaLabel() {
+	getAriaLabel(): string | null {
 		return null;
 	}
 
 	/**
 	 * Extra CSS class name to add to the quick open widget to do custom styling of entries.
 	 */
-	getClass(): string {
+	getClass(): string | null {
 		return null;
 	}
 
@@ -102,7 +102,7 @@ export class QuickOpenHandler {
 	/**
 	 * Allows to return a label that will be placed to the side of the results from this handler or null if none.
 	 */
-	getGroupLabel(): string {
+	getGroupLabel(): string | null {
 		return null;
 	}
 
@@ -129,16 +129,16 @@ export interface QuickOpenHandlerHelpEntry {
 export class QuickOpenHandlerDescriptor {
 	prefix: string;
 	description: string;
-	contextKey: string;
+	contextKey?: string;
 	helpEntries: QuickOpenHandlerHelpEntry[];
 	instantProgress: boolean;
 
 	private id: string;
 	private ctor: IConstructorSignature0<QuickOpenHandler>;
 
-	constructor(ctor: IConstructorSignature0<QuickOpenHandler>, id: string, prefix: string, contextKey: string, description: string, instantProgress?: boolean);
-	constructor(ctor: IConstructorSignature0<QuickOpenHandler>, id: string, prefix: string, contextKey: string, helpEntries: QuickOpenHandlerHelpEntry[], instantProgress?: boolean);
-	constructor(ctor: IConstructorSignature0<QuickOpenHandler>, id: string, prefix: string, contextKey: string, param: any, instantProgress: boolean = false) {
+	constructor(ctor: IConstructorSignature0<QuickOpenHandler>, id: string, prefix: string, contextKey: string | undefined, description: string, instantProgress?: boolean);
+	constructor(ctor: IConstructorSignature0<QuickOpenHandler>, id: string, prefix: string, contextKey: string | undefined, helpEntries: QuickOpenHandlerHelpEntry[], instantProgress?: boolean);
+	constructor(ctor: IConstructorSignature0<QuickOpenHandler>, id: string, prefix: string, contextKey: string | undefined, param: any, instantProgress: boolean = false) {
 		this.ctor = ctor;
 		this.id = id;
 		this.prefix = prefix;
@@ -185,7 +185,7 @@ export interface IQuickOpenRegistry {
 	/**
 	 * Get a specific quick open handler for a given prefix.
 	 */
-	getQuickOpenHandler(prefix: string): QuickOpenHandlerDescriptor;
+	getQuickOpenHandler(prefix: string): QuickOpenHandlerDescriptor | null;
 
 	/**
 	 * Returns the default quick open handler.
@@ -213,8 +213,8 @@ class QuickOpenRegistry implements IQuickOpenRegistry {
 		return this.handlers.slice(0);
 	}
 
-	getQuickOpenHandler(text: string): QuickOpenHandlerDescriptor {
-		return text ? arrays.first(this.handlers, h => strings.startsWith(text, h.prefix), null) : null;
+	getQuickOpenHandler(text: string): QuickOpenHandlerDescriptor | null {
+		return text ? arrays.first<QuickOpenHandlerDescriptor>(this.handlers, h => strings.startsWith(text, h.prefix), null) : null;
 	}
 
 	getDefaultQuickOpenHandler(): QuickOpenHandlerDescriptor {
@@ -229,12 +229,12 @@ export interface IEditorQuickOpenEntry {
 	/**
 	 * The editor input used for this entry when opening.
 	 */
-	getInput(): IResourceInput | IEditorInput;
+	getInput(): IResourceInput | IEditorInput | null;
 
 	/**
 	 * The editor options used for this entry when opening.
 	 */
-	getOptions(): IEditorOptions;
+	getOptions(): IEditorOptions | null;
 }
 
 /**
@@ -250,11 +250,11 @@ export class EditorQuickOpenEntry extends QuickOpenEntry implements IEditorQuick
 		return this._editorService;
 	}
 
-	getInput(): IResourceInput | IEditorInput {
+	getInput(): IResourceInput | IEditorInput | null {
 		return null;
 	}
 
-	getOptions(): IEditorOptions {
+	getOptions(): IEditorOptions | null {
 		return null;
 	}
 
@@ -264,7 +264,7 @@ export class EditorQuickOpenEntry extends QuickOpenEntry implements IEditorQuick
 		if (mode === Mode.OPEN || mode === Mode.OPEN_IN_BACKGROUND) {
 			const sideBySide = context.keymods.ctrlCmd;
 
-			let openOptions: IEditorOptions;
+			let openOptions: IEditorOptions | undefined;
 			if (mode === Mode.OPEN_IN_BACKGROUND) {
 				openOptions = { pinned: true, preserveFocus: true };
 			} else if (context.keymods.alt) {
@@ -280,7 +280,7 @@ export class EditorQuickOpenEntry extends QuickOpenEntry implements IEditorQuick
 					opts = EditorOptions.create(openOptions);
 				}
 
-				this.editorService.openEditor(input, opts, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+				this.editorService.openEditor(input, opts || undefined, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 			} else {
 				const resourceInput = <IResourceInput>input;
 
@@ -301,11 +301,11 @@ export class EditorQuickOpenEntry extends QuickOpenEntry implements IEditorQuick
  */
 export class EditorQuickOpenEntryGroup extends QuickOpenEntryGroup implements IEditorQuickOpenEntry {
 
-	getInput(): IEditorInput | IResourceInput {
+	getInput(): IEditorInput | IResourceInput | null {
 		return null;
 	}
 
-	getOptions(): IEditorOptions {
+	getOptions(): IEditorOptions | null {
 		return null;
 	}
 }

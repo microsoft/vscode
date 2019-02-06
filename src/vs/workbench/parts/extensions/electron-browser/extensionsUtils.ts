@@ -74,9 +74,7 @@ export class KeymapExtensions implements IWorkbenchContribution {
 			*/
 			this.telemetryService.publicLog('disableOtherKeymaps', telemetryData);
 			if (confirmed) {
-				Promise.all(oldKeymaps.map(keymap => {
-					return this.extensionEnablementService.setEnablement(keymap.local, EnablementState.Disabled);
-				}));
+				this.extensionEnablementService.setEnablement(oldKeymaps.map(keymap => keymap.local), EnablementState.Disabled);
 			}
 		};
 
@@ -102,18 +100,19 @@ export function onExtensionChanged(accessor: ServicesAccessor): Event<IExtension
 	const onDidInstallExtension = Event.chain(extensionService.onDidInstallExtension)
 		.filter(e => e.operation === InstallOperation.Install)
 		.event;
-	return Event.debounce<IExtensionIdentifier, IExtensionIdentifier[]>(Event.any(
+	return Event.debounce<IExtensionIdentifier[], IExtensionIdentifier[]>(Event.any(
 		Event.chain(Event.any(onDidInstallExtension, extensionService.onDidUninstallExtension))
-			.map(e => e.identifier)
+			.map(e => [e.identifier])
 			.event,
-		Event.map(extensionEnablementService.onEnablementChanged, e => e.identifier)
-	), (list, id) => {
-		if (!list) {
-			return [id];
-		} else if (list.some(l => !areSameExtensions(l, id))) {
-			list.push(id);
+		Event.map(extensionEnablementService.onEnablementChanged, extensions => extensions.map(e => e.identifier))
+	), (result: IExtensionIdentifier[] | undefined, identifiers: IExtensionIdentifier[]) => {
+		result = result || [];
+		for (const identifier of identifiers) {
+			if (result.some(l => !areSameExtensions(l, identifier))) {
+				result.push(identifier);
+			}
 		}
-		return list;
+		return result;
 	});
 }
 

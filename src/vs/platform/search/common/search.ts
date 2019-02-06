@@ -27,7 +27,6 @@ export interface ISearchService {
 	_serviceBrand: any;
 	textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete>;
 	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete>;
-	extendQuery(query: ITextQuery | IFileQuery): void;
 	clearCache(cacheKey: string): Promise<void>;
 	registerSearchResultProvider(scheme: string, type: SearchProviderType, provider: ISearchResultProvider): IDisposable;
 }
@@ -81,7 +80,6 @@ export interface ICommonQueryProps<U extends UriComponents> {
 	excludePattern?: glob.IExpression;
 	extraFileResources?: U[];
 
-	useRipgrep?: boolean;
 	maxResults?: number;
 	usingSearchPaths?: boolean;
 }
@@ -232,7 +230,6 @@ export interface ICachedSearchStats {
 }
 
 export interface ISearchEngineStats {
-	traversal: string;
 	fileWalkTime: number;
 	directoriesWalked: number;
 	filesWalked: number;
@@ -317,7 +314,6 @@ export class OneLineRange extends SearchRange {
 export interface ISearchConfigurationProperties {
 	exclude: glob.IExpression;
 	useRipgrep: boolean;
-	useLegacySearch: boolean;
 	/**
 	 * Use ignore file for file search.
 	 */
@@ -331,6 +327,7 @@ export interface ISearchConfigurationProperties {
 	showLineNumbers: boolean;
 	usePCRE2: boolean;
 	actionsPosition: 'auto' | 'right';
+	maintainFileSearchCache: boolean;
 	collapseResults: 'auto' | 'alwaysCollapse' | 'alwaysExpand';
 }
 

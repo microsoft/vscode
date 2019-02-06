@@ -111,7 +111,7 @@ export class RelatedInformation {
 
 	constructor(
 		private resource: URI,
-		private marker: IMarker,
+		readonly marker: IMarker,
 		readonly raw: IRelatedInformation
 	) { }
 }

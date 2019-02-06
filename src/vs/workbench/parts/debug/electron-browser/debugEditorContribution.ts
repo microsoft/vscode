@@ -294,7 +294,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		if (stackFrame && model && model.uri.toString() === stackFrame.source.uri.toString()) {
 			this.editor.updateOptions({
 				hover: {
-					enabled: !stackFrame || !model || model.uri.toString() !== stackFrame.source.uri.toString()
+					enabled: false
 				}
 			});
 		} else {

@@ -28,7 +28,7 @@ export class WebviewEditor extends BaseWebviewEditor {
 	public static readonly ID = 'WebviewEditor';
 
 	private _editorFrame: HTMLElement;
-	private _content: HTMLElement;
+	private _content?: HTMLElement;
 	private _webviewContent: HTMLElement | undefined;
 
 	private _webviewFocusTrackerDisposables: IDisposable[] = [];
@@ -171,8 +171,9 @@ export class WebviewEditor extends BaseWebviewEditor {
 				if (token.isCancellationRequested) {
 					return;
 				}
-
-				input.updateGroup(this.group.id);
+				if (this.group) {
+					input.updateGroup(this.group.id);
+				}
 				this.updateWebview(input);
 			});
 	}
@@ -183,11 +184,10 @@ export class WebviewEditor extends BaseWebviewEditor {
 		webview.update(input.html, {
 			allowScripts: input.options.enableScripts,
 			allowSvgs: true,
-			enableWrappedPostMessage: true,
 			useSameOriginForRoot: false,
 			localResourceRoots: input.options.localResourceRoots || this.getDefaultLocalResourceRoots(),
 			extensionLocation: input.extensionLocation
-		}, input.options.retainContextWhenHidden);
+		}, !!input.options.retainContextWhenHidden);
 
 		if (this._webviewContent) {
 			this._webviewContent.style.visibility = 'visible';
@@ -198,8 +198,9 @@ export class WebviewEditor extends BaseWebviewEditor {
 
 	private getDefaultLocalResourceRoots(): URI[] {
 		const rootPaths = this._contextService.getWorkspace().folders.map(x => x.uri);
-		if ((this.input as WebviewEditorInput).extensionLocation) {
-			rootPaths.push((this.input as WebviewEditorInput).extensionLocation);
+		const extensionLocation = (this.input as WebviewEditorInput).extensionLocation;
+		if (extensionLocation) {
+			rootPaths.push(extensionLocation);
 		}
 		return rootPaths;
 	}
@@ -222,7 +223,6 @@ export class WebviewEditor extends BaseWebviewEditor {
 			this._webview = this._instantiationService.createInstance(WebviewElement,
 				this._partService.getContainer(Parts.EDITOR_PART),
 				{
-					enableWrappedPostMessage: true,
 					useSameOriginForRoot: false,
 					extensionLocation: input.extensionLocation
 				});
@@ -235,7 +235,7 @@ export class WebviewEditor extends BaseWebviewEditor {
 
 			this._webview.state = input.webviewState;
 
-			this._content.setAttribute('aria-flowto', this._webviewContent.id);
+			this._content!.setAttribute('aria-flowto', this._webviewContent.id);
 
 			this.doUpdateContainer();
 		}
@@ -254,11 +254,11 @@ export class WebviewEditor extends BaseWebviewEditor {
 		this._webviewFocusTrackerDisposables = dispose(this._webviewFocusTrackerDisposables);
 
 		// Track focus in webview content
-		const webviewContentFocusTracker = DOM.trackFocus(this._webviewContent);
+		const webviewContentFocusTracker = DOM.trackFocus(this._webviewContent!);
 		this._webviewFocusTrackerDisposables.push(webviewContentFocusTracker);
 		this._webviewFocusTrackerDisposables.push(webviewContentFocusTracker.onDidFocus(() => this._onDidFocusWebview.fire()));
 
 		// Track focus in webview element
-		this._webviewFocusTrackerDisposables.push(this._webview.onDidFocus(() => this._onDidFocusWebview.fire()));
+		this._webviewFocusTrackerDisposables.push(this._webview!.onDidFocus(() => this._onDidFocusWebview.fire()));
 	}
 }

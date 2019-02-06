@@ -8,7 +8,7 @@ import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProcessEnvironment } from 'vs/base/common/platform';
-import { IWorkspaceIdentifier, IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { URI } from 'vs/base/common/uri';
 
@@ -33,11 +33,11 @@ export interface ICodeWindow {
 	readonly win: Electron.BrowserWindow;
 	readonly config: IWindowConfiguration;
 
-	readonly openedFolderUri: URI;
-	readonly openedWorkspace: IWorkspaceIdentifier;
-	readonly backupPath: string;
+	readonly openedFolderUri?: URI;
+	readonly openedWorkspace?: IWorkspaceIdentifier;
+	readonly backupPath?: string;
 
-	readonly remoteAuthority: string;
+	readonly remoteAuthority?: string;
 
 	readonly isExtensionDevelopmentHost: boolean;
 	readonly isExtensionTestHost: boolean;
@@ -88,17 +88,13 @@ export interface IWindowsMainService {
 
 	// events
 	readonly onWindowReady: Event<ICodeWindow>;
-	readonly onActiveWindowChanged: Event<ICodeWindow>;
 	readonly onWindowsCountChanged: Event<IWindowsCountChangedEvent>;
 	readonly onWindowClose: Event<number>;
-	readonly onWindowReload: Event<number>;
 
 	// methods
 	ready(initialUserEnv: IProcessEnvironment): void;
 	reload(win: ICodeWindow, cli?: ParsedArgs): void;
-	enterWorkspace(win: ICodeWindow, path: string): Promise<IEnterWorkspaceResult>;
-	createAndEnterWorkspace(win: ICodeWindow, folders?: IWorkspaceFolderCreationData[], path?: string): Promise<IEnterWorkspaceResult>;
-	saveAndEnterWorkspace(win: ICodeWindow, path: string): Promise<IEnterWorkspaceResult>;
+	enterWorkspace(win: ICodeWindow, path: URI): Promise<IEnterWorkspaceResult | undefined>;
 	closeWorkspace(win: ICodeWindow): void;
 	open(openConfig: IOpenConfiguration): ICodeWindow[];
 	openExtensionDevelopmentHostWindow(openConfig: IOpenConfiguration): void;
@@ -110,14 +106,14 @@ export interface IWindowsMainService {
 	showSaveDialog(options: Electron.SaveDialogOptions, win?: ICodeWindow): Promise<string>;
 	showOpenDialog(options: Electron.OpenDialogOptions, win?: ICodeWindow): Promise<string[]>;
 	focusLastActive(cli: ParsedArgs, context: OpenContext): ICodeWindow;
-	getLastActiveWindow(): ICodeWindow;
+	getLastActiveWindow(): ICodeWindow | undefined;
 	waitForWindowCloseOrLoad(windowId: number): Promise<void>;
 	openNewWindow(context: OpenContext, options?: INewWindowOptions): ICodeWindow[];
 	openNewTabbedWindow(context: OpenContext): ICodeWindow[];
 	sendToFocused(channel: string, ...args: any[]): void;
 	sendToAll(channel: string, payload: any, windowIdsToIgnore?: number[]): void;
-	getFocusedWindow(): ICodeWindow;
-	getWindowById(windowId: number): ICodeWindow;
+	getFocusedWindow(): ICodeWindow | undefined;
+	getWindowById(windowId: number): ICodeWindow | undefined;
 	getWindows(): ICodeWindow[];
 	getWindowCount(): number;
 	quit(): void;

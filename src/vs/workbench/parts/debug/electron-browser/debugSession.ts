@@ -613,16 +613,6 @@ export class DebugSession implements IDebugSession {
 					this.model.fetchCallStack(<Thread>thread).then(() => {
 						if (!event.body.preserveFocusHint && thread.getCallStack().length) {
 							this.debugService.focusStackFrame(undefined, thread);
-							if (!this.debugService.getViewModel().focusedStackFrame) {
-								// There were no appropriate stack frames to focus.
-								// We need to listen on additional stack frame fetching and try to refocus #65012
-								const listener = this.model.onDidChangeCallStack(t => {
-									if (t && t.getId() === thread.getId()) {
-										dispose(listener);
-										this.debugService.focusStackFrame(undefined, thread);
-									}
-								});
-							}
 							if (thread.stoppedDetails) {
 								if (this.configurationService.getValue<IDebugConfiguration>('debug').openDebug === 'openOnDebugBreak') {
 									this.viewletService.openViewlet(VIEWLET_ID);

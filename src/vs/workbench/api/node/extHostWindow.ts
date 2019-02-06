@@ -6,6 +6,9 @@
 import { Event, Emitter } from 'vs/base/common/event';
 import { ExtHostWindowShape, MainContext, MainThreadWindowShape, IMainContext } from './extHost.protocol';
 import { WindowState } from 'vscode';
+import { URI } from 'vs/base/common/uri';
+import { Schemas } from 'vs/base/common/network';
+import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 
 export class ExtHostWindow implements ExtHostWindowShape {
 
@@ -33,5 +36,14 @@ export class ExtHostWindow implements ExtHostWindowShape {
 
 		this._state = { ...this._state, focused };
 		this._onDidChangeWindowState.fire(this._state);
+	}
+
+	openUri(uri: URI): Promise<boolean> {
+		if (isFalsyOrWhitespace(uri.scheme)) {
+			return Promise.reject('Invalid scheme - cannot be empty');
+		} else if (uri.scheme === Schemas.command) {
+			return Promise.reject(`Invalid scheme '${uri.scheme}'`);
+		}
+		return this._proxy.$openUri(uri);
 	}
 }

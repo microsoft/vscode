@@ -36,7 +36,7 @@
 	 * @param {() => void} handlers.onFocus
 	 * @param {() => void} handlers.onBlur
 	 */
-	const trackFocus = ({onFocus, onBlur}) => {
+	const trackFocus = ({ onFocus, onBlur }) => {
 		const interval = 50;
 		let isFocused = document.hasFocus();
 		setInterval(() => {
@@ -57,7 +57,6 @@
 	let firstLoad = true;
 	let loadTimeout;
 	let pendingMessages = [];
-	let enableWrappedPostMessage = false;
 	let isInDevelopmentMode = false;
 
 	const initData = {
@@ -67,12 +66,19 @@
 	/**
 	 * @param {HTMLElement} body
 	 */
-	const styleBody = (body) => {
+	const applyStyles = (body) => {
 		if (!body) {
 			return;
 		}
+
 		body.classList.remove('vscode-light', 'vscode-dark', 'vscode-high-contrast');
 		body.classList.add(initData.activeTheme);
+
+		if (initData.styles) {
+			for (const variable of Object.keys(initData.styles)) {
+				body.style.setProperty(`--${variable}`, initData.styles[variable]);
+			}
+		}
 	};
 
 	const getActiveFrame = () => {
@@ -169,11 +175,7 @@
 				return;
 			}
 
-			styleBody(target.contentDocument.body);
-
-			Object.keys(variables).forEach((variable) => {
-				target.contentDocument.documentElement.style.setProperty(`--${variable}`, variables[variable]);
-			});
+			applyStyles(target.contentDocument.body);
 		});
 
 		// propagate focus
@@ -187,11 +189,8 @@
 		// update iframe-contents
 		ipcRenderer.on('content', (_event, data) => {
 			const options = data.options;
-			enableWrappedPostMessage = options && options.enableWrappedPostMessage;
 
-			if (enableWrappedPostMessage) {
-				registerVscodeResourceScheme();
-			}
+			registerVscodeResourceScheme();
 
 			const text = data.contents;
 			const newDocument = new DOMParser().parseFromString(text, 'text/html');
@@ -210,7 +209,7 @@
 			}
 
 			// apply default script
-			if (enableWrappedPostMessage && options.allowScripts) {
+			if (options.allowScripts) {
 				const defaultScript = newDocument.createElement('script');
 				defaultScript.textContent = `
 					const acquireVsCodeApi = (function() {
@@ -253,7 +252,7 @@
 			defaultStyles.innerHTML = getDefaultCss(initData.styles);
 			newDocument.head.prepend(defaultStyles);
 
-			styleBody(newDocument.body);
+			applyStyles(newDocument.body);
 
 			const frame = getActiveFrame();
 			const wasFirstLoad = firstLoad;
@@ -321,6 +320,8 @@
 					if (oldActiveFrame) {
 						document.body.removeChild(oldActiveFrame);
 					}
+					// Styles may have changed since we created the element. Make sure we re-style
+					applyStyles(newFrame.contentDocument.body);
 					newFrame.setAttribute('id', 'active-frame');
 					newFrame.style.visibility = 'visible';
 					newFrame.contentWindow.focus();

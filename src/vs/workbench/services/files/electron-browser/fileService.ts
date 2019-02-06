@@ -555,7 +555,7 @@ export class FileService extends Disposable implements IFileService {
 
 		// 1.) check file for writing
 		return this.checkFileBeforeWriting(absolutePath, options).then(exists => {
-			let createParentsPromise: Promise<boolean>;
+			let createParentsPromise: Promise<any>;
 			if (exists) {
 				createParentsPromise = Promise.resolve();
 			} else {
@@ -856,25 +856,28 @@ export class FileService extends Disposable implements IFileService {
 			// 2.) resolve
 			return this.resolve(target).then(result => {
 
-				// Events
-				this._onAfterOperation.fire(new FileOperationEvent(source, keepCopy ? FileOperation.COPY : FileOperation.MOVE, result));
+				// Events (unless it was a no-op because paths are identical)
+				if (sourcePath !== targetPath) {
+					this._onAfterOperation.fire(new FileOperationEvent(source, keepCopy ? FileOperation.COPY : FileOperation.MOVE, result));
+				}
 
 				return result;
 			});
 		});
 	}
 
-	private doMoveOrCopyFile(sourcePath: string, targetPath: string, keepCopy: boolean, overwrite: boolean): Promise<boolean /* exists */> {
+	private doMoveOrCopyFile(sourcePath: string, targetPath: string, keepCopy: boolean, overwrite: boolean): Promise<void> {
 
 		// 1.) validate operation
 		if (isParent(targetPath, sourcePath, !isLinux)) {
 			return Promise.reject(new Error('Unable to move/copy when source path is parent of target path'));
+		} else if (sourcePath === targetPath) {
+			return Promise.resolve(); // no-op but not an error
 		}
 
 		// 2.) check if target exists
 		return pfs.exists(targetPath).then(exists => {
 			const isCaseRename = sourcePath.toLowerCase() === targetPath.toLowerCase();
-			const isSameFile = sourcePath === targetPath;
 
 			// Return early with conflict if target exists and we are not told to overwrite
 			if (exists && !isCaseRename && !overwrite) {
@@ -897,14 +900,12 @@ export class FileService extends Disposable implements IFileService {
 				return pfs.mkdirp(paths.dirname(targetPath)).then(() => {
 
 					// 4.) copy/move
-					if (isSameFile) {
-						return null;
-					} else if (keepCopy) {
+					if (keepCopy) {
 						return nfcall(extfs.copy, sourcePath, targetPath);
 					} else {
 						return nfcall(extfs.mv, sourcePath, targetPath);
 					}
-				}).then(() => exists);
+				});
 			});
 		});
 	}

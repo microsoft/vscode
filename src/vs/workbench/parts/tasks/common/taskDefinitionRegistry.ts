@@ -74,7 +74,8 @@ const taskDefinitionsExtPoint = ExtensionsRegistry.registerExtensionPoint<Config
 		description: nls.localize('TaskDefinitionExtPoint', 'Contributes task kinds'),
 		type: 'array',
 		items: taskDefinitionSchema
-	}
+	},
+	isDynamic: true
 });
 
 export interface ITaskDefinitionRegistry {
@@ -94,9 +95,17 @@ class TaskDefinitionRegistryImpl implements ITaskDefinitionRegistry {
 	constructor() {
 		this.taskTypes = Object.create(null);
 		this.readyPromise = new Promise<void>((resolve, reject) => {
-			taskDefinitionsExtPoint.setHandler((extensions) => {
+			taskDefinitionsExtPoint.setHandler((extensions, delta) => {
 				try {
-					for (let extension of extensions) {
+					for (let extension of delta.removed) {
+						let taskTypes = extension.value;
+						for (let taskType of taskTypes) {
+							if (this.taskTypes && taskType.type && this.taskTypes[taskType.type]) {
+								delete this.taskTypes[taskType.type];
+							}
+						}
+					}
+					for (let extension of delta.added) {
 						let taskTypes = extension.value;
 						for (let taskType of taskTypes) {
 							let type = Configuration.from(taskType, extension.description.identifier, extension.collector);

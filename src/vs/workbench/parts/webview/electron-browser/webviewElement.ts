@@ -24,7 +24,6 @@ export interface WebviewOptions {
 	readonly allowScripts?: boolean;
 	readonly allowSvgs?: boolean;
 	readonly svgWhiteList?: string[];
-	readonly enableWrappedPostMessage?: boolean;
 	readonly useSameOriginForRoot?: boolean;
 	readonly localResourceRoots?: ReadonlyArray<URI>;
 	readonly extensionLocation?: URI;
@@ -44,7 +43,7 @@ interface IKeydownEvent {
 class WebviewProtocolProvider extends Disposable {
 	constructor(
 		webview: Electron.WebviewTag,
-		private readonly _extensionLocation: URI,
+		private readonly _extensionLocation: URI | undefined,
 		private readonly _getLocalResourceRoots: () => ReadonlyArray<URI>,
 		private readonly _environmentService: IEnvironmentService,
 		private readonly _fileService: IFileService,
@@ -157,7 +156,9 @@ class WebviewKeyboardHandler extends Disposable {
 				const contents = this.getWebContents();
 				if (contents) {
 					contents.on('before-input-event', (_event, input) => {
-						this.setIgnoreMenuShortcuts(input.control || input.meta);
+						if (input.type === 'keyDown') {
+							this.setIgnoreMenuShortcuts(input.control || input.meta);
+						}
 					});
 				}
 			}));
@@ -302,7 +303,7 @@ export class WebviewElement extends Disposable {
 		this._register(addDisposableListener(this._webview, 'ipc-message', (event) => {
 			switch (event.channel) {
 				case 'onmessage':
-					if (this._options.enableWrappedPostMessage && event.args && event.args.length) {
+					if (event.args && event.args.length) {
 						this._onMessage.fire(event.args[0]);
 					}
 					return;
@@ -354,7 +355,7 @@ export class WebviewElement extends Disposable {
 	}
 
 	public mountTo(parent: HTMLElement) {
-		parent.appendChild(this._webviewFindWidget.getDomNode());
+		parent.appendChild(this._webviewFindWidget.getDomNode()!);
 		parent.appendChild(this._webview);
 	}
 
@@ -473,16 +474,6 @@ export class WebviewElement extends Disposable {
 
 
 		const styles = {
-			// Old vars
-			'font-family': fontFamily,
-			'font-weight': fontWeight,
-			'font-size': fontSize,
-			'background-color': theme.getColor(colorRegistry.editorBackground).toString(),
-			'color': theme.getColor(colorRegistry.editorForeground).toString(),
-			'link-color': theme.getColor(colorRegistry.textLinkForeground).toString(),
-			'link-active-color': theme.getColor(colorRegistry.textLinkActiveForeground).toString(),
-
-			// Offical API
 			'vscode-editor-font-family': fontFamily,
 			'vscode-editor-font-weight': fontWeight,
 			'vscode-editor-font-size': fontSize,
@@ -493,6 +484,7 @@ export class WebviewElement extends Disposable {
 		this._send('styles', styles, activeTheme);
 
 		this._webviewFindWidget.updateTheme(theme);
+
 	}
 
 	public layout(): void {
@@ -573,6 +565,26 @@ export class WebviewElement extends Disposable {
 
 	public selectAll() {
 		this._webview.selectAll();
+	}
+
+	public copy() {
+		this._webview.copy();
+	}
+
+	public paste() {
+		this._webview.paste();
+	}
+
+	public cut() {
+		this._webview.cut();
+	}
+
+	public undo() {
+		this._webview.undo();
+	}
+
+	public redo() {
+		this._webview.redo();
 	}
 }
 

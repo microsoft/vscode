@@ -96,7 +96,9 @@ export class ConfigureAction extends AbstractDebugAction {
 	}
 
 	private updateClass(): void {
-		this.class = this.debugService.getConfigurationManager().selectedConfiguration.name ? 'debug-action configure' : 'debug-action configure notification';
+		const configurationManager = this.debugService.getConfigurationManager();
+		const configurationCount = configurationManager.getLaunches().map(l => l.getConfigurationNames().length).reduce((sum, current) => sum + current);
+		this.class = configurationCount > 0 ? 'debug-action configure' : 'debug-action configure notification';
 	}
 
 	public run(event?: any): Promise<any> {
@@ -801,7 +803,7 @@ export class ReverseContinueAction extends AbstractDebugAction {
 }
 
 export class ReplCollapseAllAction extends CollapseAction2 {
-	constructor(tree: AsyncDataTree<any, any>, private toFocus: { focus(): void; }) {
+	constructor(tree: AsyncDataTree<any, any, any>, private toFocus: { focus(): void; }) {
 		super(tree, true, undefined);
 	}
 

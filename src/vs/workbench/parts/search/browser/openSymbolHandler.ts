@@ -27,7 +27,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 class SymbolEntry extends EditorQuickOpenEntry {
-	private bearingResolve: Promise<this>;
+	private bearingResolve: Promise<this | undefined>;
 
 	constructor(
 		private bearing: IWorkspaceSymbol,
@@ -48,7 +48,7 @@ class SymbolEntry extends EditorQuickOpenEntry {
 		return nls.localize('entryAriaLabel', "{0}, symbols picker", this.getLabel());
 	}
 
-	getDescription(): string {
+	getDescription(): string | null {
 		const containerName = this.bearing.containerName;
 		if (this.bearing.location.uri) {
 			if (containerName) {
@@ -58,7 +58,7 @@ class SymbolEntry extends EditorQuickOpenEntry {
 			return this.labelService.getUriLabel(this.bearing.location.uri, { relative: true });
 		}
 
-		return containerName;
+		return containerName || null;
 	}
 
 	getIcon(): string {
@@ -105,7 +105,7 @@ class SymbolEntry extends EditorQuickOpenEntry {
 		};
 
 		if (this.bearing.location.range) {
-			input.options.selection = Range.collapseToStart(this.bearing.location.range);
+			input.options!.selection = Range.collapseToStart(this.bearing.location.range);
 		}
 
 		return input;
@@ -206,7 +206,7 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 			}
 
 			const entry = this.instantiationService.createInstance(SymbolEntry, element, provider);
-			entry.setHighlights(filters.matchesFuzzy2(searchValue, entry.getLabel()));
+			entry.setHighlights(filters.matchesFuzzy2(searchValue, entry.getLabel()) || []);
 			bucket.push(entry);
 		}
 	}

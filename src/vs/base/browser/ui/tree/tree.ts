@@ -5,9 +5,8 @@
 
 import { Event } from 'vs/base/common/event';
 import { Iterator } from 'vs/base/common/iterator';
-import { IListRenderer, AbstractListRenderer, IListDragOverReaction, IListDragAndDrop, ListDragOverEffect } from 'vs/base/browser/ui/list/list';
+import { IListRenderer, IListDragOverReaction, IListDragAndDrop, ListDragOverEffect } from 'vs/base/browser/ui/list/list';
 import { IDragAndDropData } from 'vs/base/browser/dnd';
-import { coalesce } from 'vs/base/common/arrays';
 
 export const enum TreeVisibility {
 
@@ -85,6 +84,8 @@ export interface ITreeNode<T, TFilterData = void> {
 	readonly parent: ITreeNode<T, TFilterData> | undefined;
 	readonly children: ITreeNode<T, TFilterData>[];
 	readonly depth: number;
+	readonly visibleChildrenCount: number;
+	readonly visibleChildIndex: number;
 	readonly collapsible: boolean;
 	readonly collapsed: boolean;
 	readonly visible: boolean;
@@ -96,8 +97,15 @@ export interface ICollapseStateChangeEvent<T, TFilterData> {
 	deep: boolean;
 }
 
+export interface ITreeModelSpliceEvent<T, TFilterData> {
+	insertedNodes: ITreeNode<T, TFilterData>[];
+	deletedNodes: ITreeNode<T, TFilterData>[];
+}
+
 export interface ITreeModel<T, TFilterData, TRef> {
 	readonly rootRef: TRef;
+
+	readonly onDidSplice: Event<ITreeModelSpliceEvent<T, TFilterData>>;
 	readonly onDidChangeCollapseState: Event<ICollapseStateChangeEvent<T, TFilterData>>;
 	readonly onDidChangeRenderNodeCount: Event<ITreeNode<T, TFilterData>>;
 
@@ -176,37 +184,4 @@ export const TreeDragOverReactions = {
 
 export interface ITreeDragAndDrop<T> extends IListDragAndDrop<T> {
 	onDragOver(data: IDragAndDropData, targetElement: T | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean | ITreeDragOverReaction;
-}
-
-/**
- * Use this renderer when you want to re-render elements on account of
- * an event firing.
- */
-export abstract class AbstractTreeRenderer<T, TFilterData = void, TTemplateData = void>
-	extends AbstractListRenderer<ITreeNode<T, TFilterData>, TTemplateData>
-	implements ITreeRenderer<T, TFilterData, TTemplateData> {
-
-	private elementsToNodes = new Map<T, ITreeNode<T, TFilterData>>();
-
-	constructor(onDidChange: Event<T | T[] | undefined>) {
-		super(Event.map(onDidChange, e => {
-			if (typeof e === 'undefined') {
-				return undefined;
-			} else if (Array.isArray(e)) {
-				return coalesce(e.map(e => this.elementsToNodes.get(e)));
-			} else {
-				return this.elementsToNodes.get(e);
-			}
-		}));
-	}
-
-	renderElement(node: ITreeNode<T, TFilterData>, index: number, templateData: TTemplateData): void {
-		super.renderElement(node, index, templateData);
-		this.elementsToNodes.set(node.element, node);
-	}
-
-	disposeElement(node: ITreeNode<T, TFilterData>, index: number, templateData: TTemplateData): void {
-		this.elementsToNodes.set(node.element, node);
-		super.disposeElement(node, index, templateData);
-	}
 }

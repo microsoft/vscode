@@ -30,6 +30,8 @@ import { IAsyncDataSource, ITreeMouseEvent, ITreeContextMenuEvent, ITreeDragAndD
 import { IDragAndDropData } from 'vs/base/browser/dnd';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
+import { FuzzyScore } from 'vs/base/common/filters';
+import { IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 
 const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
 
@@ -37,7 +39,7 @@ export class WatchExpressionsView extends ViewletPanel {
 
 	private onWatchExpressionsUpdatedScheduler: RunOnceScheduler;
 	private needsRefresh: boolean;
-	private tree: WorkbenchAsyncDataTree<IDebugService, IExpression>;
+	private tree: WorkbenchAsyncDataTree<IDebugService, IExpression, FuzzyScore>;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -54,7 +56,7 @@ export class WatchExpressionsView extends ViewletPanel {
 
 		this.onWatchExpressionsUpdatedScheduler = new RunOnceScheduler(() => {
 			this.needsRefresh = false;
-			this.tree.refresh();
+			this.tree.updateChildren();
 		}, 50);
 	}
 
@@ -64,7 +66,6 @@ export class WatchExpressionsView extends ViewletPanel {
 		CONTEXT_WATCH_EXPRESSIONS_FOCUSED.bindTo(this.contextKeyService.createScoped(treeContainer));
 
 		const expressionsRenderer = this.instantiationService.createInstance(WatchExpressionsRenderer);
-		this.disposables.push(expressionsRenderer);
 		this.tree = new WorkbenchAsyncDataTree(treeContainer, new WatchExpressionsDelegate(), [expressionsRenderer, this.instantiationService.createInstance(VariablesRenderer)],
 			new WatchExpressionsDataSource(), {
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'watchAriaTreeLabel' }, "Debug Watch Expressions"),
@@ -87,7 +88,7 @@ export class WatchExpressionsView extends ViewletPanel {
 			if (!this.isBodyVisible()) {
 				this.needsRefresh = true;
 			} else {
-				this.tree.refresh();
+				this.tree.updateChildren();
 			}
 		}));
 		this.disposables.push(this.debugService.getViewModel().onDidFocusStackFrame(() => {
@@ -100,17 +101,26 @@ export class WatchExpressionsView extends ViewletPanel {
 				this.onWatchExpressionsUpdatedScheduler.schedule();
 			}
 		}));
-		this.disposables.push(variableSetEmitter.event(() => this.tree.refresh()));
+		this.disposables.push(variableSetEmitter.event(() => this.tree.updateChildren()));
 
 		this.disposables.push(this.onDidChangeBodyVisibility(visible => {
 			if (visible && this.needsRefresh) {
 				this.onWatchExpressionsUpdatedScheduler.schedule();
 			}
 		}));
+		this.disposables.push(this.debugService.getViewModel().onDidSelectExpression(e => {
+			if (e instanceof Expression && e.name) {
+				this.tree.refresh(e);
+			}
+		}));
 	}
 
-	layoutBody(size: number): void {
-		this.tree.layout(size);
+	layoutBody(height: number, width: number): void {
+		this.tree.layout(height, width);
+	}
+
+	focus(): void {
+		this.tree.domFocus();
 	}
 
 	private onMouseDblClick(e: ITreeMouseEvent<IExpression>): void {
@@ -215,8 +225,9 @@ export class WatchExpressionsRenderer extends AbstractExpressionsRenderer {
 		return WatchExpressionsRenderer.ID;
 	}
 
-	protected renderExpression(expression: IExpression, data: IExpressionTemplateData): void {
-		data.name.textContent = expression.name;
+	protected renderExpression(expression: IExpression, data: IExpressionTemplateData, highlights: IHighlight[]): void {
+		const text = typeof expression.value === 'string' ? `${expression.name}:` : expression.name;
+		data.label.set(text, highlights, expression.type ? expression.type : expression.value);
 		renderExpressionValue(expression, data.value, {
 			showChanged: true,
 			maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
@@ -224,11 +235,6 @@ export class WatchExpressionsRenderer extends AbstractExpressionsRenderer {
 			showHover: true,
 			colorize: true
 		});
-		data.name.title = expression.type ? expression.type : expression.value;
-
-		if (typeof expression.value === 'string') {
-			data.name.textContent += ':';
-		}
 	}
 
 	protected getInputBoxOptions(expression: IExpression): IInputBoxOptions {

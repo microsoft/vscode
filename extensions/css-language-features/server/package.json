@@ -9,7 +9,7 @@
   },
   "main": "./out/cssServerMain",
   "dependencies": {
-    "vscode-css-languageservice": "^3.0.13-next.4",
+    "vscode-css-languageservice": "^3.0.13-next.12",
     "vscode-languageserver": "^5.1.0"
   },
   "devDependencies": {

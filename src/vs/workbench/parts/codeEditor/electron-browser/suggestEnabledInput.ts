@@ -99,8 +99,8 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 	private _onEnter = new Emitter<void>();
 	readonly onEnter: Event<void> = this._onEnter.event;
 
-	private _onInputDidChange = new Emitter<string>();
-	readonly onInputDidChange: Event<string> = this._onInputDidChange.event;
+	private _onInputDidChange = new Emitter<string | undefined>();
+	readonly onInputDidChange: Event<string | undefined> = this._onInputDidChange.event;
 
 	private disposables: IDisposable[] = [];
 	private inputWidget: CodeEditorWidget;
@@ -120,7 +120,7 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		super();
 
 		this.stylingContainer = append(parent, $('.suggest-input-container'));
-		this.placeholderText = append(this.stylingContainer, $('.suggest-input-placeholder', null, options.placeholderText || ''));
+		this.placeholderText = append(this.stylingContainer, $('.suggest-input-placeholder', undefined, options.placeholderText || ''));
 
 		const editorOptions: IEditorOptions = mixin(
 			getSimpleEditorOptions(),
@@ -132,6 +132,7 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 				contributions: [SuggestController, SnippetController2, ContextMenuController, MenuPreventer, SelectionClipboard],
 				isSimpleWidget: true,
 			});
+		this.disposables.push(this.inputWidget);
 
 		let scopeHandle = uri.parse(resourceHandle);
 		this.inputWidget.setModel(modelService.createModel('', null, scopeHandle, true));
@@ -152,13 +153,16 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		onKeyDownMonaco.filter(e => e.keyCode === KeyCode.DownArrow && (isMacintosh ? e.metaKey : e.ctrlKey)).on(() => this._onShouldFocusResults.fire(), this, this.disposables);
 
 		let preexistingContent = this.getValue();
-		this.disposables.push(this.inputWidget.getModel().onDidChangeContent(() => {
-			let content = this.getValue();
-			this.placeholderText.style.visibility = content ? 'hidden' : 'visible';
-			if (preexistingContent.trim() === content.trim()) { return; }
-			this._onInputDidChange.fire(undefined);
-			preexistingContent = content;
-		}));
+		const inputWidgetModel = this.inputWidget.getModel();
+		if (inputWidgetModel) {
+			this.disposables.push(inputWidgetModel.onDidChangeContent(() => {
+				let content = this.getValue();
+				this.placeholderText.style.visibility = content ? 'hidden' : 'visible';
+				if (preexistingContent.trim() === content.trim()) { return; }
+				this._onInputDidChange.fire(undefined);
+				preexistingContent = content;
+			}));
+		}
 
 		let validatedSuggestProvider = {
 			provideResults: suggestionProvider.provideResults,
@@ -192,6 +196,8 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		}));
 	}
 
+	public get onFocus(): Event<void> { return this.inputWidget.onDidFocusEditorText; }
+
 	public setValue(val: string) {
 		val = val.replace(/\s/g, ' ');
 		const fullRange = new Range(1, 1, 1, this.getValue().length + 1);
@@ -206,9 +212,9 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 
 
 	public style(colors: ISuggestEnabledInputStyles): void {
-		this.stylingContainer.style.backgroundColor = colors.inputBackground && colors.inputBackground.toString();
-		this.stylingContainer.style.color = colors.inputForeground && colors.inputForeground.toString();
-		this.placeholderText.style.color = colors.inputPlaceholderForeground && colors.inputPlaceholderForeground.toString();
+		this.stylingContainer.style.backgroundColor = colors.inputBackground ? colors.inputBackground.toString() : null;
+		this.stylingContainer.style.color = colors.inputForeground ? colors.inputForeground.toString() : null;
+		this.placeholderText.style.color = colors.inputPlaceholderForeground ? colors.inputPlaceholderForeground.toString() : null;
 
 		this.stylingContainer.style.borderWidth = '1px';
 		this.stylingContainer.style.borderStyle = 'solid';
@@ -218,7 +224,7 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 
 		const cursor = this.stylingContainer.getElementsByClassName('cursor')[0] as HTMLDivElement;
 		if (cursor) {
-			cursor.style.backgroundColor = colors.inputForeground && colors.inputForeground.toString();
+			cursor.style.backgroundColor = colors.inputForeground ? colors.inputForeground.toString() : null;
 		}
 	}
 
@@ -260,7 +266,7 @@ registerThemingParticipant((theme, collector) => {
 
 	// Override inactive selection bg
 	const inputBackgroundColor = theme.getColor(inputBackground);
-	if (inputBackground) {
+	if (inputBackgroundColor) {
 		collector.addRule(`.suggest-input-container .monaco-editor .selected-text { background-color: ${inputBackgroundColor.transparent(0.4)}; }`);
 	}
 

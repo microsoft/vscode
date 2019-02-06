@@ -21,8 +21,8 @@ export class ExtensionEnablementService extends Disposable implements IExtension
 
 	_serviceBrand: any;
 
-	private _onEnablementChanged = new Emitter<IExtension>();
-	public readonly onEnablementChanged: Event<IExtension> = this._onEnablementChanged.event;
+	private _onEnablementChanged = new Emitter<IExtension[]>();
+	public readonly onEnablementChanged: Event<IExtension[]> = this._onEnablementChanged.event;
 
 	private readonly storageManger: StorageManager;
 
@@ -107,19 +107,28 @@ export class ExtensionEnablementService extends Disposable implements IExtension
 		return true;
 	}
 
-	setEnablement(extension: IExtension, newState: EnablementState): Promise<boolean> {
+	async setEnablement(extensions: IExtension[], newState: EnablementState): Promise<boolean[]> {
 
 		const workspace = newState === EnablementState.WorkspaceDisabled || newState === EnablementState.WorkspaceEnabled;
 		if (workspace && !this.hasWorkspace) {
 			return Promise.reject(new Error(localize('noWorkspace', "No workspace.")));
 		}
 
+		const result = await Promise.all(extensions.map(e => this._setEnablement(e, newState)));
+		const changedExtensions = extensions.filter((e, index) => result[index]);
+		if (changedExtensions.length) {
+			this._onEnablementChanged.fire(changedExtensions);
+		}
+		return result;
+	}
+
+	private _setEnablement(extension: IExtension, newState: EnablementState): Promise<boolean> {
+
 		const currentState = this._getEnablementState(extension.identifier);
 
 		if (currentState === newState) {
 			return Promise.resolve(false);
 		}
-
 
 		switch (newState) {
 			case EnablementState.Enabled:
@@ -136,7 +145,6 @@ export class ExtensionEnablementService extends Disposable implements IExtension
 				break;
 		}
 
-		this._onEnablementChanged.fire(extension);
 		return Promise.resolve(true);
 	}
 
@@ -282,9 +290,7 @@ export class ExtensionEnablementService extends Disposable implements IExtension
 	private async onDidChangeStorage(extensionIdentifiers: IExtensionIdentifier[]): Promise<void> {
 		const installedExtensions = await this.extensionManagementService.getInstalled();
 		const extensions = installedExtensions.filter(installedExtension => extensionIdentifiers.some(identifier => areSameExtensions(identifier, installedExtension.identifier)));
-		for (const extension of extensions) {
-			this._onEnablementChanged.fire(extension);
-		}
+		this._onEnablementChanged.fire(extensions);
 	}
 
 	private _onDidInstallExtension(event: DidInstallExtensionEvent): void {
@@ -292,7 +298,7 @@ export class ExtensionEnablementService extends Disposable implements IExtension
 			const wasDisabled = !this.isEnabled(event.local);
 			this._reset(event.local.identifier);
 			if (wasDisabled) {
-				this._onEnablementChanged.fire(event.local);
+				this._onEnablementChanged.fire([event.local]);
 			}
 		}
 	}

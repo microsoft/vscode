@@ -370,7 +370,7 @@ suite('ExtensionsTipsService Test', () => {
 
 	test('ExtensionTipsService: No Recommendations of globally ignored recommendations', () => {
 		const storageGetterStub = (a, _, c) => {
-			const storedRecommendations = '["ms-vscode.csharp", "ms-python.python", "eg2.tslint"]';
+			const storedRecommendations = '["ms-vscode.csharp", "ms-python.python", "ms-vscode.vscode-typescript-tslint-plugin"]';
 			const ignoredRecommendations = '["ms-vscode.csharp", "mockpublisher2.mockextension2"]'; // ignore a stored recommendation and a workspace recommendation.
 			if (a === 'extensionsAssistant/recommendations') { return storedRecommendations; }
 			if (a === 'extensionsAssistant/ignored_recommendations') { return ignoredRecommendations; }
@@ -508,7 +508,7 @@ suite('ExtensionsTipsService Test', () => {
 	});
 
 	test('ExtensionTipsService: Get file based recommendations from storage (old format)', () => {
-		const storedRecommendations = '["ms-vscode.csharp", "ms-python.python", "eg2.tslint"]';
+		const storedRecommendations = '["ms-vscode.csharp", "ms-python.python", "ms-vscode.vscode-typescript-tslint-plugin"]';
 		instantiationService.stub(IStorageService, { get: (a, b, c) => a === 'extensionsAssistant/recommendations' ? storedRecommendations : c });
 
 		return setUpFolderWorkspace('myFolder', []).then(() => {
@@ -518,7 +518,7 @@ suite('ExtensionsTipsService Test', () => {
 				assert.equal(recommendations.length, 2);
 				assert.ok(recommendations.some(({ extensionId }) => extensionId === 'ms-vscode.csharp')); // stored recommendation that exists in product.extensionTips
 				assert.ok(recommendations.some(({ extensionId }) => extensionId === 'ms-python.python')); // stored recommendation that exists in product.extensionImportantTips
-				assert.ok(recommendations.every(({ extensionId }) => extensionId !== 'eg2.tslint')); // stored recommendation that is no longer in neither product.extensionTips nor product.extensionImportantTips
+				assert.ok(recommendations.every(({ extensionId }) => extensionId !== 'ms-vscode.vscode-typescript-tslint-plugin')); // stored recommendation that is no longer in neither product.extensionTips nor product.extensionImportantTips
 			});
 		});
 	});
@@ -527,7 +527,7 @@ suite('ExtensionsTipsService Test', () => {
 		const milliSecondsInADay = 1000 * 60 * 60 * 24;
 		const now = Date.now();
 		const tenDaysOld = 10 * milliSecondsInADay;
-		const storedRecommendations = `{"ms-vscode.csharp": ${now}, "ms-python.python": ${now}, "eg2.tslint": ${now}, "lukehoban.Go": ${tenDaysOld}}`;
+		const storedRecommendations = `{"ms-vscode.csharp": ${now}, "ms-python.python": ${now}, "ms-vscode.vscode-typescript-tslint-plugin": ${now}, "lukehoban.Go": ${tenDaysOld}}`;
 		instantiationService.stub(IStorageService, { get: (a, b, c) => a === 'extensionsAssistant/recommendations' ? storedRecommendations : c });
 
 		return setUpFolderWorkspace('myFolder', []).then(() => {
@@ -537,7 +537,7 @@ suite('ExtensionsTipsService Test', () => {
 				assert.equal(recommendations.length, 2);
 				assert.ok(recommendations.some(({ extensionId }) => extensionId === 'ms-vscode.csharp')); // stored recommendation that exists in product.extensionTips
 				assert.ok(recommendations.some(({ extensionId }) => extensionId === 'ms-python.python')); // stored recommendation that exists in product.extensionImportantTips
-				assert.ok(recommendations.every(({ extensionId }) => extensionId !== 'eg2.tslint')); // stored recommendation that is no longer in neither product.extensionTips nor product.extensionImportantTips
+				assert.ok(recommendations.every(({ extensionId }) => extensionId !== 'ms-vscode.vscode-typescript-tslint-plugin')); // stored recommendation that is no longer in neither product.extensionTips nor product.extensionImportantTips
 				assert.ok(recommendations.every(({ extensionId }) => extensionId !== 'lukehoban.Go')); //stored recommendation that is older than a week
 			});
 		});

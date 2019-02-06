@@ -18,13 +18,13 @@ import { OpenEditorsFocusedContext, ExplorerFocusedContext, IFilesConfiguration,
 import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { CloseAllEditorsAction, CloseEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
-import { ToggleEditorLayoutAction } from 'vs/workbench/browser/actions/toggleEditorLayout';
+import { ToggleEditorLayoutAction } from 'vs/workbench/browser/actions/layoutActions';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
-import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction } from 'vs/base/browser/ui/list/list';
 import { ResourceLabels, IResourceLabel, IResourceLabelsContainer } from 'vs/workbench/browser/labels';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -34,9 +34,13 @@ import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemAc
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { DirtyEditorContext, OpenEditorsGroupContext } from 'vs/workbench/parts/files/electron-browser/fileCommands';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
-import { fillResourceDataTransfers, ResourcesDropHandler, LocalSelectionTransfer, CodeDataTransfers } from 'vs/workbench/browser/dnd';
+import { ResourcesDropHandler, fillResourceDataTransfers, CodeDataTransfers } from 'vs/workbench/browser/dnd';
 import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { IDragAndDropData, DataTransfers } from 'vs/base/browser/dnd';
+import { memoize } from 'vs/base/common/decorators';
+import { ElementsDragAndDropData, DesktopDragAndDropData } from 'vs/base/browser/ui/list/listView';
+import { URI } from 'vs/base/common/uri';
 
 const $ = dom.$;
 
@@ -200,15 +204,6 @@ export class OpenEditorsView extends ViewletPanel {
 		dom.addClass(container, 'show-file-icons');
 
 		const delegate = new OpenEditorsDelegate();
-		const getSelectedElements = () => {
-			const selected = this.list.getSelectedElements();
-			const focused = this.list.getFocusedElements();
-			if (focused.length && selected.indexOf(focused[0]) >= 0) {
-				return selected;
-			}
-
-			return focused;
-		};
 
 		if (this.list) {
 			this.list.dispose();
@@ -218,10 +213,11 @@ export class OpenEditorsView extends ViewletPanel {
 		}
 		this.listLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility } as IResourceLabelsContainer);
 		this.list = this.instantiationService.createInstance(WorkbenchList, container, delegate, [
-			new EditorGroupRenderer(this.keybindingService, this.instantiationService, this.editorGroupService),
-			new OpenEditorRenderer(this.listLabels, getSelectedElements, this.instantiationService, this.keybindingService, this.configurationService, this.editorGroupService)
+			new EditorGroupRenderer(this.keybindingService, this.instantiationService),
+			new OpenEditorRenderer(this.listLabels, this.instantiationService, this.keybindingService, this.configurationService)
 		], {
-				identityProvider: { getId: (element: OpenEditor | IEditorGroup) => element instanceof OpenEditor ? element.getId() : element.id.toString() }
+				identityProvider: { getId: (element: OpenEditor | IEditorGroup) => element instanceof OpenEditor ? element.getId() : element.id.toString() },
+				dnd: new OpenEditorsDragAndDrop(this.instantiationService, this.editorGroupService)
 			}) as WorkbenchList<OpenEditor | IEditorGroup>;
 		this.disposables.push(this.list);
 		this.disposables.push(this.listLabels);
@@ -308,9 +304,9 @@ export class OpenEditorsView extends ViewletPanel {
 		return this.list;
 	}
 
-	protected layoutBody(size: number): void {
+	protected layoutBody(height: number, width: number): void {
 		if (this.list) {
-			this.list.layout(size);
+			this.list.layout(height, width);
 		}
 	}
 
@@ -476,8 +472,6 @@ interface IOpenEditorTemplateData {
 	root: IResourceLabel;
 	actionBar: ActionBar;
 	actionRunner: OpenEditorActionRunner;
-	openEditor: OpenEditor;
-	toDispose: IDisposable[];
 }
 
 interface IEditorGroupTemplateData {
@@ -485,7 +479,6 @@ interface IEditorGroupTemplateData {
 	name: HTMLSpanElement;
 	actionBar: ActionBar;
 	editorGroup: IEditorGroup;
-	toDispose: IDisposable[];
 }
 
 class OpenEditorActionRunner extends ActionRunner {
@@ -513,41 +506,12 @@ class OpenEditorsDelegate implements IListVirtualDelegate<OpenEditor | IEditorGr
 	}
 }
 
-/**
- * Check if the item being dragged is one of the supported types that can be dropped on an
- * open editor or editor group. Fixes https://github.com/Microsoft/vscode/issues/52344.
- *
- * @returns true if dropping is supported.
- */
-function dropOnEditorSupported(e: DragEvent): boolean {
-	// DataTransfer types are automatically converted to lower case, except Files.
-	const supportedTransferTypes = {
-		openEditor: CodeDataTransfers.EDITORS.toLowerCase(),
-		externalFile: 'Files',
-		codeFile: CodeDataTransfers.FILES.toLowerCase()
-	};
-
-	if (
-		e.dataTransfer.types.indexOf(supportedTransferTypes.openEditor) !== -1 ||
-		e.dataTransfer.types.indexOf(supportedTransferTypes.externalFile) !== -1 ||
-		// All Code files should already register as normal files, but just to be safe:
-		e.dataTransfer.types.indexOf(supportedTransferTypes.codeFile) !== -1
-	) {
-		return true;
-	} else {
-		return false;
-	}
-}
-
 class EditorGroupRenderer implements IListRenderer<IEditorGroup, IEditorGroupTemplateData> {
 	static readonly ID = 'editorgroup';
-
-	private transfer = LocalSelectionTransfer.getInstance<OpenEditor>();
 
 	constructor(
 		private keybindingService: IKeybindingService,
 		private instantiationService: IInstantiationService,
-		private editorGroupService: IEditorGroupsService
 	) {
 		// noop
 	}
@@ -570,29 +534,6 @@ class EditorGroupRenderer implements IListRenderer<IEditorGroup, IEditorGroupTem
 		const closeGroupActionKey = this.keybindingService.lookupKeybinding(closeGroupAction.id);
 		editorGroupTemplate.actionBar.push(closeGroupAction, { icon: true, label: false, keybinding: closeGroupActionKey ? closeGroupActionKey.getLabel() : undefined });
 
-		editorGroupTemplate.toDispose = [];
-		editorGroupTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DRAG_OVER, (e: DragEvent) => {
-			if (dropOnEditorSupported(e)) {
-				dom.addClass(container, 'focused');
-			}
-		}));
-		editorGroupTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DRAG_LEAVE, () => {
-			dom.removeClass(container, 'focused');
-		}));
-		editorGroupTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DROP, e => {
-			dom.removeClass(container, 'focused');
-
-
-			if (this.transfer.hasData(OpenEditor.prototype)) {
-				this.transfer.getData(OpenEditor.prototype).forEach(oe =>
-					oe.group.moveEditor(oe.editor, editorGroupTemplate.editorGroup, { preserveFocus: true }));
-				this.editorGroupService.activateGroup(editorGroupTemplate.editorGroup);
-			} else {
-				const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: false });
-				dropHandler.handleDrop(e, () => editorGroupTemplate.editorGroup, () => editorGroupTemplate.editorGroup.focus());
-			}
-		}));
-
 		return editorGroupTemplate;
 	}
 
@@ -604,22 +545,17 @@ class EditorGroupRenderer implements IListRenderer<IEditorGroup, IEditorGroupTem
 
 	disposeTemplate(templateData: IEditorGroupTemplateData): void {
 		templateData.actionBar.dispose();
-		dispose(templateData.toDispose);
 	}
 }
 
 class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplateData> {
 	static readonly ID = 'openeditor';
 
-	private transfer = LocalSelectionTransfer.getInstance<OpenEditor>();
-
 	constructor(
 		private labels: ResourceLabels,
-		private getSelectedElements: () => Array<OpenEditor | IEditorGroup>,
 		private instantiationService: IInstantiationService,
 		private keybindingService: IKeybindingService,
-		private configurationService: IConfigurationService,
-		private editorGroupService: IEditorGroupsService
+		private configurationService: IConfigurationService
 	) {
 		// noop
 	}
@@ -641,55 +577,10 @@ class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplat
 
 		editorTemplate.root = this.labels.create(container);
 
-		editorTemplate.toDispose = [];
-
-		editorTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DRAG_START, (e: DragEvent) => {
-			const dragged = <OpenEditor[]>this.getSelectedElements().filter(e => e instanceof OpenEditor && !!e.getResource());
-
-			const dragImage = document.createElement('div');
-			e.dataTransfer.effectAllowed = 'copyMove';
-			dragImage.className = 'monaco-tree-drag-image';
-			dragImage.textContent = dragged.length === 1 ? editorTemplate.openEditor.editor.getName() : String(dragged.length);
-			document.body.appendChild(dragImage);
-			e.dataTransfer.setDragImage(dragImage, -10, -10);
-			setTimeout(() => document.body.removeChild(dragImage), 0);
-
-			this.transfer.setData(dragged, OpenEditor.prototype);
-
-			if (editorTemplate.openEditor && editorTemplate.openEditor.editor) {
-				this.instantiationService.invokeFunction(fillResourceDataTransfers, dragged.map(d => d.getResource()), e);
-			}
-		}));
-		editorTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DRAG_OVER, (e: DragEvent) => {
-			if (dropOnEditorSupported(e)) {
-				dom.addClass(container, 'focused');
-			}
-		}));
-		editorTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DRAG_LEAVE, () => {
-			dom.removeClass(container, 'focused');
-		}));
-		editorTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DROP, (e: DragEvent) => {
-			dom.removeClass(container, 'focused');
-			const index = editorTemplate.openEditor.group.getIndexOfEditor(editorTemplate.openEditor.editor);
-
-			if (this.transfer.hasData(OpenEditor.prototype)) {
-				this.transfer.getData(OpenEditor.prototype).forEach((oe, offset) =>
-					oe.group.moveEditor(oe.editor, editorTemplate.openEditor.group, { index: index + offset, preserveFocus: true }));
-				this.editorGroupService.activateGroup(editorTemplate.openEditor.group);
-			} else {
-				const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: false });
-				dropHandler.handleDrop(e, () => editorTemplate.openEditor.group, () => editorTemplate.openEditor.group.focus(), index);
-			}
-		}));
-		editorTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DRAG_END, () => {
-			this.transfer.clearData(OpenEditor.prototype);
-		}));
-
 		return editorTemplate;
 	}
 
 	renderElement(editor: OpenEditor, index: number, templateData: IOpenEditorTemplateData): void {
-		templateData.openEditor = editor;
 		templateData.actionRunner.editor = editor;
 		editor.isDirty() ? dom.addClass(templateData.container, 'dirty') : dom.removeClass(templateData.container, 'dirty');
 		templateData.root.setEditor(editor.editor, {
@@ -703,6 +594,84 @@ class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplat
 		templateData.actionBar.dispose();
 		templateData.root.dispose();
 		templateData.actionRunner.dispose();
-		dispose(templateData.toDispose);
+	}
+}
+
+class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGroup> {
+
+	constructor(
+		private instantiationService: IInstantiationService,
+		private editorGroupService: IEditorGroupsService
+	) { }
+
+	@memoize private get dropHandler(): ResourcesDropHandler {
+		return this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: false });
+	}
+
+	getDragURI(element: OpenEditor | IEditorGroup): string | null {
+		if (element instanceof OpenEditor) {
+			const resource = element.getResource();
+			if (resource) {
+				return resource.toString();
+			}
+		}
+		return null;
+	}
+
+	getDragLabel?(elements: (OpenEditor | IEditorGroup)[]): string {
+		if (elements.length > 1) {
+			return String(elements.length);
+		}
+		const element = elements[0];
+
+		return element instanceof OpenEditor ? element.editor.getName() : element.label;
+	}
+
+	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
+		const items = (data as ElementsDragAndDropData<OpenEditor | IEditorGroup>).elements;
+		const resources: URI[] = [];
+		if (items) {
+			items.forEach(i => {
+				if (i instanceof OpenEditor) {
+					resources.push(i.getResource());
+				}
+			});
+		}
+
+		if (resources.length) {
+			// Apply some datatransfer types to allow for dragging the element outside of the application
+			this.instantiationService.invokeFunction(fillResourceDataTransfers, resources, originalEvent);
+		}
+	}
+
+	onDragOver(data: IDragAndDropData, targetElement: OpenEditor | IEditorGroup, targetIndex: number, originalEvent: DragEvent): boolean | IListDragOverReaction {
+		if (data instanceof DesktopDragAndDropData) {
+			const types = originalEvent.dataTransfer.types;
+			const typesArray: string[] = [];
+			for (let i = 0; i < types.length; i++) {
+				typesArray.push(types[i].toLowerCase()); // somehow the types are lowercase
+			}
+
+			if (typesArray.indexOf(DataTransfers.FILES.toLowerCase()) === -1 && typesArray.indexOf(CodeDataTransfers.FILES.toLowerCase()) === -1) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	drop(data: IDragAndDropData, targetElement: OpenEditor | IEditorGroup, targetIndex: number, originalEvent: DragEvent): void {
+		const group = targetElement instanceof OpenEditor ? targetElement.group : targetElement;
+		const index = targetElement instanceof OpenEditor ? targetElement.group.getIndexOfEditor(targetElement.editor) : 0;
+
+		if (data instanceof ElementsDragAndDropData) {
+			const elementsData = data.elements;
+			elementsData.forEach((oe, offset) => {
+				oe.group.moveEditor(oe.editor, group, { index: index + offset, preserveFocus: true });
+			});
+			this.editorGroupService.activateGroup(group);
+		} else {
+			this.dropHandler.handleDrop(originalEvent, () => group, () => group.focus(), index);
+		}
 	}
 }

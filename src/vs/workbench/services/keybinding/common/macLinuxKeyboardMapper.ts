@@ -800,7 +800,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 					for (let i = 0, len = kbCombos.length; i < len; i++) {
 						const kbCombo = kbCombos[i];
 						// find out the priority of this scan code for this key code
-						let colPriority = '-';
+						let colPriority: string;
 
 						const scanCodeCombos = this._scanCodeKeyCodeMapper.lookupKeyCodeCombo(kbCombo);
 						if (scanCodeCombos.length === 1) {

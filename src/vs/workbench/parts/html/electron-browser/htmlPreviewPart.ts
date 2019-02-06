@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { ITextModel } from 'vs/editor/common/model';
 import { Disposable, IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import { EditorOptions, EditorInput, IEditorMemento } from 'vs/workbench/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -38,8 +37,8 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 
 	private _webviewDisposables: IDisposable[];
 
-	private _modelRef: IReference<ITextEditorModel>;
-	public get model(): ITextModel { return this._modelRef && this._modelRef.object.textEditorModel; }
+	private _modelRef?: IReference<ITextEditorModel>;
+	public get model() { return this._modelRef ? this._modelRef.object.textEditorModel : undefined; }
 	private _modelChangeSubscription = Disposable.None;
 	private _themeChangeSubscription = Disposable.None;
 
@@ -138,14 +137,14 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 			this._themeChangeSubscription = this.themeService.onThemeChange(this.onThemeChange.bind(this));
 
 			if (this._hasValidModel()) {
-				this._modelChangeSubscription = this.model.onDidChangeContent(() => this.webview.contents = this.model.getLinesContent().join('\n'));
-				this.webview.contents = this.model.getLinesContent().join('\n');
+				this._modelChangeSubscription = this.model!.onDidChangeContent(() => this.webview.contents = this.model!.getLinesContent().join('\n'));
+				this.webview.contents = this.model!.getLinesContent().join('\n');
 			}
 		}
 	}
 
 	private _hasValidModel(): boolean {
-		return this._modelRef && this.model && !this.model.isDisposed();
+		return !!(this._modelRef && this.model && !this.model.isDisposed());
 	}
 
 	public layout(dimension: Dimension): void {
@@ -248,10 +247,10 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 	}
 
 	private saveHTMLPreviewViewState(input: HtmlInput, editorViewState: HtmlPreviewEditorViewState): void {
-		this.editorMemento.saveEditorState(this.group, input, editorViewState);
+		this.editorMemento.saveEditorState(this.group!, input, editorViewState);
 	}
 
-	private loadHTMLPreviewViewState(input: HtmlInput): HtmlPreviewEditorViewState {
-		return this.editorMemento.loadEditorState(this.group, input);
+	private loadHTMLPreviewViewState(input: HtmlInput): HtmlPreviewEditorViewState | undefined {
+		return this.editorMemento.loadEditorState(this.group!, input);
 	}
 }

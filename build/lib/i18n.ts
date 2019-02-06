@@ -13,14 +13,14 @@ import * as xml2js from 'xml2js';
 import * as glob from 'glob';
 import * as https from 'https';
 import * as gulp from 'gulp';
-
-import * as util from 'gulp-util';
+import * as fancyLog from 'fancy-log';
+import * as ansiColors from 'ansi-colors';
 import * as iconv from 'iconv-lite';
 
 const NUMBER_OF_CONCURRENT_DOWNLOADS = 4;
 
 function log(message: any, ...rest: any[]): void {
-	util.log(util.colors.green('[i18n]'), message, ...rest);
+	fancyLog(ansiColors.green('[i18n]'), message, ...rest);
 }
 
 export interface Language {

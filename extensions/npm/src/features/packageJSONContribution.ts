@@ -229,7 +229,7 @@ export class PackageJSONContribution implements IJSONContribution {
 		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']) || location.matches(['optionalDependencies', '*']) || location.matches(['peerDependencies', '*']))) {
 			const currentKey = location.path[location.path.length - 1];
 			if (typeof currentKey === 'string') {
-				const queryUrl = 'https://registry.npmjs.org/' + encodeURIComponent(currentKey).replace('%40', '@');
+				const queryUrl = 'https://registry.npmjs.org/' + encodeURIComponent(currentKey).replace(/%40/g, '@');
 				return this.xhr({
 					url: queryUrl,
 					agent: USER_AGENT
@@ -289,7 +289,7 @@ export class PackageJSONContribution implements IJSONContribution {
 
 	private getInfo(pack: string): Thenable<string[]> {
 
-		const queryUrl = 'https://registry.npmjs.org/' + encodeURIComponent(pack).replace('%40', '@');
+		const queryUrl = 'https://registry.npmjs.org/' + encodeURIComponent(pack).replace(/%40/g, '@');
 		return this.xhr({
 			url: queryUrl,
 			agent: USER_AGENT

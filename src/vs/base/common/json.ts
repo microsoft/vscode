@@ -205,10 +205,10 @@ export function createScanner(text: string, ignoreTrivia: boolean = false): JSON
 		token: SyntaxKind = SyntaxKind.Unknown,
 		scanError: ScanError = ScanError.None;
 
-	function scanHexDigits(count: number, exact?: boolean): number {
+	function scanHexDigits(count: number): number {
 		let digits = 0;
 		let value = 0;
-		while (digits < count || !exact) {
+		while (digits < count) {
 			let ch = text.charCodeAt(pos);
 			if (ch >= CharacterCodes._0 && ch <= CharacterCodes._9) {
 				value = value * 16 + ch - CharacterCodes._0;
@@ -331,7 +331,7 @@ export function createScanner(text: string, ignoreTrivia: boolean = false): JSON
 						result += '\t';
 						break;
 					case CharacterCodes.u:
-						let ch = scanHexDigits(4, true);
+						let ch = scanHexDigits(4);
 						if (ch >= 0) {
 							result += String.fromCharCode(ch);
 						} else {

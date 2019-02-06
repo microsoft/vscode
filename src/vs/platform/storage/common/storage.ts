@@ -67,8 +67,8 @@ export interface IStorageService {
 	 * The scope argument allows to define the scope of the storage
 	 * operation to either the current workspace only or all workspaces.
 	 */
-	getInteger<R extends number | undefined>(key: string, scope: StorageScope, fallbackValue: number): number;
-	getInteger<R extends number | undefined>(key: string, scope: StorageScope, fallbackValue?: number): number | undefined;
+	getInteger(key: string, scope: StorageScope, fallbackValue: number): number;
+	getInteger(key: string, scope: StorageScope, fallbackValue?: number): number | undefined;
 
 	/**
 	 * Store a value under the given key to storage. The value will be converted to a string.

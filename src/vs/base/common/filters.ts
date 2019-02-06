@@ -378,29 +378,24 @@ export function createMatches(score: undefined | FuzzyScore): IMatch[] {
 		return [];
 	}
 
-	const [, matches, wordStart] = score;
+	const matches = score[1].toString(2);
+	const wordStart = score[2];
 	const res: IMatch[] = [];
 
-	for (let pos = wordStart; pos < _masks.length; pos++) {
-		const mask = _masks[pos];
-		if (mask > matches) {
-			break;
-		} else if (matches & mask) {
-			res.push({ start: pos, end: pos + 1 });
+	for (let pos = wordStart; pos < _maxLen; pos++) {
+		if (matches[matches.length - (pos + 1)] === '1') {
+			const last = res[res.length - 1];
+			if (last && last.end === pos) {
+				last.end = pos + 1;
+			} else {
+				res.push({ start: pos, end: pos + 1 });
+			}
 		}
 	}
 	return res;
 }
 
 const _maxLen = 53;
-
-const _masks = (function () {
-	const result: number[] = [];
-	for (let pos = 0; pos < _maxLen; pos++) {
-		result.push(2 ** pos);
-	}
-	return result;
-}());
 
 function initTable() {
 	const table: number[][] = [];
@@ -456,6 +451,7 @@ function isSeparatorAtPos(value: string, index: number): boolean {
 		case CharCode.SingleQuote:
 		case CharCode.DoubleQuote:
 		case CharCode.Colon:
+		case CharCode.DollarSign:
 			return true;
 		default:
 			return false;
@@ -505,6 +501,10 @@ export namespace FuzzyScore {
 	 * No matches and value `-100`
 	 */
 	export const Default: [-100, 0, 0] = [-100, 0, 0];
+
+	export function isDefault(score?: FuzzyScore): score is [-100, 0, 0] {
+		return !score || (score[0] === -100 && score[1] === 0 && score[2] === 0);
+	}
 }
 
 export interface FuzzyScorer {

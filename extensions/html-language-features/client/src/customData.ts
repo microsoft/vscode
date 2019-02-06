@@ -4,26 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as path from 'path';
-import { workspace, WorkspaceFolder } from 'vscode';
+import { workspace, WorkspaceFolder, extensions } from 'vscode';
 
 interface ExperimentalConfig {
 	experimental?: {
-		custom?: {
-			tags?: string[];
-			attributes?: string[];
-		}
+		customData?: string[];
 	};
 }
 
-export function getCustomDataPathsInAllWorkspaces(workspaceFolders: WorkspaceFolder[] | undefined) {
-	const tagPaths: string[] = [];
-	const attributePaths: string[] = [];
+export function getCustomDataPathsInAllWorkspaces(workspaceFolders: WorkspaceFolder[] | undefined): string[] {
+	const dataPaths: string[] = [];
 
 	if (!workspaceFolders) {
-		return {
-			tagPaths,
-			attributePaths
-		};
+		return dataPaths;
 	}
 
 	workspaceFolders.forEach(wf => {
@@ -34,23 +27,40 @@ export function getCustomDataPathsInAllWorkspaces(workspaceFolders: WorkspaceFol
 			wfHtmlConfig &&
 			wfHtmlConfig.workspaceFolderValue &&
 			wfHtmlConfig.workspaceFolderValue.experimental &&
-			wfHtmlConfig.workspaceFolderValue.experimental.custom
+			wfHtmlConfig.workspaceFolderValue.experimental.customData
 		) {
-			if (wfHtmlConfig.workspaceFolderValue.experimental.custom.tags) {
-				wfHtmlConfig.workspaceFolderValue.experimental.custom.tags.forEach(t => {
-					tagPaths.push(path.resolve(wf.uri.fsPath, t));
-				});
-			}
-			if (wfHtmlConfig.workspaceFolderValue.experimental.custom.attributes) {
-				wfHtmlConfig.workspaceFolderValue.experimental.custom.attributes.forEach(a => {
-					attributePaths.push(path.resolve(wf.uri.fsPath, a));
+			const customData = wfHtmlConfig.workspaceFolderValue.experimental.customData;
+			if (Array.isArray(customData)) {
+				customData.forEach(t => {
+					if (typeof t === 'string') {
+						dataPaths.push(path.resolve(wf.uri.fsPath, t));
+					}
 				});
 			}
 		}
 	});
 
-	return {
-		tagPaths,
-		attributePaths
-	};
+	return dataPaths;
+}
+
+export function getCustomDataPathsFromAllExtensions(): string[] {
+	const dataPaths: string[] = [];
+
+	for (const extension of extensions.all) {
+		const contributes = extension.packageJSON && extension.packageJSON.contributes;
+
+		if (
+			contributes &&
+			contributes.html &&
+			contributes.html.experimental.customData &&
+			Array.isArray(contributes.html.experimental.customData)
+		) {
+			const relativePaths: string[] = contributes.html.customData;
+			relativePaths.forEach(rp => {
+				dataPaths.push(path.resolve(extension.extensionPath, rp));
+			});
+		}
+	}
+
+	return dataPaths;
 }

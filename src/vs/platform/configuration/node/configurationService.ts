@@ -37,7 +37,7 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 
 		// Listeners
 		this._register(this.userConfiguration.onDidChangeConfiguration(userConfigurationModel => this.onDidChangeUserConfiguration(userConfigurationModel)));
-		this._register(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidRegisterConfiguration(configurationProperties => this.onDidRegisterConfiguration(configurationProperties)));
+		this._register(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidUpdateConfiguration(configurationProperties => this.onDidDefaultConfigurationChange(configurationProperties)));
 	}
 
 	get configuration(): Configuration {
@@ -99,7 +99,7 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 		}
 	}
 
-	private onDidRegisterConfiguration(keys: string[]): void {
+	private onDidDefaultConfigurationChange(keys: string[]): void {
 		this._configuration.updateDefaultConfiguration(new DefaultConfigurationModel());
 		this.trigger(keys, ConfigurationTarget.DEFAULT);
 	}

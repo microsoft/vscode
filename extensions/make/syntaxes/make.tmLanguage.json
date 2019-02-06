@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/fadeevab/make.tmbundle/commit/d01ce3404f9e2eed0fd4d07b5e24094c03599241",
+	"version": "https://github.com/fadeevab/make.tmbundle/commit/21e9108e9dce13b798667806bb105d852ac0a58c",
 	"name": "Makefile",
 	"scopeName": "source.makefile",
 	"patterns": [
@@ -342,7 +342,12 @@
 			"begin": "(^[ ]*|\\G\\s*)([^\\s]+)\\s*((?<![?:+!])=|\\?=|:=|\\+=|!=)",
 			"beginCaptures": {
 				"2": {
-					"name": "variable.other.makefile"
+					"name": "variable.other.makefile",
+					"patterns": [
+						{
+							"include": "#variables"
+						}
+					]
 				},
 				"3": {
 					"name": "punctuation.separator.key-value.makefile"

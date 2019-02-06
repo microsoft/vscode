@@ -74,7 +74,6 @@ class NPSContribution implements IWorkbenchContribution {
 				run: () => storageService.store(SESSION_COUNT_KEY, sessionCount - 3, StorageScope.GLOBAL)
 			}, {
 				label: nls.localize('neverAgain', "Don't Show Again"),
-				isSecondary: true,
 				run: () => {
 					storageService.store(IS_CANDIDATE_KEY, false, StorageScope.GLOBAL);
 					storageService.store(SKIP_VERSION_KEY, pkg.version, StorageScope.GLOBAL);

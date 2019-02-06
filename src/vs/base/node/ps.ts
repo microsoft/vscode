@@ -109,7 +109,7 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 			} while (matches);
 
 			if (result) {
-				if (cmd.indexOf('node ') !== 0) {
+				if (cmd.indexOf('node ') < 0 && cmd.indexOf('node.exe') < 0) {
 					return `electron_node ${result}`;
 				}
 			}

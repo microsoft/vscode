@@ -28,6 +28,8 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { WorkbenchAsyncDataTree, IListService } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { FuzzyScore, createMatches } from 'vs/base/common/filters';
+import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 
 const $ = dom.$;
 
@@ -37,7 +39,7 @@ export class VariablesView extends ViewletPanel {
 
 	private onFocusStackFrameScheduler: RunOnceScheduler;
 	private needsRefresh: boolean;
-	private tree: WorkbenchAsyncDataTree<IViewModel, IExpression | IScope>;
+	private tree: WorkbenchAsyncDataTree<IViewModel, IExpression | IScope, FuzzyScore>;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -55,7 +57,7 @@ export class VariablesView extends ViewletPanel {
 		// Use scheduler to prevent unnecessary flashing
 		this.onFocusStackFrameScheduler = new RunOnceScheduler(() => {
 			this.needsRefresh = false;
-			this.tree.refresh().then(() => {
+			this.tree.updateChildren().then(() => {
 				const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 				if (stackFrame) {
 					stackFrame.getScopes().then(scopes => {
@@ -82,14 +84,13 @@ export class VariablesView extends ViewletPanel {
 				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: e => e }
 			}, this.contextKeyService, this.listService, this.themeService, this.configurationService, this.keybindingService);
 
-		// TODO@isidor this is a promise
-		this.tree.setInput(this.debugService.getViewModel());
+		this.tree.setInput(this.debugService.getViewModel()).then(null, onUnexpectedError);
 
 		CONTEXT_VARIABLES_FOCUSED.bindTo(this.contextKeyService.createScoped(treeContainer));
 
 		const collapseAction = new CollapseAction2(this.tree, true, 'explorer-action collapse-explorer');
 		this.toolbar.setActions([collapseAction])();
-		this.tree.refresh();
+		this.tree.updateChildren();
 
 		this.disposables.push(this.debugService.getViewModel().onDidFocusStackFrame(sf => {
 			if (!this.isBodyVisible()) {
@@ -102,7 +103,7 @@ export class VariablesView extends ViewletPanel {
 			const timeout = sf.explicit ? 0 : undefined;
 			this.onFocusStackFrameScheduler.schedule(timeout);
 		}));
-		this.disposables.push(variableSetEmitter.event(() => this.tree.refresh()));
+		this.disposables.push(variableSetEmitter.event(() => this.tree.updateChildren()));
 		this.disposables.push(this.tree.onMouseDblClick(e => this.onMouseDblClick(e)));
 		this.disposables.push(this.tree.onContextMenu(e => this.onContextMenu(e)));
 
@@ -111,10 +112,19 @@ export class VariablesView extends ViewletPanel {
 				this.onFocusStackFrameScheduler.schedule();
 			}
 		}));
+		this.disposables.push(this.debugService.getViewModel().onDidSelectExpression(e => {
+			if (e instanceof Variable) {
+				this.tree.refresh(e);
+			}
+		}));
 	}
 
-	layoutBody(size: number): void {
-		this.tree.layout(size);
+	layoutBody(width: number, height: number): void {
+		this.tree.layout(width, height);
+	}
+
+	focus(): void {
+		this.tree.domFocus();
 	}
 
 	private onMouseDblClick(e: ITreeMouseEvent<IExpression | IScope>): void {
@@ -170,6 +180,7 @@ export class VariablesDataSource implements IAsyncDataSource<IViewModel, IExpres
 
 interface IScopeTemplateData {
 	name: HTMLElement;
+	label: HighlightedLabel;
 }
 
 class VariablesDelegate implements IListVirtualDelegate<IExpression | IScope> {
@@ -190,7 +201,7 @@ class VariablesDelegate implements IListVirtualDelegate<IExpression | IScope> {
 	}
 }
 
-class ScopesRenderer implements ITreeRenderer<IScope, void, IScopeTemplateData> {
+class ScopesRenderer implements ITreeRenderer<IScope, FuzzyScore, IScopeTemplateData> {
 
 	static readonly ID = 'scope';
 
@@ -201,12 +212,13 @@ class ScopesRenderer implements ITreeRenderer<IScope, void, IScopeTemplateData> 
 	renderTemplate(container: HTMLElement): IScopeTemplateData {
 		let data: IScopeTemplateData = Object.create(null);
 		data.name = dom.append(container, $('.scope'));
+		data.label = new HighlightedLabel(data.name, false);
 
 		return data;
 	}
 
-	renderElement(element: ITreeNode<IScope, void>, index: number, templateData: IScopeTemplateData): void {
-		templateData.name.textContent = element.element.name;
+	renderElement(element: ITreeNode<IScope, FuzzyScore>, index: number, templateData: IScopeTemplateData): void {
+		templateData.label.set(element.element.name, createMatches(element.filterData));
 	}
 
 	disposeTemplate(templateData: IScopeTemplateData): void {
@@ -222,8 +234,8 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 		return VariablesRenderer.ID;
 	}
 
-	protected renderExpression(expression: IExpression, data: IExpressionTemplateData): void {
-		renderVariable(expression as Variable, data, true);
+	protected renderExpression(expression: IExpression, data: IExpressionTemplateData, highlights: IHighlight[]): void {
+		renderVariable(expression as Variable, data, true, highlights);
 	}
 
 	protected getInputBoxOptions(expression: IExpression): IInputBoxOptions {

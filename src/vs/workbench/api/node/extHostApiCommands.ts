@@ -372,7 +372,7 @@ export class ExtHostApiCommands {
 				return undefined;
 			}
 			if (value.rejectReason) {
-				return Promise.reject(new Error(value.rejectReason));
+				return Promise.reject<any>(new Error(value.rejectReason));
 			}
 			return typeConverters.WorkspaceEdit.to(value);
 		});

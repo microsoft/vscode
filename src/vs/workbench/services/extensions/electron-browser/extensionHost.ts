@@ -33,7 +33,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IInitData } from 'vs/workbench/api/node/extHost.protocol';
-import { MessageType, createMessageOfType, isMessageOfType } from 'vs/workbench/common/extensionHostProtocol';
+import { MessageType, createMessageOfType, isMessageOfType } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { ICrashReporterService } from 'vs/workbench/services/crashReporter/electron-browser/crashReporterService';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 
@@ -167,7 +167,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
 				const opts = {
 					env: objects.mixin(objects.deepClone(process.env), {
-						AMD_ENTRYPOINT: 'vs/workbench/node/extensionHostProcess',
+						AMD_ENTRYPOINT: 'vs/workbench/services/extensions/node/extensionHostProcess',
 						PIPE_LOGGING: 'true',
 						VERBOSE_LOGGING: true,
 						VSCODE_IPC_HOOK_EXTHOST: pipeName,
@@ -224,9 +224,14 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
 				// Print out extension host output
 				onDebouncedOutput(output => {
-					const inspectorUrlMatch = !this._environmentService.isBuilt && output.data && output.data.match(/ws:\/\/([^\s]+)/);
+					const inspectorUrlMatch = output.data && output.data.match(/ws:\/\/([^\s]+:(\d+)\/[^\s]+)/);
 					if (inspectorUrlMatch) {
-						console.log(`%c[Extension Host] %cdebugger inspector at chrome-devtools://devtools/bundled/inspector.html?experiments=true&v8only=true&ws=${inspectorUrlMatch[1]}`, 'color: blue', 'color: black');
+						if (!this._environmentService.isBuilt) {
+							console.log(`%c[Extension Host] %cdebugger inspector at chrome-devtools://devtools/bundled/inspector.html?experiments=true&v8only=true&ws=${inspectorUrlMatch[1]}`, 'color: blue', 'color: black');
+						}
+						if (!this._inspectPort) {
+							this._inspectPort = Number(inspectorUrlMatch[2]);
+						}
 					} else {
 						console.group('Extension Host');
 						console.log(output.data, ...output.format);
@@ -430,6 +435,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 						id: workspace.id,
 						name: this._labelService.getWorkspaceLabel(workspace)
 					},
+					resolvedExtensions: [],
 					extensions: extensionDescriptions,
 					telemetryInfo,
 					logLevel: this._logService.getLevel(),
@@ -495,6 +501,16 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		else {
 			ipc.send('vscode:exit', code);
 		}
+	}
+
+	public enableInspector(): Promise<void> {
+		if (this._inspectPort) {
+			return Promise.resolve();
+		}
+		// send SIGUSR1 and wait a little the actual port is read from the process stdout which we
+		// scan here: https://github.com/Microsoft/vscode/blob/67ffab8dcd1a6752d8b62bcd13d7020101eef568/src/vs/workbench/services/extensions/electron-browser/extensionHost.ts#L225-L240
+		this._extensionHostProcess.kill('SIGUSR1');
+		return timeout(1000);
 	}
 
 	public getInspectPort(): number {

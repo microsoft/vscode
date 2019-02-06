@@ -13,6 +13,7 @@ import { inputsSchema } from 'vs/workbench/services/configurationResolver/common
 // debuggers extension point
 export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IDebuggerContribution[]>({
 	extensionPoint: 'debuggers',
+	isDynamic: true,
 	jsonSchema: {
 		description: nls.localize('vscode.extension.contributes.debuggers', 'Contributes debug adapters.'),
 		type: 'array',
@@ -111,6 +112,7 @@ export interface IRawBreakpointContribution {
 // breakpoints extension point #9037
 export const breakpointsExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawBreakpointContribution[]>({
 	extensionPoint: 'breakpoints',
+	isDynamic: true,
 	jsonSchema: {
 		description: nls.localize('vscode.extension.contributes.breakpoints', 'Contributes breakpoints.'),
 		type: 'array',

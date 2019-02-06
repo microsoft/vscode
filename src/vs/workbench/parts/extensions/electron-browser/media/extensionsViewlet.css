@@ -57,19 +57,18 @@
 }
 
 .extensions-viewlet > .extensions .monaco-list-row > .bookmark {
-	display: none;
-}
-
-.extensions-viewlet > .extensions .monaco-list-row.recommended > .bookmark {
 	display: inline-block;
 	height: 20px;
 	width: 20px;
+}
+
+.extensions-viewlet > .extensions .monaco-list-row > .bookmark > .recommendation {
 	border-right: 20px solid transparent;
 	border-top: 20px solid;
 	box-sizing: border-box;
 }
 
-.extensions-viewlet > .extensions .monaco-list-row > .bookmark > .octicon {
+.extensions-viewlet > .extensions .monaco-list-row > .bookmark > .recommendation > .octicon {
 	position: absolute;
 	top: 1px;
 	left: 1px;
@@ -91,7 +90,11 @@
 	background: url('loading.svg') center center no-repeat;
 }
 
-.extensions-viewlet > .extensions .extension > .icon {
+.extensions-viewlet > .extensions .monaco-list-row > .extension > .icon-container {
+	position: relative;
+}
+
+.extensions-viewlet > .extensions .extension > .icon-container > .icon {
 	width: 42px;
 	height: 42px;
 	padding: 10px 14px 10px 0;
@@ -99,11 +102,14 @@
 	object-fit: contain;
 }
 
-.extensions-viewlet.narrow > .extensions .extension > .icon {
-	display: none;
+.extensions-viewlet > .extensions .monaco-list-row > .extension > .icon-container > .extension-remote-badge {
+	position: absolute;
+	right: 5px;
+	bottom: 5px;
 }
 
-.extensions-viewlet > .extensions .extension.loading > .icon {
+.extensions-viewlet.narrow > .extensions .extension > .icon-container,
+.extensions-viewlet > .extensions .extension.loading > .icon-container {
 	display: none;
 }
 
@@ -204,8 +210,8 @@
 
 .vs .extensions-viewlet > .extensions .monaco-list-row.disabled > .bookmark,
 .vs-dark  .extensions-viewlet > .extensions .monaco-list-row.disabled > .bookmark,
-.vs .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension > .icon,
-.vs-dark .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension > .icon,
+.vs .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension > .icon-container > .icon,
+.vs-dark .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension > .icon-container > .icon,
 .vs .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension > .details > .header-container,
 .vs-dark .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension > .details > .header-container,
 .vs .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension > .details > .description,

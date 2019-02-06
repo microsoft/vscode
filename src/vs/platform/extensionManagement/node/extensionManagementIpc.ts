@@ -16,7 +16,7 @@ function transformIncomingURI(uri: UriComponents, transformer: IURITransformer |
 }
 
 function transformOutgoingURI(uri: URI, transformer: IURITransformer | null): URI {
-	return transformer ? transformer.transformOutgoing(uri) : uri;
+	return transformer ? transformer.transformOutgoingURI(uri) : uri;
 }
 
 function transformIncomingExtension(extension: ILocalExtension, transformer: IURITransformer | null): ILocalExtension {
@@ -27,7 +27,7 @@ function transformIncomingExtension(extension: ILocalExtension, transformer: IUR
 }
 
 function transformOutgoingExtension(extension: ILocalExtension, transformer: IURITransformer | null): ILocalExtension {
-	return transformer ? cloneAndChange(extension, value => value instanceof URI ? transformer.transformOutgoing(value) : undefined) : extension;
+	return transformer ? cloneAndChange(extension, value => value instanceof URI ? transformer.transformOutgoingURI(value) : undefined) : extension;
 }
 
 export class ExtensionManagementChannel implements IServerChannel {

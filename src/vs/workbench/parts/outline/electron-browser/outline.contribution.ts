@@ -15,7 +15,6 @@ const _outlineDesc = <IViewDescriptor>{
 	id: OutlineViewId,
 	name: localize('name', "Outline"),
 	ctor: OutlinePanel,
-	container: VIEW_CONTAINER,
 	canToggleVisibility: true,
 	hideByDefault: false,
 	collapsed: true,
@@ -24,7 +23,7 @@ const _outlineDesc = <IViewDescriptor>{
 	focusCommand: { id: 'outline.focus' }
 };
 
-ViewsRegistry.registerViews([_outlineDesc]);
+ViewsRegistry.registerViews([_outlineDesc], VIEW_CONTAINER);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	'id': 'outline',

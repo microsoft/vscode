@@ -242,6 +242,17 @@ export class ExtensionHostProcessManager extends Disposable {
 	}
 
 	public resolveAuthority(remoteAuthority: string): Promise<ResolvedAuthority> {
+		const authorityPlusIndex = remoteAuthority.indexOf('+');
+		if (authorityPlusIndex === -1) {
+			// This authority does not need to be resolved, simply parse the port number
+			const pieces = remoteAuthority.split(':');
+			return Promise.resolve({
+				authority: remoteAuthority,
+				host: pieces[0],
+				port: parseInt(pieces[1], 10),
+				syncExtensions: false
+			});
+		}
 		return this._extensionHostProcessProxy.then(proxy => proxy.value.$resolveAuthority(remoteAuthority));
 	}
 
@@ -249,12 +260,8 @@ export class ExtensionHostProcessManager extends Disposable {
 		return this._extensionHostProcessProxy.then(proxy => proxy.value.$startExtensionHost(enabledExtensionIds));
 	}
 
-	public addExtension(extension: IExtensionDescription): Promise<void> {
-		return this._extensionHostProcessProxy.then(proxy => proxy.value.$addExtension(extension));
-	}
-
-	public removeExtension(extensionId: ExtensionIdentifier): Promise<void> {
-		return this._extensionHostProcessProxy.then(proxy => proxy.value.$removeExtension(extensionId));
+	public deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void> {
+		return this._extensionHostProcessProxy.then(proxy => proxy.value.$deltaExtensions(toAdd, toRemove));
 	}
 }
 
@@ -346,7 +353,7 @@ function getLatencyTestProviders(): ExtHostLatencyProvider[] {
 
 export class MeasureExtHostLatencyAction extends Action {
 	public static readonly ID = 'editor.action.measureExtHostLatency';
-	public static readonly LABEL = nls.localize('measureExtHostLatency', "Developer: Measure Extension Host Latency");
+	public static readonly LABEL = nls.localize('measureExtHostLatency', "Measure Extension Host Latency");
 
 	constructor(
 		id: string,
@@ -377,4 +384,4 @@ export class MeasureExtHostLatencyAction extends Action {
 }
 
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(new SyncActionDescriptor(MeasureExtHostLatencyAction, MeasureExtHostLatencyAction.ID, MeasureExtHostLatencyAction.LABEL), 'Developer: Measure Extension Host Latency');
+registry.registerWorkbenchAction(new SyncActionDescriptor(MeasureExtHostLatencyAction, MeasureExtHostLatencyAction.ID, MeasureExtHostLatencyAction.LABEL), 'Developer: Measure Extension Host Latency', nls.localize('developer', "Developer"));
