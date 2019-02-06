@@ -695,14 +695,14 @@ export class DefaultStyleController implements IStyleController {
 
 		if (styles.listFocusAndSelectionBackground) {
 			content.push(`
-				.monaco-list-drag-image,
+				.monaco-drag-image,
 				.monaco-list${suffix}:focus .monaco-list-row.selected.focused { background-color: ${styles.listFocusAndSelectionBackground}; }
 			`);
 		}
 
 		if (styles.listFocusAndSelectionForeground) {
 			content.push(`
-				.monaco-list-drag-image,
+				.monaco-drag-image,
 				.monaco-list${suffix}:focus .monaco-list-row.selected.focused { color: ${styles.listFocusAndSelectionForeground}; }
 			`);
 		}
@@ -735,7 +735,7 @@ export class DefaultStyleController implements IStyleController {
 
 		if (styles.listFocusOutline) {
 			content.push(`
-				.monaco-list-drag-image,
+				.monaco-drag-image,
 				.monaco-list${suffix}:focus .monaco-list-row.focused { outline: 1px solid ${styles.listFocusOutline}; outline-offset: -1px; }
 			`);
 		}
