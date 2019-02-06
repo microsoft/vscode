@@ -3,17 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
 import { MarkdownEngine } from '../markdownEngine';
-import { MarkdownContributions } from '../markdownExtensions';
+import { MarkdownContributionProvider, MarkdownContributions } from '../markdownExtensions';
 import { githubSlugifier } from '../slugify';
 
-const emptyContributions = new class implements MarkdownContributions {
+const emptyContributions = new class implements MarkdownContributionProvider {
 	readonly extensionPath = '';
-	readonly previewScripts: vscode.Uri[] = [];
-	readonly previewStyles: vscode.Uri[] = [];
-	readonly previewResourceRoots: vscode.Uri[] = [];
-	readonly markdownItPlugins: Promise<(md: any) => any>[] = [];
+	readonly contributions = MarkdownContributions.Empty;
 };
 
 export function createNewMarkdownEngine(): MarkdownEngine {

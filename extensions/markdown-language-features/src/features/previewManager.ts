@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { Logger } from '../logger';
-import { MarkdownContributions } from '../markdownExtensions';
+import { MarkdownContributionProvider } from '../markdownExtensions';
 import { disposeAll } from '../util/dispose';
 import { MarkdownFileTopmostLineMonitor } from '../util/topmostLineMonitor';
 import { MarkdownPreview, PreviewSettings } from './preview';
@@ -25,7 +25,7 @@ export class MarkdownPreviewManager implements vscode.WebviewPanelSerializer {
 	public constructor(
 		private readonly _contentProvider: MarkdownContentProvider,
 		private readonly _logger: Logger,
-		private readonly _contributions: MarkdownContributions
+		private readonly _contributions: MarkdownContributionProvider
 	) {
 		this._disposables.push(vscode.window.registerWebviewPanelSerializer(MarkdownPreview.viewType, this));
 	}
