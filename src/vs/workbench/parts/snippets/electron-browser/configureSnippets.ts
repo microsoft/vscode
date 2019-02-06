@@ -202,17 +202,17 @@ CommandsRegistry.registerCommand(id, async (accessor): Promise<any> => {
 	const picks = await computePicks(snippetService, envService, modeService);
 	const existing: QuickPickInput[] = picks.existing;
 
-	type GlobalSnippetPick = IQuickPickItem & { uri: URI };
-	const globalSnippetPicks: GlobalSnippetPick[] = [{
+	type SnippetPick = IQuickPickItem & { uri: URI } & { scope: string };
+	const globalSnippetPicks: SnippetPick[] = [{
+		scope: nls.localize('new.global_scope', 'global'),
 		label: nls.localize('new.global', "New Global Snippets file..."),
 		uri: URI.file(join(envService.appSettingsHome, 'snippets'))
 	}];
 
-	type WorkspaceSnippetPick = IQuickPickItem & { uri: URI } & { name: string };
-	const workspaceSnippetPicks: WorkspaceSnippetPick[] = [];
+	const workspaceSnippetPicks: SnippetPick[] = [];
 	for (const folder of workspaceService.getWorkspace().folders) {
 		workspaceSnippetPicks.push({
-			name: folder.name,
+			scope: nls.localize('new.workspace_scope', "{0} workspace", folder.name),
 			label: nls.localize('new.folder', "New Snippets file for '{0}'...", folder.name),
 			uri: folder.toResource('.vscode')
 		});
@@ -230,10 +230,10 @@ CommandsRegistry.registerCommand(id, async (accessor): Promise<any> => {
 		matchOnDescription: true
 	});
 
-	if (globalSnippetPicks.indexOf(pick as GlobalSnippetPick) >= 0) {
-		return createSnippetFile('global', (pick as GlobalSnippetPick).uri, windowService, notificationService, fileService, opener);
-	} else if (workspaceSnippetPicks.indexOf(pick as WorkspaceSnippetPick) >= 0) {
-		return createSnippetFile((pick as WorkspaceSnippetPick).name + ' workspace', (pick as WorkspaceSnippetPick).uri, windowService, notificationService, fileService, opener);
+	if (globalSnippetPicks.indexOf(pick as SnippetPick) >= 0) {
+		return createSnippetFile((pick as SnippetPick).scope, (pick as SnippetPick).uri, windowService, notificationService, fileService, opener);
+	} else if (workspaceSnippetPicks.indexOf(pick as SnippetPick) >= 0) {
+		return createSnippetFile((pick as SnippetPick).scope, (pick as SnippetPick).uri, windowService, notificationService, fileService, opener);
 	} else if (ISnippetPick.is(pick)) {
 		if (pick.hint) {
 			await createLanguageSnippetFile(pick, fileService);
