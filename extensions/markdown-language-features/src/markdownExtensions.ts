@@ -13,7 +13,7 @@ const resolveExtensionResource = (extension: vscode.Extension<any>, resourcePath
 		.with({ scheme: 'vscode-resource' });
 };
 
-const resolveExtensionResources = (extension: vscode.Extension<any>, resourcePaths: any): vscode.Uri[] => {
+const resolveExtensionResources = (extension: vscode.Extension<any>, resourcePaths: unknown): vscode.Uri[] => {
 	const result: vscode.Uri[] = [];
 	if (Array.isArray(resourcePaths)) {
 		for (const resource of resourcePaths) {
@@ -65,50 +65,48 @@ export namespace MarkdownContributions {
 	export function fromExtension(
 		extension: vscode.Extension<any>
 	): MarkdownContributions {
-		const contributes = extension.packageJSON && extension.packageJSON.contributes;
-		if (!contributes) {
+		const contributions = extension.packageJSON && extension.packageJSON.contributes;
+		if (!contributions) {
 			return MarkdownContributions.Empty;
 		}
 
-		const styles = tryLoadPreviewStyles(contributes, extension);
-		const scripts = tryLoadPreviewScripts(contributes, extension);
-		const previewResourceRoots: vscode.Uri[] = [];
-		if (styles.length || scripts.length) {
-			previewResourceRoots.push(vscode.Uri.file(extension.extensionPath));
-		}
+		const previewStyles = getContributedStyles(contributions, extension);
+		const previewScripts = getContributedScripts(contributions, extension);
+		const previewResourceRoots = previewStyles.length || previewScripts.length ? [vscode.Uri.file(extension.extensionPath)] : [];
+		const markdownItPlugins = getContributedMarkdownItPlugins(contributions, extension);
 
-		const plugins = tryLoadMarkdownItPlugins(contributes, extension);
 		return {
-			previewScripts: scripts,
-			previewStyles: styles,
+			previewScripts,
+			previewStyles,
 			previewResourceRoots,
-			markdownItPlugins: plugins ? new Map([[extension.id, plugins]]) : new Map()
+			markdownItPlugins
 		};
 	}
 
-	function tryLoadMarkdownItPlugins(
+	function getContributedMarkdownItPlugins(
 		contributes: any,
 		extension: vscode.Extension<any>
-	): Thenable<(md: any) => any> | undefined {
+	): Map<string, Thenable<(md: any) => any>> {
+		const map = new Map<string, Thenable<(md: any) => any>>();
 		if (contributes['markdown.markdownItPlugins']) {
-			return extension.activate().then(() => {
+			map.set(extension.id, extension.activate().then(() => {
 				if (extension.exports && extension.exports.extendMarkdownIt) {
 					return (md: any) => extension.exports.extendMarkdownIt(md);
 				}
 				return (md: any) => md;
-			});
+			}));
 		}
-		return undefined;
+		return map;
 	}
 
-	function tryLoadPreviewScripts(
+	function getContributedScripts(
 		contributes: any,
 		extension: vscode.Extension<any>
 	) {
 		return resolveExtensionResources(extension, contributes['markdown.previewScripts']);
 	}
 
-	function tryLoadPreviewStyles(
+	function getContributedStyles(
 		contributes: any,
 		extension: vscode.Extension<any>
 	) {
