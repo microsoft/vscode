@@ -618,6 +618,11 @@ configurationRegistry.registerConfiguration({
 			deprecationMessage: nls.localize('useRipgrepDeprecated', "Deprecated. Consider \"search.usePCRE2\" for advanced regex feature support."),
 			default: true
 		},
+		'search.maintainFileSearchCache': {
+			type: 'boolean',
+			description: nls.localize('search.maintainFileSearchCache', "When enabled, the searchService process will be kept alive instead of being shut down after an hour of inactivity. This will keep the file search cache in memory."),
+			default: false
+		},
 		'search.useIgnoreFiles': {
 			type: 'boolean',
 			markdownDescription: nls.localize('useIgnoreFiles', "Controls whether to use `.gitignore` and `.ignore` files when searching for files."),
