@@ -298,6 +298,11 @@ export const STATUS_BAR_PROMINENT_ITEM_HOVER_BACKGROUND = registerColor('statusB
 	hc: '#369432'
 }, nls.localize('statusBarProminentItemHoverBackground', "Status bar prominent items background color when hovering. Prominent items stand out from other status bar entries to indicate importance. Change mode `Toggle Tab Key Moves Focus` from command palette to see an example. The status bar is shown in the bottom of the window."));
 
+export const STATUS_BAR_HOST_NAME_BACKGROUND = registerColor('statusBarItem.hostBackground', {
+	dark: STATUS_BAR_PROMINENT_ITEM_BACKGROUND,
+	light: STATUS_BAR_PROMINENT_ITEM_BACKGROUND,
+	hc: STATUS_BAR_PROMINENT_ITEM_BACKGROUND
+}, nls.localize('statusBarItemHostBackground', "Background color for the remote host name on the status bar."));
 
 
 // < --- Activity Bar --- >
@@ -373,8 +378,8 @@ export const SIDE_BAR_TITLE_FOREGROUND = registerColor('sideBarTitle.foreground'
 
 export const SIDE_BAR_DRAG_AND_DROP_BACKGROUND = registerColor('sideBar.dropBackground', {
 	dark: Color.white.transparent(0.12),
-	light: Color.white.transparent(0.12),
-	hc: Color.white.transparent(0.12),
+	light: Color.black.transparent(0.1),
+	hc: Color.white.transparent(0.3),
 }, nls.localize('sideBarDragAndDropBackground', "Drag and drop feedback color for the side bar sections. The color should have transparency so that the side bar sections can still shine through. The side bar is the container for views like explorer and search."));
 
 export const SIDE_BAR_SECTION_HEADER_BACKGROUND = registerColor('sideBarSectionHeader.background', {

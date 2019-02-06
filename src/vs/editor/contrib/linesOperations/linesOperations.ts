@@ -181,8 +181,7 @@ export abstract class AbstractSortLinesAction extends EditorAction {
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const selections = editor.getSelections() || [];
 
-		for (let i = 0, len = selections.length; i < len; i++) {
-			const selection = selections[i];
+		for (const selection of selections) {
 			if (!SortLinesCommand.canRun(editor.getModel(), selection, this.descending)) {
 				return;
 			}

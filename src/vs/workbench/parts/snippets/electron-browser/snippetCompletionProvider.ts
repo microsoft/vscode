@@ -8,7 +8,7 @@ import { compare } from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
-import { CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList, LanguageId, CompletionItemInsertTextRule } from 'vs/editor/common/modes';
+import { CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList, LanguageId, CompletionItemInsertTextRule, CompletionContext, CompletionTriggerKind } from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { localize } from 'vs/nls';
@@ -73,9 +73,14 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 		//
 	}
 
-	provideCompletionItems(model: ITextModel, position: Position): Promise<CompletionList> | undefined {
+	provideCompletionItems(model: ITextModel, position: Position, context: CompletionContext): Promise<CompletionList> | undefined {
 
 		if (position.column >= SnippetCompletionProvider._maxPrefix) {
+			return undefined;
+		}
+
+		if (context.triggerKind === CompletionTriggerKind.TriggerCharacter && context.triggerCharacter === ' ') {
+			// no snippets when suggestions have been triggered by space
 			return undefined;
 		}
 

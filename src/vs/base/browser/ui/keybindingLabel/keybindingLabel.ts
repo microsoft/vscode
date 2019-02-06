@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./keybindingLabel';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { equals } from 'vs/base/common/objects';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { ResolvedKeybinding, ResolvedKeybindingPart } from 'vs/base/common/keyCodes';
 import { UILabelProvider } from 'vs/base/common/keybindingLabels';
 import * as dom from 'vs/base/browser/dom';
+import { localize } from 'vs/nls';
 
 const $ = dom.$;
 
@@ -26,14 +26,18 @@ export interface Matches {
 	chordPart: PartMatches;
 }
 
-export class KeybindingLabel implements IDisposable {
+export interface KeybindingLabelOptions {
+	renderUnboundKeybindings: boolean;
+}
+
+export class KeybindingLabel {
 
 	private domNode: HTMLElement;
 	private keybinding: ResolvedKeybinding;
-	private matches: Matches;
+	private matches: Matches | undefined;
 	private didEverRender: boolean;
 
-	constructor(container: HTMLElement, private os: OperatingSystem) {
+	constructor(container: HTMLElement, private os: OperatingSystem, private options?: KeybindingLabelOptions) {
 		this.domNode = dom.append(container, $('.monaco-keybinding'));
 		this.didEverRender = false;
 		container.appendChild(this.domNode);
@@ -43,7 +47,7 @@ export class KeybindingLabel implements IDisposable {
 		return this.domNode;
 	}
 
-	set(keybinding: ResolvedKeybinding, matches: Matches) {
+	set(keybinding: ResolvedKeybinding, matches?: Matches) {
 		if (this.didEverRender && this.keybinding === keybinding && KeybindingLabel.areSame(this.matches, matches)) {
 			return;
 		}
@@ -66,6 +70,8 @@ export class KeybindingLabel implements IDisposable {
 				this.renderPart(this.domNode, chordPart, this.matches ? this.matches.chordPart : null);
 			}
 			this.domNode.title = this.keybinding.getAriaLabel() || '';
+		} else if (this.options && this.options.renderUnboundKeybindings) {
+			this.renderUnbound(this.domNode);
 		}
 
 		this.didEverRender = true;
@@ -98,10 +104,11 @@ export class KeybindingLabel implements IDisposable {
 		}
 	}
 
-	dispose() {
+	private renderUnbound(parent: HTMLElement): void {
+		dom.append(parent, $('span.monaco-keybinding-key', undefined, localize('unbound', "Unbound")));
 	}
 
-	private static areSame(a: Matches, b: Matches): boolean {
+	private static areSame(a: Matches | undefined, b: Matches | undefined): boolean {
 		if (a === b || (!a && !b)) {
 			return true;
 		}

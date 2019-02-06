@@ -13,6 +13,7 @@ import { URI } from 'vs/base/common/uri';
 import { ExecutableDebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 import { TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTestServices';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 
 
 suite('Debug - Debugger', () => {
@@ -48,7 +49,7 @@ suite('Debug - Debugger', () => {
 		]
 	};
 
-	const extensionDescriptor0 = {
+	const extensionDescriptor0 = <IExtensionDescription>{
 		id: 'adapter',
 		identifier: new ExtensionIdentifier('adapter'),
 		name: 'myAdapter',

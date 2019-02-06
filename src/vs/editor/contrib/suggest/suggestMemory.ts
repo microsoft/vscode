@@ -197,7 +197,7 @@ export class PrefixMemory extends Memory {
 
 export type MemMode = 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix';
 
-class SuggestMemoryService extends Disposable implements ISuggestMemoryService {
+export class SuggestMemoryService extends Disposable implements ISuggestMemoryService {
 
 	readonly _serviceBrand: any;
 

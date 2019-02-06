@@ -626,10 +626,11 @@ export class SnippetParser {
 			return true;
 		});
 		for (const placeholder of incompletePlaceholders) {
-			if (placeholderDefaultValues.has(placeholder.index)) {
+			const defaultValues = placeholderDefaultValues.get(placeholder.index);
+			if (defaultValues) {
 				const clone = new Placeholder(placeholder.index);
 				clone.transform = placeholder.transform;
-				for (const child of placeholderDefaultValues.get(placeholder.index)) {
+				for (const child of defaultValues) {
 					clone.appendChild(child.clone());
 				}
 				snippet.replace(placeholder, [clone]);
@@ -929,7 +930,7 @@ export class SnippetParser {
 
 			let escaped: string;
 			if (escaped = this._accept(TokenType.Backslash, true)) {
-				escaped = this._accept(TokenType.Forwardslash, true) || escaped;
+				escaped = this._accept(TokenType.Backslash, true) || this._accept(TokenType.Forwardslash, true) || escaped;
 				transform.appendChild(new Text(escaped));
 				continue;
 			}

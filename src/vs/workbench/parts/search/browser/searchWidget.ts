@@ -397,14 +397,11 @@ export class SearchWidget extends Widget {
 		if (!this.searchInput.getRegex()) {
 			return null;
 		}
-		let regExp: RegExp;
 		try {
-			regExp = new RegExp(value);
+			// tslint:disable-next-line: no-unused-expression
+			new RegExp(value);
 		} catch (e) {
 			return { content: e.message };
-		}
-		if (strings.regExpLeadsToEndlessLoop(regExp)) {
-			return { content: nls.localize('regexp.validationFailure', "Expression matches everything") };
 		}
 
 		if (strings.regExpContainsBackreference(value)) {
@@ -443,14 +440,16 @@ export class SearchWidget extends Widget {
 
 		else if (keyboardEvent.equals(KeyCode.UpArrow)) {
 			const ta = this.searchInput.domNode.querySelector('textarea');
-			if (ta && ta.selectionStart > 0) {
+			const isMultiline = !!this.searchInput.getValue().match(/\n/);
+			if (ta && isMultiline && ta.selectionStart > 0) {
 				keyboardEvent.stopPropagation();
 			}
 		}
 
 		else if (keyboardEvent.equals(KeyCode.DownArrow)) {
 			const ta = this.searchInput.domNode.querySelector('textarea');
-			if (ta && ta.selectionEnd < ta.value.length) {
+			const isMultiline = !!this.searchInput.getValue().match(/\n/);
+			if (ta && isMultiline && ta.selectionEnd < ta.value.length) {
 				keyboardEvent.stopPropagation();
 			}
 		}

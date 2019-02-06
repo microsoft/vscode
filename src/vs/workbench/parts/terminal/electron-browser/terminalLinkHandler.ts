@@ -63,6 +63,9 @@ export class TerminalLinkHandler {
 	private _widgetManager: TerminalWidgetManager;
 	private _processCwd: string;
 	private _localLinkPattern: RegExp;
+	private _gitDiffPreImagePattern: RegExp;
+	private _gitDiffPostImagePattern: RegExp;
+	private readonly _tooltipCallback: (event: MouseEvent, uri: string) => boolean | void;
 
 	constructor(
 		private _xterm: any,
@@ -75,8 +78,23 @@ export class TerminalLinkHandler {
 		const baseLocalLinkClause = _platform === platform.Platform.Windows ? winLocalLinkClause : unixLocalLinkClause;
 		// Append line and column number regex
 		this._localLinkPattern = new RegExp(`${baseLocalLinkClause}(${lineAndColumnClause})`);
+		// Matches '--- a/src/file1', capturing 'src/file1' in group 1
+		this._gitDiffPreImagePattern = /^--- a\/(\S*)/;
+		// Matches '+++ b/src/file1', capturing 'src/file1' in group 1
+		this._gitDiffPostImagePattern = /^\+\+\+ b\/(\S*)/;
+
+		this._tooltipCallback = (e: MouseEvent) => {
+			if (this._terminalService && this._terminalService.configHelper.config.rendererType === 'dom') {
+				const target = (e.target as HTMLElement);
+				this._widgetManager.showMessage(target.offsetLeft, target.offsetTop, this._getLinkHoverString());
+			} else {
+				this._widgetManager.showMessage(e.offsetX, e.offsetY, this._getLinkHoverString());
+			}
+		};
+
 		this.registerWebLinkHandler();
 		this.registerLocalLinkHandler();
+		this.registerGitDiffLinkHandlers();
 	}
 
 	public setWidgetManager(widgetManager: TerminalWidgetManager): void {
@@ -90,14 +108,7 @@ export class TerminalLinkHandler {
 	public registerCustomLinkHandler(regex: RegExp, handler: (uri: string) => void, matchIndex?: number, validationCallback?: XtermLinkMatcherValidationCallback): number {
 		const options: ILinkMatcherOptions = {
 			matchIndex,
-			tooltipCallback: (e: MouseEvent) => {
-				if (this._terminalService && this._terminalService.configHelper.config.rendererType === 'dom') {
-					const target = (e.target as HTMLElement);
-					this._widgetManager.showMessage(target.offsetLeft, target.offsetTop, this._getLinkHoverString());
-				} else {
-					this._widgetManager.showMessage(e.offsetX, e.offsetY, this._getLinkHoverString());
-				}
-			},
+			tooltipCallback: this._tooltipCallback,
 			leaveCallback: () => this._widgetManager.closeMessage(),
 			willLinkActivate: (e: MouseEvent) => this._isLinkActivationModifierDown(e),
 			priority: CUSTOM_LINK_PRIORITY
@@ -114,14 +125,7 @@ export class TerminalLinkHandler {
 		});
 		this._xterm.webLinksInit(wrappedHandler, {
 			validationCallback: (uri: string, callback: (isValid: boolean) => void) => this._validateWebLink(uri, callback),
-			tooltipCallback: (e: MouseEvent) => {
-				if (this._terminalService && this._terminalService.configHelper.config.rendererType === 'dom') {
-					const target = (e.target as HTMLElement);
-					this._widgetManager.showMessage(target.offsetLeft, target.offsetTop, this._getLinkHoverString());
-				} else {
-					this._widgetManager.showMessage(e.offsetX, e.offsetY, this._getLinkHoverString());
-				}
-			},
+			tooltipCallback: this._tooltipCallback,
 			leaveCallback: () => this._widgetManager.closeMessage(),
 			willLinkActivate: (e: MouseEvent) => this._isLinkActivationModifierDown(e)
 		});
@@ -133,18 +137,27 @@ export class TerminalLinkHandler {
 		});
 		this._xterm.registerLinkMatcher(this._localLinkRegex, wrappedHandler, {
 			validationCallback: (uri: string, callback: (isValid: boolean) => void) => this._validateLocalLink(uri, callback),
-			tooltipCallback: (e: MouseEvent) => {
-				if (this._terminalService && this._terminalService.configHelper.config.rendererType === 'dom') {
-					const target = (e.target as HTMLElement);
-					this._widgetManager.showMessage(target.offsetLeft, target.offsetTop, this._getLinkHoverString());
-				} else {
-					this._widgetManager.showMessage(e.offsetX, e.offsetY, this._getLinkHoverString());
-				}
-			},
+			tooltipCallback: this._tooltipCallback,
 			leaveCallback: () => this._widgetManager.closeMessage(),
 			willLinkActivate: (e: MouseEvent) => this._isLinkActivationModifierDown(e),
 			priority: LOCAL_LINK_PRIORITY
 		});
+	}
+
+	public registerGitDiffLinkHandlers(): void {
+		const wrappedHandler = this._wrapLinkHandler(url => {
+			this._handleLocalLink(url);
+		});
+		const options = {
+			matchIndex: 1,
+			validationCallback: (uri: string, callback: (isValid: boolean) => void) => this._validateLocalLink(uri, callback),
+			tooltipCallback: this._tooltipCallback,
+			leaveCallback: () => this._widgetManager.closeMessage(),
+			willLinkActivate: (e: MouseEvent) => this._isLinkActivationModifierDown(e),
+			priority: LOCAL_LINK_PRIORITY
+		};
+		this._xterm.registerLinkMatcher(this._gitDiffPreImagePattern, wrappedHandler, options);
+		this._xterm.registerLinkMatcher(this._gitDiffPostImagePattern, wrappedHandler, options);
 	}
 
 	public dispose(): void {
@@ -170,6 +183,14 @@ export class TerminalLinkHandler {
 
 	protected get _localLinkRegex(): RegExp {
 		return this._localLinkPattern;
+	}
+
+	protected get _gitDiffPreImageRegex(): RegExp {
+		return this._gitDiffPreImagePattern;
+	}
+
+	protected get _gitDiffPostImageRegex(): RegExp {
+		return this._gitDiffPostImagePattern;
 	}
 
 	private _handleLocalLink(link: string): PromiseLike<any> {

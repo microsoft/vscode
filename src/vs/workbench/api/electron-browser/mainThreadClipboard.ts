@@ -20,6 +20,6 @@ export class MainThreadCommands implements MainThreadClipboardShape {
 
 	$writeText(value: string): Promise<void> {
 		clipboard.writeText(value);
-		return undefined;
+		return Promise.resolve();
 	}
 }

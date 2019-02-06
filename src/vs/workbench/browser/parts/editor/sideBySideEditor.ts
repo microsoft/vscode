@@ -176,17 +176,18 @@ export class SideBySideEditor extends BaseEditor {
 	}
 
 	private setNewInput(newInput: SideBySideEditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
-		const detailsEditor = this._createEditor(<EditorInput>newInput.details, this.detailsEditorContainer);
-		const masterEditor = this._createEditor(<EditorInput>newInput.master, this.masterEditorContainer);
+		const detailsEditor = this.doCreateEditor(<EditorInput>newInput.details, this.detailsEditorContainer);
+		const masterEditor = this.doCreateEditor(<EditorInput>newInput.master, this.masterEditorContainer);
 
 		return this.onEditorsCreated(detailsEditor, masterEditor, newInput.details, newInput.master, options, token);
 	}
 
-	private _createEditor(editorInput: EditorInput, container: HTMLElement): BaseEditor {
+	private doCreateEditor(editorInput: EditorInput, container: HTMLElement): BaseEditor {
 		const descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(editorInput);
 		if (!descriptor) {
 			throw new Error('No descriptor for editor found');
 		}
+
 		const editor = descriptor.instantiate(this.instantiationService);
 		editor.create(container);
 		editor.setVisible(this.isVisible(), this.group);

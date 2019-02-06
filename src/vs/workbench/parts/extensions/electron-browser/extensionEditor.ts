@@ -20,14 +20,15 @@ import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionManifest, IKeyBinding, IView, IExtensionTipsService, LocalExtensionType, IViewContainer } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManifest, IKeyBinding, IView, IViewContainer, ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { ResolvedKeybinding, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, IExtension, IExtensionDependencies, ExtensionContainers } from 'vs/workbench/parts/extensions/common/extensions';
-import { RatingsWidget, InstallCountWidget } from 'vs/workbench/parts/extensions/browser/extensionsWidgets';
+import { RatingsWidget, InstallCountWidget, RemoteBadgeWidget } from 'vs/workbench/parts/extensions/electron-browser/extensionsWidgets';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { CombinedInstallAction, UpdateAction, ExtensionEditorDropDownAction, ReloadAction, MaliciousStatusLabelAction, DisabledStatusLabelAction, IgnoreExtensionRecommendationAction, UndoIgnoreExtensionRecommendationAction, EnableDropDownAction, DisableDropDownAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
+import { CombinedInstallAction, UpdateAction, ExtensionEditorDropDownAction, ReloadAction, MaliciousStatusLabelAction, IgnoreExtensionRecommendationAction, UndoIgnoreExtensionRecommendationAction, EnableDropDownAction, DisableDropDownAction, StatusLabelAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { WebviewElement } from 'vs/workbench/parts/webview/electron-browser/webviewElement';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -149,6 +150,7 @@ export class ExtensionEditor extends BaseEditor {
 
 	static readonly ID: string = 'workbench.editor.extension';
 
+	private iconContainer: HTMLElement;
 	private icon: HTMLImageElement;
 	private name: HTMLElement;
 	private identifier: HTMLElement;
@@ -206,7 +208,8 @@ export class ExtensionEditor extends BaseEditor {
 		const root = append(parent, $('.extension-editor'));
 		this.header = append(root, $('.header'));
 
-		this.icon = append(this.header, $<HTMLImageElement>('img.icon', { draggable: false }));
+		this.iconContainer = append(this.header, $('.icon-container'));
+		this.icon = append(this.iconContainer, $<HTMLImageElement>('img.icon', { draggable: false }));
 
 		const details = append(this.header, $('.details'));
 		const title = append(details, $('.title'));
@@ -284,6 +287,7 @@ export class ExtensionEditor extends BaseEditor {
 				this.extensionManifest = new Cache(() => createCancelablePromise(token => extension.getManifest(token)));
 				this.extensionDependencies = new Cache(() => createCancelablePromise(token => this.extensionsWorkbenchService.loadDependencies(extension, token)));
 
+				const remoteBadge = this.instantiationService.createInstance(RemoteBadgeWidget, this.iconContainer);
 				const onError = Event.once(domEvent(this.icon, 'error'));
 				onError(() => this.icon.src = extension.iconUrlFallback, null, this.transientDisposables);
 				this.icon.src = extension.iconUrl;
@@ -291,7 +295,7 @@ export class ExtensionEditor extends BaseEditor {
 				this.name.textContent = extension.displayName;
 				this.identifier.textContent = extension.identifier.id;
 				this.preview.style.display = extension.preview ? 'inherit' : 'none';
-				this.builtin.style.display = extension.type === LocalExtensionType.System ? 'inherit' : 'none';
+				this.builtin.style.display = extension.type === ExtensionType.System ? 'inherit' : 'none';
 
 				this.publisher.textContent = extension.publisherDisplayName;
 				this.description.textContent = extension.description;
@@ -349,25 +353,26 @@ export class ExtensionEditor extends BaseEditor {
 				}
 
 				const widgets = [
+					remoteBadge,
 					this.instantiationService.createInstance(InstallCountWidget, this.installCount, false),
 					this.instantiationService.createInstance(RatingsWidget, this.rating, false)
 				];
 				const reloadAction = this.instantiationService.createInstance(ReloadAction);
 				const actions = [
 					reloadAction,
+					this.instantiationService.createInstance(StatusLabelAction),
 					this.instantiationService.createInstance(UpdateAction),
-					this.instantiationService.createInstance(EnableDropDownAction, runningExtensions),
+					this.instantiationService.createInstance(EnableDropDownAction),
 					this.instantiationService.createInstance(DisableDropDownAction, runningExtensions),
 					this.instantiationService.createInstance(CombinedInstallAction),
 					this.instantiationService.createInstance(MaliciousStatusLabelAction, true),
-					this.instantiationService.createInstance(DisabledStatusLabelAction, runningExtensions)
 				];
 				const extensionContainers: ExtensionContainers = this.instantiationService.createInstance(ExtensionContainers, [...actions, ...widgets]);
 				extensionContainers.extension = extension;
 
 				this.extensionActionBar.clear();
 				this.extensionActionBar.push(actions, { icon: true, label: true });
-				this.transientDisposables.push(...[...actions, extensionContainers]);
+				this.transientDisposables.push(...[...actions, ...widgets, extensionContainers]);
 
 				this.setSubText(extension, reloadAction);
 				this.content.innerHTML = ''; // Clear content before setting navbar actions.
@@ -599,7 +604,7 @@ export class ExtensionEditor extends BaseEditor {
 		}
 
 		return this.loadContents(() => this.extensionDependencies.get())
-			.then<IActiveElement>(extensionDependencies => {
+			.then<IActiveElement, IActiveElement>(extensionDependencies => {
 				if (extensionDependencies) {
 					const content = $('div', { class: 'subcontent' });
 					const scrollableContent = new DomScrollableElement(content, {});
@@ -998,7 +1003,7 @@ export class ExtensionEditor extends BaseEditor {
 
 		const renderKeybinding = (keybinding: ResolvedKeybinding): HTMLElement => {
 			const element = $('');
-			new KeybindingLabel(element, OS).set(keybinding, null);
+			new KeybindingLabel(element, OS).set(keybinding);
 			return element;
 		};
 

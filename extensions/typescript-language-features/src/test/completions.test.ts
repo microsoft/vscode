@@ -10,35 +10,46 @@ import { disposeAll } from '../utils/dispose';
 
 const testDocumentUri = vscode.Uri.parse('untitled:test.ts');
 
-const configOverrides: { readonly [key: string]: any } = Object.freeze({
-	'editor.suggestSelection': 'first',
-	'typescript.suggest.completeFunctionCalls': false,
-});
+type VsCodeConfiguration = { [key: string]: any };
+
+async function updateConfig(newConfig: VsCodeConfiguration): Promise<VsCodeConfiguration> {
+	const oldConfig: VsCodeConfiguration = {};
+	const config = vscode.workspace.getConfiguration(undefined, testDocumentUri);
+	for (const configKey of Object.keys(newConfig)) {
+		oldConfig[configKey] = config.get(configKey);
+		await new Promise((resolve, reject) =>
+			config.update(configKey, newConfig[configKey], vscode.ConfigurationTarget.Global)
+				.then(() => resolve(), reject));
+	}
+	return oldConfig;
+}
+
+namespace Config {
+	export const suggestSelection = 'editor.suggestSelection';
+	export const completeFunctionCalls = 'typescript.suggest.completeFunctionCalls';
+}
 
 suite('TypeScript Completions', () => {
+	const configDefaults: VsCodeConfiguration = Object.freeze({
+		[Config.suggestSelection]: 'first',
+		[Config.completeFunctionCalls]: false,
+	});
+
 	const _disposables: vscode.Disposable[] = [];
 	let oldConfig: { [key: string]: any } = {};
 
 	setup(async () => {
 		await wait(100);
 
-		// save off config and update overrides
-		oldConfig = {};
-		const config = vscode.workspace.getConfiguration(undefined, testDocumentUri);
-		for (const configKey of Object.keys(configOverrides)) {
-			oldConfig[configKey] = config.get(configKey);
-			await new Promise((resolve, reject) => config.update(configKey, configOverrides[configKey], vscode.ConfigurationTarget.Global).then(() => resolve(), reject));
-		}
+		// Save off config and apply defaults
+		oldConfig = await updateConfig(configDefaults);
 	});
 
 	teardown(async () => {
 		disposeAll(_disposables);
 
 		// Restore config
-		const config = vscode.workspace.getConfiguration(undefined, testDocumentUri);
-		for (const configKey of Object.keys(oldConfig)) {
-			await new Promise((resolve, reject) => config.update(configKey, oldConfig[configKey], vscode.ConfigurationTarget.Global).then(() => resolve(), reject));
-		}
+		await updateConfig(oldConfig);
 
 		return vscode.commands.executeCommand('workbench.action.closeAllEditors');
 	});
@@ -176,6 +187,83 @@ suite('TypeScript Completions', () => {
 				`abc`
 			));
 	});
+
+	test('completeFunctionCalls should complete function parameters when at end of word', async () => {
+		await updateConfig({
+			[Config.completeFunctionCalls]: true,
+		});
+
+		// Complete with-in word
+		await createTestEditor(testDocumentUri,
+			`function abcdef(x, y, z) { }`,
+			`abcdef$0`
+		);
+
+		const document = await acceptFirstSuggestion(testDocumentUri, _disposables);
+		assert.strictEqual(
+			document.getText(),
+			joinLines(
+				`function abcdef(x, y, z) { }`,
+				`abcdef(x, y, z)`
+			));
+	});
+
+	test.skip('completeFunctionCalls should complete function parameters when within word', async () => {
+		await updateConfig({
+			[Config.completeFunctionCalls]: true,
+		});
+
+		await createTestEditor(testDocumentUri,
+			`function abcdef(x, y, z) { }`,
+			`abcd$0ef`
+		);
+
+		const document = await acceptFirstSuggestion(testDocumentUri, _disposables);
+		assert.strictEqual(
+			document.getText(),
+			joinLines(
+				`function abcdef(x, y, z) { }`,
+				`abcdef(x, y, z)`
+			));
+	});
+
+	test('completeFunctionCalls should not complete function parameters at end of word if we are already in something that looks like a function call, #18131', async () => {
+		await updateConfig({
+			[Config.completeFunctionCalls]: true,
+		});
+
+		await createTestEditor(testDocumentUri,
+			`function abcdef(x, y, z) { }`,
+			`abcdef$0(1, 2, 3)`
+		);
+
+		const document = await acceptFirstSuggestion(testDocumentUri, _disposables);
+		assert.strictEqual(
+			document.getText(),
+			joinLines(
+				`function abcdef(x, y, z) { }`,
+				`abcdef(1, 2, 3)`
+			));
+	});
+
+	test.skip('completeFunctionCalls should not complete function parameters within word if we are already in something that looks like a function call, #18131', async () => {
+		await updateConfig({
+			[Config.completeFunctionCalls]: true,
+		});
+
+		await createTestEditor(testDocumentUri,
+			`function abcdef(x, y, z) { }`,
+			`abcd$0ef(1, 2, 3)`
+		);
+
+		const document = await acceptFirstSuggestion(testDocumentUri, _disposables);
+		assert.strictEqual(
+			document.getText(),
+			joinLines(
+				`function abcdef(x, y, z) { }`,
+				`abcdef(1, 2, 3)`
+			));
+	});
 });
 
 const joinLines = (...args: string[]) => args.join('\n');
@@ -187,6 +275,9 @@ async function acceptFirstSuggestion(uri: vscode.Uri, _disposables: vscode.Dispo
 	const didSuggest = onDidSuggest(_disposables);
 	await vscode.commands.executeCommand('editor.action.triggerSuggest');
 	await didSuggest;
+	// TODO: depends on reverting fix for https://github.com/Microsoft/vscode/issues/64257
+	// Make sure we have time to resolve the suggestion because `acceptSelectedSuggestion` doesn't
+	await wait(40);
 	await vscode.commands.executeCommand('acceptSelectedSuggestion');
 	return await didChangeDocument;
 }

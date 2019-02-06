@@ -163,7 +163,8 @@ export class FileDialogService implements IFileDialogService {
 		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) { }
 
-	public defaultFilePath(schemeFilter: string): URI | undefined {
+	defaultFilePath(schemeFilter: string): URI | undefined {
+
 		// Check for last active file first...
 		let candidate = this.historyService.getLastActiveFile(schemeFilter);
 
@@ -175,7 +176,8 @@ export class FileDialogService implements IFileDialogService {
 		return candidate && resources.dirname(candidate) || undefined;
 	}
 
-	public defaultFolderPath(schemeFilter: string): URI | undefined {
+	defaultFolderPath(schemeFilter: string): URI | undefined {
+
 		// Check for last active file root first...
 		let candidate = this.historyService.getLastActiveWorkspaceRoot(schemeFilter);
 
@@ -187,7 +189,7 @@ export class FileDialogService implements IFileDialogService {
 		return candidate && resources.dirname(candidate) || undefined;
 	}
 
-	public defaultWorkspacePath(schemeFilter: string): URI | undefined {
+	defaultWorkspacePath(schemeFilter: string): URI | undefined {
 
 		// Check for current workspace config file first...
 		if (schemeFilter === Schemas.file && this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
@@ -211,36 +213,39 @@ export class FileDialogService implements IFileDialogService {
 		};
 	}
 
-	public pickFileFolderAndOpen(options: IPickAndOpenOptions): Promise<any> {
-		let defaultUri = options.defaultUri;
+	pickFileFolderAndOpen(options: IPickAndOpenOptions): Promise<any> {
+		const defaultUri = options.defaultUri;
 		if (!defaultUri) {
 			options.defaultUri = this.defaultFilePath(Schemas.file);
 		}
-		return this.windowService.pickFileFolderAndOpen(this.toNativeOpenDialogOptions(options));
 
+		return this.windowService.pickFileFolderAndOpen(this.toNativeOpenDialogOptions(options));
 	}
 
-	public pickFileAndOpen(options: IPickAndOpenOptions): Promise<any> {
-		let defaultUri = options.defaultUri;
+	pickFileAndOpen(options: IPickAndOpenOptions): Promise<any> {
+		const defaultUri = options.defaultUri;
 		if (!defaultUri) {
 			options.defaultUri = this.defaultFilePath(Schemas.file);
 		}
+
 		return this.windowService.pickFileAndOpen(this.toNativeOpenDialogOptions(options));
 	}
 
-	public pickFolderAndOpen(options: IPickAndOpenOptions): Promise<any> {
-		let defaultUri = options.defaultUri;
+	pickFolderAndOpen(options: IPickAndOpenOptions): Promise<any> {
+		const defaultUri = options.defaultUri;
 		if (!defaultUri) {
 			options.defaultUri = this.defaultFolderPath(Schemas.file);
 		}
+
 		return this.windowService.pickFolderAndOpen(this.toNativeOpenDialogOptions(options));
 	}
 
-	public pickWorkspaceAndOpen(options: IPickAndOpenOptions): Promise<void> {
-		let defaultUri = options.defaultUri;
+	pickWorkspaceAndOpen(options: IPickAndOpenOptions): Promise<void> {
+		const defaultUri = options.defaultUri;
 		if (!defaultUri) {
 			options.defaultUri = this.defaultWorkspacePath(Schemas.file);
 		}
+
 		return this.windowService.pickWorkspaceAndOpen(this.toNativeOpenDialogOptions(options));
 	}
 
@@ -253,20 +258,22 @@ export class FileDialogService implements IFileDialogService {
 		};
 	}
 
-	public showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
+	showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
 		const defaultUri = options.defaultUri;
 		if (defaultUri && defaultUri.scheme !== Schemas.file) {
 			return Promise.reject(new Error('Not supported - Save-dialogs can only be opened on `file`-uris.'));
 		}
+
 		return this.windowService.showSaveDialog(this.toNativeSaveDialogOptions(options)).then(result => {
 			if (result) {
 				return URI.file(result);
 			}
+
 			return undefined;
 		});
 	}
 
-	public showOpenDialog(options: IOpenDialogOptions): Promise<URI[] | undefined> {
+	showOpenDialog(options: IOpenDialogOptions): Promise<URI[] | undefined> {
 		const defaultUri = options.defaultUri;
 		if (defaultUri && defaultUri.scheme !== Schemas.file) {
 			return Promise.reject(new Error('Not supported - Open-dialogs can only be opened on `file`-uris.'));
@@ -279,16 +286,21 @@ export class FileDialogService implements IFileDialogService {
 			filters: options.filters,
 			properties: []
 		};
+
 		newOptions.properties!.push('createDirectory');
+
 		if (options.canSelectFiles) {
 			newOptions.properties!.push('openFile');
 		}
+
 		if (options.canSelectFolders) {
 			newOptions.properties!.push('openDirectory');
 		}
+
 		if (options.canSelectMany) {
 			newOptions.properties!.push('multiSelections');
 		}
+
 		return this.windowService.showOpenDialog(newOptions).then(result => result ? result.map(URI.file) : undefined);
 	}
 }

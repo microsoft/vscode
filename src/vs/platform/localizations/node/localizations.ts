@@ -9,7 +9,7 @@ import { IExtensionManagementService, ILocalExtension, IExtensionIdentifier } fr
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Queue } from 'vs/base/common/async';
-import { areSameExtensions, getGalleryExtensionIdFromLocal, getIdFromLocalExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ILogService } from 'vs/platform/log/common/log';
 import { isValidLocalization, ILocalizationsService, LanguageType } from 'vs/platform/localizations/common/localizations';
 import product from 'vs/platform/node/product';
@@ -76,7 +76,6 @@ export class LocalizationsService extends Disposable implements ILocalizationsSe
 	private onDidUninstallExtension(identifier: IExtensionIdentifier): void {
 		this.cache.getLanguagePacks()
 			.then(languagePacks => {
-				identifier = { id: getIdFromLocalExtensionId(identifier.id), uuid: identifier.uuid };
 				if (Object.keys(languagePacks).some(language => languagePacks[language] && languagePacks[language].extensions.some(e => areSameExtensions(e.extensionIdentifier, identifier)))) {
 					this.logService.debug('Removing language packs from the extension', identifier.id);
 					this.update();
@@ -136,7 +135,7 @@ class LanguagePacksCache extends Disposable {
 	}
 
 	private createLanguagePacksFromExtension(languagePacks: { [language: string]: ILanguagePack }, extension: ILocalExtension): void {
-		const extensionIdentifier = { id: getGalleryExtensionIdFromLocal(extension), uuid: extension.identifier.uuid };
+		const extensionIdentifier = extension.identifier;
 		const localizations = extension.manifest.contributes && extension.manifest.contributes.localizations ? extension.manifest.contributes.localizations : [];
 		for (const localizationContribution of localizations) {
 			if (extension.location.scheme === Schemas.file && isValidLocalization(localizationContribution)) {

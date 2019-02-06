@@ -155,7 +155,7 @@ export interface IOutputChannelRegistry {
 	/**
 	 * Returns the channel with the passed id.
 	 */
-	getChannel(id: string): IOutputChannelDescriptor;
+	getChannel(id: string): IOutputChannelDescriptor | undefined;
 
 	/**
 	 * Remove the output channel with the passed id.
@@ -185,7 +185,7 @@ class OutputChannelRegistry implements IOutputChannelRegistry {
 		return result;
 	}
 
-	public getChannel(id: string): IOutputChannelDescriptor {
+	public getChannel(id: string): IOutputChannelDescriptor | undefined {
 		return this.channels.get(id);
 	}
 

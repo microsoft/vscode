@@ -96,7 +96,9 @@ export class ConfigureAction extends AbstractDebugAction {
 	}
 
 	private updateClass(): void {
-		this.class = this.debugService.getConfigurationManager().selectedConfiguration.name ? 'debug-action configure' : 'debug-action configure notification';
+		const configurationManager = this.debugService.getConfigurationManager();
+		const configurationCount = configurationManager.getLaunches().map(l => l.getConfigurationNames().length).reduce((sum, current) => sum + current);
+		this.class = configurationCount > 0 ? 'debug-action configure' : 'debug-action configure notification';
 	}
 
 	public run(event?: any): Promise<any> {
@@ -156,13 +158,14 @@ export class StartAction extends AbstractDebugAction {
 		return false;
 	}
 
-	public static isEnabled(debugService: IDebugService, contextService: IWorkspaceContextService, configName: string) {
+	public static isEnabled(debugService: IDebugService) {
 		const sessions = debugService.getModel().getSessions();
 
 		if (debugService.state === State.Initializing) {
 			return false;
 		}
-		if (contextService && contextService.getWorkbenchState() === WorkbenchState.EMPTY && sessions.length > 0) {
+		if ((sessions.length > 0) && debugService.getConfigurationManager().getLaunches().every(l => l.getConfigurationNames().length === 0)) {
+			// There is already a debug session running and we do not have any launch configuration selected
 			return false;
 		}
 
@@ -170,8 +173,8 @@ export class StartAction extends AbstractDebugAction {
 	}
 
 	// Disabled if the launch drop down shows the launch config that is already running.
-	protected isEnabled(state: State): boolean {
-		return StartAction.isEnabled(this.debugService, this.contextService, this.debugService.getConfigurationManager().selectedConfiguration.name);
+	protected isEnabled(): boolean {
+		return StartAction.isEnabled(this.debugService);
 	}
 }
 
@@ -246,7 +249,7 @@ export class RestartAction extends AbstractDebugAction {
 		return super.isEnabled(state) && (
 			state === State.Running ||
 			state === State.Stopped ||
-			StartAction.isEnabled(this.debugService, this.contextService, this.debugService.getConfigurationManager().selectedConfiguration.name)
+			StartAction.isEnabled(this.debugService)
 		);
 	}
 }
@@ -800,7 +803,7 @@ export class ReverseContinueAction extends AbstractDebugAction {
 }
 
 export class ReplCollapseAllAction extends CollapseAction2 {
-	constructor(tree: AsyncDataTree<any, any>, private toFocus: { focus(): void; }) {
+	constructor(tree: AsyncDataTree<any, any, any>, private toFocus: { focus(): void; }) {
 		super(tree, true, undefined);
 	}
 

@@ -51,32 +51,6 @@ function _mergeEnvironmentValue(env: ITerminalEnvironment, key: string, value: s
 	}
 }
 
-export function sanitizeEnvironment(env: ITerminalEnvironment): void {
-	// Remove keys based on strings
-	const keysToRemove = [
-		'ELECTRON_ENABLE_STACK_DUMPING',
-		'ELECTRON_ENABLE_LOGGING',
-		'ELECTRON_NO_ASAR',
-		'ELECTRON_NO_ATTACH_CONSOLE',
-		'ELECTRON_RUN_AS_NODE',
-		'GOOGLE_API_KEY',
-		'VSCODE_CLI',
-		'VSCODE_DEV',
-		'VSCODE_IPC_HOOK',
-		'VSCODE_LOGS',
-		'VSCODE_NLS_CONFIG',
-		'VSCODE_NODE_CACHED_DATA_DIR',
-		'VSCODE_PORTABLE',
-		'VSCODE_PID',
-		'VSCODE_PREVENT_FOREIGN_INSPECT'
-	];
-	keysToRemove.forEach((key) => {
-		if (env[key]) {
-			delete env[key];
-		}
-	});
-}
-
 export function addTerminalEnvironmentKeys(env: ITerminalEnvironment, locale: string | undefined, setLocaleVariables: boolean): void {
 	env['TERM_PROGRAM'] = 'vscode';
 	env['TERM_PROGRAM_VERSION'] = pkg.version;

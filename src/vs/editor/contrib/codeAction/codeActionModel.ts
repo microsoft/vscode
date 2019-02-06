@@ -172,6 +172,7 @@ export class CodeActionModel {
 	private _editor: ICodeEditor;
 	private _markerService: IMarkerService;
 	private _codeActionOracle?: CodeActionOracle;
+	private _state: CodeActionsState.State = CodeActionsState.Empty;
 	private _onDidChangeState = new Emitter<CodeActionsState.State>();
 	private _disposables: IDisposable[] = [];
 	private readonly _supportedCodeActions: IContextKey<string>;
@@ -184,7 +185,7 @@ export class CodeActionModel {
 
 		this._disposables.push(this._editor.onDidChangeModel(() => this._update()));
 		this._disposables.push(this._editor.onDidChangeModelLanguage(() => this._update()));
-		this._disposables.push(CodeActionProviderRegistry.onDidChange(this._update, this));
+		this._disposables.push(CodeActionProviderRegistry.onDidChange(() => this._update()));
 
 		this._update();
 	}
@@ -199,19 +200,21 @@ export class CodeActionModel {
 	}
 
 	private _update(): void {
-
 		if (this._codeActionOracle) {
 			this._codeActionOracle.dispose();
 			this._codeActionOracle = undefined;
-			this._onDidChangeState.fire(CodeActionsState.Empty);
 		}
+
+		if (this._state.type === CodeActionsState.Type.Triggered) {
+			// this._state.actions.cancel();
+		}
+		this.setState(CodeActionsState.Empty);
 
 		const model = this._editor.getModel();
 		if (model
 			&& CodeActionProviderRegistry.has(model)
 			&& !this._editor.getConfiguration().readOnly
 		) {
-
 			const supportedActions: string[] = [];
 			for (const provider of CodeActionProviderRegistry.all(model)) {
 				if (Array.isArray(provider.providedCodeActionKinds)) {
@@ -221,17 +224,25 @@ export class CodeActionModel {
 
 			this._supportedCodeActions.set(supportedActions.join(' '));
 
-			this._codeActionOracle = new CodeActionOracle(this._editor, this._markerService, newState => this._onDidChangeState.fire(newState), undefined, this._progressService);
+			this._codeActionOracle = new CodeActionOracle(this._editor, this._markerService, newState => this.setState(newState), undefined, this._progressService);
 			this._codeActionOracle.trigger({ type: 'auto' });
 		} else {
 			this._supportedCodeActions.reset();
 		}
 	}
 
-	trigger(trigger: CodeActionTrigger): Promise<CodeAction[] | undefined> {
+	public trigger(trigger: CodeActionTrigger): Promise<CodeAction[] | undefined> {
 		if (this._codeActionOracle) {
 			return this._codeActionOracle.trigger(trigger);
 		}
 		return Promise.resolve(undefined);
+	}
+
+	private setState(newState: CodeActionsState.State) {
+		if (newState === this._state) {
+			return;
+		}
+		this._state = newState;
+		this._onDidChangeState.fire(newState);
 	}
 }

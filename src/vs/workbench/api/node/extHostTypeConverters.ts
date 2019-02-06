@@ -583,16 +583,16 @@ export namespace location {
 }
 
 export namespace DefinitionLink {
-	export function from(value: vscode.Location | vscode.DefinitionLink): modes.DefinitionLink {
+	export function from(value: vscode.Location | vscode.DefinitionLink): modes.LocationLink {
 		const definitionLink = <vscode.DefinitionLink>value;
 		const location = <vscode.Location>value;
 		return {
-			origin: definitionLink.originSelectionRange
+			originSelectionRange: definitionLink.originSelectionRange
 				? Range.from(definitionLink.originSelectionRange)
 				: undefined,
 			uri: definitionLink.targetUri ? definitionLink.targetUri : location.uri,
 			range: Range.from(definitionLink.targetRange ? definitionLink.targetRange : location.range),
-			selectionRange: definitionLink.targetSelectionRange
+			targetSelectionRange: definitionLink.targetSelectionRange
 				? Range.from(definitionLink.targetSelectionRange)
 				: undefined,
 		};

@@ -115,7 +115,7 @@ class QuickInput implements IQuickInput {
 		this.onDidHideEmitter,
 	];
 
-	private busyDelay: TimeoutTimer;
+	private busyDelay: TimeoutTimer | null;
 
 	constructor(protected ui: QuickInputUI) {
 	}

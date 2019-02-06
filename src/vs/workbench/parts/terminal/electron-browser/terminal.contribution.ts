@@ -283,14 +283,14 @@ configurationRegistry.registerConfiguration({
 			default: 'inherited'
 		},
 		'terminal.integrated.windowsEnableConpty': {
-			description: nls.localize('terminal.integrated.windowsEnableConpty', "Whether to use ConPTY for Windows terminal process communication (requires Windows 10 build number 17692+). Winpty will be used if this is false."),
+			description: nls.localize('terminal.integrated.windowsEnableConpty', "Whether to use ConPTY for Windows terminal process communication (requires Windows 10 build number 18309+). Winpty will be used if this is false."),
 			type: 'boolean',
 			default: false
 		}
 	}
 });
 
-registerSingleton(ITerminalService, TerminalService);
+registerSingleton(ITerminalService, TerminalService, true);
 
 (<panel.PanelRegistry>Registry.as(panel.Extensions.Panels)).registerPanel(new panel.PanelDescriptor(
 	TerminalPanel,

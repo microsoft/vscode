@@ -239,6 +239,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/services/label",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/preferences",
 			"project": "vscode-preferences"
 		}

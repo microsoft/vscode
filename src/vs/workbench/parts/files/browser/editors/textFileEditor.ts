@@ -8,10 +8,10 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import * as types from 'vs/base/common/types';
 import * as paths from 'vs/base/common/paths';
 import { Action } from 'vs/base/common/actions';
-import { VIEWLET_ID, IExplorerViewlet, TEXT_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
+import { VIEWLET_ID, TEXT_FILE_EDITOR_ID, IExplorerService } from 'vs/workbench/parts/files/common/files';
 import { ITextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { BaseTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
-import { EditorOptions, TextEditorOptions } from 'vs/workbench/common/editor';
+import { EditorOptions, TextEditorOptions, IEditorCloseEvent } from 'vs/workbench/common/editor';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -30,6 +30,7 @@ import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 /**
  * An implementation of editor for file system resources.
@@ -39,6 +40,7 @@ export class TextFileEditor extends BaseTextEditor {
 	static readonly ID = TEXT_FILE_EDITOR_ID;
 
 	private restoreViewState: boolean;
+	private groupListener: IDisposable;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -54,7 +56,8 @@ export class TextFileEditor extends BaseTextEditor {
 		@ITextFileService textFileService: ITextFileService,
 		@IWindowsService private readonly windowsService: IWindowsService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
-		@IWindowService windowService: IWindowService
+		@IWindowService windowService: IWindowService,
+		@IExplorerService private readonly explorerService: IExplorerService
 	) {
 		super(TextFileEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService, windowService);
 
@@ -95,11 +98,23 @@ export class TextFileEditor extends BaseTextEditor {
 		// React to editors closing to preserve or clear view state. This needs to happen
 		// in the onWillCloseEditor because at that time the editor has not yet
 		// been disposed and we can safely persist the view state still as needed.
-		this._register((group as IEditorGroupView).onWillCloseEditor(e => {
-			if (e.editor === this.input) {
-				this.doSaveOrClearTextEditorViewState(this.input);
-			}
-		}));
+		this.groupListener = dispose(this.groupListener);
+		this.groupListener = ((group as IEditorGroupView).onWillCloseEditor(e => this.onWillCloseEditorInGroup(e)));
+	}
+
+	private onWillCloseEditorInGroup(e: IEditorCloseEvent): void {
+		const editor = e.editor;
+		if (!(editor instanceof FileEditorInput)) {
+			return; // only handle files
+		}
+
+		// If the editor is currently active we can always save or clear the view state.
+		// If the editor is not active, we can only clear the view state because it needs
+		// an active editor with the file opened, so we check for the restoreViewState flag
+		// being set.
+		if (editor === this.input || !this.restoreViewState) {
+			this.doSaveOrClearTextEditorViewState(editor);
+		}
 	}
 
 	setOptions(options: EditorOptions): void {
@@ -162,7 +177,7 @@ export class TextFileEditor extends BaseTextEditor {
 				if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_IS_DIRECTORY) {
 					this.openAsFolder(input);
 
-					return Promise.reject(new Error(nls.localize('openFolderError', "File is a directory")));
+					return Promise.reject<any>(new Error(nls.localize('openFolderError', "File is a directory")));
 				}
 
 				// Offer to create a file from the error if we have a file not found and the name is valid
@@ -218,8 +233,8 @@ export class TextFileEditor extends BaseTextEditor {
 
 			// Best we can do is to reveal the folder in the explorer
 			if (this.contextService.isInsideWorkspace(input.getResource())) {
-				this.viewletService.openViewlet(VIEWLET_ID, true).then(viewlet => {
-					return (viewlet as IExplorerViewlet).getExplorerView().select(input.getResource(), true);
+				this.viewletService.openViewlet(VIEWLET_ID, true).then(() => {
+					this.explorerService.select(input.getResource(), true);
 				});
 			}
 		});
@@ -274,5 +289,11 @@ export class TextFileEditor extends BaseTextEditor {
 		else if (!input.isDisposed()) {
 			this.saveTextEditorViewState(input.getResource());
 		}
+	}
+
+	dispose(): void {
+		this.groupListener = dispose(this.groupListener);
+
+		super.dispose();
 	}
 }

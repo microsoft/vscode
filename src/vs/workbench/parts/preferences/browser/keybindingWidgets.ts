@@ -86,10 +86,6 @@ export class KeybindingsSearchWidget extends SearchWidget {
 		this.inputBox.value = this._inputValue;
 	}
 
-	focus(): void {
-		this.inputBox.focus();
-	}
-
 	private _reset() {
 		this._firstPart = null;
 		this._chordPart = null;
@@ -261,10 +257,10 @@ export class DefineKeybindingWidget extends Widget {
 		this._chordPart = chordPart;
 		dom.clearNode(this._outputNode);
 		dom.clearNode(this._showExistingKeybindingsNode);
-		new KeybindingLabel(this._outputNode, OS).set(this._firstPart, null);
+		new KeybindingLabel(this._outputNode, OS).set(this._firstPart);
 		if (this._chordPart) {
 			this._outputNode.appendChild(document.createTextNode(nls.localize('defineKeybinding.chordsTo', "chord to")));
-			new KeybindingLabel(this._outputNode, OS).set(this._chordPart, null);
+			new KeybindingLabel(this._outputNode, OS).set(this._chordPart);
 		}
 		const label = this.getUserSettingsLabel();
 		if (label) {

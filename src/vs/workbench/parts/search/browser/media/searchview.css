@@ -390,3 +390,7 @@
 .hc-black .monaco-workbench .search-view .linematch {
 	line-height: 20px;
 }
+
+.vs .panel .search-view .monaco-inputbox {
+	border: 1px solid #ddd;
+}

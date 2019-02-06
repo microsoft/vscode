@@ -67,17 +67,16 @@ export interface IStorageService {
 	 * The scope argument allows to define the scope of the storage
 	 * operation to either the current workspace only or all workspaces.
 	 */
-	getInteger<R extends number | undefined>(key: string, scope: StorageScope, fallbackValue: number): number;
-	getInteger<R extends number | undefined>(key: string, scope: StorageScope, fallbackValue?: number): number | undefined;
+	getInteger(key: string, scope: StorageScope, fallbackValue: number): number;
+	getInteger(key: string, scope: StorageScope, fallbackValue?: number): number | undefined;
 
 	/**
-	 * Store a string value under the given key to storage. The value will
-	 * be converted to a string.
+	 * Store a value under the given key to storage. The value will be converted to a string.
 	 *
 	 * The scope argument allows to define the scope of the storage
 	 * operation to either the current workspace only or all workspaces.
 	 */
-	store(key: string, value: any, scope: StorageScope): void;
+	store(key: string, value: string | boolean | number, scope: StorageScope): void;
 
 	/**
 	 * Delete an element stored under the provided key from storage.
@@ -154,7 +153,7 @@ export class InMemoryStorageService extends Disposable implements IStorageServic
 		return parseInt(value, 10);
 	}
 
-	store(key: string, value: any, scope: StorageScope): Promise<void> {
+	store(key: string, value: string | boolean | number, scope: StorageScope): Promise<void> {
 
 		// We remove the key for undefined/null values
 		if (isUndefinedOrNull(value)) {

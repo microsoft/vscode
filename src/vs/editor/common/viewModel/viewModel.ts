@@ -119,6 +119,7 @@ export interface IViewModel {
 	 * Gives a hint that a lot of requests are about to come in for these line numbers.
 	 */
 	setViewport(startLineNumber: number, endLineNumber: number, centeredLineNumber: number): void;
+	tokenizeViewport(): void;
 	setHasFocus(hasFocus: boolean): void;
 
 	getDecorationsInViewport(visibleRange: Range): ViewModelDecoration[];

@@ -152,10 +152,10 @@ export class NotificationsCenter extends Themable {
 		this.container.appendChild(this.notificationsCenterContainer);
 	}
 
-	private getKeybindingLabel(action: IAction): string {
+	private getKeybindingLabel(action: IAction): string | null {
 		const keybinding = this.keybindingService.lookupKeybinding(action.id);
 
-		return keybinding ? keybinding.getLabel() : undefined;
+		return keybinding ? keybinding.getLabel() : null;
 	}
 
 	private onDidNotificationChange(e: INotificationChangeEvent): void {

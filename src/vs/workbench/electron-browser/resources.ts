@@ -96,9 +96,9 @@ export class ResourceGlobMatcher extends Disposable {
 
 		let expressionForRoot: ParsedExpression;
 		if (folder && this.mapRootToParsedExpression.has(folder.uri.toString())) {
-			expressionForRoot = this.mapRootToParsedExpression.get(folder.uri.toString());
+			expressionForRoot = this.mapRootToParsedExpression.get(folder.uri.toString())!;
 		} else {
-			expressionForRoot = this.mapRootToParsedExpression.get(ResourceGlobMatcher.NO_ROOT);
+			expressionForRoot = this.mapRootToParsedExpression.get(ResourceGlobMatcher.NO_ROOT)!;
 		}
 
 		// If the resource if from a workspace, convert its absolute path to a relative

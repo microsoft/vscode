@@ -11,21 +11,22 @@ import { TypeScriptServiceConfiguration } from './utils/configuration';
 import Logger from './utils/logger';
 import { PluginManager } from './utils/plugins';
 
-export class CancelledResponse {
-	public readonly type: 'cancelled' = 'cancelled';
+export namespace ServerResponse {
 
-	constructor(
-		public readonly reason: string
-	) { }
+	export class Cancelled {
+		public readonly type = 'cancelled';
+
+		constructor(
+			public readonly reason: string
+		) { }
+	}
+
+	export const NoContent = new class { readonly type = 'noContent'; };
+
+	export type Response<T extends Proto.Response> = T | Cancelled | typeof NoContent;
 }
 
-export class NoContentResponse {
-	public readonly type: 'noContent' = 'noContent';
-}
-
-export type ServerResponse<T extends Proto.Response> = T | CancelledResponse | NoContentResponse;
-
-interface TypeScriptRequestTypes {
+export interface TypeScriptRequestTypes {
 	'applyCodeActionCommand': [Proto.ApplyCodeActionCommandRequestArgs, Proto.ApplyCodeActionCommandResponse];
 	'completionEntryDetails': [Proto.CompletionDetailsRequestArgs, Proto.CompletionDetailsResponse];
 	'completionInfo': [Proto.CompletionsRequestArgs, Proto.CompletionInfoResponse];
@@ -38,7 +39,7 @@ interface TypeScriptRequestTypes {
 	'format': [Proto.FormatRequestArgs, Proto.FormatResponse];
 	'formatonkey': [Proto.FormatOnKeyRequestArgs, Proto.FormatResponse];
 	'getApplicableRefactors': [Proto.GetApplicableRefactorsRequestArgs, Proto.GetApplicableRefactorsResponse];
-	'getCodeFixes': [Proto.CodeFixRequestArgs, Proto.GetCodeFixesResponse];
+	'getCodeFixes': [Proto.CodeFixRequestArgs, Proto.CodeFixResponse];
 	'getCombinedCodeFix': [Proto.GetCombinedCodeFixRequestArgs, Proto.GetCombinedCodeFixResponse];
 	'getEditsForFileRename': [Proto.GetEditsForFileRenameRequestArgs, Proto.GetEditsForFileRenameResponse];
 	'getEditsForRefactor': [Proto.GetEditsForRefactorRequestArgs, Proto.GetEditsForRefactorResponse];
@@ -104,7 +105,7 @@ export interface ITypeScriptServiceClient {
 		args: TypeScriptRequestTypes[K][0],
 		token: vscode.CancellationToken,
 		lowPriority?: boolean
-	): Promise<ServerResponse<TypeScriptRequestTypes[K][1]>>;
+	): Promise<ServerResponse.Response<TypeScriptRequestTypes[K][1]>>;
 
 	executeWithoutWaitingForResponse(command: 'open', args: Proto.OpenRequestArgs): void;
 	executeWithoutWaitingForResponse(command: 'close', args: Proto.FileRequestArgs): void;
@@ -112,10 +113,10 @@ export interface ITypeScriptServiceClient {
 	executeWithoutWaitingForResponse(command: 'compilerOptionsForInferredProjects', args: Proto.SetCompilerOptionsForInferredProjectsArgs): void;
 	executeWithoutWaitingForResponse(command: 'reloadProjects', args: null): void;
 
-	executeAsync(command: 'geterr', args: Proto.GeterrRequestArgs, token: vscode.CancellationToken): Promise<any>;
+	executeAsync(command: 'geterr', args: Proto.GeterrRequestArgs, token: vscode.CancellationToken): Promise<ServerResponse.Response<Proto.Response>>;
 
 	/**
 	 * Cancel on going geterr requests and re-queue them after `f` has been evaluated.
 	 */
-	interuptGetErr<R>(f: () => R): R;
+	interruptGetErr<R>(f: () => R): R;
 }

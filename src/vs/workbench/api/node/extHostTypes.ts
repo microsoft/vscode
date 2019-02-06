@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as crypto from 'crypto';
-
-import { URI } from 'vs/base/common/uri';
-import { illegalArgument } from 'vs/base/common/errors';
-import * as vscode from 'vscode';
-import { isMarkdownString } from 'vs/base/common/htmlContent';
-import { IRelativePattern } from 'vs/base/common/glob';
 import { relative } from 'path';
-import { startsWith } from 'vs/base/common/strings';
-import { values } from 'vs/base/common/map';
 import { coalesce, equals } from 'vs/base/common/arrays';
+import { illegalArgument } from 'vs/base/common/errors';
+import { IRelativePattern } from 'vs/base/common/glob';
+import { isMarkdownString } from 'vs/base/common/htmlContent';
+import { values } from 'vs/base/common/map';
+import { startsWith } from 'vs/base/common/strings';
+import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
+import * as vscode from 'vscode';
+
 
 export class Disposable {
 
@@ -1000,7 +1000,7 @@ export class CodeAction {
 
 	edit?: WorkspaceEdit;
 
-	dianostics?: Diagnostic[];
+	diagnostics?: Diagnostic[];
 
 	kind?: CodeActionKind;
 
@@ -1022,6 +1022,7 @@ export class CodeActionKind {
 	public static readonly RefactorRewrite = CodeActionKind.Refactor.append('rewrite');
 	public static readonly Source = CodeActionKind.Empty.append('source');
 	public static readonly SourceOrganizeImports = CodeActionKind.Source.append('organizeImports');
+	public static readonly SourceFixAll = CodeActionKind.Source.append('fixAll');
 
 	constructor(
 		public readonly value: string
@@ -1029,6 +1030,10 @@ export class CodeActionKind {
 
 	public append(parts: string): CodeActionKind {
 		return new CodeActionKind(this.value ? this.value + CodeActionKind.sep + parts : parts);
+	}
+
+	public intersects(other: CodeActionKind): boolean {
+		return this.contains(other) || other.contains(this);
 	}
 
 	public contains(other: CodeActionKind): boolean {

@@ -69,16 +69,23 @@ class ModelEditTask implements IDisposable {
 				// honor eol-change
 				this._newEol = edit.eol;
 			}
-			if (edit.range || edit.text) {
-				// create edit operation
-				let range: Range;
-				if (!edit.range) {
-					range = this._model.getFullModelRange();
-				} else {
-					range = Range.lift(edit.range);
-				}
-				this._edits.push(EditOperation.replaceMove(range, edit.text));
+			if (!edit.range && !edit.text) {
+				// lacks both a range and the text
+				continue;
 			}
+			if (Range.isEmpty(edit.range) && !edit.text) {
+				// no-op edit (replace empty range with empty text)
+				continue;
+			}
+
+			// create edit operation
+			let range: Range;
+			if (!edit.range) {
+				range = this._model.getFullModelRange();
+			} else {
+				range = Range.lift(edit.range);
+			}
+			this._edits.push(EditOperation.replaceMove(range, edit.text));
 		}
 	}
 
@@ -384,8 +391,7 @@ export class BulkEditService implements IBulkEditService {
 		let codeEditor = options.editor;
 
 		// First check if loaded models were not changed in the meantime
-		for (let i = 0, len = edits.length; i < len; i++) {
-			const edit = edits[i];
+		for (const edit of edits) {
 			if (!isResourceFileEdit(edit) && typeof edit.modelVersionId === 'number') {
 				let model = this._modelService.getModel(edit.resource);
 				if (model && model.getVersionId() !== edit.modelVersionId) {

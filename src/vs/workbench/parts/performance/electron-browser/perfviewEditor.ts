@@ -141,12 +141,11 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		const table: (string | number)[][] = [];
 		table.push(['start => app.isReady', metrics.timers.ellapsedAppReady, '[main]', `initial startup: ${metrics.initialStartup}`]);
 		table.push(['nls:start => nls:end', metrics.timers.ellapsedNlsGeneration, '[main]', `initial startup: ${metrics.initialStartup}`]);
+		table.push(['require(main.bundle.js)', metrics.initialStartup ? perf.getDuration('willLoadMainBundle', 'didLoadMainBundle') : undefined, '[main]', `initial startup: ${metrics.initialStartup}`]);
 		table.push(['app.isReady => window.loadUrl()', metrics.timers.ellapsedWindowLoad, '[main]', `initial startup: ${metrics.initialStartup}`]);
 		table.push(['require & init global storage', metrics.timers.ellapsedGlobalStorageInitMain, '[main]', `initial startup: ${metrics.initialStartup}`]);
 		table.push(['window.loadUrl() => begin to require(workbench.main.js)', metrics.timers.ellapsedWindowLoadToRequire, '[main->renderer]', StartupKindToString(metrics.windowKind)]);
 		table.push(['require(workbench.main.js)', metrics.timers.ellapsedRequire, '[renderer]', `cached data: ${(metrics.didUseCachedData ? 'YES' : 'NO')}${stats ? `, node_modules took ${stats.nodeRequireTotal}ms` : ''}`]);
-		table.push(['init global storage', metrics.timers.ellapsedGlobalStorageInitRenderer, '[renderer]', undefined]);
-		table.push(['require workspace storage', metrics.timers.ellapsedWorkspaceStorageRequire, '[renderer]', undefined]);
 		table.push(['require & init workspace storage', metrics.timers.ellapsedWorkspaceStorageInit, '[renderer]', undefined]);
 		table.push(['init workspace service', metrics.timers.ellapsedWorkspaceServiceInit, '[renderer]', undefined]);
 		table.push(['register extensions & spawn extension host', metrics.timers.ellapsedExtensions, '[renderer]', undefined]);
@@ -194,7 +193,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		md.value += `Name\tTimestamp\tDelta\tTotal\n`;
 		let lastStartTime = -1;
 		let total = 0;
-		for (const { name, startTime } of perf.getEntries('mark')) {
+		for (const { name, timestamp: startTime } of perf.getEntries()) {
 			let delta = lastStartTime !== -1 ? startTime - lastStartTime : 0;
 			total += delta;
 			md.value += `${name}\t${startTime}\t${delta}\t${total}\n`;

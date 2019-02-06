@@ -14,6 +14,7 @@
     "onLanguage:jsonc"
   ],
   "main": "./client/out/jsonMain",
+  "enableProposedApi": true,
   "scripts": {
     "compile": "gulp compile-extension:json-language-features-client compile-extension:json-language-features-server",
     "watch": "gulp watch-extension:json-language-features-client watch-extension:json-language-features-server",
@@ -100,7 +101,7 @@
     }
   },
   "dependencies": {
-    "vscode-extension-telemetry": "0.1.0",
+    "vscode-extension-telemetry": "0.1.1",
     "vscode-languageclient": "^5.1.0",
     "vscode-nls": "^4.0.0"
   },

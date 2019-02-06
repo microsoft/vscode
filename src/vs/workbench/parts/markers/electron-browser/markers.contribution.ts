@@ -53,6 +53,20 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: Constants.MARKER_SHOW_QUICK_FIX,
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: Constants.MarkerFocusContextKey,
+	primary: KeyMod.CtrlCmd | KeyCode.US_DOT,
+	handler: (accessor, args: any) => {
+		const markersPanel = (<MarkersPanel>accessor.get(IPanelService).getActivePanel());
+		const focusedElement = markersPanel.getFocusElement();
+		if (focusedElement instanceof Marker) {
+			markersPanel.showQuickFixes(focusedElement);
+		}
+	}
+});
+
 // configuration
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
 	'id': 'problems',
@@ -161,7 +175,7 @@ registerAction({
 		const panelService = accessor.get(IPanelService);
 		const panel = panelService.getActivePanel();
 		if (panel instanceof MarkersPanel) {
-			panel.markersViewState.multiline = true;
+			panel.markersViewModel.multiline = true;
 		}
 	},
 	title: localize('show multiline', "Show message in multiple lines"),
@@ -177,7 +191,7 @@ registerAction({
 		const panelService = accessor.get(IPanelService);
 		const panel = panelService.getActivePanel();
 		if (panel instanceof MarkersPanel) {
-			panel.markersViewState.multiline = false;
+			panel.markersViewModel.multiline = false;
 		}
 	},
 	title: localize('show singleline', "Show message in single line"),

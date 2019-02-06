@@ -17,11 +17,12 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IRequestService } from 'vs/platform/request/node/request';
 import { asJson } from 'vs/base/node/request';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IExtensionManagementService, LocalExtensionType, ILocalExtension, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, ILocalExtension, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IPreferencesSearchService, ISearchProvider, IWorkbenchSettingsConfiguration } from 'vs/workbench/parts/preferences/common/preferences';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { canceled } from 'vs/base/common/errors';
+import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 
 export interface IEndpointDetails {
 	urlBase: string;
@@ -43,7 +44,7 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 		super();
 
 		// This request goes to the shared process but results won't change during a window's lifetime, so cache the results.
-		this._installedExtensions = this.extensionManagementService.getInstalled(LocalExtensionType.User).then(exts => {
+		this._installedExtensions = this.extensionManagementService.getInstalled(ExtensionType.User).then(exts => {
 			// Filter to enabled extensions that have settings
 			return exts
 				.filter(ext => this.extensionEnablementService.isEnabled(ext))
@@ -196,7 +197,7 @@ class RemoteSearchProvider implements ISearchProvider {
 						.filter(k => {
 							const result = remoteResult.scoredResults[k];
 							const resultExtId = (result.extensionPublisher + '.' + result.extensionName).toLowerCase();
-							return !installedExtensions.some(ext => ext.galleryIdentifier.id.toLowerCase() === resultExtId);
+							return !installedExtensions.some(ext => ext.identifier.id.toLowerCase() === resultExtId);
 						})
 						.filter(k => remoteResult.scoredResults[k].score >= newExtsMinScore);
 

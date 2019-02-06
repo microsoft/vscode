@@ -50,7 +50,6 @@ suite('SearchModel', () => {
 		resultCount: 1,
 		type: 'searchProcess',
 		detailStats: {
-			traversal: 'node',
 			fileWalkTime: 0,
 			cmdTime: 0,
 			cmdResultCount: 0,

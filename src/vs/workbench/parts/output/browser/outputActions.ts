@@ -57,7 +57,10 @@ export class ClearOutputAction extends Action {
 	}
 }
 
-export class ToggleOutputScrollLockAction extends Action {
+// this action can be triggered in two ways:
+// 1. user clicks the action icon, In which case the action toggles the lock state
+// 2. user clicks inside the output panel, which sets the lock, Or unsets it if they click the last line.
+export class ToggleOrSetOutputScrollLockAction extends Action {
 
 	public static readonly ID = 'workbench.output.action.toggleOutputScrollLock';
 	public static readonly LABEL = nls.localize({ key: 'toggleOutputScrollLock', comment: ['Turn on / off automatic output scrolling'] }, "Toggle Output Scroll Lock");
@@ -70,10 +73,16 @@ export class ToggleOutputScrollLockAction extends Action {
 		this.toDispose.push(this.outputService.onActiveOutputChannel(channel => this.setClass(this.outputService.getActiveChannel().scrollLock)));
 	}
 
-	public run(): Promise<boolean> {
+	public run(newLockState?: boolean): Promise<boolean> {
+
 		const activeChannel = this.outputService.getActiveChannel();
 		if (activeChannel) {
-			activeChannel.scrollLock = !activeChannel.scrollLock;
+			if (typeof (newLockState) === 'boolean') {
+				activeChannel.scrollLock = newLockState;
+			}
+			else {
+				activeChannel.scrollLock = !activeChannel.scrollLock;
+			}
 			this.setClass(activeChannel.scrollLock);
 		}
 

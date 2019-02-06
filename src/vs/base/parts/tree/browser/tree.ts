@@ -12,6 +12,7 @@ import { Event } from 'vs/base/common/event';
 import { IAction, IActionItem } from 'vs/base/common/actions';
 import { Color } from 'vs/base/common/color';
 import { IItemCollapseEvent, IItemExpandEvent } from 'vs/base/parts/tree/browser/treeModel';
+import { IDragAndDropData } from 'vs/base/browser/dnd';
 
 export interface ITree {
 
@@ -76,11 +77,6 @@ export interface ITree {
 	 * Provide no arguments and it will refresh the input element.
 	 */
 	refresh(element?: any, recursive?: boolean): Promise<any>;
-
-	/**
-	 * Updates an element's width.
-	 */
-	updateWidth(element: any): void;
 
 	/**
 	 * Expands an element.
@@ -593,11 +589,6 @@ export const DRAG_OVER_ACCEPT_BUBBLE_DOWN = (autoExpand = false) => ({ accept: t
 export const DRAG_OVER_ACCEPT_BUBBLE_UP_COPY: IDragOverReaction = { accept: true, bubble: DragOverBubble.BUBBLE_UP, effect: DragOverEffect.COPY };
 export const DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY = (autoExpand = false) => ({ accept: true, bubble: DragOverBubble.BUBBLE_DOWN, effect: DragOverEffect.COPY, autoExpand });
 
-export interface IDragAndDropData {
-	update(event: Mouse.DragMouseEvent): void;
-	getData(): any;
-}
-
 export interface IDragAndDrop {
 
 	/**
@@ -725,12 +716,12 @@ export interface IActionProvider {
 	/**
 	 * Returns whether or not the element has actions. These show up in place right to the element in the tree.
 	 */
-	hasActions(tree: ITree, element: any): boolean;
+	hasActions(tree: ITree | null, element: any): boolean;
 
 	/**
 	 * Returns a promise of an array with the actions of the element that should show up in place right to the element in the tree.
 	 */
-	getActions(tree: ITree, element: any): IAction[];
+	getActions(tree: ITree | null, element: any): IAction[] | null;
 
 	/**
 	 * Returns whether or not the element has secondary actions. These show up once the user has expanded the element's action bar.
@@ -740,7 +731,7 @@ export interface IActionProvider {
 	/**
 	 * Returns a promise of an array with the secondary actions of the element that should show up once the user has expanded the element's action bar.
 	 */
-	getSecondaryActions(tree: ITree, element: any): IAction[];
+	getSecondaryActions(tree: ITree, element: any): IAction[] | null;
 
 	/**
 	 * Returns an action item to render an action.

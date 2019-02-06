@@ -21,7 +21,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IDebugConfigurationProvider, ICompound, IDebugConfiguration, IConfig, IGlobalConfig, IConfigurationManager, ILaunch, IDebugAdapterDescriptorFactory, IDebugAdapter, ITerminalSettings, ITerminalLauncher, IDebugSession, IAdapterDescriptor, CONTEXT_DEBUG_CONFIGURATION_TYPE, IDebugAdapterFactory, IDebugAdapterTrackerFactory } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugConfigurationProvider, ICompound, IDebugConfiguration, IConfig, IGlobalConfig, IConfigurationManager, ILaunch, IDebugAdapterDescriptorFactory, IDebugAdapter, ITerminalSettings, ITerminalLauncher, IDebugSession, IAdapterDescriptor, CONTEXT_DEBUG_CONFIGURATION_TYPE, IDebugAdapterFactory, IDebugAdapterTrackerFactory, IDebugService } from 'vs/workbench/parts/debug/common/debug';
 import { Debugger } from 'vs/workbench/parts/debug/node/debugger';
 import { IEditorService, ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -33,6 +33,7 @@ import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/plat
 import { launchSchema, debuggersExtPoint, breakpointsExtPoint } from 'vs/workbench/parts/debug/common/debugSchemas';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 jsonRegistry.registerSchema(launchSchemaId, launchSchema);
@@ -56,6 +57,7 @@ export class ConfigurationManager implements IConfigurationManager {
 	private debugConfigurationTypeContext: IContextKey<string>;
 
 	constructor(
+		private debugService: IDebugService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -235,11 +237,11 @@ export class ConfigurationManager implements IConfigurationManager {
 	}
 
 	private registerListeners(lifecycleService: ILifecycleService): void {
-		debuggersExtPoint.setHandler((extensions) => {
-			extensions.forEach(extension => {
-				extension.value.forEach(rawAdapter => {
+		debuggersExtPoint.setHandler((extensions, delta) => {
+			delta.added.forEach(added => {
+				added.value.forEach(rawAdapter => {
 					if (!rawAdapter.type || (typeof rawAdapter.type !== 'string')) {
-						extension.collector.error(nls.localize('debugNoType', "Debugger 'type' can not be omitted and must be of type 'string'."));
+						added.collector.error(nls.localize('debugNoType', "Debugger 'type' can not be omitted and must be of type 'string'."));
 					}
 					if (rawAdapter.enableBreakpointsFor) {
 						rawAdapter.enableBreakpointsFor.languageIds.forEach(modeId => {
@@ -249,9 +251,19 @@ export class ConfigurationManager implements IConfigurationManager {
 
 					const duplicate = this.getDebugger(rawAdapter.type);
 					if (duplicate) {
-						duplicate.merge(rawAdapter, extension.description);
+						duplicate.merge(rawAdapter, added.description);
 					} else {
-						this.debuggers.push(this.instantiationService.createInstance(Debugger, this, rawAdapter, extension.description));
+						this.debuggers.push(this.instantiationService.createInstance(Debugger, this, rawAdapter, added.description));
+					}
+				});
+			});
+			delta.removed.forEach(removed => {
+				const removedTypes = removed.value.map(rawAdapter => rawAdapter.type);
+				this.debuggers = this.debuggers.filter(d => removedTypes.indexOf(d.type) === -1);
+				this.debugService.getModel().getSessions().forEach(s => {
+					// Stop sessions if their debugger has been removed
+					if (removedTypes.indexOf(s.configuration.type) >= 0) {
+						this.debugService.stopSession(s).then(undefined, onUnexpectedError);
 					}
 				});
 			});
@@ -272,11 +284,12 @@ export class ConfigurationManager implements IConfigurationManager {
 			this.setCompoundSchemaValues();
 		});
 
-		breakpointsExtPoint.setHandler(extensions => {
-			extensions.forEach(ext => {
-				ext.value.forEach(breakpoints => {
-					this.breakpointModeIdsSet.add(breakpoints.language);
-				});
+		breakpointsExtPoint.setHandler((extensions, delta) => {
+			delta.removed.forEach(removed => {
+				removed.value.forEach(breakpoints => this.breakpointModeIdsSet.delete(breakpoints.language));
+			});
+			delta.added.forEach(added => {
+				added.value.forEach(breakpoints => this.breakpointModeIdsSet.add(breakpoints.language));
 			});
 		});
 

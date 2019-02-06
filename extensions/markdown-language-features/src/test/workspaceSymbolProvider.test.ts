@@ -52,7 +52,7 @@ suite('markdown.WorkspaceSymbolProvider', () => {
 		const testFileName = vscode.Uri.file('test.md');
 
 		const workspaceFileProvider = new InMemoryWorkspaceMarkdownDocumentProvider([
-			new InMemoryDocument(testFileName, `# header1`)
+			new InMemoryDocument(testFileName, `# header1`, 1 /* version */)
 		]);
 
 		const provider = new MarkdownWorkspaceSymbolProvider(symbolProvider, workspaceFileProvider);
@@ -60,7 +60,7 @@ suite('markdown.WorkspaceSymbolProvider', () => {
 		assert.strictEqual((await provider.provideWorkspaceSymbols('')).length, 1);
 
 		// Update file
-		workspaceFileProvider.updateDocument(new InMemoryDocument(testFileName, `# new header\nabc\n## header2`));
+		workspaceFileProvider.updateDocument(new InMemoryDocument(testFileName, `# new header\nabc\n## header2`, 2 /* version */));
 		const newSymbols = await provider.provideWorkspaceSymbols('');
 		assert.strictEqual(newSymbols.length, 2);
 		assert.strictEqual(newSymbols[0].name, '# new header');

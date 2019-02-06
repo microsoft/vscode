@@ -297,7 +297,7 @@ export class Configuration {
 	}
 
 	updateValue(key: string, value: any, overrides: IConfigurationOverrides = {}): void {
-		let memoryConfiguration: ConfigurationModel;
+		let memoryConfiguration: ConfigurationModel | undefined;
 		if (overrides.resource) {
 			memoryConfiguration = this._memoryConfigurationByResource.get(overrides.resource);
 			if (!memoryConfiguration) {
@@ -453,7 +453,7 @@ export class Configuration {
 		if (workspace && resource) {
 			const root = workspace.getFolder(resource);
 			if (root) {
-				return this._folderConfigurations.get(root.uri);
+				return this._folderConfigurations.get(root.uri) || null;
 			}
 		}
 		return null;
@@ -477,7 +477,7 @@ export class Configuration {
 				keys: this._workspaceConfiguration.keys
 			},
 			folders: this._folderConfigurations.keys().reduce((result, folder) => {
-				const { contents, overrides, keys } = this._folderConfigurations.get(folder);
+				const { contents, overrides, keys } = this._folderConfigurations.get(folder)!;
 				result[folder.toString()] = { contents, overrides, keys };
 				return result;
 			}, Object.create({})),
@@ -498,7 +498,7 @@ export class Configuration {
 		addKeys(keys.user);
 		addKeys(keys.workspace);
 		for (const resource of this.folders.keys()) {
-			addKeys(this.folders.get(resource).keys);
+			addKeys(this.folders.get(resource)!.keys);
 		}
 		return all;
 	}
@@ -554,7 +554,7 @@ export class ConfigurationChangeEvent extends AbstractConfigurationChangeEvent i
 			this._changedConfiguration = this._changedConfiguration.merge(arg1._changedConfiguration);
 			for (const resource of arg1._changedConfigurationByResource.keys()) {
 				let changedConfigurationByResource = this.getOrSetChangedConfigurationForResource(resource);
-				changedConfigurationByResource = changedConfigurationByResource.merge(arg1._changedConfigurationByResource.get(resource));
+				changedConfigurationByResource = changedConfigurationByResource.merge(arg1._changedConfigurationByResource.get(resource)!);
 				this._changedConfigurationByResource.set(resource, changedConfigurationByResource);
 			}
 		} else {

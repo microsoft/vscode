@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import * as perf from 'vs/base/common/performance';
-import { WorkbenchShell } from 'vs/workbench/electron-browser/shell';
+import { Shell } from 'vs/workbench/electron-browser/shell';
 import * as browser from 'vs/base/browser/browser';
 import { domContentLoaded } from 'vs/base/browser/dom';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -127,7 +127,7 @@ function openWorkbench(configuration: IWindowConfiguration): Promise<void> {
 				perf.mark('willStartWorkbench');
 
 				// Create Shell
-				const shell = new WorkbenchShell(document.body, {
+				const shell = new Shell(document.body, {
 					contextService: workspaceService,
 					configurationService: workspaceService,
 					environmentService,
@@ -164,7 +164,7 @@ function createWorkspaceInitializationPayload(configuration: IWindowConfiguratio
 	}
 
 	// Single-folder workspace
-	let workspaceInitializationPayload: Promise<IWorkspaceInitializationPayload> = Promise.resolve();
+	let workspaceInitializationPayload: Promise<IWorkspaceInitializationPayload | undefined> = Promise.resolve(undefined);
 	if (configuration.folderUri) {
 		workspaceInitializationPayload = resolveSingleFolderWorkspaceInitializationPayload(configuration.folderUri);
 	}
@@ -179,7 +179,7 @@ function createWorkspaceInitializationPayload(configuration: IWindowConfiguratio
 			} else if (environmentService.isExtensionDevelopment) {
 				id = 'ext-dev'; // extension development window never stores backups and is a singleton
 			} else {
-				return Promise.reject(new Error('Unexpected window configuration without backupPath'));
+				return Promise.reject<any>(new Error('Unexpected window configuration without backupPath'));
 			}
 
 			payload = { id } as IEmptyWorkspaceInitializationPayload;
@@ -189,7 +189,7 @@ function createWorkspaceInitializationPayload(configuration: IWindowConfiguratio
 	});
 }
 
-function resolveSingleFolderWorkspaceInitializationPayload(folderUri: ISingleFolderWorkspaceIdentifier): Promise<ISingleFolderWorkspaceInitializationPayload> {
+function resolveSingleFolderWorkspaceInitializationPayload(folderUri: ISingleFolderWorkspaceIdentifier): Promise<ISingleFolderWorkspaceInitializationPayload | undefined> {
 
 	// Return early the folder is not local
 	if (folderUri.scheme !== Schemas.file) {
@@ -197,7 +197,7 @@ function resolveSingleFolderWorkspaceInitializationPayload(folderUri: ISingleFol
 	}
 
 	function computeLocalDiskFolderId(folder: uri, stat: fs.Stats): string {
-		let ctime: number;
+		let ctime: number | undefined;
 		if (platform.isLinux) {
 			ctime = stat.ino; // Linux: birthtime is ctime, so we cannot use it! We use the ino instead!
 		} else if (platform.isMacintosh) {

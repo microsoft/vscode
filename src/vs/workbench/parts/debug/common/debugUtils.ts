@@ -79,73 +79,84 @@ export function isUri(s: string) {
 	return s && s.match(_schemePattern);
 }
 
-export function stringToUri(source: DebugProtocol.Source): void {
-	if (typeof source.path === 'string') {
-		if (isUri(source.path)) {
-			(<any>source).path = uri.parse(source.path);
+function stringToUri(path: string): string {
+	if (typeof path === 'string') {
+		if (isUri(path)) {
+			return <string><unknown>uri.parse(path);
 		} else {
 			// assume path
-			if (isAbsolute_posix(source.path) || isAbsolute_win32(source.path)) {
-				(<any>source).path = uri.file(source.path);
+			if (isAbsolute_posix(path) || isAbsolute_win32(path)) {
+				return <string><unknown>uri.file(path);
 			} else {
 				// leave relative path as is
 			}
 		}
 	}
+	return path;
 }
 
-export function uriToString(source: DebugProtocol.Source): void {
-	if (typeof source.path === 'object') {
-		const u = uri.revive(source.path);
+function uriToString(path: string): string {
+	if (typeof path === 'object') {
+		const u = uri.revive(path);
 		if (u.scheme === 'file') {
-			source.path = u.fsPath;
+			return u.fsPath;
 		} else {
-			source.path = u.toString();
+			return u.toString();
 		}
 	}
+	return path;
 }
 
 // path hooks helpers
 
-export function convertToDAPaths(message: DebugProtocol.ProtocolMessage, fixSourcePaths: (source: DebugProtocol.Source) => void): DebugProtocol.ProtocolMessage {
+interface PathContainer {
+	path?: string;
+}
+
+export function convertToDAPaths(message: DebugProtocol.ProtocolMessage, toUri: boolean): DebugProtocol.ProtocolMessage {
+
+	const fixPath = toUri ? stringToUri : uriToString;
 
 	// since we modify Source.paths in the message in place, we need to make a copy of it (see #61129)
 	const msg = deepClone(message);
 
-	convertPaths(msg, (toDA: boolean, source: DebugProtocol.Source | undefined) => {
+	convertPaths(msg, (toDA: boolean, source: PathContainer | undefined) => {
 		if (toDA && source) {
-			fixSourcePaths(source);
+			source.path = fixPath(source.path);
 		}
 	});
 	return msg;
 }
 
-export function convertToVSCPaths(message: DebugProtocol.ProtocolMessage, fixSourcePaths: (source: DebugProtocol.Source) => void): DebugProtocol.ProtocolMessage {
+export function convertToVSCPaths(message: DebugProtocol.ProtocolMessage, toUri: boolean): DebugProtocol.ProtocolMessage {
+
+	const fixPath = toUri ? stringToUri : uriToString;
 
 	// since we modify Source.paths in the message in place, we need to make a copy of it (see #61129)
 	const msg = deepClone(message);
 
-	convertPaths(msg, (toDA: boolean, source: DebugProtocol.Source | undefined) => {
+	convertPaths(msg, (toDA: boolean, source: PathContainer | undefined) => {
 		if (!toDA && source) {
-			fixSourcePaths(source);
+			source.path = fixPath(source.path);
 		}
 	});
 	return msg;
 }
 
-function convertPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePaths: (toDA: boolean, source: DebugProtocol.Source | undefined) => void): void {
+function convertPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePath: (toDA: boolean, source: PathContainer | undefined) => void): void {
+
 	switch (msg.type) {
 		case 'event':
 			const event = <DebugProtocol.Event>msg;
 			switch (event.event) {
 				case 'output':
-					fixSourcePaths(false, (<DebugProtocol.OutputEvent>event).body.source);
+					fixSourcePath(false, (<DebugProtocol.OutputEvent>event).body.source);
 					break;
 				case 'loadedSource':
-					fixSourcePaths(false, (<DebugProtocol.LoadedSourceEvent>event).body.source);
+					fixSourcePath(false, (<DebugProtocol.LoadedSourceEvent>event).body.source);
 					break;
 				case 'breakpoint':
-					fixSourcePaths(false, (<DebugProtocol.BreakpointEvent>event).body.breakpoint.source);
+					fixSourcePath(false, (<DebugProtocol.BreakpointEvent>event).body.breakpoint.source);
 					break;
 				default:
 					break;
@@ -155,13 +166,16 @@ function convertPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePaths: (toDA:
 			const request = <DebugProtocol.Request>msg;
 			switch (request.command) {
 				case 'setBreakpoints':
-					fixSourcePaths(true, (<DebugProtocol.SetBreakpointsArguments>request.arguments).source);
+					fixSourcePath(true, (<DebugProtocol.SetBreakpointsArguments>request.arguments).source);
 					break;
 				case 'source':
-					fixSourcePaths(true, (<DebugProtocol.SourceArguments>request.arguments).source);
+					fixSourcePath(true, (<DebugProtocol.SourceArguments>request.arguments).source);
 					break;
 				case 'gotoTargets':
-					fixSourcePaths(true, (<DebugProtocol.GotoTargetsArguments>request.arguments).source);
+					fixSourcePath(true, (<DebugProtocol.GotoTargetsArguments>request.arguments).source);
+					break;
+				case 'launchVSCode':
+					request.arguments.args.forEach(arg => fixSourcePath(false, arg));
 					break;
 				default:
 					break;
@@ -172,24 +186,19 @@ function convertPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePaths: (toDA:
 			if (response.success) {
 				switch (response.command) {
 					case 'stackTrace':
-						const r1 = <DebugProtocol.StackTraceResponse>response;
-						r1.body.stackFrames.forEach(frame => fixSourcePaths(false, frame.source));
+						(<DebugProtocol.StackTraceResponse>response).body.stackFrames.forEach(frame => fixSourcePath(false, frame.source));
 						break;
 					case 'loadedSources':
-						const r2 = <DebugProtocol.LoadedSourcesResponse>response;
-						r2.body.sources.forEach(source => fixSourcePaths(false, source));
+						(<DebugProtocol.LoadedSourcesResponse>response).body.sources.forEach(source => fixSourcePath(false, source));
 						break;
 					case 'scopes':
-						const r3 = <DebugProtocol.ScopesResponse>response;
-						r3.body.scopes.forEach(scope => fixSourcePaths(false, scope.source));
+						(<DebugProtocol.ScopesResponse>response).body.scopes.forEach(scope => fixSourcePath(false, scope.source));
 						break;
 					case 'setFunctionBreakpoints':
-						const r4 = <DebugProtocol.SetFunctionBreakpointsResponse>response;
-						r4.body.breakpoints.forEach(bp => fixSourcePaths(false, bp.source));
+						(<DebugProtocol.SetFunctionBreakpointsResponse>response).body.breakpoints.forEach(bp => fixSourcePath(false, bp.source));
 						break;
 					case 'setBreakpoints':
-						const r5 = <DebugProtocol.SetBreakpointsResponse>response;
-						r5.body.breakpoints.forEach(bp => fixSourcePaths(false, bp.source));
+						(<DebugProtocol.SetBreakpointsResponse>response).body.breakpoints.forEach(bp => fixSourcePath(false, bp.source));
 						break;
 					default:
 						break;

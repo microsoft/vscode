@@ -708,13 +708,16 @@ export class Menubar {
 		}
 
 		if (activeWindow) {
-			if (invocation.type === 'commandId') {
-				if (!activeWindow.isReady && isMacintosh && invocation.commandId === 'workbench.action.toggleDevTools' && !this.environmentService.isBuilt) {
+			if (isMacintosh && !this.environmentService.isBuilt && !activeWindow.isReady) {
+				if ((invocation.type === 'commandId' && invocation.commandId === 'workbench.action.toggleDevTools') || (invocation.type !== 'commandId' && invocation.userSettingsLabel === 'alt+cmd+i')) {
 					// prevent this action from running twice on macOS (https://github.com/Microsoft/vscode/issues/62719)
 					// we already register a keybinding in bootstrap-window.js for opening developer tools in case something
 					// goes wrong and that keybinding is only removed when the application has loaded (= window ready).
 					return;
 				}
+			}
+
+			if (invocation.type === 'commandId') {
 				this.windowsMainService.sendToFocused('vscode:runAction', { id: invocation.commandId, from: 'menu' } as IRunActionInWindowRequest);
 			} else {
 				this.windowsMainService.sendToFocused('vscode:runKeybinding', { userSettingsLabel: invocation.userSettingsLabel } as IRunKeybindingInWindowRequest);

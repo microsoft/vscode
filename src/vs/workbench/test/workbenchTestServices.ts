@@ -44,7 +44,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { generateUuid } from 'vs/base/common/uuid';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { ITextResourceConfigurationService, ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 import { IPosition, Position as EditorPosition } from 'vs/editor/common/core/position';
@@ -57,8 +57,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IConfirmation, IConfirmationResult, IDialogService, IDialogOptions, IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { IExtensionService, ProfileSession, IExtensionsStatus, ExtensionPointContribution, IExtensionDescription, IWillActivateEvent, IResponsiveStateChangeEvent } from '../services/extensions/common/extensions';
-import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { IExtensionService, NullExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IDecorationsService, IResourceDecorationChangeEvent, IDecoration, IDecorationData, IDecorationsProvider } from 'vs/workbench/services/decorations/browser/decorations';
 import { IDisposable, toDisposable, Disposable } from 'vs/base/common/lifecycle';
@@ -70,7 +69,7 @@ import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
 import { EditorGroup } from 'vs/workbench/common/editor/editorGroup';
 import { Dimension } from 'vs/base/browser/dom';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
-import { ILabelService, LabelService } from 'vs/platform/label/common/label';
+import { ILabelService } from 'vs/platform/label/common/label';
 import { timeout } from 'vs/base/common/async';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
@@ -78,7 +77,7 @@ import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { LabelService } from 'vs/workbench/services/label/common/labelService';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined);
@@ -129,6 +128,10 @@ export class TestContextService implements IWorkspaceContextService {
 		}
 
 		return WorkbenchState.EMPTY;
+	}
+
+	getCompleteWorkspace(): Promise<IWorkbenchWorkspace> {
+		return Promise.resolve(this.getWorkspace());
 	}
 
 	public getWorkspace(): IWorkbenchWorkspace {
@@ -305,25 +308,7 @@ export class TestDecorationsService implements IDecorationsService {
 	getDecoration(_uri: URI, _includeChildren: boolean, _overwrite?: IDecorationData): IDecoration { return undefined; }
 }
 
-export class TestExtensionService implements IExtensionService {
-	_serviceBrand: any;
-	onDidRegisterExtensions: Event<void> = Event.None;
-	onDidChangeExtensionsStatus: Event<ExtensionIdentifier[]> = Event.None;
-	onWillActivateByEvent: Event<IWillActivateEvent> = Event.None;
-	onDidChangeResponsiveChange: Event<IResponsiveStateChangeEvent> = Event.None;
-	activateByEvent(_activationEvent: string): Promise<void> { return Promise.resolve(undefined); }
-	whenInstalledExtensionsRegistered(): Promise<boolean> { return Promise.resolve(true); }
-	getExtensions(): Promise<IExtensionDescription[]> { return Promise.resolve([]); }
-	getExtension() { return Promise.resolve(undefined); }
-	readExtensionPointContributions<T>(_extPoint: IExtensionPoint<T>): Promise<ExtensionPointContribution<T>[]> { return Promise.resolve(Object.create(null)); }
-	getExtensionsStatus(): { [id: string]: IExtensionsStatus; } { return Object.create(null); }
-	canProfileExtensionHost(): boolean { return false; }
-	getInspectPort(): number { return 0; }
-	startExtensionHostProfile(): Promise<ProfileSession> { return Promise.resolve(Object.create(null)); }
-	restartExtensionHost(): void { }
-	startExtensionHost(): void { }
-	stopExtensionHost(): void { }
-}
+export class TestExtensionService extends NullExtensionService { }
 
 export class TestMenuService implements IMenuService {
 
@@ -421,10 +406,10 @@ export class TestFileDialogService implements IFileDialogService {
 		return Promise.resolve(0);
 	}
 	public showSaveDialog(_options: ISaveDialogOptions): Promise<URI> {
-		return Promise.resolve();
+		return Promise.resolve(undefined);
 	}
 	public showOpenDialog(_options: IOpenDialogOptions): Promise<URI[]> {
-		return Promise.resolve();
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -485,6 +470,8 @@ export class TestPartService implements IPartService {
 	public isSideBarHidden(): boolean {
 		return false;
 	}
+
+	public setEditorHidden(_hidden: boolean): Promise<void> { return Promise.resolve(null); }
 
 	public setSideBarHidden(_hidden: boolean): Promise<void> { return Promise.resolve(null); }
 
@@ -992,7 +979,7 @@ export class TestCodeEditorService implements ICodeEditorService {
 	setTransientModelProperty(_model: ITextModel, _key: string, _value: any): void { }
 	getTransientModelProperty(_model: ITextModel, _key: string) { }
 	getActiveCodeEditor(): ICodeEditor { return null; }
-	openCodeEditor(_input: IResourceInput, _source: ICodeEditor, _sideBySide?: boolean): Promise<ICodeEditor> { return Promise.resolve(); }
+	openCodeEditor(_input: IResourceInput, _source: ICodeEditor, _sideBySide?: boolean): Promise<ICodeEditor> { return Promise.resolve(undefined); }
 }
 
 export class TestWindowService implements IWindowService {
@@ -1052,16 +1039,8 @@ export class TestWindowService implements IWindowService {
 		return Promise.resolve();
 	}
 
-	enterWorkspace(_path: string): Promise<IEnterWorkspaceResult> {
-		return Promise.resolve();
-	}
-
-	createAndEnterWorkspace(_folders?: IWorkspaceFolderCreationData[], _path?: string): Promise<IEnterWorkspaceResult> {
-		return Promise.resolve();
-	}
-
-	saveAndEnterWorkspace(_path: string): Promise<IEnterWorkspaceResult> {
-		return Promise.resolve();
+	enterWorkspace(_path: URI): Promise<IEnterWorkspaceResult> {
+		return Promise.resolve(undefined);
 	}
 
 	toggleFullScreen(): Promise<void> {
@@ -1073,7 +1052,7 @@ export class TestWindowService implements IWindowService {
 	}
 
 	getRecentlyOpened(): Promise<IRecentlyOpened> {
-		return Promise.resolve();
+		return Promise.resolve(undefined);
 	}
 
 	focusWindow(): Promise<void> {
@@ -1221,16 +1200,8 @@ export class TestWindowsService implements IWindowsService {
 		return Promise.resolve();
 	}
 
-	enterWorkspace(_windowId: number, _path: string): Promise<IEnterWorkspaceResult> {
-		return Promise.resolve();
-	}
-
-	createAndEnterWorkspace(_windowId: number, _folders?: IWorkspaceFolderCreationData[], _path?: string): Promise<IEnterWorkspaceResult> {
-		return Promise.resolve();
-	}
-
-	saveAndEnterWorkspace(_windowId: number, _path: string): Promise<IEnterWorkspaceResult> {
-		return Promise.resolve();
+	enterWorkspace(_windowId: number, _path: URI): Promise<IEnterWorkspaceResult> {
+		return Promise.resolve(undefined);
 	}
 
 	toggleFullScreen(_windowId: number): Promise<void> {
@@ -1254,7 +1225,7 @@ export class TestWindowsService implements IWindowsService {
 	}
 
 	getRecentlyOpened(_windowId: number): Promise<IRecentlyOpened> {
-		return Promise.resolve();
+		return Promise.resolve(undefined);
 	}
 
 	focusWindow(_windowId: number): Promise<void> {
@@ -1266,7 +1237,7 @@ export class TestWindowsService implements IWindowsService {
 	}
 
 	isMaximized(_windowId: number): Promise<boolean> {
-		return Promise.resolve();
+		return Promise.resolve(undefined);
 	}
 
 	maximizeWindow(_windowId: number): Promise<void> {
@@ -1319,7 +1290,7 @@ export class TestWindowsService implements IWindowsService {
 	}
 
 	getWindows(): Promise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]> {
-		return Promise.resolve();
+		return Promise.resolve(undefined);
 	}
 
 	getWindowCount(): Promise<number> {
@@ -1378,15 +1349,15 @@ export class TestWindowsService implements IWindowsService {
 	}
 
 	showMessageBox(_windowId: number, _options: Electron.MessageBoxOptions): Promise<IMessageBoxResult> {
-		return Promise.resolve();
+		return Promise.resolve(undefined);
 	}
 
 	showSaveDialog(_windowId: number, _options: Electron.SaveDialogOptions): Promise<string> {
-		return Promise.resolve();
+		return Promise.resolve(undefined);
 	}
 
 	showOpenDialog(_windowId: number, _options: Electron.OpenDialogOptions): Promise<string[]> {
-		return Promise.resolve();
+		return Promise.resolve(undefined);
 	}
 
 	openAboutDialog(): Promise<void> {
@@ -1450,9 +1421,9 @@ export class TestViewletService implements IViewletService {
 	_serviceBrand: ServiceIdentifier<any>;
 
 	readonly onDidViewletRegister: Event<ViewletDescriptor> = new Emitter<ViewletDescriptor>().event;
+	readonly onDidViewletDeregister: Event<ViewletDescriptor> = new Emitter<ViewletDescriptor>().event;
 	onDidViewletOpen: Event<IViewlet> = new Emitter<IViewlet>().event;
 	onDidViewletClose: Event<IViewlet> = new Emitter<IViewlet>().event;
-	onDidViewletEnablementChange: Event<{ id: string, enabled: boolean }> = new Emitter<{ id: string, enabled: boolean }>().event;
 
 	openViewlet(_id: string, _focus?: boolean): Promise<IViewlet> { return null; }
 
@@ -1465,8 +1436,6 @@ export class TestViewletService implements IViewletService {
 	getAllViewlets(): ViewletDescriptor[] { return null; }
 
 	getViewlets(): ViewletDescriptor[] { return null; }
-
-	setViewletEnablement(_id: string, _enabled: boolean): void { }
 
 	getProgressIndicator(_id: string): IProgressService { return null; }
 

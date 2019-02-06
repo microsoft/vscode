@@ -114,6 +114,7 @@ export interface ITerminalConfigHelper {
 	mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig, platformOverride?: platform.Platform): void;
 	/** Sets whether a workspace shell configuration is allowed or not */
 	setWorkspaceShellAllowed(isAllowed: boolean): void;
+	checkWorkspaceShellPermissions(platformOverride?: platform.Platform): boolean;
 }
 
 export interface ITerminalFont {
@@ -181,6 +182,15 @@ export interface IShellLaunchConfig {
 	 * extensions full control over the terminal.
 	 */
 	isRendererOnly?: boolean;
+
+	/**
+	 * Whether the terminal process environment should be exactly as provided in
+	 * `TerminalOptions.env`. When this is false (default), the environment will be based on the
+	 * window's environment and also apply configured platform settings like
+	 * `terminal.integrated.windows.env` on top. When this is true, the complete environment must be
+	 * provided as nothing will be inherited from the process or any configuration.
+	 */
+	strictEnv?: boolean;
 }
 
 export interface ITerminalService {
@@ -225,7 +235,7 @@ export interface ITerminalService {
 	setActiveInstance(terminalInstance: ITerminalInstance): void;
 	setActiveInstanceByIndex(terminalIndex: number): void;
 	getActiveOrCreateInstance(wasNewTerminalAction?: boolean): ITerminalInstance;
-	splitInstance(instance: ITerminalInstance, shell?: IShellLaunchConfig): void;
+	splitInstance(instance: ITerminalInstance, shell?: IShellLaunchConfig): ITerminalInstance | null;
 
 	getActiveTab(): ITerminalTab | null;
 	setActiveTabToNext(): void;
@@ -407,11 +417,6 @@ export interface ITerminalInstance {
 	 * them.
 	 */
 	readonly commandTracker: ITerminalCommandTracker;
-
-	/**
-	 * The cwd that the terminal instance was initialized with.
-	 */
-	readonly initialCwd: string;
 
 	/**
 	 * Dispose the terminal instance, removing it from the panel/service and freeing up resources.
@@ -605,6 +610,7 @@ export interface ITerminalInstance {
 
 	toggleEscapeSequenceLogging(): void;
 
+	getInitialCwd(): Promise<string>;
 	getCwd(): Promise<string>;
 }
 
@@ -621,7 +627,6 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly processState: ProcessState;
 	readonly ptyProcessReady: Promise<void>;
 	readonly shellProcessId: number;
-	readonly initialCwd: string;
 
 	readonly onProcessReady: Event<void>;
 	readonly onProcessData: Event<string>;
@@ -633,6 +638,9 @@ export interface ITerminalProcessManager extends IDisposable {
 	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number);
 	write(data: string): void;
 	setDimensions(cols: number, rows: number): void;
+
+	getInitialCwd(): Promise<string>;
+	getCwd(): Promise<string>;
 }
 
 export const enum ProcessState {
@@ -662,10 +670,14 @@ export interface ITerminalProcessExtHostProxy extends IDisposable {
 	emitTitle(title: string): void;
 	emitPid(pid: number): void;
 	emitExit(exitCode: number): void;
+	emitInitialCwd(initialCwd: string): void;
+	emitCwd(cwd: string): void;
 
 	onInput: Event<string>;
 	onResize: Event<{ cols: number, rows: number }>;
 	onShutdown: Event<boolean>;
+	onRequestInitialCwd: Event<void>;
+	onRequestCwd: Event<void>;
 }
 
 export interface ITerminalProcessExtHostRequest {

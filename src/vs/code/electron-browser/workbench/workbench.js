@@ -35,7 +35,7 @@ bootstrapWindow.load([
 			showPartsSplash(windowConfig);
 		},
 		beforeLoaderConfig: function (windowConfig, loaderConfig) {
-			loaderConfig.recordStats = !!windowConfig.performance;
+			loaderConfig.recordStats = !!windowConfig['prof-modules'];
 			if (loaderConfig.nodeCachedData) {
 				const onNodeCachedData = window['MonacoEnvironment'].onNodeCachedData = [];
 				loaderConfig.nodeCachedData.onData = function () {

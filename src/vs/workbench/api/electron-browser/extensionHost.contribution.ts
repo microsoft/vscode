@@ -18,6 +18,7 @@ import 'vs/workbench/api/node/apiCommands';
 import './mainThreadClipboard';
 import './mainThreadCommands';
 import './mainThreadConfiguration';
+import './mainThreadConsole';
 import './mainThreadDebugService';
 import './mainThreadDecorations';
 import './mainThreadDiagnostics';

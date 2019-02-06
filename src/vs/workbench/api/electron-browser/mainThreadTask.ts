@@ -532,7 +532,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 					forEach(values.variables, (entry) => {
 						partiallyResolvedVars.push(entry.value);
 					});
-					return new Promise((resolve, reject) => {
+					return new Promise<ResolvedVariables>((resolve, reject) => {
 						this._configurationResolverService.resolveWithInteraction(workspaceFolder, partiallyResolvedVars, 'tasks').then(resolvedVars => {
 							let result = {
 								process: undefined as string,

@@ -212,9 +212,9 @@ export class StandaloneThemeServiceImpl implements IStandaloneThemeService {
 	public setTheme(themeName: string): string {
 		let theme: StandaloneTheme;
 		if (this._knownThemes.has(themeName)) {
-			theme = this._knownThemes.get(themeName);
+			theme = this._knownThemes.get(themeName)!;
 		} else {
-			theme = this._knownThemes.get(VS_THEME_NAME);
+			theme = this._knownThemes.get(VS_THEME_NAME)!;
 		}
 		if (this._theme === theme) {
 			// Nothing to do

@@ -13,7 +13,8 @@ const flatmap = require("gulp-flatmap");
 const sourcemaps = require("gulp-sourcemaps");
 const uglify = require("gulp-uglify");
 const composer = require("gulp-uglify/composer");
-const gulpUtil = require("gulp-util");
+const fancyLog = require("fancy-log");
+const ansiColors = require("ansi-colors");
 const path = require("path");
 const pump = require("pump");
 const uglifyes = require("uglify-es");
@@ -24,7 +25,7 @@ const stats_1 = require("./stats");
 const util = require("./util");
 const REPO_ROOT_PATH = path.join(__dirname, '../..');
 function log(prefix, message) {
-    gulpUtil.log(gulpUtil.colors.cyan('[' + prefix + ']'), message);
+    fancyLog(ansiColors.cyan('[' + prefix + ']'), message);
 }
 function loaderConfig(emptyPaths) {
     const result = {

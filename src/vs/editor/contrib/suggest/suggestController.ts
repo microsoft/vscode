@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { alert } from 'vs/base/browser/ui/aria/aria';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
@@ -12,7 +12,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorCommand, registerEditorAction, registerEditorCommand, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
-import { IEditorContribution, ScrollType, Handler } from 'vs/editor/common/editorCommon';
+import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CompletionItemProvider, CompletionItemInsertTextRule } from 'vs/editor/common/modes';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
@@ -31,13 +31,17 @@ import { WordContextKey } from 'vs/editor/contrib/suggest/wordContextKey';
 import { Event } from 'vs/base/common/event';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { IdleValue } from 'vs/base/common/async';
+import { CharacterSet } from 'vs/editor/common/core/characterClassifier';
+import { isObject } from 'vs/base/common/types';
 
 class AcceptOnCharacterOracle {
 
 	private _disposables: IDisposable[] = [];
 
-	private _activeAcceptCharacters = new Set<string>();
-	private _activeItem: ISelectedSuggestion;
+	private _active?: {
+		readonly acceptCharacters: CharacterSet;
+		readonly item: ISelectedSuggestion;
+	};
 
 	constructor(editor: ICodeEditor, widget: SuggestWidget, accept: (selected: ISelectedSuggestion) => any) {
 
@@ -46,31 +50,32 @@ class AcceptOnCharacterOracle {
 		this._disposables.push(widget.onDidHide(this.reset, this));
 
 		this._disposables.push(editor.onWillType(text => {
-			if (this._activeItem) {
-				const ch = text[text.length - 1];
-				if (this._activeAcceptCharacters.has(ch) && editor.getConfiguration().contribInfo.acceptSuggestionOnCommitCharacter) {
-					accept(this._activeItem);
+			if (this._active) {
+				const ch = text.charCodeAt(text.length - 1);
+				if (this._active.acceptCharacters.has(ch) && editor.getConfiguration().contribInfo.acceptSuggestionOnCommitCharacter) {
+					accept(this._active.item);
 				}
 			}
 		}));
 	}
 
-	private _onItem(selected: ISelectedSuggestion): void {
-		if (!selected || isFalsyOrEmpty(selected.item.completion.commitCharacters)) {
+	private _onItem(selected: ISelectedSuggestion | undefined): void {
+		if (!selected || !isNonEmptyArray(selected.item.completion.commitCharacters)) {
 			this.reset();
 			return;
 		}
-		this._activeItem = selected;
-		this._activeAcceptCharacters.clear();
+
+		const acceptCharacters = new CharacterSet();
 		for (const ch of selected.item.completion.commitCharacters) {
 			if (ch.length > 0) {
-				this._activeAcceptCharacters.add(ch[0]);
+				acceptCharacters.add(ch.charCodeAt(0));
 			}
 		}
+		this._active = { acceptCharacters, item: selected };
 	}
 
 	reset(): void {
-		this._activeItem = undefined;
+		this._active = undefined;
 	}
 
 	dispose() {
@@ -125,7 +130,7 @@ export class SuggestController implements IEditorContribution {
 			let makesTextEdit = SuggestContext.MakesTextEdit.bindTo(this._contextKeyService);
 			this._toDispose.push(widget.onDidFocus(({ item }) => {
 
-				const position = this._editor.getPosition();
+				const position = this._editor.getPosition()!;
 				const startColumn = item.completion.range.startColumn;
 				const endColumn = position.column;
 				let value = true;
@@ -134,10 +139,10 @@ export class SuggestController implements IEditorContribution {
 					&& this._model.state === State.Auto
 					&& !item.completion.command
 					&& !item.completion.additionalTextEdits
-					&& !(item.completion.insertTextRules & CompletionItemInsertTextRule.InsertAsSnippet)
+					&& !(item.completion.insertTextRules! & CompletionItemInsertTextRule.InsertAsSnippet)
 					&& endColumn - startColumn === item.completion.insertText.length
 				) {
-					const oldText = this._editor.getModel().getValueInRange({
+					const oldText = this._editor.getModel()!.getValueInRange({
 						startLineNumber: position.lineNumber,
 						startColumn,
 						endLineNumber: position.lineNumber,
@@ -167,7 +172,7 @@ export class SuggestController implements IEditorContribution {
 		}));
 		this._toDispose.push(this._model.onDidSuggest(e => {
 			if (!e.shy) {
-				let index = this._memoryService.select(this._editor.getModel(), this._editor.getPosition(), e.completionModel.items);
+				let index = this._memoryService.select(this._editor.getModel()!, this._editor.getPosition()!, e.completionModel.items);
 				this._widget.getValue().showSuggestions(e.completionModel, index, e.isFrozen, e.auto);
 			}
 		}));
@@ -205,10 +210,13 @@ export class SuggestController implements IEditorContribution {
 		}
 	}
 
-	protected _onDidSelectItem(event: ISelectedSuggestion, keepAlternativeSuggestions: boolean, undoStops: boolean): void {
+	protected _onDidSelectItem(event: ISelectedSuggestion | undefined, keepAlternativeSuggestions: boolean, undoStops: boolean): void {
 		if (!event || !event.item) {
 			this._alternatives.getValue().reset();
 			this._model.cancel();
+			return;
+		}
+		if (!this._editor.hasModel()) {
 			return;
 		}
 
@@ -232,7 +240,7 @@ export class SuggestController implements IEditorContribution {
 		this._memoryService.memorize(model, this._editor.getPosition(), event.item);
 
 		let { insertText } = suggestion;
-		if (!(suggestion.insertTextRules & CompletionItemInsertTextRule.InsertAsSnippet)) {
+		if (!(suggestion.insertTextRules! & CompletionItemInsertTextRule.InsertAsSnippet)) {
 			insertText = SnippetParser.escape(insertText);
 		}
 
@@ -244,7 +252,7 @@ export class SuggestController implements IEditorContribution {
 			overwriteBefore + columnDelta,
 			overwriteAfter,
 			false, false,
-			!(suggestion.insertTextRules & CompletionItemInsertTextRule.KeepWhitespace)
+			!(suggestion.insertTextRules! & CompletionItemInsertTextRule.KeepWhitespace)
 		);
 
 		if (undoStops) {
@@ -261,7 +269,7 @@ export class SuggestController implements IEditorContribution {
 
 		} else {
 			// exec command, done
-			this._commandService.executeCommand(suggestion.command.id, ...suggestion.command.arguments).catch(onUnexpectedError);
+			this._commandService.executeCommand(suggestion.command.id, ...(suggestion.command.arguments ? [...suggestion.command.arguments] : [])).catch(onUnexpectedError);
 			this._model.cancel();
 		}
 
@@ -289,34 +297,39 @@ export class SuggestController implements IEditorContribution {
 	}
 
 	triggerSuggest(onlyFrom?: CompletionItemProvider[]): void {
-		this._model.trigger({ auto: false, shy: false }, false, onlyFrom);
-		this._editor.revealLine(this._editor.getPosition().lineNumber, ScrollType.Smooth);
-		this._editor.focus();
+		if (this._editor.hasModel()) {
+			this._model.trigger({ auto: false, shy: false }, false, onlyFrom);
+			this._editor.revealLine(this._editor.getPosition().lineNumber, ScrollType.Smooth);
+			this._editor.focus();
+		}
 	}
 
-	triggerSuggestAndAcceptBest(defaultTypeText: string): void {
+	triggerSuggestAndAcceptBest(arg: { fallback: string }): void {
+		if (!this._editor.hasModel()) {
+			return;
 
+		}
 		const positionNow = this._editor.getPosition();
 
 		const fallback = () => {
-			if (positionNow.equals(this._editor.getPosition())) {
-				this._editor.trigger('suggest', Handler.Type, { text: defaultTypeText });
+			if (positionNow.equals(this._editor.getPosition()!)) {
+				this._commandService.executeCommand(arg.fallback);
 			}
 		};
 
 		const makesTextEdit = (item: CompletionItem): boolean => {
-			if (item.completion.insertTextRules & CompletionItemInsertTextRule.InsertAsSnippet || item.completion.additionalTextEdits) {
+			if (item.completion.insertTextRules! & CompletionItemInsertTextRule.InsertAsSnippet || item.completion.additionalTextEdits) {
 				// snippet, other editor -> makes edit
 				return true;
 			}
-			const position = this._editor.getPosition();
+			const position = this._editor.getPosition()!;
 			const startColumn = item.completion.range.startColumn;
 			const endColumn = position.column;
 			if (endColumn - startColumn !== item.completion.insertText.length) {
 				// unequal lengths -> makes edit
 				return true;
 			}
-			const textNow = this._editor.getModel().getValueInRange({
+			const textNow = this._editor.getModel()!.getValueInRange({
 				startLineNumber: position.lineNumber,
 				startColumn,
 				endLineNumber: position.lineNumber,
@@ -342,7 +355,7 @@ export class SuggestController implements IEditorContribution {
 					fallback();
 					return;
 				}
-				const index = this._memoryService.select(this._editor.getModel(), this._editor.getPosition(), completionModel.items);
+				const index = this._memoryService.select(this._editor.getModel()!, this._editor.getPosition()!, completionModel.items);
 				const item = completionModel.items[index];
 				if (!makesTextEdit(item)) {
 					fallback();
@@ -362,7 +375,7 @@ export class SuggestController implements IEditorContribution {
 	acceptSelectedSuggestion(keepAlternativeSuggestions?: boolean): void {
 		if (this._widget) {
 			const item = this._widget.getValue().getFocusedItem();
-			this._onDidSelectItem(item, keepAlternativeSuggestions, true);
+			this._onDidSelectItem(item, !!keepAlternativeSuggestions, true);
 		}
 	}
 
@@ -599,7 +612,10 @@ registerEditorCommand(new SuggestCommand({
 		SuggestAlternatives.OtherSuggestions.toNegated(),
 		SnippetController2.InSnippetMode.toNegated()
 	),
-	handler: x => x.triggerSuggestAndAcceptBest('\t'),//todo@joh fallback/default configurable?
+	handler: (x, arg) => {
+
+		x.triggerSuggestAndAcceptBest(isObject(arg) ? { fallback: 'tab', ...arg } : { fallback: 'tab' });
+	},
 	kbOpts: {
 		weight,
 		primary: KeyCode.Tab

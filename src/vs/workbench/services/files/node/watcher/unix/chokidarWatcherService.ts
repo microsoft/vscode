@@ -242,7 +242,7 @@ export class ChokidarWatcherService implements IWatcherService {
 						});
 					}
 
-					return Promise.resolve();
+					return Promise.resolve(undefined);
 				});
 			}
 		});

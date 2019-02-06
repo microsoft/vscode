@@ -16,7 +16,6 @@ import { UpdateChannel } from 'vs/platform/update/node/updateIpc';
 import { Server as ElectronIPCServer } from 'vs/base/parts/ipc/electron-main/ipc.electron-main';
 import { Server, connect, Client } from 'vs/base/parts/ipc/node/ipc.net';
 import { SharedProcess } from 'vs/code/electron-main/sharedProcess';
-import { Mutex } from 'windows-mutex';
 import { LaunchService, LaunchChannel, ILaunchService } from 'vs/platform/launch/electron-main/launchService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -484,22 +483,22 @@ export class CodeApplication extends Disposable {
 			// written from the main process once.
 
 			const telemetryInstanceId = 'telemetry.instanceId';
-			const instanceId = storageMainService.get(telemetryInstanceId, null);
-			if (instanceId === null) {
+			const instanceId = storageMainService.get(telemetryInstanceId, undefined);
+			if (instanceId === undefined) {
 				storageMainService.store(telemetryInstanceId, generateUuid());
 			}
 
 			const telemetryFirstSessionDate = 'telemetry.firstSessionDate';
-			const firstSessionDate = storageMainService.get(telemetryFirstSessionDate, null);
-			if (firstSessionDate === null) {
+			const firstSessionDate = storageMainService.get(telemetryFirstSessionDate, undefined);
+			if (firstSessionDate === undefined) {
 				storageMainService.store(telemetryFirstSessionDate, new Date().toUTCString());
 			}
 
 			const telemetryCurrentSessionDate = 'telemetry.currentSessionDate';
 			const telemetryLastSessionDate = 'telemetry.lastSessionDate';
-			const lastSessionDate = storageMainService.get(telemetryCurrentSessionDate, null); // previous session date was the "current" one at that time
+			const lastSessionDate = storageMainService.get(telemetryCurrentSessionDate, undefined); // previous session date was the "current" one at that time
 			const currentSessionDate = new Date().toUTCString(); // current session date is "now"
-			storageMainService.store(telemetryLastSessionDate, lastSessionDate);
+			storageMainService.store(telemetryLastSessionDate, typeof lastSessionDate === 'undefined' ? null : lastSessionDate);
 			storageMainService.store(telemetryCurrentSessionDate, currentSessionDate);
 		});
 	}
@@ -590,7 +589,7 @@ export class CodeApplication extends Disposable {
 		// Watch Electron URLs and forward them to the UrlService
 		const args = this.environmentService.args;
 		const urls = args['open-url'] ? args._urls : [];
-		const urlListener = new ElectronURLListener(urls, urlService, this.windowsMainService);
+		const urlListener = new ElectronURLListener(urls || [], urlService, this.windowsMainService);
 		this._register(urlListener);
 
 		this.windowsMainService.ready(this.userEnv);
@@ -617,13 +616,12 @@ export class CodeApplication extends Disposable {
 		const windowsMainService = accessor.get(IWindowsMainService);
 		const historyMainService = accessor.get(IHistoryMainService);
 
-		let windowsMutex: Mutex | null = null;
 		if (isWindows) {
 
 			// Setup Windows mutex
 			try {
 				const Mutex = (require.__$__nodeRequire('windows-mutex') as any).Mutex;
-				windowsMutex = new Mutex(product.win32MutexName);
+				const windowsMutex = new Mutex(product.win32MutexName);
 				this._register(toDisposable(() => windowsMutex.release()));
 			} catch (e) {
 				if (!this.environmentService.isBuilt) {
@@ -703,14 +701,17 @@ export class CodeApplication extends Disposable {
 
 		const resolvedAuthorities = new Map<string, ResolvedAuthority>();
 		ipc.on('vscode:remoteAuthorityResolved', (event: any, data: ResolvedAuthority) => {
+			this.logService.info('Receieved resolved authority', data.authority);
 			resolvedAuthorities.set(data.authority, data);
 		});
 
 		const resolveAuthority = (authority: string): ResolvedAuthority | null => {
+			this.logService.info('Resolving authority', authority);
 			if (authority.indexOf('+') >= 0) {
 				if (resolvedAuthorities.has(authority)) {
-					return resolvedAuthorities.get(authority);
+					return resolvedAuthorities.get(authority) || null;
 				}
+				this.logService.info('Didnot find resolved authority for', authority);
 				return null;
 			} else {
 				const [host, strPort] = authority.split(':');
@@ -721,24 +722,24 @@ export class CodeApplication extends Disposable {
 
 		protocol.registerBufferProtocol(REMOTE_HOST_SCHEME, async (request, callback) => {
 			if (request.method !== 'GET') {
-				return callback(null);
+				return callback(undefined);
 			}
 			const uri = URI.parse(request.url);
 
-			let activeConnection: ActiveConnection = null;
+			let activeConnection: ActiveConnection | undefined;
 			if (connectionPool.has(uri.authority)) {
 				activeConnection = connectionPool.get(uri.authority);
 			} else {
 				let resolvedAuthority = resolveAuthority(uri.authority);
 				if (!resolvedAuthority) {
-					callback(null);
+					callback(undefined);
 					return;
 				}
 				activeConnection = new ActiveConnection(uri.authority, resolvedAuthority.host, resolvedAuthority.port);
 				connectionPool.set(uri.authority, activeConnection);
 			}
 			try {
-				const rawClient = await activeConnection.getClient();
+				const rawClient = await activeConnection!.getClient();
 				if (connectionPool.has(uri.authority)) { // not disposed in the meantime
 					const channel = rawClient.getChannel(REMOTE_FILE_SYSTEM_CHANNEL_NAME);
 
@@ -746,11 +747,11 @@ export class CodeApplication extends Disposable {
 					const fileContents = await channel.call<Uint8Array>('readFile', [uri]);
 					callback(Buffer.from(fileContents));
 				} else {
-					callback(null);
+					callback(undefined);
 				}
 			} catch (err) {
 				errors.onUnexpectedError(err);
-				callback(null);
+				callback(undefined);
 			}
 		});
 	}

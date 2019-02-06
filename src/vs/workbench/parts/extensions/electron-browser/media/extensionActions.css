@@ -34,8 +34,22 @@
 .monaco-action-bar .action-item.disabled .action-label.extension-action.extension-editor-dropdown-action,
 .monaco-action-bar .action-item.disabled .action-label.extension-action.reload,
 .monaco-action-bar .action-item.disabled .action-label.disable-status.hide,
+.monaco-action-bar .action-item.disabled .action-label.extension-status-label.hide,
 .monaco-action-bar .action-item.disabled .action-label.malicious-status.not-malicious {
 	display: none;
+}
+
+.monaco-action-bar .action-item.disabled .action-label.extension-status-label:before {
+	content: '✓';
+	padding-right: 4px;
+}
+
+.monaco-action-bar .action-item .action-label.disable-status,
+.monaco-action-bar .action-item .action-label.malicious-status,
+.monaco-action-bar .action-item.disabled .action-label.extension-status-label {
+	opacity: 0.9;
+	line-height: initial;
+	padding: 0 5px;
 }
 
 .monaco-action-bar .action-item .action-label.disable-status,
@@ -43,17 +57,16 @@
 	border-radius: 4px;
 	color: inherit;
 	background-color: transparent;
-	opacity: 0.9;
 	font-style: italic;
-	padding: 0 5px;
-	line-height: initial;
 }
 
+.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.extension-status-label,
 .extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.disable-status,
 .extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.malicious-status {
 	font-weight: normal;
 }
 
+.extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.extension-status-label:hover,
 .extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.disable-status:hover,
 .extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.malicious-status:hover {
 	opacity: 0.9;

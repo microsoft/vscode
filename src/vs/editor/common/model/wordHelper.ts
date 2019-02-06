@@ -60,10 +60,6 @@ function getWordAtPosFast(column: number, wordDefinition: RegExp, text: string, 
 
 	let pos = column - 1 - textOffset;
 	let start = text.lastIndexOf(' ', pos - 1) + 1;
-	let end = text.indexOf(' ', pos);
-	if (end === -1) {
-		end = text.length;
-	}
 
 	wordDefinition.lastIndex = start;
 	let match: RegExpMatchArray | null;

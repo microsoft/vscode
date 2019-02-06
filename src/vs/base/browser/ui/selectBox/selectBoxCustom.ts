@@ -731,7 +731,6 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 		this.selectList = new List(this.selectDropDownListContainer, this, [this.listRenderer], {
 			ariaLabel: this.selectBoxOptions.ariaLabel,
 			useShadows: false,
-			selectOnMouseDown: false,
 			verticalScrollMode: ScrollbarVisibility.Visible,
 			keyboardSupport: false,
 			mouseSupport: false

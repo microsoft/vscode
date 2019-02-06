@@ -62,8 +62,11 @@ export class ExtensionHostProfiler {
 			idsToSegmentId.set(node.id, segmentId);
 
 			if (node.children) {
-				for (let child of node.children) {
-					visit(idsToNodes.get(child), segmentId);
+				for (const child of node.children) {
+					const childNode = idsToNodes.get(child);
+					if (childNode) {
+						visit(childNode, segmentId);
+					}
 				}
 			}
 		}

@@ -36,6 +36,10 @@ export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends 
 		return this.model.setChildren(element, children, onDidCreateNode, onDidDeleteNode);
 	}
 
+	refresh(element: T): void {
+		this.model.refresh(element);
+	}
+
 	protected createModel(view: ISpliceable<ITreeNode<T, TFilterData>>, options: IObjectTreeOptions<T, TFilterData>): ITreeModel<T | null, TFilterData, T | null> {
 		return new ObjectTreeModel(view, options);
 	}

@@ -80,7 +80,7 @@ export class ExtHostWebviewPanel implements vscode.WebviewPanel {
 	private readonly _proxy: MainThreadWebviewsShape;
 	private readonly _viewType: string;
 	private _title: string;
-	private _iconPath: IconPath;
+	private _iconPath?: IconPath;
 
 	private readonly _options: vscode.WebviewPanelOptions;
 	private readonly _webview: ExtHostWebview;
@@ -171,8 +171,13 @@ export class ExtHostWebviewPanel implements vscode.WebviewPanel {
 		return this._options;
 	}
 
-	get viewColumn(): vscode.ViewColumn {
+	get viewColumn(): vscode.ViewColumn | undefined {
 		this.assertNotDisposed();
+		if (this._viewColumn < 0) {
+			// We are using a symbolic view column
+			// Return undefined instead to indicate that the real view column is currently unknown but will be resolved.
+			return undefined;
+		}
 		return this._viewColumn;
 	}
 

@@ -10,9 +10,9 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { TestLifecycleService } from 'vs/workbench/test/workbenchTestServices';
 import {
 	IExtensionManagementService, DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier,
-	IExtensionEnablementService, ILocalExtension, LocalExtensionType
+	IExtensionEnablementService, ILocalExtension
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionManagementService, getLocalExtensionIdFromManifest } from 'vs/platform/extensionManagement/node/extensionManagementService';
+import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { Emitter } from 'vs/base/common/event';
 import { TestExtensionEnablementService } from 'vs/platform/extensionManagement/test/electron-browser/extensionEnablementService.test';
 import { URLService } from 'vs/platform/url/common/urlService';
@@ -26,6 +26,8 @@ import { assign } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { lastSessionDateStorageKey } from 'vs/platform/telemetry/node/workbenchCommonProperties';
+import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 
 interface ExperimentSettings {
 	enabled?: boolean;
@@ -40,12 +42,14 @@ let experimentData: { [i: string]: any } = {
 const local = aLocalExtension('installedExtension1', { version: '1.0.0' });
 
 function aLocalExtension(name: string = 'someext', manifest: any = {}, properties: any = {}): ILocalExtension {
-	const localExtension = <ILocalExtension>Object.create({ manifest: {} });
-	assign(localExtension, { type: LocalExtensionType.User, manifest: {}, location: URI.file(`pub.${name}`) }, properties);
-	assign(localExtension.manifest, { name, publisher: 'pub', version: '1.0.0' }, manifest);
-	localExtension.identifier = { id: getLocalExtensionIdFromManifest(localExtension.manifest) };
-	localExtension.metadata = { id: localExtension.identifier.id, publisherId: localExtension.manifest.publisher, publisherDisplayName: 'somename' };
-	return localExtension;
+	manifest = assign({ name, publisher: 'pub', version: '1.0.0' }, manifest);
+	properties = assign({
+		type: ExtensionType.User,
+		location: URI.file(`pub.${name}`),
+		identifier: { id: getGalleryExtensionId(manifest.publisher, manifest.name), uuid: undefined },
+		metadata: { id: getGalleryExtensionId(manifest.publisher, manifest.name), publisherId: manifest.publisher, publisherDisplayName: 'somename' }
+	}, properties);
+	return <ILocalExtension>Object.create({ manifest, ...properties });
 }
 
 export class TestExperimentService extends ExperimentService {

@@ -12,10 +12,10 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, IActionOptions, registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import * as corePosition from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ITextModel, IWordAtPosition } from 'vs/editor/common/model';
-import { DefinitionLink, Location } from 'vs/editor/common/modes';
+import { LocationLink, Location, isLocationLink } from 'vs/editor/common/modes';
 import { MessageController } from 'vs/editor/contrib/message/messageController';
 import { PeekContext } from 'vs/editor/contrib/referenceSearch/peekViewWidget';
 import { ReferencesController } from 'vs/editor/contrib/referenceSearch/referencesController';
@@ -28,7 +28,6 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition, getDeclarationsAtPosition } from './goToDefinition';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-
 
 export class DefinitionActionConfig {
 
@@ -44,7 +43,7 @@ export class DefinitionActionConfig {
 
 export class DefinitionAction extends EditorAction {
 
-	private _configuration: DefinitionActionConfig;
+	private readonly _configuration: DefinitionActionConfig;
 
 	constructor(configuration: DefinitionActionConfig, opts: IActionOptions) {
 		super(opts);
@@ -52,6 +51,9 @@ export class DefinitionAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+		if (!editor.hasModel()) {
+			return Promise.resolve(undefined);
+		}
 		const notificationService = accessor.get(INotificationService);
 		const editorService = accessor.get(ICodeEditorService);
 		const progressService = accessor.get(IProgressService);
@@ -69,19 +71,15 @@ export class DefinitionAction extends EditorAction {
 			// * remove falsy references
 			// * find reference at the current pos
 			let idxOfCurrent = -1;
-			const result: DefinitionLink[] = [];
+			const result: LocationLink[] = [];
 			for (const reference of references) {
 				if (!reference || !reference.range) {
 					continue;
 				}
-				let { uri, range } = reference;
-				let newLen = result.push({
-					uri,
-					range
-				});
+				const newLen = result.push(reference);
 				if (this._configuration.filterCurrent
-					&& uri.toString() === model.uri.toString()
-					&& Range.containsPosition(range, pos)
+					&& reference.uri.toString() === model.uri.toString()
+					&& Range.containsPosition(reference.range, pos)
 					&& idxOfCurrent === -1
 				) {
 					idxOfCurrent = newLen - 1;
@@ -113,18 +111,18 @@ export class DefinitionAction extends EditorAction {
 		return definitionPromise;
 	}
 
-	protected _getTargetLocationForPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<DefinitionLink[]> {
+	protected _getTargetLocationForPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<LocationLink[]> {
 		return getDefinitionsAtPosition(model, position, token);
 	}
 
-	protected _getNoResultFoundMessage(info?: IWordAtPosition): string {
+	protected _getNoResultFoundMessage(info: IWordAtPosition | null): string {
 		return info && info.word
 			? nls.localize('noResultWord', "No definition found for '{0}'", info.word)
 			: nls.localize('generic.noResults', "No definition found");
 	}
 
 	protected _getMetaTitle(model: ReferencesModel): string {
-		return model.references.length > 1 && nls.localize('meta.title', " – {0} definitions", model.references.length);
+		return model.references.length > 1 ? nls.localize('meta.title', " – {0} definitions", model.references.length) : '';
 	}
 
 	private async _onResult(editorService: ICodeEditorService, editor: ICodeEditor, model: ReferencesModel): Promise<void> {
@@ -134,22 +132,34 @@ export class DefinitionAction extends EditorAction {
 
 		if (this._configuration.openInPeek) {
 			this._openInPeek(editorService, editor, model);
-		} else {
+		} else if (editor.hasModel()) {
 			const next = model.nearestReference(editor.getModel().uri, editor.getPosition());
-			const targetEditor = await this._openReference(editor, editorService, next, this._configuration.openToSide);
-			if (targetEditor && model.references.length > 1) {
-				this._openInPeek(editorService, targetEditor, model);
-			} else {
-				model.dispose();
+			if (next) {
+				const targetEditor = await this._openReference(editor, editorService, next, this._configuration.openToSide);
+				if (targetEditor && model.references.length > 1) {
+					this._openInPeek(editorService, targetEditor, model);
+				} else {
+					model.dispose();
+				}
 			}
 		}
 	}
 
-	private _openReference(editor: ICodeEditor, editorService: ICodeEditorService, reference: Location, sideBySide: boolean): Promise<ICodeEditor> {
+	private _openReference(editor: ICodeEditor, editorService: ICodeEditorService, reference: Location | LocationLink, sideBySide: boolean): Promise<ICodeEditor | null> {
+		// range is the target-selection-range when we have one
+		// and the the fallback is the 'full' range
+		let range: IRange | undefined = undefined;
+		if (isLocationLink(reference)) {
+			range = reference.targetSelectionRange;
+		}
+		if (!range) {
+			range = reference.range;
+		}
+
 		return editorService.openCodeEditor({
 			resource: reference.uri,
 			options: {
-				selection: Range.collapseToStart(reference.range),
+				selection: Range.collapseToStart(range),
 				revealIfOpened: true,
 				revealInCenterIfOutsideViewport: true
 			}
@@ -256,18 +266,18 @@ export class PeekDefinitionAction extends DefinitionAction {
 
 export class DeclarationAction extends DefinitionAction {
 
-	protected _getTargetLocationForPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<DefinitionLink[]> {
+	protected _getTargetLocationForPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<LocationLink[]> {
 		return getDeclarationsAtPosition(model, position, token);
 	}
 
-	protected _getNoResultFoundMessage(info?: IWordAtPosition): string {
+	protected _getNoResultFoundMessage(info: IWordAtPosition | null): string {
 		return info && info.word
 			? nls.localize('decl.noResultWord', "No declaration found for '{0}'", info.word)
 			: nls.localize('decl.generic.noResults', "No declaration found");
 	}
 
 	protected _getMetaTitle(model: ReferencesModel): string {
-		return model.references.length > 1 && nls.localize('decl.meta.title', " – {0} declarations", model.references.length);
+		return model.references.length > 1 ? nls.localize('decl.meta.title', " – {0} declarations", model.references.length) : '';
 	}
 }
 
@@ -290,14 +300,14 @@ export class GoToDeclarationAction extends DeclarationAction {
 		});
 	}
 
-	protected _getNoResultFoundMessage(info?: IWordAtPosition): string {
+	protected _getNoResultFoundMessage(info: IWordAtPosition | null): string {
 		return info && info.word
 			? nls.localize('decl.noResultWord', "No declaration found for '{0}'", info.word)
 			: nls.localize('decl.generic.noResults', "No declaration found");
 	}
 
 	protected _getMetaTitle(model: ReferencesModel): string {
-		return model.references.length > 1 && nls.localize('decl.meta.title', " – {0} declarations", model.references.length);
+		return model.references.length > 1 ? nls.localize('decl.meta.title', " – {0} declarations", model.references.length) : '';
 	}
 }
 
@@ -320,18 +330,18 @@ export class PeekDeclarationAction extends DeclarationAction {
 }
 
 export class ImplementationAction extends DefinitionAction {
-	protected _getTargetLocationForPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<DefinitionLink[]> {
+	protected _getTargetLocationForPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<LocationLink[]> {
 		return getImplementationsAtPosition(model, position, token);
 	}
 
-	protected _getNoResultFoundMessage(info?: IWordAtPosition): string {
+	protected _getNoResultFoundMessage(info: IWordAtPosition | null): string {
 		return info && info.word
 			? nls.localize('goToImplementation.noResultWord', "No implementation found for '{0}'", info.word)
 			: nls.localize('goToImplementation.generic.noResults', "No implementation found");
 	}
 
 	protected _getMetaTitle(model: ReferencesModel): string {
-		return model.references.length > 1 && nls.localize('meta.implementations.title', " – {0} implementations", model.references.length);
+		return model.references.length > 1 ? nls.localize('meta.implementations.title', " – {0} implementations", model.references.length) : '';
 	}
 }
 
@@ -378,18 +388,18 @@ export class PeekImplementationAction extends ImplementationAction {
 }
 
 export class TypeDefinitionAction extends DefinitionAction {
-	protected _getTargetLocationForPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<DefinitionLink[]> {
+	protected _getTargetLocationForPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<LocationLink[]> {
 		return getTypeDefinitionsAtPosition(model, position, token);
 	}
 
-	protected _getNoResultFoundMessage(info?: IWordAtPosition): string {
+	protected _getNoResultFoundMessage(info: IWordAtPosition | null): string {
 		return info && info.word
 			? nls.localize('goToTypeDefinition.noResultWord', "No type definition found for '{0}'", info.word)
 			: nls.localize('goToTypeDefinition.generic.noResults', "No type definition found");
 	}
 
 	protected _getMetaTitle(model: ReferencesModel): string {
-		return model.references.length > 1 && nls.localize('meta.typeDefinitions.title', " – {0} type definitions", model.references.length);
+		return model.references.length > 1 ? nls.localize('meta.typeDefinitions.title', " – {0} type definitions", model.references.length) : '';
 	}
 }
 
@@ -451,28 +461,28 @@ registerEditorAction(PeekTypeDefinitionAction);
 
 // Go to menu
 MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
-	group: 'z_go_to',
+	group: '4_symbol_nav',
 	command: {
 		id: 'editor.action.goToDeclaration',
 		title: nls.localize({ key: 'miGotoDefinition', comment: ['&& denotes a mnemonic'] }, "Go to &&Definition")
 	},
-	order: 4
+	order: 2
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
-	group: 'z_go_to',
+	group: '4_symbol_nav',
 	command: {
 		id: 'editor.action.goToTypeDefinition',
 		title: nls.localize({ key: 'miGotoTypeDefinition', comment: ['&& denotes a mnemonic'] }, "Go to &&Type Definition")
 	},
-	order: 5
+	order: 3
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
-	group: 'z_go_to',
+	group: '4_symbol_nav',
 	command: {
 		id: 'editor.action.goToImplementation',
 		title: nls.localize({ key: 'miGotoImplementation', comment: ['&& denotes a mnemonic'] }, "Go to &&Implementation")
 	},
-	order: 6
+	order: 4
 });

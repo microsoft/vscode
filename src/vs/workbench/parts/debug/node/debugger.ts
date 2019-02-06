@@ -289,6 +289,10 @@ export class Debugger implements IDebugger {
 				description: nls.localize('debugPostDebugTask', "Task to run after debug session ends.")
 			};
 			properties['internalConsoleOptions'] = INTERNAL_CONSOLE_OPTIONS_SCHEMA;
+			// Clear out windows, linux and osx fields to not have cycles inside the properties object
+			properties['windows'] = undefined;
+			properties['osx'] = undefined;
+			properties['linux'] = undefined;
 
 			const osProperties = objects.deepClone(properties);
 			properties['windows'] = {

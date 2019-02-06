@@ -124,7 +124,7 @@ export function isFunction(obj: any): obj is Function {
  * @returns whether the provided parameters is are JavaScript Function or not.
  */
 export function areFunctions(...objects: any[]): boolean {
-	return objects && objects.length > 0 && objects.every(isFunction);
+	return objects.length > 0 && objects.every(isFunction);
 }
 
 export type TypeConstraint = string | Function;

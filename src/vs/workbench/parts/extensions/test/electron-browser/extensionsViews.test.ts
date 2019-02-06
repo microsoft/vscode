@@ -11,11 +11,11 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
 import { ExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/node/extensionsWorkbenchService';
 import {
-	IExtensionManagementService, IExtensionGalleryService, IExtensionEnablementService, IExtensionTipsService, ILocalExtension, LocalExtensionType, IGalleryExtension, IQueryOptions,
+	IExtensionManagementService, IExtensionGalleryService, IExtensionEnablementService, IExtensionTipsService, ILocalExtension, IGalleryExtension, IQueryOptions,
 	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, IExtensionManagementServerService, IExtensionManagementServer, EnablementState, ExtensionRecommendationReason, SortBy
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { getGalleryExtensionId, getGalleryExtensionIdFromLocal } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { ExtensionManagementService, getLocalExtensionIdFromManifest } from 'vs/platform/extensionManagement/node/extensionManagementService';
+import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionTipsService } from 'vs/workbench/parts/extensions/electron-browser/extensionTipsService';
 import { TestExtensionEnablementService } from 'vs/platform/extensionManagement/test/electron-browser/extensionEnablementService.test';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
@@ -38,7 +38,7 @@ import { IExperimentService, ExperimentService, ExperimentState, ExperimentActio
 import { IRemoteAgentService } from 'vs/workbench/services/remote/node/remoteAgentService';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import { ExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, ExtensionType } from 'vs/platform/extensions/common/extensions';
 
 
 suite('ExtensionsListView Tests', () => {
@@ -55,8 +55,8 @@ suite('ExtensionsListView Tests', () => {
 	const localDisabledTheme = aLocalExtension('first-disabled-extension', { categories: ['themes'] });
 	const localDisabledLanguage = aLocalExtension('second-disabled-extension', { categories: ['programming languages'] });
 	const localRandom = aLocalExtension('random-enabled-extension', { categories: ['random'] });
-	const builtInTheme = aLocalExtension('my-theme', { contributes: { themes: ['my-theme'] } }, {}, LocalExtensionType.System);
-	const builtInBasic = aLocalExtension('my-lang', { contributes: { grammars: [{ language: 'my-language' }] } }, {}, LocalExtensionType.System);
+	const builtInTheme = aLocalExtension('my-theme', { contributes: { themes: ['my-theme'] } }, { type: ExtensionType.System });
+	const builtInBasic = aLocalExtension('my-lang', { contributes: { grammars: [{ language: 'my-language' }] } }, { type: ExtensionType.System });
 
 	const workspaceRecommendationA = aGalleryExtension('workspace-recommendation-A');
 	const workspaceRecommendationB = aGalleryExtension('workspace-recommendation-B');
@@ -124,16 +124,16 @@ suite('ExtensionsListView Tests', () => {
 		instantiationService.stub(IExtensionService, {
 			getExtensions: () => {
 				return Promise.resolve([
-					{ identifier: new ExtensionIdentifier(localEnabledTheme.galleryIdentifier.id) },
-					{ identifier: new ExtensionIdentifier(localEnabledLanguage.galleryIdentifier.id) },
-					{ identifier: new ExtensionIdentifier(localRandom.galleryIdentifier.id) },
-					{ identifier: new ExtensionIdentifier(builtInTheme.galleryIdentifier.id) },
-					{ identifier: new ExtensionIdentifier(builtInBasic.galleryIdentifier.id) }
+					{ identifier: new ExtensionIdentifier(localEnabledTheme.identifier.id) },
+					{ identifier: new ExtensionIdentifier(localEnabledLanguage.identifier.id) },
+					{ identifier: new ExtensionIdentifier(localRandom.identifier.id) },
+					{ identifier: new ExtensionIdentifier(builtInTheme.identifier.id) },
+					{ identifier: new ExtensionIdentifier(builtInBasic.identifier.id) }
 				]);
 			}
 		});
-		await (<TestExtensionEnablementService>instantiationService.get(IExtensionEnablementService)).setEnablement(localDisabledTheme, EnablementState.Disabled);
-		await (<TestExtensionEnablementService>instantiationService.get(IExtensionEnablementService)).setEnablement(localDisabledLanguage, EnablementState.Disabled);
+		await (<TestExtensionEnablementService>instantiationService.get(IExtensionEnablementService)).setEnablement([localDisabledTheme], EnablementState.Disabled);
+		await (<TestExtensionEnablementService>instantiationService.get(IExtensionEnablementService)).setEnablement([localDisabledLanguage], EnablementState.Disabled);
 
 		instantiationService.set(IExtensionsWorkbenchService, instantiationService.createInstance(ExtensionsWorkbenchService));
 		testableView = instantiationService.createInstance(ExtensionsListView, {});
@@ -498,14 +498,15 @@ suite('ExtensionsListView Tests', () => {
 		});
 	});
 
-	function aLocalExtension(name: string = 'someext', manifest: any = {}, properties: any = {}, type: LocalExtensionType = LocalExtensionType.User): ILocalExtension {
-		const localExtension = <ILocalExtension>Object.create({ manifest: {} });
-		assign(localExtension, { type, manifest: {}, location: URI.file(`pub.${name}`) }, properties);
-		assign(localExtension.manifest, { name, publisher: 'pub', version: '1.0.0' }, manifest);
-		localExtension.identifier = { id: getLocalExtensionIdFromManifest(localExtension.manifest) };
-		localExtension.metadata = { id: localExtension.identifier.id, publisherId: localExtension.manifest.publisher, publisherDisplayName: 'somename' };
-		localExtension.galleryIdentifier = { id: getGalleryExtensionIdFromLocal(localExtension), uuid: undefined };
-		return localExtension;
+	function aLocalExtension(name: string = 'someext', manifest: any = {}, properties: any = {}): ILocalExtension {
+		manifest = assign({ name, publisher: 'pub', version: '1.0.0' }, manifest);
+		properties = assign({
+			type: ExtensionType.User,
+			location: URI.file(`pub.${name}`),
+			identifier: { id: getGalleryExtensionId(manifest.publisher, manifest.name), uuid: undefined },
+			metadata: { id: getGalleryExtensionId(manifest.publisher, manifest.name), publisherId: manifest.publisher, publisherDisplayName: 'somename' }
+		}, properties);
+		return <ILocalExtension>Object.create({ manifest, ...properties });
 	}
 
 	function aGalleryExtension(name: string, properties: any = {}, galleryExtensionProperties: any = {}, assets: any = {}): IGalleryExtension {

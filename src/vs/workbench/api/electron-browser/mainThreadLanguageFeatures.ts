@@ -69,17 +69,17 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		}
 	}
 
-	private static _reviveDefinitionLinkDto(data: DefinitionLinkDto): modes.DefinitionLink;
-	private static _reviveDefinitionLinkDto(data: DefinitionLinkDto[]): modes.DefinitionLink[];
-	private static _reviveDefinitionLinkDto(data: DefinitionLinkDto | DefinitionLinkDto[]): modes.DefinitionLink | modes.DefinitionLink[] {
+	private static _reviveLocationLinkDto(data: DefinitionLinkDto): modes.LocationLink;
+	private static _reviveLocationLinkDto(data: DefinitionLinkDto[]): modes.LocationLink[];
+	private static _reviveLocationLinkDto(data: DefinitionLinkDto | DefinitionLinkDto[]): modes.LocationLink | modes.LocationLink[] {
 		if (!data) {
-			return <modes.DefinitionLink>data;
+			return <modes.LocationLink>data;
 		} else if (Array.isArray(data)) {
-			data.forEach(l => MainThreadLanguageFeatures._reviveDefinitionLinkDto(l));
-			return <modes.DefinitionLink[]>data;
+			data.forEach(l => MainThreadLanguageFeatures._reviveLocationLinkDto(l));
+			return <modes.LocationLink[]>data;
 		} else {
 			data.uri = URI.revive(data.uri);
-			return <modes.DefinitionLink>data;
+			return <modes.LocationLink>data;
 		}
 	}
 
@@ -108,7 +108,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	// --- outline
 
-	$registerOutlineSupport(handle: number, selector: ISerializedDocumentFilter[], displayName: string): void {
+	$registerDocumentSymbolProvider(handle: number, selector: ISerializedDocumentFilter[], displayName: string): void {
 		this._registrations[handle] = modes.DocumentSymbolProviderRegistry.register(typeConverters.LanguageSelector.from(selector), <modes.DocumentSymbolProvider>{
 			displayName,
 			provideDocumentSymbols: (model: ITextModel, token: CancellationToken): Promise<modes.DocumentSymbol[]> => {
@@ -150,8 +150,8 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	$registerDefinitionSupport(handle: number, selector: ISerializedDocumentFilter[]): void {
 		this._registrations[handle] = modes.DefinitionProviderRegistry.register(typeConverters.LanguageSelector.from(selector), <modes.DefinitionProvider>{
-			provideDefinition: (model, position, token): Promise<modes.DefinitionLink[]> => {
-				return this._proxy.$provideDefinition(handle, model.uri, position, token).then(MainThreadLanguageFeatures._reviveDefinitionLinkDto);
+			provideDefinition: (model, position, token): Promise<modes.LocationLink[]> => {
+				return this._proxy.$provideDefinition(handle, model.uri, position, token).then(MainThreadLanguageFeatures._reviveLocationLinkDto);
 			}
 		});
 	}
@@ -159,23 +159,23 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	$registerDeclarationSupport(handle: number, selector: ISerializedDocumentFilter[]): void {
 		this._registrations[handle] = modes.DeclarationProviderRegistry.register(typeConverters.LanguageSelector.from(selector), <modes.DeclarationProvider>{
 			provideDeclaration: (model, position, token) => {
-				return this._proxy.$provideDeclaration(handle, model.uri, position, token).then(MainThreadLanguageFeatures._reviveDefinitionLinkDto);
+				return this._proxy.$provideDeclaration(handle, model.uri, position, token).then(MainThreadLanguageFeatures._reviveLocationLinkDto);
 			}
 		});
 	}
 
 	$registerImplementationSupport(handle: number, selector: ISerializedDocumentFilter[]): void {
 		this._registrations[handle] = modes.ImplementationProviderRegistry.register(typeConverters.LanguageSelector.from(selector), <modes.ImplementationProvider>{
-			provideImplementation: (model, position, token): Promise<modes.Definition> => {
-				return this._proxy.$provideImplementation(handle, model.uri, position, token).then(MainThreadLanguageFeatures._reviveDefinitionLinkDto);
+			provideImplementation: (model, position, token): Promise<modes.LocationLink[]> => {
+				return this._proxy.$provideImplementation(handle, model.uri, position, token).then(MainThreadLanguageFeatures._reviveLocationLinkDto);
 			}
 		});
 	}
 
 	$registerTypeDefinitionSupport(handle: number, selector: ISerializedDocumentFilter[]): void {
 		this._registrations[handle] = modes.TypeDefinitionProviderRegistry.register(typeConverters.LanguageSelector.from(selector), <modes.TypeDefinitionProvider>{
-			provideTypeDefinition: (model, position, token): Promise<modes.Definition> => {
-				return this._proxy.$provideTypeDefinition(handle, model.uri, position, token).then(MainThreadLanguageFeatures._reviveDefinitionLinkDto);
+			provideTypeDefinition: (model, position, token): Promise<modes.LocationLink[]> => {
+				return this._proxy.$provideTypeDefinition(handle, model.uri, position, token).then(MainThreadLanguageFeatures._reviveLocationLinkDto);
 			}
 		});
 	}
@@ -223,16 +223,18 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	// --- formatting
 
-	$registerDocumentFormattingSupport(handle: number, selector: ISerializedDocumentFilter[]): void {
+	$registerDocumentFormattingSupport(handle: number, selector: ISerializedDocumentFilter[], displayName: string): void {
 		this._registrations[handle] = modes.DocumentFormattingEditProviderRegistry.register(typeConverters.LanguageSelector.from(selector), <modes.DocumentFormattingEditProvider>{
+			displayName,
 			provideDocumentFormattingEdits: (model: ITextModel, options: modes.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[]> => {
 				return this._proxy.$provideDocumentFormattingEdits(handle, model.uri, options, token);
 			}
 		});
 	}
 
-	$registerRangeFormattingSupport(handle: number, selector: ISerializedDocumentFilter[]): void {
+	$registerRangeFormattingSupport(handle: number, selector: ISerializedDocumentFilter[], displayName: string): void {
 		this._registrations[handle] = modes.DocumentRangeFormattingEditProviderRegistry.register(typeConverters.LanguageSelector.from(selector), <modes.DocumentRangeFormattingEditProvider>{
+			displayName,
 			provideDocumentRangeFormattingEdits: (model: ITextModel, range: EditorRange, options: modes.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[]> => {
 				return this._proxy.$provideDocumentRangeFormattingEdits(handle, model.uri, range, options, token);
 			}

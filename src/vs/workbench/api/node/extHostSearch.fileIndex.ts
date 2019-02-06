@@ -347,7 +347,7 @@ export class FileIndexSearchManager {
 			this.folderCacheKeys.set(config.cacheKey!, new Set());
 		}
 
-		this.folderCacheKeys.get(config.cacheKey!).add(folderCacheKey!);
+		this.folderCacheKeys.get(config.cacheKey!)!.add(folderCacheKey!);
 
 		return folderCacheKey!;
 	}
@@ -553,11 +553,11 @@ export class FileIndexSearchManager {
 	}
 
 	public clearCache(cacheKey: string): void {
-		if (!this.folderCacheKeys.has(cacheKey)) {
+		const expandedKeys = this.folderCacheKeys.get(cacheKey);
+		if (!expandedKeys) {
 			return undefined;
 		}
 
-		const expandedKeys = this.folderCacheKeys.get(cacheKey);
 		expandedKeys.forEach(key => delete this.caches[key]);
 
 		this.folderCacheKeys.delete(cacheKey);
@@ -575,6 +575,9 @@ export class FileIndexSearchManager {
 			}
 			catch(reject?) {
 				return this.then(undefined, reject);
+			}
+			finally(onFinally) {
+				return promise.finally(onFinally);
 			}
 		};
 	}

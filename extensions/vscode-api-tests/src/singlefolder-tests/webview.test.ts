@@ -307,6 +307,38 @@ suite('Webview tests', () => {
 			assert.strictEqual((await response).value, false);
 		}
 	});
+
+	test('webviews should have real view column after they are created, #56097', async () => {
+		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.Active }, { enableScripts: true }));
+
+		// Since we used a symbolic column, we don't know what view column the webview will actually show in at first
+		assert.strictEqual(webview.viewColumn, undefined);
+
+		let changed = false;
+		const viewStateChanged = new Promise<vscode.WebviewPanelOnDidChangeViewStateEvent>((resolve) => {
+			webview.onDidChangeViewState(e => {
+				if (changed) {
+					throw new Error('Only expected a single view state change');
+				}
+				changed = true;
+				resolve(e);
+			}, undefined, disposables);
+		});
+
+		assert.strictEqual((await viewStateChanged).webviewPanel.viewColumn, vscode.ViewColumn.One);
+
+		const firstResponse = getMesssage(webview);
+		webview.webview.html = createHtmlDocumentWithBody(/*html*/`
+			<script>
+				const vscode = acquireVsCodeApi();
+				vscode.postMessage({  });
+			</script>`);
+
+		webview.webview.postMessage({ value: 1 });
+		await firstResponse;
+		assert.strictEqual(webview.viewColumn, vscode.ViewColumn.One);
+
+	});
 });
 
 function createHtmlDocumentWithBody(body: string): string {

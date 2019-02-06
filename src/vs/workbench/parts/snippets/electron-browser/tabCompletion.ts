@@ -78,6 +78,10 @@ export class TabCompletionController implements editorCommon.IEditorContribution
 		// reset first
 		this._activeSnippets = [];
 
+		if (!this._editor.hasModel()) {
+			return;
+		}
+
 		// lots of dance for getting the
 		const selection = this._editor.getSelection();
 		const model = this._editor.getModel();
@@ -118,6 +122,9 @@ export class TabCompletionController implements editorCommon.IEditorContribution
 	}
 
 	performSnippetCompletions(): void {
+		if (!this._editor.hasModel()) {
+			return;
+		}
 
 		if (this._activeSnippets.length === 1) {
 			// one -> just insert
@@ -126,8 +133,8 @@ export class TabCompletionController implements editorCommon.IEditorContribution
 
 		} else if (this._activeSnippets.length > 1) {
 			// two or more -> show IntelliSense box
+			const position = this._editor.getPosition();
 			showSimpleSuggestions(this._editor, this._activeSnippets.map(snippet => {
-				const position = this._editor.getPosition();
 				const range = Range.fromPositions(position.delta(0, -snippet.prefix.length), position);
 				return new SnippetCompletion(snippet, range);
 			}));

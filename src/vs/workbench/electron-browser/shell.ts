@@ -74,7 +74,7 @@ import { IBroadcastService, BroadcastService } from 'vs/platform/broadcast/elect
 import { HashService } from 'vs/workbench/services/hash/node/hashService';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 import { StorageService } from 'vs/platform/storage/node/storageService';
 import { Event, Emitter } from 'vs/base/common/event';
 import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
@@ -96,7 +96,7 @@ import { SearchHistoryService } from 'vs/workbench/services/search/node/searchHi
 import { ExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 import { LogLevelSetterChannel } from 'vs/platform/log/node/logIpc';
-import { ILabelService, LabelService } from 'vs/platform/label/common/label';
+import { ILabelService } from 'vs/platform/label/common/label';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadService } from 'vs/platform/download/node/downloadService';
 import { DownloadServiceChannel } from 'vs/platform/download/node/downloadIpc';
@@ -106,6 +106,7 @@ import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remot
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-browser/remoteAuthorityResolverService';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
 import { MarkerDecorationsService } from 'vs/editor/common/services/markerDecorationsServiceImpl';
+import { LabelService } from 'vs/workbench/services/label/common/labelService';
 
 /**
  * Services that we require for the Shell
@@ -122,7 +123,7 @@ export interface ICoreServices {
  * The workbench shell contains the workbench with a rich header containing navigation and the activity bar.
  * With the Shell being the top level element in the page, it is also responsible for driving the layouting.
  */
-export class WorkbenchShell extends Disposable {
+export class Shell extends Disposable {
 
 	private readonly _onWillShutdown = this._register(new Emitter<WillShutdownEvent>());
 	get onWillShutdown(): Event<WillShutdownEvent> { return this._onWillShutdown.event; }
@@ -214,11 +215,6 @@ export class WorkbenchShell extends Disposable {
 
 				// Startup Telemetry
 				this.logStartupTelemetry(startupInfos);
-
-				// Storage Telemetry (TODO@Ben remove me later, including storage errors)
-				if (!this.environmentService.extensionTestsPath) {
-					this.logStorageTelemetry();
-				}
 			}, error => handleStartupError(this.logService, error));
 
 			return workbench;
@@ -272,124 +268,6 @@ export class WorkbenchShell extends Disposable {
 		perf.mark('didStartWorkbench');
 	}
 
-	private logStorageTelemetry(): void {
-		const initialStartup = !!this.configuration.isInitialStartup;
-
-		const appReadyDuration = initialStartup ? perf.getDuration('main:started', 'main:appReady') : 0;
-		const workbenchReadyDuration = perf.getDuration(initialStartup ? 'main:started' : 'main:loadWindow', 'didStartWorkbench');
-		const workspaceStorageRequireDuration = perf.getDuration('willRequireSQLite', 'didRequireSQLite');
-		const workspaceStorageSchemaDuration = perf.getDuration('willSetupSQLiteSchema', 'didSetupSQLiteSchema');
-		const globalStorageInitDurationMain = perf.getDuration('main:willInitGlobalStorage', 'main:didInitGlobalStorage');
-		const globalStorageInitDuratioRenderer = perf.getDuration('willInitGlobalStorage', 'didInitGlobalStorage');
-		const workspaceStorageInitDuration = perf.getDuration('willInitWorkspaceStorage', 'didInitWorkspaceStorage');
-		const workbenchLoadDuration = perf.getDuration('willLoadWorkbenchMain', 'didLoadWorkbenchMain');
-
-		// Handle errors (avoid duplicates to reduce spam)
-		const loggedStorageErrors = new Set<string>();
-		this._register(this.storageService.onWorkspaceStorageError(error => {
-			const errorStr = `${error}`;
-
-			if (!loggedStorageErrors.has(errorStr)) {
-				loggedStorageErrors.add(errorStr);
-
-				/* __GDPR__
-					"sqliteStorageError5" : {
-						"appReadyTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"workbenchReadyTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"workspaceRequireTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"workspaceSchemaTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"globalReadTimeMain" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"globalReadTimeRenderer" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"workspaceReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"workbenchRequireTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"workspaceKeys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"startupKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"storageError": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-					}
-				*/
-
-				/* __GDPR__
-					"sqliteStorageError<NUMBER>" : {
-						"appReadyTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"workbenchReadyTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"workspaceRequireTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"workspaceSchemaTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"globalReadTimeMain" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"globalReadTimeRenderer" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"workspaceReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"workbenchRequireTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"workspaceKeys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"startupKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"storageError": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-					}
-				*/
-				this.telemetryService.publicLog('sqliteStorageError5', {
-					'appReadyTime': appReadyDuration,
-					'workbenchReadyTime': workbenchReadyDuration,
-					'workspaceRequireTime': workspaceStorageRequireDuration,
-					'workspaceSchemaTime': workspaceStorageSchemaDuration,
-					'globalReadTimeMain': globalStorageInitDurationMain,
-					'globalReadTimeRenderer': globalStorageInitDuratioRenderer,
-					'workspaceReadTime': workspaceStorageInitDuration,
-					'workbenchRequireTime': workbenchLoadDuration,
-					'workspaceKeys': this.storageService.getSize(StorageScope.WORKSPACE),
-					'startupKind': this.lifecycleService.startupKind,
-					'storageError': errorStr
-				});
-			}
-		}));
-
-
-		if (this.storageService.hasErrors) {
-			return; // do not log performance numbers when errors occured
-		}
-
-		if (this.environmentService.verbose) {
-			return; // do not log when running in verbose mode
-		}
-
-		/* __GDPR__
-			"sqliteStorageTimers5" : {
-				"appReadyTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"workbenchReadyTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"workspaceRequireTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"workspaceSchemaTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"globalReadTimeMain" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"globalReadTimeRenderer" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"workspaceReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"workbenchRequireTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"workspaceKeys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"startupKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-			}
-		*/
-
-		/* __GDPR__
-			"sqliteStorageTimers<NUMBER>" : {
-				"appReadyTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"workbenchReadyTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"workspaceRequireTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"workspaceSchemaTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"globalReadTimeMain" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"globalReadTimeRenderer" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"workspaceReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"workbenchRequireTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"workspaceKeys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"startupKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-			}
-		*/
-		this.telemetryService.publicLog('sqliteStorageTimers5', {
-			'appReadyTime': appReadyDuration,
-			'workbenchReadyTime': workbenchReadyDuration,
-			'workspaceRequireTime': workspaceStorageRequireDuration,
-			'workspaceSchemaTime': workspaceStorageSchemaDuration,
-			'globalReadTimeMain': globalStorageInitDurationMain,
-			'globalReadTimeRenderer': globalStorageInitDuratioRenderer,
-			'workspaceReadTime': workspaceStorageInitDuration,
-			'workbenchRequireTime': workbenchLoadDuration,
-			'workspaceKeys': this.storageService.getSize(StorageScope.WORKSPACE),
-			'startupKind': this.lifecycleService.startupKind
-		});
-	}
 
 	private initServiceCollection(container: HTMLElement): [IInstantiationService, ServiceCollection] {
 		const serviceCollection = new ServiceCollection();
@@ -415,11 +293,12 @@ export class WorkbenchShell extends Disposable {
 		serviceCollection.set(IWindowService, new SyncDescriptor(WindowService, [this.configuration.windowId, this.configuration]));
 
 		const sharedProcess = (<IWindowsService>serviceCollection.get(IWindowsService)).whenSharedProcessReady()
-			.then(() => connectNet(this.environmentService.sharedIPCHandle, `window:${this.configuration.windowId}`));
+			.then(() => connectNet(this.environmentService.sharedIPCHandle, `window:${this.configuration.windowId}`))
+			.then(client => {
+				client.registerChannel('dialog', instantiationService.createInstance(DialogChannel));
 
-		sharedProcess.then(client => {
-			client.registerChannel('dialog', instantiationService.createInstance(DialogChannel));
-		});
+				return client;
+			});
 
 		// Hash
 		serviceCollection.set(IHashService, new SyncDescriptor(HashService, undefined, true));
@@ -489,7 +368,6 @@ export class WorkbenchShell extends Disposable {
 		serviceCollection.set(ICommandService, new SyncDescriptor(CommandService, undefined, true));
 
 		serviceCollection.set(IMarkerService, new SyncDescriptor(MarkerService, undefined, true));
-
 
 		serviceCollection.set(IModeService, new SyncDescriptor(WorkbenchModeServiceImpl));
 

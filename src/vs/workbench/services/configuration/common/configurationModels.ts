@@ -202,7 +202,11 @@ export class Configuration extends BaseConfiguration {
 			// Do not remove workspace configuration
 			return new ConfigurationChangeEvent();
 		}
-		const keys = this.folders.get(folder).keys;
+		const folderConfig = this.folders.get(folder);
+		if (!folderConfig) {
+			throw new Error('Unknown folder');
+		}
+		const keys = folderConfig.keys;
 		super.deleteFolderConfiguration(folder);
 		return new ConfigurationChangeEvent().change(keys, folder);
 	}
