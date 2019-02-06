@@ -1210,7 +1210,7 @@ export class Workbench extends Disposable implements IPartService {
 
 	//#region IPartService
 
-	private _onTitleBarVisibilityChange: Emitter<void> = this._register(new Emitter<void>());
+	private readonly _onTitleBarVisibilityChange: Emitter<void> = this._register(new Emitter<void>());
 	get onTitleBarVisibilityChange(): Event<void> { return this._onTitleBarVisibilityChange.event; }
 
 	get onEditorLayout(): Event<IDimension> { return this.editorPart.onDidLayout; }
