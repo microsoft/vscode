@@ -59,14 +59,19 @@ export class MarkdownEngine {
 	public constructor(
 		private readonly contributionProvider: MarkdownContributionProvider,
 		private readonly slugifier: Slugifier,
-	) { }
+	) {
+		contributionProvider.onContributionsChanged(() => {
+			// Markdown plugin contributions may have changed
+			this.md = undefined;
+		});
+	}
 
 	private async getEngine(config: MarkdownItConfig): Promise<MarkdownIt> {
 		if (!this.md) {
 			this.md = import('markdown-it').then(async markdownIt => {
 				let md: MarkdownIt = markdownIt(await getMarkdownOptions(() => md));
 
-				for (const plugin of this.contributionProvider.contributions.markdownItPlugins) {
+				for (const plugin of this.contributionProvider.contributions.markdownItPlugins.values()) {
 					try {
 						md = (await plugin)(md);
 					} catch {

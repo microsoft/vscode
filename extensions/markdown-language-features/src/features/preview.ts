@@ -161,6 +161,10 @@ export class MarkdownPreview extends Disposable {
 			this._onDidChangeViewStateEmitter.fire(e);
 		}, null, this._disposables);
 
+		_contributionProvider.onContributionsChanged(() => {
+			setImmediate(() => this.refresh());
+		}, null, this._disposables);
+
 		this.editor.webview.onDidReceiveMessage((e: CacheImageSizesMessage | RevealLineMessage | DidClickMessage | ClickLinkMessage | ShowPreviewSecuritySelectorMessage | PreviewStyleLoadErrorMessage) => {
 			if (e.source !== this._resource.toString()) {
 				return;
