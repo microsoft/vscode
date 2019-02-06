@@ -61,19 +61,22 @@ export class DataTree<TInput, T, TFilterData = void> extends AbstractTree<T | nu
 
 		const isCollapsed = (element: T) => {
 			const id = this.identityProvider!.getId(element).toString();
-
-			if (viewState.focus.indexOf(id) > -1) {
-				focus.push(element);
-			}
-
-			if (viewState.selection.indexOf(id) > -1) {
-				selection.push(element);
-			}
-
 			return viewState.expanded.indexOf(id) === -1;
 		};
 
-		this._refresh(input, isCollapsed);
+		const onDidCreateNode = (node: ITreeNode<T, TFilterData>) => {
+			const id = this.identityProvider!.getId(node.element).toString();
+
+			if (viewState.focus.indexOf(id) > -1) {
+				focus.push(node.element);
+			}
+
+			if (viewState.selection.indexOf(id) > -1) {
+				selection.push(node.element);
+			}
+		};
+
+		this._refresh(input, isCollapsed, onDidCreateNode);
 		this.setFocus(focus);
 		this.setSelection(selection);
 	}
@@ -94,8 +97,8 @@ export class DataTree<TInput, T, TFilterData = void> extends AbstractTree<T | nu
 
 	// Implementation
 
-	private _refresh(element: TInput | T, isCollapsed?: (el: T) => boolean): void {
-		this.model.setChildren((element === this.input ? null : element) as T, this.iterate(element, isCollapsed).elements);
+	private _refresh(element: TInput | T, isCollapsed?: (el: T) => boolean, onDidCreateNode?: (node: ITreeNode<T, TFilterData>) => void): void {
+		this.model.setChildren((element === this.input ? null : element) as T, this.iterate(element, isCollapsed).elements, onDidCreateNode);
 	}
 
 	private iterate(element: TInput | T, isCollapsed?: (el: T) => boolean): { elements: Iterator<ITreeElement<T>>, size: number } {
