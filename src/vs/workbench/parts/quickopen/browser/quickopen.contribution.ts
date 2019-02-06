@@ -86,7 +86,7 @@ Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpen
 		GotoLineHandler,
 		GotoLineHandler.ID,
 		GOTO_LINE_PREFIX,
-		null,
+		undefined,
 		[
 			{
 				prefix: GOTO_LINE_PREFIX,
@@ -123,7 +123,7 @@ Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpen
 		HelpHandler,
 		HelpHandler.ID,
 		HELP_PREFIX,
-		null,
+		undefined,
 		nls.localize('helpDescription', "Show Help")
 	)
 );
