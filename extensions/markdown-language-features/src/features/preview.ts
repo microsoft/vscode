@@ -8,7 +8,7 @@ import * as path from 'path';
 
 import { Logger } from '../logger';
 import { MarkdownContentProvider } from './previewContentProvider';
-import { disposeAll } from '../util/dispose';
+import { Disposable } from '../util/dispose';
 
 import * as nls from 'vscode-nls';
 import { getVisibleLine, MarkdownFileTopmostLineMonitor } from '../util/topmostLineMonitor';
@@ -60,7 +60,7 @@ interface PreviewStyleLoadErrorMessage extends WebviewMessage {
 	};
 }
 
-export class MarkdownPreview {
+export class MarkdownPreview extends Disposable {
 
 	public static viewType = 'markdown.preview';
 
@@ -70,7 +70,6 @@ export class MarkdownPreview {
 	private readonly editor: vscode.WebviewPanel;
 	private throttleTimer: any;
 	private line: number | undefined = undefined;
-	private readonly disposables: vscode.Disposable[] = [];
 	private firstUpdate = true;
 	private currentVersion?: { resource: vscode.Uri, version: number };
 	private forceUpdate = false;
@@ -149,17 +148,18 @@ export class MarkdownPreview {
 		topmostLineMonitor: MarkdownFileTopmostLineMonitor,
 		private readonly _contributionProvider: MarkdownContributionProvider,
 	) {
+		super();
 		this._resource = resource;
 		this._locked = locked;
 		this.editor = webview;
 
 		this.editor.onDidDispose(() => {
 			this.dispose();
-		}, null, this.disposables);
+		}, null, this._disposables);
 
 		this.editor.onDidChangeViewState(e => {
 			this._onDidChangeViewStateEmitter.fire(e);
-		}, null, this.disposables);
+		}, null, this._disposables);
 
 		this.editor.webview.onDidReceiveMessage((e: CacheImageSizesMessage | RevealLineMessage | DidClickMessage | ClickLinkMessage | ShowPreviewSecuritySelectorMessage | PreviewStyleLoadErrorMessage) => {
 			if (e.source !== this._resource.toString()) {
@@ -191,19 +191,19 @@ export class MarkdownPreview {
 					vscode.window.showWarningMessage(localize('onPreviewStyleLoadError', "Could not load 'markdown.styles': {0}", e.body.unloadedStyles.join(', ')));
 					break;
 			}
-		}, null, this.disposables);
+		}, null, this._disposables);
 
 		vscode.workspace.onDidChangeTextDocument(event => {
 			if (this.isPreviewOf(event.document.uri)) {
 				this.refresh();
 			}
-		}, null, this.disposables);
+		}, null, this._disposables);
 
 		topmostLineMonitor.onDidChangeTopmostLine(event => {
 			if (this.isPreviewOf(event.resource)) {
 				this.updateForView(event.resource, event.line);
 			}
-		}, null, this.disposables);
+		}, null, this._disposables);
 
 		vscode.window.onDidChangeTextEditorSelection(event => {
 			if (this.isPreviewOf(event.textEditor.document.uri)) {
@@ -213,13 +213,13 @@ export class MarkdownPreview {
 					source: this.resource.toString()
 				});
 			}
-		}, null, this.disposables);
+		}, null, this._disposables);
 
 		vscode.window.onDidChangeActiveTextEditor(editor => {
 			if (editor && isMarkdownFile(editor.document) && !this._locked) {
 				this.update(editor.document.uri);
 			}
-		}, null, this.disposables);
+		}, null, this._disposables);
 	}
 
 	private readonly _onDisposeEmitter = new vscode.EventEmitter<void>();
@@ -242,18 +242,17 @@ export class MarkdownPreview {
 	}
 
 	public dispose() {
+		super.dispose();
 		if (this._disposed) {
 			return;
 		}
 
 		this._disposed = true;
 		this._onDisposeEmitter.fire();
-
 		this._onDisposeEmitter.dispose();
+
 		this._onDidChangeViewStateEmitter.dispose();
 		this.editor.dispose();
-
-		disposeAll(this.disposables);
 	}
 
 	public update(resource: vscode.Uri) {
