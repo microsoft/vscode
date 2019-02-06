@@ -48,9 +48,6 @@ var editorResources = [
 	'!**/test/**'
 ];
 
-var editorOtherSources = [
-];
-
 var BUNDLED_FILE_HEADER = [
 	'/*!-----------------------------------------------------------',
 	' * Copyright (c) Microsoft Corporation. All rights reserved.',
@@ -107,7 +104,6 @@ compileEditorAMDTask.displayName = 'compile-editor-amd';
 const optimizeEditorAMDTask = common.optimizeTask({
 	src: 'out-editor-build',
 	entryPoints: editorEntryPoints,
-	otherSources: editorOtherSources,
 	resources: editorResources,
 	loaderConfig: {
 		paths: {
