@@ -93,7 +93,7 @@ export class KeybindingsEditorModel extends EditorModel {
 	fetch(searchValue: string, sortByPrecedence: boolean = false): IKeybindingItemEntry[] {
 		let keybindingItems = sortByPrecedence ? this._keybindingItemsSortedByPrecedence : this._keybindingItems;
 
-		const sourceRegex = /(@user)|(@default)|(@source:\s*"(.+?)"\s?)|(@source:\s*([\S]+)\s?)/i;
+		const sourceRegex = /(@user)|(@default)|(@extension)|(@source:\s*"(.+?)"\s?)|(@source:\s*([\S]+)\s?)/i;
 		if (sourceRegex.test(searchValue)) {
 			keybindingItems = this.filterBySource(keybindingItems, searchValue);
 			searchValue = searchValue.replace(sourceRegex, '');
@@ -113,6 +113,9 @@ export class KeybindingsEditorModel extends EditorModel {
 		}
 		if (/@user/i.test(searchValue)) {
 			return keybindingItems.filter(k => k.source === SOURCE_USER);
+		}
+		if (/@extension/i.test(searchValue)) {
+			return keybindingItems.filter(k => k.source !== SOURCE_USER && k.source !== SOURCE_DEFAULT);
 		}
 		const quotesRegex = /@source:\s*"(.+?)"\s?/i;
 		if (quotesRegex.test(searchValue)) {
