@@ -387,6 +387,7 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 			this._instantiationService.createInstance(FileDataSource),
 			{
 				filterOnType: true,
+				multipleSelectionSupport: false,
 				sorter: new FileSorter(),
 				filter: this._instantiationService.createInstance(FileFilter),
 				identityProvider: new FileIdentityProvider(),
@@ -459,6 +460,7 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 			{
 				filterOnType: true,
 				expandOnlyOnTwistieClick: true,
+				multipleSelectionSupport: false,
 				sorter: new OutlineItemComparator(this._getOutlineItemCompareType()),
 				identityProvider: new OutlineIdentityProvider(),
 				keyboardNavigationLabelProvider: this._instantiationService.createInstance(OutlineNavigationLabelProvider)
