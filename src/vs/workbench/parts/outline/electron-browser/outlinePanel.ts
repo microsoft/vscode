@@ -311,7 +311,7 @@ export class OutlinePanel extends ViewletPanel {
 				expandOnlyOnTwistieClick: true,
 				multipleSelectionSupport: false,
 				filterOnType: this._outlineViewState.filterOnType,
-				sorter: new OutlineItemComparator(),
+				sorter: this._treeComparator,
 				identityProvider: new OutlineIdentityProvider(),
 				keyboardNavigationLabelProvider: this._instantiationService.createInstance(OutlineNavigationLabelProvider)
 			}
@@ -378,7 +378,6 @@ export class OutlinePanel extends ViewletPanel {
 		if (e.sortBy) {
 			this._treeComparator.type = this._outlineViewState.sortBy;
 			// todo@joh resort
-			// this._tree.refresh(undefined, true);
 			this._tree.updateChildren();
 		}
 		if (e.filterOnType) {
