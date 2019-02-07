@@ -103,7 +103,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 	private _onDidChangeWorkspace(): void {
 		const workspace = this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? null : this._contextService.getWorkspace();
 		this._proxy.$acceptWorkspaceData(workspace ? {
-			configuration: workspace.configuration,
+			configuration: workspace.configuration || undefined,
 			folders: workspace.folders,
 			id: workspace.id,
 			name: this._labelService.getWorkspaceLabel(workspace)
@@ -112,7 +112,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	// --- search ---
 
-	$startFileSearch(includePattern: string, _includeFolder: UriComponents, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Promise<URI[]> {
+	$startFileSearch(includePattern: string, _includeFolder: UriComponents, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Promise<URI[]> | undefined {
 		const includeFolder = URI.revive(_includeFolder);
 		const workspace = this._contextService.getWorkspace();
 		if (!workspace.folders.length) {
@@ -196,7 +196,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		});
 	}
 
-	$resolveProxy(url: string): Promise<string> {
+	$resolveProxy(url: string): Promise<string | undefined> {
 		return this._windowService.resolveProxy(url);
 	}
 }
