@@ -22,10 +22,10 @@ interface ILegacySerializedWorkspace { id: string; configPath: string; }
 
 export type RecentlyOpenedStorageData = object;
 
-export function restoreRecentlyOpened(data: RecentlyOpenedStorageData): IRecentlyOpened {
-	const storedRecents = data as ISerializedRecentlyOpened & ILegacySerializedRecentlyOpened;
+export function restoreRecentlyOpened(data: RecentlyOpenedStorageData | undefined): IRecentlyOpened {
 	const result: IRecentlyOpened = { workspaces: [], files: [] };
-	if (storedRecents) {
+	if (data) {
+		const storedRecents = data as ISerializedRecentlyOpened & ILegacySerializedRecentlyOpened;
 		if (Array.isArray(storedRecents.workspaces3)) {
 			for (const workspace of storedRecents.workspaces3) {
 				if (typeof workspace === 'object' && typeof workspace.id === 'string' && typeof workspace.configURIPath === 'string') {

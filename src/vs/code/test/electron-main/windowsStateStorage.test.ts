@@ -28,11 +28,11 @@ function toWorkspace(uri: URI): IWorkspaceIdentifier {
 		configPath: uri
 	};
 }
-function assertEqualURI(u1: URI, u2: URI, message?: string): void {
+function assertEqualURI(u1: URI | undefined, u2: URI | undefined, message?: string): void {
 	assert.equal(u1 && u1.toString(), u2 && u2.toString(), message);
 }
 
-function assertEqualWorkspace(w1: IWorkspaceIdentifier, w2: IWorkspaceIdentifier, message?: string): void {
+function assertEqualWorkspace(w1: IWorkspaceIdentifier | undefined, w2: IWorkspaceIdentifier | undefined, message?: string): void {
 	if (!w1 || !w2) {
 		assert.equal(w1, w2, message);
 		return;
@@ -41,7 +41,7 @@ function assertEqualWorkspace(w1: IWorkspaceIdentifier, w2: IWorkspaceIdentifier
 	assertEqualURI(w1.configPath, w2.configPath, message);
 }
 
-function assertEqualWindowState(expected: IWindowState, actual: IWindowState, message?: string) {
+function assertEqualWindowState(expected: IWindowState | undefined, actual: IWindowState | undefined, message?: string) {
 	if (!expected || !actual) {
 		assert.deepEqual(expected, actual, message);
 		return;
