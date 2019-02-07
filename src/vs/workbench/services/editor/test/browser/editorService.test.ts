@@ -22,7 +22,7 @@ import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtil
 import { IEditorRegistry, EditorDescriptor, Extensions } from 'vs/workbench/browser/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
+import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { CancellationToken } from 'vs/base/common/cancellation';

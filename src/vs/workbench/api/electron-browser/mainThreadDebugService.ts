@@ -5,16 +5,16 @@
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { URI as uri } from 'vs/base/common/uri';
-import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, ITerminalSettings, IDebugAdapter, IDebugAdapterDescriptorFactory, IDebugSession, IDebugAdapterFactory, IDebugAdapterTrackerFactory } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, ITerminalSettings, IDebugAdapter, IDebugAdapterDescriptorFactory, IDebugSession, IDebugAdapterFactory, IDebugAdapterTrackerFactory } from 'vs/workbench/contrib/debug/common/debug';
 import {
 	ExtHostContext, ExtHostDebugServiceShape, MainThreadDebugServiceShape, DebugSessionUUID, MainContext,
 	IExtHostContext, IBreakpointsDeltaDto, ISourceMultiBreakpointDto, ISourceBreakpointDto, IFunctionBreakpointDto, IDebugSessionDto
 } from 'vs/workbench/api/node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import severity from 'vs/base/common/severity';
-import { AbstractDebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
+import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/node/debugAdapter';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { convertToVSCPaths, convertToDAPaths } from 'vs/workbench/parts/debug/common/debugUtils';
+import { convertToVSCPaths, convertToDAPaths } from 'vs/workbench/contrib/debug/common/debugUtils';
 
 @extHostNamedCustomer(MainContext.MainThreadDebugService)
 export class MainThreadDebugService implements MainThreadDebugServiceShape, IDebugAdapterFactory {

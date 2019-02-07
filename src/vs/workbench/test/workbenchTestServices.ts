@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/workbench/parts/files/electron-browser/files.contribution'; // load our contribution into the test
-import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
+import 'vs/workbench/contrib/files/electron-browser/files.contribution'; // load our contribution into the test
+import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';

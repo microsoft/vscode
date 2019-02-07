@@ -143,10 +143,6 @@ export interface IOptimizeTaskOpts {
 	 */
 	entryPoints: bundle.IEntryPoint[];
 	/**
-	 * (for non-AMD files that should get Copyright treatment)
-	 */
-	otherSources: string[];
-	/**
 	 * (svg, etc.)
 	 */
 	resources: string[];
@@ -176,7 +172,6 @@ export interface IOptimizeTaskOpts {
 export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStream {
 	const src = opts.src;
 	const entryPoints = opts.entryPoints;
-	const otherSources = opts.otherSources;
 	const resources = opts.resources;
 	const loaderConfig = opts.loaderConfig;
 	const bundledFileHeader = opts.header;
@@ -201,7 +196,7 @@ export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStr
 				}
 				filteredResources.push('!' + resource);
 			});
-			gulp.src(filteredResources, { base: `${src}` }).pipe(resourcesStream);
+			gulp.src(filteredResources, { base: `${src}`, allowEmpty: true }).pipe(resourcesStream);
 
 			const bundleInfoArray: VinylFile[] = [];
 			if (opts.bundleInfo) {
@@ -214,24 +209,9 @@ export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStr
 			es.readArray(bundleInfoArray).pipe(bundleInfoStream);
 		});
 
-		const otherSourcesStream = es.through();
-		const otherSourcesStreamArr: NodeJS.ReadWriteStream[] = [];
-
-		gulp.src(otherSources, { base: `${src}` })
-			.pipe(es.through(function (data) {
-				otherSourcesStreamArr.push(toConcatStream(src, bundledFileHeader, [data], data.relative));
-			}, function () {
-				if (!otherSourcesStreamArr.length) {
-					setTimeout(function () { otherSourcesStream.emit('end'); }, 0);
-				} else {
-					es.merge(otherSourcesStreamArr).pipe(otherSourcesStream);
-				}
-			}));
-
 		const result = es.merge(
 			loader(src, bundledFileHeader, bundleLoader),
 			bundlesStream,
-			otherSourcesStream,
 			resourcesStream,
 			bundleInfoStream
 		);

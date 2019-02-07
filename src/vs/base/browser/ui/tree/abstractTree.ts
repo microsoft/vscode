@@ -805,6 +805,10 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 	}
 
 	protected onPointer(e: IListMouseEvent<ITreeNode<T, TFilterData>>): void {
+		if (isInputElement(e.browserEvent.target as HTMLElement)) {
+			return;
+		}
+
 		const node = e.element;
 
 		if (!node) {
