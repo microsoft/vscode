@@ -132,9 +132,9 @@ class ColorRegistry implements IColorRegistry {
 	}
 
 	public resolveDefaultColor(id: ColorIdentifier, theme: ITheme): Color | null {
-		let colorDesc = this.colorsById[id];
+		const colorDesc = this.colorsById[id];
 		if (colorDesc && colorDesc.defaults) {
-			let colorValue = colorDesc.defaults[theme.type];
+			const colorValue = colorDesc.defaults[theme.type];
 			return resolveColorValue(colorValue, theme);
 		}
 		return null;

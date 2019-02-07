@@ -1689,7 +1689,7 @@ class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 
 	private matchers: IStringDictionary<NamedProblemMatcher>;
 	private readyPromise: Promise<void>;
-	private _onMatchersChanged: Emitter<void> = new Emitter<void>();
+	private readonly _onMatchersChanged: Emitter<void> = new Emitter<void>();
 	public get onMatcherChanged(): Event<void> { return this._onMatchersChanged.event; }
 
 

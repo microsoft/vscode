@@ -146,7 +146,7 @@ function moveActiveEditorToGroup(args: ActiveEditorMoveArguments, control: IEdit
 	const configurationService = accessor.get(IConfigurationService);
 
 	const sourceGroup = control.group;
-	let targetGroup: IEditorGroup;
+	let targetGroup: IEditorGroup | undefined;
 
 	switch (args.to) {
 		case 'left':

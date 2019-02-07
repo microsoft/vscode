@@ -168,7 +168,7 @@ class WelcomeOverlay {
 	}
 
 	private create(): void {
-		const container = this.partService.getContainer(Parts.EDITOR_PART);
+		const container = this.partService.getContainer(Parts.EDITOR_PART)!;
 
 		const offset = this.partService.getTitleBarOffset();
 		this._overlay = dom.append(container.parentElement!, $('.welcomeOverlay'));

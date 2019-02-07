@@ -22,7 +22,7 @@ export class MainThreadDiagnostics implements MainThreadDiagnosticsShape {
 	}
 
 	dispose(): void {
-		this._activeOwners.forEach(owner => this._markerService.changeAll(owner, undefined));
+		this._activeOwners.forEach(owner => this._markerService.changeAll(owner, []));
 	}
 
 	$changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]): void {
@@ -43,7 +43,7 @@ export class MainThreadDiagnostics implements MainThreadDiagnosticsShape {
 	}
 
 	$clear(owner: string): void {
-		this._markerService.changeAll(owner, undefined);
+		this._markerService.changeAll(owner, []);
 		this._activeOwners.delete(owner);
 	}
 }

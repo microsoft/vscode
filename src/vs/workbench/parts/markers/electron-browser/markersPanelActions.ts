@@ -299,7 +299,7 @@ export class QuickFixAction extends Action {
 	private updated: boolean = false;
 	private disposables: IDisposable[] = [];
 
-	private _onShowQuickFixes: Emitter<void> = new Emitter<void>();
+	private readonly _onShowQuickFixes: Emitter<void> = new Emitter<void>();
 	readonly onShowQuickFixes: Event<void> = this._onShowQuickFixes.event;
 
 	constructor(
