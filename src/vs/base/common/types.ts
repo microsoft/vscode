@@ -161,8 +161,18 @@ export function validateConstraint(arg: any, constraint: TypeConstraint | undefi
  * any additional argument supplied.
  */
 export function create(ctor: Function, ...args: any[]): any {
-	let obj = Object.create(ctor.prototype);
-	ctor.apply(obj, args);
+	if (isNativeClass(ctor)) {
+		return new (ctor as any)(...args);
+	} else {
+		let obj = Object.create(ctor.prototype);
+		ctor.apply(obj, args);
+		return obj;
+	}
+}
 
-	return obj;
+// https://stackoverflow.com/a/32235645/1499159
+function isNativeClass(thing): boolean {
+	return typeof thing === 'function'
+		&& thing.hasOwnProperty('prototype')
+		&& !thing.hasOwnProperty('arguments');
 }
