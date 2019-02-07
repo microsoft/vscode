@@ -13,7 +13,7 @@
 			"es2015.promise",
 			"es2015.iterable",
 			"es2015.collection"
-		],
+		]
 	},
 	"include": [
 		"./typings",
@@ -22,6 +22,6 @@
 	"exclude": [
 		"./typings/require-monaco.d.ts",
 		"./typings/es6-promise.d.ts",
-		"./typings/lib.ie11_safe_es6.d.ts",
+		"./typings/lib.ie11_safe_es6.d.ts"
 	]
 }
