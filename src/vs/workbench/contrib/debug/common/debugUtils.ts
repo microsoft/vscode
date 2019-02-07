@@ -73,10 +73,10 @@ export function getExactExpressionStartAndEnd(lineContent: string, looseStart: n
 // RFC 2396, Appendix A: https://www.ietf.org/rfc/rfc2396.txt
 const _schemePattern = /^[a-zA-Z][a-zA-Z0-9\+\-\.]+:/;
 
-export function isUri(s: string) {
+export function isUri(s: string | undefined): boolean {
 	// heuristics: a valid uri starts with a scheme and
 	// the scheme has at least 2 characters so that it doesn't look like a drive letter.
-	return s && s.match(_schemePattern);
+	return !!(s && s.match(_schemePattern));
 }
 
 function stringToUri(path: string): string {

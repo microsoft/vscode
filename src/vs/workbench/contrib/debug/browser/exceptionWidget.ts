@@ -24,7 +24,7 @@ export const debugExceptionWidgetBackground = registerColor('debugExceptionWidge
 
 export class ExceptionWidget extends ZoneWidget {
 
-	private _backgroundColor: Color;
+	private _backgroundColor?: Color;
 
 	constructor(editor: ICodeEditor, private exceptionInfo: IExceptionInfo,
 		@IThemeService themeService: IThemeService,
@@ -55,7 +55,7 @@ export class ExceptionWidget extends ZoneWidget {
 
 	protected _applyStyles(): void {
 		if (this.container) {
-			this.container.style.backgroundColor = this._backgroundColor.toString();
+			this.container.style.backgroundColor = this._backgroundColor ? this._backgroundColor.toString() : '';
 		}
 		super._applyStyles();
 	}
@@ -86,7 +86,7 @@ export class ExceptionWidget extends ZoneWidget {
 		}
 	}
 
-	protected _doLayout(heightInPixel: number, widthInPixel: number): void {
+	protected _doLayout(_heightInPixel: number | undefined, _widthInPixel: number | undefined): void {
 		// Reload the height with respect to the exception text content and relayout it to match the line count.
 		this.container.style.height = 'initial';
 
