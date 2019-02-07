@@ -160,7 +160,7 @@ export class CommentsPanel extends Panel {
 		}));
 	}
 
-	private openFile(element: any, pinned: boolean, preserveFocus: boolean, sideBySide: boolean): boolean {
+	private openFile(element: any, pinned?: boolean, preserveFocus?: boolean, sideBySide?: boolean): boolean {
 		if (!element) {
 			return false;
 		}
@@ -189,16 +189,16 @@ export class CommentsPanel extends Panel {
 		const commentToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].comment : element.comment;
 
 		if (commentToReveal.command) {
-			this.commandService.executeCommand(commentToReveal.command.id, ...commentToReveal.command.arguments).then(_ => {
+			this.commandService.executeCommand(commentToReveal.command.id, ...(commentToReveal.command.arguments || [])).then(_ => {
 				let activeWidget = this.editorService.activeTextEditorWidget;
 				if (isDiffEditor(activeWidget)) {
 					const originalEditorWidget = activeWidget.getOriginalEditor();
 					const modifiedEditorWidget = activeWidget.getModifiedEditor();
 
 					let controller;
-					if (originalEditorWidget.getModel().uri.toString() === element.resource.toString()) {
+					if (originalEditorWidget.getModel()!.uri.toString() === element.resource.toString()) {
 						controller = ReviewController.get(originalEditorWidget);
-					} else if (modifiedEditorWidget.getModel().uri.toString() === element.resource.toString()) {
+					} else if (modifiedEditorWidget.getModel()!.uri.toString() === element.resource.toString()) {
 						controller = ReviewController.get(modifiedEditorWidget);
 					}
 

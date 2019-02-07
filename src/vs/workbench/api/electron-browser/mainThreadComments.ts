@@ -27,10 +27,10 @@ export class MainThreadDocumentCommentProvider implements modes.DocumentCommentP
 	private _proxy: ExtHostCommentsShape;
 	private _handle: number;
 	private _features: CommentProviderFeatures;
-	get startDraftLabel(): string { return this._features.startDraftLabel; }
-	get deleteDraftLabel(): string { return this._features.deleteDraftLabel; }
-	get finishDraftLabel(): string { return this._features.finishDraftLabel; }
-	get reactionGroup(): modes.CommentReaction[] { return this._features.reactionGroup; }
+	get startDraftLabel(): string | undefined { return this._features.startDraftLabel; }
+	get deleteDraftLabel(): string | undefined { return this._features.deleteDraftLabel; }
+	get finishDraftLabel(): string | undefined { return this._features.finishDraftLabel; }
+	get reactionGroup(): modes.CommentReaction[] | undefined { return this._features.reactionGroup; }
 
 	constructor(proxy: ExtHostCommentsShape, handle: number, features: CommentProviderFeatures) {
 		this._proxy = proxy;
