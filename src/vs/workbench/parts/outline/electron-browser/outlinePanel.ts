@@ -417,7 +417,6 @@ export class OutlinePanel extends ViewletPanel {
 		this._editorDisposables = new Array();
 		this._progressBar.infinite().show(150);
 
-		let textModel = editor.getModel();
 		let oldModel = this._tree.getInput();
 
 		// persist state
@@ -430,6 +429,7 @@ export class OutlinePanel extends ViewletPanel {
 			return this._showMessage(localize('no-editor', "There are no editors open that can provide outline information."));
 		}
 
+		let textModel = editor.getModel();
 		let loadingMessage: IDisposable;
 		if (!oldModel) {
 			loadingMessage = new TimeoutTimer(
