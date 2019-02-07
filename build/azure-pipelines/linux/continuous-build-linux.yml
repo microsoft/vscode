@@ -9,7 +9,7 @@ steps:
     sudo service xvfb start
 - task: NodeTool@0
   inputs:
-    versionSpec: "8.12.0"
+    versionSpec: "10.15.1"
 - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
   inputs:
     versionSpec: "1.10.1"
