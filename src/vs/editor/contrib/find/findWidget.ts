@@ -530,19 +530,19 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 	private _applyTheme(theme: ITheme) {
 		let inputStyles: IFindInputStyles = {
-			inputActiveOptionBorder: theme.getColor(inputActiveOptionBorder) || undefined,
-			inputBackground: theme.getColor(inputBackground) || undefined,
-			inputForeground: theme.getColor(inputForeground) || undefined,
-			inputBorder: theme.getColor(inputBorder) || undefined,
-			inputValidationInfoBackground: theme.getColor(inputValidationInfoBackground) || undefined,
-			inputValidationInfoForeground: theme.getColor(inputValidationInfoForeground) || undefined,
-			inputValidationInfoBorder: theme.getColor(inputValidationInfoBorder) || undefined,
-			inputValidationWarningBackground: theme.getColor(inputValidationWarningBackground) || undefined,
-			inputValidationWarningForeground: theme.getColor(inputValidationWarningForeground) || undefined,
-			inputValidationWarningBorder: theme.getColor(inputValidationWarningBorder) || undefined,
-			inputValidationErrorBackground: theme.getColor(inputValidationErrorBackground) || undefined,
-			inputValidationErrorForeground: theme.getColor(inputValidationErrorForeground) || undefined,
-			inputValidationErrorBorder: theme.getColor(inputValidationErrorBorder) || undefined,
+			inputActiveOptionBorder: theme.getColor(inputActiveOptionBorder),
+			inputBackground: theme.getColor(inputBackground),
+			inputForeground: theme.getColor(inputForeground),
+			inputBorder: theme.getColor(inputBorder),
+			inputValidationInfoBackground: theme.getColor(inputValidationInfoBackground),
+			inputValidationInfoForeground: theme.getColor(inputValidationInfoForeground),
+			inputValidationInfoBorder: theme.getColor(inputValidationInfoBorder),
+			inputValidationWarningBackground: theme.getColor(inputValidationWarningBackground),
+			inputValidationWarningForeground: theme.getColor(inputValidationWarningForeground),
+			inputValidationWarningBorder: theme.getColor(inputValidationWarningBorder),
+			inputValidationErrorBackground: theme.getColor(inputValidationErrorBackground),
+			inputValidationErrorForeground: theme.getColor(inputValidationErrorForeground),
+			inputValidationErrorBorder: theme.getColor(inputValidationErrorBorder),
 		};
 		this._findInput.style(inputStyles);
 		this._replaceInputBox.style(inputStyles);
@@ -1130,7 +1130,7 @@ export class SimpleButton extends Widget {
 // theming
 
 registerThemingParticipant((theme, collector) => {
-	const addBackgroundColorRule = (selector: string, color: Color | null): void => {
+	const addBackgroundColorRule = (selector: string, color: Color | undefined): void => {
 		if (color) {
 			collector.addRule(`.monaco-editor ${selector} { background-color: ${color}; }`);
 		}

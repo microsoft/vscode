@@ -156,7 +156,7 @@ function getChangeType(change: IChange): ChangeType {
 	}
 }
 
-function getChangeTypeColor(theme: ITheme, changeType: ChangeType): Color | null {
+function getChangeTypeColor(theme: ITheme, changeType: ChangeType): Color | undefined {
 	switch (changeType) {
 		case ChangeType.Modify: return theme.getColor(editorGutterModifiedBackground);
 		case ChangeType.Add: return theme.getColor(editorGutterAddedBackground);
@@ -365,8 +365,8 @@ class DirtyDiffWidget extends PeekViewWidget {
 			arrowColor: borderColor,
 			frameColor: borderColor,
 			headerBackgroundColor: theme.getColor(peekViewTitleBackground) || Color.transparent,
-			primaryHeadingColor: theme.getColor(peekViewTitleForeground) || undefined,
-			secondaryHeadingColor: theme.getColor(peekViewTitleInfoForeground) || undefined
+			primaryHeadingColor: theme.getColor(peekViewTitleForeground),
+			secondaryHeadingColor: theme.getColor(peekViewTitleInfoForeground)
 		});
 	}
 

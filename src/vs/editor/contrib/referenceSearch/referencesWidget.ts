@@ -279,8 +279,8 @@ export class ReferenceWidget extends PeekViewWidget {
 			arrowColor: borderColor,
 			frameColor: borderColor,
 			headerBackgroundColor: theme.getColor(peekViewTitleBackground) || Color.transparent,
-			primaryHeadingColor: theme.getColor(peekViewTitleForeground) || undefined,
-			secondaryHeadingColor: theme.getColor(peekViewTitleInfoForeground) || undefined
+			primaryHeadingColor: theme.getColor(peekViewTitleForeground),
+			secondaryHeadingColor: theme.getColor(peekViewTitleInfoForeground)
 		});
 	}
 
