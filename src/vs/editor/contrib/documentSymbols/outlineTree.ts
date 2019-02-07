@@ -31,7 +31,7 @@ export class OutlineNavigationLabelProvider implements IKeyboardNavigationLabelP
 
 	getKeyboardNavigationLabel(element: OutlineItem): { toString(): string; } {
 		if (element instanceof OutlineGroup) {
-			return element.provider.displayName;
+			return element.provider.displayName || element.id;
 		} else {
 			return element.symbol.name;
 		}
@@ -122,7 +122,7 @@ export class OutlineElementRenderer implements ITreeRenderer<OutlineElement, Fuz
 		const { element } = node;
 		const options = {
 			matches: createMatches(node.filterData),
-			extraClasses: [],
+			extraClasses: <string[]>[],
 			title: localize('title.template', "{0} ({1})", element.symbol.name, OutlineElementRenderer._symbolKindNames[element.symbol.kind])
 		};
 		if (this._configurationService.getValue(OutlineConfigKeys.icons)) {
