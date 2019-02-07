@@ -11,7 +11,7 @@ import * as platform from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
 import { IExtensionManagementServerService, IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { extensionButtonProminentBackground, extensionButtonProminentForeground } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
+import { extensionButtonProminentBackground, extensionButtonProminentForeground } from 'vs/workbench/contrib/extensions/electron-browser/extensionsActions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { STATUS_BAR_HOST_NAME_BACKGROUND, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_FOREGROUND } from 'vs/workbench/common/theme';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';

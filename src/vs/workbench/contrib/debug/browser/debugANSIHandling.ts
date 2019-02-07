@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LinkDetector } from 'vs/workbench/parts/debug/browser/linkDetector';
+import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 
 /**
  * @param text The content to stylize.

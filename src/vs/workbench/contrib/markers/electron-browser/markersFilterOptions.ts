@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import Messages from 'vs/workbench/parts/markers/electron-browser/messages';
+import Messages from 'vs/workbench/contrib/markers/electron-browser/messages';
 import { IFilter, matchesPrefix, matchesFuzzy, matchesFuzzy2 } from 'vs/base/common/filters';
 import { ParsedExpression, IExpression, splitGlobAware, getEmptyExpression, parse } from 'vs/base/common/glob';
 import * as strings from 'vs/base/common/strings';

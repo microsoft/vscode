@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { getNonWhitespacePrefix } from 'vs/workbench/parts/snippets/electron-browser/snippetsService';
+import { getNonWhitespacePrefix } from 'vs/workbench/contrib/snippets/electron-browser/snippetsService';
 import { Position } from 'vs/editor/common/core/position';
 
 suite('getNonWhitespacePrefix', () => {

@@ -8,13 +8,13 @@ import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/zoneWidget';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IExceptionInfo } from 'vs/workbench/parts/debug/common/debug';
+import { IExceptionInfo } from 'vs/workbench/contrib/debug/common/debug';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { LinkDetector } from 'vs/workbench/parts/debug/browser/linkDetector';
+import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 const $ = dom.$;
 
 // theming

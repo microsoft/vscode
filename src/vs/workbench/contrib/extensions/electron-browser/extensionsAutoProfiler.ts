@@ -13,13 +13,13 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { writeFile } from 'vs/base/node/pfs';
-import { IExtensionHostProfileService, ReportExtensionIssueAction } from 'vs/workbench/parts/extensions/electron-browser/runtimeExtensionsEditor';
+import { IExtensionHostProfileService, ReportExtensionIssueAction } from 'vs/workbench/contrib/extensions/electron-browser/runtimeExtensionsEditor';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { localize } from 'vs/nls';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { RuntimeExtensionsInput } from 'vs/workbench/services/extensions/electron-browser/runtimeExtensionsInput';
 import { generateUuid } from 'vs/base/common/uuid';
-import { IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
+import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchContribution {

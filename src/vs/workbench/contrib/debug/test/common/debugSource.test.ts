@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { URI as uri } from 'vs/base/common/uri';
-import { Source } from 'vs/workbench/parts/debug/common/debugSource';
+import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { normalize } from 'vs/base/common/paths';
 
 suite('Debug - Source', () => {

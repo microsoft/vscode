@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { replaceWhitespace, renderExpressionValue, renderVariable } from 'vs/workbench/parts/debug/browser/baseDebugView';
+import { replaceWhitespace, renderExpressionValue, renderVariable } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import * as dom from 'vs/base/browser/dom';
-import { Expression, Variable, Scope, StackFrame, Thread } from 'vs/workbench/parts/debug/common/debugModel';
-import { MockSession } from 'vs/workbench/parts/debug/test/common/mockDebug';
+import { Expression, Variable, Scope, StackFrame, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
+import { MockSession } from 'vs/workbench/contrib/debug/test/common/mockDebug';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 const $ = dom.$;
 

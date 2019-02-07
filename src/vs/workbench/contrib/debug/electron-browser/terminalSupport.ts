@@ -5,10 +5,10 @@
 
 import * as nls from 'vs/nls';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { ITerminalService, ITerminalInstance } from 'vs/workbench/parts/terminal/common/terminal';
-import { ITerminalService as IExternalTerminalService } from 'vs/workbench/parts/execution/common/execution';
-import { ITerminalLauncher, ITerminalSettings } from 'vs/workbench/parts/debug/common/debug';
-import { hasChildProcesses, prepareCommand } from 'vs/workbench/parts/debug/node/terminals';
+import { ITerminalService, ITerminalInstance } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalService as IExternalTerminalService } from 'vs/workbench/contrib/execution/common/execution';
+import { ITerminalLauncher, ITerminalSettings } from 'vs/workbench/contrib/debug/common/debug';
+import { hasChildProcesses, prepareCommand } from 'vs/workbench/contrib/debug/node/terminals';
 
 export class TerminalLauncher implements ITerminalLauncher {
 

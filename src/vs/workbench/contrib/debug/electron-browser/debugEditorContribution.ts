@@ -28,11 +28,11 @@ import { IConfigurationService, IConfigurationOverrides } from 'vs/platform/conf
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { DebugHoverWidget } from 'vs/workbench/parts/debug/electron-browser/debugHover';
-import { RemoveBreakpointAction } from 'vs/workbench/parts/debug/browser/debugActions';
-import { IDebugEditorContribution, IDebugService, State, IBreakpoint, EDITOR_CONTRIBUTION_ID, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, IStackFrame, IDebugConfiguration, IExpression, IExceptionInfo, BreakpointWidgetContext } from 'vs/workbench/parts/debug/common/debug';
-import { BreakpointWidget } from 'vs/workbench/parts/debug/electron-browser/breakpointWidget';
-import { ExceptionWidget } from 'vs/workbench/parts/debug/browser/exceptionWidget';
+import { DebugHoverWidget } from 'vs/workbench/contrib/debug/electron-browser/debugHover';
+import { RemoveBreakpointAction } from 'vs/workbench/contrib/debug/browser/debugActions';
+import { IDebugEditorContribution, IDebugService, State, IBreakpoint, EDITOR_CONTRIBUTION_ID, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, IStackFrame, IDebugConfiguration, IExpression, IExceptionInfo, BreakpointWidgetContext } from 'vs/workbench/contrib/debug/common/debug';
+import { BreakpointWidget } from 'vs/workbench/contrib/debug/electron-browser/breakpointWidget';
+import { ExceptionWidget } from 'vs/workbench/contrib/debug/browser/exceptionWidget';
 import { FloatingClickWidget } from 'vs/workbench/browser/parts/editor/editorWidgets';
 import { Position } from 'vs/editor/common/core/position';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';

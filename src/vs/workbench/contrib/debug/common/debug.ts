@@ -14,7 +14,7 @@ import { ITextModel as EditorIModel } from 'vs/editor/common/model';
 import { IEditor } from 'vs/workbench/common/editor';
 import { Position } from 'vs/editor/common/core/position';
 import { CompletionItem } from 'vs/editor/common/modes';
-import { Source } from 'vs/workbench/parts/debug/common/debugSource';
+import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -22,9 +22,9 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IViewContainersRegistry, ViewContainer, Extensions as ViewContainerExtensions } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { TaskIdentifier } from 'vs/workbench/parts/tasks/common/tasks';
+import { TaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { IOutputService } from 'vs/workbench/parts/output/common/output';
+import { IOutputService } from 'vs/workbench/contrib/output/common/output';
 
 export const VIEWLET_ID = 'workbench.view.debug';
 export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(VIEWLET_ID);

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as nls from 'vs/nls';
-import { EmmetEditorAction } from 'vs/workbench/parts/emmet/electron-browser/emmetActions';
+import { EmmetEditorAction } from 'vs/workbench/contrib/emmet/electron-browser/emmetActions';
 import { registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { KeyCode } from 'vs/base/common/keyCodes';

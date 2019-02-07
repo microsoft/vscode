@@ -5,7 +5,7 @@
 
 import * as extensionsRegistry from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import * as nls from 'vs/nls';
-import { IDebuggerContribution, ICompound } from 'vs/workbench/parts/debug/common/debug';
+import { IDebuggerContribution, ICompound } from 'vs/workbench/contrib/debug/common/debug';
 import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { inputsSchema } from 'vs/workbench/services/configurationResolver/common/configurationResolverSchema';

@@ -12,7 +12,7 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { IFileMatch, ITextSearchMatch, OneLineRange, QueryType } from 'vs/platform/search/common/search';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { FileMatch, Match, searchMatchComparer, SearchResult } from 'vs/workbench/parts/search/common/searchModel';
+import { FileMatch, Match, searchMatchComparer, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
 import { TestContextService } from 'vs/workbench/test/workbenchTestServices';
 
 suite('Search - Viewlet', () => {

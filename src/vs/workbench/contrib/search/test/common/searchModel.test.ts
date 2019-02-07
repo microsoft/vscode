@@ -17,7 +17,7 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { IFileMatch, IFileSearchStats, IFolderQuery, ISearchComplete, ISearchProgressItem, ISearchQuery, ISearchService, ITextSearchMatch, OneLineRange, TextSearchMatch } from 'vs/platform/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { SearchModel } from 'vs/workbench/parts/search/common/searchModel';
+import { SearchModel } from 'vs/workbench/contrib/search/common/searchModel';
 
 const nullEvent = new class {
 	id: number;

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equalsIgnoreCase } from 'vs/base/common/strings';
-import { IConfig } from 'vs/workbench/parts/debug/common/debug';
+import { IConfig } from 'vs/workbench/contrib/debug/common/debug';
 import { URI as uri } from 'vs/base/common/uri';
 import { isAbsolute_posix, isAbsolute_win32 } from 'vs/base/common/paths';
 import { deepClone } from 'vs/base/common/objects';

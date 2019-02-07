@@ -6,11 +6,11 @@
 import * as assert from 'assert';
 import * as paths from 'vs/base/common/paths';
 import * as platform from 'vs/base/common/platform';
-import { IDebugAdapterExecutable, IConfigurationManager, IConfig, IDebugSession } from 'vs/workbench/parts/debug/common/debug';
-import { Debugger } from 'vs/workbench/parts/debug/node/debugger';
+import { IDebugAdapterExecutable, IConfigurationManager, IConfig, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
+import { Debugger } from 'vs/workbench/contrib/debug/node/debugger';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { URI } from 'vs/base/common/uri';
-import { ExecutableDebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
+import { ExecutableDebugAdapter } from 'vs/workbench/contrib/debug/node/debugAdapter';
 import { TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTestServices';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';

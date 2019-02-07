@@ -5,7 +5,7 @@
 
 import * as platform from 'vs/base/common/platform';
 import { Emitter, Event } from 'vs/base/common/event';
-import { ITerminalInstance } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalInstance } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Terminal as XTermTerminal } from 'vscode-xterm';
 import WindowsProcessTreeType = require('windows-process-tree');
 

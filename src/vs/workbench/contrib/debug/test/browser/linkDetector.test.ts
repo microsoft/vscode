@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
-import { LinkDetector } from 'vs/workbench/parts/debug/browser/linkDetector';
+import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { isWindows } from 'vs/base/common/platform';
 
 suite('Debug - Link Detector', () => {

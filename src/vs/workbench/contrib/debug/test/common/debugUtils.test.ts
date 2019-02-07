@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { formatPII, getExactExpressionStartAndEnd } from 'vs/workbench/parts/debug/common/debugUtils';
+import { formatPII, getExactExpressionStartAndEnd } from 'vs/workbench/contrib/debug/common/debugUtils';
 
 suite('Debug - Utils', () => {
 	test('formatPII', () => {

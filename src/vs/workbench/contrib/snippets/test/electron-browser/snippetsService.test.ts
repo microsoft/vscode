@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { SnippetCompletionProvider } from 'vs/workbench/parts/snippets/electron-browser/snippetCompletionProvider';
+import { SnippetCompletionProvider } from 'vs/workbench/contrib/snippets/electron-browser/snippetCompletionProvider';
 import { Position } from 'vs/editor/common/core/position';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { ISnippetsService } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
-import { Snippet, SnippetSource } from 'vs/workbench/parts/snippets/electron-browser/snippetsFile';
+import { ISnippetsService } from 'vs/workbench/contrib/snippets/electron-browser/snippets.contribution';
+import { Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/electron-browser/snippetsFile';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { CompletionContext, CompletionTriggerKind } from 'vs/editor/common/modes';
 

@@ -15,14 +15,14 @@ import { ValidationStatus, IProblemReporter as IProblemReporterBase } from 'vs/b
 import {
 	NamedProblemMatcher, ProblemMatcher, ProblemMatcherParser, Config as ProblemMatcherConfig,
 	isNamedProblemMatcher, ProblemMatcherRegistry
-} from 'vs/workbench/parts/tasks/common/problemMatcher';
+} from 'vs/workbench/contrib/tasks/common/problemMatcher';
 
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 import * as Tasks from '../common/tasks';
 import { TaskDefinitionRegistry } from '../common/taskDefinitionRegistry';
 
-import { TaskDefinition } from 'vs/workbench/parts/tasks/node/tasks';
+import { TaskDefinition } from 'vs/workbench/contrib/tasks/node/tasks';
 import { ConfiguredInput } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 
 export const enum ShellQuoting {

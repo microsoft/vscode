@@ -8,7 +8,7 @@ import { Disposable, IDisposable, dispose, IReference } from 'vs/base/common/lif
 import { EditorOptions, EditorInput, IEditorMemento } from 'vs/workbench/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
-import { HtmlInput, HtmlInputOptions, areHtmlInputOptionsEqual } from 'vs/workbench/parts/html/common/htmlInput';
+import { HtmlInput, HtmlInputOptions, areHtmlInputOptionsEqual } from 'vs/workbench/contrib/html/common/htmlInput';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
@@ -16,8 +16,8 @@ import { Parts, IPartService } from 'vs/workbench/services/part/common/partServi
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Dimension } from 'vs/base/browser/dom';
-import { BaseWebviewEditor } from 'vs/workbench/parts/webview/electron-browser/baseWebviewEditor';
-import { WebviewElement, WebviewOptions } from 'vs/workbench/parts/webview/electron-browser/webviewElement';
+import { BaseWebviewEditor } from 'vs/workbench/contrib/webview/electron-browser/baseWebviewEditor';
+import { WebviewElement, WebviewOptions } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';

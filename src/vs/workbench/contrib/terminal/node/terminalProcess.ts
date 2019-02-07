@@ -8,9 +8,9 @@ import * as path from 'path';
 import * as platform from 'vs/base/common/platform';
 import * as pty from 'node-pty';
 import { Event, Emitter } from 'vs/base/common/event';
-import { ITerminalChildProcess } from 'vs/workbench/parts/terminal/node/terminal';
+import { ITerminalChildProcess } from 'vs/workbench/contrib/terminal/node/terminal';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
+import { IShellLaunchConfig } from 'vs/workbench/contrib/terminal/common/terminal';
 import { exec } from 'child_process';
 
 export class TerminalProcess implements ITerminalChildProcess, IDisposable {

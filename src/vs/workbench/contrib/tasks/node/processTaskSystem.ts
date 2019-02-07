@@ -15,23 +15,23 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { SuccessData, ErrorData } from 'vs/base/common/processes';
 import { LineProcess, LineData } from 'vs/base/node/processes';
 
-import { IOutputService, IOutputChannel } from 'vs/workbench/parts/output/common/output';
+import { IOutputService, IOutputChannel } from 'vs/workbench/contrib/output/common/output';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { ProblemMatcher, ProblemMatcherRegistry } from 'vs/workbench/parts/tasks/common/problemMatcher';
+import { ProblemMatcher, ProblemMatcherRegistry } from 'vs/workbench/contrib/tasks/common/problemMatcher';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
-import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEventKind } from 'vs/workbench/parts/tasks/common/problemCollectors';
+import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEventKind } from 'vs/workbench/contrib/tasks/common/problemCollectors';
 import {
 	ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TelemetryEvent, Triggers,
 	TaskTerminateResponse
-} from 'vs/workbench/parts/tasks/common/taskSystem';
+} from 'vs/workbench/contrib/tasks/common/taskSystem';
 import {
 	Task, CustomTask, CommandOptions, RevealKind, CommandConfiguration, RuntimeType,
 	TaskEvent, TaskEventKind
-} from 'vs/workbench/parts/tasks/common/tasks';
+} from 'vs/workbench/contrib/tasks/common/tasks';
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 

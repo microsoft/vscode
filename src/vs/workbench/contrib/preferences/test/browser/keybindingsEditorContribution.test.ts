@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { KeybindingEditorDecorationsRenderer } from 'vs/workbench/parts/preferences/browser/keybindingsEditorContribution';
+import { KeybindingEditorDecorationsRenderer } from 'vs/workbench/contrib/preferences/browser/keybindingsEditorContribution';
 
 suite('KeybindingsEditorContribution', () => {
 

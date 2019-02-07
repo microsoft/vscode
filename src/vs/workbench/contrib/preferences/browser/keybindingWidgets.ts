@@ -22,7 +22,7 @@ import { attachInputBoxStyler, attachStylerCallback } from 'vs/platform/theme/co
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { editorWidgetBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { ScrollType } from 'vs/editor/common/editorCommon';
-import { SearchWidget, SearchOptions } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
+import { SearchWidget, SearchOptions } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 
 export interface KeybindingsSearchOptions extends SearchOptions {
 	recordEnter?: boolean;

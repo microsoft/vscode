@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IAction, Action } from 'vs/base/common/actions';
-import { IOutputService, OUTPUT_PANEL_ID, IOutputChannelRegistry, Extensions as OutputExt, IOutputChannelDescriptor } from 'vs/workbench/parts/output/common/output';
+import { IOutputService, OUTPUT_PANEL_ID, IOutputChannelRegistry, Extensions as OutputExt, IOutputChannelDescriptor } from 'vs/workbench/contrib/output/common/output';
 import { SelectActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -20,7 +20,7 @@ import { groupBy } from 'vs/base/common/arrays';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { LogViewerInput } from 'vs/workbench/parts/output/browser/logViewer';
+import { LogViewerInput } from 'vs/workbench/contrib/output/browser/logViewer';
 import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
 
 export class ToggleOutputAction extends TogglePanelAction {

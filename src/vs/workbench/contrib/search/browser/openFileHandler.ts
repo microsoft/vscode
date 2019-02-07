@@ -18,7 +18,7 @@ import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/work
 import { IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenEntry, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { QuickOpenHandler, EditorQuickOpenEntry } from 'vs/workbench/browser/quickopen';
-import { QueryBuilder, IFileQueryBuilderOptions } from 'vs/workbench/parts/search/common/queryBuilder';
+import { QueryBuilder, IFileQueryBuilderOptions } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { EditorInput, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -27,7 +27,7 @@ import { ISearchService, IFileSearchStats, IFileQuery, ISearchComplete } from 'v
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IRange } from 'vs/editor/common/core/range';
-import { getOutOfWorkspaceEditorResources } from 'vs/workbench/parts/search/common/search';
+import { getOutOfWorkspaceEditorResources } from 'vs/workbench/contrib/search/common/search';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { prepareQuery, IPreparedQuery } from 'vs/base/parts/quickopen/common/quickOpenScorer';
 import { IFileService } from 'vs/platform/files/common/files';

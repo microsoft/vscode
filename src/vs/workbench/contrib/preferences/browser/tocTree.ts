@@ -13,9 +13,9 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { attachStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { SettingsTreeFilter } from 'vs/workbench/parts/preferences/browser/settingsTree';
-import { ISettingsEditorViewState, SearchResultModel, SettingsTreeElement, SettingsTreeGroupElement, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
-import { settingsHeaderForeground } from 'vs/workbench/parts/preferences/browser/settingsWidgets';
+import { SettingsTreeFilter } from 'vs/workbench/contrib/preferences/browser/settingsTree';
+import { ISettingsEditorViewState, SearchResultModel, SettingsTreeElement, SettingsTreeGroupElement, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
+import { settingsHeaderForeground } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
 
 const $ = DOM.$;
 

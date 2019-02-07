@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Query } from 'vs/workbench/parts/extensions/common/extensionQuery';
+import { Query } from 'vs/workbench/contrib/extensions/common/extensionQuery';
 
 suite('Extension query', () => {
 	test('parse', () => {

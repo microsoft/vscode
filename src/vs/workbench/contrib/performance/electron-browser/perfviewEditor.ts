@@ -19,7 +19,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import * as perf from 'vs/base/common/performance';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { writeTransientState } from 'vs/workbench/parts/codeEditor/electron-browser/toggleWordWrap';
+import { writeTransientState } from 'vs/workbench/contrib/codeEditor/electron-browser/toggleWordWrap';
 import { mergeSort } from 'vs/base/common/arrays';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import product from 'vs/platform/node/product';

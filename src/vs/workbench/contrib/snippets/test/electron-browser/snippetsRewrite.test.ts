@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Snippet, SnippetSource } from 'vs/workbench/parts/snippets/electron-browser/snippetsFile';
+import { Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/electron-browser/snippetsFile';
 
 suite('SnippetRewrite', function () {
 

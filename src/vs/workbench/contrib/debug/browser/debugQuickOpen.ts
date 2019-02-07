@@ -8,10 +8,10 @@ import * as Filters from 'vs/base/common/filters';
 import * as Quickopen from 'vs/workbench/browser/quickopen';
 import * as QuickOpen from 'vs/base/parts/quickopen/common/quickOpen';
 import * as Model from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import { IDebugService, ILaunch } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, ILaunch } from 'vs/workbench/contrib/debug/common/debug';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { StartAction } from 'vs/workbench/parts/debug/browser/debugActions';
+import { StartAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { CancellationToken } from 'vs/base/common/cancellation';
 

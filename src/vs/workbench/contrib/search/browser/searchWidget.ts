@@ -29,8 +29,8 @@ import { ISearchConfigurationProperties } from 'vs/platform/search/common/search
 import { attachFindInputBoxStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ContextScopedFindInput, ContextScopedHistoryInputBox } from 'vs/platform/widget/browser/contextScopedHistoryWidget';
-import { appendKeyBindingLabel, isSearchViewFocused } from 'vs/workbench/parts/search/browser/searchActions';
-import * as Constants from 'vs/workbench/parts/search/common/constants';
+import { appendKeyBindingLabel, isSearchViewFocused } from 'vs/workbench/contrib/search/browser/searchActions';
+import * as Constants from 'vs/workbench/contrib/search/common/constants';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';

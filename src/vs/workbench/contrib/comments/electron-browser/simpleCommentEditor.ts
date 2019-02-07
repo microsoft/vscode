@@ -12,11 +12,11 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ICommandService } from 'vs/platform/commands/common/commands';
 
 // Allowed Editor Contributions:
-import { MenuPreventer } from 'vs/workbench/parts/codeEditor/browser/menuPreventer';
+import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
 import { ContextMenuController } from 'vs/editor/contrib/contextmenu/contextmenu';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
-import { TabCompletionController } from 'vs/workbench/parts/snippets/electron-browser/tabCompletion';
+import { TabCompletionController } from 'vs/workbench/contrib/snippets/electron-browser/tabCompletion';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 

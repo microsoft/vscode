@@ -12,16 +12,16 @@ import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/wor
 import { KeybindingsRegistry, KeybindingWeight, IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { localize } from 'vs/nls';
-import { Marker, RelatedInformation } from 'vs/workbench/parts/markers/electron-browser/markersModel';
-import { MarkersPanel } from 'vs/workbench/parts/markers/electron-browser/markersPanel';
+import { Marker, RelatedInformation } from 'vs/workbench/contrib/markers/electron-browser/markersModel';
+import { MarkersPanel } from 'vs/workbench/contrib/markers/electron-browser/markersPanel';
 import { MenuId, MenuRegistry, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { PanelRegistry, Extensions as PanelExtensions, PanelDescriptor } from 'vs/workbench/browser/panel';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ToggleMarkersPanelAction, ShowProblemsPanelAction } from 'vs/workbench/parts/markers/electron-browser/markersPanelActions';
-import Constants from 'vs/workbench/parts/markers/electron-browser/constants';
-import Messages from 'vs/workbench/parts/markers/electron-browser/messages';
+import { ToggleMarkersPanelAction, ShowProblemsPanelAction } from 'vs/workbench/contrib/markers/electron-browser/markersPanelActions';
+import Constants from 'vs/workbench/contrib/markers/electron-browser/constants';
+import Messages from 'vs/workbench/contrib/markers/electron-browser/messages';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { IMarkersWorkbenchService, MarkersWorkbenchService, ActivityUpdater } from 'vs/workbench/parts/markers/electron-browser/markers';
+import { IMarkersWorkbenchService, MarkersWorkbenchService, ActivityUpdater } from 'vs/workbench/contrib/markers/electron-browser/markers';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 

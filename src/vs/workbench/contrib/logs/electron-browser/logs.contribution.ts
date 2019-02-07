@@ -7,16 +7,16 @@ import * as nls from 'vs/nls';
 import { join } from 'vs/base/common/paths';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IOutputChannelRegistry, Extensions as OutputExt, } from 'vs/workbench/parts/output/common/output';
+import { IOutputChannelRegistry, Extensions as OutputExt, } from 'vs/workbench/contrib/output/common/output';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import * as Constants from 'vs/workbench/parts/logs/common/logConstants';
+import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { OpenLogsFolderAction, SetLogLevelAction } from 'vs/workbench/parts/logs/electron-browser/logsActions';
+import { OpenLogsFolderAction, SetLogLevelAction } from 'vs/workbench/contrib/logs/electron-browser/logsActions';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 
 class LogOutputChannels extends Disposable implements IWorkbenchContribution {

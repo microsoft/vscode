@@ -17,43 +17,43 @@ import { ShowViewletAction, Extensions as ViewletExtensions, ViewletRegistry, Vi
 import { TogglePanelAction, Extensions as PanelExtensions, PanelRegistry, PanelDescriptor } from 'vs/workbench/browser/panel';
 import { StatusbarItemDescriptor, IStatusbarRegistry, Extensions as StatusExtensions } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { StatusbarAlignment } from 'vs/platform/statusbar/common/statusbar';
-import { VariablesView } from 'vs/workbench/parts/debug/electron-browser/variablesView';
-import { BreakpointsView } from 'vs/workbench/parts/debug/browser/breakpointsView';
-import { WatchExpressionsView } from 'vs/workbench/parts/debug/electron-browser/watchExpressionsView';
-import { CallStackView } from 'vs/workbench/parts/debug/electron-browser/callStackView';
+import { VariablesView } from 'vs/workbench/contrib/debug/electron-browser/variablesView';
+import { BreakpointsView } from 'vs/workbench/contrib/debug/browser/breakpointsView';
+import { WatchExpressionsView } from 'vs/workbench/contrib/debug/electron-browser/watchExpressionsView';
+import { CallStackView } from 'vs/workbench/contrib/debug/electron-browser/callStackView';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import {
 	IDebugService, VIEWLET_ID, REPL_ID, CONTEXT_IN_DEBUG_MODE, INTERNAL_CONSOLE_OPTIONS_SCHEMA,
 	CONTEXT_DEBUG_STATE, VARIABLES_VIEW_ID, CALLSTACK_VIEW_ID, WATCH_VIEW_ID, BREAKPOINTS_VIEW_ID, VIEW_CONTAINER, LOADED_SCRIPTS_VIEW_ID, CONTEXT_LOADED_SCRIPTS_SUPPORTED, CONTEXT_IN_DEBUG_REPL
-} from 'vs/workbench/parts/debug/common/debug';
+} from 'vs/workbench/contrib/debug/common/debug';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { DebugEditorModelManager } from 'vs/workbench/parts/debug/browser/debugEditorModelManager';
+import { DebugEditorModelManager } from 'vs/workbench/contrib/debug/browser/debugEditorModelManager';
 import {
 	StepOverAction, FocusReplAction, StepIntoAction, StepOutAction, StartAction, RestartAction, ContinueAction, StopAction, DisconnectAction, PauseAction, AddFunctionBreakpointAction,
 	ConfigureAction, DisableAllBreakpointsAction, EnableAllBreakpointsAction, RemoveAllBreakpointsAction, RunAction, ReapplyBreakpointsAction, SelectAndStartAction, TerminateThreadAction
-} from 'vs/workbench/parts/debug/browser/debugActions';
-import { DebugToolbar } from 'vs/workbench/parts/debug/browser/debugToolbar';
-import * as service from 'vs/workbench/parts/debug/electron-browser/debugService';
-import { DebugContentProvider } from 'vs/workbench/parts/debug/browser/debugContentProvider';
-import 'vs/workbench/parts/debug/electron-browser/debugEditorContribution';
+} from 'vs/workbench/contrib/debug/browser/debugActions';
+import { DebugToolbar } from 'vs/workbench/contrib/debug/browser/debugToolbar';
+import * as service from 'vs/workbench/contrib/debug/electron-browser/debugService';
+import { DebugContentProvider } from 'vs/workbench/contrib/debug/browser/debugContentProvider';
+import 'vs/workbench/contrib/debug/electron-browser/debugEditorContribution';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { registerCommands, ADD_CONFIGURATION_ID, TOGGLE_INLINE_BREAKPOINT_ID } from 'vs/workbench/parts/debug/browser/debugCommands';
+import { registerCommands, ADD_CONFIGURATION_ID, TOGGLE_INLINE_BREAKPOINT_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
-import { StatusBarColorProvider } from 'vs/workbench/parts/debug/browser/statusbarColorProvider';
+import { StatusBarColorProvider } from 'vs/workbench/contrib/debug/browser/statusbarColorProvider';
 import { ViewsRegistry } from 'vs/workbench/common/views';
 import { isMacintosh } from 'vs/base/common/platform';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
-import { DebugViewlet } from 'vs/workbench/parts/debug/browser/debugViewlet';
-import { Repl, ClearReplAction } from 'vs/workbench/parts/debug/electron-browser/repl';
-import { DebugQuickOpenHandler } from 'vs/workbench/parts/debug/browser/debugQuickOpen';
-import { DebugStatus } from 'vs/workbench/parts/debug/browser/debugStatus';
+import { DebugViewlet } from 'vs/workbench/contrib/debug/browser/debugViewlet';
+import { Repl, ClearReplAction } from 'vs/workbench/contrib/debug/electron-browser/repl';
+import { DebugQuickOpenHandler } from 'vs/workbench/contrib/debug/browser/debugQuickOpen';
+import { DebugStatus } from 'vs/workbench/contrib/debug/browser/debugStatus';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
-import { LoadedScriptsView } from 'vs/workbench/parts/debug/browser/loadedScriptsView';
-import { TOGGLE_LOG_POINT_ID, TOGGLE_CONDITIONAL_BREAKPOINT_ID, TOGGLE_BREAKPOINT_ID } from 'vs/workbench/parts/debug/browser/debugEditorActions';
+import { LoadedScriptsView } from 'vs/workbench/contrib/debug/browser/loadedScriptsView';
+import { TOGGLE_LOG_POINT_ID, TOGGLE_CONDITIONAL_BREAKPOINT_ID, TOGGLE_BREAKPOINT_ID } from 'vs/workbench/contrib/debug/browser/debugEditorActions';
 
 class OpenDebugViewletAction extends ShowViewletAction {
 	public static readonly ID = VIEWLET_ID;
@@ -442,7 +442,7 @@ if (isMacintosh) {
 	const registerTouchBarEntry = (id: string, title: string, order, when: ContextKeyExpr, icon: string) => {
 		MenuRegistry.appendMenuItem(MenuId.TouchBarContext, {
 			command: {
-				id, title, iconLocation: { dark: URI.parse(require.toUrl(`vs/workbench/parts/debug/electron-browser/media/${icon}`)) }
+				id, title, iconLocation: { dark: URI.parse(require.toUrl(`vs/workbench/contrib/debug/electron-browser/media/${icon}`)) }
 			},
 			when,
 			group: '9_debug',

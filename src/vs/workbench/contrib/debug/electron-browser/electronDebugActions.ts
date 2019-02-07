@@ -5,8 +5,8 @@
 
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
-import { Variable } from 'vs/workbench/parts/debug/common/debugModel';
-import { IDebugService, IStackFrame } from 'vs/workbench/parts/debug/common/debug';
+import { Variable } from 'vs/workbench/contrib/debug/common/debugModel';
+import { IDebugService, IStackFrame } from 'vs/workbench/contrib/debug/common/debug';
 import { clipboard } from 'electron';
 import { isWindows } from 'vs/base/common/platform';
 

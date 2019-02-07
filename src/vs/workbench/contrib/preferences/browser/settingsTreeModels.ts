@@ -9,10 +9,10 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { SettingsTarget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
-import { ITOCEntry, knownAcronyms } from 'vs/workbench/parts/preferences/browser/settingsLayout';
+import { SettingsTarget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
+import { ITOCEntry, knownAcronyms } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
 import { IExtensionSetting, ISearchResult, ISetting, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
-import { MODIFIED_SETTING_TAG } from 'vs/workbench/parts/preferences/common/preferences';
+import { MODIFIED_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
 
 export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Terminal, IMarker } from 'vscode-xterm';
-import { ITerminalCommandTracker } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalCommandTracker } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
 /**

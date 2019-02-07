@@ -5,9 +5,9 @@
 
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { INotificationService, Severity, IPromptChoice } from 'vs/platform/notification/common/notification';
-import { IExperimentService, IExperiment, ExperimentActionType, IExperimentActionPromptProperties, IExperimentActionPromptCommand, ExperimentState } from 'vs/workbench/parts/experiments/node/experimentService';
+import { IExperimentService, IExperiment, ExperimentActionType, IExperimentActionPromptProperties, IExperimentActionPromptCommand, ExperimentState } from 'vs/workbench/contrib/experiments/node/experimentService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IExtensionsViewlet } from 'vs/workbench/parts/extensions/common/extensions';
+import { IExtensionsViewlet } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { language } from 'vs/base/common/platform';

@@ -8,8 +8,8 @@ import * as QuickOpen from 'vs/base/parts/quickopen/common/quickOpen';
 import * as Model from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 
-import { CustomTask, ContributedTask } from 'vs/workbench/parts/tasks/common/tasks';
-import { ITaskService } from 'vs/workbench/parts/tasks/common/taskService';
+import { CustomTask, ContributedTask } from 'vs/workbench/contrib/tasks/common/tasks';
+import { ITaskService } from 'vs/workbench/contrib/tasks/common/taskService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 import * as base from './quickOpen';

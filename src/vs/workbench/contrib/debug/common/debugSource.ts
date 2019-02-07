@@ -7,11 +7,11 @@ import * as nls from 'vs/nls';
 import { URI as uri } from 'vs/base/common/uri';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
-import { DEBUG_SCHEME } from 'vs/workbench/parts/debug/common/debug';
+import { DEBUG_SCHEME } from 'vs/workbench/contrib/debug/common/debug';
 import { IRange } from 'vs/editor/common/core/range';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { Schemas } from 'vs/base/common/network';
-import { isUri } from 'vs/workbench/parts/debug/common/debugUtils';
+import { isUri } from 'vs/workbench/contrib/debug/common/debugUtils';
 
 const UNKNOWN_SOURCE_LABEL = nls.localize('unknownSource', "Unknown Source");
 

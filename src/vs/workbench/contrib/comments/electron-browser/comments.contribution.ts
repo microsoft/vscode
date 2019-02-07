@@ -6,8 +6,8 @@
 import * as nls from 'vs/nls';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import 'vs/workbench/parts/comments/electron-browser/commentsEditorContribution';
-import { ICommentService, CommentService } from 'vs/workbench/parts/comments/electron-browser/commentService';
+import 'vs/workbench/contrib/comments/electron-browser/commentsEditorContribution';
+import { ICommentService, CommentService } from 'vs/workbench/contrib/comments/electron-browser/commentService';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 
 export interface ICommentsConfiguration {

@@ -20,8 +20,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { inputValidationErrorBorder } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ICommentService } from 'vs/workbench/parts/comments/electron-browser/commentService';
-import { SimpleCommentEditor } from 'vs/workbench/parts/comments/electron-browser/simpleCommentEditor';
+import { ICommentService } from 'vs/workbench/contrib/comments/electron-browser/commentService';
+import { SimpleCommentEditor } from 'vs/workbench/contrib/comments/electron-browser/simpleCommentEditor';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { isMacintosh } from 'vs/base/common/platform';
 import { Selection } from 'vs/editor/common/core/selection';

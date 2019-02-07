@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { settingKeyToDisplayFormat, parseQuery, IParsedQuery } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
+import { settingKeyToDisplayFormat, parseQuery, IParsedQuery } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
 
 suite('SettingsTree', () => {
 	test('settingKeyToDisplayFormat', () => {

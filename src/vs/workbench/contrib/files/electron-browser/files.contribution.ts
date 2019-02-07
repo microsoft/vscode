@@ -13,20 +13,20 @@ import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/wor
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IEditorInputFactory, EditorInput, IFileEditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions } from 'vs/workbench/common/editor';
 import { AutoSaveConfiguration, HotExitConfiguration, SUPPORTED_ENCODINGS } from 'vs/platform/files/common/files';
-import { VIEWLET_ID, SortOrderConfiguration, FILE_EDITOR_INPUT_ID, IExplorerService } from 'vs/workbench/parts/files/common/files';
-import { FileEditorTracker } from 'vs/workbench/parts/files/browser/editors/fileEditorTracker';
-import { SaveErrorHandler } from 'vs/workbench/parts/files/electron-browser/saveErrorHandler';
-import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
-import { TextFileEditor } from 'vs/workbench/parts/files/browser/editors/textFileEditor';
-import { BinaryFileEditor } from 'vs/workbench/parts/files/browser/editors/binaryFileEditor';
+import { VIEWLET_ID, SortOrderConfiguration, FILE_EDITOR_INPUT_ID, IExplorerService } from 'vs/workbench/contrib/files/common/files';
+import { FileEditorTracker } from 'vs/workbench/contrib/files/browser/editors/fileEditorTracker';
+import { SaveErrorHandler } from 'vs/workbench/contrib/files/electron-browser/saveErrorHandler';
+import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
+import { TextFileEditor } from 'vs/workbench/contrib/files/browser/editors/textFileEditor';
+import { BinaryFileEditor } from 'vs/workbench/contrib/files/browser/editors/binaryFileEditor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
-import { DirtyFilesTracker } from 'vs/workbench/parts/files/common/dirtyFilesTracker';
-import { ExplorerViewlet, ExplorerViewletViewsContribution } from 'vs/workbench/parts/files/electron-browser/explorerViewlet';
+import { DirtyFilesTracker } from 'vs/workbench/contrib/files/common/dirtyFilesTracker';
+import { ExplorerViewlet, ExplorerViewletViewsContribution } from 'vs/workbench/contrib/files/electron-browser/explorerViewlet';
 import { IEditorRegistry, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 import { DataUriEditorInput } from 'vs/workbench/common/editor/dataUriEditorInput';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
@@ -36,7 +36,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { nativeSep } from 'vs/base/common/paths';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ExplorerService } from 'vs/workbench/parts/files/electron-browser/explorerService';
+import { ExplorerService } from 'vs/workbench/contrib/files/electron-browser/explorerService';
 
 // Viewlet Action
 export class OpenExplorerViewletAction extends ShowViewletAction {

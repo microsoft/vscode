@@ -9,8 +9,8 @@ import * as crypto from 'crypto';
 
 import * as Objects from 'vs/base/common/objects';
 
-import { TaskIdentifier, KeyedTaskIdentifier, TaskDefinition } from 'vs/workbench/parts/tasks/common/tasks';
-import { TaskDefinitionRegistry } from 'vs/workbench/parts/tasks/common/taskDefinitionRegistry';
+import { TaskIdentifier, KeyedTaskIdentifier, TaskDefinition } from 'vs/workbench/contrib/tasks/common/tasks';
+import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
 
 namespace KeyedTaskIdentifier {
 	export function create(value: TaskIdentifier): KeyedTaskIdentifier {

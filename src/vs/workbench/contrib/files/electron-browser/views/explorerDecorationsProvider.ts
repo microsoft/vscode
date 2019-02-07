@@ -11,7 +11,7 @@ import { IDecorationsProvider, IDecorationData } from 'vs/workbench/services/dec
 import { listInvalidItemForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IDisposable } from 'vscode-xterm';
 import { dispose } from 'vs/base/common/lifecycle';
-import { IExplorerService } from 'vs/workbench/parts/files/common/files';
+import { IExplorerService } from 'vs/workbench/contrib/files/common/files';
 
 export class ExplorerDecorationsProvider implements IDecorationsProvider {
 	readonly label: string = localize('label', "Explorer");

@@ -6,9 +6,9 @@
 import * as nls from 'vs/nls';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { ITaskService, WorkspaceFolderTaskResult } from 'vs/workbench/parts/tasks/common/taskService';
+import { ITaskService, WorkspaceFolderTaskResult } from 'vs/workbench/contrib/tasks/common/taskService';
 import { forEach } from 'vs/base/common/collections';
-import { RunOnOptions, Task, TaskRunSource } from 'vs/workbench/parts/tasks/common/tasks';
+import { RunOnOptions, Task, TaskRunSource } from 'vs/workbench/contrib/tasks/common/tasks';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { Action } from 'vs/base/common/actions';

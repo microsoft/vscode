@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { basename } from 'vs/base/common/paths';
 import { IDisposable, dispose, Disposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
-import { VIEWLET_ID } from 'vs/workbench/parts/scm/common/scm';
+import { VIEWLET_ID } from 'vs/workbench/contrib/scm/common/scm';
 import { ISCMService, ISCMRepository } from 'vs/workbench/services/scm/common/scm';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';

@@ -7,8 +7,8 @@ import * as assert from 'assert';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { join } from 'vs/base/common/paths';
-import { validateFileName } from 'vs/workbench/parts/files/electron-browser/fileActions';
-import { ExplorerItem } from 'vs/workbench/parts/files/common/explorerModel';
+import { validateFileName } from 'vs/workbench/contrib/files/electron-browser/fileActions';
+import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 
 function createStat(path: string, name: string, isFolder: boolean, hasChildren: boolean, size: number, mtime: number): ExplorerItem {
 	return new ExplorerItem(toResource(path), null, isFolder, false, false, name, mtime);

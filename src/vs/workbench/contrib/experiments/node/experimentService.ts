@@ -19,7 +19,7 @@ import { match } from 'vs/base/common/glob';
 import { asJson } from 'vs/base/node/request';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ITextFileService, StateChange } from 'vs/workbench/services/textfile/common/textfiles';
-import { WorkspaceStats } from 'vs/workbench/parts/stats/node/workspaceStats';
+import { WorkspaceStats } from 'vs/workbench/contrib/stats/node/workspaceStats';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { distinct } from 'vs/base/common/arrays';
 import { lastSessionDateStorageKey } from 'vs/platform/telemetry/node/workbenchCommonProperties';

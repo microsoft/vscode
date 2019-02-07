@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { IExpression, IDebugService } from 'vs/workbench/parts/debug/common/debug';
-import { Expression, Variable } from 'vs/workbench/parts/debug/common/debugModel';
+import { IExpression, IDebugService } from 'vs/workbench/contrib/debug/common/debug';
+import { Expression, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInputValidationOptions, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/tree/tree';

@@ -21,7 +21,7 @@ import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewCon
 import { Schemas } from 'vs/base/common/network';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
-import { ExplorerItem } from 'vs/workbench/parts/files/common/explorerModel';
+import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 
 /**
  * Explorer viewlet id.

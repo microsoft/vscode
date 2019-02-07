@@ -9,10 +9,10 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
-import { IDebugService, State, IDebugConfiguration } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, State, IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
 import { Themable, STATUS_BAR_FOREGROUND } from 'vs/workbench/common/theme';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { STATUS_BAR_DEBUGGING_FOREGROUND, isStatusbarInDebugMode } from 'vs/workbench/parts/debug/browser/statusbarColorProvider';
+import { STATUS_BAR_DEBUGGING_FOREGROUND, isStatusbarInDebugMode } from 'vs/workbench/contrib/debug/browser/statusbarColorProvider';
 
 const $ = dom.$;
 

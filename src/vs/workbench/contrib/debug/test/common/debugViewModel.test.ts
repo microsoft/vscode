@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ViewModel } from 'vs/workbench/parts/debug/common/debugViewModel';
-import { StackFrame, Expression, Thread } from 'vs/workbench/parts/debug/common/debugModel';
-import { MockSession } from 'vs/workbench/parts/debug/test/common/mockDebug';
+import { ViewModel } from 'vs/workbench/contrib/debug/common/debugViewModel';
+import { StackFrame, Expression, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
+import { MockSession } from 'vs/workbench/contrib/debug/test/common/mockDebug';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 
 suite('Debug - View Model', () => {

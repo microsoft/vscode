@@ -29,9 +29,9 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ColorIdentifier, editorSelectionBackground, inputBackground, inputBorder, inputForeground, inputPlaceholderForeground, selectionBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IStyleOverrides, IThemable, attachStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { MenuPreventer } from 'vs/workbench/parts/codeEditor/browser/menuPreventer';
-import { getSimpleEditorOptions } from 'vs/workbench/parts/codeEditor/browser/simpleEditorOptions';
-import { SelectionClipboard } from 'vs/workbench/parts/codeEditor/electron-browser/selectionClipboard';
+import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
+import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
+import { SelectionClipboard } from 'vs/workbench/contrib/codeEditor/electron-browser/selectionClipboard';
 
 interface SuggestResultsProvider {
 	/**

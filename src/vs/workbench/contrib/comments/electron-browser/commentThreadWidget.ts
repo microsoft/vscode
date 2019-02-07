@@ -20,7 +20,7 @@ import { peekViewBorder } from 'vs/editor/contrib/referenceSearch/referencesWidg
 import { IOptions, ZoneWidget } from 'vs/editor/contrib/zoneWidget/zoneWidget';
 import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { CommentGlyphWidget } from 'vs/workbench/parts/comments/electron-browser/commentGlyphWidget';
+import { CommentGlyphWidget } from 'vs/workbench/contrib/comments/electron-browser/commentGlyphWidget';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { SimpleCommentEditor } from './simpleCommentEditor';
@@ -29,13 +29,13 @@ import { transparent, editorForeground, textLinkActiveForeground, textLinkForegr
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { ICommentService } from 'vs/workbench/parts/comments/electron-browser/commentService';
+import { ICommentService } from 'vs/workbench/contrib/comments/electron-browser/commentService';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
-import { CommentNode } from 'vs/workbench/parts/comments/electron-browser/commentNode';
+import { CommentNode } from 'vs/workbench/contrib/comments/electron-browser/commentNode';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ITextModel } from 'vs/editor/common/model';

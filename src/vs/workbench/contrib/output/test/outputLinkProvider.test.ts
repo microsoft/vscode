@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { isMacintosh, isLinux } from 'vs/base/common/platform';
-import { OutputLinkComputer } from 'vs/workbench/parts/output/common/outputLinkComputer';
+import { OutputLinkComputer } from 'vs/workbench/contrib/output/common/outputLinkComputer';
 import { TestContextService } from 'vs/workbench/test/workbenchTestServices';
 
 function toOSPath(p: string): string {

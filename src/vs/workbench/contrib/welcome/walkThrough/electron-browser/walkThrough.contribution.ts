@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { WalkThroughInput } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughInput';
-import { WalkThroughPart } from 'vs/workbench/parts/welcome/walkThrough/electron-browser/walkThroughPart';
-import { WalkThroughArrowUp, WalkThroughArrowDown, WalkThroughPageUp, WalkThroughPageDown } from 'vs/workbench/parts/welcome/walkThrough/electron-browser/walkThroughActions';
-import { WalkThroughContentProvider, WalkThroughSnippetContentProvider } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughContentProvider';
-import { EditorWalkThroughAction, EditorWalkThroughInputFactory } from 'vs/workbench/parts/welcome/walkThrough/electron-browser/editor/editorWalkThrough';
+import { WalkThroughInput } from 'vs/workbench/contrib/welcome/walkThrough/node/walkThroughInput';
+import { WalkThroughPart } from 'vs/workbench/contrib/welcome/walkThrough/electron-browser/walkThroughPart';
+import { WalkThroughArrowUp, WalkThroughArrowDown, WalkThroughPageUp, WalkThroughPageDown } from 'vs/workbench/contrib/welcome/walkThrough/electron-browser/walkThroughActions';
+import { WalkThroughContentProvider, WalkThroughSnippetContentProvider } from 'vs/workbench/contrib/welcome/walkThrough/node/walkThroughContentProvider';
+import { EditorWalkThroughAction, EditorWalkThroughInputFactory } from 'vs/workbench/contrib/welcome/walkThrough/electron-browser/editor/editorWalkThrough';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as EditorInputExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';

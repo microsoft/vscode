@@ -11,7 +11,7 @@ import * as Objects from 'vs/base/common/objects';
 
 import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
-import * as Tasks from 'vs/workbench/parts/tasks/common/tasks';
+import * as Tasks from 'vs/workbench/contrib/tasks/common/tasks';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 

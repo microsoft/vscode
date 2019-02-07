@@ -5,11 +5,11 @@
 
 import { URI } from 'vs/base/common/uri';
 import { IListService, WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
-import { OpenEditor } from 'vs/workbench/parts/files/common/files';
+import { OpenEditor } from 'vs/workbench/contrib/files/common/files';
 import { toResource } from 'vs/workbench/common/editor';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ExplorerItem } from 'vs/workbench/parts/files/common/explorerModel';
+import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { coalesce } from 'vs/base/common/arrays';
 
 // Commands can get exeucted from a command pallete, from a context menu or from some list using a keybinding

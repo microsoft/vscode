@@ -13,8 +13,8 @@ import * as QuickOpen from 'vs/base/parts/quickopen/common/quickOpen';
 import * as Model from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 
-import { CustomTask, ContributedTask } from 'vs/workbench/parts/tasks/common/tasks';
-import { ITaskService, ProblemMatcherRunOptions } from 'vs/workbench/parts/tasks/common/taskService';
+import { CustomTask, ContributedTask } from 'vs/workbench/contrib/tasks/common/tasks';
+import { ITaskService, ProblemMatcherRunOptions } from 'vs/workbench/contrib/tasks/common/taskService';
 import { ActionBarContributor, ContributableActionProvider } from 'vs/workbench/browser/actions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 

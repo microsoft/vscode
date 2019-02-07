@@ -9,7 +9,7 @@ import * as platform from 'vs/base/common/platform';
 import pkg from 'vs/platform/node/package';
 import { URI as Uri } from 'vs/base/common/uri';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IShellLaunchConfig, ITerminalEnvironment } from 'vs/workbench/parts/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalEnvironment } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 
 /**

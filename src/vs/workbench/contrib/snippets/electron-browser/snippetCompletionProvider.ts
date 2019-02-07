@@ -12,8 +12,8 @@ import { CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionL
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { localize } from 'vs/nls';
-import { ISnippetsService } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
-import { Snippet, SnippetSource } from 'vs/workbench/parts/snippets/electron-browser/snippetsFile';
+import { ISnippetsService } from 'vs/workbench/contrib/snippets/electron-browser/snippets.contribution';
+import { Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/electron-browser/snippetsFile';
 
 export class SnippetCompletion implements CompletionItem {
 

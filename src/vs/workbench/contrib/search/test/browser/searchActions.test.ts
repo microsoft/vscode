@@ -15,9 +15,9 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { IFileMatch } from 'vs/platform/search/common/search';
-import { ReplaceAction } from 'vs/workbench/parts/search/browser/searchActions';
-import { FileMatch, FileMatchOrMatch, Match } from 'vs/workbench/parts/search/common/searchModel';
-import { MockObjectTree } from 'vs/workbench/parts/search/test/browser/mockSearchTree';
+import { ReplaceAction } from 'vs/workbench/contrib/search/browser/searchActions';
+import { FileMatch, FileMatchOrMatch, Match } from 'vs/workbench/contrib/search/common/searchModel';
+import { MockObjectTree } from 'vs/workbench/contrib/search/test/browser/mockSearchTree';
 
 suite('Search Actions', () => {
 

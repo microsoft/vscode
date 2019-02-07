@@ -23,8 +23,8 @@ import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/co
 import { editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { CommentThreadCollapsibleState } from 'vs/workbench/api/node/extHostTypes';
-import { ReviewZoneWidget, COMMENTEDITOR_DECORATION_KEY } from 'vs/workbench/parts/comments/electron-browser/commentThreadWidget';
-import { ICommentService, ICommentInfo } from 'vs/workbench/parts/comments/electron-browser/commentService';
+import { ReviewZoneWidget, COMMENTEDITOR_DECORATION_KEY } from 'vs/workbench/contrib/comments/electron-browser/commentThreadWidget';
+import { ICommentService, ICommentInfo } from 'vs/workbench/contrib/comments/electron-browser/commentService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -34,7 +34,7 @@ import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
-import { overviewRulerCommentingRangeForeground } from 'vs/workbench/parts/comments/electron-browser/commentGlyphWidget';
+import { overviewRulerCommentingRangeForeground } from 'vs/workbench/contrib/comments/electron-browser/commentGlyphWidget';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { STATUS_BAR_ITEM_HOVER_BACKGROUND, STATUS_BAR_ITEM_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
 

@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import * as env from 'vs/base/common/platform';
 import * as pfs from 'vs/base/node/pfs';
 import { assign } from 'vs/base/common/objects';
-import { ITerminalLauncher, ITerminalSettings } from 'vs/workbench/parts/debug/common/debug';
+import { ITerminalLauncher, ITerminalSettings } from 'vs/workbench/contrib/debug/common/debug';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 const TERMINAL_TITLE = nls.localize('console.title', "VS Code Console");
@@ -129,7 +129,7 @@ class MacTerminalService extends TerminalLauncher {
 				// and then launches the program inside that window.
 
 				const script = terminalApp === MacTerminalService.DEFAULT_TERMINAL_OSX ? 'TerminalHelper' : 'iTermHelper';
-				const scriptpath = getPathFromAmdModule(require, `vs/workbench/parts/execution/electron-browser/${script}.scpt`);
+				const scriptpath = getPathFromAmdModule(require, `vs/workbench/contrib/execution/electron-browser/${script}.scpt`);
 
 				const osaArgs = [
 					scriptpath,

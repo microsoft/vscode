@@ -13,7 +13,7 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
-import { IExperimentService, ExperimentState } from 'vs/workbench/parts/experiments/node/experimentService';
+import { IExperimentService, ExperimentState } from 'vs/workbench/contrib/experiments/node/experimentService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { language, locale } from 'vs/base/common/platform';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -95,7 +95,7 @@ export class TelemetryOptOut implements IWorkbenchContribution {
 
 				return this.galleryService.getCoreTranslation(extensionToFetchTranslationsFrom, locale!)
 					.then(translation => {
-						const translationsFromPack = translation && translation.contents ? translation.contents['vs/workbench/parts/welcome/gettingStarted/electron-browser/telemetryOptOut'] : {};
+						const translationsFromPack = translation && translation.contents ? translation.contents['vs/workbench/contrib/welcome/gettingStarted/electron-browser/telemetryOptOut'] : {};
 						if (!!translationsFromPack[promptMessageKey] && !!translationsFromPack[yesLabelKey] && !!translationsFromPack[noLabelKey]) {
 							promptMessage = translationsFromPack[promptMessageKey].replace('{0}', this.privacyUrl) + ' (Please help Microsoft improve Visual Studio Code by allowing the collection of usage data.)';
 							yesLabel = translationsFromPack[yesLabelKey] + ' (Yes)';

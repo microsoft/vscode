@@ -6,12 +6,12 @@
 import * as assert from 'assert';
 import { URI as uri } from 'vs/base/common/uri';
 import severity from 'vs/base/common/severity';
-import { SimpleReplElement, DebugModel, Expression, RawObjectReplElement, StackFrame, Thread } from 'vs/workbench/parts/debug/common/debugModel';
+import { SimpleReplElement, DebugModel, Expression, RawObjectReplElement, StackFrame, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
 import * as sinon from 'sinon';
-import { MockRawSession } from 'vs/workbench/parts/debug/test/common/mockDebug';
-import { Source } from 'vs/workbench/parts/debug/common/debugSource';
-import { DebugSession } from 'vs/workbench/parts/debug/electron-browser/debugSession';
-import { ReplModel } from 'vs/workbench/parts/debug/common/replModel';
+import { MockRawSession } from 'vs/workbench/contrib/debug/test/common/mockDebug';
+import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
+import { DebugSession } from 'vs/workbench/contrib/debug/electron-browser/debugSession';
+import { ReplModel } from 'vs/workbench/contrib/debug/common/replModel';
 
 suite('Debug - Model', () => {
 	let model: DebugModel;

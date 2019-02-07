@@ -14,9 +14,9 @@ import { HtmlPreviewPart } from './htmlPreviewPart';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
-import { IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
+import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IEditorRegistry, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
-import { registerWebViewCommands } from 'vs/workbench/parts/webview/electron-browser/webview.contribution';
+import { registerWebViewCommands } from 'vs/workbench/contrib/webview/electron-browser/webview.contribution';
 
 // --- Register Editor
 

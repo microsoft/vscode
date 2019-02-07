@@ -8,9 +8,9 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { LinkProviderRegistry, ILink } from 'vs/editor/common/modes';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { OUTPUT_MODE_ID, LOG_MODE_ID } from 'vs/workbench/parts/output/common/output';
+import { OUTPUT_MODE_ID, LOG_MODE_ID } from 'vs/workbench/contrib/output/common/output';
 import { MonacoWebWorker, createWebWorker } from 'vs/editor/common/services/webWorker';
-import { ICreateData, OutputLinkComputer } from 'vs/workbench/parts/output/common/outputLinkComputer';
+import { ICreateData, OutputLinkComputer } from 'vs/workbench/contrib/output/common/outputLinkComputer';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 export class OutputLinkProvider {
@@ -65,7 +65,7 @@ export class OutputLinkProvider {
 			};
 
 			this.worker = createWebWorker<OutputLinkComputer>(this.modelService, {
-				moduleId: 'vs/workbench/parts/output/common/outputLinkComputer',
+				moduleId: 'vs/workbench/contrib/output/common/outputLinkComputer',
 				createData,
 				label: 'outputLinkComputer'
 			});
