@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { IMenubarMenu, IMenubarMenuItemAction, IMenubarMenuItemSubmenu, IMenubarKeybinding, IMenubarService, IMenubarData, MenubarMenuItem } from 'vs/platform/menubar/common/menubar';
 import { IMenuService, MenuId, IMenu, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { registerThemingParticipant, ITheme, ICssStyleCollector, IThemeService } from 'vs/platform/theme/common/themeService';
-import { IWindowService, MenuBarVisibility, IWindowsService, getTitleBarStyle } from 'vs/platform/windows/common/windows';
+import { IWindowService, MenuBarVisibility, IWindowsService, getTitleBarStyle, URIType } from 'vs/platform/windows/common/windows';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IAction, Action } from 'vs/base/common/actions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -75,8 +75,8 @@ export class MenubarControl extends Disposable {
 	private container: HTMLElement;
 	private recentlyOpened: IRecentlyOpened;
 
-	private _onVisibilityChange: Emitter<boolean>;
-	private _onFocusStateChange: Emitter<boolean>;
+	private readonly _onVisibilityChange: Emitter<boolean>;
+	private readonly _onFocusStateChange: Emitter<boolean>;
 
 	private static MAX_MENU_RECENT_ENTRIES = 10;
 
@@ -317,26 +317,34 @@ export class MenubarControl extends Disposable {
 		return label;
 	}
 
-	private createOpenRecentMenuAction(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI, commandId: string, isFile: boolean): IAction & { uri: URI } {
+	private createOpenRecentMenuAction(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI, isFile: boolean): IAction & { uri: URI } {
 
 		let label: string;
 		let uri: URI;
+		let commandId: string;
+		let typeHint: URIType | undefined;
 
 		if (isSingleFolderWorkspaceIdentifier(workspace) && !isFile) {
 			label = this.labelService.getWorkspaceLabel(workspace, { verbose: true });
 			uri = workspace;
+			commandId = 'openRecentFolder';
+			typeHint = 'folder';
 		} else if (isWorkspaceIdentifier(workspace)) {
 			label = this.labelService.getWorkspaceLabel(workspace, { verbose: true });
-			uri = URI.file(workspace.configPath);
+			uri = workspace.configPath;
+			commandId = 'openRecentWorkspace';
+			typeHint = 'file';
 		} else {
 			uri = workspace;
 			label = this.labelService.getUriLabel(uri);
+			commandId = 'openRecentFile';
+			typeHint = 'file';
 		}
 
 		const ret: IAction = new Action(commandId, label, undefined, undefined, (event) => {
 			const openInNewWindow = event && ((!isMacintosh && (event.ctrlKey || event.shiftKey)) || (isMacintosh && (event.metaKey || event.altKey)));
 
-			return this.windowService.openWindow([uri], {
+			return this.windowService.openWindow([{ uri, typeHint }], {
 				forceNewWindow: openInNewWindow,
 				forceOpenWorkspaceAsFile: isFile
 			});
@@ -357,7 +365,7 @@ export class MenubarControl extends Disposable {
 
 		if (workspaces.length > 0) {
 			for (let i = 0; i < MenubarControl.MAX_MENU_RECENT_ENTRIES && i < workspaces.length; i++) {
-				result.push(this.createOpenRecentMenuAction(workspaces[i], 'openRecentWorkspace', false));
+				result.push(this.createOpenRecentMenuAction(workspaces[i], false));
 			}
 
 			result.push(new Separator());
@@ -365,7 +373,7 @@ export class MenubarControl extends Disposable {
 
 		if (files.length > 0) {
 			for (let i = 0; i < MenubarControl.MAX_MENU_RECENT_ENTRIES && i < files.length; i++) {
-				result.push(this.createOpenRecentMenuAction(files[i], 'openRecentFile', false));
+				result.push(this.createOpenRecentMenuAction(files[i], true));
 			}
 
 			result.push(new Separator());

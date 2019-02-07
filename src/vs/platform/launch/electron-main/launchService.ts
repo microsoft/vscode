@@ -19,6 +19,7 @@ import { BrowserWindow } from 'electron';
 import { Event } from 'vs/base/common/event';
 import { hasArgs } from 'vs/platform/environment/node/argv';
 import { coalesce } from 'vs/base/common/arrays';
+import { Schemas } from 'vs/base/common/network';
 
 export const ID = 'launchService';
 export const ILaunchService = createDecorator<ILaunchService>(ID);
@@ -270,12 +271,16 @@ export class LaunchService implements ILaunchService {
 		if (window.openedFolderUri) {
 			folderURIs.push(window.openedFolderUri);
 		} else if (window.openedWorkspace) {
-			const resolvedWorkspace = this.workspacesMainService.resolveWorkspaceSync(window.openedWorkspace.configPath);
+			// workspace folders can only be shown for local workspaces
+			const workspaceConfigPath = window.openedWorkspace.configPath;
+			const resolvedWorkspace = workspaceConfigPath.scheme === Schemas.file && this.workspacesMainService.resolveWorkspaceSync(workspaceConfigPath.fsPath);
 			if (resolvedWorkspace) {
 				const rootFolders = resolvedWorkspace.folders;
 				rootFolders.forEach(root => {
 					folderURIs.push(root.uri);
 				});
+			} else {
+				//TODO: can we add the workspace file here?
 			}
 		}
 

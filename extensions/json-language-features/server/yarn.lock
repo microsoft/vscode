@@ -7,10 +7,10 @@
   resolved "https://registry.yarnpkg.com/@types/mocha/-/mocha-2.2.33.tgz#d79a0061ec270379f4d9e225f4096fb436669def"
   integrity sha1-15oAYewnA3n02eIl9AlvtDZmne8=
 
-"@types/node@^8.10.25":
-  version "8.10.25"
-  resolved "https://registry.yarnpkg.com/@types/node/-/node-8.10.25.tgz#801fe4e39372cef18f268db880a5fbfcf71adc7e"
-  integrity sha512-WXvAXaknB0c2cJ7N44e1kUrVu5K90mSfPPaT5XxfuSMxEWva86EYIwxUZM3jNZ2P1CIC9e2z4WJqpAF69PQxeA==
+"@types/node@^10.12.21":
+  version "10.12.21"
+  resolved "https://registry.yarnpkg.com/@types/node/-/node-10.12.21.tgz#7e8a0c34cf29f4e17a36e9bd0ea72d45ba03908e"
+  integrity sha512-CBgLNk4o3XMnqMc0rhb6lc77IwShMEglz05deDcn2lQxyXEZivfwgYJu7SMha9V5XcrP6qZuevTHV/QrN2vjKQ==
 
 agent-base@4, agent-base@^4.1.0:
   version "4.1.2"

@@ -9,7 +9,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import product from 'vs/platform/node/product';
-import { IWindowsService, OpenContext, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IDevToolsOptions, INewWindowOptions, IOpenSettings } from 'vs/platform/windows/common/windows';
+import { IWindowsService, OpenContext, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IDevToolsOptions, INewWindowOptions, IOpenSettings, IURIToOpen } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { shell, crashReporter, app, Menu, clipboard } from 'electron';
 import { Event } from 'vs/base/common/event';
@@ -37,7 +37,7 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 	readonly onWindowMaximize: Event<number> = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-maximize', (_, w: Electron.BrowserWindow) => w.id), id => !!this.windowsMainService.getWindowById(id));
 	readonly onWindowUnmaximize: Event<number> = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-unmaximize', (_, w: Electron.BrowserWindow) => w.id), id => !!this.windowsMainService.getWindowById(id));
 	readonly onWindowFocus: Event<number> = Event.any(
-		Event.map(Event.filter(Event.map(this.windowsMainService.onWindowsCountChanged, () => this.windowsMainService.getLastActiveWindow()), w => !!w), w => w.id),
+		Event.map(Event.filter(Event.map(this.windowsMainService.onWindowsCountChanged, () => this.windowsMainService.getLastActiveWindow()), w => !!w), w => w!.id),
 		Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-focus', (_, w: Electron.BrowserWindow) => w.id), id => !!this.windowsMainService.getWindowById(id))
 	);
 
@@ -274,16 +274,16 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 		});
 	}
 
-	async openWindow(windowId: number, paths: URI[], options?: IOpenSettings): Promise<void> {
+	async openWindow(windowId: number, urisToOpen: IURIToOpen[], options?: IOpenSettings): Promise<void> {
 		this.logService.trace('windowsService#openWindow');
-		if (!paths || !paths.length) {
+		if (!urisToOpen || !urisToOpen.length) {
 			return undefined;
 		}
 
 		this.windowsMainService.open({
 			context: OpenContext.API,
 			contextWindowId: windowId,
-			urisToOpen: paths,
+			urisToOpen: urisToOpen,
 			cli: options && options.args ? { ...this.environmentService.args, ...options.args } : this.environmentService.args,
 			forceNewWindow: options && options.forceNewWindow,
 			forceReuseWindow: options && options.forceReuseWindow,
@@ -419,14 +419,14 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 
 		// Catch file URLs
 		if (uri.authority === Schemas.file && !!uri.path) {
-			this.openFileForURI(URI.file(uri.fsPath));
+			this.openFileForURI({ uri });
 			return true;
 		}
 
 		return false;
 	}
 
-	private openFileForURI(uri: URI): void {
+	private openFileForURI(uri: IURIToOpen): void {
 		const cli = assign(Object.create(null), this.environmentService.args, { goto: true });
 		const urisToOpen = [uri];
 

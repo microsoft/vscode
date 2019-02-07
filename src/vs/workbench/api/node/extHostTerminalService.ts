@@ -6,19 +6,20 @@
 import * as vscode from 'vscode';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as platform from 'vs/base/common/platform';
-import * as terminalEnvironment from 'vs/workbench/parts/terminal/node/terminalEnvironment';
+import * as terminalEnvironment from 'vs/workbench/contrib/terminal/node/terminalEnvironment';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, IMainContext, ShellLaunchConfigDto } from 'vs/workbench/api/node/extHost.protocol';
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
 import { ILogService } from 'vs/platform/log/common/log';
-import { EXT_HOST_CREATION_DELAY } from 'vs/workbench/parts/terminal/common/terminal';
-import { TerminalProcess } from 'vs/workbench/parts/terminal/node/terminalProcess';
+import { EXT_HOST_CREATION_DELAY } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TerminalProcess } from 'vs/workbench/contrib/terminal/node/terminalProcess';
 import { timeout } from 'vs/base/common/async';
 import { generateRandomPipeName } from 'vs/base/parts/ipc/node/ipc.net';
 import * as http from 'http';
 import * as fs from 'fs';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { sanitizeProcessEnvironment } from 'vs/base/node/processes';
+import { IURIToOpen, URIType } from 'vs/platform/windows/common/windows';
 
 const RENDERER_NO_PROCESS_ID = -1;
 
@@ -78,6 +79,8 @@ export class BaseExtHostTerminal {
 export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Terminal {
 	private _pidPromise: Promise<number>;
 	private _pidPromiseComplete: (value: number) => any;
+	private _cols: number | undefined;
+	private _rows: number | undefined;
 
 	private readonly _onData = new Emitter<string>();
 	public get onDidWriteData(): Event<string> {
@@ -124,6 +127,26 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 
 	public set name(name: string) {
 		this._name = name;
+	}
+
+	public get dimensions(): vscode.TerminalDimensions | undefined {
+		if (this._cols === undefined && this._rows === undefined) {
+			return undefined;
+		}
+		return {
+			columns: this._cols,
+			rows: this._rows
+		};
+	}
+
+	public setDimensions(cols: number, rows: number): boolean {
+		if (cols === this._cols && rows === this._rows) {
+			// Nothing changed
+			return false;
+		}
+		this._cols = cols;
+		this._rows = rows;
+		return true;
 	}
 
 	public get processId(): Promise<number> {
@@ -273,6 +296,8 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	public get onDidOpenTerminal(): Event<vscode.Terminal> { return this._onDidOpenTerminal && this._onDidOpenTerminal.event; }
 	private readonly _onDidChangeActiveTerminal: Emitter<vscode.Terminal | undefined> = new Emitter<vscode.Terminal | undefined>();
 	public get onDidChangeActiveTerminal(): Event<vscode.Terminal | undefined> { return this._onDidChangeActiveTerminal && this._onDidChangeActiveTerminal.event; }
+	private readonly _onDidChangeTerminalDimensions: Emitter<vscode.TerminalDimensionsChangeEvent> = new Emitter<vscode.TerminalDimensionsChangeEvent>();
+	public get onDidChangeTerminalDimensions(): Event<vscode.TerminalDimensionsChangeEvent> { return this._onDidChangeTerminalDimensions && this._onDidChangeTerminalDimensions.event; }
 
 	constructor(
 		mainContext: IMainContext,
@@ -352,7 +377,17 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		});
 	}
 
-	public $acceptTerminalRendererDimensions(id: number, cols: number, rows: number): void {
+	public async $acceptTerminalDimensions(id: number, cols: number, rows: number): Promise<void> {
+		const terminal = this._getTerminalById(id);
+		if (terminal) {
+			if (terminal.setDimensions(cols, rows)) {
+				this._onDidChangeTerminalDimensions.fire({
+					terminal: terminal,
+					dimensions: terminal.dimensions
+				});
+			}
+		}
+		// When a terminal's dimensions change, a renderer's _maximum_ dimensions change
 		const renderer = this._getTerminalRendererById(id);
 		if (renderer) {
 			renderer._setMaximumDimensions(cols, rows);
@@ -630,18 +665,16 @@ class CLIServer {
 
 		return this.ipcHandlePath;
 	}
-	private toURIs(strs: string[]): URI[] {
-		const result: URI[] = [];
+	private collectURIToOpen(strs: string[], typeHint: URIType, result: IURIToOpen[]): void {
 		if (Array.isArray(strs)) {
 			for (const s of strs) {
 				try {
-					result.push(URI.parse(s));
+					result.push({ uri: URI.parse(s), typeHint });
 				} catch (e) {
 					// ignore
 				}
 			}
 		}
-		return result;
 	}
 
 	private onRequest(req: http.IncomingMessage, res: http.ServerResponse): void {
@@ -654,7 +687,10 @@ class CLIServer {
 				if (folderURIs && folderURIs.length && !forceReuseWindow) {
 					forceNewWindow = true;
 				}
-				this._commands.executeCommand('_files.windowOpen', { folderURIs: this.toURIs(folderURIs), fileURIs: this.toURIs(fileURIs), forceNewWindow, diffMode, addMode, forceReuseWindow });
+				const urisToOpen: IURIToOpen[] = [];
+				this.collectURIToOpen(folderURIs, 'folder', urisToOpen);
+				this.collectURIToOpen(fileURIs, 'file', urisToOpen);
+				this._commands.executeCommand('_files.windowOpen', { urisToOpen, forceNewWindow, diffMode, addMode, forceReuseWindow });
 			}
 			res.writeHead(200);
 			res.end();

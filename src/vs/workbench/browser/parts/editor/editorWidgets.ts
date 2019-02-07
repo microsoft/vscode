@@ -24,7 +24,7 @@ import { isEqual } from 'vs/base/common/resources';
 
 export class FloatingClickWidget extends Widget implements IOverlayWidget {
 
-	private _onClick: Emitter<void> = this._register(new Emitter<void>());
+	private readonly _onClick: Emitter<void> = this._register(new Emitter<void>());
 	get onClick(): Event<void> { return this._onClick.event; }
 
 	private _domNode: HTMLElement;
@@ -159,7 +159,7 @@ export class OpenWorkspaceButtonContribution extends Disposable implements IEdit
 			this._register(this.openWorkspaceButton.onClick(() => {
 				const model = this.editor.getModel();
 				if (model) {
-					this.windowService.openWindow([model.uri]);
+					this.windowService.openWindow([{ uri: model.uri, typeHint: 'file' }]);
 				}
 			}));
 

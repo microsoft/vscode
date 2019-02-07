@@ -285,17 +285,17 @@ export interface IItemAccessor<T> {
 	/**
 	 * Just the label of the item to score on.
 	 */
-	getItemLabel(item: T): string;
+	getItemLabel(item: T): string | null;
 
 	/**
 	 * The optional description of the item to score on. Can be null.
 	 */
-	getItemDescription(item: T): string;
+	getItemDescription(item: T): string | null;
 
 	/**
 	 * If the item is a file, the path of the file to score on. Can be null.
 	 */
-	getItemPath(file: T): string;
+	getItemPath(file: T): string | undefined;
 }
 
 const PATH_IDENTITY_SCORE = 1 << 18;
@@ -376,10 +376,10 @@ function createMatches(offsets: undefined | number[]): IMatch[] {
 	return ret;
 }
 
-function doScoreItem(label: string, description: string, path: string, query: IPreparedQuery, fuzzy: boolean): IItemScore {
+function doScoreItem(label: string, description: string | null, path: string | undefined, query: IPreparedQuery, fuzzy: boolean): IItemScore {
 
 	// 1.) treat identity matches on full path highest
-	if (path && isLinux ? query.original === path : equalsIgnoreCase(query.original, path)) {
+	if (path && (isLinux ? query.original === path : equalsIgnoreCase(query.original, path))) {
 		return { score: PATH_IDENTITY_SCORE, labelMatch: [{ start: 0, end: label.length }], descriptionMatch: description ? [{ start: 0, end: description.length }] : undefined };
 	}
 
@@ -469,8 +469,8 @@ export function compareItemsByScore<T>(itemA: T, itemB: T, query: IPreparedQuery
 			return scoreA === LABEL_PREFIX_SCORE ? -1 : 1;
 		}
 
-		const labelA = accessor.getItemLabel(itemA);
-		const labelB = accessor.getItemLabel(itemB);
+		const labelA = accessor.getItemLabel(itemA) || '';
+		const labelB = accessor.getItemLabel(itemB) || '';
 
 		// prefer shorter names when both match on label prefix
 		if (labelA.length !== labelB.length) {
@@ -484,8 +484,8 @@ export function compareItemsByScore<T>(itemA: T, itemB: T, query: IPreparedQuery
 			return scoreA === LABEL_CAMELCASE_SCORE ? -1 : 1;
 		}
 
-		const labelA = accessor.getItemLabel(itemA);
-		const labelB = accessor.getItemLabel(itemB);
+		const labelA = accessor.getItemLabel(itemA) || '';
+		const labelB = accessor.getItemLabel(itemB) || '';
 
 		// prefer more compact camel case matches over longer
 		const comparedByMatchLength = compareByMatchLength(itemScoreA.labelMatch, itemScoreB.labelMatch);
@@ -592,8 +592,8 @@ function compareByMatchLength(matchesA?: IMatch[], matchesB?: IMatch[]): number 
 export function fallbackCompare<T>(itemA: T, itemB: T, query: IPreparedQuery, accessor: IItemAccessor<T>): number {
 
 	// check for label + description length and prefer shorter
-	const labelA = accessor.getItemLabel(itemA);
-	const labelB = accessor.getItemLabel(itemB);
+	const labelA = accessor.getItemLabel(itemA) || '';
+	const labelB = accessor.getItemLabel(itemB) || '';
 
 	const descriptionA = accessor.getItemDescription(itemA);
 	const descriptionB = accessor.getItemDescription(itemB);

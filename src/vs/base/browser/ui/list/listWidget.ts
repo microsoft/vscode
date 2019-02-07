@@ -502,36 +502,33 @@ const DefaultOpenController: IOpenController = {
 	}
 };
 
-class MouseController<T> implements IDisposable {
+export class MouseController<T> implements IDisposable {
 
 	private multipleSelectionSupport: boolean;
 	readonly multipleSelectionController: IMultipleSelectionController<T>;
 	private openController: IOpenController;
 	private disposables: IDisposable[] = [];
 
-	constructor(
-		private list: List<T>,
-		private view: ListView<T>,
-		options: IListOptions<T> = {}
-	) {
-		this.multipleSelectionSupport = !(options.multipleSelectionSupport === false);
+	constructor(protected list: List<T>) {
+		this.multipleSelectionSupport = !(list.options.multipleSelectionSupport === false);
 
 		if (this.multipleSelectionSupport) {
-			this.multipleSelectionController = options.multipleSelectionController || DefaultMultipleSelectionContoller;
+			this.multipleSelectionController = list.options.multipleSelectionController || DefaultMultipleSelectionContoller;
 		}
 
-		this.openController = options.openController || DefaultOpenController;
+		this.openController = list.options.openController || DefaultOpenController;
 
-		view.onMouseDown(this.onMouseDown, this, this.disposables);
-		view.onContextMenu(this.onContextMenu, this, this.disposables);
-		view.onMouseClick(this.onPointer, this, this.disposables);
-		view.onMouseDblClick(this.onDoubleClick, this, this.disposables);
-		view.onTouchStart(this.onMouseDown, this, this.disposables);
-		view.onTap(this.onPointer, this, this.disposables);
-		Gesture.addTarget(view.domNode);
+		list.onMouseDown(this.onMouseDown, this, this.disposables);
+		list.onContextMenu(this.onContextMenu, this, this.disposables);
+		list.onMouseClick(this.onPointer, this, this.disposables);
+		list.onMouseMiddleClick(this.onPointer, this, this.disposables);
+		list.onMouseDblClick(this.onDoubleClick, this, this.disposables);
+		list.onTouchStart(this.onMouseDown, this, this.disposables);
+		list.onTap(this.onPointer, this, this.disposables);
+		Gesture.addTarget(list.getHTMLElement());
 	}
 
-	private isSelectionSingleChangeEvent(event: IListMouseEvent<any> | IListTouchEvent<any>): boolean {
+	protected isSelectionSingleChangeEvent(event: IListMouseEvent<any> | IListTouchEvent<any>): boolean {
 		if (this.multipleSelectionController) {
 			return this.multipleSelectionController.isSelectionSingleChangeEvent(event);
 		}
@@ -539,7 +536,7 @@ class MouseController<T> implements IDisposable {
 		return platform.isMacintosh ? event.browserEvent.metaKey : event.browserEvent.ctrlKey;
 	}
 
-	private isSelectionRangeChangeEvent(event: IListMouseEvent<any> | IListTouchEvent<any>): boolean {
+	protected isSelectionRangeChangeEvent(event: IListMouseEvent<any> | IListTouchEvent<any>): boolean {
 		if (this.multipleSelectionController) {
 			return this.multipleSelectionController.isSelectionRangeChangeEvent(event);
 		}
@@ -553,16 +550,20 @@ class MouseController<T> implements IDisposable {
 
 	private onMouseDown(e: IListMouseEvent<T> | IListTouchEvent<T>): void {
 		if (document.activeElement !== e.browserEvent.target) {
-			this.view.domNode.focus();
+			this.list.domFocus();
 		}
 	}
 
-	private onContextMenu(e: IListMouseEvent<T> | IListTouchEvent<T>): void {
+	private onContextMenu(e: IListContextMenuEvent<T>): void {
 		const focus = typeof e.index === 'undefined' ? [] : [e.index];
 		this.list.setFocus(focus, e.browserEvent);
 	}
 
-	private onPointer(e: IListMouseEvent<T>): void {
+	protected onPointer(e: IListMouseEvent<T>): void {
+		if (isInputElement(e.browserEvent.target as HTMLElement)) {
+			return;
+		}
+
 		let reference = this.list.getFocus()[0];
 		const selection = this.list.getSelection();
 		reference = reference === undefined ? selection[0] : reference;
@@ -595,6 +596,10 @@ class MouseController<T> implements IDisposable {
 	}
 
 	private onDoubleClick(e: IListMouseEvent<T>): void {
+		if (isInputElement(e.browserEvent.target as HTMLElement)) {
+			return;
+		}
+
 		if (this.multipleSelectionSupport && this.isSelectionChangeEvent(e)) {
 			return;
 		}
@@ -699,14 +704,14 @@ export class DefaultStyleController implements IStyleController {
 
 		if (styles.listFocusAndSelectionBackground) {
 			content.push(`
-				.monaco-list-drag-image,
+				.monaco-drag-image,
 				.monaco-list${suffix}:focus .monaco-list-row.selected.focused { background-color: ${styles.listFocusAndSelectionBackground}; }
 			`);
 		}
 
 		if (styles.listFocusAndSelectionForeground) {
 			content.push(`
-				.monaco-list-drag-image,
+				.monaco-drag-image,
 				.monaco-list${suffix}:focus .monaco-list-row.selected.focused { color: ${styles.listFocusAndSelectionForeground}; }
 			`);
 		}
@@ -739,7 +744,7 @@ export class DefaultStyleController implements IStyleController {
 
 		if (styles.listFocusOutline) {
 			content.push(`
-				.monaco-list-drag-image,
+				.monaco-drag-image,
 				.monaco-list${suffix}:focus .monaco-list-row.focused { outline: 1px solid ${styles.listFocusOutline}; outline-offset: -1px; }
 			`);
 		}
@@ -1213,7 +1218,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		}
 
 		if (typeof _options.mouseSupport === 'boolean' ? _options.mouseSupport : true) {
-			this.mouseController = new MouseController(this, this.view, _options);
+			this.mouseController = this.createMouseController(_options);
 			this.disposables.push(this.mouseController);
 		}
 
@@ -1225,6 +1230,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		}
 
 		this.style(_options);
+	}
+
+	protected createMouseController(options: IListOptions<T>): MouseController<T> {
+		return new MouseController(this);
 	}
 
 	updateOptions(optionsUpdate: IListOptionsUpdate = {}): void {

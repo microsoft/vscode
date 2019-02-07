@@ -33,9 +33,9 @@ import { EndOfLine, IFileOperationOptions, TextEditorLineNumbersStyle } from 'vs
 import { EditorViewColumn } from 'vs/workbench/api/shared/editor';
 import { TaskDTO, TaskExecutionDTO, TaskFilterDTO, TaskHandleDTO, TaskProcessEndedDTO, TaskProcessStartedDTO, TaskSystemInfoDTO, TaskSetDTO } from 'vs/workbench/api/shared/tasks';
 import { ITreeItem, IRevealOptions } from 'vs/workbench/common/views';
-import { IAdapterDescriptor, IConfig, ITerminalSettings } from 'vs/workbench/parts/debug/common/debug';
-import { ITextQueryBuilderOptions } from 'vs/workbench/parts/search/common/queryBuilder';
-import { ITerminalDimensions } from 'vs/workbench/parts/terminal/common/terminal';
+import { IAdapterDescriptor, IConfig, ITerminalSettings } from 'vs/workbench/contrib/debug/common/debug';
+import { ITextQueryBuilderOptions } from 'vs/workbench/contrib/search/common/queryBuilder';
+import { ITerminalDimensions } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { IRPCProtocol, createExtHostContextProxyIdentifier as createExtId, createMainContextProxyIdentifier as createMainId } from 'vs/workbench/services/extensions/node/proxyIdentifier';
 import { IProgressOptions, IProgressStep } from 'vs/platform/progress/common/progress';
@@ -102,7 +102,7 @@ export interface MainThreadClipboardShape extends IDisposable {
 export interface MainThreadCommandsShape extends IDisposable {
 	$registerCommand(id: string): void;
 	$unregisterCommand(id: string): void;
-	$executeCommand<T>(id: string, args: any[]): Promise<T>;
+	$executeCommand<T>(id: string, args: any[]): Promise<T | undefined>;
 	$getCommands(): Promise<string[]>;
 }
 
@@ -454,7 +454,7 @@ export interface MainThreadStatusBarShape extends IDisposable {
 }
 
 export interface MainThreadStorageShape extends IDisposable {
-	$getValue<T>(shared: boolean, key: string): Promise<T>;
+	$getValue<T>(shared: boolean, key: string): Promise<T | undefined>;
 	$setValue(shared: boolean, key: string, value: object): Promise<void>;
 }
 
@@ -506,12 +506,12 @@ export interface ExtHostUrlsShape {
 }
 
 export interface MainThreadWorkspaceShape extends IDisposable {
-	$startFileSearch(includePattern: string, includeFolder: URI, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Promise<UriComponents[]>;
+	$startFileSearch(includePattern: string, includeFolder: URI, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Promise<UriComponents[]> | undefined;
 	$startTextSearch(query: IPatternInfo, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<vscode.TextSearchComplete>;
 	$checkExists(includes: string[], token: CancellationToken): Promise<boolean>;
 	$saveAll(includeUntitled?: boolean): Promise<boolean>;
 	$updateWorkspaceFolders(extensionName: string, index: number, deleteCount: number, workspaceFoldersToAdd: { uri: UriComponents, name?: string }[]): Promise<void>;
-	$resolveProxy(url: string): Promise<string>;
+	$resolveProxy(url: string): Promise<string | undefined>;
 }
 
 export interface IFileChangeDto {
@@ -721,7 +721,7 @@ export interface ExtHostTreeViewsShape {
 }
 
 export interface ExtHostWorkspaceShape {
-	$acceptWorkspaceData(workspace: IWorkspaceData): void;
+	$acceptWorkspaceData(workspace: IWorkspaceData | null): void;
 	$handleTextSearchResult(result: IRawFileMatch2, requestId: number): void;
 }
 
@@ -773,7 +773,7 @@ export interface ExtHostFileSystemEventServiceShape {
 }
 
 export interface ObjectIdentifier {
-	$ident: number;
+	$ident?: number;
 }
 
 export namespace ObjectIdentifier {
@@ -870,19 +870,25 @@ export function reviveWorkspaceEditDto(data: WorkspaceEditDto): modes.WorkspaceE
 	return <modes.WorkspaceEdit>data;
 }
 
+export type CommandDto = ObjectIdentifier & modes.Command;
+
 export interface CodeActionDto {
 	title: string;
 	edit?: WorkspaceEditDto;
 	diagnostics?: IMarkerData[];
-	command?: modes.Command;
+	command?: CommandDto;
 	kind?: string;
 	isPreferred?: boolean;
 }
 
+export type LinkDto = ObjectIdentifier & modes.ILink;
+
+export type CodeLensDto = ObjectIdentifier & modes.ICodeLensSymbol;
+
 export interface ExtHostLanguageFeaturesShape {
 	$provideDocumentSymbols(handle: number, resource: UriComponents, token: CancellationToken): Promise<modes.DocumentSymbol[]>;
-	$provideCodeLenses(handle: number, resource: UriComponents, token: CancellationToken): Promise<modes.ICodeLensSymbol[]>;
-	$resolveCodeLens(handle: number, resource: UriComponents, symbol: modes.ICodeLensSymbol, token: CancellationToken): Promise<modes.ICodeLensSymbol>;
+	$provideCodeLenses(handle: number, resource: UriComponents, token: CancellationToken): Promise<CodeLensDto[]>;
+	$resolveCodeLens(handle: number, resource: UriComponents, symbol: CodeLensDto, token: CancellationToken): Promise<CodeLensDto>;
 	$provideDefinition(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<DefinitionLinkDto[]>;
 	$provideDeclaration(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<DefinitionLinkDto[]>;
 	$provideImplementation(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<DefinitionLinkDto[]>;
@@ -903,8 +909,8 @@ export interface ExtHostLanguageFeaturesShape {
 	$resolveCompletionItem(handle: number, resource: UriComponents, position: IPosition, suggestion: modes.CompletionItem, token: CancellationToken): Promise<modes.CompletionItem>;
 	$releaseCompletionItems(handle: number, id: number): void;
 	$provideSignatureHelp(handle: number, resource: UriComponents, position: IPosition, context: modes.SignatureHelpContext, token: CancellationToken): Promise<modes.SignatureHelp>;
-	$provideDocumentLinks(handle: number, resource: UriComponents, token: CancellationToken): Promise<modes.ILink[]>;
-	$resolveDocumentLink(handle: number, link: modes.ILink, token: CancellationToken): Promise<modes.ILink>;
+	$provideDocumentLinks(handle: number, resource: UriComponents, token: CancellationToken): Promise<LinkDto[]>;
+	$resolveDocumentLink(handle: number, link: LinkDto, token: CancellationToken): Promise<LinkDto>;
 	$provideDocumentColors(handle: number, resource: UriComponents, token: CancellationToken): Promise<IRawColorInfo[]>;
 	$provideColorPresentations(handle: number, resource: UriComponents, colorInfo: IRawColorInfo, token: CancellationToken): Promise<modes.IColorPresentation[]>;
 	$provideFoldingRanges(handle: number, resource: UriComponents, context: modes.FoldingContext, token: CancellationToken): Promise<modes.FoldingRange[]>;
@@ -938,7 +944,7 @@ export interface ExtHostTerminalServiceShape {
 	$acceptTerminalProcessData(id: number, data: string): void;
 	$acceptTerminalRendererInput(id: number, data: string): void;
 	$acceptTerminalTitleChange(id: number, name: string): void;
-	$acceptTerminalRendererDimensions(id: number, cols: number, rows: number): void;
+	$acceptTerminalDimensions(id: number, cols: number, rows: number): void;
 	$createProcess(id: number, shellLaunchConfig: ShellLaunchConfigDto, activeWorkspaceRootUri: URI, cols: number, rows: number): void;
 	$acceptProcessInput(id: number, data: string): void;
 	$acceptProcessResize(id: number, cols: number, rows: number): void;
@@ -1077,7 +1083,7 @@ export interface ExtHostCommentsShape {
 }
 
 export interface ExtHostStorageShape {
-	$acceptValue(shared: boolean, key: string, value: object): void;
+	$acceptValue(shared: boolean, key: string, value: object | undefined): void;
 }
 
 // --- proxy identifiers

@@ -11,18 +11,16 @@ import { Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { keys, ResourceMap, values } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
-import * as objects from 'vs/base/common/objects';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI as uri } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
 import { getNextTickChannel } from 'vs/base/parts/ipc/node/ipc';
 import { Client, IIPCOptions } from 'vs/base/parts/ipc/node/ipc.cp';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDebugParams, IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { deserializeSearchError, FileMatch, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IProgress, ISearchComplete, ISearchConfiguration, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, ITextQuery, pathIncludedInQuery, QueryType, SearchError, SearchErrorCode, SearchProviderType } from 'vs/platform/search/common/search';
+import { deserializeSearchError, FileMatch, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IProgress, ISearchComplete, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, ITextQuery, pathIncludedInQuery, QueryType, SearchError, SearchErrorCode, SearchProviderType, ISearchConfiguration } from 'vs/platform/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -30,6 +28,7 @@ import { addContextToEditorMatches, editorMatchesToTextSearchResults } from 'vs/
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IRawSearchService, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, isSerializedSearchComplete, isSerializedSearchSuccess } from './search';
 import { SearchChannelClient } from './searchIpc';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class SearchService extends Disposable implements ISearchService {
 	_serviceBrand: any;
@@ -46,12 +45,11 @@ export class SearchService extends Disposable implements ISearchService {
 		@IEditorService private readonly editorService: IEditorService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
 		@IExtensionService private readonly extensionService: IExtensionService
 	) {
 		super();
-		this.diskSearch = this.instantiationService.createInstance(DiskSearch, !environmentService.isBuilt || environmentService.verbose, /*timeout=*/undefined, environmentService.debugSearch);
+		this.diskSearch = this.instantiationService.createInstance(DiskSearch, !environmentService.isBuilt || environmentService.verbose, environmentService.debugSearch);
 	}
 
 	registerSearchResultProvider(scheme: string, type: SearchProviderType, provider: ISearchResultProvider): IDisposable {
@@ -69,22 +67,6 @@ export class SearchService extends Disposable implements ISearchService {
 		return toDisposable(() => {
 			list.delete(scheme);
 		});
-	}
-
-	extendQuery(query: IFileQuery): void {
-		const configuration = this.configurationService.getValue<ISearchConfiguration>();
-
-		// Configuration: File Excludes
-		if (!query.disregardExcludeSettings) {
-			const fileExcludes = objects.deepClone(configuration && configuration.files && configuration.files.exclude);
-			if (fileExcludes) {
-				if (!query.excludePattern) {
-					query.excludePattern = fileExcludes;
-				} else {
-					objects.mixin(query.excludePattern, fileExcludes, false /* no overwrite */);
-				}
-			}
-		}
 	}
 
 	textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (item: ISearchProgressItem) => void): Promise<ISearchComplete> {
@@ -446,19 +428,21 @@ export class SearchService extends Disposable implements ISearchService {
 }
 
 export class DiskSearch implements ISearchResultProvider {
-	_serviceBrand: any;
-
 	private raw: IRawSearchService;
 
 	constructor(
 		verboseLogging: boolean,
-		timeout: number = 60 * 60 * 1000,
 		searchDebug: IDebugParams | undefined,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IConfigurationService private readonly configService: IConfigurationService,
 	) {
+		const timeout = this.configService.getValue<ISearchConfiguration>().search.maintainFileSearchCache ?
+			Number.MAX_VALUE :
+			60 * 60 * 1000;
+
 		const opts: IIPCOptions = {
 			serverName: 'Search',
-			timeout: timeout,
+			timeout,
 			args: ['--type=searchService'],
 			// See https://github.com/Microsoft/vscode/issues/27665
 			// Pass in fresh execArgv to the forked process such that it doesn't inherit them from `process.execArgv`.

@@ -31,7 +31,7 @@ export interface INativeOpenDialogOptions {
 
 export interface IEnterWorkspaceResult {
 	workspace: IWorkspaceIdentifier;
-	backupPath: string;
+	backupPath?: string;
 }
 
 export interface CrashReporterStartOptions {
@@ -149,7 +149,7 @@ export interface IWindowsService {
 	toggleSharedProcess(): Promise<void>;
 
 	// Global methods
-	openWindow(windowId: number, paths: URI[], options?: IOpenSettings): Promise<void>;
+	openWindow(windowId: number, uris: IURIToOpen[], options?: IOpenSettings): Promise<void>;
 	openNewWindow(options?: INewWindowOptions): Promise<void>;
 	showWindow(windowId: number): Promise<void>;
 	getWindows(): Promise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]>;
@@ -185,6 +185,13 @@ export interface IOpenSettings {
 	args?: ParsedArgs;
 }
 
+export type URIType = 'file' | 'folder';
+
+export interface IURIToOpen {
+	uri: URI;
+	typeHint?: URIType;
+}
+
 export interface IWindowService {
 
 	_serviceBrand: any;
@@ -211,7 +218,7 @@ export interface IWindowService {
 	getRecentlyOpened(): Promise<IRecentlyOpened>;
 	focusWindow(): Promise<void>;
 	closeWindow(): Promise<void>;
-	openWindow(paths: URI[], options?: IOpenSettings): Promise<void>;
+	openWindow(uris: IURIToOpen[], options?: IOpenSettings): Promise<void>;
 	isFocused(): Promise<boolean>;
 	setDocumentEdited(flag: boolean): Promise<void>;
 	isMaximized(): Promise<boolean>;
@@ -373,7 +380,7 @@ export interface IWindowConfiguration extends ParsedArgs {
 	isInitialStartup?: boolean;
 
 	userEnv: IProcessEnvironment;
-	nodeCachedDataDir: string;
+	nodeCachedDataDir?: string;
 
 	backupPath?: string;
 

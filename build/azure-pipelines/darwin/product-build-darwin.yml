@@ -1,7 +1,7 @@
 steps:
 - task: NodeTool@0
   inputs:
-    versionSpec: "8.12.0"
+    versionSpec: "10.15.1"
 
 - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
   inputs:
@@ -24,6 +24,8 @@ steps:
     VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" \
     AZURE_STORAGE_ACCESS_KEY="$(AZURE_STORAGE_ACCESS_KEY)" \
     yarn gulp -- vscode-darwin-min
+    VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" \
+    AZURE_STORAGE_ACCESS_KEY="$(AZURE_STORAGE_ACCESS_KEY)" \
     yarn gulp -- upload-vscode-sourcemaps
   displayName: Build
 

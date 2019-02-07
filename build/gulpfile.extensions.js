@@ -141,6 +141,16 @@ const tasks = compilations.map(function (tsconfigFile) {
 	};
 });
 
-gulp.task('compile-extensions', util.task.parallel(...tasks.map(t => t.compileTask)));
-gulp.task('watch-extensions', util.task.parallel(...tasks.map(t => t.watchTask)));
-gulp.task('compile-extensions-build', util.task.parallel(...tasks.map(t => t.compileBuildTask)));
+const compileExtensionsTask = util.task.parallel(...tasks.map(t => t.compileTask));
+compileExtensionsTask.displayName = 'compile-extensions';
+gulp.task(compileExtensionsTask.displayName, compileExtensionsTask);
+exports.compileExtensionsTask = compileExtensionsTask;
+
+const watchExtensionsTask = util.task.parallel(...tasks.map(t => t.watchTask));
+watchExtensionsTask.displayName = 'watch-extensions';
+gulp.task(watchExtensionsTask.displayName, watchExtensionsTask);
+exports.watchExtensionsTask = watchExtensionsTask;
+
+const compileExtensionsBuildTask = util.task.parallel(...tasks.map(t => t.compileBuildTask));
+compileExtensionsBuildTask.displayName = 'compile-extensions-build';
+exports.compileExtensionsBuildTask = compileExtensionsBuildTask;

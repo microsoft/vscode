@@ -27,7 +27,7 @@ import { MainContext, ExtHostContext } from 'vs/workbench/api/node/extHost.proto
 import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
 import * as vscode from 'vscode';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import 'vs/workbench/parts/search/electron-browser/search.contribution';
+import 'vs/workbench/contrib/search/electron-browser/search.contribution';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { ITextModel } from 'vs/editor/common/model';
 import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
@@ -68,9 +68,8 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			rpcProtocol = new TestRPCProtocol();
 			instantiationService.stub(IHeapService, {
 				_serviceBrand: undefined,
-				trackRecursive(args: any) {
+				trackObject(_obj: any) {
 					// nothing
-					return args;
 				}
 			});
 			instantiationService.stub(ICommandService, {
@@ -423,32 +422,32 @@ suite('ExtHostLanguageFeatureCommands', function () {
 				assert.equal(values.length, 4);
 				let [first, second, third, fourth] = values;
 				assert.equal(first.label, 'item1');
-				assert.equal(first.textEdit.newText, 'item1');
-				assert.equal(first.textEdit.range.start.line, 0);
-				assert.equal(first.textEdit.range.start.character, 0);
-				assert.equal(first.textEdit.range.end.line, 0);
-				assert.equal(first.textEdit.range.end.character, 4);
+				assert.equal(first.textEdit!.newText, 'item1');
+				assert.equal(first.textEdit!.range.start.line, 0);
+				assert.equal(first.textEdit!.range.start.character, 0);
+				assert.equal(first.textEdit!.range.end.line, 0);
+				assert.equal(first.textEdit!.range.end.character, 4);
 
 				assert.equal(second.label, 'item2');
-				assert.equal(second.textEdit.newText, 'foo');
-				assert.equal(second.textEdit.range.start.line, 0);
-				assert.equal(second.textEdit.range.start.character, 4);
-				assert.equal(second.textEdit.range.end.line, 0);
-				assert.equal(second.textEdit.range.end.character, 8);
+				assert.equal(second.textEdit!.newText, 'foo');
+				assert.equal(second.textEdit!.range.start.line, 0);
+				assert.equal(second.textEdit!.range.start.character, 4);
+				assert.equal(second.textEdit!.range.end.line, 0);
+				assert.equal(second.textEdit!.range.end.character, 8);
 
 				assert.equal(third.label, 'item3');
-				assert.equal(third.textEdit.newText, 'foobar');
-				assert.equal(third.textEdit.range.start.line, 0);
-				assert.equal(third.textEdit.range.start.character, 1);
-				assert.equal(third.textEdit.range.end.line, 0);
-				assert.equal(third.textEdit.range.end.character, 6);
+				assert.equal(third.textEdit!.newText, 'foobar');
+				assert.equal(third.textEdit!.range.start.line, 0);
+				assert.equal(third.textEdit!.range.start.character, 1);
+				assert.equal(third.textEdit!.range.end.line, 0);
+				assert.equal(third.textEdit!.range.end.character, 6);
 
 				assert.equal(fourth.label, 'item4');
 				assert.equal(fourth.textEdit, undefined);
-				assert.equal(fourth.range.start.line, 0);
-				assert.equal(fourth.range.start.character, 1);
-				assert.equal(fourth.range.end.line, 0);
-				assert.equal(fourth.range.end.character, 4);
+				assert.equal(fourth.range!.start.line, 0);
+				assert.equal(fourth.range!.start.character, 1);
+				assert.equal(fourth.range!.end.line, 0);
+				assert.equal(fourth.range!.end.character, 4);
 				assert.ok(fourth.insertText instanceof types.SnippetString);
 				assert.equal((<types.SnippetString>fourth.insertText).value, 'foo$0bar');
 			});
@@ -631,11 +630,11 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		return rpcProtocol.sync().then(() => {
 			return commands.executeCommand<vscode.CodeAction[]>('vscode.executeCodeActionProvider', model.uri, new types.Range(0, 0, 1, 1)).then(value => {
 				assert.equal(value.length, 1);
-				let [first] = value;
+				const [first] = value;
 				assert.ok(first.command);
-				assert.equal(first.command.command, 'command');
-				assert.equal(first.command.title, 'command_title');
-				assert.equal(first.kind.value, 'foo');
+				assert.equal(first.command!.command, 'command');
+				assert.equal(first.command!.title, 'command_title');
+				assert.equal(first.kind!.value, 'foo');
 				assert.equal(first.title, 'title');
 
 			});
@@ -661,13 +660,13 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		return rpcProtocol.sync().then(() => {
 			return commands.executeCommand<vscode.CodeLens[]>('vscode.executeCodeLensProvider', model.uri).then(value => {
 				assert.equal(value.length, 1);
-				let [first] = value;
+				const [first] = value;
 
-				assert.equal(first.command.title, 'Title');
-				assert.equal(first.command.command, 'cmd');
-				assert.equal(first.command.arguments[0], 1);
-				assert.equal(first.command.arguments[1], true);
-				assert.equal(first.command.arguments[2], complexArg);
+				assert.equal(first.command!.title, 'Title');
+				assert.equal(first.command!.command, 'cmd');
+				assert.equal(first.command!.arguments[0], 1);
+				assert.equal(first.command!.arguments[1], true);
+				assert.equal(first.command!.arguments[2], complexArg);
 			});
 		});
 	});
@@ -719,7 +718,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 				assert.equal(value.length, 1);
 				let [first] = value;
 
-				assert.equal(first.target.toString(), 'foo:bar');
+				assert.equal(first.target + '', 'foo:bar');
 				assert.equal(first.range.start.line, 0);
 				assert.equal(first.range.start.character, 0);
 				assert.equal(first.range.end.line, 0);
@@ -765,16 +764,16 @@ suite('ExtHostLanguageFeatureCommands', function () {
 				let [first] = value;
 
 				assert.equal(first.label, '#ABC');
-				assert.equal(first.textEdit.newText, '#ABC');
-				assert.equal(first.textEdit.range.start.line, 1);
-				assert.equal(first.textEdit.range.start.character, 0);
-				assert.equal(first.textEdit.range.end.line, 1);
-				assert.equal(first.textEdit.range.end.character, 20);
-				assert.equal(first.additionalTextEdits.length, 1);
-				assert.equal(first.additionalTextEdits[0].range.start.line, 2);
-				assert.equal(first.additionalTextEdits[0].range.start.character, 20);
-				assert.equal(first.additionalTextEdits[0].range.end.line, 2);
-				assert.equal(first.additionalTextEdits[0].range.end.character, 20);
+				assert.equal(first.textEdit!.newText, '#ABC');
+				assert.equal(first.textEdit!.range.start.line, 1);
+				assert.equal(first.textEdit!.range.start.character, 0);
+				assert.equal(first.textEdit!.range.end.line, 1);
+				assert.equal(first.textEdit!.range.end.character, 20);
+				assert.equal(first.additionalTextEdits!.length, 1);
+				assert.equal(first.additionalTextEdits![0].range.start.line, 2);
+				assert.equal(first.additionalTextEdits![0].range.start.character, 20);
+				assert.equal(first.additionalTextEdits![0].range.end.line, 2);
+				assert.equal(first.additionalTextEdits![0].range.end.character, 20);
 			});
 		});
 	});

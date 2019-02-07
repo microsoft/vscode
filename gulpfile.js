@@ -12,23 +12,27 @@ const gulp = require('gulp');
 const util = require('./build/lib/util');
 const path = require('path');
 const compilation = require('./build/lib/compilation');
+const { monacoTypecheckTask/* , monacoTypecheckWatchTask */ } = require('./build/gulpfile.editor');
+const { compileExtensionsTask, watchExtensionsTask } = require('./build/gulpfile.extensions');
 
 // Fast compile for development time
-gulp.task('compile-client', util.task.series(util.rimraf('out'), compilation.compileTask('src', 'out', false)));
-gulp.task('watch-client', util.task.series(util.rimraf('out'), compilation.watchTask('out', false)));
+const compileClientTask = util.task.series(util.rimraf('out'), compilation.compileTask('src', 'out', false));
+compileClientTask.displayName = 'compile-client';
+gulp.task(compileClientTask.displayName, compileClientTask);
 
-// Full compile, including nls and inline sources in sourcemaps, for build
-gulp.task('compile-client-build', util.task.series(util.rimraf('out-build'), compilation.compileTask('src', 'out-build', true)));
-
-// Default
-gulp.task('default', ['compile']);
+const watchClientTask = util.task.series(util.rimraf('out'), compilation.watchTask('out', false));
+watchClientTask.displayName = 'watch-client';
+gulp.task(watchClientTask.displayName, watchClientTask);
 
 // All
-gulp.task('compile', ['monaco-typecheck', 'compile-client', 'compile-extensions']);
-gulp.task('watch', [/* 'monaco-typecheck-watch', */ 'watch-client', 'watch-extensions']);
+const compileTask = util.task.parallel(monacoTypecheckTask, compileClientTask, compileExtensionsTask);
+compileTask.displayName = 'compile';
+gulp.task(compileTask.displayName, compileTask);
 
-// All Build
-gulp.task('compile-build', ['compile-client-build', 'compile-extensions-build']);
+gulp.task('watch', util.task.parallel(/* monacoTypecheckWatchTask, */ watchClientTask, watchExtensionsTask));
+
+// Default
+gulp.task('default', compileTask);
 
 process.on('unhandledRejection', (reason, p) => {
 	console.log('Unhandled Rejection at: Promise', p, 'reason:', reason);

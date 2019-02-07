@@ -18,13 +18,13 @@ import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspac
 import {
 	ContributedTask, KeyedTaskIdentifier, TaskExecution, Task, TaskEvent, TaskEventKind,
 	PresentationOptions, CommandOptions, CommandConfiguration, RuntimeType, CustomTask, TaskScope, TaskSource, TaskSourceKind, ExtensionTaskSource, RunOptions, TaskSet
-} from 'vs/workbench/parts/tasks/common/tasks';
+} from 'vs/workbench/contrib/tasks/common/tasks';
 
 
-import { ResolveSet, ResolvedVariables } from 'vs/workbench/parts/tasks/common/taskSystem';
-import { ITaskService, TaskFilter, ITaskProvider } from 'vs/workbench/parts/tasks/common/taskService';
+import { ResolveSet, ResolvedVariables } from 'vs/workbench/contrib/tasks/common/taskSystem';
+import { ITaskService, TaskFilter, ITaskProvider } from 'vs/workbench/contrib/tasks/common/taskService';
 
-import { TaskDefinition } from 'vs/workbench/parts/tasks/node/tasks';
+import { TaskDefinition } from 'vs/workbench/contrib/tasks/node/tasks';
 
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { ExtHostContext, MainThreadTaskShape, ExtHostTaskShape, MainContext, IExtHostContext } from 'vs/workbench/api/node/extHost.protocol';
@@ -580,7 +580,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 					forEach(values.variables, (entry) => {
 						partiallyResolvedVars.push(entry.value);
 					});
-					return new Promise((resolve, reject) => {
+					return new Promise<ResolvedVariables>((resolve, reject) => {
 						this._configurationResolverService.resolveWithInteraction(workspaceFolder, partiallyResolvedVars, 'tasks').then(resolvedVars => {
 							let result = {
 								process: undefined as string,

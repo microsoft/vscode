@@ -54,7 +54,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 
-const globalQuickOpenKeybinding = { primary: KeyMod.CtrlCmd | KeyCode.KEY_P, secondary: [KeyMod.CtrlCmd | KeyCode.KEY_E], mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_P, secondary: null } };
+const globalQuickOpenKeybinding = { primary: KeyMod.CtrlCmd | KeyCode.KEY_P, secondary: [KeyMod.CtrlCmd | KeyCode.KEY_E], mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_P, secondary: undefined } };
 
 KeybindingsRegistry.registerKeybindingRule({
 	id: QUICKOPEN_ACTION_ID,
@@ -96,6 +96,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	secondary: [globalQuickOpenKeybinding.secondary[0] | KeyMod.Shift],
 	mac: {
 		primary: globalQuickOpenKeybinding.mac.primary | KeyMod.Shift,
-		secondary: null
+		secondary: undefined
 	}
 });

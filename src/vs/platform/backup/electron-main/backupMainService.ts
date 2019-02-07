@@ -60,7 +60,17 @@ export class BackupMainService implements IBackupMainService {
 		}
 
 		// read workspace backups
-		this.rootWorkspaces = await this.validateWorkspaces(backups.rootWorkspaces);
+		let rootWorkspaces: IWorkspaceIdentifier[] = [];
+		try {
+			if (Array.isArray(backups.rootURIWorkspaces)) {
+				rootWorkspaces = backups.rootURIWorkspaces.map(f => ({ id: f.id, configPath: URI.parse(f.configURIPath) }));
+			} else if (Array.isArray(backups.rootWorkspaces)) {
+				rootWorkspaces = backups.rootWorkspaces.map(f => ({ id: f.id, configPath: URI.file(f.configPath) }));
+			}
+		} catch (e) {
+			// ignore URI parsing exceptions
+		}
+		this.rootWorkspaces = await this.validateWorkspaces(rootWorkspaces);
 
 		// read folder backups
 		let workspaceFolders: URI[] = [];
@@ -211,7 +221,7 @@ export class BackupMainService implements IBackupMainService {
 			backupFolder = this.getRandomEmptyWindowId();
 		}
 
-		if (!this.emptyWorkspaces.some(w => isEqual(w.backupFolder, backupFolder, !platform.isLinux))) {
+		if (!this.emptyWorkspaces.some(w => !!w.backupFolder && isEqual(w.backupFolder, backupFolder!, !platform.isLinux))) {
 			this.emptyWorkspaces.push({ backupFolder, remoteAuthority });
 			this.saveSync();
 		}
@@ -220,7 +230,7 @@ export class BackupMainService implements IBackupMainService {
 	}
 
 	unregisterEmptyWindowBackupSync(backupFolder: string): void {
-		let index = arrays.firstIndex(this.emptyWorkspaces, w => isEqual(w.backupFolder, backupFolder, !platform.isLinux));
+		let index = arrays.firstIndex(this.emptyWorkspaces, w => !!w.backupFolder && isEqual(w.backupFolder, backupFolder, !platform.isLinux));
 		if (index !== -1) {
 			this.emptyWorkspaces.splice(index, 1);
 			this.saveSync();
@@ -242,6 +252,7 @@ export class BackupMainService implements IBackupMainService {
 		// Validate Workspaces
 		for (let workspace of rootWorkspaces) {
 			if (!isWorkspaceIdentifier(workspace)) {
+				console.log('not a workspace identifer');
 				return []; // wrong format, skip all entries
 			}
 
@@ -253,13 +264,15 @@ export class BackupMainService implements IBackupMainService {
 
 				// If the workspace has no backups, ignore it
 				if (hasBackups) {
-					if (await exists(workspace.configPath)) {
+					if (workspace.configPath.scheme !== Schemas.file || await exists(workspace.configPath.fsPath)) {
 						result.push(workspace);
 					} else {
+						console.log('target workspace missing');
 						// If the workspace has backups, but the target workspace is missing, convert backups to empty ones
 						await this.convertToEmptyWindowBackup(backupPath);
 					}
 				} else {
+					console.log('no backups');
 					await this.deleteStaleBackup(backupPath);
 				}
 			}
@@ -344,7 +357,7 @@ export class BackupMainService implements IBackupMainService {
 
 		// New empty window backup
 		let newBackupFolder = this.getRandomEmptyWindowId();
-		while (this.emptyWorkspaces.some(w => isEqual(w.backupFolder, newBackupFolder, platform.isLinux))) {
+		while (this.emptyWorkspaces.some(w => !!w.backupFolder && isEqual(w.backupFolder, newBackupFolder, platform.isLinux))) {
 			newBackupFolder = this.getRandomEmptyWindowId();
 		}
 
@@ -365,7 +378,7 @@ export class BackupMainService implements IBackupMainService {
 
 		// New empty window backup
 		let newBackupFolder = this.getRandomEmptyWindowId();
-		while (this.emptyWorkspaces.some(w => isEqual(w.backupFolder, newBackupFolder, platform.isLinux))) {
+		while (this.emptyWorkspaces.some(w => !!w.backupFolder && isEqual(w.backupFolder, newBackupFolder, platform.isLinux))) {
 			newBackupFolder = this.getRandomEmptyWindowId();
 		}
 
@@ -421,7 +434,7 @@ export class BackupMainService implements IBackupMainService {
 
 	private serializeBackups(): IBackupWorkspacesFormat {
 		return {
-			rootWorkspaces: this.rootWorkspaces,
+			rootURIWorkspaces: this.rootWorkspaces.map(f => ({ id: f.id, configURIPath: f.configPath.toString() })),
 			folderURIWorkspaces: this.folderWorkspaces.map(f => f.toString()),
 			emptyWorkspaceInfos: this.emptyWorkspaces,
 			emptyWorkspaces: this.emptyWorkspaces.map(info => info.backupFolder)

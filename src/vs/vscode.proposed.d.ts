@@ -888,13 +888,41 @@ declare module 'vscode' {
 
 	//#region Terminal
 
+	/**
+	 * An [event](#Event) which fires when a [Terminal](#Terminal)'s dimensions change.
+	 */
+	export interface TerminalDimensionsChangeEvent {
+		/**
+		 * The [terminal](#Terminal) for which the dimensions have changed.
+		 */
+		readonly terminal: Terminal;
+		/**
+		 * The new value for the [terminal's dimensions](#Terminal.dimensions).
+		 */
+		readonly dimensions: TerminalDimensions;
+	}
+
+	namespace window {
+		/**
+		 * An event which fires when the [dimensions](#Terminal.dimensions) of the terminal change.
+		 */
+		export const onDidChangeTerminalDimensions: Event<TerminalDimensionsChangeEvent>;
+	}
+
 	export interface Terminal {
+		/**
+		 * The current dimensions of the terminal. This will be `undefined` immediately after the
+		 * terminal is created as the dimensions are not known until shortly after the terminal is
+		 * created.
+		 */
+		readonly dimensions: TerminalDimensions | undefined;
+
 		/**
 		 * Fires when the terminal's pty slave pseudo-device is written to. In other words, this
 		 * provides access to the raw data stream from the process running within the terminal,
 		 * including VT sequences.
 		 */
-		onDidWriteData: Event<string>;
+		readonly onDidWriteData: Event<string>;
 	}
 
 	/**
@@ -1095,18 +1123,6 @@ declare module 'vscode' {
 		 * @param collapsibleState [TreeItemCollapsibleState](#TreeItemCollapsibleState) of the tree item. Default is [TreeItemCollapsibleState.None](#TreeItemCollapsibleState.None)
 		 */
 		constructor(label: TreeItemLabel, collapsibleState?: TreeItemCollapsibleState);
-	}
-	//#endregion
-
-	//#region SignatureHelpContext active parameters - mjbvz
-	export interface SignatureHelpContext {
-		/**
-		 * The currently active [`SignatureHelp`](#SignatureHelp).
-		 *
-		 * The `activeSignatureHelp` has its [`SignatureHelp.activeSignature`] field updated based on
-		 * the user arrowing through available signatures.
-		 */
-		readonly activeSignatureHelp?: SignatureHelp;
 	}
 	//#endregion
 

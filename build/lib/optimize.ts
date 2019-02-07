@@ -14,7 +14,8 @@ import * as flatmap from 'gulp-flatmap';
 import * as sourcemaps from 'gulp-sourcemaps';
 import * as uglify from 'gulp-uglify';
 import * as composer from 'gulp-uglify/composer';
-import * as gulpUtil from 'gulp-util';
+import * as fancyLog from 'fancy-log';
+import * as ansiColors from 'ansi-colors';
 import * as path from 'path';
 import * as pump from 'pump';
 import * as sm from 'source-map';
@@ -28,7 +29,7 @@ import * as util from './util';
 const REPO_ROOT_PATH = path.join(__dirname, '../..');
 
 function log(prefix: string, message: string): void {
-	gulpUtil.log(gulpUtil.colors.cyan('[' + prefix + ']'), message);
+	fancyLog(ansiColors.cyan('[' + prefix + ']'), message);
 }
 
 export function loaderConfig(emptyPaths?: string[]) {
@@ -142,10 +143,6 @@ export interface IOptimizeTaskOpts {
 	 */
 	entryPoints: bundle.IEntryPoint[];
 	/**
-	 * (for non-AMD files that should get Copyright treatment)
-	 */
-	otherSources: string[];
-	/**
 	 * (svg, etc.)
 	 */
 	resources: string[];
@@ -175,7 +172,6 @@ export interface IOptimizeTaskOpts {
 export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStream {
 	const src = opts.src;
 	const entryPoints = opts.entryPoints;
-	const otherSources = opts.otherSources;
 	const resources = opts.resources;
 	const loaderConfig = opts.loaderConfig;
 	const bundledFileHeader = opts.header;
@@ -200,7 +196,7 @@ export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStr
 				}
 				filteredResources.push('!' + resource);
 			});
-			gulp.src(filteredResources, { base: `${src}` }).pipe(resourcesStream);
+			gulp.src(filteredResources, { base: `${src}`, allowEmpty: true }).pipe(resourcesStream);
 
 			const bundleInfoArray: VinylFile[] = [];
 			if (opts.bundleInfo) {
@@ -213,24 +209,9 @@ export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStr
 			es.readArray(bundleInfoArray).pipe(bundleInfoStream);
 		});
 
-		const otherSourcesStream = es.through();
-		const otherSourcesStreamArr: NodeJS.ReadWriteStream[] = [];
-
-		gulp.src(otherSources, { base: `${src}` })
-			.pipe(es.through(function (data) {
-				otherSourcesStreamArr.push(toConcatStream(src, bundledFileHeader, [data], data.relative));
-			}, function () {
-				if (!otherSourcesStreamArr.length) {
-					setTimeout(function () { otherSourcesStream.emit('end'); }, 0);
-				} else {
-					es.merge(otherSourcesStreamArr).pipe(otherSourcesStream);
-				}
-			}));
-
 		const result = es.merge(
 			loader(src, bundledFileHeader, bundleLoader),
 			bundlesStream,
-			otherSourcesStream,
 			resourcesStream,
 			bundleInfoStream
 		);

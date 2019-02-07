@@ -27,7 +27,7 @@ export interface ColorContribution {
 
 
 export interface ColorFunction {
-	(theme: ITheme): Color | null;
+	(theme: ITheme): Color | undefined;
 }
 
 export interface ColorDefaults {
@@ -71,7 +71,7 @@ export interface IColorRegistry {
 	/**
 	 * Gets the default color of the given id
 	 */
-	resolveDefaultColor(id: ColorIdentifier, theme: ITheme): Color | null;
+	resolveDefaultColor(id: ColorIdentifier, theme: ITheme): Color | undefined;
 
 	/**
 	 * JSON schema for an object to assign color values to one of the color contributions.
@@ -131,13 +131,13 @@ class ColorRegistry implements IColorRegistry {
 		return Object.keys(this.colorsById).map(id => this.colorsById[id]);
 	}
 
-	public resolveDefaultColor(id: ColorIdentifier, theme: ITheme): Color | null {
-		let colorDesc = this.colorsById[id];
+	public resolveDefaultColor(id: ColorIdentifier, theme: ITheme): Color | undefined {
+		const colorDesc = this.colorsById[id];
 		if (colorDesc && colorDesc.defaults) {
-			let colorValue = colorDesc.defaults[theme.type];
+			const colorValue = colorDesc.defaults[theme.type];
 			return resolveColorValue(colorValue, theme);
 		}
-		return null;
+		return undefined;
 	}
 
 	public getColorSchema(): IJSONSchema {
@@ -257,7 +257,7 @@ export const scrollbarSliderActiveBackground = registerColor('scrollbarSlider.ac
 export const progressBarBackground = registerColor('progressBar.background', { dark: Color.fromHex('#0E70C0'), light: Color.fromHex('#0E70C0'), hc: contrastBorder }, nls.localize('progressBarBackground', "Background color of the progress bar that can show for long running operations."));
 
 export const menuBorder = registerColor('menu.border', { dark: null, light: null, hc: contrastBorder }, nls.localize('menuBorder', "Border color of menus."));
-export const menuForeground = registerColor('menu.foreground', { dark: selectForeground, light: selectForeground, hc: selectForeground }, nls.localize('menuForeground', "Foreground color of menu items."));
+export const menuForeground = registerColor('menu.foreground', { dark: selectForeground, light: foreground, hc: selectForeground }, nls.localize('menuForeground', "Foreground color of menu items."));
 export const menuBackground = registerColor('menu.background', { dark: selectBackground, light: selectBackground, hc: selectBackground }, nls.localize('menuBackground', "Background color of menu items."));
 export const menuSelectionForeground = registerColor('menu.selectionForeground', { dark: listActiveSelectionForeground, light: listActiveSelectionForeground, hc: listActiveSelectionForeground }, nls.localize('menuSelectionForeground', "Foreground color of the selected menu item in menus."));
 export const menuSelectionBackground = registerColor('menu.selectionBackground', { dark: listActiveSelectionBackground, light: listActiveSelectionBackground, hc: listActiveSelectionBackground }, nls.localize('menuSelectionBackground', "Background color of the selected menu item in menus."));
@@ -385,7 +385,7 @@ export function darken(colorValue: ColorValue, factor: number): ColorFunction {
 		if (color) {
 			return color.darken(factor);
 		}
-		return null;
+		return undefined;
 	};
 }
 
@@ -395,7 +395,7 @@ export function lighten(colorValue: ColorValue, factor: number): ColorFunction {
 		if (color) {
 			return color.lighten(factor);
 		}
-		return null;
+		return undefined;
 	};
 }
 
@@ -405,7 +405,7 @@ export function transparent(colorValue: ColorValue, factor: number): ColorFuncti
 		if (color) {
 			return color.transparent(factor);
 		}
-		return null;
+		return undefined;
 	};
 }
 
@@ -417,7 +417,7 @@ export function oneOf(...colorValues: ColorValue[]): ColorFunction {
 				return color;
 			}
 		}
-		return null;
+		return undefined;
 	};
 }
 
@@ -434,7 +434,7 @@ function lessProminent(colorValue: ColorValue, backgroundColorValue: ColorValue,
 			}
 			return from.transparent(factor * transparency);
 		}
-		return null;
+		return undefined;
 	};
 }
 
@@ -443,9 +443,9 @@ function lessProminent(colorValue: ColorValue, backgroundColorValue: ColorValue,
 /**
  * @param colorValue Resolve a color value in the context of a theme
  */
-function resolveColorValue(colorValue: ColorValue | null, theme: ITheme): Color | null {
+function resolveColorValue(colorValue: ColorValue | null, theme: ITheme): Color | undefined {
 	if (colorValue === null) {
-		return null;
+		return undefined;
 	} else if (typeof colorValue === 'string') {
 		if (colorValue[0] === '#') {
 			return Color.fromHex(colorValue);
@@ -456,7 +456,7 @@ function resolveColorValue(colorValue: ColorValue | null, theme: ITheme): Color 
 	} else if (typeof colorValue === 'function') {
 		return colorValue(theme);
 	}
-	return null;
+	return undefined;
 }
 
 export const workbenchColorsSchemaId = 'vscode://schemas/workbench-colors';

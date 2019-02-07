@@ -15,7 +15,7 @@ import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHostCommands';
 import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
 import { asPromise } from 'vs/base/common/async';
-import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IMainContext, IdObject, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, ISerializedLanguageConfiguration, WorkspaceSymbolDto, SuggestResultDto, WorkspaceSymbolsDto, SuggestionDto, CodeActionDto, ISerializedDocumentFilter, WorkspaceEditDto, ISerializedSignatureHelpProviderMetadata } from './extHost.protocol';
+import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IMainContext, IdObject, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, ISerializedLanguageConfiguration, WorkspaceSymbolDto, SuggestResultDto, WorkspaceSymbolsDto, SuggestionDto, CodeActionDto, ISerializedDocumentFilter, WorkspaceEditDto, ISerializedSignatureHelpProviderMetadata, LinkDto, CodeLensDto } from './extHost.protocol';
 import { regExpLeadsToEndlessLoop, regExpFlags } from 'vs/base/common/strings';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range as EditorRange } from 'vs/editor/common/core/range';
@@ -104,24 +104,25 @@ class CodeLensAdapter {
 		private readonly _provider: vscode.CodeLensProvider
 	) { }
 
-	provideCodeLenses(resource: URI, token: CancellationToken): Promise<modes.ICodeLensSymbol[]> {
+	provideCodeLenses(resource: URI, token: CancellationToken): Promise<CodeLensDto[]> {
 		const doc = this._documents.getDocumentData(resource).document;
 
 		return asPromise(() => this._provider.provideCodeLenses(doc, token)).then(lenses => {
-			if (Array.isArray(lenses)) {
-				return lenses.map(lens => {
+			let result: CodeLensDto[] = [];
+			if (isNonEmptyArray(lenses)) {
+				for (const lens of lenses) {
 					const id = this._heapService.keep(lens);
-					return ObjectIdentifier.mixin({
+					result.push(ObjectIdentifier.mixin({
 						range: typeConvert.Range.from(lens.range),
 						command: this._commands.toInternal(lens.command)
-					}, id);
-				});
+					}, id));
+				}
 			}
-			return undefined;
+			return result;
 		});
 	}
 
-	resolveCodeLens(resource: URI, symbol: modes.ICodeLensSymbol, token: CancellationToken): Promise<modes.ICodeLensSymbol> {
+	resolveCodeLens(resource: URI, symbol: CodeLensDto, token: CancellationToken): Promise<CodeLensDto> {
 
 		const lens = this._heapService.get<vscode.CodeLens>(ObjectIdentifier.of(symbol));
 		if (!lens) {
@@ -553,7 +554,7 @@ class RenameAdapter {
 			if (rejectReason) {
 				return <modes.RenameLocation & modes.Rejection>{ rejectReason, range: undefined, text: undefined };
 			} else {
-				return Promise.reject(err);
+				return Promise.reject<any>(err);
 			}
 		});
 	}
@@ -778,25 +779,24 @@ class LinkProviderAdapter {
 		private readonly _provider: vscode.DocumentLinkProvider
 	) { }
 
-	provideLinks(resource: URI, token: CancellationToken): Promise<modes.ILink[]> {
+	provideLinks(resource: URI, token: CancellationToken): Promise<LinkDto[]> {
 		const doc = this._documents.getDocumentData(resource).document;
 
 		return asPromise(() => this._provider.provideDocumentLinks(doc, token)).then(links => {
 			if (!Array.isArray(links)) {
 				return undefined;
 			}
-			const result: modes.ILink[] = [];
+			const result: LinkDto[] = [];
 			for (const link of links) {
 				let data = typeConvert.DocumentLink.from(link);
 				let id = this._heapService.keep(link);
-				ObjectIdentifier.mixin(data, id);
-				result.push(data);
+				result.push(ObjectIdentifier.mixin(data, id));
 			}
 			return result;
 		});
 	}
 
-	resolveLink(link: modes.ILink, token: CancellationToken): Promise<modes.ILink> {
+	resolveLink(link: LinkDto, token: CancellationToken): Promise<LinkDto> {
 		if (typeof this._provider.resolveDocumentLink !== 'function') {
 			return undefined;
 		}

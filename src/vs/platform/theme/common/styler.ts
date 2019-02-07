@@ -9,7 +9,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
 
-export type styleFn = (colors: { [name: string]: Color | null }) => void;
+export type styleFn = (colors: { [name: string]: Color | undefined }) => void;
 
 export interface IStyleOverrides {
 	[color: string]: ColorIdentifier | undefined;
@@ -24,7 +24,7 @@ export interface IColorMapping {
 }
 
 export interface IComputedStyles {
-	[color: string]: Color | null;
+	[color: string]: Color | undefined;
 }
 
 export function computeStyles(theme: ITheme, styleMap: IColorMapping): IComputedStyles {
@@ -327,10 +327,5 @@ export const defaultMenuStyles = <IMenuStyleOverrides>{
 };
 
 export function attachMenuStyler(widget: IThemable, themeService, style?: IMenuStyleOverrides): IDisposable {
-	const styles = { ...defaultMenuStyles, ...style };
-	const fallback: IMenuStyleOverrides = {
-		foregroundColor: !!styles.foregroundColor && !!themeService && !!themeService.getTheme().getColor(styles.foregroundColor) ? styles.foregroundColor : foreground
-	};
-
-	return attachStyler(themeService, { ...styles, ...fallback }, widget);
+	return attachStyler(themeService, { ...defaultMenuStyles, ...style }, widget);
 }

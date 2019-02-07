@@ -163,7 +163,7 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 					bucket.push(wrappedThenable);
 				}
 			};
-		}).then(() => {
+		}).then((): any => {
 			if (edits.length === 0) {
 				return undefined;
 			}

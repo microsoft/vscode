@@ -17,7 +17,7 @@ import { memoize } from 'vs/base/common/decorators';
 import { NotificationsCenter } from 'vs/workbench/browser/parts/notifications/notificationsCenter';
 import { NotificationsToasts } from 'vs/workbench/browser/parts/notifications/notificationsToasts';
 import { Dimension, getClientArea, size, position, hide, show } from 'vs/base/browser/dom';
-import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { TitlebarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
 import { ActivitybarPart } from 'vs/workbench/browser/parts/activitybar/activitybarPart';

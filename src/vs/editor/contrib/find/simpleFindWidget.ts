@@ -6,7 +6,7 @@
 import 'vs/css!./simpleFindWidget';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import { FindInput } from 'vs/base/browser/ui/findinput/findInput';
+import { FindInput, IFindInputStyles } from 'vs/base/browser/ui/findinput/findInput';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Delayer } from 'vs/base/common/async';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -159,7 +159,7 @@ export abstract class SimpleFindWidget extends Widget {
 	}
 
 	public updateTheme(theme: ITheme): void {
-		const inputStyles = {
+		const inputStyles: IFindInputStyles = {
 			inputActiveOptionBorder: theme.getColor(inputActiveOptionBorder),
 			inputBackground: theme.getColor(inputBackground),
 			inputForeground: theme.getColor(inputForeground),

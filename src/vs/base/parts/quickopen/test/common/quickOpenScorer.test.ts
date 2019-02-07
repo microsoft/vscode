@@ -797,9 +797,9 @@ suite('Quick Open Scorer', () => {
 	});
 
 	test('compareFilesByScore - avoid match scattering (bug #12095)', function () {
-		const resourceA = URI.file('src/vs/workbench/parts/files/common/explorerViewModel.ts');
-		const resourceB = URI.file('src/vs/workbench/parts/files/browser/views/explorerView.ts');
-		const resourceC = URI.file('src/vs/workbench/parts/files/browser/views/explorerViewer.ts');
+		const resourceA = URI.file('src/vs/workbench/contrib/files/common/explorerViewModel.ts');
+		const resourceB = URI.file('src/vs/workbench/contrib/files/browser/views/explorerView.ts');
+		const resourceC = URI.file('src/vs/workbench/contrib/files/browser/views/explorerViewer.ts');
 
 		let query = 'filesexplorerview.ts';
 
