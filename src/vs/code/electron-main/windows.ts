@@ -37,11 +37,25 @@ import { exists } from 'vs/base/node/pfs';
 import { getComparisonKey, isEqual, normalizePath, basename as resourcesBasename, fsPath } from 'vs/base/common/resources';
 import { endsWith } from 'vs/base/common/strings';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
-import { IWindowsState, restoreWindowsState, WindowsStateStoreData, IWindowState, getWindowsStateStoreData } from 'vs/code/electron-main/windowsState';
+import { restoreWindowsState, WindowsStateStorageData, getWindowsStateStoreData } from 'vs/code/electron-main/windowsStateStorage';
 
 const enum WindowError {
 	UNRESPONSIVE = 1,
 	CRASHED = 2
+}
+
+export interface IWindowState {
+	workspace?: IWorkspaceIdentifier;
+	folderUri?: URI;
+	backupPath?: string;
+	remoteAuthority?: string;
+	uiState: ISingleWindowState;
+}
+
+export interface IWindowsState {
+	lastActiveWindow?: IWindowState;
+	lastPluginDevelopmentHostWindow?: IWindowState;
+	openedWindows: IWindowState[];
 }
 
 interface INewWindowState extends ISingleWindowState {
@@ -144,7 +158,7 @@ export class WindowsManager implements IWindowsMainService {
 		@IWorkspacesMainService private readonly workspacesMainService: IWorkspacesMainService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
-		const windowsStateStoreData = this.stateService.getItem<WindowsStateStoreData>(WindowsManager.windowsStateStorageKey);
+		const windowsStateStoreData = this.stateService.getItem<WindowsStateStorageData>(WindowsManager.windowsStateStorageKey);
 
 		this.windowsState = restoreWindowsState(windowsStateStoreData);
 		if (!Array.isArray(this.windowsState.openedWindows)) {

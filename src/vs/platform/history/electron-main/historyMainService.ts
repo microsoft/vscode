@@ -17,24 +17,11 @@ import { IHistoryMainService, IRecentlyOpened } from 'vs/platform/history/common
 import { isEqual } from 'vs/base/common/paths';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { getComparisonKey, isEqual as areResourcesEqual, dirname, fsPath } from 'vs/base/common/resources';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { getSimpleWorkspaceLabel } from 'vs/platform/label/common/label';
-
-interface ISerializedRecentlyOpened {
-	workspaces3: Array<ISerializedWorkspace | string>; // workspace or URI.toString()
-	files2: string[]; // files as URI.toString()
-}
-
-interface ILegacySerializedRecentlyOpened {
-	workspaces2: Array<ILegacySerializedWorkspace | string>; // legacy, configPath as file path
-	workspaces: Array<ILegacySerializedWorkspace | string | UriComponents>; // legacy (UriComponents was also supported for a few insider builds)
-	files: string[]; // files as paths
-}
-
-interface ISerializedWorkspace { id: string; configURIPath: string; }
-interface ILegacySerializedWorkspace { id: string; configPath: string; }
+import { toStoreData, restoreRecentlyOpened, RecentlyOpenedStorageData } from 'vs/platform/history/electron-main/historyStorage';
 
 export class HistoryMainService implements IHistoryMainService {
 
@@ -213,18 +200,9 @@ export class HistoryMainService implements IHistoryMainService {
 	}
 
 	getRecentlyOpened(currentWorkspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier, currentFiles?: IPath[]): IRecentlyOpened {
-		let workspaces: Array<IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier>;
-		let files: URI[];
 
 		// Get from storage
-		const storedRecents = this.getRecentlyOpenedFromStorage();
-		if (storedRecents) {
-			workspaces = storedRecents.workspaces || [];
-			files = storedRecents.files || [];
-		} else {
-			workspaces = [];
-			files = [];
-		}
+		let { workspaces, files } = this.getRecentlyOpenedFromStorage();
 
 		// Add current workspace to beginning if set
 		if (currentWorkspace) {
@@ -255,73 +233,12 @@ export class HistoryMainService implements IHistoryMainService {
 	}
 
 	private getRecentlyOpenedFromStorage(): IRecentlyOpened {
-		const storedRecents = this.stateService.getItem<ISerializedRecentlyOpened & ILegacySerializedRecentlyOpened>(HistoryMainService.recentlyOpenedStorageKey);
-		const result: IRecentlyOpened = { workspaces: [], files: [] };
-		if (storedRecents) {
-			if (Array.isArray(storedRecents.workspaces3)) {
-				for (const workspace of storedRecents.workspaces3) {
-					if (typeof workspace === 'object' && typeof workspace.id === 'string' && typeof workspace.configURIPath === 'string') {
-						result.workspaces.push({ id: workspace.id, configPath: URI.parse(workspace.configURIPath) });
-					} else if (typeof workspace === 'string') {
-						result.workspaces.push(URI.parse(workspace));
-					}
-				}
-			} else if (Array.isArray(storedRecents.workspaces2)) {
-				for (const workspace of storedRecents.workspaces2) {
-					if (typeof workspace === 'object' && typeof workspace.id === 'string' && typeof workspace.configPath === 'string') {
-						result.workspaces.push({ id: workspace.id, configPath: URI.file(workspace.configPath) });
-					} else if (typeof workspace === 'string') {
-						result.workspaces.push(URI.parse(workspace));
-					}
-				}
-			} else if (Array.isArray(storedRecents.workspaces)) {
-				// TODO@martin legacy support can be removed at some point (6 month?)
-				// format of 1.25 and before
-				for (const workspace of storedRecents.workspaces) {
-					if (typeof workspace === 'string') {
-						result.workspaces.push(URI.file(workspace));
-					} else if (typeof workspace === 'object' && typeof workspace['id'] === 'string' && typeof workspace['configPath'] === 'string') {
-						result.workspaces.push({ id: workspace['id'], configPath: URI.file(workspace['configPath']) });
-					} else if (workspace && typeof workspace['path'] === 'string' && typeof workspace['scheme'] === 'string') {
-						// added by 1.26-insiders
-						result.workspaces.push(URI.revive(workspace));
-					}
-				}
-			}
-
-			if (Array.isArray(storedRecents.files2)) {
-				for (const file of storedRecents.files2) {
-					if (typeof file === 'string') {
-						result.files.push(URI.parse(file));
-					}
-				}
-			} else if (Array.isArray(storedRecents.files)) {
-				for (const file of storedRecents.files) {
-					if (typeof file === 'string') {
-						result.files.push(URI.file(file));
-					}
-				}
-			}
-		}
-
-		return result;
+		const storedRecents = this.stateService.getItem<RecentlyOpenedStorageData>(HistoryMainService.recentlyOpenedStorageKey);
+		return restoreRecentlyOpened(storedRecents);
 	}
 
 	private saveRecentlyOpened(recent: IRecentlyOpened): void {
-		const serialized: ISerializedRecentlyOpened = { workspaces3: [], files2: [] };
-
-		for (const workspace of recent.workspaces) {
-			if (isSingleFolderWorkspaceIdentifier(workspace)) {
-				serialized.workspaces3.push(workspace.toString());
-			} else {
-				serialized.workspaces3.push({ id: workspace.id, configURIPath: workspace.configPath.toString() });
-			}
-		}
-
-		for (const file of recent.files) {
-			serialized.files2.push(file.toString());
-		}
-
+		const serialized = toStoreData(recent);
 		this.stateService.setItem(HistoryMainService.recentlyOpenedStorageKey, serialized);
 	}
 
@@ -359,7 +276,7 @@ export class HistoryMainService implements IHistoryMainService {
 			for (let item of app.getJumpListSettings().removedItems) {
 				const args = item.args;
 				if (args) {
-					const match = /^--(folder|workspace)-uri\s+"([^"]+)"$/.exec(args);
+					const match = /^--(folder|file)-uri\s+"([^"]+)"$/.exec(args);
 					if (match) {
 						toRemove.push(URI.parse(match[2]));
 					}
@@ -381,7 +298,7 @@ export class HistoryMainService implements IHistoryMainService {
 						args = `--folder-uri "${workspace.toString()}"`;
 					} else {
 						description = nls.localize('codeWorkspace', "Code Workspace");
-						args = `--workspace-uri "${workspace.configPath.toString()}"`;
+						args = `--file-uri "${workspace.configPath.toString()}"`;
 					}
 					return <Electron.JumpListItem>{
 						type: 'task',

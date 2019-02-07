@@ -4,24 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { IWindowState as IWindowUIState, } from 'vs/platform/windows/electron-main/windows';
+import { IWindowState as IWindowUIState } from 'vs/platform/windows/electron-main/windows';
+import { IWindowState, IWindowsState } from 'vs/code/electron-main/windows';
 
-export interface IWindowState {
-	workspace?: IWorkspaceIdentifier;
-	folderUri?: URI;
-	backupPath?: string;
-	remoteAuthority?: string;
-	uiState: IWindowUIState;
-}
-
-export interface IWindowsState {
-	lastActiveWindow?: IWindowState;
-	lastPluginDevelopmentHostWindow?: IWindowState;
-	openedWindows: IWindowState[];
-}
-
-export type WindowsStateStoreData = object;
+export type WindowsStateStorageData = object;
 
 interface ISerializedWindowsState {
 	lastActiveWindow?: ISerializedWindowState;
@@ -42,7 +28,7 @@ interface ISerializedWindowState {
 	workspace?: { id: string; configPath: string };
 }
 
-export function restoreWindowsState(data: WindowsStateStoreData | undefined): IWindowsState {
+export function restoreWindowsState(data: WindowsStateStorageData | undefined): IWindowsState {
 	const result: IWindowsState = { openedWindows: [] };
 	const windowsState = data as ISerializedWindowsState || { openedWindows: [] };
 
@@ -81,7 +67,7 @@ function restoreWindowState(windowState: ISerializedWindowState): IWindowState {
 	return result;
 }
 
-export function getWindowsStateStoreData(windowsState: IWindowsState): WindowsStateStoreData {
+export function getWindowsStateStoreData(windowsState: IWindowsState): WindowsStateStorageData {
 	return {
 		lastActiveWindow: windowsState.lastActiveWindow && serializeWindowState(windowsState.lastActiveWindow),
 		lastPluginDevelopmentHostWindow: windowsState.lastPluginDevelopmentHostWindow && serializeWindowState(windowsState.lastPluginDevelopmentHostWindow),
