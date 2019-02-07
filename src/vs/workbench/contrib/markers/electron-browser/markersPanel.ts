@@ -385,6 +385,18 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 				this.filterInputActionItem.focus();
 			}
 		}));
+
+		this._register(Event.any<any>(this.tree.onDidChangeSelection, this.tree.onDidChangeFocus)(() => {
+			const elements: TreeElement[] = [...this.tree.getSelection(), ...this.tree.getFocus()];
+			for (const element of elements) {
+				if (element instanceof Marker) {
+					const viewModel = this.markersViewModel.getViewModel(element);
+					if (viewModel) {
+						viewModel.showLightBulb();
+					}
+				}
+			}
+		}));
 	}
 
 	private createActions(): void {
@@ -611,34 +623,35 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		e.browserEvent.preventDefault();
 		e.browserEvent.stopPropagation();
 
-		this._getMenuActions(e.element).then(actions => {
-			this.contextMenuService.showContextMenu({
-				getAnchor: () => e.anchor,
-				getActions: () => actions,
-				getActionItem: (action) => {
-					const keybinding = this.keybindingService.lookupKeybinding(action.id);
-					if (keybinding) {
-						return new ActionItem(action, action, { label: true, keybinding: keybinding.getLabel() });
-					}
-					return null;
-				},
-				onHide: (wasCancelled?: boolean) => {
-					if (wasCancelled) {
-						this.tree.domFocus();
-					}
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => e.anchor,
+			getActions: () => this.getMenuActions(e.element),
+			getActionItem: (action) => {
+				const keybinding = this.keybindingService.lookupKeybinding(action.id);
+				if (keybinding) {
+					return new ActionItem(action, action, { label: true, keybinding: keybinding.getLabel() });
 				}
-			});
+				return null;
+			},
+			onHide: (wasCancelled?: boolean) => {
+				if (wasCancelled) {
+					this.tree.domFocus();
+				}
+			}
 		});
 	}
 
-	private async _getMenuActions(element: TreeElement): Promise<IAction[]> {
+	private getMenuActions(element: TreeElement): IAction[] {
 		const result: IAction[] = [];
 
 		if (element instanceof Marker) {
-			const quickFixActions = await this.markersWorkbenchService.getQuickFixActions(element);
-			if (quickFixActions.length) {
-				result.push(...quickFixActions);
-				result.push(new Separator());
+			const viewModel = this.markersViewModel.getViewModel(element);
+			if (viewModel) {
+				const quickFixActions = viewModel.quickFixAction.quickFixes;
+				if (quickFixActions.length) {
+					result.push(...quickFixActions);
+					result.push(new Separator());
+				}
 			}
 		}
 

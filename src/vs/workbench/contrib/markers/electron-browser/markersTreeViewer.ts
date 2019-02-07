@@ -19,7 +19,7 @@ import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/l
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { QuickFixAction, QuickFixActionItem } from 'vs/workbench/contrib/markers/electron-browser/markersPanelActions';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { dirname, basename } from 'vs/base/common/resources';
+import { dirname, basename, isEqual } from 'vs/base/common/resources';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeFilter, TreeVisibility, TreeFilterResult, ITreeRenderer, ITreeNode, ITreeDragAndDrop, ITreeDragOverReaction } from 'vs/base/browser/ui/tree/tree';
 import { FilterOptions } from 'vs/workbench/contrib/markers/electron-browser/markersFilterOptions';
@@ -28,11 +28,22 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { Action } from 'vs/base/common/actions';
+import { Action, IAction } from 'vs/base/common/actions';
 import { localize } from 'vs/nls';
 import { IDragAndDropData } from 'vs/base/browser/dnd';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { fillResourceDataTransfers } from 'vs/workbench/browser/dnd';
+import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/common/async';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { Range } from 'vs/editor/common/core/range';
+import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
+import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
+import { ITextModel } from 'vs/editor/common/model';
+import { CodeAction } from 'vs/editor/common/modes';
+import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { applyCodeAction } from 'vs/editor/contrib/codeAction/codeActionCommands';
 
 export type TreeElement = ResourceMarkers | Marker | RelatedInformation;
 
@@ -235,7 +246,7 @@ class MarkerWidget extends Disposable {
 	private disposables: IDisposable[] = [];
 
 	constructor(
-		parent: HTMLElement,
+		private parent: HTMLElement,
 		private readonly markersViewModel: MarkersViewModel,
 		instantiationService: IInstantiationService
 	) {
@@ -262,6 +273,8 @@ class MarkerWidget extends Disposable {
 		this.renderMultilineActionbar(element);
 
 		this.renderMessageAndDetails(element, filterData);
+		this.disposables.push(dom.addDisposableListener(this.parent, dom.EventType.MOUSE_OVER, () => this.markersViewModel.onMarkerMouseHover(element)));
+		this.disposables.push(dom.addDisposableListener(this.parent, dom.EventType.MOUSE_LEAVE, () => this.markersViewModel.onMarkerMouseLeave(element)));
 	}
 
 	private renderQuickfixActionbar(marker: Marker): void {
@@ -474,11 +487,26 @@ export class MarkerViewModel extends Disposable {
 	private readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
+	private modelPromise: CancelablePromise<ITextModel> | null = null;
+	private codeActionsPromise: CancelablePromise<CodeAction[]> | null = null;
+
 	constructor(
 		private readonly marker: Marker,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IModelService private modelService: IModelService,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IBulkEditService private readonly bulkEditService: IBulkEditService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		super();
+		this._register(toDisposable(() => {
+			if (this.modelPromise) {
+				this.modelPromise.cancel();
+			}
+			if (this.codeActionsPromise) {
+				this.codeActionsPromise.cancel();
+			}
+		}));
 	}
 
 	private _multiline: boolean = true;
@@ -500,6 +528,91 @@ export class MarkerViewModel extends Disposable {
 		}
 		return this._quickFixAction;
 	}
+
+	showLightBulb(): void {
+		this.setQuickFixes(true);
+	}
+
+	showQuickfixes(): void {
+		this.setQuickFixes(false).then(() => this.quickFixAction.run());
+	}
+
+	async getQuickFixes(waitForModel: boolean): Promise<IAction[]> {
+		const codeActions = await this.getCodeActions(waitForModel);
+		return codeActions ? this.toActions(codeActions) : [];
+	}
+
+	private async setQuickFixes(waitForModel: boolean): Promise<void> {
+		const quickFixes = await this.getQuickFixes(waitForModel);
+		this.quickFixAction.quickFixes = quickFixes;
+	}
+
+	private getCodeActions(waitForModel: boolean): Promise<CodeAction[] | null> {
+		if (this.codeActionsPromise !== null) {
+			return this.codeActionsPromise;
+		}
+		return this.getModel(waitForModel)
+			.then(model => {
+				if (model) {
+					if (!this.codeActionsPromise) {
+						this.codeActionsPromise = createCancelablePromise(cancellationToken => {
+							console.log('Fetching code actions for ', this.marker.marker.message);
+							return getCodeActions(model, new Range(this.marker.range.startLineNumber, this.marker.range.startColumn, this.marker.range.endLineNumber, this.marker.range.endColumn), { type: 'manual', filter: { kind: CodeActionKind.QuickFix } }, cancellationToken);
+						});
+					}
+					return this.codeActionsPromise;
+				}
+				return null;
+			});
+	}
+
+	private toActions(codeActions: CodeAction[]): IAction[] {
+		return codeActions.map(codeAction => new Action(
+			codeAction.command ? codeAction.command.id : codeAction.title,
+			codeAction.title,
+			undefined,
+			true,
+			() => {
+				return this.openFileAtMarker(this.marker)
+					.then(() => applyCodeAction(codeAction, this.bulkEditService, this.commandService));
+			}));
+	}
+
+	private openFileAtMarker(element: Marker): Promise<void> {
+		const { resource, selection } = { resource: element.resource, selection: element.range };
+		return this.editorService.openEditor({
+			resource,
+			options: {
+				selection,
+				preserveFocus: true,
+				pinned: false,
+				revealIfVisible: true
+			},
+		}, ACTIVE_GROUP).then(() => undefined);
+	}
+
+	private getModel(waitForModel: boolean): Promise<ITextModel | null> {
+		const model = this.modelService.getModel(this.marker.resource);
+		if (model) {
+			return Promise.resolve(model);
+		}
+		if (waitForModel) {
+			if (this.modelPromise === null) {
+				this.modelPromise = createCancelablePromise(cancellationToken => {
+					return new Promise((c) => {
+						this._register(this.modelService.onModelAdded(model => {
+							if (isEqual(model.uri, this.marker.resource)) {
+								c(model);
+							}
+						}));
+					});
+				});
+			}
+			return this.modelPromise;
+		}
+		return Promise.resolve(null);
+	}
+
 }
 
 export class MarkersViewModel extends Disposable {
@@ -511,6 +624,9 @@ export class MarkersViewModel extends Disposable {
 	private readonly markersPerResource: Map<string, Marker[]> = new Map<string, Marker[]>();
 
 	private bulkUpdate: boolean = false;
+
+	private hoveredMarker: Marker;
+	private hoverDelayer: Delayer<void> = new Delayer<void>(300);
 
 	constructor(
 		multiline: boolean = true,
@@ -546,6 +662,9 @@ export class MarkersViewModel extends Disposable {
 				dispose(value.disposables);
 			}
 			this.markersViewStates.delete(marker.hash);
+			if (this.hoveredMarker === marker) {
+				this.hoveredMarker = null;
+			}
 		}
 		this.markersPerResource.delete(resource.toString());
 	}
@@ -553,6 +672,24 @@ export class MarkersViewModel extends Disposable {
 	getViewModel(marker: Marker): MarkerViewModel | null {
 		const value = this.markersViewStates.get(marker.hash);
 		return value ? value.viewModel : null;
+	}
+
+	onMarkerMouseHover(marker: Marker): void {
+		this.hoveredMarker = marker;
+		this.hoverDelayer.trigger(() => {
+			if (this.hoveredMarker) {
+				const model = this.getViewModel(this.hoveredMarker);
+				if (model) {
+					model.showLightBulb();
+				}
+			}
+		});
+	}
+
+	onMarkerMouseLeave(marker: Marker): void {
+		if (this.hoveredMarker === marker) {
+			this.hoveredMarker = null;
+		}
 	}
 
 	private _multiline: boolean = true;

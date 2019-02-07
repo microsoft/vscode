@@ -5,7 +5,7 @@
 
 import { Delayer } from 'vs/base/common/async';
 import * as DOM from 'vs/base/browser/dom';
-import { Action, IActionChangeEvent } from 'vs/base/common/actions';
+import { Action, IActionChangeEvent, IAction } from 'vs/base/common/actions';
 import { HistoryInputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -25,9 +25,7 @@ import { localize } from 'vs/nls';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ContextScopedHistoryInputBox } from 'vs/platform/widget/browser/contextScopedHistoryWidget';
-import { Marker } from 'vs/workbench/contrib/markers/electron-browser/markersModel';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { isEqual } from 'vs/base/common/resources';
+import { Marker } from 'vs/workbench/parts/markers/electron-browser/markersModel';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Event, Emitter } from 'vs/base/common/event';
 import { FilterOptions } from 'vs/workbench/contrib/markers/electron-browser/markersFilterOptions';
@@ -296,40 +294,30 @@ export class QuickFixAction extends Action {
 
 	public static readonly ID: string = 'workbench.actions.problems.quickfix';
 
-	private updated: boolean = false;
 	private disposables: IDisposable[] = [];
 
 	private readonly _onShowQuickFixes: Emitter<void> = new Emitter<void>();
 	readonly onShowQuickFixes: Event<void> = this._onShowQuickFixes.event;
 
+	private _quickFixes: IAction[] = [];
+	get quickFixes(): IAction[] {
+		return this._quickFixes;
+	}
+	set quickFixes(quickFixes: IAction[]) {
+		this._quickFixes = quickFixes;
+		this.enabled = this._quickFixes.length > 0;
+	}
+
+
 	constructor(
 		readonly marker: Marker,
-		@IModelService modelService: IModelService,
-		@IMarkersWorkbenchService private readonly markerWorkbenchService: IMarkersWorkbenchService,
 	) {
 		super(QuickFixAction.ID, Messages.MARKERS_PANEL_ACTION_TOOLTIP_QUICKFIX, 'markers-panel-action-quickfix', false);
-		this.disposables.push(this._onShowQuickFixes);
-		if (modelService.getModel(this.marker.resource)) {
-			this.update();
-		} else {
-			modelService.onModelAdded(model => {
-				if (isEqual(model.uri, marker.resource)) {
-					this.update();
-				}
-			}, this, this.disposables);
-		}
 	}
 
 	run(): Promise<void> {
 		this._onShowQuickFixes.fire();
 		return Promise.resolve();
-	}
-
-	private update(): void {
-		if (!this.updated) {
-			this.markerWorkbenchService.hasQuickFixes(this.marker).then(hasFixes => this.enabled = hasFixes);
-			this.updated = true;
-		}
 	}
 
 	dispose(): void {
@@ -342,7 +330,6 @@ export class QuickFixActionItem extends ActionItem {
 
 	constructor(action: QuickFixAction,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IMarkersWorkbenchService private readonly markerWorkbenchService: IMarkersWorkbenchService
 	) {
 		super(null, action, { icon: true, label: false });
 	}
@@ -360,11 +347,12 @@ export class QuickFixActionItem extends ActionItem {
 			return;
 		}
 		const elementPosition = DOM.getDomNodePagePosition(this.element);
-		this.markerWorkbenchService.getQuickFixActions((<QuickFixAction>this.getAction()).marker).then(actions => {
+		const quickFixes = (<QuickFixAction>this.getAction()).quickFixes;
+		if (quickFixes.length) {
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => ({ x: elementPosition.left + 10, y: elementPosition.top + elementPosition.height + 4 }),
-				getActions: () => actions
+				getActions: () => quickFixes
 			});
-		});
+		}
 	}
 }
