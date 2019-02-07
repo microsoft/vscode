@@ -782,7 +782,7 @@ export class RepositoryPanel extends ViewletPanel {
 
 		super.renderHeaderTitle(container, title);
 		addClass(container, 'scm-provider');
-		append(container, $('span.type', null, type));
+		append(container, $('span.type', undefined, type));
 		const onContextMenu = Event.map(stop(domEvent(container, 'contextmenu')), e => new StandardMouseEvent(e));
 		onContextMenu(this.onContextMenu, this, this.disposables);
 	}
@@ -1097,7 +1097,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 		this.el = parent;
 		addClass(this.el, 'scm-viewlet');
 		addClass(this.el, 'empty');
-		append(parent, $('div.empty-message', null, localize('no open repo', "No source control providers registered.")));
+		append(parent, $('div.empty-message', undefined, localize('no open repo', "No source control providers registered.")));
 
 		this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
 		this.scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.disposables);
