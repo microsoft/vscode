@@ -181,12 +181,13 @@ class WorkbenchOpenController extends Disposable implements IOpenController {
 
 	shouldOpen(event: UIEvent): boolean {
 		if (event instanceof MouseEvent) {
+			const isLeftButton = event.button === 0;
 			const isDoubleClick = event.detail === 2;
-			if (!this.openOnSingleClick && !isDoubleClick) {
+			if (isLeftButton && !this.openOnSingleClick && !isDoubleClick) {
 				return false;
 			}
 
-			if (event.button === 0 /* left mouse button */ || event.button === 1 /* middle mouse button */) {
+			if (isLeftButton /* left mouse button */ || event.button === 1 /* middle mouse button */) {
 				return this.existingOpenController ? this.existingOpenController.shouldOpen(event) : true;
 			}
 
