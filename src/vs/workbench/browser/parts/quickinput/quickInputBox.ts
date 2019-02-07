@@ -100,18 +100,18 @@ export class QuickInputBox {
 
 	style(theme: ITheme) {
 		this.inputBox.style({
-			inputForeground: theme.getColor(inputForeground) || undefined,
-			inputBackground: theme.getColor(inputBackground) || undefined,
-			inputBorder: theme.getColor(inputBorder) || undefined,
-			inputValidationInfoBackground: theme.getColor(inputValidationInfoBackground) || undefined,
-			inputValidationInfoForeground: theme.getColor(inputValidationInfoForeground) || undefined,
-			inputValidationInfoBorder: theme.getColor(inputValidationInfoBorder) || undefined,
-			inputValidationWarningBackground: theme.getColor(inputValidationWarningBackground) || undefined,
-			inputValidationWarningForeground: theme.getColor(inputValidationWarningForeground) || undefined,
-			inputValidationWarningBorder: theme.getColor(inputValidationWarningBorder) || undefined,
-			inputValidationErrorBackground: theme.getColor(inputValidationErrorBackground) || undefined,
-			inputValidationErrorForeground: theme.getColor(inputValidationErrorForeground) || undefined,
-			inputValidationErrorBorder: theme.getColor(inputValidationErrorBorder) || undefined,
+			inputForeground: theme.getColor(inputForeground),
+			inputBackground: theme.getColor(inputBackground),
+			inputBorder: theme.getColor(inputBorder),
+			inputValidationInfoBackground: theme.getColor(inputValidationInfoBackground),
+			inputValidationInfoForeground: theme.getColor(inputValidationInfoForeground),
+			inputValidationInfoBorder: theme.getColor(inputValidationInfoBorder),
+			inputValidationWarningBackground: theme.getColor(inputValidationWarningBackground),
+			inputValidationWarningForeground: theme.getColor(inputValidationWarningForeground),
+			inputValidationWarningBorder: theme.getColor(inputValidationWarningBorder),
+			inputValidationErrorBackground: theme.getColor(inputValidationErrorBackground),
+			inputValidationErrorForeground: theme.getColor(inputValidationErrorForeground),
+			inputValidationErrorBorder: theme.getColor(inputValidationErrorBorder),
 		});
 	}
 
