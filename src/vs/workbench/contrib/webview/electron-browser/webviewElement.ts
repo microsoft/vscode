@@ -248,7 +248,7 @@ export class WebviewElement extends Disposable {
 	) {
 		super();
 		this._webview = document.createElement('webview');
-		this._webview.setAttribute('partition', this._options.allowSvgs ? 'webview' : `webview${Date.now()}`);
+		this._webview.setAttribute('partition', `webview${Date.now()}`);
 
 		this._webview.setAttribute('webpreferences', 'contextIsolation=yes');
 
