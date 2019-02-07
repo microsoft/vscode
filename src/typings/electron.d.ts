@@ -1,4 +1,4 @@
-// Type definitions for Electron 3.1.2
+// Type definitions for Electron 3.1.3
 // Project: http://electronjs.org/
 // Definitions by: The Electron Team <https://github.com/electron/electron>
 // Definitions: https://github.com/electron/electron-typescript-definitions
@@ -7869,6 +7869,11 @@ declare namespace Electron {
 		 * Should only be specified for checkbox or radio type menu items.
 		 */
 		checked?: boolean;
+		/**
+		 * If false, the accelerator won't be registered with the system, but it will still
+		 * be displayed. Defaults to true.
+		 */
+		registerAccelerator?: boolean;
 		/**
 		 * Should be specified for submenu type menu items. If submenu is specified, the
 		 * type: 'submenu' can be omitted. If the value is not a then it will be

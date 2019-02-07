@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import * as os from 'os';
+import * as path from 'path';
 
-import { getRandomTestPath } from 'vs/workbench/test/workbenchTestServices';
 import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { URI } from 'vs/base/common/uri';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
@@ -51,9 +51,9 @@ function assertRestoring(state: IRecentlyOpened, message?: string) {
 	assertEqualRecentlyOpened(state, restored, message);
 }
 
-const testWSPath = URI.file(getRandomTestPath(os.tmpdir(), 'windowStateTest', 'test.code-workspace'));
-const testFileURI = URI.file(getRandomTestPath(os.tmpdir(), 'windowStateTest', 'testFile.txt'));
-const testFolderURI = URI.file(getRandomTestPath(os.tmpdir(), 'windowStateTest', 'testFolder'));
+const testWSPath = URI.file(path.join(os.tmpdir(), 'windowStateTest', 'test.code-workspace'));
+const testFileURI = URI.file(path.join(os.tmpdir(), 'windowStateTest', 'testFile.txt'));
+const testFolderURI = URI.file(path.join(os.tmpdir(), 'windowStateTest', 'testFolder'));
 
 const testRemoteFolderURI = URI.parse('foo://bar/c/e');
 const testRemoteFileURI = URI.parse('foo://bar/c/d.txt');

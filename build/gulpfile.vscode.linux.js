@@ -229,29 +229,42 @@ function buildSnapPackage(arch) {
 	return shell.task(`cd ${snapBuildPath} && snapcraft build`);
 }
 
-gulp.task('vscode-linux-ia32-prepare-deb', util.task.series(util.rimraf('.build/linux/deb/i386'), prepareDebPackage('ia32')));
-gulp.task('vscode-linux-x64-prepare-deb', util.task.series(util.rimraf('.build/linux/deb/amd64'), prepareDebPackage('x64')));
-gulp.task('vscode-linux-arm-prepare-deb', util.task.series(util.rimraf('.build/linux/deb/armhf'), prepareDebPackage('arm')));
-gulp.task('vscode-linux-arm64-prepare-deb', util.task.series(util.rimraf('.build/linux/deb/arm64'), prepareDebPackage('arm64')));
-gulp.task('vscode-linux-ia32-build-deb', ['vscode-linux-ia32-prepare-deb'], buildDebPackage('ia32'));
-gulp.task('vscode-linux-x64-build-deb', ['vscode-linux-x64-prepare-deb'], buildDebPackage('x64'));
-gulp.task('vscode-linux-arm-build-deb', ['vscode-linux-arm-prepare-deb'], buildDebPackage('arm'));
-gulp.task('vscode-linux-arm64-build-deb', ['vscode-linux-arm64-prepare-deb'], buildDebPackage('arm64'));
+const BUILD_TARGETS = [
+	{ arch: 'ia32' },
+	{ arch: 'x64' },
+	{ arch: 'arm' },
+	{ arch: 'arm64' },
+];
 
-gulp.task('vscode-linux-ia32-prepare-rpm', util.task.series(util.rimraf('.build/linux/rpm/i386'), prepareRpmPackage('ia32')));
-gulp.task('vscode-linux-x64-prepare-rpm', util.task.series(util.rimraf('.build/linux/rpm/x86_64'), prepareRpmPackage('x64')));
-gulp.task('vscode-linux-arm-prepare-rpm', util.task.series(util.rimraf('.build/linux/rpm/armhf'), prepareRpmPackage('arm')));
-gulp.task('vscode-linux-arm64-prepare-rpm', util.task.series(util.rimraf('.build/linux/rpm/arm64'), prepareRpmPackage('arm64')));
-gulp.task('vscode-linux-ia32-build-rpm', ['vscode-linux-ia32-prepare-rpm'], buildRpmPackage('ia32'));
-gulp.task('vscode-linux-x64-build-rpm', ['vscode-linux-x64-prepare-rpm'], buildRpmPackage('x64'));
-gulp.task('vscode-linux-arm-build-rpm', ['vscode-linux-arm-prepare-rpm'], buildRpmPackage('arm'));
-gulp.task('vscode-linux-arm64-build-rpm', ['vscode-linux-arm64-prepare-rpm'], buildRpmPackage('arm64'));
+BUILD_TARGETS.forEach((buildTarget) => {
+	const arch = buildTarget.arch;
 
-gulp.task('vscode-linux-ia32-prepare-snap', util.task.series(util.rimraf('.build/linux/snap/x64'), prepareSnapPackage('ia32')));
-gulp.task('vscode-linux-x64-prepare-snap', util.task.series(util.rimraf('.build/linux/snap/x64'), prepareSnapPackage('x64')));
-gulp.task('vscode-linux-arm-prepare-snap', util.task.series(util.rimraf('.build/linux/snap/x64'), prepareSnapPackage('arm')));
-gulp.task('vscode-linux-arm64-prepare-snap', util.task.series(util.rimraf('.build/linux/snap/x64'), prepareSnapPackage('arm64')));
-gulp.task('vscode-linux-ia32-build-snap', ['vscode-linux-ia32-prepare-snap'], buildSnapPackage('ia32'));
-gulp.task('vscode-linux-x64-build-snap', ['vscode-linux-x64-prepare-snap'], buildSnapPackage('x64'));
-gulp.task('vscode-linux-arm-build-snap', ['vscode-linux-arm-prepare-snap'], buildSnapPackage('arm'));
-gulp.task('vscode-linux-arm64-build-snap', ['vscode-linux-arm64-prepare-snap'], buildSnapPackage('arm64'));
+	{
+		const debArch = getDebPackageArch(arch);
+		const prepareDebTask = util.task.series(util.rimraf(`.build/linux/deb/${debArch}`), prepareDebPackage(arch));
+		prepareDebTask.displayName = `vscode-linux-${arch}-prepare-deb`;
+		// gulp.task(prepareDebTask.displayName, prepareDebTask);
+		const buildDebTask = util.task.series(prepareDebTask, buildDebPackage(arch));
+		buildDebTask.displayName = `vscode-linux-${arch}-build-deb`;
+		gulp.task(buildDebTask.displayName, buildDebTask);
+	}
+
+	{
+		const rpmArch = getRpmPackageArch(arch);
+		const prepareRpmTask = util.task.series(util.rimraf(`.build/linux/rpm/${rpmArch}`), prepareRpmPackage(arch));
+		prepareRpmTask.displayName = `vscode-linux-${arch}-prepare-rpm`;
+		// gulp.task(prepareRpmTask.displayName, prepareRpmTask);
+		const buildRpmTask = util.task.series(prepareRpmTask, buildRpmPackage(arch));
+		buildRpmTask.displayName = `vscode-linux-${arch}-build-rpm`;
+		gulp.task(buildRpmTask.displayName, buildRpmTask);
+	}
+
+	{
+		const prepareSnapTask = util.task.series(util.rimraf(`.build/linux/snap/${arch}`), prepareSnapPackage(arch));
+		prepareSnapTask.displayName = `vscode-linux-${arch}-prepare-snap`;
+		gulp.task(prepareSnapTask.displayName, prepareSnapTask);
+		const buildSnapTask = util.task.series(prepareSnapTask, buildSnapPackage(arch));
+		buildSnapTask.displayName = `vscode-linux-${arch}-build-snap`;
+		gulp.task(buildSnapTask.displayName, buildSnapTask);
+	}
+});

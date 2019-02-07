@@ -137,20 +137,6 @@
           ],
           "description": "%html.format.wrapAttributes.desc%"
         },
-        "html.suggest.angular1": {
-          "deprecationMessage": "Angular 1 is obsolete and Angular completion will be removed.",
-          "type": "boolean",
-          "scope": "resource",
-          "default": false,
-          "description": "%html.suggest.angular1.desc%"
-        },
-        "html.suggest.ionic": {
-          "deprecationMessage": "Ionic 1 is obsolete and Ionic completion will be removed.",
-          "type": "boolean",
-          "scope": "resource",
-          "default": false,
-          "description": "%html.suggest.ionic.desc%"
-        },
         "html.suggest.html5": {
           "type": "boolean",
           "scope": "resource",
@@ -195,6 +181,6 @@
     "vscode-nls": "^4.0.0"
   },
   "devDependencies": {
-    "@types/node": "^8.10.25"
+    "@types/node": "^10.12.21"
   }
 }

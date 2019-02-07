@@ -134,9 +134,6 @@ function copyInnoUpdater(arch) {
 	};
 }
 
-gulp.task('vscode-win32-ia32-copy-inno-updater', copyInnoUpdater('ia32'));
-gulp.task('vscode-win32-x64-copy-inno-updater', copyInnoUpdater('x64'));
-
 function patchInnoUpdater(arch) {
 	return cb => {
 		const icon = path.join(repoPath, 'resources', 'win32', 'code.ico');
@@ -144,5 +141,5 @@ function patchInnoUpdater(arch) {
 	};
 }
 
-gulp.task('vscode-win32-ia32-inno-updater', ['vscode-win32-ia32-copy-inno-updater'], patchInnoUpdater('ia32'));
-gulp.task('vscode-win32-x64-inno-updater', ['vscode-win32-x64-copy-inno-updater'], patchInnoUpdater('x64'));
+gulp.task('vscode-win32-ia32-inno-updater', util.task.series(copyInnoUpdater('ia32'), patchInnoUpdater('ia32')));
+gulp.task('vscode-win32-x64-inno-updater', util.task.series(copyInnoUpdater('x64'), patchInnoUpdater('x64')));

@@ -66,12 +66,12 @@ const vscodeResources = [
 	'out-build/vs/base/node/{stdForkStart.js,terminateProcess.sh,cpuUsage.sh}',
 	'out-build/vs/base/browser/ui/octiconLabel/octicons/**',
 	'out-build/vs/workbench/browser/media/*-theme.css',
-	'out-build/vs/workbench/parts/debug/**/*.json',
-	'out-build/vs/workbench/parts/execution/**/*.scpt',
-	'out-build/vs/workbench/parts/webview/electron-browser/webview-pre.js',
+	'out-build/vs/workbench/contrib/debug/**/*.json',
+	'out-build/vs/workbench/contrib/execution/**/*.scpt',
+	'out-build/vs/workbench/contrib/webview/electron-browser/webview-pre.js',
 	'out-build/vs/**/markdown.css',
-	'out-build/vs/workbench/parts/tasks/**/*.json',
-	'out-build/vs/workbench/parts/welcome/walkThrough/**/*.md',
+	'out-build/vs/workbench/contrib/tasks/**/*.json',
+	'out-build/vs/workbench/contrib/welcome/walkThrough/**/*.md',
 	'out-build/vs/workbench/services/files/**/*.exe',
 	'out-build/vs/workbench/services/files/**/*.md',
 	'out-build/vs/code/electron-browser/workbench/**',
@@ -95,7 +95,6 @@ const optimizeVSCodeTask = util.task.series(
 	common.optimizeTask({
 		src: 'out-build',
 		entryPoints: vscodeEntryPoints,
-		otherSources: [],
 		resources: vscodeResources,
 		loaderConfig: common.loaderConfig(nodeModules),
 		header: BUNDLED_FILE_HEADER,
@@ -104,7 +103,6 @@ const optimizeVSCodeTask = util.task.series(
 	})
 );
 optimizeVSCodeTask.displayName = 'optimize-vscode';
-gulp.task(optimizeVSCodeTask.displayName, optimizeVSCodeTask);
 
 
 const optimizeIndexJSTask = util.task.series(
@@ -312,7 +310,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
 			.pipe(json(productJsonUpdate));
 
-		const license = gulp.src(['LICENSES.chromium.html', 'LICENSE.txt', 'ThirdPartyNotices.txt', 'licenses/**'], { base: '.' });
+		const license = gulp.src(['LICENSES.chromium.html', 'LICENSE.txt', 'ThirdPartyNotices.txt', 'licenses/**'], { base: '.', allowEmpty: true });
 
 		const watermark = gulp.src(['resources/letterpress.svg', 'resources/letterpress-dark.svg', 'resources/letterpress-hc.svg'], { base: '.' });
 
@@ -405,7 +403,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		// result = es.merge(result, gulp.src('resources/completions/**', { base: '.' }));
 
 		if (platform === 'win32') {
-			result = es.merge(result, gulp.src('resources/win32/bin/code.js', { base: 'resources/win32' }));
+			result = es.merge(result, gulp.src('resources/win32/bin/code.js', { base: 'resources/win32', allowEmpty: true }));
 
 			result = es.merge(result, gulp.src('resources/win32/bin/code.cmd', { base: 'resources/win32' })
 				.pipe(replace('@@NAME@@', product.nameShort))
@@ -492,30 +490,40 @@ const apiHostname = process.env.TRANSIFEX_API_URL;
 const apiName = process.env.TRANSIFEX_API_NAME;
 const apiToken = process.env.TRANSIFEX_API_TOKEN;
 
-gulp.task('vscode-translations-push', ['optimize-vscode'], function () {
-	const pathToMetadata = './out-vscode/nls.metadata.json';
-	const pathToExtensions = './extensions/*';
-	const pathToSetup = 'build/win32/**/{Default.isl,messages.en.isl}';
+gulp.task('vscode-translations-push',
+	util.task.series(
+		optimizeVSCodeTask,
+		function () {
+			const pathToMetadata = './out-vscode/nls.metadata.json';
+			const pathToExtensions = './extensions/*';
+			const pathToSetup = 'build/win32/**/{Default.isl,messages.en.isl}';
 
-	return es.merge(
-		gulp.src(pathToMetadata).pipe(i18n.createXlfFilesForCoreBundle()),
-		gulp.src(pathToSetup).pipe(i18n.createXlfFilesForIsl()),
-		gulp.src(pathToExtensions).pipe(i18n.createXlfFilesForExtensions())
-	).pipe(i18n.findObsoleteResources(apiHostname, apiName, apiToken)
-	).pipe(i18n.pushXlfFiles(apiHostname, apiName, apiToken));
-});
+			return es.merge(
+				gulp.src(pathToMetadata).pipe(i18n.createXlfFilesForCoreBundle()),
+				gulp.src(pathToSetup).pipe(i18n.createXlfFilesForIsl()),
+				gulp.src(pathToExtensions).pipe(i18n.createXlfFilesForExtensions())
+			).pipe(i18n.findObsoleteResources(apiHostname, apiName, apiToken)
+			).pipe(i18n.pushXlfFiles(apiHostname, apiName, apiToken));
+		}
+	)
+);
 
-gulp.task('vscode-translations-export', ['optimize-vscode'], function () {
-	const pathToMetadata = './out-vscode/nls.metadata.json';
-	const pathToExtensions = './extensions/*';
-	const pathToSetup = 'build/win32/**/{Default.isl,messages.en.isl}';
+gulp.task('vscode-translations-export',
+	util.task.series(
+		optimizeVSCodeTask,
+		function () {
+			const pathToMetadata = './out-vscode/nls.metadata.json';
+			const pathToExtensions = './extensions/*';
+			const pathToSetup = 'build/win32/**/{Default.isl,messages.en.isl}';
 
-	return es.merge(
-		gulp.src(pathToMetadata).pipe(i18n.createXlfFilesForCoreBundle()),
-		gulp.src(pathToSetup).pipe(i18n.createXlfFilesForIsl()),
-		gulp.src(pathToExtensions).pipe(i18n.createXlfFilesForExtensions())
-	).pipe(vfs.dest('../vscode-translations-export'));
-});
+			return es.merge(
+				gulp.src(pathToMetadata).pipe(i18n.createXlfFilesForCoreBundle()),
+				gulp.src(pathToSetup).pipe(i18n.createXlfFilesForIsl()),
+				gulp.src(pathToExtensions).pipe(i18n.createXlfFilesForExtensions())
+			).pipe(vfs.dest('../vscode-translations-export'));
+		}
+	)
+);
 
 gulp.task('vscode-translations-pull', function () {
 	return es.merge([...i18n.defaultLanguages, ...i18n.extraLanguages].map(language => {
@@ -565,57 +573,8 @@ gulp.task('upload-vscode-sourcemaps', () => {
 		}));
 });
 
-const allConfigDetailsPath = path.join(os.tmpdir(), 'configuration.json');
-gulp.task('upload-vscode-configuration', ['generate-vscode-configuration'], () => {
-	if (!shouldSetupSettingsSearch()) {
-		const branch = process.env.BUILD_SOURCEBRANCH;
-		console.log(`Only runs on master and release branches, not ${branch}`);
-		return;
-	}
-
-	if (!fs.existsSync(allConfigDetailsPath)) {
-		throw new Error(`configuration file at ${allConfigDetailsPath} does not exist`);
-	}
-
-	const settingsSearchBuildId = getSettingsSearchBuildId(packageJson);
-	if (!settingsSearchBuildId) {
-		throw new Error('Failed to compute build number');
-	}
-
-	return gulp.src(allConfigDetailsPath)
-		.pipe(azure.upload({
-			account: process.env.AZURE_STORAGE_ACCOUNT,
-			key: process.env.AZURE_STORAGE_ACCESS_KEY,
-			container: 'configuration',
-			prefix: `${settingsSearchBuildId}/${commit}/`
-		}));
-});
-
-function shouldSetupSettingsSearch() {
-	const branch = process.env.BUILD_SOURCEBRANCH;
-	return branch && (/\/master$/.test(branch) || branch.indexOf('/release/') >= 0);
-}
-
-function getSettingsSearchBuildId(packageJson) {
-	try {
-		const branch = process.env.BUILD_SOURCEBRANCH;
-		const branchId = branch.indexOf('/release/') >= 0 ? 0 :
-			/\/master$/.test(branch) ? 1 :
-				2; // Some unexpected branch
-
-		const out = cp.execSync(`git rev-list HEAD --count`);
-		const count = parseInt(out.toString());
-
-		// <version number><commit count><branchId (avoid unlikely conflicts)>
-		// 1.25.1, 1,234,567 commits, master = 1250112345671
-		return util.versionStringToNumber(packageJson.version) * 1e8 + count * 10 + branchId;
-	} catch (e) {
-		throw new Error('Could not determine build number: ' + e.toString());
-	}
-}
-
 // This task is only run for the MacOS build
-gulp.task('generate-vscode-configuration', () => {
+const generateVSCodeConfigurationTask = () => {
 	return new Promise((resolve, reject) => {
 		const buildDir = process.env['AGENT_BUILDDIRECTORY'];
 		if (!buildDir) {
@@ -650,4 +609,60 @@ gulp.task('generate-vscode-configuration', () => {
 			reject(err);
 		});
 	});
-});
+};
+generateVSCodeConfigurationTask.displayName = 'generate-vscode-configuration';
+
+const allConfigDetailsPath = path.join(os.tmpdir(), 'configuration.json');
+gulp.task('upload-vscode-configuration',
+	util.task.series(
+		generateVSCodeConfigurationTask,
+		() => {
+			if (!shouldSetupSettingsSearch()) {
+				const branch = process.env.BUILD_SOURCEBRANCH;
+				console.log(`Only runs on master and release branches, not ${branch}`);
+				return;
+			}
+
+			if (!fs.existsSync(allConfigDetailsPath)) {
+				throw new Error(`configuration file at ${allConfigDetailsPath} does not exist`);
+			}
+
+			const settingsSearchBuildId = getSettingsSearchBuildId(packageJson);
+			if (!settingsSearchBuildId) {
+				throw new Error('Failed to compute build number');
+			}
+
+			return gulp.src(allConfigDetailsPath)
+				.pipe(azure.upload({
+					account: process.env.AZURE_STORAGE_ACCOUNT,
+					key: process.env.AZURE_STORAGE_ACCESS_KEY,
+					container: 'configuration',
+					prefix: `${settingsSearchBuildId}/${commit}/`
+				}));
+		}
+	)
+);
+
+function shouldSetupSettingsSearch() {
+	const branch = process.env.BUILD_SOURCEBRANCH;
+	return branch && (/\/master$/.test(branch) || branch.indexOf('/release/') >= 0);
+}
+
+function getSettingsSearchBuildId(packageJson) {
+	try {
+		const branch = process.env.BUILD_SOURCEBRANCH;
+		const branchId = branch.indexOf('/release/') >= 0 ? 0 :
+			/\/master$/.test(branch) ? 1 :
+				2; // Some unexpected branch
+
+		const out = cp.execSync(`git rev-list HEAD --count`);
+		const count = parseInt(out.toString());
+
+		// <version number><commit count><branchId (avoid unlikely conflicts)>
+		// 1.25.1, 1,234,567 commits, master = 1250112345671
+		return util.versionStringToNumber(packageJson.version) * 1e8 + count * 10 + branchId;
+	} catch (e) {
+		throw new Error('Could not determine build number: ' + e.toString());
+	}
+}
+

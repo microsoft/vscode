@@ -19,8 +19,8 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 
 	protected createdEditorModel: boolean;
 
-	private textEditorModelHandle: URI;
-	private modelDisposeListener: IDisposable;
+	private textEditorModelHandle: URI | null;
+	private modelDisposeListener: IDisposable | null;
 
 	constructor(
 		@IModelService protected modelService: IModelService,
@@ -126,7 +126,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		this.modelService.updateModel(this.textEditorModel, newValue);
 	}
 
-	createSnapshot(): ITextSnapshot {
+	createSnapshot(): ITextSnapshot | null {
 		const model = this.textEditorModel;
 		if (model) {
 			return model.createSnapshot(true /* Preserve BOM */);

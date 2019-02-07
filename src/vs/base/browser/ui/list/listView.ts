@@ -552,9 +552,9 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		const uri = this.dnd.getDragURI(item.element);
 		item.dragStartDisposable.dispose();
+		item.row.domNode!.draggable = !!uri;
 
 		if (uri) {
-			item.row.domNode!.draggable = true;
 			const onDragStart = domEvent(item.row.domNode!, 'dragstart');
 			item.dragStartDisposable = onDragStart(event => this.onDragStart(item.element, uri, event));
 		}
@@ -729,7 +729,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 				label = String(elements.length);
 			}
 
-			const dragImage = DOM.$('.monaco-list-drag-image');
+			const dragImage = DOM.$('.monaco-drag-image');
 			dragImage.textContent = label;
 			document.body.appendChild(dragImage);
 			event.dataTransfer.setDragImage(dragImage, -10, -10);

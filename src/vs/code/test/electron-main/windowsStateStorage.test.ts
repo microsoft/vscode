@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import * as os from 'os';
+import * as path from 'path';
 
 import { restoreWindowsState, getWindowsStateStoreData } from 'vs/code/electron-main/windowsStateStorage';
 import { IWindowState as IWindowUIState, WindowMode } from 'vs/platform/windows/electron-main/windows';
-import { getRandomTestPath } from 'vs/workbench/test/workbenchTestServices';
 import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { URI } from 'vs/base/common/uri';
 import { IWindowsState, IWindowState } from 'vs/code/electron-main/windows';
@@ -68,11 +68,11 @@ function assertRestoring(state: IWindowsState, message?: string) {
 	assertEqualWindowsState(state, restored, message);
 }
 
-const testBackupPath1 = getRandomTestPath(os.tmpdir(), 'windowStateTest', 'backupFolder1');
-const testBackupPath2 = getRandomTestPath(os.tmpdir(), 'windowStateTest', 'backupFolder2');
+const testBackupPath1 = path.join(os.tmpdir(), 'windowStateTest', 'backupFolder1');
+const testBackupPath2 = path.join(os.tmpdir(), 'windowStateTest', 'backupFolder2');
 
-const testWSPath = URI.file(getRandomTestPath(os.tmpdir(), 'windowStateTest', 'test.code-workspace'));
-const testFolderURI = URI.file(getRandomTestPath(os.tmpdir(), 'windowStateTest', 'testFolder'));
+const testWSPath = URI.file(path.join(os.tmpdir(), 'windowStateTest', 'test.code-workspace'));
+const testFolderURI = URI.file(path.join(os.tmpdir(), 'windowStateTest', 'testFolder'));
 
 const testRemoteFolderURI = URI.parse('foo://bar/c/d');
 

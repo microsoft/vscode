@@ -161,7 +161,7 @@ export class OpenTwitterUrlAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<boolean> {
+	run(): Promise<void> {
 		if (product.twitterUrl) {
 			window.open(product.twitterUrl);
 		}
@@ -182,7 +182,7 @@ export class OpenRequestFeatureUrlAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<boolean> {
+	run(): Promise<void> {
 		if (product.requestFeatureUrl) {
 			window.open(product.requestFeatureUrl);
 		}
@@ -203,7 +203,7 @@ export class OpenLicenseUrlAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<boolean> {
+	run(): Promise<void> {
 		if (product.licenseUrl) {
 			if (language) {
 				const queryArgChar = product.licenseUrl.indexOf('?') > 0 ? '&' : '?';
@@ -229,7 +229,7 @@ export class OpenPrivacyStatementUrlAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<boolean> {
+	run(): Promise<void> {
 		if (product.privacyStatementUrl) {
 			if (language) {
 				const queryArgChar = product.privacyStatementUrl.indexOf('?') > 0 ? '&' : '?';

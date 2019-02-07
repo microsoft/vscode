@@ -181,7 +181,7 @@ export class SuggestController implements IEditorContribution {
 				this._widget.getValue().hideWidget();
 			}
 		}));
-		this._toDispose.push(this._editor.onDidBlurEditorText(() => {
+		this._toDispose.push(this._editor.onDidBlurEditorWidget(() => {
 			if (!this._sticky) {
 				this._model.cancel();
 			}

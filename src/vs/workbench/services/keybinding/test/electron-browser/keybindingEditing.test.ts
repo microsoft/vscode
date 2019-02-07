@@ -39,7 +39,7 @@ import { IWorkspaceContextService, Workspace, toWorkspaceFolders } from 'vs/plat
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { FileService } from 'vs/workbench/services/files/electron-browser/fileService';
-import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { KeybindingsEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';

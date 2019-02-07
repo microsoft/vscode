@@ -87,7 +87,7 @@ function extractEntry(stream: Readable, fileName: string, mode: number, targetPa
 		}
 	});
 
-	return Promise.resolve(mkdirp(targetDirName, undefined, token)).then(() => new Promise((c, e) => {
+	return Promise.resolve(mkdirp(targetDirName, undefined, token)).then(() => new Promise<void>((c, e) => {
 		if (token.isCancellationRequested) {
 			return;
 		}

@@ -18,7 +18,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Event } from 'vs/base/common/event';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { getCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { getExcludes, ISearchConfiguration } from 'vs/platform/search/common/search';

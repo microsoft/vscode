@@ -6,13 +6,13 @@
 import * as vscode from 'vscode';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as platform from 'vs/base/common/platform';
-import * as terminalEnvironment from 'vs/workbench/parts/terminal/node/terminalEnvironment';
+import * as terminalEnvironment from 'vs/workbench/contrib/terminal/node/terminalEnvironment';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, IMainContext, ShellLaunchConfigDto } from 'vs/workbench/api/node/extHost.protocol';
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
 import { ILogService } from 'vs/platform/log/common/log';
-import { EXT_HOST_CREATION_DELAY } from 'vs/workbench/parts/terminal/common/terminal';
-import { TerminalProcess } from 'vs/workbench/parts/terminal/node/terminalProcess';
+import { EXT_HOST_CREATION_DELAY } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TerminalProcess } from 'vs/workbench/contrib/terminal/node/terminalProcess';
 import { timeout } from 'vs/base/common/async';
 import { generateRandomPipeName } from 'vs/base/parts/ipc/node/ipc.net';
 import * as http from 'http';

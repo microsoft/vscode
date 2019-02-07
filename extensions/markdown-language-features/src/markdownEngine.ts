@@ -7,7 +7,7 @@ import * as crypto from 'crypto';
 import { MarkdownIt, Token } from 'markdown-it';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { MarkdownContributions } from './markdownExtensions';
+import { MarkdownContributionProvider as MarkdownContributionProvider } from './markdownExtensions';
 import { Slugifier } from './slugify';
 import { SkinnyTextDocument } from './tableOfContentsProvider';
 import { getUriForLinkWithKnownExternalScheme } from './util/links';
@@ -57,16 +57,21 @@ export class MarkdownEngine {
 	private _tokenCache = new TokenCache();
 
 	public constructor(
-		private readonly extensionPreviewResourceProvider: MarkdownContributions,
+		private readonly contributionProvider: MarkdownContributionProvider,
 		private readonly slugifier: Slugifier,
-	) { }
+	) {
+		contributionProvider.onContributionsChanged(() => {
+			// Markdown plugin contributions may have changed
+			this.md = undefined;
+		});
+	}
 
 	private async getEngine(config: MarkdownItConfig): Promise<MarkdownIt> {
 		if (!this.md) {
 			this.md = import('markdown-it').then(async markdownIt => {
 				let md: MarkdownIt = markdownIt(await getMarkdownOptions(() => md));
 
-				for (const plugin of this.extensionPreviewResourceProvider.markdownItPlugins) {
+				for (const plugin of this.contributionProvider.contributions.markdownItPlugins.values()) {
 					try {
 						md = (await plugin)(md);
 					} catch {

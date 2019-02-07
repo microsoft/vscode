@@ -117,7 +117,6 @@
 /* Context Menu */
 
 .context-view.monaco-menu-container {
-	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif;
 	outline: 0;
 	border: none;
 	-webkit-animation: fadeIn 0.083s linear;
@@ -182,7 +181,6 @@
 }
 
 .menubar .menubar-menu-items-holder.monaco-menu-container {
-	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif;
 	outline: 0;
 	border: none;
 }

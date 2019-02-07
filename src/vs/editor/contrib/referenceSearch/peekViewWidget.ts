@@ -34,9 +34,9 @@ export function getOuterEditor(accessor: ServicesAccessor): ICodeEditor | null {
 }
 
 export interface IPeekViewStyles extends IStyles {
-	headerBackgroundColor?: Color | null;
-	primaryHeadingColor?: Color | null;
-	secondaryHeadingColor?: Color | null;
+	headerBackgroundColor?: Color;
+	primaryHeadingColor?: Color;
+	secondaryHeadingColor?: Color;
 }
 
 export type IPeekViewOptions = IOptions & IPeekViewStyles;

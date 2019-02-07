@@ -29,7 +29,7 @@ import { getHover } from 'vs/editor/contrib/hover/getHover';
 import { getOccurrencesAtPosition } from 'vs/editor/contrib/wordHighlighter/wordHighlighter';
 import { provideReferences } from 'vs/editor/contrib/referenceSearch/referenceSearch';
 import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
-import { getWorkspaceSymbols } from 'vs/workbench/parts/search/common/search';
+import { getWorkspaceSymbols } from 'vs/workbench/contrib/search/common/search';
 import { rename } from 'vs/editor/contrib/rename/rename';
 import { provideSignatureHelp } from 'vs/editor/contrib/parameterHints/provideSignatureHelp';
 import { provideSuggestionItems } from 'vs/editor/contrib/suggest/suggest';
@@ -77,9 +77,8 @@ suite('ExtHostLanguageFeatures', function () {
 			instantiationService.stub(IMarkerService, MarkerService);
 			instantiationService.stub(IHeapService, {
 				_serviceBrand: undefined,
-				trackRecursive(args: any) {
+				trackObject(_obj: any) {
 					// nothing
-					return args;
 				}
 			});
 			inst = instantiationService;
@@ -499,9 +498,9 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let value = await getOccurrencesAtPosition(model, new EditorPosition(1, 2), CancellationToken.None);
+		const value = (await getOccurrencesAtPosition(model, new EditorPosition(1, 2), CancellationToken.None))!;
 		assert.equal(value.length, 1);
-		let [entry] = value;
+		const [entry] = value;
 		assert.deepEqual(entry.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 3 });
 		assert.equal(entry.kind, modes.DocumentHighlightKind.Text);
 	});

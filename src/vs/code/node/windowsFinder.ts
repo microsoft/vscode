@@ -28,14 +28,14 @@ export interface IBestWindowOrFolderOptions<W extends ISimpleWindow> {
 	workspaceResolver: (workspace: IWorkspaceIdentifier) => IResolvedWorkspace | null;
 }
 
-export function findBestWindowOrFolderForFile<W extends ISimpleWindow>({ windows, newWindow, context, fileUri, workspaceResolver }: IBestWindowOrFolderOptions<W>): W | null {
+export function findBestWindowOrFolderForFile<W extends ISimpleWindow>({ windows, newWindow, context, fileUri, workspaceResolver }: IBestWindowOrFolderOptions<W>): W | undefined {
 	if (!newWindow && fileUri && (context === OpenContext.DESKTOP || context === OpenContext.CLI || context === OpenContext.DOCK)) {
 		const windowOnFilePath = findWindowOnFilePath(windows, fileUri, workspaceResolver);
 		if (windowOnFilePath) {
 			return windowOnFilePath;
 		}
 	}
-	return !newWindow ? getLastActiveWindow(windows) : null;
+	return !newWindow ? getLastActiveWindow(windows) : undefined;
 }
 
 function findWindowOnFilePath<W extends ISimpleWindow>(windows: W[], fileUri: URI, workspaceResolver: (workspace: IWorkspaceIdentifier) => IResolvedWorkspace | null): W | null {
@@ -68,7 +68,7 @@ function findWindowOnFilePath<W extends ISimpleWindow>(windows: W[], fileUri: UR
 	return null;
 }
 
-export function getLastActiveWindow<W extends ISimpleWindow>(windows: W[]): W {
+export function getLastActiveWindow<W extends ISimpleWindow>(windows: W[]): W | undefined {
 	const lastFocusedDate = Math.max.apply(Math, windows.map(window => window.lastFocusTime));
 
 	return windows.filter(window => window.lastFocusTime === lastFocusedDate)[0];
@@ -105,7 +105,7 @@ export function findWindowOnExtensionDevelopmentPath<W extends ISimpleWindow>(wi
 	return null;
 }
 
-export function findWindowOnWorkspaceOrFolderUri<W extends ISimpleWindow>(windows: W[], uri: URI): W | null {
+export function findWindowOnWorkspaceOrFolderUri<W extends ISimpleWindow>(windows: W[], uri: URI | undefined): W | null {
 	if (!uri) {
 		return null;
 	}

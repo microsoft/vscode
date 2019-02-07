@@ -75,8 +75,8 @@ export class MenuBar extends Disposable {
 	private _focusState: MenubarState;
 	private actionRunner: IActionRunner;
 
-	private _onVisibilityChange: Emitter<boolean>;
-	private _onFocusStateChange: Emitter<boolean>;
+	private readonly _onVisibilityChange: Emitter<boolean>;
+	private readonly _onFocusStateChange: Emitter<boolean>;
 
 	private numMenusShown: number;
 	private menuStyle: IMenuStyles;

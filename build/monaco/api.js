@@ -7,14 +7,15 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const fs = require("fs");
 const ts = require("typescript");
 const path = require("path");
-const util = require("gulp-util");
+const fancyLog = require("fancy-log");
+const ansiColors = require("ansi-colors");
 const dtsv = '2';
 const tsfmt = require('../../tsfmt.json');
 const SRC = path.join(__dirname, '../../src');
 exports.RECIPE_PATH = path.join(__dirname, './monaco.d.ts.recipe');
 const DECLARATION_PATH = path.join(__dirname, '../../src/vs/monaco.d.ts');
 function logErr(message, ...rest) {
-    util.log(util.colors.yellow(`[monaco.d.ts]`), message, ...rest);
+    fancyLog(ansiColors.yellow(`[monaco.d.ts]`), message, ...rest);
 }
 function isDeclaration(a) {
     return (a.kind === ts.SyntaxKind.InterfaceDeclaration
