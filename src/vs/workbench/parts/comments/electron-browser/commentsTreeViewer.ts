@@ -42,7 +42,7 @@ export class CommentsDataSource implements IDataSource {
 		if (element instanceof CommentNode) {
 			return Promise.resolve(element.replies);
 		}
-		return null;
+		return Promise.resolve([]);
 	}
 
 	public getParent(tree: ITree, element: any): Promise<void> {
@@ -148,14 +148,11 @@ export class CommentsModelRenderer implements ITreeRenderer {
 			inline: true,
 			actionHandler: {
 				callback: (content) => {
-					let uri: URI;
 					try {
-						uri = URI.parse(content);
+						const uri = URI.parse(content);
+						this.openerService.open(uri).catch(onUnexpectedError);
 					} catch (err) {
 						// ignore
-					}
-					if (uri) {
-						this.openerService.open(uri).catch(onUnexpectedError);
 					}
 				},
 				disposeables: templateData.disposables
@@ -167,7 +164,7 @@ export class CommentsModelRenderer implements ITreeRenderer {
 			const image = images[i];
 			const textDescription = dom.$('');
 			textDescription.textContent = image.alt ? nls.localize('imageWithLabel', "Image: {0}", image.alt) : nls.localize('image', "Image");
-			image.parentNode.replaceChild(textDescription, image);
+			image.parentNode!.replaceChild(textDescription, image);
 		}
 
 		templateData.commentText.appendChild(renderedComment);

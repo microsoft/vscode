@@ -20,7 +20,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IDebugParams, IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { deserializeSearchError, FileMatch, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IProgress, ISearchComplete, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, ITextQuery, pathIncludedInQuery, QueryType, SearchError, SearchErrorCode, SearchProviderType } from 'vs/platform/search/common/search';
+import { deserializeSearchError, FileMatch, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IProgress, ISearchComplete, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, ITextQuery, pathIncludedInQuery, QueryType, SearchError, SearchErrorCode, SearchProviderType, ISearchConfiguration } from 'vs/platform/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -28,6 +28,7 @@ import { addContextToEditorMatches, editorMatchesToTextSearchResults } from 'vs/
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IRawSearchService, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, isSerializedSearchComplete, isSerializedSearchSuccess } from './search';
 import { SearchChannelClient } from './searchIpc';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class SearchService extends Disposable implements ISearchService {
 	_serviceBrand: any;
@@ -48,7 +49,7 @@ export class SearchService extends Disposable implements ISearchService {
 		@IExtensionService private readonly extensionService: IExtensionService
 	) {
 		super();
-		this.diskSearch = this.instantiationService.createInstance(DiskSearch, !environmentService.isBuilt || environmentService.verbose, /*timeout=*/undefined, environmentService.debugSearch);
+		this.diskSearch = this.instantiationService.createInstance(DiskSearch, !environmentService.isBuilt || environmentService.verbose, environmentService.debugSearch);
 	}
 
 	registerSearchResultProvider(scheme: string, type: SearchProviderType, provider: ISearchResultProvider): IDisposable {
@@ -427,19 +428,21 @@ export class SearchService extends Disposable implements ISearchService {
 }
 
 export class DiskSearch implements ISearchResultProvider {
-	_serviceBrand: any;
-
 	private raw: IRawSearchService;
 
 	constructor(
 		verboseLogging: boolean,
-		timeout: number = 60 * 60 * 1000,
 		searchDebug: IDebugParams | undefined,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IConfigurationService private readonly configService: IConfigurationService,
 	) {
+		const timeout = this.configService.getValue<ISearchConfiguration>().search.maintainFileSearchCache ?
+			Number.MAX_VALUE :
+			60 * 60 * 1000;
+
 		const opts: IIPCOptions = {
 			serverName: 'Search',
-			timeout: timeout,
+			timeout,
 			args: ['--type=searchService'],
 			// See https://github.com/Microsoft/vscode/issues/27665
 			// Pass in fresh execArgv to the forked process such that it doesn't inherit them from `process.execArgv`.

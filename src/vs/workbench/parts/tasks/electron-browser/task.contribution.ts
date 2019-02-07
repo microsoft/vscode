@@ -401,7 +401,7 @@ class TaskMap {
 	}
 
 	public get(workspaceFolder: IWorkspaceFolder | string): Task[] {
-		let result: Task[] = Types.isString(workspaceFolder) ? this._store.get(workspaceFolder) : this._store.get(workspaceFolder.uri.toString());
+		let result: Task[] | undefined = Types.isString(workspaceFolder) ? this._store.get(workspaceFolder) : this._store.get(workspaceFolder.uri.toString());
 		if (!result) {
 			result = [];
 			Types.isString(workspaceFolder) ? this._store.set(workspaceFolder, result) : this._store.set(workspaceFolder.uri.toString(), result);
@@ -426,7 +426,7 @@ class TaskMap {
 }
 
 interface TaskQuickPickEntry extends IQuickPickItem {
-	task: Task;
+	task: Task | null;
 }
 
 class TaskService extends Disposable implements ITaskService {
@@ -449,14 +449,14 @@ class TaskService extends Disposable implements ITaskService {
 	private _executionEngine: ExecutionEngine;
 	private _workspaceFolders: IWorkspaceFolder[];
 	private _ignoredWorkspaceFolders: IWorkspaceFolder[];
-	private _showIgnoreMessage: boolean;
+	private _showIgnoreMessage?: boolean;
 	private _providers: Map<number, ITaskProvider>;
 	private _taskSystemInfos: Map<string, TaskSystemInfo>;
 
-	private _workspaceTasksPromise: Promise<Map<string, WorkspaceFolderTaskResult>>;
+	private _workspaceTasksPromise?: Promise<Map<string, WorkspaceFolderTaskResult>>;
 
-	private _taskSystem: ITaskSystem;
-	private _taskSystemListener: IDisposable;
+	private _taskSystem?: ITaskSystem;
+	private _taskSystemListener?: IDisposable;
 	private _recentlyUsedTasks: LinkedMap<string, string>;
 
 	private _taskRunningState: IContextKey<boolean>;
@@ -706,26 +706,24 @@ class TaskService extends Disposable implements ITaskService {
 		this._taskSystemInfos.set(key, info);
 	}
 
-	public getTask(folder: IWorkspaceFolder | string, identifier: string | TaskIdentifier, compareId: boolean = false): Promise<Task> {
-		let name = Types.isString(folder) ? folder : folder.name;
+	public getTask(folder: IWorkspaceFolder | string, identifier: string | TaskIdentifier, compareId: boolean = false): Promise<Task | undefined> {
+		const name = Types.isString(folder) ? folder : folder.name;
 		if (this.ignoredWorkspaceFolders.some(ignored => ignored.name === name)) {
 			return Promise.reject(new Error(nls.localize('TaskServer.folderIgnored', 'The folder {0} is ignored since it uses task version 0.1.0', name)));
 		}
-		let key: string | KeyedTaskIdentifier;
-		if (!Types.isString(identifier)) {
-			key = TaskDefinition.createTaskIdentifier(identifier, console);
-		} else {
-			key = identifier;
-		}
+		const key: string | KeyedTaskIdentifier | undefined = !Types.isString(identifier)
+			? TaskDefinition.createTaskIdentifier(identifier, console)
+			: identifier;
+
 		if (key === undefined) {
 			return Promise.resolve(undefined);
 		}
 		return this.getGroupedTasks().then((map) => {
-			let values = map.get(folder);
+			const values = map.get(folder);
 			if (!values) {
 				return undefined;
 			}
-			for (let task of values) {
+			for (const task of values) {
 				if (task.matches(key, compareId)) {
 					return task;
 				}
@@ -2463,7 +2461,7 @@ class TaskService extends Disposable implements ITaskService {
 					this.runConfigureTasks();
 					return;
 				}
-				let selectedTask: Task;
+				let selectedTask: Task | undefined;
 				let selectedEntry: TaskQuickPickEntry;
 
 				for (let task of tasks) {
@@ -2664,7 +2662,7 @@ schema.definitions = {
 	...schemaVersion1.definitions,
 	...schemaVersion2.definitions,
 };
-schema.oneOf = [...schemaVersion2.oneOf, ...schemaVersion1.oneOf];
+schema.oneOf = [...(schemaVersion2.oneOf || []), ...(schemaVersion1.oneOf || [])];
 
 let jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>Registry.as(jsonContributionRegistry.Extensions.JSONContribution);
 jsonRegistry.registerSchema(schemaId, schema);

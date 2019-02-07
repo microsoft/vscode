@@ -60,8 +60,8 @@ export interface IDraggedEditor extends IDraggedResource {
 
 export interface ISerializedDraggedEditor {
 	resource: string;
-	backupResource: string;
-	viewState: IEditorViewState;
+	backupResource?: string;
+	viewState: IEditorViewState | null;
 }
 
 export const CodeDataTransfers = {
@@ -71,7 +71,7 @@ export const CodeDataTransfers = {
 
 export function extractResources(e: DragEvent, externalOnly?: boolean): Array<IDraggedResource | IDraggedEditor> {
 	const resources: Array<IDraggedResource | IDraggedEditor> = [];
-	if (e.dataTransfer.types.length > 0) {
+	if (e.dataTransfer && e.dataTransfer.types.length > 0) {
 
 		// Check for window-to-window DND
 		if (!externalOnly) {
@@ -286,7 +286,7 @@ export class ResourcesDropHandler {
 			// Pass focus to window
 			this.windowService.focusWindow();
 
-			let workspacesToOpen: Promise<URI[]>;
+			let workspacesToOpen: Promise<URI[]> | undefined;
 
 			// Open in separate windows if we drop workspaces or just one folder
 			if (workspaces.length > 0 || folders.length === 1) {
@@ -299,9 +299,11 @@ export class ResourcesDropHandler {
 			}
 
 			// Open
-			workspacesToOpen.then(workspaces => {
-				this.windowService.openWindow(workspaces, { forceReuseWindow: true });
-			});
+			if (workspacesToOpen) {
+				workspacesToOpen.then(workspaces => {
+					this.windowService.openWindow(workspaces, { forceReuseWindow: true });
+				});
+			}
 
 			return true;
 		});
@@ -317,16 +319,16 @@ export class SimpleFileResourceDragAndDrop extends DefaultDragAndDrop {
 		super();
 	}
 
-	getDragURI(tree: ITree, obj: any): string {
+	getDragURI(tree: ITree, obj: any): string | null {
 		const resource = this.toResource(obj);
 		if (resource) {
 			return resource.toString();
 		}
 
-		return undefined;
+		return null;
 	}
 
-	getDragLabel(tree: ITree, elements: any[]): string {
+	getDragLabel(tree: ITree, elements: any[]): string | null {
 		if (elements.length > 1) {
 			return String(elements.length);
 		}
@@ -336,7 +338,7 @@ export class SimpleFileResourceDragAndDrop extends DefaultDragAndDrop {
 			return basenameOrAuthority(resource);
 		}
 
-		return undefined;
+		return null;
 	}
 
 	onDragStart(tree: ITree, data: IDragAndDropData, originalEvent: DragMouseEvent): void {
@@ -350,7 +352,7 @@ export class SimpleFileResourceDragAndDrop extends DefaultDragAndDrop {
 }
 
 export function fillResourceDataTransfers(accessor: ServicesAccessor, resources: (URI | { resource: URI, isDirectory: boolean })[], event: DragMouseEvent | DragEvent): void {
-	if (resources.length === 0) {
+	if (resources.length === 0 || !event.dataTransfer) {
 		return;
 	}
 
@@ -388,7 +390,7 @@ export function fillResourceDataTransfers(accessor: ServicesAccessor, resources:
 	files.forEach(file => {
 
 		// Try to find editor view state from the visible editors that match given resource
-		let viewState: IEditorViewState;
+		let viewState: IEditorViewState | null = null;
 		const textEditorWidgets = editorService.visibleTextEditorWidgets;
 		for (const textEditorWidget of textEditorWidgets) {
 			if (isCodeEditor(textEditorWidget)) {
@@ -420,8 +422,8 @@ export class LocalSelectionTransfer<T> {
 
 	private static readonly INSTANCE = new LocalSelectionTransfer();
 
-	private data: T[];
-	private proto: T;
+	private data?: T[];
+	private proto?: T;
 
 	private constructor() {
 		// protect against external instantiation
@@ -442,7 +444,7 @@ export class LocalSelectionTransfer<T> {
 		}
 	}
 
-	getData(proto: T): T[] {
+	getData(proto: T): T[] | undefined {
 		if (this.hasData(proto)) {
 			return this.data;
 		}

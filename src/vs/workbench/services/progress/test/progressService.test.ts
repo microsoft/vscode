@@ -52,8 +52,8 @@ class TestViewletService implements IViewletService {
 		return 'workbench.view.explorer';
 	}
 
-	public getViewlet(id: string): ViewletDescriptor {
-		return null!;
+	public getViewlet(id: string): ViewletDescriptor | undefined {
+		return undefined;
 	}
 
 	public getProgressIndicator(id: string) {

@@ -47,7 +47,7 @@ export class CommentNode extends Disposable {
 	private _commentDetailsContainer: HTMLElement;
 	private _reactionsActionBar?: ActionBar;
 	private _actionsContainer?: HTMLElement;
-	private _commentEditor: SimpleCommentEditor;
+	private _commentEditor: SimpleCommentEditor | null;
 	private _commentEditorModel: ITextModel;
 	private _updateCommentButton: Button;
 	private _errorEditingContainer: HTMLElement;
@@ -140,7 +140,7 @@ export class CommentNode extends Disposable {
 
 			this.registerActionBarListeners(actionsContainer);
 
-			let reactionActions = [];
+			let reactionActions: Action[] = [];
 			let reactionGroup = this.commentService.getReactionGroup(this.owner);
 			if (reactionGroup && reactionGroup.length) {
 				reactionActions = reactionGroup.map((reaction) => {
@@ -179,7 +179,7 @@ export class CommentNode extends Disposable {
 		this._reactionsActionBar = new ActionBar(this._actionsContainer, {});
 		this._toDispose.push(this._reactionsActionBar);
 
-		let reactionActions = this.comment.commentReactions.map(reaction => {
+		let reactionActions = this.comment.commentReactions!.map(reaction => {
 			return new Action(`reaction.${reaction.label}`, `${reaction.label}`, reaction.hasReacted ? 'active' : '', true, async () => {
 				try {
 					if (reaction.hasReacted) {
@@ -204,7 +204,7 @@ export class CommentNode extends Disposable {
 			});
 		});
 
-		reactionActions.forEach(action => this._reactionsActionBar.push(action, { label: true, icon: true }));
+		reactionActions.forEach(action => this._reactionsActionBar!.push(action, { label: true, icon: true }));
 	}
 
 	private createCommentEditor(): void {
@@ -237,8 +237,10 @@ export class CommentNode extends Disposable {
 		this._body.classList.remove('hidden');
 
 		this._commentEditorModel.dispose();
-		this._commentEditor.dispose();
-		this._commentEditor = null;
+		if (this._commentEditor) {
+			this._commentEditor.dispose();
+			this._commentEditor = null;
+		}
 
 		this._commentEditContainer.remove();
 	}
@@ -253,7 +255,7 @@ export class CommentNode extends Disposable {
 
 			this._updateCommentButton.enabled = true;
 			this._updateCommentButton.label = UPDATE_COMMENT_LABEL;
-			this._commentEditor.getDomNode().style.outline = '';
+			this._commentEditor!.getDomNode().style.outline = '';
 			this.removeCommentEditor();
 			const editedComment = assign({}, this.comment, { body: new MarkdownString(newBody) });
 			this.update(editedComment);
@@ -321,8 +323,8 @@ export class CommentNode extends Disposable {
 				this.editComment();
 			}));
 
-			this._toDispose.push(this._commentEditor.onDidChangeModelContent(_ => {
-				this._updateCommentButton.enabled = !!this._commentEditor.getValue();
+			this._toDispose.push(this._commentEditor!.onDidChangeModelContent(_ => {
+				this._updateCommentButton.enabled = !!this._commentEditor!.getValue();
 			}));
 
 			this._editAction.enabled = false;

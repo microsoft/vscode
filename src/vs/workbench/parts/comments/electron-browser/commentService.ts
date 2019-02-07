@@ -11,7 +11,6 @@ import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { keys } from 'vs/base/common/map';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { MainThreadDocumentCommentProvider } from 'vs/workbench/api/electron-browser/mainThreadComments';
 import { assign } from 'vs/base/common/objects';
 import { ICommentThreadChangedEvent } from 'vs/workbench/parts/comments/common/commentModel';
 
@@ -41,23 +40,23 @@ export interface ICommentService {
 	setDocumentComments(resource: URI, commentInfos: ICommentInfo[]): void;
 	setWorkspaceComments(owner: string, commentsByResource: CommentThread[]): void;
 	removeWorkspaceComments(owner: string): void;
-	registerDataProvider(owner: string, commentProvider: MainThreadDocumentCommentProvider): void;
+	registerDataProvider(owner: string, commentProvider: DocumentCommentProvider): void;
 	unregisterDataProvider(owner: string): void;
 	updateComments(ownerId: string, event: CommentThreadChangedEvent): void;
 	createNewCommentThread(owner: string, resource: URI, range: Range, text: string): Promise<CommentThread | null>;
 	replyToCommentThread(owner: string, resource: URI, range: Range, thread: CommentThread, text: string): Promise<CommentThread | null>;
 	editComment(owner: string, resource: URI, comment: Comment, text: string): Promise<void>;
 	deleteComment(owner: string, resource: URI, comment: Comment): Promise<boolean>;
-	getComments(resource: URI): Promise<ICommentInfo[]>;
+	getComments(resource: URI): Promise<(ICommentInfo | null)[]>;
 	startDraft(owner: string, resource: URI): void;
 	deleteDraft(owner: string, resource: URI): void;
 	finishDraft(owner: string, resource: URI): void;
-	getStartDraftLabel(owner: string): string;
-	getDeleteDraftLabel(owner: string): string;
-	getFinishDraftLabel(owner: string): string;
+	getStartDraftLabel(owner: string): string | undefined;
+	getDeleteDraftLabel(owner: string): string | undefined;
+	getFinishDraftLabel(owner: string): string | undefined;
 	addReaction(owner: string, resource: URI, comment: Comment, reaction: CommentReaction): Promise<void>;
 	deleteReaction(owner: string, resource: URI, comment: Comment, reaction: CommentReaction): Promise<void>;
-	getReactionGroup(owner: string): CommentReaction[];
+	getReactionGroup(owner: string): CommentReaction[] | undefined;
 }
 
 export class CommentService extends Disposable implements ICommentService {
@@ -96,7 +95,7 @@ export class CommentService extends Disposable implements ICommentService {
 		this._onDidSetAllCommentThreads.fire({ ownerId: owner, commentThreads: [] });
 	}
 
-	registerDataProvider(owner: string, commentProvider: DocumentCommentProvider) {
+	registerDataProvider(owner: string, commentProvider: DocumentCommentProvider): void {
 		this._commentProviders.set(owner, commentProvider);
 		this._onDidSetDataProvider.fire();
 	}
@@ -201,51 +200,51 @@ export class CommentService extends Disposable implements ICommentService {
 		}
 	}
 
-	getReactionGroup(owner: string): CommentReaction[] {
+	getReactionGroup(owner: string): CommentReaction[] | undefined {
 		const commentProvider = this._commentProviders.get(owner);
 
 		if (commentProvider) {
 			return commentProvider.reactionGroup;
 		}
 
-		return null;
+		return undefined;
 	}
 
-	getStartDraftLabel(owner: string): string | null {
+	getStartDraftLabel(owner: string): string | undefined {
 		const commentProvider = this._commentProviders.get(owner);
 
 		if (commentProvider) {
 			return commentProvider.startDraftLabel;
 		}
 
-		return null;
+		return undefined;
 	}
 
-	getDeleteDraftLabel(owner: string): string {
+	getDeleteDraftLabel(owner: string): string | undefined {
 		const commentProvider = this._commentProviders.get(owner);
 
 		if (commentProvider) {
 			return commentProvider.deleteDraftLabel;
 		}
 
-		return null;
+		return undefined;
 	}
 
-	getFinishDraftLabel(owner: string): string {
+	getFinishDraftLabel(owner: string): string | undefined {
 		const commentProvider = this._commentProviders.get(owner);
 
 		if (commentProvider) {
 			return commentProvider.finishDraftLabel;
 		}
 
-		return null;
+		return undefined;
 	}
 
-	getComments(resource: URI): Promise<ICommentInfo[]> {
-		const result: Promise<ICommentInfo>[] = [];
+	getComments(resource: URI): Promise<(ICommentInfo | null)[]> {
+		const result: Promise<ICommentInfo | null>[] = [];
 		for (const owner of keys(this._commentProviders)) {
 			const provider = this._commentProviders.get(owner);
-			if (provider.provideDocumentComments) {
+			if (provider && provider.provideDocumentComments) {
 				result.push(provider.provideDocumentComments(resource, CancellationToken.None).then(commentInfo => {
 					if (commentInfo) {
 						return <ICommentInfo>{

@@ -23,7 +23,7 @@ export abstract class AbstractExtHostOutputChannel extends Disposable implements
 	protected readonly _onDidAppend: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidAppend: Event<void> = this._onDidAppend.event;
 
-	constructor(name: string, log: boolean, file: URI, proxy: MainThreadOutputServiceShape) {
+	constructor(name: string, log: boolean, file: URI | undefined, proxy: MainThreadOutputServiceShape) {
 		super();
 
 		this._name = name;
@@ -58,7 +58,7 @@ export abstract class AbstractExtHostOutputChannel extends Disposable implements
 
 	show(columnOrPreserveFocus?: vscode.ViewColumn | boolean, preserveFocus?: boolean): void {
 		this.validate();
-		this._id.then(id => this._proxy.$reveal(id, typeof columnOrPreserveFocus === 'boolean' ? columnOrPreserveFocus : preserveFocus));
+		this._id.then(id => this._proxy.$reveal(id, !!(typeof columnOrPreserveFocus === 'boolean' ? columnOrPreserveFocus : preserveFocus)));
 	}
 
 	hide(): void {
@@ -86,7 +86,7 @@ export abstract class AbstractExtHostOutputChannel extends Disposable implements
 export class ExtHostPushOutputChannel extends AbstractExtHostOutputChannel {
 
 	constructor(name: string, proxy: MainThreadOutputServiceShape) {
-		super(name, false, null, proxy);
+		super(name, false, undefined, proxy);
 	}
 
 	append(value: string): void {

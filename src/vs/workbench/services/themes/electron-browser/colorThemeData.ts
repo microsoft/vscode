@@ -57,8 +57,8 @@ export class ColorThemeData implements IColorTheme {
 	private colorMap: IColorMap = {};
 	private customColorMap: IColorMap = {};
 
-	public getColor(colorId: ColorIdentifier, useDefault?: boolean): Color | null {
-		let color: Color | null = this.customColorMap[colorId];
+	public getColor(colorId: ColorIdentifier, useDefault?: boolean): Color | undefined {
+		let color: Color | undefined = this.customColorMap[colorId];
 		if (color) {
 			return color;
 		}
@@ -69,7 +69,7 @@ export class ColorThemeData implements IColorTheme {
 		return color;
 	}
 
-	public getDefault(colorId: ColorIdentifier): Color | null {
+	public getDefault(colorId: ColorIdentifier): Color | undefined {
 		return colorRegistry.resolveDefaultColor(colorId, this);
 	}
 

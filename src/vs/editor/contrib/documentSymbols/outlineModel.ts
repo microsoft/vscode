@@ -239,7 +239,7 @@ export class OutlineModel extends TreeElement {
 
 		if (data!.model) {
 			// resolved -> return data
-			return Promise.resolve(data.model);
+			return Promise.resolve(data.model!);
 		}
 
 		// increase usage counter
