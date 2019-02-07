@@ -17,7 +17,7 @@ import { StatusUpdater, StatusBarController } from './scmActivity';
 import { SCMViewlet } from 'vs/workbench/contrib/scm/electron-browser/scmViewlet';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ContextKeyDefinedExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ISCMRepository } from 'vs/workbench/services/scm/common/scm';
 import { ICommandService } from 'vs/platform/commands/common/commands';

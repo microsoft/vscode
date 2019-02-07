@@ -15,7 +15,7 @@ import { WebviewEditorInput } from 'vs/workbench/contrib/webview/electron-browse
 import { ICreateWebViewShowOptions, IWebviewEditorService, WebviewInputOptions, WebviewReviver } from 'vs/workbench/contrib/webview/electron-browser/webviewEditorService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import * as vscode from 'vscode';
 import { extHostNamedCustomer } from './extHostCustomers';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';

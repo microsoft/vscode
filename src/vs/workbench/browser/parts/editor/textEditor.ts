@@ -20,7 +20,7 @@ import { ITextFileService, SaveReason, AutoSaveMode } from 'vs/workbench/service
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { isDiffEditor, isCodeEditor, ICodeEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWindowService } from 'vs/platform/windows/common/windows';

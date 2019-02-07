@@ -16,7 +16,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { WebviewEditorInput } from 'vs/workbench/contrib/webview/electron-browser/webviewEditorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { BaseWebviewEditor, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE } from './baseWebviewEditor';
 import { WebviewElement } from './webviewElement';

@@ -30,7 +30,7 @@ import { basenameOrAuthority } from 'vs/base/common/resources';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { addDisposableListener, EventType } from 'vs/base/browser/dom';
-import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export interface IDraggedResource {
 	resource: URI;
