@@ -305,7 +305,7 @@ function getNodeCachedDir() {
  * @returns {string}
  */
 function stripComments(content) {
-	const regexp = /("(?:[^\\\"]*(?:\\.)?)*")|('(?:[^\\\']*(?:\\.)?)*')|(\/\*(?:\r?\n|.)*?\*\/)|(\/{2,}.*?(?:(?:\r?\n)|$))/g;
+	const regexp = /("(?:[^\\"]*(?:\\.)?)*")|('(?:[^\\']*(?:\\.)?)*')|(\/\*(?:\r?\n|.)*?\*\/)|(\/{2,}.*?(?:(?:\r?\n)|$))/g;
 
 	return content.replace(regexp, function (match, m1, m2, m3, m4) {
 		// Only one of m1, m2, m3, m4 matches

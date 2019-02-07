@@ -95,7 +95,6 @@ const optimizeVSCodeTask = util.task.series(
 	common.optimizeTask({
 		src: 'out-build',
 		entryPoints: vscodeEntryPoints,
-		otherSources: [],
 		resources: vscodeResources,
 		loaderConfig: common.loaderConfig(nodeModules),
 		header: BUNDLED_FILE_HEADER,
@@ -311,7 +310,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
 			.pipe(json(productJsonUpdate));
 
-		const license = gulp.src(['LICENSES.chromium.html', 'LICENSE.txt', 'ThirdPartyNotices.txt', 'licenses/**'], { base: '.' });
+		const license = gulp.src(['LICENSES.chromium.html', 'LICENSE.txt', 'ThirdPartyNotices.txt', 'licenses/**'], { base: '.', allowEmpty: true });
 
 		const watermark = gulp.src(['resources/letterpress.svg', 'resources/letterpress-dark.svg', 'resources/letterpress-hc.svg'], { base: '.' });
 
@@ -404,7 +403,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		// result = es.merge(result, gulp.src('resources/completions/**', { base: '.' }));
 
 		if (platform === 'win32') {
-			result = es.merge(result, gulp.src('resources/win32/bin/code.js', { base: 'resources/win32' }));
+			result = es.merge(result, gulp.src('resources/win32/bin/code.js', { base: 'resources/win32', allowEmpty: true }));
 
 			result = es.merge(result, gulp.src('resources/win32/bin/code.cmd', { base: 'resources/win32' })
 				.pipe(replace('@@NAME@@', product.nameShort))

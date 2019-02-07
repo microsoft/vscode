@@ -401,7 +401,7 @@
 	 */
 	function getDefaultCss(styles) {
 		const vars = Object.keys(styles || {}).map(variable => {
-			return `--${variable}: ${styles[variable].replace(/[^\#\"\'\,\. a-z0-9\-\(\)]/gi, '')};`;
+			return `--${variable}: ${styles[variable].replace(/[^#"',. a-z0-9\-()]/gi, '')};`;
 		});
 		return `
 			:root { ${vars.join('\n')} }
