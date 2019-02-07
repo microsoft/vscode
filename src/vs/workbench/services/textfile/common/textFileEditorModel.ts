@@ -45,8 +45,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private static saveErrorHandler: ISaveErrorHandler;
 	static setSaveErrorHandler(handler: ISaveErrorHandler): void { TextFileEditorModel.saveErrorHandler = handler; }
 
-	private static saveParticipant: ISaveParticipant;
-	static setSaveParticipant(handler: ISaveParticipant): void { TextFileEditorModel.saveParticipant = handler; }
+	private static saveParticipant: ISaveParticipant | null;
+	static setSaveParticipant(handler: ISaveParticipant | null): void { TextFileEditorModel.saveParticipant = handler; }
 
 	private readonly _onDidContentChange: Emitter<StateChange> = this._register(new Emitter<StateChange>());
 	get onDidContentChange(): Event<StateChange> { return this._onDidContentChange.event; }
@@ -62,9 +62,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private bufferSavedVersionId: number;
 	private lastResolvedDiskStat: IFileStat;
 	private blockModelContentChange: boolean;
-	private autoSaveAfterMillies: number;
+	private autoSaveAfterMillies?: number;
 	private autoSaveAfterMilliesEnabled: boolean;
-	private autoSaveDisposable: IDisposable;
+	private autoSaveDisposable?: IDisposable;
 	private contentChangeEventScheduler: RunOnceScheduler;
 	private orphanedChangeEventScheduler: RunOnceScheduler;
 	private saveSequentializer: SaveSequentializer;
@@ -129,7 +129,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	private onFileChanges(e: FileChangesEvent): void {
 		let fileEventImpactsModel = false;
-		let newInOrphanModeGuess: boolean;
+		let newInOrphanModeGuess: boolean | undefined;
 
 		// If we are currently orphaned, we check if the model file was added back
 		if (this.inOrphanMode) {
@@ -235,7 +235,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		});
 	}
 
-	load(options?: ILoadOptions): Promise<TextFileEditorModel> {
+	load(options?: ILoadOptions): Promise<ITextFileEditorModel> {
 		this.logService.trace('load() - enter', this.resource);
 
 		// It is very important to not reload the model when the model is dirty.
@@ -289,7 +289,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		const allowBinary = this.isResolved() /* always allow if we resolved previously */ || (options && options.allowBinary);
 
 		// Decide on etag
-		let etag: string;
+		let etag: string | undefined;
 		if (forceReadFromDisk) {
 			etag = undefined; // reset ETag if we enforce to read from disk
 		} else if (this.lastResolvedDiskStat) {
@@ -491,7 +491,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.backupFileService.resolveBackupContent(backup).then(backupContent => backupContent, error => null /* ignore errors */);
 	}
 
-	protected getOrCreateMode(modeService: IModeService, preferredModeIds: string, firstLineText?: string): ILanguageSelection {
+	protected getOrCreateMode(modeService: IModeService, preferredModeIds: string | undefined, firstLineText?: string): ILanguageSelection {
 		return modeService.createByFilepathOrFirstLine(this.resource.fsPath, firstLineText);
 	}
 
@@ -914,7 +914,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.lastSaveAttemptTime;
 	}
 
-	getETag(): string {
+	getETag(): string | null {
 		return this.lastResolvedDiskStat ? this.lastResolvedDiskStat.etag : null;
 	}
 
@@ -1046,8 +1046,8 @@ interface ISaveOperation {
 }
 
 export class SaveSequentializer {
-	private _pendingSave: IPendingSave;
-	private _nextSave: ISaveOperation;
+	private _pendingSave?: IPendingSave;
+	private _nextSave?: ISaveOperation;
 
 	hasPendingSave(versionId?: number): boolean {
 		if (!this._pendingSave) {
@@ -1061,7 +1061,7 @@ export class SaveSequentializer {
 		return !!this._pendingSave;
 	}
 
-	get pendingSave(): Promise<void> {
+	get pendingSave(): Promise<void> | undefined {
 		return this._pendingSave ? this._pendingSave.promise : undefined;
 	}
 

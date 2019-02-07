@@ -638,7 +638,7 @@ export class EditorModel extends Disposable implements IEditorModel {
 	/**
 	 * Causes this model to load returning a promise when loading is completed.
 	 */
-	load(): Promise<EditorModel> {
+	load(): Promise<IEditorModel> {
 		return Promise.resolve(this);
 	}
 
