@@ -151,7 +151,7 @@ function onReady() {
 function configureCommandlineSwitches(cliArgs, nodeCachedDataDir) {
 
 	// Force pre-Chrome-60 color profile handling (for https://github.com/Microsoft/vscode/issues/51791)
-	app.commandLine.appendSwitch('disable-features', 'ColorCorrectRendering');
+	app.commandLine.appendSwitch('disable-color-correct-rendering');
 
 	// Support JS Flags
 	const jsFlags = resolveJSFlags(cliArgs, nodeCachedDataDir.jsFlags());
