@@ -9,7 +9,7 @@ import { OutlinePanel } from './outlinePanel';
 import { VIEW_CONTAINER } from 'vs/workbench/contrib/files/common/files';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { OutlineConfigKeys, OutlineViewId } from 'vs/workbench/contrib/outline/electron-browser/outline';
+import { OutlineConfigKeys, OutlineViewId } from 'vs/editor/contrib/documentSymbols/outline';
 
 const _outlineDesc = <IViewDescriptor>{
 	id: OutlineViewId,

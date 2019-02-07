@@ -381,7 +381,7 @@ export class BreadcrumbsControl {
 				} else {
 					pickerArrowOffset = (data.left + (data.width * 0.3)) - x;
 				}
-				picker.setInput(element, maxHeight, pickerWidth, pickerArrowSize, Math.max(0, pickerArrowOffset));
+				picker.show(element, maxHeight, pickerWidth, pickerArrowSize, Math.max(0, pickerArrowOffset));
 				return { x, y };
 			},
 			onHide: (data) => {
