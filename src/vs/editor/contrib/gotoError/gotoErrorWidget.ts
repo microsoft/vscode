@@ -165,7 +165,7 @@ export class MarkerNavigationWidget extends ZoneWidget {
 	private _message: MessageWidget;
 	private _callOnDispose: IDisposable[] = [];
 	private _severity: MarkerSeverity;
-	private _backgroundColor: Color | null;
+	private _backgroundColor?: Color;
 	private _onDidSelectRelatedInformation = new Emitter<IRelatedInformation>();
 
 	readonly onDidSelectRelatedInformation: Event<IRelatedInformation> = this._onDidSelectRelatedInformation.event;

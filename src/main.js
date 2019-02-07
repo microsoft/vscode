@@ -106,7 +106,10 @@ function onReady() {
 				process.env['VSCODE_NODE_CACHED_DATA_DIR'] = cachedDataDir || '';
 
 				// Load main in AMD
-				require('./bootstrap-amd').load('vs/code/electron-main/main');
+				perf.mark('willLoadMainBundle');
+				require('./bootstrap-amd').load('vs/code/electron-main/main', () => {
+					perf.mark('didLoadMainBundle');
+				});
 			};
 
 			// We recevied a valid nlsConfig from a user defined locale
@@ -148,8 +151,7 @@ function onReady() {
 function configureCommandlineSwitches(cliArgs, nodeCachedDataDir) {
 
 	// Force pre-Chrome-60 color profile handling (for https://github.com/Microsoft/vscode/issues/51791)
-	// TODO@Ben check if future versions of Electron still support this flag
-	app.commandLine.appendSwitch('disable-features', 'ColorCorrectRendering');
+	app.commandLine.appendSwitch('disable-color-correct-rendering');
 
 	// Support JS Flags
 	const jsFlags = resolveJSFlags(cliArgs, nodeCachedDataDir.jsFlags());
@@ -268,7 +270,8 @@ function getNodeCachedDir() {
 		}
 
 		jsFlags() {
-			return this.value ? '--nolazy' : undefined;
+			// return this.value ? '--nolazy' : undefined;
+			return undefined;
 		}
 
 		ensureExists() {
@@ -302,7 +305,7 @@ function getNodeCachedDir() {
  * @returns {string}
  */
 function stripComments(content) {
-	const regexp = /("(?:[^\\\"]*(?:\\.)?)*")|('(?:[^\\\']*(?:\\.)?)*')|(\/\*(?:\r?\n|.)*?\*\/)|(\/{2,}.*?(?:(?:\r?\n)|$))/g;
+	const regexp = /("(?:[^\\"]*(?:\\.)?)*")|('(?:[^\\']*(?:\\.)?)*')|(\/\*(?:\r?\n|.)*?\*\/)|(\/{2,}.*?(?:(?:\r?\n)|$))/g;
 
 	return content.replace(regexp, function (match, m1, m2, m3, m4) {
 		// Only one of m1, m2, m3, m4 matches
@@ -434,20 +437,16 @@ function getUserDefinedLocale() {
 	}
 
 	const localeConfig = path.join(userDataPath, 'User', 'locale.json');
-	return exists(localeConfig).then((result) => {
-		if (result) {
-			return bootstrap.readFile(localeConfig).then((content) => {
-				content = stripComments(content);
-				try {
-					const value = JSON.parse(content).locale;
-					return value && typeof value === 'string' ? value.toLowerCase() : undefined;
-				} catch (e) {
-					return undefined;
-				}
-			});
-		} else {
+	return bootstrap.readFile(localeConfig).then((content) => {
+		content = stripComments(content);
+		try {
+			const value = JSON.parse(content).locale;
+			return value && typeof value === 'string' ? value.toLowerCase() : undefined;
+		} catch (e) {
 			return undefined;
 		}
+	}, () => {
+		return undefined;
 	});
 }
 

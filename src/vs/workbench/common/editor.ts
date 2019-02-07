@@ -15,7 +15,7 @@ import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/con
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITextModel } from 'vs/editor/common/model';
 import { Schemas } from 'vs/base/common/network';
-import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ICompositeControl } from 'vs/workbench/common/composite';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
 
@@ -941,6 +941,7 @@ export interface IWorkbenchEditorPartConfiguration {
 	highlightModifiedTabs?: boolean;
 	tabCloseButton?: 'left' | 'right' | 'off';
 	tabSizing?: 'fit' | 'shrink';
+	focusRecentEditorAfterClose?: boolean;
 	showIcons?: boolean;
 	enablePreview?: boolean;
 	enablePreviewFromQuickOpen?: boolean;

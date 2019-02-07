@@ -211,7 +211,7 @@ export class BackupMainService implements IBackupMainService {
 			backupFolder = this.getRandomEmptyWindowId();
 		}
 
-		if (!this.emptyWorkspaces.some(w => isEqual(w.backupFolder, backupFolder, !platform.isLinux))) {
+		if (!this.emptyWorkspaces.some(w => !!w.backupFolder && isEqual(w.backupFolder, backupFolder!, !platform.isLinux))) {
 			this.emptyWorkspaces.push({ backupFolder, remoteAuthority });
 			this.saveSync();
 		}
@@ -220,7 +220,7 @@ export class BackupMainService implements IBackupMainService {
 	}
 
 	unregisterEmptyWindowBackupSync(backupFolder: string): void {
-		let index = arrays.firstIndex(this.emptyWorkspaces, w => isEqual(w.backupFolder, backupFolder, !platform.isLinux));
+		let index = arrays.firstIndex(this.emptyWorkspaces, w => !!w.backupFolder && isEqual(w.backupFolder, backupFolder, !platform.isLinux));
 		if (index !== -1) {
 			this.emptyWorkspaces.splice(index, 1);
 			this.saveSync();
@@ -344,7 +344,7 @@ export class BackupMainService implements IBackupMainService {
 
 		// New empty window backup
 		let newBackupFolder = this.getRandomEmptyWindowId();
-		while (this.emptyWorkspaces.some(w => isEqual(w.backupFolder, newBackupFolder, platform.isLinux))) {
+		while (this.emptyWorkspaces.some(w => !!w.backupFolder && isEqual(w.backupFolder, newBackupFolder, platform.isLinux))) {
 			newBackupFolder = this.getRandomEmptyWindowId();
 		}
 
@@ -365,7 +365,7 @@ export class BackupMainService implements IBackupMainService {
 
 		// New empty window backup
 		let newBackupFolder = this.getRandomEmptyWindowId();
-		while (this.emptyWorkspaces.some(w => isEqual(w.backupFolder, newBackupFolder, platform.isLinux))) {
+		while (this.emptyWorkspaces.some(w => !!w.backupFolder && isEqual(w.backupFolder, newBackupFolder, platform.isLinux))) {
 			newBackupFolder = this.getRandomEmptyWindowId();
 		}
 

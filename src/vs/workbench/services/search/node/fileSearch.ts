@@ -25,13 +25,6 @@ import { IFileQuery, IFolderQuery, IProgress, ISearchEngineStats } from 'vs/plat
 import { IRawFileMatch, ISearchEngine, ISearchEngineSuccess } from 'vs/workbench/services/search/node/search';
 import { spawnRipgrepCmd } from './ripgrepFileSearch';
 
-enum Traversal {
-	Node = 1,
-	MacFind,
-	LinuxFind,
-	Ripgrep
-}
-
 interface IDirectoryEntry {
 	base: string;
 	relativePath: string;
@@ -50,7 +43,6 @@ process.on('exit', () => {
 
 export class FileWalker {
 	private config: IFileQuery;
-	private useRipgrep: boolean;
 	private filePattern: string;
 	private normalizedFilePatternLowercase: string;
 	private includePattern: glob.ParsedExpression | undefined;
@@ -63,7 +55,6 @@ export class FileWalker {
 	private fileWalkSW: StopWatch;
 	private directoriesWalked: number;
 	private filesWalked: number;
-	private traversal: Traversal;
 	private errors: string[];
 	private cmdSW: StopWatch;
 	private cmdResultCount: number;
@@ -73,20 +64,17 @@ export class FileWalker {
 
 	private walkedPaths: { [path: string]: boolean; };
 
-	constructor(config: IFileQuery, maxFileSize?: number) {
+	constructor(config: IFileQuery) {
 		this.config = config;
-		this.useRipgrep = config.useRipgrep !== false;
 		this.filePattern = config.filePattern || '';
 		this.includePattern = config.includePattern && glob.parse(config.includePattern);
 		this.maxResults = config.maxResults || null;
 		this.exists = !!config.exists;
-		this.maxFilesize = maxFileSize || null;
 		this.walkedPaths = Object.create(null);
 		this.resultCount = 0;
 		this.isLimitHit = false;
 		this.directoriesWalked = 0;
 		this.filesWalked = 0;
-		this.traversal = Traversal.Node;
 		this.errors = [];
 
 		if (this.filePattern) {
@@ -138,28 +126,11 @@ export class FileWalker {
 			this.matchFile(onResult, { relativePath: extraFilePath.fsPath /* no workspace relative path */, basename });
 		});
 
-		let traverse = this.nodeJSTraversal;
-		if (!this.maxFilesize) {
-			if (this.useRipgrep) {
-				this.traversal = Traversal.Ripgrep;
-				traverse = this.cmdTraversal;
-			} else if (platform.isMacintosh) {
-				this.traversal = Traversal.MacFind;
-				traverse = this.cmdTraversal;
-			} else if (platform.isLinux) {
-				this.traversal = Traversal.LinuxFind;
-				traverse = this.cmdTraversal;
-			}
-		}
-
-		const isNodeTraversal = traverse === this.nodeJSTraversal;
-		if (!isNodeTraversal) {
-			this.cmdSW = StopWatch.create(false);
-		}
+		this.cmdSW = StopWatch.create(false);
 
 		// For each root folder
 		flow.parallel<IFolderQuery, void>(folderQueries, (folderQuery: IFolderQuery, rootFolderDone: (err: Error | null, result: void) => void) => {
-			this.call(traverse, this, folderQuery, onResult, onMessage, (err?: Error) => {
+			this.call(this.cmdTraversal, this, folderQuery, onResult, onMessage, (err?: Error) => {
 				if (err) {
 					const errorMessage = toErrorMessage(err);
 					console.error(errorMessage);
@@ -197,31 +168,25 @@ export class FileWalker {
 			cb(err);
 		};
 		let leftover = '';
-		let first = true;
 		const tree = this.initDirectoryTree();
 
-		const useRipgrep = this.useRipgrep;
 		let noSiblingsClauses: boolean;
-		if (useRipgrep) {
-			const ripgrep = spawnRipgrepCmd(this.config, folderQuery, this.config.includePattern, this.folderExcludePatterns.get(folderQuery.folder.fsPath)!.expression);
-			cmd = ripgrep.cmd;
-			noSiblingsClauses = !Object.keys(ripgrep.siblingClauses).length;
+		const ripgrep = spawnRipgrepCmd(this.config, folderQuery, this.config.includePattern, this.folderExcludePatterns.get(folderQuery.folder.fsPath)!.expression);
+		cmd = ripgrep.cmd;
+		noSiblingsClauses = !Object.keys(ripgrep.siblingClauses).length;
 
-			const escapedArgs = ripgrep.rgArgs.args
-				.map(arg => arg.match(/^-/) ? arg : `'${arg}'`)
-				.join(' ');
+		const escapedArgs = ripgrep.rgArgs.args
+			.map(arg => arg.match(/^-/) ? arg : `'${arg}'`)
+			.join(' ');
 
-			let rgCmd = `rg ${escapedArgs}\n - cwd: ${ripgrep.cwd}`;
-			if (ripgrep.rgArgs.siblingClauses) {
-				rgCmd += `\n - Sibling clauses: ${JSON.stringify(ripgrep.rgArgs.siblingClauses)}`;
-			}
-			onMessage({ message: rgCmd });
-		} else {
-			cmd = this.spawnFindCmd(folderQuery);
+		let rgCmd = `rg ${escapedArgs}\n - cwd: ${ripgrep.cwd}`;
+		if (ripgrep.rgArgs.siblingClauses) {
+			rgCmd += `\n - Sibling clauses: ${JSON.stringify(ripgrep.rgArgs.siblingClauses)}`;
 		}
+		onMessage({ message: rgCmd });
 
 		this.cmdResultCount = 0;
-		this.collectStdout(cmd, 'utf8', useRipgrep, onMessage, (err: Error, stdout?: string, last?: boolean) => {
+		this.collectStdout(cmd, 'utf8', onMessage, (err: Error, stdout?: string, last?: boolean) => {
 			if (err) {
 				done(err);
 				return;
@@ -233,11 +198,7 @@ export class FileWalker {
 
 			// Mac: uses NFD unicode form on disk, but we want NFC
 			const normalized = leftover + (isMac ? normalization.normalizeNFC(stdout || '') : stdout);
-			const relativeFiles = normalized.split(useRipgrep ? '\n' : '\n./');
-			if (!useRipgrep && first && normalized.length >= 2) {
-				first = false;
-				relativeFiles[0] = relativeFiles[0].trim().substr(2);
-			}
+			const relativeFiles = normalized.split('\n');
 
 			if (last) {
 				const n = relativeFiles.length;
@@ -256,7 +217,7 @@ export class FileWalker {
 
 			this.cmdResultCount += relativeFiles.length;
 
-			if (useRipgrep && noSiblingsClauses) {
+			if (noSiblingsClauses) {
 				for (const relativePath of relativeFiles) {
 					const basename = path.basename(relativePath);
 					this.matchFile(onResult, { base: rootFolder, relativePath, basename });
@@ -310,9 +271,9 @@ export class FileWalker {
 	/**
 	 * Public for testing.
 	 */
-	readStdout(cmd: childProcess.ChildProcess, encoding: string, isRipgrep: boolean, cb: (err: Error | null, stdout?: string) => void): void {
+	readStdout(cmd: childProcess.ChildProcess, encoding: string, cb: (err: Error | null, stdout?: string) => void): void {
 		let all = '';
-		this.collectStdout(cmd, encoding, isRipgrep, () => { }, (err: Error, stdout?: string, last?: boolean) => {
+		this.collectStdout(cmd, encoding, () => { }, (err: Error, stdout?: string, last?: boolean) => {
 			if (err) {
 				cb(err);
 				return;
@@ -325,7 +286,7 @@ export class FileWalker {
 		});
 	}
 
-	private collectStdout(cmd: childProcess.ChildProcess, encoding: string, isRipgrep: boolean, onMessage: (message: IProgress) => void, cb: (err: Error | null, stdout?: string, last?: boolean) => void): void {
+	private collectStdout(cmd: childProcess.ChildProcess, encoding: string, onMessage: (message: IProgress) => void, cb: (err: Error | null, stdout?: string, last?: boolean) => void): void {
 		let onData = (err: Error | null, stdout?: string, last?: boolean) => {
 			if (err || last) {
 				onData = () => { };
@@ -361,10 +322,10 @@ export class FileWalker {
 		cmd.on('close', (code: number) => {
 			// ripgrep returns code=1 when no results are found
 			let stderrText: string;
-			if (isRipgrep ? (!gotData && (stderrText = this.decodeData(stderr, encoding)) && rgErrorMsgForDisplay(stderrText)) : code !== 0) {
+			if (!gotData && (stderrText = this.decodeData(stderr, encoding)) && rgErrorMsgForDisplay(stderrText)) {
 				onData(new Error(`command failed with error code ${code}: ${this.decodeData(stderr, encoding)}`));
 			} else {
-				if (isRipgrep && this.exists && code === 0) {
+				if (this.exists && code === 0) {
 					this.isLimitHit = true;
 				}
 				onData(null, '', true);
@@ -465,26 +426,10 @@ export class FileWalker {
 		matchDirectory(rootEntries);
 	}
 
-	private nodeJSTraversal(folderQuery: IFolderQuery, onResult: (result: IRawFileMatch) => void, onMessage: (message: IProgress) => void, done: (err?: Error) => void): void {
-		this.directoriesWalked++;
-		extfs.readdir(folderQuery.folder.fsPath, (error: Error, files: string[]) => {
-			if (error || this.isCanceled || this.isLimitHit) {
-				return done();
-			}
-
-			if (this.isCanceled || this.isLimitHit) {
-				return done();
-			}
-
-			return this.doWalk(folderQuery, '', files, onResult, done);
-		});
-	}
-
 	getStats(): ISearchEngineStats {
 		return {
 			cmdTime: this.cmdSW && this.cmdSW.elapsed(),
 			fileWalkTime: this.fileWalkSW.elapsed(),
-			traversal: Traversal[this.traversal],
 			directoriesWalked: this.directoriesWalked,
 			filesWalked: this.filesWalked,
 			cmdResultCount: this.cmdResultCount

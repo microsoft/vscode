@@ -41,7 +41,7 @@ export class MainThreadDialogs implements MainThreadDiaglogsShape {
 		};
 		if (options.filters) {
 			result.filters = [];
-			forEach(options.filters, entry => result.filters.push({ name: entry.key, extensions: entry.value }));
+			forEach(options.filters, entry => result.filters!.push({ name: entry.key, extensions: entry.value }));
 		}
 		return result;
 	}
@@ -53,7 +53,7 @@ export class MainThreadDialogs implements MainThreadDiaglogsShape {
 		};
 		if (options.filters) {
 			result.filters = [];
-			forEach(options.filters, entry => result.filters.push({ name: entry.key, extensions: entry.value }));
+			forEach(options.filters, entry => result.filters!.push({ name: entry.key, extensions: entry.value }));
 		}
 		return result;
 	}

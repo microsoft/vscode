@@ -516,6 +516,7 @@ export interface CodeAction {
 	edit?: WorkspaceEdit;
 	diagnostics?: IMarkerData[];
 	kind?: string;
+	isPreferred?: boolean;
 }
 
 /**
@@ -863,8 +864,8 @@ export const symbolKindToCssClass = (function () {
 	_fromMapping[SymbolKind.Operator] = 'operator';
 	_fromMapping[SymbolKind.TypeParameter] = 'type-parameter';
 
-	return function toCssClassName(kind: SymbolKind): string {
-		return `symbol-icon ${_fromMapping[kind] || 'property'}`;
+	return function toCssClassName(kind: SymbolKind, inline?: boolean): string {
+		return `symbol-icon ${inline ? 'inline' : 'block'} ${_fromMapping[kind] || 'property'}`;
 	};
 })();
 
@@ -912,6 +913,9 @@ export interface FormattingOptions {
  * the formatting-feature.
  */
 export interface DocumentFormattingEditProvider {
+
+	displayName?: string;
+
 	/**
 	 * Provide formatting edits for a whole document.
 	 */
@@ -922,6 +926,9 @@ export interface DocumentFormattingEditProvider {
  * the formatting-feature.
  */
 export interface DocumentRangeFormattingEditProvider {
+
+	displayName?: string;
+
 	/**
 	 * Provide formatting edits for a range in a document.
 	 *
@@ -1225,6 +1232,14 @@ export interface NewCommentAction {
 /**
  * @internal
  */
+export interface CommentReaction {
+	readonly label?: string;
+	readonly hasReacted?: boolean;
+}
+
+/**
+ * @internal
+ */
 export interface Comment {
 	readonly commentId: string;
 	readonly body: IMarkdownString;
@@ -1234,6 +1249,7 @@ export interface Comment {
 	readonly canDelete?: boolean;
 	readonly command?: Command;
 	readonly isDraft?: boolean;
+	readonly commentReactions?: CommentReaction[];
 }
 
 /**
@@ -1277,6 +1293,11 @@ export interface DocumentCommentProvider {
 	startDraftLabel?: string;
 	deleteDraftLabel?: string;
 	finishDraftLabel?: string;
+
+	addReaction?(resource: URI, comment: Comment, reaction: CommentReaction, token: CancellationToken): Promise<void>;
+	deleteReaction?(resource: URI, comment: Comment, reaction: CommentReaction, token: CancellationToken): Promise<void>;
+	reactionGroup?: CommentReaction[];
+
 	onDidChangeCommentThreads(): Event<CommentThreadChangedEvent>;
 }
 

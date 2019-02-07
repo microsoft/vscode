@@ -25,7 +25,7 @@ export class OpenDocumentLinkCommand implements Command {
 		path: string,
 		fragment: string
 	): vscode.Uri {
-		return vscode.Uri.parse(`command:${OpenDocumentLinkCommand.id}?${encodeURIComponent(JSON.stringify({ path, fragment }))}`);
+		return vscode.Uri.parse(`command:${OpenDocumentLinkCommand.id}?${encodeURIComponent(JSON.stringify({ path: encodeURIComponent(path), fragment }))}`);
 	}
 
 	public constructor(

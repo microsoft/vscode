@@ -93,8 +93,8 @@ export namespace Event {
 	 * Given an event and a `merge` function, returns another event which maps each element
 	 * and the cummulative result throught the `merge` function. Similar to `map`, but with memory.
 	 */
-	export function reduce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O): Event<O> {
-		let output: O | undefined = undefined;
+	export function reduce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, initial?: O): Event<O> {
+		let output: O | undefined = initial;
 
 		return map<I, O>(event, e => {
 			output = merge(output, e);
@@ -278,6 +278,7 @@ export namespace Event {
 		map<O>(fn: (i: T) => O): IChainableEvent<O>;
 		forEach(fn: (i: T) => void): IChainableEvent<T>;
 		filter(fn: (e: T) => boolean): IChainableEvent<T>;
+		reduce<R>(merge: (last: R | undefined, event: T) => R, initial?: R): IChainableEvent<R>;
 		latch(): IChainableEvent<T>;
 		on(listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable[]): IDisposable;
 		once(listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable[]): IDisposable;
@@ -299,6 +300,10 @@ export namespace Event {
 
 		filter(fn: (e: T) => boolean): IChainableEvent<T> {
 			return new ChainableEvent(filter(this._event, fn));
+		}
+
+		reduce<R>(merge: (last: R | undefined, event: T) => R, initial?: R): IChainableEvent<R> {
+			return new ChainableEvent(reduce(this._event, merge, initial));
 		}
 
 		latch(): IChainableEvent<T> {

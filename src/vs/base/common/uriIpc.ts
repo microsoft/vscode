@@ -8,8 +8,8 @@ import { MarshalledObject } from 'vs/base/common/marshalling';
 
 export interface IURITransformer {
 	transformIncoming(uri: UriComponents): UriComponents;
-	transformOutgoing(uri: URI): URI;
 	transformOutgoing(uri: UriComponents): UriComponents;
+	transformOutgoingURI(uri: URI): URI;
 }
 
 export const DefaultURITransformer: IURITransformer = new class {
@@ -17,9 +17,11 @@ export const DefaultURITransformer: IURITransformer = new class {
 		return uri;
 	}
 
-	transformOutgoing(uri: URI): URI;
-	transformOutgoing(uri: UriComponents): UriComponents;
-	transformOutgoing(uri: URI | UriComponents): URI | UriComponents {
+	transformOutgoing(uri: UriComponents): UriComponents {
+		return uri;
+	}
+
+	transformOutgoingURI(uri: URI): URI {
 		return uri;
 	}
 };

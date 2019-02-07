@@ -27,7 +27,7 @@ export class GlobalStorageDatabaseChannel extends Disposable implements IServerC
 
 	private static STORAGE_CHANGE_DEBOUNCE_TIME = 100;
 
-	private _onDidChangeItems: Emitter<ISerializableItemsChangeEvent> = this._register(new Emitter<ISerializableItemsChangeEvent>());
+	private readonly _onDidChangeItems: Emitter<ISerializableItemsChangeEvent> = this._register(new Emitter<ISerializableItemsChangeEvent>());
 	get onDidChangeItems(): Event<ISerializableItemsChangeEvent> { return this._onDidChangeItems.event; }
 
 	constructor(private storageMainService: StorageMainService) {
@@ -57,7 +57,7 @@ export class GlobalStorageDatabaseChannel extends Disposable implements IServerC
 
 	private serializeEvents(events: IStorageChangeEvent[]): ISerializableItemsChangeEvent {
 		const items = new Map<Key, Value>();
-		events.forEach(event => items.set(event.key, this.storageMainService.get(event.key, '')));
+		events.forEach(event => items.set(event.key, this.storageMainService.get(event.key)));
 
 		return { items: mapToSerializable(items) } as ISerializableItemsChangeEvent;
 	}
@@ -104,7 +104,7 @@ export class GlobalStorageDatabaseChannelClient extends Disposable implements IS
 
 	_serviceBrand: any;
 
-	private _onDidChangeItemsExternal: Emitter<IStorageItemsChangeEvent> = this._register(new Emitter<IStorageItemsChangeEvent>());
+	private readonly _onDidChangeItemsExternal: Emitter<IStorageItemsChangeEvent> = this._register(new Emitter<IStorageItemsChangeEvent>());
 	get onDidChangeItemsExternal(): Event<IStorageItemsChangeEvent> { return this._onDidChangeItemsExternal.event; }
 
 	private onDidChangeItemsOnMainListener: IDisposable;

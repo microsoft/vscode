@@ -5,7 +5,7 @@
 
 import { GroupIdentifier, IWorkbenchEditorConfiguration, IWorkbenchEditorPartConfiguration, EditorOptions, TextEditorOptions, IEditorInput, IEditorIdentifier, IEditorCloseEvent, IEditor } from 'vs/workbench/common/editor';
 import { EditorGroup } from 'vs/workbench/common/editor/editorGroup';
-import { IEditorGroup, GroupDirection, IAddGroupOptions, IMergeGroupOptions, GroupsOrder, IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroup, GroupDirection, IAddGroupOptions, IMergeGroupOptions, GroupsOrder, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Dimension } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
@@ -30,6 +30,7 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	highlightModifiedTabs: false,
 	tabCloseButton: 'right',
 	tabSizing: 'fit',
+	focusRecentEditorAfterClose: true,
 	showIcons: true,
 	enablePreview: true,
 	openPositioning: 'right',

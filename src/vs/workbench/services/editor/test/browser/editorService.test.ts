@@ -13,9 +13,8 @@ import { workbenchInstantiationService, TestStorageService } from 'vs/workbench/
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { EditorService, DelegatingEditorService } from 'vs/workbench/services/editor/browser/editorService';
-import { IEditorGroup, IEditorGroupsService, GroupDirection } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroup, IEditorGroupsService, GroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
-import { Dimension } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -23,7 +22,7 @@ import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtil
 import { IEditorRegistry, EditorDescriptor, Extensions } from 'vs/workbench/browser/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
+import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -79,7 +78,7 @@ suite('Editor service', () => {
 
 		const part = partInstantiator.createInstance(EditorPart, 'id', false);
 		part.create(document.createElement('div'));
-		part.layout(new Dimension(400, 300));
+		part.layout(400, 300);
 
 		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([IEditorGroupsService, part]));
 
@@ -152,7 +151,7 @@ suite('Editor service', () => {
 
 		const part = partInstantiator.createInstance(EditorPart, 'id', false);
 		part.create(document.createElement('div'));
-		part.layout(new Dimension(400, 300));
+		part.layout(400, 300);
 
 		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([IEditorGroupsService, part]));
 
@@ -293,7 +292,7 @@ suite('Editor service', () => {
 
 		const part = partInstantiator.createInstance(EditorPart, 'id', false);
 		part.create(document.createElement('div'));
-		part.layout(new Dimension(400, 300));
+		part.layout(400, 300);
 
 		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([IEditorGroupsService, part]));
 
@@ -332,7 +331,7 @@ suite('Editor service', () => {
 
 		const part = partInstantiator.createInstance(EditorPart, 'id', false);
 		part.create(document.createElement('div'));
-		part.layout(new Dimension(400, 300));
+		part.layout(400, 300);
 
 		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([IEditorGroupsService, part]));
 
@@ -366,7 +365,7 @@ suite('Editor service', () => {
 
 		const part = partInstantiator.createInstance(EditorPart, 'id', false);
 		part.create(document.createElement('div'));
-		part.layout(new Dimension(400, 300));
+		part.layout(400, 300);
 
 		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([IEditorGroupsService, part]));
 
@@ -576,7 +575,7 @@ suite('Editor service', () => {
 
 		const part = partInstantiator.createInstance(EditorPart, 'id', false);
 		part.create(document.createElement('div'));
-		part.layout(new Dimension(400, 300));
+		part.layout(400, 300);
 
 		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([IEditorGroupsService, part]));
 

@@ -6,18 +6,19 @@
 import * as vscode from 'vscode';
 import { loadMessageBundle } from 'vscode-nls';
 import { ITypeScriptServiceClient } from '../typescriptService';
+import { Disposable } from './dispose';
 
 const localize = loadMessageBundle();
 
 const typingsInstallTimeout = 30 * 1000;
 
-export default class TypingsStatus extends vscode.Disposable {
+export default class TypingsStatus extends Disposable {
 	private _acquiringTypings: { [eventId: string]: NodeJS.Timer } = Object.create({});
 	private _client: ITypeScriptServiceClient;
 	private _subscriptions: vscode.Disposable[] = [];
 
 	constructor(client: ITypeScriptServiceClient) {
-		super(() => this.dispose());
+		super();
 		this._client = client;
 
 		this._subscriptions.push(
@@ -28,6 +29,7 @@ export default class TypingsStatus extends vscode.Disposable {
 	}
 
 	public dispose(): void {
+		super.dispose();
 		this._subscriptions.forEach(x => x.dispose());
 
 		for (const eventId of Object.keys(this._acquiringTypings)) {

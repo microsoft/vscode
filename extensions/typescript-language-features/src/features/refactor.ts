@@ -138,7 +138,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 		}
 
 		const args: Proto.GetApplicableRefactorsRequestArgs = typeConverters.Range.toFileRangeRequestArgs(file, rangeOrSelection);
-		const response = await this.client.interuptGetErr(() => {
+		const response = await this.client.interruptGetErr(() => {
 			this.formattingOptionsManager.ensureConfigurationForDocument(document, token);
 
 			return this.client.execute('getApplicableRefactors', args, token);
@@ -188,6 +188,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 			command: ApplyRefactoringCommand.ID,
 			arguments: [document, file, info.name, action.name, rangeOrSelection],
 		};
+		codeAction.isPreferred = TypeScriptRefactorProvider.isPreferred(action);
 		return codeAction;
 	}
 
@@ -208,6 +209,15 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 			return TypeScriptRefactorProvider.moveKind;
 		}
 		return vscode.CodeActionKind.Refactor;
+	}
+
+	private static isPreferred(
+		action: Proto.RefactorActionInfo
+	): boolean {
+		if (action.name.startsWith('constant_')) {
+			return action.name.endsWith('scope_0');
+		}
+		return false;
 	}
 }
 

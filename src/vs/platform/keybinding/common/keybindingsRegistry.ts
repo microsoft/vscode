@@ -52,11 +52,6 @@ export interface IKeybindingRule2 {
 	when: ContextKeyExpr | null;
 }
 
-export const enum KeybindingRuleSource {
-	Core = 0,
-	Extension = 1
-}
-
 export const enum KeybindingWeight {
 	EditorCore = 0,
 	EditorContrib = 100,
@@ -71,20 +66,22 @@ export interface ICommandAndKeybindingRule extends IKeybindingRule {
 }
 
 export interface IKeybindingsRegistry {
-	registerKeybindingRule(rule: IKeybindingRule, source?: KeybindingRuleSource): void;
-	registerKeybindingRule2(rule: IKeybindingRule2, source?: KeybindingRuleSource): void;
-	registerCommandAndKeybindingRule(desc: ICommandAndKeybindingRule, source?: KeybindingRuleSource): void;
+	registerKeybindingRule(rule: IKeybindingRule): void;
+	setExtensionKeybindings(rules: IKeybindingRule2[]): void;
+	registerCommandAndKeybindingRule(desc: ICommandAndKeybindingRule): void;
 	getDefaultKeybindings(): IKeybindingItem[];
 }
 
 class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 
-	private _keybindings: IKeybindingItem[];
-	private _keybindingsSorted: boolean;
+	private _coreKeybindings: IKeybindingItem[];
+	private _extensionKeybindings: IKeybindingItem[];
+	private _cachedMergedKeybindings: IKeybindingItem[] | null;
 
 	constructor() {
-		this._keybindings = [];
-		this._keybindingsSorted = true;
+		this._coreKeybindings = [];
+		this._extensionKeybindings = [];
+		this._cachedMergedKeybindings = null;
 	}
 
 	/**
@@ -129,13 +126,13 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		return kb;
 	}
 
-	public registerKeybindingRule(rule: IKeybindingRule, source: KeybindingRuleSource = KeybindingRuleSource.Core): void {
-		let actualKb = KeybindingsRegistryImpl.bindToCurrentPlatform(rule);
+	public registerKeybindingRule(rule: IKeybindingRule): void {
+		const actualKb = KeybindingsRegistryImpl.bindToCurrentPlatform(rule);
 
 		if (actualKb && actualKb.primary) {
 			const kk = createKeybinding(actualKb.primary, OS);
 			if (kk) {
-				this._registerDefaultKeybinding(kk, rule.id, undefined, rule.weight, 0, rule.when, source);
+				this._registerDefaultKeybinding(kk, rule.id, undefined, rule.weight, 0, rule.when);
 			}
 		}
 
@@ -144,22 +141,36 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 				const k = actualKb.secondary[i];
 				const kk = createKeybinding(k, OS);
 				if (kk) {
-					this._registerDefaultKeybinding(kk, rule.id, undefined, rule.weight, -i - 1, rule.when, source);
+					this._registerDefaultKeybinding(kk, rule.id, undefined, rule.weight, -i - 1, rule.when);
 				}
 			}
 		}
 	}
 
-	public registerKeybindingRule2(rule: IKeybindingRule2, source: KeybindingRuleSource = KeybindingRuleSource.Core): void {
-		let actualKb = KeybindingsRegistryImpl.bindToCurrentPlatform2(rule);
+	public setExtensionKeybindings(rules: IKeybindingRule2[]): void {
+		let result: IKeybindingItem[] = [], keybindingsLen = 0;
+		for (let i = 0, len = rules.length; i < len; i++) {
+			const rule = rules[i];
+			let actualKb = KeybindingsRegistryImpl.bindToCurrentPlatform2(rule);
 
-		if (actualKb && actualKb.primary) {
-			this._registerDefaultKeybinding(actualKb.primary, rule.id, rule.args, rule.weight, 0, rule.when, source);
+			if (actualKb && actualKb.primary) {
+				result[keybindingsLen++] = {
+					keybinding: actualKb.primary,
+					command: rule.id,
+					commandArgs: rule.args,
+					when: rule.when,
+					weight1: rule.weight,
+					weight2: 0
+				};
+			}
 		}
+
+		this._extensionKeybindings = result;
+		this._cachedMergedKeybindings = null;
 	}
 
-	public registerCommandAndKeybindingRule(desc: ICommandAndKeybindingRule, source: KeybindingRuleSource = KeybindingRuleSource.Core): void {
-		this.registerKeybindingRule(desc, source);
+	public registerCommandAndKeybindingRule(desc: ICommandAndKeybindingRule): void {
+		this.registerKeybindingRule(desc);
 		CommandsRegistry.registerCommand(desc);
 	}
 
@@ -197,15 +208,15 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		}
 	}
 
-	private _registerDefaultKeybinding(keybinding: Keybinding, commandId: string, commandArgs: any, weight1: number, weight2: number, when: ContextKeyExpr | null | undefined, source: KeybindingRuleSource): void {
-		if (source === KeybindingRuleSource.Core && OS === OperatingSystem.Windows) {
+	private _registerDefaultKeybinding(keybinding: Keybinding, commandId: string, commandArgs: any, weight1: number, weight2: number, when: ContextKeyExpr | null | undefined): void {
+		if (OS === OperatingSystem.Windows) {
 			if (keybinding.type === KeybindingType.Chord) {
 				this._assertNoCtrlAlt(keybinding.firstPart, commandId);
 			} else {
 				this._assertNoCtrlAlt(keybinding, commandId);
 			}
 		}
-		this._keybindings.push({
+		this._coreKeybindings.push({
 			keybinding: keybinding,
 			command: commandId,
 			commandArgs: commandArgs,
@@ -213,15 +224,15 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 			weight1: weight1,
 			weight2: weight2
 		});
-		this._keybindingsSorted = false;
+		this._cachedMergedKeybindings = null;
 	}
 
 	public getDefaultKeybindings(): IKeybindingItem[] {
-		if (!this._keybindingsSorted) {
-			this._keybindings.sort(sorter);
-			this._keybindingsSorted = true;
+		if (!this._cachedMergedKeybindings) {
+			this._cachedMergedKeybindings = (<IKeybindingItem[]>[]).concat(this._coreKeybindings).concat(this._extensionKeybindings);
+			this._cachedMergedKeybindings.sort(sorter);
 		}
-		return this._keybindings.slice(0);
+		return this._cachedMergedKeybindings.slice(0);
 	}
 }
 export const KeybindingsRegistry: IKeybindingsRegistry = new KeybindingsRegistryImpl();

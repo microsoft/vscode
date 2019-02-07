@@ -47,7 +47,7 @@ export class DownloadServiceChannelClient implements IDownloadService {
 	constructor(private channel: IChannel, private getUriTransformer: () => IURITransformer) { }
 
 	download(from: URI, to: string): Promise<void> {
-		from = this.getUriTransformer().transformOutgoing(from);
+		from = this.getUriTransformer().transformOutgoingURI(from);
 		const dirName = path.dirname(to);
 		let out: fs.WriteStream;
 		return new Promise((c, e) => {

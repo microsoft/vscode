@@ -14,7 +14,7 @@ import { IPartService, Parts } from 'vs/workbench/services/part/common/partServi
 import { Themable, NOTIFICATIONS_TOAST_BORDER } from 'vs/workbench/common/theme';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { widgetShadow } from 'vs/platform/theme/common/colorRegistry';
-import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { NotificationsToastsVisibleContext } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { localize } from 'vs/nls';
@@ -456,7 +456,7 @@ export class NotificationsToasts extends Themable {
 		let maxWidth = NotificationsToasts.MAX_WIDTH;
 
 		let availableWidth = maxWidth;
-		let availableHeight: number;
+		let availableHeight: number | undefined;
 
 		if (this.workbenchDimensions) {
 
@@ -477,7 +477,9 @@ export class NotificationsToasts extends Themable {
 			availableHeight -= (2 * 12); // adjust for paddings top and bottom
 		}
 
-		availableHeight = Math.round(availableHeight * 0.618); // try to not cover the full height for stacked toasts
+		availableHeight = typeof availableHeight === 'number'
+			? Math.round(availableHeight * 0.618) // try to not cover the full height for stacked toasts
+			: 0;
 
 		return new Dimension(Math.min(maxWidth, availableWidth), availableHeight);
 	}

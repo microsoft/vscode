@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -14,11 +14,11 @@ import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 
 suite('SnippetSession', function () {
 
-	let editor: ICodeEditor;
+	let editor: IActiveCodeEditor;
 	let model: TextModel;
 
-	function assertSelections(editor: ICodeEditor, ...s: Selection[]) {
-		for (const selection of editor.getSelections()!) {
+	function assertSelections(editor: IActiveCodeEditor, ...s: Selection[]) {
+		for (const selection of editor.getSelections()) {
 			const actual = s.shift()!;
 			assert.ok(selection.equalsSelection(actual), `actual=${selection.toString()} <> expected=${actual.toString()}`);
 		}
@@ -27,7 +27,7 @@ suite('SnippetSession', function () {
 
 	setup(function () {
 		model = TextModel.createFromString('function foo() {\n    console.log(a);\n}');
-		editor = createTestCodeEditor({ model: model });
+		editor = createTestCodeEditor({ model: model }) as IActiveCodeEditor;
 		editor.setSelections([new Selection(1, 1, 1, 1), new Selection(2, 5, 2, 5)]);
 		assert.equal(model.getEOL(), '\n');
 	});

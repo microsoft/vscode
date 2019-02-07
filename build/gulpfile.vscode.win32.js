@@ -105,8 +105,8 @@ function buildWin32Setup(arch, target) {
 }
 
 function defineWin32SetupTasks(arch, target) {
-	gulp.task(`clean-vscode-win32-${arch}-${target}-setup`, util.rimraf(setupDir(arch, target)));
-	gulp.task(`vscode-win32-${arch}-${target}-setup`, [`clean-vscode-win32-${arch}-${target}-setup`], buildWin32Setup(arch, target));
+	const cleanTask = () => util.primraf(setupDir(arch, target));
+	gulp.task(`vscode-win32-${arch}-${target}-setup`, util.task.series(cleanTask, buildWin32Setup(arch, target)));
 }
 
 defineWin32SetupTasks('ia32', 'system');
@@ -124,11 +124,8 @@ function archiveWin32Setup(arch) {
 	};
 }
 
-gulp.task('clean-vscode-win32-ia32-archive', util.rimraf(zipDir('ia32')));
-gulp.task('vscode-win32-ia32-archive', ['clean-vscode-win32-ia32-archive'], archiveWin32Setup('ia32'));
-
-gulp.task('clean-vscode-win32-x64-archive', util.rimraf(zipDir('x64')));
-gulp.task('vscode-win32-x64-archive', ['clean-vscode-win32-x64-archive'], archiveWin32Setup('x64'));
+gulp.task('vscode-win32-ia32-archive', util.task.series(util.rimraf(zipDir('ia32')), archiveWin32Setup('ia32')));
+gulp.task('vscode-win32-x64-archive', util.task.series(util.rimraf(zipDir('x64')), archiveWin32Setup('x64')));
 
 function copyInnoUpdater(arch) {
 	return () => {
@@ -137,9 +134,6 @@ function copyInnoUpdater(arch) {
 	};
 }
 
-gulp.task('vscode-win32-ia32-copy-inno-updater', copyInnoUpdater('ia32'));
-gulp.task('vscode-win32-x64-copy-inno-updater', copyInnoUpdater('x64'));
-
 function patchInnoUpdater(arch) {
 	return cb => {
 		const icon = path.join(repoPath, 'resources', 'win32', 'code.ico');
@@ -147,5 +141,5 @@ function patchInnoUpdater(arch) {
 	};
 }
 
-gulp.task('vscode-win32-ia32-inno-updater', ['vscode-win32-ia32-copy-inno-updater'], patchInnoUpdater('ia32'));
-gulp.task('vscode-win32-x64-inno-updater', ['vscode-win32-x64-copy-inno-updater'], patchInnoUpdater('x64'));
+gulp.task('vscode-win32-ia32-inno-updater', util.task.series(copyInnoUpdater('ia32'), patchInnoUpdater('ia32')));
+gulp.task('vscode-win32-x64-inno-updater', util.task.series(copyInnoUpdater('x64'), patchInnoUpdater('x64')));

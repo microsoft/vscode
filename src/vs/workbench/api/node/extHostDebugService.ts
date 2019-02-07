@@ -15,16 +15,16 @@ import {
 } from 'vs/workbench/api/node/extHost.protocol';
 import * as vscode from 'vscode';
 import { Disposable, Position, Location, SourceBreakpoint, FunctionBreakpoint, DebugAdapterServer, DebugAdapterExecutable } from 'vs/workbench/api/node/extHostTypes';
-import { ExecutableDebugAdapter, SocketDebugAdapter, AbstractDebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
+import { ExecutableDebugAdapter, SocketDebugAdapter, AbstractDebugAdapter } from 'vs/workbench/contrib/debug/node/debugAdapter';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
-import { ITerminalSettings, IDebuggerContribution, IConfig, IDebugAdapter, IDebugAdapterServer, IDebugAdapterExecutable, IAdapterDescriptor } from 'vs/workbench/parts/debug/common/debug';
-import { getTerminalLauncher, hasChildProcesses, prepareCommand } from 'vs/workbench/parts/debug/node/terminals';
+import { ITerminalSettings, IDebuggerContribution, IConfig, IDebugAdapter, IDebugAdapterServer, IDebugAdapterExecutable, IAdapterDescriptor } from 'vs/workbench/contrib/debug/common/debug';
+import { getTerminalLauncher, hasChildProcesses, prepareCommand } from 'vs/workbench/contrib/debug/node/terminals';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/node/variableResolver';
 import { ExtHostConfiguration, ExtHostConfigProvider } from './extHostConfiguration';
-import { convertToVSCPaths, convertToDAPaths, stringToUri, uriToString } from 'vs/workbench/parts/debug/common/debugUtils';
+import { convertToVSCPaths, convertToDAPaths } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { ExtHostTerminalService } from 'vs/workbench/api/node/extHostTerminalService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
@@ -422,7 +422,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 						}
 
 						// DA -> VS Code
-						message = convertToVSCPaths(message, source => stringToUri(source));
+						message = convertToVSCPaths(message, true);
 
 						mythis._debugServiceProxy.$acceptDAMessage(debugAdapterHandle, message);
 					});
@@ -454,7 +454,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 	public $sendDAMessage(debugAdapterHandle: number, message: DebugProtocol.ProtocolMessage): Promise<void> {
 
 		// VS Code -> DA
-		message = convertToDAPaths(message, source => uriToString(source));
+		message = convertToDAPaths(message, false);
 
 		const tracker = this._debugAdaptersTrackers.get(debugAdapterHandle);	// TODO@AW: same handle?
 		if (tracker) {

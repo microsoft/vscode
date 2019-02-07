@@ -75,8 +75,8 @@ export class MenubarControl extends Disposable {
 	private container: HTMLElement;
 	private recentlyOpened: IRecentlyOpened;
 
-	private _onVisibilityChange: Emitter<boolean>;
-	private _onFocusStateChange: Emitter<boolean>;
+	private readonly _onVisibilityChange: Emitter<boolean>;
+	private readonly _onFocusStateChange: Emitter<boolean>;
 
 	private static MAX_MENU_RECENT_ENTRIES = 10;
 
@@ -262,6 +262,9 @@ export class MenubarControl extends Disposable {
 				this.menubar.blur();
 			}));
 		}
+
+		// Update recent menu items on formatter registration
+		this._register(this.labelService.onDidChangeFormatters(() => { this.onRecentlyOpenedChange(); }));
 	}
 
 	private doUpdateMenubar(firstTime: boolean): void {

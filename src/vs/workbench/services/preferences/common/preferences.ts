@@ -17,7 +17,7 @@ import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensio
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { EditorOptions, IEditor } from 'vs/workbench/common/editor';
-import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 
 export enum SettingValueType {

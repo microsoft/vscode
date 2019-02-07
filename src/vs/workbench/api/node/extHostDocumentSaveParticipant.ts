@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { sequence, always } from 'vs/base/common/async';
+import { sequence } from 'vs/base/common/async';
 import { illegalState } from 'vs/base/common/errors';
 import { ExtHostDocumentSaveParticipantShape, MainThreadTextEditorsShape, ResourceTextEditDto } from 'vs/workbench/api/node/extHost.protocol';
 import { TextEdit } from 'vs/workbench/api/node/extHostTypes';
@@ -67,7 +67,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 				return this._deliverEventAsyncAndBlameBadListeners(listener, <any>{ document, reason: TextDocumentSaveReason.to(reason) });
 			};
 		}));
-		return always(promise, () => clearTimeout(didTimeoutHandle));
+		return promise.finally(() => clearTimeout(didTimeoutHandle));
 	}
 
 	private _deliverEventAsyncAndBlameBadListeners([listener, thisArg, extension]: Listener, stubEvent: vscode.TextDocumentWillSaveEvent): Promise<any> {

@@ -25,7 +25,7 @@ import { EditorViewColumn, editorGroupToViewColumn } from 'vs/workbench/api/shar
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { IEditor as IWorkbenchEditor } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';

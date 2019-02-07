@@ -80,7 +80,7 @@ export class ExtHostWebviewPanel implements vscode.WebviewPanel {
 	private readonly _proxy: MainThreadWebviewsShape;
 	private readonly _viewType: string;
 	private _title: string;
-	private _iconPath: IconPath;
+	private _iconPath?: IconPath;
 
 	private readonly _options: vscode.WebviewPanelOptions;
 	private readonly _webview: ExtHostWebview;

@@ -7,7 +7,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
 import { ITextModel, ISingleEditOperation } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
-import * as search from 'vs/workbench/parts/search/common/search';
+import * as search from 'vs/workbench/contrib/search/common/search';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Position as EditorPosition } from 'vs/editor/common/core/position';
 import { Range as EditorRange } from 'vs/editor/common/core/range';
@@ -108,7 +108,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	// --- outline
 
-	$registerOutlineSupport(handle: number, selector: ISerializedDocumentFilter[], displayName: string): void {
+	$registerDocumentSymbolProvider(handle: number, selector: ISerializedDocumentFilter[], displayName: string): void {
 		this._registrations[handle] = modes.DocumentSymbolProviderRegistry.register(typeConverters.LanguageSelector.from(selector), <modes.DocumentSymbolProvider>{
 			displayName,
 			provideDocumentSymbols: (model: ITextModel, token: CancellationToken): Promise<modes.DocumentSymbol[]> => {
@@ -123,10 +123,16 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 		const provider = <modes.CodeLensProvider>{
 			provideCodeLenses: (model: ITextModel, token: CancellationToken): modes.ICodeLensSymbol[] | Promise<modes.ICodeLensSymbol[]> => {
-				return this._heapService.trackRecursive(this._proxy.$provideCodeLenses(handle, model.uri, token));
+				return this._proxy.$provideCodeLenses(handle, model.uri, token).then(dto => {
+					if (dto) { dto.forEach(obj => this._heapService.trackObject(obj)); }
+					return dto;
+				});
 			},
 			resolveCodeLens: (model: ITextModel, codeLens: modes.ICodeLensSymbol, token: CancellationToken): modes.ICodeLensSymbol | Promise<modes.ICodeLensSymbol> => {
-				return this._heapService.trackRecursive(this._proxy.$resolveCodeLens(handle, model.uri, codeLens, token));
+				return this._proxy.$resolveCodeLens(handle, model.uri, codeLens, token).then(obj => {
+					this._heapService.trackObject(obj);
+					return obj;
+				});
 			}
 		};
 
@@ -215,7 +221,10 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	$registerQuickFixSupport(handle: number, selector: ISerializedDocumentFilter[], providedCodeActionKinds?: string[]): void {
 		this._registrations[handle] = modes.CodeActionProviderRegistry.register(typeConverters.LanguageSelector.from(selector), <modes.CodeActionProvider>{
 			provideCodeActions: (model: ITextModel, rangeOrSelection: EditorRange | Selection, context: modes.CodeActionContext, token: CancellationToken): Promise<modes.CodeAction[]> => {
-				return this._heapService.trackRecursive(this._proxy.$provideCodeActions(handle, model.uri, rangeOrSelection, context, token)).then(MainThreadLanguageFeatures._reviveCodeActionDto);
+				return this._proxy.$provideCodeActions(handle, model.uri, rangeOrSelection, context, token).then(dto => {
+					if (dto) { dto.forEach(obj => this._heapService.trackObject(obj.command)); }
+					return MainThreadLanguageFeatures._reviveCodeActionDto(dto);
+				});
 			},
 			providedCodeActionKinds
 		});
@@ -223,16 +232,18 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	// --- formatting
 
-	$registerDocumentFormattingSupport(handle: number, selector: ISerializedDocumentFilter[]): void {
+	$registerDocumentFormattingSupport(handle: number, selector: ISerializedDocumentFilter[], displayName: string): void {
 		this._registrations[handle] = modes.DocumentFormattingEditProviderRegistry.register(typeConverters.LanguageSelector.from(selector), <modes.DocumentFormattingEditProvider>{
+			displayName,
 			provideDocumentFormattingEdits: (model: ITextModel, options: modes.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[]> => {
 				return this._proxy.$provideDocumentFormattingEdits(handle, model.uri, options, token);
 			}
 		});
 	}
 
-	$registerRangeFormattingSupport(handle: number, selector: ISerializedDocumentFilter[]): void {
+	$registerRangeFormattingSupport(handle: number, selector: ISerializedDocumentFilter[], displayName: string): void {
 		this._registrations[handle] = modes.DocumentRangeFormattingEditProviderRegistry.register(typeConverters.LanguageSelector.from(selector), <modes.DocumentRangeFormattingEditProvider>{
+			displayName,
 			provideDocumentRangeFormattingEdits: (model: ITextModel, range: EditorRange, options: modes.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[]> => {
 				return this._proxy.$provideDocumentRangeFormattingEdits(handle, model.uri, range, options, token);
 			}
@@ -326,10 +337,16 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	$registerDocumentLinkProvider(handle: number, selector: ISerializedDocumentFilter[]): void {
 		this._registrations[handle] = modes.LinkProviderRegistry.register(typeConverters.LanguageSelector.from(selector), <modes.LinkProvider>{
 			provideLinks: (model, token) => {
-				return this._heapService.trackRecursive(this._proxy.$provideDocumentLinks(handle, model.uri, token));
+				return this._proxy.$provideDocumentLinks(handle, model.uri, token).then(dto => {
+					if (dto) { dto.forEach(obj => this._heapService.trackObject(obj)); }
+					return dto;
+				});
 			},
 			resolveLink: (link, token) => {
-				return this._proxy.$resolveDocumentLink(handle, link, token);
+				return this._proxy.$resolveDocumentLink(handle, link, token).then(obj => {
+					this._heapService.trackObject(obj);
+					return obj;
+				});
 			}
 		});
 	}

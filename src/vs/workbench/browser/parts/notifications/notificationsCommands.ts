@@ -62,7 +62,7 @@ export interface INotificationsToastController {
 
 export function registerNotificationCommands(center: INotificationsCenterController, toasts: INotificationsToastController): void {
 
-	function getNotificationFromContext(listService: IListService, context?: any): INotificationViewItem {
+	function getNotificationFromContext(listService: IListService, context?: any): INotificationViewItem | undefined {
 		if (isNotificationViewItem(context)) {
 			return context;
 		}

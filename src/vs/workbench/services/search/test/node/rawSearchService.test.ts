@@ -25,7 +25,6 @@ const MULTIROOT_QUERIES: IFolderQuery[] = [
 ];
 
 const stats: ISearchEngineStats = {
-	traversal: 'node',
 	fileWalkTime: 0,
 	cmdTime: 1,
 	directoriesWalked: 2,

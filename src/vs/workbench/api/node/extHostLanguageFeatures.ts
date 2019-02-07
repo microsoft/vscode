@@ -15,7 +15,7 @@ import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHostCommands';
 import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
 import { asPromise } from 'vs/base/common/async';
-import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IMainContext, IdObject, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, ISerializedLanguageConfiguration, WorkspaceSymbolDto, SuggestResultDto, WorkspaceSymbolsDto, SuggestionDto, CodeActionDto, ISerializedDocumentFilter, WorkspaceEditDto, ISerializedSignatureHelpProviderMetadata } from './extHost.protocol';
+import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IMainContext, IdObject, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, ISerializedLanguageConfiguration, WorkspaceSymbolDto, SuggestResultDto, WorkspaceSymbolsDto, SuggestionDto, CodeActionDto, ISerializedDocumentFilter, WorkspaceEditDto, ISerializedSignatureHelpProviderMetadata, LinkDto, CodeLensDto } from './extHost.protocol';
 import { regExpLeadsToEndlessLoop, regExpFlags } from 'vs/base/common/strings';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range as EditorRange } from 'vs/editor/common/core/range';
@@ -104,24 +104,25 @@ class CodeLensAdapter {
 		private readonly _provider: vscode.CodeLensProvider
 	) { }
 
-	provideCodeLenses(resource: URI, token: CancellationToken): Promise<modes.ICodeLensSymbol[]> {
+	provideCodeLenses(resource: URI, token: CancellationToken): Promise<CodeLensDto[]> {
 		const doc = this._documents.getDocumentData(resource).document;
 
 		return asPromise(() => this._provider.provideCodeLenses(doc, token)).then(lenses => {
-			if (Array.isArray(lenses)) {
-				return lenses.map(lens => {
+			let result: CodeLensDto[] = [];
+			if (isNonEmptyArray(lenses)) {
+				for (const lens of lenses) {
 					const id = this._heapService.keep(lens);
-					return ObjectIdentifier.mixin({
+					result.push(ObjectIdentifier.mixin({
 						range: typeConvert.Range.from(lens.range),
 						command: this._commands.toInternal(lens.command)
-					}, id);
-				});
+					}, id));
+				}
 			}
-			return undefined;
+			return result;
 		});
 	}
 
-	resolveCodeLens(resource: URI, symbol: modes.ICodeLensSymbol, token: CancellationToken): Promise<modes.ICodeLensSymbol> {
+	resolveCodeLens(resource: URI, symbol: CodeLensDto, token: CancellationToken): Promise<CodeLensDto> {
 
 		const lens = this._heapService.get<vscode.CodeLens>(ObjectIdentifier.of(symbol));
 		if (!lens) {
@@ -282,6 +283,7 @@ export interface CustomCodeAction extends CodeActionDto {
 }
 
 class CodeActionAdapter {
+	private static readonly _maxCodeActionsPerFile: number = 1000;
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
@@ -302,7 +304,10 @@ class CodeActionAdapter {
 
 		for (const diagnostic of this._diagnostics.getDiagnostics(resource)) {
 			if (ran.intersection(diagnostic.range)) {
-				allDiagnostics.push(diagnostic);
+				const newLen = allDiagnostics.push(diagnostic);
+				if (newLen > CodeActionAdapter._maxCodeActionsPerFile) {
+					break;
+				}
 			}
 		}
 
@@ -342,7 +347,8 @@ class CodeActionAdapter {
 						command: candidate.command && this._commands.toInternal(candidate.command),
 						diagnostics: candidate.diagnostics && candidate.diagnostics.map(typeConvert.Diagnostic.from),
 						edit: candidate.edit && typeConvert.WorkspaceEdit.from(candidate.edit),
-						kind: candidate.kind && candidate.kind.value
+						kind: candidate.kind && candidate.kind.value,
+						isPreferred: candidate.isPreferred,
 					});
 				}
 			}
@@ -548,7 +554,7 @@ class RenameAdapter {
 			if (rejectReason) {
 				return <modes.RenameLocation & modes.Rejection>{ rejectReason, range: undefined, text: undefined };
 			} else {
-				return Promise.reject(err);
+				return Promise.reject<any>(err);
 			}
 		});
 	}
@@ -751,11 +757,14 @@ class SignatureHelpAdapter {
 	private reviveContext(context: modes.SignatureHelpContext): vscode.SignatureHelpContext {
 		let activeSignatureHelp: vscode.SignatureHelp | undefined = undefined;
 		if (context.activeSignatureHelp) {
+			const revivedSignatureHelp = typeConvert.SignatureHelp.to(context.activeSignatureHelp);
 			const saved = this._heap.get<vscode.SignatureHelp>(ObjectIdentifier.of(context.activeSignatureHelp));
 			if (saved) {
 				activeSignatureHelp = saved;
+				activeSignatureHelp.activeSignature = revivedSignatureHelp.activeSignature;
+				activeSignatureHelp.activeParameter = revivedSignatureHelp.activeParameter;
 			} else {
-				activeSignatureHelp = typeConvert.SignatureHelp.to(context.activeSignatureHelp);
+				activeSignatureHelp = revivedSignatureHelp;
 			}
 		}
 		return { ...context, activeSignatureHelp };
@@ -770,25 +779,24 @@ class LinkProviderAdapter {
 		private readonly _provider: vscode.DocumentLinkProvider
 	) { }
 
-	provideLinks(resource: URI, token: CancellationToken): Promise<modes.ILink[]> {
+	provideLinks(resource: URI, token: CancellationToken): Promise<LinkDto[]> {
 		const doc = this._documents.getDocumentData(resource).document;
 
 		return asPromise(() => this._provider.provideDocumentLinks(doc, token)).then(links => {
 			if (!Array.isArray(links)) {
 				return undefined;
 			}
-			const result: modes.ILink[] = [];
+			const result: LinkDto[] = [];
 			for (const link of links) {
 				let data = typeConvert.DocumentLink.from(link);
 				let id = this._heapService.keep(link);
-				ObjectIdentifier.mixin(data, id);
-				result.push(data);
+				result.push(ObjectIdentifier.mixin(data, id));
 			}
 			return result;
 		});
 	}
 
-	resolveLink(link: modes.ILink, token: CancellationToken): Promise<modes.ILink> {
+	resolveLink(link: LinkDto, token: CancellationToken): Promise<LinkDto> {
 		if (typeof this._provider.resolveDocumentLink !== 'function') {
 			return undefined;
 		}
@@ -1013,12 +1021,16 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return handle;
 	}
 
+	private static _extLabel(ext: IExtensionDescription): string {
+		return ext.displayName || ext.name;
+	}
+
 	// --- outline
 
 	registerDocumentSymbolProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentSymbolProvider, metadata?: vscode.DocumentSymbolProviderMetadata): vscode.Disposable {
 		const handle = this._addNewAdapter(new DocumentSymbolAdapter(this._documents, provider), extension);
-		const displayName = (metadata && metadata.label) || (extension && (extension.displayName || extension.name)) || undefined;
-		this._proxy.$registerOutlineSupport(handle, this._transformDocumentSelector(selector), displayName);
+		const displayName = (metadata && metadata.label) || ExtHostLanguageFeatures._extLabel(extension);
+		this._proxy.$registerDocumentSymbolProvider(handle, this._transformDocumentSelector(selector), displayName);
 		return this._createDisposable(handle);
 	}
 
@@ -1147,7 +1159,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	registerDocumentFormattingEditProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentFormattingEditProvider): vscode.Disposable {
 		const handle = this._addNewAdapter(new DocumentFormattingAdapter(this._documents, provider), extension);
-		this._proxy.$registerDocumentFormattingSupport(handle, this._transformDocumentSelector(selector));
+		this._proxy.$registerDocumentFormattingSupport(handle, this._transformDocumentSelector(selector), ExtHostLanguageFeatures._extLabel(extension));
 		return this._createDisposable(handle);
 	}
 
@@ -1157,7 +1169,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	registerDocumentRangeFormattingEditProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentRangeFormattingEditProvider): vscode.Disposable {
 		const handle = this._addNewAdapter(new RangeFormattingAdapter(this._documents, provider), extension);
-		this._proxy.$registerRangeFormattingSupport(handle, this._transformDocumentSelector(selector));
+		this._proxy.$registerRangeFormattingSupport(handle, this._transformDocumentSelector(selector), ExtHostLanguageFeatures._extLabel(extension));
 		return this._createDisposable(handle);
 	}
 

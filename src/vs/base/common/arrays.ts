@@ -393,6 +393,7 @@ export function firstIndex<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean)
 
 export function first<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean, notFoundValue: T): T;
 export function first<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean): T | null;
+export function first<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean, notFoundValue: T | null): T | null;
 export function first<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean, notFoundValue: T | null = null): T | null {
 	const index = firstIndex(array, fn);
 	return index < 0 ? notFoundValue : array[index];
@@ -439,9 +440,9 @@ export function range(arg: number, to?: number): number[] {
 	return result;
 }
 
-export function fill<T>(num: number, valueFn: () => T, arr: T[] = []): T[] {
+export function fill<T>(num: number, value: T, arr: T[] = []): T[] {
 	for (let i = 0; i < num; i++) {
-		arr[i] = valueFn();
+		arr[i] = value;
 	}
 
 	return arr;

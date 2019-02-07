@@ -23,6 +23,7 @@ import { compare } from 'vs/base/common/strings';
 import { binarySearch } from 'vs/base/common/arrays';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 
 class MarkerModel {
 
@@ -468,3 +469,22 @@ registerEditorCommand(new MarkerCommand({
 		secondary: [KeyMod.Shift | KeyCode.Escape]
 	}
 }));
+
+// Go to menu
+MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+	group: '6_problem_nav',
+	command: {
+		id: 'editor.action.marker.nextInFiles',
+		title: nls.localize({ key: 'miGotoNextProblem', comment: ['&& denotes a mnemonic'] }, "Next &&Problem")
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+	group: '6_problem_nav',
+	command: {
+		id: 'editor.action.marker.prevInFiles',
+		title: nls.localize({ key: 'miGotoPreviousProblem', comment: ['&& denotes a mnemonic'] }, "Previous &&Problem")
+	},
+	order: 2
+});
