@@ -16,10 +16,11 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { endsWith } from 'vs/base/common/strings';
 import { Schemas } from 'vs/base/common/network';
 import { INotificationService, Severity, IPromptChoice } from 'vs/platform/notification/common/notification';
-import { extname, join } from 'path';
 import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { joinPath } from 'vs/base/common/resources';
+import { extname } from 'vs/base/common/paths';
 import { collectWorkspaceStats, WorkspaceStats as WorkspaceStatsType } from 'vs/base/node/stats';
 
 const SshProtocolMatcher = /^([^@:]+@)?([^:]+):/;
@@ -333,17 +334,21 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		const state = this.contextService.getWorkbenchState();
 		const workspace = this.contextService.getWorkspace();
 
+		function createHash(uri: URI): string {
+			return crypto.createHash('sha1').update(uri.scheme === Schemas.file ? uri.fsPath : uri.toString()).digest('hex');
+		}
+
 		let workspaceId: string | undefined;
 		switch (state) {
 			case WorkbenchState.EMPTY:
 				workspaceId = undefined;
 				break;
 			case WorkbenchState.FOLDER:
-				workspaceId = crypto.createHash('sha1').update(workspace.folders[0].uri.scheme === Schemas.file ? workspace.folders[0].uri.fsPath : workspace.folders[0].uri.toString()).digest('hex');
+				workspaceId = createHash(workspace.folders[0].uri);
 				break;
 			case WorkbenchState.WORKSPACE:
 				if (workspace.configuration) {
-					workspaceId = crypto.createHash('sha1').update(workspace.configuration.fsPath).digest('hex');
+					workspaceId = createHash(workspace.configuration);
 				}
 		}
 
@@ -553,7 +558,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 
 			this.notificationService.prompt(Severity.Info, localize('workspaceFound', "This folder contains a workspace file '{0}'. Do you want to open it? [Learn more]({1}) about workspace files.", workspaceFile, 'https://go.microsoft.com/fwlink/?linkid=2025315'), [{
 				label: localize('openWorkspace', "Open Workspace"),
-				run: () => this.windowService.openWindow([URI.file(join(folder.fsPath, workspaceFile))])
+				run: () => this.windowService.openWindow([{ uri: joinPath(folder, workspaceFile), typeHint: 'file' }])
 			}, doNotShowAgain]);
 		}
 
@@ -566,7 +571,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 						workspaces.map(workspace => ({ label: workspace } as IQuickPickItem)),
 						{ placeHolder: localize('selectToOpen', "Select a workspace to open") }).then(pick => {
 							if (pick) {
-								this.windowService.openWindow([URI.file(join(folder.fsPath, pick.label))]);
+								this.windowService.openWindow([{ uri: joinPath(folder, pick.label), typeHint: 'file' }]);
 							}
 						});
 				}

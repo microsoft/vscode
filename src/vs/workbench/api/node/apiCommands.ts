@@ -62,7 +62,7 @@ export class OpenFolderAPICommand {
 			uri = correctedUri;
 		}
 
-		return executor.executeCommand('_files.windowOpen', { folderURIs: [uri], forceNewWindow });
+		return executor.executeCommand('_files.windowOpen', { urisToOpen: [{ uri }], forceNewWindow });
 	}
 }
 CommandsRegistry.registerCommand(OpenFolderAPICommand.ID, adjustHandler(OpenFolderAPICommand.execute));

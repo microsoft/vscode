@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { IWindowService, IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IWindowConfiguration, IDevToolsOptions, IOpenSettings } from 'vs/platform/windows/common/windows';
+import { IWindowService, IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IWindowConfiguration, IDevToolsOptions, IOpenSettings, IURIToOpen } from 'vs/platform/windows/common/windows';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
@@ -92,8 +92,8 @@ export class WindowService extends Disposable implements IWindowService {
 		return this.windowsService.enterWorkspace(this.windowId, path);
 	}
 
-	openWindow(paths: URI[], options?: IOpenSettings): Promise<void> {
-		return this.windowsService.openWindow(this.windowId, paths, options);
+	openWindow(uris: IURIToOpen[], options?: IOpenSettings): Promise<void> {
+		return this.windowsService.openWindow(this.windowId, uris, options);
 	}
 
 	closeWindow(): Promise<void> {

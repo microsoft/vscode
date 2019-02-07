@@ -7,7 +7,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { localize } from 'vs/nls';
 import { Event } from 'vs/base/common/event';
 import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 
 export const IWorkspacesMainService = createDecorator<IWorkspacesMainService>('workspacesMainService');
 export const IWorkspacesService = createDecorator<IWorkspacesService>('workspacesService');
@@ -23,7 +23,11 @@ export type ISingleFolderWorkspaceIdentifier = URI;
 
 export interface IWorkspaceIdentifier {
 	id: string;
-	configPath: string;
+	configPath: URI;
+}
+
+export function reviveWorkspaceIdentifier(workspace: { id: string, configPath: UriComponents; }): IWorkspaceIdentifier {
+	return { id: workspace.id, configPath: URI.revive(workspace.configPath) };
 }
 
 export function isStoredWorkspaceFolder(thing: any): thing is IStoredWorkspaceFolder {
@@ -91,8 +95,6 @@ export interface IWorkspacesMainService extends IWorkspacesService {
 
 	getUntitledWorkspacesSync(): IWorkspaceIdentifier[];
 
-	getWorkspaceId(workspacePath: string): string;
-
 	getWorkspaceIdentifier(workspacePath: URI): IWorkspaceIdentifier;
 }
 
@@ -109,13 +111,13 @@ export function isSingleFolderWorkspaceIdentifier(obj: any): obj is ISingleFolde
 export function isWorkspaceIdentifier(obj: any): obj is IWorkspaceIdentifier {
 	const workspaceIdentifier = obj as IWorkspaceIdentifier;
 
-	return workspaceIdentifier && typeof workspaceIdentifier.id === 'string' && typeof workspaceIdentifier.configPath === 'string';
+	return workspaceIdentifier && typeof workspaceIdentifier.id === 'string' && workspaceIdentifier.configPath instanceof URI;
 }
 
 export function toWorkspaceIdentifier(workspace: IWorkspace): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined {
 	if (workspace.configuration) {
 		return {
-			configPath: workspace.configuration.fsPath,
+			configPath: workspace.configuration,
 			id: workspace.id
 		};
 	}
