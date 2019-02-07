@@ -417,6 +417,7 @@
 		"./vs/workbench/api/electron-browser/mainThreadProgress.ts",
 		"./vs/workbench/api/electron-browser/mainThreadQuickOpen.ts",
 		"./vs/workbench/api/electron-browser/mainThreadSCM.ts",
+		"./vs/workbench/api/electron-browser/mainThreadSearch.ts",
 		"./vs/workbench/api/electron-browser/mainThreadStatusBar.ts",
 		"./vs/workbench/api/electron-browser/mainThreadStorage.ts",
 		"./vs/workbench/api/electron-browser/mainThreadTelemetry.ts",

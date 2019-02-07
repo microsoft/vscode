@@ -56,8 +56,8 @@ export const enum SearchProviderType {
 }
 
 export interface ISearchResultProvider {
-	textSearch(query: ITextQuery, onProgress?: (p: ISearchProgressItem) => void, token?: CancellationToken): Promise<ISearchComplete>;
-	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete>;
+	textSearch(query: ITextQuery, onProgress?: (p: ISearchProgressItem) => void, token?: CancellationToken): Promise<ISearchComplete | undefined>;
+	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete | undefined>;
 	clearCache(cacheKey: string): Promise<void>;
 }
 
