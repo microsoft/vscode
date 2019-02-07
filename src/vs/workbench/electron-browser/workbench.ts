@@ -63,8 +63,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { TextFileService } from 'vs/workbench/services/textfile/electron-browser/textFileService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { ISCMService } from 'vs/workbench/services/scm/common/scm';
-import { SCMService } from 'vs/workbench/services/scm/common/scmService';
 import { IProgressService2 } from 'vs/platform/progress/common/progress';
 import { ProgressService2 } from 'vs/workbench/services/progress/browser/progressService2';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
@@ -442,9 +440,6 @@ export class Workbench extends Disposable implements IPartService {
 
 		// File Decorations
 		serviceCollection.set(IDecorationsService, new SyncDescriptor(FileDecorationsService));
-
-		// SCM Service
-		serviceCollection.set(ISCMService, new SyncDescriptor(SCMService));
 
 		// Inactive extension URL handler
 		serviceCollection.set(IExtensionUrlHandler, new SyncDescriptor(ExtensionUrlHandler));
