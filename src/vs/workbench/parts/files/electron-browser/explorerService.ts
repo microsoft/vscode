@@ -108,8 +108,13 @@ export class ExplorerService implements IExplorerService {
 		return this.model.findClosest(resource);
 	}
 
-	setEditable(stat: ExplorerItem, data: IEditableData): void {
-		this.editableStats.set(stat, data);
+	setEditable(stat: ExplorerItem, data: IEditableData | null): void {
+		if (!data) {
+			this.editableStats.delete(stat);
+		} else {
+			this.editableStats.set(stat, data);
+		}
+
 		this._onDidChangeEditable.fire(stat);
 	}
 

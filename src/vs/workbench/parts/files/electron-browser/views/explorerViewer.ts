@@ -533,7 +533,11 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		return false;
 	}
 
-	getDragURI(element: ExplorerItem): string {
+	getDragURI(element: ExplorerItem): string | null {
+		if (this.explorerService.isEditable(element)) {
+			return null;
+		}
+
 		return element.resource.toString();
 	}
 
