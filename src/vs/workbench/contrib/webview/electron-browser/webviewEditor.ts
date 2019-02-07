@@ -223,6 +223,7 @@ export class WebviewEditor extends BaseWebviewEditor {
 			this._webview = this._instantiationService.createInstance(WebviewElement,
 				this._partService.getContainer(Parts.EDITOR_PART),
 				{
+					allowSvgs: true,
 					useSameOriginForRoot: false,
 					extensionLocation: input.extensionLocation
 				});
