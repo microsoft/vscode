@@ -34,7 +34,7 @@ export interface ITemplateData {
 	ratings: HTMLElement;
 	author: HTMLElement;
 	description: HTMLElement;
-	extension: IExtension;
+	extension: IExtension | null;
 	disposables: IDisposable[];
 	extensionDisposables: IDisposable[];
 	actionbar: ActionBar;
