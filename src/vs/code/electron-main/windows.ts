@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { basename, normalize, join, dirname, extname } from 'path';
+import { basename, normalize, join, dirname } from 'path';
 import * as fs from 'fs';
 import { localize } from 'vs/nls';
 import * as arrays from 'vs/base/common/arrays';
@@ -26,7 +26,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWindowsMainService, IOpenConfiguration, IWindowsCountChangedEvent, ICodeWindow, IWindowState as ISingleWindowState, WindowMode } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService } from 'vs/platform/history/common/history';
 import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { IWorkspacesMainService, IWorkspaceIdentifier, WORKSPACE_FILTER, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspacesMainService, IWorkspaceIdentifier, WORKSPACE_FILTER, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
@@ -762,6 +762,8 @@ export class WindowsManager implements IWindowsMainService {
 	}
 
 	private getPathsToOpen(openConfig: IOpenConfiguration): IPathToOpen[] {
+		debugger;
+
 		let windowsToOpen: IPathToOpen[];
 		let isCommandLineOrAPICall = false;
 
@@ -980,6 +982,7 @@ export class WindowsManager implements IWindowsMainService {
 
 		// remove trailing slash
 		const uriPath = uri.path;
+
 		if (endsWith(uriPath, '/')) {
 			if (uriPath.length > 2) {
 				// only remove if the path has some content
@@ -991,7 +994,7 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		// if there's no type hint
-		if (!typeHint && (extname(uri.path) === WORKSPACE_EXTENSION || options.gotoLineMode)) {
+		if (!typeHint && (hasWorkspaceFileExtension(uri.path) || options.gotoLineMode)) {
 			typeHint = 'file';
 		}
 
@@ -1005,7 +1008,7 @@ export class WindowsManager implements IWindowsMainService {
 					remoteAuthority
 				};
 			}
-			if (extname(uri.path) === WORKSPACE_EXTENSION && !options.forceOpenWorkspaceAsFile) {
+			if (hasWorkspaceFileExtension(uri.path) && !options.forceOpenWorkspaceAsFile) {
 				return {
 					workspace: this.workspacesMainService.getWorkspaceIdentifier(uri),
 					remoteAuthority

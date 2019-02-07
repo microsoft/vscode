@@ -16,11 +16,10 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { endsWith } from 'vs/base/common/strings';
 import { Schemas } from 'vs/base/common/network';
 import { INotificationService, Severity, IPromptChoice } from 'vs/platform/notification/common/notification';
-import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
+import { hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { joinPath } from 'vs/base/common/resources';
-import { extname } from 'vs/base/common/paths';
 import { collectWorkspaceStats, WorkspaceStats as WorkspaceStatsType } from 'vs/base/node/stats';
 
 const SshProtocolMatcher = /^([^@:]+@)?([^:]+):/;
@@ -534,7 +533,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 
 		// Handle top-level workspace files for local single folder workspace
 		if (state === WorkbenchState.FOLDER && workspace.folders[0].uri.scheme === Schemas.file) {
-			const workspaceFiles = rootFiles.filter(name => extname(name) === `.${WORKSPACE_EXTENSION}`);
+			const workspaceFiles = rootFiles.filter(hasWorkspaceFileExtension);
 			if (workspaceFiles.length > 0) {
 				this.doHandleWorkspaceFiles(workspace.folders[0].uri, workspaceFiles);
 			}

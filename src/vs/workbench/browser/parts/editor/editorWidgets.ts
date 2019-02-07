@@ -15,8 +15,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { Schemas } from 'vs/base/common/network';
-import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
-import { extname } from 'vs/base/common/paths';
+import { hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
 import { Disposable, dispose } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
@@ -139,7 +138,7 @@ export class OpenWorkspaceButtonContribution extends Disposable implements IEdit
 			return false; // we need a model
 		}
 
-		if (model.uri.scheme !== Schemas.file || extname(model.uri.fsPath) !== `.${WORKSPACE_EXTENSION}`) {
+		if (model.uri.scheme !== Schemas.file || hasWorkspaceFileExtension(model.uri.fsPath)) {
 			return false; // we need a local workspace file
 		}
 

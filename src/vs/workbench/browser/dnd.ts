@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { WORKSPACE_EXTENSION, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { extname, basename, normalize } from 'vs/base/common/paths';
+import { hasWorkspaceFileExtension, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { basename, normalize } from 'vs/base/common/paths';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWindowsService, IWindowService, IURIToOpen } from 'vs/platform/windows/common/windows';
 import { URI } from 'vs/base/common/uri';
@@ -263,7 +263,7 @@ export class ResourcesDropHandler {
 		return Promise.all(fileOnDiskResources.map(fileOnDiskResource => {
 
 			// Check for Workspace
-			if (extname(fileOnDiskResource.fsPath) === `.${WORKSPACE_EXTENSION}`) {
+			if (hasWorkspaceFileExtension(fileOnDiskResource.fsPath)) {
 				workspaceResources.workspaces.push({ uri: fileOnDiskResource, typeHint: 'file' });
 
 				return undefined;
