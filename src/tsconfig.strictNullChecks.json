@@ -19,6 +19,7 @@
 		"./vs/editor/contrib/suggest/**/*.ts",
 		"./vs/editor/test/**/*.ts",
 		"./vs/workbench/browser/parts/notifications/**/*",
+		"./vs/workbench/browser/parts/quickinput/**/*",
 		"./vs/workbench/electron-browser/actions/**/*",
 		"./vs/workbench/parts/emmet/**/*",
 		"./vs/workbench/parts/execution/**/*",
