@@ -173,6 +173,7 @@ export class ToggleScreencastModeAction extends Action {
 		keyboardMarker.style.textAlign = 'center';
 		keyboardMarker.style.fontSize = '56px';
 		keyboardMarker.style.display = 'none';
+		keyboardMarker.style.overflow = 'hidden';
 
 		const onKeyDown = domEvent(document.body, 'keydown', true);
 		let keyboardTimeout: IDisposable = Disposable.None;
