@@ -48,10 +48,10 @@ import { IRemoteConsoleLog } from 'vs/base/node/console';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
-	appRoot: URI;
-	appSettingsHome: URI;
-	extensionDevelopmentLocationURI: URI;
-	extensionTestsPath: string;
+	appRoot?: URI;
+	appSettingsHome?: URI;
+	extensionDevelopmentLocationURI?: URI;
+	extensionTestsPath?: string;
 	globalStorageHome: URI;
 }
 
@@ -63,10 +63,10 @@ export interface IWorkspaceData {
 }
 
 export interface IInitData {
-	commit: string;
+	commit?: string;
 	parentPid: number;
 	environment: IEnvironment;
-	workspace: IWorkspaceData;
+	workspace?: IWorkspaceData;
 	resolvedExtensions: ExtensionIdentifier[];
 	extensions: IExtensionDescription[];
 	telemetryInfo: ITelemetryInfo;
