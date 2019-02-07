@@ -412,13 +412,20 @@ export class OutlinePanel extends ViewletPanel {
 		this._editorDisposables = new Array();
 		this._progressBar.infinite().show(150);
 
+		let textModel = editor.getModel();
+		let oldModel = this._tree.getInput();
+
+		// persist state
+		if (oldModel) {
+			let state = this._tree.getViewState();
+			this._treeStates.set(oldModel.textModel.uri.toString(), state);
+		}
+
 		if (!editor || !DocumentSymbolProviderRegistry.has(editor.getModel())) {
 			return this._showMessage(localize('no-editor', "There are no editors open that can provide outline information."));
 		}
 
-		let textModel = editor.getModel();
 		let loadingMessage: IDisposable;
-		let oldModel = this._tree.getInput();
 		if (!oldModel) {
 			loadingMessage = new TimeoutTimer(
 				() => this._showMessage(localize('loading', "Loading document symbols for '{0}'...", posix.basename(textModel.uri.path))),
@@ -426,17 +433,17 @@ export class OutlinePanel extends ViewletPanel {
 			);
 		}
 
-		let model = await OutlinePanel._createOutlineModel(textModel, this._editorDisposables);
+		let newModel = await OutlinePanel._createOutlineModel(textModel, this._editorDisposables);
 		dispose(loadingMessage);
-		if (!model) {
+		if (!newModel) {
 			return;
 		}
 
-		if (TreeElement.empty(model)) {
+		if (TreeElement.empty(newModel)) {
 			return this._showMessage(localize('no-symbols', "No symbols found in document '{0}'", posix.basename(textModel.uri.path)));
 		}
 
-		let newSize = TreeElement.size(model);
+		let newSize = TreeElement.size(newModel);
 		if (newSize > 7500) {
 			// this is a workaround for performance issues with the tree: https://github.com/Microsoft/vscode/issues/18180
 			return this._showMessage(localize('too-many-symbols', "We are sorry, but this file is too large for showing an outline."));
@@ -475,18 +482,12 @@ export class OutlinePanel extends ViewletPanel {
 
 		this._progressBar.stop().hide();
 
-		if (oldModel && oldModel.merge(model)) {
+		if (oldModel && oldModel.merge(newModel)) {
 			this._tree.updateChildren();
-			model = oldModel;
-
+			newModel = oldModel;
 		} else {
-			// persist state
-			if (oldModel) {
-				let state = this._tree.getViewState();
-				this._treeStates.set(oldModel.textModel.uri.toString(), state);
-			}
-			let state = this._treeStates.get(model.textModel.uri.toString());
-			await this._tree.setInput(model, state);
+			let state = this._treeStates.get(newModel.textModel.uri.toString());
+			await this._tree.setInput(newModel, state);
 		}
 
 		this.layoutBody(this._cachedHeight);
@@ -522,18 +523,18 @@ export class OutlinePanel extends ViewletPanel {
 						|| (this._tree.useAltAsMultipleSelectionModifier && (event.ctrlKey || event.metaKey));
 				}
 			}
-			this._revealTreeSelection(model, first, focus, aside);
+			this._revealTreeSelection(newModel, first, focus, aside);
 		}));
 
 		// feature: reveal editor selection in outline
-		this._revealEditorSelection(model, editor.getSelection());
-		const versionIdThen = model.textModel.getVersionId();
+		this._revealEditorSelection(newModel, editor.getSelection());
+		const versionIdThen = newModel.textModel.getVersionId();
 		this._editorDisposables.push(editor.onDidChangeCursorSelection(e => {
 			// first check if the document has changed and stop revealing the
 			// cursor position iff it has -> we will update/recompute the
 			// outline view then anyways
-			if (!model.textModel.isDisposed() && model.textModel.getVersionId() === versionIdThen) {
-				this._revealEditorSelection(model, e.selection);
+			if (!newModel.textModel.isDisposed() && newModel.textModel.getVersionId() === versionIdThen) {
+				this._revealEditorSelection(newModel, e.selection);
 			}
 		}));
 
@@ -547,7 +548,7 @@ export class OutlinePanel extends ViewletPanel {
 			}
 			const marker = this._markerService.read({ resource: textModel.uri, severities: MarkerSeverity.Error | MarkerSeverity.Warning });
 			if (marker.length > 0 || !ignoreEmpty) {
-				model.updateMarker(marker);
+				newModel.updateMarker(marker);
 				this._tree.updateChildren();
 			}
 		};
@@ -563,7 +564,7 @@ export class OutlinePanel extends ViewletPanel {
 				return;
 			}
 			if (!this._configurationService.getValue(OutlineConfigKeys.problemsEnabled)) {
-				model.updateMarker([]);
+				newModel.updateMarker([]);
 				this._tree.updateChildren();
 			} else {
 				updateMarker([textModel.uri], true);
