@@ -539,7 +539,9 @@ suite('SQLite Storage Library', () => {
 		await del(storageDir, tmpdir());
 	});
 
-	test('real world example', async () => {
+	test('real world example', async function () {
+		this.timeout(20000);
+
 		const storageDir = uniqueStorageDir();
 
 		await mkdirp(storageDir);
@@ -628,7 +630,9 @@ suite('SQLite Storage Library', () => {
 		await del(storageDir, tmpdir());
 	});
 
-	test('very large item value', async () => {
+	test('very large item value', async function () {
+		this.timeout(20000);
+
 		const storageDir = uniqueStorageDir();
 
 		await mkdirp(storageDir);
