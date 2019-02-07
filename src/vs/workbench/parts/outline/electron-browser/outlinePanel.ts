@@ -418,7 +418,7 @@ export class OutlinePanel extends ViewletPanel {
 
 		let textModel = editor.getModel();
 		let loadingMessage: IDisposable;
-		let oldModel = <OutlineModel>this._tree.getInput();
+		let oldModel = this._tree.getInput();
 		if (!oldModel) {
 			loadingMessage = new TimeoutTimer(
 				() => this._showMessage(localize('loading', "Loading document symbols for '{0}'...", posix.basename(textModel.uri.path))),
