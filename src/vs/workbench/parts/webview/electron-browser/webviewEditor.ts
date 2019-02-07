@@ -223,7 +223,6 @@ export class WebviewEditor extends BaseWebviewEditor {
 				this._partService.getContainer(Parts.EDITOR_PART),
 				{
 					enableWrappedPostMessage: true,
-					allowSvgs: true,
 					useSameOriginForRoot: false,
 					extensionLocation: input.extensionLocation
 				});
