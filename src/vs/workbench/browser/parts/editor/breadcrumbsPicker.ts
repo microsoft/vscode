@@ -129,16 +129,6 @@ export abstract class BreadcrumbsPicker {
 			this._layout();
 		}));
 
-		// tree icon theme specials
-		dom.addClass(this._treeContainer, 'file-icon-themable-tree');
-		dom.addClass(this._treeContainer, 'show-file-icons');
-		const onFileIconThemeChange = (fileIconTheme: IFileIconTheme) => {
-			dom.toggleClass(this._treeContainer, 'align-icons-and-twisties', fileIconTheme.hasFileIcons && !fileIconTheme.hasFolderIcons);
-			dom.toggleClass(this._treeContainer, 'hide-arrows', fileIconTheme.hidesExplorerArrows === true);
-		};
-		this._disposables.push(this._themeService.onDidFileIconThemeChange(onFileIconThemeChange));
-		onFileIconThemeChange(this._themeService.getFileIconTheme());
-
 		this._domNode.focus();
 		this._layoutInfo = { maxHeight, width, arrowSize, arrowOffset, inputHeight: 0 };
 
@@ -375,6 +365,16 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 	}
 
 	_createTree(container: HTMLElement) {
+
+		// tree icon theme specials
+		dom.addClass(this._treeContainer, 'file-icon-themable-tree');
+		dom.addClass(this._treeContainer, 'show-file-icons');
+		const onFileIconThemeChange = (fileIconTheme: IFileIconTheme) => {
+			dom.toggleClass(this._treeContainer, 'align-icons-and-twisties', fileIconTheme.hasFileIcons && !fileIconTheme.hasFolderIcons);
+			dom.toggleClass(this._treeContainer, 'hide-arrows', fileIconTheme.hidesExplorerArrows === true);
+		};
+		this._disposables.push(this._themeService.onDidFileIconThemeChange(onFileIconThemeChange));
+		onFileIconThemeChange(this._themeService.getFileIconTheme());
 
 		const labels = this._instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER /* TODO@Jo visibility propagation */);
 		this._disposables.push(labels);
