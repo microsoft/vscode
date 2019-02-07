@@ -31,12 +31,13 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
 import { normalizeNFC } from 'vs/base/common/normalization';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Queue, timeout } from 'vs/base/common/async';
 import { exists } from 'vs/base/node/pfs';
 import { getComparisonKey, isEqual, normalizePath, basename as resourcesBasename, fsPath } from 'vs/base/common/resources';
 import { endsWith } from 'vs/base/common/strings';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
+import { IWindowsState, restoreWindowsState, WindowsStateStoreData, IWindowState, getWindowsStateStoreData } from 'vs/code/electron-main/windowsState';
 
 const enum WindowError {
 	UNRESPONSIVE = 1,
@@ -45,40 +46,6 @@ const enum WindowError {
 
 interface INewWindowState extends ISingleWindowState {
 	hasDefaultState?: boolean;
-}
-
-interface IWindowState {
-	workspace?: IWorkspaceIdentifier;
-	folderUri?: URI;
-	backupPath: string;
-	remoteAuthority?: string;
-	uiState: ISingleWindowState;
-}
-
-interface IWindowsState {
-	lastActiveWindow?: IWindowState;
-	lastPluginDevelopmentHostWindow?: IWindowState;
-	openedWindows: IWindowState[];
-}
-
-interface ISerializedWindowsState {
-	lastActiveWindow?: ISerializedWindowState;
-	lastPluginDevelopmentHostWindow?: ISerializedWindowState;
-	openedWindows: ISerializedWindowState[];
-}
-
-interface ISerializedWindowState {
-	workspaceIdentifier?: { id: string; configURIPath: string };
-	folder?: string;
-	backupPath: string;
-	remoteAuthority?: string;
-	uiState: ISingleWindowState;
-
-	// deprecated
-	folderUri?: UriComponents;
-	folderPath?: string;
-	workspace?: { id: string; configPath: string };
-
 }
 
 type RestoreWindowsSetting = 'all' | 'folders' | 'one' | 'none';
@@ -177,46 +144,15 @@ export class WindowsManager implements IWindowsMainService {
 		@IWorkspacesMainService private readonly workspacesMainService: IWorkspacesMainService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
-		this.windowsState = this.getWindowsState();
+		const windowsStateStoreData = this.stateService.getItem<WindowsStateStoreData>(WindowsManager.windowsStateStorageKey);
+
+		this.windowsState = restoreWindowsState(windowsStateStoreData);
 		if (!Array.isArray(this.windowsState.openedWindows)) {
 			this.windowsState.openedWindows = [];
 		}
 
 		this.dialogs = new Dialogs(environmentService, telemetryService, stateService, this);
 		this.workspacesManager = new WorkspacesManager(workspacesMainService, backupMainService, environmentService, historyMainService, this);
-	}
-
-	private getWindowsState(): IWindowsState {
-		const result: IWindowsState = { openedWindows: [] };
-		const windowsState = this.stateService.getItem<ISerializedWindowsState>(WindowsManager.windowsStateStorageKey) || { openedWindows: [] };
-
-		if (windowsState.lastActiveWindow) {
-			result.lastActiveWindow = this.deserialize(windowsState.lastActiveWindow);
-		}
-		if (windowsState.lastPluginDevelopmentHostWindow) {
-			result.lastPluginDevelopmentHostWindow = this.deserialize(windowsState.lastPluginDevelopmentHostWindow);
-		}
-		if (Array.isArray(windowsState.openedWindows)) {
-			result.openedWindows = windowsState.openedWindows.map(windowState => this.deserialize(windowState));
-		}
-		return result;
-	}
-
-	private deserialize(windowState: ISerializedWindowState): IWindowState {
-		const result: IWindowState = { backupPath: windowState.backupPath, remoteAuthority: windowState.remoteAuthority, uiState: windowState.uiState };
-		if (windowState.folder) {
-			result.folderUri = URI.parse(windowState.folder);
-		} else if (windowState.folderUri) {
-			result.folderUri = URI.revive(windowState.folderUri);
-		} else if (windowState.folderPath) {
-			result.folderUri = URI.file(windowState.folderPath);
-		}
-		if (windowState.workspaceIdentifier) {
-			result.workspace = { id: windowState.workspaceIdentifier.id, configPath: URI.parse(windowState.workspaceIdentifier.configURIPath) };
-		} else if (windowState.workspace) {
-			result.workspace = { id: windowState.workspace.id, configPath: URI.file(windowState.workspace.configPath) };
-		}
-		return result;
 	}
 
 	ready(initialUserEnv: IProcessEnvironment): void {
@@ -337,25 +273,7 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		// Persist
-		this.stateService.setItem(WindowsManager.windowsStateStorageKey, this.serializeWindowsState(currentWindowsState));
-	}
-
-	private serializeWindowsState(windowsState: IWindowsState): ISerializedWindowsState {
-		return {
-			lastActiveWindow: windowsState.lastActiveWindow && this.serialize(windowsState.lastActiveWindow),
-			lastPluginDevelopmentHostWindow: windowsState.lastPluginDevelopmentHostWindow && this.serialize(windowsState.lastPluginDevelopmentHostWindow),
-			openedWindows: windowsState.openedWindows.map(ws => this.serialize(ws))
-		};
-	}
-
-	private serialize(windowState: IWindowState): ISerializedWindowState {
-		return {
-			workspaceIdentifier: windowState.workspace && { id: windowState.workspace.id, configURIPath: windowState.workspace.configPath.toString() },
-			folder: windowState.folderUri && windowState.folderUri.toString(),
-			backupPath: windowState.backupPath,
-			remoteAuthority: windowState.remoteAuthority,
-			uiState: windowState.uiState
-		};
+		this.stateService.setItem(WindowsManager.windowsStateStorageKey, getWindowsStateStoreData(currentWindowsState));
 	}
 
 	// See note on #onBeforeShutdown() for details how these events are flowing
