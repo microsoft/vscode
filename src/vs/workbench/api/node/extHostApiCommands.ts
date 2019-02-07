@@ -11,7 +11,7 @@ import * as types from 'vs/workbench/api/node/extHostTypes';
 import { IRawColorInfo, WorkspaceEditDto } from 'vs/workbench/api/node/extHost.protocol';
 import { ISingleEditOperation } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
-import * as search from 'vs/workbench/parts/search/common/search';
+import * as search from 'vs/workbench/contrib/search/common/search';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { CustomCodeAction } from 'vs/workbench/api/node/extHostLanguageFeatures';

@@ -602,7 +602,7 @@ export function getResource(sourceFile: string): Resource {
 		return { name: 'vs/base', project: editorProject };
 	} else if (/^vs\/code/.test(sourceFile)) {
 		return { name: 'vs/code', project: workbenchProject };
-	} else if (/^vs\/workbench\/parts/.test(sourceFile)) {
+	} else if (/^vs\/workbench\/contrib/.test(sourceFile)) {
 		resource = sourceFile.split('/', 4).join('/');
 		return { name: resource, project: workbenchProject };
 	} else if (/^vs\/workbench\/services/.test(sourceFile)) {

@@ -11,7 +11,7 @@ import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 // --- other interested parties
 import { JSONValidationExtensionPoint } from 'vs/workbench/services/jsonschemas/common/jsonValidationExtensionPoint';
 import { ColorExtensionPoint } from 'vs/workbench/services/themes/common/colorExtensionPoint';
-import { LanguageConfigurationFileHandler } from 'vs/workbench/parts/codeEditor/electron-browser/languageConfiguration/languageConfigurationExtensionPoint';
+import { LanguageConfigurationFileHandler } from 'vs/workbench/contrib/codeEditor/electron-browser/languageConfiguration/languageConfigurationExtensionPoint';
 
 // --- mainThread participants
 import 'vs/workbench/api/node/apiCommands';

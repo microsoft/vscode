@@ -402,7 +402,7 @@
 					"**/vs/platform/**",
 					"**/vs/editor/**",
 					"**/vs/workbench/{common,browser,node,electron-browser}/**",
-					"vs/workbench/parts/files/common/editors/fileEditorInput",
+					"vs/workbench/contrib/files/common/editors/fileEditorInput",
 					"**/vs/workbench/services/**",
 					"**/vs/workbench/test/**",
 					"*" // node modules
@@ -458,7 +458,7 @@
 				]
 			},
 			{
-				"target": "**/vs/workbench/parts/files/common/**",
+				"target": "**/vs/workbench/contrib/files/common/**",
 				"restrictions": [
 					"vs/nls",
 					"**/vs/base/common/**",
@@ -468,12 +468,12 @@
 					"**/vs/editor/contrib/*/common/**",
 					"**/vs/workbench/common/**",
 					"**/vs/workbench/services/*/common/**",
-					"**/vs/workbench/parts/files/common/**",
+					"**/vs/workbench/contrib/files/common/**",
 					"assert"
 				]
 			},
 			{
-				"target": "**/vs/workbench/parts/files/browser/**",
+				"target": "**/vs/workbench/contrib/files/browser/**",
 				"restrictions": [
 					"vs/nls",
 					"vs/css!./**/*",
@@ -484,12 +484,12 @@
 					"**/vs/editor/contrib/**", // editor/contrib is equivalent to /browser/ by convention
 					"**/vs/workbench/{common,browser}/**",
 					"**/vs/workbench/services/*/{common,browser}/**",
-					"**/vs/workbench/parts/files/{common,browser}/**",
+					"**/vs/workbench/contrib/files/{common,browser}/**",
 					"assert"
 				]
 			},
 			{
-				"target": "**/vs/workbench/parts/files/electron-browser/**",
+				"target": "**/vs/workbench/contrib/files/electron-browser/**",
 				"restrictions": [
 					"vs/nls",
 					"vs/css!./**/*",
@@ -501,7 +501,7 @@
 					"**/vs/editor/contrib/**", // editor/contrib is equivalent to /browser/ by convention
 					"**/vs/workbench/{common,browser,node,electron-browser,api}/**",
 					"**/vs/workbench/services/*/{common,browser,node,electron-browser}/**",
-					"**/vs/workbench/parts/files/{common,browser,node,electron-browser}/**",
+					"**/vs/workbench/contrib/files/{common,browser,node,electron-browser}/**",
 					"*" // node modules
 				]
 			},

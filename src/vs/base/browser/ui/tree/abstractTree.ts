@@ -805,6 +805,10 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 	}
 
 	protected onPointer(e: IListMouseEvent<ITreeNode<T, TFilterData>>): void {
+		if (isInputElement(e.browserEvent.target as HTMLElement)) {
+			return;
+		}
+
 		const node = e.element;
 
 		if (!node) {
@@ -815,11 +819,11 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 			return super.onPointer(e);
 		}
 
-		if (!this.tree.openOnSingleClick && e.browserEvent.detail !== 2) {
+		const onTwistie = hasClass(e.browserEvent.target as HTMLElement, 'monaco-tl-twistie');
+
+		if (!this.tree.openOnSingleClick && e.browserEvent.detail !== 2 && !onTwistie) {
 			return super.onPointer(e);
 		}
-
-		const onTwistie = hasClass(e.browserEvent.target as HTMLElement, 'monaco-tl-twistie');
 
 		if (this.tree.expandOnlyOnTwistieClick && !onTwistie) {
 			return super.onPointer(e);
