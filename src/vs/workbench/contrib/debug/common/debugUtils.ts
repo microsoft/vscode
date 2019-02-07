@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equalsIgnoreCase } from 'vs/base/common/strings';
-import { IConfig } from 'vs/workbench/contrib/debug/common/debug';
+import { IConfig, IDebuggerContribution } from 'vs/workbench/contrib/debug/common/debug';
 import { URI as uri } from 'vs/base/common/uri';
 import { isAbsolute_posix, isAbsolute_win32 } from 'vs/base/common/paths';
 import { deepClone } from 'vs/base/common/objects';
@@ -25,6 +25,11 @@ export function formatPII(value: string, excludePII: boolean, args: { [key: stri
 
 export function isExtensionHostDebugging(config: IConfig) {
 	return config.type && equalsIgnoreCase(config.type === 'vslsShare' ? (<any>config).adapterProxy.configuration.type : config.type, 'extensionhost');
+}
+
+// only a debugger contributions with a label, program, or runtime attribute is considered a "defining" or "main" debugger contribution
+export function isDebuggerMainContribution(dbg: IDebuggerContribution) {
+	return dbg.type && (dbg.label || dbg.program || dbg.runtime);
 }
 
 export function getExactExpressionStartAndEnd(lineContent: string, looseStart: number, looseEnd: number): { start: number, end: number } {
