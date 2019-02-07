@@ -488,7 +488,7 @@ export class TestPartService implements IPartService {
 	}
 
 	public getMenubarVisibility(): MenuBarVisibility {
-		return null;
+		throw new Error('not implemented');
 	}
 
 	public getSideBarPosition() {
@@ -505,7 +505,7 @@ export class TestPartService implements IPartService {
 
 	public addClass(_clazz: string): void { }
 	public removeClass(_clazz: string): void { }
-	public getWorkbenchElement(): HTMLElement { return undefined; }
+	public getWorkbenchElement(): HTMLElement { throw new Error('not implemented'); }
 
 	public toggleZenMode(): void { }
 
@@ -550,7 +550,7 @@ export class TestEditorGroupsService implements EditorGroupsServiceImpl {
 			}
 		}
 
-		return undefined;
+		return undefined!;
 	}
 
 	getLabel(_identifier: number): string {
@@ -558,11 +558,11 @@ export class TestEditorGroupsService implements EditorGroupsServiceImpl {
 	}
 
 	findGroup(_scope: IFindGroupScope, _source?: number | IEditorGroup, _wrap?: boolean): IEditorGroup {
-		return null;
+		throw new Error('not implemented');
 	}
 
 	activateGroup(_group: number | IEditorGroup): IEditorGroup {
-		return null;
+		throw new Error('not implemented');
 	}
 
 	getSize(_group: number | IEditorGroup): number {
@@ -578,21 +578,21 @@ export class TestEditorGroupsService implements EditorGroupsServiceImpl {
 	setGroupOrientation(_orientation: any): void { }
 
 	addGroup(_location: number | IEditorGroup, _direction: GroupDirection, _options?: IAddGroupOptions): IEditorGroup {
-		return null;
+		throw new Error('not implemented');
 	}
 
 	removeGroup(_group: number | IEditorGroup): void { }
 
 	moveGroup(_group: number | IEditorGroup, _location: number | IEditorGroup, _direction: GroupDirection): IEditorGroup {
-		return null;
+		throw new Error('not implemented');
 	}
 
 	mergeGroup(_group: number | IEditorGroup, _target: number | IEditorGroup, _options?: IMergeGroupOptions): IEditorGroup {
-		return null;
+		throw new Error('not implemented');
 	}
 
 	copyGroup(_group: number | IEditorGroup, _location: number | IEditorGroup, _direction: GroupDirection): IEditorGroup {
-		return null;
+		throw new Error('not implemented');
 	}
 }
 
@@ -600,7 +600,7 @@ export class TestEditorGroup implements IEditorGroupView {
 
 	constructor(public id: number) { }
 
-	group: EditorGroup = undefined;
+	get group(): EditorGroup { throw new Error('not implemented'); }
 	activeControl: IEditor;
 	activeEditor: IEditorInput;
 	previewEditor: IEditorInput;
@@ -629,7 +629,7 @@ export class TestEditorGroup implements IEditorGroupView {
 	}
 
 	getEditor(_index: number): IEditorInput {
-		return null;
+		throw new Error('not implemented');
 	}
 
 	getIndexOfEditor(_editor: IEditorInput): number {
@@ -637,11 +637,11 @@ export class TestEditorGroup implements IEditorGroupView {
 	}
 
 	openEditor(_editor: IEditorInput, _options?: IEditorOptions): Promise<IEditor> {
-		return Promise.resolve(null);
+		throw new Error('not implemented');
 	}
 
 	openEditors(_editors: IEditorInputWithOptions[]): Promise<IEditor> {
-		return Promise.resolve(null);
+		throw new Error('not implemented');
 	}
 
 	isOpened(_editor: IEditorInput): boolean {
@@ -681,7 +681,7 @@ export class TestEditorGroup implements IEditorGroupView {
 	focus(): void { }
 
 	invokeWithinContext<T>(fn: (accessor: ServicesAccessor) => T): T {
-		return fn(null);
+		throw new Error('not implemented');
 	}
 
 	isEmpty(): boolean { return true; }
@@ -714,12 +714,12 @@ export class TestEditorService implements EditorServiceImpl {
 		return toDisposable(() => undefined);
 	}
 
-	openEditor(_editor: any, _options?: any, _group?: any) {
-		return Promise.resolve(null);
+	openEditor(_editor: any, _options?: any, _group?: any): Promise<any> {
+		throw new Error('not implemented');
 	}
 
-	openEditors(_editors: any, _group?: any) {
-		return Promise.resolve(null);
+	openEditors(_editors: any, _group?: any): Promise<IEditor[]> {
+		throw new Error('not implemented');
 	}
 
 	isOpen(_editor: IEditorInput | IResourceInput | IUntitledResourceInput): boolean {
@@ -727,7 +727,7 @@ export class TestEditorService implements EditorServiceImpl {
 	}
 
 	getOpened(_editor: IEditorInput | IResourceInput | IUntitledResourceInput): IEditorInput {
-		return undefined;
+		throw new Error('not implemented');
 	}
 
 	replaceEditors(_editors: any, _group: any) {
@@ -735,11 +735,11 @@ export class TestEditorService implements EditorServiceImpl {
 	}
 
 	invokeWithinEditorContext<T>(fn: (accessor: ServicesAccessor) => T): T {
-		return fn(null);
+		throw new Error('not implemented');
 	}
 
 	createInput(_input: IResourceInput | IUntitledResourceInput | IResourceDiffInput | IResourceSideBySideInput): IEditorInput {
-		return null;
+		throw new Error('not implemented');
 	}
 }
 
@@ -799,7 +799,7 @@ export class TestFileService implements IFileService {
 	}
 
 	existsFile(_resource: URI): Promise<boolean> {
-		return Promise.resolve(null);
+		throw new Error('not implemented');
 	}
 
 	resolveContent(resource: URI, _options?: IResolveContentOptions): Promise<IContent> {
@@ -845,15 +845,15 @@ export class TestFileService implements IFileService {
 	}
 
 	moveFile(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStat> {
-		return Promise.resolve(null);
+		return Promise.resolve(null!);
 	}
 
 	copyFile(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStat> {
-		return Promise.resolve(null);
+		throw new Error('not implemented');
 	}
 
 	createFile(_resource: URI, _content?: string, _options?: ICreateFileOptions): Promise<IFileStat> {
-		return Promise.resolve(null);
+		throw new Error('not implemented');
 	}
 
 	readFolder(_resource: URI) {
@@ -861,7 +861,7 @@ export class TestFileService implements IFileService {
 	}
 
 	createFolder(_resource: URI): Promise<IFileStat> {
-		return Promise.resolve(null);
+		throw new Error('not implemented');
 	}
 
 	onDidChangeFileSystemProviderRegistrations = Event.None;
@@ -870,8 +870,8 @@ export class TestFileService implements IFileService {
 		return { dispose() { } };
 	}
 
-	activateProvider(_scheme: string) {
-		return Promise.resolve(null);
+	activateProvider(_scheme: string): Promise<void> {
+		throw new Error('not implemented');
 	}
 
 	canHandleResource(resource: URI): boolean {
@@ -879,7 +879,7 @@ export class TestFileService implements IFileService {
 	}
 
 	del(_resource: URI, _options?: { useTrash?: boolean, recursive?: boolean }): Promise<void> {
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 
 	watchFileChanges(_resource: URI): void {
@@ -907,7 +907,7 @@ export class TestBackupFileService implements IBackupFileService {
 		return Promise.resolve(false);
 	}
 
-	public loadBackupResource(resource: URI): Promise<URI> {
+	public loadBackupResource(resource: URI): Promise<URI | undefined> {
 		return this.hasBackup(resource).then(hasBackup => {
 			if (hasBackup) {
 				return this.toBackupResource(resource);
@@ -926,7 +926,7 @@ export class TestBackupFileService implements IBackupFileService {
 	}
 
 	public toBackupResource(_resource: URI): URI {
-		return null;
+		throw new Error('not implemented');
 	}
 
 	public backupResource(_resource: URI, _content: ITextSnapshot): Promise<void> {
@@ -945,7 +945,7 @@ export class TestBackupFileService implements IBackupFileService {
 	}
 
 	public resolveBackupContent(_backup: URI): Promise<ITextBufferFactory> {
-		return Promise.resolve(null);
+		throw new Error('not implemented');
 	}
 
 	public discardResourceBackup(_resource: URI): Promise<void> {
@@ -1052,7 +1052,10 @@ export class TestWindowService implements IWindowService {
 	}
 
 	getRecentlyOpened(): Promise<IRecentlyOpened> {
-		return Promise.resolve(undefined);
+		return Promise.resolve({
+			workspaces: [],
+			files: []
+		});
 	}
 
 	focusWindow(): Promise<void> {
@@ -1096,11 +1099,11 @@ export class TestWindowService implements IWindowService {
 	}
 
 	showSaveDialog(_options: Electron.SaveDialogOptions): Promise<string> {
-		return Promise.resolve(undefined);
+		throw new Error('not implemented');
 	}
 
 	showOpenDialog(_options: Electron.OpenDialogOptions): Promise<string[]> {
-		return Promise.resolve(undefined);
+		throw new Error('not implemented');
 	}
 
 	updateTouchBar(_items: ISerializableCommandAction[][]): Promise<void> {
@@ -1225,7 +1228,10 @@ export class TestWindowsService implements IWindowsService {
 	}
 
 	getRecentlyOpened(_windowId: number): Promise<IRecentlyOpened> {
-		return Promise.resolve(undefined);
+		return Promise.resolve({
+			workspaces: [],
+			files: []
+		});
 	}
 
 	focusWindow(_windowId: number): Promise<void> {
@@ -1290,7 +1296,7 @@ export class TestWindowsService implements IWindowsService {
 	}
 
 	getWindows(): Promise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]> {
-		return Promise.resolve(undefined);
+		throw new Error('not implemented');
 	}
 
 	getWindowCount(): Promise<number> {
@@ -1349,15 +1355,15 @@ export class TestWindowsService implements IWindowsService {
 	}
 
 	showMessageBox(_windowId: number, _options: Electron.MessageBoxOptions): Promise<IMessageBoxResult> {
-		return Promise.resolve(undefined);
+		throw new Error('not implemented');
 	}
 
 	showSaveDialog(_windowId: number, _options: Electron.SaveDialogOptions): Promise<string> {
-		return Promise.resolve(undefined);
+		throw new Error('not implemented');
 	}
 
 	showOpenDialog(_windowId: number, _options: Electron.OpenDialogOptions): Promise<string[]> {
-		return Promise.resolve(undefined);
+		throw new Error('not implemented');
 	}
 
 	openAboutDialog(): Promise<void> {
