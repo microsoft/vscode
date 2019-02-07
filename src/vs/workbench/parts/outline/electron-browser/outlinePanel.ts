@@ -320,6 +320,12 @@ export class OutlinePanel extends ViewletPanel {
 		this._disposables.push(this._tree);
 		this._disposables.push(this._outlineViewState.onDidChange(this._onDidChangeUserState, this));
 
+		// todo@joh workaournd for the tree resetting the filter behaviour
+		// to something globally defined
+		this._tree.updateOptions({
+			filterOnType: this._outlineViewState.filterOnType
+		});
+
 		// feature: toggle icons
 		this.disposables.push(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(OutlineConfigKeys.icons)) {
