@@ -400,11 +400,15 @@
 		"./vs/workbench/api/electron-browser/extHostCustomers.ts",
 		"./vs/workbench/api/electron-browser/mainThreadClipboard.ts",
 		"./vs/workbench/api/electron-browser/mainThreadCommands.ts",
+		"./vs/workbench/api/electron-browser/mainThreadDiagnostics.ts",
 		"./vs/workbench/api/electron-browser/mainThreadErrors.ts",
 		"./vs/workbench/api/electron-browser/mainThreadFileSystem.ts",
+		"./vs/workbench/api/electron-browser/mainThreadFileSystemEventService.ts",
 		"./vs/workbench/api/electron-browser/mainThreadLanguages.ts",
 		"./vs/workbench/api/electron-browser/mainThreadLogService.ts",
+		"./vs/workbench/api/electron-browser/mainThreadProgress.ts",
 		"./vs/workbench/api/electron-browser/mainThreadStatusBar.ts",
+		"./vs/workbench/api/electron-browser/mainThreadStorage.ts",
 		"./vs/workbench/api/electron-browser/mainThreadTelemetry.ts",
 		"./vs/workbench/api/electron-browser/mainThreadUrls.ts",
 		"./vs/workbench/api/electron-browser/mainThreadWindow.ts",
@@ -416,6 +420,7 @@
 		"./vs/workbench/api/node/extHostHeapService.ts",
 		"./vs/workbench/api/node/extHostLogService.ts",
 		"./vs/workbench/api/node/extHostMessageService.ts",
+		"./vs/workbench/api/node/extHostOutputService.ts",
 		"./vs/workbench/api/node/extHostSearch.fileIndex.ts",
 		"./vs/workbench/api/node/extHostStorage.ts",
 		"./vs/workbench/api/node/extHostTypes.ts",
@@ -498,6 +503,7 @@
 		"./vs/workbench/parts/codeEditor/electron-browser/toggleWordWrap.ts",
 		"./vs/workbench/parts/comments/common/commentModel.ts",
 		"./vs/workbench/parts/comments/electron-browser/commentGlyphWidget.ts",
+		"./vs/workbench/parts/comments/electron-browser/commentService.ts",
 		"./vs/workbench/parts/comments/electron-browser/simpleCommentEditor.ts",
 		"./vs/workbench/parts/debug/browser/debugANSIHandling.ts",
 		"./vs/workbench/parts/debug/browser/linkDetector.ts",
@@ -732,7 +738,10 @@
 		"./vs/workbench/test/common/editor/editorOptions.test.ts",
 		"./vs/workbench/test/common/notifications.test.ts",
 		"./vs/workbench/test/electron-browser/api/extHostTypes.test.ts",
-		"./vs/workbench/test/electron-browser/api/mock.ts"
+		"./vs/workbench/test/electron-browser/api/mainThreadCommands.test.ts",
+		"./vs/workbench/test/electron-browser/api/mainThreadDiagnostics.test.ts",
+		"./vs/workbench/test/electron-browser/api/mock.ts",
+		"./vs/workbench/test/electron-browser/api/testRPCProtocol.ts"
 	],
 	"exclude": [
 		"./typings/require-monaco.d.ts"

@@ -453,7 +453,7 @@ export interface MainThreadStatusBarShape extends IDisposable {
 }
 
 export interface MainThreadStorageShape extends IDisposable {
-	$getValue<T>(shared: boolean, key: string): Promise<T>;
+	$getValue<T>(shared: boolean, key: string): Promise<T | undefined>;
 	$setValue(shared: boolean, key: string, value: object): Promise<void>;
 }
 
@@ -1074,7 +1074,7 @@ export interface ExtHostCommentsShape {
 }
 
 export interface ExtHostStorageShape {
-	$acceptValue(shared: boolean, key: string, value: object): void;
+	$acceptValue(shared: boolean, key: string, value: object | undefined): void;
 }
 
 // --- proxy identifiers
