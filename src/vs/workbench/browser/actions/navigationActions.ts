@@ -78,7 +78,11 @@ abstract class BaseNavigationAction extends Action {
 			return Promise.resolve(false);
 		}
 
-		const activeViewletId = this.viewletService.getActiveViewlet().getId();
+		const activeViewlet = this.viewletService.getActiveViewlet();
+		if (!activeViewlet) {
+			return Promise.resolve(false);
+		}
+		const activeViewletId = activeViewlet.getId();
 
 		return this.viewletService.openViewlet(activeViewletId, true)
 			.then(value => value === null ? false : value);

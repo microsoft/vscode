@@ -163,20 +163,26 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, isAllowed, StorageScope.WORKSPACE);
 	}
 
-	public mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig, platformOverride: platform.Platform = platform.platform): void {
+	public isWorkspaceShellAllowed(defaultValue: boolean | undefined = undefined): boolean | undefined {
+		return this._storageService.getBoolean(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, StorageScope.WORKSPACE, defaultValue);
+	}
+
+	public checkWorkspaceShellPermissions(platformOverride: platform.Platform = platform.platform): boolean {
 		// Check whether there is a workspace setting
 		const platformKey = platformOverride === platform.Platform.Windows ? 'windows' : platformOverride === platform.Platform.Mac ? 'osx' : 'linux';
 		const shellConfigValue = this._workspaceConfigurationService.inspect<string>(`terminal.integrated.shell.${platformKey}`);
 		const shellArgsConfigValue = this._workspaceConfigurationService.inspect<string[]>(`terminal.integrated.shellArgs.${platformKey}`);
+		const envConfigValue = this._workspaceConfigurationService.inspect<string[]>(`terminal.integrated.env.${platformKey}`);
 
 		// Check if workspace setting exists and whether it's whitelisted
 		let isWorkspaceShellAllowed: boolean | undefined = false;
-		if (shellConfigValue.workspace !== undefined || shellArgsConfigValue.workspace !== undefined) {
-			isWorkspaceShellAllowed = this._storageService.getBoolean(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, StorageScope.WORKSPACE, undefined);
+		if (shellConfigValue.workspace !== undefined || shellArgsConfigValue.workspace !== undefined || envConfigValue.workspace !== undefined) {
+			isWorkspaceShellAllowed = this.isWorkspaceShellAllowed(undefined);
 		}
 
 		// Always allow [] args as it would lead to an odd error message and should not be dangerous
-		if (shellConfigValue.workspace === undefined && shellArgsConfigValue.workspace && shellArgsConfigValue.workspace.length === 0) {
+		if (shellConfigValue.workspace === undefined && envConfigValue.workspace === undefined &&
+			shellArgsConfigValue.workspace && shellArgsConfigValue.workspace.length === 0) {
 			isWorkspaceShellAllowed = true;
 		}
 
@@ -185,34 +191,47 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		if (isWorkspaceShellAllowed === undefined) {
 			let shellString: string | undefined;
 			if (shellConfigValue.workspace) {
-				shellString = `"${shellConfigValue.workspace}"`;
+				shellString = `shell: "${shellConfigValue.workspace}"`;
 			}
 			let argsString: string | undefined;
 			if (shellArgsConfigValue.workspace) {
-				argsString = `[${shellArgsConfigValue.workspace.map(v => '"' + v + '"').join(', ')}]`;
+				argsString = `shellArgs: [${shellArgsConfigValue.workspace.map(v => '"' + v + '"').join(', ')}]`;
+			}
+			let envString: string | undefined;
+			if (envConfigValue.workspace) {
+				envString = `env: {${Object.keys(envConfigValue.workspace).map(k => `${k}:${envConfigValue.workspace![k]}`).join(', ')}}`;
 			}
 			// Should not be localized as it's json-like syntax referencing settings keys
-			let changeString: string;
+			const workspaceConfigStrings: string[] = [];
 			if (shellString) {
-				if (argsString) {
-					changeString = `shell: ${shellString}, shellArgs: ${argsString}`;
-				} else {
-					changeString = `shell: ${shellString}`;
-				}
-			} else { // if (shellArgsConfigValue.workspace !== undefined)
-				changeString = `shellArgs: ${argsString}`;
+				workspaceConfigStrings.push(shellString);
 			}
-			this._notificationService.prompt(Severity.Info, nls.localize('terminal.integrated.allowWorkspaceShell', "Do you allow {0} (defined as a workspace setting) to be launched in the terminal?", changeString),
+			if (argsString) {
+				workspaceConfigStrings.push(argsString);
+			}
+			if (envString) {
+				workspaceConfigStrings.push(envString);
+			}
+			const workspaceConfigString = workspaceConfigStrings.join(', ');
+			this._notificationService.prompt(Severity.Info, nls.localize('terminal.integrated.allowWorkspaceShell', "Do you allow this workspace to modify your terminal shell? {0}", workspaceConfigString),
 				[{
 					label: nls.localize('allow', "Allow"),
-					run: () => this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, true, StorageScope.WORKSPACE)
+					run: () => this.setWorkspaceShellAllowed(true)
 				},
 				{
 					label: nls.localize('disallow', "Disallow"),
-					run: () => this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, false, StorageScope.WORKSPACE)
+					run: () => this.setWorkspaceShellAllowed(false)
 				}]
 			);
 		}
+		return !!isWorkspaceShellAllowed;
+	}
+
+	public mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig, platformOverride: platform.Platform = platform.platform): void {
+		const isWorkspaceShellAllowed = this.checkWorkspaceShellPermissions(platformOverride);
+		const platformKey = platformOverride === platform.Platform.Windows ? 'windows' : platformOverride === platform.Platform.Mac ? 'osx' : 'linux';
+		const shellConfigValue = this._workspaceConfigurationService.inspect<string>(`terminal.integrated.shell.${platformKey}`);
+		const shellArgsConfigValue = this._workspaceConfigurationService.inspect<string[]>(`terminal.integrated.shellArgs.${platformKey}`);
 
 		shell.executable = (isWorkspaceShellAllowed ? shellConfigValue.value : shellConfigValue.user) || shellConfigValue.default;
 		shell.args = (isWorkspaceShellAllowed ? shellArgsConfigValue.value : shellArgsConfigValue.user) || shellArgsConfigValue.default;

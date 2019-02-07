@@ -57,7 +57,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 
 	private _models: TextFileEditorModelManager;
 	private currentFilesAssociationConfig: { [key: string]: string; };
-	private configuredAutoSaveDelay: number;
+	private configuredAutoSaveDelay?: number;
 	private configuredAutoSaveOnFocusChange: boolean;
 	private configuredAutoSaveOnWindowChange: boolean;
 	private configuredHotExit: string;

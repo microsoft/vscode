@@ -114,6 +114,7 @@ export interface ITerminalConfigHelper {
 	mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig, platformOverride?: platform.Platform): void;
 	/** Sets whether a workspace shell configuration is allowed or not */
 	setWorkspaceShellAllowed(isAllowed: boolean): void;
+	checkWorkspaceShellPermissions(platformOverride?: platform.Platform): boolean;
 }
 
 export interface ITerminalFont {

@@ -34,7 +34,7 @@ export function getExactExpressionStartAndEnd(lineContent: string, looseStart: n
 	// Some example supported expressions: myVar.prop, a.b.c.d, myVar?.prop, myVar->prop, MyClass::StaticProp, *myVar
 	// Match any character except a set of characters which often break interesting sub-expressions
 	let expression: RegExp = /([^()\[\]{}<>\s+\-/%~#^;=|,`!]|\->)+/g;
-	let result: RegExpExecArray | undefined = undefined;
+	let result: RegExpExecArray | null = null;
 
 	// First find the full expression under the cursor
 	while (result = expression.exec(lineContent)) {
@@ -52,7 +52,7 @@ export function getExactExpressionStartAndEnd(lineContent: string, looseStart: n
 	// For example in expression 'a.b.c.d', if the focus was under 'b', 'a.b' would be evaluated.
 	if (matchingExpression) {
 		let subExpression: RegExp = /\w+/g;
-		let subExpressionResult: RegExpExecArray | undefined = undefined;
+		let subExpressionResult: RegExpExecArray | null = null;
 		while (subExpressionResult = subExpression.exec(matchingExpression)) {
 			let subEnd = subExpressionResult.index + 1 + startOffset + subExpressionResult[0].length;
 			if (subEnd >= looseEnd) {
@@ -122,7 +122,7 @@ export function convertToDAPaths(message: DebugProtocol.ProtocolMessage, toUri: 
 
 	convertPaths(msg, (toDA: boolean, source: PathContainer | undefined) => {
 		if (toDA && source) {
-			source.path = fixPath(source.path);
+			source.path = source.path ? fixPath(source.path) : undefined;
 		}
 	});
 	return msg;
@@ -137,7 +137,7 @@ export function convertToVSCPaths(message: DebugProtocol.ProtocolMessage, toUri:
 
 	convertPaths(msg, (toDA: boolean, source: PathContainer | undefined) => {
 		if (!toDA && source) {
-			source.path = fixPath(source.path);
+			source.path = source.path ? fixPath(source.path) : undefined;
 		}
 	});
 	return msg;

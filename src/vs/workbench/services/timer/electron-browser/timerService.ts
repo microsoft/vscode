@@ -381,6 +381,7 @@ class TimerService implements ITimerService {
 			// ignore, be on the safe side with these hardware method calls
 		}
 
+		const activeViewlet = this._viewletService.getActiveViewlet();
 		return {
 			version: 2,
 			ellapsed: perf.getDuration(startMark, 'didStartWorkbench'),
@@ -390,7 +391,7 @@ class TimerService implements ITimerService {
 			didUseCachedData: didUseCachedData(),
 			windowKind: this._lifecycleService.startupKind,
 			windowCount: await this._windowsService.getWindowCount(),
-			viewletId: this._viewletService.getActiveViewlet() ? this._viewletService.getActiveViewlet().getId() : undefined,
+			viewletId: activeViewlet ? activeViewlet.getId() : undefined,
 			editorIds: this._editorService.visibleEditors.map(input => input.getTypeId()),
 			panelId: this._panelService.getActivePanel() ? this._panelService.getActivePanel().getId() : undefined,
 

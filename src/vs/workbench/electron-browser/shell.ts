@@ -369,7 +369,6 @@ export class Shell extends Disposable {
 
 		serviceCollection.set(IMarkerService, new SyncDescriptor(MarkerService, undefined, true));
 
-
 		serviceCollection.set(IModeService, new SyncDescriptor(WorkbenchModeServiceImpl));
 
 		serviceCollection.set(ITextResourceConfigurationService, new SyncDescriptor(TextResourceConfigurationService));

@@ -184,9 +184,9 @@ export interface IActionOptions extends ICommandOptions {
 }
 export abstract class EditorAction extends EditorCommand {
 
-	public label: string;
-	public alias: string;
-	private menuOpts: IEditorCommandMenuOptions | undefined;
+	public readonly label: string;
+	public readonly alias: string;
+	private readonly menuOpts: IEditorCommandMenuOptions | undefined;
 
 	constructor(opts: IActionOptions) {
 		super(opts);

@@ -6,7 +6,7 @@
 import 'vs/css!./simpleFindWidget';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import { FindInput } from 'vs/base/browser/ui/findinput/findInput';
+import { FindInput, IFindInputStyles } from 'vs/base/browser/ui/findinput/findInput';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Delayer } from 'vs/base/common/async';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -159,20 +159,20 @@ export abstract class SimpleFindWidget extends Widget {
 	}
 
 	public updateTheme(theme: ITheme): void {
-		const inputStyles = {
-			inputActiveOptionBorder: theme.getColor(inputActiveOptionBorder),
-			inputBackground: theme.getColor(inputBackground),
-			inputForeground: theme.getColor(inputForeground),
-			inputBorder: theme.getColor(inputBorder),
-			inputValidationInfoBackground: theme.getColor(inputValidationInfoBackground),
-			inputValidationInfoForeground: theme.getColor(inputValidationInfoForeground),
-			inputValidationInfoBorder: theme.getColor(inputValidationInfoBorder),
-			inputValidationWarningBackground: theme.getColor(inputValidationWarningBackground),
-			inputValidationWarningForeground: theme.getColor(inputValidationWarningForeground),
-			inputValidationWarningBorder: theme.getColor(inputValidationWarningBorder),
-			inputValidationErrorBackground: theme.getColor(inputValidationErrorBackground),
-			inputValidationErrorForeground: theme.getColor(inputValidationErrorForeground),
-			inputValidationErrorBorder: theme.getColor(inputValidationErrorBorder)
+		const inputStyles: IFindInputStyles = {
+			inputActiveOptionBorder: theme.getColor(inputActiveOptionBorder) || undefined,
+			inputBackground: theme.getColor(inputBackground) || undefined,
+			inputForeground: theme.getColor(inputForeground) || undefined,
+			inputBorder: theme.getColor(inputBorder) || undefined,
+			inputValidationInfoBackground: theme.getColor(inputValidationInfoBackground) || undefined,
+			inputValidationInfoForeground: theme.getColor(inputValidationInfoForeground) || undefined,
+			inputValidationInfoBorder: theme.getColor(inputValidationInfoBorder) || undefined,
+			inputValidationWarningBackground: theme.getColor(inputValidationWarningBackground) || undefined,
+			inputValidationWarningForeground: theme.getColor(inputValidationWarningForeground) || undefined,
+			inputValidationWarningBorder: theme.getColor(inputValidationWarningBorder) || undefined,
+			inputValidationErrorBackground: theme.getColor(inputValidationErrorBackground) || undefined,
+			inputValidationErrorForeground: theme.getColor(inputValidationErrorForeground) || undefined,
+			inputValidationErrorBorder: theme.getColor(inputValidationErrorBorder) || undefined
 		};
 		this._findInput.style(inputStyles);
 	}

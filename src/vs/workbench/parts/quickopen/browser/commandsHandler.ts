@@ -91,7 +91,7 @@ class CommandsHistory extends Disposable {
 
 	private load(): void {
 		const raw = this.storageService.get(CommandsHistory.PREF_KEY_CACHE, StorageScope.GLOBAL);
-		let serializedCache: ISerializedCommandHistory;
+		let serializedCache: ISerializedCommandHistory | undefined;
 		if (raw) {
 			try {
 				serializedCache = JSON.parse(raw);
@@ -118,7 +118,7 @@ class CommandsHistory extends Disposable {
 		commandHistory.set(commandId, commandCounter++); // set counter to command
 	}
 
-	peek(commandId: string): number {
+	peek(commandId: string): number | undefined {
 		return commandHistory.peek(commandId);
 	}
 
@@ -214,14 +214,14 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 	private description: string;
 	private alias: string;
 	private labelLowercase: string;
-	private keybindingAriaLabel: string;
+	private readonly keybindingAriaLabel?: string;
 
 	constructor(
 		private commandId: string,
 		private keybinding: ResolvedKeybinding,
 		private label: string,
 		alias: string,
-		highlights: { label: IHighlight[], alias: IHighlight[] },
+		highlights: { label: IHighlight[], alias?: IHighlight[] },
 		private onBeforeRun: (commandId: string) => void,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ITelemetryService protected telemetryService: ITelemetryService
@@ -229,15 +229,15 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 		super();
 
 		this.labelLowercase = this.label.toLowerCase();
-		this.keybindingAriaLabel = keybinding ? keybinding.getAriaLabel() : undefined;
+		this.keybindingAriaLabel = keybinding ? keybinding.getAriaLabel() || undefined : undefined;
 
 		if (this.label !== alias) {
 			this.alias = alias;
 		} else {
-			highlights.alias = null;
+			highlights.alias = undefined;
 		}
 
-		this.setHighlights(highlights.label, null, highlights.alias);
+		this.setHighlights(highlights.label, undefined, highlights.alias);
 	}
 
 	getCommandId(): string {
@@ -541,7 +541,7 @@ export class CommandsHandler extends QuickOpenHandler {
 
 				// Add an 'alias' in original language when running in different locale
 				const aliasTitle = (language !== LANGUAGE_DEFAULT && typeof action.item.title !== 'string') ? action.item.title.original : null;
-				const aliasCategory = (language !== LANGUAGE_DEFAULT && category && typeof action.item.category !== 'string') ? action.item.category.original : null;
+				const aliasCategory = (language !== LANGUAGE_DEFAULT && category && action.item.category && typeof action.item.category !== 'string') ? action.item.category.original : null;
 				let alias;
 				if (aliasTitle && category) {
 					alias = aliasCategory ? `${aliasCategory}: ${aliasTitle}` : `${category}: ${aliasTitle}`;
@@ -560,7 +560,7 @@ export class CommandsHandler extends QuickOpenHandler {
 	}
 
 	getAutoFocus(searchValue: string, context: { model: IModel<QuickOpenEntry>, quickNavigateConfiguration?: IQuickNavigateConfiguration }): IAutoFocus {
-		let autoFocusPrefixMatch = searchValue.trim();
+		let autoFocusPrefixMatch: string | undefined = searchValue.trim();
 
 		if (autoFocusPrefixMatch && this.commandHistoryEnabled) {
 			const firstEntry = context.model && context.model.entries[0];

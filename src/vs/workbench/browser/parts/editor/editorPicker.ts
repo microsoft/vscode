@@ -5,7 +5,6 @@
 
 import 'vs/css!./media/editorpicker';
 import * as nls from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
 import { IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IAutoFocus, Mode, IEntryRunContext, IQuickNavigateConfiguration, IModel } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenModel, QuickOpenEntry, QuickOpenEntryGroup, QuickOpenItemAccessor } from 'vs/base/parts/quickopen/browser/quickOpenModel';
@@ -33,12 +32,12 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 
 	getLabelOptions(): IIconLabelValueOptions {
 		return {
-			extraClasses: getIconClasses(this.modelService, this.modeService, this.getResource()),
+			extraClasses: getIconClasses(this.modelService, this.modeService, this.getResource() || undefined),
 			italic: !this._group.isPinned(this.editor)
 		};
 	}
 
-	getLabel(): string {
+	getLabel() {
 		return this.editor.getName();
 	}
 
@@ -50,7 +49,7 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 		return this._group;
 	}
 
-	getResource(): URI {
+	getResource() {
 		return toResource(this.editor, { supportSideBySide: true });
 	}
 
@@ -58,7 +57,7 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 		return nls.localize('entryAriaLabel', "{0}, editor group picker", this.getLabel());
 	}
 
-	getDescription(): string {
+	getDescription() {
 		return this.editor.getDescription();
 	}
 
@@ -109,7 +108,7 @@ export abstract class BaseEditorPicker extends QuickOpenHandler {
 				return false;
 			}
 
-			e.setHighlights(itemScore.labelMatch, itemScore.descriptionMatch);
+			e.setHighlights(itemScore.labelMatch || [], itemScore.descriptionMatch);
 
 			return true;
 		});

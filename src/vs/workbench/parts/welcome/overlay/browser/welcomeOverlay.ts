@@ -168,10 +168,10 @@ class WelcomeOverlay {
 	}
 
 	private create(): void {
-		const container = this.partService.getContainer(Parts.EDITOR_PART);
+		const container = this.partService.getContainer(Parts.EDITOR_PART)!;
 
 		const offset = this.partService.getTitleBarOffset();
-		this._overlay = dom.append(container.parentElement, $('.welcomeOverlay'));
+		this._overlay = dom.append(container.parentElement!, $('.welcomeOverlay'));
 		this._overlay.style.top = `${offset}px`;
 		this._overlay.style.height = `calc(100% - ${offset}px)`;
 		this._overlay.style.display = 'none';

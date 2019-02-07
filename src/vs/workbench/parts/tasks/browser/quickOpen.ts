@@ -28,7 +28,7 @@ export class TaskEntry extends Model.QuickOpenEntry {
 		return this.task._label;
 	}
 
-	public getDescription(): string {
+	public getDescription(): string | null {
 		if (!this.taskService.needsFolderQualification()) {
 			return null;
 		}
@@ -51,7 +51,7 @@ export class TaskEntry extends Model.QuickOpenEntry {
 		this.taskService.run(task, options).then(undefined, reason => {
 			// eat the error, it has already been surfaced to the user and we don't care about it here
 		});
-		if (!task.command || task.command.presentation.focus) {
+		if (!task.command || (task.command.presentation && task.command.presentation.focus)) {
 			this.quickOpenService.close();
 			return false;
 		}
@@ -67,7 +67,7 @@ export class TaskGroupEntry extends Model.QuickOpenEntryGroup {
 
 export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 
-	private tasks: Promise<Array<CustomTask | ContributedTask>>;
+	private tasks?: Promise<Array<CustomTask | ContributedTask>>;
 
 	constructor(
 		protected quickOpenService: IQuickOpenService,
@@ -87,7 +87,10 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 		this.tasks = undefined;
 	}
 
-	public getResults(input: string, token: CancellationToken): Promise<Model.QuickOpenModel> {
+	public getResults(input: string, token: CancellationToken): Promise<Model.QuickOpenModel | null> {
+		if (!this.tasks) {
+			return Promise.resolve(null);
+		}
 		return this.tasks.then((tasks) => {
 			let entries: Model.QuickOpenEntry[] = [];
 			if (tasks.length === 0 || token.isCancellationRequested) {
@@ -186,7 +189,7 @@ class CustomizeTaskAction extends Action {
 		}
 	}
 
-	private getTask(element: any): CustomTask | ContributedTask {
+	private getTask(element: any): CustomTask | ContributedTask | undefined {
 		if (element instanceof TaskEntry) {
 			return element.task;
 		} else if (element instanceof TaskGroupEntry) {
@@ -220,7 +223,7 @@ export class QuickOpenActionContributor extends ActionBarContributor {
 		return actions;
 	}
 
-	private getTask(context: any): CustomTask | ContributedTask {
+	private getTask(context: any): CustomTask | ContributedTask | undefined {
 		if (!context) {
 			return undefined;
 		}

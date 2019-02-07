@@ -60,7 +60,7 @@
 }
 
 /* Dnd */
-.monaco-list-drag-image {
+.monaco-drag-image {
 	display: inline-block;
 	padding: 1px 7px;
 	border-radius: 10px;

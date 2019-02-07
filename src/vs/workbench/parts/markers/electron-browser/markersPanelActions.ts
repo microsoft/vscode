@@ -20,7 +20,7 @@ import { attachInputBoxStyler, attachStylerCallback, attachCheckboxStyler } from
 import { IMarkersWorkbenchService } from 'vs/workbench/parts/markers/electron-browser/markers';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { BaseActionItem, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { badgeBackground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -197,8 +197,9 @@ export class MarkersFilterActionItem extends BaseActionItem {
 
 	private createBadge(container: HTMLElement): void {
 		this.filterBadge = DOM.append(container, DOM.$('.markers-panel-filter-badge'));
-		this._register(attachStylerCallback(this.themeService, { badgeBackground, contrastBorder }, colors => {
+		this._register(attachStylerCallback(this.themeService, { badgeBackground, badgeForeground, contrastBorder }, colors => {
 			const background = colors.badgeBackground ? colors.badgeBackground.toString() : null;
+			const foreground = colors.badgeForeground ? colors.badgeForeground.toString() : null;
 			const border = colors.contrastBorder ? colors.contrastBorder.toString() : null;
 
 			this.filterBadge.style.backgroundColor = background;
@@ -206,6 +207,7 @@ export class MarkersFilterActionItem extends BaseActionItem {
 			this.filterBadge.style.borderWidth = border ? '1px' : null;
 			this.filterBadge.style.borderStyle = border ? 'solid' : null;
 			this.filterBadge.style.borderColor = border;
+			this.filterBadge.style.color = foreground;
 		}));
 		this.updateBadge();
 		this._register(this.filterController.onDidFilter(() => this.updateBadge()));
@@ -297,7 +299,7 @@ export class QuickFixAction extends Action {
 	private updated: boolean = false;
 	private disposables: IDisposable[] = [];
 
-	private _onShowQuickFixes: Emitter<void> = new Emitter<void>();
+	private readonly _onShowQuickFixes: Emitter<void> = new Emitter<void>();
 	readonly onShowQuickFixes: Event<void> = this._onShowQuickFixes.event;
 
 	constructor(

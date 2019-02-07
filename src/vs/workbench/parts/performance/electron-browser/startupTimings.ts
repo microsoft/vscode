@@ -95,7 +95,8 @@ export class StartupTimings implements IWorkbenchContribution {
 			this._logService.info('no standard startup: not just one window');
 			return false;
 		}
-		if (!this._viewletService.getActiveViewlet() || this._viewletService.getActiveViewlet().getId() !== files.VIEWLET_ID) {
+		const activeViewlet = this._viewletService.getActiveViewlet();
+		if (!activeViewlet || activeViewlet.getId() !== files.VIEWLET_ID) {
 			this._logService.info('no standard startup: not the explorer viewlet');
 			return false;
 		}

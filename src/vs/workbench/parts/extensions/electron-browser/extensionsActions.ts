@@ -180,7 +180,7 @@ export class InstallAction extends ExtensionAction {
 		return this.install(this.extension);
 	}
 
-	private install(extension: IExtension): Promise<void> {
+	private install(extension: IExtension): Promise<any> {
 		return this.extensionsWorkbenchService.install(extension).then(null, err => {
 			if (!extension.gallery) {
 				return this.notificationService.error(err);
@@ -940,7 +940,7 @@ export class UpdateAllAction extends Action {
 		return Promise.all(this.outdated.map(e => this.install(e)));
 	}
 
-	private install(extension: IExtension): Promise<void> {
+	private install(extension: IExtension): Promise<any> {
 		return this.extensionsWorkbenchService.install(extension).then(undefined, err => {
 			if (!extension.gallery) {
 				return this.notificationService.error(err);
@@ -984,16 +984,16 @@ export class ReloadAction extends ExtensionAction {
 			this.enabled = false;
 			this.tooltip = '';
 			if (!this.extension) {
-				return Promise.resolve<void>();
+				return Promise.resolve(undefined);
 			}
 			const state = this.extension.state;
 			if (state === ExtensionState.Installing || state === ExtensionState.Uninstalling) {
-				return Promise.resolve<void>();
+				return Promise.resolve(undefined);
 			}
 			const installed = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, this.extension.identifier))[0];
 			const local = this.extension.local || (installed && installed.local);
 			if (local && local.manifest && local.manifest.contributes && local.manifest.contributes.localizations && local.manifest.contributes.localizations.length > 0) {
-				return Promise.resolve<void>();
+				return Promise.resolve(undefined);
 			}
 			return this.extensionService.getExtensions()
 				.then(runningExtensions => this.computeReloadState(runningExtensions, installed));
@@ -1312,7 +1312,7 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 				viewlet.focus();
 				const names = this.recommendations.map(({ extensionId }) => extensionId);
 				return this.extensionWorkbenchService.queryGallery({ names, source: 'install-all-workspace-recommendations' }).then(pager => {
-					let installPromises: Promise<void>[] = [];
+					let installPromises: Promise<any>[] = [];
 					let model = new PagedModel(pager);
 					for (let i = 0; i < pager.total; i++) {
 						installPromises.push(model.resolve(i, CancellationToken.None).then(e => {
@@ -1779,7 +1779,7 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 			});
 	}
 
-	private getSelectionPosition(content: string, resource: URI, path: json.JSONPath): Promise<ITextEditorSelection> {
+	private getSelectionPosition(content: string, resource: URI, path: json.JSONPath): Promise<ITextEditorSelection | undefined> {
 		const tree = json.parseTree(content);
 		const node = json.findNodeAtLocation(tree, path);
 		if (node && node.parent && node.parent.children) {
@@ -1798,7 +1798,7 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 					};
 				});
 		}
-		return Promise.resolve();
+		return Promise.resolve(undefined);
 	}
 
 	private getOrCreateExtensionsFile(extensionsFileResource: URI): Promise<{ created: boolean, extensionsFileResource: URI, content: string }> {

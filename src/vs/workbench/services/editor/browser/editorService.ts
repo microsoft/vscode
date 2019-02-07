@@ -37,16 +37,16 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#region events
 
-	private _onDidActiveEditorChange: Emitter<void> = this._register(new Emitter<void>());
+	private readonly _onDidActiveEditorChange: Emitter<void> = this._register(new Emitter<void>());
 	get onDidActiveEditorChange(): Event<void> { return this._onDidActiveEditorChange.event; }
 
-	private _onDidVisibleEditorsChange: Emitter<void> = this._register(new Emitter<void>());
+	private readonly _onDidVisibleEditorsChange: Emitter<void> = this._register(new Emitter<void>());
 	get onDidVisibleEditorsChange(): Event<void> { return this._onDidVisibleEditorsChange.event; }
 
-	private _onDidCloseEditor: Emitter<IEditorCloseEvent> = this._register(new Emitter<IEditorCloseEvent>());
+	private readonly _onDidCloseEditor: Emitter<IEditorCloseEvent> = this._register(new Emitter<IEditorCloseEvent>());
 	get onDidCloseEditor(): Event<IEditorCloseEvent> { return this._onDidCloseEditor.event; }
 
-	private _onDidOpenEditorFail: Emitter<IEditorIdentifier> = this._register(new Emitter<IEditorIdentifier>());
+	private readonly _onDidOpenEditorFail: Emitter<IEditorIdentifier> = this._register(new Emitter<IEditorIdentifier>());
 	get onDidOpenEditorFail(): Event<IEditorIdentifier> { return this._onDidOpenEditorFail.event; }
 
 	//#endregion

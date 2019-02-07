@@ -39,11 +39,11 @@ export interface ParsedArgs {
 	'builtin-extensions-dir'?: string;
 	extensionDevelopmentPath?: string;
 	extensionTestsPath?: string;
-	debugPluginHost?: string;
-	debugBrkPluginHost?: string;
+	'inspect-extensions'?: string;
+	'inspect-brk-extensions'?: string;
 	debugId?: string;
-	debugSearch?: string;
-	debugBrkSearch?: string;
+	'inspect-search'?: string;
+	'inspect-brk-search'?: string;
 	'disable-extensions'?: boolean;
 	'disable-extension'?: string | string[];
 	'list-extensions'?: boolean;

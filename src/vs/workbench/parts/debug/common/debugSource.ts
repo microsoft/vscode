@@ -37,7 +37,7 @@ export class Source {
 	constructor(public raw: DebugProtocol.Source, sessionId: string) {
 		let path: string;
 		if (raw) {
-			path = this.raw.path || this.raw.name;
+			path = this.raw.path || this.raw.name || '';
 			this.available = true;
 		} else {
 			this.raw = { name: UNKNOWN_SOURCE_LABEL };
@@ -45,7 +45,7 @@ export class Source {
 			path = `${DEBUG_SCHEME}:${UNKNOWN_SOURCE_LABEL}`;
 		}
 
-		if (this.raw.sourceReference > 0) {
+		if (typeof this.raw.sourceReference === 'number' && this.raw.sourceReference > 0) {
 			this.uri = uri.parse(`${DEBUG_SCHEME}:${encodeURIComponent(path)}?session=${encodeURIComponent(sessionId)}&ref=${this.raw.sourceReference}`);
 		} else {
 			if (isUri(path)) {	// path looks like a uri
@@ -97,10 +97,10 @@ export class Source {
 		}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 	}
 
-	static getEncodedDebugData(modelUri: uri): { name: string, path: string, sessionId: string, sourceReference: number } {
+	static getEncodedDebugData(modelUri: uri): { name: string, path: string, sessionId?: string, sourceReference?: number } {
 		let path: string;
-		let sourceReference: number;
-		let sessionId: string;
+		let sourceReference: number | undefined;
+		let sessionId: string | undefined;
 
 		switch (modelUri.scheme) {
 			case Schemas.file:

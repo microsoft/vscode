@@ -122,7 +122,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 	private searchWithoutFolderMessageElement: HTMLElement;
 
-	private currentSearchQ = Promise.resolve<void>();
+	private currentSearchQ = Promise.resolve();
 
 	constructor(
 		@IPartService partService: IPartService,
@@ -1228,7 +1228,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 		this.currentSearchQ = this.currentSearchQ
 			.then(() => this.doSearch(query, options, excludePatternText, includePatternText))
-			.then(() => { }, () => { });
+			.then(() => undefined, () => undefined);
 	}
 
 	private doSearch(query: ITextQuery, options: ITextQueryBuilderOptions, excludePatternText: string, includePatternText: string): Thenable<void> {

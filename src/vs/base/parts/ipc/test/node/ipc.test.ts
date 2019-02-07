@@ -71,7 +71,7 @@ class TestIPCClient extends IPCClient<string> {
 
 class TestIPCServer extends IPCServer<string> {
 
-	private onDidClientConnect: Emitter<ClientConnectionEvent>;
+	private readonly onDidClientConnect: Emitter<ClientConnectionEvent>;
 
 	constructor() {
 		const onDidClientConnect = new Emitter<ClientConnectionEvent>();

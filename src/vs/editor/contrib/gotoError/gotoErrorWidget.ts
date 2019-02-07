@@ -165,7 +165,7 @@ export class MarkerNavigationWidget extends ZoneWidget {
 	private _message: MessageWidget;
 	private _callOnDispose: IDisposable[] = [];
 	private _severity: MarkerSeverity;
-	private _backgroundColor: Color | null;
+	private _backgroundColor?: Color;
 	private _onDidSelectRelatedInformation = new Emitter<IRelatedInformation>();
 
 	readonly onDidSelectRelatedInformation: Event<IRelatedInformation> = this._onDidSelectRelatedInformation.event;
@@ -185,7 +185,7 @@ export class MarkerNavigationWidget extends ZoneWidget {
 	}
 
 	private _applyTheme(theme: ITheme) {
-		this._backgroundColor = theme.getColor(editorMarkerNavigationBackground);
+		this._backgroundColor = theme.getColor(editorMarkerNavigationBackground) || undefined;
 		let colorId = editorMarkerNavigationError;
 		if (this._severity === MarkerSeverity.Warning) {
 			colorId = editorMarkerNavigationWarning;

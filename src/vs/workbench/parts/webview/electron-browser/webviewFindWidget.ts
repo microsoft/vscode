@@ -11,7 +11,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 export class WebviewFindWidget extends SimpleFindWidget {
 
 	constructor(
-		private _webview: WebviewElement,
+		private _webview: WebviewElement | undefined,
 		@IContextViewService contextViewService: IContextViewService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
@@ -24,6 +24,9 @@ export class WebviewFindWidget extends SimpleFindWidget {
 	}
 
 	public find(previous: boolean) {
+		if (!this._webview) {
+			return;
+		}
 		const val = this.inputValue;
 		if (val) {
 			this._webview.find(val, { findNext: true, forward: !previous });
@@ -32,11 +35,16 @@ export class WebviewFindWidget extends SimpleFindWidget {
 
 	public hide() {
 		super.hide();
-		this._webview.stopFind(true);
-		this._webview.focus();
+		if (this._webview) {
+			this._webview.stopFind(true);
+			this._webview.focus();
+		}
 	}
 
 	public onInputChanged() {
+		if (!this._webview) {
+			return;
+		}
 		const val = this.inputValue;
 		if (val) {
 			this._webview.startFind(val);

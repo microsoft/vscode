@@ -24,7 +24,6 @@ export interface WebviewOptions {
 	readonly allowScripts?: boolean;
 	readonly allowSvgs?: boolean;
 	readonly svgWhiteList?: string[];
-	readonly enableWrappedPostMessage?: boolean;
 	readonly useSameOriginForRoot?: boolean;
 	readonly localResourceRoots?: ReadonlyArray<URI>;
 	readonly extensionLocation?: URI;
@@ -44,7 +43,7 @@ interface IKeydownEvent {
 class WebviewProtocolProvider extends Disposable {
 	constructor(
 		webview: Electron.WebviewTag,
-		private readonly _extensionLocation: URI,
+		private readonly _extensionLocation: URI | undefined,
 		private readonly _getLocalResourceRoots: () => ReadonlyArray<URI>,
 		private readonly _environmentService: IEnvironmentService,
 		private readonly _fileService: IFileService,
@@ -304,7 +303,7 @@ export class WebviewElement extends Disposable {
 		this._register(addDisposableListener(this._webview, 'ipc-message', (event) => {
 			switch (event.channel) {
 				case 'onmessage':
-					if (this._options.enableWrappedPostMessage && event.args && event.args.length) {
+					if (event.args && event.args.length) {
 						this._onMessage.fire(event.args[0]);
 					}
 					return;
@@ -356,7 +355,7 @@ export class WebviewElement extends Disposable {
 	}
 
 	public mountTo(parent: HTMLElement) {
-		parent.appendChild(this._webviewFindWidget.getDomNode());
+		parent.appendChild(this._webviewFindWidget.getDomNode()!);
 		parent.appendChild(this._webview);
 	}
 

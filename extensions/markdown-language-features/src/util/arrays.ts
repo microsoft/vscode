@@ -3,13 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+export function equals<T>(one: ReadonlyArray<T>, other: ReadonlyArray<T>, itemEquals: (a: T, b: T) => boolean = (a, b) => a === b): boolean {
+	if (one.length !== other.length) {
+		return false;
+	}
 
-const gulp = require('gulp');
-const mocha = require('gulp-mocha');
+	for (let i = 0, len = one.length; i < len; i++) {
+		if (!itemEquals(one[i], other[i])) {
+			return false;
+		}
+	}
 
-gulp.task('test', function () {
-	return gulp.src('test/all.js')
-		.pipe(mocha({ ui: 'tdd', delay: true }))
-		.once('end', function () { process.exit(); });
-});
+	return true;
+}

@@ -729,7 +729,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 				label = String(elements.length);
 			}
 
-			const dragImage = DOM.$('.monaco-list-drag-image');
+			const dragImage = DOM.$('.monaco-drag-image');
 			dragImage.textContent = label;
 			document.body.appendChild(dragImage);
 			event.dataTransfer.setDragImage(dragImage, -10, -10);
