@@ -71,7 +71,13 @@ export enum ListAriaRootRole {
 }
 
 export interface IKeyboardNavigationLabelProvider<T> {
-	getKeyboardNavigationLabel(element: T): { toString(): string; };
+
+	/**
+	 * Return a keyboard navigation label which will be used by the
+	 * list for filtering/navigating. Return `undefined` to make an
+	 * element always match.
+	 */
+	getKeyboardNavigationLabel(element: T): { toString(): string | undefined; } | undefined;
 	mightProducePrintableCharacter?(event: IKeyboardEvent): boolean;
 }
 

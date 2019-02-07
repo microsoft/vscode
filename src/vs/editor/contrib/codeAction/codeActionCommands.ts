@@ -388,14 +388,17 @@ export class AutoFixAction extends EditorAction {
 	constructor() {
 		super({
 			id: AutoFixAction.Id,
-			label: nls.localize('autoFix.label', "Auto Fix"),
+			label: nls.localize('autoFix.label', "Auto Fix..."),
 			alias: 'Auto Fix',
 			precondition: ContextKeyExpr.and(
 				EditorContextKeys.writable,
 				contextKeyForSupportedActions(CodeActionKind.QuickFix)),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.US_DOT,
+				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.US_DOT,
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.US_DOT
+				},
 				weight: KeybindingWeight.EditorContrib
 			}
 		});

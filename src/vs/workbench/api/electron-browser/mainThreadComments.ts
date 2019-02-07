@@ -11,14 +11,14 @@ import { keys } from 'vs/base/common/map';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ExtHostCommentsShape, ExtHostContext, IExtHostContext, MainContext, MainThreadCommentsShape, CommentProviderFeatures } from '../node/extHost.protocol';
 
-import { ICommentService } from 'vs/workbench/parts/comments/electron-browser/commentService';
-import { COMMENTS_PANEL_ID, CommentsPanel, COMMENTS_PANEL_TITLE } from 'vs/workbench/parts/comments/electron-browser/commentsPanel';
+import { ICommentService } from 'vs/workbench/contrib/comments/electron-browser/commentService';
+import { COMMENTS_PANEL_ID, CommentsPanel, COMMENTS_PANEL_TITLE } from 'vs/workbench/contrib/comments/electron-browser/commentsPanel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { URI } from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ICommentsConfiguration } from 'vs/workbench/parts/comments/electron-browser/comments.contribution';
+import { ICommentsConfiguration } from 'vs/workbench/contrib/comments/electron-browser/comments.contribution';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { PanelRegistry, Extensions as PanelExtensions, PanelDescriptor } from 'vs/workbench/browser/panel';
@@ -27,10 +27,10 @@ export class MainThreadDocumentCommentProvider implements modes.DocumentCommentP
 	private _proxy: ExtHostCommentsShape;
 	private _handle: number;
 	private _features: CommentProviderFeatures;
-	get startDraftLabel(): string { return this._features.startDraftLabel; }
-	get deleteDraftLabel(): string { return this._features.deleteDraftLabel; }
-	get finishDraftLabel(): string { return this._features.finishDraftLabel; }
-	get reactionGroup(): modes.CommentReaction[] { return this._features.reactionGroup; }
+	get startDraftLabel(): string | undefined { return this._features.startDraftLabel; }
+	get deleteDraftLabel(): string | undefined { return this._features.deleteDraftLabel; }
+	get finishDraftLabel(): string | undefined { return this._features.finishDraftLabel; }
+	get reactionGroup(): modes.CommentReaction[] | undefined { return this._features.reactionGroup; }
 
 	constructor(proxy: ExtHostCommentsShape, handle: number, features: CommentProviderFeatures) {
 		this._proxy = proxy;

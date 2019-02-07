@@ -24,7 +24,7 @@ import { isEqual } from 'vs/base/common/resources';
 
 export class FloatingClickWidget extends Widget implements IOverlayWidget {
 
-	private _onClick: Emitter<void> = this._register(new Emitter<void>());
+	private readonly _onClick: Emitter<void> = this._register(new Emitter<void>());
 	get onClick(): Event<void> { return this._onClick.event; }
 
 	private _domNode: HTMLElement;

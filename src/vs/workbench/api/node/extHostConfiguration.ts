@@ -43,7 +43,7 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 	private readonly _proxy: MainThreadConfigurationShape;
 	private readonly _extHostWorkspace: ExtHostWorkspace;
 	private readonly _barrier: Barrier;
-	private _actual: ExtHostConfigProvider;
+	private _actual: ExtHostConfigProvider | null;
 
 	constructor(proxy: MainThreadConfigurationShape, extHostWorkspace: ExtHostWorkspace) {
 		this._proxy = proxy;
@@ -53,7 +53,7 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 	}
 
 	public getConfigProvider(): Promise<ExtHostConfigProvider> {
-		return this._barrier.wait().then(_ => this._actual);
+		return this._barrier.wait().then(_ => this._actual!);
 	}
 
 	$initializeConfiguration(data: IConfigurationInitData): void {
@@ -93,14 +93,14 @@ export class ExtHostConfigProvider {
 
 	getConfiguration(section?: string, resource?: URI, extensionId?: ExtensionIdentifier): vscode.WorkspaceConfiguration {
 		const config = this._toReadonlyValue(section
-			? lookUp(this._configuration.getValue(null, { resource }, this._extHostWorkspace.workspace), section)
-			: this._configuration.getValue(null, { resource }, this._extHostWorkspace.workspace));
+			? lookUp(this._configuration.getValue(undefined, { resource }, this._extHostWorkspace.workspace), section)
+			: this._configuration.getValue(undefined, { resource }, this._extHostWorkspace.workspace));
 
 		if (section) {
 			this._validateConfigurationAccess(section, resource, extensionId);
 		}
 
-		function parseConfigurationTarget(arg: boolean | ExtHostConfigurationTarget): ConfigurationTarget {
+		function parseConfigurationTarget(arg: boolean | ExtHostConfigurationTarget): ConfigurationTarget | null {
 			if (arg === undefined || arg === null) {
 				return null;
 			}
@@ -218,7 +218,7 @@ export class ExtHostConfigProvider {
 		return readonlyProxy(result);
 	}
 
-	private _validateConfigurationAccess(key: string, resource: URI, extensionId: ExtensionIdentifier): void {
+	private _validateConfigurationAccess(key: string, resource: URI | undefined, extensionId: ExtensionIdentifier): void {
 		const scope = OVERRIDE_PROPERTY_PATTERN.test(key) ? ConfigurationScope.RESOURCE : this._configurationScopes[key];
 		const extensionIdText = extensionId ? `[${extensionId.value}] ` : '';
 		if (ConfigurationScope.RESOURCE === scope) {

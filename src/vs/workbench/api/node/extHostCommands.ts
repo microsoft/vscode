@@ -8,7 +8,7 @@ import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands
 import * as extHostTypes from 'vs/workbench/api/node/extHostTypes';
 import * as extHostTypeConverter from 'vs/workbench/api/node/extHostTypeConverters';
 import { cloneAndChange } from 'vs/base/common/objects';
-import { MainContext, MainThreadCommandsShape, ExtHostCommandsShape, ObjectIdentifier, IMainContext } from './extHost.protocol';
+import { MainContext, MainThreadCommandsShape, ExtHostCommandsShape, ObjectIdentifier, IMainContext, CommandDto } from './extHost.protocol';
 import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import * as modes from 'vs/editor/common/modes';
@@ -207,15 +207,16 @@ export class CommandsConverter {
 		this._commands.registerCommand(true, this._delegatingCommandId, this._executeConvertedCommand, this);
 	}
 
-	toInternal(command: vscode.Command): modes.Command {
+	toInternal(command: vscode.Command): CommandDto {
 
 		if (!command) {
 			return undefined;
 		}
 
-		const result: modes.Command = {
+		const result: CommandDto = {
+			$ident: undefined,
 			id: command.command,
-			title: command.title
+			title: command.title,
 		};
 
 		if (command.command && isNonEmptyArray(command.arguments)) {
@@ -223,7 +224,7 @@ export class CommandsConverter {
 			// means we don't want to send the arguments around
 
 			const id = this._heap.keep(command);
-			ObjectIdentifier.mixin(result, id);
+			result.$ident = id;
 
 			result.id = this._delegatingCommandId;
 			result.arguments = [id];

@@ -27,7 +27,6 @@ export interface ISearchService {
 	_serviceBrand: any;
 	textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete>;
 	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete>;
-	extendQuery(query: ITextQuery | IFileQuery): void;
 	clearCache(cacheKey: string): Promise<void>;
 	registerSearchResultProvider(scheme: string, type: SearchProviderType, provider: ISearchResultProvider): IDisposable;
 }
@@ -328,6 +327,7 @@ export interface ISearchConfigurationProperties {
 	showLineNumbers: boolean;
 	usePCRE2: boolean;
 	actionsPosition: 'auto' | 'right';
+	maintainFileSearchCache: boolean;
 	collapseResults: 'auto' | 'alwaysCollapse' | 'alwaysExpand';
 }
 

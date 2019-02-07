@@ -12,7 +12,7 @@ import * as typeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import { CommandsRegistry, ICommandService, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { EditorViewColumn } from 'vs/workbench/api/shared/editor';
-import { EditorGroupLayout } from 'vs/workbench/services/group/common/editorGroupsService';
+import { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
@@ -27,7 +27,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 // -----------------------------------------------------------------
 
 export interface ICommandsExecutor {
-	executeCommand<T>(id: string, ...args: any[]): Promise<T>;
+	executeCommand<T>(id: string, ...args: any[]): Promise<T | undefined>;
 }
 
 function adjustHandler(handler: (executor: ICommandsExecutor, ...args: any[]) => any): ICommandHandler {
@@ -84,8 +84,8 @@ CommandsRegistry.registerCommand(DiffAPICommand.ID, adjustHandler(DiffAPICommand
 export class OpenAPICommand {
 	public static ID = 'vscode.open';
 	public static execute(executor: ICommandsExecutor, resource: URI, columnOrOptions?: vscode.ViewColumn | vscode.TextDocumentShowOptions, label?: string): Promise<any> {
-		let options: ITextEditorOptions;
-		let position: EditorViewColumn;
+		let options: ITextEditorOptions | undefined;
+		let position: EditorViewColumn | undefined;
 
 		if (columnOrOptions) {
 			if (typeof columnOrOptions === 'number') {

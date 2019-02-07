@@ -13,7 +13,8 @@ const flatmap = require("gulp-flatmap");
 const sourcemaps = require("gulp-sourcemaps");
 const uglify = require("gulp-uglify");
 const composer = require("gulp-uglify/composer");
-const gulpUtil = require("gulp-util");
+const fancyLog = require("fancy-log");
+const ansiColors = require("ansi-colors");
 const path = require("path");
 const pump = require("pump");
 const uglifyes = require("uglify-es");
@@ -24,7 +25,7 @@ const stats_1 = require("./stats");
 const util = require("./util");
 const REPO_ROOT_PATH = path.join(__dirname, '../..');
 function log(prefix, message) {
-    gulpUtil.log(gulpUtil.colors.cyan('[' + prefix + ']'), message);
+    fancyLog(ansiColors.cyan('[' + prefix + ']'), message);
 }
 function loaderConfig(emptyPaths) {
     const result = {
@@ -113,7 +114,6 @@ function toBundleStream(src, bundledFileHeader, bundles) {
 function optimizeTask(opts) {
     const src = opts.src;
     const entryPoints = opts.entryPoints;
-    const otherSources = opts.otherSources;
     const resources = opts.resources;
     const loaderConfig = opts.loaderConfig;
     const bundledFileHeader = opts.header;
@@ -136,7 +136,7 @@ function optimizeTask(opts) {
                 }
                 filteredResources.push('!' + resource);
             });
-            gulp.src(filteredResources, { base: `${src}` }).pipe(resourcesStream);
+            gulp.src(filteredResources, { base: `${src}`, allowEmpty: true }).pipe(resourcesStream);
             const bundleInfoArray = [];
             if (opts.bundleInfo) {
                 bundleInfoArray.push(new VinylFile({
@@ -147,20 +147,7 @@ function optimizeTask(opts) {
             }
             es.readArray(bundleInfoArray).pipe(bundleInfoStream);
         });
-        const otherSourcesStream = es.through();
-        const otherSourcesStreamArr = [];
-        gulp.src(otherSources, { base: `${src}` })
-            .pipe(es.through(function (data) {
-            otherSourcesStreamArr.push(toConcatStream(src, bundledFileHeader, [data], data.relative));
-        }, function () {
-            if (!otherSourcesStreamArr.length) {
-                setTimeout(function () { otherSourcesStream.emit('end'); }, 0);
-            }
-            else {
-                es.merge(otherSourcesStreamArr).pipe(otherSourcesStream);
-            }
-        }));
-        const result = es.merge(loader(src, bundledFileHeader, bundleLoader), bundlesStream, otherSourcesStream, resourcesStream, bundleInfoStream);
+        const result = es.merge(loader(src, bundledFileHeader, bundleLoader), bundlesStream, resourcesStream, bundleInfoStream);
         return result
             .pipe(sourcemaps.write('./', {
             sourceRoot: undefined,

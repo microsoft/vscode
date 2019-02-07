@@ -69,7 +69,7 @@ export interface IPartService {
 	/**
 	 * Returns the parts HTML element, if there is one.
 	 */
-	getContainer(part: Parts): HTMLElement;
+	getContainer(part: Parts): HTMLElement | null;
 
 	/**
 	 * Returns if the part is visible.

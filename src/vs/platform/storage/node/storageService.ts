@@ -24,32 +24,11 @@ export class StorageService extends Disposable implements IStorageService {
 	private static WORKSPACE_STORAGE_NAME = 'state.vscdb';
 	private static WORKSPACE_META_NAME = 'workspace.json';
 
-	private _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
+	private readonly _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
 	get onDidChangeStorage(): Event<IWorkspaceStorageChangeEvent> { return this._onDidChangeStorage.event; }
 
-	private _onWillSaveState: Emitter<IWillSaveStateEvent> = this._register(new Emitter<IWillSaveStateEvent>());
+	private readonly _onWillSaveState: Emitter<IWillSaveStateEvent> = this._register(new Emitter<IWillSaveStateEvent>());
 	get onWillSaveState(): Event<IWillSaveStateEvent> { return this._onWillSaveState.event; }
-
-	private _hasErrors = false;
-	get hasErrors(): boolean { return this._hasErrors; }
-
-	private bufferedWorkspaceStorageErrors?: Array<string | Error> = [];
-	private _onWorkspaceStorageError: Emitter<string | Error> = this._register(new Emitter<string | Error>());
-	get onWorkspaceStorageError(): Event<string | Error> {
-		if (Array.isArray(this.bufferedWorkspaceStorageErrors)) {
-			// todo@ben cleanup after a while
-			if (this.bufferedWorkspaceStorageErrors.length > 0) {
-				const bufferedStorageErrors = this.bufferedWorkspaceStorageErrors;
-				setTimeout(() => {
-					this._onWorkspaceStorageError.fire(`[startup errors] ${bufferedStorageErrors.join('\n')}`);
-				}, 0);
-			}
-
-			this.bufferedWorkspaceStorageErrors = undefined;
-		}
-
-		return this._onWorkspaceStorageError.event;
-	}
 
 	private globalStorage: IStorage;
 
@@ -81,15 +60,7 @@ export class StorageService extends Disposable implements IStorageService {
 	}
 
 	private initializeGlobalStorage(): Promise<void> {
-		mark('willInitGlobalStorage');
-
-		return this.globalStorage.init().then(() => {
-			mark('didInitGlobalStorage');
-		}, error => {
-			mark('didInitGlobalStorage');
-
-			return Promise.reject(error);
-		});
+		return this.globalStorage.init();
 	}
 
 	private initializeWorkspaceStorage(payload: IWorkspaceInitializationPayload): Promise<void> {
@@ -120,17 +91,7 @@ export class StorageService extends Disposable implements IStorageService {
 		// Logger for workspace storage
 		const workspaceLoggingOptions: ISQLiteStorageDatabaseLoggingOptions = {
 			logTrace: (this.logService.getLevel() === LogLevel.Trace) ? msg => this.logService.trace(msg) : undefined,
-			logError: error => {
-				this.logService.error(error);
-
-				this._hasErrors = true;
-
-				if (Array.isArray(this.bufferedWorkspaceStorageErrors)) {
-					this.bufferedWorkspaceStorageErrors.push(error);
-				} else {
-					this._onWorkspaceStorageError.fire(error);
-				}
-			}
+			logError: error => this.logService.error(error)
 		};
 
 		// Dispose old (if any)
@@ -219,14 +180,10 @@ export class StorageService extends Disposable implements IStorageService {
 		this._onWillSaveState.fire({ reason: WillSaveStateReason.SHUTDOWN });
 
 		// Do it
-		mark('willCloseGlobalStorage');
-		mark('willCloseWorkspaceStorage');
 		return Promise.all([
-			this.globalStorage.close().then(() => mark('didCloseGlobalStorage')),
-			this.workspaceStorage.close().then(() => mark('didCloseWorkspaceStorage'))
-		]).then(() => {
-			this.logService.trace(`[storage] closing took ${getDuration('willCloseGlobalStorage', 'didCloseGlobalStorage')}ms global / ${getDuration('willCloseWorkspaceStorage', 'didCloseWorkspaceStorage')}ms workspace`);
-		});
+			this.globalStorage.close(),
+			this.workspaceStorage.close()
+		]).then(() => undefined);
 	}
 
 	private getStorage(scope: StorageScope): IStorage {

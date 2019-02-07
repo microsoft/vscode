@@ -7,8 +7,8 @@ let err = false;
 
 const majorNodeVersion = parseInt(/^(\d+)\./.exec(process.versions.node)[1]);
 
-if (majorNodeVersion < 8 || majorNodeVersion >= 9) {
-	console.error('\033[1;31m*** Please use node >=8 and <9.\033[0;0m');
+if (majorNodeVersion < 8 || majorNodeVersion >= 11) {
+	console.error('\033[1;31m*** Please use node >=8 and <11.\033[0;0m');
 	err = true;
 }
 

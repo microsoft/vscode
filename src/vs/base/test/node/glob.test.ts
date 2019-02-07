@@ -102,6 +102,9 @@ suite('Glob', () => {
 		p = 'C:/DNXConsoleApp/**/*.cs';
 		assertGlobMatch(p, 'C:\\DNXConsoleApp\\Program.cs');
 		assertGlobMatch(p, 'C:\\DNXConsoleApp\\foo\\Program.cs');
+
+		p = '*';
+		assertGlobMatch(p, '');
 	});
 
 	test('dot hidden', function () {

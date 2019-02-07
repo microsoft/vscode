@@ -143,8 +143,10 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 		this._extensionManagementService.onDidInstallExtension((event) => {
 			if (event.local) {
-				// an extension has been installed
-				this._handleDeltaExtensions(new DeltaExtensionsQueueItem([event.local], []));
+				if (this._extensionEnablementService.isEnabled(event.local)) {
+					// an extension has been installed
+					this._handleDeltaExtensions(new DeltaExtensionsQueueItem([event.local], []));
+				}
 			}
 		});
 
@@ -185,6 +187,12 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			const extension = _toAdd[i];
 
 			if (extension.location.scheme !== Schemas.file) {
+				continue;
+			}
+
+			const existingExtensionDescription = this._registry.getExtensionDescription(extension.identifier.id);
+			if (existingExtensionDescription) {
+				// this extension is already running (most likely at a different version)
 				continue;
 			}
 
@@ -265,7 +273,13 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			for (let extPointName in extension.contributes) {
 				if (hasOwnProperty.call(extension.contributes, extPointName)) {
 					const extPoint = extensionPoints[extPointName];
-					if (extPoint && !extPoint.isDynamic) {
+					if (extPoint) {
+						if (!extPoint.isDynamic) {
+							return false;
+						}
+					} else {
+						// This extension has a 3rd party (unknown) extension point
+						// ===> require a reload for now...
 						return false;
 					}
 				}

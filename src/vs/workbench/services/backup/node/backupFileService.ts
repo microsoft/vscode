@@ -257,7 +257,7 @@ export class InMemoryBackupFileService implements IBackupFileService {
 			return Promise.resolve(backupResource);
 		}
 
-		return Promise.resolve();
+		return Promise.resolve(undefined);
 	}
 
 	backupResource(resource: Uri, content: ITextSnapshot, versionId?: number): Promise<void> {
@@ -273,7 +273,7 @@ export class InMemoryBackupFileService implements IBackupFileService {
 			return Promise.resolve(createTextBufferFactoryFromSnapshot(snapshot));
 		}
 
-		return Promise.resolve();
+		return Promise.resolve(undefined);
 	}
 
 	getWorkspaceFileBackups(): Promise<Uri[]> {

@@ -16,6 +16,7 @@ import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { DataTree } from 'vs/base/browser/ui/tree/dataTree';
 import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 function ensureDOMFocus(widget: ListWidget): void {
 	// it can happen that one of the commands is executed while
@@ -310,6 +311,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		// Tree only
 		if (focused && !(focused instanceof List || focused instanceof PagedList)) {
 			if (focused instanceof ObjectTree || focused instanceof DataTree) {
+				// TODO@Joao: instead of doing this here, just delegate to a tree method
 				const tree = focused;
 				const focusedElements = tree.getFocus();
 
@@ -323,12 +325,17 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 					const child = tree.getFirstElementChild(focus);
 
 					if (child) {
-						const fakeKeyboardEvent = new KeyboardEvent('keydown');
-						tree.setFocus([child], fakeKeyboardEvent);
-						tree.reveal(child);
+						const node = tree.getNode(child);
+
+						if (node.visible) {
+							const fakeKeyboardEvent = new KeyboardEvent('keydown');
+							tree.setFocus([child], fakeKeyboardEvent);
+							tree.reveal(child);
+						}
 					}
 				}
 			} else if (focused instanceof AsyncDataTree) {
+				// TODO@Joao: instead of doing this here, just delegate to a tree method
 				const tree = focused;
 				const focusedElements = tree.getFocus();
 
@@ -342,9 +349,13 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 						const child = tree.getFirstElementChild(focus);
 
 						if (child) {
-							const fakeKeyboardEvent = new KeyboardEvent('keydown');
-							tree.setFocus([child], fakeKeyboardEvent);
-							tree.reveal(child);
+							const node = tree.getNode(child);
+
+							if (node.visible) {
+								const fakeKeyboardEvent = new KeyboardEvent('keydown');
+								tree.setFocus([child], fakeKeyboardEvent);
+								tree.reveal(child);
+							}
 						}
 					}
 				});
@@ -633,12 +644,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			}
 
 			const newSelection: any[] = [];
-
-			// If the scope isn't the tree root, it should be part of the new selection
-			if (scope) {
-				newSelection.push(scope);
-			}
-
 			const visit = (node: ITreeNode<any, any>) => {
 				for (const child of node.children) {
 					if (child.visible) {
@@ -653,6 +658,11 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 			// Add the whole scope subtree to the new selection
 			visit(tree.getNode(scope));
+
+			// If the scope isn't the tree root, it should be part of the new selection
+			if (scope && selection.length === newSelection.length) {
+				newSelection.unshift(scope);
+			}
 
 			const fakeKeyboardEvent = new KeyboardEvent('keydown');
 			tree.setSelection(newSelection, fakeKeyboardEvent);
@@ -731,6 +741,42 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			} else if (tree.getFocus()) {
 				tree.clearFocus({ origin: 'keyboard' });
 			}
+		}
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: 'list.toggleKeyboardNavigation',
+	handler: (accessor) => {
+		const focused = accessor.get(IListService).lastFocusedList;
+
+		// List
+		if (focused instanceof List || focused instanceof PagedList) {
+			// TODO@joao
+		}
+
+		// ObjectTree
+		else if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
+			const tree = focused;
+			tree.toggleKeyboardNavigation();
+		}
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: 'list.toggleFilterOnType',
+	handler: (accessor) => {
+		const focused = accessor.get(IListService).lastFocusedList;
+
+		// List
+		if (focused instanceof List || focused instanceof PagedList) {
+			// TODO@joao
+		}
+
+		// ObjectTree
+		else if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
+			const tree = focused;
+			tree.updateOptions({ filterOnType: !tree.filterOnType });
 		}
 	}
 });

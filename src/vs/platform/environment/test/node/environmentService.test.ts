@@ -19,6 +19,12 @@ suite('EnvironmentService', () => {
 		assert.deepEqual(parse(['--debugBrkPluginHost']), { port: null, break: false, debugId: undefined });
 		assert.deepEqual(parse(['--debugBrkPluginHost=5678']), { port: 5678, break: true, debugId: undefined });
 		assert.deepEqual(parse(['--debugPluginHost=1234', '--debugBrkPluginHost=5678', '--debugId=7']), { port: 5678, break: true, debugId: '7' });
+
+		assert.deepEqual(parse(['--inspect-extensions']), { port: null, break: false, debugId: undefined });
+		assert.deepEqual(parse(['--inspect-extensions=1234']), { port: 1234, break: false, debugId: undefined });
+		assert.deepEqual(parse(['--inspect-brk-extensions']), { port: null, break: false, debugId: undefined });
+		assert.deepEqual(parse(['--inspect-brk-extensions=5678']), { port: 5678, break: true, debugId: undefined });
+		assert.deepEqual(parse(['--inspect-extensions=1234', '--inspect-brk-extensions=5678', '--debugId=7']), { port: 5678, break: true, debugId: '7' });
 	});
 
 	test('parseExtensionHostPort when unbuilt', () => {
@@ -30,6 +36,12 @@ suite('EnvironmentService', () => {
 		assert.deepEqual(parse(['--debugBrkPluginHost']), { port: 5870, break: false, debugId: undefined });
 		assert.deepEqual(parse(['--debugBrkPluginHost=5678']), { port: 5678, break: true, debugId: undefined });
 		assert.deepEqual(parse(['--debugPluginHost=1234', '--debugBrkPluginHost=5678', '--debugId=7']), { port: 5678, break: true, debugId: '7' });
+
+		assert.deepEqual(parse(['--inspect-extensions']), { port: 5870, break: false, debugId: undefined });
+		assert.deepEqual(parse(['--inspect-extensions=1234']), { port: 1234, break: false, debugId: undefined });
+		assert.deepEqual(parse(['--inspect-brk-extensions']), { port: 5870, break: false, debugId: undefined });
+		assert.deepEqual(parse(['--inspect-brk-extensions=5678']), { port: 5678, break: true, debugId: undefined });
+		assert.deepEqual(parse(['--inspect-extensions=1234', '--inspect-brk-extensions=5678', '--debugId=7']), { port: 5678, break: true, debugId: '7' });
 	});
 
 	test('userDataPath', () => {

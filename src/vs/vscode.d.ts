@@ -3184,6 +3184,14 @@ declare module 'vscode' {
 		 * typing a trigger character, a cursor move, or document content changes.
 		 */
 		readonly isRetrigger: boolean;
+
+		/**
+		 * The currently active [`SignatureHelp`](#SignatureHelp).
+		 *
+		 * The `activeSignatureHelp` has its [`SignatureHelp.activeSignature`] field updated based on
+		 * the user arrowing through available signatures.
+		 */
+		readonly activeSignatureHelp?: SignatureHelp;
 	}
 
 	/**
@@ -5932,7 +5940,7 @@ declare module 'vscode' {
 		 * @param target The uri that should be opened.
 		 * @returns A promise indicating if open was successful.
 		 */
-		export function open(target: Uri): Thenable<boolean>;
+		export function openExternal(target: Uri): Thenable<boolean>;
 	}
 
 	/**
@@ -8813,6 +8821,12 @@ declare module 'vscode' {
 		 * All extensions currently known to the system.
 		 */
 		export let all: Extension<any>[];
+
+		/**
+		 * An event which fires when `extensions.all` changes. This can happen when extensions are
+		 * installed, uninstalled, enabled or disabled.
+		 */
+		export const onDidChange: Event<void>;
 	}
 }
 
