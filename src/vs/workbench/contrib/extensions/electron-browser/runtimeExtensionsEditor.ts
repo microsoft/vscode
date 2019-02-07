@@ -98,10 +98,10 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 	public static readonly ID: string = 'workbench.editor.runtimeExtensions';
 
-	private _list: WorkbenchList<IRuntimeExtension>;
+	private _list: WorkbenchList<IRuntimeExtension> | null;
 	private _profileInfo: IExtensionHostProfile;
 
-	private _elements: IRuntimeExtension[];
+	private _elements: IRuntimeExtension[] | null;
 	private _extensionsDescriptions: IExtensionDescription[];
 	private _updateSoon: RunOnceScheduler;
 	private _profileSessionState: IContextKey<string>;
@@ -299,7 +299,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 				toggleClass(data.root, 'odd', index % 2 === 1);
 
-				data.name.textContent = element.marketplaceInfo ? element.marketplaceInfo.displayName : element.description.displayName;
+				data.name.textContent = element.marketplaceInfo ? element.marketplaceInfo.displayName : element.description.displayName || '';
 
 				const activationTimes = element.status.activationTimes;
 				let syncTime = activationTimes.codeLoadingTime + activationTimes.activateCallTime;
@@ -415,8 +415,8 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 			actions.push(new Separator());
 
 			if (e.element.marketplaceInfo) {
-				actions.push(new Action('runtimeExtensionsEditor.action.disableWorkspace', nls.localize('disable workspace', "Disable (Workspace)"), null, true, () => this._extensionsWorkbenchService.setEnablement(e.element.marketplaceInfo, EnablementState.WorkspaceDisabled)));
-				actions.push(new Action('runtimeExtensionsEditor.action.disable', nls.localize('disable', "Disable"), null, true, () => this._extensionsWorkbenchService.setEnablement(e.element.marketplaceInfo, EnablementState.Disabled)));
+				actions.push(new Action('runtimeExtensionsEditor.action.disableWorkspace', nls.localize('disable workspace', "Disable (Workspace)"), undefined, true, () => this._extensionsWorkbenchService.setEnablement(e.element!.marketplaceInfo, EnablementState.WorkspaceDisabled)));
+				actions.push(new Action('runtimeExtensionsEditor.action.disable', nls.localize('disable', "Disable"), undefined, true, () => this._extensionsWorkbenchService.setEnablement(e.element!.marketplaceInfo, EnablementState.Disabled)));
 				actions.push(new Separator());
 			}
 			const state = this._extensionHostProfileService.state;
@@ -440,7 +440,9 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 	}
 
 	public layout(dimension: Dimension): void {
-		this._list.layout(dimension.height);
+		if (this._list) {
+			this._list.layout(dimension.height);
+		}
 	}
 }
 
