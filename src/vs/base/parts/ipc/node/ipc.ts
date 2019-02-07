@@ -690,7 +690,7 @@ export class IPCClient<TContext = string> implements IChannelClient, IChannelSer
 export function getDelayedChannel<T extends IChannel>(promise: Promise<T>): T {
 	return {
 		call(command: string, arg?: any, cancellationToken?: CancellationToken): Promise<T> {
-			return promise.then(c => c.call(command, arg, cancellationToken));
+			return promise.then(c => c.call<T>(command, arg, cancellationToken));
 		},
 
 		listen<T>(event: string, arg?: any): Event<T> {

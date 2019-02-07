@@ -20,7 +20,7 @@ import { CharacterPair, CommentRule, EnterAction } from 'vs/editor/common/modes/
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationData, IConfigurationModel } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { FileChangeType, FileDeleteOptions, FileOverwriteOptions, FileSystemProviderCapabilities, FileType, FileWriteOptions, IStat, IWatchOptions } from 'vs/platform/files/common/files';
+import { FileChangeType, FileDeleteOptions, FileOverwriteOptions, FileSystemProviderCapabilities, FileType, FileWriteOptions, IStat, IWatchOptions, FileOpenOptions } from 'vs/platform/files/common/files';
 import { ResourceLabelFormatter } from 'vs/platform/label/common/label';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
@@ -33,9 +33,9 @@ import { EndOfLine, IFileOperationOptions, TextEditorLineNumbersStyle } from 'vs
 import { EditorViewColumn } from 'vs/workbench/api/shared/editor';
 import { TaskDTO, TaskExecutionDTO, TaskFilterDTO, TaskHandleDTO, TaskProcessEndedDTO, TaskProcessStartedDTO, TaskSystemInfoDTO, TaskSetDTO } from 'vs/workbench/api/shared/tasks';
 import { ITreeItem, IRevealOptions } from 'vs/workbench/common/views';
-import { IAdapterDescriptor, IConfig, ITerminalSettings } from 'vs/workbench/parts/debug/common/debug';
-import { ITextQueryBuilderOptions } from 'vs/workbench/parts/search/common/queryBuilder';
-import { ITerminalDimensions } from 'vs/workbench/parts/terminal/common/terminal';
+import { IAdapterDescriptor, IConfig, ITerminalSettings } from 'vs/workbench/contrib/debug/common/debug';
+import { ITextQueryBuilderOptions } from 'vs/workbench/contrib/search/common/queryBuilder';
+import { ITerminalDimensions } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { IRPCProtocol, createExtHostContextProxyIdentifier as createExtId, createMainContextProxyIdentifier as createMainId } from 'vs/workbench/services/extensions/node/proxyIdentifier';
 import { IProgressOptions, IProgressStep } from 'vs/platform/progress/common/progress';
@@ -105,7 +105,7 @@ export interface MainThreadClipboardShape extends IDisposable {
 export interface MainThreadCommandsShape extends IDisposable {
 	$registerCommand(id: string): void;
 	$unregisterCommand(id: string): void;
-	$executeCommand<T>(id: string, args: any[]): Promise<T>;
+	$executeCommand<T>(id: string, args: any[]): Promise<T | undefined>;
 	$getCommands(): Promise<string[]>;
 }
 
@@ -366,6 +366,8 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 	$sendProcessData(terminalId: number, data: string): void;
 	$sendProcessPid(terminalId: number, pid: number): void;
 	$sendProcessExit(terminalId: number, exitCode: number): void;
+	$sendProcessInitialCwd(terminalId: number, cwd: string): void;
+	$sendProcessCwd(terminalId: number, initialCwd: string): void;
 
 	// Renderer
 	$terminalRendererSetName(terminalId: number, name: string): void;
@@ -454,7 +456,7 @@ export interface MainThreadStatusBarShape extends IDisposable {
 }
 
 export interface MainThreadStorageShape extends IDisposable {
-	$getValue<T>(shared: boolean, key: string): Promise<T>;
+	$getValue<T>(shared: boolean, key: string): Promise<T | undefined>;
 	$setValue(shared: boolean, key: string, value: object): Promise<void>;
 }
 
@@ -506,12 +508,12 @@ export interface ExtHostUrlsShape {
 }
 
 export interface MainThreadWorkspaceShape extends IDisposable {
-	$startFileSearch(includePattern: string, includeFolder: URI, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Promise<UriComponents[]>;
+	$startFileSearch(includePattern: string, includeFolder: URI, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Promise<UriComponents[]> | undefined;
 	$startTextSearch(query: IPatternInfo, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<vscode.TextSearchComplete>;
 	$checkExists(includes: string[], token: CancellationToken): Promise<boolean>;
 	$saveAll(includeUntitled?: boolean): Promise<boolean>;
 	$updateWorkspaceFolders(extensionName: string, index: number, deleteCount: number, workspaceFoldersToAdd: { uri: UriComponents, name?: string }[]): Promise<void>;
-	$resolveProxy(url: string): Promise<string>;
+	$resolveProxy(url: string): Promise<string | undefined>;
 }
 
 export interface IFileChangeDto {
@@ -719,8 +721,8 @@ export interface ExtHostTreeViewsShape {
 }
 
 export interface ExtHostWorkspaceShape {
-	$initializeWorkspace(workspace: IWorkspaceData): void;
-	$acceptWorkspaceData(workspace: IWorkspaceData): void;
+	$initializeWorkspace(workspace: IWorkspaceData | null): void;
+	$acceptWorkspaceData(workspace: IWorkspaceData | null): void;
 	$handleTextSearchResult(result: IRawFileMatch2, requestId: number): void;
 }
 
@@ -735,7 +737,7 @@ export interface ExtHostFileSystemShape {
 	$delete(handle: number, resource: UriComponents, opts: FileDeleteOptions): Promise<void>;
 	$watch(handle: number, session: number, resource: UriComponents, opts: IWatchOptions): void;
 	$unwatch(handle: number, session: number): void;
-	$open(handle: number, resource: UriComponents): Promise<number>;
+	$open(handle: number, resource: UriComponents, opts: FileOpenOptions): Promise<number>;
 	$close(handle: number, fd: number): Promise<void>;
 	$read(handle: number, fd: number, pos: number, length: number): Promise<Buffer>;
 	$write(handle: number, fd: number, pos: number, data: Buffer): Promise<number>;
@@ -937,11 +939,13 @@ export interface ExtHostTerminalServiceShape {
 	$acceptTerminalProcessData(id: number, data: string): void;
 	$acceptTerminalRendererInput(id: number, data: string): void;
 	$acceptTerminalTitleChange(id: number, name: string): void;
-	$acceptTerminalRendererDimensions(id: number, cols: number, rows: number): void;
+	$acceptTerminalDimensions(id: number, cols: number, rows: number): void;
 	$createProcess(id: number, shellLaunchConfig: ShellLaunchConfigDto, activeWorkspaceRootUri: URI, cols: number, rows: number): void;
 	$acceptProcessInput(id: number, data: string): void;
 	$acceptProcessResize(id: number, cols: number, rows: number): void;
 	$acceptProcessShutdown(id: number, immediate: boolean): void;
+	$acceptProcessRequestInitialCwd(id: number): void;
+	$acceptProcessRequestCwd(id: number): void;
 }
 
 export interface ExtHostSCMShape {
@@ -1074,7 +1078,7 @@ export interface ExtHostCommentsShape {
 }
 
 export interface ExtHostStorageShape {
-	$acceptValue(shared: boolean, key: string, value: object): void;
+	$acceptValue(shared: boolean, key: string, value: object | undefined): void;
 }
 
 // --- proxy identifiers

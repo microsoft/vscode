@@ -16,6 +16,7 @@ import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { DataTree } from 'vs/base/browser/ui/tree/dataTree';
 import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 function ensureDOMFocus(widget: ListWidget): void {
 	// it can happen that one of the commands is executed while
@@ -27,7 +28,7 @@ function ensureDOMFocus(widget: ListWidget): void {
 	}
 }
 
-function focusDown(accessor: ServicesAccessor, arg2?: number): void {
+function focusDown(accessor: ServicesAccessor, arg2?: number, loop: boolean = true): void {
 	const focused = accessor.get(IListService).lastFocusedList;
 	const count = typeof arg2 === 'number' ? arg2 : 1;
 
@@ -50,7 +51,7 @@ function focusDown(accessor: ServicesAccessor, arg2?: number): void {
 		const tree = focused;
 
 		const fakeKeyboardEvent = new KeyboardEvent('keydown');
-		tree.focusNext(count, true, fakeKeyboardEvent);
+		tree.focusNext(count, loop, fakeKeyboardEvent);
 
 		const listFocus = tree.getFocus();
 		if (listFocus.length) {
@@ -99,6 +100,11 @@ function expandMultiSelection(focused: List<any> | PagedList<any> | ITree | Obje
 		const list = focused;
 
 		const focus = list.getFocus() ? list.getFocus()[0] : undefined;
+
+		if (previousFocus === focus) {
+			return;
+		}
+
 		const selection = list.getSelection();
 		const fakeKeyboardEvent = new KeyboardEvent('keydown', { shiftKey: true });
 
@@ -137,7 +143,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 			// Focus down first
 			const previousFocus = list.getFocus() ? list.getFocus()[0] : undefined;
-			focusDown(accessor, arg2);
+			focusDown(accessor, arg2, false);
 
 			// Then adjust selection
 			expandMultiSelection(focused, previousFocus);
@@ -157,7 +163,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
-function focusUp(accessor: ServicesAccessor, arg2?: number): void {
+function focusUp(accessor: ServicesAccessor, arg2?: number, loop: boolean = true): void {
 	const focused = accessor.get(IListService).lastFocusedList;
 	const count = typeof arg2 === 'number' ? arg2 : 1;
 
@@ -180,7 +186,7 @@ function focusUp(accessor: ServicesAccessor, arg2?: number): void {
 		const tree = focused;
 
 		const fakeKeyboardEvent = new KeyboardEvent('keydown');
-		tree.focusPrevious(count, true, fakeKeyboardEvent);
+		tree.focusPrevious(count, loop, fakeKeyboardEvent);
 
 		const listFocus = tree.getFocus();
 		if (listFocus.length) {
@@ -223,7 +229,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 			// Focus up first
 			const previousFocus = list.getFocus() ? list.getFocus()[0] : undefined;
-			focusUp(accessor, arg2);
+			focusUp(accessor, arg2, false);
 
 			// Then adjust selection
 			expandMultiSelection(focused, previousFocus);
@@ -304,7 +310,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 		// Tree only
 		if (focused && !(focused instanceof List || focused instanceof PagedList)) {
-			if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
+			if (focused instanceof ObjectTree || focused instanceof DataTree) {
+				// TODO@Joao: instead of doing this here, just delegate to a tree method
 				const tree = focused;
 				const focusedElements = tree.getFocus();
 
@@ -318,11 +325,40 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 					const child = tree.getFirstElementChild(focus);
 
 					if (child) {
-						const fakeKeyboardEvent = new KeyboardEvent('keydown');
-						tree.setFocus([child], fakeKeyboardEvent);
-						tree.reveal(child);
+						const node = tree.getNode(child);
+
+						if (node.visible) {
+							const fakeKeyboardEvent = new KeyboardEvent('keydown');
+							tree.setFocus([child], fakeKeyboardEvent);
+							tree.reveal(child);
+						}
 					}
 				}
+			} else if (focused instanceof AsyncDataTree) {
+				// TODO@Joao: instead of doing this here, just delegate to a tree method
+				const tree = focused;
+				const focusedElements = tree.getFocus();
+
+				if (focusedElements.length === 0) {
+					return;
+				}
+
+				const focus = focusedElements[0];
+				tree.expand(focus).then(didExpand => {
+					if (focus && !didExpand) {
+						const child = tree.getFirstElementChild(focus);
+
+						if (child) {
+							const node = tree.getNode(child);
+
+							if (node.visible) {
+								const fakeKeyboardEvent = new KeyboardEvent('keydown');
+								tree.setFocus([child], fakeKeyboardEvent);
+								tree.reveal(child);
+							}
+						}
+					}
+				});
 			} else {
 				const tree = focused;
 				const focus = tree.getFocus();
@@ -608,12 +644,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			}
 
 			const newSelection: any[] = [];
-
-			// If the scope isn't the tree root, it should be part of the new selection
-			if (scope) {
-				newSelection.push(scope);
-			}
-
 			const visit = (node: ITreeNode<any, any>) => {
 				for (const child of node.children) {
 					if (child.visible) {
@@ -628,6 +658,11 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 			// Add the whole scope subtree to the new selection
 			visit(tree.getNode(scope));
+
+			// If the scope isn't the tree root, it should be part of the new selection
+			if (scope && selection.length === newSelection.length) {
+				newSelection.unshift(scope);
+			}
 
 			const fakeKeyboardEvent = new KeyboardEvent('keydown');
 			tree.setSelection(newSelection, fakeKeyboardEvent);
@@ -706,6 +741,42 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			} else if (tree.getFocus()) {
 				tree.clearFocus({ origin: 'keyboard' });
 			}
+		}
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: 'list.toggleKeyboardNavigation',
+	handler: (accessor) => {
+		const focused = accessor.get(IListService).lastFocusedList;
+
+		// List
+		if (focused instanceof List || focused instanceof PagedList) {
+			// TODO@joao
+		}
+
+		// ObjectTree
+		else if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
+			const tree = focused;
+			tree.toggleKeyboardNavigation();
+		}
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: 'list.toggleFilterOnType',
+	handler: (accessor) => {
+		const focused = accessor.get(IListService).lastFocusedList;
+
+		// List
+		if (focused instanceof List || focused instanceof PagedList) {
+			// TODO@joao
+		}
+
+		// ObjectTree
+		else if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
+			const tree = focused;
+			tree.updateOptions({ filterOnType: !tree.filterOnType });
 		}
 	}
 });

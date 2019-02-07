@@ -29,15 +29,15 @@ export class FileIconThemeData implements IFileIconTheme {
 
 	private constructor() { }
 
-	public ensureLoaded(fileService: IFileService): Promise<string> {
+	public ensureLoaded(fileService: IFileService): Promise<string | undefined> {
 		return !this.isLoaded ? this.load(fileService) : Promise.resolve(this.styleSheetContent);
 	}
 
-	public reload(fileService: IFileService): Promise<string> {
+	public reload(fileService: IFileService): Promise<string | undefined> {
 		return this.load(fileService);
 	}
 
-	private load(fileService: IFileService): Promise<string> {
+	private load(fileService: IFileService): Promise<string | undefined> {
 		if (!this.location) {
 			return Promise.resolve(this.styleSheetContent);
 		}

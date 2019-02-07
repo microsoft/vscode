@@ -6,8 +6,8 @@
 import 'vs/css!./gotoLine';
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IContext, QuickOpenEntry, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import { IAutoFocus, Mode } from 'vs/base/parts/quickopen/common/quickOpen';
+import { QuickOpenEntry, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import { IAutoFocus, Mode, IEntryRunContext } from 'vs/base/parts/quickopen/common/quickOpen';
 import { ICodeEditor, IDiffEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
@@ -49,14 +49,15 @@ export class GotoLineEntry extends QuickOpenEntry {
 			position = new Position(numbers[0], numbers[1]);
 		}
 
-		let model: ITextModel;
+		let model: ITextModel | null;
 		if (isCodeEditor(this.editor)) {
 			model = this.editor.getModel();
 		} else {
-			model = (<IDiffEditor>this.editor).getModel().modified;
+			const diffModel = (<IDiffEditor>this.editor).getModel();
+			model = diffModel ? diffModel.modified : null;
 		}
 
-		const isValid = model.validatePosition(position).equals(position);
+		const isValid = model ? model.validatePosition(position).equals(position) : false;
 		let label: string;
 
 		if (isValid) {
@@ -65,10 +66,10 @@ export class GotoLineEntry extends QuickOpenEntry {
 			} else {
 				label = nls.localize('gotoLineLabelValidLine', "Go to line {0}", position.lineNumber, position.column);
 			}
-		} else if (position.lineNumber < 1 || position.lineNumber > model.getLineCount()) {
-			label = nls.localize('gotoLineLabelEmptyWithLineLimit', "Type a line number between 1 and {0} to navigate to", model.getLineCount());
+		} else if (position.lineNumber < 1 || position.lineNumber > (model ? model.getLineCount() : 0)) {
+			label = nls.localize('gotoLineLabelEmptyWithLineLimit', "Type a line number between 1 and {0} to navigate to", model ? model.getLineCount() : 0);
 		} else {
-			label = nls.localize('gotoLineLabelEmptyWithLineAndColumnLimit', "Type a character between 1 and {0} to navigate to", model.getLineMaxColumn(position.lineNumber));
+			label = nls.localize('gotoLineLabelEmptyWithLineAndColumnLimit', "Type a character between 1 and {0} to navigate to", model ? model.getLineMaxColumn(position.lineNumber) : 0);
 		}
 
 		return {
@@ -83,12 +84,12 @@ export class GotoLineEntry extends QuickOpenEntry {
 	}
 
 	getAriaLabel(): string {
-		const currentLine = this.editor.getPosition().lineNumber;
-
+		const position = this.editor.getPosition();
+		const currentLine = position ? position.lineNumber : 0;
 		return nls.localize('gotoLineAriaLabel', "Current Line: {0}. Go to line {0}.", currentLine, this.parseResult.label);
 	}
 
-	run(mode: Mode, context: IContext): boolean {
+	run(mode: Mode, _context: IEntryRunContext): boolean {
 		if (mode === Mode.OPEN) {
 			return this.runOpen();
 		}

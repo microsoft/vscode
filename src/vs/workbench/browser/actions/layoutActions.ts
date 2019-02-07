@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/actions';
+
 import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Action } from 'vs/base/common/actions';
@@ -20,6 +22,7 @@ import { isWindows, isLinux } from 'vs/base/common/platform';
 import { IsMacContext } from 'vs/platform/workbench/common/contextkeys';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { InEditorZenModeContext } from 'vs/workbench/common/editor';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 const viewCategory = nls.localize('view', "View");
@@ -210,6 +213,32 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 
 // --- Toggle Sidebar Visibility
 
+export class ToggleEditorVisibilityAction extends Action {
+	static readonly ID = 'workbench.action.toggleEditorVisibility';
+	static readonly LABEL = nls.localize('toggleEditor', "Toggle Editor Area");
+
+	constructor(
+		id: string,
+		label: string,
+		@IPartService private readonly partService: IPartService
+	) {
+		super(id, label);
+
+		this.enabled = !!this.partService;
+	}
+
+	run(): Promise<any> {
+		const hideEditor = this.partService.isVisible(Parts.EDITOR_PART);
+		this.partService.setEditorHidden(hideEditor);
+
+		return Promise.resolve(null);
+	}
+
+}
+
+registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleEditorVisibilityAction, ToggleEditorVisibilityAction.ID, ToggleEditorVisibilityAction.LABEL), 'View: Toggle Editor Area Visibility', viewCategory, ContextKeyExpr.equals('config.workbench.useExperimentalGridLayout', true));
+
+
 export class ToggleSidebarVisibilityAction extends Action {
 
 	static readonly ID = 'workbench.action.toggleSidebarVisibility';
@@ -308,7 +337,11 @@ class ToggleTabsVisibilityAction extends Action {
 	}
 }
 
-registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleTabsVisibilityAction, ToggleTabsVisibilityAction.ID, ToggleTabsVisibilityAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_W }), 'View: Toggle Tab Visibility', viewCategory);
+registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleTabsVisibilityAction, ToggleTabsVisibilityAction.ID, ToggleTabsVisibilityAction.LABEL, {
+	primary: undefined!,
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_W, },
+	linux: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_W, }
+}), 'View: Toggle Tab Visibility', viewCategory);
 
 // --- Toggle Zen Mode
 

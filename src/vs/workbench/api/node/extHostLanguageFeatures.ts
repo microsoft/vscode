@@ -553,7 +553,7 @@ class RenameAdapter {
 			if (rejectReason) {
 				return <modes.RenameLocation & modes.Rejection>{ rejectReason, range: undefined, text: undefined };
 			} else {
-				return Promise.reject(err);
+				return Promise.reject<any>(err);
 			}
 		});
 	}
@@ -756,11 +756,14 @@ class SignatureHelpAdapter {
 	private reviveContext(context: modes.SignatureHelpContext): vscode.SignatureHelpContext {
 		let activeSignatureHelp: vscode.SignatureHelp | undefined = undefined;
 		if (context.activeSignatureHelp) {
+			const revivedSignatureHelp = typeConvert.SignatureHelp.to(context.activeSignatureHelp);
 			const saved = this._heap.get<vscode.SignatureHelp>(ObjectIdentifier.of(context.activeSignatureHelp));
 			if (saved) {
 				activeSignatureHelp = saved;
+				activeSignatureHelp.activeSignature = revivedSignatureHelp.activeSignature;
+				activeSignatureHelp.activeParameter = revivedSignatureHelp.activeParameter;
 			} else {
-				activeSignatureHelp = typeConvert.SignatureHelp.to(context.activeSignatureHelp);
+				activeSignatureHelp = revivedSignatureHelp;
 			}
 		}
 		return { ...context, activeSignatureHelp };

@@ -14,6 +14,7 @@ export class CodeActionKind {
 	public static readonly Refactor = new CodeActionKind('refactor');
 	public static readonly Source = new CodeActionKind('source');
 	public static readonly SourceOrganizeImports = new CodeActionKind('source.organizeImports');
+	public static readonly SourceFixAll = new CodeActionKind('source.fixAll');
 
 	constructor(
 		public readonly value: string
@@ -31,7 +32,6 @@ export class CodeActionKind {
 export const enum CodeActionAutoApply {
 	IfSingle,
 	First,
-	Preferred,
 	Never,
 }
 

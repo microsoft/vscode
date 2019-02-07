@@ -13,7 +13,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel } from 'vs/editor/common/model';
 import { CodeAction, CodeActionContext, CodeActionProviderRegistry, CodeActionTrigger as CodeActionTriggerKind } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { CodeActionKind, CodeActionTrigger, filtersAction, mayIncludeActionsOfKind } from './codeActionTrigger';
+import { CodeActionKind, CodeActionTrigger, filtersAction, mayIncludeActionsOfKind, CodeActionFilter } from './codeActionTrigger';
 
 export function getCodeActions(
 	model: ITextModel,
@@ -32,35 +32,40 @@ export function getCodeActions(
 		rangeOrSelection = model.getFullModelRange();
 	}
 
-	const promises = CodeActionProviderRegistry.all(model)
-		// Avoid calling providers that we know will not return code actions of interest
+	const promises = getCodeActionProviders(model, filter).map(provider => {
+		return Promise.resolve(provider.provideCodeActions(model, rangeOrSelection, codeActionContext, token)).then(providedCodeActions => {
+			if (!Array.isArray(providedCodeActions)) {
+				return [];
+			}
+			return providedCodeActions.filter(action => action && filtersAction(filter, action));
+		}, (err): CodeAction[] => {
+			if (isPromiseCanceledError(err)) {
+				throw err;
+			}
+
+			onUnexpectedExternalError(err);
+			return [];
+		});
+	});
+
+	return Promise.all(promises)
+		.then(flatten)
+		.then(allCodeActions => mergeSort(allCodeActions, codeActionsComparator));
+}
+
+function getCodeActionProviders(
+	model: ITextModel,
+	filter: CodeActionFilter
+) {
+	return CodeActionProviderRegistry.all(model)
+		// Don't include providers that we know will not return code actions of interest
 		.filter(provider => {
 			if (!provider.providedCodeActionKinds) {
 				// We don't know what type of actions this provider will return.
 				return true;
 			}
-
 			return provider.providedCodeActionKinds.some(kind => mayIncludeActionsOfKind(filter, new CodeActionKind(kind)));
-		})
-		.map(support => {
-			return Promise.resolve(support.provideCodeActions(model, rangeOrSelection, codeActionContext, token)).then(providedCodeActions => {
-				if (!Array.isArray(providedCodeActions)) {
-					return [];
-				}
-				return providedCodeActions.filter(action => action && filtersAction(filter, action));
-			}, (err): CodeAction[] => {
-				if (isPromiseCanceledError(err)) {
-					throw err;
-				}
-
-				onUnexpectedExternalError(err);
-				return [];
-			});
 		});
-
-	return Promise.all(promises)
-		.then(flatten)
-		.then(allCodeActions => mergeSort(allCodeActions, codeActionsComparator));
 }
 
 function codeActionsComparator(a: CodeAction, b: CodeAction): number {

@@ -10,6 +10,7 @@ import { CountBadge } from './vs/base/browser/ui/countBadge/countBadge';
 import { SimpleWorkerClient, create as create1 } from './vs/base/common/worker/simpleWorker';
 import { create as create2 } from './vs/editor/common/services/editorSimpleWorker';
 import { QuickOpenWidget } from './vs/base/parts/quickopen/browser/quickOpenWidget';
+import { WorkbenchAsyncDataTree } from './vs/platform/list/browser/listService';
 import { SyncDescriptor0, SyncDescriptor1, SyncDescriptor2, SyncDescriptor3, SyncDescriptor4, SyncDescriptor5, SyncDescriptor6, SyncDescriptor7, SyncDescriptor8 } from './vs/platform/instantiation/common/descriptors';
 import { DiffNavigator } from './vs/editor/browser/widget/diffNavigator';
 import * as editorAPI from './vs/editor/editor.api';
@@ -22,6 +23,7 @@ import * as editorAPI from './vs/editor/editor.api';
 	a = (<IWorkspaceContextService>b).getWorkspace; // IWorkspaceFolderProvider
 	a = (<CountBadge>b).style; // IThemable
 	a = (<QuickOpenWidget>b).style; // IThemable
+	a = (<WorkbenchAsyncDataTree<any,any>>b).style; // IThemable
 	a = (<IEnvironmentService>b).userHome; // IUserHomeProvider
 	a = (<DiffNavigator>b).previous; // IDiffNavigator
 	a = (<ServiceIdentifier<any>>b).type;

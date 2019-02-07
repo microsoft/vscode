@@ -177,11 +177,11 @@ export function createApiFactory(
 		// Warn when trying to use the vscode.previewHtml command as it does not work properly in all scenarios and
 		// has security concerns.
 		const checkCommand = (() => {
-			let done = !extension.isUnderDevelopment;
+			let done = false;
 			const informOnce = () => {
 				if (!done) {
 					done = true;
-					console.warn(`Extension '${extension.identifier.value}' uses the 'vscode.previewHtml' command which is deprecated and will be removed. Please update your extension to use the Webview API: https://go.microsoft.com/fwlink/?linkid=2039309`);
+					window.showWarningMessage(localize('previewHtml.deprecated', "Extension '{0}' uses the 'vscode.previewHtml' command which is deprecated and will be removed soon. Please file an issue against this extension to update to use VS Code's webview API.", extension.identifier.value));
 				}
 			};
 			return (commandId: string) => {
@@ -256,7 +256,7 @@ export function createApiFactory(
 			get clipboard(): vscode.Clipboard {
 				return extHostClipboard;
 			},
-			open(uri: URI) {
+			openExternal(uri: URI) {
 				return extHostWindow.openUri(uri);
 			}
 		});
@@ -272,6 +272,9 @@ export function createApiFactory(
 			},
 			get all(): Extension<any>[] {
 				return extensionRegistry.getAllExtensionDescriptions().map((desc) => new Extension(extensionService, desc));
+			},
+			get onDidChange() {
+				return extensionRegistry.onDidChange;
 			}
 		};
 
@@ -421,6 +424,9 @@ export function createApiFactory(
 			onDidChangeActiveTerminal(listener, thisArg?, disposables?) {
 				return extHostTerminalService.onDidChangeActiveTerminal(listener, thisArg, disposables);
 			},
+			onDidChangeTerminalDimensions(listener, thisArg?, disposables?) {
+				return extHostTerminalService.onDidChangeTerminalDimensions(listener, thisArg, disposables);
+			},
 			get state() {
 				return extHostWindow.state;
 			},
@@ -476,9 +482,9 @@ export function createApiFactory(
 				}
 				return extHostTerminalService.createTerminal(<string>nameOrOptions, shellPath, shellArgs);
 			},
-			createTerminalRenderer: proposedApiFunction(extension, (name: string) => {
+			createTerminalRenderer(name: string): vscode.TerminalRenderer {
 				return extHostTerminalService.createTerminalRenderer(name);
-			}),
+			},
 			registerTreeDataProvider(viewId: string, treeDataProvider: vscode.TreeDataProvider<any>): vscode.Disposable {
 				return extHostTreeViews.registerTreeDataProvider(viewId, treeDataProvider, extension);
 			},

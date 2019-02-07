@@ -165,6 +165,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	private setRowLineHeight: boolean;
 	private supportDynamicHeights: boolean;
 	private horizontalScrolling: boolean;
+	private scrollWidth: number | undefined;
 	private canUseTranslate3d: boolean | undefined = undefined;
 
 	private dnd: IListViewDragAndDrop<T>;
@@ -387,7 +388,22 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			}
 		}
 
+		this.scrollWidth = scrollWidth;
 		this.scrollableElement.setScrollDimensions({ scrollWidth: scrollWidth + 10 });
+	}
+
+	updateWidth(index: number): void {
+		if (!this.horizontalScrolling || typeof this.scrollWidth === 'undefined') {
+			return;
+		}
+
+		const item = this.items[index];
+		this.measureItemWidth(item);
+
+		if (typeof item.width !== 'undefined' && item.width > this.scrollWidth) {
+			this.scrollWidth = item.width;
+			this.scrollableElement.setScrollDimensions({ scrollWidth: this.scrollWidth + 10 });
+		}
 	}
 
 	get length(): number {
@@ -426,7 +442,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	layout(height?: number, width?: number): void {
 		let scrollDimensions: INewScrollDimensions = {
-			height: height || DOM.getContentHeight(this.domNode)
+			height: typeof height === 'number' ? height : DOM.getContentHeight(this.domNode)
 		};
 
 		if (this.scrollableElementUpdateDisposable) {
@@ -446,7 +462,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 			if (this.horizontalScrolling) {
 				this.scrollableElement.setScrollDimensions({
-					width: width || DOM.getContentWidth(this.domNode)
+					width: typeof width === 'number' ? width : DOM.getContentWidth(this.domNode)
 				});
 			}
 		}
@@ -530,41 +546,43 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			throw new Error(`No renderer found for template id ${item.templateId}`);
 		}
 
-		if (this.horizontalScrolling) {
-			item.row.domNode!.style.width = 'fit-content';
-		}
-
 		if (renderer) {
 			renderer.renderElement(item.element, index, item.row.templateData);
 		}
 
-		if (this.horizontalScrolling) {
-			item.width = DOM.getContentWidth(item.row.domNode!);
-			const style = window.getComputedStyle(item.row.domNode!);
-
-			if (style.paddingLeft) {
-				item.width += parseFloat(style.paddingLeft);
-			}
-
-			if (style.paddingRight) {
-				item.width += parseFloat(style.paddingRight);
-			}
-
-			item.row.domNode!.style.width = '';
-		}
-
 		const uri = this.dnd.getDragURI(item.element);
 		item.dragStartDisposable.dispose();
+		item.row.domNode!.draggable = !!uri;
 
 		if (uri) {
-			item.row.domNode!.draggable = true;
 			const onDragStart = domEvent(item.row.domNode!, 'dragstart');
 			item.dragStartDisposable = onDragStart(event => this.onDragStart(item.element, uri, event));
 		}
 
 		if (this.horizontalScrolling) {
+			this.measureItemWidth(item);
 			this.eventuallyUpdateScrollWidth();
 		}
+	}
+
+	private measureItemWidth(item: IItem<T>): void {
+		if (!item.row || !item.row.domNode) {
+			return;
+		}
+
+		item.row.domNode.style.width = 'fit-content';
+		item.width = DOM.getContentWidth(item.row.domNode);
+		const style = window.getComputedStyle(item.row.domNode);
+
+		if (style.paddingLeft) {
+			item.width += parseFloat(style.paddingLeft);
+		}
+
+		if (style.paddingRight) {
+			item.width += parseFloat(style.paddingRight);
+		}
+
+		item.row.domNode.style.width = '';
 	}
 
 	private updateItemInDOM(item: IItem<T>, index: number): void {
@@ -711,7 +729,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 				label = String(elements.length);
 			}
 
-			const dragImage = DOM.$('.monaco-list-drag-image');
+			const dragImage = DOM.$('.monaco-drag-image');
 			dragImage.textContent = label;
 			document.body.appendChild(dragImage);
 			event.dataTransfer.setDragImage(dragImage, -10, -10);
@@ -941,12 +959,15 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		// Let's remember the second element's position, this helps in scrolling up
 		// and preserving a linear upwards scroll movement
-		let secondElementIndex: number | undefined;
-		let secondElementTopDelta: number | undefined;
+		let anchorElementIndex: number | undefined;
+		let anchorElementTopDelta: number | undefined;
 
-		if (previousRenderRange.end - previousRenderRange.start > 1) {
-			secondElementIndex = previousRenderRange.start + 1;
-			secondElementTopDelta = this.elementTop(secondElementIndex) - renderTop;
+		if (renderTop === this.elementTop(previousRenderRange.start)) {
+			anchorElementIndex = previousRenderRange.start;
+			anchorElementTopDelta = 0;
+		} else if (previousRenderRange.end - previousRenderRange.start > 1) {
+			anchorElementIndex = previousRenderRange.start + 1;
+			anchorElementTopDelta = this.elementTop(anchorElementIndex) - renderTop;
 		}
 
 		let heightDiff = 0;
@@ -999,8 +1020,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 					}
 				}
 
-				if (typeof secondElementIndex === 'number') {
-					this.scrollTop = this.elementTop(secondElementIndex) - secondElementTopDelta!;
+				if (typeof anchorElementIndex === 'number') {
+					this.scrollTop = this.elementTop(anchorElementIndex) - anchorElementTopDelta!;
 				}
 
 				this._onDidChangeContentHeight.fire(this.contentHeight);

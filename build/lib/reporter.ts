@@ -7,7 +7,8 @@
 
 import * as es from 'event-stream';
 import * as _ from 'underscore';
-import * as util from 'gulp-util';
+import * as fancyLog from 'fancy-log';
+import * as ansiColors from 'ansi-colors';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -21,7 +22,7 @@ function onStart(): void {
 	}
 
 	startTime = new Date().getTime();
-	util.log(`Starting ${util.colors.green('compilation')}...`);
+	fancyLog(`Starting ${ansiColors.green('compilation')}...`);
 }
 
 function onEnd(): void {
@@ -47,7 +48,7 @@ function log(): void {
 	errors.map(err => {
 		if (!seen.has(err)) {
 			seen.add(err);
-			util.log(`${util.colors.red('Error')}: ${err}`);
+			fancyLog(`${ansiColors.red('Error')}: ${err}`);
 		}
 	});
 
@@ -65,7 +66,7 @@ function log(): void {
 		//noop
 	}
 
-	util.log(`Finished ${util.colors.green('compilation')} with ${errors.length} errors after ${util.colors.magenta((new Date().getTime() - startTime!) + ' ms')}`);
+	fancyLog(`Finished ${ansiColors.green('compilation')} with ${errors.length} errors after ${ansiColors.magenta((new Date().getTime() - startTime!) + ' ms')}`);
 }
 
 export interface IReporter {

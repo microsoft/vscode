@@ -33,6 +33,7 @@ import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/cont
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { ISerializableView } from 'vs/base/browser/ui/grid/grid';
+import { LayoutPriority } from 'vs/base/browser/ui/grid/gridview';
 
 export const ActivePanelContext = new RawContextKey<string>('activePanel', '');
 export const PanelFocusContext = new RawContextKey<boolean>('panelFocus', false);
@@ -66,6 +67,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService, IS
 	minimumHeight: number = 77;
 	maximumHeight: number = Number.POSITIVE_INFINITY;
 	snapSize: number = 50;
+	priority: LayoutPriority = LayoutPriority.Low;
 
 	private _onDidChange = new Emitter<{ width: number; height: number; }>();
 	readonly onDidChange = this._onDidChange.event;

@@ -66,25 +66,25 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region events
 
-	private _onDidFocus: Emitter<void> = this._register(new Emitter<void>());
+	private readonly _onDidFocus: Emitter<void> = this._register(new Emitter<void>());
 	get onDidFocus(): Event<void> { return this._onDidFocus.event; }
 
-	private _onWillDispose: Emitter<void> = this._register(new Emitter<void>());
+	private readonly _onWillDispose: Emitter<void> = this._register(new Emitter<void>());
 	get onWillDispose(): Event<void> { return this._onWillDispose.event; }
 
-	private _onDidGroupChange: Emitter<IGroupChangeEvent> = this._register(new Emitter<IGroupChangeEvent>());
+	private readonly _onDidGroupChange: Emitter<IGroupChangeEvent> = this._register(new Emitter<IGroupChangeEvent>());
 	get onDidGroupChange(): Event<IGroupChangeEvent> { return this._onDidGroupChange.event; }
 
-	private _onWillOpenEditor: Emitter<IEditorOpeningEvent> = this._register(new Emitter<IEditorOpeningEvent>());
+	private readonly _onWillOpenEditor: Emitter<IEditorOpeningEvent> = this._register(new Emitter<IEditorOpeningEvent>());
 	get onWillOpenEditor(): Event<IEditorOpeningEvent> { return this._onWillOpenEditor.event; }
 
-	private _onDidOpenEditorFail: Emitter<EditorInput> = this._register(new Emitter<EditorInput>());
+	private readonly _onDidOpenEditorFail: Emitter<EditorInput> = this._register(new Emitter<EditorInput>());
 	get onDidOpenEditorFail(): Event<EditorInput> { return this._onDidOpenEditorFail.event; }
 
-	private _onWillCloseEditor: Emitter<IEditorCloseEvent> = this._register(new Emitter<IEditorCloseEvent>());
+	private readonly _onWillCloseEditor: Emitter<IEditorCloseEvent> = this._register(new Emitter<IEditorCloseEvent>());
 	get onWillCloseEditor(): Event<IEditorCloseEvent> { return this._onWillCloseEditor.event; }
 
-	private _onDidCloseEditor: Emitter<IEditorCloseEvent> = this._register(new Emitter<IEditorCloseEvent>());
+	private readonly _onDidCloseEditor: Emitter<IEditorCloseEvent> = this._register(new Emitter<IEditorCloseEvent>());
 	get onDidCloseEditor(): Event<IEditorCloseEvent> { return this._onDidCloseEditor.event; }
 
 	//#endregion
@@ -1308,11 +1308,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			// Open inactive editor
 			this.doOpenEditor(replacement, options);
 
-			// Close replaced inactive edior
-			this.doCloseInactiveEditor(editor);
-
-			// Forward to title control
-			this.titleAreaControl.closeEditor(editor);
+			// Close replaced inactive editor unless they match
+			if (!editor.matches(replacement)) {
+				this.doCloseInactiveEditor(editor);
+				this.titleAreaControl.closeEditor(editor);
+			}
 		});
 
 		// Handle active last
@@ -1321,11 +1321,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			// Open replacement as active editor
 			const openEditorResult = this.doOpenEditor(activeReplacement.replacement, activeReplacement.options);
 
-			// Close previous active editor
-			this.doCloseInactiveEditor(activeReplacement.editor);
-
-			// Forward to title control
-			this.titleAreaControl.closeEditor(activeReplacement.editor);
+			// Close replaced active editor unless they match
+			if (!activeReplacement.editor.matches(activeReplacement.replacement)) {
+				this.doCloseInactiveEditor(activeReplacement.editor);
+				this.titleAreaControl.closeEditor(activeReplacement.editor);
+			}
 
 			return openEditorResult.then(() => undefined);
 		}

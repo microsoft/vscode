@@ -56,12 +56,12 @@ export class MainThreadConfiguration implements MainThreadConfigurationShape {
 		return this.writeConfiguration(target, key, undefined, resource);
 	}
 
-	private writeConfiguration(target: ConfigurationTarget, key: string, value: any, resource: URI): Promise<void> {
+	private writeConfiguration(target: ConfigurationTarget, key: string, value: any, resource: URI | null): Promise<void> {
 		target = target !== null && target !== undefined ? target : this.deriveConfigurationTarget(key, resource);
 		return this.configurationService.updateValue(key, value, { resource }, target, true);
 	}
 
-	private deriveConfigurationTarget(key: string, resource: URI): ConfigurationTarget {
+	private deriveConfigurationTarget(key: string, resource: URI | null): ConfigurationTarget {
 		if (resource && this._workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 			const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
 			if (configurationProperties[key] && configurationProperties[key].scope === ConfigurationScope.RESOURCE) {

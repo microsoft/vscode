@@ -17,6 +17,13 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 import { URI } from 'vs/base/common/uri';
 
+interface ConnectionResult {
+	proxy: string;
+	connection: string;
+	code: string;
+	count: number;
+}
+
 export function connectProxyResolver(
 	extHostWorkspace: ExtHostWorkspaceProvider,
 	configProvider: ExtHostConfigProvider,
@@ -24,14 +31,14 @@ export function connectProxyResolver(
 	extHostLogService: ExtHostLogService,
 	mainThreadTelemetry: MainThreadTelemetryShape
 ) {
-	const agent = createProxyAgent(extHostWorkspace, configProvider, extHostLogService, mainThreadTelemetry);
-	const lookup = createPatchedModules(configProvider, agent);
+	const agents = createProxyAgents(extHostWorkspace, configProvider, extHostLogService, mainThreadTelemetry);
+	const lookup = createPatchedModules(configProvider, agents);
 	return configureModuleLoading(extensionService, lookup);
 }
 
 const maxCacheEntries = 5000; // Cache can grow twice that much due to 'oldCache'.
 
-function createProxyAgent(
+function createProxyAgents(
 	extHostWorkspace: ExtHostWorkspaceProvider,
 	configProvider: ExtHostConfigProvider,
 	extHostLogService: ExtHostLogService,
@@ -83,6 +90,7 @@ function createProxyAgent(
 	let envCount = 0;
 	let settingsCount = 0;
 	let localhostCount = 0;
+	let results: ConnectionResult[] = [];
 	function logEvent() {
 		timeout = undefined;
 		/* __GDPR__
@@ -95,14 +103,16 @@ function createProxyAgent(
 				"cacheRolls": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 				"envCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 				"settingsCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-				"localhostCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+				"localhostCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+				"results": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 			}
 		*/
-		mainThreadTelemetry.$publicLog('resolveProxy', { count, duration, errorCount, cacheCount, cacheSize: cache.size, cacheRolls, envCount, settingsCount, localhostCount });
+		mainThreadTelemetry.$publicLog('resolveProxy', { count, duration, errorCount, cacheCount, cacheSize: cache.size, cacheRolls, envCount, settingsCount, localhostCount, results });
 		count = duration = errorCount = cacheCount = envCount = settingsCount = localhostCount = 0;
+		results = [];
 	}
 
-	function resolveProxy(url: string, callback: (proxy?: string) => void) {
+	function resolveProxy(req: http.ClientRequest, opts: http.RequestOptions, url: string, callback: (proxy?: string) => void) {
 		if (!timeout) {
 			timeout = setTimeout(logEvent, 10 * 60 * 1000);
 		}
@@ -135,6 +145,7 @@ function createProxyAgent(
 		const proxy = getCachedProxy(key);
 		if (proxy) {
 			cacheCount++;
+			collectResult(results, proxy, parsedUrl.protocol === 'https:' ? 'HTTPS' : 'HTTP', req);
 			callback(proxy);
 			extHostLogService.trace('ProxyResolver#resolveProxy cached', url, proxy);
 			return;
@@ -144,6 +155,7 @@ function createProxyAgent(
 		extHostWorkspace.resolveProxy(url) // Use full URL to ensure it is an actually used one.
 			.then(proxy => {
 				cacheProxy(key, proxy);
+				collectResult(results, proxy, parsedUrl.protocol === 'https:' ? 'HTTPS' : 'HTTP', req);
 				callback(proxy);
 				extHostLogService.debug('ProxyResolver#resolveProxy', url, proxy);
 			}).then(() => {
@@ -156,7 +168,36 @@ function createProxyAgent(
 			});
 	}
 
-	return new ProxyAgent({ resolveProxy });
+	const httpAgent: http.Agent = new ProxyAgent({ resolveProxy });
+	(<any>httpAgent).defaultPort = 80;
+	const httpsAgent: http.Agent = new ProxyAgent({ resolveProxy });
+	(<any>httpsAgent).defaultPort = 443;
+	return { http: httpAgent, https: httpsAgent };
+}
+
+function collectResult(results: ConnectionResult[], resolveProxy: string, connection: string, req: http.ClientRequest) {
+	const proxy = resolveProxy ? String(resolveProxy).trim().split(/\s+/, 1)[0] : 'EMPTY';
+	req.on('response', res => {
+		const code = `HTTP_${res.statusCode}`;
+		const result = findOrCreateResult(results, proxy, connection, code);
+		result.count++;
+	});
+	req.on('error', err => {
+		const code = err && typeof (<any>err).code === 'string' && (<any>err).code || 'UNKNOWN_ERROR';
+		const result = findOrCreateResult(results, proxy, connection, code);
+		result.count++;
+	});
+}
+
+function findOrCreateResult(results: ConnectionResult[], proxy: string, connection: string, code: string): ConnectionResult | undefined {
+	for (const result of results) {
+		if (result.proxy === proxy && result.connection === connection && result.code === code) {
+			return result;
+		}
+	}
+	const result = { proxy, connection, code, count: 0 };
+	results.push(result);
+	return result;
 }
 
 function proxyFromConfigURL(configURL: string) {
@@ -177,7 +218,7 @@ function proxyFromConfigURL(configURL: string) {
 	return undefined;
 }
 
-function createPatchedModules(configProvider: ExtHostConfigProvider, agent: http.Agent) {
+function createPatchedModules(configProvider: ExtHostConfigProvider, agents: { http: http.Agent; https: http.Agent; }) {
 	const setting = {
 		config: configProvider.getConfiguration('http')
 			.get<string>('proxySupport') || 'off'
@@ -189,25 +230,23 @@ function createPatchedModules(configProvider: ExtHostConfigProvider, agent: http
 
 	return {
 		http: {
-			off: assign({}, http, patches(http, agent, { config: 'off' }, true)),
-			on: assign({}, http, patches(http, agent, { config: 'on' }, true)),
-			override: assign({}, http, patches(http, agent, { config: 'override' }, true)),
-			onRequest: assign({}, http, patches(http, agent, setting, true)),
-			default: assign(http, patches(http, agent, setting, false)) // run last
+			off: assign({}, http, patches(http, agents.http, agents.https, { config: 'off' }, true)),
+			on: assign({}, http, patches(http, agents.http, agents.https, { config: 'on' }, true)),
+			override: assign({}, http, patches(http, agents.http, agents.https, { config: 'override' }, true)),
+			onRequest: assign({}, http, patches(http, agents.http, agents.https, setting, true)),
+			default: assign(http, patches(http, agents.http, agents.https, setting, false)) // run last
 		},
 		https: {
-			off: assign({}, https, patches(https, agent, { config: 'off' }, true)),
-			on: assign({}, https, patches(https, agent, { config: 'on' }, true)),
-			override: assign({}, https, patches(https, agent, { config: 'override' }, true)),
-			onRequest: assign({}, https, patches(https, agent, setting, true)),
-			default: assign(https, patches(https, agent, setting, false)) // run last
+			off: assign({}, https, patches(https, agents.https, agents.http, { config: 'off' }, true)),
+			on: assign({}, https, patches(https, agents.https, agents.http, { config: 'on' }, true)),
+			override: assign({}, https, patches(https, agents.https, agents.http, { config: 'override' }, true)),
+			onRequest: assign({}, https, patches(https, agents.https, agents.http, setting, true)),
+			default: assign(https, patches(https, agents.https, agents.http, setting, false)) // run last
 		}
 	};
 }
 
-function patches(originals: typeof http | typeof https, agent: http.Agent, setting: { config: string; }, onRequest: boolean) {
-	const defaultPort = originals === https ? 443 : 80;
-
+function patches(originals: typeof http | typeof https, agent: http.Agent, otherAgent: http.Agent, setting: { config: string; }, onRequest: boolean) {
 	return {
 		get: patch(originals.get),
 		request: patch(originals.request)
@@ -231,21 +270,23 @@ function patches(originals: typeof http | typeof https, agent: http.Agent, setti
 				return original.apply(null, arguments as unknown as any[]);
 			}
 
-			if (!options.socketPath && (config === 'override' || config === 'on' && !options.agent) && options.agent !== agent) {
+			if (!options.socketPath && (config === 'override' || config === 'on' && !options.agent) && options.agent !== agent && options.agent !== otherAgent) {
 				if (url) {
-					const parsed = typeof url === 'string' ? nodeurl.parse(url) : url;
-					options = {
+					const parsed = typeof url === 'string' ? new nodeurl.URL(url) : url;
+					const urlOptions = {
 						protocol: parsed.protocol,
-						hostname: parsed.hostname,
+						hostname: parsed.hostname.lastIndexOf('[', 0) === 0 ? parsed.hostname.slice(1, -1) : parsed.hostname,
 						port: parsed.port,
-						path: parsed.pathname,
-						...options
+						path: `${parsed.pathname}${parsed.search}`
 					};
+					if (parsed.username || parsed.password) {
+						options.auth = `${parsed.username}:${parsed.password}`;
+					}
+					options = { ...urlOptions, ...options };
 				} else {
 					options = { ...options };
 				}
 				options.agent = agent;
-				options.defaultPort = defaultPort; // Lets Node's http module omit the port, if it is the default port, in the Host header. (https://github.com/Microsoft/vscode/issues/65118)
 				return original(options, callback);
 			}
 

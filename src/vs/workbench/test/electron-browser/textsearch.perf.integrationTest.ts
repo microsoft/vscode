@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/workbench/parts/search/electron-browser/search.contribution'; // load contributions
+import 'vs/workbench/contrib/search/electron-browser/search.contribution'; // load contributions
 import * as assert from 'assert';
 import * as fs from 'fs';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -26,8 +26,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
 
-import { SearchModel } from 'vs/workbench/parts/search/common/searchModel';
-import { QueryBuilder, ITextQueryBuilderOptions } from 'vs/workbench/parts/search/common/queryBuilder';
+import { SearchModel } from 'vs/workbench/contrib/search/common/searchModel';
+import { QueryBuilder, ITextQueryBuilderOptions } from 'vs/workbench/contrib/search/common/queryBuilder';
 
 import { Event, Emitter } from 'vs/base/common/event';
 import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';

@@ -66,8 +66,8 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 
 	minimumWidth: number = 0;
 	maximumWidth: number = Number.POSITIVE_INFINITY;
-	minimumHeight: number = isMacintosh ? 22 : 30;
-	maximumHeight: number = isMacintosh ? 22 : 30;
+	get minimumHeight(): number { return isMacintosh ? 22 / getZoomFactor() : (30 / (this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility') === 'hidden' ? getZoomFactor() : 1)); }
+	get maximumHeight(): number { return isMacintosh ? 22 / getZoomFactor() : (30 / (this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility') === 'hidden' ? getZoomFactor() : 1)); }
 
 	private _onDidChange = new Emitter<{ width: number; height: number; }>();
 	readonly onDidChange = this._onDidChange.event;
