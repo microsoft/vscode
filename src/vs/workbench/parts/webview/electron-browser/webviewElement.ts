@@ -89,11 +89,11 @@ class SvgBlocker extends Disposable {
 
 	constructor(
 		webview: Electron.WebviewTag,
-		private readonly _options: WebviewOptions,
+		private readonly _getOptions: () => WebviewOptions,
 	) {
 		super();
 
-		if (this._options.allowSvgs) {
+		if (this.options.allowSvgs) {
 			return;
 		}
 
@@ -134,12 +134,16 @@ class SvgBlocker extends Disposable {
 		}));
 	}
 
+	private get options() {
+		return this._getOptions();
+	}
+
 	private isAllowedSvg(uri: URI): boolean {
-		if (this._options.allowSvgs) {
+		if (this.options.allowSvgs) {
 			return true;
 		}
-		if (this._options.svgWhiteList) {
-			return this._options.svgWhiteList.indexOf(uri.authority.toLowerCase()) >= 0;
+		if (this.options.svgWhiteList) {
+			return this.options.svgWhiteList.indexOf(uri.authority.toLowerCase()) >= 0;
 		}
 		return false;
 	}
@@ -281,7 +285,7 @@ export class WebviewElement extends Disposable {
 				environmentService,
 				fileService));
 
-		const svgBlocker = this._register(new SvgBlocker(this._webview, this._options));
+		const svgBlocker = this._register(new SvgBlocker(this._webview, () => this._options));
 		svgBlocker.onDidBlockSvg(() => this.onDidBlockSvg());
 
 		this._register(new WebviewKeyboardHandler(this._webview, this._keybindingService));
