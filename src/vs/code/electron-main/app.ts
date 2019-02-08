@@ -682,10 +682,10 @@ export class CodeApplication extends Disposable {
 			constructor(authority: string, host: string, port: number) {
 				this._authority = authority;
 				this._client = connectRemoteAgentManagement(authority, host, port, `main`, isBuilt);
-				this._disposeRunner = new RunOnceScheduler(() => this._dispose(), 5000);
+				this._disposeRunner = new RunOnceScheduler(() => this.dispose(), 5000);
 			}
 
-			private _dispose(): void {
+			public dispose(): void {
 				this._disposeRunner.dispose();
 				connectionPool.delete(this._authority);
 				this._client.then((connection) => {
@@ -701,8 +701,12 @@ export class CodeApplication extends Disposable {
 
 		const resolvedAuthorities = new Map<string, ResolvedAuthority>();
 		ipc.on('vscode:remoteAuthorityResolved', (event: any, data: ResolvedAuthority) => {
-			this.logService.info('Receieved resolved authority', data.authority);
+			this.logService.info('Received resolved authority', data.authority);
 			resolvedAuthorities.set(data.authority, data);
+			// Make sure to close and remove any existing connections
+			if (connectionPool.has(data.authority)) {
+				connectionPool.get(data.authority).dispose();
+			}
 		});
 
 		const resolveAuthority = (authority: string): ResolvedAuthority | null => {
