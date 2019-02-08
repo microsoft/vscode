@@ -9,8 +9,7 @@
 		"lib": [
 			"dom",
 			"es5",
-			"es2015.iterable",
-			"webworker.importscripts"
+			"es2015.iterable"
 		]
 	},
 	"include": [
