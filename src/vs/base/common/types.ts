@@ -176,3 +176,17 @@ function isNativeClass(thing): boolean {
 		&& thing.hasOwnProperty('prototype')
 		&& !thing.hasOwnProperty('arguments');
 }
+
+/**
+ *
+ *
+ */
+export function getAllPropertyNames(obj: object): string[] {
+	let res: string[] = [];
+	let proto = Object.getPrototypeOf(obj);
+	while (Object.prototype !== proto) {
+		res = res.concat(Object.getOwnPropertyNames(proto));
+		proto = Object.getPrototypeOf(proto);
+	}
+	return res;
+}
