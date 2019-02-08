@@ -338,9 +338,9 @@ export interface ISearchConfiguration extends IFilesConfiguration {
 	};
 }
 
-export function getExcludes(configuration: ISearchConfiguration): glob.IExpression | undefined {
+export function getExcludes(configuration: ISearchConfiguration, includeSearchExcludes = true): glob.IExpression | undefined {
 	const fileExcludes = configuration && configuration.files && configuration.files.exclude;
-	const searchExcludes = configuration && configuration.search && configuration.search.exclude;
+	const searchExcludes = includeSearchExcludes && configuration && configuration.search && configuration.search.exclude;
 
 	if (!fileExcludes && !searchExcludes) {
 		return undefined;
