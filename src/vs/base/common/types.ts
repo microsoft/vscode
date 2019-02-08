@@ -143,8 +143,12 @@ export function validateConstraint(arg: any, constraint: TypeConstraint | undefi
 			throw new Error(`argument does not match constraint: typeof ${constraint}`);
 		}
 	} else if (isFunction(constraint)) {
-		if (arg instanceof constraint) {
-			return;
+		try {
+			if (arg instanceof constraint) {
+				return;
+			}
+		} catch{
+			// ignore
 		}
 		if (!isUndefinedOrNull(arg) && arg.constructor === constraint) {
 			return;
