@@ -216,7 +216,7 @@ function getElectron(arch) {
 gulp.task('electron', util.task.series(util.rimraf('.build/electron'), getElectron(process.arch)));
 gulp.task('electron-ia32', util.task.series(util.rimraf('.build/electron'), getElectron('ia32')));
 gulp.task('electron-x64', util.task.series(util.rimraf('.build/electron'), getElectron('x64')));
-gulp.task('electron-arm', util.task.series(util.rimraf('.build/electron'), getElectron('arm')));
+gulp.task('electron-arm', util.task.series(util.rimraf('.build/electron'), getElectron('armv7l')));
 gulp.task('electron-arm64', util.task.series(util.rimraf('.build/electron'), getElectron('arm64')));
 
 
