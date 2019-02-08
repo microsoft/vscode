@@ -64,6 +64,7 @@ interface SuggestEnabledInputOptions {
 	 * Defaults to the empty string.
 	 */
 	placeholderText?: string;
+	value?: string;
 
 	/**
 	 * Context key tracking the focus state of this element
@@ -169,6 +170,8 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 			sortKey: suggestionProvider.sortKey || (a => a),
 			triggerCharacters: suggestionProvider.triggerCharacters || []
 		};
+
+		this.setValue(options.value);
 
 		this.disposables.push(modes.CompletionProviderRegistry.register({ scheme: scopeHandle.scheme, pattern: '**/' + scopeHandle.path, hasAccessToAllModels: true }, {
 			triggerCharacters: validatedSuggestProvider.triggerCharacters,

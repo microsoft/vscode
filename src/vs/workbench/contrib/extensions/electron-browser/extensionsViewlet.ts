@@ -36,7 +36,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ViewsRegistry, IViewDescriptor } from 'vs/workbench/common/views';
 import { ViewContainerViewlet } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IContextKeyService, ContextKeyExpr, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -277,6 +277,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 	private primaryActions: IAction[];
 	private secondaryActions: IAction[];
 	private disposables: IDisposable[] = [];
+	private searchViewletState: object;
 
 	constructor(
 		@IPartService partService: IPartService,
@@ -307,6 +308,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		this.defaultRecommendedExtensionsContextKey = DefaultRecommendedExtensionsContext.bindTo(contextKeyService);
 		this.defaultRecommendedExtensionsContextKey.set(!this.configurationService.getValue<boolean>(ShowRecommendationsOnlyOnDemandKey));
 		this.disposables.push(this.viewletService.onDidViewletOpen(this.onViewletOpen, this, this.disposables));
+		this.searchViewletState = this.getMemento(StorageScope.WORKSPACE);
 
 		this.extensionManagementService.getInstalled(ExtensionType.User).then(result => {
 			this.hasInstalledExtensionsContextKey.set(result.length > 0);
@@ -330,6 +332,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		const header = append(this.root, $('.header'));
 
 		const placeholder = localize('searchExtensions', "Search Extensions in Marketplace");
+		const searchValue = this.searchViewletState['query.value'] ? this.searchViewletState['query.value'] : '';
 
 		this.searchBox = this.instantiationService.createInstance(SuggestEnabledInput, `${VIEWLET_ID}.searchbox`, header, {
 			triggerCharacters: ['@'],
@@ -340,7 +343,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 				else { return 'd'; }
 			},
 			provideResults: (query) => Query.suggestions(query)
-		}, placeholder, 'extensions:searchinput', { placeholderText: placeholder });
+		}, placeholder, 'extensions:searchinput', { placeholderText: placeholder, value: searchValue });
 
 		this.disposables.push(attachSuggestEnabledInputBoxStyler(this.searchBox, this.themeService));
 
@@ -428,6 +431,12 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 
 	private normalizedQuery(): string {
 		return this.searchBox.getValue().replace(/@category/g, 'category').replace(/@tag:/g, 'tag:').replace(/@ext:/g, 'ext:');
+	}
+
+	protected saveState(): void {
+		const value = this.searchBox.getValue();
+		this.searchViewletState['query.value'] = value;
+		super.saveState();
 	}
 
 	private doSearch(): Promise<any> {
