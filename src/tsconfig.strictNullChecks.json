@@ -678,7 +678,6 @@
 		"./vs/workbench/services/decorations/browser/decorations.ts",
 		"./vs/workbench/services/decorations/browser/decorationsService.ts",
 		"./vs/workbench/services/decorations/test/browser/decorationsService.test.ts",
-		"./vs/workbench/services/dialogs/electron-browser/dialogService.ts",
 		"./vs/workbench/services/editor/browser/codeEditorService.ts",
 		"./vs/workbench/services/editor/common/editorGroupsService.ts",
 		"./vs/workbench/services/editor/common/editorService.ts",
