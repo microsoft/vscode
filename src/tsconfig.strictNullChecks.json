@@ -234,7 +234,6 @@
 		"./vs/platform/contextview/browser/contextMenuService.ts",
 		"./vs/platform/contextview/browser/contextView.ts",
 		"./vs/platform/contextview/browser/contextViewService.ts",
-		"./vs/platform/credentials/test/node/keytar.test.ts",
 		"./vs/platform/diagnostics/electron-main/diagnosticsService.ts",
 		"./vs/platform/dialogs/common/dialogs.ts",
 		"./vs/platform/dialogs/node/dialogIpc.ts",
