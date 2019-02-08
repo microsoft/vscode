@@ -335,12 +335,12 @@ export interface MainThreadMessageServiceShape extends IDisposable {
 
 export interface MainThreadOutputServiceShape extends IDisposable {
 	$register(label: string, log: boolean, file?: UriComponents): Promise<string>;
-	$append(channelId: string, value: string): Promise<void>;
-	$update(channelId: string): Promise<void>;
-	$clear(channelId: string, till: number): Promise<void>;
-	$reveal(channelId: string, preserveFocus: boolean): Promise<void>;
-	$close(channelId: string): Promise<void>;
-	$dispose(channelId: string): Promise<void>;
+	$append(channelId: string, value: string): Promise<void> | undefined;
+	$update(channelId: string): Promise<void> | undefined;
+	$clear(channelId: string, till: number): Promise<void> | undefined;
+	$reveal(channelId: string, preserveFocus: boolean): Promise<void> | undefined;
+	$close(channelId: string): Promise<void> | undefined;
+	$dispose(channelId: string): Promise<void> | undefined;
 }
 
 export interface MainThreadProgressShape extends IDisposable {
@@ -1036,7 +1036,7 @@ export interface ExtHostDebugServiceShape {
 	$provideDebugAdapter(handle: number, session: IDebugSessionDto): Promise<IAdapterDescriptor>;
 	$acceptDebugSessionStarted(session: IDebugSessionDto): void;
 	$acceptDebugSessionTerminated(session: IDebugSessionDto): void;
-	$acceptDebugSessionActiveChanged(session: IDebugSessionDto): void;
+	$acceptDebugSessionActiveChanged(session: IDebugSessionDto | undefined): void;
 	$acceptDebugSessionCustomEvent(session: IDebugSessionDto, event: any): void;
 	$acceptBreakpointsDelta(delta: IBreakpointsDeltaDto): void;
 }

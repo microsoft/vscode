@@ -586,7 +586,7 @@ export interface IConfigurationManager {
 
 	getLaunches(): ReadonlyArray<ILaunch>;
 
-	getLaunch(workspaceUri: uri): ILaunch | undefined;
+	getLaunch(workspaceUri: uri | undefined): ILaunch | undefined;
 
 	/**
 	 * Allows to register on change of selected debug configuration.
@@ -784,7 +784,7 @@ export interface IDebugService {
 	 * Returns true if the start debugging was successfull. For compound launches, all configurations have to start successfuly for it to return success.
 	 * On errors the startDebugging will throw an error, however some error and cancelations are handled and in that case will simply return false.
 	 */
-	startDebugging(launch: ILaunch, configOrName?: IConfig | string, noDebug?: boolean): Promise<boolean>;
+	startDebugging(launch: ILaunch | undefined, configOrName?: IConfig | string, noDebug?: boolean): Promise<boolean>;
 
 	/**
 	 * Restarts a session or creates a new one if there is no active session.

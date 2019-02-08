@@ -852,7 +852,7 @@ class TaskService extends Disposable implements ITaskService {
 		});
 	}
 
-	public run(task: Task, options?: ProblemMatcherRunOptions): Promise<ITaskSummary> {
+	public run(task: Task | undefined, options?: ProblemMatcherRunOptions): Promise<ITaskSummary> {
 		return this.getGroupedTasks().then((grouped) => {
 			if (!task) {
 				throw new TaskError(Severity.Info, nls.localize('TaskServer.noTask', 'Requested task {0} to execute not found.', task.configurationProperties.name), TaskErrors.TaskNotFound);

@@ -255,7 +255,7 @@ export class DebugService implements IDebugService {
 	 * main entry point
 	 * properly manages compounds, checks for errors and handles the initializing state.
 	 */
-	startDebugging(launch: ILaunch, configOrName?: IConfig | string, noDebug = false, unresolvedConfig?: IConfig, ): Promise<boolean> {
+	startDebugging(launch: ILaunch | undefined, configOrName?: IConfig | string, noDebug = false, unresolvedConfig?: IConfig, ): Promise<boolean> {
 
 		this.startInitializingState();
 		// make sure to save all files and that the configuration is up to date

@@ -601,7 +601,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		}
 	}
 
-	public $acceptDebugSessionActiveChanged(sessionDto: IDebugSessionDto): void {
+	public $acceptDebugSessionActiveChanged(sessionDto: IDebugSessionDto | undefined): void {
 
 		this._activeDebugSession = sessionDto ? this.getSession(sessionDto) : undefined;
 		this._onDidChangeActiveDebugSession.fire(this._activeDebugSession);
