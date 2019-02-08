@@ -327,6 +327,7 @@ export interface ISearchConfigurationProperties {
 	showLineNumbers: boolean;
 	usePCRE2: boolean;
 	actionsPosition: 'auto' | 'right';
+	maintainFileSearchCache: boolean;
 	collapseResults: 'auto' | 'alwaysCollapse' | 'alwaysExpand';
 }
 

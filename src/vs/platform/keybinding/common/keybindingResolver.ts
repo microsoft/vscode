@@ -311,7 +311,7 @@ export class KeybindingResolver {
 			if (seenMap.has(id)) {
 				return;
 			}
-			seenMap.set(id);
+			seenMap.set(id, true);
 			if (id[0] === '_' || id.indexOf('vscode.') === 0) { // private command
 				return;
 			}

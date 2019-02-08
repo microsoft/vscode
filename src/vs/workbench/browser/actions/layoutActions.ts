@@ -13,7 +13,7 @@ import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/action
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IPartService, Parts, Position } from 'vs/workbench/services/part/common/partService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IEditorGroupsService, GroupOrientation } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService, GroupOrientation } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';

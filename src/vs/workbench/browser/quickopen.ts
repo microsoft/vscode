@@ -129,16 +129,16 @@ export interface QuickOpenHandlerHelpEntry {
 export class QuickOpenHandlerDescriptor {
 	prefix: string;
 	description: string;
-	contextKey: string;
+	contextKey?: string;
 	helpEntries: QuickOpenHandlerHelpEntry[];
 	instantProgress: boolean;
 
 	private id: string;
 	private ctor: IConstructorSignature0<QuickOpenHandler>;
 
-	constructor(ctor: IConstructorSignature0<QuickOpenHandler>, id: string, prefix: string, contextKey: string, description: string, instantProgress?: boolean);
-	constructor(ctor: IConstructorSignature0<QuickOpenHandler>, id: string, prefix: string, contextKey: string, helpEntries: QuickOpenHandlerHelpEntry[], instantProgress?: boolean);
-	constructor(ctor: IConstructorSignature0<QuickOpenHandler>, id: string, prefix: string, contextKey: string, param: any, instantProgress: boolean = false) {
+	constructor(ctor: IConstructorSignature0<QuickOpenHandler>, id: string, prefix: string, contextKey: string | undefined, description: string, instantProgress?: boolean);
+	constructor(ctor: IConstructorSignature0<QuickOpenHandler>, id: string, prefix: string, contextKey: string | undefined, helpEntries: QuickOpenHandlerHelpEntry[], instantProgress?: boolean);
+	constructor(ctor: IConstructorSignature0<QuickOpenHandler>, id: string, prefix: string, contextKey: string | undefined, param: any, instantProgress: boolean = false) {
 		this.ctor = ctor;
 		this.id = id;
 		this.prefix = prefix;

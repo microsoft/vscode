@@ -101,9 +101,9 @@ suite('OutlineModel', function () {
 
 		group.updateMarker(data);
 		assert.equal(data.length, 0); // all 'stolen'
-		assert.equal(e0.marker.count, 1);
+		assert.equal(e0.marker!.count, 1);
 		assert.equal(e1.marker, undefined);
-		assert.equal(e2.marker.count, 2);
+		assert.equal(e2.marker!.count, 2);
 
 		group.updateMarker([]);
 		assert.equal(e0.marker, undefined);
@@ -127,8 +127,8 @@ suite('OutlineModel', function () {
 		];
 
 		group.updateMarker(data);
-		assert.equal(p.marker.count, 0);
-		assert.equal(c1.marker.count, 1);
+		assert.equal(p.marker!.count, 0);
+		assert.equal(c1.marker!.count, 1);
 		assert.equal(c2.marker, undefined);
 
 		data = [
@@ -137,18 +137,18 @@ suite('OutlineModel', function () {
 			fakeMarker(new Range(7, 6, 7, 8)),
 		];
 		group.updateMarker(data);
-		assert.equal(p.marker.count, 0);
-		assert.equal(c1.marker.count, 2);
-		assert.equal(c2.marker.count, 1);
+		assert.equal(p.marker!.count, 0);
+		assert.equal(c1.marker!.count, 2);
+		assert.equal(c2.marker!.count, 1);
 
 		data = [
 			fakeMarker(new Range(1, 4, 1, 11)),
 			fakeMarker(new Range(7, 6, 7, 8)),
 		];
 		group.updateMarker(data);
-		assert.equal(p.marker.count, 1);
+		assert.equal(p.marker!.count, 1);
 		assert.equal(c1.marker, undefined);
-		assert.equal(c2.marker.count, 1);
+		assert.equal(c2.marker!.count, 1);
 	});
 
 	test('OutlineElement - updateMarker/multiple groups', function () {
@@ -178,9 +178,9 @@ suite('OutlineModel', function () {
 
 		model.updateMarker(data);
 
-		assert.equal(model.children['g1'].children['c1'].marker.count, 2);
-		assert.equal(model.children['g2'].children['c2'].children['c2.1'].marker.count, 1);
-		assert.equal(model.children['g2'].children['c2'].children['c2.2'].marker.count, 1);
+		assert.equal(model.children['g1']!.children['c1'].marker!.count, 2);
+		assert.equal(model.children['g2']!.children['c2'].children['c2.1'].marker!.count, 1);
+		assert.equal(model.children['g2']!.children['c2'].children['c2.2'].marker!.count, 1);
 	});
 
 });

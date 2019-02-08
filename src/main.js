@@ -151,7 +151,7 @@ function onReady() {
 function configureCommandlineSwitches(cliArgs, nodeCachedDataDir) {
 
 	// Force pre-Chrome-60 color profile handling (for https://github.com/Microsoft/vscode/issues/51791)
-	app.commandLine.appendSwitch('disable-features', 'ColorCorrectRendering');
+	app.commandLine.appendSwitch('disable-color-correct-rendering');
 
 	// Support JS Flags
 	const jsFlags = resolveJSFlags(cliArgs, nodeCachedDataDir.jsFlags());
@@ -305,7 +305,7 @@ function getNodeCachedDir() {
  * @returns {string}
  */
 function stripComments(content) {
-	const regexp = /("(?:[^\\\"]*(?:\\.)?)*")|('(?:[^\\\']*(?:\\.)?)*')|(\/\*(?:\r?\n|.)*?\*\/)|(\/{2,}.*?(?:(?:\r?\n)|$))/g;
+	const regexp = /("(?:[^\\"]*(?:\\.)?)*")|('(?:[^\\']*(?:\\.)?)*')|(\/\*(?:\r?\n|.)*?\*\/)|(\/{2,}.*?(?:(?:\r?\n)|$))/g;
 
 	return content.replace(regexp, function (match, m1, m2, m3, m4) {
 		// Only one of m1, m2, m3, m4 matches

@@ -63,8 +63,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { TextFileService } from 'vs/workbench/services/textfile/electron-browser/textFileService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { ISCMService } from 'vs/workbench/services/scm/common/scm';
-import { SCMService } from 'vs/workbench/services/scm/common/scmService';
 import { IProgressService2 } from 'vs/platform/progress/common/progress';
 import { ProgressService2 } from 'vs/workbench/services/progress/browser/progressService2';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
@@ -104,7 +102,7 @@ import { registerWindowDriver } from 'vs/platform/driver/electron-browser/driver
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { PreferencesService } from 'vs/workbench/services/preferences/browser/preferencesService';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService, GroupDirection, preferredSideBySideGroupDirection } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService, GroupDirection, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { IExtensionUrlHandler, ExtensionUrlHandler } from 'vs/workbench/services/extensions/electron-browser/inactiveExtensionUrlHandler';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
@@ -443,9 +441,6 @@ export class Workbench extends Disposable implements IPartService {
 		// File Decorations
 		serviceCollection.set(IDecorationsService, new SyncDescriptor(FileDecorationsService));
 
-		// SCM Service
-		serviceCollection.set(ISCMService, new SyncDescriptor(SCMService));
-
 		// Inactive extension URL handler
 		serviceCollection.set(IExtensionUrlHandler, new SyncDescriptor(ExtensionUrlHandler));
 
@@ -743,7 +738,7 @@ export class Workbench extends Disposable implements IPartService {
 					return editorService.openEditors(editors);
 				}
 
-				return Promise.resolve();
+				return Promise.resolve(undefined);
 			}
 
 			const editorsToOpen = this.resolveEditorsToOpen();
@@ -1210,7 +1205,7 @@ export class Workbench extends Disposable implements IPartService {
 
 	//#region IPartService
 
-	private _onTitleBarVisibilityChange: Emitter<void> = this._register(new Emitter<void>());
+	private readonly _onTitleBarVisibilityChange: Emitter<void> = this._register(new Emitter<void>());
 	get onTitleBarVisibilityChange(): Event<void> { return this._onTitleBarVisibilityChange.event; }
 
 	get onEditorLayout(): Event<IDimension> { return this.editorPart.onDidLayout; }
@@ -1229,30 +1224,23 @@ export class Workbench extends Disposable implements IPartService {
 		return DOM.isAncestor(activeElement, container);
 	}
 
-	getContainer(part: Parts): HTMLElement {
-		let container: HTMLElement | null = null;
+	getContainer(part: Parts): HTMLElement | null {
 		switch (part) {
 			case Parts.TITLEBAR_PART:
-				container = this.titlebarPart.getContainer();
-				break;
+				return this.titlebarPart.getContainer();
 			case Parts.ACTIVITYBAR_PART:
-				container = this.activitybarPart.getContainer();
-				break;
+				return this.activitybarPart.getContainer();
 			case Parts.SIDEBAR_PART:
-				container = this.sidebarPart.getContainer();
-				break;
+				return this.sidebarPart.getContainer();
 			case Parts.PANEL_PART:
-				container = this.panelPart.getContainer();
-				break;
+				return this.panelPart.getContainer();
 			case Parts.EDITOR_PART:
-				container = this.editorPart.getContainer();
-				break;
+				return this.editorPart.getContainer();
 			case Parts.STATUSBAR_PART:
-				container = this.statusbarPart.getContainer();
-				break;
+				return this.statusbarPart.getContainer();
 		}
 
-		return container;
+		return null;
 	}
 
 	isVisible(part: Parts): boolean {

@@ -52,7 +52,7 @@ export class MainThreadFileSystemEventService {
 		// file operation events - (changes the editor makes)
 		fileService.onAfterOperation(e => {
 			if (e.operation === FileOperation.MOVE) {
-				proxy.$onFileRename(e.resource, e.target.resource);
+				proxy.$onFileRename(e.resource, e.target!.resource);
 			}
 		}, undefined, this._listener);
 

@@ -221,27 +221,20 @@ export class RemoteFileService extends FileService {
 		if (!match) {
 			return undefined;
 		}
-		let res: FileOperationResult;
 		switch (match[1]) {
 			case 'EntryNotFound':
-				res = FileOperationResult.FILE_NOT_FOUND;
-				break;
+				return FileOperationResult.FILE_NOT_FOUND;
 			case 'EntryIsADirectory':
-				res = FileOperationResult.FILE_IS_DIRECTORY;
-				break;
+				return FileOperationResult.FILE_IS_DIRECTORY;
 			case 'NoPermissions':
-				res = FileOperationResult.FILE_PERMISSION_DENIED;
-				break;
+				return FileOperationResult.FILE_PERMISSION_DENIED;
 			case 'EntryExists':
-				res = FileOperationResult.FILE_MOVE_CONFLICT;
-				break;
+				return FileOperationResult.FILE_MOVE_CONFLICT;
 			case 'EntryNotADirectory':
 			default:
 				// todo
-				res = undefined;
-				break;
+				return undefined;
 		}
-		return res;
 	}
 
 	// --- stat
@@ -386,7 +379,7 @@ export class RemoteFileService extends FileService {
 				return toDecodeStream(readable, decodeStreamOpts).then(data => {
 
 					if (options.acceptTextOnly && data.detected.seemsBinary) {
-						return Promise.reject(new FileOperationError(
+						return Promise.reject<any>(new FileOperationError(
 							localize('fileBinaryError', "File seems to be binary and cannot be opened as text"),
 							FileOperationResult.FILE_IS_BINARY,
 							options

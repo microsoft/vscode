@@ -300,7 +300,7 @@ export interface ITreeView extends IDisposable {
 
 	showCollapseAllAction: boolean;
 
-	message: string | IMarkdownString;
+	message?: string | IMarkdownString;
 
 	readonly visible: boolean;
 

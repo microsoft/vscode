@@ -32,7 +32,7 @@ export interface IFindInputOptions extends IFindInputStyles {
 }
 
 export interface IFindInputStyles extends IInputBoxStyles {
-	inputActiveOptionBorder?: Color | null;
+	inputActiveOptionBorder?: Color;
 }
 
 const NLS_DEFAULT_LABEL = nls.localize('defaultLabel', "input");
@@ -48,20 +48,20 @@ export class FindInput extends Widget {
 	private label: string;
 	private fixFocusOnOptionClickEnabled = true;
 
-	private inputActiveOptionBorder?: Color | null;
-	private inputBackground?: Color | null;
-	private inputForeground?: Color | null;
-	private inputBorder?: Color | null;
+	private inputActiveOptionBorder?: Color;
+	private inputBackground?: Color;
+	private inputForeground?: Color;
+	private inputBorder?: Color;
 
-	private inputValidationInfoBorder?: Color | null;
-	private inputValidationInfoBackground?: Color | null;
-	private inputValidationInfoForeground?: Color | null;
-	private inputValidationWarningBorder?: Color | null;
-	private inputValidationWarningBackground?: Color | null;
-	private inputValidationWarningForeground?: Color | null;
-	private inputValidationErrorBorder?: Color | null;
-	private inputValidationErrorBackground?: Color | null;
-	private inputValidationErrorForeground?: Color | null;
+	private inputValidationInfoBorder?: Color;
+	private inputValidationInfoBackground?: Color;
+	private inputValidationInfoForeground?: Color;
+	private inputValidationWarningBorder?: Color;
+	private inputValidationWarningBackground?: Color;
+	private inputValidationWarningForeground?: Color;
+	private inputValidationErrorBorder?: Color;
+	private inputValidationErrorBackground?: Color;
+	private inputValidationErrorForeground?: Color;
 
 	private regex: RegexCheckbox;
 	private wholeWords: WholeWordsCheckbox;
@@ -202,7 +202,7 @@ export class FindInput extends Widget {
 	protected applyStyles(): void {
 		if (this.domNode) {
 			const checkBoxStyles: ICheckboxStyles = {
-				inputActiveOptionBorder: this.inputActiveOptionBorder || undefined,
+				inputActiveOptionBorder: this.inputActiveOptionBorder,
 			};
 			this.regex.style(checkBoxStyles);
 			this.wholeWords.style(checkBoxStyles);
@@ -313,7 +313,7 @@ export class FindInput extends Widget {
 		this.regex = this._register(new RegexCheckbox({
 			appendTitle: appendRegexLabel,
 			isChecked: false,
-			inputActiveOptionBorder: this.inputActiveOptionBorder || undefined
+			inputActiveOptionBorder: this.inputActiveOptionBorder
 		}));
 		this._register(this.regex.onChange(viaKeyboard => {
 			this._onDidOptionChange.fire(viaKeyboard);
@@ -330,7 +330,7 @@ export class FindInput extends Widget {
 		this.wholeWords = this._register(new WholeWordsCheckbox({
 			appendTitle: appendWholeWordsLabel,
 			isChecked: false,
-			inputActiveOptionBorder: this.inputActiveOptionBorder || undefined
+			inputActiveOptionBorder: this.inputActiveOptionBorder
 		}));
 		this._register(this.wholeWords.onChange(viaKeyboard => {
 			this._onDidOptionChange.fire(viaKeyboard);
@@ -344,7 +344,7 @@ export class FindInput extends Widget {
 		this.caseSensitive = this._register(new CaseSensitiveCheckbox({
 			appendTitle: appendCaseSensitiveLabel,
 			isChecked: false,
-			inputActiveOptionBorder: this.inputActiveOptionBorder || undefined
+			inputActiveOptionBorder: this.inputActiveOptionBorder
 		}));
 		this._register(this.caseSensitive.onChange(viaKeyboard => {
 			this._onDidOptionChange.fire(viaKeyboard);

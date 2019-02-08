@@ -359,7 +359,7 @@ export class Menubar {
 				if (
 					this.windowsMainService.getWindowCount() === 0 || 			// allow to quit when no more windows are open
 					!!this.windowsMainService.getFocusedWindow() ||				// allow to quit when window has focus (fix for https://github.com/Microsoft/vscode/issues/39191)
-					this.windowsMainService.getLastActiveWindow().isMinimized()	// allow to quit when window has no focus but is minimized (https://github.com/Microsoft/vscode/issues/63000)
+					this.windowsMainService.getLastActiveWindow()!.isMinimized()	// allow to quit when window has no focus but is minimized (https://github.com/Microsoft/vscode/issues/63000)
 				) {
 					this.windowsMainService.quit();
 				}
@@ -702,7 +702,7 @@ export class Menubar {
 		let activeWindow = this.windowsMainService.getFocusedWindow();
 		if (!activeWindow) {
 			const lastActiveWindow = this.windowsMainService.getLastActiveWindow();
-			if (lastActiveWindow.isMinimized()) {
+			if (lastActiveWindow && lastActiveWindow.isMinimized()) {
 				activeWindow = lastActiveWindow;
 			}
 		}

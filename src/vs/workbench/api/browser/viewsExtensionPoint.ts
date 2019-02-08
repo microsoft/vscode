@@ -16,9 +16,9 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWo
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { VIEWLET_ID as EXPLORER } from 'vs/workbench/parts/files/common/files';
-import { VIEWLET_ID as SCM } from 'vs/workbench/parts/scm/common/scm';
-import { VIEWLET_ID as DEBUG } from 'vs/workbench/parts/debug/common/debug';
+import { VIEWLET_ID as EXPLORER } from 'vs/workbench/contrib/files/common/files';
+import { VIEWLET_ID as SCM } from 'vs/workbench/contrib/scm/common/scm';
+import { VIEWLET_ID as DEBUG } from 'vs/workbench/contrib/debug/common/debug';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ShowViewletAction } from 'vs/workbench/browser/viewlet';
@@ -33,7 +33,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { createCSSRule } from 'vs/base/browser/dom';
@@ -358,11 +358,11 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 					return;
 				}
 
-				let container = this.getViewContainer(entry.key);
-				if (!container) {
+				const viewContainer = this.getViewContainer(entry.key);
+				if (!viewContainer) {
 					collector.warn(localize('ViewContainerDoesnotExist', "View container '{0}' does not exist and all views registered to it will be added to 'Explorer'.", entry.key));
-					container = this.getDefaultViewContainer();
 				}
+				const container = viewContainer || this.getDefaultViewContainer();
 				const registeredViews = ViewsRegistry.getViews(container);
 				const viewIds: string[] = [];
 				const viewDescriptors = coalesce(entry.value.map((item, index) => {
@@ -398,7 +398,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 	}
 
 	private getDefaultViewContainer(): ViewContainer {
-		return this.viewContainersRegistry.get(EXPLORER);
+		return this.viewContainersRegistry.get(EXPLORER)!;
 	}
 
 	private removeViews(extensions: IExtensionPointUser<ViewExtensionPointType>[]): void {
@@ -435,7 +435,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 		return true;
 	}
 
-	private getViewContainer(value: string): ViewContainer {
+	private getViewContainer(value: string): ViewContainer | undefined {
 		switch (value) {
 			case 'explorer': return this.viewContainersRegistry.get(EXPLORER);
 			case 'debug': return this.viewContainersRegistry.get(DEBUG);

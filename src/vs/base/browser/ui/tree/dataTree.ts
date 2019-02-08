@@ -61,19 +61,22 @@ export class DataTree<TInput, T, TFilterData = void> extends AbstractTree<T | nu
 
 		const isCollapsed = (element: T) => {
 			const id = this.identityProvider!.getId(element).toString();
-
-			if (viewState.focus.indexOf(id) > -1) {
-				focus.push(element);
-			}
-
-			if (viewState.selection.indexOf(id) > -1) {
-				selection.push(element);
-			}
-
 			return viewState.expanded.indexOf(id) === -1;
 		};
 
-		this._refresh(input, isCollapsed);
+		const onDidCreateNode = (node: ITreeNode<T, TFilterData>) => {
+			const id = this.identityProvider!.getId(node.element).toString();
+
+			if (viewState.focus.indexOf(id) > -1) {
+				focus.push(node.element);
+			}
+
+			if (viewState.selection.indexOf(id) > -1) {
+				selection.push(node.element);
+			}
+		};
+
+		this._refresh(input, isCollapsed, onDidCreateNode);
 		this.setFocus(focus);
 		this.setSelection(selection);
 	}
@@ -94,18 +97,20 @@ export class DataTree<TInput, T, TFilterData = void> extends AbstractTree<T | nu
 
 	// Implementation
 
-	private _refresh(element: TInput | T, isCollapsed?: (el: T) => boolean): void {
-		this.model.setChildren((element === this.input ? null : element) as T, this.createIterator(element, isCollapsed));
+	private _refresh(element: TInput | T, isCollapsed?: (el: T) => boolean, onDidCreateNode?: (node: ITreeNode<T, TFilterData>) => void): void {
+		this.model.setChildren((element === this.input ? null : element) as T, this.iterate(element, isCollapsed).elements, onDidCreateNode);
 	}
 
-	private createIterator(element: TInput | T, isCollapsed?: (el: T) => boolean): Iterator<ITreeElement<T>> {
-		const children = Iterator.fromArray(this.dataSource.getChildren(element));
+	private iterate(element: TInput | T, isCollapsed?: (el: T) => boolean): { elements: Iterator<ITreeElement<T>>, size: number } {
+		const children = this.dataSource.getChildren(element);
+		const elements = Iterator.map<any, ITreeElement<T>>(Iterator.fromArray(children), element => {
+			const { elements: children, size } = this.iterate(element, isCollapsed);
+			const collapsed = size === 0 ? undefined : (isCollapsed && isCollapsed(element));
 
-		return Iterator.map<any, ITreeElement<T>>(children, element => ({
-			element,
-			children: this.createIterator(element),
-			collapsed: isCollapsed && isCollapsed(element)
-		}));
+			return { element, children, collapsed };
+		});
+
+		return { elements, size: children.length };
 	}
 
 	protected createModel(view: ISpliceable<ITreeNode<T, TFilterData>>, options: IDataTreeOptions<T, TFilterData>): ITreeModel<T | null, TFilterData, T | null> {

@@ -78,10 +78,10 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 
 	private static STORAGE_NAME = 'state.vscdb';
 
-	private _onDidChangeStorage: Emitter<IStorageChangeEvent> = this._register(new Emitter<IStorageChangeEvent>());
+	private readonly _onDidChangeStorage: Emitter<IStorageChangeEvent> = this._register(new Emitter<IStorageChangeEvent>());
 	get onDidChangeStorage(): Event<IStorageChangeEvent> { return this._onDidChangeStorage.event; }
 
-	private _onWillSaveState: Emitter<void> = this._register(new Emitter<void>());
+	private readonly _onWillSaveState: Emitter<void> = this._register(new Emitter<void>());
 	get onWillSaveState(): Event<void> { return this._onWillSaveState.event; }
 
 	get items(): Map<string, string> { return this.storage.items; }
@@ -236,7 +236,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 
 				return import('vscode-sqlite3').then(sqlite3 => {
 
-					return new Promise((resolve, reject) => {
+					return new Promise<void>((resolve, reject) => {
 						const handleSuffixKey = (row, key: string, suffix: string) => {
 							if (endsWith(key, suffix.toLowerCase())) {
 								const value: string = row.value.toString('utf16le');

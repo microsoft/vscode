@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { disposeAll } from '../util/dispose';
+import { Disposable } from '../util/dispose';
 import { isMarkdownFile } from '../util/file';
 import { Lazy, lazy } from '../util/lazy';
 import MDDocumentSymbolProvider from './documentSymbolProvider';
@@ -18,25 +18,13 @@ export interface WorkspaceMarkdownDocumentProvider {
 	readonly onDidDeleteMarkdownDocument: vscode.Event<vscode.Uri>;
 }
 
-class VSCodeWorkspaceMarkdownDocumentProvider implements WorkspaceMarkdownDocumentProvider {
+class VSCodeWorkspaceMarkdownDocumentProvider extends Disposable implements WorkspaceMarkdownDocumentProvider {
 
-	private readonly _onDidChangeMarkdownDocumentEmitter = new vscode.EventEmitter<SkinnyTextDocument>();
-	private readonly _onDidCreateMarkdownDocumentEmitter = new vscode.EventEmitter<SkinnyTextDocument>();
-	private readonly _onDidDeleteMarkdownDocumentEmitter = new vscode.EventEmitter<vscode.Uri>();
+	private readonly _onDidChangeMarkdownDocumentEmitter = this._register(new vscode.EventEmitter<SkinnyTextDocument>());
+	private readonly _onDidCreateMarkdownDocumentEmitter = this._register(new vscode.EventEmitter<SkinnyTextDocument>());
+	private readonly _onDidDeleteMarkdownDocumentEmitter = this._register(new vscode.EventEmitter<vscode.Uri>());
 
 	private _watcher: vscode.FileSystemWatcher | undefined;
-	private _disposables: vscode.Disposable[] = [];
-
-	public dispose() {
-		this._onDidChangeMarkdownDocumentEmitter.dispose();
-		this._onDidDeleteMarkdownDocumentEmitter.dispose();
-
-		if (this._watcher) {
-			this._watcher.dispose();
-		}
-
-		disposeAll(this._disposables);
-	}
 
 	async getAllMarkdownDocuments() {
 		const resources = await vscode.workspace.findFiles('**/*.md', '**/node_modules/**');
@@ -64,7 +52,7 @@ class VSCodeWorkspaceMarkdownDocumentProvider implements WorkspaceMarkdownDocume
 			return;
 		}
 
-		this._watcher = vscode.workspace.createFileSystemWatcher('**/*.md');
+		this._watcher = this._register(vscode.workspace.createFileSystemWatcher('**/*.md'));
 
 		this._watcher.onDidChange(async resource => {
 			const document = await this.getMarkdownDocument(resource);
@@ -98,15 +86,16 @@ class VSCodeWorkspaceMarkdownDocumentProvider implements WorkspaceMarkdownDocume
 }
 
 
-export default class MarkdownWorkspaceSymbolProvider implements vscode.WorkspaceSymbolProvider {
+export default class MarkdownWorkspaceSymbolProvider extends Disposable implements vscode.WorkspaceSymbolProvider {
 	private _symbolCache = new Map<string, Lazy<Thenable<vscode.SymbolInformation[]>>>();
 	private _symbolCachePopulated: boolean = false;
-	private _disposables: vscode.Disposable[] = [];
 
 	public constructor(
 		private _symbolProvider: MDDocumentSymbolProvider,
 		private _workspaceMarkdownDocumentProvider: WorkspaceMarkdownDocumentProvider = new VSCodeWorkspaceMarkdownDocumentProvider()
-	) { }
+	) {
+		super();
+	}
 
 	public async provideWorkspaceSymbols(query: string): Promise<vscode.SymbolInformation[]> {
 		if (!this._symbolCachePopulated) {
@@ -128,10 +117,6 @@ export default class MarkdownWorkspaceSymbolProvider implements vscode.Workspace
 		for (const document of markdownDocumentUris) {
 			this._symbolCache.set(document.uri.fsPath, this.getSymbols(document));
 		}
-	}
-
-	public dispose(): void {
-		disposeAll(this._disposables);
 	}
 
 	private getSymbols(document: SkinnyTextDocument): Lazy<Thenable<vscode.SymbolInformation[]>> {
