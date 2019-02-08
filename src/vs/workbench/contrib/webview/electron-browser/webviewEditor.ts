@@ -183,10 +183,7 @@ export class WebviewEditor extends BaseWebviewEditor {
 		input.claimWebview(this);
 		webview.update(input.html, {
 			allowScripts: input.options.enableScripts,
-			allowSvgs: true,
-			useSameOriginForRoot: false,
 			localResourceRoots: input.options.localResourceRoots || this.getDefaultLocalResourceRoots(),
-			extensionLocation: input.extensionLocation
 		}, !!input.options.retainContextWhenHidden);
 
 		if (this._webviewContent) {
@@ -224,9 +221,9 @@ export class WebviewEditor extends BaseWebviewEditor {
 				this._partService.getContainer(Parts.EDITOR_PART),
 				{
 					allowSvgs: true,
-					useSameOriginForRoot: false,
-					extensionLocation: input.extensionLocation
-				});
+					extensionLocation: input.extensionLocation,
+				},
+				{});
 			this._webview.mountTo(this._webviewContent);
 			input.webview = this._webview;
 

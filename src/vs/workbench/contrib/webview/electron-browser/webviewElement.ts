@@ -21,12 +21,15 @@ import { endsWith } from 'vs/base/common/strings';
 import { isMacintosh } from 'vs/base/common/platform';
 
 export interface WebviewOptions {
-	readonly allowScripts?: boolean;
 	readonly allowSvgs?: boolean;
-	readonly svgWhiteList?: string[];
 	readonly useSameOriginForRoot?: boolean;
-	readonly localResourceRoots?: ReadonlyArray<URI>;
 	readonly extensionLocation?: URI;
+}
+
+export interface WebviewContentOptions {
+	readonly allowScripts?: boolean;
+	readonly svgWhiteList?: string[];
+	readonly localResourceRoots?: ReadonlyArray<URI>;
 }
 
 interface IKeydownEvent {
@@ -88,13 +91,9 @@ class SvgBlocker extends Disposable {
 
 	constructor(
 		webview: Electron.WebviewTag,
-		private readonly _options: WebviewOptions,
+		private readonly _options: WebviewContentOptions,
 	) {
 		super();
-
-		if (this._options.allowSvgs) {
-			return;
-		}
 
 		let loaded = false;
 		this._register(addDisposableListener(webview, 'did-start-loading', () => {
@@ -134,9 +133,6 @@ class SvgBlocker extends Disposable {
 	}
 
 	private isAllowedSvg(uri: URI): boolean {
-		if (this._options.allowSvgs) {
-			return true;
-		}
 		if (this._options.svgWhiteList) {
 			return this._options.svgWhiteList.indexOf(uri.authority.toLowerCase()) >= 0;
 		}
@@ -239,7 +235,8 @@ export class WebviewElement extends Disposable {
 
 	constructor(
 		private readonly _styleElement: Element,
-		private _options: WebviewOptions,
+		private readonly _options: WebviewOptions,
+		private _contentOptions: WebviewContentOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IEnvironmentService environmentService: IEnvironmentService,
@@ -276,12 +273,14 @@ export class WebviewElement extends Disposable {
 			new WebviewProtocolProvider(
 				this._webview,
 				this._options.extensionLocation,
-				() => (this._options.localResourceRoots || []),
+				() => (this._contentOptions.localResourceRoots || []),
 				environmentService,
 				fileService));
 
-		const svgBlocker = this._register(new SvgBlocker(this._webview, this._options));
-		svgBlocker.onDidBlockSvg(() => this.onDidBlockSvg());
+		if (!this._options.allowSvgs) {
+			const svgBlocker = this._register(new SvgBlocker(this._webview, this._contentOptions));
+			svgBlocker.onDidBlockSvg(() => this.onDidBlockSvg());
+		}
 
 		this._register(new WebviewKeyboardHandler(this._webview, this._keybindingService));
 
@@ -397,15 +396,15 @@ export class WebviewElement extends Disposable {
 		this._state = value;
 	}
 
-	public set options(value: WebviewOptions) {
-		if (this._options && areWebviewInputOptionsEqual(value, this._options)) {
+	public set options(value: WebviewContentOptions) {
+		if (this._contentOptions && areWebviewInputOptionsEqual(value, this._contentOptions)) {
 			return;
 		}
 
-		this._options = value;
+		this._contentOptions = value;
 		this._send('content', {
 			contents: this._contents,
-			options: this._options,
+			options: this._contentOptions,
 			state: this._state
 		});
 	}
@@ -414,20 +413,20 @@ export class WebviewElement extends Disposable {
 		this._contents = value;
 		this._send('content', {
 			contents: value,
-			options: this._options,
+			options: this._contentOptions,
 			state: this._state
 		});
 	}
 
-	public update(value: string, options: WebviewOptions, retainContextWhenHidden: boolean) {
-		if (retainContextWhenHidden && value === this._contents && this._options && areWebviewInputOptionsEqual(options, this._options)) {
+	public update(value: string, options: WebviewContentOptions, retainContextWhenHidden: boolean) {
+		if (retainContextWhenHidden && value === this._contents && this._contentOptions && areWebviewInputOptionsEqual(options, this._contentOptions)) {
 			return;
 		}
 		this._contents = value;
-		this._options = options;
+		this._contentOptions = options;
 		this._send('content', {
 			contents: this._contents,
-			options: this._options,
+			options: this._contentOptions,
 			state: this._state
 		});
 	}
