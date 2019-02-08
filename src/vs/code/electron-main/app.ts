@@ -705,7 +705,7 @@ export class CodeApplication extends Disposable {
 			resolvedAuthorities.set(data.authority, data);
 			// Make sure to close and remove any existing connections
 			if (connectionPool.has(data.authority)) {
-				connectionPool.get(data.authority).dispose();
+				connectionPool.get(data.authority)!.dispose();
 			}
 		});
 
