@@ -46,7 +46,6 @@ import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { sequence } from 'vs/base/common/async';
-import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
 export const NEW_FILE_LABEL = nls.localize('newFile', "New File");
@@ -869,17 +868,22 @@ export class ShowOpenedFileInNewWindow extends Action {
 		label: string,
 		@IEditorService private readonly editorService: IEditorService,
 		@IWindowService private readonly windowService: IWindowService,
-		@INotificationService private readonly notificationService: INotificationService
+		@INotificationService private readonly notificationService: INotificationService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		super(id, label);
 	}
 
 	public run(): Promise<any> {
 		const fileResource = toResource(this.editorService.activeEditor, { supportSideBySide: true });
-		if (fileResource && (fileResource.scheme === Schemas.file || fileResource.scheme === REMOTE_HOST_SCHEME)) {
-			this.windowService.openWindow([{ uri: fileResource, typeHint: 'file' }], { forceNewWindow: true, forceOpenWorkspaceAsFile: true });
+		if (fileResource) {
+			if (this.fileService.canHandleResource(fileResource)) {
+				this.windowService.openWindow([{ uri: fileResource, typeHint: 'file' }], { forceNewWindow: true, forceOpenWorkspaceAsFile: true });
+			} else {
+				this.notificationService.info(nls.localize('openFileToShowInNewWindow.unsupportedschema', "The active editor must contain an openable resource."));
+			}
 		} else {
-			this.notificationService.info(nls.localize('openFileToShowInNewWindow', "Open a file first to open in new window"));
+			this.notificationService.info(nls.localize('openFileToShowInNewWindow.nofile', "Open a file first to open in new window"));
 		}
 
 		return Promise.resolve(true);
