@@ -508,6 +508,7 @@ export class MouseController<T> implements IDisposable {
 	private multipleSelectionSupport: boolean;
 	readonly multipleSelectionController: IMultipleSelectionController<T>;
 	private openController: IOpenController;
+	private mouseSupport: boolean;
 	private disposables: IDisposable[] = [];
 
 	constructor(protected list: List<T>) {
@@ -518,15 +519,19 @@ export class MouseController<T> implements IDisposable {
 		}
 
 		this.openController = list.options.openController || DefaultOpenController;
+		this.mouseSupport = typeof list.options.mouseSupport === 'undefined' || !!list.options.mouseSupport;
 
-		list.onMouseDown(this.onMouseDown, this, this.disposables);
-		list.onContextMenu(this.onContextMenu, this, this.disposables);
+		if (this.mouseSupport) {
+			list.onMouseDown(this.onMouseDown, this, this.disposables);
+			list.onContextMenu(this.onContextMenu, this, this.disposables);
+			list.onMouseDblClick(this.onDoubleClick, this, this.disposables);
+			list.onTouchStart(this.onMouseDown, this, this.disposables);
+			Gesture.addTarget(list.getHTMLElement());
+		}
+
 		list.onMouseClick(this.onPointer, this, this.disposables);
 		list.onMouseMiddleClick(this.onPointer, this, this.disposables);
-		list.onMouseDblClick(this.onDoubleClick, this, this.disposables);
-		list.onTouchStart(this.onMouseDown, this, this.disposables);
 		list.onTap(this.onPointer, this, this.disposables);
-		Gesture.addTarget(list.getHTMLElement());
 	}
 
 	protected isSelectionSingleChangeEvent(event: IListMouseEvent<any> | IListTouchEvent<any>): boolean {
@@ -561,6 +566,10 @@ export class MouseController<T> implements IDisposable {
 	}
 
 	protected onPointer(e: IListMouseEvent<T>): void {
+		if (!this.mouseSupport) {
+			return;
+		}
+
 		if (isInputElement(e.browserEvent.target as HTMLElement)) {
 			return;
 		}
@@ -1069,11 +1078,6 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	private spliceable: ISpliceable<T>;
 	private styleElement: HTMLStyleElement;
 	private styleController: IStyleController;
-	private mouseController: MouseController<T> | undefined;
-
-	get multipleSelectionController(): IMultipleSelectionController<T> {
-		return (this.mouseController && this.mouseController.multipleSelectionController) || DefaultMultipleSelectionContoller;
-	}
 
 	private _onDidUpdateOptions = new Emitter<IListOptions<T>>();
 	readonly onDidUpdateOptions = this._onDidUpdateOptions.event;
@@ -1218,10 +1222,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 			this.disposables.push(controller);
 		}
 
-		if (typeof _options.mouseSupport === 'boolean' ? _options.mouseSupport : true) {
-			this.mouseController = this.createMouseController(_options);
-			this.disposables.push(this.mouseController);
-		}
+		this.disposables.push(this.createMouseController(_options));
 
 		this.onFocusChange(this._onFocusChange, this, this.disposables);
 		this.onSelectionChange(this._onSelectionChange, this, this.disposables);
