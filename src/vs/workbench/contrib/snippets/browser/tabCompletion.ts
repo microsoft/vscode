@@ -6,8 +6,8 @@
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { RawContextKey, IContextKeyService, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ISnippetsService } from 'vs/workbench/contrib/snippets/electron-browser/snippets.contribution';
-import { getNonWhitespacePrefix } from 'vs/workbench/contrib/snippets/electron-browser/snippetsService';
+import { ISnippetsService } from './snippets.contribution';
+import { getNonWhitespacePrefix } from './snippetsService';
 import { endsWith } from 'vs/base/common/strings';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -17,8 +17,8 @@ import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2
 import { showSimpleSuggestions } from 'vs/editor/contrib/suggest/suggest';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Snippet } from 'vs/workbench/contrib/snippets/electron-browser/snippetsFile';
-import { SnippetCompletion } from 'vs/workbench/contrib/snippets/electron-browser/snippetCompletionProvider';
+import { Snippet } from './snippetsFile';
+import { SnippetCompletion } from './snippetCompletionProvider';
 
 export class TabCompletionController implements editorCommon.IEditorContribution {
 

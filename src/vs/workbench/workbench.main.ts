@@ -134,11 +134,11 @@ import 'vs/workbench/contrib/codeEditor/electron-browser/codeEditor.contribution
 import 'vs/workbench/contrib/execution/electron-browser/execution.contribution';
 
 // Snippets
-import 'vs/workbench/contrib/snippets/electron-browser/snippets.contribution';
-import 'vs/workbench/contrib/snippets/electron-browser/snippetsService';
-import 'vs/workbench/contrib/snippets/electron-browser/insertSnippet';
-import 'vs/workbench/contrib/snippets/electron-browser/configureSnippets';
-import 'vs/workbench/contrib/snippets/electron-browser/tabCompletion';
+import 'vs/workbench/contrib/snippets/browser/snippets.contribution';
+import 'vs/workbench/contrib/snippets/browser/snippetsService';
+import 'vs/workbench/contrib/snippets/browser/insertSnippet';
+import 'vs/workbench/contrib/snippets/browser/configureSnippets';
+import 'vs/workbench/contrib/snippets/browser/tabCompletion';
 
 // Send a Smile
 import 'vs/workbench/contrib/feedback/electron-browser/feedback.contribution';

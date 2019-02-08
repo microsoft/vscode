@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { basename, extname, join } from 'path';
+import { basename, extname, join } from 'vs/base/common/paths';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { combinedDisposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { values } from 'vs/base/common/map';
@@ -21,8 +21,8 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ISnippetsService } from 'vs/workbench/contrib/snippets/electron-browser/snippets.contribution';
-import { Snippet, SnippetFile, SnippetSource } from 'vs/workbench/contrib/snippets/electron-browser/snippetsFile';
+import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets.contribution';
+import { Snippet, SnippetFile, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
 import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { languagesExtPoint } from 'vs/workbench/services/mode/common/workbenchModeService';
 import { SnippetCompletionProvider } from './snippetCompletionProvider';
@@ -324,7 +324,7 @@ class SnippetsService implements ISnippetsService {
 		const ext = extname(uri.path);
 		const key = uri.toString();
 		if (source === SnippetSource.User && ext === '.json') {
-			const langName = basename(uri.path, '.json');
+			const langName = basename(uri.path).replace(/\.json/, '');
 			this._files.set(key, new SnippetFile(source, uri, [langName], undefined, this._fileService));
 		} else if (ext === '.code-snippets') {
 			this._files.set(key, new SnippetFile(source, uri, undefined, undefined, this._fileService));

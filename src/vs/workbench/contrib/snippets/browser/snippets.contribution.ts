@@ -9,7 +9,7 @@ import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonCo
 import * as nls from 'vs/nls';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { LanguageId } from 'vs/editor/common/modes';
-import { SnippetFile, Snippet } from 'vs/workbench/contrib/snippets/electron-browser/snippetsFile';
+import { SnippetFile, Snippet } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
 
 export const ISnippetsService = createDecorator<ISnippetsService>('snippetService');
 
