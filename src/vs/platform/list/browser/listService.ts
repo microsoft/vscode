@@ -655,6 +655,17 @@ export interface IResourceResultsNavigationOptions {
 	openOnFocus: boolean;
 }
 
+export interface SelectionKeyboardEvent extends KeyboardEvent {
+	preserveFocus?: boolean;
+}
+
+export function getSelectionKeyboardEvent(typeArg: string, preserveFocus?: boolean): SelectionKeyboardEvent {
+	const e = new KeyboardEvent(typeArg);
+	(<SelectionKeyboardEvent>e).preserveFocus = preserveFocus;
+
+	return e;
+}
+
 export class TreeResourceNavigator2<T, TFilterData> extends Disposable {
 
 	private readonly _onDidOpenResource = new Emitter<IOpenEvent<T | null>>();
@@ -697,10 +708,13 @@ export class TreeResourceNavigator2<T, TFilterData> extends Disposable {
 		}
 
 		const isDoubleClick = e.browserEvent.detail === 2;
+		const preserveFocus = (e.browserEvent instanceof KeyboardEvent && typeof (<SelectionKeyboardEvent>e.browserEvent).preserveFocus === 'boolean') ?
+			!!(<SelectionKeyboardEvent>e.browserEvent).preserveFocus :
+			!isDoubleClick;
 
 		if (this.tree.openOnSingleClick || isDoubleClick) {
 			const sideBySide = e.browserEvent instanceof MouseEvent && (e.browserEvent.ctrlKey || e.browserEvent.metaKey || e.browserEvent.altKey);
-			this.open(!isDoubleClick, isDoubleClick, sideBySide);
+			this.open(preserveFocus, isDoubleClick, sideBySide);
 		}
 	}
 

@@ -90,15 +90,17 @@ const enum TemplateId {
 
 export class VirtualDelegate implements IListVirtualDelegate<TreeElement> {
 
+	static LINE_HEIGHT: number = 22;
+
 	constructor(private readonly markersViewState: MarkersViewModel) { }
 
 	getHeight(element: TreeElement): number {
 		if (element instanceof Marker) {
 			const viewModel = this.markersViewState.getViewModel(element);
 			const noOfLines = !viewModel || viewModel.multiline ? element.lines.length : 1;
-			return noOfLines * 22;
+			return noOfLines * VirtualDelegate.LINE_HEIGHT;
 		}
-		return 22;
+		return VirtualDelegate.LINE_HEIGHT;
 	}
 
 	getTemplateId(element: TreeElement): string {
@@ -321,6 +323,9 @@ class MarkerWidget extends Disposable {
 			lastLineElement = dom.append(messageContainer, dom.$('.marker-message-line'));
 			const highlightedLabel = new HighlightedLabel(lastLineElement, false);
 			highlightedLabel.set(lines[index], lineMatches[index]);
+			if (lines[index] === '') {
+				lastLineElement.style.height = `${VirtualDelegate.LINE_HEIGHT}px`;
+			}
 		}
 		this.renderDetails(marker, filterData, multiline ? lastLineElement : this.messageAndDetailsContainer);
 	}

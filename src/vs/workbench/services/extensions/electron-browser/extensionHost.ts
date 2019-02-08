@@ -39,7 +39,7 @@ import { IExtensionDescription } from 'vs/workbench/services/extensions/common/e
 
 export interface IExtensionHostStarter {
 	readonly onCrashed: Event<[number, string]>;
-	start(): Promise<IMessagePassingProtocol>;
+	start(): Promise<IMessagePassingProtocol> | null;
 	getInspectPort(): number;
 	dispose(): void;
 }
@@ -79,15 +79,15 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 	private readonly _isExtensionDevTestFromCli: boolean;
 
 	// State
-	private _lastExtensionHostError: string;
+	private _lastExtensionHostError: string | null;
 	private _terminating: boolean;
 
 	// Resources, in order they get acquired/created when .start() is called:
-	private _namedPipeServer: Server;
+	private _namedPipeServer: Server | null;
 	private _inspectPort: number;
-	private _extensionHostProcess: ChildProcess;
-	private _extensionHostConnection: Socket;
-	private _messageProtocol: Promise<IMessagePassingProtocol>;
+	private _extensionHostProcess: ChildProcess | null;
+	private _extensionHostConnection: Socket | null;
+	private _messageProtocol: Promise<IMessagePassingProtocol> | null;
 
 	constructor(
 		private readonly _autoStart: boolean,
@@ -154,7 +154,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		}
 	}
 
-	public start(): Promise<IMessagePassingProtocol> {
+	public start(): Promise<IMessagePassingProtocol> | null {
 		if (this._terminating) {
 			// .terminate() was called
 			return null;
@@ -180,7 +180,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 					// We detach because we have noticed that when the renderer exits, its child processes
 					// (i.e. extension host) are taken down in a brutal fashion by the OS
 					detached: !!isWindows,
-					execArgv: <string[]>undefined,
+					execArgv: undefined as string[] | undefined,
 					silent: true
 				};
 
@@ -301,7 +301,9 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 			this._namedPipeServer = createServer();
 			this._namedPipeServer.on('error', reject);
 			this._namedPipeServer.listen(pipeName, () => {
-				this._namedPipeServer.removeListener('error', reject);
+				if (this._namedPipeServer) {
+					this._namedPipeServer.removeListener('error', reject);
+				}
 				resolve(pipeName);
 			});
 		});
@@ -342,15 +344,19 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 			// Wait for the extension host to connect to our named pipe
 			// and wrap the socket in the message passing protocol
 			let handle = setTimeout(() => {
-				this._namedPipeServer.close();
-				this._namedPipeServer = null;
+				if (this._namedPipeServer) {
+					this._namedPipeServer.close();
+					this._namedPipeServer = null;
+				}
 				reject('timeout');
 			}, 60 * 1000);
 
-			this._namedPipeServer.on('connection', socket => {
+			this._namedPipeServer!.on('connection', socket => {
 				clearTimeout(handle);
-				this._namedPipeServer.close();
-				this._namedPipeServer = null;
+				if (this._namedPipeServer) {
+					this._namedPipeServer.close();
+					this._namedPipeServer = null;
+				}
 				this._extensionHostConnection = socket;
 
 				// using a buffered message protocol here because between now
@@ -429,8 +435,8 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 						extensionTestsPath: this._environmentService.extensionTestsPath,
 						globalStorageHome: URI.file(this._environmentService.globalStorageHome)
 					},
-					workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? null : {
-						configuration: workspace.configuration,
+					workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? undefined : {
+						configuration: workspace.configuration || undefined,
 						folders: workspace.folders,
 						id: workspace.id,
 						name: this._labelService.getWorkspaceLabel(workspace)
@@ -509,7 +515,9 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		}
 		// send SIGUSR1 and wait a little the actual port is read from the process stdout which we
 		// scan here: https://github.com/Microsoft/vscode/blob/67ffab8dcd1a6752d8b62bcd13d7020101eef568/src/vs/workbench/services/extensions/electron-browser/extensionHost.ts#L225-L240
-		this._extensionHostProcess.kill('SIGUSR1');
+		if (this._extensionHostProcess) {
+			this._extensionHostProcess.kill('SIGUSR1');
+		}
 		return timeout(1000);
 	}
 

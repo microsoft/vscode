@@ -364,8 +364,8 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 
 	private createOpenKeybindingsElement(parent: HTMLElement): void {
 		const openKeybindingsContainer = DOM.append(parent, $('.open-keybindings-container'));
-		DOM.append(openKeybindingsContainer, $('', null, localize('header-message', "For advanced customizations open and edit")));
-		const fileElement = DOM.append(openKeybindingsContainer, $('.file-name', null, localize('keybindings-file-name', "keybindings.json")));
+		DOM.append(openKeybindingsContainer, $('', undefined, localize('header-message', "For advanced customizations open and edit")));
+		const fileElement = DOM.append(openKeybindingsContainer, $('.file-name', undefined, localize('keybindings-file-name', "keybindings.json")));
 		fileElement.tabIndex = 0;
 		this._register(DOM.addDisposableListener(fileElement, DOM.EventType.CLICK, () => this.preferencesService.openGlobalKeybindingSettings(true)));
 		this._register(DOM.addDisposableListener(fileElement, DOM.EventType.KEY_UP, e => {
@@ -398,10 +398,10 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		keybindingsListHeader.style.lineHeight = '30px';
 		DOM.append(keybindingsListHeader,
 			$('.header.actions'),
-			$('.header.command', null, localize('command', "Command")),
-			$('.header.keybinding', null, localize('keybinding', "Keybinding")),
-			$('.header.source', null, localize('source', "Source")),
-			$('.header.when', null, localize('when', "When")));
+			$('.header.command', undefined, localize('command', "Command")),
+			$('.header.keybinding', undefined, localize('keybinding', "Keybinding")),
+			$('.header.source', undefined, localize('source', "Source")),
+			$('.header.when', undefined, localize('when', "When")));
 	}
 
 	private createList(parent: HTMLElement): void {

@@ -227,7 +227,7 @@ export class SearchWidget extends Widget {
 	}
 
 	searchInputHasFocus(): boolean {
-		return this.searchInputBoxFocused.get();
+		return !!this.searchInputBoxFocused.get();
 	}
 
 	replaceInputHasFocus(): boolean {
@@ -264,10 +264,10 @@ export class SearchWidget extends Widget {
 
 	private renderToggleReplaceButton(parent: HTMLElement): void {
 		const opts: IButtonOptions = {
-			buttonBackground: null,
-			buttonBorder: null,
-			buttonForeground: null,
-			buttonHoverBackground: null
+			buttonBackground: undefined,
+			buttonBorder: undefined,
+			buttonForeground: undefined,
+			buttonHoverBackground: undefined
 		};
 		this.toggleReplaceButton = this._register(new Button(parent, opts));
 		this.toggleReplaceButton.element.setAttribute('aria-expanded', 'false');
@@ -390,7 +390,7 @@ export class SearchWidget extends Widget {
 		}
 	}
 
-	private validateSearchInput(value: string): IMessage {
+	private validateSearchInput(value: string): IMessage | null {
 		if (value.length === 0) {
 			return null;
 		}

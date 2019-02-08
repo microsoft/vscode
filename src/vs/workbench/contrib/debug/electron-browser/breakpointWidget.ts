@@ -53,7 +53,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 	private conditionInput = '';
 	private hitCountInput = '';
 	private logMessageInput = '';
-	private breakpoint: IBreakpoint;
+	private breakpoint?: IBreakpoint;
 
 	constructor(editor: ICodeEditor, private lineNumber: number, private context: Context,
 		@IContextViewService private readonly contextViewService: IContextViewService,
@@ -102,7 +102,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		}
 	}
 
-	private getInputValue(breakpoint: IBreakpoint): string {
+	private getInputValue(breakpoint: IBreakpoint | undefined): string {
 		switch (this.context) {
 			case Context.LOG_MESSAGE:
 				return breakpoint && breakpoint.logMessage ? breakpoint.logMessage : this.logMessageInput;
