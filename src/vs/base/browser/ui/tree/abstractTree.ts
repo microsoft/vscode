@@ -151,7 +151,14 @@ function asListOptions<T, TFilterData, TRef>(modelProvider: () => ITreeModel<T, 
 			}
 		},
 		enableKeyboardNavigation: options.simpleKeyboardNavigation,
-		disableAriaRoles: true
+		ariaSetProvider: {
+			getSetSize(node) {
+				return node.parent!.visibleChildrenCount;
+			},
+			getPosInSet(node) {
+				return node.visibleChildIndex + 1;
+			}
+		}
 	};
 }
 
@@ -230,8 +237,6 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 
 		const indent = TreeRenderer.DefaultIndent + (node.depth - 1) * this.indent;
 		templateData.twistie.style.marginLeft = `${indent}px`;
-		templateData.container.setAttribute('aria-posinset', String(node.visibleChildIndex + 1));
-		templateData.container.setAttribute('aria-setsize', String(node.parent!.visibleChildrenCount));
 		this.update(node, templateData);
 
 		this.renderer.renderElement(node, index, templateData.templateData);
