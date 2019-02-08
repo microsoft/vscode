@@ -6,7 +6,7 @@
 import { app, ipcMain as ipc, systemPreferences, shell, Event, contentTracing, protocol, powerMonitor } from 'electron';
 import { IProcessEnvironment, isWindows, isMacintosh } from 'vs/base/common/platform';
 import { WindowsManager } from 'vs/code/electron-main/windows';
-import { IWindowsService, OpenContext, ActiveWindowManager } from 'vs/platform/windows/common/windows';
+import { IWindowsService, OpenContext, ActiveWindowManager, IURIToOpen } from 'vs/platform/windows/common/windows';
 import { WindowsChannel } from 'vs/platform/windows/node/windowsIpc';
 import { WindowsService } from 'vs/platform/windows/electron-main/windowsService';
 import { ILifecycleService, LifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
@@ -187,14 +187,14 @@ export class CodeApplication extends Disposable {
 			});
 		});
 
-		let macOpenFileURIs: URI[] = [];
+		let macOpenFileURIs: IURIToOpen[] = [];
 		let runningTimeout: any = null;
 		app.on('open-file', (event: Event, path: string) => {
 			this.logService.trace('App#open-file: ', path);
 			event.preventDefault();
 
 			// Keep in array because more might come!
-			macOpenFileURIs.push(URI.file(path));
+			macOpenFileURIs.push({ uri: URI.file(path) });
 
 			// Clear previous handler if any
 			if (runningTimeout !== null) {
@@ -606,7 +606,7 @@ export class CodeApplication extends Disposable {
 		}
 
 		if (macOpenFiles && macOpenFiles.length && !hasCliArgs && !hasFolderURIs && !hasFileURIs) {
-			return this.windowsMainService.open({ context: OpenContext.DOCK, cli: args, urisToOpen: macOpenFiles.map(file => URI.file(file)), initialStartup: true }); // mac: open-file event received on startup
+			return this.windowsMainService.open({ context: OpenContext.DOCK, cli: args, urisToOpen: macOpenFiles.map(file => ({ uri: URI.file(file) })), initialStartup: true }); // mac: open-file event received on startup
 		}
 
 		return this.windowsMainService.open({ context, cli: args, forceNewWindow: args['new-window'] || (!hasCliArgs && args['unity-launch']), diffMode: args.diff, initialStartup: true }); // default: read paths from cli
@@ -682,10 +682,10 @@ export class CodeApplication extends Disposable {
 			constructor(authority: string, host: string, port: number) {
 				this._authority = authority;
 				this._client = connectRemoteAgentManagement(authority, host, port, `main`, isBuilt);
-				this._disposeRunner = new RunOnceScheduler(() => this._dispose(), 5000);
+				this._disposeRunner = new RunOnceScheduler(() => this.dispose(), 5000);
 			}
 
-			private _dispose(): void {
+			public dispose(): void {
 				this._disposeRunner.dispose();
 				connectionPool.delete(this._authority);
 				this._client.then((connection) => {
@@ -701,8 +701,12 @@ export class CodeApplication extends Disposable {
 
 		const resolvedAuthorities = new Map<string, ResolvedAuthority>();
 		ipc.on('vscode:remoteAuthorityResolved', (event: any, data: ResolvedAuthority) => {
-			this.logService.info('Receieved resolved authority', data.authority);
+			this.logService.info('Received resolved authority', data.authority);
 			resolvedAuthorities.set(data.authority, data);
+			// Make sure to close and remove any existing connections
+			if (connectionPool.has(data.authority)) {
+				connectionPool.get(data.authority)!.dispose();
+			}
 		});
 
 		const resolveAuthority = (authority: string): ResolvedAuthority | null => {
@@ -716,7 +720,7 @@ export class CodeApplication extends Disposable {
 			} else {
 				const [host, strPort] = authority.split(':');
 				const port = parseInt(strPort, 10);
-				return { authority, host, port, syncExtensions: false };
+				return { authority, host, port };
 			}
 		};
 

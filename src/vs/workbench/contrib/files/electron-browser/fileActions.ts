@@ -868,17 +868,22 @@ export class ShowOpenedFileInNewWindow extends Action {
 		label: string,
 		@IEditorService private readonly editorService: IEditorService,
 		@IWindowService private readonly windowService: IWindowService,
-		@INotificationService private readonly notificationService: INotificationService
+		@INotificationService private readonly notificationService: INotificationService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		super(id, label);
 	}
 
 	public run(): Promise<any> {
-		const fileResource = toResource(this.editorService.activeEditor, { supportSideBySide: true, filter: Schemas.file /* todo@remote */ });
+		const fileResource = toResource(this.editorService.activeEditor, { supportSideBySide: true });
 		if (fileResource) {
-			this.windowService.openWindow([fileResource], { forceNewWindow: true, forceOpenWorkspaceAsFile: true });
+			if (this.fileService.canHandleResource(fileResource)) {
+				this.windowService.openWindow([{ uri: fileResource, typeHint: 'file' }], { forceNewWindow: true, forceOpenWorkspaceAsFile: true });
+			} else {
+				this.notificationService.info(nls.localize('openFileToShowInNewWindow.unsupportedschema', "The active editor must contain an openable resource."));
+			}
 		} else {
-			this.notificationService.info(nls.localize('openFileToShowInNewWindow', "Open a file first to open in new window"));
+			this.notificationService.info(nls.localize('openFileToShowInNewWindow.nofile', "Open a file first to open in new window"));
 		}
 
 		return Promise.resolve(true);

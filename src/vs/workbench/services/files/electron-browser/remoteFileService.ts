@@ -213,7 +213,7 @@ export class RemoteFileService extends FileService {
 		return resource.scheme === Schemas.file || this._provider.has(resource.scheme);
 	}
 
-	private _tryParseFileOperationResult(err: any): FileOperationResult {
+	private _tryParseFileOperationResult(err: any): FileOperationResult | undefined {
 		if (!(err instanceof Error)) {
 			return undefined;
 		}

@@ -14,7 +14,7 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { onUnexpectedError, isPromiseCanceledError } from 'vs/base/common/errors';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IWindowService, URIType } from 'vs/platform/windows/common/windows';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
@@ -344,15 +344,19 @@ class WelcomePage {
 		return workspaces.map(workspace => {
 			let label: string;
 			let resource: URI;
+			let typeHint: URIType | undefined;
 			if (isSingleFolderWorkspaceIdentifier(workspace)) {
 				resource = workspace;
 				label = this.labelService.getWorkspaceLabel(workspace);
+				typeHint = 'folder';
 			} else if (isWorkspaceIdentifier(workspace)) {
 				label = this.labelService.getWorkspaceLabel(workspace);
-				resource = URI.file(workspace.configPath);
+				resource = workspace.configPath;
+				typeHint = 'file';
 			} else {
 				label = getBaseLabel(workspace);
 				resource = URI.file(workspace);
+				typeHint = 'file';
 			}
 
 			const li = document.createElement('li');
@@ -389,7 +393,7 @@ class WelcomePage {
 					id: 'openRecentFolder',
 					from: telemetryFrom
 				});
-				this.windowService.openWindow([resource], { forceNewWindow: e.ctrlKey || e.metaKey });
+				this.windowService.openWindow([{ uri: resource, typeHint }], { forceNewWindow: e.ctrlKey || e.metaKey });
 				e.preventDefault();
 				e.stopPropagation();
 			});

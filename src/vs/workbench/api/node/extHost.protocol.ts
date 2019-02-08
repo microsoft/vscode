@@ -48,10 +48,10 @@ import { IRemoteConsoleLog } from 'vs/base/node/console';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
-	appRoot: URI;
-	appSettingsHome: URI;
-	extensionDevelopmentLocationURI: URI;
-	extensionTestsPath: string;
+	appRoot?: URI;
+	appSettingsHome?: URI;
+	extensionDevelopmentLocationURI?: URI;
+	extensionTestsPath?: string;
 	globalStorageHome: URI;
 }
 
@@ -63,11 +63,12 @@ export interface IWorkspaceData {
 }
 
 export interface IInitData {
-	commit: string;
+	commit?: string;
 	parentPid: number;
 	environment: IEnvironment;
-	workspace: IWorkspaceData;
+	workspace?: IWorkspaceData;
 	resolvedExtensions: ExtensionIdentifier[];
+	hostExtensions: ExtensionIdentifier[];
 	extensions: IExtensionDescription[];
 	telemetryInfo: ITelemetryInfo;
 	logLevel: LogLevel;
@@ -147,14 +148,14 @@ export interface MainThreadDialogSaveOptions {
 }
 
 export interface MainThreadDiaglogsShape extends IDisposable {
-	$showOpenDialog(options: MainThreadDialogOpenOptions): Promise<UriComponents[]>;
-	$showSaveDialog(options: MainThreadDialogSaveOptions): Promise<UriComponents>;
+	$showOpenDialog(options: MainThreadDialogOpenOptions): Promise<UriComponents[] | undefined>;
+	$showSaveDialog(options: MainThreadDialogSaveOptions): Promise<UriComponents | undefined>;
 }
 
 export interface MainThreadDecorationsShape extends IDisposable {
 	$registerDecorationProvider(handle: number, label: string): void;
 	$unregisterDecorationProvider(handle: number): void;
-	$onDidChange(handle: number, resources: UriComponents[]): void;
+	$onDidChange(handle: number, resources: UriComponents[] | null): void;
 }
 
 export interface MainThreadDocumentContentProvidersShape extends IDisposable {
@@ -329,7 +330,7 @@ export interface MainThreadMessageOptions {
 }
 
 export interface MainThreadMessageServiceShape extends IDisposable {
-	$showMessage(severity: Severity, message: string, options: MainThreadMessageOptions, commands: { title: string; isCloseAffordance: boolean; handle: number; }[]): Promise<number>;
+	$showMessage(severity: Severity, message: string, options: MainThreadMessageOptions, commands: { title: string; isCloseAffordance: boolean; handle: number; }[]): Promise<number | undefined>;
 }
 
 export interface MainThreadOutputServiceShape extends IDisposable {
@@ -439,7 +440,7 @@ export interface TransferInputBox extends BaseTransferQuickInput {
 }
 
 export interface MainThreadQuickOpenShape extends IDisposable {
-	$show(instance: number, options: IPickOptions<TransferQuickPickItems>, token: CancellationToken): Promise<number | number[]>;
+	$show(instance: number, options: IPickOptions<TransferQuickPickItems>, token: CancellationToken): Promise<number | number[] | undefined>;
 	$setItems(instance: number, items: TransferQuickPickItems[]): Promise<void>;
 	$setError(instance: number, error: Error): Promise<void>;
 	$input(options: vscode.InputBoxOptions, validateInput: boolean, token: CancellationToken): Promise<string>;
@@ -505,7 +506,7 @@ export interface ExtHostUrlsShape {
 }
 
 export interface MainThreadWorkspaceShape extends IDisposable {
-	$startFileSearch(includePattern: string, includeFolder: URI, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Promise<UriComponents[]> | undefined;
+	$startFileSearch(includePattern: string | undefined, includeFolder: URI, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Promise<UriComponents[]> | undefined;
 	$startTextSearch(query: IPatternInfo, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<vscode.TextSearchComplete>;
 	$checkExists(includes: string[], token: CancellationToken): Promise<boolean>;
 	$saveAll(includeUntitled?: boolean): Promise<boolean>;
@@ -546,6 +547,7 @@ export interface MainThreadTaskShape extends IDisposable {
 
 export interface MainThreadExtensionServiceShape extends IDisposable {
 	$localShowMessage(severity: Severity, msg: string): void;
+	$activateExtension(extensionId: ExtensionIdentifier, activationEvent: string): Promise<void>;
 	$onWillActivateExtension(extensionId: ExtensionIdentifier): void;
 	$onDidActivateExtension(extensionId: ExtensionIdentifier, startup: boolean, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationEvent: string): void;
 	$onExtensionActivationFailed(extensionId: ExtensionIdentifier): void;
@@ -749,7 +751,7 @@ export interface ExtHostExtensionServiceShape {
 	$resolveAuthority(remoteAuthority: string): Promise<ResolvedAuthority>;
 	$startExtensionHost(enabledExtensionIds: ExtensionIdentifier[]): Promise<void>;
 	$activateByEvent(activationEvent: string): Promise<void>;
-	$activate(extensionId: ExtensionIdentifier, activationEvent: string): Promise<void>;
+	$activate(extensionId: ExtensionIdentifier, activationEvent: string): Promise<boolean>;
 
 	$deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void>;
 
@@ -880,7 +882,11 @@ export interface CodeActionDto {
 
 export type LinkDto = ObjectIdentifier & modes.ILink;
 
-export type CodeLensDto = ObjectIdentifier & modes.ICodeLensSymbol;
+export interface CodeLensDto extends ObjectIdentifier {
+	range: IRange;
+	id?: string;
+	command?: CommandDto;
+}
 
 export interface ExtHostLanguageFeaturesShape {
 	$provideDocumentSymbols(handle: number, resource: UriComponents, token: CancellationToken): Promise<modes.DocumentSymbol[]>;

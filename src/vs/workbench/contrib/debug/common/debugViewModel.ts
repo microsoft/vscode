@@ -58,7 +58,7 @@ export class ViewModel implements IViewModel {
 		this._focusedThread = thread;
 		this._focusedSession = session;
 
-		this.loadedScriptsSupportedContextKey.set(session && session.capabilities.supportsLoadedSourcesRequest);
+		this.loadedScriptsSupportedContextKey.set(session ? !!session.capabilities.supportsLoadedSourcesRequest : false);
 
 		if (shouldEmitForSession) {
 			this._onDidFocusSession.fire(session);
@@ -68,7 +68,7 @@ export class ViewModel implements IViewModel {
 		}
 	}
 
-	get onDidFocusSession(): Event<IDebugSession> {
+	get onDidFocusSession(): Event<IDebugSession | undefined> {
 		return this._onDidFocusSession.event;
 	}
 

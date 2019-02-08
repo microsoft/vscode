@@ -56,8 +56,8 @@ export const enum SearchProviderType {
 }
 
 export interface ISearchResultProvider {
-	textSearch(query: ITextQuery, onProgress?: (p: ISearchProgressItem) => void, token?: CancellationToken): Promise<ISearchComplete>;
-	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete>;
+	textSearch(query: ITextQuery, onProgress?: (p: ISearchProgressItem) => void, token?: CancellationToken): Promise<ISearchComplete | undefined>;
+	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete | undefined>;
 	clearCache(cacheKey: string): Promise<void>;
 }
 
@@ -338,9 +338,9 @@ export interface ISearchConfiguration extends IFilesConfiguration {
 	};
 }
 
-export function getExcludes(configuration: ISearchConfiguration): glob.IExpression | undefined {
+export function getExcludes(configuration: ISearchConfiguration, includeSearchExcludes = true): glob.IExpression | undefined {
 	const fileExcludes = configuration && configuration.files && configuration.files.exclude;
-	const searchExcludes = configuration && configuration.search && configuration.search.exclude;
+	const searchExcludes = includeSearchExcludes && configuration && configuration.search && configuration.search.exclude;
 
 	if (!fileExcludes && !searchExcludes) {
 		return undefined;

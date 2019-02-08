@@ -435,8 +435,6 @@ export class WorkspaceConfigurationEditorModel extends SettingsEditorModel {
 
 export class DefaultSettings extends Disposable {
 
-	private static _RAW: string;
-
 	private _allSettingsGroups: ISettingsGroup[];
 	private _content: string;
 	private _settingsByName: Map<string, ISetting>;
@@ -479,15 +477,7 @@ export class DefaultSettings extends Disposable {
 		return [mostCommonlyUsed, ...settingsGroups];
 	}
 
-	get raw(): string {
-		if (!DefaultSettings._RAW) {
-			DefaultSettings._RAW = this.toContent(this.getRegisteredGroups());
-		}
-
-		return DefaultSettings._RAW;
-	}
-
-	private getRegisteredGroups(): ISettingsGroup[] {
+	getRegisteredGroups(): ISettingsGroup[] {
 		const configurations = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurations().slice();
 		const groups = this.removeEmptySettingsGroups(configurations.sort(this.compareConfigurationNodes)
 			.reduce((result, config, index, array) => this.parseConfig(config, result, array), []));
@@ -889,10 +879,6 @@ class SettingsContentBuilder {
 		this._contentByLines = [];
 	}
 
-	private offsetIndexToIndex(offsetIdx: number): number {
-		return offsetIdx - this._rangeOffset;
-	}
-
 	pushLine(...lineText: string[]): void {
 		this._contentByLines.push(...lineText);
 	}
@@ -901,11 +887,11 @@ class SettingsContentBuilder {
 		this._contentByLines.push('{');
 		this._contentByLines.push('');
 		this._contentByLines.push('');
-		const lastSetting = this._pushGroup(settingsGroups);
+		const lastSetting = this._pushGroup(settingsGroups, '  ');
 
 		if (lastSetting) {
 			// Strip the comma from the last setting
-			const lineIdx = this.offsetIndexToIndex(lastSetting.range.endLineNumber);
+			const lineIdx = lastSetting.range.endLineNumber - this._rangeOffset;
 			const content = this._contentByLines[lineIdx - 2];
 			this._contentByLines[lineIdx - 2] = content.substring(0, content.length - 1);
 		}
@@ -913,8 +899,7 @@ class SettingsContentBuilder {
 		this._contentByLines.push('}');
 	}
 
-	private _pushGroup(group: ISettingsGroup): ISetting {
-		const indent = '  ';
+	protected _pushGroup(group: ISettingsGroup, indent: string): ISetting {
 		let lastSetting: ISetting | null = null;
 		const groupStart = this.lineCountWithOffset + 1;
 		for (const section of group.sections) {
@@ -979,7 +964,7 @@ class SettingsContentBuilder {
 					`${displayEnum}: ${fixSettingLink(desc)}` :
 					displayEnum;
 
-				this._contentByLines.push(`  //  - ${line}`);
+				this._contentByLines.push(`${indent}//  - ${line}`);
 
 				setting.descriptionRanges.push({ startLineNumber: this.lineCountWithOffset, startColumn: this.lastLine.indexOf(line) + 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length });
 			});
@@ -1122,6 +1107,41 @@ export function createValidator(prop: IConfigurationPropertySchema): ((value: an
 		}
 		return '';
 	};
+}
+
+class RawSettingsContentBuilder extends SettingsContentBuilder {
+
+	constructor(private indent: string = '\t') {
+		super(0);
+	}
+
+	pushGroup(settingsGroups: ISettingsGroup): void {
+		this._pushGroup(settingsGroups, this.indent);
+	}
+
+}
+
+export class DefaultRawSettingsEditorModel extends Disposable {
+
+	private _content: string | null = null;
+
+	constructor(private defaultSettings: DefaultSettings) {
+		super();
+		this._register(defaultSettings.onDidChange(() => this._content = null));
+	}
+
+	get content(): string {
+		if (this._content === null) {
+			const builder = new RawSettingsContentBuilder();
+			builder.pushLine('{');
+			for (const settingsGroup of this.defaultSettings.getRegisteredGroups()) {
+				builder.pushGroup(settingsGroup);
+			}
+			builder.pushLine('}');
+			this._content = builder.getContent();
+		}
+		return this._content;
+	}
 }
 
 function escapeInvisibleChars(enumValue: string): string {

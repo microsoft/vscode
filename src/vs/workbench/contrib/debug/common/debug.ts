@@ -461,7 +461,7 @@ export interface ICompound {
 
 export interface IDebugAdapter extends IDisposable {
 	readonly onError: Event<Error>;
-	readonly onExit: Event<number>;
+	readonly onExit: Event<number | null>;
 	onRequest(callback: (request: DebugProtocol.Request) => void);
 	onEvent(callback: (event: DebugProtocol.Event) => void);
 	startSession(): Promise<void>;

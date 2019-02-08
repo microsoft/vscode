@@ -1016,7 +1016,7 @@ export class DebugService implements IDebugService {
 	//---- telemetry
 
 	private telemetryDebugSessionStart(root: IWorkspaceFolder, type: string): Promise<any> {
-		const extension = this.configurationManager.getDebugger(type).extensionDescription;
+		const extension = this.configurationManager.getDebugger(type).getMainExtensionDescriptor();
 		/* __GDPR__
 			"debugSessionStart" : {
 				"type": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },

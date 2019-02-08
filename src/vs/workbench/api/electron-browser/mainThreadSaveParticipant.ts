@@ -7,7 +7,7 @@ import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { IdleValue, sequence } from 'vs/base/common/async';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 import * as strings from 'vs/base/common/strings';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { trimTrailingWhitespace } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
@@ -60,7 +60,7 @@ class TrimWhitespaceParticipant implements ISaveParticipantParticipant {
 		let prevSelection: Selection[] = [];
 		let cursors: Position[] = [];
 
-		let editor = findEditor(model, this.codeEditorService);
+		const editor = findEditor(model, this.codeEditorService);
 		if (editor) {
 			// Find `prevSelection` in any case do ensure a good undo stack when pushing the edit
 			// Collect active cursors in `cursors` only if `isAutoSaved` to avoid having the cursors jump
@@ -85,12 +85,12 @@ class TrimWhitespaceParticipant implements ISaveParticipantParticipant {
 	}
 }
 
-function findEditor(model: ITextModel, codeEditorService: ICodeEditorService): ICodeEditor {
-	let candidate: ICodeEditor | null = null;
+function findEditor(model: ITextModel, codeEditorService: ICodeEditorService): IActiveCodeEditor | null {
+	let candidate: IActiveCodeEditor | null = null;
 
 	if (model.isAttachedToEditor()) {
 		for (const editor of codeEditorService.listCodeEditors()) {
-			if (editor.getModel() === model) {
+			if (editor.hasModel() && editor.getModel() === model) {
 				if (editor.hasTextFocus()) {
 					return editor; // favour focused editor if there are multiple
 				}
@@ -233,7 +233,7 @@ class FormatOnSaveParticipant implements ISaveParticipantParticipant {
 
 		const timeout = this._configurationService.getValue<number>('editor.formatOnSaveTimeout', { overrideIdentifier: model.getLanguageIdentifier().language, resource: editorModel.getResource() });
 
-		return new Promise<ISingleEditOperation[]>((resolve, reject) => {
+		return new Promise<ISingleEditOperation[] | null | undefined>((resolve, reject) => {
 			let source = new CancellationTokenSource();
 			let request = getDocumentFormattingEdits(model, { tabSize, insertSpaces }, source.token);
 
@@ -277,7 +277,7 @@ class FormatOnSaveParticipant implements ISaveParticipantParticipant {
 					return [new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn)];
 				}
 			}
-			return undefined;
+			return null;
 		});
 	}
 
@@ -425,7 +425,7 @@ export class SaveParticipant implements ISaveParticipant {
 	}
 
 	dispose(): void {
-		TextFileEditorModel.setSaveParticipant(undefined);
+		TextFileEditorModel.setSaveParticipant(null);
 		this._saveParticipants.dispose();
 	}
 

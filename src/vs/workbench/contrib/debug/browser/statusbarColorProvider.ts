@@ -57,6 +57,9 @@ export class StatusBarColorProvider extends Themable implements IWorkbenchContri
 		super.updateStyles();
 
 		const container = this.partService.getContainer(Parts.STATUSBAR_PART);
+		if (!container) {
+			return;
+		}
 		if (isStatusbarInDebugMode(this.debugService)) {
 			addClass(container, 'debugging');
 		} else {

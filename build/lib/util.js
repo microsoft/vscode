@@ -14,6 +14,8 @@ const fs = require("fs");
 const _rimraf = require("rimraf");
 const git = require("./git");
 const VinylFile = require("vinyl");
+const fancyLog = require("fancy-log");
+const ansiColors = require("ansi-colors");
 const NoCancellationToken = { isCancellationRequested: () => false };
 function incremental(streamProvider, initial, supportsCancellation) {
     const input = es.through();
@@ -180,24 +182,10 @@ function rimraf(dir) {
             return cb(err);
         });
     };
-    return cb => retry(cb);
+    retry.displayName = `clean-${path.basename(dir)}`;
+    return retry;
 }
 exports.rimraf = rimraf;
-/**
- * Like rimraf (with 5 retries), but with a promise instead of a callback.
- */
-function primraf(dir) {
-    const fn = rimraf(dir);
-    return new Promise((resolve, reject) => {
-        fn((err) => {
-            if (err) {
-                return reject(err);
-            }
-            resolve();
-        });
-    });
-}
-exports.primraf = primraf;
 var task;
 (function (task_1) {
     function _isPromise(p) {
@@ -206,7 +194,28 @@ var task;
         }
         return false;
     }
+    function _renderTime(time) {
+        if (time < 1000) {
+            return `${time.toFixed(2)} ms`;
+        }
+        let seconds = time / 1000;
+        if (seconds < 60) {
+            return `${seconds.toFixed(1)} s`;
+        }
+        let minutes = Math.floor(seconds / 60);
+        seconds -= minutes * 60;
+        return `${minutes} m and ${seconds} s`;
+    }
     async function _execute(task) {
+        const name = task.displayName || task.name || `<anonymous>`;
+        fancyLog('Starting', ansiColors.cyan(name), '...');
+        const startTime = process.hrtime();
+        await _doExecute(task);
+        const elapsedArr = process.hrtime(startTime);
+        const elapsedNanoseconds = (elapsedArr[0] * 1e9 + elapsedArr[1]);
+        fancyLog(`Finished`, ansiColors.cyan(name), 'after', ansiColors.green(_renderTime(elapsedNanoseconds / 1e6)));
+    }
+    async function _doExecute(task) {
         // Always invoke as if it were a callback task
         return new Promise((resolve, reject) => {
             if (task.length === 1) {

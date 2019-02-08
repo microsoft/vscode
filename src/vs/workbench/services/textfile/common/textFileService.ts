@@ -32,6 +32,7 @@ import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/text
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { isEqualOrParent, isEqual, joinPath, dirname } from 'vs/base/common/resources';
+import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 
 export interface IBackupResult {
 	didBackup: boolean;
@@ -434,7 +435,8 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 
 					// Untitled with associated file path don't need to prompt
 					if (this.untitledEditorService.hasAssociatedFilePath(untitled)) {
-						targetUri = untitled.with({ scheme: Schemas.file });
+						const authority = this.windowService.getConfiguration().remoteAuthority;
+						targetUri = authority ? untitled.with({ scheme: REMOTE_HOST_SCHEME, authority }) : untitled.with({ scheme: Schemas.file });
 					}
 
 					// Otherwise ask user
@@ -616,7 +618,8 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 	private suggestFileName(untitledResource: URI): URI {
 		const untitledFileName = this.untitledEditorService.suggestFileName(untitledResource);
 
-		const schemeFilter = Schemas.file;
+		const remoteAuthority = this.windowService.getConfiguration().remoteAuthority;
+		const schemeFilter = remoteAuthority ? REMOTE_HOST_SCHEME : Schemas.file;
 
 		const lastActiveFile = this.historyService.getLastActiveFile(schemeFilter);
 		if (lastActiveFile) {
@@ -629,7 +632,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 			return joinPath(lastActiveFolder, untitledFileName);
 		}
 
-		return URI.file(untitledFileName);
+		return schemeFilter === Schemas.file ? URI.file(untitledFileName) : URI.from({ scheme: schemeFilter, authority: remoteAuthority, path: untitledFileName });
 	}
 
 	revert(resource: URI, options?: IRevertOptions): Promise<boolean> {

@@ -23,11 +23,11 @@ export class MainThreadDialogs implements MainThreadDiaglogsShape {
 		//
 	}
 
-	$showOpenDialog(options: MainThreadDialogOpenOptions): Promise<URI[]> {
+	$showOpenDialog(options: MainThreadDialogOpenOptions): Promise<URI[] | undefined> {
 		return Promise.resolve(this._fileDialogService.showOpenDialog(MainThreadDialogs._convertOpenOptions(options)));
 	}
 
-	$showSaveDialog(options: MainThreadDialogSaveOptions): Promise<URI> {
+	$showSaveDialog(options: MainThreadDialogSaveOptions): Promise<URI | undefined> {
 		return Promise.resolve(this._fileDialogService.showSaveDialog(MainThreadDialogs._convertSaveOptions(options)));
 	}
 

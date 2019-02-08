@@ -15,14 +15,13 @@ const fixturesFolder = getPathFromAmdModule(require, './fixtures');
 
 const testWorkspace: IWorkspaceIdentifier = {
 	id: Date.now().toString(),
-	configPath: path.join(fixturesFolder, 'workspaces.json')
+	configPath: URI.file(path.join(fixturesFolder, 'workspaces.json'))
 };
 
 function options(custom?: Partial<IBestWindowOrFolderOptions<ISimpleWindow>>): IBestWindowOrFolderOptions<ISimpleWindow> {
 	return {
 		windows: [],
 		newWindow: false,
-		reuseWindow: false,
 		context: OpenContext.CLI,
 		codeSettingsFolder: '_vscode',
 		workspaceResolver: workspace => { return workspace === testWorkspace ? { id: testWorkspace.id, configPath: workspace.configPath, folders: toWorkspaceFolders([{ path: path.join(fixturesFolder, 'vscode_workspace_1_folder') }, { path: path.join(fixturesFolder, 'vscode_workspace_2_folder') }]) } : null!; },
@@ -52,7 +51,6 @@ suite('WindowsFinder', () => {
 		})), null);
 		assert.equal(findBestWindowOrFolderForFile(options({
 			fileUri: URI.file(path.join(fixturesFolder, 'vscode_folder', 'file.txt')),
-			reuseWindow: true
 		})), null);
 		assert.equal(findBestWindowOrFolderForFile(options({
 			fileUri: URI.file(path.join(fixturesFolder, 'vscode_folder', 'file.txt')),
@@ -85,7 +83,6 @@ suite('WindowsFinder', () => {
 		assert.equal(findBestWindowOrFolderForFile(options({
 			windows: [lastActiveWindow, noVscodeFolderWindow],
 			fileUri: URI.file(path.join(fixturesFolder, 'vscode_folder', 'file.txt')),
-			reuseWindow: true
 		})), lastActiveWindow);
 		assert.equal(findBestWindowOrFolderForFile(options({
 			windows,

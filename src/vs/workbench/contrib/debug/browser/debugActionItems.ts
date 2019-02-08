@@ -31,7 +31,7 @@ export class StartDebugActionItem implements IActionItem {
 	private container: HTMLElement;
 	private start: HTMLElement;
 	private selectBox: SelectBox;
-	private options: { label: string, handler: (() => boolean) }[];
+	private options: { label: string, handler?: (() => boolean) }[];
 	private toDispose: IDisposable[];
 	private selected: number;
 
@@ -46,7 +46,7 @@ export class StartDebugActionItem implements IActionItem {
 		@IContextViewService contextViewService: IContextViewService,
 	) {
 		this.toDispose = [];
-		this.selectBox = new SelectBox([], -1, contextViewService, null, { ariaLabel: nls.localize('debugLaunchConfigurations', 'Debug Launch Configurations') });
+		this.selectBox = new SelectBox([], -1, contextViewService, undefined, { ariaLabel: nls.localize('debugLaunchConfigurations', 'Debug Launch Configurations') });
 		this.toDispose.push(this.selectBox);
 		this.toDispose.push(attachSelectBoxStyler(this.selectBox, themeService, {
 			selectBackground: SIDE_BAR_BACKGROUND
@@ -102,7 +102,8 @@ export class StartDebugActionItem implements IActionItem {
 			}
 		}));
 		this.toDispose.push(this.selectBox.onDidSelect(e => {
-			const shouldBeSelected = this.options[e.index].handler();
+			const target = this.options[e.index];
+			const shouldBeSelected = target.handler ? target.handler() : false;
 			if (shouldBeSelected) {
 				this.selected = e.index;
 			} else {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { OpenContext, IWindowConfiguration, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, INewWindowOptions } from 'vs/platform/windows/common/windows';
+import { OpenContext, IWindowConfiguration, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, INewWindowOptions, IURIToOpen } from 'vs/platform/windows/common/windows';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -124,7 +124,7 @@ export interface IOpenConfiguration {
 	readonly contextWindowId?: number;
 	readonly cli: ParsedArgs;
 	readonly userEnv?: IProcessEnvironment;
-	readonly urisToOpen?: URI[];
+	readonly urisToOpen?: IURIToOpen[];
 	readonly preferNewWindow?: boolean;
 	readonly forceNewWindow?: boolean;
 	readonly forceNewTabbedWindow?: boolean;

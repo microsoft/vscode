@@ -42,13 +42,19 @@
 	"emmet.excludeLanguages": [],
 	"typescript.preferences.importModuleSpecifier": "non-relative",
 	"typescript.preferences.quoteStyle": "single",
-	"json.schemas": [{
-		"fileMatch": [ "cgmanifest.json" ],
-		"url": "./.vscode/cgmanifest.schema.json"
-	}, {
-		"fileMatch": [ "cglicenses.json" ],
-		"url": "./.vscode/cglicenses.schema.json"
-	}
-],
-"git.ignoreLimitWarning": true
+	"json.schemas": [
+		{
+			"fileMatch": [
+				"cgmanifest.json"
+			],
+			"url": "./.vscode/cgmanifest.schema.json"
+		},
+		{
+			"fileMatch": [
+				"cglicenses.json"
+			],
+			"url": "./.vscode/cglicenses.schema.json"
+		}
+	],
+	"git.ignoreLimitWarning": true
 }

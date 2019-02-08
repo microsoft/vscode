@@ -851,7 +851,7 @@ class Extension<T> implements vscode.Extension<T> {
 
 	public id: string;
 	public extensionPath: string;
-	public packageJSON: any;
+	public packageJSON: IExtensionDescription;
 
 	constructor(extensionService: ExtHostExtensionService, description: IExtensionDescription) {
 		this._extensionService = extensionService;
@@ -866,6 +866,9 @@ class Extension<T> implements vscode.Extension<T> {
 	}
 
 	get exports(): T {
+		if (this.packageJSON.api === 'none') {
+			return undefined;
+		}
 		return <T>this._extensionService.getExtensionExports(this._identifier);
 	}
 
