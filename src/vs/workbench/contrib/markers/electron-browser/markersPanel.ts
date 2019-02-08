@@ -336,7 +336,8 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 				filter: this.filter,
 				accessibilityProvider,
 				identityProvider,
-				dnd: new ResourceDragAndDrop(this.instantiationService)
+				dnd: new ResourceDragAndDrop(this.instantiationService),
+				expandOnlyOnTwistieClick: (e: TreeElement) => e instanceof Marker && e.relatedInformation.length > 0
 			}
 		) as any as WorkbenchObjectTree<TreeElement, FilterData>;
 
