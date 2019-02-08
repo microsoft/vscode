@@ -138,7 +138,7 @@ export class OpenWorkspaceButtonContribution extends Disposable implements IEdit
 			return false; // we need a model
 		}
 
-		if (model.uri.scheme !== Schemas.file || hasWorkspaceFileExtension(model.uri.fsPath)) {
+		if (model.uri.scheme !== Schemas.file || !hasWorkspaceFileExtension(model.uri.fsPath)) {
 			return false; // we need a local workspace file
 		}
 
