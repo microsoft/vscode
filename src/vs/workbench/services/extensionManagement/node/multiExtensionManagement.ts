@@ -209,6 +209,10 @@ export class MultiExtensionManagementService extends Disposable implements IExte
 		}
 
 		const remoteEnv = await connection.getEnvironment();
+		if (!remoteEnv) {
+			return false;
+		}
+
 		return remoteEnv.syncExtensions;
 	}
 }
