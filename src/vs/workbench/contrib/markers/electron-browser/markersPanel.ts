@@ -413,10 +413,29 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 	}
 
 	private createListeners(): void {
-		const onModelChange = Event.debounce<URI, URI[]>(this.markersWorkbenchService.markersModel.onDidChange, (uris, uri) => { if (!uris) { uris = []; } uris.push(uri); return uris; }, 0);
+		const onModelOrActiveEditorChanged = Event.debounce<URI | true, { resources: URI[], activeEditorChanged: boolean }>(Event.any<any>(this.markersWorkbenchService.markersModel.onDidChange, Event.map(this.editorService.onDidActiveEditorChange, () => true)), (result, e) => {
+			if (!result) {
+				result = {
+					resources: [],
+					activeEditorChanged: false
+				};
+			}
+			if (e === true) {
+				result.activeEditorChanged = true;
+			} else {
+				result.resources.push(e);
+			}
+			return result;
+		}, 0);
 
-		this._register(onModelChange(this.onDidChangeModel, this));
-		this._register(this.editorService.onDidActiveEditorChange(this.onActiveEditorChanged, this));
+		this._register(onModelOrActiveEditorChanged(({ resources, activeEditorChanged }) => {
+			if (resources) {
+				this.onDidChangeModel(resources);
+			}
+			if (activeEditorChanged) {
+				this.onActiveEditorChanged();
+			}
+		}, this));
 		this._register(this.tree.onDidChangeSelection(() => this.onSelected()));
 		this._register(this.filterAction.onDidChange((event: IMarkersFilterActionChangeEvent) => {
 			if (event.filterText || event.useFilesExclude) {
