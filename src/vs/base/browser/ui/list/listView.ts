@@ -552,9 +552,9 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		const uri = this.dnd.getDragURI(item.element);
 		item.dragStartDisposable.dispose();
+		item.row.domNode!.draggable = !!uri;
 
 		if (uri) {
-			item.row.domNode!.draggable = true;
 			const onDragStart = domEvent(item.row.domNode!, 'dragstart');
 			item.dragStartDisposable = onDragStart(event => this.onDragStart(item.element, uri, event));
 		}
