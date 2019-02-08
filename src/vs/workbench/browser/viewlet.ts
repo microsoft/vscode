@@ -16,11 +16,12 @@ import { ToggleSidebarVisibilityAction, ToggleSidebarPositionAction } from 'vs/w
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
+import { AbstractTree } from 'vs/base/browser/ui/tree/abstractTree';
 
 export abstract class Viewlet extends Composite implements IViewlet {
 
@@ -195,7 +196,7 @@ export class CollapseAction extends Action {
 
 // Collapse All action for the new tree
 export class CollapseAction2 extends Action {
-	constructor(tree: AsyncDataTree<any, any, any>, enabled: boolean, clazz: string) {
+	constructor(tree: AsyncDataTree<any, any, any> | AbstractTree<any, any, any>, enabled: boolean, clazz: string) {
 		super('workbench.action.collapse', nls.localize('collapse', "Collapse All"), clazz, enabled, () => {
 			tree.collapseAll();
 			return Promise.resolve(undefined);

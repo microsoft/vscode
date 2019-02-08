@@ -256,7 +256,7 @@ export class DuplicateWorkspaceInNewWindowAction extends Action {
 
 		return this.workspacesService.createUntitledWorkspace(folders).then(newWorkspace => {
 			return this.workspaceEditingService.copyWorkspaceSettings(newWorkspace).then(() => {
-				return this.windowService.openWindow([URI.file(newWorkspace.configPath)], { forceNewWindow: true });
+				return this.windowService.openWindow([{ uri: newWorkspace.configPath, typeHint: 'file' }], { forceNewWindow: true });
 			});
 		});
 	}

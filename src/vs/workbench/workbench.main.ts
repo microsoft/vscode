@@ -175,4 +175,7 @@ import 'vs/workbench/contrib/outline/electron-browser/outline.contribution';
 // Experiments
 import 'vs/workbench/contrib/experiments/electron-browser/experiments.contribution';
 
+// Issues
+import 'vs/workbench/contrib/issue/electron-browser/issue.contribution';
+
 //#endregion

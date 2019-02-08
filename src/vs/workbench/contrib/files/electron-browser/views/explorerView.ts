@@ -342,12 +342,13 @@ export class ExplorerView extends ViewletPanel {
 
 				if (e.browserEvent instanceof MouseEvent) {
 					isDoubleClick = e.browserEvent.detail === 2;
+					isMiddleClick = e.browserEvent.button === 1;
+					const isLeftButton = e.browserEvent.button === 0;
 
-					if (!this.tree.openOnSingleClick && !isDoubleClick) {
+					if (isLeftButton && !this.tree.openOnSingleClick && !isDoubleClick) {
 						return;
 					}
 
-					isMiddleClick = e.browserEvent.button === 1;
 					sideBySide = this.tree.useAltAsMultipleSelectionModifier ? (e.browserEvent.ctrlKey || e.browserEvent.metaKey) : e.browserEvent.altKey;
 				}
 

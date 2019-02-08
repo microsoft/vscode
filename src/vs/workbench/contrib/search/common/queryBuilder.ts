@@ -54,6 +54,7 @@ export interface ICommonQueryBuilderOptions {
 	disregardIgnoreFiles?: boolean;
 	disregardGlobalIgnoreFiles?: boolean;
 	disregardExcludeSettings?: boolean;
+	disregardSearchExcludeSettings?: boolean;
 	ignoreSymlinks?: boolean;
 }
 
@@ -247,7 +248,7 @@ export class QueryBuilder {
 	private getExcludesForFolder(folderConfig: ISearchConfiguration, options: ICommonQueryBuilderOptions): glob.IExpression | undefined {
 		return options.disregardExcludeSettings ?
 			undefined :
-			getExcludes(folderConfig);
+			getExcludes(folderConfig, !options.disregardSearchExcludeSettings);
 	}
 
 	/**

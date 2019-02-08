@@ -68,9 +68,8 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			rpcProtocol = new TestRPCProtocol();
 			instantiationService.stub(IHeapService, {
 				_serviceBrand: undefined,
-				trackRecursive(args: any) {
+				trackObject(_obj: any) {
 					// nothing
-					return args;
 				}
 			});
 			instantiationService.stub(ICommandService, {

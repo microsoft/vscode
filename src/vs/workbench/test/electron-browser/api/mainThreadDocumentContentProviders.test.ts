@@ -19,7 +19,7 @@ suite('MainThreadDocumentContentProviders', function () {
 		let uri = URI.parse('test:uri');
 		let model = TextModel.createFromString('1', undefined, undefined, uri);
 
-		let providers = new MainThreadDocumentContentProviders(new TestRPCProtocol(), null, null,
+		let providers = new MainThreadDocumentContentProviders(new TestRPCProtocol(), null!, null!,
 			new class extends mock<IModelService>() {
 				getModel(_uri) {
 					assert.equal(uri.toString(), _uri.toString());

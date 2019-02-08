@@ -226,7 +226,7 @@ export abstract class BaseSwitchWindow extends Action {
 		return this.windowsService.getWindows().then(windows => {
 			const placeHolder = nls.localize('switchWindowPlaceHolder', "Select a window to switch to");
 			const picks = windows.map(win => {
-				const resource = win.filename ? URI.file(win.filename) : win.folderUri ? win.folderUri : win.workspace ? URI.file(win.workspace.configPath) : undefined;
+				const resource = win.filename ? URI.file(win.filename) : win.folderUri ? win.folderUri : win.workspace ? win.workspace.configPath : undefined;
 				const fileKind = win.filename ? FileKind.FILE : win.workspace ? FileKind.ROOT_FOLDER : win.folderUri ? FileKind.FOLDER : FileKind.FILE;
 				return {
 					payload: win.id,
@@ -346,7 +346,7 @@ export abstract class BaseOpenRecentAction extends Action {
 				label = labelService.getWorkspaceLabel(workspace);
 				description = labelService.getUriLabel(dirname(resource)!);
 			} else if (isWorkspaceIdentifier(workspace)) {
-				resource = URI.file(workspace.configPath);
+				resource = workspace.configPath;
 				label = labelService.getWorkspaceLabel(workspace);
 				description = labelService.getUriLabel(dirname(resource)!);
 			} else {
@@ -366,9 +366,9 @@ export abstract class BaseOpenRecentAction extends Action {
 			};
 		};
 
-		const runPick = (resource: URI, isFile: boolean, keyMods: IKeyMods) => {
+		const runPick = (uri: URI, isFile: boolean, keyMods: IKeyMods) => {
 			const forceNewWindow = keyMods.ctrlCmd;
-			return this.windowService.openWindow([resource], { forceNewWindow, forceOpenWorkspaceAsFile: isFile });
+			return this.windowService.openWindow([{ uri, typeHint: isFile ? 'file' : 'folder' }], { forceNewWindow, forceOpenWorkspaceAsFile: isFile });
 		};
 
 		const workspacePicks = recentWorkspaces.map(workspace => toPick(workspace, isSingleFolderWorkspaceIdentifier(workspace) ? FileKind.FOLDER : FileKind.ROOT_FOLDER, this.labelService, !this.isQuickNavigate() ? [this.removeFromRecentlyOpened] : undefined));

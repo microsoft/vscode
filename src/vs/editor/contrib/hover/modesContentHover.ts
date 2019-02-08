@@ -473,7 +473,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 
 		const messageElement = dom.append(hoverElement, $('span'));
 		messageElement.style.whiteSpace = 'pre-wrap';
-		messageElement.innerText = message.trim();
+		messageElement.innerText = message;
 		this._editor.applyFontInfo(messageElement);
 
 		if (source || code) {

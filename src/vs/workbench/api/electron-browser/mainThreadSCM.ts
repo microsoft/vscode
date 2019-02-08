@@ -7,7 +7,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { assign } from 'vs/base/common/objects';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, IInputValidation } from 'vs/workbench/services/scm/common/scm';
+import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, IInputValidation } from 'vs/workbench/contrib/scm/common/scm';
 import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceSplices, SCMGroupFeatures, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { Command } from 'vs/editor/common/modes';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
@@ -21,7 +21,7 @@ class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 	private _onDidSplice = new Emitter<ISplice<ISCMResource>>();
 	readonly onDidSplice = this._onDidSplice.event;
 
-	get hideWhenEmpty(): boolean { return this.features.hideWhenEmpty; }
+	get hideWhenEmpty(): boolean { return !!this.features.hideWhenEmpty; }
 
 	private _onDidChange = new Emitter<void>();
 	get onDidChange(): Event<void> { return this._onDidChange.event; }
@@ -142,11 +142,11 @@ class MainThreadSCMProvider implements ISCMProvider {
 		this._onDidChange.fire();
 
 		if (typeof features.commitTemplate !== 'undefined') {
-			this._onDidChangeCommitTemplate.fire(this.commitTemplate);
+			this._onDidChangeCommitTemplate.fire(this.commitTemplate!);
 		}
 
 		if (typeof features.statusBarCommands !== 'undefined') {
-			this._onDidChangeStatusBarCommands.fire(this.statusBarCommands);
+			this._onDidChangeStatusBarCommands.fire(this.statusBarCommands!);
 		}
 	}
 
@@ -202,14 +202,14 @@ class MainThreadSCMProvider implements ISCMProvider {
 					const icon = icons[0];
 					const iconDark = icons[1] || icon;
 					const decorations = {
-						icon: icon && URI.parse(icon),
-						iconDark: iconDark && URI.parse(iconDark),
+						icon: icon ? URI.parse(icon) : undefined,
+						iconDark: iconDark ? URI.parse(iconDark) : undefined,
 						tooltip,
 						strikeThrough,
 						faded,
 						source,
 						letter,
-						color: color && color.id
+						color: color ? color.id : undefined
 					};
 
 					return new MainThreadSCMResource(
@@ -241,7 +241,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 		this.groups.splice(this.groups.elements.indexOf(group), 1);
 	}
 
-	async getOriginalResource(uri: URI): Promise<URI> {
+	async getOriginalResource(uri: URI): Promise<URI | null> {
 		if (!this.features.hasQuickDiffProvider) {
 			return null;
 		}

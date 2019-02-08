@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import * as paths from 'vs/base/common/paths';
 import { URI } from 'vs/base/common/uri';
 import { toResource, IEditorCommandsContext } from 'vs/workbench/common/editor';
-import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService, IURIToOpen } from 'vs/platform/windows/common/windows';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -36,7 +36,7 @@ import { Schemas } from 'vs/base/common/network';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { onUnexpectedError } from 'vs/base/common/errors';
 
@@ -76,17 +76,13 @@ export const ResourceSelectedForCompareContext = new RawContextKey<boolean>('res
 export const REMOVE_ROOT_FOLDER_COMMAND_ID = 'removeRootFolder';
 export const REMOVE_ROOT_FOLDER_LABEL = nls.localize('removeFolderFromWorkspace', "Remove Folder from Workspace");
 
-export const openWindowCommand = (accessor: ServicesAccessor, input: Array<string | URI> | { fileURIs: URI[], folderURIs: URI[], forceNewWindow: boolean, forceReuseWindow?: boolean, diffMode?: boolean, addMode?: boolean }, forceNewWindow: boolean) => {
+export const openWindowCommand = (accessor: ServicesAccessor, input: Array<string | URI> | { urisToOpen: IURIToOpen[], forceNewWindow: boolean, forceReuseWindow?: boolean, diffMode?: boolean, addMode?: boolean }, forceNewWindow: boolean) => {
 	const windowService = accessor.get(IWindowService);
+
 	if (Array.isArray(input)) {
-		windowService.openWindow(input.map(p => typeof p === 'string' ? URI.file(p) : p), { forceNewWindow });
+		windowService.openWindow(input.map(p => ({ uri: typeof p === 'string' ? URI.file(p) : p }), { forceNewWindow }));
 	} else if (input) {
-		if (Array.isArray(input.folderURIs) && input.folderURIs.length) {
-			windowService.openWindow(input.folderURIs, { forceNewWindow: input.forceNewWindow, diffMode: input.diffMode, addMode: input.addMode, forceReuseWindow: input.forceReuseWindow });
-		}
-		if (Array.isArray(input.fileURIs) && input.fileURIs.length) {
-			windowService.openWindow(input.fileURIs, { forceNewWindow: input.forceNewWindow, forceOpenWorkspaceAsFile: true, diffMode: input.diffMode, addMode: input.addMode, forceReuseWindow: input.forceReuseWindow });
-		}
+		windowService.openWindow(input.urisToOpen, { forceNewWindow: input.forceNewWindow, diffMode: input.diffMode, addMode: input.addMode, forceReuseWindow: input.forceReuseWindow });
 	}
 };
 
