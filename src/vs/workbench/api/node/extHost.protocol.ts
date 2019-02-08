@@ -882,7 +882,11 @@ export interface CodeActionDto {
 
 export type LinkDto = ObjectIdentifier & modes.ILink;
 
-export type CodeLensDto = ObjectIdentifier & modes.ICodeLensSymbol;
+export interface CodeLensDto extends ObjectIdentifier {
+	range: IRange;
+	id?: string;
+	command?: CommandDto;
+}
 
 export interface ExtHostLanguageFeaturesShape {
 	$provideDocumentSymbols(handle: number, resource: UriComponents, token: CancellationToken): Promise<modes.DocumentSymbol[]>;
