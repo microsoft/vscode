@@ -676,7 +676,6 @@
 		"./vs/workbench/services/configurationResolver/common/configurationResolverSchema.ts",
 		"./vs/workbench/services/configurationResolver/common/configurationResolverUtils.ts",
 		"./vs/workbench/services/contextview/electron-browser/contextmenuService.ts",
-		"./vs/workbench/services/crashReporter/electron-browser/crashReporterService.ts",
 		"./vs/workbench/services/decorations/browser/decorations.ts",
 		"./vs/workbench/services/decorations/browser/decorationsService.ts",
 		"./vs/workbench/services/decorations/test/browser/decorationsService.test.ts",

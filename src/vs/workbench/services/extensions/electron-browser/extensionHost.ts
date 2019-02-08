@@ -34,7 +34,6 @@ import { IWindowService, IWindowsService } from 'vs/platform/windows/common/wind
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IInitData } from 'vs/workbench/api/node/extHost.protocol';
 import { MessageType, createMessageOfType, isMessageOfType } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
-import { ICrashReporterService } from 'vs/workbench/services/crashReporter/electron-browser/crashReporterService';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 
 export interface IExtensionHostStarter {
@@ -101,7 +100,6 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@ICrashReporterService private readonly _crashReporterService: ICrashReporterService,
 		@ILogService private readonly _logService: ILogService,
 		@ILabelService private readonly _labelService: ILabelService
 	) {
@@ -196,7 +194,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 					}
 				}
 
-				const crashReporterOptions = this._crashReporterService.getChildProcessStartOptions('extensionHost');
+				const crashReporterOptions = undefined; // TODO@electron pass this in as options to the extension host after verifying this actually works
 				if (crashReporterOptions) {
 					opts.env.CRASH_REPORTER_START_OPTIONS = JSON.stringify(crashReporterOptions);
 				}
