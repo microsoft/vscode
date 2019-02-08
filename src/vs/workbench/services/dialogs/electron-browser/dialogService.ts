@@ -15,9 +15,12 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { URI } from 'vs/base/common/uri';
+import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { Schemas } from 'vs/base/common/network';
 import * as resources from 'vs/base/common/resources';
 import { isParent } from 'vs/platform/files/common/files';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { RemoteFileDialog } from 'vs/workbench/services/dialogs/electron-browser/remoteFileDialog';
 
 interface IMassagedMessageBoxOptions {
 
@@ -160,7 +163,8 @@ export class FileDialogService implements IFileDialogService {
 		@IWindowService private readonly windowService: IWindowService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IHistoryService private readonly historyService: IHistoryService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) { }
 
 	defaultFilePath(schemeFilter: string): URI | undefined {
@@ -273,6 +277,11 @@ export class FileDialogService implements IFileDialogService {
 		});
 	}
 
+	public showSaveRemoteDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
+		const remoteFileDialog = this.instantiationService.createInstance(RemoteFileDialog);
+		return remoteFileDialog.showSaveDialog(options);
+	}
+
 	showOpenDialog(options: IOpenDialogOptions): Promise<URI[] | undefined> {
 		const defaultUri = options.defaultUri;
 		if (defaultUri && defaultUri.scheme !== Schemas.file) {
@@ -302,6 +311,32 @@ export class FileDialogService implements IFileDialogService {
 		}
 
 		return this.windowService.showOpenDialog(newOptions).then(result => result ? result.map(URI.file) : undefined);
+	}
+
+	public showOpenRemoteDialog(options: IOpenDialogOptions): Promise<void> {
+		const remoteFileDialog = this.instantiationService.createInstance(RemoteFileDialog);
+		return remoteFileDialog.showOpenDialog(options);
+	}
+}
+
+export class RemoteFileDialogService extends FileDialogService {
+
+	constructor(
+		@IWindowService windowService: IWindowService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IHistoryService historyService: IHistoryService,
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		super(windowService, contextService, historyService, environmentService, instantiationService);
+	}
+
+	public showSaveDialog(options: ISaveDialogOptions): Promise<URI> {
+		const defaultUri = options.defaultUri;
+		if (defaultUri && defaultUri.scheme === REMOTE_HOST_SCHEME) {
+			return this.showSaveRemoteDialog(options);
+		}
+		return super.showSaveDialog(options);
 	}
 }
 

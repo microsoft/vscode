@@ -46,6 +46,7 @@ import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { sequence } from 'vs/base/common/async';
+import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
 export const NEW_FILE_LABEL = nls.localize('newFile', "New File");
@@ -874,8 +875,8 @@ export class ShowOpenedFileInNewWindow extends Action {
 	}
 
 	public run(): Promise<any> {
-		const fileResource = toResource(this.editorService.activeEditor, { supportSideBySide: true, filter: Schemas.file /* todo@remote */ });
-		if (fileResource) {
+		const fileResource = toResource(this.editorService.activeEditor, { supportSideBySide: true });
+		if (fileResource && (fileResource.scheme === Schemas.file || fileResource.scheme === REMOTE_HOST_SCHEME)) {
 			this.windowService.openWindow([{ uri: fileResource, typeHint: 'file' }], { forceNewWindow: true, forceOpenWorkspaceAsFile: true });
 		} else {
 			this.notificationService.info(nls.localize('openFileToShowInNewWindow', "Open a file first to open in new window"));

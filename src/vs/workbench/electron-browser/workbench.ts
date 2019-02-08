@@ -87,7 +87,7 @@ import { IDecorationsService } from 'vs/workbench/services/decorations/browser/d
 import { ActivityService } from 'vs/workbench/services/activity/browser/activityService';
 import { URI } from 'vs/base/common/uri';
 import { IListService, ListService } from 'vs/platform/list/browser/listService';
-import { InputFocusedContext, IsMacContext, IsLinuxContext, IsWindowsContext } from 'vs/platform/contextkey/common/contextkeys';
+import { InputFocusedContext, IsMacContext, IsLinuxContext, IsWindowsContext, SupportsOpenFileFolderContext, SupportsWorkspacesContext } from 'vs/platform/contextkey/common/contextkeys';
 import { IViewsService } from 'vs/workbench/common/views';
 import { ViewsService } from 'vs/workbench/browser/parts/views/views';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -109,7 +109,7 @@ import { ContextViewService } from 'vs/platform/contextview/browser/contextViewS
 import { WorkbenchThemeService } from 'vs/workbench/services/themes/electron-browser/workbenchThemeService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { FileDialogService } from 'vs/workbench/services/dialogs/electron-browser/dialogService';
+import { RemoteFileDialogService } from 'vs/workbench/services/dialogs/electron-browser/dialogService';
 import { LogStorageAction } from 'vs/platform/storage/node/storageService';
 import { Sizing, Direction, Grid, View } from 'vs/base/browser/ui/grid/grid';
 import { IEditor } from 'vs/editor/common/editorCommon';
@@ -425,7 +425,7 @@ export class Workbench extends Disposable implements IPartService {
 		serviceCollection.set(IHistoryService, new SyncDescriptor(HistoryService));
 
 		// File Dialogs
-		serviceCollection.set(IFileDialogService, new SyncDescriptor(FileDialogService));
+		serviceCollection.set(IFileDialogService, new SyncDescriptor(RemoteFileDialogService));
 
 		// Backup File Service
 		if (this.workbenchParams.configuration.backupPath) {
@@ -627,6 +627,12 @@ export class Workbench extends Disposable implements IPartService {
 		IsMacContext.bindTo(this.contextKeyService);
 		IsLinuxContext.bindTo(this.contextKeyService);
 		IsWindowsContext.bindTo(this.contextKeyService);
+		const supportsOpenFileFolderContextKey = SupportsOpenFileFolderContext.bindTo(this.contextKeyService);
+		const supportsWorkspacesContextKey = SupportsWorkspacesContext.bindTo(this.contextKeyService);
+		if (this.windowService.getConfiguration().remoteAuthority) {
+			supportsOpenFileFolderContextKey.set(true);
+			supportsWorkspacesContextKey.set(false);
+		}
 
 		const sidebarVisibleContextRaw = new RawContextKey<boolean>('sidebarVisible', false);
 		this.sideBarVisibleContext = sidebarVisibleContextRaw.bindTo(this.contextKeyService);
