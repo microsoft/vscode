@@ -720,7 +720,7 @@ export class CodeApplication extends Disposable {
 			} else {
 				const [host, strPort] = authority.split(':');
 				const port = parseInt(strPort, 10);
-				return { authority, host, port, syncExtensions: false };
+				return { authority, host, port };
 			}
 		};
 

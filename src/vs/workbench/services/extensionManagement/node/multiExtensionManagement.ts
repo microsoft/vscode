@@ -14,7 +14,7 @@ import { URI } from 'vs/base/common/uri';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IRemoteAuthorityResolverService, ResolvedAuthority } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/node/remoteAgentService';
 import { getManifest } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 import { ILogService } from 'vs/platform/log/common/log';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -36,7 +36,7 @@ export class MultiExtensionManagementService extends Disposable implements IExte
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService,
+		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
@@ -199,14 +199,16 @@ export class MultiExtensionManagementService extends Disposable implements IExte
 		return this.extensionManagementServerService.getExtensionManagementServer(extension.location);
 	}
 
-	private _remoteAuthorityResolverPromise: Promise<ResolvedAuthority>;
-	private hasToSyncExtensions(): Promise<boolean> {
+	private async hasToSyncExtensions(): Promise<boolean> {
 		if (!this.extensionManagementServerService.remoteExtensionManagementServer) {
-			return Promise.resolve(false);
+			return false;
 		}
-		if (!this._remoteAuthorityResolverPromise) {
-			this._remoteAuthorityResolverPromise = this.remoteAuthorityResolverService.resolveAuthority(this.extensionManagementServerService.remoteExtensionManagementServer.authority);
+		const connection = this.remoteAgentService.getConnection();
+		if (!connection) {
+			return false;
 		}
-		return this._remoteAuthorityResolverPromise.then(({ syncExtensions }) => !!syncExtensions);
+
+		const remoteEnv = await connection.getEnvironment();
+		return remoteEnv.syncExtensions;
 	}
 }

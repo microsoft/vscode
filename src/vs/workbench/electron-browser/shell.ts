@@ -98,7 +98,7 @@ import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadService } from 'vs/platform/download/node/downloadService';
 import { DownloadServiceChannel } from 'vs/platform/download/node/downloadIpc';
 import { TextResourcePropertiesService } from 'vs/workbench/services/textfile/electron-browser/textResourcePropertiesService';
-import { MultiExtensionManagementService } from 'vs/platform/extensionManagement/node/multiExtensionManagement';
+import { MultiExtensionManagementService } from 'vs/workbench/services/extensionManagement/node/multiExtensionManagement';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-browser/remoteAuthorityResolverService';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
