@@ -564,6 +564,10 @@ class MouseController<T> implements IDisposable {
 	}
 
 	private onPointer(e: IListMouseEvent<T>): void {
+		if (isInputElement(e.browserEvent.target as HTMLElement)) {
+			return;
+		}
+
 		let reference = this.list.getFocus()[0];
 		const selection = this.list.getSelection();
 		reference = reference === undefined ? selection[0] : reference;
@@ -596,6 +600,10 @@ class MouseController<T> implements IDisposable {
 	}
 
 	private onDoubleClick(e: IListMouseEvent<T>): void {
+		if (isInputElement(e.browserEvent.target as HTMLElement)) {
+			return;
+		}
+
 		if (this.multipleSelectionSupport && this.isSelectionChangeEvent(e)) {
 			return;
 		}
