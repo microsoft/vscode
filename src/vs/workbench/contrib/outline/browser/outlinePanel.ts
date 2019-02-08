@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { posix } from 'path';
 import * as dom from 'vs/base/browser/dom';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
@@ -47,6 +46,7 @@ import { FuzzyScore } from 'vs/base/common/filters';
 import { OutlineDataSource, OutlineItemComparator, OutlineSortOrder, OutlineVirtualDelegate, OutlineGroupRenderer, OutlineElementRenderer, OutlineItem, OutlineIdentityProvider, OutlineNavigationLabelProvider } from 'vs/editor/contrib/documentSymbols/outlineTree';
 import { IDataTreeViewState } from 'vs/base/browser/ui/tree/dataTree';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { basename } from 'vs/base/common/resources';
 
 class RequestState {
 
@@ -433,7 +433,7 @@ export class OutlinePanel extends ViewletPanel {
 		let loadingMessage: IDisposable;
 		if (!oldModel) {
 			loadingMessage = new TimeoutTimer(
-				() => this._showMessage(localize('loading', "Loading document symbols for '{0}'...", posix.basename(textModel.uri.path))),
+				() => this._showMessage(localize('loading', "Loading document symbols for '{0}'...", basename(textModel.uri))),
 				100
 			);
 		}
@@ -445,7 +445,7 @@ export class OutlinePanel extends ViewletPanel {
 		}
 
 		if (TreeElement.empty(newModel)) {
-			return this._showMessage(localize('no-symbols', "No symbols found in document '{0}'", posix.basename(textModel.uri.path)));
+			return this._showMessage(localize('no-symbols', "No symbols found in document '{0}'", basename(textModel.uri)));
 		}
 
 		let newSize = TreeElement.size(newModel);
