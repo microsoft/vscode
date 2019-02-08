@@ -19,7 +19,7 @@ import * as vscode from 'vscode';
 function es5ClassCompat(target: Function): any {
 	///@ts-ignore
 	function _() { return Reflect.construct(target, arguments, this.constructor); }
-	Object.defineProperty(_, 'name', Object.getOwnPropertyDescriptor(target, 'name'));
+	Object.defineProperty(_, 'name', Object.getOwnPropertyDescriptor(target, 'name')!);
 	///@ts-ignore
 	Object.setPrototypeOf(_, target);
 	///@ts-ignore
