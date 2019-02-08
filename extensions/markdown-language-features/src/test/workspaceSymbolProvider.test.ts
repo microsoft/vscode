@@ -38,7 +38,7 @@ suite('markdown.WorkspaceSymbolProvider', () => {
 		const fileNameCount = 10;
 		const files: vscode.TextDocument[] = [];
 		for (let i = 0; i < fileNameCount; ++i) {
-			const testFileName = vscode.Uri.parse(`test${i}.md`);
+			const testFileName = vscode.Uri.file(`test${i}.md`);
 			files.push(new InMemoryDocument(testFileName, `# common\nabc\n## header${i}`));
 		}
 
