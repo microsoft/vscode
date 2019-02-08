@@ -178,20 +178,20 @@ export default class FileConfigurationManager extends Disposable {
 			document.uri);
 
 		return {
-			quotePreference: getQuoteStylePreference(preferences),
+			quotePreference: this.getQuoteStylePreference(preferences),
 			importModuleSpecifierPreference: getImportModuleSpecifierPreference(preferences),
 			allowTextChangesInNewFiles: document.uri.scheme === 'file',
 			providePrefixAndSuffixTextForRename: true,
 			allowRenameOfImportPath: true,
 		};
 	}
-}
 
-function getQuoteStylePreference(config: vscode.WorkspaceConfiguration) {
-	switch (config.get<string>('quoteStyle')) {
-		case 'single': return 'single';
-		case 'double': return 'double';
-		default: return undefined;
+	private getQuoteStylePreference(config: vscode.WorkspaceConfiguration) {
+		switch (config.get<string>('quoteStyle')) {
+			case 'single': return 'single';
+			case 'double': return 'double';
+			default: return this.client.apiVersion.gte(API.v333) ? 'auto' : undefined;
+		}
 	}
 }
 
