@@ -49,6 +49,7 @@ export interface IListViewOptions<T> {
 	readonly supportDynamicHeights?: boolean;
 	readonly mouseSupport?: boolean;
 	readonly horizontalScrolling?: boolean;
+	readonly disableAriaRoles?: boolean;
 }
 
 const DefaultOptions = {
@@ -63,7 +64,8 @@ const DefaultOptions = {
 		onDragOver() { return false; },
 		drop() { }
 	},
-	horizontalScrolling: false
+	horizontalScrolling: false,
+	disableAriaRoles: false
 };
 
 export class ElementsDragAndDropData<T> implements IDragAndDropData {
@@ -165,6 +167,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	private setRowLineHeight: boolean;
 	private supportDynamicHeights: boolean;
 	private horizontalScrolling: boolean;
+	private disableAriaRoles: boolean;
 	private scrollWidth: number | undefined;
 	private canUseTranslate3d: boolean | undefined = undefined;
 
@@ -220,6 +223,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		this.horizontalScrolling = getOrDefault(options, o => o.horizontalScrolling, DefaultOptions.horizontalScrolling);
 		DOM.toggleClass(this.domNode, 'horizontal-scrolling', this.horizontalScrolling);
+
+		this.disableAriaRoles = getOrDefault(options, o => o.disableAriaRoles, DefaultOptions.disableAriaRoles);
 
 		this.rowsContainer = document.createElement('div');
 		this.rowsContainer.className = 'monaco-list-rows';
@@ -595,8 +600,12 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		item.row!.domNode!.setAttribute('data-index', `${index}`);
 		item.row!.domNode!.setAttribute('data-last-element', index === this.length - 1 ? 'true' : 'false');
-		item.row!.domNode!.setAttribute('aria-setsize', `${this.length}`);
-		item.row!.domNode!.setAttribute('aria-posinset', `${index + 1}`);
+
+		if (!this.disableAriaRoles) {
+			item.row!.domNode!.setAttribute('aria-setsize', `${this.length}`);
+			item.row!.domNode!.setAttribute('aria-posinset', `${index + 1}`);
+		}
+
 		DOM.toggleClass(item.row!.domNode!, 'drop-target', item.dropTarget);
 	}
 

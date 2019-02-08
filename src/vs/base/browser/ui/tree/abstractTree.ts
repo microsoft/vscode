@@ -150,7 +150,8 @@ function asListOptions<T, TFilterData, TRef>(modelProvider: () => ITreeModel<T, 
 				return options.keyboardNavigationLabelProvider!.getKeyboardNavigationLabel(node.element);
 			}
 		},
-		enableKeyboardNavigation: options.simpleKeyboardNavigation
+		enableKeyboardNavigation: options.simpleKeyboardNavigation,
+		disableAriaRoles: true
 	};
 }
 

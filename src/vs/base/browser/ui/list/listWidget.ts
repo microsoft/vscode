@@ -818,6 +818,7 @@ export interface IListOptions<T> extends IListStyles {
 	readonly supportDynamicHeights?: boolean;
 	readonly mouseSupport?: boolean;
 	readonly horizontalScrolling?: boolean;
+	readonly disableAriaRoles?: boolean;
 }
 
 export interface IListStyles {
