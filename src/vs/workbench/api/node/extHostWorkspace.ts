@@ -362,7 +362,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 			}
 		}
 
-		let excludePatternOrDisregardExcludes: string | false = false;
+		let excludePatternOrDisregardExcludes: string | false | undefined;
 		if (exclude === null) {
 			excludePatternOrDisregardExcludes = false;
 		} else if (exclude) {
