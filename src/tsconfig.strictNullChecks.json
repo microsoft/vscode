@@ -26,9 +26,9 @@
 		"./vs/workbench/contrib/execution/**/*",
 		"./vs/workbench/contrib/snippets/**/*.ts",
 		"./vs/workbench/contrib/welcome/**/*.ts",
+		"./vs/workbench/contrib/issue/**/*",
 		"./vs/workbench/services/commands/**/*",
 		"./vs/workbench/services/files/node/watcher/**/*",
-		"./vs/workbench/services/issue/**/*",
 		"./vs/workbench/services/themes/**/*.ts"
 	],
 	"files": [

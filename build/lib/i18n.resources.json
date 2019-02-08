@@ -71,6 +71,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/issue",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/markers",
 			"project": "vscode-workbench"
 		},

@@ -80,8 +80,6 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { LocalizationsChannelClient } from 'vs/platform/localizations/node/localizationsIpc';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
-import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
-import { WorkbenchIssueService } from 'vs/workbench/services/issue/electron-browser/workbenchIssueService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { NotificationService } from 'vs/workbench/services/notification/common/notificationService';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -388,8 +386,6 @@ export class Shell extends Disposable {
 		serviceCollection.set(ISearchService, new SyncDescriptor(SearchService));
 
 		serviceCollection.set(ISearchHistoryService, new SyncDescriptor(SearchHistoryService));
-
-		serviceCollection.set(IWorkbenchIssueService, new SyncDescriptor(WorkbenchIssueService));
 
 		serviceCollection.set(ICodeEditorService, new SyncDescriptor(CodeEditorService));
 
