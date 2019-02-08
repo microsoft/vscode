@@ -8,15 +8,15 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IWindowService } from 'vs/platform/windows/common/windows';
-import { join, basename, dirname, extname } from 'path';
+import { join, basename, dirname, extname } from 'vs/base/common/paths';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { timeout } from 'vs/base/common/async';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
-import { ISnippetsService } from 'vs/workbench/contrib/snippets/electron-browser/snippets.contribution';
+import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets.contribution';
 import { values } from 'vs/base/common/map';
 import { IQuickPickItem, IQuickInputService, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { SnippetSource } from 'vs/workbench/contrib/snippets/electron-browser/snippetsFile';
+import { SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IFileService } from 'vs/platform/files/common/files';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -78,7 +78,7 @@ async function computePicks(snippetService: ISnippetsService, envService: IEnvir
 
 		} else {
 			// language snippet
-			const mode = basename(file.location.fsPath, '.json');
+			const mode = basename(file.location.fsPath).replace(/\.json$/, '');
 			existing.push({
 				label: basename(file.location.fsPath),
 				description: `(${modeService.getLanguageName(mode)})`,

@@ -10,7 +10,7 @@ import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IExtensionManagementService, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { webFrame } from 'electron';
 import { assign } from 'vs/base/common/objects';
-import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
+import { IWorkbenchIssueService } from 'vs/workbench/contrib/issue/electron-browser/issue';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 
@@ -98,4 +98,3 @@ function getColor(theme: ITheme, key: string): string | undefined {
 	const color = theme.getColor(key);
 	return color ? color.toString() : undefined;
 }
-

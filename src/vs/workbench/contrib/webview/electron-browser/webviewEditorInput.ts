@@ -207,8 +207,6 @@ export class WebviewEditorInput extends EditorInput {
 		if (this._webview) {
 			this._webview.options = {
 				allowScripts: this._options.enableScripts,
-				allowSvgs: true,
-				useSameOriginForRoot: false,
 				localResourceRoots: this._options.localResourceRoots
 			};
 		}

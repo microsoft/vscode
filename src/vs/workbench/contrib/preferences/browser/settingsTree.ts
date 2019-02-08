@@ -252,7 +252,7 @@ export interface ISettingOverrideClickEvent {
 
 export abstract class AbstractSettingRenderer implements ITreeRenderer<SettingsTreeElement, never, any> {
 	/** To override */
-	templateId = undefined;
+	abstract get templateId(): string;
 
 	static readonly CONTROL_CLASS = 'setting-control-focus-target';
 	static readonly CONTROL_SELECTOR = '.' + AbstractSettingRenderer.CONTROL_CLASS;
@@ -418,15 +418,15 @@ export abstract class AbstractSettingRenderer implements ITreeRenderer<SettingsT
 				localize('alsoConfiguredIn', "Also modified in") :
 				localize('configuredIn', "Modified in");
 
-			DOM.append(template.otherOverridesElement, $('span', null, `(${otherOverridesLabel}: `));
+			DOM.append(template.otherOverridesElement, $('span', undefined, `(${otherOverridesLabel}: `));
 
 			for (let i = 0; i < element.overriddenScopeList.length; i++) {
-				const view = DOM.append(template.otherOverridesElement, $('a.modified-scope', null, element.overriddenScopeList[i]));
+				const view = DOM.append(template.otherOverridesElement, $('a.modified-scope', undefined, element.overriddenScopeList[i]));
 
 				if (i !== element.overriddenScopeList.length - 1) {
-					DOM.append(template.otherOverridesElement, $('span', null, ', '));
+					DOM.append(template.otherOverridesElement, $('span', undefined, ', '));
 				} else {
-					DOM.append(template.otherOverridesElement, $('span', null, ')'));
+					DOM.append(template.otherOverridesElement, $('span', undefined, ')'));
 				}
 
 				DOM.addStandardDisposableListener(view, DOM.EventType.CLICK, (e: IMouseEvent) => {

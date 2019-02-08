@@ -249,9 +249,9 @@ export class ConfigurationManager implements IConfigurationManager {
 						});
 					}
 
-					const duplicate = this.getDebugger(rawAdapter.type);
-					if (duplicate) {
-						duplicate.merge(rawAdapter, added.description);
+					const existing = this.getDebugger(rawAdapter.type);
+					if (existing) {
+						existing.merge(rawAdapter, added.description);
 					} else {
 						this.debuggers.push(this.instantiationService.createInstance(Debugger, this, rawAdapter, added.description));
 					}

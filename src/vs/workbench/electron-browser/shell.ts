@@ -53,7 +53,6 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { WorkbenchModeServiceImpl } from 'vs/workbench/services/mode/common/workbenchModeService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { ICrashReporterService, NullCrashReporterService, CrashReporterService } from 'vs/workbench/services/crashReporter/electron-browser/crashReporterService';
 import { getDelayedChannel, IPCClient } from 'vs/base/parts/ipc/node/ipc';
 import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
 import { ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/node/extensionManagementIpc';
@@ -80,8 +79,6 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { LocalizationsChannelClient } from 'vs/platform/localizations/node/localizationsIpc';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
-import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
-import { WorkbenchIssueService } from 'vs/workbench/services/issue/electron-browser/workbenchIssueService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { NotificationService } from 'vs/workbench/services/notification/common/notificationService';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -321,12 +318,6 @@ export class Shell extends Disposable {
 		serviceCollection.set(ITelemetryService, this.telemetryService);
 		this._register(configurationTelemetry(this.telemetryService, this.configurationService));
 
-		let crashReporterService = NullCrashReporterService;
-		if (!this.environmentService.disableCrashReporter && product.crashReporter && product.hockeyApp) {
-			crashReporterService = instantiationService.createInstance(CrashReporterService);
-		}
-		serviceCollection.set(ICrashReporterService, crashReporterService);
-
 		serviceCollection.set(IDialogService, instantiationService.createInstance(DialogService));
 
 		const lifecycleService = instantiationService.createInstance(LifecycleService);
@@ -388,8 +379,6 @@ export class Shell extends Disposable {
 		serviceCollection.set(ISearchService, new SyncDescriptor(SearchService));
 
 		serviceCollection.set(ISearchHistoryService, new SyncDescriptor(SearchHistoryService));
-
-		serviceCollection.set(IWorkbenchIssueService, new SyncDescriptor(WorkbenchIssueService));
 
 		serviceCollection.set(ICodeEditorService, new SyncDescriptor(CodeEditorService));
 

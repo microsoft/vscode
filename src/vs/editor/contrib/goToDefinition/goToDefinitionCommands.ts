@@ -130,17 +130,13 @@ export class DefinitionAction extends EditorAction {
 		const msg = model.getAriaMessage();
 		alert(msg);
 
-		if (this._configuration.openInPeek) {
+		if (this._configuration.openInPeek || model.references.length > 1) {
 			this._openInPeek(editorService, editor, model);
 		} else if (editor.hasModel()) {
 			const next = model.nearestReference(editor.getModel().uri, editor.getPosition());
 			if (next) {
-				const targetEditor = await this._openReference(editor, editorService, next, this._configuration.openToSide);
-				if (targetEditor && model.references.length > 1) {
-					this._openInPeek(editorService, targetEditor, model);
-				} else {
-					model.dispose();
-				}
+				await this._openReference(editor, editorService, next, this._configuration.openToSide);
+				model.dispose();
 			}
 		}
 	}

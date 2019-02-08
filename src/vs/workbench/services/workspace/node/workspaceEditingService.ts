@@ -154,7 +154,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		if (path) {
 			await this.saveWorkspaceAs(untitledWorkspace, path);
 		} else {
-			path = URI.file(untitledWorkspace.configPath);
+			path = untitledWorkspace.configPath;
 		}
 		return this.enterWorkspace(path);
 	}
@@ -177,7 +177,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		const windows = await this.windowsService.getWindows();
 
 		// Prevent overwriting a workspace that is currently opened in another window
-		if (windows.some(window => window.workspace && isEqual(URI.file(window.workspace.configPath), path))) {
+		if (windows.some(window => window.workspace && isEqual(window.workspace.configPath, path))) {
 			const options: MessageBoxOptions = {
 				type: 'info',
 				buttons: [nls.localize('ok', "OK")],
@@ -192,7 +192,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	}
 
 	private async saveWorkspaceAs(workspace: IWorkspaceIdentifier, targetConfigPathURI: URI): Promise<any> {
-		const configPathURI = URI.file(workspace.configPath);
+		const configPathURI = workspace.configPath;
 
 		// Return early if target is same as source
 		if (isEqual(configPathURI, targetConfigPathURI)) {
@@ -317,6 +317,6 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 			}
 		}
 
-		return this.jsonEditingService.write(URI.file(toWorkspace.configPath), { key: 'settings', value: targetWorkspaceConfiguration }, true);
+		return this.jsonEditingService.write(toWorkspace.configPath, { key: 'settings', value: targetWorkspaceConfiguration }, true);
 	}
 }

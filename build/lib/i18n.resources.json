@@ -27,6 +27,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/api/common",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/cli",
 			"project": "vscode-workbench"
 		},
@@ -64,6 +68,10 @@
 		},
 		{
 			"name": "vs/workbench/contrib/html",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/issue",
 			"project": "vscode-workbench"
 		},
 		{
@@ -192,10 +200,6 @@
 		},
 		{
 			"name": "vs/workbench/services/extensions",
-			"project": "vscode-workbench"
-		},
-		{
-			"name": "vs/workbench/services/jsonschemas",
 			"project": "vscode-workbench"
 		},
 		{

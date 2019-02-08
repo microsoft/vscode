@@ -87,7 +87,7 @@ import { IDecorationsService } from 'vs/workbench/services/decorations/browser/d
 import { ActivityService } from 'vs/workbench/services/activity/browser/activityService';
 import { URI } from 'vs/base/common/uri';
 import { IListService, ListService } from 'vs/platform/list/browser/listService';
-import { InputFocusedContext, IsMacContext, IsLinuxContext, IsWindowsContext } from 'vs/platform/workbench/common/contextkeys';
+import { InputFocusedContext, IsMacContext, IsLinuxContext, IsWindowsContext } from 'vs/platform/contextkey/common/contextkeys';
 import { IViewsService } from 'vs/workbench/common/views';
 import { ViewsService } from 'vs/workbench/browser/parts/views/views';
 import { INotificationService } from 'vs/platform/notification/common/notification';
