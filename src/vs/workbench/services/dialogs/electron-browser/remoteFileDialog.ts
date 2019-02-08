@@ -35,7 +35,7 @@ export class RemoteFileDialog {
 	private filePickBox: IQuickPick<FileQuickPickItem>;
 	private allowFileSelection: boolean;
 	private allowFolderSelection: boolean;
-	private remoteAuthority: string;
+	private remoteAuthority: string | undefined;
 
 	constructor(
 		@IFileService private readonly remoteFileService: RemoteFileService,
@@ -49,10 +49,10 @@ export class RemoteFileDialog {
 		this.remoteAuthority = this.windowService.getConfiguration().remoteAuthority;
 	}
 
-	public async showOpenDialog(options: IOpenDialogOptions = {}): Promise<undefined> {
+	public async showOpenDialog(options: IOpenDialogOptions = {}): Promise<void> {
 		if (!this.remoteAuthority) {
 			this.notificationService.info(nls.localize('remoteFileDialog.notConnectedToRemote', 'Not connected to a remote.'));
-			return Promise.resolve(undefined);
+			return Promise.resolve();
 		}
 		const defaultUri = options.defaultUri ? options.defaultUri : URI.from({ scheme: REMOTE_HOST_SCHEME, authority: this.remoteAuthority, path: '/' });
 		const title = nls.localize('remoteFileDialog.openTitle', 'Open File or Folder');
@@ -63,11 +63,11 @@ export class RemoteFileDialog {
 					return this.windowService.openWindow([{ uri: fileFolderUri, typeHint: 'folder' }]);
 				} else {
 					return this.editorService.openEditor({ resource: fileFolderUri }).then(() => {
-						return Promise.resolve(undefined);
+						return Promise.resolve();
 					});
 				}
 			}
-			return Promise.resolve(undefined);
+			return Promise.resolve();
 		});
 	}
 
@@ -206,18 +206,20 @@ export class RemoteFileDialog {
 		}
 	}
 
-	private updateItems(newFolder: URI) {
-		this.currentFolder = newFolder;
-		this.filePickBox.placeholder = this.labelService.getUriLabel(newFolder, { endWithSeparator: true });
-		this.filePickBox.value = '';
-		this.filePickBox.busy = true;
-		this.createItems(this.currentFolder).then(items => {
-			this.filePickBox.items = items;
-			if (this.allowFolderSelection) {
-				this.filePickBox.activeItems = [];
-			}
-			this.filePickBox.busy = false;
-		});
+	private updateItems(newFolder: URI | null) {
+		if (newFolder) {
+			this.currentFolder = newFolder;
+			this.filePickBox.placeholder = this.labelService.getUriLabel(newFolder, { endWithSeparator: true });
+			this.filePickBox.value = '';
+			this.filePickBox.busy = true;
+			this.createItems(this.currentFolder).then(items => {
+				this.filePickBox.items = items;
+				if (this.allowFolderSelection) {
+					this.filePickBox.activeItems = [];
+				}
+				this.filePickBox.busy = false;
+			});
+		}
 	}
 
 	private isValidBaseName(name: string): boolean {
@@ -255,14 +257,14 @@ export class RemoteFileDialog {
 
 	private basenameWithTrailingSlash(fullPath: URI): string {
 		const child = this.labelService.getUriLabel(fullPath, { endWithSeparator: true });
-		const parent = this.labelService.getUriLabel(resources.dirname(fullPath), { endWithSeparator: true });
+		const parent = this.labelService.getUriLabel(resources.dirname(fullPath)!, { endWithSeparator: true });
 		return child.substring(parent.length);
 	}
 
 	private createBackItem(currFolder: URI): FileQuickPickItem | null {
-		const parentFolder = resources.dirname(currFolder);
+		const parentFolder = resources.dirname(currFolder)!;
 		if (!resources.isEqual(currFolder, parentFolder)) {
-			return { label: '..', uri: resources.dirname(currFolder), isFolder: true };
+			return { label: '..', uri: resources.dirname(currFolder)!, isFolder: true };
 		}
 		return null;
 	}

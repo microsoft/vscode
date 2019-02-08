@@ -331,7 +331,7 @@ export class RemoteFileDialogService extends FileDialogService {
 		super(windowService, contextService, historyService, environmentService, instantiationService);
 	}
 
-	public showSaveDialog(options: ISaveDialogOptions): Promise<URI> {
+	public showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
 		const defaultUri = options.defaultUri;
 		if (defaultUri && defaultUri.scheme === REMOTE_HOST_SCHEME) {
 			return this.showSaveRemoteDialog(options);

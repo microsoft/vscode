@@ -136,27 +136,25 @@ export class LabelService implements ILabelService {
 			return getPathLabel(resource.path, this.environmentService, options.relative ? this.contextService : undefined);
 		}
 
-		let label: string;
+		let label: string | undefined;
+		const baseResource = this.contextService && this.contextService.getWorkspaceFolder(resource);
 
-		if (options.relative) {
-			const baseResource = this.contextService && this.contextService.getWorkspaceFolder(resource);
-			if (baseResource) {
-				let relativeLabel: string;
-				if (isEqual(baseResource.uri, resource, !isLinux)) {
-					relativeLabel = ''; // no label if resources are identical
-				} else {
-					const baseResourceLabel = this.formatUri(baseResource.uri, formatting, options.noPrefix);
-					relativeLabel = ltrim(this.formatUri(resource, formatting, options.noPrefix).substring(baseResourceLabel.length), formatting.separator);
-				}
-
-				const hasMultipleRoots = this.contextService.getWorkspace().folders.length > 1;
-				if (hasMultipleRoots && !options.noPrefix) {
-					const rootName = (baseResource && baseResource.name) ? baseResource.name : basenameOrAuthority(baseResource.uri);
-					relativeLabel = relativeLabel ? (rootName + ' • ' + relativeLabel) : rootName; // always show root basename if there are multiple
-				}
-
-				label = relativeLabel;
+		if (options.relative && baseResource) {
+			let relativeLabel: string;
+			if (isEqual(baseResource.uri, resource, !isLinux)) {
+				relativeLabel = ''; // no label if resources are identical
+			} else {
+				const baseResourceLabel = this.formatUri(baseResource.uri, formatting, options.noPrefix);
+				relativeLabel = ltrim(this.formatUri(resource, formatting, options.noPrefix).substring(baseResourceLabel.length), formatting.separator);
 			}
+
+			const hasMultipleRoots = this.contextService.getWorkspace().folders.length > 1;
+			if (hasMultipleRoots && !options.noPrefix) {
+				const rootName = (baseResource && baseResource.name) ? baseResource.name : basenameOrAuthority(baseResource.uri);
+				relativeLabel = relativeLabel ? (rootName + ' • ' + relativeLabel) : rootName; // always show root basename if there are multiple
+			}
+
+			label = relativeLabel;
 		} else {
 			label = this.formatUri(resource, formatting, options.noPrefix);
 		}
