@@ -37,7 +37,7 @@ import { binarySearch } from 'vs/base/common/arrays';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { OutputAppender } from 'vs/platform/output/node/outputAppender';
+import { OutputAppender } from 'vs/workbench/contrib/output/node/outputAppender';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { isNumber } from 'vs/base/common/types';
 
