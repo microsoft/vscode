@@ -42,7 +42,7 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 		this._extHostDocumentsAndEditors.onDidChangeActiveTextEditor(e => this._onDidChangeActiveTextEditor.fire(e));
 	}
 
-	getActiveTextEditor(): ExtHostTextEditor {
+	getActiveTextEditor(): ExtHostTextEditor | undefined {
 		return this._extHostDocumentsAndEditors.activeEditor();
 	}
 

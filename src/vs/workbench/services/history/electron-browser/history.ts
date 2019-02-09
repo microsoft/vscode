@@ -281,7 +281,17 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}
 
 		if (lastClosedFile) {
-			this.editorService.openEditor({ resource: lastClosedFile.resource, options: { pinned: true, index: lastClosedFile.index } });
+			this.editorService.openEditor({ resource: lastClosedFile.resource, options: { pinned: true, index: lastClosedFile.index } }).then(editor => {
+
+				// Fix for https://github.com/Microsoft/vscode/issues/67882
+				// If opening of the editor fails, make sure to try the next one
+				// but make sure to remove this one from the list to prevent
+				// endless loops.
+				if (!editor) {
+					this.recentlyClosedFiles.pop();
+					this.reopenLastClosedEditor();
+				}
+			});
 		}
 	}
 

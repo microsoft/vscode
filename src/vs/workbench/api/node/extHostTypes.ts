@@ -1166,8 +1166,8 @@ export enum CompletionTriggerKind {
 }
 
 export interface CompletionContext {
-	triggerKind: CompletionTriggerKind;
-	triggerCharacter: string;
+	readonly triggerKind: CompletionTriggerKind;
+	readonly triggerCharacter?: string;
 }
 
 export enum CompletionItemKind {
@@ -1202,15 +1202,15 @@ export class CompletionItem implements vscode.CompletionItem {
 
 	label: string;
 	kind: CompletionItemKind | undefined;
-	detail: string;
-	documentation: string | MarkdownString;
-	sortText: string;
-	filterText: string;
-	preselect: boolean;
+	detail?: string;
+	documentation?: string | MarkdownString;
+	sortText?: string;
+	filterText?: string;
+	preselect?: boolean;
 	insertText: string | SnippetString;
 	keepWhitespace?: boolean;
 	range: Range;
-	commitCharacters: string[];
+	commitCharacters?: string[];
 	textEdit: TextEdit;
 	additionalTextEdits: TextEdit[];
 	command: vscode.Command;
@@ -1314,7 +1314,7 @@ export enum DecorationRangeBehavior {
 }
 
 export namespace TextEditorSelectionChangeKind {
-	export function fromValue(s: string) {
+	export function fromValue(s: string | undefined) {
 		switch (s) {
 			case 'keyboard': return TextEditorSelectionChangeKind.Keyboard;
 			case 'mouse': return TextEditorSelectionChangeKind.Mouse;

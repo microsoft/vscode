@@ -667,7 +667,7 @@ export interface DocumentHighlight {
 	/**
 	 * The highlight kind, default is [text](#DocumentHighlightKind.Text).
 	 */
-	kind: DocumentHighlightKind;
+	kind?: DocumentHighlightKind;
 }
 /**
  * The document highlight provider interface defines the contract between extensions and

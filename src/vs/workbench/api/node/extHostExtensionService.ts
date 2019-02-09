@@ -15,7 +15,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { createApiFactory, initializeExtensionApi, IExtensionApiFactory } from 'vs/workbench/api/node/extHost.api.impl';
 import { ExtHostExtensionServiceShape, IEnvironment, IInitData, IMainContext, IWorkspaceData, MainContext, MainThreadExtensionServiceShape, MainThreadTelemetryShape, MainThreadWorkspaceShape } from 'vs/workbench/api/node/extHost.protocol';
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
-import { ActivatedExtension, EmptyExtension, ExtensionActivatedByAPI, ExtensionActivatedByEvent, ExtensionActivationReason, ExtensionActivationTimes, ExtensionActivationTimesBuilder, ExtensionsActivator, IExtensionAPI, IExtensionContext, IExtensionMemento, IExtensionModule } from 'vs/workbench/api/node/extHostExtensionActivator';
+import { ActivatedExtension, EmptyExtension, ExtensionActivatedByAPI, ExtensionActivatedByEvent, ExtensionActivationReason, ExtensionActivationTimes, ExtensionActivationTimesBuilder, ExtensionsActivator, IExtensionAPI, IExtensionContext, IExtensionMemento, IExtensionModule, HostExtension } from 'vs/workbench/api/node/extHostExtensionActivator';
 import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
 import { ExtHostStorage } from 'vs/workbench/api/node/extHostStorage';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
@@ -192,7 +192,11 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		this._registry = new ExtensionDescriptionRegistry(initData.extensions);
 		this._storage = new ExtHostStorage(this._extHostContext);
 		this._storagePath = new ExtensionStoragePath(initData.workspace, initData.environment);
-		this._activator = new ExtensionsActivator(this._registry, initData.resolvedExtensions, {
+
+		const hostExtensions = new Set<string>();
+		initData.hostExtensions.forEach((extensionId) => hostExtensions.add(ExtensionIdentifier.toKey(extensionId)));
+
+		this._activator = new ExtensionsActivator(this._registry, initData.resolvedExtensions, initData.hostExtensions, {
 			showMessage: (severity: Severity, message: string): void => {
 				this._mainThreadExtensionsProxy.$localShowMessage(severity, message);
 
@@ -208,7 +212,13 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 				}
 			},
 
-			actualActivateExtension: (extensionDescription: IExtensionDescription, reason: ExtensionActivationReason): Promise<ActivatedExtension> => {
+			actualActivateExtension: async (extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<ActivatedExtension> => {
+				if (hostExtensions.has(ExtensionIdentifier.toKey(extensionId))) {
+					let activationEvent = (reason instanceof ExtensionActivatedByEvent ? reason.activationEvent : null);
+					await this._mainThreadExtensionsProxy.$activateExtension(extensionId, activationEvent);
+					return new HostExtension();
+				}
+				const extensionDescription = this._registry.getExtensionDescription(extensionId);
 				return this._activateExtension(extensionDescription, reason);
 			}
 		});
@@ -666,11 +676,14 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		);
 	}
 
-	public $activate(extensionId: ExtensionIdentifier, activationEvent: string): Promise<void> {
-		return (
-			this._barrier.wait()
-				.then(_ => this._activateById(extensionId, new ExtensionActivatedByEvent(false, activationEvent)))
-		);
+	public async $activate(extensionId: ExtensionIdentifier, activationEvent: string): Promise<boolean> {
+		await this._barrier.wait();
+		if (!this._registry.getExtensionDescription(extensionId)) {
+			// unknown extension => ignore
+			return false;
+		}
+		await this._activateById(extensionId, new ExtensionActivatedByEvent(false, activationEvent));
+		return true;
 	}
 
 	public async $deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void> {

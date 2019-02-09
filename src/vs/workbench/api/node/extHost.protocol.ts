@@ -68,6 +68,7 @@ export interface IInitData {
 	environment: IEnvironment;
 	workspace?: IWorkspaceData;
 	resolvedExtensions: ExtensionIdentifier[];
+	hostExtensions: ExtensionIdentifier[];
 	extensions: IExtensionDescription[];
 	telemetryInfo: ITelemetryInfo;
 	logLevel: LogLevel;
@@ -334,12 +335,12 @@ export interface MainThreadMessageServiceShape extends IDisposable {
 
 export interface MainThreadOutputServiceShape extends IDisposable {
 	$register(label: string, log: boolean, file?: UriComponents): Promise<string>;
-	$append(channelId: string, value: string): Promise<void>;
-	$update(channelId: string): Promise<void>;
-	$clear(channelId: string, till: number): Promise<void>;
-	$reveal(channelId: string, preserveFocus: boolean): Promise<void>;
-	$close(channelId: string): Promise<void>;
-	$dispose(channelId: string): Promise<void>;
+	$append(channelId: string, value: string): Promise<void> | undefined;
+	$update(channelId: string): Promise<void> | undefined;
+	$clear(channelId: string, till: number): Promise<void> | undefined;
+	$reveal(channelId: string, preserveFocus: boolean): Promise<void> | undefined;
+	$close(channelId: string): Promise<void> | undefined;
+	$dispose(channelId: string): Promise<void> | undefined;
 }
 
 export interface MainThreadProgressShape extends IDisposable {
@@ -546,6 +547,7 @@ export interface MainThreadTaskShape extends IDisposable {
 
 export interface MainThreadExtensionServiceShape extends IDisposable {
 	$localShowMessage(severity: Severity, msg: string): void;
+	$activateExtension(extensionId: ExtensionIdentifier, activationEvent: string): Promise<void>;
 	$onWillActivateExtension(extensionId: ExtensionIdentifier): void;
 	$onDidActivateExtension(extensionId: ExtensionIdentifier, startup: boolean, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationEvent: string): void;
 	$onExtensionActivationFailed(extensionId: ExtensionIdentifier): void;
@@ -749,7 +751,7 @@ export interface ExtHostExtensionServiceShape {
 	$resolveAuthority(remoteAuthority: string): Promise<ResolvedAuthority>;
 	$startExtensionHost(enabledExtensionIds: ExtensionIdentifier[]): Promise<void>;
 	$activateByEvent(activationEvent: string): Promise<void>;
-	$activate(extensionId: ExtensionIdentifier, activationEvent: string): Promise<void>;
+	$activate(extensionId: ExtensionIdentifier, activationEvent: string): Promise<boolean>;
 
 	$deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void>;
 
@@ -880,7 +882,11 @@ export interface CodeActionDto {
 
 export type LinkDto = ObjectIdentifier & modes.ILink;
 
-export type CodeLensDto = ObjectIdentifier & modes.ICodeLensSymbol;
+export interface CodeLensDto extends ObjectIdentifier {
+	range: IRange;
+	id?: string;
+	command?: CommandDto;
+}
 
 export interface ExtHostLanguageFeaturesShape {
 	$provideDocumentSymbols(handle: number, resource: UriComponents, token: CancellationToken): Promise<modes.DocumentSymbol[]>;
@@ -1030,7 +1036,7 @@ export interface ExtHostDebugServiceShape {
 	$provideDebugAdapter(handle: number, session: IDebugSessionDto): Promise<IAdapterDescriptor>;
 	$acceptDebugSessionStarted(session: IDebugSessionDto): void;
 	$acceptDebugSessionTerminated(session: IDebugSessionDto): void;
-	$acceptDebugSessionActiveChanged(session: IDebugSessionDto): void;
+	$acceptDebugSessionActiveChanged(session: IDebugSessionDto | undefined): void;
 	$acceptDebugSessionCustomEvent(session: IDebugSessionDto, event: any): void;
 	$acceptBreakpointsDelta(delta: IBreakpointsDeltaDto): void;
 }

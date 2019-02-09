@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IContextKeyService, ContextKeyDefinedExpr, ContextKeyExpr, ContextKeyAndExpr, ContextKeyEqualsExpr, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, ContextKeyDefinedExpr, ContextKeyExpr, ContextKeyAndExpr, ContextKeyEqualsExpr, RawContextKey, IContextKey, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
 import { HistoryInputBox, IHistoryInputOptions } from 'vs/base/browser/ui/inputbox/inputBox';
 import { FindInput, IFindInputOptions } from 'vs/base/browser/ui/findinput/findInput';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { IContextScopedWidget, getContextScopedWidget, createWidgetScopedContextKeyService, bindContextScopedWidget } from 'vs/platform/widget/common/contextScopedWidget';
 import { IHistoryNavigationWidget } from 'vs/base/browser/history';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -15,10 +14,24 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 export const HistoryNavigationWidgetContext = 'historyNavigationWidget';
 export const HistoryNavigationEnablementContext = 'historyNavigationEnabled';
 
-export interface IContextScopedHistoryNavigationWidget extends IContextScopedWidget {
+function bindContextScopedWidget(contextKeyService: IContextKeyService, widget: IContextScopedWidget, contextKey: string): void {
+	new RawContextKey<IContextScopedWidget>(contextKey, widget).bindTo(contextKeyService);
+}
 
+function createWidgetScopedContextKeyService(contextKeyService: IContextKeyService, widget: IContextScopedWidget): IContextKeyService {
+	return contextKeyService.createScoped(widget.target);
+}
+
+function getContextScopedWidget<T extends IContextScopedWidget>(contextKeyService: IContextKeyService, contextKey: string): T | undefined {
+	return contextKeyService.getContext(document.activeElement).getValue(contextKey);
+}
+
+interface IContextScopedWidget {
+	readonly target: IContextKeyServiceTarget;
+}
+
+interface IContextScopedHistoryNavigationWidget extends IContextScopedWidget {
 	historyNavigator: IHistoryNavigationWidget;
-
 }
 
 export function createAndBindHistoryNavigationWidgetScopedContextKeyService(contextKeyService: IContextKeyService, widget: IContextScopedHistoryNavigationWidget): { scopedContextKeyService: IContextKeyService, historyNavigationEnablement: IContextKey<boolean> } {

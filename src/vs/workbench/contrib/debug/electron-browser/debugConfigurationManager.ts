@@ -337,7 +337,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		return this.launches;
 	}
 
-	public getLaunch(workspaceUri: uri): ILaunch {
+	public getLaunch(workspaceUri: uri | undefined): ILaunch {
 		if (!uri.isUri(workspaceUri)) {
 			return undefined;
 		}

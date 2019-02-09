@@ -11,3 +11,6 @@ export const InputFocusedContext = new RawContextKey<boolean>(InputFocusedContex
 export const IsMacContext = new RawContextKey<boolean>('isMac', isMacintosh);
 export const IsLinuxContext = new RawContextKey<boolean>('isLinux', isLinux);
 export const IsWindowsContext = new RawContextKey<boolean>('isWindows', isWindows);
+
+export const SupportsWorkspacesContext = new RawContextKey<boolean>('supportsWorkspaces', true);
+export const SupportsOpenFileFolderContext = new RawContextKey<boolean>('supportsOpenFileFolder', isMacintosh);

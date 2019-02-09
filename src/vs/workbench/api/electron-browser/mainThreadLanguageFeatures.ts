@@ -124,13 +124,21 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		const provider = <modes.CodeLensProvider>{
 			provideCodeLenses: (model: ITextModel, token: CancellationToken): modes.ICodeLensSymbol[] | Promise<modes.ICodeLensSymbol[]> => {
 				return this._proxy.$provideCodeLenses(handle, model.uri, token).then(dto => {
-					if (dto) { dto.forEach(obj => this._heapService.trackObject(obj)); }
+					if (dto) {
+						dto.forEach(obj => {
+							this._heapService.trackObject(obj);
+							this._heapService.trackObject(obj.command);
+						});
+					}
 					return dto;
 				});
 			},
 			resolveCodeLens: (model: ITextModel, codeLens: modes.ICodeLensSymbol, token: CancellationToken): modes.ICodeLensSymbol | Promise<modes.ICodeLensSymbol> => {
 				return this._proxy.$resolveCodeLens(handle, model.uri, codeLens, token).then(obj => {
-					this._heapService.trackObject(obj);
+					if (obj) {
+						this._heapService.trackObject(obj);
+						this._heapService.trackObject(obj.command);
+					}
 					return obj;
 				});
 			}

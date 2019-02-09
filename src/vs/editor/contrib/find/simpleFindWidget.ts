@@ -16,7 +16,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { editorWidgetBackground, inputActiveOptionBorder, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { ITheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { ContextScopedFindInput } from 'vs/platform/widget/browser/contextScopedHistoryWidget';
+import { ContextScopedFindInput } from 'vs/platform/browser/contextScopedHistoryWidget';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
