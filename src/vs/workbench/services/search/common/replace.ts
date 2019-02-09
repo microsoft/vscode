@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as strings from 'vs/base/common/strings';
-import { IPatternInfo } from 'vs/platform/search/common/search';
+import { IPatternInfo } from 'vs/workbench/services/search/common/search';
 import { CharCode } from 'vs/base/common/charCode';
 
 export class ReplacePattern {

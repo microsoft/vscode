@@ -32,7 +32,7 @@ import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IListService, WorkbenchListFocusContextKey, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ISearchConfigurationProperties, VIEW_ID, ISearchConfiguration } from 'vs/platform/search/common/search';
+import { ISearchConfigurationProperties, VIEW_ID, ISearchConfiguration } from 'vs/workbench/services/search/common/search';
 import { defaultQuickOpenContextKey } from 'vs/workbench/browser/parts/quickopen/quickopen';
 import { Extensions as QuickOpenExtensions, IQuickOpenRegistry, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';

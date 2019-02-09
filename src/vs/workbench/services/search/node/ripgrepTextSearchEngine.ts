@@ -9,7 +9,7 @@ import * as path from 'path';
 import { NodeStringDecoder, StringDecoder } from 'string_decoder';
 import { createRegExp, startsWith, startsWithUTF8BOM, stripUTF8BOM, escapeRegExpCharacters, endsWith } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
-import { IExtendedExtensionSearchOptions, SearchError, SearchErrorCode, serializeSearchError } from 'vs/platform/search/common/search';
+import { IExtendedExtensionSearchOptions, SearchError, SearchErrorCode, serializeSearchError } from 'vs/workbench/services/search/common/search';
 import * as vscode from 'vscode';
 import { rgPath } from 'vscode-ripgrep';
 import { anchorGlob, createTextSearchResult, IOutputChannel, Maybe, Range } from './ripgrepSearchUtils';

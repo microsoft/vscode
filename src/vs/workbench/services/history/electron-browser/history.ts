@@ -21,7 +21,7 @@ import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/co
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { getCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { getExcludes, ISearchConfiguration } from 'vs/platform/search/common/search';
+import { getExcludes, ISearchConfiguration } from 'vs/workbench/services/search/common/search';
 import { IExpression } from 'vs/base/common/glob';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';

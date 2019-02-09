@@ -45,7 +45,7 @@ import { InstantiationService } from 'vs/platform/instantiation/node/instantiati
 import { ILifecycleService, LifecyclePhase, WillShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ISearchService, ISearchHistoryService } from 'vs/platform/search/common/search';
+import { ISearchService, ISearchHistoryService } from 'vs/workbench/services/search/common/search';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CommandService } from 'vs/workbench/services/commands/common/commandService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';

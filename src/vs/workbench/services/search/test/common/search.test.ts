@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { ITextSearchPreviewOptions, OneLineRange, TextSearchMatch, SearchRange } from 'vs/platform/search/common/search';
+import { ITextSearchPreviewOptions, OneLineRange, TextSearchMatch, SearchRange } from 'vs/workbench/services/search/common/search';
 
 suite('TextSearchResult', () => {
 
