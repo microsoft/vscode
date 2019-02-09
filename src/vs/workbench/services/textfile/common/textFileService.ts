@@ -103,6 +103,8 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 
 	abstract confirmSave(resources?: URI[]): Promise<ConfirmResult>;
 
+	abstract confirmOverwrite(resource: URI): Promise<boolean>;
+
 	private registerListeners(): void {
 
 		// Lifecycle
@@ -435,8 +437,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 
 					// Untitled with associated file path don't need to prompt
 					if (this.untitledEditorService.hasAssociatedFilePath(untitled)) {
-						const authority = this.windowService.getConfiguration().remoteAuthority;
-						targetUri = authority ? untitled.with({ scheme: REMOTE_HOST_SCHEME, authority }) : untitled.with({ scheme: Schemas.file });
+						targetUri = this.untitledToAssociatedFileResource(untitled);
 					}
 
 					// Otherwise ask user
@@ -471,6 +472,12 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 
 			return Promise.all(untitledSaveAsPromises).then(() => result);
 		});
+	}
+
+	private untitledToAssociatedFileResource(untitled: URI): URI {
+		const authority = this.windowService.getConfiguration().remoteAuthority;
+
+		return authority ? untitled.with({ scheme: REMOTE_HOST_SCHEME, authority }) : untitled.with({ scheme: Schemas.file });
 	}
 
 	private doSaveAllFiles(resources?: URI[], options: ISaveOptions = Object.create(null)): Promise<ITextFileOperationResult> {
@@ -560,7 +567,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 			modelPromise = this.untitledEditorService.loadOrCreate({ resource });
 		}
 
-		return modelPromise.then<any>(model => {
+		return modelPromise.then(model => {
 
 			// We have a model: Use it (can be null e.g. if this file is binary and not a text file or was never opened before)
 			if (model) {
@@ -568,8 +575,13 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 			}
 
 			// Otherwise we can only copy
-			return this.fileService.copyFile(resource, target);
-		}).then(() => {
+			return this.fileService.copyFile(resource, target).then(() => true);
+		}).then(result => {
+
+			// Return early if the operation was not running
+			if (!result) {
+				return target;
+			}
 
 			// Revert the source
 			return this.revert(resource).then(() => {
@@ -580,30 +592,56 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		});
 	}
 
-	private doSaveTextFileAs(sourceModel: ITextFileEditorModel | UntitledEditorModel, resource: URI, target: URI, options?: ISaveOptions): Promise<void> {
+	private doSaveTextFileAs(sourceModel: ITextFileEditorModel | UntitledEditorModel, resource: URI, target: URI, options?: ISaveOptions): Promise<boolean> {
 		let targetModelResolver: Promise<ITextFileEditorModel>;
+		let targetExists: boolean = false;
 
 		// Prefer an existing model if it is already loaded for the given target resource
 		const targetModel = this.models.get(target);
 		if (targetModel && targetModel.isResolved()) {
 			targetModelResolver = Promise.resolve(targetModel);
+			targetExists = true;
 		}
 
 		// Otherwise create the target file empty if it does not exist already and resolve it from there
 		else {
-			targetModelResolver = this.fileService.resolveFile(target).then(stat => stat, () => null).then(stat => stat || this.fileService.updateContent(target, '')).then(stat => {
-				return this.models.loadOrCreate(target);
-			});
+			targetModelResolver = this.fileService.existsFile(target).then(exists => {
+				targetExists = exists;
+
+				// create target model adhoc if file does not exist yet
+				if (!targetExists) {
+					return this.fileService.updateContent(target, '');
+				}
+
+				return undefined;
+			}).then(() => this.models.loadOrCreate(target));
 		}
 
 		return targetModelResolver.then(targetModel => {
 
-			// take over encoding and model value from source model
-			targetModel.updatePreferredEncoding(sourceModel.getEncoding());
-			this.modelService.updateModel(targetModel.textEditorModel, createTextBufferFactoryFromSnapshot(sourceModel.createSnapshot()));
+			// Confirm to overwrite if we have an untitled file with associated file where
+			// the file actually exists on disk and we are instructed to save to that file
+			// path. This can happen if the file was created after the untitled file was opened.
+			// See https://github.com/Microsoft/vscode/issues/67946
+			let confirmWrite: Promise<boolean>;
+			if (sourceModel instanceof UntitledEditorModel && sourceModel.hasAssociatedFilePath && targetExists && isEqual(target, this.untitledToAssociatedFileResource(sourceModel.getResource()))) {
+				confirmWrite = this.confirmOverwrite(target);
+			} else {
+				confirmWrite = Promise.resolve(true);
+			}
 
-			// save model
-			return targetModel.save(options);
+			return confirmWrite.then(write => {
+				if (!write) {
+					return false;
+				}
+
+				// take over encoding and model value from source model
+				targetModel.updatePreferredEncoding(sourceModel.getEncoding());
+				this.modelService.updateModel(targetModel.textEditorModel, createTextBufferFactoryFromSnapshot(sourceModel.createSnapshot()));
+
+				// save model
+				return targetModel.save(options).then(() => true);
+			});
 		}, error => {
 
 			// binary model: delete the file and run the operation again
