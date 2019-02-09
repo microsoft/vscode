@@ -40,7 +40,7 @@ class DocumentSymbolAdapter {
 	}
 
 	provideDocumentSymbols(resource: URI, token: CancellationToken): Promise<modes.DocumentSymbol[]> {
-		let doc = this._documents.getDocumentData(resource).document;
+		const doc = this._documents.getDocument(resource);
 		return asPromise(() => this._provider.provideDocumentSymbols(doc, token)).then(value => {
 			if (isFalsyOrEmpty(value)) {
 				return undefined;
@@ -105,7 +105,7 @@ class CodeLensAdapter {
 	) { }
 
 	provideCodeLenses(resource: URI, token: CancellationToken): Promise<CodeLensDto[]> {
-		const doc = this._documents.getDocumentData(resource).document;
+		const doc = this._documents.getDocument(resource);
 
 		return asPromise(() => this._provider.provideCodeLenses(doc, token)).then(lenses => {
 			let result: CodeLensDto[] = [];
@@ -161,7 +161,7 @@ class DefinitionAdapter {
 	) { }
 
 	provideDefinition(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.LocationLink[]> {
-		let doc = this._documents.getDocumentData(resource).document;
+		const doc = this._documents.getDocument(resource);
 		let pos = typeConvert.Position.to(position);
 		return asPromise(() => this._provider.provideDefinition(doc, pos, token)).then(convertToLocationLinks);
 	}
@@ -175,7 +175,7 @@ class DeclarationAdapter {
 	) { }
 
 	provideDeclaration(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.LocationLink[]> {
-		let doc = this._documents.getDocumentData(resource).document;
+		const doc = this._documents.getDocument(resource);
 		let pos = typeConvert.Position.to(position);
 		return asPromise(() => this._provider.provideDeclaration(doc, pos, token)).then(convertToLocationLinks);
 	}
@@ -189,7 +189,7 @@ class ImplementationAdapter {
 	) { }
 
 	provideImplementation(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.LocationLink[]> {
-		let doc = this._documents.getDocumentData(resource).document;
+		const doc = this._documents.getDocument(resource);
 		let pos = typeConvert.Position.to(position);
 		return asPromise(() => this._provider.provideImplementation(doc, pos, token)).then(convertToLocationLinks);
 	}
@@ -203,7 +203,7 @@ class TypeDefinitionAdapter {
 	) { }
 
 	provideTypeDefinition(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.LocationLink[]> {
-		const doc = this._documents.getDocumentData(resource).document;
+		const doc = this._documents.getDocument(resource);
 		const pos = typeConvert.Position.to(position);
 		return asPromise(() => this._provider.provideTypeDefinition(doc, pos, token)).then(convertToLocationLinks);
 	}
@@ -218,7 +218,7 @@ class HoverAdapter {
 
 	public provideHover(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.Hover> {
 
-		let doc = this._documents.getDocumentData(resource).document;
+		const doc = this._documents.getDocument(resource);
 		let pos = typeConvert.Position.to(position);
 
 		return asPromise(() => this._provider.provideHover(doc, pos, token)).then(value => {
@@ -246,7 +246,7 @@ class DocumentHighlightAdapter {
 
 	provideDocumentHighlights(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.DocumentHighlight[]> {
 
-		let doc = this._documents.getDocumentData(resource).document;
+		const doc = this._documents.getDocument(resource);
 		let pos = typeConvert.Position.to(position);
 
 		return asPromise(() => this._provider.provideDocumentHighlights(doc, pos, token)).then(value => {
@@ -266,7 +266,7 @@ class ReferenceAdapter {
 	) { }
 
 	provideReferences(resource: URI, position: IPosition, context: modes.ReferenceContext, token: CancellationToken): Promise<modes.Location[]> {
-		let doc = this._documents.getDocumentData(resource).document;
+		const doc = this._documents.getDocument(resource);
 		let pos = typeConvert.Position.to(position);
 
 		return asPromise(() => this._provider.provideReferences(doc, pos, context, token)).then(value => {
@@ -296,7 +296,7 @@ class CodeActionAdapter {
 
 	provideCodeActions(resource: URI, rangeOrSelection: IRange | ISelection, context: modes.CodeActionContext, token: CancellationToken): Promise<CodeActionDto[]> {
 
-		const doc = this._documents.getDocumentData(resource).document;
+		const doc = this._documents.getDocument(resource);
 		const ran = Selection.isISelection(rangeOrSelection)
 			? <vscode.Selection>typeConvert.Selection.to(rangeOrSelection)
 			: <vscode.Range>typeConvert.Range.to(rangeOrSelection);
@@ -371,7 +371,7 @@ class DocumentFormattingAdapter {
 
 	provideDocumentFormattingEdits(resource: URI, options: modes.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[]> {
 
-		const { document } = this._documents.getDocumentData(resource);
+		const document = this._documents.getDocument(resource);
 
 		return asPromise(() => this._provider.provideDocumentFormattingEdits(document, <any>options, token)).then(value => {
 			if (Array.isArray(value)) {
@@ -391,7 +391,7 @@ class RangeFormattingAdapter {
 
 	provideDocumentRangeFormattingEdits(resource: URI, range: IRange, options: modes.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[]> {
 
-		const { document } = this._documents.getDocumentData(resource);
+		const document = this._documents.getDocument(resource);
 		const ran = typeConvert.Range.to(range);
 
 		return asPromise(() => this._provider.provideDocumentRangeFormattingEdits(document, ran, <any>options, token)).then(value => {
@@ -414,7 +414,7 @@ class OnTypeFormattingAdapter {
 
 	provideOnTypeFormattingEdits(resource: URI, position: IPosition, ch: string, options: modes.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[]> {
 
-		const { document } = this._documents.getDocumentData(resource);
+		const document = this._documents.getDocument(resource);
 		const pos = typeConvert.Position.to(position);
 
 		return asPromise(() => this._provider.provideOnTypeFormattingEdits(document, pos, ch, <any>options, token)).then(value => {
@@ -501,7 +501,7 @@ class RenameAdapter {
 
 	provideRenameEdits(resource: URI, position: IPosition, newName: string, token: CancellationToken): Promise<WorkspaceEditDto | undefined> {
 
-		let doc = this._documents.getDocumentData(resource).document;
+		const doc = this._documents.getDocument(resource);
 		let pos = typeConvert.Position.to(position);
 
 		return asPromise(() => this._provider.provideRenameEdits(doc, pos, newName, token)).then(value => {
@@ -525,7 +525,7 @@ class RenameAdapter {
 			return Promise.resolve(undefined);
 		}
 
-		let doc = this._documents.getDocumentData(resource).document;
+		const doc = this._documents.getDocument(resource);
 		let pos = typeConvert.Position.to(position);
 
 		return asPromise(() => this._provider.prepareRename(doc, pos, token)).then(rangeOrLocation => {
@@ -591,7 +591,7 @@ class SuggestAdapter {
 
 	provideCompletionItems(resource: URI, position: IPosition, context: modes.CompletionContext, token: CancellationToken): Promise<SuggestResultDto> {
 
-		const doc = this._documents.getDocumentData(resource).document;
+		const doc = this._documents.getDocument(resource);
 		const pos = typeConvert.Position.to(position);
 
 		return asPromise<vscode.CompletionItem[] | vscode.CompletionList>(
@@ -654,7 +654,7 @@ class SuggestAdapter {
 				return suggestion;
 			}
 
-			const doc = this._documents.getDocumentData(resource).document;
+			const doc = this._documents.getDocument(resource);
 			const pos = typeConvert.Position.to(position);
 			const wordRangeBeforePos = (doc.getWordRangeAtPosition(pos) as Range || new Range(pos, pos)).with({ end: pos });
 			const newSuggestion = this._convertCompletionItem(resolvedItem, pos, wordRangeBeforePos, _id, _parentId);
@@ -741,7 +741,7 @@ class SignatureHelpAdapter {
 	) { }
 
 	provideSignatureHelp(resource: URI, position: IPosition, context: modes.SignatureHelpContext, token: CancellationToken): Promise<modes.SignatureHelp> {
-		const doc = this._documents.getDocumentData(resource).document;
+		const doc = this._documents.getDocument(resource);
 		const pos = typeConvert.Position.to(position);
 		const vscodeContext = this.reviveContext(context);
 
@@ -780,7 +780,7 @@ class LinkProviderAdapter {
 	) { }
 
 	provideLinks(resource: URI, token: CancellationToken): Promise<LinkDto[]> {
-		const doc = this._documents.getDocumentData(resource).document;
+		const doc = this._documents.getDocument(resource);
 
 		return asPromise(() => this._provider.provideDocumentLinks(doc, token)).then(links => {
 			if (!Array.isArray(links)) {
@@ -824,7 +824,7 @@ class ColorProviderAdapter {
 	) { }
 
 	provideColors(resource: URI, token: CancellationToken): Promise<IRawColorInfo[]> {
-		const doc = this._documents.getDocumentData(resource).document;
+		const doc = this._documents.getDocument(resource);
 		return asPromise(() => this._provider.provideDocumentColors(doc, token)).then(colors => {
 			if (!Array.isArray(colors)) {
 				return [];
@@ -842,7 +842,7 @@ class ColorProviderAdapter {
 	}
 
 	provideColorPresentations(resource: URI, raw: IRawColorInfo, token: CancellationToken): Promise<modes.IColorPresentation[]> {
-		const document = this._documents.getDocumentData(resource).document;
+		const document = this._documents.getDocument(resource);
 		const range = typeConvert.Range.to(raw.range);
 		const color = typeConvert.Color.to(raw.color);
 		return asPromise(() => this._provider.provideColorPresentations(color, { document, range }, token)).then(value => {
@@ -859,7 +859,7 @@ class FoldingProviderAdapter {
 	) { }
 
 	provideFoldingRanges(resource: URI, context: modes.FoldingContext, token: CancellationToken): Promise<modes.FoldingRange[]> {
-		const doc = this._documents.getDocumentData(resource).document;
+		const doc = this._documents.getDocument(resource);
 		return asPromise(() => this._provider.provideFoldingRanges(doc, context, token)).then(ranges => {
 			if (!Array.isArray(ranges)) {
 				return undefined;

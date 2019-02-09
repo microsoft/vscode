@@ -67,6 +67,14 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 		return undefined;
 	}
 
+	public getDocument(resource: vscode.Uri): vscode.TextDocument {
+		const data = this.getDocumentData(resource);
+		if (!data || !data.document) {
+			throw new Error('Unable to retrieve document from URI');
+		}
+		return data.document;
+	}
+
 	public ensureDocumentData(uri: URI): Promise<ExtHostDocumentData> {
 
 		let cached = this._documentsAndEditors.getDocument(uri.toString());
