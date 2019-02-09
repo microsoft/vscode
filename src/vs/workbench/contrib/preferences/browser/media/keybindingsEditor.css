@@ -123,18 +123,6 @@
 	align-items: center;
 	display: flex;
 	overflow: hidden;
-	margin-right: 6px;
-}
-
-.keybindings-editor > .keybindings-body > .keybindings-list-header > .actions,
-.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .actions {
-	width: 24px;
-	padding-right: 2px;
-}
-
-.keybindings-editor > .keybindings-body > .keybindings-list-header > .command,
-.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .command {
-	flex: 0.75;
 }
 
 .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .command.vertical-align-column {
@@ -148,11 +136,6 @@
 	margin-top: 2px;
 }
 
-.keybindings-editor > .keybindings-body > .keybindings-list-header > .keybinding,
-.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .keybinding {
-	flex: 0.5;
-}
-
 .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .keybinding .monaco-highlighted-label {
 	padding-left: 10px;
 }
@@ -160,11 +143,6 @@
 .keybindings-editor > .keybindings-body > .keybindings-list-header > .source,
 .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .source {
 	flex: 0 0 100px;
-}
-
-.keybindings-editor > .keybindings-body > .keybindings-list-header > .when,
-.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .when {
-	flex: 1;
 }
 
 .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row > .when .empty {

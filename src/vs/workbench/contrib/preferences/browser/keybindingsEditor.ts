@@ -57,6 +57,9 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	private _onDefineWhenExpression: Emitter<IKeybindingItemEntry> = this._register(new Emitter<IKeybindingItemEntry>());
 	readonly onDefineWhenExpression: Event<IKeybindingItemEntry> = this._onDefineWhenExpression.event;
 
+	private _onLayout: Emitter<void> = this._register(new Emitter<void>());
+	readonly onLayout: Event<void> = this._onLayout.event;
+
 	private keybindingsEditorModel: KeybindingsEditorModel;
 
 	private headerContainer: HTMLElement;
@@ -66,6 +69,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	private overlayContainer: HTMLElement;
 	private defineKeybindingWidget: DefineKeybindingWidget;
 
+	private columns: HTMLElement[] = [];
 	private keybindingsListContainer: HTMLElement;
 	private unAssignedKeybindingItemToRevealAndFocus: IKeybindingItemEntry;
 	private listEntries: IListEntry[];
@@ -139,6 +143,23 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.defineKeybindingWidget.layout(this.dimension);
 
 		this.layoutKeybindingsList();
+		this._onLayout.fire();
+	}
+
+	layoutColumns(columns: HTMLElement[]): void {
+		if (this.dimension) {
+			const marginRight = 6;
+			columns[0].style.width = '24px';
+			const width = this.dimension.width - 30;
+			columns[1].style.width = `${(width * 0.3) - marginRight}px`;
+			columns[2].style.width = `${(width * 0.2) - marginRight}px`;
+			columns[3].style.width = `${(width * 0.5) - marginRight}px`;
+			columns[4].style.width = `${(width * 0.1) - marginRight}px`;
+
+			for (const column of columns) {
+				column.style.marginRight = `${marginRight}px`;
+			}
+		}
 	}
 
 	focus(): void {
@@ -411,12 +432,12 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		const keybindingsListHeader = DOM.append(parent, $('.keybindings-list-header'));
 		keybindingsListHeader.style.height = '30px';
 		keybindingsListHeader.style.lineHeight = '30px';
-		DOM.append(keybindingsListHeader,
-			$('.header.actions'),
-			$('.header.command', undefined, localize('command', "Command")),
-			$('.header.keybinding', undefined, localize('keybinding', "Keybinding")),
-			$('.header.when', undefined, localize('when', "When")),
-			$('.header.source', undefined, localize('source', "Source")));
+		this.columns.push($('.header.actions'));
+		this.columns.push($('.header.command', undefined, localize('command', "Command")));
+		this.columns.push($('.header.keybinding', undefined, localize('keybinding', "Keybinding")));
+		this.columns.push($('.header.when', undefined, localize('when', "When")));
+		this.columns.push($('.header.source', undefined, localize('source', "Source")));
+		DOM.append(keybindingsListHeader, ...this.columns);
 	}
 
 	private createList(parent: HTMLElement): void {
@@ -527,6 +548,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	}
 
 	private layoutKeybindingsList(): void {
+		this.layoutColumns(this.columns);
 		const listHeight = this.dimension.height - (DOM.getDomNodePagePosition(this.headerContainer).height + 12 /*padding*/ + 30 /*list header*/);
 		this.keybindingsListContainer.style.height = `${listHeight}px`;
 		this.keybindingsList.layout(listHeight);
@@ -740,11 +762,8 @@ class Delegate implements IListVirtualDelegate<IListEntry> {
 
 interface KeybindingItemTemplate {
 	parent: HTMLElement;
-	actions: ActionsColumn;
-	command: CommandColumn;
-	keybinding: KeybindingColumn;
-	source: SourceColumn;
-	when: WhenColumn;
+	columns: Column[];
+	disposable: IDisposable;
 }
 
 class KeybindingItemRenderer implements IListRenderer<IKeybindingItemEntry, KeybindingItemTemplate> {
@@ -756,45 +775,48 @@ class KeybindingItemRenderer implements IListRenderer<IKeybindingItemEntry, Keyb
 		private instantiationService: IInstantiationService
 	) { }
 
-	renderTemplate(container: HTMLElement): KeybindingItemTemplate {
-		DOM.addClass(container, 'keybinding-item');
-		const actions = this.instantiationService.createInstance(ActionsColumn, container, this.keybindingsEditor);
-		const command = this.instantiationService.createInstance(CommandColumn, container, this.keybindingsEditor);
-		const keybinding = this.instantiationService.createInstance(KeybindingColumn, container, this.keybindingsEditor);
-		const when = this.instantiationService.createInstance(WhenColumn, container, this.keybindingsEditor);
-		const source = this.instantiationService.createInstance(SourceColumn, container, this.keybindingsEditor);
-		container.setAttribute('aria-labelledby', [command.element.getAttribute('id'), keybinding.element.getAttribute('id'), when.element.getAttribute('id'), source.element.getAttribute('id')].join(' '));
+	renderTemplate(parent: HTMLElement): KeybindingItemTemplate {
+		DOM.addClass(parent, 'keybinding-item');
+
+		const actions = this.instantiationService.createInstance(ActionsColumn, parent, this.keybindingsEditor);
+		const command = this.instantiationService.createInstance(CommandColumn, parent, this.keybindingsEditor);
+		const keybinding = this.instantiationService.createInstance(KeybindingColumn, parent, this.keybindingsEditor);
+		const when = this.instantiationService.createInstance(WhenColumn, parent, this.keybindingsEditor);
+		const source = this.instantiationService.createInstance(SourceColumn, parent, this.keybindingsEditor);
+
+		const columns: Column[] = [actions, command, keybinding, when, source];
+		const disposables: IDisposable[] = [...columns];
+		const elements = columns.map(({ element }) => element);
+
+		this.keybindingsEditor.layoutColumns(elements);
+		this.keybindingsEditor.onLayout(() => this.keybindingsEditor.layoutColumns(elements));
+		parent.setAttribute('aria-labelledby', elements.map(e => e.getAttribute('id')).join(' '));
+
 		return {
-			parent: container,
-			actions,
-			command,
-			keybinding,
-			source,
-			when
+			parent,
+			columns,
+			disposable: toDisposable(() => dispose(disposables))
 		};
 	}
 
 	renderElement(keybindingEntry: IKeybindingItemEntry, index: number, template: KeybindingItemTemplate): void {
 		DOM.toggleClass(template.parent, 'odd', index % 2 === 1);
-		template.actions.render(keybindingEntry);
-		template.command.render(keybindingEntry);
-		template.keybinding.render(keybindingEntry);
-		template.source.render(keybindingEntry);
-		template.when.render(keybindingEntry);
+		for (const column of template.columns) {
+			column.render(keybindingEntry);
+		}
 	}
 
 	disposeTemplate(template: KeybindingItemTemplate): void {
-		template.actions.dispose();
-		template.command.dispose();
-		template.keybinding.dispose();
-		template.source.dispose();
-		template.when.dispose();
+		template.disposable.dispose();
 	}
 }
 
 abstract class Column extends Disposable {
 
 	static COUNTER = 0;
+
+	abstract readonly element: HTMLElement;
+	abstract render(keybindingItemEntry: IKeybindingItemEntry): void;
 
 	constructor(protected keybindingsEditor: IKeybindingsEditor) {
 		super();
