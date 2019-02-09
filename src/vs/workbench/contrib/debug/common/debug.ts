@@ -244,7 +244,7 @@ export interface IThread extends ITreeElement {
 	/**
 	 * Information about the exception if an 'exception' stopped event raised and DA supports the 'exceptionInfo' request, otherwise null.
 	 */
-	readonly exceptionInfo: Promise<IExceptionInfo>;
+	readonly exceptionInfo: Promise<IExceptionInfo | null>;
 
 	/**
 	 * Gets the callstack if it has already been received from the debug
@@ -321,7 +321,7 @@ export interface IBaseBreakpoint extends IEnablement {
 	readonly hitCondition: string;
 	readonly logMessage: string;
 	readonly verified: boolean;
-	readonly idFromAdapter: number;
+	readonly idFromAdapter: number | undefined;
 }
 
 export interface IBreakpoint extends IBaseBreakpoint {
@@ -330,7 +330,7 @@ export interface IBreakpoint extends IBaseBreakpoint {
 	readonly endLineNumber?: number;
 	readonly column: number;
 	readonly endColumn?: number;
-	readonly message: string;
+	readonly message?: string;
 	readonly adapterData: any;
 }
 
@@ -346,7 +346,7 @@ export interface IExceptionBreakpoint extends IEnablement {
 export interface IExceptionInfo {
 	readonly id?: string;
 	readonly description?: string;
-	readonly breakMode: string;
+	readonly breakMode: string | null;
 	readonly details?: DebugProtocol.ExceptionDetails;
 }
 
@@ -394,7 +394,7 @@ export interface IDebugModel extends ITreeElement {
 
 	onDidChangeBreakpoints: Event<IBreakpointsChangeEvent>;
 	onDidChangeCallStack: Event<void>;
-	onDidChangeWatchExpressions: Event<IExpression>;
+	onDidChangeWatchExpressions: Event<IExpression | undefined>;
 }
 
 /**
