@@ -56,7 +56,7 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 		return this._documentsAndEditors.allDocuments();
 	}
 
-	public getDocumentData(resource: vscode.Uri): ExtHostDocumentData {
+	public getDocumentData(resource: vscode.Uri): ExtHostDocumentData | undefined {
 		if (!resource) {
 			return undefined;
 		}

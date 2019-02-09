@@ -81,13 +81,13 @@ class ExtensionMemento implements IExtensionMemento {
 
 class ExtensionStoragePath {
 
-	private readonly _workspace: IStaticWorkspaceData;
+	private readonly _workspace?: IStaticWorkspaceData;
 	private readonly _environment: IEnvironment;
 
-	private readonly _ready: Promise<string>;
-	private _value: string;
+	private readonly _ready: Promise<string | undefined>;
+	private _value?: string;
 
-	constructor(workspace: IStaticWorkspaceData, environment: IEnvironment) {
+	constructor(workspace: IStaticWorkspaceData | undefined, environment: IEnvironment) {
 		this._workspace = workspace;
 		this._environment = environment;
 		this._ready = this._getOrCreateWorkspaceStoragePath().then(value => this._value = value);
@@ -97,7 +97,7 @@ class ExtensionStoragePath {
 		return this._ready;
 	}
 
-	workspaceValue(extension: IExtensionDescription): string {
+	workspaceValue(extension: IExtensionDescription): string | undefined {
 		if (this._value) {
 			return path.join(this._value, extension.identifier.value);
 		}
@@ -108,7 +108,7 @@ class ExtensionStoragePath {
 		return path.join(this._environment.globalStorageHome.fsPath, extension.identifier.value.toLowerCase());
 	}
 
-	private async _getOrCreateWorkspaceStoragePath(): Promise<string> {
+	private async _getOrCreateWorkspaceStoragePath(): Promise<string | undefined> {
 		if (!this._workspace) {
 			return Promise.resolve(undefined);
 		}
@@ -493,7 +493,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		return this._handleWorkspaceContainsEagerExtensions(workspaceProvider.workspace);
 	}
 
-	private _handleWorkspaceContainsEagerExtensions(workspace: IWorkspace): Promise<void> {
+	private _handleWorkspaceContainsEagerExtensions(workspace: IWorkspace | undefined): Promise<void> {
 		if (!workspace || workspace.folders.length === 0) {
 			return Promise.resolve(undefined);
 		}
@@ -567,7 +567,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 				.then(undefined, err => console.error(err));
 		}, ExtHostExtensionService.WORKSPACE_CONTAINS_TIMEOUT);
 
-		let exists: boolean;
+		let exists: boolean = false;
 		try {
 			exists = await searchP;
 		} catch (err) {
@@ -608,8 +608,8 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		}
 
 		// Require the test runner via node require from the provided path
-		let testRunner: ITestRunner;
-		let requireError: Error;
+		let testRunner: ITestRunner | undefined;
+		let requireError: Error | undefined;
 		try {
 			testRunner = <any>require.__$__nodeRequire(this._initData.environment.extensionTestsPath);
 		} catch (error) {
@@ -619,7 +619,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		// Execute the runner if it follows our spec
 		if (testRunner && typeof testRunner.run === 'function') {
 			return new Promise<void>((c, e) => {
-				testRunner.run(this._initData.environment.extensionTestsPath, (error, failures) => {
+				testRunner!.run(this._initData.environment.extensionTestsPath, (error, failures) => {
 					if (error) {
 						e(error.toString());
 					} else {

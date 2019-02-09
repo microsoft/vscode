@@ -499,7 +499,7 @@ class RenameAdapter {
 		private readonly _provider: vscode.RenameProvider
 	) { }
 
-	provideRenameEdits(resource: URI, position: IPosition, newName: string, token: CancellationToken): Promise<WorkspaceEditDto> {
+	provideRenameEdits(resource: URI, position: IPosition, newName: string, token: CancellationToken): Promise<WorkspaceEditDto | undefined> {
 
 		let doc = this._documents.getDocumentData(resource).document;
 		let pos = typeConvert.Position.to(position);
@@ -520,7 +520,7 @@ class RenameAdapter {
 		});
 	}
 
-	resolveRenameLocation(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.RenameLocation & modes.Rejection> {
+	resolveRenameLocation(resource: URI, position: IPosition, token: CancellationToken): Promise<(modes.RenameLocation & modes.Rejection) | undefined> {
 		if (typeof this._provider.prepareRename !== 'function') {
 			return Promise.resolve(undefined);
 		}
@@ -530,7 +530,7 @@ class RenameAdapter {
 
 		return asPromise(() => this._provider.prepareRename(doc, pos, token)).then(rangeOrLocation => {
 
-			let range: vscode.Range;
+			let range: vscode.Range | undefined;
 			let text: string;
 			if (Range.isRange(rangeOrLocation)) {
 				range = rangeOrLocation;
@@ -670,7 +670,7 @@ class SuggestAdapter {
 		this._cache.delete(id);
 	}
 
-	private _convertCompletionItem(item: vscode.CompletionItem, position: vscode.Position, defaultRange: vscode.Range, _id: number, _parentId: number): SuggestionDto {
+	private _convertCompletionItem(item: vscode.CompletionItem, position: vscode.Position, defaultRange: vscode.Range, _id: number, _parentId: number): SuggestionDto | undefined {
 		if (typeof item.label !== 'string' || item.label.length === 0) {
 			console.warn('INVALID text edit -> must have at least a label');
 			return undefined;
@@ -930,7 +930,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	private static _handlePool: number = 0;
 
-	private readonly _schemeTransformer: ISchemeTransformer;
+	private readonly _schemeTransformer: ISchemeTransformer | null;
 	private _proxy: MainThreadLanguageFeaturesShape;
 	private _documents: ExtHostDocuments;
 	private _commands: ExtHostCommands;
@@ -941,7 +941,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	constructor(
 		mainContext: IMainContext,
-		schemeTransformer: ISchemeTransformer,
+		schemeTransformer: ISchemeTransformer | null,
 		documents: ExtHostDocuments,
 		commands: ExtHostCommands,
 		heapMonitor: ExtHostHeapService,

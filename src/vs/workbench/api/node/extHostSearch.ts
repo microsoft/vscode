@@ -35,12 +35,12 @@ export class ExtHostSearch implements ExtHostSearchShape {
 	private _handlePool: number = 0;
 
 	private _internalFileSearchHandle: number;
-	private _internalFileSearchProvider: SearchService;
+	private _internalFileSearchProvider: SearchService | null;
 
 	private _fileSearchManager: FileSearchManager;
 	private _fileIndexSearchManager: FileIndexSearchManager;
 
-	constructor(mainContext: IMainContext, private _schemeTransformer: ISchemeTransformer, private _logService: ILogService, private _extfs = extfs) {
+	constructor(mainContext: IMainContext, private _schemeTransformer: ISchemeTransformer | null, private _logService: ILogService, private _extfs = extfs) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadSearch);
 		this._fileSearchManager = new FileSearchManager();
 		this._fileIndexSearchManager = new FileIndexSearchManager();

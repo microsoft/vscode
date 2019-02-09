@@ -655,7 +655,7 @@ export interface ExtHostDiagnosticsShape {
 }
 
 export interface ExtHostDocumentContentProvidersShape {
-	$provideTextDocumentContent(handle: number, uri: UriComponents): Promise<string>;
+	$provideTextDocumentContent(handle: number, uri: UriComponents): Promise<string | null | undefined>;
 }
 
 export interface IModelAddedData {
@@ -961,7 +961,7 @@ export interface ExtHostTerminalServiceShape {
 }
 
 export interface ExtHostSCMShape {
-	$provideOriginalResource(sourceControlHandle: number, uri: UriComponents, token: CancellationToken): Promise<UriComponents>;
+	$provideOriginalResource(sourceControlHandle: number, uri: UriComponents, token: CancellationToken): Promise<UriComponents | null>;
 	$onInputBoxValueChange(sourceControlHandle: number, value: string): void;
 	$executeResourceCommand(sourceControlHandle: number, groupHandle: number, handle: number): Promise<void>;
 	$validateInput(sourceControlHandle: number, value: string, cursorPosition: number): Promise<[string, number] | undefined>;
