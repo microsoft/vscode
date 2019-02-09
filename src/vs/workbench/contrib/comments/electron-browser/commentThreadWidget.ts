@@ -358,6 +358,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 					}
 				} else {
 					this.dispose();
+					return;
 				}
 			}
 
