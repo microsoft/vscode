@@ -190,6 +190,9 @@ export class ToggleScreencastModeAction extends Action {
 			} else {
 				keyboardMarker.textContent = label;
 			}
+			while (keyboardMarker.scrollHeight > keyboardMarker.clientHeight) {
+				keyboardMarker.textContent = keyboardMarker.textContent.slice(1);
+			}
 
 			keyboardMarker.style.display = 'block';
 
