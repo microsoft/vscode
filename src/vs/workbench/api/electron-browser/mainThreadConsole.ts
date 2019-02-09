@@ -9,7 +9,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IRemoteConsoleLog, log, parse } from 'vs/base/node/console';
 import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/electron-browser/extensionHost';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { IBroadcastService } from 'vs/platform/broadcast/electron-browser/broadcastService';
+import { IBroadcastService } from 'vs/workbench/services/broadcast/electron-browser/broadcastService';
 import { EXTENSION_LOG_BROADCAST_CHANNEL } from 'vs/platform/extensions/common/extensionHost';
 
 @extHostNamedCustomer(MainContext.MainThreadConsole)

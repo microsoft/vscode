@@ -8,7 +8,7 @@ import { getTotalHeight, getTotalWidth } from 'vs/base/browser/dom';
 import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { IBroadcastService } from 'vs/platform/broadcast/electron-browser/broadcastService';
+import { IBroadcastService } from 'vs/workbench/services/broadcast/electron-browser/broadcastService';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
