@@ -659,7 +659,7 @@ export namespace CompletionContext {
 
 export namespace CompletionItemKind {
 
-	export function from(kind: types.CompletionItemKind): modes.CompletionItemKind {
+	export function from(kind: types.CompletionItemKind | undefined): modes.CompletionItemKind {
 		switch (kind) {
 			case types.CompletionItemKind.Method: return modes.CompletionItemKind.Method;
 			case types.CompletionItemKind.Function: return modes.CompletionItemKind.Function;
@@ -812,7 +812,7 @@ export namespace DocumentLink {
 	}
 
 	export function to(link: modes.ILink): vscode.DocumentLink {
-		return new types.DocumentLink(Range.to(link.range), link.url && URI.parse(link.url));
+		return new types.DocumentLink(Range.to(link.range), link.url ? URI.parse(link.url) : undefined);
 	}
 }
 

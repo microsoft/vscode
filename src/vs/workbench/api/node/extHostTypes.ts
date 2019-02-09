@@ -1365,9 +1365,9 @@ export class DocumentLink {
 
 	range: Range;
 
-	target: URI;
+	target?: URI;
 
-	constructor(range: Range, target: URI) {
+	constructor(range: Range, target: URI | undefined) {
 		if (target && !(target instanceof URI)) {
 			throw illegalArgument('target');
 		}
