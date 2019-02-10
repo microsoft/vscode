@@ -140,11 +140,6 @@
 	padding-left: 10px;
 }
 
-.keybindings-editor > .keybindings-body > .keybindings-list-header > .source,
-.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .source {
-	flex: 0 0 100px;
-}
-
 .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row > .when .empty {
 	padding-left: 4px;
 }

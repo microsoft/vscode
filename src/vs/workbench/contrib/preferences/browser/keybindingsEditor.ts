@@ -50,6 +50,12 @@ import { Emitter, Event } from 'vs/base/common/event';
 
 const $ = DOM.$;
 
+interface ColumnItem {
+	column: HTMLElement;
+	proportion?: number;
+	width: number;
+}
+
 export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor {
 
 	static readonly ID: string = 'workbench.editor.keybindings';
@@ -69,7 +75,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	private overlayContainer: HTMLElement;
 	private defineKeybindingWidget: DefineKeybindingWidget;
 
-	private columns: HTMLElement[] = [];
+	private columnItems: ColumnItem[] = [];
 	private keybindingsListContainer: HTMLElement;
 	private unAssignedKeybindingItemToRevealAndFocus: IKeybindingItemEntry;
 	private listEntries: IListEntry[];
@@ -142,23 +148,21 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.overlayContainer.style.height = dimension.height + 'px';
 		this.defineKeybindingWidget.layout(this.dimension);
 
+		this.columnItems.forEach(columnItem => {
+			if (columnItem.proportion) {
+				columnItem.width = 0;
+			}
+		});
 		this.layoutKeybindingsList();
 		this._onLayout.fire();
 	}
 
 	layoutColumns(columns: HTMLElement[]): void {
-		if (this.dimension) {
-			const marginRight = 6;
-			columns[0].style.width = '24px';
-			const width = this.dimension.width - 30;
-			columns[1].style.width = `${(width * 0.3) - marginRight}px`;
-			columns[2].style.width = `${(width * 0.2) - marginRight}px`;
-			columns[3].style.width = `${(width * 0.5) - marginRight}px`;
-			columns[4].style.width = `${(width * 0.1) - marginRight}px`;
-
-			for (const column of columns) {
-				column.style.marginRight = `${marginRight}px`;
-			}
+		if (this.columnItems) {
+			columns.forEach((column, index) => {
+				column.style.paddingRight = `6px`;
+				column.style.width = `${this.columnItems[index].width}px`;
+			});
 		}
 	}
 
@@ -432,12 +436,24 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		const keybindingsListHeader = DOM.append(parent, $('.keybindings-list-header'));
 		keybindingsListHeader.style.height = '30px';
 		keybindingsListHeader.style.lineHeight = '30px';
-		this.columns.push($('.header.actions'));
-		this.columns.push($('.header.command', undefined, localize('command', "Command")));
-		this.columns.push($('.header.keybinding', undefined, localize('keybinding', "Keybinding")));
-		this.columns.push($('.header.when', undefined, localize('when', "When")));
-		this.columns.push($('.header.source', undefined, localize('source', "Source")));
-		DOM.append(keybindingsListHeader, ...this.columns);
+
+		this.columnItems = [];
+		let column = $('.header.actions');
+		this.columnItems.push({ column, width: 30 });
+
+		column = $('.header.command', undefined, localize('command', "Command"));
+		this.columnItems.push({ column, proportion: 0.3, width: 0 });
+
+		column = $('.header.keybinding', undefined, localize('keybinding', "Keybinding"));
+		this.columnItems.push({ column, proportion: 0.2, width: 0 });
+
+		column = $('.header.when', undefined, localize('when', "When"));
+		this.columnItems.push({ column, proportion: 0.4, width: 0 });
+
+		column = $('.header.source', undefined, localize('source', "Source"));
+		this.columnItems.push({ column, proportion: 0.1, width: 0 });
+
+		DOM.append(keybindingsListHeader, ...this.columnItems.map(({ column }) => column));
 	}
 
 	private createList(parent: HTMLElement): void {
@@ -548,7 +564,19 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	}
 
 	private layoutKeybindingsList(): void {
-		this.layoutColumns(this.columns);
+		let width = this.dimension.width - 27;
+		for (const columnItem of this.columnItems) {
+			if (columnItem.width && !columnItem.proportion) {
+				width = width - columnItem.width;
+			}
+		}
+		for (const columnItem of this.columnItems) {
+			if (columnItem.proportion && !columnItem.width) {
+				columnItem.width = width * columnItem.proportion;
+			}
+		}
+
+		this.layoutColumns(this.columnItems.map(({ column }) => column));
 		const listHeight = this.dimension.height - (DOM.getDomNodePagePosition(this.headerContainer).height + 12 /*padding*/ + 30 /*list header*/);
 		this.keybindingsListContainer.style.height = `${listHeight}px`;
 		this.keybindingsList.layout(listHeight);
