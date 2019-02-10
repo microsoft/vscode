@@ -8,7 +8,7 @@ import * as types from 'vs/base/common/types';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { TextCompareEditorVisibleContext, EditorInput, IEditorIdentifier, IEditorCommandsContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, CloseDirection, IEditor, IEditorInput } from 'vs/workbench/common/editor';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, IActiveEditor } from 'vs/workbench/services/editor/common/editorService';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
@@ -113,7 +113,7 @@ function moveActiveEditor(args: ActiveEditorMoveArguments = Object.create(null),
 	}
 }
 
-function moveActiveTab(args: ActiveEditorMoveArguments, control: IEditor, accessor: ServicesAccessor): void {
+function moveActiveTab(args: ActiveEditorMoveArguments, control: IActiveEditor, accessor: ServicesAccessor): void {
 	const group = control.group;
 	let index = group.getIndexOfEditor(control.input);
 	switch (args.to) {
@@ -141,7 +141,7 @@ function moveActiveTab(args: ActiveEditorMoveArguments, control: IEditor, access
 	group.moveEditor(control.input, group, { index });
 }
 
-function moveActiveEditorToGroup(args: ActiveEditorMoveArguments, control: IEditor, accessor: ServicesAccessor): void {
+function moveActiveEditorToGroup(args: ActiveEditorMoveArguments, control: IActiveEditor, accessor: ServicesAccessor): void {
 	const editorGroupService = accessor.get(IEditorGroupsService);
 	const configurationService = accessor.get(IConfigurationService);
 
