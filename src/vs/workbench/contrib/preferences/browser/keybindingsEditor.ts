@@ -44,7 +44,6 @@ import { KeybindingsEditorInput } from 'vs/workbench/services/preferences/common
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { attachStylerCallback, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Emitter, Event } from 'vs/base/common/event';
 
@@ -106,8 +105,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		@IClipboardService private readonly clipboardService: IClipboardService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IStorageService storageService: IStorageService,
-		@IPreferencesService private readonly preferencesService: IPreferencesService
+		@IStorageService storageService: IStorageService
 	) {
 		super(KeybindingsEditor.ID, telemetryService, themeService, storageService);
 		this.delayedFiltering = new Delayer<void>(300);
@@ -381,8 +379,6 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		}));
 
 		this.actionBar.push([this.recordKeysAction, this.sortByPrecedenceAction, clearInputAction], { label: false, icon: true });
-
-		this.createOpenKeybindingsElement(this.headerContainer);
 	}
 
 	private createRecordingBadge(container: HTMLElement): HTMLElement {
@@ -400,24 +396,6 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			recordingBadge.style.color = color ? color.toString() : null;
 		}));
 		return recordingBadge;
-	}
-
-	private createOpenKeybindingsElement(parent: HTMLElement): void {
-		const openKeybindingsContainer = DOM.append(parent, $('.open-keybindings-container'));
-		DOM.append(openKeybindingsContainer, $('', undefined, localize('header-message', "For advanced customizations open and edit")));
-		const fileElement = DOM.append(openKeybindingsContainer, $('.file-name', undefined, localize('keybindings-file-name', "keybindings.json")));
-		fileElement.tabIndex = 0;
-		this._register(DOM.addDisposableListener(fileElement, DOM.EventType.CLICK, () => this.preferencesService.openGlobalKeybindingSettings(true)));
-		this._register(DOM.addDisposableListener(fileElement, DOM.EventType.KEY_UP, e => {
-			const keyboardEvent = new StandardKeyboardEvent(e);
-			switch (keyboardEvent.keyCode) {
-				case KeyCode.Enter:
-					this.preferencesService.openGlobalKeybindingSettings(true);
-					keyboardEvent.preventDefault();
-					keyboardEvent.stopPropagation();
-					return;
-			}
-		}));
 	}
 
 	private layoutSearchWidget(dimension: DOM.Dimension): void {
