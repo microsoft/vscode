@@ -120,7 +120,7 @@ suite('Editor service', () => {
 				assert.equal(visibleEditorChangeEventCounter, 1);
 
 				// Close input
-				return editor.group.closeEditor(input).then(() => {
+				return editor.group!.closeEditor(input).then(() => {
 					assert.equal(didCloseEditorListenerCounter, 1);
 					assert.equal(activeEditorChangeEventCounter, 2);
 					assert.equal(visibleEditorChangeEventCounter, 2);
@@ -260,7 +260,7 @@ suite('Editor service', () => {
 		class MyEditor extends BaseEditor {
 
 			constructor(id: string) {
-				super(id, null, new TestThemeService(), new TestStorageService());
+				super(id, undefined, new TestThemeService(), new TestStorageService());
 			}
 
 			getId(): string {
@@ -403,7 +403,7 @@ suite('Editor service', () => {
 
 		// 1.) open, open same, open other, close
 		let editor = await service.openEditor(input, { pinned: true });
-		const group = editor.group;
+		const group = editor.group!;
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
 
