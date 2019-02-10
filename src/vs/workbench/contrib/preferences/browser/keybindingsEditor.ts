@@ -203,10 +203,10 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this._onDefineWhenExpression.fire(keybindingEntry);
 	}
 
-	updateKeybinding(keybindingEntry: IKeybindingItemEntry, key: string, when: string): Promise<any> {
+	updateKeybinding(keybindingEntry: IKeybindingItemEntry, key: string, when: string | undefined): Promise<any> {
 		const currentKey = keybindingEntry.keybindingItem.keybinding ? keybindingEntry.keybindingItem.keybinding.getUserSettingsLabel() : '';
 		if (currentKey !== key || keybindingEntry.keybindingItem.when !== when) {
-			return this.keybindingEditingService.editKeybinding(keybindingEntry.keybindingItem.keybindingItem, key, when)
+			return this.keybindingEditingService.editKeybinding(keybindingEntry.keybindingItem.keybindingItem, key, when || undefined)
 				.then(() => {
 					if (!keybindingEntry.keybindingItem.keybinding) { // reveal only if keybinding was added to unassinged. Because the entry will be placed in different position after rendering
 						this.unAssignedKeybindingItemToRevealAndFocus = keybindingEntry;
