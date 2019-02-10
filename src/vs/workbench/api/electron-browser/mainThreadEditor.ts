@@ -187,7 +187,7 @@ export class MainThreadTextEditor {
 	private _focusTracker: IFocusTracker;
 	private _codeEditorListeners: IDisposable[];
 
-	private _properties: MainThreadTextEditorProperties | null;
+	private _properties: MainThreadTextEditorProperties;
 	private readonly _onPropertiesChanged: Emitter<IEditorPropertiesChangeData>;
 
 	constructor(
@@ -204,7 +204,6 @@ export class MainThreadTextEditor {
 		this._modelService = modelService;
 		this._codeEditorListeners = [];
 
-		this._properties = null;
 		this._onPropertiesChanged = new Emitter<IEditorPropertiesChangeData>();
 
 		this._modelListeners = [];
@@ -300,7 +299,7 @@ export class MainThreadTextEditor {
 		return !!this._codeEditor;
 	}
 
-	public getProperties(): MainThreadTextEditorProperties | null {
+	public getProperties(): MainThreadTextEditorProperties {
 		return this._properties;
 	}
 
@@ -316,7 +315,7 @@ export class MainThreadTextEditor {
 
 		const newSelections = selections.map(Selection.liftSelection);
 		this._setProperties(
-			new MainThreadTextEditorProperties(newSelections, this._properties!.options, this._properties!.visibleRanges),
+			new MainThreadTextEditorProperties(newSelections, this._properties.options, this._properties.visibleRanges),
 			null
 		);
 	}

@@ -198,7 +198,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	$registerHoverProvider(handle: number, selector: ISerializedDocumentFilter[]): void {
 		this._registrations[handle] = modes.HoverProviderRegistry.register(typeConverters.LanguageSelector.from(selector), <modes.HoverProvider>{
-			provideHover: (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<modes.Hover> => {
+			provideHover: (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<modes.Hover | undefined> => {
 				return this._proxy.$provideHover(handle, model.uri, position, token);
 			}
 		});
@@ -208,7 +208,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	$registerDocumentHighlightProvider(handle: number, selector: ISerializedDocumentFilter[]): void {
 		this._registrations[handle] = modes.DocumentHighlightProviderRegistry.register(typeConverters.LanguageSelector.from(selector), <modes.DocumentHighlightProvider>{
-			provideDocumentHighlights: (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<modes.DocumentHighlight[]> => {
+			provideDocumentHighlights: (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<modes.DocumentHighlight[] | undefined> => {
 				return this._proxy.$provideDocumentHighlights(handle, model.uri, position, token);
 			}
 		});
@@ -243,7 +243,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	$registerDocumentFormattingSupport(handle: number, selector: ISerializedDocumentFilter[], displayName: string): void {
 		this._registrations[handle] = modes.DocumentFormattingEditProviderRegistry.register(typeConverters.LanguageSelector.from(selector), <modes.DocumentFormattingEditProvider>{
 			displayName,
-			provideDocumentFormattingEdits: (model: ITextModel, options: modes.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[]> => {
+			provideDocumentFormattingEdits: (model: ITextModel, options: modes.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined> => {
 				return this._proxy.$provideDocumentFormattingEdits(handle, model.uri, options, token);
 			}
 		});
@@ -252,7 +252,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	$registerRangeFormattingSupport(handle: number, selector: ISerializedDocumentFilter[], displayName: string): void {
 		this._registrations[handle] = modes.DocumentRangeFormattingEditProviderRegistry.register(typeConverters.LanguageSelector.from(selector), <modes.DocumentRangeFormattingEditProvider>{
 			displayName,
-			provideDocumentRangeFormattingEdits: (model: ITextModel, range: EditorRange, options: modes.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[]> => {
+			provideDocumentRangeFormattingEdits: (model: ITextModel, range: EditorRange, options: modes.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined> => {
 				return this._proxy.$provideDocumentRangeFormattingEdits(handle, model.uri, range, options, token);
 			}
 		});
@@ -263,7 +263,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 			autoFormatTriggerCharacters,
 
-			provideOnTypeFormattingEdits: (model: ITextModel, position: EditorPosition, ch: string, options: modes.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[]> => {
+			provideOnTypeFormattingEdits: (model: ITextModel, position: EditorPosition, ch: string, options: modes.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined> => {
 				return this._proxy.$provideOnTypeFormattingEdits(handle, model.uri, position, ch, options, token);
 			}
 		});
@@ -272,7 +272,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	// --- navigate type
 
 	$registerNavigateTypeSupport(handle: number): void {
-		let lastResultId: number;
+		let lastResultId: number | undefined;
 		this._registrations[handle] = search.WorkspaceSymbolProviderRegistry.register(<search.IWorkspaceSymbolProvider>{
 			provideWorkspaceSymbols: (search: string, token: CancellationToken): Promise<search.IWorkspaceSymbol[]> => {
 				return this._proxy.$provideWorkspaceSymbols(handle, search, token).then(result => {
@@ -298,7 +298,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 				return this._proxy.$provideRenameEdits(handle, model.uri, position, newName, token).then(reviveWorkspaceEditDto);
 			},
 			resolveRenameLocation: supportResolveLocation
-				? (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<modes.RenameLocation> => this._proxy.$resolveRenameLocation(handle, model.uri, position, token)
+				? (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<modes.RenameLocation | undefined> => this._proxy.$resolveRenameLocation(handle, model.uri, position, token)
 				: undefined
 		});
 	}

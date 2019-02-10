@@ -443,7 +443,7 @@ export namespace TextEdit {
 
 	export function to(edit: modes.TextEdit): types.TextEdit {
 		const result = new types.TextEdit(Range.to(edit.range), edit.text);
-		result.newEol = typeof edit.eol === 'undefined' ? undefined : EndOfLine.to(edit.eol);
+		result.newEol = (typeof edit.eol === 'undefined' ? undefined : EndOfLine.to(edit.eol))!;
 		return result;
 	}
 }
@@ -457,7 +457,7 @@ export namespace WorkspaceEdit {
 			const [uri, uriOrEdits] = entry;
 			if (Array.isArray(uriOrEdits)) {
 				// text edits
-				const doc = documents ? documents.getDocument(uri.toString()) : undefined;
+				const doc = documents && uri ? documents.getDocument(uri.toString()) : undefined;
 				result.edits.push(<ResourceTextEditDto>{ resource: uri, modelVersionId: doc && doc.version, edits: uriOrEdits.map(TextEdit.from) });
 			} else {
 				// resource edits
@@ -986,6 +986,9 @@ export namespace GlobPattern {
 
 export namespace LanguageSelector {
 
+	export function from(selector: undefined): undefined;
+	export function from(selector: vscode.DocumentSelector): languageSelector.LanguageSelector;
+	export function from(selector: vscode.DocumentSelector | undefined): languageSelector.LanguageSelector | undefined;
 	export function from(selector: vscode.DocumentSelector | undefined): languageSelector.LanguageSelector | undefined {
 		if (!selector) {
 			return undefined;
@@ -997,7 +1000,7 @@ export namespace LanguageSelector {
 			return <languageSelector.LanguageFilter>{
 				language: selector.language,
 				scheme: selector.scheme,
-				pattern: GlobPattern.from(selector.pattern),
+				pattern: typeof selector.pattern === 'undefined' ? undefined : GlobPattern.from(selector.pattern),
 				exclusive: selector.exclusive
 			};
 		}
