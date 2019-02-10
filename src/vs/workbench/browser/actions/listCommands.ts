@@ -18,7 +18,7 @@ import { DataTree } from 'vs/base/browser/ui/tree/dataTree';
 import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
-function ensureDOMFocus(widget: ListWidget): void {
+function ensureDOMFocus(widget: ListWidget | undefined): void {
 	// it can happen that one of the commands is executed while
 	// DOM focus is within another focusable control within the
 	// list/tree item. therefor we should ensure that the
