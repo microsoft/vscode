@@ -109,7 +109,7 @@ import { ContextViewService } from 'vs/platform/contextview/browser/contextViewS
 import { WorkbenchThemeService } from 'vs/workbench/services/themes/electron-browser/workbenchThemeService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { RemoteFileDialogService } from 'vs/workbench/services/dialogs/electron-browser/dialogService';
+import { FileDialogService } from 'vs/workbench/services/dialogs/electron-browser/dialogService';
 import { LogStorageAction } from 'vs/platform/storage/node/storageService';
 import { Sizing, Direction, Grid, View } from 'vs/base/browser/ui/grid/grid';
 import { IEditor } from 'vs/editor/common/editorCommon';
@@ -425,7 +425,7 @@ export class Workbench extends Disposable implements IPartService {
 		serviceCollection.set(IHistoryService, new SyncDescriptor(HistoryService));
 
 		// File Dialogs
-		serviceCollection.set(IFileDialogService, new SyncDescriptor(RemoteFileDialogService));
+		serviceCollection.set(IFileDialogService, new SyncDescriptor(FileDialogService));
 
 		// Backup File Service
 		if (this.workbenchParams.configuration.backupPath) {
