@@ -221,13 +221,15 @@ export function provideSelectionRanges(model: ITextModel, positions: Position[],
 
 	let work: Promise<any>[] = [];
 	let allRawRanges: Range[][] = [];
-	arrays.fill(positions.length, [], allRawRanges);
 
 	for (const provider of providers) {
 
 		work.push(Promise.resolve(provider.provideSelectionRanges(model, positions, token)).then(allProviderRanges => {
 			if (arrays.isNonEmptyArray(allProviderRanges) && allProviderRanges.length === positions.length) {
 				for (let i = 0; i < positions.length; i++) {
+					if (!allRawRanges[i]) {
+						allRawRanges[i] = [];
+					}
 					for (const oneProviderRanges of allProviderRanges[i]) {
 						if (Range.isIRange(oneProviderRanges.range) && Range.containsPosition(oneProviderRanges.range, positions[i])) {
 							allRawRanges[i].push(Range.lift(oneProviderRanges.range));
