@@ -30,7 +30,7 @@ export interface IPanelService {
 	/**
 	 * Returns the current active panel or null if none
 	 */
-	getActivePanel(): IPanel;
+	getActivePanel(): IPanel | null;
 
 	/**
 	 * * Returns all built-in panels following the default order (Problems - Output - Debug Console - Terminal)
