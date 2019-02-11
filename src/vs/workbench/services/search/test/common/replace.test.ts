@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { ReplacePattern } from 'vs/platform/search/common/replace';
+import { ReplacePattern } from 'vs/workbench/services/search/common/replace';
 
 suite('Replace Pattern test', () => {
 

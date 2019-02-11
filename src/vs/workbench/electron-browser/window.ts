@@ -33,7 +33,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { LifecyclePhase, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
-import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
+import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
 import { AccessibilitySupport, isRootUser, isWindows, isMacintosh, isLinux } from 'vs/base/common/platform';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';

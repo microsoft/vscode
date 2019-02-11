@@ -18,7 +18,7 @@ import { createSyncDescriptor } from 'vs/platform/instantiation/common/descripto
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ISearchService } from 'vs/platform/search/common/search';
+import { ISearchService } from 'vs/workbench/services/search/common/search';
 import { ITelemetryInfo, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';

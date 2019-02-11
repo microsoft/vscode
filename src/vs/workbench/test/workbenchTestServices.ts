@@ -236,6 +236,10 @@ export class TestTextFileService extends TextFileService {
 		return Promise.resolve(this.confirmResult);
 	}
 
+	public confirmOverwrite(_resource: URI): Promise<boolean> {
+		return Promise.resolve(true);
+	}
+
 	public onFilesConfigurationChange(configuration: any): void {
 		super.onFilesConfigurationChange(configuration);
 	}
@@ -799,7 +803,7 @@ export class TestFileService implements IFileService {
 	}
 
 	existsFile(_resource: URI): Promise<boolean> {
-		throw new Error('not implemented');
+		return Promise.resolve(true);
 	}
 
 	resolveContent(resource: URI, _options?: IResolveContentOptions): Promise<IContent> {

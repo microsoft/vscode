@@ -8,7 +8,7 @@ import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as extfs from 'vs/base/node/extfs';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IFileQuery, IFolderQuery, IRawFileQuery, IRawQuery, IRawTextQuery, ISearchCompleteStats, ITextQuery } from 'vs/platform/search/common/search';
+import { IFileQuery, IFolderQuery, IRawFileQuery, IRawQuery, IRawTextQuery, ISearchCompleteStats, ITextQuery } from 'vs/workbench/services/search/common/search';
 import { FileIndexSearchManager } from 'vs/workbench/api/node/extHostSearch.fileIndex';
 import { FileSearchManager } from 'vs/workbench/services/search/node/fileSearchManager';
 import { SearchService } from 'vs/workbench/services/search/node/rawSearchService';
