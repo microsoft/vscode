@@ -10,6 +10,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, IActionOptions, registerEditorAction, registerEditorContribution, ServicesAccessor, registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ITextModel } from 'vs/editor/common/model';
@@ -53,7 +54,7 @@ class SmartSelectController implements IEditorContribution {
 
 	private readonly _editor: ICodeEditor;
 
-	private _state?: SelectionRanges;
+	private _state?: SelectionRanges[];
 	private _selectionListener?: IDisposable;
 	private _ignoreSelection: boolean = false;
 
@@ -74,7 +75,7 @@ class SmartSelectController implements IEditorContribution {
 			return;
 		}
 
-		const selection = this._editor.getSelection();
+		const selections = this._editor.getSelections();
 		const model = this._editor.getModel();
 
 		if (!modes.SelectionRangeRegistry.has(model)) {
@@ -85,25 +86,27 @@ class SmartSelectController implements IEditorContribution {
 		let promise: Promise<void> = Promise.resolve(undefined);
 
 		if (!this._state) {
-			promise = provideSelectionRanges(model, selection.getPosition(), CancellationToken.None).then(ranges => {
-				if (!arrays.isNonEmptyArray(ranges)) {
+			promise = provideSelectionRangesN(model, selections.map(s => s.getPosition()), CancellationToken.None).then(ranges => {
+				if (!arrays.isNonEmptyArray(ranges) || ranges.length !== selections.length) {
 					// invalid result
 					return;
 				}
-				if (!this._editor.hasModel() || !this._editor.getSelection().equalsSelection(selection)) {
+				if (!this._editor.hasModel() || !arrays.equals(this._editor.getSelections(), selections, (a, b) => a.equalsSelection(b))) {
 					// invalid editor state
 					return;
 				}
 
-				ranges = ranges.filter(range => {
-					// filter ranges inside the selection
-					return range.containsPosition(selection.getStartPosition()) && range.containsPosition(selection.getEndPosition());
-				});
+				for (let i = 0; i < ranges.length; i++) {
+					ranges[i] = ranges[i].filter(range => {
+						// filter ranges inside the selection
+						return range.containsPosition(selections[i].getStartPosition()) && range.containsPosition(selections[i].getEndPosition());
+					});
+					// prepend current selection
+					ranges[i].unshift(selections[i]);
+				}
 
-				// prepend current selection
-				ranges.unshift(selection);
 
-				this._state = new SelectionRanges(0, ranges);
+				this._state = ranges.map(ranges => new SelectionRanges(0, ranges));
 
 				// listen to caret move and forget about state
 				dispose(this._selectionListener);
@@ -121,11 +124,11 @@ class SmartSelectController implements IEditorContribution {
 				// no state
 				return;
 			}
-			this._state = this._state.mov(forward);
-			const selection = this._state.ranges[this._state.index];
+			this._state = this._state.map(state => state.mov(forward));
+			const selections = this._state.map(state => Selection.fromPositions(state.ranges[state.index].getStartPosition(), state.ranges[state.index].getEndPosition()));
 			this._ignoreSelection = true;
 			try {
-				this._editor.setSelection(selection);
+				this._editor.setSelections(selections);
 			} finally {
 				this._ignoreSelection = false;
 			}
@@ -290,6 +293,12 @@ export function provideSelectionRanges(model: ITextModel, position: Position, to
 
 		return result2;
 	});
+}
+
+export function provideSelectionRangesN(model: ITextModel, position: Position[], token: CancellationToken): Promise<Range[][]> {
+	return Promise.all(position.map(pos => {
+		return provideSelectionRanges(model, pos, token);
+	}));
 }
 
 registerDefaultLanguageCommand('_executeSelectionRangeProvider', function (model, position) {
