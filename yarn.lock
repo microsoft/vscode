@@ -9380,10 +9380,10 @@ vscode-languageserver@^5.1.0:
     vscode-languageserver-protocol "3.13.0"
     vscode-uri "^1.0.6"
 
-vscode-nls-dev@3.2.4:
-  version "3.2.4"
-  resolved "https://registry.yarnpkg.com/vscode-nls-dev/-/vscode-nls-dev-3.2.4.tgz#9eb92a539fb1ee675836b6aeab8a2846c281c8d9"
-  integrity sha512-mWERxHbifhuNZomuL3iRyw2LTwKnoKoA8fjWJrlfnbOUF9EN/tbDT0ly2GnOEvLRq0hzEzZNqKLWu0jXPDs7UA==
+vscode-nls-dev@3.2.5:
+  version "3.2.5"
+  resolved "https://registry.yarnpkg.com/vscode-nls-dev/-/vscode-nls-dev-3.2.5.tgz#bea2b6e0cae709c48144180585e1a511edc9fb8d"
+  integrity sha512-eiNkwDHgTjP1h23BCOmAlXbFVembGokALYIvID5LMBzYppOiJzN/rGatHBlThQl6lnHWv599UEre6/AbjioYYw==
   dependencies:
     ansi-colors "^3.2.3"
     clone "^2.1.1"
