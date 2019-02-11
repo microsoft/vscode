@@ -7,7 +7,7 @@ import { timeout } from 'vs/base/common/async';
 import * as errors from 'vs/base/common/errors';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Counter } from 'vs/base/common/numbers';
-import { URI } from 'vs/base/common/uri';
+import { URI, setUriThrowOnMissingScheme } from 'vs/base/common/uri';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
 import { IEnvironment, IInitData, MainContext, MainThreadConsoleShape } from 'vs/workbench/api/node/extHost.protocol';
@@ -20,7 +20,7 @@ import { RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
 
 // we don't (yet) throw when extensions parse
 // uris that have no scheme
-// setUriThrowOnMissingScheme(false);
+setUriThrowOnMissingScheme(false);
 
 const nativeExit = process.exit.bind(process);
 function patchProcess(allowExit: boolean) {
