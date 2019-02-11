@@ -3,7 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-shell {
+/* Font Families (with CJK support) */
+
+.mac { font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+.mac:lang(zh-Hans) { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", sans-serif; }
+.mac:lang(zh-Hant) { font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", sans-serif; }
+.mac:lang(ja) { font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic Pro", sans-serif; }
+.mac:lang(ko) { font-family: -apple-system, BlinkMacSystemFont, "Nanum Gothic", "Apple SD Gothic Neo", "AppleGothic", sans-serif; }
+
+.windows { font-family: "Segoe WPC", "Segoe UI", sans-serif; }
+.windows:lang(zh-Hans) { font-family: "Segoe WPC", "Segoe UI", "Microsoft YaHei", sans-serif; }
+.windows:lang(zh-Hant) { font-family: "Segoe WPC", "Segoe UI", "Microsoft Jhenghei", sans-serif; }
+.windows:lang(ja) { font-family: "Segoe WPC", "Segoe UI", "Meiryo", sans-serif; }
+.windows:lang(ko) { font-family: "Segoe WPC", "Segoe UI", "Malgun Gothic", "Dotom", sans-serif; }
+
+.linux { font-family: "Ubuntu", "Droid Sans", sans-serif; }
+.linux:lang(zh-Hans) { font-family: "Ubuntu", "Droid Sans", "Source Han Sans SC", "Source Han Sans CN", "Source Han Sans", sans-serif; }
+.linux:lang(zh-Hant) { font-family: "Ubuntu", "Droid Sans", "Source Han Sans TC", "Source Han Sans TW", "Source Han Sans", sans-serif; }
+.linux:lang(ja) { font-family: "Ubuntu", "Droid Sans", "Source Han Sans J", "Source Han Sans JP", "Source Han Sans", sans-serif; }
+.linux:lang(ko) { font-family: "Ubuntu", "Droid Sans", "Source Han Sans K", "Source Han Sans JR", "Source Han Sans", "UnDotum", "FBaekmuk Gulim", sans-serif; }
+
+/* Global Styles */
+
+body {
 	height: 100%;
 	width: 100%;
 	margin: 0;
@@ -13,155 +35,156 @@
 	user-select: none;
 }
 
-/* Font Families (with CJK support) */
-
-/* mac */
-.monaco-shell.mac { font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
-.monaco-shell.mac:lang(zh-Hans) { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", sans-serif; }
-.monaco-shell.mac:lang(zh-Hant) { font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", sans-serif; }
-.monaco-shell.mac:lang(ja) { font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic Pro", sans-serif; }
-.monaco-shell.mac:lang(ko) { font-family: -apple-system, BlinkMacSystemFont, "Nanum Gothic", "Apple SD Gothic Neo", "AppleGothic", sans-serif; }
-/* windows */
-.monaco-shell.windows { font-family: "Segoe WPC", "Segoe UI", sans-serif; }
-.monaco-shell.windows:lang(zh-Hans) { font-family: "Segoe WPC", "Segoe UI", "Microsoft YaHei", sans-serif; }
-.monaco-shell.windows:lang(zh-Hant) { font-family: "Segoe WPC", "Segoe UI", "Microsoft Jhenghei", sans-serif; }
-.monaco-shell.windows:lang(ja) { font-family: "Segoe WPC", "Segoe UI", "Meiryo", sans-serif; }
-.monaco-shell.windows:lang(ko) { font-family: "Segoe WPC", "Segoe UI", "Malgun Gothic", "Dotom", sans-serif; }
-/* linux */
-.monaco-shell.linux { font-family: "Ubuntu", "Droid Sans", sans-serif; }
-.monaco-shell.linux:lang(zh-Hans) { font-family: "Ubuntu", "Droid Sans", "Source Han Sans SC", "Source Han Sans CN", "Source Han Sans", sans-serif; }
-.monaco-shell.linux:lang(zh-Hant) { font-family: "Ubuntu", "Droid Sans", "Source Han Sans TC", "Source Han Sans TW", "Source Han Sans", sans-serif; }
-.monaco-shell.linux:lang(ja) { font-family: "Ubuntu", "Droid Sans", "Source Han Sans J", "Source Han Sans JP", "Source Han Sans", sans-serif; }
-.monaco-shell.linux:lang(ko) { font-family: "Ubuntu", "Droid Sans", "Source Han Sans K", "Source Han Sans JR", "Source Han Sans", "UnDotum", "FBaekmuk Gulim", sans-serif; }
-
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
-.monaco-shell img {
+.monaco-font-aliasing-antialiased {
+	-webkit-font-smoothing: antialiased;
+}
+
+.monaco-font-aliasing-none {
+	-webkit-font-smoothing: none;
+}
+
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+	.monaco-font-aliasing-auto {
+		-webkit-font-smoothing: antialiased;
+	}
+}
+
+.monaco-workbench {
+	font-size: 13px;
+	line-height: 1.4em;
+	position: relative;
+	z-index: 1;
+	overflow: hidden;
+}
+
+.monaco-workbench img {
 	border: 0;
 }
 
-.monaco-shell label {
+.monaco-workbench label {
 	cursor: pointer;
 }
 
-.monaco-shell a {
+.monaco-workbench a {
 	text-decoration: none;
 }
 
-.monaco-shell a:active {
+.monaco-workbench a:active {
 	color: inherit;
 	background-color: inherit;
 }
 
-.monaco-shell a.plain {
+.monaco-workbench a.plain {
 	color: inherit;
 	text-decoration: none;
 }
 
-.monaco-shell a.plain:hover,
-.monaco-shell a.plain.hover {
+.monaco-workbench a.plain:hover,
+.monaco-workbench a.plain.hover {
 	color: inherit;
 	text-decoration: none;
 }
 
-.monaco-shell input {
+.monaco-workbench input {
 	color: inherit;
 	font-family: inherit;
 	font-size: 100%;
 }
 
-.monaco-shell select {
+.monaco-workbench select {
 	font-family: inherit;
 }
 
-.monaco-shell .pointer {
+.monaco-workbench .pointer {
 	cursor: pointer;
 }
 
-.monaco-shell .context-view {
+.monaco-workbench .context-view {
 	-webkit-app-region: no-drag;
 }
 
-.monaco-shell .monaco-menu .monaco-action-bar.vertical {
+.monaco-workbench .monaco-menu .monaco-action-bar.vertical {
 	padding: .5em 0;
 }
 
-.monaco-shell .monaco-menu .monaco-action-bar.vertical .action-menu-item {
+.monaco-workbench .monaco-menu .monaco-action-bar.vertical .action-menu-item {
 	height: 1.8em;
 }
 
-.monaco-shell .monaco-menu .monaco-action-bar.vertical .action-label:not(.separator),
-.monaco-shell .monaco-menu .monaco-action-bar.vertical .keybinding {
+.monaco-workbench .monaco-menu .monaco-action-bar.vertical .action-label:not(.separator),
+.monaco-workbench .monaco-menu .monaco-action-bar.vertical .keybinding {
 	font-size: inherit;
 	padding: 0 2em;
 }
 
-.monaco-shell .monaco-menu .monaco-action-bar.vertical .menu-item-check {
+.monaco-workbench .monaco-menu .monaco-action-bar.vertical .menu-item-check {
 	font-size: inherit;
 	width: 2em;
 }
 
-.monaco-shell .monaco-menu .monaco-action-bar.vertical .action-label.separator {
+.monaco-workbench .monaco-menu .monaco-action-bar.vertical .action-label.separator {
 	font-size: inherit;
 	padding: 0.2em 0 0 0;
 	margin-bottom: 0.2em;
 }
 
-.monaco-shell.linux .monaco-menu .monaco-action-bar.vertical .action-label.separator {
+.linux .monaco-workbench .monaco-menu .monaco-action-bar.vertical .action-label.separator {
 	margin-left: 0;
 	margin-right: 0;
 }
 
-.monaco-shell .monaco-menu .monaco-action-bar.vertical .submenu-indicator {
+.monaco-workbench .monaco-menu .monaco-action-bar.vertical .submenu-indicator {
 	font-size: 60%;
 	padding: 0 1.8em;
 }
 
-.monaco-shell.linux .monaco-menu .monaco-action-bar.vertical .submenu-indicator {
+.linux .monaco-workbench .monaco-menu .monaco-action-bar.vertical .submenu-indicator {
 	height: 100%;
 	-webkit-mask-size: 10px 10px;
 	mask-size: 10px 10px;
 }
 
-.monaco-shell .monaco-menu .action-item {
+.monaco-workbench .monaco-menu .action-item {
 	cursor: default;
 }
 
 /* START Keyboard Focus Indication Styles */
 
-.monaco-shell [tabindex="0"]:focus,
-.monaco-shell .synthetic-focus,
-.monaco-shell select:focus,
-.monaco-shell input[type="button"]:focus,
-.monaco-shell input[type="text"]:focus,
-.monaco-shell textarea:focus,
-.monaco-shell input[type="checkbox"]:focus {
+.monaco-workbench [tabindex="0"]:focus,
+.monaco-workbench .synthetic-focus,
+.monaco-workbench select:focus,
+.monaco-workbench input[type="button"]:focus,
+.monaco-workbench input[type="text"]:focus,
+.monaco-workbench textarea:focus,
+.monaco-workbench input[type="checkbox"]:focus {
 	outline-width: 1px;
 	outline-style: solid;
 	outline-offset: -1px;
 	opacity: 1 !important;
 }
 
-.monaco-shell [tabindex="0"]:active,
-.monaco-shell select:active,
-.monaco-shell input[type="button"]:active,
-.monaco-shell input[type="checkbox"]:active,
-.monaco-shell .monaco-tree .monaco-tree-row
-.monaco-shell .monaco-tree.focused.no-focused-item:active:before {
+.monaco-workbench [tabindex="0"]:active,
+.monaco-workbench select:active,
+.monaco-workbench input[type="button"]:active,
+.monaco-workbench input[type="checkbox"]:active,
+.monaco-workbench .monaco-tree .monaco-tree-row
+.monaco-workbench .monaco-tree.focused.no-focused-item:active:before {
 	outline: 0 !important; /* fixes some flashing outlines from showing up when clicking */
 }
 
-.monaco-shell .mac select:focus {
+.mac select:focus {
 	border-color: transparent; /* outline is a square, but border has a radius, so we avoid this glitch when focused (https://github.com/Microsoft/vscode/issues/26045) */
 }
 
-.monaco-shell .monaco-tree.focused .monaco-tree-row.focused [tabindex="0"]:focus {
+.monaco-workbench .monaco-tree.focused .monaco-tree-row.focused [tabindex="0"]:focus {
 	outline-width: 1px; /* higher contrast color for focusable elements in a row that shows focus feedback */
 	outline-style: solid;
 }
 
-.monaco-shell .monaco-tree.focused.no-focused-item:focus:before,
-.monaco-shell .monaco-list:not(.element-focused):focus:before {
+.monaco-workbench .monaco-tree.focused.no-focused-item:focus:before,
+.monaco-workbench .monaco-list:not(.element-focused):focus:before {
 	position: absolute;
 	top: 0;
 	left: 0;
@@ -176,20 +199,20 @@
 	outline-offset: -1px;
 }
 
-.monaco-shell .synthetic-focus :focus {
+.monaco-workbench .synthetic-focus :focus {
 	outline: 0 !important; /* elements within widgets that draw synthetic-focus should never show focus */
 }
 
-.monaco-shell .monaco-inputbox.info.synthetic-focus,
-.monaco-shell .monaco-inputbox.warning.synthetic-focus,
-.monaco-shell .monaco-inputbox.error.synthetic-focus,
-.monaco-shell .monaco-inputbox.info input[type="text"]:focus,
-.monaco-shell .monaco-inputbox.warning input[type="text"]:focus,
-.monaco-shell .monaco-inputbox.error input[type="text"]:focus {
+.monaco-workbench .monaco-inputbox.info.synthetic-focus,
+.monaco-workbench .monaco-inputbox.warning.synthetic-focus,
+.monaco-workbench .monaco-inputbox.error.synthetic-focus,
+.monaco-workbench .monaco-inputbox.info input[type="text"]:focus,
+.monaco-workbench .monaco-inputbox.warning input[type="text"]:focus,
+.monaco-workbench .monaco-inputbox.error input[type="text"]:focus {
 	outline: 0 !important; /* outline is not going well with decoration */
 }
 
-.monaco-shell .monaco-tree.focused:focus,
-.monaco-shell .monaco-list:focus {
+.monaco-workbench .monaco-tree.focused:focus,
+.monaco-workbench .monaco-list:focus {
 	outline: 0 !important; /* tree indicates focus not via outline but through the focused item */
 }

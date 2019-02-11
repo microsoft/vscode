@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/shell';
-
 import * as platform from 'vs/base/common/platform';
 import * as perf from 'vs/base/common/performance';
 import * as aria from 'vs/base/browser/ui/aria/aria';
@@ -65,8 +63,6 @@ import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/work
 import { WorkbenchThemeService } from 'vs/workbench/services/themes/electron-browser/workbenchThemeService';
 import { ITextResourceConfigurationService, ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 import { TextResourceConfigurationService } from 'vs/editor/common/services/resourceConfigurationImpl';
-import { registerThemingParticipant, ITheme, ICssStyleCollector, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
-import { foreground, selectionBackground, focusBorder, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, listHighlightForeground, inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
 import { TextMateService } from 'vs/workbench/services/textMate/electron-browser/TMSyntax';
 import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
 import { IBroadcastService, BroadcastService } from 'vs/workbench/services/broadcast/electron-browser/broadcastService';
@@ -75,7 +71,6 @@ import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Event, Emitter } from 'vs/base/common/event';
-import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { LocalizationsChannelClient } from 'vs/platform/localizations/node/localizationsIpc';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -414,7 +409,7 @@ export class Shell extends Disposable {
 		});
 
 		// Shell Class for CSS Scoping
-		addClasses(this.container, 'monaco-shell', platform.isWindows ? 'windows' : platform.isLinux ? 'linux' : 'mac');
+		addClasses(this.container, platform.isWindows ? 'windows' : platform.isLinux ? 'linux' : 'mac');
 
 		// Create Contents
 		this.renderContents();
@@ -489,130 +484,3 @@ export class Shell extends Disposable {
 		this.mainProcessClient.dispose();
 	}
 }
-
-registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
-
-	// Foreground
-	const windowForeground = theme.getColor(foreground);
-	if (windowForeground) {
-		collector.addRule(`.monaco-shell { color: ${windowForeground}; }`);
-	}
-
-	// Selection
-	const windowSelectionBackground = theme.getColor(selectionBackground);
-	if (windowSelectionBackground) {
-		collector.addRule(`.monaco-shell ::selection { background-color: ${windowSelectionBackground}; }`);
-	}
-
-	// Input placeholder
-	const placeholderForeground = theme.getColor(inputPlaceholderForeground);
-	if (placeholderForeground) {
-		collector.addRule(`.monaco-shell input::-webkit-input-placeholder { color: ${placeholderForeground}; }`);
-		collector.addRule(`.monaco-shell textarea::-webkit-input-placeholder { color: ${placeholderForeground}; }`);
-	}
-
-	// List highlight
-	const listHighlightForegroundColor = theme.getColor(listHighlightForeground);
-	if (listHighlightForegroundColor) {
-		collector.addRule(`
-			.monaco-shell .monaco-tree .monaco-tree-row .monaco-highlighted-label .highlight,
-			.monaco-shell .monaco-list .monaco-list-row .monaco-highlighted-label .highlight {
-				color: ${listHighlightForegroundColor};
-			}
-		`);
-	}
-
-	// We need to set the workbench background color so that on Windows we get subpixel-antialiasing.
-	const workbenchBackground = WORKBENCH_BACKGROUND(theme);
-	collector.addRule(`.monaco-workbench { background-color: ${workbenchBackground}; }`);
-
-	// Scrollbars
-	const scrollbarShadowColor = theme.getColor(scrollbarShadow);
-	if (scrollbarShadowColor) {
-		collector.addRule(`
-			.monaco-shell .monaco-scrollable-element > .shadow.top {
-				box-shadow: ${scrollbarShadowColor} 0 6px 6px -6px inset;
-			}
-
-			.monaco-shell .monaco-scrollable-element > .shadow.left {
-				box-shadow: ${scrollbarShadowColor} 6px 0 6px -6px inset;
-			}
-
-			.monaco-shell .monaco-scrollable-element > .shadow.top.left {
-				box-shadow: ${scrollbarShadowColor} 6px 6px 6px -6px inset;
-			}
-		`);
-	}
-
-	const scrollbarSliderBackgroundColor = theme.getColor(scrollbarSliderBackground);
-	if (scrollbarSliderBackgroundColor) {
-		collector.addRule(`
-			.monaco-shell .monaco-scrollable-element > .scrollbar > .slider {
-				background: ${scrollbarSliderBackgroundColor};
-			}
-		`);
-	}
-
-	const scrollbarSliderHoverBackgroundColor = theme.getColor(scrollbarSliderHoverBackground);
-	if (scrollbarSliderHoverBackgroundColor) {
-		collector.addRule(`
-			.monaco-shell .monaco-scrollable-element > .scrollbar > .slider:hover {
-				background: ${scrollbarSliderHoverBackgroundColor};
-			}
-		`);
-	}
-
-	const scrollbarSliderActiveBackgroundColor = theme.getColor(scrollbarSliderActiveBackground);
-	if (scrollbarSliderActiveBackgroundColor) {
-		collector.addRule(`
-			.monaco-shell .monaco-scrollable-element > .scrollbar > .slider.active {
-				background: ${scrollbarSliderActiveBackgroundColor};
-			}
-		`);
-	}
-
-	// Focus outline
-	const focusOutline = theme.getColor(focusBorder);
-	if (focusOutline) {
-		collector.addRule(`
-		.monaco-shell [tabindex="0"]:focus,
-		.monaco-shell .synthetic-focus,
-		.monaco-shell select:focus,
-		.monaco-shell .monaco-tree.focused.no-focused-item:focus:before,
-		.monaco-shell .monaco-list:not(.element-focused):focus:before,
-		.monaco-shell input[type="button"]:focus,
-		.monaco-shell input[type="text"]:focus,
-		.monaco-shell button:focus,
-		.monaco-shell textarea:focus,
-		.monaco-shell input[type="search"]:focus,
-		.monaco-shell input[type="checkbox"]:focus {
-			outline-color: ${focusOutline};
-		}
-		`);
-	}
-
-	// High Contrast theme overwrites for outline
-	if (theme.type === HIGH_CONTRAST) {
-		collector.addRule(`
-		.monaco-shell.hc-black [tabindex="0"]:focus,
-		.monaco-shell.hc-black .synthetic-focus,
-		.monaco-shell.hc-black select:focus,
-		.monaco-shell.hc-black input[type="button"]:focus,
-		.monaco-shell.hc-black input[type="text"]:focus,
-		.monaco-shell.hc-black textarea:focus,
-		.monaco-shell.hc-black input[type="checkbox"]:focus {
-			outline-style: solid;
-			outline-width: 1px;
-		}
-
-		.monaco-shell.hc-black .monaco-tree.focused.no-focused-item:focus:before {
-			outline-width: 1px;
-			outline-offset: -2px;
-		}
-
-		.monaco-shell.hc-black .synthetic-focus input {
-			background: transparent; /* Search input focus fix when in high contrast */
-		}
-		`);
-	}
-});
