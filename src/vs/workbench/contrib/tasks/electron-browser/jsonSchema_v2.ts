@@ -358,7 +358,11 @@ TaskDefinitionRegistry.onReady().then(() => {
 		};
 		if (taskType.required) {
 			schema.required = taskType.required.slice();
+		} else {
+			schema.required = [];
 		}
+		// Customized tasks require that the task type be set.
+		schema.required.push('type');
 		if (taskType.properties) {
 			for (let key of Object.keys(taskType.properties)) {
 				let property = taskType.properties[key];
@@ -375,6 +379,10 @@ customize.properties!.customize = {
 	type: 'string',
 	deprecationMessage: nls.localize('JsonSchema.tasks.customize.deprecated', 'The customize property is deprecated. See the 1.14 release notes on how to migrate to the new task customization approach')
 };
+if (!customize.required) {
+	customize.required = [];
+}
+customize.required.push('customize');
 taskDefinitions.push(customize);
 
 let definitions = Objects.deepClone(commonSchemaDefinitions);
