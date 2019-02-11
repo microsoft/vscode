@@ -187,12 +187,12 @@ export class InstallAction extends ExtensionAction {
 			if (runningExtension) {
 				const colorThemes = await this.workbenchThemeService.getColorThemes(runningExtension.identifier);
 				const fileIconThemes = await this.workbenchThemeService.getFileIconThemes(runningExtension.identifier);
-				if (colorThemes.length && !fileIconThemes.length) {
+				if (colorThemes.length) {
 					const action = this.instantiationService.createInstance(SetColorThemeAction);
 					action.extension = extension;
 					return action.run(true);
 				}
-				if (!colorThemes.length && fileIconThemes.length) {
+				if (fileIconThemes.length) {
 					const action = this.instantiationService.createInstance(SetFileIconThemeAction);
 					action.extension = extension;
 					return action.run(true);
