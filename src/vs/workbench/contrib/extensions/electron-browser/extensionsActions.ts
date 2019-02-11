@@ -49,7 +49,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import product from 'vs/platform/node/product';
-import { IQuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickPickItem, IQuickInputService, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { clipboard } from 'electron';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -208,10 +208,13 @@ export class InstallAction extends ExtensionAction {
 			const currentTheme = this.workbenchThemeService.getColorTheme();
 			const themes = await this.workbenchThemeService.getColorThemes(runningExtension.identifier);
 			const delayer = new Delayer<void>(100);
+			const picks: (IQuickPickItem | IQuickPickSeparator)[] = themes.map(theme => (<IQuickPickItem>{ label: theme.label, id: theme.id }));
+			picks.push(<IQuickPickSeparator>{ type: 'separator' });
+			picks.push(<IQuickPickItem>{ label: localize('stay with current theme', "Stay with current theme ({0})", currentTheme.label), id: currentTheme.id });
 			const pickedTheme = await this.quickInputService.pick(
-				themes.map(theme => (<IQuickPickItem>{ label: theme.label, id: theme.id })),
+				picks,
 				{
-					placeHolder: localize('apply installed theme', "Apply installed theme"),
+					placeHolder: localize('apply installed theme', "Apply installed theme or press Escape to cancel."),
 					onDidFocus: item => delayer.trigger(() => this.workbenchThemeService.setColorTheme(item.id, ConfigurationTarget.MEMORY).then(() => undefined))
 				});
 			this.workbenchThemeService.setColorTheme(pickedTheme ? pickedTheme.id : currentTheme.id, undefined);
