@@ -707,6 +707,7 @@ export class TreeResourceNavigator2<T, TFilterData> extends Disposable {
 			return;
 		}
 
+		const isMiddleClick = e.browserEvent instanceof MouseEvent ? e.browserEvent.button === 1 : false;
 		const isDoubleClick = e.browserEvent.detail === 2;
 		const preserveFocus = (e.browserEvent instanceof KeyboardEvent && typeof (<SelectionKeyboardEvent>e.browserEvent).preserveFocus === 'boolean') ?
 			!!(<SelectionKeyboardEvent>e.browserEvent).preserveFocus :
@@ -714,7 +715,7 @@ export class TreeResourceNavigator2<T, TFilterData> extends Disposable {
 
 		if (this.tree.openOnSingleClick || isDoubleClick) {
 			const sideBySide = e.browserEvent instanceof MouseEvent && (e.browserEvent.ctrlKey || e.browserEvent.metaKey || e.browserEvent.altKey);
-			this.open(preserveFocus, isDoubleClick, sideBySide);
+			this.open(preserveFocus, isDoubleClick || isMiddleClick, sideBySide);
 		}
 	}
 
