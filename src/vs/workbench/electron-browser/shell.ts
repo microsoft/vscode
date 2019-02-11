@@ -83,7 +83,7 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/node/remoteAge
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
-import { SearchHistoryService } from 'vs/workbench/services/search/node/searchHistoryService';
+import { SearchHistoryService } from 'vs/workbench/services/search/common/searchHistoryService';
 import { ExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 import { LogLevelSetterChannel } from 'vs/platform/log/node/logIpc';
