@@ -111,6 +111,7 @@ function createScopedContextKeyService(contextKeyService: IContextKeyService, wi
 export const multiSelectModifierSettingKey = 'workbench.list.multiSelectModifier';
 export const openModeSettingKey = 'workbench.list.openMode';
 export const horizontalScrollingKey = 'workbench.tree.horizontalScrolling';
+export const horizontalScrollingSCMKey = 'workbench.tree.horizontalScrollingSCM';
 export const keyboardNavigationSettingKey = 'workbench.list.keyboardNavigation';
 const treeIndentKey = 'workbench.tree.indent';
 
@@ -1138,6 +1139,12 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': false,
 			'description': localize('horizontalScrolling setting', "Controls whether lists and trees support horizontal scrolling in the workbench.")
+		},
+		[horizontalScrollingSCMKey]: {
+			'type': 'string',
+			'enum': ['inherit', 'true', 'false'],
+			'default': 'inherit',
+			'description': localize('horizontalScrolling setting for SCM', "Controls whether lists and trees support horizontal scrolling in the SCM.")
 		},
 		[treeIndentKey]: {
 			'type': 'number',

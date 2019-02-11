@@ -884,10 +884,20 @@ export class RepositoryPanel extends ViewletPanel {
 			new ResourceRenderer(this.listLabels, actionItemProvider, () => this.getSelectedResources(), this.themeService, this.menus)
 		];
 
-		this.list = this.instantiationService.createInstance(WorkbenchList, this.listContainer, delegate, renderers, {
-			identityProvider: scmResourceIdentityProvider,
-			keyboardNavigationLabelProvider: scmKeyboardNavigationLabelProvider
-		}) as WorkbenchList<ISCMResourceGroup | ISCMResource>;
+		const horizontalScrollingSCM = this.configurationService.getValue('workbench.tree.horizontalScrollingSCM') || 'inherit';
+
+		if (horizontalScrollingSCM === 'inherit') {
+			this.list = this.instantiationService.createInstance(WorkbenchList, this.listContainer, delegate, renderers, {
+				identityProvider: scmResourceIdentityProvider,
+				keyboardNavigationLabelProvider: scmKeyboardNavigationLabelProvider
+			}) as WorkbenchList<ISCMResourceGroup | ISCMResource>;
+		} else {
+			this.list = this.instantiationService.createInstance(WorkbenchList, this.listContainer, delegate, renderers, {
+				identityProvider: scmResourceIdentityProvider,
+				keyboardNavigationLabelProvider: scmKeyboardNavigationLabelProvider,
+				horizontalScrolling: horizontalScrollingSCM === 'true'
+			}) as WorkbenchList<ISCMResourceGroup | ISCMResource>;
+		}
 
 		Event.chain(this.list.onDidOpen)
 			.map(e => e.elements[0])

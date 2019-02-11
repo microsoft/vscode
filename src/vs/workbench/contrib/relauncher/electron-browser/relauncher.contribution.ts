@@ -24,7 +24,7 @@ interface IConfiguration extends IWindowsConfiguration {
 	update: { channel: string; };
 	telemetry: { enableCrashReporter: boolean };
 	keyboard: { touchbar: { enabled: boolean } };
-	workbench: { tree: { horizontalScrolling: boolean }, useExperimentalGridLayout: boolean };
+	workbench: { tree: { horizontalScrolling: boolean, horizontalScrollingSCM: string }, useExperimentalGridLayout: boolean };
 	files: { useExperimentalFileWatcher: boolean, watcherExclude: object };
 }
 
@@ -38,6 +38,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private enableCrashReporter: boolean;
 	private touchbarEnabled: boolean;
 	private treeHorizontalScrolling: boolean;
+	private treeHorizontalScrollingSCM: string;
 	private experimentalFileWatcher: boolean;
 	private fileWatcherExclude: object;
 	private useGridLayout: boolean;
@@ -120,6 +121,13 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 			this.treeHorizontalScrolling = config.workbench.tree.horizontalScrolling;
 			changed = true;
 		}
+
+		// SCM Tree horizontal scrolling support
+		if (config.workbench && config.workbench.tree && typeof config.workbench.tree.horizontalScrollingSCM === 'string' && config.workbench.tree.horizontalScrollingSCM !== this.treeHorizontalScrollingSCM) {
+			this.treeHorizontalScrollingSCM = config.workbench.tree.horizontalScrollingSCM;
+			changed = true;
+		}
+
 
 		// Workbench Grid Layout
 		if (config.workbench && typeof config.workbench.useExperimentalGridLayout === 'boolean' && config.workbench.useExperimentalGridLayout !== this.useGridLayout) {
