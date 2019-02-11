@@ -6,7 +6,7 @@
 import 'vs/css!./media/extensionActions';
 import { localize } from 'vs/nls';
 import { IAction, Action } from 'vs/base/common/actions';
-import { Throttler } from 'vs/base/common/async';
+import { Throttler, Delayer } from 'vs/base/common/async';
 import * as DOM from 'vs/base/browser/dom';
 import * as paths from 'vs/base/common/paths';
 import { Event } from 'vs/base/common/event';
@@ -29,7 +29,7 @@ import { IWindowService, IWindowsService } from 'vs/platform/windows/common/wind
 import { IExtensionService, IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { buttonBackground, buttonForeground, buttonHoverBackground, contrastBorder, registerColor, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { Color } from 'vs/base/common/color';
@@ -55,6 +55,7 @@ import { clipboard } from 'electron';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { coalesce } from 'vs/base/common/arrays';
+import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 
 function toExtensionDescription(local: ILocalExtension): IExtensionDescription {
 	return {
@@ -145,7 +146,10 @@ export class InstallAction extends ExtensionAction {
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IOpenerService private readonly openerService: IOpenerService
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IExtensionService private readonly runtimeExtensionService: IExtensionService,
+		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService
 	) {
 		super(`extensions.install`, InstallAction.INSTALL_LABEL, InstallAction.Class, false);
 		this.update();
@@ -172,24 +176,65 @@ export class InstallAction extends ExtensionAction {
 		}
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<any> {
 		this.extensionsWorkbenchService.open(this.extension);
 
 		alert(localize('installExtensionStart', "Installing extension {0} started. An editor is now open with more details on this extension", this.extension.displayName));
 
-		return this.install(this.extension);
+		const extension = await this.install(this.extension);
+
+		if (extension.local && extension.local.manifest.contributes.themes && extension.local.manifest.contributes.themes.length) {
+			return this.applyInstalledTheme(extension.local);
+		}
+
 	}
 
-	private install(extension: IExtension): Promise<any> {
-		return this.extensionsWorkbenchService.install(extension).then(null, err => {
-			if (!extension.gallery) {
-				return this.notificationService.error(err);
-			}
+	private install(extension: IExtension): Promise<IExtension> {
+		return this.extensionsWorkbenchService.install(extension)
+			.then(null, err => {
+				if (!extension.gallery) {
+					return this.notificationService.error(err);
+				}
 
-			console.error(err);
+				console.error(err);
 
-			return promptDownloadManually(extension.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", extension.identifier.id), err, this.instantiationService, this.notificationService, this.openerService);
-		});
+				return promptDownloadManually(extension.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", extension.identifier.id), err, this.instantiationService, this.notificationService, this.openerService);
+			});
+	}
+
+	private async applyInstalledTheme(extension: ILocalExtension): Promise<void> {
+		const runningExtension = await this.getRunningExtension(extension);
+		if (runningExtension) {
+			const currentTheme = this.workbenchThemeService.getColorTheme();
+			const themes = await this.workbenchThemeService.getColorThemes(runningExtension.identifier);
+			const delayer = new Delayer<void>(100);
+			const pickedTheme = await this.quickInputService.pick(
+				themes.map(theme => (<IQuickPickItem>{ label: theme.label, id: theme.id })),
+				{
+					placeHolder: localize('apply installed theme', "Apply installed theme"),
+					onDidFocus: item => delayer.trigger(() => this.workbenchThemeService.setColorTheme(item.id, ConfigurationTarget.MEMORY).then(() => null))
+				});
+			this.workbenchThemeService.setColorTheme(pickedTheme ? pickedTheme.id : currentTheme.id, undefined);
+		}
+	}
+
+	private async getRunningExtension(extension: ILocalExtension): Promise<IExtensionDescription | null> {
+		const runningExtension = await this.runtimeExtensionService.getExtension(extension.identifier.id);
+		if (runningExtension) {
+			return runningExtension;
+		}
+		if (this.runtimeExtensionService.canAddExtension(toExtensionDescription(extension))) {
+			return new Promise<IExtensionDescription | null>((c, e) => {
+				const disposable = this.runtimeExtensionService.onDidChangeExtensions(async () => {
+					const runningExtension = await this.runtimeExtensionService.getExtension(extension.identifier.id);
+					if (runningExtension) {
+						disposable.dispose();
+						c(runningExtension);
+					}
+				});
+			});
+		}
+		return null;
 	}
 }
 

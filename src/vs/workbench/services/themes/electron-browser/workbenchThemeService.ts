@@ -31,6 +31,7 @@ import * as resources from 'vs/base/common/resources';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { textmateColorsSchemaId, registerColorThemeSchemas, textmateColorSettingsSchemaId } from 'vs/workbench/services/themes/common/colorThemeSchema';
 import { workbenchColorsSchemaId } from 'vs/platform/theme/common/colorRegistry';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 // implementation
 
@@ -319,8 +320,9 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return this.currentColorTheme;
 	}
 
-	public getColorThemes(): Promise<IColorTheme[]> {
-		return this.colorThemeStore.getColorThemes();
+	public async getColorThemes(extensionId?: ExtensionIdentifier): Promise<IColorTheme[]> {
+		const colorThemes = await this.colorThemeStore.getColorThemes();
+		return extensionId ? colorThemes.filter(c => ExtensionIdentifier.equals(new ExtensionIdentifier(c.extensionData.extensionId), extensionId)) : colorThemes;
 	}
 
 	public getTheme(): ITheme {
