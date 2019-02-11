@@ -413,6 +413,7 @@
 		"./vs/workbench/api/electron-browser/mainThreadStatusBar.ts",
 		"./vs/workbench/api/electron-browser/mainThreadStorage.ts",
 		"./vs/workbench/api/electron-browser/mainThreadTelemetry.ts",
+		"./vs/workbench/api/electron-browser/mainThreadTerminalService.ts",
 		"./vs/workbench/api/electron-browser/mainThreadUrls.ts",
 		"./vs/workbench/api/electron-browser/mainThreadWindow.ts",
 		"./vs/workbench/api/electron-browser/mainThreadWorkspace.ts",
