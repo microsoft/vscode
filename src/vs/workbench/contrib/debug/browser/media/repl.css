@@ -36,13 +36,13 @@
 	word-break: break-all;
 }
 
-.mac > .monaco-workbench .repl .repl-tree .monaco-tl-twistie.collapsible + .monaco-tl-contents,
-.mac > .monaco-workbench .repl .repl-tree .monaco-tl-twistie {
+.monaco-workbench.mac .repl .repl-tree .monaco-tl-twistie.collapsible + .monaco-tl-contents,
+.monaco-workbench.mac .repl .repl-tree .monaco-tl-twistie {
 	cursor: pointer;
 }
 
-.mac > .monaco-workbench .repl .repl-tree .input.expression,
-.mac > .monaco-workbench .repl .repl-tree .output.expression {
+.monaco-workbench.mac .repl .repl-tree .input.expression,
+.monaco-workbench.mac .repl .repl-tree .output.expression {
 	font-size: 12px;
 }
 
@@ -65,10 +65,10 @@
 	cursor: text;
 }
 
-.windows > .monaco-workbench .repl .repl-tree .monaco-list-row .input.expression,
-.windows > .monaco-workbench .repl .repl-tree .monaco-list-row .output.expression,
-.linux > .monaco-workbench .repl .repl-tree .monaco-list-row .input.expression,
-.linux > .monaco-workbench .repl .repl-tree .monaco-list-row .output.expression {
+.monaco-workbench.windows .repl .repl-tree .monaco-list-row .input.expression,
+.monaco-workbench.windows .repl .repl-tree .monaco-list-row .output.expression,
+.monaco-workbench.linux .repl .repl-tree .monaco-list-row .input.expression,
+.monaco-workbench.linux .repl .repl-tree .monaco-list-row .output.expression {
 	font-size: 14px;
 }
 
@@ -106,7 +106,7 @@
 	line-height: 18px;
 }
 
-.linux > .monaco-workbench .repl .repl-input-wrapper:before {
+.monaco-workbench.linux .repl .repl-input-wrapper:before {
 	font-size: 9px;
 }
 

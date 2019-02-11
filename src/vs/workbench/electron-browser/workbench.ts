@@ -314,7 +314,8 @@ export class Workbench extends Disposable implements IPartService {
 	private createWorkbench(): void {
 		this.workbench = document.createElement('div');
 		this.workbench.id = Identifiers.WORKBENCH_CONTAINER;
-		DOM.addClass(this.workbench, 'monaco-workbench');
+
+		DOM.addClasses(this.workbench, 'monaco-workbench', isWindows ? 'windows' : isLinux ? 'linux' : 'mac');
 
 		this._register(DOM.addDisposableListener(this.workbench, DOM.EventType.SCROLL, () => {
 			this.workbench.scrollTop = 0; // Prevent workbench from scrolling #55456

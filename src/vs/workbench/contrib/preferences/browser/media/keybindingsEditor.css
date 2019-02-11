@@ -154,8 +154,8 @@
 	line-height: normal;
 }
 
-.mac > .monaco-workbench .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row > .when .monaco-inputbox,
-.mac > .monaco-workbench .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row > .when .monaco-inputbox {
+.monaco-workbench.mac .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row > .when .monaco-inputbox,
+.monaco-workbench.mac .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row > .when .monaco-inputbox {
 	height: 24px;
 }
 
