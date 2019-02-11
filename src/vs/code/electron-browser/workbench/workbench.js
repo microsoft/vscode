@@ -56,10 +56,12 @@ function showPartsSplash(configuration) {
 	perf.mark('willShowPartsSplash');
 
 	let data;
-	try {
-		data = JSON.parse(configuration.partsSplashData);
-	} catch (e) {
-		// ignore
+	if (typeof configuration.partsSplashPath === 'string') {
+		try {
+			data = JSON.parse(require('fs').readFileSync(configuration.partsSplashPath, 'utf8'));
+		} catch (e) {
+			// ignore
+		}
 	}
 
 	// high contrast mode has been turned on from the outside, e.g OS -> ignore stored colors and layouts

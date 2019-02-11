@@ -46,13 +46,13 @@ export class Debugger implements IDebugger {
 
 	public merge(otherDebuggerContribution: IDebuggerContribution, extensionDescription: IExtensionDescription): void {
 
-		// remember all extensions that are merged for this debugger
+		// remember all extensions that have been merged for this debugger
 		this.mergedExtensionDescriptions.push(extensionDescription);
 
-		// merge debugger contributions
+		// merge new debugger contribution into existing contributions.
 		objects.mixin(this.debuggerContribution, otherDebuggerContribution, extensionDescription.isBuiltin);
 
-		// remember the extension that has the "main" debugger contribution
+		// remember the extension that is considered the "main" debugger contribution
 		if (isDebuggerMainContribution(otherDebuggerContribution)) {
 			this.mainExtensionDescription = extensionDescription;
 		}
