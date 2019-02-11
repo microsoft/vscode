@@ -55,7 +55,7 @@ import { clipboard } from 'electron';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { coalesce } from 'vs/base/common/arrays';
-import { IWorkbenchThemeService, COLOR_THEME_SETTING } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IWorkbenchThemeService, COLOR_THEME_SETTING, ICON_THEME_SETTING } from 'vs/workbench/services/themes/common/workbenchThemeService';
 
 function toExtensionDescription(local: ILocalExtension): IExtensionDescription {
 	return {
@@ -1141,7 +1141,8 @@ export class SetColorThemeAction extends ExtensionAction {
 			return;
 		}
 		let colorThemes = await this.workbenchThemeService.getColorThemes(new ExtensionIdentifier(this.extension.identifier.id));
-		const currentTheme = this.workbenchThemeService.getColorTheme();
+		const allThemes = await this.workbenchThemeService.getColorThemes();
+		const currentTheme = allThemes.filter(t => t.settingsId === this.configurationService.getValue(COLOR_THEME_SETTING))[0];
 		showCurrentTheme = showCurrentTheme || colorThemes.some(t => t.id === currentTheme.id);
 		if (showCurrentTheme) {
 			colorThemes = colorThemes.filter(t => t.id !== currentTheme.id);
@@ -1207,7 +1208,8 @@ export class SetFileIconThemeAction extends ExtensionAction {
 			return;
 		}
 		let fileIconThemes = await this.workbenchThemeService.getFileIconThemes(new ExtensionIdentifier(this.extension.identifier.id));
-		const currentTheme = this.workbenchThemeService.getFileIconTheme();
+		const allThemes = await this.workbenchThemeService.getFileIconThemes();
+		const currentTheme = allThemes.filter(t => t.settingsId === this.configurationService.getValue(ICON_THEME_SETTING))[0];
 		showCurrentTheme = showCurrentTheme || fileIconThemes.some(t => t.id === currentTheme.id);
 		if (showCurrentTheme) {
 			fileIconThemes = fileIconThemes.filter(t => t.id !== currentTheme.id);
@@ -1226,7 +1228,7 @@ export class SetFileIconThemeAction extends ExtensionAction {
 				placeHolder: localize('select file icon theme', "Select File Icon Theme"),
 				onDidFocus: item => delayer.trigger(() => this.workbenchThemeService.setFileIconTheme(item.id, undefined))
 			});
-		let confValue = this.configurationService.inspect(COLOR_THEME_SETTING);
+		let confValue = this.configurationService.inspect(ICON_THEME_SETTING);
 		const target = typeof confValue.workspace !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
 		return this.workbenchThemeService.setFileIconTheme(pickedTheme ? pickedTheme.id : currentTheme.id, target);
 	}
