@@ -16,6 +16,18 @@ import { generateUuid } from 'vs/base/common/uuid';
 import * as vscode from 'vscode';
 
 
+function es5ClassCompat(target: Function): any {
+	///@ts-ignore
+	function _() { return Reflect.construct(target, arguments, this.constructor); }
+	Object.defineProperty(_, 'name', Object.getOwnPropertyDescriptor(target, 'name')!);
+	///@ts-ignore
+	Object.setPrototypeOf(_, target);
+	///@ts-ignore
+	Object.setPrototypeOf(_.prototype, target.prototype);
+	return _;
+}
+
+@es5ClassCompat
 export class Disposable {
 
 	static from(...inDisposables: { dispose(): any }[]): Disposable {
@@ -46,6 +58,7 @@ export class Disposable {
 	}
 }
 
+@es5ClassCompat
 export class Position {
 
 	static Min(...positions: Position[]): Position {
@@ -217,6 +230,7 @@ export class Position {
 	}
 }
 
+@es5ClassCompat
 export class Range {
 
 	static isRange(thing: any): thing is vscode.Range {
@@ -351,6 +365,7 @@ export class Range {
 	}
 }
 
+@es5ClassCompat
 export class Selection extends Range {
 
 	static isSelection(thing: any): thing is Selection {
@@ -421,6 +436,7 @@ export enum EndOfLine {
 	CRLF = 2
 }
 
+@es5ClassCompat
 export class TextEdit {
 
 	static isTextEdit(thing: any): thing is TextEdit {
@@ -524,6 +540,7 @@ export interface IFileTextEdit {
 	edit: TextEdit;
 }
 
+@es5ClassCompat
 export class WorkspaceEdit implements vscode.WorkspaceEdit {
 
 	private _edits = new Array<IFileOperation | IFileTextEdit>();
@@ -627,6 +644,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	}
 }
 
+@es5ClassCompat
 export class SnippetString {
 
 	static isSnippetString(thing: any): thing is SnippetString {
@@ -720,6 +738,7 @@ export enum DiagnosticSeverity {
 	Error = 0
 }
 
+@es5ClassCompat
 export class Location {
 
 	static isLocation(thing: any): thing is Location {
@@ -758,6 +777,7 @@ export class Location {
 	}
 }
 
+@es5ClassCompat
 export class DiagnosticRelatedInformation {
 
 	static is(thing: any): thing is DiagnosticRelatedInformation {
@@ -791,6 +811,7 @@ export class DiagnosticRelatedInformation {
 	}
 }
 
+@es5ClassCompat
 export class Diagnostic {
 
 	range: Range;
@@ -835,6 +856,7 @@ export class Diagnostic {
 	}
 }
 
+@es5ClassCompat
 export class Hover {
 
 	public contents: vscode.MarkdownString[] | vscode.MarkedString[];
@@ -864,6 +886,7 @@ export enum DocumentHighlightKind {
 	Write = 2
 }
 
+@es5ClassCompat
 export class DocumentHighlight {
 
 	range: Range;
@@ -911,6 +934,7 @@ export enum SymbolKind {
 	TypeParameter = 25
 }
 
+@es5ClassCompat
 export class SymbolInformation {
 
 	static validate(candidate: SymbolInformation): void {
@@ -954,6 +978,7 @@ export class SymbolInformation {
 	}
 }
 
+@es5ClassCompat
 export class DocumentSymbol {
 
 	static validate(candidate: DocumentSymbol): void {
@@ -993,6 +1018,7 @@ export enum CodeActionTrigger {
 	Manual = 2,
 }
 
+@es5ClassCompat
 export class CodeAction {
 	title: string;
 
@@ -1011,6 +1037,7 @@ export class CodeAction {
 }
 
 
+@es5ClassCompat
 export class CodeActionKind {
 	private static readonly sep = '.';
 
@@ -1041,6 +1068,7 @@ export class CodeActionKind {
 	}
 }
 
+@es5ClassCompat
 export class SelectionRangeKind {
 
 	private static readonly _sep = '.';
@@ -1060,6 +1088,7 @@ export class SelectionRangeKind {
 	}
 }
 
+@es5ClassCompat
 export class SelectionRange {
 
 	kind: SelectionRangeKind;
@@ -1072,6 +1101,7 @@ export class SelectionRange {
 }
 
 
+@es5ClassCompat
 export class CodeLens {
 
 	range: Range;
@@ -1088,6 +1118,7 @@ export class CodeLens {
 	}
 }
 
+@es5ClassCompat
 export class MarkdownString {
 
 	value: string;
@@ -1118,6 +1149,7 @@ export class MarkdownString {
 	}
 }
 
+@es5ClassCompat
 export class ParameterInformation {
 
 	label: string | [number, number];
@@ -1129,6 +1161,7 @@ export class ParameterInformation {
 	}
 }
 
+@es5ClassCompat
 export class SignatureInformation {
 
 	label: string;
@@ -1142,6 +1175,7 @@ export class SignatureInformation {
 	}
 }
 
+@es5ClassCompat
 export class SignatureHelp {
 
 	signatures: SignatureInformation[];
@@ -1198,6 +1232,7 @@ export enum CompletionItemKind {
 	TypeParameter = 24
 }
 
+@es5ClassCompat
 export class CompletionItem implements vscode.CompletionItem {
 
 	label: string;
@@ -1235,6 +1270,7 @@ export class CompletionItem implements vscode.CompletionItem {
 	}
 }
 
+@es5ClassCompat
 export class CompletionList {
 
 	isIncomplete?: boolean;
@@ -1324,6 +1360,7 @@ export namespace TextEditorSelectionChangeKind {
 	}
 }
 
+@es5ClassCompat
 export class DocumentLink {
 
 	range: Range;
@@ -1342,6 +1379,7 @@ export class DocumentLink {
 	}
 }
 
+@es5ClassCompat
 export class Color {
 	readonly red: number;
 	readonly green: number;
@@ -1358,6 +1396,7 @@ export class Color {
 
 export type IColorFormat = string | { opaque: string, transparent: string };
 
+@es5ClassCompat
 export class ColorInformation {
 	range: Range;
 
@@ -1375,6 +1414,7 @@ export class ColorInformation {
 	}
 }
 
+@es5ClassCompat
 export class ColorPresentation {
 	label: string;
 	textEdit?: TextEdit;
@@ -1416,6 +1456,7 @@ export enum TaskPanelKind {
 	New = 3
 }
 
+@es5ClassCompat
 export class TaskGroup implements vscode.TaskGroup {
 
 	private _id: string;
@@ -1458,6 +1499,7 @@ export class TaskGroup implements vscode.TaskGroup {
 	}
 }
 
+@es5ClassCompat
 export class ProcessExecution implements vscode.ProcessExecution {
 
 	private _process: string;
@@ -1530,6 +1572,7 @@ export class ProcessExecution implements vscode.ProcessExecution {
 	}
 }
 
+@es5ClassCompat
 export class ShellExecution implements vscode.ShellExecution {
 
 	private _commandLine: string;
@@ -1626,6 +1669,7 @@ export enum TaskScope {
 	Workspace = 2
 }
 
+@es5ClassCompat
 export class Task implements vscode.Task {
 
 	private static ProcessType: string = 'process';
@@ -1858,6 +1902,7 @@ export enum ProgressLocation {
 	Notification = 15
 }
 
+@es5ClassCompat
 export class TreeItem {
 
 	label?: string | vscode.TreeItemLabel;
@@ -1885,6 +1930,7 @@ export enum TreeItemCollapsibleState {
 	Expanded = 2
 }
 
+@es5ClassCompat
 export class ThemeIcon {
 	static readonly File = new ThemeIcon('file');
 
@@ -1897,6 +1943,7 @@ export class ThemeIcon {
 	}
 }
 
+@es5ClassCompat
 export class ThemeColor {
 	id: string;
 	constructor(id: string) {
@@ -1912,6 +1959,7 @@ export enum ConfigurationTarget {
 	WorkspaceFolder = 3
 }
 
+@es5ClassCompat
 export class RelativePattern implements IRelativePattern {
 	base: string;
 	baseFolder?: URI;
@@ -1944,6 +1992,7 @@ export class RelativePattern implements IRelativePattern {
 	}
 }
 
+@es5ClassCompat
 export class Breakpoint {
 
 	private _id: string | undefined;
@@ -1974,6 +2023,7 @@ export class Breakpoint {
 	}
 }
 
+@es5ClassCompat
 export class SourceBreakpoint extends Breakpoint {
 	readonly location: Location;
 
@@ -1986,6 +2036,7 @@ export class SourceBreakpoint extends Breakpoint {
 	}
 }
 
+@es5ClassCompat
 export class FunctionBreakpoint extends Breakpoint {
 	readonly functionName: string;
 
@@ -1998,6 +2049,7 @@ export class FunctionBreakpoint extends Breakpoint {
 	}
 }
 
+@es5ClassCompat
 export class DebugAdapterExecutable implements vscode.DebugAdapterExecutable {
 	readonly command: string;
 	readonly args: string[];
@@ -2010,6 +2062,7 @@ export class DebugAdapterExecutable implements vscode.DebugAdapterExecutable {
 	}
 }
 
+@es5ClassCompat
 export class DebugAdapterServer implements vscode.DebugAdapterServer {
 	readonly port: number;
 	readonly host?: string;
@@ -2021,6 +2074,7 @@ export class DebugAdapterServer implements vscode.DebugAdapterServer {
 }
 
 /*
+@es5ClassCompat
 export class DebugAdapterImplementation implements vscode.DebugAdapterImplementation {
 	readonly implementation: any;
 
@@ -2048,6 +2102,7 @@ export enum FileChangeType {
 	Deleted = 3,
 }
 
+@es5ClassCompat
 export class FileSystemError extends Error {
 
 	static FileExists(messageOrUri?: string | URI): FileSystemError {
@@ -2090,6 +2145,7 @@ export class FileSystemError extends Error {
 
 //#region folding api
 
+@es5ClassCompat
 export class FoldingRange {
 
 	start: number;
@@ -2125,6 +2181,7 @@ export enum CommentThreadCollapsibleState {
 	Expanded = 1
 }
 
+@es5ClassCompat
 export class QuickInputButtons {
 
 	static readonly Back: vscode.QuickInputButton = { iconPath: 'back.svg' };
