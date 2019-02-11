@@ -119,7 +119,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 
 		const configPathDir = dirname(configPath);
 		if (!existsSync(configPathDir)) {
-			const configPathDirDir = dirname(configPath);
+			const configPathDirDir = dirname(configPathDir);
 			if (!existsSync(configPathDirDir)) {
 				mkdirSync(configPathDirDir);
 			}
