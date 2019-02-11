@@ -9442,10 +9442,10 @@ vscode-uri@^1.0.6:
   resolved "https://registry.yarnpkg.com/vscode-uri/-/vscode-uri-1.0.6.tgz#6b8f141b0bbc44ad7b07e94f82f168ac7608ad4d"
   integrity sha512-sLI2L0uGov3wKVb9EB+vIQBl9tVP90nqRvxSoJ35vI3NjxE8jfsE5DSOhWgSunHSZmKS4OCi2jrtfxK7uyp2ww==
 
-vscode-xterm@3.12.0-beta3:
-  version "3.12.0-beta3"
-  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.12.0-beta3.tgz#d642d249fe01615dbe1ab4d11b333c1d52b65ee8"
-  integrity sha512-rR9EmZjVJiQZ39Q4msSzZcwLzMQPzmxdjvr6uJogo3ht3+cEFnZbtJ8cHKYpU7gkKnj+l56d5uC3pbmt3MB/Nw==
+vscode-xterm@3.12.0-beta4:
+  version "3.12.0-beta4"
+  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.12.0-beta4.tgz#b8ed223e00e6b53efea62e7c7dce5bc2ac556df3"
+  integrity sha512-coUhJoIIjSlIZ33VCxI6EEyEKSqet41753wfSy/Av3UCv1oiwrrCRfvLdRYC+qdabWDtVy5K7aYYDh1k7WsVeA==
 
 vso-node-api@6.1.2-preview:
   version "6.1.2-preview"
