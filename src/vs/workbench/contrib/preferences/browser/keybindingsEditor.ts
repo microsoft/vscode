@@ -626,9 +626,9 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 					this.createCopyCommandAction(<IKeybindingItemEntry>e.element),
 					new Separator(),
 					this.createDefineAction(<IKeybindingItemEntry>e.element),
-					this.createDefineWhenExpressionAction(<IKeybindingItemEntry>e.element),
 					this.createRemoveAction(<IKeybindingItemEntry>e.element),
 					this.createResetAction(<IKeybindingItemEntry>e.element),
+					this.createDefineWhenExpressionAction(<IKeybindingItemEntry>e.element),
 					new Separator(),
 					this.createShowConflictsAction(<IKeybindingItemEntry>e.element)]
 			});
