@@ -183,7 +183,7 @@ export class InstallAction extends ExtensionAction {
 
 		const extension = await this.install(this.extension);
 
-		if (extension.local && extension.local.manifest.contributes.themes && extension.local.manifest.contributes.themes.length) {
+		if (extension.local && extension.local.manifest.contributes && extension.local.manifest.contributes.themes && extension.local.manifest.contributes.themes.length) {
 			return this.applyInstalledTheme(extension.local);
 		}
 
@@ -212,7 +212,7 @@ export class InstallAction extends ExtensionAction {
 				themes.map(theme => (<IQuickPickItem>{ label: theme.label, id: theme.id })),
 				{
 					placeHolder: localize('apply installed theme', "Apply installed theme"),
-					onDidFocus: item => delayer.trigger(() => this.workbenchThemeService.setColorTheme(item.id, ConfigurationTarget.MEMORY).then(() => null))
+					onDidFocus: item => delayer.trigger(() => this.workbenchThemeService.setColorTheme(item.id, ConfigurationTarget.MEMORY).then(() => undefined))
 				});
 			this.workbenchThemeService.setColorTheme(pickedTheme ? pickedTheme.id : currentTheme.id, undefined);
 		}
