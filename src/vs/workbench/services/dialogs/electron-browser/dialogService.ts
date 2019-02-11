@@ -169,7 +169,7 @@ export class FileDialogService implements IFileDialogService {
 		@IFileService private readonly fileService: IFileService
 	) { }
 
-	defaultFilePath(schemeFilter: string): URI | undefined {
+	defaultFilePath(schemeFilter = this.getSchemeFilterForWindow()): URI | undefined {
 
 		// Check for last active file first...
 		let candidate = this.historyService.getLastActiveFile(schemeFilter);
@@ -182,7 +182,7 @@ export class FileDialogService implements IFileDialogService {
 		return candidate && resources.dirname(candidate) || undefined;
 	}
 
-	defaultFolderPath(schemeFilter: string): URI | undefined {
+	defaultFolderPath(schemeFilter = this.getSchemeFilterForWindow()): URI | undefined {
 
 		// Check for last active file root first...
 		let candidate = this.historyService.getLastActiveWorkspaceRoot(schemeFilter);
@@ -195,7 +195,7 @@ export class FileDialogService implements IFileDialogService {
 		return candidate && resources.dirname(candidate) || undefined;
 	}
 
-	defaultWorkspacePath(schemeFilter: string): URI | undefined {
+	defaultWorkspacePath(schemeFilter = this.getSchemeFilterForWindow()): URI | undefined {
 
 		// Check for current workspace config file first...
 		if (schemeFilter === Schemas.file && this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
@@ -207,6 +207,10 @@ export class FileDialogService implements IFileDialogService {
 
 		// ...then fallback to default folder path
 		return this.defaultFolderPath(schemeFilter);
+	}
+
+	private getSchemeFilterForWindow() {
+		return !this.windowService.getConfiguration().remoteAuthority ? Schemas.file : REMOTE_HOST_SCHEME;
 	}
 
 	private toNativeOpenDialogOptions(options: IPickAndOpenOptions): INativeOpenDialogOptions {
@@ -222,7 +226,7 @@ export class FileDialogService implements IFileDialogService {
 	pickFileFolderAndOpen(options: IPickAndOpenOptions): Promise<any> {
 		let defaultUri = options.defaultUri;
 		if (!defaultUri) {
-			defaultUri = options.defaultUri = this.defaultFilePath(this.getSchemeFilterForWindow());
+			defaultUri = options.defaultUri = this.defaultFilePath();
 		}
 
 		if (this.useRemoteDialogs(defaultUri)) {
@@ -236,7 +240,7 @@ export class FileDialogService implements IFileDialogService {
 	pickFileAndOpen(options: IPickAndOpenOptions): Promise<any> {
 		let defaultUri = options.defaultUri;
 		if (!defaultUri) {
-			defaultUri = options.defaultUri = this.defaultFilePath(this.getSchemeFilterForWindow());
+			defaultUri = options.defaultUri = this.defaultFilePath();
 		}
 
 		if (this.useRemoteDialogs(defaultUri)) {
@@ -250,7 +254,7 @@ export class FileDialogService implements IFileDialogService {
 	pickFolderAndOpen(options: IPickAndOpenOptions): Promise<any> {
 		let defaultUri = options.defaultUri;
 		if (!defaultUri) {
-			defaultUri = options.defaultUri = this.defaultFolderPath(this.getSchemeFilterForWindow());
+			defaultUri = options.defaultUri = this.defaultFolderPath();
 		}
 
 		if (this.useRemoteDialogs(defaultUri)) {
@@ -261,14 +265,10 @@ export class FileDialogService implements IFileDialogService {
 		return this.windowService.pickFolderAndOpen(this.toNativeOpenDialogOptions(options));
 	}
 
-	getSchemeFilterForWindow() {
-		return !this.windowService.getConfiguration().remoteAuthority ? Schemas.file : REMOTE_HOST_SCHEME;
-	}
-
 	pickWorkspaceAndOpen(options: IPickAndOpenOptions): Promise<void> {
 		let defaultUri = options.defaultUri;
 		if (!defaultUri) {
-			defaultUri = options.defaultUri = this.defaultWorkspacePath(this.getSchemeFilterForWindow());
+			defaultUri = options.defaultUri = this.defaultWorkspacePath();
 		}
 
 		if (this.useRemoteDialogs(defaultUri)) {

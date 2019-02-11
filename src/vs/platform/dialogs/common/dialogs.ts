@@ -156,21 +156,21 @@ export interface IFileDialogService {
 
 	/**
 	 * The default path for a new file based on previously used files.
-	 * @param schemeFilter The scheme of the file path.
+	 * @param schemeFilter The scheme of the file path. If no filter given, the scheme of the current window is used.
 	 */
-	defaultFilePath(schemeFilter: string): URI | undefined;
+	defaultFilePath(schemeFilter?: string): URI | undefined;
 
 	/**
 	 * The default path for a new folder based on previously used folders.
-	 * @param schemeFilter The scheme of the folder path.
+	 * @param schemeFilter The scheme of the folder path. If no filter given, the scheme of the current window is used.
 	 */
-	defaultFolderPath(schemeFilter: string): URI | undefined;
+	defaultFolderPath(schemeFilter?: string): URI | undefined;
 
 	/**
 	 * The default path for a new workspace based on previously used workspaces.
-	 * @param schemeFilter The scheme of the workspace path.
+	 * @param schemeFilter The scheme of the workspace path. If no filter given, the scheme of the current window is used.
 	 */
-	defaultWorkspacePath(schemeFilter: string): URI | undefined;
+	defaultWorkspacePath(schemeFilter?: string): URI | undefined;
 
 	/**
 	 * Shows a file-folder selection dialog and opens the selected entry.

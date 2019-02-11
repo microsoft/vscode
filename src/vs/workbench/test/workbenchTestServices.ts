@@ -388,13 +388,13 @@ export class TestFileDialogService implements IFileDialogService {
 
 	public _serviceBrand: any;
 
-	public defaultFilePath(_schemeFilter: string): URI | undefined {
+	public defaultFilePath(_schemeFilter?: string): URI | undefined {
 		return undefined;
 	}
-	public defaultFolderPath(_schemeFilter: string): URI | undefined {
+	public defaultFolderPath(_schemeFilter?: string): URI | undefined {
 		return undefined;
 	}
-	public defaultWorkspacePath(_schemeFilter: string): URI | undefined {
+	public defaultWorkspacePath(_schemeFilter?: string): URI | undefined {
 		return undefined;
 	}
 	public pickFileFolderAndOpen(_options: IPickAndOpenOptions): Promise<any> {
