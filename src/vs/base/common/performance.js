@@ -22,30 +22,22 @@ if (typeof define !== "function" && typeof module === "object" && typeof module.
 
 define([], function () {
 
-	let _performanceEntries;
-	if (typeof global === 'object') {
-		_performanceEntries = global._performanceEntries = [];
-	} else if (typeof self === 'object') {
-		_performanceEntries = self._performanceEntries = [];
-	} else {
-		_performanceEntries = [];
-	}
-
+	global._performanceEntries = global._performanceEntries || [];
 
 	const _dataLen = 2;
 	const _timeStamp = typeof console.timeStamp === 'function' ? console.timeStamp.bind(console) : () => { };
 
 	function importEntries(entries) {
-		_performanceEntries.splice(0, 0, ...entries);
+		global._performanceEntries.splice(0, 0, ...entries);
 	}
 
 	function exportEntries() {
-		return _performanceEntries.slice(0);
+		return global._performanceEntries.slice(0);
 	}
 
 	function getEntries() {
 		const result = [];
-		const entries = _performanceEntries;
+		const entries = global._performanceEntries;
 		for (let i = 0; i < entries.length; i += _dataLen) {
 			result.push({
 				name: entries[i],
@@ -56,7 +48,7 @@ define([], function () {
 	}
 
 	function getEntry(name) {
-		const entries = _performanceEntries;
+		const entries = global._performanceEntries;
 		for (let i = 0; i < entries.length; i += _dataLen) {
 			if (entries[i] === name) {
 				return {
@@ -68,7 +60,7 @@ define([], function () {
 	}
 
 	function getDuration(from, to) {
-		const entries = _performanceEntries;
+		const entries = global._performanceEntries;
 		let target = to;
 		let endIndex = 0;
 		for (let i = entries.length - _dataLen; i >= 0; i -= _dataLen) {
@@ -87,7 +79,7 @@ define([], function () {
 	}
 
 	function mark(name) {
-		_performanceEntries.push(name, Date.now());
+		global._performanceEntries.push(name, Date.now());
 		_timeStamp(name);
 	}
 
