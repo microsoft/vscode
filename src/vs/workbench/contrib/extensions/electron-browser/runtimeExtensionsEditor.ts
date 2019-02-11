@@ -90,7 +90,7 @@ interface IRuntimeExtension {
 	description: IExtensionDescription;
 	marketplaceInfo: IExtension;
 	status: IExtensionsStatus;
-	profileInfo: IExtensionProfileInformation;
+	profileInfo?: IExtensionProfileInformation;
 	unresponsiveProfile?: IExtensionHostProfile;
 }
 
@@ -214,7 +214,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				description: extensionDescription,
 				marketplaceInfo: marketplaceMap[ExtensionIdentifier.toKey(extensionDescription.identifier)],
 				status: statusMap[extensionDescription.identifier.value],
-				profileInfo: profileInfo,
+				profileInfo: profileInfo || undefined,
 				unresponsiveProfile: this._extensionHostProfileService.getUnresponsiveProfile(extensionDescription.identifier)
 			};
 		}
@@ -402,7 +402,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 			horizontalScrolling: false
 		}) as WorkbenchList<IRuntimeExtension>;
 
-		this._list.splice(0, this._list.length, this._elements);
+		this._list.splice(0, this._list.length, this._elements || undefined);
 
 		this._list.onContextMenu((e) => {
 			if (!e.element) {
@@ -579,7 +579,7 @@ export class DebugExtensionHostAction extends Action {
 			}
 		}
 
-		return this._debugService.startDebugging(null, {
+		return this._debugService.startDebugging(undefined, {
 			type: 'node',
 			name: nls.localize('debugExtensionHost.launch.name', "Attach Extension Host"),
 			request: 'attach',
