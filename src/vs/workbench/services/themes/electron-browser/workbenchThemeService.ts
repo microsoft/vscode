@@ -460,8 +460,9 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		}
 	}
 
-	public getFileIconThemes(): Promise<IFileIconTheme[]> {
-		return this.iconThemeStore.getFileIconThemes();
+	public async getFileIconThemes(extensionId?: ExtensionIdentifier): Promise<IFileIconTheme[]> {
+		const filIconThemes = await this.iconThemeStore.getFileIconThemes();
+		return extensionId ? filIconThemes.filter(c => c.extensionData && ExtensionIdentifier.equals(new ExtensionIdentifier(c.extensionData.extensionId), extensionId)) : filIconThemes;
 	}
 
 	public getFileIconTheme() {

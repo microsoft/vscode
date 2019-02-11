@@ -55,7 +55,7 @@ import { clipboard } from 'electron';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { coalesce } from 'vs/base/common/arrays';
-import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IWorkbenchThemeService, COLOR_THEME_SETTING } from 'vs/workbench/services/themes/common/workbenchThemeService';
 
 function toExtensionDescription(local: ILocalExtension): IExtensionDescription {
 	return {
@@ -147,7 +147,6 @@ export class InstallAction extends ExtensionAction {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IOpenerService private readonly openerService: IOpenerService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IExtensionService private readonly runtimeExtensionService: IExtensionService,
 		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService
 	) {
@@ -183,8 +182,22 @@ export class InstallAction extends ExtensionAction {
 
 		const extension = await this.install(this.extension);
 
-		if (extension.local && extension.local.manifest.contributes && extension.local.manifest.contributes.themes && extension.local.manifest.contributes.themes.length) {
-			return this.applyInstalledTheme(extension.local);
+		if (extension.local) {
+			const runningExtension = await this.getRunningExtension(extension.local);
+			if (runningExtension) {
+				const colorThemes = await this.workbenchThemeService.getColorThemes(runningExtension.identifier);
+				const fileIconThemes = await this.workbenchThemeService.getFileIconThemes(runningExtension.identifier);
+				if (colorThemes.length && !fileIconThemes.length) {
+					const action = this.instantiationService.createInstance(SetColorThemeAction);
+					action.extension = extension;
+					return action.run(true);
+				}
+				if (!colorThemes.length && fileIconThemes.length) {
+					const action = this.instantiationService.createInstance(SetFileIconThemeAction);
+					action.extension = extension;
+					return action.run(true);
+				}
+			}
 		}
 
 	}
@@ -200,25 +213,6 @@ export class InstallAction extends ExtensionAction {
 
 				return promptDownloadManually(extension.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", extension.identifier.id), err, this.instantiationService, this.notificationService, this.openerService);
 			});
-	}
-
-	private async applyInstalledTheme(extension: ILocalExtension): Promise<void> {
-		const runningExtension = await this.getRunningExtension(extension);
-		if (runningExtension) {
-			const currentTheme = this.workbenchThemeService.getColorTheme();
-			const themes = await this.workbenchThemeService.getColorThemes(runningExtension.identifier);
-			const delayer = new Delayer<void>(100);
-			const picks: (IQuickPickItem | IQuickPickSeparator)[] = themes.map(theme => (<IQuickPickItem>{ label: theme.label, id: theme.id }));
-			picks.push(<IQuickPickSeparator>{ type: 'separator' });
-			picks.push(<IQuickPickItem>{ label: localize('stay with current theme', "Stay with current theme ({0})", currentTheme.label), id: currentTheme.id });
-			const pickedTheme = await this.quickInputService.pick(
-				picks,
-				{
-					placeHolder: localize('apply installed theme', "Apply installed theme or press Escape to cancel."),
-					onDidFocus: item => delayer.trigger(() => this.workbenchThemeService.setColorTheme(item.id, ConfigurationTarget.MEMORY).then(() => undefined))
-				});
-			this.workbenchThemeService.setColorTheme(pickedTheme ? pickedTheme.id : currentTheme.id, undefined);
-		}
 	}
 
 	private async getRunningExtension(extension: ILocalExtension): Promise<IExtensionDescription | null> {
@@ -1107,6 +1101,138 @@ export class ReloadAction extends ExtensionAction {
 
 	dispose(): void {
 		dispose(this.disposables);
+		super.dispose();
+	}
+}
+
+export class SetColorThemeAction extends ExtensionAction {
+
+	private static readonly EnabledClass = 'extension-action theme';
+	private static readonly DisabledClass = `${SetColorThemeAction.EnabledClass} disabled`;
+
+	private disposables: IDisposable[] = [];
+
+	constructor(
+		@IExtensionService extensionService: IExtensionService,
+		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
+	) {
+		super(`extensions.colorTheme`, localize('color theme', "Set Color Theme"), SetColorThemeAction.DisabledClass, false);
+		Event.any<any>(extensionService.onDidChangeExtensions, workbenchThemeService.onDidColorThemeChange)(() => this.update(), this, this.disposables);
+		this.update();
+	}
+
+	async update(): Promise<void> {
+		this.enabled = false;
+		if (this.extension) {
+			const isInstalled = this.extension.state === ExtensionState.Installed;
+			if (isInstalled) {
+				const colorThemes = await this.workbenchThemeService.getColorThemes(new ExtensionIdentifier(this.extension.identifier.id));
+				this.enabled = colorThemes.length > 0;
+			}
+		}
+		this.class = this.enabled ? SetColorThemeAction.EnabledClass : SetColorThemeAction.DisabledClass;
+	}
+
+	async run(showCurrentTheme: boolean): Promise<any> {
+		await this.update();
+		if (!this.enabled) {
+			return;
+		}
+		let colorThemes = await this.workbenchThemeService.getColorThemes(new ExtensionIdentifier(this.extension.identifier.id));
+		const currentTheme = this.workbenchThemeService.getColorTheme();
+		showCurrentTheme = showCurrentTheme || colorThemes.some(t => t.id === currentTheme.id);
+		if (showCurrentTheme) {
+			colorThemes = colorThemes.filter(t => t.id !== currentTheme.id);
+		}
+
+		const delayer = new Delayer<any>(100);
+		const picks: (IQuickPickItem | IQuickPickSeparator)[] = [];
+		picks.push(...colorThemes.map(theme => (<IQuickPickItem>{ label: theme.label, id: theme.id })));
+		if (showCurrentTheme) {
+			picks.push(<IQuickPickSeparator>{ type: 'separator', label: localize('current', "Current") });
+			picks.push(<IQuickPickItem>{ label: currentTheme.label, id: currentTheme.id });
+		}
+		const pickedTheme = await this.quickInputService.pick(
+			picks,
+			{
+				placeHolder: localize('select color theme', "Select Color Theme"),
+				onDidFocus: item => delayer.trigger(() => this.workbenchThemeService.setColorTheme(item.id, undefined))
+			});
+		let confValue = this.configurationService.inspect(COLOR_THEME_SETTING);
+		const target = typeof confValue.workspace !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
+		return this.workbenchThemeService.setColorTheme(pickedTheme ? pickedTheme.id : currentTheme.id, target);
+	}
+
+	dispose() {
+		this.disposables = dispose(this.disposables);
+		super.dispose();
+	}
+}
+
+export class SetFileIconThemeAction extends ExtensionAction {
+
+	private static readonly EnabledClass = 'extension-action theme';
+	private static readonly DisabledClass = `${SetFileIconThemeAction.EnabledClass} disabled`;
+
+	private disposables: IDisposable[] = [];
+
+	constructor(
+		@IExtensionService extensionService: IExtensionService,
+		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
+	) {
+		super(`extensions.fileIconTheme`, localize('file icon theme', "Set File Icon Theme"), SetFileIconThemeAction.DisabledClass, false);
+		Event.any<any>(extensionService.onDidChangeExtensions, workbenchThemeService.onDidFileIconThemeChange)(() => this.update(), this, this.disposables);
+		this.update();
+	}
+
+	async update(): Promise<void> {
+		this.enabled = false;
+		if (this.extension) {
+			const isInstalled = this.extension.state === ExtensionState.Installed;
+			if (isInstalled) {
+				const fileIconThemes = await this.workbenchThemeService.getFileIconThemes(new ExtensionIdentifier(this.extension.identifier.id));
+				this.enabled = fileIconThemes.length > 0;
+			}
+		}
+		this.class = this.enabled ? SetFileIconThemeAction.EnabledClass : SetFileIconThemeAction.DisabledClass;
+	}
+
+	async run(showCurrentTheme: boolean): Promise<any> {
+		await this.update();
+		if (!this.enabled) {
+			return;
+		}
+		let fileIconThemes = await this.workbenchThemeService.getFileIconThemes(new ExtensionIdentifier(this.extension.identifier.id));
+		const currentTheme = this.workbenchThemeService.getFileIconTheme();
+		showCurrentTheme = showCurrentTheme || fileIconThemes.some(t => t.id === currentTheme.id);
+		if (showCurrentTheme) {
+			fileIconThemes = fileIconThemes.filter(t => t.id !== currentTheme.id);
+		}
+
+		const delayer = new Delayer<any>(100);
+		const picks: (IQuickPickItem | IQuickPickSeparator)[] = [];
+		picks.push(...fileIconThemes.map(theme => (<IQuickPickItem>{ label: theme.label, id: theme.id })));
+		if (showCurrentTheme) {
+			picks.push(<IQuickPickSeparator>{ type: 'separator', label: localize('current', "Current") });
+			picks.push(<IQuickPickItem>{ label: currentTheme.label, id: currentTheme.id });
+		}
+		const pickedTheme = await this.quickInputService.pick(
+			picks,
+			{
+				placeHolder: localize('select file icon theme', "Select File Icon Theme"),
+				onDidFocus: item => delayer.trigger(() => this.workbenchThemeService.setFileIconTheme(item.id, undefined))
+			});
+		let confValue = this.configurationService.inspect(COLOR_THEME_SETTING);
+		const target = typeof confValue.workspace !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
+		return this.workbenchThemeService.setFileIconTheme(pickedTheme ? pickedTheme.id : currentTheme.id, target);
+	}
+
+	dispose() {
+		this.disposables = dispose(this.disposables);
 		super.dispose();
 	}
 }
