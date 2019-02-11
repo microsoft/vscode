@@ -61,7 +61,7 @@ import { ClipboardService } from 'vs/platform/clipboard/electron-browser/clipboa
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { TextFileService } from 'vs/workbench/services/textfile/electron-browser/textFileService';
+import { TextFileService } from 'vs/workbench/services/textfile/common/textFileService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IProgressService2 } from 'vs/platform/progress/common/progress';
 import { ProgressService2 } from 'vs/workbench/services/progress/browser/progressService2';
