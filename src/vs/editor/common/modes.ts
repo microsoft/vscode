@@ -1064,7 +1064,7 @@ export interface SelectionRangeProvider {
 	/**
 	 * Provide ranges that should be selected from the given position.
 	 */
-	provideSelectionRanges(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<SelectionRange[]>;
+	provideSelectionRanges(model: model.ITextModel, positions: Position[], token: CancellationToken): ProviderResult<SelectionRange[][]>;
 }
 
 export interface FoldingContext {

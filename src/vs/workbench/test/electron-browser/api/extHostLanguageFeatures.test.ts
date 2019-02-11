@@ -1103,8 +1103,9 @@ suite('ExtHostLanguageFeatures', function () {
 
 		await rpcProtocol.sync();
 
-		provideSelectionRanges(model, new Position(1, 17), CancellationToken.None).then(ranges => {
-			assert.ok(ranges.length >= 2);
+		provideSelectionRanges(model, [new Position(1, 17)], CancellationToken.None).then(ranges => {
+			assert.equal(ranges.length, 1);
+			assert.ok(ranges[0].length >= 2);
 		});
 	});
 });

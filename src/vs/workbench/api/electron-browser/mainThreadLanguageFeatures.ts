@@ -408,8 +408,8 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	$registerSelectionRangeProvider(handle: number, selector: ISerializedDocumentFilter[]): void {
 		this._registrations[handle] = modes.SelectionRangeRegistry.register(typeConverters.LanguageSelector.from(selector), {
-			provideSelectionRanges: (model, position, token) => {
-				return this._proxy.$provideSelectionRanges(handle, model.uri, position, token);
+			provideSelectionRanges: (model, positions, token) => {
+				return this._proxy.$provideSelectionRanges(handle, model.uri, positions, token);
 			}
 		});
 	}

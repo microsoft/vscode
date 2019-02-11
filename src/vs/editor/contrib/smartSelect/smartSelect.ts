@@ -86,7 +86,7 @@ class SmartSelectController implements IEditorContribution {
 		let promise: Promise<void> = Promise.resolve(undefined);
 
 		if (!this._state) {
-			promise = provideSelectionRangesN(model, selections.map(s => s.getPosition()), CancellationToken.None).then(ranges => {
+			promise = provideSelectionRanges(model, selections.map(s => s.getPosition()), CancellationToken.None).then(ranges => {
 				if (!arrays.isNonEmptyArray(ranges) || ranges.length !== selections.length) {
 					// invalid result
 					return;
@@ -210,99 +210,93 @@ registerEditorAction(ShrinkSelectionAction);
 // word selection
 modes.SelectionRangeRegistry.register('*', new WordSelectionRangeProvider());
 
-export function provideSelectionRanges(model: ITextModel, position: Position, token: CancellationToken): Promise<Range[] | undefined | null> {
+export function provideSelectionRanges(model: ITextModel, positions: Position[], token: CancellationToken): Promise<Range[][]> {
 
-	const provider = modes.SelectionRangeRegistry.orderedGroups(model);
+	const providers = modes.SelectionRangeRegistry.all(model);
 
-	if (provider.length === 1) {
+	if (providers.length === 1) {
 		// add word selection and bracket selection when no provider exists
-		provider.unshift([new BracketSelectionRangeProvider()]);
-	}
-
-	interface RankedRange {
-		rank: number;
-		range: Range;
+		providers.unshift(new BracketSelectionRangeProvider());
 	}
 
 	let work: Promise<any>[] = [];
-	let ranges: RankedRange[] = [];
-	let rank = 0;
+	let allRawRanges: Range[][] = [];
+	arrays.fill(positions.length, [], allRawRanges);
 
-	for (const group of provider) {
-		rank += 1;
-		for (const prov of group) {
-			work.push(Promise.resolve(prov.provideSelectionRanges(model, position, token)).then(selectionRanges => {
-				if (arrays.isNonEmptyArray(selectionRanges)) {
-					for (const sel of selectionRanges) {
-						if (Range.isIRange(sel.range) && Range.containsPosition(sel.range, position)) {
-							ranges.push({ range: Range.lift(sel.range), rank });
+	for (const provider of providers) {
+
+		work.push(Promise.resolve(provider.provideSelectionRanges(model, positions, token)).then(allProviderRanges => {
+			if (arrays.isNonEmptyArray(allProviderRanges) && allProviderRanges.length === positions.length) {
+				for (let i = 0; i < positions.length; i++) {
+					for (const oneProviderRanges of allProviderRanges[i]) {
+						if (Range.isIRange(oneProviderRanges.range) && Range.containsPosition(oneProviderRanges.range, positions[i])) {
+							allRawRanges[i].push(Range.lift(oneProviderRanges.range));
 						}
 					}
 				}
-			}));
-		}
+			}
+		}));
 	}
 
 	return Promise.all(work).then(() => {
 
-		if (ranges.length === 0) {
-			return [];
-		}
+		return allRawRanges.map(oneRawRanges => {
 
-		ranges.sort((a, b) => {
-			if (Position.isBefore(a.range.getStartPosition(), b.range.getStartPosition())) {
-				return 1;
-			} else if (Position.isBefore(b.range.getStartPosition(), a.range.getStartPosition())) {
-				return -1;
-			} else if (Position.isBefore(a.range.getEndPosition(), b.range.getEndPosition())) {
-				return -1;
-			} else if (Position.isBefore(b.range.getEndPosition(), a.range.getEndPosition())) {
-				return 1;
-			} else {
-				return b.rank - a.rank;
+			if (oneRawRanges.length === 0) {
+				return [];
 			}
+
+			// sort all by start/end position
+			oneRawRanges.sort((a, b) => {
+				if (Position.isBefore(a.getStartPosition(), b.getStartPosition())) {
+					return 1;
+				} else if (Position.isBefore(b.getStartPosition(), a.getStartPosition())) {
+					return -1;
+				} else if (Position.isBefore(a.getEndPosition(), b.getEndPosition())) {
+					return -1;
+				} else if (Position.isBefore(b.getEndPosition(), a.getEndPosition())) {
+					return 1;
+				} else {
+					return 0;
+				}
+			});
+
+			// remove ranges that don't contain the former range or that are equal to the
+			// former range
+			let oneRanges: Range[] = [];
+			let last: Range | undefined;
+			for (const range of oneRawRanges) {
+				if (!last || (Range.containsRange(range, last) && !Range.equalsRange(range, last))) {
+					oneRanges.push(range);
+					last = range;
+				}
+			}
+
+			// add ranges that expand trivia at line starts and ends whenever a range
+			// wraps onto the a new line
+			let oneRangesWithTrivia: Range[] = [oneRanges[0]];
+			for (let i = 1; i < oneRanges.length; i++) {
+				const prev = oneRanges[i - 1];
+				const cur = oneRanges[i];
+				if (cur.startLineNumber !== prev.startLineNumber || cur.endLineNumber !== prev.endLineNumber) {
+					// add line/block range without leading/failing whitespace
+					const rangeNoWhitespace = new Range(prev.startLineNumber, model.getLineFirstNonWhitespaceColumn(prev.startLineNumber), prev.endLineNumber, model.getLineLastNonWhitespaceColumn(prev.endLineNumber));
+					if (rangeNoWhitespace.containsRange(prev) && !rangeNoWhitespace.equalsRange(prev)) {
+						oneRangesWithTrivia.push(rangeNoWhitespace);
+					}
+					// add line/block range
+					const rangeFull = new Range(prev.startLineNumber, 1, prev.endLineNumber, model.getLineMaxColumn(prev.endLineNumber));
+					if (rangeFull.containsRange(prev) && !rangeFull.equalsRange(rangeNoWhitespace)) {
+						oneRangesWithTrivia.push(rangeFull);
+					}
+				}
+				oneRangesWithTrivia.push(cur);
+			}
+			return oneRangesWithTrivia;
 		});
-
-		let result: Range[] = [];
-		let last: Range | undefined;
-		for (const { range } of ranges) {
-			if (!last || (Range.containsRange(range, last) && !Range.equalsRange(range, last))) {
-				result.push(range);
-				last = range;
-			}
-		}
-
-		let result2: Range[] = [result[0]];
-		for (let i = 1; i < result.length; i++) {
-			const prev = result[i - 1];
-			const cur = result[i];
-			if (cur.startLineNumber !== prev.startLineNumber || cur.endLineNumber !== prev.endLineNumber) {
-				// add line/block range without leading/failing whitespace
-				const rangeNoWhitespace = new Range(prev.startLineNumber, model.getLineFirstNonWhitespaceColumn(prev.startLineNumber), prev.endLineNumber, model.getLineLastNonWhitespaceColumn(prev.endLineNumber));
-				if (rangeNoWhitespace.containsRange(prev) && !rangeNoWhitespace.equalsRange(prev)) {
-					result2.push(rangeNoWhitespace);
-				}
-				// add line/block range
-				const rangeFull = new Range(prev.startLineNumber, 1, prev.endLineNumber, model.getLineMaxColumn(prev.endLineNumber));
-				if (rangeFull.containsRange(prev) && !rangeFull.equalsRange(rangeNoWhitespace)) {
-					result2.push(rangeFull);
-				}
-			}
-			result2.push(cur);
-		}
-
-		return result2;
 	});
 }
 
-export function provideSelectionRangesN(model: ITextModel, position: Position[], token: CancellationToken): Promise<Range[][]> {
-	return Promise.all(position.map(pos => {
-		return provideSelectionRanges(model, pos, token).then(value => {
-			return value || [];
-		});
-	}));
-}
-
-registerDefaultLanguageCommand('_executeSelectionRangeProvider', function (model, position) {
-	return provideSelectionRanges(model, position, CancellationToken.None);
+registerDefaultLanguageCommand('_executeSelectionRangeProvider', function (model, _position, args) {
+	return provideSelectionRanges(model, args.positions, CancellationToken.None);
 });

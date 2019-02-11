@@ -796,7 +796,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 	// --- selection ranges
 
-	test('Links, back and forth', async function () {
+	test('Selection Range, back and forth', async function () {
 
 		disposables.push(extHost.registerSelectionRangeProvider(nullExtensionDescription, defaultSelector, <vscode.SelectionRangeProvider>{
 			provideSelectionRanges() {
@@ -808,8 +808,9 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let value = await commands.executeCommand<vscode.DocumentLink[]>('vscode.executeSelectionRangeProvider', model.uri, new types.Position(0, 10));
-		assert.ok(value.length >= 2);
+		let value = await commands.executeCommand<vscode.SelectionRange[][]>('vscode.executeSelectionRangeProvider', model.uri, [new types.Position(0, 10)]);
+		assert.equal(value.length, 1);
+		assert.ok(value[0].length >= 2);
 	});
 
 });

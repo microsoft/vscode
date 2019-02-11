@@ -11,12 +11,19 @@ import { LinkedList } from 'vs/base/common/linkedList';
 
 export class BracketSelectionRangeProvider implements SelectionRangeProvider {
 
-	provideSelectionRanges(model: ITextModel, position: Position): Promise<SelectionRange[]> {
-		const bucket: SelectionRange[] = [];
-		const ranges = new Map<string, LinkedList<Range>>();
-		return new Promise(resolve => BracketSelectionRangeProvider._bracketsRightYield(resolve, 0, model, position, ranges))
-			.then(() => new Promise(resolve => BracketSelectionRangeProvider._bracketsLeftYield(resolve, 0, model, position, ranges, bucket)))
-			.then(() => bucket);
+	async provideSelectionRanges(model: ITextModel, positions: Position[]): Promise<SelectionRange[][]> {
+		const result: SelectionRange[][] = [];
+
+		for (const position of positions) {
+			const bucket: SelectionRange[] = [];
+			result.push(bucket);
+
+			const ranges = new Map<string, LinkedList<Range>>();
+			await new Promise(resolve => BracketSelectionRangeProvider._bracketsRightYield(resolve, 0, model, position, ranges));
+			await new Promise(resolve => BracketSelectionRangeProvider._bracketsLeftYield(resolve, 0, model, position, ranges, bucket));
+		}
+
+		return result;
 	}
 
 	private static readonly _maxDuration = 30;
