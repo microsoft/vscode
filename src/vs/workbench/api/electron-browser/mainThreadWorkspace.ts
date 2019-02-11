@@ -119,11 +119,11 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	// --- search ---
 
-	$startFileSearch(includePattern: string, _includeFolder: UriComponents, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Promise<URI[]> | undefined {
+	$startFileSearch(includePattern: string, _includeFolder: UriComponents | undefined, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Promise<URI[] | undefined> {
 		const includeFolder = URI.revive(_includeFolder);
 		const workspace = this._contextService.getWorkspace();
 		if (!workspace.folders.length) {
-			return undefined;
+			return Promise.resolve(undefined);
 		}
 
 		const query = this._queryBuilder.file(

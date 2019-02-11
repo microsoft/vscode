@@ -434,6 +434,7 @@
 		"./vs/workbench/api/node/extHostTypes.ts",
 		"./vs/workbench/api/node/extHostUrls.ts",
 		"./vs/workbench/api/node/extHostWindow.ts",
+		"./vs/workbench/api/node/extHostWorkspace.ts",
 		"./vs/workbench/api/shared/editor.ts",
 		"./vs/workbench/api/shared/tasks.ts",
 		"./vs/workbench/browser/actions.ts",
