@@ -74,7 +74,6 @@ import { HashService } from 'vs/workbench/services/hash/node/hashService';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { StorageService } from 'vs/platform/storage/node/storageService';
 import { Event, Emitter } from 'vs/base/common/event';
 import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { LocalizationsChannelClient } from 'vs/platform/localizations/node/localizationsIpc';
@@ -113,7 +112,7 @@ export interface ICoreServices {
 	configurationService: IConfigurationService;
 	environmentService: IEnvironmentService;
 	logService: ILogService;
-	storageService: StorageService;
+	storageService: IStorageService;
 }
 
 /**
@@ -125,7 +124,7 @@ export class Shell extends Disposable {
 	private readonly _onWillShutdown = this._register(new Emitter<WillShutdownEvent>());
 	get onWillShutdown(): Event<WillShutdownEvent> { return this._onWillShutdown.event; }
 
-	private storageService: StorageService;
+	private storageService: IStorageService;
 	private environmentService: IEnvironmentService;
 	private logService: ILogService;
 	private configurationService: IConfigurationService;
@@ -144,7 +143,13 @@ export class Shell extends Disposable {
 	private configuration: IWindowConfiguration;
 	private workbench: Workbench;
 
-	constructor(container: HTMLElement, coreServices: ICoreServices, mainProcessServices: ServiceCollection, private mainProcessClient: IPCClient, configuration: IWindowConfiguration) {
+	constructor(
+		container: HTMLElement,
+		coreServices: ICoreServices,
+		mainProcessServices: ServiceCollection,
+		private mainProcessClient: IPCClient,
+		configuration: IWindowConfiguration
+	) {
 		super();
 
 		this.container = container;
@@ -264,7 +269,6 @@ export class Shell extends Disposable {
 		// Telemetry: startup metrics
 		perf.mark('didStartWorkbench');
 	}
-
 
 	private initServiceCollection(container: HTMLElement): [IInstantiationService, ServiceCollection] {
 		const serviceCollection = new ServiceCollection();
