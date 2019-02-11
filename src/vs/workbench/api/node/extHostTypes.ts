@@ -1930,7 +1930,6 @@ export enum TreeItemCollapsibleState {
 	Expanded = 2
 }
 
-@es5ClassCompat
 export class ThemeIcon {
 	static readonly File = new ThemeIcon('file');
 
