@@ -16,7 +16,7 @@ import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { CustomCodeAction } from 'vs/workbench/api/node/extHostLanguageFeatures';
 import { ICommandsExecutor, PreviewHTMLAPICommand, OpenFolderAPICommand, DiffAPICommand, OpenAPICommand, RemoveFromRecentlyOpenedAPICommand, SetEditorLayoutAPICommand } from './apiCommands';
-import { EditorGroupLayout } from 'vs/workbench/services/group/common/editorGroupsService';
+import { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { isFalsyOrEmpty, isNonEmptyArray } from 'vs/base/common/arrays';
 
 export class ExtHostApiCommands {

@@ -195,6 +195,9 @@ namespace TaskDTO {
 			} else {
 				scope = value.scope.uri;
 			}
+		} else {
+			// To continue to support the deprecated task constructor that doesn't take a scope, we must add a scope here:
+			scope = types.TaskScope.Workspace;
 		}
 		if (!definition || !scope) {
 			return undefined;

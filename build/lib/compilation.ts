@@ -90,7 +90,7 @@ const typesDts = [
 
 export function compileTask(src: string, out: string, build: boolean): () => NodeJS.ReadWriteStream {
 
-	return function () {
+	const result = function () {
 		const compile = createCompile(src, build, true);
 
 		const srcPipe = es.merge(
@@ -108,11 +108,13 @@ export function compileTask(src: string, out: string, build: boolean): () => Nod
 			.pipe(compile())
 			.pipe(gulp.dest(out));
 	};
+	result.displayName = `compile-task-${out}${build ? '-build' : ''}`;
+	return result;
 }
 
 export function watchTask(out: string, build: boolean): () => NodeJS.ReadWriteStream {
 
-	return function () {
+	const result = function () {
 		const compile = createCompile('src', build);
 
 		const src = es.merge(
@@ -129,6 +131,8 @@ export function watchTask(out: string, build: boolean): () => NodeJS.ReadWriteSt
 			.pipe(util.incremental(compile, src, true))
 			.pipe(gulp.dest(out));
 	};
+	result.displayName = `watch-task-${out}${build ? '-build' : ''}`;
+	return result;
 }
 
 const REPO_SRC_FOLDER = path.join(__dirname, '../../src');

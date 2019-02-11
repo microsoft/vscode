@@ -12,7 +12,7 @@ import * as typeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import { CommandsRegistry, ICommandService, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { EditorViewColumn } from 'vs/workbench/api/shared/editor';
-import { EditorGroupLayout } from 'vs/workbench/services/group/common/editorGroupsService';
+import { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
@@ -62,7 +62,7 @@ export class OpenFolderAPICommand {
 			uri = correctedUri;
 		}
 
-		return executor.executeCommand('_files.windowOpen', { folderURIs: [uri], forceNewWindow });
+		return executor.executeCommand('_files.windowOpen', { urisToOpen: [{ uri }], forceNewWindow });
 	}
 }
 CommandsRegistry.registerCommand(OpenFolderAPICommand.ID, adjustHandler(OpenFolderAPICommand.execute));

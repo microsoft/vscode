@@ -26,7 +26,7 @@ import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { getConfirmMessage, IDialogService, ISaveDialogOptions, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { getConfirmMessage, IDialogService, ISaveDialogOptions, IFileDialogService, IConfirmation } from 'vs/platform/dialogs/common/dialogs';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { coalesce } from 'vs/base/common/arrays';
 
@@ -101,6 +101,17 @@ export class TextFileService extends AbstractTextFileService {
 				default: return ConfirmResult.CANCEL;
 			}
 		});
+	}
+
+	confirmOverwrite(resource: URI): Promise<boolean> {
+		const confirm: IConfirmation = {
+			message: nls.localize('confirmOverwrite', "'{0}' already exists. Do you want to replace it?", paths.basename(resource.fsPath)),
+			detail: nls.localize('irreversible', "A file or folder with the same name already exists in the folder {0}. Replacing it will overwrite its current contents.", paths.basename(paths.dirname(resource.fsPath))),
+			primaryButton: nls.localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
+			type: 'warning'
+		};
+
+		return this.dialogService.confirm(confirm).then(result => result.confirmed);
 	}
 
 	promptForPath(resource: URI, defaultUri: URI): Promise<URI> {

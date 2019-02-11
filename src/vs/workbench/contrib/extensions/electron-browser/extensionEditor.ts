@@ -74,8 +74,13 @@ function removeEmbeddedSVGs(documentContent: string): string {
 
 	// remove all inline svgs
 	const allSVGs = newDocument.documentElement.querySelectorAll('svg');
-	for (let i = 0; i < allSVGs.length; i++) {
-		allSVGs[i].parentNode.removeChild(allSVGs[i]);
+	if (allSVGs) {
+		for (let i = 0; i < allSVGs.length; i++) {
+			const svg = allSVGs[i];
+			if (svg.parentNode) {
+				svg.parentNode.removeChild(allSVGs[i]);
+			}
+		}
 	}
 
 	return newDocument.documentElement.outerHTML;
@@ -97,7 +102,7 @@ class NavBar {
 	}
 
 	push(id: string, label: string, tooltip: string): void {
-		const action = new Action(id, label, null, true, () => this._update(id, true));
+		const action = new Action(id, label, undefined, true, () => this._update(id, true));
 
 		action.tooltip = tooltip;
 
@@ -118,7 +123,7 @@ class NavBar {
 		this._update(this.currentId);
 	}
 
-	_update(id: string = this.currentId, focus?: boolean): Promise<void> {
+	_update(id: string | null = this.currentId, focus?: boolean): Promise<void> {
 		this.currentId = id;
 		this._onChange.fire({ id, focus });
 		this.actions.forEach(a => a.enabled = a.id !== id);
@@ -170,16 +175,16 @@ export class ExtensionEditor extends BaseEditor {
 	private ignoreActionbar: ActionBar;
 	private header: HTMLElement;
 
-	private extensionReadme: Cache<string>;
-	private extensionChangelog: Cache<string>;
-	private extensionManifest: Cache<IExtensionManifest>;
-	private extensionDependencies: Cache<IExtensionDependencies>;
+	private extensionReadme: Cache<string> | null;
+	private extensionChangelog: Cache<string> | null;
+	private extensionManifest: Cache<IExtensionManifest | null> | null;
+	private extensionDependencies: Cache<IExtensionDependencies | null> | null;
 
 	private layoutParticipants: ILayoutParticipant[] = [];
 	private contentDisposables: IDisposable[] = [];
 	private transientDisposables: IDisposable[] = [];
 	private disposables: IDisposable[];
-	private activeElement: IActiveElement;
+	private activeElement: IActiveElement | null;
 	private editorLoadComplete: boolean = false;
 
 	constructor(
@@ -520,9 +525,12 @@ export class ExtensionEditor extends BaseEditor {
 			.then(renderBody)
 			.then(removeEmbeddedSVGs)
 			.then(body => {
-				const allowedBadgeProviders = this.extensionsWorkbenchService.allowedBadgeProviders;
-				const webViewOptions = allowedBadgeProviders.length > 0 ? { allowScripts: false, allowSvgs: false, svgWhiteList: allowedBadgeProviders } : {};
-				const wbeviewElement = this.instantiationService.createInstance(WebviewElement, this.partService.getContainer(Parts.EDITOR_PART), webViewOptions);
+				const wbeviewElement = this.instantiationService.createInstance(WebviewElement,
+					this.partService.getContainer(Parts.EDITOR_PART),
+					{},
+					{
+						svgWhiteList: this.extensionsWorkbenchService.allowedBadgeProviders
+					});
 				wbeviewElement.mountTo(this.content);
 				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, wbeviewElement);
 				this.contentDisposables.push(toDisposable(removeLayoutParticipant));
@@ -647,7 +655,7 @@ export class ExtensionEditor extends BaseEditor {
 				return this.extensionDependencies.extension;
 			}
 
-			get parent(): IExtensionData {
+			get parent(): IExtensionData | null {
 				return this.extensionDependencies.dependent ? new ExtensionData(this.extensionDependencies.dependent) : null;
 			}
 
@@ -655,8 +663,8 @@ export class ExtensionEditor extends BaseEditor {
 				return this.extensionDependencies.hasDependencies;
 			}
 
-			getChildren(): Promise<IExtensionData[]> {
-				return this.extensionDependencies.dependencies ? Promise.resolve(this.extensionDependencies.dependencies.map(d => new ExtensionData(d))) : null;
+			getChildren(): Promise<IExtensionData[] | null> {
+				return this.extensionDependencies.dependencies ? Promise.resolve(this.extensionDependencies.dependencies.map(d => new ExtensionData(d))) : Promise.resolve(null);
 			}
 		}
 
@@ -688,11 +696,11 @@ export class ExtensionEditor extends BaseEditor {
 		class ExtensionData implements IExtensionData {
 
 			readonly extension: IExtension;
-			readonly parent: IExtensionData;
+			readonly parent: IExtensionData | null;
 
 			constructor(extension: IExtension, parent?: IExtensionData) {
 				this.extension = extension;
-				this.parent = parent;
+				this.parent = parent || null;
 			}
 
 			get hasChildren(): boolean {
@@ -730,17 +738,17 @@ export class ExtensionEditor extends BaseEditor {
 		}
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', null, localize('settings', "Settings ({0})", contrib.length)),
-			$('table', null,
-				$('tr', null,
-					$('th', null, localize('setting name', "Name")),
-					$('th', null, localize('description', "Description")),
-					$('th', null, localize('default', "Default"))
+			$('summary', undefined, localize('settings', "Settings ({0})", contrib.length)),
+			$('table', undefined,
+				$('tr', undefined,
+					$('th', undefined, localize('setting name', "Name")),
+					$('th', undefined, localize('description', "Description")),
+					$('th', undefined, localize('default', "Default"))
 				),
-				...contrib.map(key => $('tr', null,
-					$('td', null, $('code', null, key)),
-					$('td', null, properties[key].description),
-					$('td', null, $('code', null, `${isUndefined(properties[key].default) ? getDefaultValue(properties[key].type) : properties[key].default}`))
+				...contrib.map(key => $('tr', undefined,
+					$('td', undefined, $('code', undefined, key)),
+					$('td', undefined, properties[key].description),
+					$('td', undefined, $('code', undefined, `${isUndefined(properties[key].default) ? getDefaultValue(properties[key].type) : properties[key].default}`))
 				))
 			)
 		);
@@ -758,15 +766,15 @@ export class ExtensionEditor extends BaseEditor {
 		}
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', null, localize('debuggers', "Debuggers ({0})", contrib.length)),
-			$('table', null,
-				$('tr', null,
-					$('th', null, localize('debugger name', "Name")),
-					$('th', null, localize('debugger type', "Type")),
+			$('summary', undefined, localize('debuggers', "Debuggers ({0})", contrib.length)),
+			$('table', undefined,
+				$('tr', undefined,
+					$('th', undefined, localize('debugger name', "Name")),
+					$('th', undefined, localize('debugger type', "Type")),
 				),
-				...contrib.map(d => $('tr', null,
-					$('td', null, d.label),
-					$('td', null, d.type)))
+				...contrib.map(d => $('tr', undefined,
+					$('td', undefined, d.label!),
+					$('td', undefined, d.type)))
 			)
 		);
 
@@ -778,21 +786,21 @@ export class ExtensionEditor extends BaseEditor {
 		const contributes = manifest.contributes;
 		const contrib = contributes && contributes.viewsContainers || {};
 
-		let viewContainers = <{ id: string, title: string, location: string }[]>Object.keys(contrib).reduce((result, location) => {
+		let viewContainers = Object.keys(contrib).reduce((result, location) => {
 			let viewContainersForLocation: IViewContainer[] = contrib[location];
 			result.push(...viewContainersForLocation.map(viewContainer => ({ ...viewContainer, location })));
 			return result;
-		}, []);
+		}, [] as Array<{ id: string, title: string, location: string }>);
 
 		if (!viewContainers.length) {
 			return false;
 		}
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', null, localize('viewContainers', "View Containers ({0})", viewContainers.length)),
-			$('table', null,
-				$('tr', null, $('th', null, localize('view container id', "ID")), $('th', null, localize('view container title', "Title")), $('th', null, localize('view container location', "Where"))),
-				...viewContainers.map(viewContainer => $('tr', null, $('td', null, viewContainer.id), $('td', null, viewContainer.title), $('td', null, viewContainer.location)))
+			$('summary', undefined, localize('viewContainers', "View Containers ({0})", viewContainers.length)),
+			$('table', undefined,
+				$('tr', undefined, $('th', undefined, localize('view container id', "ID")), $('th', undefined, localize('view container title', "Title")), $('th', undefined, localize('view container location', "Where"))),
+				...viewContainers.map(viewContainer => $('tr', undefined, $('td', undefined, viewContainer.id), $('td', undefined, viewContainer.title), $('td', undefined, viewContainer.location)))
 			)
 		);
 
@@ -804,21 +812,21 @@ export class ExtensionEditor extends BaseEditor {
 		const contributes = manifest.contributes;
 		const contrib = contributes && contributes.views || {};
 
-		let views = <{ id: string, name: string, location: string }[]>Object.keys(contrib).reduce((result, location) => {
+		let views = Object.keys(contrib).reduce((result, location) => {
 			let viewsForLocation: IView[] = contrib[location];
 			result.push(...viewsForLocation.map(view => ({ ...view, location })));
 			return result;
-		}, []);
+		}, [] as Array<{ id: string, name: string, location: string }>);
 
 		if (!views.length) {
 			return false;
 		}
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', null, localize('views', "Views ({0})", views.length)),
-			$('table', null,
-				$('tr', null, $('th', null, localize('view id', "ID")), $('th', null, localize('view name', "Name")), $('th', null, localize('view location', "Where"))),
-				...views.map(view => $('tr', null, $('td', null, view.id), $('td', null, view.name), $('td', null, view.location)))
+			$('summary', undefined, localize('views', "Views ({0})", views.length)),
+			$('table', undefined,
+				$('tr', undefined, $('th', undefined, localize('view id', "ID")), $('th', undefined, localize('view name', "Name")), $('th', undefined, localize('view location', "Where"))),
+				...views.map(view => $('tr', undefined, $('td', undefined, view.id), $('td', undefined, view.name), $('td', undefined, view.location)))
 			)
 		);
 
@@ -835,10 +843,10 @@ export class ExtensionEditor extends BaseEditor {
 		}
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', null, localize('localizations', "Localizations ({0})", localizations.length)),
-			$('table', null,
-				$('tr', null, $('th', null, localize('localizations language id', "Language Id")), $('th', null, localize('localizations language name', "Language Name")), $('th', null, localize('localizations localized language name', "Language Name (Localized)"))),
-				...localizations.map(localization => $('tr', null, $('td', null, localization.languageId), $('td', null, localization.languageName), $('td', null, localization.localizedLanguageName)))
+			$('summary', undefined, localize('localizations', "Localizations ({0})", localizations.length)),
+			$('table', undefined,
+				$('tr', undefined, $('th', undefined, localize('localizations language id', "Language Id")), $('th', undefined, localize('localizations language name', "Language Name")), $('th', undefined, localize('localizations localized language name', "Language Name (Localized)"))),
+				...localizations.map(localization => $('tr', undefined, $('td', undefined, localization.languageId), $('td', undefined, localization.languageName || ''), $('td', undefined, localization.localizedLanguageName || '')))
 			)
 		);
 
@@ -855,8 +863,8 @@ export class ExtensionEditor extends BaseEditor {
 		}
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', null, localize('colorThemes', "Color Themes ({0})", contrib.length)),
-			$('ul', null, ...contrib.map(theme => $('li', null, theme.label)))
+			$('summary', undefined, localize('colorThemes', "Color Themes ({0})", contrib.length)),
+			$('ul', undefined, ...contrib.map(theme => $('li', undefined, theme.label)))
 		);
 
 		append(container, details);
@@ -872,8 +880,8 @@ export class ExtensionEditor extends BaseEditor {
 		}
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', null, localize('iconThemes', "Icon Themes ({0})", contrib.length)),
-			$('ul', null, ...contrib.map(theme => $('li', null, theme.label)))
+			$('summary', undefined, localize('iconThemes', "Icon Themes ({0})", contrib.length)),
+			$('ul', undefined, ...contrib.map(theme => $('li', undefined, theme.label)))
 		);
 
 		append(container, details);
@@ -896,26 +904,26 @@ export class ExtensionEditor extends BaseEditor {
 					result.push($('span', { class: 'colorBox', style: 'background-color: ' + Color.Format.CSS.format(color) }, ''));
 				}
 			}
-			result.push($('code', null, colorReference));
+			result.push($('code', undefined, colorReference));
 			return result;
 		}
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', null, localize('colors', "Colors ({0})", colors.length)),
-			$('table', null,
-				$('tr', null,
-					$('th', null, localize('colorId', "Id")),
-					$('th', null, localize('description', "Description")),
-					$('th', null, localize('defaultDark', "Dark Default")),
-					$('th', null, localize('defaultLight', "Light Default")),
-					$('th', null, localize('defaultHC', "High Contrast Default"))
+			$('summary', undefined, localize('colors', "Colors ({0})", colors.length)),
+			$('table', undefined,
+				$('tr', undefined,
+					$('th', undefined, localize('colorId', "Id")),
+					$('th', undefined, localize('description', "Description")),
+					$('th', undefined, localize('defaultDark', "Dark Default")),
+					$('th', undefined, localize('defaultLight', "Light Default")),
+					$('th', undefined, localize('defaultHC', "High Contrast Default"))
 				),
-				...colors.map(color => $('tr', null,
-					$('td', null, $('code', null, color.id)),
-					$('td', null, color.description),
-					$('td', null, ...colorPreview(color.defaults.dark)),
-					$('td', null, ...colorPreview(color.defaults.light)),
-					$('td', null, ...colorPreview(color.defaults.highContrast))
+				...colors.map(color => $('tr', undefined,
+					$('td', undefined, $('code', undefined, color.id)),
+					$('td', undefined, color.description),
+					$('td', undefined, ...colorPreview(color.defaults.dark)),
+					$('td', undefined, ...colorPreview(color.defaults.light)),
+					$('td', undefined, ...colorPreview(color.defaults.highContrast))
 				))
 			)
 		);
@@ -934,15 +942,15 @@ export class ExtensionEditor extends BaseEditor {
 		}
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', null, localize('JSON Validation', "JSON Validation ({0})", contrib.length)),
-			$('table', null,
-				$('tr', null,
-					$('th', null, localize('fileMatch', "File Match")),
-					$('th', null, localize('schema', "Schema"))
+			$('summary', undefined, localize('JSON Validation', "JSON Validation ({0})", contrib.length)),
+			$('table', undefined,
+				$('tr', undefined,
+					$('th', undefined, localize('fileMatch', "File Match")),
+					$('th', undefined, localize('schema', "Schema"))
 				),
-				...contrib.map(v => $('tr', null,
-					$('td', null, $('code', null, v.fileMatch)),
-					$('td', null, v.url)
+				...contrib.map(v => $('tr', undefined,
+					$('td', undefined, $('code', undefined, v.fileMatch)),
+					$('td', undefined, v.url)
 				))));
 
 		append(container, details);
@@ -955,8 +963,8 @@ export class ExtensionEditor extends BaseEditor {
 		const commands = rawCommands.map(c => ({
 			id: c.command,
 			title: c.title,
-			keybindings: [],
-			menus: []
+			keybindings: [] as ResolvedKeybinding[],
+			menus: [] as string[]
 		}));
 
 		const byId = arrays.index(commands, c => c.id);
@@ -1008,19 +1016,19 @@ export class ExtensionEditor extends BaseEditor {
 		};
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', null, localize('commands', "Commands ({0})", commands.length)),
-			$('table', null,
-				$('tr', null,
-					$('th', null, localize('command name', "Name")),
-					$('th', null, localize('description', "Description")),
-					$('th', null, localize('keyboard shortcuts', "Keyboard Shortcuts")),
-					$('th', null, localize('menuContexts', "Menu Contexts"))
+			$('summary', undefined, localize('commands', "Commands ({0})", commands.length)),
+			$('table', undefined,
+				$('tr', undefined,
+					$('th', undefined, localize('command name', "Name")),
+					$('th', undefined, localize('description', "Description")),
+					$('th', undefined, localize('keyboard shortcuts', "Keyboard Shortcuts")),
+					$('th', undefined, localize('menuContexts', "Menu Contexts"))
 				),
-				...commands.map(c => $('tr', null,
-					$('td', null, $('code', null, c.id)),
-					$('td', null, c.title),
-					$('td', null, ...c.keybindings.map(keybinding => renderKeybinding(keybinding))),
-					$('td', null, ...c.menus.map(context => $('code', null, context)))
+				...commands.map(c => $('tr', undefined,
+					$('td', undefined, $('code', undefined, c.id)),
+					$('td', undefined, c.title),
+					$('td', undefined, ...c.keybindings.map(keybinding => renderKeybinding(keybinding))),
+					$('td', undefined, ...c.menus.map(context => $('code', undefined, context)))
 				))
 			)
 		);
@@ -1075,21 +1083,21 @@ export class ExtensionEditor extends BaseEditor {
 		}
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', null, localize('languages', "Languages ({0})", languages.length)),
-			$('table', null,
-				$('tr', null,
-					$('th', null, localize('language id', "ID")),
-					$('th', null, localize('language name', "Name")),
-					$('th', null, localize('file extensions', "File Extensions")),
-					$('th', null, localize('grammar', "Grammar")),
-					$('th', null, localize('snippets', "Snippets"))
+			$('summary', undefined, localize('languages', "Languages ({0})", languages.length)),
+			$('table', undefined,
+				$('tr', undefined,
+					$('th', undefined, localize('language id', "ID")),
+					$('th', undefined, localize('language name', "Name")),
+					$('th', undefined, localize('file extensions', "File Extensions")),
+					$('th', undefined, localize('grammar', "Grammar")),
+					$('th', undefined, localize('snippets', "Snippets"))
 				),
-				...languages.map(l => $('tr', null,
-					$('td', null, l.id),
-					$('td', null, l.name),
-					$('td', null, ...join(l.extensions.map(ext => $('code', null, ext)), ' ')),
-					$('td', null, document.createTextNode(l.hasGrammar ? '✔︎' : '—')),
-					$('td', null, document.createTextNode(l.hasSnippets ? '✔︎' : '—'))
+				...languages.map(l => $('tr', undefined,
+					$('td', undefined, l.id),
+					$('td', undefined, l.name),
+					$('td', undefined, ...join(l.extensions.map(ext => $('code', undefined, ext)), ' ')),
+					$('td', undefined, document.createTextNode(l.hasGrammar ? '✔︎' : '—')),
+					$('td', undefined, document.createTextNode(l.hasSnippets ? '✔︎' : '—'))
 				))
 			)
 		);
@@ -1098,8 +1106,8 @@ export class ExtensionEditor extends BaseEditor {
 		return true;
 	}
 
-	private resolveKeybinding(rawKeyBinding: IKeyBinding): ResolvedKeybinding {
-		let key: string;
+	private resolveKeybinding(rawKeyBinding: IKeyBinding): ResolvedKeybinding | null {
+		let key: string | undefined;
 
 		switch (process.platform) {
 			case 'win32': key = rawKeyBinding.win; break;
@@ -1154,7 +1162,7 @@ class ShowExtensionEditorFindCommand extends Command {
 		}
 	}
 
-	private getExtensionEditor(accessor: ServicesAccessor): ExtensionEditor {
+	private getExtensionEditor(accessor: ServicesAccessor): ExtensionEditor | null {
 		const activeControl = accessor.get(IEditorService).activeControl as ExtensionEditor;
 		if (activeControl instanceof ExtensionEditor) {
 			return activeControl;

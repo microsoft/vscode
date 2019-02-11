@@ -244,7 +244,7 @@ export interface IThread extends ITreeElement {
 	/**
 	 * Information about the exception if an 'exception' stopped event raised and DA supports the 'exceptionInfo' request, otherwise null.
 	 */
-	readonly exceptionInfo: Promise<IExceptionInfo>;
+	readonly exceptionInfo: Promise<IExceptionInfo | null>;
 
 	/**
 	 * Gets the callstack if it has already been received from the debug
@@ -321,7 +321,7 @@ export interface IBaseBreakpoint extends IEnablement {
 	readonly hitCondition: string;
 	readonly logMessage: string;
 	readonly verified: boolean;
-	readonly idFromAdapter: number;
+	readonly idFromAdapter: number | undefined;
 }
 
 export interface IBreakpoint extends IBaseBreakpoint {
@@ -330,7 +330,7 @@ export interface IBreakpoint extends IBaseBreakpoint {
 	readonly endLineNumber?: number;
 	readonly column: number;
 	readonly endColumn?: number;
-	readonly message: string;
+	readonly message?: string;
 	readonly adapterData: any;
 }
 
@@ -346,7 +346,7 @@ export interface IExceptionBreakpoint extends IEnablement {
 export interface IExceptionInfo {
 	readonly id?: string;
 	readonly description?: string;
-	readonly breakMode: string;
+	readonly breakMode: string | null;
 	readonly details?: DebugProtocol.ExceptionDetails;
 }
 
@@ -394,7 +394,7 @@ export interface IDebugModel extends ITreeElement {
 
 	onDidChangeBreakpoints: Event<IBreakpointsChangeEvent>;
 	onDidChangeCallStack: Event<void>;
-	onDidChangeWatchExpressions: Event<IExpression>;
+	onDidChangeWatchExpressions: Event<IExpression | undefined>;
 }
 
 /**
@@ -461,7 +461,7 @@ export interface ICompound {
 
 export interface IDebugAdapter extends IDisposable {
 	readonly onError: Event<Error>;
-	readonly onExit: Event<number>;
+	readonly onExit: Event<number | null>;
 	onRequest(callback: (request: DebugProtocol.Request) => void);
 	onEvent(callback: (event: DebugProtocol.Event) => void);
 	startSession(): Promise<void>;
@@ -586,7 +586,7 @@ export interface IConfigurationManager {
 
 	getLaunches(): ReadonlyArray<ILaunch>;
 
-	getLaunch(workspaceUri: uri): ILaunch | undefined;
+	getLaunch(workspaceUri: uri | undefined): ILaunch | undefined;
 
 	/**
 	 * Allows to register on change of selected debug configuration.
@@ -784,7 +784,7 @@ export interface IDebugService {
 	 * Returns true if the start debugging was successfull. For compound launches, all configurations have to start successfuly for it to return success.
 	 * On errors the startDebugging will throw an error, however some error and cancelations are handled and in that case will simply return false.
 	 */
-	startDebugging(launch: ILaunch, configOrName?: IConfig | string, noDebug?: boolean): Promise<boolean>;
+	startDebugging(launch: ILaunch | undefined, configOrName?: IConfig | string, noDebug?: boolean): Promise<boolean>;
 
 	/**
 	 * Restarts a session or creates a new one if there is no active session.

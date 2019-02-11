@@ -93,6 +93,9 @@ class MessageWidget {
 			lastLineElement = document.createElement('div');
 			lastLineElement.innerText = line;
 			this._editor.applyFontInfo(lastLineElement);
+			if (line === '') {
+				lastLineElement.style.height = lastLineElement.style.lineHeight;
+			}
 			this._messageBlock.appendChild(lastLineElement);
 		}
 		if (source || code) {

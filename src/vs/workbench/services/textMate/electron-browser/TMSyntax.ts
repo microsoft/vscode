@@ -257,7 +257,7 @@ export class TextMateService extends Disposable implements ITextMateService {
 				let injections: string[] = [];
 				for (let i = 1; i <= scopeParts.length; i++) {
 					const subScopeName = scopeParts.slice(0, i).join('.');
-					injections = [...injections, ...this._injections[subScopeName]];
+					injections = [...injections, ...(this._injections[subScopeName] || [])];
 				}
 				return injections;
 			}

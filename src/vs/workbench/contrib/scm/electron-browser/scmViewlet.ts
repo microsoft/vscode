@@ -14,10 +14,9 @@ import { append, $, addClass, toggleClass, trackFocus, Dimension, addDisposableL
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent, IListEvent, IKeyboardNavigationLabelProvider, IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { VIEWLET_ID, VIEW_CONTAINER } from 'vs/workbench/contrib/scm/common/scm';
+import { VIEWLET_ID, VIEW_CONTAINER, ISCMService, ISCMRepository, ISCMResourceGroup, ISCMResource, InputValidationType } from 'vs/workbench/contrib/scm/common/scm';
 import { ResourceLabels, IResourceLabel, IResourceLabelsContainer } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
-import { ISCMService, ISCMRepository, ISCMResourceGroup, ISCMResource, InputValidationType } from 'vs/workbench/services/scm/common/scm';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -783,7 +782,7 @@ export class RepositoryPanel extends ViewletPanel {
 
 		super.renderHeaderTitle(container, title);
 		addClass(container, 'scm-provider');
-		append(container, $('span.type', null, type));
+		append(container, $('span.type', undefined, type));
 		const onContextMenu = Event.map(stop(domEvent(container, 'contextmenu')), e => new StandardMouseEvent(e));
 		onContextMenu(this.onContextMenu, this, this.disposables);
 	}
@@ -1098,7 +1097,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 		this.el = parent;
 		addClass(this.el, 'scm-viewlet');
 		addClass(this.el, 'empty');
-		append(parent, $('div.empty-message', null, localize('no open repo', "No source control providers registered.")));
+		append(parent, $('div.empty-message', undefined, localize('no open repo', "No source control providers registered.")));
 
 		this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
 		this.scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.disposables);

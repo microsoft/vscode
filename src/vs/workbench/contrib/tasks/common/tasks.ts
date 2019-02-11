@@ -350,7 +350,7 @@ export interface WorkspaceTaskSource extends BaseTaskSource {
 
 export interface ExtensionTaskSource extends BaseTaskSource {
 	readonly kind: 'extension';
-	readonly extension: string;
+	readonly extension?: string;
 	readonly scope: TaskScope;
 	readonly workspaceFolder: IWorkspaceFolder | undefined;
 }

@@ -26,19 +26,36 @@ import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
+import { isDebuggerMainContribution } from 'vs/workbench/contrib/debug/common/debugUtils';
 
 export class Debugger implements IDebugger {
 
-	private mergedExtensionDescriptions: IExtensionDescription[];
+	private debuggerContribution: IDebuggerContribution = {};
+	private mergedExtensionDescriptions: IExtensionDescription[] = [];
+	private mainExtensionDescription: IExtensionDescription | undefined;
 
-	constructor(private configurationManager: IConfigurationManager, private debuggerContribution: IDebuggerContribution, public extensionDescription: IExtensionDescription,
+	constructor(private configurationManager: IConfigurationManager, dbgContribution: IDebuggerContribution, extensionDescription: IExtensionDescription,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITextResourcePropertiesService private readonly resourcePropertiesService: ITextResourcePropertiesService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationResolverService private readonly configurationResolverService: IConfigurationResolverService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
-		this.mergedExtensionDescriptions = [extensionDescription];
+		this.merge(dbgContribution, extensionDescription);
+	}
+
+	public merge(otherDebuggerContribution: IDebuggerContribution, extensionDescription: IExtensionDescription): void {
+
+		// remember all extensions that have been merged for this debugger
+		this.mergedExtensionDescriptions.push(extensionDescription);
+
+		// merge new debugger contribution into existing contributions.
+		objects.mixin(this.debuggerContribution, otherDebuggerContribution, extensionDescription.isBuiltin);
+
+		// remember the extension that is considered the "main" debugger contribution
+		if (isDebuggerMainContribution(otherDebuggerContribution)) {
+			this.mainExtensionDescription = extensionDescription;
+		}
 	}
 
 	public createDebugAdapter(session: IDebugSession, outputService: IOutputService): Promise<IDebugAdapter> {
@@ -129,7 +146,9 @@ export class Debugger implements IDebugger {
 
 	private inExtHost(): boolean {
 		const debugConfigs = this.configurationService.getValue<IDebugConfiguration>('debug');
-		return debugConfigs.extensionHostDebugAdapter || this.configurationManager.needsToRunInExtHost(this.type) || this.extensionDescription.extensionLocation.scheme !== 'file';
+		return debugConfigs.extensionHostDebugAdapter
+			|| this.configurationManager.needsToRunInExtHost(this.type)
+			|| (this.mainExtensionDescription && this.mainExtensionDescription.extensionLocation.scheme !== 'file');
 	}
 
 	get label(): string {
@@ -150,18 +169,6 @@ export class Debugger implements IDebugger {
 
 	get languages(): string[] {
 		return this.debuggerContribution.languages;
-	}
-
-	merge(secondRawAdapter: IDebuggerContribution, extensionDescription: IExtensionDescription): void {
-
-		// remember all ext descriptions that are the source of this debugger
-		this.mergedExtensionDescriptions.push(extensionDescription);
-
-		// Give priority to built in debug adapters
-		if (extensionDescription.isBuiltin) {
-			this.extensionDescription = extensionDescription;
-		}
-		objects.mixin(this.debuggerContribution, secondRawAdapter, extensionDescription.isBuiltin);
 	}
 
 	hasInitialConfiguration(): boolean {
@@ -204,6 +211,10 @@ export class Debugger implements IDebugger {
 		return Promise.resolve(content);
 	}
 
+	public getMainExtensionDescriptor(): IExtensionDescription {
+		return this.mainExtensionDescription || this.mergedExtensionDescriptions[0];
+	}
+
 	@memoize
 	getCustomTelemetryService(): Promise<TelemetryService> {
 		if (!this.debuggerContribution.aiKey) {
@@ -221,7 +232,7 @@ export class Debugger implements IDebugger {
 				{
 					serverName: 'Debug Telemetry',
 					timeout: 1000 * 60 * 5,
-					args: [`${this.extensionDescription.publisher}.${this.type}`, JSON.stringify(data), this.debuggerContribution.aiKey],
+					args: [`${this.getMainExtensionDescriptor().publisher}.${this.type}`, JSON.stringify(data), this.debuggerContribution.aiKey],
 					env: {
 						ELECTRON_RUN_AS_NODE: 1,
 						PIPE_LOGGING: 'true',

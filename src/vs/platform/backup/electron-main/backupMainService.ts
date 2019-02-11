@@ -60,7 +60,17 @@ export class BackupMainService implements IBackupMainService {
 		}
 
 		// read workspace backups
-		this.rootWorkspaces = await this.validateWorkspaces(backups.rootWorkspaces);
+		let rootWorkspaces: IWorkspaceIdentifier[] = [];
+		try {
+			if (Array.isArray(backups.rootURIWorkspaces)) {
+				rootWorkspaces = backups.rootURIWorkspaces.map(f => ({ id: f.id, configPath: URI.parse(f.configURIPath) }));
+			} else if (Array.isArray(backups.rootWorkspaces)) {
+				rootWorkspaces = backups.rootWorkspaces.map(f => ({ id: f.id, configPath: URI.file(f.configPath) }));
+			}
+		} catch (e) {
+			// ignore URI parsing exceptions
+		}
+		this.rootWorkspaces = await this.validateWorkspaces(rootWorkspaces);
 
 		// read folder backups
 		let workspaceFolders: URI[] = [];
@@ -253,13 +263,14 @@ export class BackupMainService implements IBackupMainService {
 
 				// If the workspace has no backups, ignore it
 				if (hasBackups) {
-					if (await exists(workspace.configPath)) {
+					if (workspace.configPath.scheme !== Schemas.file || await exists(workspace.configPath.fsPath)) {
 						result.push(workspace);
 					} else {
 						// If the workspace has backups, but the target workspace is missing, convert backups to empty ones
 						await this.convertToEmptyWindowBackup(backupPath);
 					}
 				} else {
+					console.log('no backups');
 					await this.deleteStaleBackup(backupPath);
 				}
 			}
@@ -421,7 +432,7 @@ export class BackupMainService implements IBackupMainService {
 
 	private serializeBackups(): IBackupWorkspacesFormat {
 		return {
-			rootWorkspaces: this.rootWorkspaces,
+			rootURIWorkspaces: this.rootWorkspaces.map(f => ({ id: f.id, configURIPath: f.configPath.toString() })),
 			folderURIWorkspaces: this.folderWorkspaces.map(f => f.toString()),
 			emptyWorkspaceInfos: this.emptyWorkspaces,
 			emptyWorkspaces: this.emptyWorkspaces.map(info => info.backupFolder)

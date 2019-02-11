@@ -884,7 +884,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 				// (or, if the task has no group, a terminal used by a task without group).
 				for (const taskId of this.idleTaskTerminals.keys()) {
 					const idleTerminalId = this.idleTaskTerminals.get(taskId)!;
-					if (this.terminals[idleTerminalId].group === group) {
+					if (idleTerminalId && this.terminals[idleTerminalId].group === group) {
 						terminalId = this.idleTaskTerminals.remove(taskId);
 						break;
 					}
@@ -899,6 +899,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			if (task.command.presentation && task.command.presentation.clear) {
 				terminalToReuse.terminal.clear();
 			}
+			this.terminals[terminalToReuse.terminal.id.toString()].lastTask = taskKey;
 			return [terminalToReuse.terminal, commandExecutable, undefined];
 		}
 

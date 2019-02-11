@@ -13,13 +13,13 @@ import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/action
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IPartService, Parts, Position } from 'vs/workbench/services/part/common/partService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IEditorGroupsService, GroupOrientation } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService, GroupOrientation } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { MenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { isWindows, isLinux } from 'vs/base/common/platform';
-import { IsMacContext } from 'vs/platform/workbench/common/contextkeys';
+import { IsMacContext } from 'vs/platform/contextkey/common/contextkeys';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { InEditorZenModeContext } from 'vs/workbench/common/editor';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';

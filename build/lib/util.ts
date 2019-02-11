@@ -17,6 +17,8 @@ import * as git from './git';
 import * as VinylFile from 'vinyl';
 import { ThroughStream } from 'through';
 import * as sm from 'source-map';
+import * as fancyLog from 'fancy-log';
+import * as ansiColors from 'ansi-colors';
 
 export interface ICancellationToken {
 	isCancellationRequested(): boolean;
@@ -233,23 +235,8 @@ export function rimraf(dir: string): (cb: any) => void {
 			return cb(err);
 		});
 	};
-
-	return cb => retry(cb);
-}
-
-/**
- * Like rimraf (with 5 retries), but with a promise instead of a callback.
- */
-export function primraf(dir: string): Promise<void> {
-	const fn = rimraf(dir);
-	return new Promise((resolve, reject) => {
-		fn((err: any) => {
-			if (err) {
-				return reject(err);
-			}
-			resolve();
-		});
-	});
+	retry.displayName = `clean-${path.basename(dir)}`;
+	return retry;
 }
 
 export type PromiseTask = () => Promise<void>;
@@ -266,7 +253,30 @@ export namespace task {
 		return false;
 	}
 
+	function _renderTime(time: number): string {
+		if (time < 1000) {
+			return `${time.toFixed(2)} ms`;
+		}
+		let seconds = time / 1000;
+		if (seconds < 60) {
+			return `${seconds.toFixed(1)} s`;
+		}
+		let minutes = Math.floor(seconds / 60);
+		seconds -= minutes * 60;
+		return `${minutes} m and ${seconds} s`;
+	}
+
 	async function _execute(task: Task): Promise<void> {
+		const name = (<any>task).displayName || task.name || `<anonymous>`;
+		fancyLog('Starting', ansiColors.cyan(name), '...');
+		const startTime = process.hrtime();
+		await _doExecute(task);
+		const elapsedArr = process.hrtime(startTime);
+		const elapsedNanoseconds = (elapsedArr[0] * 1e9 + elapsedArr[1]);
+		fancyLog(`Finished`, ansiColors.cyan(name), 'after', ansiColors.green(_renderTime(elapsedNanoseconds / 1e6)));
+	}
+
+	async function _doExecute(task: Task): Promise<void> {
 		// Always invoke as if it were a callback task
 		return new Promise((resolve, reject) => {
 			if (task.length === 1) {

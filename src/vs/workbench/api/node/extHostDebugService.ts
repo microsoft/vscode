@@ -24,7 +24,7 @@ import { getTerminalLauncher, hasChildProcesses, prepareCommand } from 'vs/workb
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/node/variableResolver';
 import { ExtHostConfiguration, ExtHostConfigProvider } from './extHostConfiguration';
-import { convertToVSCPaths, convertToDAPaths } from 'vs/workbench/contrib/debug/common/debugUtils';
+import { convertToVSCPaths, convertToDAPaths, isDebuggerMainContribution } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { ExtHostTerminalService } from 'vs/workbench/api/node/extHostTerminalService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
@@ -128,8 +128,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 					const debuggers = <IDebuggerContribution[]>ed.contributes['debuggers'];
 					if (debuggers && debuggers.length > 0) {
 						for (const dbg of debuggers) {
-							// only debugger contributions with a label, program, or runtime attribute are considered a "defining" debugger contribution
-							if (dbg.type && (dbg.label || dbg.program || dbg.runtime)) {
+							if (isDebuggerMainContribution(dbg)) {
 								debugTypes.push(dbg.type);
 								if (dbg.adapterExecutableCommand) {
 									this._aexCommands.set(dbg.type, dbg.adapterExecutableCommand);
@@ -607,7 +606,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		}
 	}
 
-	public async $acceptDebugSessionActiveChanged(sessionDto: IDebugSessionDto): Promise<void> {
+	public async $acceptDebugSessionActiveChanged(sessionDto: IDebugSessionDto | undefined): Promise<void> {
 		const workspaceProvider = await this._workspaceService.getWorkspaceProvider();
 		this._activeDebugSession = sessionDto ? this.getSession(sessionDto, workspaceProvider) : undefined;
 		this._onDidChangeActiveDebugSession.fire(this._activeDebugSession);

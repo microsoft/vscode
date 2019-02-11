@@ -12,7 +12,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IFileMatch, IPatternInfo, ISearchProgressItem, ISearchService } from 'vs/platform/search/common/search';
+import { IFileMatch, IPatternInfo, ISearchProgressItem, ISearchService } from 'vs/workbench/services/search/common/search';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IWorkspaceContextService, WorkbenchState, IWorkspace } from 'vs/platform/workspace/common/workspace';
@@ -131,6 +131,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 			{
 				maxResults,
 				disregardExcludeSettings: (excludePatternOrDisregardExcludes === false) || undefined,
+				disregardSearchExcludeSettings: true,
 				includePattern,
 				_reason: 'startFileSearch'
 			});
@@ -217,7 +218,7 @@ CommandsRegistry.registerCommand('_workbench.enterWorkspace', async function (ac
 		const runningExtensions = await extensionService.getExtensions();
 		// If requested extension to disable is running, then reload window with given workspace
 		if (disableExtensions && runningExtensions.some(runningExtension => disableExtensions.some(id => ExtensionIdentifier.equals(runningExtension.identifier, id)))) {
-			return windowService.openWindow([URI.file(workspace.fsPath)], { args: { _: [], 'disable-extension': disableExtensions } });
+			return windowService.openWindow([{ uri: workspace, typeHint: 'file' }], { args: { _: [], 'disable-extension': disableExtensions } });
 		}
 	}
 

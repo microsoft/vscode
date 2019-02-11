@@ -57,7 +57,7 @@ registerListeners();
  */
 let nlsConfiguration = undefined;
 const userDefinedLocale = getUserDefinedLocale();
-userDefinedLocale.then((locale) => {
+userDefinedLocale.then(locale => {
 	if (locale && !nlsConfiguration) {
 		nlsConfiguration = getNLSConfiguration(locale);
 	}
@@ -98,7 +98,7 @@ function onReady() {
 
 		// First, we need to test a user defined locale. If it fails we try the app locale.
 		// If that fails we fall back to English.
-		nlsConfiguration.then((nlsConfig) => {
+		nlsConfiguration.then(nlsConfig => {
 
 			const startup = nlsConfig => {
 				nlsConfig._languagePackSupport = true;
@@ -129,7 +129,7 @@ function onReady() {
 					// See above the comment about the loader and case sensitiviness
 					appLocale = appLocale.toLowerCase();
 
-					getNLSConfiguration(appLocale).then((nlsConfig) => {
+					getNLSConfiguration(appLocale).then(nlsConfig => {
 						if (!nlsConfig) {
 							nlsConfig = { locale: appLocale, availableLanguages: {} };
 						}
@@ -437,7 +437,7 @@ function getUserDefinedLocale() {
 	}
 
 	const localeConfig = path.join(userDataPath, 'User', 'locale.json');
-	return bootstrap.readFile(localeConfig).then((content) => {
+	return bootstrap.readFile(localeConfig).then(content => {
 		content = stripComments(content);
 		try {
 			const value = JSON.parse(content).locale;
@@ -535,7 +535,7 @@ function getNLSConfiguration(locale) {
 		if (!packConfig || typeof packConfig.hash !== 'string' || !packConfig.translations || typeof (mainPack = packConfig.translations['vscode']) !== 'string') {
 			return defaultResult(initialLocale);
 		}
-		return exists(mainPack).then((fileExists) => {
+		return exists(mainPack).then(fileExists => {
 			if (!fileExists) {
 				return defaultResult(initialLocale);
 			}
@@ -553,7 +553,7 @@ function getNLSConfiguration(locale) {
 				_resolvedLanguagePackCoreLocation: coreLocation,
 				_corruptedFile: corruptedFile
 			};
-			return exists(corruptedFile).then((corrupted) => {
+			return exists(corruptedFile).then(corrupted => {
 				// The nls cache directory is corrupted.
 				let toDelete;
 				if (corrupted) {
@@ -562,7 +562,7 @@ function getNLSConfiguration(locale) {
 					toDelete = Promise.resolve(undefined);
 				}
 				return toDelete.then(() => {
-					return exists(coreLocation).then((fileExists) => {
+					return exists(coreLocation).then(fileExists => {
 						if (fileExists) {
 							// We don't wait for this. No big harm if we can't touch
 							touch(coreLocation).catch(() => { });
@@ -571,7 +571,7 @@ function getNLSConfiguration(locale) {
 						}
 						return mkdirp(coreLocation).then(() => {
 							return Promise.all([bootstrap.readFile(path.join(__dirname, 'nls.metadata.json')), bootstrap.readFile(mainPack)]);
-						}).then((values) => {
+						}).then(values => {
 							const metadata = JSON.parse(values[0]);
 							const packData = JSON.parse(values[1]).contents;
 							const bundles = Object.keys(metadata.bundles);
@@ -607,7 +607,7 @@ function getNLSConfiguration(locale) {
 						}).then(() => {
 							perf.mark('nlsGeneration:end');
 							return result;
-						}).catch((err) => {
+						}).catch(err => {
 							console.error('Generating translation files failed.', err);
 							return defaultResult(locale);
 						});

@@ -227,7 +227,11 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		}
 
 		// Update the local registry
-		this._registry.deltaExtensions(toAdd, toRemove.map(e => e.identifier));
+		const result = this._registry.deltaExtensions(toAdd, toRemove.map(e => e.identifier));
+		toRemove = toRemove.concat(result.removedDueToLooping);
+		if (result.removedDueToLooping.length > 0) {
+			this._logOrShowMessage(Severity.Error, nls.localize('looping', "The following extensions contain dependency loops and have been disabled: {0}", result.removedDueToLooping.map(e => `'${e.identifier.value}'`).join(', ')));
+		}
 
 		// Update extension points
 		this._rehandleExtensionPoints((<IExtensionDescription[]>[]).concat(toAdd).concat(toRemove));
@@ -625,12 +629,16 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		const enabledExtensions = await this._getRuntimeExtensions(extensions);
 
 		this._handleExtensionPoints(enabledExtensions);
-		extensionHost.start(enabledExtensions.map(extension => extension.identifier));
+		extensionHost.start(enabledExtensions.map(extension => extension.identifier).filter(id => this._registry.containsExtension(id)));
 		this._releaseBarrier();
 	}
 
 	private _handleExtensionPoints(allExtensions: IExtensionDescription[]): void {
-		this._registry = new ExtensionDescriptionRegistry(allExtensions);
+		this._registry = new ExtensionDescriptionRegistry([]);
+		const result = this._registry.deltaExtensions(allExtensions, []);
+		if (result.removedDueToLooping.length > 0) {
+			this._logOrShowMessage(Severity.Error, nls.localize('looping', "The following extensions contain dependency loops and have been disabled: {0}", result.removedDueToLooping.map(e => `'${e.identifier.value}'`).join(', ')));
+		}
 
 		let availableExtensions = this._registry.getAllExtensionDescriptions();
 		let extensionPoints = ExtensionsRegistry.getExtensionPoints();
@@ -812,6 +820,16 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			this._showMessageToUser(severity, msg);
 		} else {
 			this._logMessageInConsole(severity, msg);
+		}
+	}
+
+	public async _activateById(extensionId: ExtensionIdentifier, activationEvent: string): Promise<void> {
+		const results = await Promise.all(
+			this._extensionHostProcessManagers.map(manager => manager.activate(extensionId, activationEvent))
+		);
+		const activated = results.some(e => e);
+		if (!activated) {
+			throw new Error(`Unknown extension ${extensionId.value}`);
 		}
 	}
 

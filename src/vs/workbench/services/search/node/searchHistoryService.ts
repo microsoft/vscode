@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { ISearchHistoryValues, ISearchHistoryService } from 'vs/platform/search/common/search';
+import { ISearchHistoryValues, ISearchHistoryService } from 'vs/workbench/services/search/common/search';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { isEmptyObject } from 'vs/base/common/types';
 

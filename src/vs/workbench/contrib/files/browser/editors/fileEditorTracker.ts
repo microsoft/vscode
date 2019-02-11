@@ -24,7 +24,7 @@ import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEd
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { BINARY_FILE_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ResourceQueue, timeout } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 
@@ -313,7 +313,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 		// to have a size of 2 (1 running load and 1 queued load).
 		const queue = this.modelLoadQueue.queueFor(model.getResource());
 		if (queue.size <= 1) {
-			queue.queue(() => model.load().then<void>(null, onUnexpectedError));
+			queue.queue(() => model.load().then<void>(undefined, onUnexpectedError));
 		}
 	}
 

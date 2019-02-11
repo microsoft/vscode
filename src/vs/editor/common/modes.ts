@@ -667,7 +667,7 @@ export interface DocumentHighlight {
 	/**
 	 * The highlight kind, default is [text](#DocumentHighlightKind.Text).
 	 */
-	kind: DocumentHighlightKind;
+	kind?: DocumentHighlightKind;
 }
 /**
  * The document highlight provider interface defines the contract between extensions and
@@ -864,8 +864,8 @@ export const symbolKindToCssClass = (function () {
 	_fromMapping[SymbolKind.Operator] = 'operator';
 	_fromMapping[SymbolKind.TypeParameter] = 'type-parameter';
 
-	return function toCssClassName(kind: SymbolKind): string {
-		return `symbol-icon ${_fromMapping[kind] || 'property'}`;
+	return function toCssClassName(kind: SymbolKind, inline?: boolean): string {
+		return `symbol-icon ${inline ? 'inline' : 'block'} ${_fromMapping[kind] || 'property'}`;
 	};
 })();
 

@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import * as glob from 'vs/base/common/glob';
-import { IFileSearchStats, IFolderQuery, IProgress, IRawFileQuery, IRawTextQuery, ISearchEngineStats, ISearchQuery, ITextSearchMatch, ITextSearchStats, ITextSearchResult } from 'vs/platform/search/common/search';
+import { IFileSearchStats, IFolderQuery, IProgress, IRawFileQuery, IRawTextQuery, ISearchEngineStats, ISearchQuery, ITextSearchMatch, ITextSearchStats, ITextSearchResult } from 'vs/workbench/services/search/common/search';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 
 export interface ITelemetryEvent {

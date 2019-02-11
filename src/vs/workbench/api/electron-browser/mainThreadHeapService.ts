@@ -9,8 +9,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { extHostCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
-import { isThenable } from 'vs/base/common/async';
-import { isNullOrUndefined } from 'util';
+import { GCSignal } from 'gc-signals';
 
 export const IHeapService = createDecorator<IHeapService>('heapService');
 
@@ -20,10 +19,9 @@ export interface IHeapService {
 	readonly onGarbageCollection: Event<number[]>;
 
 	/**
-	 * Track gc-collection for all new objects that
-	 * have the $ident-value set.
+	 * Track gc-collection for the given object
 	 */
-	trackRecursive<T>(obj: T | Promise<T>): Promise<T>;
+	trackObject(obj: ObjectIdentifier): void;
 }
 
 export class HeapService implements IHeapService {
@@ -35,7 +33,10 @@ export class HeapService implements IHeapService {
 
 	private _activeSignals = new WeakMap<any, object>();
 	private _activeIds = new Set<number>();
+
 	private _consumeHandle: any;
+	private _ctor: { new(id: number): GCSignal };
+	private _ctorInit: Promise<void>;
 
 	constructor() {
 		//
@@ -45,73 +46,41 @@ export class HeapService implements IHeapService {
 		clearInterval(this._consumeHandle);
 	}
 
-	trackRecursive<T>(obj: T | Promise<T>): Promise<T> {
-		if (isThenable(obj)) {
-			return obj.then(result => this.trackRecursive(result));
+	trackObject(obj: ObjectIdentifier | undefined | null): void {
+		if (!obj || typeof obj.$ident !== 'number') {
+			return;
+		}
+
+		if (this._ctor) {
+			// track and leave
+			this._activeIds.add(obj.$ident);
+			this._activeSignals.set(obj, new this._ctor(obj.$ident));
+
 		} else {
-			return this._doTrackRecursive(obj);
-		}
-	}
+			// make sure to load gc-signals, then track and leave
+			if (!this._ctorInit) {
+				this._ctorInit = import('gc-signals').then(({ GCSignal, consumeSignals }) => {
+					this._ctor = GCSignal;
+					this._consumeHandle = setInterval(() => {
+						const ids = consumeSignals();
 
-	private _doTrackRecursive(obj: any): Promise<any> {
-
-		if (isNullOrUndefined(obj)) {
-			return Promise.resolve(obj);
-		}
-
-		return import('gc-signals').then(({ GCSignal, consumeSignals }) => {
-
-			if (this._consumeHandle === undefined) {
-				// ensure that there is one consumer of signals
-				this._consumeHandle = setInterval(() => {
-					const ids = consumeSignals();
-
-					if (ids.length > 0) {
-						// local book-keeping
-						for (const id of ids) {
-							this._activeIds.delete(id);
+						if (ids.length > 0) {
+							// local book-keeping
+							for (const id of ids) {
+								this._activeIds.delete(id);
+							}
+							// fire event
+							this._onGarbageCollection.fire(ids);
 						}
-
-						// fire event
-						this._onGarbageCollection.fire(ids);
-					}
-
-				}, 15 * 1000);
+					}, 15 * 1000);
+				});
 			}
 
-			const stack = [obj];
-			while (stack.length > 0) {
-
-				// remove first element
-				let obj = stack.shift();
-
-				if (!obj || typeof obj !== 'object') {
-					continue;
-				}
-
-				for (let key in obj) {
-					if (!Object.prototype.hasOwnProperty.call(obj, key)) {
-						continue;
-					}
-
-					const value = obj[key];
-					// recurse -> object/array
-					if (typeof value === 'object') {
-						stack.push(value);
-
-					} else if (key === ObjectIdentifier.name) {
-						// track new $ident-objects
-
-						if (typeof value === 'number' && !this._activeIds.has(value)) {
-							this._activeIds.add(value);
-							this._activeSignals.set(obj, new GCSignal(value));
-						}
-					}
-				}
-			}
-
-			return obj;
-		});
+			this._ctorInit.then(() => {
+				this._activeIds.add(obj.$ident);
+				this._activeSignals.set(obj, new this._ctor(obj.$ident));
+			});
+		}
 	}
 }
 

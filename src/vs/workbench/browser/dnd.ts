@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { WORKSPACE_EXTENSION, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { extname, basename, normalize } from 'vs/base/common/paths';
+import { hasWorkspaceFileExtension, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { basename, normalize } from 'vs/base/common/paths';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService, IURIToOpen } from 'vs/platform/windows/common/windows';
 import { URI } from 'vs/base/common/uri';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -30,7 +30,7 @@ import { basenameOrAuthority } from 'vs/base/common/resources';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { addDisposableListener, EventType } from 'vs/base/browser/dom';
-import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export interface IDraggedResource {
 	resource: URI;
@@ -255,7 +255,7 @@ export class ResourcesDropHandler {
 	}
 
 	private handleWorkspaceFileDrop(fileOnDiskResources: URI[]): Promise<boolean> {
-		const workspaceResources: { workspaces: URI[], folders: URI[] } = {
+		const workspaceResources: { workspaces: IURIToOpen[], folders: IURIToOpen[] } = {
 			workspaces: [],
 			folders: []
 		};
@@ -263,8 +263,8 @@ export class ResourcesDropHandler {
 		return Promise.all(fileOnDiskResources.map(fileOnDiskResource => {
 
 			// Check for Workspace
-			if (extname(fileOnDiskResource.fsPath) === `.${WORKSPACE_EXTENSION}`) {
-				workspaceResources.workspaces.push(fileOnDiskResource);
+			if (hasWorkspaceFileExtension(fileOnDiskResource.fsPath)) {
+				workspaceResources.workspaces.push({ uri: fileOnDiskResource, typeHint: 'file' });
 
 				return undefined;
 			}
@@ -272,7 +272,7 @@ export class ResourcesDropHandler {
 			// Check for Folder
 			return this.fileService.resolveFile(fileOnDiskResource).then(stat => {
 				if (stat.isDirectory) {
-					workspaceResources.folders.push(stat.resource);
+					workspaceResources.folders.push({ uri: stat.resource, typeHint: 'folder' });
 				}
 			}, error => undefined);
 		})).then(_ => {
@@ -286,16 +286,16 @@ export class ResourcesDropHandler {
 			// Pass focus to window
 			this.windowService.focusWindow();
 
-			let workspacesToOpen: Promise<URI[]> | undefined;
+			let workspacesToOpen: Promise<IURIToOpen[]> | undefined;
 
 			// Open in separate windows if we drop workspaces or just one folder
 			if (workspaces.length > 0 || folders.length === 1) {
-				workspacesToOpen = Promise.resolve([...workspaces, ...folders].map(resources => resources));
+				workspacesToOpen = Promise.resolve([...workspaces, ...folders]);
 			}
 
 			// Multiple folders: Create new workspace with folders and open
 			else if (folders.length > 1) {
-				workspacesToOpen = this.workspacesService.createUntitledWorkspace(folders.map(folder => ({ uri: folder }))).then(workspace => [URI.file(workspace.configPath)]);
+				workspacesToOpen = this.workspacesService.createUntitledWorkspace(folders).then(workspace => [<IURIToOpen>{ uri: workspace.configPath, typeHint: 'file' }]);
 			}
 
 			// Open

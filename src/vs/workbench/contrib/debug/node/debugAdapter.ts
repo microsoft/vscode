@@ -31,7 +31,7 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 	private messageCallback: (message: DebugProtocol.ProtocolMessage) => void;
 
 	protected readonly _onError: Emitter<Error>;
-	protected readonly _onExit: Emitter<number>;
+	protected readonly _onExit: Emitter<number | null>;
 
 	constructor() {
 		this.sequence = 1;
@@ -50,7 +50,7 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 		return this._onError.event;
 	}
 
-	get onExit(): Event<number> {
+	get onExit(): Event<number | null> {
 		return this._onExit.event;
 	}
 
@@ -255,7 +255,7 @@ export abstract class StreamDebugAdapter extends AbstractDebugAdapter {
 */
 export class SocketDebugAdapter extends StreamDebugAdapter {
 
-	private socket: net.Socket;
+	private socket?: net.Socket;
 
 	constructor(private adapterServer: IDebugAdapterServer) {
 		super();
@@ -265,8 +265,8 @@ export class SocketDebugAdapter extends StreamDebugAdapter {
 		return new Promise<void>((resolve, reject) => {
 			let connected = false;
 			this.socket = net.createConnection(this.adapterServer.port, this.adapterServer.host || '127.0.0.1', () => {
-				this.connect(this.socket, this.socket);
-				resolve(null);
+				this.connect(this.socket!, this.socket!);
+				resolve();
 				connected = true;
 			});
 			this.socket.on('close', () => {
@@ -306,7 +306,7 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 
 	private serverProcess: cp.ChildProcess;
 
-	constructor(private adapterExecutable: IDebugAdapterExecutable, private debugType: string, private outputService?: IOutputService) {
+	constructor(private adapterExecutable: IDebugAdapterExecutable, private debugType: string, private readonly outputService?: IOutputService) {
 		super();
 	}
 
@@ -354,7 +354,7 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 						reject(new Error(nls.localize('unableToLaunchDebugAdapter', "Unable to launch debug adapter from '{0}'.", this.adapterExecutable.args[0])));
 					}
 					this.serverProcess = child;
-					resolve(null);
+					resolve();
 				} else {
 					reject(new Error(nls.localize('unableToLaunchDebugAdapterNoArgs', "Unable to launch debug adapter.")));
 				}
@@ -366,7 +366,7 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 					options.cwd = this.adapterExecutable.options.cwd;
 				}
 				this.serverProcess = cp.spawn(this.adapterExecutable.command, this.adapterExecutable.args, options);
-				resolve(null);
+				resolve();
 			}
 		}).then(_ => {
 			this.serverProcess.on('error', err => {
@@ -387,13 +387,14 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 				this._onError.fire(error);
 			});
 
-			if (this.outputService) {
+			const outputService = this.outputService;
+			if (outputService) {
 				const sanitize = (s: string) => s.toString().replace(/\r?\n$/mg, '');
 				// this.serverProcess.stdout.on('data', (data: string) => {
 				// 	console.log('%c' + sanitize(data), 'background: #ddd; font-style: italic;');
 				// });
 				this.serverProcess.stderr.on('data', (data: string) => {
-					this.outputService.getChannel(ExtensionsChannelId).append(sanitize(data));
+					outputService.getChannel(ExtensionsChannelId).append(sanitize(data));
 				});
 			}
 
@@ -431,7 +432,7 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 		}
 	}
 
-	private static extract(contribution: IDebuggerContribution, extensionFolderPath: string): IDebuggerContribution {
+	private static extract(contribution: IDebuggerContribution, extensionFolderPath: string): IDebuggerContribution | undefined {
 		if (!contribution) {
 			return undefined;
 		}
@@ -485,7 +486,7 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 			if (ed.contributes) {
 				const debuggers = <IDebuggerContribution[]>ed.contributes['debuggers'];
 				if (debuggers && debuggers.length > 0) {
-					debuggers.filter(dbg => strings.equalsIgnoreCase(dbg.type, debugType)).forEach(dbg => {
+					debuggers.filter(dbg => typeof dbg.type === 'string' && strings.equalsIgnoreCase(dbg.type, debugType)).forEach(dbg => {
 						// extract relevant attributes and make then absolute where needed
 						const extractedDbg = ExecutableDebugAdapter.extract(dbg, ed.extensionLocation.fsPath);
 
@@ -497,7 +498,7 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 		}
 
 		// select the right platform
-		let platformInfo: IPlatformSpecificAdapterContribution;
+		let platformInfo: IPlatformSpecificAdapterContribution | undefined;
 		if (platform.isWindows && !process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432')) {
 			platformInfo = result.winx86 || result.win || result.windows;
 		} else if (platform.isWindows) {
@@ -519,7 +520,7 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 			return {
 				type: 'executable',
 				command: runtime,
-				args: (runtimeArgs || []).concat([program]).concat(args || [])
+				args: (runtimeArgs || []).concat(typeof program === 'string' ? [program] : []).concat(args || [])
 			};
 		} else if (program) {
 			return {
