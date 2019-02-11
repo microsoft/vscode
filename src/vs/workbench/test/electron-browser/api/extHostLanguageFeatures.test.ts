@@ -1094,10 +1094,10 @@ suite('ExtHostLanguageFeatures', function () {
 	test('Selection Ranges, data conversion', async () => {
 		disposables.push(extHost.registerSelectionRangeProvider(defaultExtension, defaultSelector, new class implements vscode.SelectionRangeProvider {
 			provideSelectionRanges() {
-				return [
+				return [[
 					new types.SelectionRange(new types.Range(0, 10, 0, 18), types.SelectionRangeKind.Empty),
 					new types.SelectionRange(new types.Range(0, 2, 0, 20), types.SelectionRangeKind.Empty)
-				];
+				]];
 			}
 		}));
 

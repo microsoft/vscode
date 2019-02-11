@@ -52,10 +52,13 @@ declare module 'vscode' {
 
 	export interface SelectionRangeProvider {
 		/**
-		 * Provide selection ranges starting at a given position. The first range must [contain](#Range.contains)
-		 * position and subsequent ranges must contain the previous range.
+		 * Provide selection ranges for the given positions. Selection ranges should be computed individually and
+		 * independend for each postion. The editor will merge and deduplicate ranges but providers must return sequences
+		 * of ranges (per position) where a range must [contain](#Range.contains) and subsequent ranges.
+		 *
+		 * todo@joh
 		 */
-		provideSelectionRanges(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<SelectionRange[]>;
+		provideSelectionRanges(document: TextDocument, positions: Position[], token: CancellationToken): ProviderResult<SelectionRange[][]>;
 	}
 
 	export namespace languages {

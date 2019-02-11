@@ -81,35 +81,39 @@ export function activate(context: ExtensionContext) {
 
 		documentSelector.forEach(selector => {
 			context.subscriptions.push(languages.registerSelectionRangeProvider(selector, {
-				async provideSelectionRanges(document: TextDocument, position: Position): Promise<SelectionRange[]> {
+				async provideSelectionRanges(document: TextDocument, positions: Position[]): Promise<SelectionRange[][]> {
 					const textDocument = client.code2ProtocolConverter.asTextDocumentIdentifier(document);
-					const rawRanges = await client.sendRequest<Range[]>('$/textDocument/selectionRange', { textDocument, position });
-					if (Array.isArray(rawRanges)) {
-						return rawRanges.map(r => {
-							return {
-								range: client.protocol2CodeConverter.asRange(r),
-								kind: SelectionRangeKind.Declaration
-							};
-						});
-					}
-					return [];
+					return Promise.all(positions.map(async position => {
+						const rawRanges = await client.sendRequest<Range[]>('$/textDocument/selectionRange', { textDocument, position });
+						if (Array.isArray(rawRanges)) {
+							return rawRanges.map(r => {
+								return {
+									range: client.protocol2CodeConverter.asRange(r),
+									kind: SelectionRangeKind.Declaration
+								};
+							});
+						}
+						return [];
+					}));
 				}
 			}));
 		});
 	});
 
 	const selectionRangeProvider = {
-		async provideSelectionRanges(document: TextDocument, position: Position): Promise<SelectionRange[]> {
+		async provideSelectionRanges(document: TextDocument, positions: Position[]): Promise<SelectionRange[][]> {
 			const textDocument = TextDocumentIdentifier.create(document.uri.toString());
-			const rawRanges: Range[] = await client.sendRequest('$/textDocument/selectionRange', { textDocument, position });
+			return Promise.all(positions.map(async position => {
+				const rawRanges: Range[] = await client.sendRequest('$/textDocument/selectionRange', { textDocument, position });
 
-			return rawRanges.map(r => {
-				const actualRange = new Range(new Position(r.start.line, r.start.character), new Position(r.end.line, r.end.character));
-				return {
-					range: actualRange,
-					kind: SelectionRangeKind.Declaration
-				};
-			});
+				return rawRanges.map(r => {
+					const actualRange = new Range(new Position(r.start.line, r.start.character), new Position(r.end.line, r.end.character));
+					return {
+						range: actualRange,
+						kind: SelectionRangeKind.Declaration
+					};
+				});
+			}));
 		}
 	};
 	documentSelector.forEach(selector => {

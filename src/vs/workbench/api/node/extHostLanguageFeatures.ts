@@ -876,26 +876,36 @@ class SelectionRangeAdapter {
 		private readonly _provider: vscode.SelectionRangeProvider
 	) { }
 
-	provideSelectionRanges(resource: URI, positions: IPosition[], token: CancellationToken): Promise<modes.SelectionRange[][]> {
+	provideSelectionRanges(resource: URI, pos: IPosition[], token: CancellationToken): Promise<modes.SelectionRange[][]> {
 		const { document } = this._documents.getDocumentData(resource);
-		return Promise.all(positions.map(position => {
-			const pos = typeConvert.Position.to(position);
-			return asPromise(() => this._provider.provideSelectionRanges(document, pos, token)).then(selectionRanges => {
-				if (isFalsyOrEmpty(selectionRanges)) {
-					return undefined;
-				}
-				let oneResult: modes.SelectionRange[] = [];
-				let last: vscode.Position | vscode.Range = pos;
-				for (const sel of selectionRanges) {
-					if (!sel.range.contains(last)) {
+		const positions = pos.map(typeConvert.Position.to);
+
+		return asPromise(() => this._provider.provideSelectionRanges(document, positions, token)).then(allProviderRanges => {
+			if (isFalsyOrEmpty(allProviderRanges)) {
+				return [];
+			}
+			if (allProviderRanges.length !== positions.length) {
+				console.warn('BAD selection ranges, provider must return ranges for each position');
+				return [];
+			}
+
+			let allResults: modes.SelectionRange[][] = [];
+			for (let i = 0; i < positions.length; i++) {
+				const oneResult: modes.SelectionRange[] = [];
+				allResults.push(oneResult);
+
+				const oneProviderRanges = allProviderRanges[i];
+				let last: vscode.Position | vscode.Range = positions[i];
+				for (const selectionRange of oneProviderRanges) {
+					if (!selectionRange.range.contains(last)) {
 						throw new Error('INVALID selection range, must contain the previous range');
 					}
-					oneResult.push(typeConvert.SelectionRange.from(sel));
-					last = sel.range;
+					oneResult.push(typeConvert.SelectionRange.from(selectionRange));
+					last = selectionRange.range;
 				}
-				return oneResult;
-			});
-		}));
+			}
+			return allResults;
+		});
 	}
 }
 

@@ -800,10 +800,10 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		disposables.push(extHost.registerSelectionRangeProvider(nullExtensionDescription, defaultSelector, <vscode.SelectionRangeProvider>{
 			provideSelectionRanges() {
-				return [
+				return [[
 					new types.SelectionRange(new types.Range(0, 10, 0, 18), types.SelectionRangeKind.Empty),
 					new types.SelectionRange(new types.Range(0, 2, 0, 20), types.SelectionRangeKind.Empty)
-				];
+				]];
 			}
 		}));
 
