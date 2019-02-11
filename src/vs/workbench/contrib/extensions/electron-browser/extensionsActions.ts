@@ -1209,7 +1209,7 @@ export class SetFileIconThemeAction extends ExtensionAction {
 		}
 		let fileIconThemes = await this.workbenchThemeService.getFileIconThemes(new ExtensionIdentifier(this.extension.identifier.id));
 		const allThemes = await this.workbenchThemeService.getFileIconThemes();
-		const currentTheme = allThemes.filter(t => t.settingsId === this.configurationService.getValue(ICON_THEME_SETTING))[0];
+		const currentTheme = allThemes.filter(t => t.settingsId === this.configurationService.getValue(ICON_THEME_SETTING))[0] || this.workbenchThemeService.getFileIconTheme();
 		showCurrentTheme = showCurrentTheme || fileIconThemes.some(t => t.id === currentTheme.id);
 		if (showCurrentTheme) {
 			fileIconThemes = fileIconThemes.filter(t => t.id !== currentTheme.id);
@@ -1218,7 +1218,7 @@ export class SetFileIconThemeAction extends ExtensionAction {
 		const delayer = new Delayer<any>(100);
 		const picks: (IQuickPickItem | IQuickPickSeparator)[] = [];
 		picks.push(...fileIconThemes.map(theme => (<IQuickPickItem>{ label: theme.label, id: theme.id })));
-		if (showCurrentTheme) {
+		if (showCurrentTheme && currentTheme.label) {
 			picks.push(<IQuickPickSeparator>{ type: 'separator', label: localize('current', "Current") });
 			picks.push(<IQuickPickItem>{ label: currentTheme.label, id: currentTheme.id });
 		}
