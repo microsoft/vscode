@@ -43,6 +43,7 @@ export interface IPickAndOpenOptions {
 	forceNewWindow?: boolean;
 	defaultUri?: URI;
 	telemetryExtraData?: ITelemetryData;
+	allowLocalPaths?: boolean;
 }
 
 export interface ISaveDialogOptions {
@@ -104,6 +105,11 @@ export interface IOpenDialogOptions {
 	 * like "TypeScript", and an array of extensions.
 	 */
 	filters?: FileFilter[];
+
+	/**
+	 * Wheter the user can pick local files or folders as well (only applies to remote dialogs)
+	 */
+	allowLocalPaths?: boolean;
 }
 
 

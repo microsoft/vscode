@@ -30,7 +30,7 @@ export const PICK_WORKSPACE_FOLDER_COMMAND_ID = '_workbench.pickWorkspaceFolder'
 
 CommandsRegistry.registerCommand({
 	id: 'workbench.action.files.openFileFolderInNewWindow',
-	handler: (accessor: ServicesAccessor) => accessor.get(IFileDialogService).pickFileFolderAndOpen({ forceNewWindow: true })
+	handler: (accessor: ServicesAccessor) => accessor.get(IFileDialogService).pickFileFolderAndOpen({ forceNewWindow: true, allowLocalPaths: true })
 });
 
 CommandsRegistry.registerCommand({
@@ -40,17 +40,17 @@ CommandsRegistry.registerCommand({
 
 CommandsRegistry.registerCommand({
 	id: 'workbench.action.files.openFolderInNewWindow',
-	handler: (accessor: ServicesAccessor) => accessor.get(IFileDialogService).pickFolderAndOpen({ forceNewWindow: true })
+	handler: (accessor: ServicesAccessor) => accessor.get(IFileDialogService).pickFolderAndOpen({ forceNewWindow: true, allowLocalPaths: true })
 });
 
 CommandsRegistry.registerCommand({
 	id: 'workbench.action.files.openFileInNewWindow',
-	handler: (accessor: ServicesAccessor) => accessor.get(IFileDialogService).pickFileAndOpen({ forceNewWindow: true })
+	handler: (accessor: ServicesAccessor) => accessor.get(IFileDialogService).pickFileAndOpen({ forceNewWindow: true, allowLocalPaths: true })
 });
 
 CommandsRegistry.registerCommand({
 	id: 'workbench.action.openWorkspaceInNewWindow',
-	handler: (accessor: ServicesAccessor) => accessor.get(IFileDialogService).pickWorkspaceAndOpen({ forceNewWindow: true })
+	handler: (accessor: ServicesAccessor) => accessor.get(IFileDialogService).pickWorkspaceAndOpen({ forceNewWindow: true, allowLocalPaths: true })
 });
 
 CommandsRegistry.registerCommand({

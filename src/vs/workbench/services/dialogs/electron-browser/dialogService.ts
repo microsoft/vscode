@@ -227,7 +227,7 @@ export class FileDialogService implements IFileDialogService {
 
 		if (this.useRemoteDialogs(defaultUri)) {
 			const title = nls.localize('openFileOrFolder.title', 'Open File Or Folder');
-			return this.pickRemoteResourceAndOpen({ canSelectFiles: true, canSelectFolders: true, canSelectMany: false, defaultUri, title }, options.forceNewWindow, true);
+			return this.pickRemoteResourceAndOpen({ canSelectFiles: true, canSelectFolders: true, canSelectMany: false, defaultUri, title, allowLocalPaths: options.allowLocalPaths }, options.forceNewWindow, true);
 		}
 
 		return this.windowService.pickFileFolderAndOpen(this.toNativeOpenDialogOptions(options));
@@ -241,7 +241,7 @@ export class FileDialogService implements IFileDialogService {
 
 		if (this.useRemoteDialogs(defaultUri)) {
 			const title = nls.localize('openFile.title', 'Open File');
-			return this.pickRemoteResourceAndOpen({ canSelectFiles: true, canSelectFolders: false, canSelectMany: false, defaultUri, title }, options.forceNewWindow, true);
+			return this.pickRemoteResourceAndOpen({ canSelectFiles: true, canSelectFolders: false, canSelectMany: false, defaultUri, title, allowLocalPaths: options.allowLocalPaths }, options.forceNewWindow, true);
 		}
 
 		return this.windowService.pickFileAndOpen(this.toNativeOpenDialogOptions(options));
@@ -255,7 +255,7 @@ export class FileDialogService implements IFileDialogService {
 
 		if (this.useRemoteDialogs(defaultUri)) {
 			const title = nls.localize('openFolder.title', 'Open Folder');
-			return this.pickRemoteResourceAndOpen({ canSelectFiles: false, canSelectFolders: true, canSelectMany: false, defaultUri, title }, options.forceNewWindow, false);
+			return this.pickRemoteResourceAndOpen({ canSelectFiles: false, canSelectFolders: true, canSelectMany: false, defaultUri, title, allowLocalPaths: options.allowLocalPaths }, options.forceNewWindow, false);
 		}
 
 		return this.windowService.pickFolderAndOpen(this.toNativeOpenDialogOptions(options));
@@ -274,7 +274,7 @@ export class FileDialogService implements IFileDialogService {
 		if (this.useRemoteDialogs(defaultUri)) {
 			const title = nls.localize('openWorkspace.title', 'Open Workspace');
 			const filters: FileFilter[] = [{ name: nls.localize('filterName.workspace', 'Workspace'), extensions: [WORKSPACE_EXTENSION] }];
-			return this.pickRemoteResourceAndOpen({ canSelectFiles: true, canSelectFolders: false, canSelectMany: false, defaultUri, title, filters }, options.forceNewWindow, false);
+			return this.pickRemoteResourceAndOpen({ canSelectFiles: true, canSelectFolders: false, canSelectMany: false, defaultUri, title, filters, allowLocalPaths: options.allowLocalPaths }, options.forceNewWindow, false);
 		}
 
 		return this.windowService.pickWorkspaceAndOpen(this.toNativeOpenDialogOptions(options));
