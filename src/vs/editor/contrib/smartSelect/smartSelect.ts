@@ -297,7 +297,9 @@ export function provideSelectionRanges(model: ITextModel, position: Position, to
 
 export function provideSelectionRangesN(model: ITextModel, position: Position[], token: CancellationToken): Promise<Range[][]> {
 	return Promise.all(position.map(pos => {
-		return provideSelectionRanges(model, pos, token);
+		return provideSelectionRanges(model, pos, token).then(value => {
+			return value || [];
+		});
 	}));
 }
 
