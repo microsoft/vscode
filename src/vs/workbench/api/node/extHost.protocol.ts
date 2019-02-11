@@ -940,7 +940,7 @@ export interface ShellLaunchConfigDto {
 	executable?: string;
 	args?: string[] | string;
 	cwd?: string | URI;
-	env?: { [key: string]: string };
+	env?: { [key: string]: string | null };
 }
 
 export interface ExtHostTerminalServiceShape {

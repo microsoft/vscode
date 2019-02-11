@@ -40,23 +40,23 @@ export const TERMINAL_PICKER_PREFIX = 'term ';
 function getCwdForSplit(configHelper: ITerminalConfigHelper, instance: ITerminalInstance, folders?: IWorkspaceFolder[], commandService?: ICommandService): Promise<string | URI> {
 	switch (configHelper.config.splitCwd) {
 		case 'workspaceRoot':
-			let pathPromise: Promise<string | URI>;
-			if (folders.length === 0) {
-				pathPromise = Promise.resolve('');
-			} else if (folders.length === 1) {
-				pathPromise = Promise.resolve(folders[0].uri);
-			} else if (folders.length > 1) {
-				// Only choose a path when there's more than 1 folder
-				const options: IPickOptions<IQuickPickItem> = {
-					placeHolder: nls.localize('workbench.action.terminal.newWorkspacePlaceholder', "Select current working directory for new terminal")
-				};
-				pathPromise = commandService.executeCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, [options]).then(workspace => {
-					if (!workspace) {
-						// Don't split the instance if the workspace picker was canceled
-						return undefined;
-					}
-					return Promise.resolve(workspace.uri);
-				});
+			let pathPromise: Promise<string | URI> = Promise.resolve('');
+			if (folders !== undefined && commandService !== undefined) {
+				if (folders.length === 1) {
+					pathPromise = Promise.resolve(folders[0].uri);
+				} else if (folders.length > 1) {
+					// Only choose a path when there's more than 1 folder
+					const options: IPickOptions<IQuickPickItem> = {
+						placeHolder: nls.localize('workbench.action.terminal.newWorkspacePlaceholder', "Select current working directory for new terminal")
+					};
+					pathPromise = commandService.executeCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, [options]).then(workspace => {
+						if (!workspace) {
+							// Don't split the instance if the workspace picker was canceled
+							return undefined;
+						}
+						return Promise.resolve(workspace.uri);
+					});
+				}
 			}
 			return pathPromise;
 		case 'initial':
