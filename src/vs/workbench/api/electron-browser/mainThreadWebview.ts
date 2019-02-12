@@ -129,7 +129,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 
 		const targetGroup = this._editorGroupService.getGroup(viewColumnToEditorGroup(this._editorGroupService, showOptions.viewColumn));
 
-		this._webviewService.revealWebview(webview, targetGroup || this._editorGroupService.activeGroup, !!showOptions.preserveFocus);
+		this._webviewService.revealWebview(webview, targetGroup || this._editorGroupService.getGroup(webview.group), !!showOptions.preserveFocus);
 	}
 
 	public $postMessage(handle: WebviewPanelHandle, message: any): Promise<boolean> {
