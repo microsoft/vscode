@@ -7,7 +7,7 @@ import { mixin, deepClone } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as vscode from 'vscode';
-import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
+import { ExtHostWorkspace, ExtHostWorkspaceProvider } from 'vs/workbench/api/node/extHostWorkspace';
 import { ExtHostConfigurationShape, MainThreadConfigurationShape, IWorkspaceConfigurationChangeEventData, IConfigurationInitData } from './extHost.protocol';
 import { ConfigurationTarget as ExtHostConfigurationTarget } from './extHostTypes';
 import { IConfigurationData, ConfigurationTarget, IConfigurationModel } from 'vs/platform/configuration/common/configuration';
@@ -16,6 +16,8 @@ import { WorkspaceConfigurationChangeEvent } from 'vs/workbench/services/configu
 import { ResourceMap } from 'vs/base/common/map';
 import { ConfigurationScope, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
 import { isObject } from 'vs/base/common/types';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { Barrier } from 'vs/base/common/async';
 
 function lookUp(tree: any, key: string) {
 	if (key) {
@@ -38,16 +40,46 @@ type ConfigurationInspect<T> = {
 
 export class ExtHostConfiguration implements ExtHostConfigurationShape {
 
-	private readonly _onDidChangeConfiguration = new Emitter<vscode.ConfigurationChangeEvent>();
 	private readonly _proxy: MainThreadConfigurationShape;
 	private readonly _extHostWorkspace: ExtHostWorkspace;
+	private readonly _barrier: Barrier;
+	private _actual: ExtHostConfigProvider | null;
+
+	constructor(proxy: MainThreadConfigurationShape, extHostWorkspace: ExtHostWorkspace) {
+		this._proxy = proxy;
+		this._extHostWorkspace = extHostWorkspace;
+		this._barrier = new Barrier();
+		this._actual = null;
+	}
+
+	public getConfigProvider(): Promise<ExtHostConfigProvider> {
+		return this._barrier.wait().then(_ => this._actual!);
+	}
+
+	$initializeConfiguration(data: IConfigurationInitData): void {
+		this._extHostWorkspace.getWorkspaceProvider().then(workspaceProvider => {
+			this._actual = new ExtHostConfigProvider(this._proxy, workspaceProvider, data);
+			this._barrier.open();
+		});
+	}
+
+	$acceptConfigurationChanged(data: IConfigurationInitData, eventData: IWorkspaceConfigurationChangeEventData): void {
+		this._actual.$acceptConfigurationChanged(data, eventData);
+	}
+}
+
+export class ExtHostConfigProvider {
+
+	private readonly _onDidChangeConfiguration = new Emitter<vscode.ConfigurationChangeEvent>();
+	private readonly _proxy: MainThreadConfigurationShape;
+	private readonly _extHostWorkspace: ExtHostWorkspaceProvider;
 	private _configurationScopes: { [key: string]: ConfigurationScope };
 	private _configuration: Configuration;
 
-	constructor(proxy: MainThreadConfigurationShape, extHostWorkspace: ExtHostWorkspace, data: IConfigurationInitData) {
+	constructor(proxy: MainThreadConfigurationShape, extHostWorkspace: ExtHostWorkspaceProvider, data: IConfigurationInitData) {
 		this._proxy = proxy;
 		this._extHostWorkspace = extHostWorkspace;
-		this._configuration = ExtHostConfiguration.parse(data);
+		this._configuration = ExtHostConfigProvider.parse(data);
 		this._configurationScopes = data.configurationScopes;
 	}
 
@@ -55,22 +87,23 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 		return this._onDidChangeConfiguration && this._onDidChangeConfiguration.event;
 	}
 
-	$acceptConfigurationChanged(data: IConfigurationData, eventData: IWorkspaceConfigurationChangeEventData) {
-		this._configuration = ExtHostConfiguration.parse(data);
+	$acceptConfigurationChanged(data: IConfigurationInitData, eventData: IWorkspaceConfigurationChangeEventData) {
+		this._configuration = ExtHostConfigProvider.parse(data);
+		this._configurationScopes = data.configurationScopes;
 		this._onDidChangeConfiguration.fire(this._toConfigurationChangeEvent(eventData));
 	}
 
-	getConfiguration(section?: string, resource?: URI, extensionId?: string): vscode.WorkspaceConfiguration {
+	getConfiguration(section?: string, resource?: URI, extensionId?: ExtensionIdentifier): vscode.WorkspaceConfiguration {
 		const config = this._toReadonlyValue(section
-			? lookUp(this._configuration.getValue(null, { resource }, this._extHostWorkspace.workspace), section)
-			: this._configuration.getValue(null, { resource }, this._extHostWorkspace.workspace));
+			? lookUp(this._configuration.getValue(undefined, { resource }, this._extHostWorkspace.workspace), section)
+			: this._configuration.getValue(undefined, { resource }, this._extHostWorkspace.workspace));
 
 		if (section) {
 			this._validateConfigurationAccess(section, resource, extensionId);
 		}
 
-		function parseConfigurationTarget(arg: boolean | ExtHostConfigurationTarget): ConfigurationTarget {
-			if (arg === void 0 || arg === null) {
+		function parseConfigurationTarget(arg: boolean | ExtHostConfigurationTarget): ConfigurationTarget | null {
+			if (arg === undefined || arg === null) {
 				return null;
 			}
 			if (typeof arg === 'boolean') {
@@ -94,9 +127,9 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 				if (typeof result === 'undefined') {
 					result = defaultValue;
 				} else {
-					let clonedConfig = void 0;
+					let clonedConfig = undefined;
 					const cloneOnWriteProxy = (target: any, accessor: string): any => {
-						let clonedTarget = void 0;
+						let clonedTarget = undefined;
 						const cloneTarget = () => {
 							clonedConfig = clonedConfig ? clonedConfig : deepClone(config);
 							clonedTarget = clonedTarget ? clonedTarget : lookUp(clonedConfig, accessor);
@@ -142,7 +175,7 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 			update: (key: string, value: any, arg: ExtHostConfigurationTarget | boolean) => {
 				key = section ? `${section}.${key}` : key;
 				const target = parseConfigurationTarget(arg);
-				if (value !== void 0) {
+				if (value !== undefined) {
 					return this._proxy.$updateConfigurationOption(target, key, value, resource);
 				} else {
 					return this._proxy.$removeConfigurationOption(target, key, resource);
@@ -187,11 +220,11 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 		return readonlyProxy(result);
 	}
 
-	private _validateConfigurationAccess(key: string, resource: URI, extensionId: string): void {
+	private _validateConfigurationAccess(key: string, resource: URI | undefined, extensionId: ExtensionIdentifier): void {
 		const scope = OVERRIDE_PROPERTY_PATTERN.test(key) ? ConfigurationScope.RESOURCE : this._configurationScopes[key];
-		const extensionIdText = extensionId ? `[${extensionId}] ` : '';
+		const extensionIdText = extensionId ? `[${extensionId.value}] ` : '';
 		if (ConfigurationScope.RESOURCE === scope) {
-			if (resource === void 0) {
+			if (resource === undefined) {
 				console.warn(`${extensionIdText}Accessing a resource scoped configuration without providing a resource is not expected. To get the effective value for '${key}', provide the URI of a resource or 'null' for any resource.`);
 			}
 			return;
@@ -219,11 +252,11 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 	}
 
 	private static parse(data: IConfigurationData): Configuration {
-		const defaultConfiguration = ExtHostConfiguration.parseConfigurationModel(data.defaults);
-		const userConfiguration = ExtHostConfiguration.parseConfigurationModel(data.user);
-		const workspaceConfiguration = ExtHostConfiguration.parseConfigurationModel(data.workspace);
+		const defaultConfiguration = ExtHostConfigProvider.parseConfigurationModel(data.defaults);
+		const userConfiguration = ExtHostConfigProvider.parseConfigurationModel(data.user);
+		const workspaceConfiguration = ExtHostConfigProvider.parseConfigurationModel(data.workspace);
 		const folders: ResourceMap<ConfigurationModel> = Object.keys(data.folders).reduce((result, key) => {
-			result.set(URI.parse(key), ExtHostConfiguration.parseConfigurationModel(data.folders[key]));
+			result.set(URI.parse(key), ExtHostConfigProvider.parseConfigurationModel(data.folders[key]));
 			return result;
 		}, new ResourceMap<ConfigurationModel>());
 		return new Configuration(defaultConfiguration, userConfiguration, workspaceConfiguration, folders, new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), false);

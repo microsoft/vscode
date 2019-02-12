@@ -15,6 +15,9 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace:
 		getId() {
 			return 'html';
 		},
+		doSelection(document: TextDocument, position: Position): Range[] {
+			return htmlLanguageService.getSelectionRanges(document, position);
+		},
 		doComplete(document: TextDocument, position: Position, settings = workspace.settings) {
 			let options = settings && settings.html && settings.html.suggest;
 			let doAutoComplete = settings && settings.html && settings.html.autoClosingTags;
@@ -78,7 +81,7 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace:
 }
 
 function merge(src: any, dst: any): any {
-	for (var key in src) {
+	for (const key in src) {
 		if (src.hasOwnProperty(key)) {
 			dst[key] = src[key];
 		}

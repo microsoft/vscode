@@ -8,7 +8,7 @@ import { IResourceInput, IEditorOptions, ITextEditorOptions } from 'vs/platform/
 import { IEditorInput, IEditor, GroupIdentifier, IEditorInputWithOptions, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, ITextEditor, ITextDiffEditor, ITextSideBySideEditor } from 'vs/workbench/common/editor';
 import { Event } from 'vs/base/common/event';
 import { IEditor as ICodeEditor } from 'vs/editor/common/editorCommon';
-import { IEditorGroup, IEditorReplacement } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroup, IEditorReplacement } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
 export const IEditorService = createDecorator<IEditorService>('editorService');
@@ -37,6 +37,11 @@ export interface IOpenEditorOverride {
 	 * promise with the provided promise for the openEditor() call.
 	 */
 	override?: Promise<IEditor>;
+}
+
+export interface IActiveEditor extends IEditor {
+	input: IEditorInput;
+	group: IEditorGroup;
 }
 
 export interface IEditorService {
@@ -69,7 +74,7 @@ export interface IEditorService {
 	 *
 	 * @see `IEditorService.activeEditor`
 	 */
-	readonly activeControl: IEditor;
+	readonly activeControl: IActiveEditor;
 
 	/**
 	 * The currently active text editor widget or `undefined` if there is currently no active

@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as platform from 'vs/platform/registry/common/platform';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { Color, RGBA } from 'vs/base/common/color';
 import { ITheme } from 'vs/platform/theme/common/themeService';
+import { Event, Emitter } from 'vs/base/common/event';
 
 import * as nls from 'vs/nls';
+import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 //  ------ API types
 
@@ -24,7 +27,7 @@ export interface ColorContribution {
 
 
 export interface ColorFunction {
-	(theme: ITheme): Color | null;
+	(theme: ITheme): Color | undefined;
 }
 
 export interface ColorDefaults {
@@ -45,13 +48,20 @@ export const Extensions = {
 
 export interface IColorRegistry {
 
+	readonly onDidChangeSchema: Event<void>;
+
 	/**
 	 * Register a color to the registry.
-	 * @param id The color id as used in theme descrition files
+	 * @param id The color id as used in theme description files
 	 * @param defaults The default values
 	 * @description the description
 	 */
 	registerColor(id: string, defaults: ColorDefaults, description: string): ColorIdentifier;
+
+	/**
+	 * Register a color to the registry.
+	 */
+	deregisterColor(id: string);
 
 	/**
 	 * Get all color contributions
@@ -61,15 +71,15 @@ export interface IColorRegistry {
 	/**
 	 * Gets the default color of the given id
 	 */
-	resolveDefaultColor(id: ColorIdentifier, theme: ITheme): Color | null;
+	resolveDefaultColor(id: ColorIdentifier, theme: ITheme): Color | undefined;
 
 	/**
-	 * JSON schema for an object to assign color values to one of the color contrbutions.
+	 * JSON schema for an object to assign color values to one of the color contributions.
 	 */
 	getColorSchema(): IJSONSchema;
 
 	/**
-	 * JSON schema to for a reference to a color contrbution.
+	 * JSON schema to for a reference to a color contribution.
 	 */
 	getColorReferenceSchema(): IJSONSchema;
 
@@ -78,9 +88,13 @@ export interface IColorRegistry {
 
 
 class ColorRegistry implements IColorRegistry {
+
+	private readonly _onDidChangeSchema = new Emitter<void>();
+	readonly onDidChangeSchema: Event<void> = this._onDidChangeSchema.event;
+
 	private colorsById: { [key: string]: ColorContribution };
-	private colorSchema: IJSONSchema = { type: 'object', description: nls.localize('schema.colors', "Colors used in the workbench."), properties: {}, additionalProperties: false };
-	private colorReferenceSchema: IJSONSchema = { type: 'string', enum: [], enumDescriptions: [] };
+	private colorSchema: IJSONSchema & { properties: IJSONSchemaMap } = { type: 'object', properties: {} };
+	private colorReferenceSchema: IJSONSchema & { enum: string[], enumDescriptions: string[] } = { type: 'string', enum: [], enumDescriptions: [] };
 
 	constructor() {
 		this.colorsById = {};
@@ -93,23 +107,37 @@ class ColorRegistry implements IColorRegistry {
 		if (deprecationMessage) {
 			propertySchema.deprecationMessage = deprecationMessage;
 		}
-		this.colorSchema.properties![id] = propertySchema;
-		this.colorReferenceSchema.enum!.push(id);
-		this.colorReferenceSchema.enumDescriptions!.push(description);
+		this.colorSchema.properties[id] = propertySchema;
+		this.colorReferenceSchema.enum.push(id);
+		this.colorReferenceSchema.enumDescriptions.push(description);
+
+		this._onDidChangeSchema.fire();
 		return id;
+	}
+
+
+	public deregisterColor(id: string): void {
+		delete this.colorsById[id];
+		delete this.colorSchema.properties[id];
+		const index = this.colorReferenceSchema.enum.indexOf(id);
+		if (index !== -1) {
+			this.colorReferenceSchema.enum.splice(index, 1);
+			this.colorReferenceSchema.enumDescriptions.splice(index, 1);
+		}
+		this._onDidChangeSchema.fire();
 	}
 
 	public getColors(): ColorContribution[] {
 		return Object.keys(this.colorsById).map(id => this.colorsById[id]);
 	}
 
-	public resolveDefaultColor(id: ColorIdentifier, theme: ITheme): Color | null {
-		let colorDesc = this.colorsById[id];
+	public resolveDefaultColor(id: ColorIdentifier, theme: ITheme): Color | undefined {
+		const colorDesc = this.colorsById[id];
 		if (colorDesc && colorDesc.defaults) {
-			let colorValue = colorDesc.defaults[theme.type];
+			const colorValue = colorDesc.defaults[theme.type];
 			return resolveColorValue(colorValue, theme);
 		}
-		return null;
+		return undefined;
 	}
 
 	public getColorSchema(): IJSONSchema {
@@ -195,7 +223,7 @@ export const selectBorder = registerColor('dropdown.border', { dark: selectBackg
 
 export const listFocusBackground = registerColor('list.focusBackground', { dark: '#062F4A', light: '#D6EBFF', hc: null }, nls.localize('listFocusBackground', "List/Tree background color for the focused item when the list/tree is active. An active list/tree has keyboard focus, an inactive does not."));
 export const listFocusForeground = registerColor('list.focusForeground', { dark: null, light: null, hc: null }, nls.localize('listFocusForeground', "List/Tree foreground color for the focused item when the list/tree is active. An active list/tree has keyboard focus, an inactive does not."));
-export const listActiveSelectionBackground = registerColor('list.activeSelectionBackground', { dark: '#094771', light: '#2477CE', hc: null }, nls.localize('listActiveSelectionBackground', "List/Tree background color for the selected item when the list/tree is active. An active list/tree has keyboard focus, an inactive does not."));
+export const listActiveSelectionBackground = registerColor('list.activeSelectionBackground', { dark: '#094771', light: '#0074E8', hc: null }, nls.localize('listActiveSelectionBackground', "List/Tree background color for the selected item when the list/tree is active. An active list/tree has keyboard focus, an inactive does not."));
 export const listActiveSelectionForeground = registerColor('list.activeSelectionForeground', { dark: Color.white, light: Color.white, hc: null }, nls.localize('listActiveSelectionForeground', "List/Tree foreground color for the selected item when the list/tree is active. An active list/tree has keyboard focus, an inactive does not."));
 export const listInactiveSelectionBackground = registerColor('list.inactiveSelectionBackground', { dark: '#37373D', light: '#E4E6F1', hc: null }, nls.localize('listInactiveSelectionBackground', "List/Tree background color for the selected item when the list/tree is inactive. An active list/tree has keyboard focus, an inactive does not."));
 export const listInactiveSelectionForeground = registerColor('list.inactiveSelectionForeground', { dark: null, light: null, hc: null }, nls.localize('listInactiveSelectionForeground', "List/Tree foreground color for the selected item when the list/tree is inactive. An active list/tree has keyboard focus, an inactive does not."));
@@ -207,6 +235,9 @@ export const listHighlightForeground = registerColor('list.highlightForeground',
 export const listInvalidItemForeground = registerColor('list.invalidItemForeground', { dark: '#B89500', light: '#B89500', hc: '#B89500' }, nls.localize('invalidItemForeground', 'List/Tree foreground color for invalid items, for example an unresolved root in explorer.'));
 export const listErrorForeground = registerColor('list.errorForeground', { dark: '#F88070', light: '#B01011', hc: null }, nls.localize('listErrorForeground', 'Foreground color of list items containing errors.'));
 export const listWarningForeground = registerColor('list.warningForeground', { dark: '#4d9e4d', light: '#117711', hc: null }, nls.localize('listWarningForeground', 'Foreground color of list items containing warnings.'));
+export const listFilterWidgetBackground = registerColor('listFilterWidget.background', { light: '#efc1ad', dark: '#653723', hc: Color.black }, nls.localize('listFilterWidgetBackground', 'Background color of the type filter widget in lists and trees.'));
+export const listFilterWidgetOutline = registerColor('listFilterWidget.outline', { dark: Color.transparent, light: Color.transparent, hc: '#f38518' }, nls.localize('listFilterWidgetOutline', 'Outline color of the type filter widget in lists and trees.'));
+export const listFilterWidgetNoMatchesOutline = registerColor('listFilterWidget.noMatchesOutline', { dark: '#BE1100', light: '#BE1100', hc: contrastBorder }, nls.localize('listFilterWidgetNoMatchesOutline', 'Outline color of the type filter widget in lists and trees, when there are no matches.'));
 
 export const pickerGroupForeground = registerColor('pickerGroup.foreground', { dark: '#3794FF', light: '#0066BF', hc: Color.white }, nls.localize('pickerGroupForeground', "Quick picker color for grouping labels."));
 export const pickerGroupBorder = registerColor('pickerGroup.border', { dark: '#3F3F46', light: '#CCCEDB', hc: Color.white }, nls.localize('pickerGroupBorder', "Quick picker color for grouping borders."));
@@ -226,7 +257,7 @@ export const scrollbarSliderActiveBackground = registerColor('scrollbarSlider.ac
 export const progressBarBackground = registerColor('progressBar.background', { dark: Color.fromHex('#0E70C0'), light: Color.fromHex('#0E70C0'), hc: contrastBorder }, nls.localize('progressBarBackground', "Background color of the progress bar that can show for long running operations."));
 
 export const menuBorder = registerColor('menu.border', { dark: null, light: null, hc: contrastBorder }, nls.localize('menuBorder', "Border color of menus."));
-export const menuForeground = registerColor('menu.foreground', { dark: selectForeground, light: selectForeground, hc: selectForeground }, nls.localize('menuForeground', "Foreground color of menu items."));
+export const menuForeground = registerColor('menu.foreground', { dark: selectForeground, light: foreground, hc: selectForeground }, nls.localize('menuForeground', "Foreground color of menu items."));
 export const menuBackground = registerColor('menu.background', { dark: selectBackground, light: selectBackground, hc: selectBackground }, nls.localize('menuBackground', "Background color of menu items."));
 export const menuSelectionForeground = registerColor('menu.selectionForeground', { dark: listActiveSelectionForeground, light: listActiveSelectionForeground, hc: listActiveSelectionForeground }, nls.localize('menuSelectionForeground', "Foreground color of the selected menu item in menus."));
 export const menuSelectionBackground = registerColor('menu.selectionBackground', { dark: listActiveSelectionBackground, light: listActiveSelectionBackground, hc: listActiveSelectionBackground }, nls.localize('menuSelectionBackground', "Background color of the selected menu item in menus."));
@@ -258,8 +289,8 @@ export const editorWidgetResizeBorder = registerColor('editorWidget.resizeBorder
  */
 export const editorSelectionBackground = registerColor('editor.selectionBackground', { light: '#ADD6FF', dark: '#264F78', hc: '#f3f518' }, nls.localize('editorSelectionBackground', "Color of the editor selection."));
 export const editorSelectionForeground = registerColor('editor.selectionForeground', { light: null, dark: null, hc: '#000000' }, nls.localize('editorSelectionForeground', "Color of the selected text for high contrast."));
-export const editorInactiveSelection = registerColor('editor.inactiveSelectionBackground', { light: transparent(editorSelectionBackground, 0.5), dark: transparent(editorSelectionBackground, 0.5), hc: transparent(editorSelectionBackground, 0.5) }, nls.localize('editorInactiveSelection', "Color of the selection in an inactive editor. The color must not be opaque to not hide underlying decorations."), true);
-export const editorSelectionHighlight = registerColor('editor.selectionHighlightBackground', { light: lessProminent(editorSelectionBackground, editorBackground, 0.3, 0.6), dark: lessProminent(editorSelectionBackground, editorBackground, 0.3, 0.6), hc: null }, nls.localize('editorSelectionHighlight', 'Color for regions with the same content as the selection. The color must not be opaque to not hide underlying decorations.'), true);
+export const editorInactiveSelection = registerColor('editor.inactiveSelectionBackground', { light: transparent(editorSelectionBackground, 0.5), dark: transparent(editorSelectionBackground, 0.5), hc: transparent(editorSelectionBackground, 0.5) }, nls.localize('editorInactiveSelection', "Color of the selection in an inactive editor. The color must not be opaque so as not to hide underlying decorations."), true);
+export const editorSelectionHighlight = registerColor('editor.selectionHighlightBackground', { light: lessProminent(editorSelectionBackground, editorBackground, 0.3, 0.6), dark: lessProminent(editorSelectionBackground, editorBackground, 0.3, 0.6), hc: null }, nls.localize('editorSelectionHighlight', 'Color for regions with the same content as the selection. The color must not be opaque so as not to hide underlying decorations.'), true);
 export const editorSelectionHighlightBorder = registerColor('editor.selectionHighlightBorder', { light: null, dark: null, hc: activeContrastBorder }, nls.localize('editorSelectionHighlightBorder', "Border color for regions with the same content as the selection."));
 
 
@@ -267,16 +298,16 @@ export const editorSelectionHighlightBorder = registerColor('editor.selectionHig
  * Editor find match colors.
  */
 export const editorFindMatch = registerColor('editor.findMatchBackground', { light: '#A8AC94', dark: '#515C6A', hc: null }, nls.localize('editorFindMatch', "Color of the current search match."));
-export const editorFindMatchHighlight = registerColor('editor.findMatchHighlightBackground', { light: '#EA5C0055', dark: '#EA5C0055', hc: null }, nls.localize('findMatchHighlight', "Color of the other search matches. The color must not be opaque to not hide underlying decorations."), true);
-export const editorFindRangeHighlight = registerColor('editor.findRangeHighlightBackground', { dark: '#3a3d4166', light: '#b4b4b44d', hc: null }, nls.localize('findRangeHighlight', "Color of the range limiting the search. The color must not be opaque to not hide underlying decorations."), true);
+export const editorFindMatchHighlight = registerColor('editor.findMatchHighlightBackground', { light: '#EA5C0055', dark: '#EA5C0055', hc: null }, nls.localize('findMatchHighlight', "Color of the other search matches. The color must not be opaque so as not to hide underlying decorations."), true);
+export const editorFindRangeHighlight = registerColor('editor.findRangeHighlightBackground', { dark: '#3a3d4166', light: '#b4b4b44d', hc: null }, nls.localize('findRangeHighlight', "Color of the range limiting the search. The color must not be opaque so as not to hide underlying decorations."), true);
 export const editorFindMatchBorder = registerColor('editor.findMatchBorder', { light: null, dark: null, hc: activeContrastBorder }, nls.localize('editorFindMatchBorder', "Border color of the current search match."));
 export const editorFindMatchHighlightBorder = registerColor('editor.findMatchHighlightBorder', { light: null, dark: null, hc: activeContrastBorder }, nls.localize('findMatchHighlightBorder', "Border color of the other search matches."));
-export const editorFindRangeHighlightBorder = registerColor('editor.findRangeHighlightBorder', { dark: null, light: null, hc: transparent(activeContrastBorder, 0.4) }, nls.localize('findRangeHighlightBorder', "Border color of the range limiting the search. The color must not be opaque to not hide underlying decorations."), true);
+export const editorFindRangeHighlightBorder = registerColor('editor.findRangeHighlightBorder', { dark: null, light: null, hc: transparent(activeContrastBorder, 0.4) }, nls.localize('findRangeHighlightBorder', "Border color of the range limiting the search. The color must not be opaque so as not to hide underlying decorations."), true);
 
 /**
  * Editor hover
  */
-export const editorHoverHighlight = registerColor('editor.hoverHighlightBackground', { light: '#ADD6FF26', dark: '#264f7840', hc: '#ADD6FF26' }, nls.localize('hoverHighlight', 'Highlight below the word for which a hover is shown. The color must not be opaque to not hide underlying decorations.'), true);
+export const editorHoverHighlight = registerColor('editor.hoverHighlightBackground', { light: '#ADD6FF26', dark: '#264f7840', hc: '#ADD6FF26' }, nls.localize('hoverHighlight', 'Highlight below the word for which a hover is shown. The color must not be opaque so as not to hide underlying decorations.'), true);
 export const editorHoverBackground = registerColor('editorHoverWidget.background', { light: editorWidgetBackground, dark: editorWidgetBackground, hc: editorWidgetBackground }, nls.localize('hoverBackground', 'Background color of the editor hover.'));
 export const editorHoverBorder = registerColor('editorHoverWidget.border', { light: editorWidgetBorder, dark: editorWidgetBorder, hc: editorWidgetBorder }, nls.localize('hoverBorder', 'Border color of the editor hover.'));
 
@@ -291,8 +322,8 @@ export const editorActiveLinkForeground = registerColor('editorLink.activeForegr
 export const defaultInsertColor = new Color(new RGBA(155, 185, 85, 0.2));
 export const defaultRemoveColor = new Color(new RGBA(255, 0, 0, 0.2));
 
-export const diffInserted = registerColor('diffEditor.insertedTextBackground', { dark: defaultInsertColor, light: defaultInsertColor, hc: null }, nls.localize('diffEditorInserted', 'Background color for text that got inserted. The color must not be opaque to not hide underlying decorations.'), true);
-export const diffRemoved = registerColor('diffEditor.removedTextBackground', { dark: defaultRemoveColor, light: defaultRemoveColor, hc: null }, nls.localize('diffEditorRemoved', 'Background color for text that got removed. The color must not be opaque to not hide underlying decorations.'), true);
+export const diffInserted = registerColor('diffEditor.insertedTextBackground', { dark: defaultInsertColor, light: defaultInsertColor, hc: null }, nls.localize('diffEditorInserted', 'Background color for text that got inserted. The color must not be opaque so as not to hide underlying decorations.'), true);
+export const diffRemoved = registerColor('diffEditor.removedTextBackground', { dark: defaultRemoveColor, light: defaultRemoveColor, hc: null }, nls.localize('diffEditorRemoved', 'Background color for text that got removed. The color must not be opaque so as not to hide underlying decorations.'), true);
 
 export const diffInsertedOutline = registerColor('diffEditor.insertedTextBorder', { dark: null, light: null, hc: '#33ff2eff' }, nls.localize('diffEditorInsertedOutline', 'Outline color for the text that got inserted.'));
 export const diffRemovedOutline = registerColor('diffEditor.removedTextBorder', { dark: null, light: null, hc: '#FF008F' }, nls.localize('diffEditorRemovedOutline', 'Outline color for text that got removed.'));
@@ -310,10 +341,10 @@ export const snippetFinalTabstopHighlightBorder = registerColor('editor.snippetF
 /**
  * Breadcrumb colors
  */
-export const breadcrumbsForeground = registerColor('breadcrumb.foreground', { light: transparent(foreground, .8), dark: transparent(foreground, .8), hc: transparent(foreground, .8) }, nls.localize('breadcrumbsFocusForeground', "Color of focused breadcrumb items."));
+export const breadcrumbsForeground = registerColor('breadcrumb.foreground', { light: transparent(foreground, 0.8), dark: transparent(foreground, 0.8), hc: transparent(foreground, 0.8) }, nls.localize('breadcrumbsFocusForeground', "Color of focused breadcrumb items."));
 export const breadcrumbsBackground = registerColor('breadcrumb.background', { light: editorBackground, dark: editorBackground, hc: editorBackground }, nls.localize('breadcrumbsBackground', "Background color of breadcrumb items."));
-export const breadcrumbsFocusForeground = registerColor('breadcrumb.focusForeground', { light: darken(foreground, .2), dark: lighten(foreground, .1), hc: lighten(foreground, .1) }, nls.localize('breadcrumbsFocusForeground', "Color of focused breadcrumb items."));
-export const breadcrumbsActiveSelectionForeground = registerColor('breadcrumb.activeSelectionForeground', { light: darken(foreground, .2), dark: lighten(foreground, .1), hc: lighten(foreground, .1) }, nls.localize('breadcrumbsSelectedForegound', "Color of selected breadcrumb items."));
+export const breadcrumbsFocusForeground = registerColor('breadcrumb.focusForeground', { light: darken(foreground, 0.2), dark: lighten(foreground, 0.1), hc: lighten(foreground, 0.1) }, nls.localize('breadcrumbsFocusForeground', "Color of focused breadcrumb items."));
+export const breadcrumbsActiveSelectionForeground = registerColor('breadcrumb.activeSelectionForeground', { light: darken(foreground, 0.2), dark: lighten(foreground, 0.1), hc: lighten(foreground, 0.1) }, nls.localize('breadcrumbsSelectedForegound', "Color of selected breadcrumb items."));
 export const breadcrumbsPickerBackground = registerColor('breadcrumbPicker.background', { light: editorWidgetBackground, dark: editorWidgetBackground, hc: editorWidgetBackground }, nls.localize('breadcrumbsSelectedBackground', "Background color of breadcrumb item picker."));
 
 /**
@@ -327,12 +358,12 @@ const commonBaseColor = Color.fromHex('#606060').transparent(0.4);
 const contentTransparency = 0.4;
 const rulerTransparency = 1;
 
-export const mergeCurrentHeaderBackground = registerColor('merge.currentHeaderBackground', { dark: currentBaseColor, light: currentBaseColor, hc: null }, nls.localize('mergeCurrentHeaderBackground', 'Current header background in inline merge-conflicts. The color must not be opaque to not hide underlying decorations.'), true);
-export const mergeCurrentContentBackground = registerColor('merge.currentContentBackground', { dark: transparent(mergeCurrentHeaderBackground, contentTransparency), light: transparent(mergeCurrentHeaderBackground, contentTransparency), hc: transparent(mergeCurrentHeaderBackground, contentTransparency) }, nls.localize('mergeCurrentContentBackground', 'Current content background in inline merge-conflicts. The color must not be opaque to not hide underlying decorations.'), true);
-export const mergeIncomingHeaderBackground = registerColor('merge.incomingHeaderBackground', { dark: incomingBaseColor, light: incomingBaseColor, hc: null }, nls.localize('mergeIncomingHeaderBackground', 'Incoming header background in inline merge-conflicts. The color must not be opaque to not hide underlying decorations.'), true);
-export const mergeIncomingContentBackground = registerColor('merge.incomingContentBackground', { dark: transparent(mergeIncomingHeaderBackground, contentTransparency), light: transparent(mergeIncomingHeaderBackground, contentTransparency), hc: transparent(mergeIncomingHeaderBackground, contentTransparency) }, nls.localize('mergeIncomingContentBackground', 'Incoming content background in inline merge-conflicts. The color must not be opaque to not hide underlying decorations.'), true);
-export const mergeCommonHeaderBackground = registerColor('merge.commonHeaderBackground', { dark: commonBaseColor, light: commonBaseColor, hc: null }, nls.localize('mergeCommonHeaderBackground', 'Common ancestor header background in inline merge-conflicts. The color must not be opaque to not hide underlying decorations.'), true);
-export const mergeCommonContentBackground = registerColor('merge.commonContentBackground', { dark: transparent(mergeCommonHeaderBackground, contentTransparency), light: transparent(mergeCommonHeaderBackground, contentTransparency), hc: transparent(mergeCommonHeaderBackground, contentTransparency) }, nls.localize('mergeCommonContentBackground', 'Common ancestor content background in inline merge-conflicts. The color must not be opaque to not hide underlying decorations.'), true);
+export const mergeCurrentHeaderBackground = registerColor('merge.currentHeaderBackground', { dark: currentBaseColor, light: currentBaseColor, hc: null }, nls.localize('mergeCurrentHeaderBackground', 'Current header background in inline merge-conflicts. The color must not be opaque so as not to hide underlying decorations.'), true);
+export const mergeCurrentContentBackground = registerColor('merge.currentContentBackground', { dark: transparent(mergeCurrentHeaderBackground, contentTransparency), light: transparent(mergeCurrentHeaderBackground, contentTransparency), hc: transparent(mergeCurrentHeaderBackground, contentTransparency) }, nls.localize('mergeCurrentContentBackground', 'Current content background in inline merge-conflicts. The color must not be opaque so as not to hide underlying decorations.'), true);
+export const mergeIncomingHeaderBackground = registerColor('merge.incomingHeaderBackground', { dark: incomingBaseColor, light: incomingBaseColor, hc: null }, nls.localize('mergeIncomingHeaderBackground', 'Incoming header background in inline merge-conflicts. The color must not be opaque so as not to hide underlying decorations.'), true);
+export const mergeIncomingContentBackground = registerColor('merge.incomingContentBackground', { dark: transparent(mergeIncomingHeaderBackground, contentTransparency), light: transparent(mergeIncomingHeaderBackground, contentTransparency), hc: transparent(mergeIncomingHeaderBackground, contentTransparency) }, nls.localize('mergeIncomingContentBackground', 'Incoming content background in inline merge-conflicts. The color must not be opaque so as not to hide underlying decorations.'), true);
+export const mergeCommonHeaderBackground = registerColor('merge.commonHeaderBackground', { dark: commonBaseColor, light: commonBaseColor, hc: null }, nls.localize('mergeCommonHeaderBackground', 'Common ancestor header background in inline merge-conflicts. The color must not be opaque so as not to hide underlying decorations.'), true);
+export const mergeCommonContentBackground = registerColor('merge.commonContentBackground', { dark: transparent(mergeCommonHeaderBackground, contentTransparency), light: transparent(mergeCommonHeaderBackground, contentTransparency), hc: transparent(mergeCommonHeaderBackground, contentTransparency) }, nls.localize('mergeCommonContentBackground', 'Common ancestor content background in inline merge-conflicts. The color must not be opaque so as not to hide underlying decorations.'), true);
 
 export const mergeBorder = registerColor('merge.border', { dark: null, light: null, hc: '#C3DF6F' }, nls.localize('mergeBorder', 'Border color on headers and the splitter in inline merge-conflicts.'));
 
@@ -341,9 +372,9 @@ export const overviewRulerIncomingContentForeground = registerColor('editorOverv
 export const overviewRulerCommonContentForeground = registerColor('editorOverviewRuler.commonContentForeground', { dark: transparent(mergeCommonHeaderBackground, rulerTransparency), light: transparent(mergeCommonHeaderBackground, rulerTransparency), hc: mergeBorder }, nls.localize('overviewRulerCommonContentForeground', 'Common ancestor overview ruler foreground for inline merge-conflicts.'));
 
 const findMatchColorDefault = new Color(new RGBA(246, 185, 77, 0.7));
-export const overviewRulerFindMatchForeground = registerColor('editorOverviewRuler.findMatchForeground', { dark: findMatchColorDefault, light: findMatchColorDefault, hc: findMatchColorDefault }, nls.localize('overviewRulerFindMatchForeground', 'Overview ruler marker color for find matches. The color must not be opaque to not hide underlying decorations.'), true);
+export const overviewRulerFindMatchForeground = registerColor('editorOverviewRuler.findMatchForeground', { dark: findMatchColorDefault, light: findMatchColorDefault, hc: findMatchColorDefault }, nls.localize('overviewRulerFindMatchForeground', 'Overview ruler marker color for find matches. The color must not be opaque so as not to hide underlying decorations.'), true);
 
-export const overviewRulerSelectionHighlightForeground = registerColor('editorOverviewRuler.selectionHighlightForeground', { dark: '#A0A0A0CC', light: '#A0A0A0CC', hc: '#A0A0A0CC' }, nls.localize('overviewRulerSelectionHighlightForeground', 'Overview ruler marker color for selection highlights. The color must not be opaque to not hide underlying decorations.'), true);
+export const overviewRulerSelectionHighlightForeground = registerColor('editorOverviewRuler.selectionHighlightForeground', { dark: '#A0A0A0CC', light: '#A0A0A0CC', hc: '#A0A0A0CC' }, nls.localize('overviewRulerSelectionHighlightForeground', 'Overview ruler marker color for selection highlights. The color must not be opaque so as not to hide underlying decorations.'), true);
 
 
 // ----- color functions
@@ -354,7 +385,7 @@ export function darken(colorValue: ColorValue, factor: number): ColorFunction {
 		if (color) {
 			return color.darken(factor);
 		}
-		return null;
+		return undefined;
 	};
 }
 
@@ -364,7 +395,7 @@ export function lighten(colorValue: ColorValue, factor: number): ColorFunction {
 		if (color) {
 			return color.lighten(factor);
 		}
-		return null;
+		return undefined;
 	};
 }
 
@@ -374,7 +405,7 @@ export function transparent(colorValue: ColorValue, factor: number): ColorFuncti
 		if (color) {
 			return color.transparent(factor);
 		}
-		return null;
+		return undefined;
 	};
 }
 
@@ -386,7 +417,7 @@ export function oneOf(...colorValues: ColorValue[]): ColorFunction {
 				return color;
 			}
 		}
-		return null;
+		return undefined;
 	};
 }
 
@@ -403,7 +434,7 @@ function lessProminent(colorValue: ColorValue, backgroundColorValue: ColorValue,
 			}
 			return from.transparent(factor * transparency);
 		}
-		return null;
+		return undefined;
 	};
 }
 
@@ -412,9 +443,9 @@ function lessProminent(colorValue: ColorValue, backgroundColorValue: ColorValue,
 /**
  * @param colorValue Resolve a color value in the context of a theme
  */
-function resolveColorValue(colorValue: ColorValue | null, theme: ITheme): Color | null {
+function resolveColorValue(colorValue: ColorValue | null, theme: ITheme): Color | undefined {
 	if (colorValue === null) {
-		return null;
+		return undefined;
 	} else if (typeof colorValue === 'string') {
 		if (colorValue[0] === '#') {
 			return Color.fromHex(colorValue);
@@ -425,8 +456,20 @@ function resolveColorValue(colorValue: ColorValue | null, theme: ITheme): Color 
 	} else if (typeof colorValue === 'function') {
 		return colorValue(theme);
 	}
-	return null;
+	return undefined;
 }
+
+export const workbenchColorsSchemaId = 'vscode://schemas/workbench-colors';
+
+let schemaRegistry = platform.Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
+schemaRegistry.registerSchema(workbenchColorsSchemaId, colorRegistry.getColorSchema());
+
+const delayer = new RunOnceScheduler(() => schemaRegistry.notifySchemaChanged(workbenchColorsSchemaId), 200);
+colorRegistry.onDidChangeSchema(() => {
+	if (!delayer.isScheduled()) {
+		delayer.schedule();
+	}
+});
 
 // setTimeout(_ => console.log(colorRegistry.toString()), 5000);
 

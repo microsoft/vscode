@@ -36,7 +36,7 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 	public dispose(): void {
 	}
 
-	$show(instance: number, options: IPickOptions<TransferQuickPickItems>, token: CancellationToken): Promise<number | number[]> {
+	$show(instance: number, options: IPickOptions<TransferQuickPickItems>, token: CancellationToken): Promise<number | number[] | undefined> {
 		const contents = new Promise<TransferQuickPickItems[]>((resolve, reject) => {
 			this._items[instance] = { resolve, reject };
 		});
@@ -72,7 +72,7 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 			this._items[instance].resolve(items);
 			delete this._items[instance];
 		}
-		return undefined;
+		return Promise.resolve();
 	}
 
 	$setError(instance: number, error: Error): Promise<void> {
@@ -80,7 +80,7 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 			this._items[instance].reject(error);
 			delete this._items[instance];
 		}
-		return undefined;
+		return Promise.resolve();
 	}
 
 	// ---- input
@@ -181,13 +181,13 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 					.filter(handle => handlesToItems.has(handle))
 					.map(handle => handlesToItems.get(handle));
 			} else if (param === 'buttons') {
-				input[param] = params.buttons.map(button => {
+				input[param] = params.buttons!.map(button => {
 					if (button.handle === -1) {
 						return this._quickInputService.backButton;
 					}
 					const { iconPath, tooltip, handle } = button;
 					return {
-						iconPath: {
+						iconPath: iconPath && {
 							dark: URI.revive(iconPath.dark),
 							light: iconPath.light && URI.revive(iconPath.light)
 						},

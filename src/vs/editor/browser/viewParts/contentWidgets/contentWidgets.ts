@@ -60,8 +60,7 @@ export class ViewContentWidgets extends ViewPart {
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		let keys = Object.keys(this._widgets);
-		for (let i = 0, len = keys.length; i < len; i++) {
-			const widgetId = keys[i];
+		for (const widgetId of keys) {
 			this._widgets[widgetId].onConfigurationChanged(e);
 		}
 		return true;
@@ -75,8 +74,7 @@ export class ViewContentWidgets extends ViewPart {
 	}
 	public onLineMappingChanged(e: viewEvents.ViewLineMappingChangedEvent): boolean {
 		let keys = Object.keys(this._widgets);
-		for (let i = 0, len = keys.length; i < len; i++) {
-			const widgetId = keys[i];
+		for (const widgetId of keys) {
 			this._widgets[widgetId].onLineMappingChanged(e);
 		}
 		return true;
@@ -142,24 +140,21 @@ export class ViewContentWidgets extends ViewPart {
 
 	public onBeforeRender(viewportData: ViewportData): void {
 		let keys = Object.keys(this._widgets);
-		for (let i = 0, len = keys.length; i < len; i++) {
-			const widgetId = keys[i];
+		for (const widgetId of keys) {
 			this._widgets[widgetId].onBeforeRender(viewportData);
 		}
 	}
 
 	public prepareRender(ctx: RenderingContext): void {
 		let keys = Object.keys(this._widgets);
-		for (let i = 0, len = keys.length; i < len; i++) {
-			const widgetId = keys[i];
+		for (const widgetId of keys) {
 			this._widgets[widgetId].prepareRender(ctx);
 		}
 	}
 
 	public render(ctx: RestrictedRenderingContext): void {
 		let keys = Object.keys(this._widgets);
-		for (let i = 0, len = keys.length; i < len; i++) {
-			const widgetId = keys[i];
+		for (const widgetId of keys) {
 			this._widgets[widgetId].render(ctx);
 		}
 	}
@@ -458,9 +453,8 @@ class Widget {
 		// Do two passes, first for perfect fit, second picks first option
 		if (this._preference) {
 			for (let pass = 1; pass <= 2; pass++) {
-				for (let i = 0; i < this._preference.length; i++) {
+				for (const pref of this._preference) {
 					// placement
-					let pref = this._preference[i];
 					if (pref === ContentWidgetPositionPreference.ABOVE) {
 						if (!placement) {
 							// Widget outside of viewport

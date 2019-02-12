@@ -7,6 +7,7 @@ import { StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/platform/
 import { StatusBarAlignment as ExtHostStatusBarAlignment, Disposable, ThemeColor } from './extHostTypes';
 import { StatusBarItem, StatusBarAlignment } from 'vscode';
 import { MainContext, MainThreadStatusBarShape, IMainContext } from './extHost.protocol';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export class ExtHostStatusBarEntry implements StatusBarItem {
 	private static ID_GEN = 0;
@@ -25,9 +26,9 @@ export class ExtHostStatusBarEntry implements StatusBarItem {
 	private _timeoutHandle: any;
 	private _proxy: MainThreadStatusBarShape;
 
-	private _extensionId: string;
+	private _extensionId: ExtensionIdentifier;
 
-	constructor(proxy: MainThreadStatusBarShape, extensionId: string, alignment: ExtHostStatusBarAlignment = ExtHostStatusBarAlignment.Left, priority?: number) {
+	constructor(proxy: MainThreadStatusBarShape, extensionId: ExtensionIdentifier, alignment: ExtHostStatusBarAlignment = ExtHostStatusBarAlignment.Left, priority?: number) {
 		this._id = ExtHostStatusBarEntry.ID_GEN++;
 		this._proxy = proxy;
 		this._alignment = alignment;
@@ -124,7 +125,7 @@ class StatusBarMessage {
 	private _messages: { message: string }[] = [];
 
 	constructor(statusBar: ExtHostStatusBar) {
-		this._item = statusBar.createStatusBarEntry(void 0, ExtHostStatusBarAlignment.Left, Number.MIN_VALUE);
+		this._item = statusBar.createStatusBarEntry(undefined, ExtHostStatusBarAlignment.Left, Number.MIN_VALUE);
 	}
 
 	dispose() {
@@ -166,7 +167,7 @@ export class ExtHostStatusBar {
 		this._statusMessage = new StatusBarMessage(this);
 	}
 
-	createStatusBarEntry(extensionId: string, alignment?: ExtHostStatusBarAlignment, priority?: number): StatusBarItem {
+	createStatusBarEntry(extensionId: ExtensionIdentifier, alignment?: ExtHostStatusBarAlignment, priority?: number): StatusBarItem {
 		return new ExtHostStatusBarEntry(this._proxy, extensionId, alignment, priority);
 	}
 

@@ -44,12 +44,12 @@ suite('Workbench editor model', () => {
 					return Promise.resolve(accessor.modelService.createModel(modelContent, languageSelection, resource));
 				}
 
-				return Promise.resolve(null);
+				return Promise.resolve(null!);
 			}
 		});
 
-		let input = instantiationService.createInstance(ResourceEditorInput, 'name', 'description', URI.from({ scheme: 'test', authority: null, path: 'thePath' }));
-		let otherInput = instantiationService.createInstance(ResourceEditorInput, 'name2', 'description', URI.from({ scheme: 'test', authority: null, path: 'thePath' }));
+		let input = instantiationService.createInstance(ResourceEditorInput, 'name', 'description', URI.from({ scheme: 'test', authority: null!, path: 'thePath' }));
+		let otherInput = instantiationService.createInstance(ResourceEditorInput, 'name2', 'description', URI.from({ scheme: 'test', authority: null!, path: 'thePath' }));
 		let diffInput = new DiffEditorInput('name', 'description', input, otherInput);
 
 		return diffInput.resolve().then((model: any) => {

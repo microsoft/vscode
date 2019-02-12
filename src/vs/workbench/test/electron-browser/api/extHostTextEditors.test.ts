@@ -19,7 +19,7 @@ suite('ExtHostTextEditors.applyWorkspaceEdit', () => {
 	let workspaceResourceEdits: WorkspaceEditDto;
 
 	setup(() => {
-		workspaceResourceEdits = null;
+		workspaceResourceEdits = null!;
 
 		let rpcProtocol = new TestRPCProtocol();
 		rpcProtocol.set(MainContext.MainThreadTextEditors, new class extends mock<MainThreadTextEditorsShape>() {

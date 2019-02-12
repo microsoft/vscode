@@ -11,7 +11,6 @@ import {
 } from 'vscode-languageserver';
 import { TextDocument, Diagnostic, DocumentLink, SymbolInformation } from 'vscode-languageserver-types';
 import { getLanguageModes, LanguageModes, Settings } from './modes/languageModes';
-import * as fs from 'fs';
 
 import { format } from './modes/formatting';
 import { pushAll } from './utils/arrays';
@@ -20,8 +19,7 @@ import uri from 'vscode-uri';
 import { formatError, runSafe, runSafeAsync } from './utils/runner';
 
 import { getFoldingRanges } from './modes/htmlFolding';
-import { parseTagSet, parseAttributes } from './utils/tagDefinitions';
-import { ITagSet, IAttributeSet } from 'vscode-html-languageservice';
+import { getDataProviders } from './customData';
 
 namespace TagCloseRequest {
 	export const type: RequestType<TextDocumentPositionParams, string | null, any, any> = new RequestType('html/tag');
@@ -75,7 +73,7 @@ function getDocumentSettings(textDocument: TextDocument, needsDocumentSettings: 
 		}
 		return promise;
 	}
-	return Promise.resolve(void 0);
+	return Promise.resolve(undefined);
 }
 
 // After the server has started the client sends an initialize request. The server receives
@@ -91,46 +89,15 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 		}
 	}
 
-	const tagPaths: string[] = params.initializationOptions.tagPaths;
-	const attributePaths: string[] = params.initializationOptions.attributePaths;
-	const htmlTags: ITagSet = {};
-	const htmlAttributes: IAttributeSet = {};
-
-	if (tagPaths) {
-		tagPaths.forEach(path => {
-			try {
-				if (fs.existsSync(path)) {
-					const tagSet = parseTagSet(fs.readFileSync(path, 'utf-8'));
-					for (let tag in tagSet) {
-						htmlTags[tag] = tagSet[tag];
-					}
-				}
-			} catch (err) {
-				console.log(`Failed to laod tag from ${path}`);
-			}
-		});
-	}
-	if (htmlAttributes) {
-		attributePaths.forEach(path => {
-			try {
-				if (fs.existsSync(path)) {
-					const attributeSet = parseAttributes(fs.readFileSync(path, 'utf-8'));
-					for (let ga in attributeSet) {
-						htmlAttributes[ga] = attributeSet[ga];
-					}
-				}
-			} catch (err) {
-				console.log(`Failed to load attributes from ${path}`);
-			}
-		});
-	}
+	const dataPaths: string[] = params.initializationOptions.dataPaths;
+	const providers = getDataProviders(dataPaths);
 
 	const workspace = {
 		get settings() { return globalSettings; },
 		get folders() { return workspaceFolders; }
 	};
 
-	languageModes = getLanguageModes(initializationOptions ? initializationOptions.embeddedLanguages : { css: true, javascript: true }, workspace, htmlTags, htmlAttributes);
+	languageModes = getLanguageModes(initializationOptions ? initializationOptions.embeddedLanguages : { css: true, javascript: true }, workspace, providers);
 
 	documents.onDidClose(e => {
 		languageModes.onDocumentRemoved(e.document);
@@ -486,6 +453,21 @@ connection.onFoldingRanges((params, token) => {
 		}
 		return null;
 	}, null, `Error while computing folding regions for ${params.textDocument.uri}`, token);
+});
+
+connection.onRequest('$/textDocument/selectionRange', async (params, token) => {
+	return runSafe(() => {
+		const document = documents.get(params.textDocument.uri);
+		const position: Position = params.position;
+
+		if (document) {
+			const htmlMode = languageModes.getMode('html');
+			if (htmlMode && htmlMode.doSelection) {
+				return htmlMode.doSelection(document, position);
+			}
+		}
+		return Promise.resolve(null);
+	}, null, `Error while computing selection ranges for ${params.textDocument.uri}`, token);
 });
 
 

@@ -202,7 +202,7 @@ suite('Workbench untitled editors', () => {
 		config.setUserConfiguration('files', { 'defaultLanguage': defaultLanguage });
 
 		const service = accessor.untitledEditorService;
-		const input = service.createOrGet(null, modeId);
+		const input = service.createOrGet(null!, modeId);
 
 		assert.equal(input.getModeId(), modeId);
 

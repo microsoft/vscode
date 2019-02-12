@@ -111,8 +111,7 @@ export class IframeUtils {
 
 		let windowChain = this.getSameOriginWindowChain();
 
-		for (let i = 0; i < windowChain.length; i++) {
-			let windowChainEl = windowChain[i];
+		for (const windowChainEl of windowChain) {
 
 			if (windowChainEl.window === ancestorWindow) {
 				break;

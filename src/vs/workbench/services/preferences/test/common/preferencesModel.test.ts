@@ -13,7 +13,7 @@ suite('Preferences Model test', () => {
 		private validator: (value: any) => string;
 
 		constructor(private settings: IConfigurationPropertySchema) {
-			this.validator = createValidator(settings);
+			this.validator = createValidator(settings)!;
 		}
 
 		public accepts(input) {

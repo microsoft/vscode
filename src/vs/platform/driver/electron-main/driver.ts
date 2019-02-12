@@ -33,7 +33,7 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 	constructor(
 		private windowServer: IPCServer,
 		private options: IDriverOptions,
-		@IWindowsMainService private windowsService: IWindowsMainService
+		@IWindowsMainService private readonly windowsService: IWindowsMainService
 	) { }
 
 	async registerWindowDriver(windowId: number): Promise<IDriverOptions> {
@@ -57,9 +57,11 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 		await this.whenUnfrozen(windowId);
 
 		const window = this.windowsService.getWindowById(windowId);
+		if (!window) {
+			throw new Error('Invalid window');
+		}
 		const webContents = window.win.webContents;
 		const image = await new Promise<Electron.NativeImage>(c => webContents.capturePage(c));
-
 		return image.toPNG().toString('base64');
 	}
 
@@ -67,8 +69,15 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 		await this.whenUnfrozen(windowId);
 
 		const window = this.windowsService.getWindowById(windowId);
+		if (!window) {
+			throw new Error('Invalid window');
+		}
 		this.reloadingWindowIds.add(windowId);
 		this.windowsService.reload(window);
+	}
+
+	async exitApplication(): Promise<void> {
+		return this.windowsService.quit();
 	}
 
 	async dispatchKeybinding(windowId: number, keybinding: string): Promise<void> {
@@ -93,6 +102,9 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 		}
 
 		const window = this.windowsService.getWindowById(windowId);
+		if (!window) {
+			throw new Error('Invalid window');
+		}
 		const webContents = window.win.webContents;
 		const noModifiedKeybinding = new SimpleKeybinding(false, false, false, false, keybinding.keyCode);
 		const resolvedKeybinding = new USLayoutResolvedKeybinding(noModifiedKeybinding, OS);

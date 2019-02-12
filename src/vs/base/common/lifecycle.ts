@@ -49,12 +49,20 @@ export abstract class Disposable implements IDisposable {
 	protected _toDispose: IDisposable[] = [];
 	protected get toDispose(): IDisposable[] { return this._toDispose; }
 
+	private _lifecycle_disposable_isDisposed = false;
+
 	public dispose(): void {
+		this._lifecycle_disposable_isDisposed = true;
 		this._toDispose = dispose(this._toDispose);
 	}
 
 	protected _register<T extends IDisposable>(t: T): T {
-		this._toDispose.push(t);
+		if (this._lifecycle_disposable_isDisposed) {
+			console.warn('Registering disposable on object that has already been disposed.');
+			t.dispose();
+		} else {
+			this._toDispose.push(t);
+		}
 
 		return t;
 	}

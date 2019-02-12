@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-import { workspace, window, languages, commands, ExtensionContext, extensions, Uri, LanguageConfiguration, Diagnostic, StatusBarAlignment, TextEditor } from 'vscode';
+import { workspace, window, languages, commands, ExtensionContext, extensions, Uri, LanguageConfiguration, Diagnostic, StatusBarAlignment, TextEditor, TextDocument, Position, SelectionRange, Range, SelectionRangeKind } from 'vscode';
 import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification, HandleDiagnosticsSignature } from 'vscode-languageclient';
 import TelemetryReporter from 'vscode-extension-telemetry';
 
@@ -193,7 +193,33 @@ export function activate(context: ExtensionContext) {
 		toDispose.push(commands.registerCommand('_json.retryResolveSchema', handleRetryResolveSchemaCommand));
 
 		client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociation(context));
+
+		extensions.onDidChange(_ => {
+			client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociation(context));
+		});
+
+		documentSelector.forEach(selector => {
+			toDispose.push(languages.registerSelectionRangeProvider(selector, {
+				async provideSelectionRanges(document: TextDocument, positions: Position[]): Promise<SelectionRange[][]> {
+					const textDocument = client.code2ProtocolConverter.asTextDocumentIdentifier(document);
+					return Promise.all(positions.map(async position => {
+						const rawRanges = await client.sendRequest<Range[]>('$/textDocument/selectionRange', { textDocument, position });
+						if (Array.isArray(rawRanges)) {
+							return rawRanges.map(r => {
+								return {
+									range: client.protocol2CodeConverter.asRange(r),
+									kind: SelectionRangeKind.Declaration
+								};
+							});
+						}
+						return [];
+					}));
+				}
+			}));
+		});
 	});
+
+
 
 	let languageConfiguration: LanguageConfiguration = {
 		wordPattern: /("(?:[^\\\"]*(?:\\.)?)*"?)|[^\s{}\[\],:]+/,
@@ -338,7 +364,7 @@ function getPackageInfo(context: ExtensionContext): IPackageInfo | undefined {
 			aiKey: extensionPackage.aiKey
 		};
 	}
-	return void 0;
+	return undefined;
 }
 
 function readJSONFile(location: string) {

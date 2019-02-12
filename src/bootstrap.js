@@ -69,7 +69,15 @@ exports.uriFromPath = function (_path) {
 		pathName = '/' + pathName;
 	}
 
-	return encodeURI('file://' + pathName).replace(/#/g, '%23');
+	/** @type {string} */
+	let uri;
+	if (process.platform === 'win32' && pathName.startsWith('//')) { // specially handle Windows UNC paths
+		uri = encodeURI('file:' + pathName);
+	} else {
+		uri = encodeURI('file://' + pathName);
+	}
+
+	return uri.replace(/#/g, '%23');
 };
 //#endregion
 

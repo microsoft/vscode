@@ -99,7 +99,6 @@ export function getMappingForIncludedLanguages(): any {
 * If the language is not supported by emmet or has been exlcuded via `exlcudeLanguages` setting,
 * then nothing is returned
 *
-* @param language
 * @param exlcudedLanguages Array of language ids that user has chosen to exlcude for emmet
 */
 export function getEmmetMode(language: string, excludedLanguages: string[]): string | undefined {
@@ -353,7 +352,6 @@ export function getHtmlNode(document: vscode.TextDocument, root: Node | undefine
 
 /**
  * Returns inner range of an html node.
- * @param currentNode
  */
 export function getInnerRange(currentNode: HtmlNode): vscode.Range | undefined {
 	if (!currentNode.close) {
@@ -364,7 +362,6 @@ export function getInnerRange(currentNode: HtmlNode): vscode.Range | undefined {
 
 /**
  * Returns the deepest non comment node under given node
- * @param node
  */
 export function getDeepestNode(node: Node | undefined): Node | undefined {
 	if (!node || !node.children || node.children.length === 0 || !node.children.find(x => x.type !== 'comment')) {

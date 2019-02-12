@@ -15,21 +15,16 @@ export const enum ActivityBarPosition {
 	RIGHT = 1
 }
 
-const SEARCH_INPUT = '.settings-search-input input';
-
 export class SettingsEditor {
 
 	constructor(private code: Code, private userDataPath: string, private editors: Editors, private editor: Editor, private quickopen: QuickOpen) { }
 
 	async addUserSetting(setting: string, value: string): Promise<void> {
 		await this.openSettings();
-		await this.code.waitAndClick(SEARCH_INPUT);
-		await this.code.waitForActiveElement(SEARCH_INPUT);
-
-		await this.editor.waitForEditorFocus('settings.json', 1, '.editable-preferences-editor-container');
+		await this.editor.waitForEditorFocus('settings.json', 1);
 
 		await this.code.dispatchKeybinding('right');
-		await this.editor.waitForTypeInEditor('settings.json', `"${setting}": ${value}`, '.editable-preferences-editor-container');
+		await this.editor.waitForTypeInEditor('settings.json', `"${setting}": ${value}`);
 		await this.editors.saveOpenedFile();
 	}
 
@@ -38,7 +33,7 @@ export class SettingsEditor {
 		await new Promise((c, e) => fs.writeFile(settingsPath, '{}', 'utf8', err => err ? e(err) : c()));
 
 		await this.openSettings();
-		await this.editor.waitForEditorContents('settings.json', c => c === '{}', '.editable-preferences-editor-container');
+		await this.editor.waitForEditorContents('settings.json', c => c === '{}');
 	}
 
 	private async openSettings(): Promise<void> {

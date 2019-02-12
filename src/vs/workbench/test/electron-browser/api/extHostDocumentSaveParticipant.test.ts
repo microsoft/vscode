@@ -17,6 +17,7 @@ import { IExtensionDescription } from 'vs/workbench/services/extensions/common/e
 import { NullLogService } from 'vs/platform/log/common/log';
 import { isResourceTextEdit, ResourceTextEdit } from 'vs/editor/common/modes';
 import { timeout } from 'vs/base/common/async';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 suite('ExtHostDocumentSaveParticipant', () => {
 
@@ -25,15 +26,15 @@ suite('ExtHostDocumentSaveParticipant', () => {
 	let documents: ExtHostDocuments;
 	let nullLogService = new NullLogService();
 	let nullExtensionDescription: IExtensionDescription = {
-		id: 'nullExtensionDescription',
+		identifier: new ExtensionIdentifier('nullExtensionDescription'),
 		name: 'Null Extension Description',
 		publisher: 'vscode',
 		enableProposedApi: false,
-		engines: undefined,
-		extensionLocation: undefined,
+		engines: undefined!,
+		extensionLocation: undefined!,
 		isBuiltin: false,
 		isUnderDevelopment: false,
-		version: undefined
+		version: undefined!
 	};
 
 	setup(() => {
@@ -85,7 +86,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 			sub.dispose();
 
 			assert.ok(event);
-			assert.throws(() => { event.document = null; });
+			assert.throws(() => { event.document = null!; });
 		});
 	});
 
@@ -212,7 +213,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 				setTimeout(() => {
 					try {
 						assert.throws(() => event.waitUntil(timeout(10)));
-						resolve(void 0);
+						resolve(undefined);
 					} catch (e) {
 						reject(e);
 					}
@@ -300,11 +301,11 @@ suite('ExtHostDocumentSaveParticipant', () => {
 			documents.$acceptModelChanged(resource, {
 				changes: [{
 					range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
-					rangeOffset: undefined,
-					rangeLength: undefined,
+					rangeOffset: undefined!,
+					rangeLength: undefined!,
 					text: 'bar'
 				}],
-				eol: undefined,
+				eol: undefined!,
 				versionId: 2
 			}, true);
 
@@ -336,10 +337,10 @@ suite('ExtHostDocumentSaveParticipant', () => {
 							changes: [{
 								range,
 								text,
-								rangeOffset: undefined,
-								rangeLength: undefined,
+								rangeOffset: undefined!,
+								rangeLength: undefined!,
 							}],
-							eol: undefined,
+							eol: undefined!,
 							versionId: documents.getDocumentData(uri).version + 1
 						}, true);
 					}

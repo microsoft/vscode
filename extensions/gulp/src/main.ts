@@ -120,7 +120,12 @@ class FolderDetector {
 		let gulpCommand: string;
 		let platform = process.platform;
 		if (platform === 'win32' && await exists(path.join(rootPath!, 'node_modules', '.bin', 'gulp.cmd'))) {
-			gulpCommand = path.join('.', 'node_modules', '.bin', 'gulp.cmd');
+			const globalGulp = path.join(process.env.APPDATA ? process.env.APPDATA : '', 'npm', 'gulp.cmd');
+			if (await exists(globalGulp)) {
+				gulpCommand = globalGulp;
+			} else {
+				gulpCommand = path.join('.', 'node_modules', '.bin', 'gulp.cmd');
+			}
 		} else if ((platform === 'linux' || platform === 'darwin') && await exists(path.join(rootPath!, 'node_modules', '.bin', 'gulp'))) {
 			gulpCommand = path.join('.', 'node_modules', '.bin', 'gulp');
 		} else {

@@ -301,7 +301,7 @@ class DecorationProviderWrapper {
 
 		const source = new CancellationTokenSource();
 		const dataOrThenable = this._provider.provideDecorations(uri, source.token);
-		if (!isThenable(dataOrThenable)) {
+		if (!isThenable<IDecorationData | Promise<IDecorationData | undefined> | undefined>(dataOrThenable)) {
 			// sync -> we have a result now
 			return this._keepItem(uri, dataOrThenable);
 
@@ -339,7 +339,7 @@ export class FileDecorationsService implements IDecorationsService {
 
 	private readonly _data = new LinkedList<DecorationProviderWrapper>();
 	private readonly _onDidChangeDecorationsDelayed = new Emitter<URI | URI[]>();
-	private readonly _onDidChangeDecorations = new Emitter<IResourceDecorationChangeEvent>({ leakWarningThreshold: 500 });
+	private readonly _onDidChangeDecorations = new Emitter<IResourceDecorationChangeEvent>();
 	private readonly _decorationStyles: DecorationStyles;
 	private readonly _disposables: IDisposable[];
 

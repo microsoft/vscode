@@ -26,7 +26,7 @@ export class LinuxUpdateService extends AbstractUpdateService {
 	constructor(
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@ITelemetryService private telemetryService: ITelemetryService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IRequestService requestService: IRequestService,
 		@ILogService logService: ILogService
@@ -64,7 +64,7 @@ export class LinuxUpdateService extends AbstractUpdateService {
 						this.setState(State.AvailableForDownload(update));
 					}
 				})
-				.then(void 0, err => {
+				.then(undefined, err => {
 					this.logService.error(err);
 
 					/* __GDPR__
@@ -125,9 +125,11 @@ export class LinuxUpdateService extends AbstractUpdateService {
 		}
 
 		// Allow 3 seconds for VS Code to close
-		spawn('bash', ['-c', path.join(snap, `usr/share/${product.applicationName}/snapUpdate.sh`)], {
+		spawn('sleep 3 && $SNAP_NAME', {
+			shell: true,
 			detached: true,
-			stdio: ['ignore', 'ignore', 'ignore']
+			stdio: 'ignore',
 		});
+
 	}
 }

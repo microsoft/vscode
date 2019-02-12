@@ -7,13 +7,14 @@ import {
 	createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, ServerCapabilities, ConfigurationRequest, WorkspaceFolder
 } from 'vscode-languageserver';
 import URI from 'vscode-uri';
-import { TextDocument, CompletionList } from 'vscode-languageserver-types';
+import { TextDocument, CompletionList, Position } from 'vscode-languageserver-types';
 
 import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet } from 'vscode-css-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
 import { getPathCompletionParticipant } from './pathCompletion';
 import { formatError, runSafe } from './utils/runner';
 import { getDocumentContext } from './utils/documentContext';
+import { getDataProviders } from './customData';
 
 export interface Settings {
 	css: LanguageSettings;
@@ -50,6 +51,8 @@ let scopedSettingsSupport = false;
 let foldingRangeLimit = Number.MAX_VALUE;
 let workspaceFolders: WorkspaceFolder[];
 
+const languageServices: { [id: string]: LanguageService } = {};
+
 // After the server has started the client sends an initialize request. The server receives
 // in the passed params the rootPath of the workspace plus the client capabilities.
 connection.onInitialize((params: InitializeParams): InitializeResult => {
@@ -60,6 +63,9 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 			workspaceFolders.push({ name: '', uri: URI.file(params.rootPath).toString() });
 		}
 	}
+
+	const dataPaths: string[] = params.initializationOptions.dataPaths;
+	const customDataProviders = getDataProviders(dataPaths);
 
 	function getClientCapability<T>(name: string, def: T) {
 		const keys = name.split('.');
@@ -75,6 +81,10 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	const snippetSupport = !!getClientCapability('textDocument.completion.completionItem.snippetSupport', false);
 	scopedSettingsSupport = !!getClientCapability('workspace.configuration', false);
 	foldingRangeLimit = getClientCapability('textDocument.foldingRange.rangeLimit', Number.MAX_VALUE);
+
+	languageServices.css = getCSSLanguageService({ customDataProviders });
+	languageServices.scss = getSCSSLanguageService({ customDataProviders });
+	languageServices.less = getLESSLanguageService({ customDataProviders });
 
 	const capabilities: ServerCapabilities = {
 		// Tell the client that the server works in FULL text document sync mode
@@ -95,12 +105,6 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	};
 	return { capabilities };
 });
-
-const languageServices: { [id: string]: LanguageService } = {
-	css: getCSSLanguageService(),
-	scss: getSCSSLanguageService(),
-	less: getLESSLanguageService()
-};
 
 function getLanguageService(document: TextDocument) {
 	let service = languageServices[document.languageId];
@@ -126,7 +130,7 @@ function getDocumentSettings(textDocument: TextDocument): Thenable<LanguageSetti
 		}
 		return promise;
 	}
-	return Promise.resolve(void 0);
+	return Promise.resolve(undefined);
 }
 
 // The settings have changed. Is send on server activation as well.
@@ -330,6 +334,20 @@ connection.onFoldingRanges((params, token) => {
 		return null;
 	}, null, `Error while computing folding ranges for ${params.textDocument.uri}`, token);
 });
+
+connection.onRequest('$/textDocument/selectionRange', async (params, token) => {
+	return runSafe(() => {
+		const document = documents.get(params.textDocument.uri);
+		const position: Position = params.position;
+
+		if (document) {
+			const stylesheet = stylesheets.get(document);
+			return getLanguageService(document).getSelectionRanges(document, position, stylesheet);
+		}
+		return Promise.resolve(null);
+	}, null, `Error while computing selection ranges for ${params.textDocument.uri}`, token);
+});
+
 
 // Listen on the connection
 connection.listen();

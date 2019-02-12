@@ -7,7 +7,7 @@
 
 import { IEntries } from './phpGlobals';
 
-export var globalfunctions: IEntries = {
+export const globalfunctions: IEntries = {
 	debug_backtrace: {
 		description: 'Generates a backtrace',
 		signature: '([ int $options = DEBUG_BACKTRACE_PROVIDE_OBJECT [, int $limit = 0 ]]): array'

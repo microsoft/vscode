@@ -6,7 +6,7 @@ import * as assert from 'assert';
 import { Graph } from 'vs/platform/instantiation/common/graph';
 
 suite('Graph', () => {
-	var graph: Graph<string>;
+	let graph: Graph<string>;
 
 	setup(() => {
 		graph = new Graph<string>(s => s);
@@ -34,7 +34,7 @@ suite('Graph', () => {
 
 	test('root', () => {
 		graph.insertEdge('1', '2');
-		var roots = graph.roots();
+		let roots = graph.roots();
 		assert.equal(roots.length, 1);
 		assert.equal(roots[0].data, '2');
 
@@ -48,7 +48,7 @@ suite('Graph', () => {
 		graph.insertEdge('1', '3');
 		graph.insertEdge('3', '4');
 
-		var roots = graph.roots();
+		let roots = graph.roots();
 		assert.equal(roots.length, 2);
 		assert(['2', '4'].every(n => roots.some(node => node.data === n)));
 	});

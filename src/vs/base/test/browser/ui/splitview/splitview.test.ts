@@ -14,10 +14,10 @@ class TestView implements IView {
 	readonly onDidChange = this._onDidChange.event;
 
 	get minimumSize(): number { return this._minimumSize; }
-	set minimumSize(size: number) { this._minimumSize = size; this._onDidChange.fire(); }
+	set minimumSize(size: number) { this._minimumSize = size; this._onDidChange.fire(undefined); }
 
 	get maximumSize(): number { return this._maximumSize; }
-	set maximumSize(size: number) { this._maximumSize = size; this._onDidChange.fire(); }
+	set maximumSize(size: number) { this._maximumSize = size; this._onDidChange.fire(undefined); }
 
 	private _element: HTMLElement = document.createElement('div');
 	get element(): HTMLElement { this._onDidGetElement.fire(); return this._element; }
@@ -72,13 +72,9 @@ suite('Splitview', () => {
 		container.style.height = `${200}px`;
 	});
 
-	teardown(() => {
-		container = null;
-	});
-
 	test('empty splitview has empty DOM', () => {
 		const splitview = new SplitView(container);
-		assert.equal(container.firstElementChild.firstElementChild.childElementCount, 0, 'split view should be empty');
+		assert.equal(container.firstElementChild!.firstElementChild!.childElementCount, 0, 'split view should be empty');
 		splitview.dispose();
 	});
 
@@ -135,7 +131,7 @@ suite('Splitview', () => {
 		let didLayout = false;
 		const layoutDisposable = view.onDidLayout(() => didLayout = true);
 
-		const renderDisposable = view.onDidGetElement(() => void 0);
+		const renderDisposable = view.onDidGetElement(() => undefined);
 
 		splitview.addView(view, 20);
 

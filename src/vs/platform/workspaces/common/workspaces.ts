@@ -7,7 +7,8 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { localize } from 'vs/nls';
 import { Event } from 'vs/base/common/event';
 import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
+import { extname } from 'vs/base/common/paths';
 
 export const IWorkspacesMainService = createDecorator<IWorkspacesMainService>('workspacesMainService');
 export const IWorkspacesService = createDecorator<IWorkspacesService>('workspacesService');
@@ -23,7 +24,11 @@ export type ISingleFolderWorkspaceIdentifier = URI;
 
 export interface IWorkspaceIdentifier {
 	id: string;
-	configPath: string;
+	configPath: URI;
+}
+
+export function reviveWorkspaceIdentifier(workspace: { id: string, configPath: UriComponents; }): IWorkspaceIdentifier {
+	return { id: workspace.id, configPath: URI.revive(workspace.configPath) };
 }
 
 export function isStoredWorkspaceFolder(thing: any): thing is IStoredWorkspaceFolder {
@@ -77,16 +82,13 @@ export interface IWorkspaceFolderCreationData {
 export interface IWorkspacesMainService extends IWorkspacesService {
 	_serviceBrand: any;
 
-	onWorkspaceSaved: Event<IWorkspaceSavedEvent>;
 	onUntitledWorkspaceDeleted: Event<IWorkspaceIdentifier>;
 
-	saveWorkspace(workspace: IWorkspaceIdentifier, target: string): Promise<IWorkspaceIdentifier>;
+	saveWorkspaceAs(workspace: IWorkspaceIdentifier, target: string): Promise<IWorkspaceIdentifier>;
 
-	createWorkspaceSync(folders?: IWorkspaceFolderCreationData[]): IWorkspaceIdentifier;
+	createUntitledWorkspaceSync(folders?: IWorkspaceFolderCreationData[]): IWorkspaceIdentifier;
 
-	resolveWorkspace(path: string): Promise<IResolvedWorkspace | null>;
-
-	resolveWorkspaceSync(path: string): IResolvedWorkspace | null;
+	resolveLocalWorkspaceSync(path: URI): IResolvedWorkspace | null;
 
 	isUntitledWorkspace(workspace: IWorkspaceIdentifier): boolean;
 
@@ -94,13 +96,13 @@ export interface IWorkspacesMainService extends IWorkspacesService {
 
 	getUntitledWorkspacesSync(): IWorkspaceIdentifier[];
 
-	getWorkspaceId(workspacePath: string): string;
+	getWorkspaceIdentifier(workspacePath: URI): IWorkspaceIdentifier;
 }
 
 export interface IWorkspacesService {
 	_serviceBrand: any;
 
-	createWorkspace(folders?: IWorkspaceFolderCreationData[]): Promise<IWorkspaceIdentifier>;
+	createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[]): Promise<IWorkspaceIdentifier>;
 }
 
 export function isSingleFolderWorkspaceIdentifier(obj: any): obj is ISingleFolderWorkspaceIdentifier {
@@ -110,13 +112,13 @@ export function isSingleFolderWorkspaceIdentifier(obj: any): obj is ISingleFolde
 export function isWorkspaceIdentifier(obj: any): obj is IWorkspaceIdentifier {
 	const workspaceIdentifier = obj as IWorkspaceIdentifier;
 
-	return workspaceIdentifier && typeof workspaceIdentifier.id === 'string' && typeof workspaceIdentifier.configPath === 'string';
+	return workspaceIdentifier && typeof workspaceIdentifier.id === 'string' && workspaceIdentifier.configPath instanceof URI;
 }
 
 export function toWorkspaceIdentifier(workspace: IWorkspace): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined {
 	if (workspace.configuration) {
 		return {
-			configPath: workspace.configuration.fsPath,
+			configPath: workspace.configuration,
 			id: workspace.id
 		};
 	}
@@ -136,4 +138,10 @@ export type IWorkspaceInitializationPayload = IMultiFolderWorkspaceInitializatio
 
 export function isSingleFolderWorkspaceInitializationPayload(obj: any): obj is ISingleFolderWorkspaceInitializationPayload {
 	return isSingleFolderWorkspaceIdentifier((obj.folder as ISingleFolderWorkspaceIdentifier));
+}
+
+const WORKSPACE_SUFFIX = '.' + WORKSPACE_EXTENSION;
+
+export function hasWorkspaceFileExtension(path: string) {
+	return extname(path) === WORKSPACE_SUFFIX;
 }

@@ -16,7 +16,7 @@ suite('keybindingIO', () => {
 	test('serialize/deserialize', () => {
 
 		function testOneSerialization(keybinding: number, expected: string, msg: string, OS: OperatingSystem): void {
-			let usLayoutResolvedKeybinding = new USLayoutResolvedKeybinding(createKeybinding(keybinding, OS), OS);
+			let usLayoutResolvedKeybinding = new USLayoutResolvedKeybinding(createKeybinding(keybinding, OS)!, OS);
 			let actualSerialized = usLayoutResolvedKeybinding.getUserSettingsLabel();
 			assert.equal(actualSerialized, expected, expected + ' - ' + msg);
 		}

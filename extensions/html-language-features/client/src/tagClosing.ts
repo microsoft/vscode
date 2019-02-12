@@ -14,7 +14,7 @@ export function activateTagClosing(tagProvider: (document: TextDocument, positio
 	updateEnabledState();
 	window.onDidChangeActiveTextEditor(updateEnabledState, null, disposables);
 
-	let timeout: NodeJS.Timer | undefined = void 0;
+	let timeout: NodeJS.Timer | undefined = undefined;
 
 	function updateEnabledState() {
 		isEnabled = false;
@@ -26,7 +26,7 @@ export function activateTagClosing(tagProvider: (document: TextDocument, positio
 		if (!supportedLanguages[document.languageId]) {
 			return;
 		}
-		if (!workspace.getConfiguration(void 0, document.uri).get<boolean>(configName)) {
+		if (!workspace.getConfiguration(undefined, document.uri).get<boolean>(configName)) {
 			return;
 		}
 		isEnabled = true;
@@ -68,7 +68,7 @@ export function activateTagClosing(tagProvider: (document: TextDocument, positio
 					}
 				}
 			});
-			timeout = void 0;
+			timeout = undefined;
 		}, 100);
 	}
 	return Disposable.from(...disposables);

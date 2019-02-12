@@ -28,8 +28,8 @@ export class ResourceEditorInput extends EditorInput {
 		name: string,
 		description: string,
 		resource: URI,
-		@ITextModelService private textModelResolverService: ITextModelService,
-		@IHashService private hashService: IHashService
+		@ITextModelService private readonly textModelResolverService: ITextModelService,
+		@IHashService private readonly hashService: IHashService
 	) {
 		super();
 
@@ -92,7 +92,7 @@ export class ResourceEditorInput extends EditorInput {
 				ref.dispose();
 				this.modelReference = null;
 
-				return Promise.reject(new Error(`Unexpected model for ResourceInput: ${this.resource}`));
+				return Promise.reject<any>(new Error(`Unexpected model for ResourceInput: ${this.resource}`));
 			}
 
 			return model;

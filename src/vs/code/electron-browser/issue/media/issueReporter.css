@@ -86,14 +86,30 @@ select {
 	box-sizing: border-box;
 }
 
-textarea {
-	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif;
+textarea, input, select {
+	font-family: inherit;
 }
 
 html {
-	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif;
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif;
 	color: #CCCCCC;
 	height: 100%;
+}
+
+html:lang(zh-Hans) {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Noto Sans", "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "Source Han Sans SC", "Source Han Sans CN", "Source Han Sans", sans-serif;
+}
+
+html:lang(zh-Hant) {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Noto Sans", "Microsoft Jhenghei", "PingFang TC", "Source Han Sans TC", "Source Han Sans", "Source Han Sans TW", sans-serif;
+}
+
+html:lang(ja) {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Noto Sans", "Meiryo", "Hiragino Kaku Gothic Pro", "Source Han Sans J", "Source Han Sans JP", "Source Han Sans", "Sazanami Gothic", "IPA Gothic", sans-serif;
+}
+
+html:lang(ko) {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Noto Sans", "Malgun Gothic", "Nanum Gothic", "Dotom", "Apple SD Gothic Neo", "AppleGothic", "Source Han Sans K", "Source Han Sans JR", "Source Han Sans", "UnDotum", "FBaekmuk Gulim", sans-serif;
 }
 
 body {
@@ -112,16 +128,11 @@ body {
 
 .block .block-info {
 	width: 100%;
-	font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback";
 	font-size: 12px;
 	overflow: auto;
 	overflow-wrap: break-word;
 	margin: 5px;
 	padding: 10px;
-}
-
-pre code {
-	font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback";
 }
 
 #issue-reporter {

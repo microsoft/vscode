@@ -27,7 +27,7 @@ export class RequestService implements IRequestService {
 
 	constructor(
 		@IConfigurationService configurationService: IConfigurationService,
-		@ILogService private logService: ILogService
+		@ILogService private readonly logService: ILogService
 	) {
 		this.configure(configurationService.getValue<IHTTPConfiguration>());
 		configurationService.onDidChangeConfiguration(() => this.configure(configurationService.getValue()), this, this.disposables);

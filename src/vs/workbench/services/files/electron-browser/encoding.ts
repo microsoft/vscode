@@ -120,8 +120,7 @@ export class ResourceEncodings extends Disposable implements IResourceEncodings 
 
 	private getEncodingOverride(resource: uri): string | null {
 		if (resource && this.encodingOverride && this.encodingOverride.length) {
-			for (let i = 0; i < this.encodingOverride.length; i++) {
-				const override = this.encodingOverride[i];
+			for (const override of this.encodingOverride) {
 
 				// check if the resource is child of encoding override path
 				if (override.parent && isParent(resource.fsPath, override.parent.fsPath, !isLinux /* ignorecase */)) {

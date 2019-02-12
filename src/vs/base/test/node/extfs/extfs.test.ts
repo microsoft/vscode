@@ -38,7 +38,7 @@ function toReadable(value: string, throwError?: boolean): Readable {
 				this.emit('error', new Error(readError));
 			}
 
-			let res: string;
+			let res!: string;
 			let canPush = true;
 			while (canPush && (res = stringChunks[counter++])) {
 				canPush = this.push(res);
@@ -96,14 +96,14 @@ suite('Extfs', () => {
 					return done(error);
 				}
 
-				assert.ok(!statAndIsLink.isSymbolicLink);
+				assert.ok(!statAndIsLink!.isSymbolicLink);
 
 				extfs.statLink(symbolicLink, (error, statAndIsLink) => {
 					if (error) {
 						return done(error);
 					}
 
-					assert.ok(statAndIsLink.isSymbolicLink);
+					assert.ok(statAndIsLink!.isSymbolicLink);
 					extfs.delSync(directory);
 					done();
 				});
@@ -258,7 +258,7 @@ suite('Extfs', () => {
 
 			assert.ok(fs.existsSync(newDir));
 
-			extfs.writeFileAndFlush(testFile, 'Hello World', null, error => {
+			extfs.writeFileAndFlush(testFile, 'Hello World', null!, error => {
 				if (error) {
 					return done(error);
 				}
@@ -267,7 +267,7 @@ suite('Extfs', () => {
 
 				const largeString = (new Array(100 * 1024)).join('Large String\n');
 
-				extfs.writeFileAndFlush(testFile, largeString, null, error => {
+				extfs.writeFileAndFlush(testFile, largeString, null!, error => {
 					if (error) {
 						return done(error);
 					}
@@ -293,7 +293,7 @@ suite('Extfs', () => {
 
 			assert.ok(fs.existsSync(newDir));
 
-			extfs.writeFileAndFlush(testFile, toReadable('Hello World'), null, error => {
+			extfs.writeFileAndFlush(testFile, toReadable('Hello World'), null!, error => {
 				if (error) {
 					return done(error);
 				}
@@ -302,7 +302,7 @@ suite('Extfs', () => {
 
 				const largeString = (new Array(100 * 1024)).join('Large String\n');
 
-				extfs.writeFileAndFlush(testFile, toReadable(largeString), null, error => {
+				extfs.writeFileAndFlush(testFile, toReadable(largeString), null!, error => {
 					if (error) {
 						return done(error);
 					}
@@ -329,7 +329,7 @@ suite('Extfs', () => {
 
 			assert.ok(fs.existsSync(newDir));
 
-			extfs.writeFileAndFlush(testFile, fs.createReadStream(sourceFile), null, error => {
+			extfs.writeFileAndFlush(testFile, fs.createReadStream(sourceFile), null!, error => {
 				if (error) {
 					return done(error);
 				}
@@ -356,7 +356,7 @@ suite('Extfs', () => {
 
 			fs.mkdirSync(testFile); // this will trigger an error because testFile is now a directory!
 
-			extfs.writeFileAndFlush(testFile, 'Hello World', null, error => {
+			extfs.writeFileAndFlush(testFile, 'Hello World', null!, error => {
 				if (!error) {
 					return done(new Error('Expected error for writing to readonly file'));
 				}
@@ -382,7 +382,7 @@ suite('Extfs', () => {
 			fs.mkdirSync(testFile); // this will trigger an error because testFile is now a directory!
 
 			const readable = toReadable('Hello World');
-			extfs.writeFileAndFlush(testFile, readable, null, error => {
+			extfs.writeFileAndFlush(testFile, readable, null!, error => {
 				if (!error || (<any>error).code !== 'EISDIR') {
 					return done(new Error('Expected EISDIR error for writing to folder but got: ' + (error ? (<any>error).code : 'no error')));
 				}
@@ -408,7 +408,7 @@ suite('Extfs', () => {
 
 			assert.ok(fs.existsSync(newDir));
 
-			extfs.writeFileAndFlush(testFile, toReadable('Hello World', true /* throw error */), null, error => {
+			extfs.writeFileAndFlush(testFile, toReadable('Hello World', true /* throw error */), null!, error => {
 				if (!error || error.message !== readError) {
 					return done(new Error('Expected error for writing to folder'));
 				}
@@ -438,7 +438,7 @@ suite('Extfs', () => {
 			fs.writeFileSync(testFile, '');
 			fs.chmodSync(testFile, 33060); // make readonly
 
-			extfs.writeFileAndFlush(testFile, toReadable('Hello World'), null, error => {
+			extfs.writeFileAndFlush(testFile, toReadable('Hello World'), null!, error => {
 				if (!error || !((<any>error).code !== 'EACCES' || (<any>error).code !== 'EPERM')) {
 					return done(new Error('Expected EACCES/EPERM error for writing to folder but got: ' + (error ? (<any>error).code : 'no error')));
 				}
@@ -464,7 +464,7 @@ suite('Extfs', () => {
 
 			fs.mkdirSync(testFile); // this will trigger an error because testFile is now a directory!
 
-			extfs.writeFileAndFlush(testFile, fs.createReadStream(sourceFile), null, error => {
+			extfs.writeFileAndFlush(testFile, fs.createReadStream(sourceFile), null!, error => {
 				if (!error) {
 					return done(new Error('Expected error for writing to folder'));
 				}
@@ -487,12 +487,12 @@ suite('Extfs', () => {
 
 			assert.ok(fs.existsSync(newDir));
 
-			extfs.writeFileAndFlushSync(testFile, 'Hello World', null);
+			extfs.writeFileAndFlushSync(testFile, 'Hello World', null!);
 			assert.equal(fs.readFileSync(testFile), 'Hello World');
 
 			const largeString = (new Array(100 * 1024)).join('Large String\n');
 
-			extfs.writeFileAndFlushSync(testFile, largeString, null);
+			extfs.writeFileAndFlushSync(testFile, largeString, null!);
 			assert.equal(fs.readFileSync(testFile), largeString);
 
 			extfs.del(parentDir, os.tmpdir(), done, ignore);
@@ -550,13 +550,13 @@ suite('Extfs', () => {
 		const newDir = path.join(parentDir, 'extfs', id);
 
 		mkdirp(newDir, 493, error => {
-			let realpath: string;
+			let realpath!: string;
 			try {
 				realpath = extfs.realpathSync(newDir);
 			} catch (error) {
 				assert.ok(!error);
 			}
-			assert.ok(realpath);
+			assert.ok(realpath!);
 
 			extfs.del(parentDir, os.tmpdir(), done, ignore);
 		});

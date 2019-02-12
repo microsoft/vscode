@@ -136,10 +136,10 @@ export class FoldingController implements IEditorContribution {
 		}
 		if (this.foldingModel) { // disposed ?
 			let collapsedRegions = this.foldingModel.isInitialized ? this.foldingModel.getMemento() : this.hiddenRangeModel!.getMemento();
-			let provider = this.rangeProvider ? this.rangeProvider.id : void 0;
+			let provider = this.rangeProvider ? this.rangeProvider.id : undefined;
 			return { collapsedRegions, lineCount: model.getLineCount(), provider };
 		}
-		return void 0;
+		return undefined;
 	}
 
 	/**

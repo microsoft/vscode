@@ -37,7 +37,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 	}
 
 	function _assertResolveKeybinding(k: number, expected: IResolvedKeybinding[]): void {
-		assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Macintosh), expected);
+		assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Macintosh)!, expected);
 	}
 
 	test('kb => hw', () => {
@@ -463,7 +463,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 	}
 
 	function _assertResolveKeybinding(k: number, expected: IResolvedKeybinding[]): void {
-		assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Linux), expected);
+		assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Linux)!, expected);
 	}
 
 	test('kb => hw', () => {
@@ -808,7 +808,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 	});
 
 	function _assertResolveKeybinding(k: number, expected: IResolvedKeybinding[]): void {
-		assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Linux), expected);
+		assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Linux)!, expected);
 	}
 
 	test('resolveKeybinding Ctrl+A', () => {
@@ -1224,7 +1224,7 @@ suite('keyboardMapper', () => {
 	test('issue #24064: NumLock/NumPad keys stopped working in 1.11 on Linux', () => {
 		let mapper = new MacLinuxKeyboardMapper(false, {}, OperatingSystem.Linux);
 
-		function assertNumpadKeyboardEvent(keyCode: KeyCode, code: string, label: string, electronAccelerator: string, userSettingsLabel: string, dispatch: string): void {
+		function assertNumpadKeyboardEvent(keyCode: KeyCode, code: string, label: string, electronAccelerator: string | null, userSettingsLabel: string, dispatch: string): void {
 			assertResolveKeyboardEvent(
 				mapper,
 				{
@@ -1251,7 +1251,7 @@ suite('keyboardMapper', () => {
 		assertNumpadKeyboardEvent(KeyCode.DownArrow, 'Numpad2', 'DownArrow', 'Down', 'down', '[ArrowDown]');
 		assertNumpadKeyboardEvent(KeyCode.PageDown, 'Numpad3', 'PageDown', 'PageDown', 'pagedown', '[PageDown]');
 		assertNumpadKeyboardEvent(KeyCode.LeftArrow, 'Numpad4', 'LeftArrow', 'Left', 'left', '[ArrowLeft]');
-		assertNumpadKeyboardEvent(KeyCode.Unknown, 'Numpad5', 'NumPad5', null, 'numpad5', '[Numpad5]');
+		assertNumpadKeyboardEvent(KeyCode.Unknown, 'Numpad5', 'NumPad5', null!, 'numpad5', '[Numpad5]');
 		assertNumpadKeyboardEvent(KeyCode.RightArrow, 'Numpad6', 'RightArrow', 'Right', 'right', '[ArrowRight]');
 		assertNumpadKeyboardEvent(KeyCode.Home, 'Numpad7', 'Home', 'Home', 'home', '[Home]');
 		assertNumpadKeyboardEvent(KeyCode.UpArrow, 'Numpad8', 'UpArrow', 'Up', 'up', '[ArrowUp]');
@@ -1326,7 +1326,7 @@ suite('keyboardMapper - LINUX ru', () => {
 	});
 
 	function _assertResolveKeybinding(k: number, expected: IResolvedKeybinding[]): void {
-		assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Linux), expected);
+		assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Linux)!, expected);
 	}
 
 	test('resolveKeybinding Ctrl+S', () => {
@@ -1396,7 +1396,7 @@ suite('keyboardMapper - MAC zh_hant', () => {
 	});
 
 	function _assertResolveKeybinding(k: number, expected: IResolvedKeybinding[]): void {
-		assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Macintosh), expected);
+		assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Macintosh)!, expected);
 	}
 
 	test('issue #28237 resolveKeybinding Cmd+C', () => {
@@ -1427,7 +1427,7 @@ function _assertKeybindingTranslation(mapper: MacLinuxKeyboardMapper, OS: Operat
 
 	const runtimeKeybinding = createKeybinding(kb, OS);
 
-	const keybindingLabel = new USLayoutResolvedKeybinding(runtimeKeybinding, OS).getUserSettingsLabel();
+	const keybindingLabel = new USLayoutResolvedKeybinding(runtimeKeybinding!, OS).getUserSettingsLabel();
 
 	const actualHardwareKeypresses = mapper.simpleKeybindingToScanCodeBinding(<SimpleKeybinding>runtimeKeybinding);
 	if (actualHardwareKeypresses.length === 0) {

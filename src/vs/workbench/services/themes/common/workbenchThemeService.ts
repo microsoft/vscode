@@ -8,6 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { Color } from 'vs/base/common/color';
 import { ITheme, IThemeService, IIconTheme } from 'vs/platform/theme/common/themeService';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export const IWorkbenchThemeService = createDecorator<IWorkbenchThemeService>('themeService');
 
@@ -22,7 +23,6 @@ export const DETECT_HC_SETTING = 'window.autoDetectHighContrast';
 export const ICON_THEME_SETTING = 'workbench.iconTheme';
 export const CUSTOM_WORKBENCH_COLORS_SETTING = 'workbench.colorCustomizations';
 export const CUSTOM_EDITOR_COLORS_SETTING = 'editor.tokenColorCustomizations';
-export const CUSTOM_EDITOR_SCOPE_COLORS_SETTING = 'textMateRules';
 
 export interface IColorTheme extends ITheme {
 	readonly id: string;
@@ -41,7 +41,7 @@ export interface IColorMap {
 export interface IFileIconTheme extends IIconTheme {
 	readonly id: string;
 	readonly label: string;
-	readonly settingsId?: string;
+	readonly settingsId: string | null;
 	readonly description?: string;
 	readonly extensionData?: ExtensionData;
 
@@ -53,15 +53,15 @@ export interface IFileIconTheme extends IIconTheme {
 
 export interface IWorkbenchThemeService extends IThemeService {
 	_serviceBrand: any;
-	setColorTheme(themeId: string, settingsTarget: ConfigurationTarget): Promise<IColorTheme>;
+	setColorTheme(themeId: string | undefined, settingsTarget: ConfigurationTarget | undefined): Promise<IColorTheme | null>;
 	getColorTheme(): IColorTheme;
-	getColorThemes(): Promise<IColorTheme[]>;
+	getColorThemes(extensionId?: ExtensionIdentifier): Promise<IColorTheme[]>;
 	onDidColorThemeChange: Event<IColorTheme>;
 	restoreColorTheme();
 
-	setFileIconTheme(iconThemeId: string, settingsTarget: ConfigurationTarget): Promise<IFileIconTheme>;
+	setFileIconTheme(iconThemeId: string | undefined, settingsTarget: ConfigurationTarget | undefined): Promise<IFileIconTheme>;
 	getFileIconTheme(): IFileIconTheme;
-	getFileIconThemes(): Promise<IFileIconTheme[]>;
+	getFileIconThemes(extensionId?: ExtensionIdentifier): Promise<IFileIconTheme[]>;
 	onDidFileIconThemeChange: Event<IFileIconTheme>;
 }
 
@@ -100,4 +100,5 @@ export interface IThemeExtensionPoint {
 	label?: string;
 	description?: string;
 	path: string;
+	_watch: boolean; // unsupported options to watch location
 }

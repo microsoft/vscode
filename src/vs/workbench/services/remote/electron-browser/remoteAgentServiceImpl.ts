@@ -77,7 +77,7 @@ class RemoteAgentConnection extends Disposable implements IRemoteAgentConnection
 	private _getOrCreateConnection(): Promise<Client<RemoteAgentConnectionContext>> {
 		if (!this._connection) {
 			this._connection = this._remoteAuthorityResolverService.resolveAuthority(this.remoteAuthority).then((resolvedAuthority) => {
-				return connectRemoteAgentManagement(this.remoteAuthority, resolvedAuthority.host, resolvedAuthority.port, `renderer`);
+				return connectRemoteAgentManagement(this.remoteAuthority, resolvedAuthority.host, resolvedAuthority.port, `renderer`, this._environmentService.isBuilt);
 			});
 		}
 		return this._connection;

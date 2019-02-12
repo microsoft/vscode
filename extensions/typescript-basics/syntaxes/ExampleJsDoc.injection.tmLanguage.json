@@ -7,8 +7,8 @@
 	],
 	"repository": {
 		"example": {
-			"begin": "((@)example)\\s+.*$",
-			"while": "(^|\\G)\\s(?!@)",
+			"begin": "((@)example)\\s+(?=([^*]|[*](?!/))*$).*$",
+			"while": "(^|\\G)\\s(?!@)(?=([^*]|[*](?!/))*$)",
 			"beginCaptures": {
 				"1": {
 					"name": "storage.type.class.jsdoc"

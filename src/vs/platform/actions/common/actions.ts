@@ -104,7 +104,7 @@ export interface IMenuActionOptions {
 }
 
 export interface IMenu extends IDisposable {
-	onDidChange: Event<IMenu>;
+	readonly onDidChange: Event<IMenu | undefined>;
 	getActions(options?: IMenuActionOptions): [string, Array<MenuItemAction | SubmenuItemAction>][];
 }
 
@@ -118,12 +118,12 @@ export interface IMenuService {
 }
 
 export interface IMenuRegistry {
-	addCommand(userCommand: ICommandAction): boolean;
+	addCommand(userCommand: ICommandAction): IDisposable;
 	getCommand(id: string): ICommandAction;
 	getCommands(): ICommandsMap;
 	appendMenuItem(menu: MenuId, item: IMenuItem | ISubmenuItem): IDisposable;
 	getMenuItems(loc: MenuId): Array<IMenuItem | ISubmenuItem>;
-	onDidChangeMenu: Event<MenuId>;
+	readonly onDidChangeMenu: Event<MenuId>;
 }
 
 export interface ICommandsMap {
@@ -133,15 +133,21 @@ export interface ICommandsMap {
 export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 
 	private readonly _commands: { [id: string]: ICommandAction } = Object.create(null);
-	private readonly _menuItems: { [loc: string]: Array<IMenuItem | ISubmenuItem> } = Object.create(null);
+	private readonly _menuItems: { [loc: number]: Array<IMenuItem | ISubmenuItem> } = Object.create(null);
 	private readonly _onDidChangeMenu = new Emitter<MenuId>();
 
 	readonly onDidChangeMenu: Event<MenuId> = this._onDidChangeMenu.event;
 
-	addCommand(command: ICommandAction): boolean {
-		const old = this._commands[command.id];
+	addCommand(command: ICommandAction): IDisposable {
 		this._commands[command.id] = command;
-		return old !== void 0;
+		this._onDidChangeMenu.fire(MenuId.CommandPalette);
+		return {
+			dispose: () => {
+				if (delete this._commands[command.id]) {
+					this._onDidChangeMenu.fire(MenuId.CommandPalette);
+				}
+			}
+		};
 	}
 
 	getCommand(id: string): ICommandAction {
@@ -176,7 +182,7 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 	}
 
 	getMenuItems(id: MenuId): Array<IMenuItem | ISubmenuItem> {
-		const result = this._menuItems[id] || [];
+		const result = (this._menuItems[id] || []).slice(0);
 
 		if (id === MenuId.CommandPalette) {
 			// CommandPalette is special because it shows

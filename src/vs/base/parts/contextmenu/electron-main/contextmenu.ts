@@ -12,9 +12,9 @@ export function registerContextMenuListener(): void {
 
 		menu.popup({
 			window: BrowserWindow.fromWebContents(event.sender),
-			x: options ? options.x : void 0,
-			y: options ? options.y : void 0,
-			positioningItem: options ? options.positioningItem : void 0,
+			x: options ? options.x : undefined,
+			y: options ? options.y : undefined,
+			positioningItem: options ? options.positioningItem : undefined,
 			callback: () => {
 				event.sender.send(CONTEXT_MENU_CLOSE_CHANNEL, contextMenuId);
 			}

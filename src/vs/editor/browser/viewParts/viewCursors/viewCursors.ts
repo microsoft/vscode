@@ -180,8 +180,8 @@ export class ViewCursors extends ViewPart {
 		if (shouldRender(this._primaryCursor.getPosition())) {
 			return true;
 		}
-		for (let i = 0; i < this._secondaryCursors.length; i++) {
-			if (shouldRender(this._secondaryCursors[i].getPosition())) {
+		for (const secondaryCursor of this._secondaryCursors) {
+			if (shouldRender(secondaryCursor.getPosition())) {
 				return true;
 			}
 		}

@@ -46,9 +46,7 @@ export class CharacterPairSupport {
 		let tokenIndex = context.findTokenIndexAtOffset(column - 2);
 		let standardTokenType = context.getStandardTokenType(tokenIndex);
 
-		for (let i = 0; i < this._autoClosingPairs.length; ++i) {
-			let autoClosingPair = this._autoClosingPairs[i];
-
+		for (const autoClosingPair of this._autoClosingPairs) {
 			if (autoClosingPair.open === character) {
 				return autoClosingPair.isOK(standardTokenType);
 			}

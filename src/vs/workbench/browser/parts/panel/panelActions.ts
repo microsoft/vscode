@@ -24,7 +24,7 @@ export class ClosePanelAction extends Action {
 	constructor(
 		id: string,
 		name: string,
-		@IPartService private partService: IPartService
+		@IPartService private readonly partService: IPartService
 	) {
 		super(id, name, 'hide-panel-action');
 	}
@@ -43,7 +43,7 @@ export class TogglePanelAction extends Action {
 	constructor(
 		id: string,
 		name: string,
-		@IPartService private partService: IPartService
+		@IPartService private readonly partService: IPartService
 	) {
 		super(id, name, partService.isVisible(Parts.PANEL_PART) ? 'panel expanded' : 'panel');
 	}
@@ -62,8 +62,8 @@ class FocusPanelAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IPanelService private panelService: IPanelService,
-		@IPartService private partService: IPartService
+		@IPanelService private readonly panelService: IPanelService,
+		@IPartService private readonly partService: IPartService
 	) {
 		super(id, label);
 	}
@@ -99,7 +99,7 @@ export class TogglePanelPositionAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IPartService private partService: IPartService,
+		@IPartService private readonly partService: IPartService,
 	) {
 		super(id, label, partService.getPanelPosition() === Position.RIGHT ? 'move-panel-to-bottom' : 'move-panel-to-right');
 
@@ -143,7 +143,7 @@ export class ToggleMaximizedPanelAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IPartService private partService: IPartService
+		@IPartService private readonly partService: IPartService
 	) {
 		super(id, label, partService.isPanelMaximized() ? 'minimize-panel-action' : 'maximize-panel-action');
 
@@ -176,7 +176,7 @@ export class PanelActivityAction extends ActivityAction {
 
 	constructor(
 		activity: IActivity,
-		@IPanelService private panelService: IPanelService
+		@IPanelService private readonly panelService: IPanelService
 	) {
 		super(activity);
 	}
@@ -193,7 +193,7 @@ export class SwitchPanelViewAction extends Action {
 	constructor(
 		id: string,
 		name: string,
-		@IPanelService private panelService: IPanelService
+		@IPanelService private readonly panelService: IPanelService
 	) {
 		super(id, name);
 	}

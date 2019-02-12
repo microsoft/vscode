@@ -37,7 +37,7 @@ suite('ExtHostDiagnostics', () => {
 		assert.throws(() => collection.get(URI.parse('aa:bb')));
 		assert.throws(() => collection.has(URI.parse('aa:bb')));
 		assert.throws(() => collection.set(URI.parse('aa:bb'), []));
-		assert.throws(() => collection.set(URI.parse('aa:bb'), undefined));
+		assert.throws(() => collection.set(URI.parse('aa:bb'), undefined!));
 	});
 
 
@@ -132,7 +132,7 @@ suite('ExtHostDiagnostics', () => {
 		collection.set([
 			[uri, [new Diagnostic(new Range(0, 0, 0, 1), 'message-1')]],
 			[URI.parse('some:thing'), [new Diagnostic(new Range(0, 0, 1, 1), 'something')]],
-			[uri, undefined]
+			[uri, undefined!]
 		]);
 		assert.ok(!collection.has(uri));
 
@@ -144,7 +144,7 @@ suite('ExtHostDiagnostics', () => {
 		collection.set([
 			[uri, [new Diagnostic(new Range(0, 0, 0, 1), 'message-1')]],
 			[URI.parse('some:thing'), [new Diagnostic(new Range(0, 0, 1, 1), 'something')]],
-			[uri, undefined],
+			[uri, undefined!],
 			[uri, [new Diagnostic(new Range(0, 0, 0, 1), 'message-2')]],
 			[uri, [new Diagnostic(new Range(0, 0, 0, 1), 'message-3')]],
 		]);
@@ -160,7 +160,7 @@ suite('ExtHostDiagnostics', () => {
 
 	test('diagnostics collection, set tuple overrides, #11547', function () {
 
-		let lastEntries: [UriComponents, IMarkerData[]][];
+		let lastEntries!: [UriComponents, IMarkerData[]][];
 		let collection = new DiagnosticCollection('test', 'test', 100, new class extends DiagnosticsShape {
 			$changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]): void {
 				lastEntries = entries;
@@ -176,7 +176,7 @@ suite('ExtHostDiagnostics', () => {
 		let [[, data1]] = lastEntries;
 		assert.equal(data1.length, 1);
 		assert.equal(data1[0].message, 'error');
-		lastEntries = undefined;
+		lastEntries = undefined!;
 
 		collection.set([[uri, [new Diagnostic(new Range(0, 0, 1, 1), 'warning')]]]);
 		assert.equal(collection.get(uri).length, 1);
@@ -185,7 +185,7 @@ suite('ExtHostDiagnostics', () => {
 		let [[, data2]] = lastEntries;
 		assert.equal(data2.length, 1);
 		assert.equal(data2[0].message, 'warning');
-		lastEntries = undefined;
+		lastEntries = undefined!;
 	});
 
 	test('don\'t send message when not making a change', function () {
@@ -222,11 +222,11 @@ suite('ExtHostDiagnostics', () => {
 
 		collection.set([
 			[uri, [diag, diag, diag]],
-			[uri, undefined],
+			[uri, undefined!],
 			[uri, [diag]],
 
 			[uri2, [diag, diag]],
-			[uri2, undefined],
+			[uri2, undefined!],
 			[uri2, [diag]],
 		]);
 
@@ -244,7 +244,7 @@ suite('ExtHostDiagnostics', () => {
 			let diag = new Diagnostic(new Range(0, 0, 0, 1), i.toString());
 
 			tuples.push([uri, [diag, diag, diag]]);
-			tuples.push([uri, undefined]);
+			tuples.push([uri, undefined!]);
 			tuples.push([uri, [diag]]);
 		}
 
@@ -259,7 +259,7 @@ suite('ExtHostDiagnostics', () => {
 
 	test('diagnostic capping', function () {
 
-		let lastEntries: [UriComponents, IMarkerData[]][];
+		let lastEntries!: [UriComponents, IMarkerData[]][];
 		let collection = new DiagnosticCollection('test', 'test', 250, new class extends DiagnosticsShape {
 			$changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]): void {
 				lastEntries = entries;
@@ -341,7 +341,7 @@ suite('ExtHostDiagnostics', () => {
 		p = Event.toPromise(emitter.event).then(e => {
 			assert.equal(e[0].toString(), 'aa:bb');
 		});
-		collection.set(URI.parse('aa:bb'), undefined);
+		collection.set(URI.parse('aa:bb'), undefined!);
 		await p;
 	});
 
@@ -355,9 +355,9 @@ suite('ExtHostDiagnostics', () => {
 				assert.equal(data.length, 1);
 
 				let [diag] = data;
-				assert.equal(diag.relatedInformation.length, 2);
-				assert.equal(diag.relatedInformation[0].message, 'more1');
-				assert.equal(diag.relatedInformation[1].message, 'more2');
+				assert.equal(diag.relatedInformation!.length, 2);
+				assert.equal(diag.relatedInformation![0].message, 'more1');
+				assert.equal(diag.relatedInformation![1].message, 'more2');
 				done();
 			}
 		}, new Emitter<any>());

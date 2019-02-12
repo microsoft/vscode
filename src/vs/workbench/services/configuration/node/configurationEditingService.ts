@@ -122,15 +122,15 @@ export class ConfigurationEditingService {
 	private queue: Queue<void>;
 
 	constructor(
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IFileService private fileService: IFileService,
-		@ITextModelService private textModelResolverService: ITextModelService,
-		@ITextFileService private textFileService: ITextFileService,
-		@INotificationService private notificationService: INotificationService,
-		@IPreferencesService private preferencesService: IPreferencesService,
-		@IEditorService private editorService: IEditorService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IFileService private readonly fileService: IFileService,
+		@ITextModelService private readonly textModelResolverService: ITextModelService,
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		this.queue = new Queue<void>();
 	}
@@ -441,8 +441,7 @@ export class ConfigurationEditingService {
 		// Check for standalone workspace configurations
 		if (config.key) {
 			const standaloneConfigurationKeys = Object.keys(WORKSPACE_STANDALONE_CONFIGURATIONS);
-			for (let i = 0; i < standaloneConfigurationKeys.length; i++) {
-				const key = standaloneConfigurationKeys[i];
+			for (const key of standaloneConfigurationKeys) {
 				const resource = this.getConfigurationFileResource(target, WORKSPACE_STANDALONE_CONFIGURATIONS[key], overrides.resource);
 
 				// Check for prefix

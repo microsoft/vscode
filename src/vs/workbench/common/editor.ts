@@ -15,7 +15,7 @@ import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/con
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITextModel } from 'vs/editor/common/model';
 import { Schemas } from 'vs/base/common/network';
-import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ICompositeControl } from 'vs/workbench/common/composite';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
 
@@ -46,17 +46,17 @@ export interface IEditor {
 	/**
 	 * The assigned input of this editor.
 	 */
-	input: IEditorInput;
+	input: IEditorInput | null;
 
 	/**
 	 * The assigned options of this editor.
 	 */
-	options: IEditorOptions;
+	options: IEditorOptions | null;
 
 	/**
 	 * The assigned group this editor is showing in.
 	 */
-	group: IEditorGroup;
+	group: IEditorGroup | undefined;
 
 	/**
 	 * The minimum width of this editor.
@@ -81,7 +81,7 @@ export interface IEditor {
 	/**
 	 * An event to notify whenever minimum/maximum width/height changes.
 	 */
-	readonly onDidSizeConstraintsChange: Event<{ width: number; height: number; }>;
+	readonly onDidSizeConstraintsChange: Event<{ width: number; height: number; } | undefined>;
 
 	/**
 	 * Returns the unique identifier of this editor.
@@ -91,7 +91,7 @@ export interface IEditor {
 	/**
 	 * Returns the underlying control of this editor.
 	 */
-	getControl(): IEditorControl;
+	getControl(): IEditorControl | null;
 
 	/**
 	 * Asks the underlying control to focus.
@@ -184,13 +184,13 @@ export interface IEditorInputFactory {
 	 * Returns a string representation of the provided editor input that contains enough information
 	 * to deserialize back to the original editor input from the deserialize() method.
 	 */
-	serialize(editorInput: EditorInput): string;
+	serialize(editorInput: EditorInput): string | null;
 
 	/**
 	 * Returns an editor input from the provided serialized form of the editor input. This form matches
 	 * the value returned from the serialize() method.
 	 */
-	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput;
+	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput | null;
 }
 
 export interface IUntitledResourceInput extends IBaseResourceInput {
@@ -510,6 +510,8 @@ export interface IEncodingSupport {
  */
 export interface IFileEditorInput extends IEditorInput, IEncodingSupport {
 
+	getResource(): URI;
+
 	/**
 	 * Sets the preferred encodingt to use for this input.
 	 */
@@ -636,7 +638,7 @@ export class EditorModel extends Disposable implements IEditorModel {
 	/**
 	 * Causes this model to load returning a promise when loading is completed.
 	 */
-	load(): Promise<EditorModel> {
+	load(): Promise<IEditorModel> {
 		return Promise.resolve(this);
 	}
 
@@ -686,6 +688,7 @@ export class EditorOptions implements IEditorOptions {
 		options.pinned = settings.pinned;
 		options.index = settings.index;
 		options.inactive = settings.inactive;
+		options.ignoreError = settings.ignoreError;
 
 		return options;
 	}
@@ -729,6 +732,12 @@ export class EditorOptions implements IEditorOptions {
 	 * in the background.
 	 */
 	inactive: boolean | undefined;
+
+	/**
+	 * Will not show an error in case opening the editor fails and thus allows to show a custom error
+	 * message as needed. By default, an error will be presented as notification if opening was not possible.
+	 */
+	ignoreError: boolean | undefined;
 }
 
 /**
@@ -792,6 +801,10 @@ export class TextEditorOptions extends EditorOptions {
 
 		if (options.inactive) {
 			textEditorOptions.inactive = true;
+		}
+
+		if (options.ignoreError) {
+			textEditorOptions.ignoreError = true;
 		}
 
 		if (typeof options.index === 'number') {
@@ -939,6 +952,7 @@ export interface IWorkbenchEditorPartConfiguration {
 	highlightModifiedTabs?: boolean;
 	tabCloseButton?: 'left' | 'right' | 'off';
 	tabSizing?: 'fit' | 'shrink';
+	focusRecentEditorAfterClose?: boolean;
 	showIcons?: boolean;
 	enablePreview?: boolean;
 	enablePreviewFromQuickOpen?: boolean;
@@ -1007,8 +1021,8 @@ export interface IEditorMemento<T> {
 	saveEditorState(group: IEditorGroup, resource: URI, state: T): void;
 	saveEditorState(group: IEditorGroup, editor: EditorInput, state: T): void;
 
-	loadEditorState(group: IEditorGroup, resource: URI): T;
-	loadEditorState(group: IEditorGroup, editor: EditorInput): T;
+	loadEditorState(group: IEditorGroup, resource: URI): T | undefined;
+	loadEditorState(group: IEditorGroup, editor: EditorInput): T | undefined;
 
 	clearEditorState(resource: URI, group?: IEditorGroup): void;
 	clearEditorState(editor: EditorInput, group?: IEditorGroup): void;

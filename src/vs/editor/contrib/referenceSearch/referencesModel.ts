@@ -11,7 +11,7 @@ import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { Range, IRange } from 'vs/editor/common/core/range';
-import { Location } from 'vs/editor/common/modes';
+import { Location, LocationLink } from 'vs/editor/common/modes';
 import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { Position } from 'vs/editor/common/core/position';
 
@@ -170,7 +170,7 @@ export class ReferencesModel implements IDisposable {
 	readonly _onDidChangeReferenceRange = new Emitter<OneReference>();
 	readonly onDidChangeReferenceRange: Event<OneReference> = this._onDidChangeReferenceRange.event;
 
-	constructor(references: Location[]) {
+	constructor(references: LocationLink[]) {
 		this._disposables = [];
 		// grouping and sorting
 		references.sort(ReferencesModel._compareReferences);
@@ -187,7 +187,7 @@ export class ReferencesModel implements IDisposable {
 			if (current.children.length === 0
 				|| !Range.equalsRange(ref.range, current.children[current.children.length - 1].range)) {
 
-				let oneRef = new OneReference(current, ref.range);
+				let oneRef = new OneReference(current, ref.targetSelectionRange || ref.range);
 				this._disposables.push(oneRef.onRefChanged((e) => this._onDidChangeReferenceRange.fire(e)));
 				this.references.push(oneRef);
 				current.children.push(oneRef);

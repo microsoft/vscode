@@ -26,8 +26,8 @@ export class ResourceGlobMatcher extends Disposable {
 	constructor(
 		private globFn: (root?: URI) => IExpression,
 		private shouldUpdate: (event: IConfigurationChangeEvent) => boolean,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
@@ -96,9 +96,9 @@ export class ResourceGlobMatcher extends Disposable {
 
 		let expressionForRoot: ParsedExpression;
 		if (folder && this.mapRootToParsedExpression.has(folder.uri.toString())) {
-			expressionForRoot = this.mapRootToParsedExpression.get(folder.uri.toString());
+			expressionForRoot = this.mapRootToParsedExpression.get(folder.uri.toString())!;
 		} else {
-			expressionForRoot = this.mapRootToParsedExpression.get(ResourceGlobMatcher.NO_ROOT);
+			expressionForRoot = this.mapRootToParsedExpression.get(ResourceGlobMatcher.NO_ROOT)!;
 		}
 
 		// If the resource if from a workspace, convert its absolute path to a relative

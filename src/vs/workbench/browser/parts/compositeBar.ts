@@ -64,8 +64,8 @@ export class CompositeBar extends Widget implements ICompositeBar {
 	constructor(
 		items: ICompositeBarItem[],
 		private options: ICompositeBarOptions,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IContextMenuService private contextMenuService: IContextMenuService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) {
 		super();
 
@@ -383,7 +383,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 				CompositeOverflowActivityActionItem,
 				this.compositeOverflowAction,
 				() => this.getOverflowingComposites(),
-				() => this.model.activeItem ? this.model.activeItem.id : void 0,
+				() => this.model.activeItem ? this.model.activeItem.id : undefined,
 				(compositeId: string) => {
 					const item = this.model.findItem(compositeId);
 					return item && item.activity[0] && item.activity[0].badge;
@@ -593,8 +593,7 @@ class CompositeBarModel {
 	}
 
 	setPinned(id: string, pinned: boolean): boolean {
-		for (let index = 0; index < this.items.length; index++) {
-			const item = this.items[index];
+		for (const item of this.items) {
 			if (item.id === id) {
 				if (item.pinned !== pinned) {
 					item.pinned = pinned;
@@ -656,8 +655,7 @@ class CompositeBarModel {
 			if (this.activeItem) {
 				this.deactivate();
 			}
-			for (let index = 0; index < this.items.length; index++) {
-				const item = this.items[index];
+			for (const item of this.items) {
 				if (item.id === id) {
 					this.activeItem = item;
 					this.activeItem.activityAction.activate();
@@ -671,7 +669,7 @@ class CompositeBarModel {
 	deactivate(): boolean {
 		if (this.activeItem) {
 			this.activeItem.activityAction.deactivate();
-			this.activeItem = void 0;
+			this.activeItem = undefined;
 			return true;
 		}
 		return false;

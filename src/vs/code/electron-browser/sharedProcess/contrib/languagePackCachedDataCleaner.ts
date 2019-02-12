@@ -103,7 +103,7 @@ export class LanguagePackCachedDataCleaner {
 
 		this._disposables.push({
 			dispose() {
-				if (handle !== void 0) {
+				if (handle !== undefined) {
 					clearTimeout(handle);
 				}
 			}

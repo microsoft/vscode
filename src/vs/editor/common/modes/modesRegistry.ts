@@ -20,7 +20,7 @@ export class EditorModesRegistry {
 	private _languages: ILanguageExtensionPoint[];
 	private _dynamicLanguages: ILanguageExtensionPoint[];
 
-	private readonly _onDidChangeLanguages: Emitter<void> = new Emitter<void>();
+	private readonly _onDidChangeLanguages = new Emitter<void>();
 	public readonly onDidChangeLanguages: Event<void> = this._onDidChangeLanguages.event;
 
 	constructor() {
@@ -32,11 +32,11 @@ export class EditorModesRegistry {
 
 	public registerLanguage(def: ILanguageExtensionPoint): void {
 		this._languages.push(def);
-		this._onDidChangeLanguages.fire(void 0);
+		this._onDidChangeLanguages.fire(undefined);
 	}
 	public setDynamicLanguages(def: ILanguageExtensionPoint[]): void {
 		this._dynamicLanguages = def;
-		this._onDidChangeLanguages.fire(void 0);
+		this._onDidChangeLanguages.fire(undefined);
 	}
 	public getLanguages(): ILanguageExtensionPoint[] {
 		return (<ILanguageExtensionPoint[]>[]).concat(this._languages).concat(this._dynamicLanguages);

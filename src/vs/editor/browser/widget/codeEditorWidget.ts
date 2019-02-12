@@ -198,7 +198,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	//#endregion
 
 	public readonly isSimpleWidget: boolean;
-	private readonly _telemetryData: object | null;
+	private readonly _telemetryData?: object;
 
 	private readonly _domElement: HTMLElement;
 	private readonly _id: number;
@@ -245,7 +245,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._decorationTypeKeysToIds = {};
 		this._decorationTypeSubtypes = {};
 		this.isSimpleWidget = codeEditorWidgetOptions.isSimpleWidget || false;
-		this._telemetryData = codeEditorWidgetOptions.telemetryData || null;
+		this._telemetryData = codeEditorWidgetOptions.telemetryData;
 
 		options = options || {};
 		this._configuration = this._register(this._createConfiguration(options));
@@ -801,8 +801,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		const contributionsState: { [key: string]: any } = {};
 
 		const keys = Object.keys(this._contributions);
-		for (let i = 0, len = keys.length; i < len; i++) {
-			const id = keys[i];
+		for (const id of keys) {
 			const contribution = this._contributions[id];
 			if (typeof contribution.saveViewState === 'function') {
 				contributionsState[id] = contribution.saveViewState();
@@ -818,12 +817,12 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		};
 	}
 
-	public restoreViewState(s: editorCommon.ICodeEditorViewState | null): void {
+	public restoreViewState(s: editorCommon.IEditorViewState | null): void {
 		if (!this._modelData || !this._modelData.hasRealView) {
 			return;
 		}
-		if (s && s.cursorState && s.viewState) {
-			let codeEditorState = <editorCommon.ICodeEditorViewState>s;
+		const codeEditorState = s as editorCommon.ICodeEditorViewState | null;
+		if (codeEditorState && codeEditorState.cursorState && codeEditorState.viewState) {
 			let cursorState = <any>codeEditorState.cursorState;
 			if (Array.isArray(cursorState)) {
 				this._modelData.cursor.restoreState(<editorCommon.ICursorState[]>cursorState);
@@ -832,7 +831,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				this._modelData.cursor.restoreState([<editorCommon.ICursorState>cursorState]);
 			}
 
-			let contributionsState = s.contributionsState || {};
+			let contributionsState = codeEditorState.contributionsState || {};
 			let keys = Object.keys(this._contributions);
 			for (let i = 0, len = keys.length; i < len; i++) {
 				let id = keys[i];
@@ -842,11 +841,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				}
 			}
 
-			const reducedState = this._modelData.viewModel.reduceRestoreState(s.viewState);
-			const linesViewportData = this._modelData.viewModel.viewLayout.getLinesViewportDataAtScrollTop(reducedState.scrollTop);
-			const startPosition = this._modelData.viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(linesViewportData.startLineNumber, 1));
-			const endPosition = this._modelData.viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(linesViewportData.endLineNumber, 1));
-			this._modelData.model.tokenizeViewport(startPosition.lineNumber, endPosition.lineNumber);
+			const reducedState = this._modelData.viewModel.reduceRestoreState(codeEditorState.viewState);
 			this._modelData.view.restoreState(reducedState);
 		}
 	}
@@ -930,7 +925,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		const action = this.getAction(handlerId);
 		if (action) {
-			Promise.resolve(action.run()).then(void 0, onUnexpectedError);
+			Promise.resolve(action.run()).then(undefined, onUnexpectedError);
 			return;
 		}
 
@@ -951,7 +946,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			payload = payload || {};
 			payload.source = source;
 			this._instantiationService.invokeFunction((accessor) => {
-				Promise.resolve(command.runEditorCommand(accessor, this, payload)).then(void 0, onUnexpectedError);
+				Promise.resolve(command.runEditorCommand(accessor, this, payload)).then(undefined, onUnexpectedError);
 			});
 			return true;
 		}
@@ -1283,11 +1278,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._modelData.view.getOffsetForColumn(lineNumber, column);
 	}
 
-	public render(): void {
+	public render(forceRedraw: boolean = false): void {
 		if (!this._modelData || !this._modelData.hasRealView) {
 			return;
 		}
-		this._modelData.view.render(true, false);
+		this._modelData.view.render(true, forceRedraw);
 	}
 
 	public applyFontInfo(target: HTMLElement): void {
@@ -1328,7 +1323,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}));
 
 		listenersToRemove.push(cursor.onDidAttemptReadOnlyEdit(() => {
-			this._onDidAttemptReadOnlyEdit.fire(void 0);
+			this._onDidAttemptReadOnlyEdit.fire(undefined);
 		}));
 
 		listenersToRemove.push(cursor.onDidChange((e: CursorStateChangedEvent) => {
@@ -1507,7 +1502,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	/* __GDPR__FRAGMENT__
 		"EditorTelemetryData" : {}
 	*/
-	public getTelemetryData(): { [key: string]: any; } | null {
+	public getTelemetryData(): { [key: string]: any; } | undefined {
 		return this._telemetryData;
 	}
 
@@ -1767,11 +1762,11 @@ class CodeEditorWidgetFocusTracker extends Disposable {
 
 		this._register(this._domFocusTracker.onDidFocus(() => {
 			this._hasFocus = true;
-			this._onChange.fire(void 0);
+			this._onChange.fire(undefined);
 		}));
 		this._register(this._domFocusTracker.onDidBlur(() => {
 			this._hasFocus = false;
-			this._onChange.fire(void 0);
+			this._onChange.fire(undefined);
 		}));
 	}
 

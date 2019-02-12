@@ -430,7 +430,7 @@ suite('Flow', () => {
 
 		parallel(elements, function (element, callback) {
 			sum += element;
-			callback(null, element * element);
+			callback(null!, element * element);
 		}, function (errors, result) {
 			assert.ok(!errors);
 
@@ -449,7 +449,7 @@ suite('Flow', () => {
 		parallel(elements, function (element, callback) {
 			setTimeout(function () {
 				sum += element;
-				callback(null, element * element);
+				callback(null!, element * element);
 			}, timeouts.pop());
 		}, function (errors, result) {
 			assert.ok(!errors);
@@ -469,10 +469,10 @@ suite('Flow', () => {
 		parallel(elements, function (element, callback) {
 			setTimeout(function () {
 				if (element === 4) {
-					callback(new Error('error!'), null);
+					callback(new Error('error!'), null!);
 				} else {
 					sum += element;
-					callback(null, element * element);
+					callback(null!, element * element);
 				}
 			}, timeouts.pop());
 		}, function (errors, result) {

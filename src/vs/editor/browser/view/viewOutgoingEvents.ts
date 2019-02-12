@@ -47,13 +47,13 @@ export class ViewOutgoingEvents extends Disposable {
 
 	public emitViewFocusGained(): void {
 		if (this.onDidGainFocus) {
-			this.onDidGainFocus(void 0);
+			this.onDidGainFocus(undefined);
 		}
 	}
 
 	public emitViewFocusLost(): void {
 		if (this.onDidLoseFocus) {
-			this.onDidLoseFocus(void 0);
+			this.onDidLoseFocus(undefined);
 		}
 	}
 

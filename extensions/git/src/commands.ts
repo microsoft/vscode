@@ -103,6 +103,15 @@ class CreateBranchItem implements QuickPickItem {
 	}
 }
 
+class HEADItem implements QuickPickItem {
+
+	constructor(private repository: Repository) { }
+
+	get label(): string { return 'HEAD'; }
+	get description(): string { return (this.repository.HEAD && this.repository.HEAD.commit || '').substr(0, 8); }
+	get alwaysShow(): boolean { return true; }
+}
+
 interface CommandOptions {
 	repository?: boolean;
 	diff?: boolean;
@@ -152,6 +161,22 @@ async function categorizeResourceByResolution(resources: Resource[]): Promise<{ 
 	];
 
 	return { merge, resolved, unresolved, deletionConflicts };
+}
+
+function createCheckoutItems(repository: Repository): CheckoutItem[] {
+	const config = workspace.getConfiguration('git');
+	const checkoutType = config.get<string>('checkoutType') || 'all';
+	const includeTags = checkoutType === 'all' || checkoutType === 'tags';
+	const includeRemotes = checkoutType === 'all' || checkoutType === 'remote';
+
+	const heads = repository.refs.filter(ref => ref.type === RefType.Head)
+		.map(ref => new CheckoutItem(ref));
+	const tags = (includeTags ? repository.refs.filter(ref => ref.type === RefType.Tag) : [])
+		.map(ref => new CheckoutTagItem(ref));
+	const remoteHeads = (includeRemotes ? repository.refs.filter(ref => ref.type === RefType.RemoteHead) : [])
+		.map(ref => new CheckoutRemoteHeadItem(ref));
+
+	return [...heads, ...tags, ...remoteHeads];
 }
 
 enum PushType {
@@ -340,6 +365,7 @@ export class CommandCenter {
 			case Status.MODIFIED:
 			case Status.UNTRACKED:
 			case Status.IGNORED:
+			case Status.INTENT_TO_ADD:
 				const repository = this.model.getRepository(resource.resourceUri);
 
 				if (!repository) {
@@ -1393,56 +1419,52 @@ export class CommandCenter {
 			await repository.checkout(treeish);
 			return true;
 		}
-
-		const config = workspace.getConfiguration('git');
-		const checkoutType = config.get<string>('checkoutType') || 'all';
-		const includeTags = checkoutType === 'all' || checkoutType === 'tags';
-		const includeRemotes = checkoutType === 'all' || checkoutType === 'remote';
-
 		const createBranch = new CreateBranchItem(this);
 
-		const heads = repository.refs.filter(ref => ref.type === RefType.Head)
-			.map(ref => new CheckoutItem(ref));
-
-		const tags = (includeTags ? repository.refs.filter(ref => ref.type === RefType.Tag) : [])
-			.map(ref => new CheckoutTagItem(ref));
-
-		const remoteHeads = (includeRemotes ? repository.refs.filter(ref => ref.type === RefType.RemoteHead) : [])
-			.map(ref => new CheckoutRemoteHeadItem(ref));
-
-		const picks = [createBranch, ...heads, ...tags, ...remoteHeads];
+		const picks = [createBranch, ...createCheckoutItems(repository)];
 		const placeHolder = localize('select a ref to checkout', 'Select a ref to checkout');
-		const choice = await window.showQuickPick(picks, { placeHolder });
+
+		const quickpick = window.createQuickPick();
+		quickpick.items = picks;
+		quickpick.placeholder = placeHolder;
+		quickpick.show();
+
+		const choice = await new Promise<QuickPickItem | undefined>(c => quickpick.onDidAccept(() => c(quickpick.activeItems[0])));
+		quickpick.hide();
 
 		if (!choice) {
 			return false;
 		}
 
-		await choice.run(repository);
+		if (choice === createBranch) {
+			await this._branch(repository, quickpick.value);
+		} else {
+			await (choice as CheckoutItem).run(repository);
+		}
+
 		return true;
 	}
 
 	@command('git.branch', { repository: true })
 	async branch(repository: Repository): Promise<void> {
+		await this._branch(repository);
+	}
+
+	private async _branch(repository: Repository, defaultName?: string): Promise<void> {
 		const config = workspace.getConfiguration('git');
-		const branchValidationRegex = config.get<string>('branchValidationRegex')!;
 		const branchWhitespaceChar = config.get<string>('branchWhitespaceChar')!;
-		const validateName = new RegExp(branchValidationRegex);
-		const sanitize = (name: string) => {
-			name = name.trim();
+		const branchValidationRegex = config.get<string>('branchValidationRegex')!;
+		const sanitize = (name: string) => name ?
+			name.trim().replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$|\[|\]$/g, branchWhitespaceChar)
+			: name;
 
-			if (!name) {
-				return name;
-			}
-
-			return name.replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$|\[|\]$/g, branchWhitespaceChar);
-		};
-
-		const result = await window.showInputBox({
+		const rawBranchName = await window.showInputBox({
+			value: defaultName,
 			placeHolder: localize('branch name', "Branch name"),
 			prompt: localize('provide branch name', "Please provide a branch name"),
 			ignoreFocusOut: true,
 			validateInput: (name: string) => {
+				const validateName = new RegExp(branchValidationRegex);
 				if (validateName.test(sanitize(name))) {
 					return null;
 				}
@@ -1451,13 +1473,21 @@ export class CommandCenter {
 			}
 		});
 
-		const name = sanitize(result || '');
+		const branchName = sanitize(rawBranchName || '');
 
-		if (!name) {
+		if (!branchName) {
 			return;
 		}
 
-		await repository.branch(name, true);
+		const picks = [new HEADItem(repository), ...createCheckoutItems(repository)];
+		const placeHolder = localize('select a ref to create a new branch from', 'Select a ref to create a new branch from');
+		const target = await window.showQuickPick(picks, { placeHolder });
+
+		if (!target) {
+			return;
+		}
+
+		await repository.branch(branchName, true, target.label);
 	}
 
 	@command('git.deleteBranch', { repository: true })

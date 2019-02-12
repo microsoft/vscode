@@ -64,7 +64,7 @@ class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	}
 }
 
-function toEditorWithEncodingSupport(input: IEditorInput): IEncodingSupport {
+function toEditorWithEncodingSupport(input: IEditorInput): IEncodingSupport | null {
 
 	// Untitled Editor
 	if (input instanceof UntitledEditorInput) {
@@ -179,7 +179,7 @@ class State {
 		this._metadata = null;
 	}
 
-	update(update: StateDelta): StateChange {
+	update(update: StateDelta): StateChange | null {
 		const e = new StateChange();
 		let somethingChanged = false;
 
@@ -282,17 +282,17 @@ export class EditorStatus implements IStatusbarItem {
 	private metadataElement: HTMLElement;
 	private toDispose: IDisposable[];
 	private activeEditorListeners: IDisposable[];
-	private delayedRender: IDisposable;
-	private toRender: StateChange;
-	private screenReaderNotification: INotificationHandle;
+	private delayedRender: IDisposable | null;
+	private toRender: StateChange | null;
+	private screenReaderNotification: INotificationHandle | null;
 
 	constructor(
-		@IEditorService private editorService: IEditorService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IModeService private modeService: IModeService,
-		@ITextFileService private textFileService: ITextFileService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IQuickOpenService private readonly quickOpenService: IQuickOpenService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService,
+		@IModeService private readonly modeService: IModeService,
+		@ITextFileService private readonly textFileService: ITextFileService,
 		@IWorkspaceConfigurationService private readonly configurationService: IWorkspaceConfigurationService,
 		@INotificationService private readonly notificationService: INotificationService
 	) {
@@ -379,7 +379,9 @@ export class EditorStatus implements IStatusbarItem {
 				this.delayedRender = null;
 				const toRender = this.toRender;
 				this.toRender = null;
-				this._renderNow(toRender);
+				if (toRender) {
+					this._renderNow(toRender);
+				}
 			});
 		} else {
 			this.toRender.combine(changed);
@@ -458,9 +460,9 @@ export class EditorStatus implements IStatusbarItem {
 		}
 	}
 
-	private getSelectionLabel(info: IEditorSelectionStatus): string {
+	private getSelectionLabel(info: IEditorSelectionStatus): string | undefined {
 		if (!info || !info.selections) {
-			return null;
+			return undefined;
 		}
 
 		if (info.selections.length === 1) {
@@ -479,7 +481,7 @@ export class EditorStatus implements IStatusbarItem {
 			return strings.format(nlsMultiSelection, info.selections.length);
 		}
 
-		return null;
+		return undefined;
 	}
 
 	private onModeClick(): void {
@@ -544,7 +546,7 @@ export class EditorStatus implements IStatusbarItem {
 
 	private updateStatusBar(): void {
 		const activeControl = this.editorService.activeControl;
-		const activeCodeEditor = activeControl ? getCodeEditor(activeControl.getControl()) : void 0;
+		const activeCodeEditor = activeControl ? getCodeEditor(activeControl.getControl()) || undefined : undefined;
 
 		// Update all states
 		this.onScreenReaderModeChange(activeCodeEditor);
@@ -582,9 +584,9 @@ export class EditorStatus implements IStatusbarItem {
 			this.activeEditorListeners.push(activeCodeEditor.onDidChangeModelContent((e) => {
 				this.onEOLChange(activeCodeEditor);
 
-				let selections = activeCodeEditor.getSelections();
-				for (let i = 0; i < e.changes.length; i++) {
-					if (selections.some(selection => Range.areIntersecting(selection, e.changes[i].range))) {
+				const selections = activeCodeEditor.getSelections();
+				for (const change of e.changes) {
+					if (selections.some(selection => Range.areIntersecting(selection, change.range))) {
 						this.onSelectionChange(activeCodeEditor);
 						break;
 					}
@@ -626,8 +628,8 @@ export class EditorStatus implements IStatusbarItem {
 		}
 	}
 
-	private onModeChange(editorWidget: ICodeEditor): void {
-		let info: StateDelta = { mode: null };
+	private onModeChange(editorWidget: ICodeEditor | undefined): void {
+		let info: StateDelta = { mode: undefined };
 
 		// We only support text based editors
 		if (editorWidget) {
@@ -635,15 +637,15 @@ export class EditorStatus implements IStatusbarItem {
 			if (textModel) {
 				// Compute mode
 				const modeId = textModel.getLanguageIdentifier().language;
-				info = { mode: this.modeService.getLanguageName(modeId) };
+				info = { mode: this.modeService.getLanguageName(modeId) || undefined };
 			}
 		}
 
 		this.updateState(info);
 	}
 
-	private onIndentationChange(editorWidget: ICodeEditor): void {
-		const update: StateDelta = { indentation: null };
+	private onIndentationChange(editorWidget: ICodeEditor | undefined): void {
+		const update: StateDelta = { indentation: undefined };
 
 		if (editorWidget) {
 			const model = editorWidget.getModel();
@@ -661,10 +663,10 @@ export class EditorStatus implements IStatusbarItem {
 	}
 
 	private onMetadataChange(editor: IBaseEditor): void {
-		const update: StateDelta = { metadata: null };
+		const update: StateDelta = { metadata: undefined };
 
 		if (editor instanceof BaseBinaryResourceEditor || editor instanceof BinaryResourceDiffEditor) {
-			update.metadata = editor.getMetadata();
+			update.metadata = editor.getMetadata() || undefined;
 		}
 
 		this.updateState(update);
@@ -672,7 +674,7 @@ export class EditorStatus implements IStatusbarItem {
 
 	private _promptedScreenReader: boolean = false;
 
-	private onScreenReaderModeChange(editorWidget: ICodeEditor): void {
+	private onScreenReaderModeChange(editorWidget: ICodeEditor | undefined): void {
 		let screenReaderMode = false;
 
 		// We only support text based editors
@@ -701,7 +703,7 @@ export class EditorStatus implements IStatusbarItem {
 		this.updateState({ screenReaderMode: screenReaderMode });
 	}
 
-	private onSelectionChange(editorWidget: ICodeEditor): void {
+	private onSelectionChange(editorWidget: ICodeEditor | undefined): void {
 		const info: IEditorSelectionStatus = {};
 
 		// We only support text based editors
@@ -715,7 +717,7 @@ export class EditorStatus implements IStatusbarItem {
 			const textModel = editorWidget.getModel();
 			if (textModel) {
 				info.selections.forEach(selection => {
-					info.charactersSelected += textModel.getValueLengthInRange(selection);
+					info.charactersSelected! += textModel.getValueLengthInRange(selection);
 				});
 			}
 
@@ -738,8 +740,8 @@ export class EditorStatus implements IStatusbarItem {
 		this.updateState({ selectionStatus: this.getSelectionLabel(info) });
 	}
 
-	private onEOLChange(editorWidget: ICodeEditor): void {
-		const info: StateDelta = { EOL: null };
+	private onEOLChange(editorWidget: ICodeEditor | undefined): void {
+		const info: StateDelta = { EOL: undefined };
 
 		if (editorWidget && !editorWidget.getConfiguration().readOnly) {
 			const codeEditorModel = editorWidget.getModel();
@@ -756,7 +758,7 @@ export class EditorStatus implements IStatusbarItem {
 			return;
 		}
 
-		const info: StateDelta = { encoding: null };
+		const info: StateDelta = { encoding: undefined };
 
 		// We only support text based editors
 		if (e && (isCodeEditor(e.getControl()) || isDiffEditor(e.getControl()))) {
@@ -798,7 +800,7 @@ export class EditorStatus implements IStatusbarItem {
 	}
 }
 
-function isWritableCodeEditor(codeEditor: ICodeEditor): boolean {
+function isWritableCodeEditor(codeEditor: ICodeEditor | undefined): boolean {
 	if (!codeEditor) {
 		return false;
 	}
@@ -807,7 +809,7 @@ function isWritableCodeEditor(codeEditor: ICodeEditor): boolean {
 }
 
 function isWritableBaseEditor(e: IBaseEditor): boolean {
-	return e && isWritableCodeEditor(getCodeEditor(e.getControl()));
+	return e && isWritableCodeEditor(getCodeEditor(e.getControl()) || undefined);
 }
 
 export class ShowLanguageExtensionsAction extends Action {
@@ -816,7 +818,7 @@ export class ShowLanguageExtensionsAction extends Action {
 
 	constructor(
 		private fileExtension: string,
-		@ICommandService private commandService: ICommandService,
+		@ICommandService private readonly commandService: ICommandService,
 		@IExtensionGalleryService galleryService: IExtensionGalleryService
 	) {
 		super(ShowLanguageExtensionsAction.ID, nls.localize('showLanguageExtensions', "Search Marketplace Extensions for '{0}'...", fileExtension));
@@ -825,7 +827,7 @@ export class ShowLanguageExtensionsAction extends Action {
 	}
 
 	run(): Promise<void> {
-		return this.commandService.executeCommand('workbench.extensions.action.showExtensionsForLanguage', this.fileExtension).then(() => void 0);
+		return this.commandService.executeCommand('workbench.extensions.action.showExtensionsForLanguage', this.fileExtension).then(() => undefined);
 	}
 }
 
@@ -837,14 +839,14 @@ export class ChangeModeAction extends Action {
 	constructor(
 		actionId: string,
 		actionLabel: string,
-		@IModeService private modeService: IModeService,
-		@IModelService private modelService: IModelService,
-		@IEditorService private editorService: IEditorService,
-		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
-		@IQuickInputService private quickInputService: IQuickInputService,
-		@IPreferencesService private preferencesService: IPreferencesService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
+		@IModeService private readonly modeService: IModeService,
+		@IModelService private readonly modelService: IModelService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IWorkspaceConfigurationService private readonly configurationService: IWorkspaceConfigurationService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService
 	) {
 		super(actionId, actionLabel);
 	}
@@ -882,7 +884,7 @@ export class ChangeModeAction extends Action {
 			}
 
 			// construct a fake resource to be able to show nice icons if any
-			let fakeResource: uri;
+			let fakeResource: uri | undefined;
 			const extensions = this.modeService.getExtensions(lang);
 			if (extensions && extensions.length) {
 				fakeResource = uri.file(extensions[0]);
@@ -1001,7 +1003,7 @@ export class ChangeModeAction extends Action {
 			return <IQuickPickItem>{
 				id,
 				label: lang,
-				description: (id === currentAssociation) ? nls.localize('currentAssociation', "Current Association") : void 0
+				description: (id === currentAssociation) ? nls.localize('currentAssociation', "Current Association") : undefined
 			};
 		});
 
@@ -1050,8 +1052,8 @@ class ChangeIndentationAction extends Action {
 	constructor(
 		actionId: string,
 		actionLabel: string,
-		@IEditorService private editorService: IEditorService,
-		@IQuickInputService private quickInputService: IQuickInputService
+		@IEditorService private readonly editorService: IEditorService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService
 	) {
 		super(actionId, actionLabel);
 	}
@@ -1077,7 +1079,7 @@ class ChangeIndentationAction extends Action {
 			return {
 				id: a.id,
 				label: a.label,
-				detail: (language === LANGUAGE_DEFAULT) ? null : a.alias,
+				detail: (language === LANGUAGE_DEFAULT) ? undefined : a.alias,
 				run: () => {
 					activeTextEditorWidget.focus();
 					a.run();
@@ -1100,8 +1102,8 @@ export class ChangeEOLAction extends Action {
 	constructor(
 		actionId: string,
 		actionLabel: string,
-		@IEditorService private editorService: IEditorService,
-		@IQuickInputService private quickInputService: IQuickInputService
+		@IEditorService private readonly editorService: IEditorService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService
 	) {
 		super(actionId, actionLabel);
 	}
@@ -1145,10 +1147,10 @@ export class ChangeEncodingAction extends Action {
 	constructor(
 		actionId: string,
 		actionLabel: string,
-		@IEditorService private editorService: IEditorService,
-		@IQuickInputService private quickInputService: IQuickInputService,
-		@ITextResourceConfigurationService private textResourceConfigurationService: ITextResourceConfigurationService,
-		@IFileService private fileService: IFileService
+		@IEditorService private readonly editorService: IEditorService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@ITextResourceConfigurationService private readonly textResourceConfigurationService: ITextResourceConfigurationService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		super(actionId, actionLabel);
 	}
@@ -1185,7 +1187,7 @@ export class ChangeEncodingAction extends Action {
 
 		return pickActionPromise.then(action => {
 			if (!action) {
-				return void 0;
+				return undefined;
 			}
 
 			const resource = toResource(activeControl.input, { supportSideBySide: true });
@@ -1203,7 +1205,7 @@ export class ChangeEncodingAction extends Action {
 
 					const configuredEncoding = this.textResourceConfigurationService.getValue(resource, 'files.encoding');
 
-					let directMatchIndex: number;
+					let directMatchIndex: number | undefined;
 					let aliasMatchIndex: number;
 
 					// All encodings are valid picks

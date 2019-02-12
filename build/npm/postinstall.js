@@ -17,6 +17,7 @@ function yarnInstall(location, opts) {
 	opts.cwd = location;
 	opts.stdio = 'inherit';
 
+	console.log('Installing dependencies in \'%s\'.', location);
 	const result = cp.spawnSync(yarn, ['install'], opts);
 
 	if (result.error || result.status !== 0) {

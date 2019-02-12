@@ -30,7 +30,7 @@ suite('ExtHostDocumentData', () => {
 	}
 
 	setup(function () {
-		data = new ExtHostDocumentData(undefined, URI.file(''), [
+		data = new ExtHostDocumentData(undefined!, URI.file(''), [
 			'This is line one', //16
 			'and this is line number two', //27
 			'it is followed by #3', //20
@@ -39,7 +39,7 @@ suite('ExtHostDocumentData', () => {
 	});
 
 	test('readonly-ness', () => {
-		assert.throws((): void => (data as any).document.uri = null);
+		assert.throws(() => (data as any).document.uri = null);
 		assert.throws(() => (data as any).document.fileName = 'foofile');
 		assert.throws(() => (data as any).document.isDirty = false);
 		assert.throws(() => (data as any).document.isUntitled = false);
@@ -98,12 +98,12 @@ suite('ExtHostDocumentData', () => {
 		data.onEvents({
 			changes: [{
 				range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
-				rangeOffset: undefined,
-				rangeLength: undefined,
+				rangeOffset: undefined!,
+				rangeLength: undefined!,
 				text: '\t '
 			}],
-			eol: undefined,
-			versionId: undefined,
+			eol: undefined!,
+			versionId: undefined!,
 		});
 
 		// line didn't change
@@ -155,12 +155,12 @@ suite('ExtHostDocumentData', () => {
 		data.onEvents({
 			changes: [{
 				range: { startLineNumber: 1, startColumn: 3, endLineNumber: 1, endColumn: 6 },
-				rangeOffset: undefined,
-				rangeLength: undefined,
+				rangeOffset: undefined!,
+				rangeLength: undefined!,
 				text: ''
 			}],
-			eol: undefined,
-			versionId: undefined,
+			eol: undefined!,
+			versionId: undefined!,
 		});
 
 		assertOffsetAt(0, 1, 1);
@@ -173,12 +173,12 @@ suite('ExtHostDocumentData', () => {
 		data.onEvents({
 			changes: [{
 				range: { startLineNumber: 1, startColumn: 3, endLineNumber: 1, endColumn: 6 },
-				rangeOffset: undefined,
-				rangeLength: undefined,
+				rangeOffset: undefined!,
+				rangeLength: undefined!,
 				text: 'is could be'
 			}],
-			eol: undefined,
-			versionId: undefined,
+			eol: undefined!,
+			versionId: undefined!,
 		});
 
 		assertOffsetAt(0, 1, 1);
@@ -191,12 +191,12 @@ suite('ExtHostDocumentData', () => {
 		data.onEvents({
 			changes: [{
 				range: { startLineNumber: 1, startColumn: 3, endLineNumber: 1, endColumn: 6 },
-				rangeOffset: undefined,
-				rangeLength: undefined,
+				rangeOffset: undefined!,
+				rangeLength: undefined!,
 				text: 'is could be\na line with number'
 			}],
-			eol: undefined,
-			versionId: undefined,
+			eol: undefined!,
+			versionId: undefined!,
 		});
 
 		assertOffsetAt(0, 1, 1);
@@ -212,12 +212,12 @@ suite('ExtHostDocumentData', () => {
 		data.onEvents({
 			changes: [{
 				range: { startLineNumber: 1, startColumn: 3, endLineNumber: 2, endColumn: 6 },
-				rangeOffset: undefined,
-				rangeLength: undefined,
+				rangeOffset: undefined!,
+				rangeLength: undefined!,
 				text: ''
 			}],
-			eol: undefined,
-			versionId: undefined,
+			eol: undefined!,
+			versionId: undefined!,
 		});
 
 		assertOffsetAt(0, 1, 1);
@@ -240,41 +240,41 @@ suite('ExtHostDocumentData', () => {
 	});
 
 	test('getWordRangeAtPosition', () => {
-		data = new ExtHostDocumentData(undefined, URI.file(''), [
+		data = new ExtHostDocumentData(undefined!, URI.file(''), [
 			'aaaa bbbb+cccc abc'
 		], '\n', 'text', 1, false);
 
-		let range = data.document.getWordRangeAtPosition(new Position(0, 2));
+		let range = data.document.getWordRangeAtPosition(new Position(0, 2))!;
 		assert.equal(range.start.line, 0);
 		assert.equal(range.start.character, 0);
 		assert.equal(range.end.line, 0);
 		assert.equal(range.end.character, 4);
 
 		// ignore bad regular expresson /.*/
-		range = data.document.getWordRangeAtPosition(new Position(0, 2), /.*/);
+		range = data.document.getWordRangeAtPosition(new Position(0, 2), /.*/)!;
 		assert.equal(range.start.line, 0);
 		assert.equal(range.start.character, 0);
 		assert.equal(range.end.line, 0);
 		assert.equal(range.end.character, 4);
 
-		range = data.document.getWordRangeAtPosition(new Position(0, 5), /[a-z+]+/);
+		range = data.document.getWordRangeAtPosition(new Position(0, 5), /[a-z+]+/)!;
 		assert.equal(range.start.line, 0);
 		assert.equal(range.start.character, 5);
 		assert.equal(range.end.line, 0);
 		assert.equal(range.end.character, 14);
 
-		range = data.document.getWordRangeAtPosition(new Position(0, 17), /[a-z+]+/);
+		range = data.document.getWordRangeAtPosition(new Position(0, 17), /[a-z+]+/)!;
 		assert.equal(range.start.line, 0);
 		assert.equal(range.start.character, 15);
 		assert.equal(range.end.line, 0);
 		assert.equal(range.end.character, 18);
 
-		range = data.document.getWordRangeAtPosition(new Position(0, 11), /yy/);
+		range = data.document.getWordRangeAtPosition(new Position(0, 11), /yy/)!;
 		assert.equal(range, undefined);
 	});
 
 	test('getWordRangeAtPosition doesn\'t quite use the regex as expected, #29102', function () {
-		data = new ExtHostDocumentData(undefined, URI.file(''), [
+		data = new ExtHostDocumentData(undefined!, URI.file(''), [
 			'some text here',
 			'/** foo bar */',
 			'function() {',
@@ -285,7 +285,7 @@ suite('ExtHostDocumentData', () => {
 		let range = data.document.getWordRangeAtPosition(new Position(0, 0), /\/\*.+\*\//);
 		assert.equal(range, undefined);
 
-		range = data.document.getWordRangeAtPosition(new Position(1, 0), /\/\*.+\*\//);
+		range = data.document.getWordRangeAtPosition(new Position(1, 0), /\/\*.+\*\//)!;
 		assert.equal(range.start.line, 1);
 		assert.equal(range.start.character, 0);
 		assert.equal(range.end.line, 1);
@@ -294,7 +294,7 @@ suite('ExtHostDocumentData', () => {
 		range = data.document.getWordRangeAtPosition(new Position(3, 0), /("|').*\1/);
 		assert.equal(range, undefined);
 
-		range = data.document.getWordRangeAtPosition(new Position(3, 1), /("|').*\1/);
+		range = data.document.getWordRangeAtPosition(new Position(3, 1), /("|').*\1/)!;
 		assert.equal(range.start.line, 3);
 		assert.equal(range.start.character, 1);
 		assert.equal(range.end.line, 3);
@@ -346,17 +346,17 @@ suite('ExtHostDocumentData updates line mapping', () => {
 		return {
 			changes: [{
 				range: range,
-				rangeOffset: undefined,
-				rangeLength: undefined,
+				rangeOffset: undefined!,
+				rangeLength: undefined!,
 				text: text
 			}],
-			eol: eol,
-			versionId: undefined,
+			eol: eol!,
+			versionId: undefined!,
 		};
 	}
 
 	function testLineMappingDirectionAfterEvents(lines: string[], eol: string, direction: AssertDocumentLineMappingDirection, e: IModelChangedEvent): void {
-		let myDocument = new ExtHostDocumentData(undefined, URI.file(''), lines.slice(0), eol, 'text', 1, false);
+		let myDocument = new ExtHostDocumentData(undefined!, URI.file(''), lines.slice(0), eol, 'text', 1, false);
 		assertDocumentLineMapping(myDocument, direction);
 
 		myDocument.onEvents(e);
@@ -377,7 +377,7 @@ suite('ExtHostDocumentData updates line mapping', () => {
 			'and this is line number two',
 			'it is followed by #3',
 			'and finished with the fourth.',
-		], { changes: [], eol: undefined, versionId: 7 });
+		], { changes: [], eol: undefined!, versionId: 7 });
 	});
 
 	test('after remove', () => {

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/shell';
-
 import * as platform from 'vs/base/common/platform';
 import * as perf from 'vs/base/common/performance';
 import * as aria from 'vs/base/browser/ui/aria/aria';
@@ -32,10 +30,10 @@ import { LifecycleService } from 'vs/platform/lifecycle/electron-browser/lifecyc
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { CodeEditorService } from 'vs/workbench/services/codeEditor/browser/codeEditorService';
+import { CodeEditorService } from 'vs/workbench/services/editor/browser/codeEditorService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IntegrityServiceImpl } from 'vs/platform/integrity/node/integrityServiceImpl';
-import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
+import { IntegrityServiceImpl } from 'vs/workbench/services/integrity/node/integrityServiceImpl';
+import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
 import { EditorWorkerServiceImpl } from 'vs/editor/common/services/editorWorkerServiceImpl';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { ExtensionService } from 'vs/workbench/services/extensions/electron-browser/extensionService';
@@ -45,7 +43,7 @@ import { InstantiationService } from 'vs/platform/instantiation/node/instantiati
 import { ILifecycleService, LifecyclePhase, WillShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ISearchService, ISearchHistoryService } from 'vs/platform/search/common/search';
+import { ISearchService, ISearchHistoryService } from 'vs/workbench/services/search/common/search';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CommandService } from 'vs/workbench/services/commands/common/commandService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -53,7 +51,6 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { WorkbenchModeServiceImpl } from 'vs/workbench/services/mode/common/workbenchModeService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { ICrashReporterService, NullCrashReporterService, CrashReporterService } from 'vs/workbench/services/crashReporter/electron-browser/crashReporterService';
 import { getDelayedChannel, IPCClient } from 'vs/base/parts/ipc/node/ipc';
 import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
 import { ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/node/extensionManagementIpc';
@@ -66,44 +63,41 @@ import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/work
 import { WorkbenchThemeService } from 'vs/workbench/services/themes/electron-browser/workbenchThemeService';
 import { ITextResourceConfigurationService, ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 import { TextResourceConfigurationService } from 'vs/editor/common/services/resourceConfigurationImpl';
-import { registerThemingParticipant, ITheme, ICssStyleCollector, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
-import { foreground, selectionBackground, focusBorder, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, listHighlightForeground, inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
 import { TextMateService } from 'vs/workbench/services/textMate/electron-browser/TMSyntax';
 import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
-import { IBroadcastService, BroadcastService } from 'vs/platform/broadcast/electron-browser/broadcastService';
+import { IBroadcastService, BroadcastService } from 'vs/workbench/services/broadcast/electron-browser/broadcastService';
 import { HashService } from 'vs/workbench/services/hash/node/hashService';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { StorageService } from 'vs/platform/storage/node/storageService';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Event, Emitter } from 'vs/base/common/event';
-import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { LocalizationsChannelClient } from 'vs/platform/localizations/node/localizationsIpc';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
-import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
-import { WorkbenchIssueService } from 'vs/workbench/services/issue/electron-browser/workbenchIssueService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { NotificationService } from 'vs/workbench/services/notification/common/notificationService';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { DialogService } from 'vs/workbench/services/dialogs/electron-browser/dialogService';
 import { DialogChannel } from 'vs/platform/dialogs/node/dialogIpc';
-import { EventType, addDisposableListener, addClass, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/node/remoteAgentService';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
-import { SearchHistoryService } from 'vs/workbench/services/search/node/searchHistoryService';
+import { SearchHistoryService } from 'vs/workbench/services/search/common/searchHistoryService';
 import { ExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 import { LogLevelSetterChannel } from 'vs/platform/log/node/logIpc';
-import { ILabelService, LabelService } from 'vs/platform/label/common/label';
+import { ILabelService } from 'vs/platform/label/common/label';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadService } from 'vs/platform/download/node/downloadService';
 import { DownloadServiceChannel } from 'vs/platform/download/node/downloadIpc';
 import { TextResourcePropertiesService } from 'vs/workbench/services/textfile/electron-browser/textResourcePropertiesService';
-import { MultiExtensionManagementService } from 'vs/platform/extensionManagement/node/multiExtensionManagement';
+import { MultiExtensionManagementService } from 'vs/workbench/services/extensionManagement/node/multiExtensionManagement';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-browser/remoteAuthorityResolverService';
+import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
+import { MarkerDecorationsService } from 'vs/editor/common/services/markerDecorationsServiceImpl';
+import { LabelService } from 'vs/workbench/services/label/common/labelService';
 
 /**
  * Services that we require for the Shell
@@ -113,19 +107,19 @@ export interface ICoreServices {
 	configurationService: IConfigurationService;
 	environmentService: IEnvironmentService;
 	logService: ILogService;
-	storageService: StorageService;
+	storageService: IStorageService;
 }
 
 /**
  * The workbench shell contains the workbench with a rich header containing navigation and the activity bar.
  * With the Shell being the top level element in the page, it is also responsible for driving the layouting.
  */
-export class WorkbenchShell extends Disposable {
+export class Shell extends Disposable {
 
 	private readonly _onWillShutdown = this._register(new Emitter<WillShutdownEvent>());
 	get onWillShutdown(): Event<WillShutdownEvent> { return this._onWillShutdown.event; }
 
-	private storageService: StorageService;
+	private storageService: IStorageService;
 	private environmentService: IEnvironmentService;
 	private logService: ILogService;
 	private configurationService: IConfigurationService;
@@ -144,7 +138,13 @@ export class WorkbenchShell extends Disposable {
 	private configuration: IWindowConfiguration;
 	private workbench: Workbench;
 
-	constructor(container: HTMLElement, coreServices: ICoreServices, mainProcessServices: ServiceCollection, private mainProcessClient: IPCClient, configuration: IWindowConfiguration) {
+	constructor(
+		container: HTMLElement,
+		coreServices: ICoreServices,
+		mainProcessServices: ServiceCollection,
+		private mainProcessClient: IPCClient,
+		configuration: IWindowConfiguration
+	) {
 		super();
 
 		this.container = container;
@@ -212,18 +212,13 @@ export class WorkbenchShell extends Disposable {
 
 				// Startup Telemetry
 				this.logStartupTelemetry(startupInfos);
-
-				// Storage Telemetry (TODO@Ben remove me later, including storage errors)
-				if (!this.environmentService.extensionTestsPath) {
-					this.logStorageTelemetry();
-				}
 			}, error => handleStartupError(this.logService, error));
 
 			return workbench;
 		} catch (error) {
 			handleStartupError(this.logService, error);
 
-			return void 0;
+			return undefined;
 		}
 	}
 
@@ -270,131 +265,12 @@ export class WorkbenchShell extends Disposable {
 		perf.mark('didStartWorkbench');
 	}
 
-	private logStorageTelemetry(): void {
-		const initialStartup = !!this.configuration.isInitialStartup;
-
-		const appReadyDuration = initialStartup ? perf.getDuration('main:started', 'main:appReady') : 0;
-		const workbenchReadyDuration = perf.getDuration(initialStartup ? 'main:started' : 'main:loadWindow', 'didStartWorkbench');
-		const workspaceStorageRequireDuration = perf.getDuration('willRequireSQLite', 'didRequireSQLite');
-		const workspaceStorageSchemaDuration = perf.getDuration('willSetupSQLiteSchema', 'didSetupSQLiteSchema');
-		const globalStorageInitDurationMain = perf.getDuration('main:willInitGlobalStorage', 'main:didInitGlobalStorage');
-		const globalStorageInitDuratioRenderer = perf.getDuration('willInitGlobalStorage', 'didInitGlobalStorage');
-		const workspaceStorageInitDuration = perf.getDuration('willInitWorkspaceStorage', 'didInitWorkspaceStorage');
-		const workbenchLoadDuration = perf.getDuration('willLoadWorkbenchMain', 'didLoadWorkbenchMain');
-
-		// Handle errors (avoid duplicates to reduce spam)
-		const loggedStorageErrors = new Set<string>();
-		this._register(this.storageService.onWorkspaceStorageError(error => {
-			const errorStr = `${error}`;
-
-			if (!loggedStorageErrors.has(errorStr)) {
-				loggedStorageErrors.add(errorStr);
-
-				/* __GDPR__
-					"sqliteStorageError6" : {
-						"appReadyTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"workbenchReadyTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"workspaceRequireTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"workspaceSchemaTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"globalReadTimeMain" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"globalReadTimeRenderer" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"workspaceReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"workbenchRequireTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"workspaceKeys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"startupKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"storageError": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-					}
-				*/
-
-				/* __GDPR__
-					"sqliteStorageError<NUMBER>" : {
-						"appReadyTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"workbenchReadyTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"workspaceRequireTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"workspaceSchemaTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"globalReadTimeMain" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"globalReadTimeRenderer" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"workspaceReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"workbenchRequireTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"workspaceKeys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"startupKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"storageError": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-					}
-				*/
-				this.telemetryService.publicLog('sqliteStorageError5', {
-					'appReadyTime': appReadyDuration,
-					'workbenchReadyTime': workbenchReadyDuration,
-					'workspaceRequireTime': workspaceStorageRequireDuration,
-					'workspaceSchemaTime': workspaceStorageSchemaDuration,
-					'globalReadTimeMain': globalStorageInitDurationMain,
-					'globalReadTimeRenderer': globalStorageInitDuratioRenderer,
-					'workspaceReadTime': workspaceStorageInitDuration,
-					'workbenchRequireTime': workbenchLoadDuration,
-					'workspaceKeys': this.storageService.getSize(StorageScope.WORKSPACE),
-					'startupKind': this.lifecycleService.startupKind,
-					'storageError': errorStr
-				});
-			}
-		}));
-
-
-		if (this.storageService.hasErrors) {
-			return; // do not log performance numbers when errors occured
-		}
-
-		if (this.environmentService.verbose) {
-			return; // do not log when running in verbose mode
-		}
-
-		/* __GDPR__
-			"sqliteStorageTimers6" : {
-				"appReadyTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"workbenchReadyTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"workspaceRequireTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"workspaceSchemaTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"globalReadTimeMain" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"globalReadTimeRenderer" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"workspaceReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"workbenchRequireTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"workspaceKeys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"startupKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-			}
-		*/
-
-		/* __GDPR__
-			"sqliteStorageTimers<NUMBER>" : {
-				"appReadyTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"workbenchReadyTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"workspaceRequireTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"workspaceSchemaTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"globalReadTimeMain" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"globalReadTimeRenderer" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"workspaceReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"workbenchRequireTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"workspaceKeys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"startupKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-			}
-		*/
-		this.telemetryService.publicLog('sqliteStorageTimers5', {
-			'appReadyTime': appReadyDuration,
-			'workbenchReadyTime': workbenchReadyDuration,
-			'workspaceRequireTime': workspaceStorageRequireDuration,
-			'workspaceSchemaTime': workspaceStorageSchemaDuration,
-			'globalReadTimeMain': globalStorageInitDurationMain,
-			'globalReadTimeRenderer': globalStorageInitDuratioRenderer,
-			'workspaceReadTime': workspaceStorageInitDuration,
-			'workbenchRequireTime': workbenchLoadDuration,
-			'workspaceKeys': this.storageService.getSize(StorageScope.WORKSPACE),
-			'startupKind': this.lifecycleService.startupKind
-		});
-	}
-
 	private initServiceCollection(container: HTMLElement): [IInstantiationService, ServiceCollection] {
 		const serviceCollection = new ServiceCollection();
 		serviceCollection.set(IWorkspaceContextService, this.contextService);
 		serviceCollection.set(IConfigurationService, this.configurationService);
 		serviceCollection.set(IEnvironmentService, this.environmentService);
-		serviceCollection.set(ILabelService, new SyncDescriptor(LabelService));
+		serviceCollection.set(ILabelService, new SyncDescriptor(LabelService, undefined, true));
 		serviceCollection.set(ILogService, this._register(this.logService));
 		serviceCollection.set(IStorageService, this.storageService);
 
@@ -413,14 +289,15 @@ export class WorkbenchShell extends Disposable {
 		serviceCollection.set(IWindowService, new SyncDescriptor(WindowService, [this.configuration.windowId, this.configuration]));
 
 		const sharedProcess = (<IWindowsService>serviceCollection.get(IWindowsService)).whenSharedProcessReady()
-			.then(() => connectNet(this.environmentService.sharedIPCHandle, `window:${this.configuration.windowId}`));
+			.then(() => connectNet(this.environmentService.sharedIPCHandle, `window:${this.configuration.windowId}`))
+			.then(client => {
+				client.registerChannel('dialog', instantiationService.createInstance(DialogChannel));
 
-		sharedProcess.then(client => {
-			client.registerChannel('dialog', instantiationService.createInstance(DialogChannel));
-		});
+				return client;
+			});
 
 		// Hash
-		serviceCollection.set(IHashService, new SyncDescriptor(HashService));
+		serviceCollection.set(IHashService, new SyncDescriptor(HashService, undefined, true));
 
 		// Telemetry
 		if (!this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
@@ -440,12 +317,6 @@ export class WorkbenchShell extends Disposable {
 		serviceCollection.set(ITelemetryService, this.telemetryService);
 		this._register(configurationTelemetry(this.telemetryService, this.configurationService));
 
-		let crashReporterService = NullCrashReporterService;
-		if (!this.environmentService.disableCrashReporter && product.crashReporter && product.hockeyApp) {
-			crashReporterService = instantiationService.createInstance(CrashReporterService);
-		}
-		serviceCollection.set(ICrashReporterService, crashReporterService);
-
 		serviceCollection.set(IDialogService, instantiationService.createInstance(DialogService));
 
 		const lifecycleService = instantiationService.createInstance(LifecycleService);
@@ -454,9 +325,9 @@ export class WorkbenchShell extends Disposable {
 		serviceCollection.set(ILifecycleService, lifecycleService);
 		this.lifecycleService = lifecycleService;
 
-		serviceCollection.set(IRequestService, new SyncDescriptor(RequestService));
-		serviceCollection.set(IDownloadService, new SyncDescriptor(DownloadService));
-		serviceCollection.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
+		serviceCollection.set(IRequestService, new SyncDescriptor(RequestService, undefined, true));
+		serviceCollection.set(IDownloadService, new SyncDescriptor(DownloadService, undefined, true));
+		serviceCollection.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService, undefined, true));
 
 		const remoteAuthorityResolverService = new RemoteAuthorityResolverService();
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
@@ -484,9 +355,9 @@ export class WorkbenchShell extends Disposable {
 		this.themeService = instantiationService.createInstance(WorkbenchThemeService, document.body);
 		serviceCollection.set(IWorkbenchThemeService, this.themeService);
 
-		serviceCollection.set(ICommandService, new SyncDescriptor(CommandService));
+		serviceCollection.set(ICommandService, new SyncDescriptor(CommandService, undefined, true));
 
-		serviceCollection.set(IMarkerService, new SyncDescriptor(MarkerService));
+		serviceCollection.set(IMarkerService, new SyncDescriptor(MarkerService, undefined, true));
 
 		serviceCollection.set(IModeService, new SyncDescriptor(WorkbenchModeServiceImpl));
 
@@ -494,11 +365,13 @@ export class WorkbenchShell extends Disposable {
 
 		serviceCollection.set(ITextResourcePropertiesService, new SyncDescriptor(TextResourcePropertiesService));
 
-		serviceCollection.set(IModelService, new SyncDescriptor(ModelServiceImpl));
+		serviceCollection.set(IModelService, new SyncDescriptor(ModelServiceImpl, undefined, true));
+
+		serviceCollection.set(IMarkerDecorationsService, new SyncDescriptor(MarkerDecorationsService));
 
 		serviceCollection.set(IEditorWorkerService, new SyncDescriptor(EditorWorkerServiceImpl));
 
-		serviceCollection.set(IUntitledEditorService, new SyncDescriptor(UntitledEditorService));
+		serviceCollection.set(IUntitledEditorService, new SyncDescriptor(UntitledEditorService, undefined, true));
 
 		serviceCollection.set(ITextMateService, new SyncDescriptor(TextMateService));
 
@@ -506,11 +379,9 @@ export class WorkbenchShell extends Disposable {
 
 		serviceCollection.set(ISearchHistoryService, new SyncDescriptor(SearchHistoryService));
 
-		serviceCollection.set(IWorkbenchIssueService, new SyncDescriptor(WorkbenchIssueService));
-
 		serviceCollection.set(ICodeEditorService, new SyncDescriptor(CodeEditorService));
 
-		serviceCollection.set(IOpenerService, new SyncDescriptor(OpenerService));
+		serviceCollection.set(IOpenerService, new SyncDescriptor(OpenerService, undefined, true));
 
 		serviceCollection.set(IIntegrityService, new SyncDescriptor(IntegrityServiceImpl));
 
@@ -536,9 +407,6 @@ export class WorkbenchShell extends Disposable {
 		errors.setUnexpectedErrorHandler((error: any) => {
 			this.onUnexpectedError(error);
 		});
-
-		// Shell Class for CSS Scoping
-		addClass(this.container, 'monaco-shell');
 
 		// Create Contents
 		this.renderContents();
@@ -613,130 +481,3 @@ export class WorkbenchShell extends Disposable {
 		this.mainProcessClient.dispose();
 	}
 }
-
-registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
-
-	// Foreground
-	const windowForeground = theme.getColor(foreground);
-	if (windowForeground) {
-		collector.addRule(`.monaco-shell { color: ${windowForeground}; }`);
-	}
-
-	// Selection
-	const windowSelectionBackground = theme.getColor(selectionBackground);
-	if (windowSelectionBackground) {
-		collector.addRule(`.monaco-shell ::selection { background-color: ${windowSelectionBackground}; }`);
-	}
-
-	// Input placeholder
-	const placeholderForeground = theme.getColor(inputPlaceholderForeground);
-	if (placeholderForeground) {
-		collector.addRule(`.monaco-shell input::-webkit-input-placeholder { color: ${placeholderForeground}; }`);
-		collector.addRule(`.monaco-shell textarea::-webkit-input-placeholder { color: ${placeholderForeground}; }`);
-	}
-
-	// List highlight
-	const listHighlightForegroundColor = theme.getColor(listHighlightForeground);
-	if (listHighlightForegroundColor) {
-		collector.addRule(`
-			.monaco-shell .monaco-tree .monaco-tree-row .monaco-highlighted-label .highlight,
-			.monaco-shell .monaco-list .monaco-list-row .monaco-highlighted-label .highlight {
-				color: ${listHighlightForegroundColor};
-			}
-		`);
-	}
-
-	// We need to set the workbench background color so that on Windows we get subpixel-antialiasing.
-	const workbenchBackground = WORKBENCH_BACKGROUND(theme);
-	collector.addRule(`.monaco-workbench { background-color: ${workbenchBackground}; }`);
-
-	// Scrollbars
-	const scrollbarShadowColor = theme.getColor(scrollbarShadow);
-	if (scrollbarShadowColor) {
-		collector.addRule(`
-			.monaco-shell .monaco-scrollable-element > .shadow.top {
-				box-shadow: ${scrollbarShadowColor} 0 6px 6px -6px inset;
-			}
-
-			.monaco-shell .monaco-scrollable-element > .shadow.left {
-				box-shadow: ${scrollbarShadowColor} 6px 0 6px -6px inset;
-			}
-
-			.monaco-shell .monaco-scrollable-element > .shadow.top.left {
-				box-shadow: ${scrollbarShadowColor} 6px 6px 6px -6px inset;
-			}
-		`);
-	}
-
-	const scrollbarSliderBackgroundColor = theme.getColor(scrollbarSliderBackground);
-	if (scrollbarSliderBackgroundColor) {
-		collector.addRule(`
-			.monaco-shell .monaco-scrollable-element > .scrollbar > .slider {
-				background: ${scrollbarSliderBackgroundColor};
-			}
-		`);
-	}
-
-	const scrollbarSliderHoverBackgroundColor = theme.getColor(scrollbarSliderHoverBackground);
-	if (scrollbarSliderHoverBackgroundColor) {
-		collector.addRule(`
-			.monaco-shell .monaco-scrollable-element > .scrollbar > .slider:hover {
-				background: ${scrollbarSliderHoverBackgroundColor};
-			}
-		`);
-	}
-
-	const scrollbarSliderActiveBackgroundColor = theme.getColor(scrollbarSliderActiveBackground);
-	if (scrollbarSliderActiveBackgroundColor) {
-		collector.addRule(`
-			.monaco-shell .monaco-scrollable-element > .scrollbar > .slider.active {
-				background: ${scrollbarSliderActiveBackgroundColor};
-			}
-		`);
-	}
-
-	// Focus outline
-	const focusOutline = theme.getColor(focusBorder);
-	if (focusOutline) {
-		collector.addRule(`
-		.monaco-shell [tabindex="0"]:focus,
-		.monaco-shell .synthetic-focus,
-		.monaco-shell select:focus,
-		.monaco-shell .monaco-tree.focused.no-focused-item:focus:before,
-		.monaco-shell .monaco-list:not(.element-focused):focus:before,
-		.monaco-shell input[type="button"]:focus,
-		.monaco-shell input[type="text"]:focus,
-		.monaco-shell button:focus,
-		.monaco-shell textarea:focus,
-		.monaco-shell input[type="search"]:focus,
-		.monaco-shell input[type="checkbox"]:focus {
-			outline-color: ${focusOutline};
-		}
-		`);
-	}
-
-	// High Contrast theme overwrites for outline
-	if (theme.type === HIGH_CONTRAST) {
-		collector.addRule(`
-		.monaco-shell.hc-black [tabindex="0"]:focus,
-		.monaco-shell.hc-black .synthetic-focus,
-		.monaco-shell.hc-black select:focus,
-		.monaco-shell.hc-black input[type="button"]:focus,
-		.monaco-shell.hc-black input[type="text"]:focus,
-		.monaco-shell.hc-black textarea:focus,
-		.monaco-shell.hc-black input[type="checkbox"]:focus {
-			outline-style: solid;
-			outline-width: 1px;
-		}
-
-		.monaco-shell.hc-black .monaco-tree.focused.no-focused-item:focus:before {
-			outline-width: 1px;
-			outline-offset: -2px;
-		}
-
-		.monaco-shell.hc-black .synthetic-focus input {
-			background: transparent; /* Search input focus fix when in high contrast */
-		}
-		`);
-	}
-});

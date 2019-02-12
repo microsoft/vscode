@@ -43,28 +43,25 @@ class MarginComputer implements IHoverComputer<IHoverMessage[]> {
 			};
 		};
 
-		let lineDecorations = this._editor.getLineDecorations(this._lineNumber);
+		const lineDecorations = this._editor.getLineDecorations(this._lineNumber);
 
-		let result: IHoverMessage[] = [];
+		const result: IHoverMessage[] = [];
 		if (!lineDecorations) {
 			return result;
 		}
 
-		for (let i = 0, len = lineDecorations.length; i < len; i++) {
-			let d = lineDecorations[i];
-
+		for (const d of lineDecorations) {
 			if (!d.options.glyphMarginClassName) {
 				continue;
 			}
 
 			const hoverMessage = d.options.glyphMarginHoverMessage;
-
 			if (!hoverMessage || isEmptyMarkdownString(hoverMessage)) {
 				continue;
 			}
 
 			if (Array.isArray(hoverMessage)) {
-				result = result.concat(hoverMessage.map(toHoverMessage));
+				result.push(...hoverMessage.map(toHoverMessage));
 			} else {
 				result.push(toHoverMessage(hoverMessage));
 			}

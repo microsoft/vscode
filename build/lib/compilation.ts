@@ -17,7 +17,9 @@ import * as monacodts from '../monaco/api';
 import * as nls from './nls';
 import { createReporter } from './reporter';
 import * as util from './util';
-import * as util2 from 'gulp-util';
+import * as fancyLog from 'fancy-log';
+import * as ansiColors from 'ansi-colors';
+
 const watch = require('./watch');
 
 const reporter = createReporter();
@@ -88,7 +90,7 @@ const typesDts = [
 
 export function compileTask(src: string, out: string, build: boolean): () => NodeJS.ReadWriteStream {
 
-	return function () {
+	const result = function () {
 		const compile = createCompile(src, build, true);
 
 		const srcPipe = es.merge(
@@ -106,11 +108,13 @@ export function compileTask(src: string, out: string, build: boolean): () => Nod
 			.pipe(compile())
 			.pipe(gulp.dest(out));
 	};
+	result.displayName = `compile-task-${out}${build ? '-build' : ''}`;
+	return result;
 }
 
 export function watchTask(out: string, build: boolean): () => NodeJS.ReadWriteStream {
 
-	return function () {
+	const result = function () {
 		const compile = createCompile('src', build);
 
 		const src = es.merge(
@@ -127,6 +131,8 @@ export function watchTask(out: string, build: boolean): () => NodeJS.ReadWriteSt
 			.pipe(util.incremental(compile, src, true))
 			.pipe(gulp.dest(out));
 	};
+	result.displayName = `watch-task-${out}${build ? '-build' : ''}`;
+	return result;
 }
 
 const REPO_SRC_FOLDER = path.join(__dirname, '../../src');
@@ -218,7 +224,7 @@ class MonacoGenerator {
 	}
 
 	private _log(message: any, ...rest: any[]): void {
-		util2.log(util2.colors.cyan('[monaco.d.ts]'), message, ...rest);
+		fancyLog(ansiColors.cyan('[monaco.d.ts]'), message, ...rest);
 	}
 
 	public execute(): void {

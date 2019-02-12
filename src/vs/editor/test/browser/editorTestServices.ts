@@ -29,7 +29,7 @@ export class TestCommandService implements ICommandService {
 
 	private readonly _instantiationService: IInstantiationService;
 
-	private readonly _onWillExecuteCommand: Emitter<ICommandEvent> = new Emitter<ICommandEvent>();
+	private readonly _onWillExecuteCommand = new Emitter<ICommandEvent>();
 	public readonly onWillExecuteCommand: Event<ICommandEvent> = this._onWillExecuteCommand.event;
 
 	constructor(instantiationService: IInstantiationService) {

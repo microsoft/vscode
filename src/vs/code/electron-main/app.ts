@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, ipcMain as ipc, systemPreferences, shell, Event, contentTracing, protocol } from 'electron';
-import * as platform from 'vs/base/common/platform';
+import { app, ipcMain as ipc, systemPreferences, shell, Event, contentTracing, protocol, powerMonitor } from 'electron';
+import { IProcessEnvironment, isWindows, isMacintosh } from 'vs/base/common/platform';
 import { WindowsManager } from 'vs/code/electron-main/windows';
-import { IWindowsService, OpenContext, ActiveWindowManager } from 'vs/platform/windows/common/windows';
+import { IWindowsService, OpenContext, ActiveWindowManager, IURIToOpen } from 'vs/platform/windows/common/windows';
 import { WindowsChannel } from 'vs/platform/windows/node/windowsIpc';
 import { WindowsService } from 'vs/platform/windows/electron-main/windowsService';
 import { ILifecycleService, LifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
@@ -16,7 +16,6 @@ import { UpdateChannel } from 'vs/platform/update/node/updateIpc';
 import { Server as ElectronIPCServer } from 'vs/base/parts/ipc/electron-main/ipc.electron-main';
 import { Server, connect, Client } from 'vs/base/parts/ipc/node/ipc.net';
 import { SharedProcess } from 'vs/code/electron-main/sharedProcess';
-import { Mutex } from 'windows-mutex';
 import { LaunchService, LaunchChannel, ILaunchService } from 'vs/platform/launch/electron-main/launchService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -63,7 +62,7 @@ import { MenubarChannel } from 'vs/platform/menubar/node/menubarIpc';
 import { hasArgs } from 'vs/platform/environment/node/argv';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { registerContextMenuListener } from 'vs/base/parts/contextmenu/electron-main/contextmenu';
-import { THEME_STORAGE_KEY, THEME_BG_STORAGE_KEY } from 'vs/code/electron-main/theme';
+import { storeBackgroundColor } from 'vs/code/electron-main/theme';
 import { nativeSep, join } from 'vs/base/common/paths';
 import { homedir } from 'os';
 import { localize } from 'vs/nls';
@@ -74,6 +73,12 @@ import { SnapUpdateService } from 'vs/platform/update/electron-main/updateServic
 import { IStorageMainService, StorageMainService } from 'vs/platform/storage/node/storageMainService';
 import { GlobalStorageDatabaseChannel } from 'vs/platform/storage/node/storageIpc';
 import { generateUuid } from 'vs/base/common/uuid';
+import { startsWith } from 'vs/base/common/strings';
+import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainService';
+import { IBackupMainService } from 'vs/platform/backup/common/backup';
+import { HistoryMainService } from 'vs/platform/history/electron-main/historyMainService';
+import { URLService } from 'vs/platform/url/common/urlService';
+import { WorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 
 export class CodeApplication extends Disposable {
 
@@ -88,14 +93,13 @@ export class CodeApplication extends Disposable {
 
 	constructor(
 		private mainIpcServer: Server,
-		private userEnv: platform.IProcessEnvironment,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@ILogService private logService: ILogService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IConfigurationService private configurationService: ConfigurationService,
-		@IStateService private stateService: IStateService,
-		@IHistoryMainService private historyMainService: IHistoryMainService,
+		private userEnv: IProcessEnvironment,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ILogService private readonly logService: ILogService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IConfigurationService private readonly configurationService: ConfigurationService,
+		@IStateService private readonly stateService: IStateService
 	) {
 		super();
 
@@ -138,12 +142,27 @@ export class CodeApplication extends Disposable {
 		app.on('web-contents-created', (event: any, contents) => {
 			contents.on('will-attach-webview', (event: Electron.Event, webPreferences, params) => {
 
+				const isValidWebviewSource = (source: string): boolean => {
+					if (!source) {
+						return false;
+					}
+
+					if (source === 'data:text/html;charset=utf-8,%3C%21DOCTYPE%20html%3E%0D%0A%3Chtml%20lang%3D%22en%22%20style%3D%22width%3A%20100%25%3B%20height%3A%20100%25%22%3E%0D%0A%3Chead%3E%0D%0A%09%3Ctitle%3EVirtual%20Document%3C%2Ftitle%3E%0D%0A%3C%2Fhead%3E%0D%0A%3Cbody%20style%3D%22margin%3A%200%3B%20overflow%3A%20hidden%3B%20width%3A%20100%25%3B%20height%3A%20100%25%22%3E%0D%0A%3C%2Fbody%3E%0D%0A%3C%2Fhtml%3E') {
+						return true;
+					}
+
+					const srcUri = URI.parse(source).fsPath.toLowerCase();
+					const rootUri = URI.file(this.environmentService.appRoot).fsPath.toLowerCase();
+
+					return startsWith(srcUri, rootUri + nativeSep);
+				};
+
 				// Ensure defaults
 				delete webPreferences.preload;
 				webPreferences.nodeIntegration = false;
 
 				// Verify URLs being loaded
-				if (this.isValidWebviewSource(params.src) && this.isValidWebviewSource(webPreferences.preloadURL)) {
+				if (isValidWebviewSource(params.src) && isValidWebviewSource(webPreferences.preloadURL)) {
 					return;
 				}
 
@@ -168,93 +187,14 @@ export class CodeApplication extends Disposable {
 			});
 		});
 
-		const connectionPool: Map<string, ActiveConnection> = new Map<string, ActiveConnection>();
-
-		class ActiveConnection {
-			private _authority: string;
-			private _client: Promise<Client<RemoteAgentConnectionContext>>;
-			private _disposeRunner: RunOnceScheduler;
-
-			constructor(authority: string, host: string, port: number) {
-				this._authority = authority;
-				this._client = connectRemoteAgentManagement(authority, host, port, `main`);
-				this._disposeRunner = new RunOnceScheduler(() => this._dispose(), 5000);
-			}
-
-			private _dispose(): void {
-				this._disposeRunner.dispose();
-				connectionPool.delete(this._authority);
-				this._client.then((connection) => {
-					connection.dispose();
-				});
-			}
-
-			public getClient(): Promise<Client<RemoteAgentConnectionContext>> {
-				this._disposeRunner.schedule();
-				return this._client;
-			}
-		}
-
-		const resolvedAuthorities = new Map<string, ResolvedAuthority>();
-		ipc.on('vscode:remoteAuthorityResolved', (event: any, data: ResolvedAuthority) => {
-			resolvedAuthorities.set(data.authority, data);
-		});
-		const resolveAuthority = (authority: string): ResolvedAuthority | null => {
-			if (authority.indexOf('+') >= 0) {
-				if (resolvedAuthorities.has(authority)) {
-					return resolvedAuthorities.get(authority);
-				}
-				return null;
-			} else {
-				const [host, strPort] = authority.split(':');
-				const port = parseInt(strPort, 10);
-				return { authority, host, port, syncExtensions: false };
-			}
-		};
-
-		protocol.registerBufferProtocol(REMOTE_HOST_SCHEME, async (request, callback) => {
-			if (request.method !== 'GET') {
-				return callback(null);
-			}
-			const uri = URI.parse(request.url);
-
-			let activeConnection: ActiveConnection = null;
-			if (connectionPool.has(uri.authority)) {
-				activeConnection = connectionPool.get(uri.authority);
-			} else {
-				let resolvedAuthority = resolveAuthority(uri.authority);
-				if (!resolvedAuthority) {
-					callback(null);
-					return;
-				}
-				activeConnection = new ActiveConnection(uri.authority, resolvedAuthority.host, resolvedAuthority.port);
-				connectionPool.set(uri.authority, activeConnection);
-			}
-			try {
-				const rawClient = await activeConnection.getClient();
-				if (connectionPool.has(uri.authority)) { // not disposed in the meantime
-					const channel = rawClient.getChannel(REMOTE_FILE_SYSTEM_CHANNEL_NAME);
-
-					// TODO@alex don't use call directly, wrap it around a `RemoteExtensionsFileSystemProvider`
-					const fileContents = await channel.call<Uint8Array>('readFile', [uri]);
-					callback(Buffer.from(fileContents));
-				} else {
-					callback(null);
-				}
-			} catch (err) {
-				errors.onUnexpectedError(err);
-				callback(null);
-			}
-		});
-
-		let macOpenFileURIs: URI[] = [];
+		let macOpenFileURIs: IURIToOpen[] = [];
 		let runningTimeout: any = null;
 		app.on('open-file', (event: Event, path: string) => {
 			this.logService.trace('App#open-file: ', path);
 			event.preventDefault();
 
 			// Keep in array because more might come!
-			macOpenFileURIs.push(URI.file(path));
+			macOpenFileURIs.push({ uri: URI.file(path) });
 
 			// Clear previous handler if any
 			if (runningTimeout !== null) {
@@ -315,38 +255,16 @@ export class CodeApplication extends Disposable {
 			}
 		});
 
-		ipc.on('vscode:toggleDevTools', (event: Event) => {
-			event.sender.toggleDevTools();
-		});
+		ipc.on('vscode:toggleDevTools', (event: Event) => event.sender.toggleDevTools());
+		ipc.on('vscode:openDevTools', (event: Event) => event.sender.openDevTools());
 
-		ipc.on('vscode:openDevTools', (event: Event) => {
-			event.sender.openDevTools();
-		});
+		ipc.on('vscode:reloadWindow', (event: Event) => event.sender.reload());
 
-		ipc.on('vscode:reloadWindow', (event: Event) => {
-			event.sender.reload();
-		});
-
-		// Keyboard layout changes
-		KeyboardLayoutMonitor.INSTANCE.onDidChangeKeyboardLayout(() => {
+		powerMonitor.on('resume', () => { // After waking up from sleep
 			if (this.windowsMainService) {
-				this.windowsMainService.sendToAll('vscode:keyboardLayoutChanged', false);
+				this.windowsMainService.sendToAll('vscode:osResume', undefined);
 			}
 		});
-	}
-
-	private isValidWebviewSource(source: string): boolean {
-		if (!source) {
-			return false;
-		}
-
-		if (source === 'data:text/html;charset=utf-8,%3C%21DOCTYPE%20html%3E%0D%0A%3Chtml%20lang%3D%22en%22%20style%3D%22width%3A%20100%25%3B%20height%3A%20100%25%22%3E%0D%0A%3Chead%3E%0D%0A%09%3Ctitle%3EVirtual%20Document%3C%2Ftitle%3E%0D%0A%3C%2Fhead%3E%0D%0A%3Cbody%20style%3D%22margin%3A%200%3B%20overflow%3A%20hidden%3B%20width%3A%20100%25%3B%20height%3A%20100%25%22%3E%0D%0A%3C%2Fbody%3E%0D%0A%3C%2Fhtml%3E') {
-			return true;
-		}
-
-		const srcUri: any = URI.parse(source).fsPath.toLowerCase();
-		const rootUri = URI.file(this.environmentService.appRoot).fsPath.toLowerCase();
-		return srcUri.startsWith(rootUri + nativeSep);
 	}
 
 	private onUnexpectedError(err: Error): void {
@@ -374,10 +292,7 @@ export class CodeApplication extends Disposable {
 
 		// Theme changes
 		if (event === 'vscode:changeColorTheme' && typeof payload === 'string') {
-			let data = JSON.parse(payload);
-
-			this.stateService.setItem(THEME_STORAGE_KEY, data.baseTheme);
-			this.stateService.setItem(THEME_BG_STORAGE_KEY, data.background);
+			storeBackgroundColor(this.stateService, JSON.parse(payload));
 		}
 	}
 
@@ -390,7 +305,7 @@ export class CodeApplication extends Disposable {
 		// This will help Windows to associate the running program with
 		// any shortcut that is pinned to the taskbar and prevent showing
 		// two icons in the taskbar for the same app.
-		if (platform.isWindows && product.win32AppUserModelId) {
+		if (isWindows && product.win32AppUserModelId) {
 			app.setAppUserModelId(product.win32AppUserModelId);
 		}
 
@@ -401,7 +316,7 @@ export class CodeApplication extends Disposable {
 		// Explicitly opt out of the patch here before creating any windows.
 		// See: https://github.com/Microsoft/vscode/issues/35361#issuecomment-399794085
 		try {
-			if (platform.isMacintosh && this.configurationService.getValue<boolean>('window.nativeTabs') === true && !systemPreferences.getUserDefault('NSUseImprovedLayoutPass', 'boolean')) {
+			if (isMacintosh && this.configurationService.getValue<boolean>('window.nativeTabs') === true && !systemPreferences.getUserDefault('NSUseImprovedLayoutPass', 'boolean')) {
 				systemPreferences.setUserDefault('NSUseImprovedLayoutPass', 'boolean', true as any);
 			}
 		} catch (error) {
@@ -511,7 +426,7 @@ export class CodeApplication extends Disposable {
 			services.set(IUpdateService, new SyncDescriptor(Win32UpdateService));
 		} else if (process.platform === 'linux') {
 			if (process.env.SNAP && process.env.SNAP_REVISION) {
-				services.set(IUpdateService, new SyncDescriptor(SnapUpdateService));
+				services.set(IUpdateService, new SyncDescriptor(SnapUpdateService, [process.env.SNAP, process.env.SNAP_REVISION]));
 			} else {
 				services.set(IUpdateService, new SyncDescriptor(LinuxUpdateService));
 			}
@@ -525,6 +440,10 @@ export class CodeApplication extends Disposable {
 		services.set(IIssueService, new SyncDescriptor(IssueService, [machineId, this.userEnv]));
 		services.set(IMenubarService, new SyncDescriptor(MenubarService));
 		services.set(IStorageMainService, new SyncDescriptor(StorageMainService));
+		services.set(IBackupMainService, new SyncDescriptor(BackupMainService));
+		services.set(IHistoryMainService, new SyncDescriptor(HistoryMainService));
+		services.set(IURLService, new SyncDescriptor(URLService));
+		services.set(IWorkspacesMainService, new SyncDescriptor(WorkspacesMainService));
 
 		// Telemetry
 		if (!this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
@@ -541,7 +460,10 @@ export class CodeApplication extends Disposable {
 
 		const appInstantiationService = this.instantiationService.createChild(services);
 
-		return appInstantiationService.invokeFunction(accessor => this.initStorageService(accessor)).then(() => appInstantiationService);
+		return appInstantiationService.invokeFunction(accessor => Promise.all([
+			this.initStorageService(accessor),
+			this.initBackupService(accessor)
+		])).then(() => appInstantiationService);
 	}
 
 	private initStorageService(accessor: ServicesAccessor): Promise<void> {
@@ -551,7 +473,7 @@ export class CodeApplication extends Disposable {
 		this.lifecycleService.onWillShutdown(e => e.join(storageMainService.close()));
 
 		// Initialize storage service
-		return storageMainService.initialize().then(void 0, error => {
+		return storageMainService.initialize().then(undefined, error => {
 			errors.onUnexpectedError(error);
 			this.logService.error(error);
 		}).then(() => {
@@ -561,24 +483,30 @@ export class CodeApplication extends Disposable {
 			// written from the main process once.
 
 			const telemetryInstanceId = 'telemetry.instanceId';
-			const instanceId = storageMainService.get(telemetryInstanceId, null);
-			if (instanceId === null) {
+			const instanceId = storageMainService.get(telemetryInstanceId, undefined);
+			if (instanceId === undefined) {
 				storageMainService.store(telemetryInstanceId, generateUuid());
 			}
 
 			const telemetryFirstSessionDate = 'telemetry.firstSessionDate';
-			const firstSessionDate = storageMainService.get(telemetryFirstSessionDate, null);
-			if (firstSessionDate === null) {
+			const firstSessionDate = storageMainService.get(telemetryFirstSessionDate, undefined);
+			if (firstSessionDate === undefined) {
 				storageMainService.store(telemetryFirstSessionDate, new Date().toUTCString());
 			}
 
 			const telemetryCurrentSessionDate = 'telemetry.currentSessionDate';
 			const telemetryLastSessionDate = 'telemetry.lastSessionDate';
-			const lastSessionDate = storageMainService.get(telemetryCurrentSessionDate, null); // previous session date was the "current" one at that time
+			const lastSessionDate = storageMainService.get(telemetryCurrentSessionDate, undefined); // previous session date was the "current" one at that time
 			const currentSessionDate = new Date().toUTCString(); // current session date is "now"
-			storageMainService.store(telemetryLastSessionDate, lastSessionDate);
+			storageMainService.store(telemetryLastSessionDate, typeof lastSessionDate === 'undefined' ? null : lastSessionDate);
 			storageMainService.store(telemetryCurrentSessionDate, currentSessionDate);
 		});
+	}
+
+	private initBackupService(accessor: ServicesAccessor): Promise<void> {
+		const backupMainService = accessor.get(IBackupMainService) as BackupMainService;
+
+		return backupMainService.initialize();
 	}
 
 	private openFirstWindow(accessor: ServicesAccessor): ICodeWindow[] {
@@ -630,8 +558,6 @@ export class CodeApplication extends Disposable {
 		// Propagate to clients
 		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService); // TODO@Joao: unfold this
 
-		const args = this.environmentService.args;
-
 		// Create a URL handler which forwards to the last active window
 		const activeWindowManager = new ActiveWindowManager(windowsService);
 		const activeWindowRouter = new StaticRouter(ctx => activeWindowManager.getActiveClientId().then(id => ctx === id));
@@ -640,7 +566,7 @@ export class CodeApplication extends Disposable {
 
 		// On Mac, Code can be running without any open windows, so we must create a window to handle urls,
 		// if there is none
-		if (platform.isMacintosh) {
+		if (isMacintosh) {
 			const environmentService = accessor.get(IEnvironmentService);
 
 			urlService.registerHandler({
@@ -661,8 +587,9 @@ export class CodeApplication extends Disposable {
 		urlService.registerHandler(multiplexURLHandler);
 
 		// Watch Electron URLs and forward them to the UrlService
+		const args = this.environmentService.args;
 		const urls = args['open-url'] ? args._urls : [];
-		const urlListener = new ElectronURLListener(urls, urlService, this.windowsMainService);
+		const urlListener = new ElectronURLListener(urls || [], urlService, this.windowsMainService);
 		this._register(urlListener);
 
 		this.windowsMainService.ready(this.userEnv);
@@ -679,7 +606,7 @@ export class CodeApplication extends Disposable {
 		}
 
 		if (macOpenFiles && macOpenFiles.length && !hasCliArgs && !hasFolderURIs && !hasFileURIs) {
-			return this.windowsMainService.open({ context: OpenContext.DOCK, cli: args, urisToOpen: macOpenFiles.map(file => URI.file(file)), initialStartup: true }); // mac: open-file event received on startup
+			return this.windowsMainService.open({ context: OpenContext.DOCK, cli: args, urisToOpen: macOpenFiles.map(file => ({ uri: URI.file(file) })), initialStartup: true }); // mac: open-file event received on startup
 		}
 
 		return this.windowsMainService.open({ context, cli: args, forceNewWindow: args['new-window'] || (!hasCliArgs && args['unity-launch']), diffMode: args.diff, initialStartup: true }); // default: read paths from cli
@@ -687,14 +614,14 @@ export class CodeApplication extends Disposable {
 
 	private afterWindowOpen(accessor: ServicesAccessor): void {
 		const windowsMainService = accessor.get(IWindowsMainService);
+		const historyMainService = accessor.get(IHistoryMainService);
 
-		let windowsMutex: Mutex | null = null;
-		if (platform.isWindows) {
+		if (isWindows) {
 
 			// Setup Windows mutex
 			try {
 				const Mutex = (require.__$__nodeRequire('windows-mutex') as any).Mutex;
-				windowsMutex = new Mutex(product.win32MutexName);
+				const windowsMutex = new Mutex(product.win32MutexName);
 				this._register(toDisposable(() => windowsMutex.release()));
 			} catch (e) {
 				if (!this.environmentService.isBuilt) {
@@ -711,7 +638,7 @@ export class CodeApplication extends Disposable {
 			// Ensure Windows foreground love module
 			try {
 				// tslint:disable-next-line:no-unused-expression
-				<any>require.__$__nodeRequire('windows-foreground-love');
+				require.__$__nodeRequire('windows-foreground-love');
 			} catch (e) {
 				if (!this.environmentService.isBuilt) {
 					windowsMainService.showMessageBox({
@@ -725,12 +652,112 @@ export class CodeApplication extends Disposable {
 			}
 		}
 
+		// Remote Authorities
+		this.handleRemoteAuthorities();
+
+		// Keyboard layout changes
+		KeyboardLayoutMonitor.INSTANCE.onDidChangeKeyboardLayout(() => {
+			this.windowsMainService.sendToAll('vscode:keyboardLayoutChanged', false);
+		});
+
 		// Jump List
-		this.historyMainService.updateWindowsJumpList();
-		this.historyMainService.onRecentlyOpenedChange(() => this.historyMainService.updateWindowsJumpList());
+		historyMainService.updateWindowsJumpList();
+		historyMainService.onRecentlyOpenedChange(() => historyMainService.updateWindowsJumpList());
 
 		// Start shared process after a while
 		const sharedProcessSpawn = this._register(new RunOnceScheduler(() => getShellEnvironment().then(userEnv => this.sharedProcess.spawn(userEnv)), 3000));
 		sharedProcessSpawn.schedule();
 	}
+
+	private handleRemoteAuthorities(): void {
+		const connectionPool: Map<string, ActiveConnection> = new Map<string, ActiveConnection>();
+
+		const isBuilt = this.environmentService.isBuilt;
+
+		class ActiveConnection {
+			private _authority: string;
+			private _client: Promise<Client<RemoteAgentConnectionContext>>;
+			private _disposeRunner: RunOnceScheduler;
+
+			constructor(authority: string, host: string, port: number) {
+				this._authority = authority;
+				this._client = connectRemoteAgentManagement(authority, host, port, `main`, isBuilt);
+				this._disposeRunner = new RunOnceScheduler(() => this.dispose(), 5000);
+			}
+
+			public dispose(): void {
+				this._disposeRunner.dispose();
+				connectionPool.delete(this._authority);
+				this._client.then((connection) => {
+					connection.dispose();
+				});
+			}
+
+			public getClient(): Promise<Client<RemoteAgentConnectionContext>> {
+				this._disposeRunner.schedule();
+				return this._client;
+			}
+		}
+
+		const resolvedAuthorities = new Map<string, ResolvedAuthority>();
+		ipc.on('vscode:remoteAuthorityResolved', (event: any, data: ResolvedAuthority) => {
+			this.logService.info('Received resolved authority', data.authority);
+			resolvedAuthorities.set(data.authority, data);
+			// Make sure to close and remove any existing connections
+			if (connectionPool.has(data.authority)) {
+				connectionPool.get(data.authority)!.dispose();
+			}
+		});
+
+		const resolveAuthority = (authority: string): ResolvedAuthority | null => {
+			this.logService.info('Resolving authority', authority);
+			if (authority.indexOf('+') >= 0) {
+				if (resolvedAuthorities.has(authority)) {
+					return resolvedAuthorities.get(authority) || null;
+				}
+				this.logService.info('Didnot find resolved authority for', authority);
+				return null;
+			} else {
+				const [host, strPort] = authority.split(':');
+				const port = parseInt(strPort, 10);
+				return { authority, host, port };
+			}
+		};
+
+		protocol.registerBufferProtocol(REMOTE_HOST_SCHEME, async (request, callback) => {
+			if (request.method !== 'GET') {
+				return callback(undefined);
+			}
+			const uri = URI.parse(request.url);
+
+			let activeConnection: ActiveConnection | undefined;
+			if (connectionPool.has(uri.authority)) {
+				activeConnection = connectionPool.get(uri.authority);
+			} else {
+				let resolvedAuthority = resolveAuthority(uri.authority);
+				if (!resolvedAuthority) {
+					callback(undefined);
+					return;
+				}
+				activeConnection = new ActiveConnection(uri.authority, resolvedAuthority.host, resolvedAuthority.port);
+				connectionPool.set(uri.authority, activeConnection);
+			}
+			try {
+				const rawClient = await activeConnection!.getClient();
+				if (connectionPool.has(uri.authority)) { // not disposed in the meantime
+					const channel = rawClient.getChannel(REMOTE_FILE_SYSTEM_CHANNEL_NAME);
+
+					// TODO@alex don't use call directly, wrap it around a `RemoteExtensionsFileSystemProvider`
+					const fileContents = await channel.call<Uint8Array>('readFile', [uri]);
+					callback(Buffer.from(fileContents));
+				} else {
+					callback(undefined);
+				}
+			} catch (err) {
+				errors.onUnexpectedError(err);
+				callback(undefined);
+			}
+		});
+	}
 }
+

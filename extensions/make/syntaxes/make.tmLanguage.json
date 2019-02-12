@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/fadeevab/make.tmbundle/commit/c6b3ae6e4f22e01fc483be5bb34a9682c28f3219",
+	"version": "https://github.com/fadeevab/make.tmbundle/commit/21e9108e9dce13b798667806bb105d852ac0a58c",
 	"name": "Makefile",
 	"scopeName": "source.makefile",
 	"patterns": [
@@ -260,37 +260,6 @@
 				}
 			]
 		},
-		"shell-interpolation": {
-			"begin": "(?=`)",
-			"end": "(?!\\G)",
-			"name": "meta.embedded.line.shell",
-			"patterns": [
-				{
-					"begin": "`",
-					"beginCaptures": {
-						"0": {
-							"name": "punctuation.definition.string.makefile"
-						}
-					},
-					"contentName": "source.shell",
-					"end": "(`)",
-					"endCaptures": {
-						"0": {
-							"name": "punctuation.definition.string.makefile"
-						},
-						"1": {
-							"name": "source.shell"
-						}
-					},
-					"name": "string.interpolated.backtick.makefile",
-					"patterns": [
-						{
-							"include": "source.shell"
-						}
-					]
-				}
-			]
-		},
 		"target": {
 			"begin": "^(?!\\t)([^:]*)(:)(?!\\=)",
 			"beginCaptures": {
@@ -351,7 +320,12 @@
 			]
 		},
 		"recipe": {
-			"begin": "^\\t",
+			"begin": "^\\t([+-@]*)",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.control.$1.makefile"
+				}
+			},
 			"end": "[^\\\\]$",
 			"name": "meta.scope.recipe.makefile",
 			"patterns": [
@@ -361,9 +335,6 @@
 				},
 				{
 					"include": "#variables"
-				},
-				{
-					"include": "source.shell"
 				}
 			]
 		},
@@ -371,7 +342,12 @@
 			"begin": "(^[ ]*|\\G\\s*)([^\\s]+)\\s*((?<![?:+!])=|\\?=|:=|\\+=|!=)",
 			"beginCaptures": {
 				"2": {
-					"name": "variable.other.makefile"
+					"name": "variable.other.makefile",
+					"patterns": [
+						{
+							"include": "#variables"
+						}
+					]
 				},
 				"3": {
 					"name": "punctuation.separator.key-value.makefile"
@@ -388,9 +364,6 @@
 				},
 				{
 					"include": "#variables"
-				},
-				{
-					"include": "#shell-interpolation"
 				}
 			]
 		},

@@ -119,8 +119,8 @@ export function parseLineAndColumnAware(rawPath: string): IPathWithLineAndColumn
 
 	return {
 		path: path,
-		line: line !== null ? line : void 0,
-		column: column !== null ? column : line !== null ? 1 : void 0 // if we have a line, make sure column is also set
+		line: line !== null ? line : undefined,
+		column: column !== null ? column : line !== null ? 1 : undefined // if we have a line, make sure column is also set
 	};
 }
 

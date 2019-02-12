@@ -16,7 +16,7 @@ export class DownloadService implements IDownloadService {
 	_serviceBrand: any;
 
 	constructor(
-		@IRequestService private requestService: IRequestService
+		@IRequestService private readonly requestService: IRequestService
 	) { }
 
 	download(uri: URI, target: string, cancellationToken: CancellationToken = CancellationToken.None): Promise<void> {

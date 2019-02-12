@@ -24,32 +24,11 @@ export class StorageService extends Disposable implements IStorageService {
 	private static WORKSPACE_STORAGE_NAME = 'state.vscdb';
 	private static WORKSPACE_META_NAME = 'workspace.json';
 
-	private _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
+	private readonly _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
 	get onDidChangeStorage(): Event<IWorkspaceStorageChangeEvent> { return this._onDidChangeStorage.event; }
 
-	private _onWillSaveState: Emitter<IWillSaveStateEvent> = this._register(new Emitter<IWillSaveStateEvent>());
+	private readonly _onWillSaveState: Emitter<IWillSaveStateEvent> = this._register(new Emitter<IWillSaveStateEvent>());
 	get onWillSaveState(): Event<IWillSaveStateEvent> { return this._onWillSaveState.event; }
-
-	private _hasErrors = false;
-	get hasErrors(): boolean { return this._hasErrors; }
-
-	private bufferedWorkspaceStorageErrors?: Array<string | Error> = [];
-	private _onWorkspaceStorageError: Emitter<string | Error> = this._register(new Emitter<string | Error>());
-	get onWorkspaceStorageError(): Event<string | Error> {
-		if (Array.isArray(this.bufferedWorkspaceStorageErrors)) {
-			// todo@ben cleanup after a while
-			if (this.bufferedWorkspaceStorageErrors.length > 0) {
-				const bufferedStorageErrors = this.bufferedWorkspaceStorageErrors;
-				setTimeout(() => {
-					this._onWorkspaceStorageError.fire(`[startup errors] ${bufferedStorageErrors.join('\n')}`);
-				}, 0);
-			}
-
-			this.bufferedWorkspaceStorageErrors = void 0;
-		}
-
-		return this._onWorkspaceStorageError.event;
-	}
 
 	private globalStorage: IStorage;
 
@@ -59,8 +38,8 @@ export class StorageService extends Disposable implements IStorageService {
 
 	constructor(
 		globalStorageDatabase: IStorageDatabase,
-		@ILogService private logService: ILogService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@ILogService private readonly logService: ILogService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
 		super();
 
@@ -77,19 +56,11 @@ export class StorageService extends Disposable implements IStorageService {
 		return Promise.all([
 			this.initializeGlobalStorage(),
 			this.initializeWorkspaceStorage(payload)
-		]).then(() => void 0);
+		]).then(() => undefined);
 	}
 
 	private initializeGlobalStorage(): Promise<void> {
-		mark('willInitGlobalStorage');
-
-		return this.globalStorage.init().then(() => {
-			mark('didInitGlobalStorage');
-		}, error => {
-			mark('didInitGlobalStorage');
-
-			return Promise.reject(error);
-		});
+		return this.globalStorage.init();
 	}
 
 	private initializeWorkspaceStorage(payload: IWorkspaceInitializationPayload): Promise<void> {
@@ -100,13 +71,18 @@ export class StorageService extends Disposable implements IStorageService {
 
 			// Create workspace storage and initalize
 			mark('willInitWorkspaceStorage');
-			return this.createWorkspaceStorage(useInMemoryStorage ? SQLiteStorageDatabase.IN_MEMORY_PATH : join(result.path, StorageService.WORKSPACE_STORAGE_NAME), result.wasCreated ? StorageHint.STORAGE_DOES_NOT_EXIST : void 0).init().then(() => {
+			return this.createWorkspaceStorage(useInMemoryStorage ? SQLiteStorageDatabase.IN_MEMORY_PATH : join(result.path, StorageService.WORKSPACE_STORAGE_NAME), result.wasCreated ? StorageHint.STORAGE_DOES_NOT_EXIST : undefined).init().then(() => {
 				mark('didInitWorkspaceStorage');
 			}, error => {
 				mark('didInitWorkspaceStorage');
 
 				return Promise.reject(error);
 			});
+		}).then(undefined, error => {
+			onUnexpectedError(error);
+
+			// Upon error, fallback to in-memory storage
+			return this.createWorkspaceStorage(SQLiteStorageDatabase.IN_MEMORY_PATH).init();
 		});
 	}
 
@@ -114,18 +90,8 @@ export class StorageService extends Disposable implements IStorageService {
 
 		// Logger for workspace storage
 		const workspaceLoggingOptions: ISQLiteStorageDatabaseLoggingOptions = {
-			logTrace: (this.logService.getLevel() === LogLevel.Trace) ? msg => this.logService.trace(msg) : void 0,
-			logError: error => {
-				this.logService.error(error);
-
-				this._hasErrors = true;
-
-				if (Array.isArray(this.bufferedWorkspaceStorageErrors)) {
-					this.bufferedWorkspaceStorageErrors.push(error);
-				} else {
-					this._onWorkspaceStorageError.fire(error);
-				}
-			}
+			logTrace: (this.logService.getLevel() === LogLevel.Trace) ? msg => this.logService.trace(msg) : undefined,
+			logError: error => this.logService.error(error)
 		};
 
 		// Dispose old (if any)
@@ -163,7 +129,7 @@ export class StorageService extends Disposable implements IStorageService {
 	}
 
 	private ensureWorkspaceStorageFolderMeta(payload: IWorkspaceInitializationPayload): void {
-		let meta: object | undefined = void 0;
+		let meta: object | undefined = undefined;
 		if (isSingleFolderWorkspaceInitializationPayload(payload)) {
 			meta = { folder: payload.folder.toString() };
 		} else if (isWorkspaceIdentifier(payload)) {
@@ -174,11 +140,11 @@ export class StorageService extends Disposable implements IStorageService {
 			const workspaceStorageMetaPath = join(this.getWorkspaceStorageFolderPath(payload), StorageService.WORKSPACE_META_NAME);
 			exists(workspaceStorageMetaPath).then(exists => {
 				if (exists) {
-					return void 0; // already existing
+					return undefined; // already existing
 				}
 
-				return writeFile(workspaceStorageMetaPath, JSON.stringify(meta, void 0, 2));
-			}).then(void 0, error => onUnexpectedError(error));
+				return writeFile(workspaceStorageMetaPath, JSON.stringify(meta, undefined, 2));
+			}).then(undefined, error => onUnexpectedError(error));
 		}
 	}
 
@@ -200,7 +166,7 @@ export class StorageService extends Disposable implements IStorageService {
 		return this.getStorage(scope).getInteger(key, fallbackValue);
 	}
 
-	store(key: string, value: any, scope: StorageScope): void {
+	store(key: string, value: string | boolean | number, scope: StorageScope): void {
 		this.getStorage(scope).set(key, value);
 	}
 
@@ -214,14 +180,10 @@ export class StorageService extends Disposable implements IStorageService {
 		this._onWillSaveState.fire({ reason: WillSaveStateReason.SHUTDOWN });
 
 		// Do it
-		mark('willCloseGlobalStorage');
-		mark('willCloseWorkspaceStorage');
 		return Promise.all([
-			this.globalStorage.close().then(() => mark('didCloseGlobalStorage')),
-			this.workspaceStorage.close().then(() => mark('didCloseWorkspaceStorage'))
-		]).then(() => {
-			this.logService.trace(`[storage] closing took ${getDuration('willCloseGlobalStorage', 'didCloseGlobalStorage')}ms global / ${getDuration('willCloseWorkspaceStorage', 'didCloseWorkspaceStorage')}ms workspace`);
-		});
+			this.globalStorage.close(),
+			this.workspaceStorage.close()
+		]).then(() => undefined);
 	}
 
 	private getStorage(scope: StorageScope): IStorage {
@@ -318,8 +280,8 @@ export class LogStorageAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IStorageService private storageService: StorageService,
-		@IWindowService private windowService: IWindowService
+		@IStorageService private readonly storageService: StorageService,
+		@IWindowService private readonly windowService: IWindowService
 	) {
 		super(id, label);
 	}

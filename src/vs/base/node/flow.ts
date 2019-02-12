@@ -9,7 +9,7 @@ import * as assert from 'assert';
  * Executes the given function (fn) over the given array of items (list) in parallel and returns the resulting errors and results as
  * array to the callback (callback). The resulting errors and results are evaluated by calling the provided callback function.
  */
-export function parallel<T, E>(list: T[], fn: (item: T, callback: (err: Error, result: E) => void) => void, callback: (err: Array<Error | null> | null, result: E[]) => void): void {
+export function parallel<T, E>(list: T[], fn: (item: T, callback: (err: Error | null, result: E | null) => void) => void, callback: (err: Array<Error | null> | null, result: E[]) => void): void {
 	let results = new Array(list.length);
 	let errors = new Array<Error | null>(list.length);
 	let didErrorOccur = false;

@@ -82,9 +82,9 @@ function toTextMimeAssociationItem(association: ITextMimeAssociation): ITextMime
 		filepattern: association.filepattern,
 		firstline: association.firstline,
 		userConfigured: association.userConfigured,
-		filenameLowercase: association.filename ? association.filename.toLowerCase() : void 0,
-		extensionLowercase: association.extension ? association.extension.toLowerCase() : void 0,
-		filepatternLowercase: association.filepattern ? association.filepattern.toLowerCase() : void 0,
+		filenameLowercase: association.filename ? association.filename.toLowerCase() : undefined,
+		extensionLowercase: association.extension ? association.extension.toLowerCase() : undefined,
+		filepatternLowercase: association.filepattern ? association.filepattern.toLowerCase() : undefined,
 		filepatternOnPath: association.filepattern ? association.filepattern.indexOf(paths.sep) >= 0 : false
 	};
 }
@@ -197,8 +197,7 @@ function guessMimeTypeByFirstline(firstLine: string): string | null {
 	}
 
 	if (firstLine.length > 0) {
-		for (let i = 0; i < registeredAssociations.length; ++i) {
-			const association = registeredAssociations[i];
+		for (const association of registeredAssociations) {
 			if (!association.firstline) {
 				continue;
 			}

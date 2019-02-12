@@ -15,14 +15,14 @@ suite('Notifications', () => {
 
 		// Invalid
 		assert.ok(!NotificationViewItem.create({ severity: Severity.Error, message: '' }));
-		assert.ok(!NotificationViewItem.create({ severity: Severity.Error, message: null }));
+		assert.ok(!NotificationViewItem.create({ severity: Severity.Error, message: null! }));
 
 		// Duplicates
-		let item1 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message' });
-		let item2 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message' });
-		let item3 = NotificationViewItem.create({ severity: Severity.Info, message: 'Info Message' });
-		let item4 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message', source: 'Source' });
-		let item5 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message', actions: { primary: [new Action('id', 'label')] } });
+		let item1 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message' })!;
+		let item2 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message' })!;
+		let item3 = NotificationViewItem.create({ severity: Severity.Info, message: 'Info Message' })!;
+		let item4 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message', source: 'Source' })!;
+		let item5 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message', actions: { primary: [new Action('id', 'label')] } })!;
 
 		assert.equal(item1.equals(item1), true);
 		assert.equal(item2.equals(item2), true);
@@ -102,11 +102,11 @@ suite('Notifications', () => {
 		assert.equal(called, 1);
 
 		// Error with Action
-		let item6 = NotificationViewItem.create({ severity: Severity.Error, message: createErrorWithActions('Hello Error', { actions: [new Action('id', 'label')] }) });
-		assert.equal(item6.actions.primary.length, 1);
+		let item6 = NotificationViewItem.create({ severity: Severity.Error, message: createErrorWithActions('Hello Error', { actions: [new Action('id', 'label')] }) })!;
+		assert.equal(item6.actions.primary!.length, 1);
 
 		// Links
-		let item7 = NotificationViewItem.create({ severity: Severity.Info, message: 'Unable to [Link 1](http://link1.com) open [Link 2](https://link2.com) and [Invalid Link3](ftp://link3.com)' });
+		let item7 = NotificationViewItem.create({ severity: Severity.Info, message: 'Unable to [Link 1](http://link1.com) open [Link 2](https://link2.com) and [Invalid Link3](ftp://link3.com)' })!;
 
 		const links = item7.message.links;
 		assert.equal(links.length, 2);
@@ -124,7 +124,7 @@ suite('Notifications', () => {
 	test('Model', () => {
 		const model = new NotificationsModel();
 
-		let lastEvent: INotificationChangeEvent;
+		let lastEvent!: INotificationChangeEvent;
 		model.onDidNotificationChange(e => {
 			lastEvent = e;
 		});

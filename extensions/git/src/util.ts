@@ -69,7 +69,7 @@ export function anyEvent<T>(...events: Event<T>[]): Event<T> {
 }
 
 export function done<T>(promise: Promise<T>): Promise<void> {
-	return promise.then<void>(() => void 0);
+	return promise.then<void>(() => undefined);
 }
 
 export function onceEvent<T>(event: Event<T>): Event<T> {

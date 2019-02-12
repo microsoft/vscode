@@ -28,9 +28,9 @@ export class JSONEditingService implements IJSONEditingService {
 	private queue: Queue<void>;
 
 	constructor(
-		@IFileService private fileService: IFileService,
-		@ITextModelService private textModelResolverService: ITextModelService,
-		@ITextFileService private textFileService: ITextFileService
+		@IFileService private readonly fileService: IFileService,
+		@ITextModelService private readonly textModelResolverService: ITextModelService,
+		@ITextFileService private readonly textFileService: ITextFileService
 	) {
 		this.queue = new Queue<void>();
 	}

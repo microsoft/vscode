@@ -60,7 +60,7 @@
 					renderElement(element, index, container) {
 						if (opts.supportDynamicHeights) {
 							let v = [];
-							for (let i = 1; i <= 3; i++) {
+							for (let i = 1; i <= 5; i++) {
 								v.push(element.element);
 							}
 							container.innerHTML = v.join('<br />');
@@ -95,7 +95,7 @@
 					}
 				};
 
-				const tree = new IndexTree(container, delegate, [renderer], { ...opts, filter: treeFilter, setRowLineHeight: false });
+				const tree = new IndexTree(container, delegate, [renderer], null, { ...opts, filter: treeFilter, setRowLineHeight: false });
 
 				return { tree, treeFilter };
 			}
@@ -305,6 +305,10 @@
 							treeFilter.updatePattern();
 						}
 					};
+
+					// container.
+
+
 					break;
 				}
 				default: {

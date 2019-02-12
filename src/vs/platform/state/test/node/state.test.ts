@@ -41,7 +41,7 @@ suite('StateService', () => {
 			service.setItem('some.other.key', 'some.other.value');
 			assert.equal(service.getItem('some.other.key'), 'some.other.value');
 
-			service.setItem('some.undefined.key', void 0);
+			service.setItem('some.undefined.key', undefined);
 			assert.equal(service.getItem('some.undefined.key', 'some.default'), 'some.default');
 
 			service.setItem('some.null.key', null);

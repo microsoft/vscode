@@ -6,7 +6,7 @@
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 
 export function isThenable<T>(obj: any): obj is Promise<T> {
@@ -43,6 +43,9 @@ export function createCancelablePromise<T>(callback: (token: CancellationToken) 
 		}
 		catch<TResult = never>(reject?: ((reason: any) => TResult | Promise<TResult>) | undefined | null): Promise<T | TResult> {
 			return this.then(undefined, reject);
+		}
+		finally(onfinally?: (() => void) | undefined | null): Promise<T> {
+			return always(promise, onfinally || (() => { }));
 		}
 	};
 }
@@ -318,13 +321,9 @@ export function timeout(millis: number, token?: CancellationToken): CancelablePr
 	});
 }
 
-export function disposableTimeout(handler: Function, timeout = 0): IDisposable {
+export function disposableTimeout(handler: () => void, timeout = 0): IDisposable {
 	const timer = setTimeout(handler, timeout);
-	return {
-		dispose() {
-			clearTimeout(timer);
-		}
-	};
+	return toDisposable(() => clearTimeout(timer));
 }
 
 /**
@@ -712,8 +711,8 @@ declare function cancelIdleCallback(handle: number): void;
 			didTimeout: true,
 			timeRemaining() { return 15; }
 		});
-		runWhenIdle = (runner, timeout = 0) => {
-			let handle = setTimeout(() => runner(dummyIdle), timeout);
+		runWhenIdle = (runner) => {
+			let handle = setTimeout(() => runner(dummyIdle));
 			let disposed = false;
 			return {
 				dispose() {

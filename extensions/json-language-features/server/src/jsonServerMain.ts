@@ -143,7 +143,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	const capabilities: ServerCapabilities = {
 		// Tell the client that the server works in FULL text document sync mode
 		textDocumentSync: documents.syncKind,
-		completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['"', ':'] } : void 0,
+		completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['"', ':'] } : undefined,
 		hoverProvider: true,
 		documentSymbolProvider: true,
 		documentRangeFormattingProvider: false,
@@ -174,13 +174,13 @@ interface JSONSchemaSettings {
 	schema?: JSONSchema;
 }
 
-let jsonConfigurationSettings: JSONSchemaSettings[] | undefined = void 0;
-let schemaAssociations: ISchemaAssociations | undefined = void 0;
+let jsonConfigurationSettings: JSONSchemaSettings[] | undefined = undefined;
+let schemaAssociations: ISchemaAssociations | undefined = undefined;
 let formatterRegistration: Thenable<Disposable> | null = null;
 
 // The settings have changed. Is send on server activation as well.
 connection.onDidChangeConfiguration((change) => {
-	var settings = <Settings>change.settings;
+	let settings = <Settings>change.settings;
 	configureHttpRequests(settings.http && settings.http.proxy, settings.http && settings.http.proxyStrictSSL);
 
 	jsonConfigurationSettings = settings.json && settings.json.schemas;
@@ -233,7 +233,7 @@ function updateConfiguration() {
 		schemas: new Array<SchemaConfiguration>()
 	};
 	if (schemaAssociations) {
-		for (var pattern in schemaAssociations) {
+		for (const pattern in schemaAssociations) {
 			const association = schemaAssociations[pattern];
 			if (Array.isArray(association)) {
 				association.forEach(uri => {
@@ -425,6 +425,17 @@ connection.onFoldingRanges((params, token) => {
 		}
 		return null;
 	}, null, `Error while computing folding ranges for ${params.textDocument.uri}`, token);
+});
+
+connection.onRequest('$/textDocument/selectionRange', async (params, token) => {
+	return runSafe(() => {
+		const document = documents.get(params.textDocument.uri);
+		if (document) {
+			const jsonDocument = getJSONDocument(document);
+			return languageService.getSelectionRanges(document, params.position, jsonDocument);
+		}
+		return [];
+	}, [], `Error while computing selection ranges for ${params.textDocument.uri}`, token);
 });
 
 // Listen on the connection

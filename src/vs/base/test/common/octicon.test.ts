@@ -8,7 +8,7 @@ import { matchesFuzzyOcticonAware, parseOcticons } from 'vs/base/common/octicon'
 
 export interface IOcticonFilter {
 	// Returns null if word doesn't match.
-	(query: string, target: { text: string, octiconOffsets?: number[] }): IMatch[];
+	(query: string, target: { text: string, octiconOffsets?: number[] }): IMatch[] | null;
 }
 
 function filterOk(filter: IOcticonFilter, word: string, target: { text: string, octiconOffsets?: number[] }, highlights?: { start: number; end: number; }[]) {

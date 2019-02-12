@@ -682,7 +682,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	/**
 	 * @internal
 	 */
-	getTelemetryData(): { [key: string]: any; } | null;
+	getTelemetryData(): { [key: string]: any } | undefined;
 
 	/**
 	 * Returns the editor's dom node
@@ -732,7 +732,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	/**
 	 * Force an editor render now.
 	 */
-	render(): void;
+	render(forceRedraw?: boolean): void;
 
 	/**
 	 * Get the hit test target at coordinates `clientX` and `clientY`.

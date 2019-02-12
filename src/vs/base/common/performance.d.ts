@@ -4,22 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 export interface PerformanceEntry {
-	readonly type: 'mark' | 'measure';
 	readonly name: string;
-	readonly startTime: number;
-	readonly duration: number;
+	readonly timestamp: number;
 }
 
 export function mark(name: string): void;
 
-export function measure(name: string, from?: string, to?: string): PerformanceEntry;
-
 /**
  * All entries filtered by type and sorted by `startTime`.
  */
-export function getEntries(type: 'mark' | 'measure'): PerformanceEntry[];
+export function getEntries(): PerformanceEntry[];
 
-export function getEntry(type: 'mark' | 'measure', name: string): PerformanceEntry;
+export function getEntry(name: string): PerformanceEntry;
 
 export function getDuration(from: string, to: string): number;
 

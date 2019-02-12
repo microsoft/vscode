@@ -205,10 +205,10 @@ export function createScanner(text: string, ignoreTrivia: boolean = false): JSON
 		token: SyntaxKind = SyntaxKind.Unknown,
 		scanError: ScanError = ScanError.None;
 
-	function scanHexDigits(count: number, exact?: boolean): number {
+	function scanHexDigits(count: number): number {
 		let digits = 0;
 		let value = 0;
-		while (digits < count || !exact) {
+		while (digits < count) {
 			let ch = text.charCodeAt(pos);
 			if (ch >= CharacterCodes._0 && ch <= CharacterCodes._9) {
 				value = value * 16 + ch - CharacterCodes._0;
@@ -331,7 +331,7 @@ export function createScanner(text: string, ignoreTrivia: boolean = false): JSON
 						result += '\t';
 						break;
 					case CharacterCodes.u:
-						let ch = scanHexDigits(4, true);
+						let ch = scanHexDigits(4);
 						if (ch >= 0) {
 							result += String.fromCharCode(ch);
 						} else {
@@ -344,7 +344,7 @@ export function createScanner(text: string, ignoreTrivia: boolean = false): JSON
 				start = pos;
 				continue;
 			}
-			if (ch >= 0 && ch <= 0x1f) {
+			if (ch >= 0 && ch <= 0x1F) {
 				if (isLineBreak(ch)) {
 					result += text.substring(start, pos);
 					scanError = ScanError.UnexpectedEndOfString;
@@ -668,7 +668,7 @@ const enum CharacterCodes {
 	W = 0x57,
 	X = 0x58,
 	Y = 0x59,
-	Z = 0x5a,
+	Z = 0x5A,
 
 	ampersand = 0x26,             // &
 	asterisk = 0x2A,              // *
@@ -722,13 +722,13 @@ interface NodeImpl extends Node {
 export function getLocation(text: string, position: number): Location {
 	let segments: Segment[] = []; // strings or numbers
 	let earlyReturnException = new Object();
-	let previousNode: NodeImpl | undefined = void 0;
+	let previousNode: NodeImpl | undefined = undefined;
 	const previousNodeInst: NodeImpl = {
 		value: {},
 		offset: 0,
 		length: 0,
 		type: 'object',
-		parent: void 0
+		parent: undefined
 	};
 	let isAtPropertyKey = false;
 	function setPreviousNode(value: string, offset: number, length: number, type: NodeType) {
@@ -736,7 +736,7 @@ export function getLocation(text: string, position: number): Location {
 		previousNodeInst.offset = offset;
 		previousNodeInst.length = length;
 		previousNodeInst.type = type;
-		previousNodeInst.colonOffset = void 0;
+		previousNodeInst.colonOffset = undefined;
 		previousNode = previousNodeInst;
 	}
 	try {
@@ -746,7 +746,7 @@ export function getLocation(text: string, position: number): Location {
 				if (position <= offset) {
 					throw earlyReturnException;
 				}
-				previousNode = void 0;
+				previousNode = undefined;
 				isAtPropertyKey = position > offset;
 				segments.push(''); // push a placeholder (will be replaced)
 			},
@@ -764,21 +764,21 @@ export function getLocation(text: string, position: number): Location {
 				if (position <= offset) {
 					throw earlyReturnException;
 				}
-				previousNode = void 0;
+				previousNode = undefined;
 				segments.pop();
 			},
 			onArrayBegin: (offset: number, length: number) => {
 				if (position <= offset) {
 					throw earlyReturnException;
 				}
-				previousNode = void 0;
+				previousNode = undefined;
 				segments.push(0);
 			},
 			onArrayEnd: (offset: number, length: number) => {
 				if (position <= offset) {
 					throw earlyReturnException;
 				}
-				previousNode = void 0;
+				previousNode = undefined;
 				segments.pop();
 			},
 			onLiteralValue: (value: any, offset: number, length: number) => {
@@ -798,7 +798,7 @@ export function getLocation(text: string, position: number): Location {
 				if (sep === ':' && previousNode && previousNode.type === 'property') {
 					previousNode.colonOffset = offset;
 					isAtPropertyKey = false;
-					previousNode = void 0;
+					previousNode = undefined;
 				} else if (sep === ',') {
 					let last = segments[segments.length - 1];
 					if (typeof last === 'number') {
@@ -807,7 +807,7 @@ export function getLocation(text: string, position: number): Location {
 						isAtPropertyKey = true;
 						segments[segments.length - 1] = '';
 					}
-					previousNode = void 0;
+					previousNode = undefined;
 				}
 			}
 		});
@@ -891,7 +891,7 @@ export function parse(text: string, errors: ParseError[] = [], options: ParseOpt
  * Parses the given text and returns a tree representation the JSON content. On invalid input, the parser tries to be as fault tolerant as possible, but still return a result.
  */
 export function parseTree(text: string, errors: ParseError[] = [], options: ParseOptions = ParseOptions.DEFAULT): Node {
-	let currentParent: NodeImpl = { type: 'array', offset: -1, length: -1, children: [], parent: void 0 }; // artificial root
+	let currentParent: NodeImpl = { type: 'array', offset: -1, length: -1, children: [], parent: undefined }; // artificial root
 
 	function ensurePropertyComplete(endOffset: number) {
 		if (currentParent.type === 'property') {
@@ -957,13 +957,13 @@ export function parseTree(text: string, errors: ParseError[] = [], options: Pars
  */
 export function findNodeAtLocation(root: Node, path: JSONPath): Node | undefined {
 	if (!root) {
-		return void 0;
+		return undefined;
 	}
 	let node = root;
 	for (let segment of path) {
 		if (typeof segment === 'string') {
 			if (node.type !== 'object' || !Array.isArray(node.children)) {
-				return void 0;
+				return undefined;
 			}
 			let found = false;
 			for (const propertyNode of node.children) {
@@ -974,12 +974,12 @@ export function findNodeAtLocation(root: Node, path: JSONPath): Node | undefined
 				}
 			}
 			if (!found) {
-				return void 0;
+				return undefined;
 			}
 		} else {
 			let index = <number>segment;
 			if (node.type !== 'array' || index < 0 || !Array.isArray(node.children) || index >= node.children.length) {
-				return void 0;
+				return undefined;
 			}
 			node = node.children[index];
 		}
@@ -1029,7 +1029,7 @@ export function getNodeValue(node: Node): any {
 		case 'boolean':
 			return node.value;
 		default:
-			return void 0;
+			return undefined;
 	}
 
 }
@@ -1055,7 +1055,7 @@ export function findNodeAtOffset(node: Node, offset: number, includeRightBound =
 		}
 		return node;
 	}
-	return void 0;
+	return undefined;
 }
 
 
@@ -1322,7 +1322,7 @@ export function stripComments(text: string, replaceCh?: string): string {
 				if (offset !== pos) {
 					parts.push(text.substring(offset, pos));
 				}
-				if (replaceCh !== void 0) {
+				if (replaceCh !== undefined) {
 					parts.push(_scanner.getTokenValue().replace(/[^\r\n]/g, replaceCh));
 				}
 				offset = _scanner.getPosition();

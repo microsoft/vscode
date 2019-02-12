@@ -29,7 +29,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { contrastBorder, editorFindMatch, editorFindMatchBorder, editorFindMatchHighlight, editorFindMatchHighlightBorder, editorFindRangeHighlight, editorFindRangeHighlightBorder, editorWidgetBackground, editorWidgetBorder, editorWidgetResizeBorder, errorForeground, inputActiveOptionBorder, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { ContextScopedFindInput, ContextScopedHistoryInputBox } from 'vs/platform/widget/browser/contextScopedHistoryWidget';
+import { ContextScopedFindInput, ContextScopedHistoryInputBox } from 'vs/platform/browser/contextScopedHistoryWidget';
 
 export interface IFindController {
 	replace(): void;
@@ -542,7 +542,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			inputValidationWarningBorder: theme.getColor(inputValidationWarningBorder),
 			inputValidationErrorBackground: theme.getColor(inputValidationErrorBackground),
 			inputValidationErrorForeground: theme.getColor(inputValidationErrorForeground),
-			inputValidationErrorBorder: theme.getColor(inputValidationErrorBorder)
+			inputValidationErrorBorder: theme.getColor(inputValidationErrorBorder),
 		};
 		this._findInput.style(inputStyles);
 		this._replaceInputBox.style(inputStyles);
@@ -643,13 +643,13 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 	private _onFindInputKeyDown(e: IKeyboardEvent): void {
 
 		if (e.equals(KeyCode.Enter)) {
-			this._codeEditor.getAction(FIND_IDS.NextMatchFindAction).run().then(void 0, onUnexpectedError);
+			this._codeEditor.getAction(FIND_IDS.NextMatchFindAction).run().then(undefined, onUnexpectedError);
 			e.preventDefault();
 			return;
 		}
 
 		if (e.equals(KeyMod.Shift | KeyCode.Enter)) {
-			this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction).run().then(void 0, onUnexpectedError);
+			this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction).run().then(undefined, onUnexpectedError);
 			e.preventDefault();
 			return;
 		}
@@ -789,7 +789,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			label: NLS_PREVIOUS_MATCH_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.PreviousMatchFindAction),
 			className: 'previous',
 			onTrigger: () => {
-				this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction).run().then(void 0, onUnexpectedError);
+				this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction).run().then(undefined, onUnexpectedError);
 			}
 		}));
 
@@ -798,7 +798,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			label: NLS_NEXT_MATCH_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.NextMatchFindAction),
 			className: 'next',
 			onTrigger: () => {
-				this._codeEditor.getAction(FIND_IDS.NextMatchFindAction).run().then(void 0, onUnexpectedError);
+				this._codeEditor.getAction(FIND_IDS.NextMatchFindAction).run().then(undefined, onUnexpectedError);
 			}
 		}));
 
@@ -861,7 +861,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		let replaceInput = document.createElement('div');
 		replaceInput.className = 'replace-input';
 		replaceInput.style.width = REPLACE_INPUT_AREA_WIDTH + 'px';
-		this._replaceInputBox = this._register(new ContextScopedHistoryInputBox(replaceInput, void 0, {
+		this._replaceInputBox = this._register(new ContextScopedHistoryInputBox(replaceInput, undefined, {
 			ariaLabel: NLS_REPLACE_INPUT_LABEL,
 			placeholder: NLS_REPLACE_INPUT_PLACEHOLDER,
 			history: []
@@ -1130,7 +1130,7 @@ export class SimpleButton extends Widget {
 // theming
 
 registerThemingParticipant((theme, collector) => {
-	const addBackgroundColorRule = (selector: string, color: Color | null): void => {
+	const addBackgroundColorRule = (selector: string, color: Color | undefined): void => {
 		if (color) {
 			collector.addRule(`.monaco-editor ${selector} { background-color: ${color}; }`);
 		}

@@ -1,4 +1,5 @@
 {
+  "enableProposedApi": true,
   "name": "html-language-features",
   "displayName": "%displayName%",
   "description": "%description%",
@@ -31,13 +32,14 @@
       "type": "object",
       "title": "HTML",
       "properties": {
-        "html.experimental.custom.tags": {
+        "html.experimental.customData": {
           "type": "array",
-          "description": "A list of JSON file paths that define custom tags"
-        },
-        "html.experimental.custom.attributes": {
-          "type": "array",
-          "description": "A list of JSON file paths that define custom attributes"
+          "description": "A list of JSON file paths that define custom tags, properties and other HTML syntax constructs. Only workspace folder setting will be read.",
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "scope": "resource"
         },
         "html.format.enable": {
           "type": "boolean",
@@ -120,30 +122,20 @@
             "force",
             "force-aligned",
             "force-expand-multiline",
-            "aligned-multiple"
+            "aligned-multiple",
+            "preserve",
+            "preserve-aligned"
           ],
           "enumDescriptions": [
             "%html.format.wrapAttributes.auto%",
             "%html.format.wrapAttributes.force%",
             "%html.format.wrapAttributes.forcealign%",
             "%html.format.wrapAttributes.forcemultiline%",
-            "%html.format.wrapAttributes.alignedmultiple%"
+            "%html.format.wrapAttributes.alignedmultiple%",
+            "%html.format.wrapAttributes.preserve%",
+            "%html.format.wrapAttributes.preservealigned%"
           ],
           "description": "%html.format.wrapAttributes.desc%"
-        },
-        "html.suggest.angular1": {
-          "deprecationMessage": "Angular 1 is obsolete and Angular completion will be removed.",
-          "type": "boolean",
-          "scope": "resource",
-          "default": false,
-          "description": "%html.suggest.angular1.desc%"
-        },
-        "html.suggest.ionic": {
-          "deprecationMessage": "Ionic 1 is obsolete and Ionic completion will be removed.",
-          "type": "boolean",
-          "scope": "resource",
-          "default": false,
-          "description": "%html.suggest.ionic.desc%"
         },
         "html.suggest.html5": {
           "type": "boolean",
@@ -184,11 +176,11 @@
     }
   },
   "dependencies": {
-    "vscode-extension-telemetry": "0.1.0",
+    "vscode-extension-telemetry": "0.1.1",
     "vscode-languageclient": "^5.1.0",
     "vscode-nls": "^4.0.0"
   },
   "devDependencies": {
-    "@types/node": "^8.10.25"
+    "@types/node": "^10.12.21"
   }
 }

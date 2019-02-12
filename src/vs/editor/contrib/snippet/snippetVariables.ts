@@ -49,7 +49,7 @@ export class CompositeSnippetVariableResolver implements VariableResolver {
 	resolve(variable: Variable): string | undefined {
 		for (const delegate of this._delegates) {
 			let value = delegate.resolve(variable);
-			if (value !== void 0) {
+			if (value !== undefined) {
 				return value;
 			}
 		}

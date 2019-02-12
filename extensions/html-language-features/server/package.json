@@ -9,8 +9,8 @@
   },
   "main": "./out/htmlServerMain",
   "dependencies": {
-    "vscode-css-languageservice": "^3.0.13-next.3",
-    "vscode-html-languageservice": "^2.1.11-next.1",
+    "vscode-css-languageservice": "^3.0.13-next.10",
+    "vscode-html-languageservice": "^2.1.11-next.11",
     "vscode-languageserver": "^5.1.0",
     "vscode-languageserver-types": "^3.13.0",
     "vscode-nls": "^4.0.0",
@@ -18,7 +18,7 @@
   },
   "devDependencies": {
     "@types/mocha": "2.2.33",
-    "@types/node": "^8.10.25",
+    "@types/node": "^10.12.21",
     "glob": "^7.1.2",
     "mocha": "^5.2.0",
     "mocha-junit-reporter": "^1.17.0",

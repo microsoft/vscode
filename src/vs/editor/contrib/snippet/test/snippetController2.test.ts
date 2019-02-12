@@ -15,8 +15,8 @@ import { Handler } from 'vs/editor/common/editorCommon';
 suite('SnippetController2', function () {
 
 	function assertSelections(editor: ICodeEditor, ...s: Selection[]) {
-		for (const selection of editor.getSelections()) {
-			const actual = s.shift();
+		for (const selection of editor.getSelections()!) {
+			const actual = s.shift()!;
 			assert.ok(selection.equalsSelection(actual), `actual=${selection.toString()} <> expected=${actual.toString()}`);
 		}
 		assert.equal(s.length, 0);

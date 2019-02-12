@@ -61,8 +61,7 @@ export interface ITreeShakingResult {
 }
 
 function printDiagnostics(diagnostics: ReadonlyArray<ts.Diagnostic>): void {
-	for (let i = 0; i < diagnostics.length; i++) {
-		const diag = diagnostics[i];
+	for (const diag of diagnostics) {
 		let result = '';
 		if (diag.file) {
 			result += `${diag.file.fileName}: `;
@@ -465,7 +464,7 @@ function markNodes(languageService: ts.LanguageService, options: ITreeShakingOpt
 		}
 
 		if (black_queue.length === 0) {
-			for (let i = 0; i < gray_queue.length; i++) {
+			for (let i = 0; i< gray_queue.length; i++) {
 				const node = gray_queue[i];
 				const nodeParent = node.parent;
 				if ((ts.isClassDeclaration(nodeParent) || ts.isInterfaceDeclaration(nodeParent)) && nodeOrChildIsBlack(nodeParent)) {
@@ -610,8 +609,7 @@ function generateResult(languageService: ts.LanguageService, shakeLevel: ShakeLe
 						}
 					} else {
 						let survivingImports: string[] = [];
-						for (let i = 0; i < node.importClause.namedBindings.elements.length; i++) {
-							const importNode = node.importClause.namedBindings.elements[i];
+						for (const importNode of node.importClause.namedBindings.elements) {
 							if (getColor(importNode) === NodeColor.Black) {
 								survivingImports.push(importNode.getFullText(sourceFile));
 							}

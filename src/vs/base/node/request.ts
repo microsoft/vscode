@@ -136,7 +136,7 @@ export function download(filePath: string, context: IRequestContext): Promise<vo
 	return new Promise<void>((c, e) => {
 		const out = createWriteStream(filePath);
 
-		out.once('finish', () => c(void 0));
+		out.once('finish', () => c(undefined));
 		context.stream.once('error', e);
 		context.stream.pipe(out);
 	});

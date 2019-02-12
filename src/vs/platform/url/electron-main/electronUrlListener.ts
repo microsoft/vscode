@@ -27,7 +27,7 @@ export class ElectronURLListener {
 
 	constructor(
 		initial: string | string[],
-		@IURLService private urlService: IURLService,
+		@IURLService private readonly urlService: IURLService,
 		@IWindowsMainService windowsService: IWindowsMainService
 	) {
 		const globalBuffer = ((<any>global).getOpenUrls() || []) as string[];

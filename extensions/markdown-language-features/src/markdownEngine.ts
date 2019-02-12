@@ -3,126 +3,156 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as crypto from 'crypto';
 import { MarkdownIt, Token } from 'markdown-it';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import * as crypto from 'crypto';
-import { MarkdownContributions } from './markdownExtensions';
+import { MarkdownContributionProvider as MarkdownContributionProvider } from './markdownExtensions';
 import { Slugifier } from './slugify';
+import { SkinnyTextDocument } from './tableOfContentsProvider';
 import { getUriForLinkWithKnownExternalScheme } from './util/links';
 
-const FrontMatterRegex = /^---\s*[^]*?(-{3}|\.{3})\s*/;
+const UNICODE_NEWLINE_REGEX = /\u2028|\u2029/g;
+
+interface MarkdownItConfig {
+	readonly breaks: boolean;
+	readonly linkify: boolean;
+}
+
+class TokenCache {
+	private cachedDocument?: {
+		readonly uri: vscode.Uri;
+		readonly version: number;
+		readonly config: MarkdownItConfig;
+	};
+	private tokens?: Token[];
+
+	public tryGetCached(document: SkinnyTextDocument, config: MarkdownItConfig): Token[] | undefined {
+		if (this.cachedDocument
+			&& this.cachedDocument.uri.toString() === document.uri.toString()
+			&& this.cachedDocument.version === document.version
+			&& this.cachedDocument.config.breaks === config.breaks
+			&& this.cachedDocument.config.linkify === config.linkify
+		) {
+			return this.tokens;
+		}
+		return undefined;
+	}
+
+	public update(document: SkinnyTextDocument, config: MarkdownItConfig, tokens: Token[]) {
+		this.cachedDocument = {
+			uri: document.uri,
+			version: document.version,
+			config,
+		};
+		this.tokens = tokens;
+	}
+}
 
 export class MarkdownEngine {
-	private md?: MarkdownIt;
+	private md?: Promise<MarkdownIt>;
 
-	private firstLine?: number;
 	private currentDocument?: vscode.Uri;
 	private _slugCount = new Map<string, number>();
+	private _tokenCache = new TokenCache();
 
 	public constructor(
-		private readonly extensionPreviewResourceProvider: MarkdownContributions,
+		private readonly contributionProvider: MarkdownContributionProvider,
 		private readonly slugifier: Slugifier,
-	) { }
-
-	private usePlugin(factory: (md: any) => any): void {
-		try {
-			this.md = factory(this.md);
-		} catch (e) {
-			// noop
-		}
+	) {
+		contributionProvider.onContributionsChanged(() => {
+			// Markdown plugin contributions may have changed
+			this.md = undefined;
+		});
 	}
 
-	private async getEngine(resource: vscode.Uri): Promise<MarkdownIt> {
+	private async getEngine(config: MarkdownItConfig): Promise<MarkdownIt> {
 		if (!this.md) {
-			const hljs = await import('highlight.js');
-			this.md = (await import('markdown-it'))({
-				html: true,
-				highlight: (str: string, lang?: string) => {
-					// Workaround for highlight not supporting tsx: https://github.com/isagalaev/highlight.js/issues/1155
-					if (lang && ['tsx', 'typescriptreact'].indexOf(lang.toLocaleLowerCase()) >= 0) {
-						lang = 'jsx';
+			this.md = import('markdown-it').then(async markdownIt => {
+				let md: MarkdownIt = markdownIt(await getMarkdownOptions(() => md));
+
+				for (const plugin of this.contributionProvider.contributions.markdownItPlugins.values()) {
+					try {
+						md = (await plugin)(md);
+					} catch {
+						// noop
 					}
-					if (lang && lang.toLocaleLowerCase() === 'json5') {
-						lang = 'json';
-					}
-					if (lang && lang.toLocaleLowerCase() === 'c#') {
-						lang = 'cs';
-					}
-					if (lang && hljs.getLanguage(lang)) {
-						try {
-							return `<div>${hljs.highlight(lang, str, true).value}</div>`;
-						} catch (error) { }
-					}
-					return `<code><div>${this.md!.utils.escapeHtml(str)}</div></code>`;
 				}
+
+				const frontMatterPlugin = require('markdown-it-front-matter');
+				// Extract rules from front matter plugin and apply at a lower precedence
+				let fontMatterRule: any;
+				frontMatterPlugin({
+					block: {
+						ruler: {
+							before: (_id: any, _id2: any, rule: any) => { fontMatterRule = rule; }
+						}
+					}
+				}, () => { /* noop */ });
+
+				md.block.ruler.before('fence', 'front_matter', fontMatterRule, {
+					alt: ['paragraph', 'reference', 'blockquote', 'list']
+				});
+
+				for (const renderName of ['paragraph_open', 'heading_open', 'image', 'code_block', 'fence', 'blockquote_open', 'list_item_open']) {
+					this.addLineNumberRenderer(md, renderName);
+				}
+
+				this.addImageStabilizer(md);
+				this.addFencedRenderer(md);
+
+				this.addLinkNormalizer(md);
+				this.addLinkValidator(md);
+				this.addNamedHeaders(md);
+				return md;
 			});
-
-			for (const plugin of this.extensionPreviewResourceProvider.markdownItPlugins) {
-				this.usePlugin(await plugin);
-			}
-
-			for (const renderName of ['paragraph_open', 'heading_open', 'image', 'code_block', 'fence', 'blockquote_open', 'list_item_open']) {
-				this.addLineNumberRenderer(this.md, renderName);
-			}
-
-			this.addImageStabilizer(this.md);
-			this.addFencedRenderer(this.md);
-
-			this.addLinkNormalizer(this.md);
-			this.addLinkValidator(this.md);
-			this.addNamedHeaders(this.md);
 		}
 
+		const md = await this.md!;
+		md.set(config);
+		return md;
+	}
+
+	private tokenize(
+		document: SkinnyTextDocument,
+		config: MarkdownItConfig,
+		engine: MarkdownIt
+	): Token[] {
+		const cached = this._tokenCache.tryGetCached(document, config);
+		if (cached) {
+			return cached;
+		}
+
+		this.currentDocument = document.uri;
+		this._slugCount = new Map<string, number>();
+
+		const text = document.getText();
+		const tokens = engine.parse(text.replace(UNICODE_NEWLINE_REGEX, ''), {});
+		this._tokenCache.update(document, config, tokens);
+		return tokens;
+	}
+
+	public async render(document: SkinnyTextDocument): Promise<string> {
+		const config = this.getConfig(document.uri);
+		const engine = await this.getEngine(config);
+		return engine.renderer.render(this.tokenize(document, config, engine), {
+			...(engine as any).options,
+			...config
+		}, {});
+	}
+
+	public async parse(document: SkinnyTextDocument): Promise<Token[]> {
+		const config = this.getConfig(document.uri);
+		const engine = await this.getEngine(config);
+		return this.tokenize(document, config, engine);
+	}
+
+	private getConfig(resource: vscode.Uri): MarkdownItConfig {
 		const config = vscode.workspace.getConfiguration('markdown', resource);
-		this.md.set({
+		return {
 			breaks: config.get<boolean>('preview.breaks', false),
 			linkify: config.get<boolean>('preview.linkify', true)
-		});
-		return this.md;
-	}
-
-	private stripFrontmatter(text: string): { text: string, offset: number } {
-		let offset = 0;
-		const frontMatterMatch = FrontMatterRegex.exec(text);
-		if (frontMatterMatch) {
-			const frontMatter = frontMatterMatch[0];
-			offset = frontMatter.split(/\r\n|\n|\r/g).length - 1;
-			text = text.substr(frontMatter.length);
-		}
-		return { text, offset };
-	}
-
-	public async render(document: vscode.Uri, stripFrontmatter: boolean, text: string): Promise<string> {
-		let offset = 0;
-		if (stripFrontmatter) {
-			const markdownContent = this.stripFrontmatter(text);
-			offset = markdownContent.offset;
-			text = markdownContent.text;
-		}
-		this.currentDocument = document;
-		this.firstLine = offset;
-		this._slugCount = new Map<string, number>();
-
-		const engine = await this.getEngine(document);
-		return engine.render(text);
-	}
-
-	public async parse(document: vscode.Uri, source: string): Promise<Token[]> {
-		const UNICODE_NEWLINE_REGEX = /\u2028|\u2029/g;
-		const { text, offset } = this.stripFrontmatter(source);
-		this.currentDocument = document;
-		this._slugCount = new Map<string, number>();
-
-		const engine = await this.getEngine(document);
-
-		return engine.parse(text.replace(UNICODE_NEWLINE_REGEX, ''), {}).map(token => {
-			if (token.map) {
-				token.map[0] += offset;
-				token.map[1] += offset;
-			}
-			return token;
-		});
+		};
 	}
 
 	private addLineNumberRenderer(md: any, ruleName: string): void {
@@ -130,7 +160,7 @@ export class MarkdownEngine {
 		md.renderer.rules[ruleName] = (tokens: any, idx: number, options: any, env: any, self: any) => {
 			const token = tokens[idx];
 			if (token.map && token.map.length) {
-				token.attrSet('data-line', this.firstLine + token.map[0]);
+				token.attrSet('data-line', token.map[0]);
 				token.attrJoin('class', 'code-line');
 			}
 
@@ -251,4 +281,30 @@ export class MarkdownEngine {
 			}
 		};
 	}
+}
+
+async function getMarkdownOptions(md: () => MarkdownIt) {
+	const hljs = await import('highlight.js');
+	return {
+		html: true,
+		highlight: (str: string, lang?: string) => {
+			// Workaround for highlight not supporting tsx: https://github.com/isagalaev/highlight.js/issues/1155
+			if (lang && ['tsx', 'typescriptreact'].indexOf(lang.toLocaleLowerCase()) >= 0) {
+				lang = 'jsx';
+			}
+			if (lang && lang.toLocaleLowerCase() === 'json5') {
+				lang = 'json';
+			}
+			if (lang && lang.toLocaleLowerCase() === 'c#') {
+				lang = 'cs';
+			}
+			if (lang && hljs.getLanguage(lang)) {
+				try {
+					return `<div>${hljs.highlight(lang, str, true).value}</div>`;
+				}
+				catch (error) { }
+			}
+			return `<code><div>${md().utils.escapeHtml(str)}</div></code>`;
+		}
+	};
 }

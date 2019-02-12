@@ -20,9 +20,9 @@ export class TextResourceConfigurationService extends Disposable implements ITex
 	public readonly onDidChangeConfiguration: Event<IConfigurationChangeEvent> = this._onDidChangeConfiguration.event;
 
 	constructor(
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IModelService private modelService: IModelService,
-		@IModeService private modeService: IModeService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IModelService private readonly modelService: IModelService,
+		@IModeService private readonly modeService: IModeService,
 	) {
 		super();
 		this._register(this.configurationService.onDidChangeConfiguration(e => this._onDidChangeConfiguration.fire(e)));
@@ -38,7 +38,7 @@ export class TextResourceConfigurationService extends Disposable implements ITex
 	}
 
 	private _getValue<T>(resource: URI, position: IPosition | null, section: string | undefined): T {
-		const language = resource ? this.getLanguage(resource, position) : void 0;
+		const language = resource ? this.getLanguage(resource, position) : undefined;
 		if (typeof section === 'undefined') {
 			return this.configurationService.getValue<T>({ resource, overrideIdentifier: language });
 		}

@@ -21,6 +21,7 @@ import { editorBracketMatchBackground, editorBracketMatchBorder } from 'vs/edito
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant, themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 
 const overviewRulerBracketMatchForeground = registerColor('editorOverviewRuler.bracketMatchForeground', { dark: '#A0A0A0', light: '#A0A0A0', hc: '#A0A0A0' }, nls.localize('overviewRulerBracketMatchForeground', 'Overview ruler marker color for matching brackets.'));
 
@@ -321,4 +322,14 @@ registerThemingParticipant((theme, collector) => {
 	if (bracketMatchBorder) {
 		collector.addRule(`.monaco-editor .bracket-match { border: 1px solid ${bracketMatchBorder}; }`);
 	}
+});
+
+// Go to menu
+MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+	group: '5_infile_nav',
+	command: {
+		id: 'editor.action.jumpToBracket',
+		title: nls.localize({ key: 'miGoToBracket', comment: ['&& denotes a mnemonic'] }, "Go to &&Bracket")
+	},
+	order: 2
 });

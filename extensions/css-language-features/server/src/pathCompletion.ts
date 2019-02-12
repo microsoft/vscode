@@ -195,9 +195,9 @@ function escapePath(p: string) {
 }
 
 function resolveWorkspaceRoot(activeDoc: TextDocument, workspaceFolders: WorkspaceFolder[]): string | undefined {
-	for (let i = 0; i < workspaceFolders.length; i++) {
-		if (startsWith(activeDoc.uri, workspaceFolders[i].uri)) {
-			return path.resolve(URI.parse(workspaceFolders[i].uri).fsPath);
+	for (const folder of workspaceFolders) {
+		if (startsWith(activeDoc.uri, folder.uri)) {
+			return path.resolve(URI.parse(folder.uri).fsPath);
 		}
 	}
 	return undefined;

@@ -33,7 +33,7 @@ suite('Snippet Variables Resolver', function () {
 		model.dispose();
 	});
 
-	function assertVariableResolve(resolver: VariableResolver, varName: string, expected: string) {
+	function assertVariableResolve(resolver: VariableResolver, varName: string, expected?: string) {
 		const snippet = new SnippetParser().parse(`$${varName}`);
 		const variable = <Variable>snippet.children[0];
 		variable.resolve(resolver);
@@ -208,10 +208,10 @@ suite('Snippet Variables Resolver', function () {
 
 	test('Add variable to insert value from clipboard to a snippet #40153', function () {
 
-		let readTextResult: string;
+		let readTextResult: string | null | undefined;
 		const clipboardService = new class implements IClipboardService {
 			_serviceBrand: any;
-			readText(): string { return readTextResult; }
+			readText(): any { return readTextResult; }
 			_throw = () => { throw new Error(); };
 			writeText = this._throw;
 			readFindText = this._throw;

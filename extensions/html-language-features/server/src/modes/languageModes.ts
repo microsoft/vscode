@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getLanguageService as getHTMLLanguageService, DocumentContext, ITagSet, IAttributeSet } from 'vscode-html-languageservice';
+import { getLanguageService as getHTMLLanguageService, DocumentContext, IHTMLDataProvider } from 'vscode-html-languageservice';
 import {
 	CompletionItem, Location, SignatureHelp, Definition, TextEdit, TextDocument, Diagnostic, DocumentLink, Range,
 	Hover, DocumentHighlight, CompletionList, Position, FormattingOptions, SymbolInformation, FoldingRange
@@ -31,6 +31,7 @@ export interface Workspace {
 
 export interface LanguageMode {
 	getId(): string;
+	doSelection?: (document: TextDocument, position: Position) => Range[];
 	doValidation?: (document: TextDocument, settings?: Settings) => Diagnostic[];
 	doComplete?: (document: TextDocument, position: Position, settings?: Settings) => CompletionList;
 	doResolve?: (document: TextDocument, item: CompletionItem) => CompletionItem;
@@ -65,12 +66,8 @@ export interface LanguageModeRange extends Range {
 	attributeValue?: boolean;
 }
 
-export function getLanguageModes(supportedLanguages: { [languageId: string]: boolean; }, workspace: Workspace, customTags?: ITagSet, customAttributes?: IAttributeSet): LanguageModes {
-
-	var htmlLanguageService = getHTMLLanguageService({
-		customTags,
-		customAttributes
-	});
+export function getLanguageModes(supportedLanguages: { [languageId: string]: boolean; }, workspace: Workspace, customDataProviders?: IHTMLDataProvider[]): LanguageModes {
+	const htmlLanguageService = getHTMLLanguageService({ customDataProviders });
 
 	let documentRegions = getLanguageModelCache<HTMLDocumentRegions>(10, 60, document => getDocumentRegions(htmlLanguageService, document));
 
@@ -91,7 +88,7 @@ export function getLanguageModes(supportedLanguages: { [languageId: string]: boo
 			if (languageId) {
 				return modes[languageId];
 			}
-			return void 0;
+			return undefined;
 		},
 		getModesInRange(document: TextDocument, range: Range): LanguageModeRange[] {
 			return documentRegions.get(document).getLanguageRanges(range).map(r => {

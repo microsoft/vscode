@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Client, Protocol } from 'vs/base/parts/ipc/node/ipc.net';
+import { Client, BufferedProtocol } from 'vs/base/parts/ipc/node/ipc.net';
 import { IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
 
 export interface RemoteAgentConnectionContext {
@@ -11,15 +11,19 @@ export interface RemoteAgentConnectionContext {
 	clientId: string;
 }
 
-export function connectRemoteAgentManagement(remoteAuthority: string, host: string, port: number, clientId: string): Promise<Client<RemoteAgentConnectionContext>> {
+export function connectRemoteAgentManagement(remoteAuthority: string, host: string, port: number, clientId: string, isBuilt: boolean): Promise<Client<RemoteAgentConnectionContext>> {
 	throw new Error(`Not implemented`);
 }
 
 export interface IExtensionHostConnectionResult {
-	protocol: Protocol;
+	protocol: BufferedProtocol;
 	debugPort?: number;
 }
 
-export function connectRemoteAgentExtensionHost(host: string, port: number, debugArguments: IExtensionHostDebugParams): Promise<IExtensionHostConnectionResult> {
+export interface IRemoteExtensionHostDebugParams extends IExtensionHostDebugParams {
+	updatePort?: boolean;
+}
+
+export function connectRemoteAgentExtensionHost(host: string, port: number, debugArguments: IRemoteExtensionHostDebugParams, isBuilt: boolean): Promise<IExtensionHostConnectionResult> {
 	throw new Error(`Not implemented`);
 }

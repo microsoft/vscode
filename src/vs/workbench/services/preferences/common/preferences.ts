@@ -17,7 +17,7 @@ import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensio
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { EditorOptions, IEditor } from 'vs/workbench/common/editor';
-import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 
 export enum SettingValueType {
@@ -232,3 +232,4 @@ export function getSettingsTargetName(target: ConfigurationTarget, resource: URI
 
 export const FOLDER_SETTINGS_PATH = join('.vscode', 'settings.json');
 export const DEFAULT_SETTINGS_EDITOR_SETTING = 'workbench.settings.openDefaultSettings';
+export const USE_SPLIT_JSON_SETTING = 'workbench.settings.useSplitJSON';

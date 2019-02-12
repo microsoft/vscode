@@ -65,16 +65,16 @@ export abstract class TitleControl extends Themable {
 		parent: HTMLElement,
 		protected accessor: IEditorGroupsAccessor,
 		protected group: IEditorGroupView,
-		@IContextMenuService private contextMenuService: IContextMenuService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IKeybindingService private keybindingService: IKeybindingService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@INotificationService private notificationService: INotificationService,
-		@IMenuService private menuService: IMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IMenuService private readonly menuService: IMenuService,
 		@IQuickOpenService protected quickOpenService: IQuickOpenService,
 		@IThemeService themeService: IThemeService,
-		@IExtensionService private extensionService: IExtensionService,
+		@IExtensionService private readonly extensionService: IExtensionService,
 		@IConfigurationService protected configurationService: IConfigurationService,
 		@IFileService private readonly fileService: IFileService,
 	) {
@@ -319,7 +319,7 @@ export abstract class TitleControl extends Themable {
 	protected getKeybindingLabel(action: IAction): string {
 		const keybinding = this.getKeybinding(action);
 
-		return keybinding ? keybinding.getLabel() : void 0;
+		return keybinding ? keybinding.getLabel() : undefined;
 	}
 
 	abstract openEditor(editor: IEditorInput): void;

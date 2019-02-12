@@ -80,22 +80,46 @@ class MessageWidget {
 
 	update({ source, message, relatedInformation, code }: IMarker): void {
 
-		if (source) {
-			const lines = message.split(/\r\n|\r|\n/g);
-			this._lines = lines.length;
-			this._longestLineLength = 0;
-			for (const line of lines) {
-				this._longestLineLength = Math.max(line.length, this._longestLineLength);
+		const lines = message.split(/\r\n|\r|\n/g);
+		this._lines = lines.length;
+		this._longestLineLength = 0;
+		for (const line of lines) {
+			this._longestLineLength = Math.max(line.length, this._longestLineLength);
+		}
+
+		dom.clearNode(this._messageBlock);
+		let lastLineElement = this._messageBlock;
+		for (const line of lines) {
+			lastLineElement = document.createElement('div');
+			lastLineElement.innerText = line;
+			this._editor.applyFontInfo(lastLineElement);
+			if (line === '') {
+				lastLineElement.style.height = lastLineElement.style.lineHeight;
 			}
-		} else {
-			this._lines = 1;
-			this._longestLineLength = message.length;
+			this._messageBlock.appendChild(lastLineElement);
+		}
+		if (source || code) {
+			const detailsElement = document.createElement('span');
+			dom.addClass(detailsElement, 'details');
+			lastLineElement.appendChild(detailsElement);
+			if (source) {
+				const sourceElement = document.createElement('span');
+				sourceElement.innerText = source;
+				dom.addClass(sourceElement, 'source');
+				detailsElement.appendChild(sourceElement);
+			}
+			if (code) {
+				const codeElement = document.createElement('span');
+				codeElement.innerText = `(${code})`;
+				dom.addClass(codeElement, 'code');
+				detailsElement.appendChild(codeElement);
+			}
 		}
 
 		dom.clearNode(this._relatedBlock);
-
 		if (isNonEmptyArray(relatedInformation)) {
-			this._relatedBlock.style.paddingTop = `${Math.floor(this._editor.getConfiguration().lineHeight * .66)}px`;
+			const relatedInformationNode = this._relatedBlock.appendChild(document.createElement('div'));
+			relatedInformationNode.style.paddingTop = `${Math.floor(this._editor.getConfiguration().lineHeight * 0.66)}px`;
 			this._lines += 1;
 
 			for (const related of relatedInformation) {
@@ -116,28 +140,8 @@ class MessageWidget {
 				container.appendChild(relatedMessage);
 
 				this._lines += 1;
-				this._relatedBlock.appendChild(container);
+				relatedInformationNode.appendChild(container);
 			}
-		}
-
-		dom.clearNode(this._messageBlock);
-		if (source) {
-			const sourceElement = document.createElement('div');
-			sourceElement.innerText = `[${source}] `;
-			dom.addClass(sourceElement, 'source');
-			this._editor.applyFontInfo(sourceElement);
-			this._messageBlock.appendChild(sourceElement);
-		}
-		const messageElement = document.createElement('div');
-		messageElement.innerText = message;
-		this._editor.applyFontInfo(messageElement);
-		this._messageBlock.appendChild(messageElement);
-		if (code) {
-			const codeElement = document.createElement('div');
-			codeElement.innerText = ` [${code}]`;
-			dom.addClass(codeElement, 'code');
-			this._editor.applyFontInfo(codeElement);
-			this._messageBlock.appendChild(codeElement);
 		}
 
 		const fontInfo = this._editor.getConfiguration().fontInfo;
@@ -164,7 +168,7 @@ export class MarkerNavigationWidget extends ZoneWidget {
 	private _message: MessageWidget;
 	private _callOnDispose: IDisposable[] = [];
 	private _severity: MarkerSeverity;
-	private _backgroundColor: Color | null;
+	private _backgroundColor?: Color;
 	private _onDidSelectRelatedInformation = new Emitter<IRelatedInformation>();
 
 	readonly onDidSelectRelatedInformation: Event<IRelatedInformation> = this._onDidSelectRelatedInformation.event;

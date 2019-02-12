@@ -17,11 +17,11 @@ suite('env-namespace', () => {
 	});
 
 	test('env is readonly', function () {
-		assert.throws(() => env.language = '234');
-		assert.throws(() => env.appRoot = '234');
-		assert.throws(() => env.appName = '234');
-		assert.throws(() => env.machineId = '234');
-		assert.throws(() => env.sessionId = '234');
+		assert.throws(() => (env as any).language = '234');
+		assert.throws(() => (env as any).appRoot = '234');
+		assert.throws(() => (env as any).appName = '234');
+		assert.throws(() => (env as any).machineId = '234');
+		assert.throws(() => (env as any).sessionId = '234');
 	});
 
 });

@@ -33,8 +33,8 @@ abstract class CommentLineAction extends EditorAction {
 		let selections = editor.getSelections();
 		let opts = model.getOptions();
 
-		for (let i = 0; i < selections.length; i++) {
-			commands.push(new LineCommentCommand(selections[i], opts.tabSize, this._type));
+		for (const selection of selections) {
+			commands.push(new LineCommentCommand(selection, opts.tabSize, this._type));
 		}
 
 		editor.pushUndoStop();
@@ -128,8 +128,8 @@ class BlockCommentAction extends EditorAction {
 
 		let commands: ICommand[] = [];
 		let selections = editor.getSelections();
-		for (let i = 0; i < selections.length; i++) {
-			commands.push(new BlockCommentCommand(selections[i]));
+		for (const selection of selections) {
+			commands.push(new BlockCommentCommand(selection));
 		}
 
 		editor.pushUndoStop();

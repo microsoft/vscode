@@ -19,7 +19,7 @@ import { CancellationToken } from 'vscode';
 import * as Types from 'vs/base/common/types';
 
 suite('Configuration Resolver Service', () => {
-	let configurationResolverService: IConfigurationResolverService;
+	let configurationResolverService: IConfigurationResolverService | null;
 	let envVariables: { [key: string]: string } = { key1: 'Value for key1', key2: 'Value for key2' };
 	let mockCommandService: MockCommandService;
 	let editorService: TestEditorService;
@@ -45,46 +45,46 @@ suite('Configuration Resolver Service', () => {
 
 	test('substitute one', () => {
 		if (platform.isWindows) {
-			assert.strictEqual(configurationResolverService.resolve(workspace, 'abc ${workspaceFolder} xyz'), 'abc \\VSCode\\workspaceLocation xyz');
+			assert.strictEqual(configurationResolverService!.resolve(workspace, 'abc ${workspaceFolder} xyz'), 'abc \\VSCode\\workspaceLocation xyz');
 		} else {
-			assert.strictEqual(configurationResolverService.resolve(workspace, 'abc ${workspaceFolder} xyz'), 'abc /VSCode/workspaceLocation xyz');
+			assert.strictEqual(configurationResolverService!.resolve(workspace, 'abc ${workspaceFolder} xyz'), 'abc /VSCode/workspaceLocation xyz');
 		}
 	});
 
 	test('workspace root folder name', () => {
-		assert.strictEqual(configurationResolverService.resolve(workspace, 'abc ${workspaceRootFolderName} xyz'), 'abc workspaceLocation xyz');
+		assert.strictEqual(configurationResolverService!.resolve(workspace, 'abc ${workspaceRootFolderName} xyz'), 'abc workspaceLocation xyz');
 	});
 
 	// TODO@isidor mock the editor service properly
 	// test('current selected line number', () => {
-	// 	assert.strictEqual(configurationResolverService.resolve(workspace, 'abc ${lineNumber} xyz'), `abc ${editorService.mockLineNumber} xyz`);
+	// 	assert.strictEqual(configurationResolverService!.resolve(workspace, 'abc ${lineNumber} xyz'), `abc ${editorService.mockLineNumber} xyz`);
 	// });
 
 	// test('current selected text', () => {
-	// 	assert.strictEqual(configurationResolverService.resolve(workspace, 'abc ${selectedText} xyz'), `abc ${editorService.mockSelectedText} xyz`);
+	// 	assert.strictEqual(configurationResolverService!.resolve(workspace, 'abc ${selectedText} xyz'), `abc ${editorService.mockSelectedText} xyz`);
 	// });
 
 	test('substitute many', () => {
 		if (platform.isWindows) {
-			assert.strictEqual(configurationResolverService.resolve(workspace, '${workspaceFolder} - ${workspaceFolder}'), '\\VSCode\\workspaceLocation - \\VSCode\\workspaceLocation');
+			assert.strictEqual(configurationResolverService!.resolve(workspace, '${workspaceFolder} - ${workspaceFolder}'), '\\VSCode\\workspaceLocation - \\VSCode\\workspaceLocation');
 		} else {
-			assert.strictEqual(configurationResolverService.resolve(workspace, '${workspaceFolder} - ${workspaceFolder}'), '/VSCode/workspaceLocation - /VSCode/workspaceLocation');
+			assert.strictEqual(configurationResolverService!.resolve(workspace, '${workspaceFolder} - ${workspaceFolder}'), '/VSCode/workspaceLocation - /VSCode/workspaceLocation');
 		}
 	});
 
 	test('substitute one env variable', () => {
 		if (platform.isWindows) {
-			assert.strictEqual(configurationResolverService.resolve(workspace, 'abc ${workspaceFolder} ${env:key1} xyz'), 'abc \\VSCode\\workspaceLocation Value for key1 xyz');
+			assert.strictEqual(configurationResolverService!.resolve(workspace, 'abc ${workspaceFolder} ${env:key1} xyz'), 'abc \\VSCode\\workspaceLocation Value for key1 xyz');
 		} else {
-			assert.strictEqual(configurationResolverService.resolve(workspace, 'abc ${workspaceFolder} ${env:key1} xyz'), 'abc /VSCode/workspaceLocation Value for key1 xyz');
+			assert.strictEqual(configurationResolverService!.resolve(workspace, 'abc ${workspaceFolder} ${env:key1} xyz'), 'abc /VSCode/workspaceLocation Value for key1 xyz');
 		}
 	});
 
 	test('substitute many env variable', () => {
 		if (platform.isWindows) {
-			assert.strictEqual(configurationResolverService.resolve(workspace, '${workspaceFolder} - ${workspaceFolder} ${env:key1} - ${env:key2}'), '\\VSCode\\workspaceLocation - \\VSCode\\workspaceLocation Value for key1 - Value for key2');
+			assert.strictEqual(configurationResolverService!.resolve(workspace, '${workspaceFolder} - ${workspaceFolder} ${env:key1} - ${env:key2}'), '\\VSCode\\workspaceLocation - \\VSCode\\workspaceLocation Value for key1 - Value for key2');
 		} else {
-			assert.strictEqual(configurationResolverService.resolve(workspace, '${workspaceFolder} - ${workspaceFolder} ${env:key1} - ${env:key2}'), '/VSCode/workspaceLocation - /VSCode/workspaceLocation Value for key1 - Value for key2');
+			assert.strictEqual(configurationResolverService!.resolve(workspace, '${workspaceFolder} - ${workspaceFolder} ${env:key1} - ${env:key2}'), '/VSCode/workspaceLocation - /VSCode/workspaceLocation Value for key1 - Value for key2');
 		}
 	});
 
@@ -93,7 +93,7 @@ suite('Configuration Resolver Service', () => {
 	// 		'${workspaceRootFolderName}': '${lineNumber}',
 	// 		'hey ${env:key1} ': '${workspaceRootFolderName}'
 	// 	};
-	// 	assert.deepEqual(configurationResolverService.resolve(workspace, myObject), {
+	// 	assert.deepEqual(configurationResolverService!.resolve(workspace, myObject), {
 	// 		'workspaceLocation': `${editorService.mockLineNumber}`,
 	// 		'hey Value for key1 ': 'workspaceLocation'
 	// 	});
@@ -102,15 +102,14 @@ suite('Configuration Resolver Service', () => {
 
 	test('substitute one env variable using platform case sensitivity', () => {
 		if (platform.isWindows) {
-			assert.strictEqual(configurationResolverService.resolve(workspace, '${env:key1} - ${env:Key1}'), 'Value for key1 - Value for key1');
+			assert.strictEqual(configurationResolverService!.resolve(workspace, '${env:key1} - ${env:Key1}'), 'Value for key1 - Value for key1');
 		} else {
-			assert.strictEqual(configurationResolverService.resolve(workspace, '${env:key1} - ${env:Key1}'), 'Value for key1 - ');
+			assert.strictEqual(configurationResolverService!.resolve(workspace, '${env:key1} - ${env:Key1}'), 'Value for key1 - ');
 		}
 	});
 
 	test('substitute one configuration variable', () => {
-		let configurationService: IConfigurationService;
-		configurationService = new MockConfigurationService({
+		let configurationService: IConfigurationService = new MockConfigurationService({
 			editor: {
 				fontFamily: 'foo'
 			},
@@ -256,7 +255,7 @@ suite('Configuration Resolver Service', () => {
 			'outDir': null
 		};
 
-		return configurationResolverService.resolveWithInteractionReplace(undefined, configuration).then(result => {
+		return configurationResolverService!.resolveWithInteractionReplace(undefined, configuration).then(result => {
 
 			assert.deepEqual(result, {
 				'name': 'Attach to Process',
@@ -285,7 +284,7 @@ suite('Configuration Resolver Service', () => {
 		const commandVariables = Object.create(null);
 		commandVariables['commandVariable1'] = 'command1';
 
-		return configurationResolverService.resolveWithInteractionReplace(undefined, configuration, undefined, commandVariables).then(result => {
+		return configurationResolverService!.resolveWithInteractionReplace(undefined, configuration, undefined, commandVariables).then(result => {
 
 			assert.deepEqual(result, {
 				'name': 'Attach to Process',
@@ -318,7 +317,7 @@ suite('Configuration Resolver Service', () => {
 		const commandVariables = Object.create(null);
 		commandVariables['commandVariable1'] = 'command1';
 
-		return configurationResolverService.resolveWithInteractionReplace(undefined, configuration, undefined, commandVariables).then(result => {
+		return configurationResolverService!.resolveWithInteractionReplace(undefined, configuration, undefined, commandVariables).then(result => {
 
 			assert.deepEqual(result, {
 				'name': 'Attach to Process',
@@ -349,7 +348,7 @@ suite('Configuration Resolver Service', () => {
 		const commandVariables = Object.create(null);
 		commandVariables['commandVariable1'] = 'command1';
 
-		return configurationResolverService.resolveWithInteractionReplace(undefined, configuration, undefined, commandVariables).then(result => {
+		return configurationResolverService!.resolveWithInteractionReplace(undefined, configuration, undefined, commandVariables).then(result => {
 
 			assert.deepEqual(result, {
 				'name': 'Attach to Process',
@@ -374,7 +373,7 @@ suite('Configuration Resolver Service', () => {
 			'outDir': null
 		};
 
-		return configurationResolverService.resolveWithInteractionReplace(workspace, configuration, 'tasks').then(result => {
+		return configurationResolverService!.resolveWithInteractionReplace(workspace, configuration, 'tasks').then(result => {
 
 			assert.deepEqual(result, {
 				'name': 'Attach to Process',
@@ -401,7 +400,7 @@ suite('Configuration Resolver Service', () => {
 			'outDir': null
 		};
 
-		return configurationResolverService.resolveWithInteractionReplace(workspace, configuration, 'tasks').then(result => {
+		return configurationResolverService!.resolveWithInteractionReplace(workspace, configuration, 'tasks').then(result => {
 
 			assert.deepEqual(result, {
 				'name': 'Attach to Process',
@@ -416,6 +415,33 @@ suite('Configuration Resolver Service', () => {
 			assert.equal(0, mockCommandService.callCount);
 		});
 	});
+	test('a single command input variable', () => {
+
+		const configuration = {
+			'name': 'Attach to Process',
+			'type': 'node',
+			'request': 'attach',
+			'processId': '${input:input4}',
+			'port': 5858,
+			'sourceMaps': false,
+			'outDir': null
+		};
+
+		return configurationResolverService!.resolveWithInteractionReplace(workspace, configuration, 'tasks').then(result => {
+
+			assert.deepEqual(result, {
+				'name': 'Attach to Process',
+				'type': 'node',
+				'request': 'attach',
+				'processId': 'arg for command',
+				'port': 5858,
+				'sourceMaps': false,
+				'outDir': null
+			});
+
+			assert.equal(1, mockCommandService.callCount);
+		});
+	});
 	test('several input variables and command', () => {
 
 		const configuration = {
@@ -423,24 +449,26 @@ suite('Configuration Resolver Service', () => {
 			'type': '${command:command1}',
 			'request': '${input:input1}',
 			'processId': '${input:input2}',
+			'command': '${input:input4}',
 			'port': 5858,
 			'sourceMaps': false,
 			'outDir': null
 		};
 
-		return configurationResolverService.resolveWithInteractionReplace(workspace, configuration, 'tasks').then(result => {
+		return configurationResolverService!.resolveWithInteractionReplace(workspace, configuration, 'tasks').then(result => {
 
 			assert.deepEqual(result, {
 				'name': 'resolvedEnterinput3',
 				'type': 'command1-result',
 				'request': 'resolvedEnterinput1',
 				'processId': 'selectedPick',
+				'command': 'arg for command',
 				'port': 5858,
 				'sourceMaps': false,
 				'outDir': null
 			});
 
-			assert.equal(1, mockCommandService.callCount);
+			assert.equal(2, mockCommandService.callCount);
 		});
 	});
 });
@@ -450,7 +478,7 @@ class MockConfigurationService implements IConfigurationService {
 	public _serviceBrand: any;
 	public serviceId = IConfigurationService;
 	public constructor(private configuration: any = {}) { }
-	public inspect<T>(key: string, overrides?: IConfigurationOverrides): any { return { value: getConfigurationValue<T>(this.getValue(), key), default: getConfigurationValue<T>(this.getValue(), key), user: getConfigurationValue<T>(this.getValue(), key), workspaceFolder: void 0, folder: void 0 }; }
+	public inspect<T>(key: string, overrides?: IConfigurationOverrides): any { return { value: getConfigurationValue<T>(this.getValue(), key), default: getConfigurationValue<T>(this.getValue(), key), user: getConfigurationValue<T>(this.getValue(), key), workspaceFolder: undefined, folder: undefined }; }
 	public keys() { return { default: [], user: [], workspace: [], workspaceFolder: [] }; }
 	public getValue(): any;
 	public getValue(value: string): any;
@@ -461,15 +489,15 @@ class MockConfigurationService implements IConfigurationService {
 		const valuePath = (<string>value).split('.');
 		let object = this.configuration;
 		while (valuePath.length && object) {
-			object = object[valuePath.shift()];
+			object = object[valuePath.shift()!];
 		}
 
 		return object;
 	}
-	public updateValue(): Promise<void> { return null; }
+	public updateValue(): Promise<void> { return Promise.resolve(); }
 	public getConfigurationData(): any { return null; }
 	public onDidChangeConfiguration() { return { dispose() { } }; }
-	public reloadConfiguration() { return null; }
+	public reloadConfiguration() { return Promise.resolve(); }
 }
 
 class MockCommandService implements ICommandService {
@@ -568,6 +596,14 @@ class MockInputsConfigurationService extends TestConfigurationService {
 						type: 'promptString',
 						description: 'Enterinput3',
 						default: 'default input3'
+					},
+					{
+						id: 'input4',
+						type: 'command',
+						command: 'command1',
+						args: {
+							value: 'arg for command'
+						}
 					}
 				]
 			};

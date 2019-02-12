@@ -653,8 +653,7 @@ suite('viewLineRenderer.renderLine', () => {
 		for (let partIndex = 0; partIndex < expectedCharPartOffsets.length; partIndex++) {
 			const part = expectedCharPartOffsets[partIndex];
 
-			for (let i = 0; i < part.length; i++) {
-				const charIndex = part[i];
+			for (const charIndex of part) {
 				expectedCharAbsoluteOffset.push(currentPartAbsoluteOffset + charIndex);
 			}
 
@@ -674,8 +673,7 @@ suite('viewLineRenderer.renderLine', () => {
 		let charOffset = 0;
 		for (let partIndex = 0; partIndex < expected.length; partIndex++) {
 			let part = expected[partIndex];
-			for (let i = 0; i < part.length; i++) {
-				let charIndex = part[i];
+			for (const charIndex of part) {
 				// here
 				let _actualPartData = actual.charOffsetToPartData(charOffset);
 				let actualPartIndex = CharacterMapping.getPartIndex(_actualPartData);

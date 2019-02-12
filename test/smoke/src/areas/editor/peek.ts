@@ -19,7 +19,7 @@ export class References {
 	}
 
 	async waitForReferencesCountInTitle(count: number): Promise<void> {
-		await this.code.waitForTextContent(References.REFERENCES_TITLE_COUNT, void 0, titleCount => {
+		await this.code.waitForTextContent(References.REFERENCES_TITLE_COUNT, undefined, titleCount => {
 			const matches = titleCount.match(/\d+/);
 			return matches ? parseInt(matches[0]) === count : false;
 		});

@@ -8,20 +8,20 @@ import { Edit, format, isEOL, FormattingOptions } from './jsonFormatter';
 
 
 export function removeProperty(text: string, path: JSONPath, formattingOptions: FormattingOptions): Edit[] {
-	return setProperty(text, path, void 0, formattingOptions);
+	return setProperty(text, path, undefined, formattingOptions);
 }
 
 export function setProperty(text: string, originalPath: JSONPath, value: any, formattingOptions: FormattingOptions, getInsertionIndex?: (properties: string[]) => number): Edit[] {
 	let path = originalPath.slice();
 	let errors: ParseError[] = [];
 	let root = parseTree(text, errors);
-	let parent: Node | undefined = void 0;
+	let parent: Node | undefined = undefined;
 
-	let lastSegment: Segment | undefined = void 0;
+	let lastSegment: Segment | undefined = undefined;
 	while (path.length > 0) {
 		lastSegment = path.pop();
 		parent = findNodeAtLocation(root, path);
-		if (parent === void 0 && value !== void 0) {
+		if (parent === undefined && value !== undefined) {
 			if (typeof lastSegment === 'string') {
 				value = { [lastSegment]: value };
 			} else {
@@ -34,14 +34,14 @@ export function setProperty(text: string, originalPath: JSONPath, value: any, fo
 
 	if (!parent) {
 		// empty document
-		if (value === void 0) { // delete
+		if (value === undefined) { // delete
 			throw new Error('Can not delete in empty document');
 		}
 		return withFormatting(text, { offset: root ? root.offset : 0, length: root ? root.length : 0, content: JSON.stringify(value) }, formattingOptions);
 	} else if (parent.type === 'object' && typeof lastSegment === 'string' && Array.isArray(parent.children)) {
 		let existing = findNodeAtLocation(parent, [lastSegment]);
-		if (existing !== void 0) {
-			if (value === void 0) { // delete
+		if (existing !== undefined) {
+			if (value === undefined) { // delete
 				if (!existing.parent) {
 					throw new Error('Malformed AST');
 				}
@@ -66,7 +66,7 @@ export function setProperty(text: string, originalPath: JSONPath, value: any, fo
 				return withFormatting(text, { offset: existing.offset, length: existing.length, content: JSON.stringify(value) }, formattingOptions);
 			}
 		} else {
-			if (value === void 0) { // delete
+			if (value === undefined) { // delete
 				return []; // property does not exist, nothing to do
 			}
 			let newProperty = `${JSON.stringify(lastSegment)}: ${JSON.stringify(value)}`;
@@ -96,7 +96,7 @@ export function setProperty(text: string, originalPath: JSONPath, value: any, fo
 			}
 			return withFormatting(text, edit, formattingOptions);
 		} else {
-			if (value === void 0 && parent.children.length >= 0) {
+			if (value === undefined && parent.children.length >= 0) {
 				//Removal
 				let removalIndex = lastSegment;
 				let toRemove = parent.children[removalIndex];

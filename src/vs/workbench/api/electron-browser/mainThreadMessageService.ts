@@ -14,6 +14,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { Event } from 'vs/base/common/event';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { dispose } from 'vs/base/common/lifecycle';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 @extHostNamedCustomer(MainContext.MainThreadMessageService)
 export class MainThreadMessageService implements MainThreadMessageServiceShape {
@@ -31,7 +32,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 		//
 	}
 
-	$showMessage(severity: Severity, message: string, options: MainThreadMessageOptions, commands: { title: string; isCloseAffordance: boolean; handle: number; }[]): Promise<number> {
+	$showMessage(severity: Severity, message: string, options: MainThreadMessageOptions, commands: { title: string; isCloseAffordance: boolean; handle: number; }[]): Promise<number | undefined> {
 		if (options.modal) {
 			return this._showModalMessage(severity, message, commands);
 		} else {
@@ -39,7 +40,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 		}
 	}
 
-	private _showMessage(severity: Severity, message: string, commands: { title: string; isCloseAffordance: boolean; handle: number; }[], extension: IExtensionDescription): Promise<number> {
+	private _showMessage(severity: Severity, message: string, commands: { title: string; isCloseAffordance: boolean; handle: number; }[], extension: IExtensionDescription | undefined): Promise<number> {
 
 		return new Promise<number>(resolve => {
 
@@ -49,15 +50,15 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 				constructor(id: string, label: string, handle: number) {
 					super(id, label, undefined, true, () => {
 						resolve(handle);
-						return undefined;
+						return Promise.resolve();
 					});
 				}
 			}
 
 			class ManageExtensionAction extends Action {
-				constructor(id: string, label: string, commandService: ICommandService) {
-					super(id, label, undefined, true, () => {
-						return commandService.executeCommand('_extensions.manage', id);
+				constructor(id: ExtensionIdentifier, label: string, commandService: ICommandService) {
+					super(id.value, label, undefined, true, () => {
+						return commandService.executeCommand('_extensions.manage', id.value);
 					});
 				}
 			}
@@ -66,7 +67,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 				primaryActions.push(new MessageItemAction('_extension_message_handle_' + command.handle, command.title, command.handle));
 			});
 
-			let source: string;
+			let source: string | undefined;
 			if (extension) {
 				source = nls.localize('extensionSource', "{0} (Extension)", extension.displayName || extension.name);
 			}
@@ -77,7 +78,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 
 			const secondaryActions: IAction[] = [];
 			if (extension && !extension.isUnderDevelopment) {
-				secondaryActions.push(new ManageExtensionAction(extension.id, nls.localize('manageExtension', "Manage Extension"), this._commandService));
+				secondaryActions.push(new ManageExtensionAction(extension.identifier, nls.localize('manageExtension', "Manage Extension"), this._commandService));
 			}
 
 			const messageHandle = this._notificationService.notify({
@@ -96,8 +97,8 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 		});
 	}
 
-	private _showModalMessage(severity: Severity, message: string, commands: { title: string; isCloseAffordance: boolean; handle: number; }[]): Promise<number> {
-		let cancelId: number | undefined = void 0;
+	private _showModalMessage(severity: Severity, message: string, commands: { title: string; isCloseAffordance: boolean; handle: number; }[]): Promise<number | undefined> {
+		let cancelId: number | undefined = undefined;
 
 		const buttons = commands.map((command, index) => {
 			if (command.isCloseAffordance === true) {
@@ -107,7 +108,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 			return command.title;
 		});
 
-		if (cancelId === void 0) {
+		if (cancelId === undefined) {
 			if (buttons.length > 0) {
 				buttons.push(nls.localize('cancel', "Cancel"));
 			} else {

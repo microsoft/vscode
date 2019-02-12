@@ -11,7 +11,7 @@ import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostC
 export class MainThreadProgress implements MainThreadProgressShape {
 
 	private _progressService: IProgressService2;
-	private _progress = new Map<number, { resolve: Function, progress: IProgress<IProgressStep> }>();
+	private _progress = new Map<number, { resolve: () => void, progress: IProgress<IProgressStep> }>();
 	private _proxy: ExtHostProgressShape;
 
 	constructor(
@@ -34,14 +34,16 @@ export class MainThreadProgress implements MainThreadProgressShape {
 	}
 
 	$progressReport(handle: number, message: IProgressStep): void {
-		if (this._progress.has(handle)) {
-			this._progress.get(handle).progress.report(message);
+		const entry = this._progress.get(handle);
+		if (entry) {
+			entry.progress.report(message);
 		}
 	}
 
 	$progressEnd(handle: number): void {
-		if (this._progress.has(handle)) {
-			this._progress.get(handle).resolve();
+		const entry = this._progress.get(handle);
+		if (entry) {
+			entry.resolve();
 			this._progress.delete(handle);
 		}
 	}
