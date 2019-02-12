@@ -42,6 +42,7 @@ interface IProcess {
 	env: object;
 }
 
+declare let process: IProcess;
 const safeProcess: IProcess = (typeof process === 'undefined') ? {
 	cwd() { return '/'; },
 	env: {},
