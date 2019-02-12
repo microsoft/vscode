@@ -18,7 +18,6 @@ import { IQuickInputService, IPickOptions, IQuickPickItem } from 'vs/platform/qu
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { Schemas } from 'vs/base/common/network';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 export const ADD_ROOT_FOLDER_COMMAND_ID = 'addRootFolder';
@@ -64,7 +63,7 @@ CommandsRegistry.registerCommand({
 			title: nls.localize('addFolderToWorkspaceTitle', "Add Folder to Workspace"),
 			canSelectFolders: true,
 			canSelectMany: true,
-			defaultUri: dialogsService.defaultFolderPath(Schemas.file)
+			defaultUri: dialogsService.defaultFolderPath()
 		}).then((folders): Promise<any> | null => {
 			if (!folders || !folders.length) {
 				return null;

@@ -12,10 +12,9 @@ import { URI } from 'vs/base/common/uri';
 import { isWindows } from 'vs/base/common/platform';
 import { ISaveDialogOptions, IOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IWindowService, IURIToOpen } from 'vs/platform/windows/common/windows';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 
 interface FileQuickPickItem extends IQuickPickItem {
@@ -43,40 +42,35 @@ export class RemoteFileDialog {
 		@IWindowService private readonly windowService: IWindowService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IEditorService private readonly editorService: IEditorService,
 		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		this.remoteAuthority = this.windowService.getConfiguration().remoteAuthority;
 	}
 
-	public async showOpenDialog(options: IOpenDialogOptions = {}): Promise<void> {
-		if (!this.remoteAuthority) {
-			this.notificationService.info(nls.localize('remoteFileDialog.notConnectedToRemote', 'Not connected to a remote.'));
-			return Promise.resolve();
-		}
+	public async showOpenDialog(options: IOpenDialogOptions = {}): Promise<IURIToOpen[] | undefined> {
 		const defaultUri = options.defaultUri ? options.defaultUri : URI.from({ scheme: REMOTE_HOST_SCHEME, authority: this.remoteAuthority, path: '/' });
+		if (!this.remoteFileService.canHandleResource(defaultUri)) {
+			this.notificationService.info(nls.localize('remoteFileDialog.notConnectedToRemote', 'File system provider for {0} is not available.', defaultUri.toString()));
+			return Promise.resolve(undefined);
+		}
+
 		const title = nls.localize('remoteFileDialog.openTitle', 'Open File or Folder');
 		return this.pickResource({ title, defaultUri, canSelectFiles: true, canSelectFolders: true }).then(async fileFolderUri => {
 			if (fileFolderUri) {
 				const stat = await this.remoteFileService.resolveFile(fileFolderUri);
-				if (stat.isDirectory) {
-					return this.windowService.openWindow([{ uri: fileFolderUri, typeHint: 'folder' }]);
-				} else {
-					return this.editorService.openEditor({ resource: fileFolderUri }).then(() => {
-						return Promise.resolve();
-					});
-				}
+				return [{ uri: fileFolderUri, type: stat.isDirectory ? 'folder' : 'file' }];
 			}
-			return Promise.resolve();
+			return Promise.resolve(undefined);
 		});
 	}
 
 	public showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
-		if (!this.remoteAuthority) {
-			this.notificationService.info(nls.localize('remoteFileDialog.notConnectedToRemote', 'Not connected to a remote.'));
+		const defaultUri = options.defaultUri ? options.defaultUri : URI.from({ scheme: REMOTE_HOST_SCHEME, authority: this.remoteAuthority, path: '/' });
+		if (!this.remoteFileService.canHandleResource(defaultUri)) {
+			this.notificationService.info(nls.localize('remoteFileDialog.notConnectedToRemote', 'File system provider for {0} is not available.', defaultUri.toString()));
 			return Promise.resolve(undefined);
 		}
-		const defaultUri = options.defaultUri ? options.defaultUri : URI.from({ scheme: REMOTE_HOST_SCHEME, authority: this.remoteAuthority, path: '/' });
+
 		return new Promise<URI | undefined>((resolve) => {
 			let saveNameBox = this.quickInputService.createInputBox();
 			saveNameBox.title = options.title;
