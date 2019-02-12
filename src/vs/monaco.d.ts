@@ -2935,11 +2935,6 @@ declare namespace monaco.editor {
 		 */
 		codeLens?: boolean;
 		/**
-		 * Show code insets
-		 * Defaults to true.
-		 */
-		codeInsets?: boolean;
-		/**
 		 * Control the behavior and rendering of the code action lightbulb.
 		 */
 		lightbulb?: IEditorLightbulbOptions;
@@ -3276,7 +3271,6 @@ declare namespace monaco.editor {
 		readonly selectionHighlight: boolean;
 		readonly occurrencesHighlight: boolean;
 		readonly codeLens: boolean;
-		readonly codeInsets: boolean;
 		readonly folding: boolean;
 		readonly foldingStrategy: 'auto' | 'indentation';
 		readonly showFoldingControls: 'always' | 'mouseover';

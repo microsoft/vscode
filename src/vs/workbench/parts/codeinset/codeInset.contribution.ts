@@ -21,6 +21,10 @@ import { getCodeInsetData, ICodeInsetData } from './codeinset';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { MainThreadWebviews } from 'vs/workbench/api/electron-browser/mainThreadWebview';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { localize } from 'vs/nls.mock';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class CodeInsetController implements editorCommon.IEditorContribution {
 
@@ -41,9 +45,10 @@ export class CodeInsetController implements editorCommon.IEditorContribution {
 		private _editor: editorBrowser.ICodeEditor,
 		@ICommandService private readonly _commandService: ICommandService,
 		@INotificationService private readonly _notificationService: INotificationService,
-		@IExtensionService private readonly _extensionService: IExtensionService
+		@IExtensionService private readonly _extensionService: IExtensionService,
+		@IConfigurationService private readonly _configService: IConfigurationService,
 	) {
-		this._isEnabled = this._editor.getConfiguration().contribInfo.codeInsets;
+		this._isEnabled = this._configService.getValue<boolean>('editor.codeInsets');
 
 		this._globalToDispose = [];
 		this._localToDispose = [];
@@ -53,11 +58,13 @@ export class CodeInsetController implements editorCommon.IEditorContribution {
 
 		this._globalToDispose.push(this._editor.onDidChangeModel(() => this._onModelChange()));
 		this._globalToDispose.push(this._editor.onDidChangeModelLanguage(() => this._onModelChange()));
-		this._globalToDispose.push(this._editor.onDidChangeConfiguration(() => {
-			let prevIsEnabled = this._isEnabled;
-			this._isEnabled = this._editor.getConfiguration().contribInfo.codeInsets;
-			if (prevIsEnabled !== this._isEnabled) {
-				this._onModelChange();
+		this._globalToDispose.push(this._configService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('editor.codeInsets')) {
+				let prevIsEnabled = this._isEnabled;
+				this._isEnabled = this._configService.getValue<boolean>('editor.codeInsets');
+				if (prevIsEnabled !== this._isEnabled) {
+					this._onModelChange();
+				}
 			}
 		}));
 		this._globalToDispose.push(CodeInsetProviderRegistry.onDidChange(this._onModelChange, this));
@@ -333,3 +340,15 @@ export class CodeInsetController implements editorCommon.IEditorContribution {
 }
 
 registerEditorContribution(CodeInsetController);
+
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	id: 'editor',
+	properties: {
+		['editor.codeInsets']: {
+			description: localize('editor.codeInsets', "Enable/disable editor code insets"),
+			type: 'boolean',
+			default: false
+		}
+	}
+});
