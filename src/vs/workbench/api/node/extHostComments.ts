@@ -270,12 +270,12 @@ function convertToComment(provider: vscode.DocumentCommentProvider | vscode.Work
 		canDelete: canDelete,
 		command: vscodeComment.command ? commandsConverter.toInternal(vscodeComment.command) : null,
 		isDraft: vscodeComment.isDraft,
-		commentReactions: vscodeComment.commentReactions.map(reaction => {
+		commentReactions: vscodeComment.commentReactions ? vscodeComment.commentReactions.map(reaction => {
 			return {
 				label: reaction.label,
 				hasReacted: reaction.hasReacted,
 				canEdit: (reaction.hasReacted && providerCanDeleteReaction) || (!reaction.hasReacted && providerCanAddReaction)
 			};
-		})
+		}) : undefined
 	};
 }
