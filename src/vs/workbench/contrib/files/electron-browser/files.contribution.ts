@@ -6,6 +6,7 @@
 import { URI } from 'vs/base/common/uri';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ShowViewletAction } from 'vs/workbench/browser/viewlet';
 import * as nls from 'vs/nls';
+import { sep } from 'path';
 import { SyncActionDescriptor, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
@@ -33,7 +34,6 @@ import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { nativeSep } from 'vs/base/common/paths';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExplorerService } from 'vs/workbench/contrib/files/electron-browser/explorerService';
@@ -61,10 +61,10 @@ class FileUriLabelContribution implements IWorkbenchContribution {
 			scheme: 'file',
 			formatting: {
 				label: '${authority}${path}',
-				separator: nativeSep,
+				separator: sep,
 				tildify: !platform.isWindows,
 				normalizeDriveLetter: platform.isWindows,
-				authorityPrefix: nativeSep + nativeSep,
+				authorityPrefix: sep + sep,
 				workspaceSuffix: ''
 			}
 		});

@@ -6,7 +6,7 @@
 import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { IConfig, IDebuggerContribution } from 'vs/workbench/contrib/debug/common/debug';
 import { URI as uri } from 'vs/base/common/uri';
-import { isAbsolute_posix, isAbsolute_win32 } from 'vs/base/common/paths';
+import { isAbsolute } from 'vs/base/common/paths';
 import { deepClone } from 'vs/base/common/objects';
 
 const _formatPIIRegexp = /{([^}]+)}/g;
@@ -90,7 +90,7 @@ function stringToUri(path: string): string {
 			return <string><unknown>uri.parse(path);
 		} else {
 			// assume path
-			if (isAbsolute_posix(path) || isAbsolute_win32(path)) {
+			if (isAbsolute(path)) {
 				return <string><unknown>uri.file(path);
 			} else {
 				// leave relative path as is

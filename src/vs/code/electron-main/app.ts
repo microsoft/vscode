@@ -63,8 +63,9 @@ import { hasArgs } from 'vs/platform/environment/node/argv';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { registerContextMenuListener } from 'vs/base/parts/contextmenu/electron-main/contextmenu';
 import { storeBackgroundColor } from 'vs/code/electron-main/theme';
-import { nativeSep, join } from 'vs/base/common/paths';
+import { join } from 'vs/base/common/paths';
 import { homedir } from 'os';
+import { sep } from 'path';
 import { localize } from 'vs/nls';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from 'vs/platform/remote/node/remoteAgentFileSystemChannel';
@@ -154,7 +155,7 @@ export class CodeApplication extends Disposable {
 					const srcUri = URI.parse(source).fsPath.toLowerCase();
 					const rootUri = URI.file(this.environmentService.appRoot).fsPath.toLowerCase();
 
-					return startsWith(srcUri, rootUri + nativeSep);
+					return startsWith(srcUri, rootUri + sep);
 				};
 
 				// Ensure defaults
@@ -685,7 +686,7 @@ export class CodeApplication extends Disposable {
 				this._disposeRunner = new RunOnceScheduler(() => this.dispose(), 5000);
 			}
 
-			public dispose(): void {
+			dispose(): void {
 				this._disposeRunner.dispose();
 				connectionPool.delete(this._authority);
 				this._client.then((connection) => {
@@ -693,7 +694,7 @@ export class CodeApplication extends Disposable {
 				});
 			}
 
-			public getClient(): Promise<Client<RemoteAgentConnectionContext>> {
+			getClient(): Promise<Client<RemoteAgentConnectionContext>> {
 				this._disposeRunner.schedule();
 				return this._client;
 			}

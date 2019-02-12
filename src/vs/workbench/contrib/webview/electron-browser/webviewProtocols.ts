@@ -2,9 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { extname } from 'path';
+import { extname, sep } from 'path';
 import { getMediaMime, MIME_UNKNOWN } from 'vs/base/common/mime';
-import { nativeSep } from 'vs/base/common/paths';
 import { startsWith } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -52,7 +51,7 @@ export function registerFileProtocol(
 		const requestPath = URI.parse(request.url).path;
 		const normalizedPath = URI.file(requestPath);
 		for (const root of getRoots()) {
-			if (startsWith(normalizedPath.fsPath, root.fsPath + nativeSep)) {
+			if (startsWith(normalizedPath.fsPath, root.fsPath + sep)) {
 				resolveContent(fileService, normalizedPath, getMimeType(normalizedPath), callback);
 				return;
 			}

@@ -19,15 +19,16 @@ export interface IBroadcast {
 export interface IBroadcastService {
 	_serviceBrand: any;
 
-	broadcast(b: IBroadcast): void;
-
 	onBroadcast: Event<IBroadcast>;
+
+	broadcast(b: IBroadcast): void;
 }
 
 export class BroadcastService implements IBroadcastService {
-	public _serviceBrand: any;
+	_serviceBrand: any;
 
 	private readonly _onBroadcast: Emitter<IBroadcast>;
+	get onBroadcast(): Event<IBroadcast> { return this._onBroadcast.event; }
 
 	constructor(
 		private windowId: number,
@@ -46,11 +47,7 @@ export class BroadcastService implements IBroadcastService {
 		});
 	}
 
-	public get onBroadcast(): Event<IBroadcast> {
-		return this._onBroadcast.event;
-	}
-
-	public broadcast(b: IBroadcast): void {
+	broadcast(b: IBroadcast): void {
 		this.logService.trace(`Sending broadcast to main from window ${this.windowId}: `, b);
 
 		ipc.send('vscode:broadcast', this.windowId, {
