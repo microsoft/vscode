@@ -3,16 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as platform from 'vs/base/common/platform';
-import * as perf from 'vs/base/common/performance';
-import * as aria from 'vs/base/browser/ui/aria/aria';
 import { Disposable } from 'vs/base/common/lifecycle';
-import * as errors from 'vs/base/common/errors';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
 import product from 'vs/platform/node/product';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import pkg from 'vs/platform/node/package';
-import { Workbench, IWorkbenchStartedInfo } from 'vs/workbench/electron-browser/workbench';
+import { Workbench } from 'vs/workbench/electron-browser/workbench';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService, configurationTelemetry, combinedAppender, LogAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
@@ -40,13 +35,13 @@ import { ExtensionService } from 'vs/workbench/services/extensions/electron-brow
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InstantiationService } from 'vs/platform/instantiation/node/instantiationService';
-import { ILifecycleService, LifecyclePhase, WillShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, WillShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ISearchService, ISearchHistoryService } from 'vs/workbench/services/search/common/search';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CommandService } from 'vs/workbench/services/commands/common/commandService';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { WorkbenchModeServiceImpl } from 'vs/workbench/services/mode/common/workbenchModeService';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -56,9 +51,6 @@ import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
 import { ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/node/extensionManagementIpc';
 import { IExtensionManagementService, IExtensionEnablementService, IExtensionManagementServerService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
-import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
-import { restoreFontInfo, readFontInfo, saveFontInfo } from 'vs/editor/browser/config/configuration';
-import * as browser from 'vs/base/browser/browser';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { WorkbenchThemeService } from 'vs/workbench/services/themes/electron-browser/workbenchThemeService';
 import { ITextResourceConfigurationService, ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
@@ -78,7 +70,6 @@ import { NotificationService } from 'vs/workbench/services/notification/common/n
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { DialogService } from 'vs/workbench/services/dialogs/electron-browser/dialogService';
 import { DialogChannel } from 'vs/platform/dialogs/node/dialogIpc';
-import { EventType, addDisposableListener, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/node/remoteAgentService';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -128,26 +119,25 @@ export class Shell extends Disposable {
 	private broadcastService: IBroadcastService;
 	private themeService: WorkbenchThemeService;
 	private lifecycleService: LifecycleService;
-	private mainProcessServices: ServiceCollection;
 	private notificationService: INotificationService;
 
 	private container: HTMLElement;
-	private previousErrorValue: string;
-	private previousErrorTime: number;
+	private mainProcessClient: IPCClient;
+	private mainProcessServices: ServiceCollection;
 
 	private configuration: IWindowConfiguration;
-	private workbench: Workbench;
 
 	constructor(
 		container: HTMLElement,
 		coreServices: ICoreServices,
 		mainProcessServices: ServiceCollection,
-		private mainProcessClient: IPCClient,
+		mainProcessClient: IPCClient,
 		configuration: IWindowConfiguration
 	) {
 		super();
 
 		this.container = container;
+		this.mainProcessClient = this._register(mainProcessClient);
 
 		this.configuration = configuration;
 
@@ -158,114 +148,29 @@ export class Shell extends Disposable {
 		this.storageService = coreServices.storageService;
 
 		this.mainProcessServices = mainProcessServices;
-
-		this.previousErrorTime = 0;
 	}
 
-	private renderContents(): void {
-
-		// ARIA
-		aria.setARIAContainer(document.body);
+	open(): void {
 
 		// Instantiation service with services
-		const [instantiationService, serviceCollection] = this.initServiceCollection(this.container);
-
-		// Warm up font cache information before building up too many dom elements
-		restoreFontInfo(this.storageService);
-		readFontInfo(BareFontInfo.createFromRawSettings(this.configurationService.getValue('editor'), browser.getZoomLevel()));
-		this._register(this.storageService.onWillSaveState(() => {
-			saveFontInfo(this.storageService); // Keep font info for next startup around
-		}));
+		const [instantiationService, serviceCollection] = this.initServiceCollection();
 
 		// Workbench
-		this.workbench = this.createWorkbench(instantiationService, serviceCollection, this.container);
+		const workbench = this._register(instantiationService.createInstance(
+			Workbench,
+			this.container,
+			this.configuration,
+			serviceCollection,
+			this.lifecycleService,
+			this.mainProcessClient
+		));
+		workbench.startup();
 
 		// Window
-		this.workbench.getInstantiationService().createInstance(ElectronWindow);
-
-		// Handle case where workbench is not starting up properly
-		const timeoutHandle = setTimeout(() => {
-			this.logService.warn('Workbench did not finish loading in 10 seconds, that might be a problem that should be reported.');
-		}, 10000);
-
-		this.lifecycleService.when(LifecyclePhase.Restored).then(() => {
-			clearTimeout(timeoutHandle);
-		});
+		workbench.getInstantiationService().createInstance(ElectronWindow);
 	}
 
-	private createWorkbench(instantiationService: IInstantiationService, serviceCollection: ServiceCollection, container: HTMLElement): Workbench {
-
-		function handleStartupError(logService: ILogService, error: Error): void {
-
-			// Log it
-			logService.error(toErrorMessage(error, true));
-
-			// Rethrow
-			throw error;
-		}
-
-		try {
-			const workbench = instantiationService.createInstance(Workbench, container, this.configuration, serviceCollection, this.lifecycleService, this.mainProcessClient);
-
-			// Startup Workbench
-			workbench.startup().then(startupInfos => {
-
-				// Startup Telemetry
-				this.logStartupTelemetry(startupInfos);
-			}, error => handleStartupError(this.logService, error));
-
-			return workbench;
-		} catch (error) {
-			handleStartupError(this.logService, error);
-
-			return undefined;
-		}
-	}
-
-	private logStartupTelemetry(info: IWorkbenchStartedInfo): void {
-		const { filesToOpen, filesToCreate, filesToDiff } = this.configuration;
-		/* __GDPR__
-			"workspaceLoad" : {
-				"userAgent" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"windowSize.innerHeight": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"windowSize.innerWidth": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"windowSize.outerHeight": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"windowSize.outerWidth": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"emptyWorkbench": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"workbench.filesToOpen": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"workbench.filesToCreate": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"workbench.filesToDiff": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"customKeybindingsCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"theme": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"language": { "classification": "SystemMetaData", "purpose": "BusinessInsight" },
-				"pinnedViewlets": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"restoredViewlet": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"restoredEditors": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"pinnedViewlets": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"startupKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-			}
-		*/
-		this.telemetryService.publicLog('workspaceLoad', {
-			userAgent: navigator.userAgent,
-			windowSize: { innerHeight: window.innerHeight, innerWidth: window.innerWidth, outerHeight: window.outerHeight, outerWidth: window.outerWidth },
-			emptyWorkbench: this.contextService.getWorkbenchState() === WorkbenchState.EMPTY,
-			'workbench.filesToOpen': filesToOpen && filesToOpen.length || 0,
-			'workbench.filesToCreate': filesToCreate && filesToCreate.length || 0,
-			'workbench.filesToDiff': filesToDiff && filesToDiff.length || 0,
-			customKeybindingsCount: info.customKeybindingsCount,
-			theme: this.themeService.getColorTheme().id,
-			language: platform.language,
-			pinnedViewlets: info.pinnedViewlets,
-			restoredViewlet: info.restoredViewlet,
-			restoredEditors: info.restoredEditorsCount,
-			startupKind: this.lifecycleService.startupKind
-		});
-
-		// Telemetry: startup metrics
-		perf.mark('didStartWorkbench');
-	}
-
-	private initServiceCollection(container: HTMLElement): [IInstantiationService, ServiceCollection] {
+	private initServiceCollection(): [IInstantiationService, ServiceCollection] {
 		const serviceCollection = new ServiceCollection();
 		serviceCollection.set(IWorkspaceContextService, this.contextService);
 		serviceCollection.set(IConfigurationService, this.configurationService);
@@ -389,95 +294,5 @@ export class Shell extends Disposable {
 		serviceCollection.set(ILocalizationsService, new SyncDescriptor(LocalizationsChannelClient, [localizationsChannel]));
 
 		return [instantiationService, serviceCollection];
-	}
-
-	open(): void {
-
-		// Listen on unhandled rejection events
-		window.addEventListener('unhandledrejection', (event: PromiseRejectionEvent) => {
-
-			// See https://developer.mozilla.org/en-US/docs/Web/API/PromiseRejectionEvent
-			errors.onUnexpectedError(event.reason);
-
-			// Prevent the printing of this event to the console
-			event.preventDefault();
-		});
-
-		// Listen on unexpected errors
-		errors.setUnexpectedErrorHandler((error: any) => {
-			this.onUnexpectedError(error);
-		});
-
-		// Create Contents
-		this.renderContents();
-
-		// Layout
-		this.layout();
-
-		// Listeners
-		this.registerListeners();
-
-		// Set lifecycle phase to `Ready`
-		this.lifecycleService.phase = LifecyclePhase.Ready;
-	}
-
-	private registerListeners(): void {
-		this._register(addDisposableListener(window, EventType.RESIZE, e => this.onWindowResize(e, true)));
-	}
-
-	private onWindowResize(e: any, retry: boolean): void {
-		if (e.target === window) {
-			if (window.document && window.document.body && window.document.body.clientWidth === 0) {
-				// TODO@Ben this is an electron issue on macOS when simple fullscreen is enabled
-				// where for some reason the window clientWidth is reported as 0 when switching
-				// between simple fullscreen and normal screen. In that case we schedule the layout
-				// call at the next animation frame once, in the hope that the dimensions are
-				// proper then.
-				if (retry) {
-					scheduleAtNextAnimationFrame(() => this.onWindowResize(e, false));
-				}
-				return;
-			}
-
-			this.layout();
-		}
-	}
-
-	onUnexpectedError(error: any): void {
-		const errorMsg = toErrorMessage(error, true);
-		if (!errorMsg) {
-			return;
-		}
-
-		const now = Date.now();
-		if (errorMsg === this.previousErrorValue && now - this.previousErrorTime <= 1000) {
-			return; // Return if error message identical to previous and shorter than 1 second
-		}
-
-		this.previousErrorTime = now;
-		this.previousErrorValue = errorMsg;
-
-		// Log it
-		this.logService.error(errorMsg);
-
-		// Show to user if friendly message provided
-		if (error && error.friendlyMessage && this.notificationService) {
-			this.notificationService.error(error.friendlyMessage);
-		}
-	}
-
-	private layout(): void {
-		this.workbench.layout();
-	}
-
-	dispose(): void {
-		super.dispose();
-
-		// Dispose Workbench
-		if (this.workbench) {
-			this.workbench.dispose();
-		}
-
-		this.mainProcessClient.dispose();
 	}
 }
