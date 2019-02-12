@@ -63,7 +63,7 @@ import { hasArgs } from 'vs/platform/environment/node/argv';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { registerContextMenuListener } from 'vs/base/parts/contextmenu/electron-main/contextmenu';
 import { storeBackgroundColor } from 'vs/code/electron-main/theme';
-import { join } from 'vs/base/common/paths';
+import { join } from 'vs/base/common/extpath';
 import { homedir } from 'os';
 import { sep } from 'vs/base/common/paths.node';
 import { localize } from 'vs/nls';

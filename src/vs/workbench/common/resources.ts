@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import * as paths from 'vs/base/common/paths';
+import * as extpath from 'vs/base/common/extpath';
 import * as objects from 'vs/base/common/objects';
 import { Event, Emitter } from 'vs/base/common/event';
 import { relative } from 'vs/base/common/paths.node';
@@ -197,7 +197,7 @@ export class ResourceGlobMatcher extends Disposable {
 		// but can match on "src/file.txt"
 		let resourcePathToMatch: string;
 		if (folder) {
-			resourcePathToMatch = paths.normalize(relative(folder.uri.fsPath, resource.fsPath));
+			resourcePathToMatch = extpath.normalize(relative(folder.uri.fsPath, resource.fsPath));
 		} else {
 			resourcePathToMatch = resource.fsPath;
 		}

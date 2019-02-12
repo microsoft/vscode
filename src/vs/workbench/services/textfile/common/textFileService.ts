@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import * as paths from 'vs/base/common/paths';
+import * as extpath from 'vs/base/common/extpath';
 import * as errors from 'vs/base/common/errors';
 import * as objects from 'vs/base/common/objects';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -908,7 +908,7 @@ export class TextFileService extends Disposable implements ITextFileService {
 						// Otherwise a parent folder of the source is being moved, so we need
 						// to compute the target resource based on that
 						else {
-							targetModelResource = sourceModelResource.with({ path: paths.join(target.path, sourceModelResource.path.substr(source.path.length + 1)) });
+							targetModelResource = sourceModelResource.with({ path: extpath.join(target.path, sourceModelResource.path.substr(source.path.length + 1)) });
 						}
 
 						// Remember as dirty target model to load after the operation

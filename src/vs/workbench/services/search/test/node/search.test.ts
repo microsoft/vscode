@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import * as path from 'vs/base/common/paths.node';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
-import { join, normalize } from 'vs/base/common/paths';
+import { join, normalize } from 'vs/base/common/extpath';
 import * as platform from 'vs/base/common/platform';
 import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';

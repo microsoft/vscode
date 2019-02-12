@@ -5,7 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import { createHash } from 'crypto';
-import * as paths from 'vs/base/common/paths';
+import * as extpath from 'vs/base/common/extpath';
 import * as resources from 'vs/base/common/resources';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as pfs from 'vs/base/node/pfs';
@@ -308,8 +308,8 @@ class CachedWorkspaceConfiguration extends Disposable implements IWorkspaceConfi
 	}
 
 	private createPaths(workspaceIdentifier: IWorkspaceIdentifier) {
-		this.cachedWorkspacePath = paths.join(this.environmentService.userDataPath, 'CachedConfigurations', 'workspaces', workspaceIdentifier.id);
-		this.cachedConfigurationPath = paths.join(this.cachedWorkspacePath, 'workspace.json');
+		this.cachedWorkspacePath = extpath.join(this.environmentService.userDataPath, 'CachedConfigurations', 'workspaces', workspaceIdentifier.id);
+		this.cachedConfigurationPath = extpath.join(this.cachedWorkspacePath, 'workspace.json');
 	}
 }
 
@@ -531,12 +531,12 @@ export class FileServiceBasedFolderConfiguration extends AbstractFolderConfigura
 
 	private toFolderRelativePath(resource: URI): string | null {
 		if (resource.scheme === Schemas.file) {
-			if (paths.isEqualOrParent(resource.fsPath, this.folderConfigurationPath.fsPath, !isLinux /* ignorecase */)) {
-				return paths.normalize(relative(this.folderConfigurationPath.fsPath, resource.fsPath));
+			if (extpath.isEqualOrParent(resource.fsPath, this.folderConfigurationPath.fsPath, !isLinux /* ignorecase */)) {
+				return extpath.normalize(relative(this.folderConfigurationPath.fsPath, resource.fsPath));
 			}
 		} else {
 			if (resources.isEqualOrParent(resource, this.folderConfigurationPath)) {
-				return paths.normalize(relative(this.folderConfigurationPath.path, resource.path));
+				return extpath.normalize(relative(this.folderConfigurationPath.path, resource.path));
 			}
 		}
 		return null;
@@ -559,8 +559,8 @@ export class CachedFolderConfiguration extends Disposable implements IFolderConf
 		configFolderRelativePath: string,
 		environmentService: IEnvironmentService) {
 		super();
-		this.cachedFolderPath = paths.join(environmentService.userDataPath, 'CachedConfigurations', 'folders', createHash('md5').update(paths.join(folder.path, configFolderRelativePath)).digest('hex'));
-		this.cachedConfigurationPath = paths.join(this.cachedFolderPath, 'configuration.json');
+		this.cachedFolderPath = extpath.join(environmentService.userDataPath, 'CachedConfigurations', 'folders', createHash('md5').update(extpath.join(folder.path, configFolderRelativePath)).digest('hex'));
+		this.cachedConfigurationPath = extpath.join(this.cachedFolderPath, 'configuration.json');
 		this.configurationModel = new ConfigurationModel();
 	}
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { IExpression } from 'vs/base/common/glob';
-import * as paths from 'vs/base/common/paths';
+import * as extpath from 'vs/base/common/extpath';
 import { URI as uri } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -908,7 +908,7 @@ function fixPath(...slashPathParts: string[]): string {
 		slashPathParts.unshift('c:');
 	}
 
-	return paths.join(...slashPathParts);
+	return extpath.join(...slashPathParts);
 }
 
 function normalizeExpression(expression: IExpression | undefined): IExpression | undefined {

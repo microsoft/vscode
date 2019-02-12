@@ -5,7 +5,7 @@
 
 import { URI as uri } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
-import * as paths from 'vs/base/common/paths';
+import * as extpath from 'vs/base/common/extpath';
 import * as platform from 'vs/base/common/platform';
 import * as Types from 'vs/base/common/types';
 import { Schemas } from 'vs/base/common/network';
@@ -58,7 +58,7 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 				if (!fileResource) {
 					return undefined;
 				}
-				return paths.normalize(fileResource.fsPath, true);
+				return extpath.normalize(fileResource.fsPath, true);
 			},
 			getSelectedText: (): string | undefined => {
 				const activeTextEditorWidget = editorService.activeTextEditorWidget;

@@ -7,7 +7,7 @@ import * as chokidar from 'vscode-chokidar';
 import * as fs from 'fs';
 import * as gracefulFs from 'graceful-fs';
 gracefulFs.gracefulify(fs);
-import * as paths from 'vs/base/common/paths';
+import * as extpath from 'vs/base/common/extpath';
 import * as glob from 'vs/base/common/glob';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { ThrottledDelayer } from 'vs/base/common/async';
@@ -284,7 +284,7 @@ function isIgnored(path: string, requests: ExtendedWatcherRequest[]): boolean {
 		if (request.basePath === path) {
 			return false;
 		}
-		if (paths.isEqualOrParent(path, request.basePath)) {
+		if (extpath.isEqualOrParent(path, request.basePath)) {
 			if (!request.parsedPattern) {
 				if (request.ignored && request.ignored.length > 0) {
 					let pattern = `{${request.ignored.join(',')}}`;
@@ -313,7 +313,7 @@ export function normalizeRoots(requests: IWatcherRequest[]): { [basePath: string
 	for (let request of requests) {
 		let basePath = request.basePath;
 		let ignored = (request.ignored || []).sort();
-		if (prevRequest && (paths.isEqualOrParent(basePath, prevRequest.basePath))) {
+		if (prevRequest && (extpath.isEqualOrParent(basePath, prevRequest.basePath))) {
 			if (!isEqualIgnore(ignored, prevRequest.ignored)) {
 				result[prevRequest.basePath].push({ basePath, ignored });
 			}

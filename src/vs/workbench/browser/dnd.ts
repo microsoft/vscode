@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { hasWorkspaceFileExtension, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { normalize } from 'vs/base/common/paths';
+import { normalize } from 'vs/base/common/extpath';
 import { basename, basenameOrAuthority } from 'vs/base/common/resources';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWindowsService, IWindowService, IURIToOpen } from 'vs/platform/windows/common/windows';
