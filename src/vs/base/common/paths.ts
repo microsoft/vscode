@@ -6,17 +6,7 @@
 import { isWindows } from 'vs/base/common/platform';
 import { startsWithIgnoreCase, equalsIgnoreCase } from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
-
-/**
- * The forward slash path separator.
- */
-export const sep = '/';
-
-/**
- * The native path separator depending on the OS.
- */
-export const nativeSep = isWindows ? '\\' : '/';
-
+import { sep, posix } from 'vs/base/common/paths.node';
 
 function isPathSeparator(code: number) {
 	return code === CharCode.Slash || code === CharCode.Backslash;
@@ -29,7 +19,7 @@ function isPathSeparator(code: number) {
  * '.' is returned for empty paths or single segment relative paths (as done by NodeJS)
  * For paths consisting only of a root, the input path is returned
  */
-export function dirname(path: string, separator = nativeSep): string {
+export function dirname(path: string, separator = sep): string {
 	const len = path.length;
 	if (len === 0) {
 		return '.';
@@ -154,6 +144,34 @@ function streql(value: string, start: number, end: number, other: string): boole
 	return start + other.length === end && value.indexOf(other, start) === start;
 }
 
+export const join: (...parts: string[]) => string = function () {
+	// Not using a function with var-args because of how TS compiles
+	// them to JS - it would result in 2*n runtime cost instead
+	// of 1*n, where n is parts.length.
+
+	let value = '';
+	for (let i = 0; i < arguments.length; i++) {
+		let part = arguments[i];
+		if (i > 0) {
+			// add the separater between two parts unless
+			// there already is one
+			let last = value.charCodeAt(value.length - 1);
+			if (!isPathSeparator(last)) {
+				let next = part.charCodeAt(0);
+				if (!isPathSeparator(next)) {
+					value += posix.sep;
+				}
+			}
+		}
+		value += part;
+	}
+
+	return normalize(value);
+};
+
+
+// #region extpath
+
 /**
  * Computes the _root_ this path, like `getRoot('c:\files') === c:\`,
  * `getRoot('files:///files/path') === files:///`,
@@ -226,33 +244,6 @@ export function getRoot(path: string, sep: string = '/'): string {
 
 	return '';
 }
-
-export const join: (...parts: string[]) => string = function () {
-	// Not using a function with var-args because of how TS compiles
-	// them to JS - it would result in 2*n runtime cost instead
-	// of 1*n, where n is parts.length.
-
-	let value = '';
-	for (let i = 0; i < arguments.length; i++) {
-		let part = arguments[i];
-		if (i > 0) {
-			// add the separater between two parts unless
-			// there already is one
-			let last = value.charCodeAt(value.length - 1);
-			if (!isPathSeparator(last)) {
-				let next = part.charCodeAt(0);
-				if (!isPathSeparator(next)) {
-
-					value += sep;
-				}
-			}
-		}
-		value += part;
-	}
-
-	return normalize(value);
-};
-
 
 /**
  * Check if the path follows this pattern: `\\hostname\sharename`.
@@ -343,7 +334,7 @@ export function isEqual(pathA: string, pathB: string, ignoreCase?: boolean): boo
 	return equalsIgnoreCase(pathA, pathB);
 }
 
-export function isEqualOrParent(path: string, candidate: string, ignoreCase?: boolean, separator = nativeSep): boolean {
+export function isEqualOrParent(path: string, candidate: string, ignoreCase?: boolean, separator = sep): boolean {
 	if (path === candidate) {
 		return true;
 	}
@@ -384,3 +375,5 @@ export function isEqualOrParent(path: string, candidate: string, ignoreCase?: bo
 export function isWindowsDriveLetter(char0: number): boolean {
 	return char0 >= CharCode.A && char0 <= CharCode.Z || char0 >= CharCode.a && char0 <= CharCode.z;
 }
+
+// #endregion

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as strings from 'vs/base/common/strings';
-import * as paths from 'vs/base/common/paths';
+import { sep } from 'vs/base/common/paths.node';
 import { IdleValue } from 'vs/base/common/async';
 
 let intlFileNameCollator: IdleValue<{ collator: Intl.Collator, collatorIsNumeric: boolean }>;
@@ -116,8 +116,8 @@ function comparePathComponents(one: string, other: string, caseSensitive = false
 }
 
 export function comparePaths(one: string, other: string, caseSensitive = false): number {
-	const oneParts = one.split(paths.nativeSep);
-	const otherParts = other.split(paths.nativeSep);
+	const oneParts = one.split(sep);
+	const otherParts = other.split(sep);
 
 	const lastOne = oneParts.length - 1;
 	const lastOther = otherParts.length - 1;

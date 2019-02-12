@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { normalize, isAbsolute } from 'vs/base/common/paths.node';
+import { normalize, isAbsolute, posix } from 'vs/base/common/paths.node';
 import { IViewletPanelOptions, ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -154,7 +154,7 @@ class BaseTreeItem {
 	getLabel(separateRootFolder = true): string {
 		const child = this.oneChild();
 		if (child) {
-			const sep = (this instanceof RootFolderTreeItem && separateRootFolder) ? ' • ' : '/';
+			const sep = (this instanceof RootFolderTreeItem && separateRootFolder) ? ' • ' : posix.sep;
 			return `${this._label}${sep}${child.getLabel()}`;
 		}
 		return this._label;
@@ -317,10 +317,10 @@ class SessionTreeItem extends BaseTreeItem {
 				folder = this.rootProvider ? this.rootProvider.getWorkspaceFolder(resource) : null;
 				if (folder) {
 					// strip off the root folder path
-					path = normalize(ltrim(resource.path.substr(folder.uri.path.length), '/'));
+					path = normalize(ltrim(resource.path.substr(folder.uri.path.length), posix.sep));
 					const hasMultipleRoots = this.rootProvider.getWorkspace().folders.length > 1;
 					if (hasMultipleRoots) {
-						path = '/' + path;
+						path = posix.sep + path;
 					} else {
 						// don't show root folder
 						folder = undefined;

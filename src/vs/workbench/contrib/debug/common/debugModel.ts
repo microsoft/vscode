@@ -20,7 +20,7 @@ import {
 } from 'vs/workbench/contrib/debug/common/debug';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { commonSuffixLength } from 'vs/base/common/strings';
-import { sep } from 'vs/base/common/paths';
+import { posix } from 'vs/base/common/paths.node';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
@@ -354,7 +354,7 @@ export class StackFrame implements IStackFrame {
 			return this.source.name;
 		}
 
-		const from = Math.max(0, this.source.uri.path.lastIndexOf(sep, this.source.uri.path.length - suffixLength - 1));
+		const from = Math.max(0, this.source.uri.path.lastIndexOf(posix.sep, this.source.uri.path.length - suffixLength - 1));
 		return (from > 0 ? '...' : '') + this.source.uri.path.substr(from);
 	}
 
