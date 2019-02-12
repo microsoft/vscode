@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as Paths from 'vs/base/common/paths';
+import { basename } from 'vs/base/common/paths.node';
 import * as Json from 'vs/base/common/json';
 import { Color } from 'vs/base/common/color';
 import { ExtensionData, ITokenColorCustomizations, ITokenColorizationRule, IColorTheme, IColorMap, IThemeExtensionPoint, VS_LIGHT_THEME, VS_HC_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
@@ -261,7 +262,7 @@ export class ColorThemeData implements IColorTheme {
 		let themeSelector = toCSSSelector(extensionData.extensionId + '-' + Paths.normalize(theme.path));
 		let themeData = new ColorThemeData();
 		themeData.id = `${baseTheme} ${themeSelector}`;
-		themeData.label = theme.label || Paths.basename(theme.path);
+		themeData.label = theme.label || basename(theme.path);
 		themeData.settingsId = theme.id || themeData.label;
 		themeData.description = theme.description;
 		themeData.watch = theme._watch === true;
@@ -271,8 +272,6 @@ export class ColorThemeData implements IColorTheme {
 		return themeData;
 	}
 }
-
-
 
 function toCSSSelector(str: string) {
 	str = str.replace(/[^_\-a-zA-Z0-9]/g, '-');

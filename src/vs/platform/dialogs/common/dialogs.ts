@@ -6,7 +6,7 @@
 import Severity from 'vs/base/common/severity';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
-import { basename } from 'vs/base/common/paths';
+import { basename } from 'vs/base/common/resources';
 import { localize } from 'vs/nls';
 import { FileFilter } from 'vs/platform/windows/common/windows';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
@@ -214,7 +214,7 @@ const MAX_CONFIRM_FILES = 10;
 export function getConfirmMessage(start: string, resourcesToConfirm: URI[]): string {
 	const message = [start];
 	message.push('');
-	message.push(...resourcesToConfirm.slice(0, MAX_CONFIRM_FILES).map(r => basename(r.fsPath)));
+	message.push(...resourcesToConfirm.slice(0, MAX_CONFIRM_FILES).map(r => basename(r)));
 
 	if (resourcesToConfirm.length > MAX_CONFIRM_FILES) {
 		if (resourcesToConfirm.length - MAX_CONFIRM_FILES === 1) {

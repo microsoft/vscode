@@ -13,7 +13,7 @@ import { debounce } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import * as lifecycle from 'vs/base/common/lifecycle';
-import * as paths from 'vs/base/common/paths';
+import { basename } from 'vs/base/common/paths.node';
 import * as platform from 'vs/base/common/platform';
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
 import * as nls from 'vs/nls';
@@ -1245,7 +1245,7 @@ export class TerminalInstance implements ITerminalInstance {
 			return;
 		}
 		if (eventFromProcess) {
-			title = paths.basename(title);
+			title = basename(title);
 			if (platform.isWindows) {
 				// Remove the .exe extension
 				title = title.split('.exe')[0];

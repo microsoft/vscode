@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
 import { ReferencesModel, FileReferences, OneReference } from './referencesModel';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ITreeRenderer, ITreeNode, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
@@ -15,7 +14,7 @@ import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import * as dom from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
 import { getBaseLabel } from 'vs/base/common/labels';
-import { dirname } from 'vs/base/common/resources';
+import { dirname, basename } from 'vs/base/common/resources';
 import { escape } from 'vs/base/common/strings';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -23,7 +22,6 @@ import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate, IKeyboardNavigationLabelProvider, IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { basename } from 'vs/base/common/paths';
 import { FuzzyScore, createMatches, IMatch } from 'vs/base/common/filters';
 
 //#region data source
@@ -86,7 +84,7 @@ export class StringRepresentationProvider implements IKeyboardNavigationLabelPro
 	getKeyboardNavigationLabel(element: TreeElement): { toString(): string; } {
 		// todo@joao `OneReference` elements are lazy and their "real" label
 		// isn't known yet
-		return basename(element.uri.path);
+		return basename(element.uri);
 	}
 
 	mightProducePrintableCharacter(event: IKeyboardEvent): boolean {

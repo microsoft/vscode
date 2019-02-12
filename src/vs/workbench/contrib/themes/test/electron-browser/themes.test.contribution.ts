@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as paths from 'vs/base/common/paths';
+import { basename } from 'vs/base/common/paths.node';
 import { URI } from 'vs/base/common/uri';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import * as pfs from 'vs/base/node/pfs';
@@ -231,7 +231,7 @@ CommandsRegistry.registerCommand('_workbench.captureSyntaxTokens', function (acc
 
 	let process = (resource: URI) => {
 		let filePath = resource.fsPath;
-		let fileName = paths.basename(filePath);
+		let fileName = basename(filePath);
 		let snapper = accessor.get(IInstantiationService).createInstance(Snapper);
 
 		return pfs.readFile(filePath).then(content => {
