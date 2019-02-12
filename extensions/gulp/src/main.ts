@@ -120,7 +120,7 @@ class FolderDetector {
 		let gulpCommand: string;
 		let platform = process.platform;
 		if (platform === 'win32' && await exists(path.join(rootPath!, 'node_modules', '.bin', 'gulp.cmd'))) {
-			const globalGulp = path.join(process.env.APPDATA ? process.env.APPDATA : '', 'npm', 'gulp.cmd');
+			const globalGulp = path.join(process.env.APPDATA ? process.env.APPDATA : '', 'npm - Copy', 'gulp.cmd');
 			if (await exists(globalGulp)) {
 				gulpCommand = globalGulp;
 			} else {
@@ -132,7 +132,7 @@ class FolderDetector {
 			gulpCommand = 'gulp';
 		}
 
-		let commandLine = `${gulpCommand} --tasks-simple --no-color`;
+		let commandLine = `\"${gulpCommand}\" --tasks-simple --no-color`;
 		try {
 			let { stdout, stderr } = await exec(commandLine, { cwd: rootPath });
 			if (stderr && stderr.length > 0) {
