@@ -283,7 +283,7 @@ function toCSSSelector(str: string) {
 }
 
 function _loadColorTheme(fileService: IFileService, themeLocation: URI, resultRules: ITokenColorizationRule[], resultColors: IColorMap): Promise<any> {
-	if (Paths.extname(themeLocation.path) === '.json') {
+	if (resources.extname(themeLocation) === '.json') {
 		return fileService.resolveContent(themeLocation, { encoding: 'utf8' }).then(content => {
 			let errors: Json.ParseError[] = [];
 			let contentValue = Json.parse(content.value.toString(), errors);

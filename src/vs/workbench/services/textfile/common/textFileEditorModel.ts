@@ -29,7 +29,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { isLinux } from 'vs/base/common/platform';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
-import { isEqual, isEqualOrParent } from 'vs/base/common/resources';
+import { isEqual, isEqualOrParent, extname } from 'vs/base/common/resources';
 import { onUnexpectedError } from 'vs/base/common/errors';
 
 /**
@@ -769,7 +769,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	private getTypeIfSettings(): string {
-		if (path.extname(this.resource.fsPath) !== '.json') {
+		if (extname(this.resource) !== '.json') {
 			return '';
 		}
 
@@ -808,7 +808,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	private getTelemetryData(reason: number): Object {
-		const ext = path.extname(this.resource.fsPath);
+		const ext = extname(this.resource);
 		const fileName = path.basename(this.resource.fsPath);
 		const telemetryData = {
 			mimeType: guessMimeTypes(this.resource.fsPath).join(', '),

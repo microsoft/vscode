@@ -7,7 +7,7 @@ import 'vs/css!./media/editorstatus';
 import * as nls from 'vs/nls';
 import { $, append, runAtThisOrScheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import * as strings from 'vs/base/common/strings';
-import * as paths from 'vs/base/common/paths';
+import { extname, basename } from 'vs/base/common/resources';
 import * as types from 'vs/base/common/types';
 import { URI as uri } from 'vs/base/common/uri';
 import { IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
@@ -911,7 +911,7 @@ export class ChangeModeAction extends Action {
 		let configureModeSettings: IQuickPickItem;
 		let galleryAction: Action;
 		if (hasLanguageSupport) {
-			const ext = paths.extname(resource.fsPath) || paths.basename(resource.fsPath);
+			const ext = extname(resource) || basename(resource);
 
 			galleryAction = this.instantiationService.createInstance(ShowLanguageExtensionsAction, ext);
 			if (galleryAction.enabled) {
@@ -992,9 +992,9 @@ export class ChangeModeAction extends Action {
 	}
 
 	private configureFileAssociation(resource: uri): void {
-		const extension = paths.extname(resource.fsPath);
-		const basename = paths.basename(resource.fsPath);
-		const currentAssociation = this.modeService.getModeIdByFilepathOrFirstLine(basename);
+		const extension = extname(resource);
+		const base = basename(resource);
+		const currentAssociation = this.modeService.getModeIdByFilepathOrFirstLine(base);
 
 		const languages = this.modeService.getRegisteredLanguageNames();
 		const picks: IQuickPickItem[] = languages.sort().map((lang, index) => {
@@ -1008,15 +1008,15 @@ export class ChangeModeAction extends Action {
 		});
 
 		setTimeout(() => {
-			this.quickInputService.pick(picks, { placeHolder: nls.localize('pickLanguageToConfigure', "Select Language Mode to Associate with '{0}'", extension || basename) }).then(language => {
+			this.quickInputService.pick(picks, { placeHolder: nls.localize('pickLanguageToConfigure', "Select Language Mode to Associate with '{0}'", extension || base) }).then(language => {
 				if (language) {
 					const fileAssociationsConfig = this.configurationService.inspect(FILES_ASSOCIATIONS_CONFIG);
 
 					let associationKey: string;
-					if (extension && basename[0] !== '.') {
+					if (extension && base[0] !== '.') {
 						associationKey = `*${extension}`; // only use "*.ext" if the file path is in the form of <name>.<ext>
 					} else {
-						associationKey = basename; // otherwise use the basename (e.g. .gitignore, Dockerfile)
+						associationKey = base; // otherwise use the basename (e.g. .gitignore, Dockerfile)
 					}
 
 					// If the association is already being made in the workspace, make sure to target workspace settings

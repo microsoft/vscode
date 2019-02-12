@@ -26,15 +26,6 @@ export function basename(path: string): string {
 	}
 }
 
-/**
- * @returns `.far` from `boo.far` or the empty string.
- */
-export function extname(path: string): string {
-	path = basename(path);
-	const idx = ~path.lastIndexOf('.');
-	return idx ? path.substring(~idx) : '';
-}
-
 const _posixBadPath = /(\/\.\.?\/)|(\/\.\.?)$|^(\.\.?\/)|(\/\/+)|(\\)/;
 const _winBadPath = /(\\\.\.?\\)|(\\\.\.?)$|^(\.\.?\\)|(\\\\+)|(\/)/;
 

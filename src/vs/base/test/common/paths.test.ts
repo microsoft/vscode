@@ -71,22 +71,6 @@ suite('Paths', () => {
 
 	});
 
-	test('basename', () => {
-		assert.equal(paths.basename('foo/bar'), 'bar');
-		assert.equal(paths.basename('foo\\bar'), 'bar');
-		assert.equal(paths.basename('/foo/bar'), 'bar');
-		assert.equal(paths.basename('\\foo\\bar'), 'bar');
-		assert.equal(paths.basename('./bar'), 'bar');
-		assert.equal(paths.basename('.\\bar'), 'bar');
-		assert.equal(paths.basename('/bar'), 'bar');
-		assert.equal(paths.basename('\\bar'), 'bar');
-		assert.equal(paths.basename('bar/'), 'bar');
-		assert.equal(paths.basename('bar\\'), 'bar');
-		assert.equal(paths.basename('bar'), 'bar');
-		assert.equal(paths.basename('////////'), '');
-		assert.equal(paths.basename('\\\\\\\\'), '');
-	});
-
 	test('join', () => {
 		assert.equal(paths.join('.', 'bar'), 'bar');
 		assert.equal(paths.join('../../foo/bar', '../../foo'), '../../foo');
@@ -112,14 +96,6 @@ suite('Paths', () => {
 		assert.equal(paths.join('foo/bar', './bar/foo'), 'foo/bar/bar/foo');
 		assert.equal(paths.join('http://localhost/test', '../next'), 'http://localhost/next');
 		assert.equal(paths.join('http://localhost/test', 'test'), 'http://localhost/test/test');
-	});
-
-	test('extname', () => {
-		assert.equal(paths.extname('far.boo'), '.boo');
-		assert.equal(paths.extname('far.b'), '.b');
-		assert.equal(paths.extname('far.'), '.');
-		assert.equal(paths.extname('far.boo/boo.far'), '.far');
-		assert.equal(paths.extname('far.boo/boo'), '');
 	});
 
 	test('isUNC', () => {

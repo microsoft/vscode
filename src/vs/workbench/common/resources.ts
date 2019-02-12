@@ -8,6 +8,7 @@ import * as paths from 'vs/base/common/paths';
 import * as objects from 'vs/base/common/objects';
 import { Event, Emitter } from 'vs/base/common/event';
 import { relative } from 'vs/base/common/paths.node';
+import { basename, extname } from 'vs/base/common/resources';
 import { RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -64,9 +65,9 @@ export class ResourceContextKey extends Disposable implements IContextKey<URI> {
 		if (!ResourceContextKey._uriEquals(this._resourceKey.get(), value)) {
 			this._resourceKey.set(value);
 			this._schemeKey.set(value && value.scheme);
-			this._filenameKey.set(value && paths.basename(value.fsPath));
+			this._filenameKey.set(value && basename(value));
 			this._langIdKey.set(value ? this._modeService.getModeIdByFilepathOrFirstLine(value.fsPath) : null);
-			this._extensionKey.set(value && paths.extname(value.fsPath));
+			this._extensionKey.set(value && extname(value));
 			this._hasResource.set(!!value);
 			this._isFileSystemResource.set(value && this._fileService.canHandleResource(value));
 		}

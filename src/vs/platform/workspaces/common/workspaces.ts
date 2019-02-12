@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { Event } from 'vs/base/common/event';
 import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { extname } from 'vs/base/common/paths';
+import { extname } from 'vs/base/common/paths.node';
 
 export const IWorkspacesMainService = createDecorator<IWorkspacesMainService>('workspacesMainService');
 export const IWorkspacesService = createDecorator<IWorkspacesService>('workspacesService');
