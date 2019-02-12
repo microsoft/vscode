@@ -52,7 +52,7 @@ export class Source {
 				this.uri = uri.parse(path);
 			} else {
 				// assume a filesystem path
-				if (paths.isAbsolute_posix(path) || paths.isAbsolute_win32(path)) {
+				if (paths.isAbsolute(path)) {
 					this.uri = uri.file(path);
 				} else {
 					// path is relative: since VS Code cannot deal with this by itself
