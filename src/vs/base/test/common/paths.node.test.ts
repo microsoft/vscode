@@ -730,4 +730,66 @@ suite('Paths (Node Implementation)', () => {
 			assert.strictEqual(path, path.posix);
 		}
 	});
+
+	// test('perf', () => {
+	// 	const folderNames = [
+	// 		'abc',
+	// 		'Users',
+	// 		'reallylongfoldername',
+	// 		's',
+	// 		'reallyreallyreallylongfoldername',
+	// 		'home'
+	// 	];
+
+	// 	const basePaths = [
+	// 		'C:',
+	// 		'',
+	// 	];
+
+	// 	const separators = [
+	// 		'\\',
+	// 		'/'
+	// 	];
+
+	// 	function randomInt(ciel: number): number {
+	// 		return Math.floor(Math.random() * ciel);
+	// 	}
+
+	// 	let pathsToNormalize = [];
+	// 	let pathsToJoin = [];
+	// 	let i;
+	// 	for (i = 0; i < 1000000; i++) {
+	// 		const basePath = basePaths[randomInt(basePaths.length)];
+	// 		let lengthOfPath = randomInt(10) + 2;
+
+	// 		let pathToNormalize = basePath + separators[randomInt(separators.length)];
+	// 		while (lengthOfPath-- > 0) {
+	// 			pathToNormalize = pathToNormalize + folderNames[randomInt(folderNames.length)] + separators[randomInt(separators.length)];
+	// 		}
+
+	// 		pathsToNormalize.push(pathToNormalize);
+
+	// 		let pathToJoin = '';
+	// 		lengthOfPath = randomInt(10) + 2;
+	// 		while (lengthOfPath-- > 0) {
+	// 			pathToJoin = pathToJoin + folderNames[randomInt(folderNames.length)] + separators[randomInt(separators.length)];
+	// 		}
+
+	// 		pathsToJoin.push(pathToJoin + '.ts');
+	// 	}
+
+	// 	let newTime = 0;
+
+	// 	let j;
+	// 	for(j = 0; j < pathsToJoin.length; j++) {
+	// 		const path1 = pathsToNormalize[j];
+	// 		const path2 = pathsToNormalize[j];
+
+	// 		const newStart = performance.now();
+	// 		path.join(path1, path2);
+	// 		newTime += performance.now() - newStart;
+	// 	}
+
+	// 	assert.ok(false, `Time: ${newTime}ms.`);
+	// });
 });
