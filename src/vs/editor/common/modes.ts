@@ -9,7 +9,7 @@ import { Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { isObject } from 'vs/base/common/types';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -1321,19 +1321,6 @@ export interface CodeLensProvider {
 	resolveCodeLens?(model: model.ITextModel, codeLens: ICodeLensSymbol, token: CancellationToken): ProviderResult<ICodeLensSymbol>;
 }
 
-export interface ICodeInsetSymbol {
-	range: IRange;
-	id?: string;
-	height?: number;
-	webviewHandle?: string;
-}
-export interface CodeInsetProvider {
-	onDidChange?: Event<this>;
-	extensionLocation: UriComponents;
-	provideCodeInsets(model: model.ITextModel, token: CancellationToken): ProviderResult<ICodeInsetSymbol[]>;
-	resolveCodeInset?(model: model.ITextModel, codeInset: ICodeInsetSymbol, token: CancellationToken): ProviderResult<ICodeInsetSymbol>;
-}
-
 // --- feature registries ------
 
 /**
@@ -1395,11 +1382,6 @@ export const TypeDefinitionProviderRegistry = new LanguageFeatureRegistry<TypeDe
  * @internal
  */
 export const CodeLensProviderRegistry = new LanguageFeatureRegistry<CodeLensProvider>();
-
-/**
- * @internal
- */
-export const CodeInsetProviderRegistry = new LanguageFeatureRegistry<CodeInsetProvider>();
 
 /**
  * @internal

@@ -18,6 +18,7 @@ import { CustomCodeAction } from 'vs/workbench/api/node/extHostLanguageFeatures'
 import { ICommandsExecutor, PreviewHTMLAPICommand, OpenFolderAPICommand, DiffAPICommand, OpenAPICommand, RemoveFromRecentlyOpenedAPICommand, SetEditorLayoutAPICommand } from './apiCommands';
 import { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import * as codeInset from 'vs/workbench/parts/codeinset/codeInset';
 
 export class ExtHostApiCommands {
 
@@ -523,7 +524,7 @@ export class ExtHostApiCommands {
 
 	private _executeCodeInsetProvider(resource: URI): Thenable<vscode.CodeInset[]> {
 		const args = { resource };
-		return this._commands.executeCommand<modes.ICodeInsetSymbol[]>('_executeCodeInsetProvider', args)
+		return this._commands.executeCommand<codeInset.ICodeInsetSymbol[]>('_executeCodeInsetProvider', args)
 			.then(tryMapWith(item =>
 				new types.CodeInset(
 					typeConverters.Range.to(item.range))));

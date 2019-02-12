@@ -5414,20 +5414,6 @@ declare namespace monaco.languages {
 		resolveCodeLens?(model: editor.ITextModel, codeLens: ICodeLensSymbol, token: CancellationToken): ProviderResult<ICodeLensSymbol>;
 	}
 
-	export interface ICodeInsetSymbol {
-		range: IRange;
-		id?: string;
-		height?: number;
-		webviewHandle?: string;
-	}
-
-	export interface CodeInsetProvider {
-		onDidChange?: IEvent<this>;
-		extensionLocation: UriComponents;
-		provideCodeInsets(model: editor.ITextModel, token: CancellationToken): ProviderResult<ICodeInsetSymbol[]>;
-		resolveCodeInset?(model: editor.ITextModel, codeInset: ICodeInsetSymbol, token: CancellationToken): ProviderResult<ICodeInsetSymbol>;
-	}
-
 	export interface ILanguageExtensionPoint {
 		id: string;
 		extensions?: string[];

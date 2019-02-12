@@ -45,6 +45,7 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { ResolvedAuthority } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IRemoteConsoleLog } from 'vs/base/node/console';
+import * as codeInset from 'vs/workbench/parts/codeinset/codeInset';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -905,7 +906,7 @@ export interface CodeLensDto extends ObjectIdentifier {
 	command?: CommandDto;
 }
 
-export type CodeInsetDto = ObjectIdentifier & modes.ICodeInsetSymbol;
+export type CodeInsetDto = ObjectIdentifier & codeInset.ICodeInsetSymbol;
 
 export interface ExtHostLanguageFeaturesShape {
 	$provideDocumentSymbols(handle: number, resource: UriComponents, token: CancellationToken): Promise<modes.DocumentSymbol[] | undefined>;

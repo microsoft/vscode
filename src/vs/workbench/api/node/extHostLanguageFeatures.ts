@@ -27,6 +27,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ExtHostWebview } from 'vs/workbench/api/node/extHostWebview';
+import * as codeInset from 'vs/workbench/parts/codeinset/codeInset';
 
 // --- adapter
 
@@ -153,7 +154,7 @@ class CodeInsetAdapter {
 		private readonly _provider: vscode.CodeInsetProvider
 	) { }
 
-	provideCodeInsets(resource: URI, token: CancellationToken): Promise<modes.ICodeInsetSymbol[]> {
+	provideCodeInsets(resource: URI, token: CancellationToken): Promise<codeInset.ICodeInsetSymbol[]> {
 		const doc = this._documents.getDocumentData(resource).document;
 		return asPromise(() => this._provider.provideCodeInsets(doc, token)).then(insets => {
 			if (Array.isArray(insets)) {
@@ -170,7 +171,7 @@ class CodeInsetAdapter {
 		});
 	}
 
-	resolveCodeInset(symbol: modes.ICodeInsetSymbol, webview: vscode.Webview, token: CancellationToken): Promise<modes.ICodeInsetSymbol> {
+	resolveCodeInset(symbol: codeInset.ICodeInsetSymbol, webview: vscode.Webview, token: CancellationToken): Promise<codeInset.ICodeInsetSymbol> {
 
 		const inset = this._heapService.get<vscode.CodeInset>(ObjectIdentifier.of(symbol));
 		if (!inset) {
@@ -1151,11 +1152,11 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return result;
 	}
 
-	$provideCodeInsets(handle: number, resource: UriComponents, token: CancellationToken): Promise<modes.ICodeInsetSymbol[]> {
+	$provideCodeInsets(handle: number, resource: UriComponents, token: CancellationToken): Promise<codeInset.ICodeInsetSymbol[]> {
 		return this._withAdapter(handle, CodeInsetAdapter, adapter => adapter.provideCodeInsets(URI.revive(resource), token));
 	}
 
-	$resolveCodeInset(handle: number, resource: UriComponents, symbol: modes.ICodeInsetSymbol, token: CancellationToken): Promise<modes.ICodeInsetSymbol> {
+	$resolveCodeInset(handle: number, resource: UriComponents, symbol: codeInset.ICodeInsetSymbol, token: CancellationToken): Promise<codeInset.ICodeInsetSymbol> {
 		const webview = new ExtHostWebview(symbol.webviewHandle, this._webviewProxy, { enableScripts: true });
 		webview.html = '<html><body></body></html>';
 		const x = this._withAdapter(handle, CodeInsetAdapter, adapter => adapter.resolveCodeInset(symbol, webview, token));

@@ -21,6 +21,7 @@ import * as typeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import { URI } from 'vs/base/common/uri';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import * as codeInset from 'vs/workbench/parts/codeinset/codeInset';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesShape {
@@ -165,7 +166,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	$registerCodeInsetSupport(handle: number, selector: ISerializedDocumentFilter[], eventHandle: number, extension: IExtensionDescription): void {
 
-		const provider = <modes.CodeInsetProvider>{
+		const provider = <codeInset.CodeInsetProvider>{
 			provideCodeInsets: (model: ITextModel, token: CancellationToken): CodeInsetDto[] | Thenable<CodeInsetDto[]> => {
 				return this._proxy.$provideCodeInsets(handle, model.uri, token).then(dto => {
 					if (dto) { dto.forEach(obj => this._heapService.trackObject(obj)); }
@@ -182,13 +183,13 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		};
 
 		if (typeof eventHandle === 'number') {
-			const emitter = new Emitter<modes.CodeInsetProvider>();
+			const emitter = new Emitter<codeInset.CodeInsetProvider>();
 			this._registrations[eventHandle] = emitter;
 			provider.onDidChange = emitter.event;
 		}
 
 		const langSelector = typeConverters.LanguageSelector.from(selector);
-		this._registrations[handle] = modes.CodeInsetProviderRegistry.register(langSelector, provider);
+		this._registrations[handle] = codeInset.CodeInsetProviderRegistry.register(langSelector, provider);
 	}
 
 	// --- declaration

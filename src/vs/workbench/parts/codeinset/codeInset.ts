@@ -4,13 +4,32 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
-import { ICodeInsetSymbol, CodeInsetProvider, CodeInsetProviderRegistry } from 'vs/editor/common/modes';
 import { ITextModel } from 'vs/editor/common/model';
 import { onUnexpectedExternalError, illegalArgument } from 'vs/base/common/errors';
 import { mergeSort } from 'vs/base/common/arrays';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
+import { Event } from 'vs/base/common/event';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { LanguageFeatureRegistry } from 'vs/editor/common/modes/languageFeatureRegistry';
+import { ProviderResult } from 'vs/editor/common/modes';
+import { IRange } from 'vs/editor/common/core/range';
+
+export interface ICodeInsetSymbol {
+	range: IRange;
+	id?: string;
+	height?: number;
+	webviewHandle?: string;
+}
+
+export interface CodeInsetProvider {
+	onDidChange?: Event<this>;
+	extensionLocation: UriComponents;
+	provideCodeInsets(model: ITextModel, token: CancellationToken): ProviderResult<ICodeInsetSymbol[]>;
+	resolveCodeInset?(model: ITextModel, codeInset: ICodeInsetSymbol, token: CancellationToken): ProviderResult<ICodeInsetSymbol>;
+}
+
+export const CodeInsetProviderRegistry = new LanguageFeatureRegistry<CodeInsetProvider>();
 
 export interface ICodeInsetData {
 	symbol: ICodeInsetSymbol;

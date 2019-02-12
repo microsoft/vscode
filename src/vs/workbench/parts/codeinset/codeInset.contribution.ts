@@ -3,9 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// import { Registry } from 'vs/platform/registry/common/platform';
-// import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-// import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { CancelablePromise, createCancelablePromise, RunOnceScheduler } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -13,11 +10,10 @@ import { StableEditorScrollState } from 'vs/editor/browser/core/editorState';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
-import { CodeInsetProviderRegistry } from 'vs/editor/common/modes';
+import { CodeInsetProviderRegistry, getCodeInsetData, ICodeInsetData } from './codeInset';
 import { CodeInsetWidget, CodeInsetHelper } from './codeInsetWidget';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { getCodeInsetData, ICodeInsetData } from './codeinset';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { MainThreadWebviews } from 'vs/workbench/api/electron-browser/mainThreadWebview';
