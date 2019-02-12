@@ -22,7 +22,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
-
+// todo@joh not nice!
 export let mainThreadWebviews: MainThreadWebviews;
 
 @extHostNamedCustomer(MainContext.MainThreadWebviews)

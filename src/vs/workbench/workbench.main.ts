@@ -178,7 +178,6 @@ import 'vs/workbench/contrib/experiments/electron-browser/experiments.contributi
 // Code Insets
 import 'vs/workbench/parts/codeinset/codeInset.contribution';
 
-//#endregion
 // Issues
 import 'vs/workbench/contrib/issue/electron-browser/issue.contribution';
 

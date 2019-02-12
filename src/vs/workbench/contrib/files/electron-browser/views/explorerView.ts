@@ -344,11 +344,6 @@ export class ExplorerView extends ViewletPanel {
 
 				if (e.browserEvent instanceof MouseEvent) {
 					isDoubleClick = e.browserEvent.detail === 2;
-
-					if (!this.tree.openOnSingleClick && !isDoubleClick) {
-						return;
-					}
-
 					isMiddleClick = e.browserEvent.button === 1;
 					const isLeftButton = e.browserEvent.button === 0;
 
