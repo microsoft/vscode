@@ -8,9 +8,21 @@
 import * as fancyLog from 'fancy-log';
 import * as ansiColors from 'ansi-colors';
 
-export type PromiseTask = () => Promise<void>;
-export type StreamTask = () => NodeJS.ReadWriteStream;
-export type CallbackTask = (cb?: (err?: any) => void) => void;
+export interface BaseTask {
+	displayName?: string;
+	taskName?: string;
+	_tasks?: Task[];
+}
+export interface PromiseTask extends BaseTask {
+	(): Promise<void>;
+}
+export interface StreamTask extends BaseTask {
+	(): NodeJS.ReadWriteStream;
+}
+export interface CallbackTask extends BaseTask {
+	(cb?: (err?: any) => void): void;
+}
+
 export type Task = PromiseTask | StreamTask | CallbackTask;
 
 function _isPromise(p: Promise<void> | NodeJS.ReadWriteStream): p is Promise<void> {
@@ -33,14 +45,20 @@ function _renderTime(time: number): string {
 	return `${minutes} m and ${seconds} s`;
 }
 
+const DONT_SHOW_PLEASE = `DONT_SHOW_PLEASE`;
+
 async function _execute(task: Task): Promise<void> {
-	const name = (<any>task).displayName || task.name || `<anonymous>`;
-	fancyLog('Starting', ansiColors.cyan(name), '...');
+	const name = task.taskName || task.displayName || `<anonymous>`;
+	if (name !== DONT_SHOW_PLEASE) {
+		fancyLog('Starting', ansiColors.cyan(name), '...');
+	}
 	const startTime = process.hrtime();
 	await _doExecute(task);
 	const elapsedArr = process.hrtime(startTime);
 	const elapsedNanoseconds = (elapsedArr[0] * 1e9 + elapsedArr[1]);
-	fancyLog(`Finished`, ansiColors.cyan(name), 'after', ansiColors.green(_renderTime(elapsedNanoseconds / 1e6)));
+	if (name !== DONT_SHOW_PLEASE) {
+		fancyLog(`Finished`, ansiColors.cyan(name), 'after', ansiColors.green(_renderTime(elapsedNanoseconds / 1e6)));
+	}
 }
 
 async function _doExecute(task: Task): Promise<void> {
@@ -78,15 +96,42 @@ async function _doExecute(task: Task): Promise<void> {
 }
 
 export function series(...tasks: Task[]): PromiseTask {
-	return async () => {
+	const result = async () => {
 		for (let i = 0; i < tasks.length; i++) {
 			await _execute(tasks[i]);
 		}
 	};
+	result._tasks = tasks;
+	return result;
 }
 
 export function parallel(...tasks: Task[]): PromiseTask {
-	return async () => {
+	const result = async () => {
 		await Promise.all(tasks.map(t => _execute(t)));
 	};
+	result._tasks = tasks;
+	return result;
+}
+
+export function define(name: string, task: Task): Task {
+	if (task._tasks) {
+		// This is a composite task
+		const lastTask = task._tasks[task._tasks.length - 1];
+
+		if (lastTask._tasks || lastTask.taskName) {
+			// This is a composite task without a real task function
+			// => generate a fake task function
+			return define(name, series(task, () => Promise.resolve()));
+		}
+
+		lastTask.taskName = name;
+		task.taskName = DONT_SHOW_PLEASE;
+		task.displayName = name;
+		return task;
+	}
+
+	// This is a simple task
+	task.taskName = name;
+	task.displayName = name;
+	return task;
 }
