@@ -27,7 +27,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ExtHostWebview } from 'vs/workbench/api/node/extHostWebview';
-import * as codeInset from 'vs/workbench/parts/codeinset/codeInset';
+import * as codeInset from 'vs/workbench/contrib/codeinset/codeInset';
 
 // --- adapter
 

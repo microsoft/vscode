@@ -18,7 +18,7 @@ import { CustomCodeAction } from 'vs/workbench/api/node/extHostLanguageFeatures'
 import { ICommandsExecutor, PreviewHTMLAPICommand, OpenFolderAPICommand, DiffAPICommand, OpenAPICommand, RemoveFromRecentlyOpenedAPICommand, SetEditorLayoutAPICommand } from './apiCommands';
 import { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
-import * as codeInset from 'vs/workbench/parts/codeinset/codeInset';
+import * as codeInset from 'vs/workbench/contrib/codeinset/codeInset';
 
 export class ExtHostApiCommands {
 
