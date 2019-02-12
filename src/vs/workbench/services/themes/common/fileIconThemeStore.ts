@@ -11,7 +11,7 @@ import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/workbench/serv
 import { ExtensionData, IThemeExtensionPoint } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { Event, Emitter } from 'vs/base/common/event';
-import { FileIconThemeData } from 'vs/workbench/services/themes/electron-browser/fileIconThemeData';
+import { FileIconThemeData } from 'vs/workbench/services/themes/common/fileIconThemeData';
 import { URI } from 'vs/base/common/uri';
 
 const iconThemeExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPoint[]>({

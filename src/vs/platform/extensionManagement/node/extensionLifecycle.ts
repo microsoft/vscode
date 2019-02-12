@@ -8,7 +8,7 @@ import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensio
 import { ILogService } from 'vs/platform/log/common/log';
 import { fork, ChildProcess } from 'child_process';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { posix } from 'path';
+import { posix } from 'vs/base/common/paths.node';
 import { Limiter } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';

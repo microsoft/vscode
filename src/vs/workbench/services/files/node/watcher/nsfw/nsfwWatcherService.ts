@@ -5,7 +5,7 @@
 
 import * as glob from 'vs/base/common/glob';
 import * as paths from 'vs/base/common/paths';
-import * as path from 'path';
+import * as path from 'vs/base/common/paths.node';
 import * as platform from 'vs/base/common/platform';
 import * as watcher from 'vs/workbench/services/files/node/watcher/common';
 import * as nsfw from 'vscode-nsfw';

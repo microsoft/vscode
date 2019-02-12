@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { dirname, join } from 'path';
+import { dirname, join } from 'vs/base/common/paths.node';
 import { basename } from 'vs/base/common/paths';
 import { del, exists, readdir, readFile } from 'vs/base/node/pfs';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';

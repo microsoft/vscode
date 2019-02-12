@@ -178,6 +178,14 @@ function _format(sep, pathObject) {
 	return dir + sep + base;
 }
 
+interface ParsedPath {
+	root: string;
+	dir: string;
+	base: string;
+	ext: string;
+	name: string;
+}
+
 interface IPath {
 	normalize(path: string): string;
 	isAbsolute(path: string): boolean;
@@ -188,9 +196,9 @@ interface IPath {
 	basename(path: string, ext?: string): string;
 	extname(path: string): string;
 	format(pathObject): string;
-	parse(path: string): object;
+	parse(path: string): ParsedPath;
 	toNamespacedPath(path: string): string;
-	sep: string;
+	sep: '\\' | '/';
 	delimiter: string;
 	win32: IPath | null;
 	posix: IPath | null;
@@ -1572,7 +1580,7 @@ const posix: IPath = {
 		return _format('/', pathObject);
 	},
 
-	parse(path: string): object {
+	parse(path: string): ParsedPath {
 		validateString(path, 'path');
 
 		let ret = { root: '', dir: '', base: '', ext: '', name: '' };

@@ -6,7 +6,7 @@
 import { MainContext, MainThreadOutputServiceShape, IMainContext, ExtHostOutputServiceShape } from './extHost.protocol';
 import * as vscode from 'vscode';
 import { URI } from 'vs/base/common/uri';
-import { posix } from 'path';
+import { posix } from 'vs/base/common/paths.node';
 import { OutputAppender } from 'vs/workbench/contrib/output/node/outputAppender';
 import { toLocalISOString } from 'vs/base/common/date';
 import { Event, Emitter } from 'vs/base/common/event';

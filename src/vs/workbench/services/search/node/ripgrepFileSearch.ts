@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as cp from 'child_process';
-import * as path from 'path';
+import * as path from 'vs/base/common/paths.node';
 import * as glob from 'vs/base/common/glob';
 import { normalizeNFD } from 'vs/base/common/normalization';
 import * as objects from 'vs/base/common/objects';
