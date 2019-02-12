@@ -180,7 +180,7 @@ function rimraf(dir) {
             return cb(err);
         });
     };
-    retry.displayName = `clean-${path.basename(dir)}`;
+    retry.taskName = `clean-${path.basename(dir)}`;
     return retry;
 }
 exports.rimraf = rimraf;

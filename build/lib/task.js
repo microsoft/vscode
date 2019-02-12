@@ -24,17 +24,16 @@ function _renderTime(time) {
     seconds -= minutes * 60;
     return `${minutes} m and ${seconds} s`;
 }
-const DONT_SHOW_PLEASE = `DONT_SHOW_PLEASE`;
 async function _execute(task) {
     const name = task.taskName || task.displayName || `<anonymous>`;
-    if (name !== DONT_SHOW_PLEASE) {
+    if (!task._tasks) {
         fancyLog('Starting', ansiColors.cyan(name), '...');
     }
     const startTime = process.hrtime();
     await _doExecute(task);
     const elapsedArr = process.hrtime(startTime);
     const elapsedNanoseconds = (elapsedArr[0] * 1e9 + elapsedArr[1]);
-    if (name !== DONT_SHOW_PLEASE) {
+    if (!task._tasks) {
         fancyLog(`Finished`, ansiColors.cyan(name), 'after', ansiColors.green(_renderTime(elapsedNanoseconds / 1e6)));
     }
 }
@@ -95,7 +94,6 @@ function define(name, task) {
             return define(name, series(task, () => Promise.resolve()));
         }
         lastTask.taskName = name;
-        task.taskName = DONT_SHOW_PLEASE;
         task.displayName = name;
         return task;
     }

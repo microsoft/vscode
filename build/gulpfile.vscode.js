@@ -88,7 +88,7 @@ const BUNDLED_FILE_HEADER = [
 	' *--------------------------------------------------------*/'
 ].join('\n');
 
-const optimizeVSCodeTask = task.series(
+const optimizeVSCodeTask = task.define('optimize-vscode', task.series(
 	task.parallel(
 		util.rimraf('out-vscode'),
 		compileBuildTask
@@ -102,11 +102,10 @@ const optimizeVSCodeTask = task.series(
 		out: 'out-vscode',
 		bundleInfo: undefined
 	})
-);
-optimizeVSCodeTask.displayName = 'optimize-vscode';
+));
 
 
-const optimizeIndexJSTask = task.series(
+const optimizeIndexJSTask = task.define('optimize-index-js', task.series(
 	optimizeVSCodeTask,
 	() => {
 		const fullpath = path.join(process.cwd(), 'out-vscode/bootstrap-window.js');
@@ -114,18 +113,16 @@ const optimizeIndexJSTask = task.series(
 		const newContents = contents.replace('[/*BUILD->INSERT_NODE_MODULES*/]', JSON.stringify(nodeModules));
 		fs.writeFileSync(fullpath, newContents);
 	}
-);
-optimizeIndexJSTask.displayName = 'optimize-index-js';
+));
 
 const sourceMappingURLBase = `https://ticino.blob.core.windows.net/sourcemaps/${commit}`;
-const minifyVSCodeTask = task.series(
+const minifyVSCodeTask = task.define('minify-vscode', task.series(
 	task.parallel(
 		util.rimraf('out-vscode-min'),
 		optimizeIndexJSTask
 	),
 	common.minifyTask('out-vscode', `${sourceMappingURLBase}/core`)
-);
-minifyVSCodeTask.displayName = 'minify-vscode';
+));
 
 // Package
 
@@ -214,11 +211,11 @@ function getElectron(arch) {
 	};
 }
 
-gulp.task('electron', task.series(util.rimraf('.build/electron'), getElectron(process.arch)));
-gulp.task('electron-ia32', task.series(util.rimraf('.build/electron'), getElectron('ia32')));
-gulp.task('electron-x64', task.series(util.rimraf('.build/electron'), getElectron('x64')));
-gulp.task('electron-arm', task.series(util.rimraf('.build/electron'), getElectron('arm')));
-gulp.task('electron-arm64', task.series(util.rimraf('.build/electron'), getElectron('arm64')));
+gulp.task(task.define('electron', task.series(util.rimraf('.build/electron'), getElectron(process.arch))));
+gulp.task(task.define('electron-ia32', task.series(util.rimraf('.build/electron'), getElectron('ia32'))));
+gulp.task(task.define('electron-x64', task.series(util.rimraf('.build/electron'), getElectron('x64'))));
+gulp.task(task.define('electron-arm', task.series(util.rimraf('.build/electron'), getElectron('arm'))));
+gulp.task(task.define('electron-arm64', task.series(util.rimraf('.build/electron'), getElectron('arm64'))));
 
 
 /**
@@ -458,15 +455,14 @@ BUILD_TARGETS.forEach(buildTarget => {
 		const sourceFolderName = `out-vscode${dashed(minified)}`;
 		const destinationFolderName = `VSCode${dashed(platform)}${dashed(arch)}`;
 
-		const vscodeTask = task.series(
+		const vscodeTask = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
 			task.parallel(
 				minified ? minifyVSCodeTask : optimizeVSCodeTask,
 				util.rimraf(path.join(buildRoot, destinationFolderName))
 			),
 			packageTask(platform, arch, sourceFolderName, destinationFolderName, opts)
-		);
-		vscodeTask.displayName = `vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}`;
-		gulp.task(vscodeTask.displayName, vscodeTask);
+		));
+		gulp.task(vscodeTask);
 	});
 });
 
@@ -491,7 +487,8 @@ const apiHostname = process.env.TRANSIFEX_API_URL;
 const apiName = process.env.TRANSIFEX_API_NAME;
 const apiToken = process.env.TRANSIFEX_API_TOKEN;
 
-gulp.task('vscode-translations-push',
+gulp.task(task.define(
+	'vscode-translations-push',
 	task.series(
 		optimizeVSCodeTask,
 		function () {
@@ -507,9 +504,10 @@ gulp.task('vscode-translations-push',
 			).pipe(i18n.pushXlfFiles(apiHostname, apiName, apiToken));
 		}
 	)
-);
+));
 
-gulp.task('vscode-translations-export',
+gulp.task(task.define(
+	'vscode-translations-export',
 	task.series(
 		optimizeVSCodeTask,
 		function () {
@@ -524,7 +522,7 @@ gulp.task('vscode-translations-export',
 			).pipe(vfs.dest('../vscode-translations-export'));
 		}
 	)
-);
+));
 
 gulp.task('vscode-translations-pull', function () {
 	return es.merge([...i18n.defaultLanguages, ...i18n.extraLanguages].map(language => {
@@ -575,7 +573,7 @@ gulp.task('upload-vscode-sourcemaps', () => {
 });
 
 // This task is only run for the MacOS build
-const generateVSCodeConfigurationTask = () => {
+const generateVSCodeConfigurationTask = task.define('generate-vscode-configuration', () => {
 	return new Promise((resolve, reject) => {
 		const buildDir = process.env['AGENT_BUILDDIRECTORY'];
 		if (!buildDir) {
@@ -610,11 +608,11 @@ const generateVSCodeConfigurationTask = () => {
 			reject(err);
 		});
 	});
-};
-generateVSCodeConfigurationTask.displayName = 'generate-vscode-configuration';
+});
 
 const allConfigDetailsPath = path.join(os.tmpdir(), 'configuration.json');
-gulp.task('upload-vscode-configuration',
+gulp.task(task.define(
+	'upload-vscode-configuration',
 	task.series(
 		generateVSCodeConfigurationTask,
 		() => {
@@ -642,7 +640,7 @@ gulp.task('upload-vscode-configuration',
 				}));
 		}
 	)
-);
+));
 
 function shouldSetupSettingsSearch() {
 	const branch = process.env.BUILD_SOURCEBRANCH;
