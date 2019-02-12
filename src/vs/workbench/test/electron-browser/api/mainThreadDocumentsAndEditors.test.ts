@@ -29,7 +29,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 	let deltas: IDocumentsAndEditorsDelta[] = [];
 	const hugeModelString = new Array(2 + (50 * 1024 * 1024)).join('-');
 
-	function myCreateTestCodeEditor(model: ITextModel): TestCodeEditor {
+	function myCreateTestCodeEditor(model: ITextModel | undefined): TestCodeEditor {
 		return createTestCodeEditor({
 			model: model,
 			serviceCollection: new ServiceCollection(
@@ -68,12 +68,12 @@ suite('MainThreadDocumentsAndEditors', () => {
 			textFileService,
 			workbenchEditorService,
 			codeEditorService,
-			null,
+			null!,
 			fileService,
-			null,
-			null,
+			null!,
+			null!,
 			editorGroupService,
-			null,
+			null!,
 			new class extends mock<IPanelService>() implements IPanelService {
 				_serviceBrand: any;
 				onDidPanelOpen = Event.None;
@@ -95,7 +95,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 		assert.equal(deltas.length, 1);
 		const [delta] = deltas;
 
-		assert.equal(delta.addedDocuments.length, 1);
+		assert.equal(delta.addedDocuments!.length, 1);
 		assert.equal(delta.removedDocuments, undefined);
 		assert.equal(delta.addedEditors, undefined);
 		assert.equal(delta.removedEditors, undefined);
@@ -146,7 +146,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 	});
 
 	test('ignore editor w/o model', () => {
-		const editor = myCreateTestCodeEditor(null);
+		const editor = myCreateTestCodeEditor(undefined);
 		assert.equal(deltas.length, 1);
 		const [delta] = deltas;
 		assert.equal(delta.newActiveEditor, null);
@@ -166,13 +166,13 @@ suite('MainThreadDocumentsAndEditors', () => {
 
 		assert.equal(deltas.length, 2);
 		const [first, second] = deltas;
-		assert.equal(first.addedDocuments.length, 1);
+		assert.equal(first.addedDocuments!.length, 1);
 		assert.equal(first.newActiveEditor, null);
 		assert.equal(first.removedDocuments, undefined);
 		assert.equal(first.addedEditors, undefined);
 		assert.equal(first.removedEditors, undefined);
 
-		assert.equal(second.addedEditors.length, 1);
+		assert.equal(second.addedEditors!.length, 1);
 		assert.equal(second.addedDocuments, undefined);
 		assert.equal(second.removedDocuments, undefined);
 		assert.equal(second.removedEditors, undefined);
@@ -194,8 +194,8 @@ suite('MainThreadDocumentsAndEditors', () => {
 		const [first] = deltas;
 
 		assert.equal(first.newActiveEditor, null);
-		assert.equal(first.removedEditors.length, 1);
-		assert.equal(first.removedDocuments.length, 1);
+		assert.equal(first.removedEditors!.length, 1);
+		assert.equal(first.removedDocuments!.length, 1);
 		assert.equal(first.addedDocuments, undefined);
 		assert.equal(first.addedEditors, undefined);
 

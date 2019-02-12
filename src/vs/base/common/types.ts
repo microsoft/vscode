@@ -49,7 +49,7 @@ export function isStringArray(value: any): value is string[] {
  * @returns whether the provided parameter is of type `object` but **not**
  *	`null`, an `array`, a `regexp`, nor a `date`.
  */
-export function isObject(obj: any): boolean {
+export function isObject(obj: any): obj is Object {
 	// The method can't do a type cast since there are type (like strings) which
 	// are subclasses of any put not positvely matched by the function. Hence type
 	// narrowing results in wrong results.

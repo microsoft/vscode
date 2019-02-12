@@ -43,12 +43,12 @@ export interface ResourceLabelFormatting {
 
 const LABEL_SERVICE_ID = 'label';
 
-export function getSimpleWorkspaceLabel(workspace: IWorkspaceIdentifier | URI, workspaceHome: string): string {
+export function getSimpleWorkspaceLabel(workspace: IWorkspaceIdentifier | URI, workspaceHome: URI): string {
 	if (isSingleFolderWorkspaceIdentifier(workspace)) {
 		return basename(workspace);
 	}
 	// Workspace: Untitled
-	if (isEqualOrParent(workspace.configPath, URI.file(workspaceHome))) {
+	if (isEqualOrParent(workspace.configPath, workspaceHome)) {
 		return localize('untitledWorkspace', "Untitled (Workspace)");
 	}
 

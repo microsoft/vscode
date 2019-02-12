@@ -576,7 +576,7 @@ export class SimpleBulkEditService implements IBulkEditService {
 		//
 	}
 
-	apply(workspaceEdit: WorkspaceEdit, options: IBulkEditOptions): Promise<IBulkEditResult> {
+	apply(workspaceEdit: WorkspaceEdit, options?: IBulkEditOptions): Promise<IBulkEditResult> {
 
 		let edits = new Map<ITextModel, TextEdit[]>();
 

@@ -448,17 +448,12 @@ export class OutlinePanel extends ViewletPanel {
 			return this._showMessage(localize('no-symbols', "No symbols found in document '{0}'", basename(textModel.uri)));
 		}
 
-		let newSize = TreeElement.size(newModel);
-		if (newSize > 7500) {
-			// this is a workaround for performance issues with the tree: https://github.com/Microsoft/vscode/issues/18180
-			return this._showMessage(localize('too-many-symbols', "We are sorry, but this file is too large for showing an outline."));
-		}
-
 		dom.removeClass(this._domNode, 'message');
 
 		if (event && oldModel && textModel.getLineCount() >= 25) {
 			// heuristic: when the symbols-to-lines ratio changes by 50% between edits
 			// wait a little (and hope that the next change isn't as drastic).
+			let newSize = TreeElement.size(newModel);
 			let newLength = textModel.getValueLength();
 			let newRatio = newSize / newLength;
 			let oldSize = TreeElement.size(oldModel);

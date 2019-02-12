@@ -419,7 +419,7 @@ export interface IBaseStat {
 	 * A unique identifier thet represents the
 	 * current state of the file or directory.
 	 */
-	etag: string;
+	etag?: string;
 
 	/**
 	 * The resource is readonly.

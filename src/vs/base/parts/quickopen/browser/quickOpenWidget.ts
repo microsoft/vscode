@@ -639,7 +639,7 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 		this.setInput(input, autoFocus);
 	}
 
-	private setInputAndLayout(input: IModel<any>, autoFocus: IAutoFocus): void {
+	private setInputAndLayout(input: IModel<any>, autoFocus?: IAutoFocus): void {
 		this.treeContainer.style.height = `${this.getHeight(input)}px`;
 
 		this.tree.setInput(null).then(() => {
@@ -873,7 +873,7 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 		}
 	}
 
-	setInput(input: IModel<any>, autoFocus: IAutoFocus, ariaLabel?: string): void {
+	setInput(input: IModel<any>, autoFocus?: IAutoFocus, ariaLabel?: string): void {
 		if (!this.isVisible()) {
 			return;
 		}
@@ -945,7 +945,7 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 		return this.inputBox;
 	}
 
-	setExtraClass(clazz: string): void {
+	setExtraClass(clazz: string | null): void {
 		const previousClass = this.element.getAttribute('quick-open-extra-class');
 		if (previousClass) {
 			DOM.removeClasses(this.element, previousClass);

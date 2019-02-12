@@ -182,12 +182,12 @@ export namespace ViewColumn {
 		return ACTIVE_GROUP; // default is always the active group
 	}
 
-	export function to(position?: EditorViewColumn): vscode.ViewColumn | undefined {
+	export function to(position: EditorViewColumn): vscode.ViewColumn {
 		if (typeof position === 'number' && position >= 0) {
 			return position + 1; // adjust to index (ViewColumn.ONE => 1)
 		}
 
-		return undefined;
+		throw new Error(`invalid 'EditorViewColumn'`);
 	}
 }
 
@@ -443,7 +443,7 @@ export namespace TextEdit {
 
 	export function to(edit: modes.TextEdit): types.TextEdit {
 		const result = new types.TextEdit(Range.to(edit.range), edit.text);
-		result.newEol = typeof edit.eol === 'undefined' ? undefined : EndOfLine.to(edit.eol);
+		result.newEol = (typeof edit.eol === 'undefined' ? undefined : EndOfLine.to(edit.eol))!;
 		return result;
 	}
 }
@@ -457,7 +457,7 @@ export namespace WorkspaceEdit {
 			const [uri, uriOrEdits] = entry;
 			if (Array.isArray(uriOrEdits)) {
 				// text edits
-				const doc = documents ? documents.getDocument(uri.toString()) : undefined;
+				const doc = documents && uri ? documents.getDocument(uri.toString()) : undefined;
 				result.edits.push(<ResourceTextEditDto>{ resource: uri, modelVersionId: doc && doc.version, edits: uriOrEdits.map(TextEdit.from) });
 			} else {
 				// resource edits
@@ -659,7 +659,7 @@ export namespace CompletionContext {
 
 export namespace CompletionItemKind {
 
-	export function from(kind: types.CompletionItemKind): modes.CompletionItemKind {
+	export function from(kind: types.CompletionItemKind | undefined): modes.CompletionItemKind {
 		switch (kind) {
 			case types.CompletionItemKind.Method: return modes.CompletionItemKind.Method;
 			case types.CompletionItemKind.Function: return modes.CompletionItemKind.Function;
@@ -812,7 +812,7 @@ export namespace DocumentLink {
 	}
 
 	export function to(link: modes.ILink): vscode.DocumentLink {
-		return new types.DocumentLink(Range.to(link.range), link.url && URI.parse(link.url));
+		return new types.DocumentLink(Range.to(link.range), link.url ? URI.parse(link.url) : undefined);
 	}
 }
 
@@ -908,13 +908,13 @@ export namespace EndOfLine {
 }
 
 export namespace ProgressLocation {
-	export function from(loc: vscode.ProgressLocation): MainProgressLocation | undefined {
+	export function from(loc: vscode.ProgressLocation): MainProgressLocation {
 		switch (loc) {
 			case types.ProgressLocation.SourceControl: return MainProgressLocation.Scm;
 			case types.ProgressLocation.Window: return MainProgressLocation.Window;
 			case types.ProgressLocation.Notification: return MainProgressLocation.Notification;
 		}
-		return undefined;
+		throw new Error(`Unknown 'ProgressLocation'`);
 	}
 }
 
@@ -986,7 +986,10 @@ export namespace GlobPattern {
 
 export namespace LanguageSelector {
 
-	export function from(selector: vscode.DocumentSelector): languageSelector.LanguageSelector | undefined {
+	export function from(selector: undefined): undefined;
+	export function from(selector: vscode.DocumentSelector): languageSelector.LanguageSelector;
+	export function from(selector: vscode.DocumentSelector | undefined): languageSelector.LanguageSelector | undefined;
+	export function from(selector: vscode.DocumentSelector | undefined): languageSelector.LanguageSelector | undefined {
 		if (!selector) {
 			return undefined;
 		} else if (Array.isArray(selector)) {
@@ -997,7 +1000,7 @@ export namespace LanguageSelector {
 			return <languageSelector.LanguageFilter>{
 				language: selector.language,
 				scheme: selector.scheme,
-				pattern: GlobPattern.from(selector.pattern),
+				pattern: typeof selector.pattern === 'undefined' ? undefined : GlobPattern.from(selector.pattern),
 				exclusive: selector.exclusive
 			};
 		}

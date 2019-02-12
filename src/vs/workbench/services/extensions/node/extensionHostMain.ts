@@ -7,7 +7,7 @@ import { timeout } from 'vs/base/common/async';
 import * as errors from 'vs/base/common/errors';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Counter } from 'vs/base/common/numbers';
-import { URI } from 'vs/base/common/uri';
+import { URI, setUriThrowOnMissingScheme } from 'vs/base/common/uri';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
 import { IEnvironment, IInitData, MainContext, MainThreadConsoleShape } from 'vs/workbench/api/node/extHost.protocol';
@@ -20,7 +20,7 @@ import { RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
 
 // we don't (yet) throw when extensions parse
 // uris that have no scheme
-// setUriThrowOnMissingScheme(false);
+setUriThrowOnMissingScheme(false);
 
 const nativeExit = process.exit.bind(process);
 function patchProcess(allowExit: boolean) {
@@ -49,7 +49,6 @@ export class ExtensionHostMain {
 	private _isTerminating: boolean;
 	private readonly _environment: IEnvironment;
 	private readonly _extensionService: ExtHostExtensionService;
-	private readonly _extHostConfiguration: ExtHostConfiguration;
 	private readonly _extHostLogService: ExtHostLogService;
 	private disposables: IDisposable[] = [];
 
@@ -74,13 +73,13 @@ export class ExtensionHostMain {
 		this.disposables.push(this._extHostLogService);
 
 		this._searchRequestIdProvider = new Counter();
-		const extHostWorkspace = new ExtHostWorkspace(rpcProtocol, initData.workspace, this._extHostLogService, this._searchRequestIdProvider);
+		const extHostWorkspace = new ExtHostWorkspace(rpcProtocol, this._extHostLogService, this._searchRequestIdProvider);
 
 		this._extHostLogService.info('extension host started');
 		this._extHostLogService.trace('initData', initData);
 
-		this._extHostConfiguration = new ExtHostConfiguration(rpcProtocol.getProxy(MainContext.MainThreadConfiguration), extHostWorkspace);
-		this._extensionService = new ExtHostExtensionService(nativeExit, initData, rpcProtocol, extHostWorkspace, this._extHostConfiguration, this._extHostLogService);
+		const extHostConfiguraiton = new ExtHostConfiguration(rpcProtocol.getProxy(MainContext.MainThreadConfiguration), extHostWorkspace);
+		this._extensionService = new ExtHostExtensionService(nativeExit, initData, rpcProtocol, extHostWorkspace, extHostConfiguraiton, this._extHostLogService);
 
 		// error forwarding and stack trace scanning
 		Error.stackTraceLimit = 100; // increase number of stack frames (from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)

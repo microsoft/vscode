@@ -58,7 +58,7 @@ import * as extHostTypes from 'vs/workbench/api/node/extHostTypes';
 import { ExtHostUrls } from 'vs/workbench/api/node/extHostUrls';
 import { ExtHostWebviews } from 'vs/workbench/api/node/extHostWebview';
 import { ExtHostWindow } from 'vs/workbench/api/node/extHostWindow';
-import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
+import { ExtHostWorkspace, ExtHostWorkspaceProvider } from 'vs/workbench/api/node/extHostWorkspace';
 import { IExtensionDescription, throwProposedApiError, checkProposedApiEnabled, nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ProxyIdentifier } from 'vs/workbench/services/extensions/node/proxyIdentifier';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
@@ -66,7 +66,7 @@ import * as vscode from 'vscode';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export interface IExtensionApiFactory {
-	(extension: IExtensionDescription, registry: ExtensionDescriptionRegistry, configProvider: ExtHostConfigProvider): typeof vscode;
+	(extension: IExtensionDescription, registry: ExtensionDescriptionRegistry, workspaceProvider: ExtHostWorkspaceProvider, configProvider: ExtHostConfigProvider): typeof vscode;
 }
 
 function proposedApiFunction<T>(extension: IExtensionDescription, fn: T): T {
@@ -142,7 +142,7 @@ export function createApiFactory(
 	// Register API-ish commands
 	ExtHostApiCommands.register(extHostCommands);
 
-	return function (extension: IExtensionDescription, extensionRegistry: ExtensionDescriptionRegistry, configProvider: ExtHostConfigProvider): typeof vscode {
+	return function (extension: IExtensionDescription, extensionRegistry: ExtensionDescriptionRegistry, workspaceProvider: ExtHostWorkspaceProvider, configProvider: ExtHostConfigProvider): typeof vscode {
 
 		// Check document selectors for being overly generic. Technically this isn't a problem but
 		// in practice many extensions say they support `fooLang` but need fs-access to do so. Those
@@ -511,34 +511,34 @@ export function createApiFactory(
 		// namespace: workspace
 		const workspace: typeof vscode.workspace = {
 			get rootPath() {
-				return extHostWorkspace.getPath();
+				return workspaceProvider.getPath();
 			},
 			set rootPath(value) {
 				throw errors.readonly();
 			},
 			getWorkspaceFolder(resource) {
-				return extHostWorkspace.getWorkspaceFolder(resource);
+				return workspaceProvider.getWorkspaceFolder(resource);
 			},
 			get workspaceFolders() {
-				return extHostWorkspace.getWorkspaceFolders();
+				return workspaceProvider.getWorkspaceFolders();
 			},
 			get name() {
-				return extHostWorkspace.name;
+				return workspaceProvider.name;
 			},
 			set name(value) {
 				throw errors.readonly();
 			},
 			updateWorkspaceFolders: (index, deleteCount, ...workspaceFoldersToAdd) => {
-				return extHostWorkspace.updateWorkspaceFolders(extension, index, deleteCount || 0, ...workspaceFoldersToAdd);
+				return workspaceProvider.updateWorkspaceFolders(extension, index, deleteCount || 0, ...workspaceFoldersToAdd);
 			},
 			onDidChangeWorkspaceFolders: function (listener, thisArgs?, disposables?) {
-				return extHostWorkspace.onDidChangeWorkspace(listener, thisArgs, disposables);
+				return workspaceProvider.onDidChangeWorkspace(listener, thisArgs, disposables);
 			},
 			asRelativePath: (pathOrUri, includeWorkspace) => {
-				return extHostWorkspace.getRelativePath(pathOrUri, includeWorkspace);
+				return workspaceProvider.getRelativePath(pathOrUri, includeWorkspace);
 			},
 			findFiles: (include, exclude, maxResults?, token?) => {
-				return extHostWorkspace.findFiles(typeConverters.GlobPattern.from(include), typeConverters.GlobPattern.from(exclude), maxResults, extension.identifier, token);
+				return workspaceProvider.findFiles(typeConverters.GlobPattern.from(include), typeConverters.GlobPattern.from(exclude), maxResults, extension.identifier, token);
 			},
 			findTextInFiles: (query: vscode.TextSearchQuery, optionsOrCallback, callbackOrToken?, token?: vscode.CancellationToken) => {
 				let options: vscode.FindTextInFilesOptions;
@@ -553,10 +553,10 @@ export function createApiFactory(
 					token = callbackOrToken;
 				}
 
-				return extHostWorkspace.findTextInFiles(query, options || {}, callback, extension.identifier, token);
+				return workspaceProvider.findTextInFiles(query, options || {}, callback, extension.identifier, token);
 			},
 			saveAll: (includeUntitled?) => {
-				return extHostWorkspace.saveAll(includeUntitled);
+				return workspaceProvider.saveAll(includeUntitled);
 			},
 			applyEdit(edit: vscode.WorkspaceEdit): Thenable<boolean> {
 				return extHostEditors.applyWorkspaceEdit(edit);
@@ -877,11 +877,11 @@ class Extension<T> implements vscode.Extension<T> {
 	}
 }
 
-export function initializeExtensionApi(extensionService: ExtHostExtensionService, apiFactory: IExtensionApiFactory, extensionRegistry: ExtensionDescriptionRegistry, configProvider: ExtHostConfigProvider): Promise<void> {
-	return extensionService.getExtensionPathIndex().then(trie => defineAPI(apiFactory, trie, extensionRegistry, configProvider));
+export function initializeExtensionApi(extensionService: ExtHostExtensionService, apiFactory: IExtensionApiFactory, extensionRegistry: ExtensionDescriptionRegistry, workspaceProvider: ExtHostWorkspaceProvider, configProvider: ExtHostConfigProvider): Promise<void> {
+	return extensionService.getExtensionPathIndex().then(trie => defineAPI(apiFactory, trie, extensionRegistry, workspaceProvider, configProvider));
 }
 
-function defineAPI(factory: IExtensionApiFactory, extensionPaths: TernarySearchTree<IExtensionDescription>, extensionRegistry: ExtensionDescriptionRegistry, configProvider: ExtHostConfigProvider): void {
+function defineAPI(factory: IExtensionApiFactory, extensionPaths: TernarySearchTree<IExtensionDescription>, extensionRegistry: ExtensionDescriptionRegistry, workspaceProvider: ExtHostWorkspaceProvider, configProvider: ExtHostConfigProvider): void {
 
 	// each extension is meant to get its own api implementation
 	const extApiImpl = new Map<string, typeof vscode>();
@@ -899,7 +899,7 @@ function defineAPI(factory: IExtensionApiFactory, extensionPaths: TernarySearchT
 		if (ext) {
 			let apiImpl = extApiImpl.get(ExtensionIdentifier.toKey(ext.identifier));
 			if (!apiImpl) {
-				apiImpl = factory(ext, extensionRegistry, configProvider);
+				apiImpl = factory(ext, extensionRegistry, workspaceProvider, configProvider);
 				extApiImpl.set(ExtensionIdentifier.toKey(ext.identifier), apiImpl);
 			}
 			return apiImpl;
@@ -910,7 +910,7 @@ function defineAPI(factory: IExtensionApiFactory, extensionPaths: TernarySearchT
 			let extensionPathsPretty = '';
 			extensionPaths.forEach((value, index) => extensionPathsPretty += `\t${index} -> ${value.identifier.value}\n`);
 			console.warn(`Could not identify extension for 'vscode' require call from ${parent.filename}. These are the extension path mappings: \n${extensionPathsPretty}`);
-			defaultApiImpl = factory(nullExtensionDescription, extensionRegistry, configProvider);
+			defaultApiImpl = factory(nullExtensionDescription, extensionRegistry, workspaceProvider, configProvider);
 		}
 		return defaultApiImpl;
 	};

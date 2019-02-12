@@ -87,8 +87,8 @@ export class CustomTreeViewPanel extends ViewletPanel {
 		return [...this.treeView.getSecondaryActions()];
 	}
 
-	getActionItem(action: IAction): IActionItem {
-		return action instanceof MenuItemAction ? new ContextAwareMenuItemActionItem(action, this.keybindingService, this.notificationService, this.contextMenuService) : undefined;
+	getActionItem(action: IAction): IActionItem | null {
+		return action instanceof MenuItemAction ? new ContextAwareMenuItemActionItem(action, this.keybindingService, this.notificationService, this.contextMenuService) : null;
 	}
 
 	getOptimalWidth(): number {
@@ -758,7 +758,7 @@ class Aligner extends Disposable {
 		if (this.hasIcon(parent)) {
 			return false;
 		}
-		return parent.children && parent.children.every(c => c.collapsibleState === TreeItemCollapsibleState.None || !this.hasIcon(c));
+		return !!parent.children && parent.children.every(c => c.collapsibleState === TreeItemCollapsibleState.None || !this.hasIcon(c));
 	}
 
 	private hasIcon(node: ITreeItem): boolean {

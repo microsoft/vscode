@@ -43,6 +43,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { getKeywordsForExtension } from 'vs/workbench/contrib/extensions/electron-browser/extensionsUtils';
 import { IAction } from 'vs/base/common/actions';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 
 class ExtensionsViewState extends Disposable implements IExtensionsViewState {
 
@@ -84,7 +85,8 @@ export class ExtensionsListView extends ViewletPanel {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
-		@IExperimentService private readonly experimentService: IExperimentService
+		@IExperimentService private readonly experimentService: IExperimentService,
+		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: options.title }, keybindingService, contextMenuService, configurationService);
 	}
@@ -175,24 +177,24 @@ export class ExtensionsListView extends ViewletPanel {
 		return Promise.resolve(emptyModel);
 	}
 
-	private onContextMenu(e: IListContextMenuEvent<IExtension>): void {
+	private async onContextMenu(e: IListContextMenuEvent<IExtension>): Promise<void> {
 		if (e.element) {
-			this.extensionService.getExtensions()
-				.then(runningExtensions => {
-					const manageExtensionAction = this.instantiationService.createInstance(ManageExtensionAction);
-					manageExtensionAction.extension = e.element;
-					const groups = manageExtensionAction.getActionGroups(runningExtensions);
-					let actions: IAction[] = [];
-					for (const menuActions of groups) {
-						actions = [...actions, ...menuActions, new Separator()];
-					}
-					if (manageExtensionAction.enabled) {
-						this.contextMenuService.showContextMenu({
-							getAnchor: () => e.anchor,
-							getActions: () => actions.slice(0, actions.length - 1)
-						});
-					}
+			const runningExtensions = await this.extensionService.getExtensions();
+			const colorThemes = await this.workbenchThemeService.getColorThemes();
+			const fileIconThemes = await this.workbenchThemeService.getFileIconThemes();
+			const manageExtensionAction = this.instantiationService.createInstance(ManageExtensionAction);
+			manageExtensionAction.extension = e.element;
+			const groups = manageExtensionAction.getActionGroups(runningExtensions, colorThemes, fileIconThemes);
+			let actions: IAction[] = [];
+			for (const menuActions of groups) {
+				actions = [...actions, ...menuActions, new Separator()];
+			}
+			if (manageExtensionAction.enabled) {
+				this.contextMenuService.showContextMenu({
+					getAnchor: () => e.anchor,
+					getActions: () => actions.slice(0, actions.length - 1)
 				});
+			}
 		}
 	}
 

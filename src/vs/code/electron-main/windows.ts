@@ -531,7 +531,7 @@ export class WindowsManager implements IWindowsMainService {
 				newWindow: openFilesInNewWindow,
 				context: openConfig.context,
 				fileUri: fileToCheck && fileToCheck.fileUri,
-				workspaceResolver: workspace => workspace.configPath.scheme === Schemas.file ? this.workspacesMainService.resolveWorkspaceSync(fsPath(workspace.configPath)) : null
+				localWorkspaceResolver: workspace => workspace.configPath.scheme === Schemas.file ? this.workspacesMainService.resolveLocalWorkspaceSync(workspace.configPath) : null
 			});
 
 			// We found a window to open the files in
@@ -1051,7 +1051,7 @@ export class WindowsManager implements IWindowsMainService {
 
 					// Workspace (unless disabled via flag)
 					if (!options.forceOpenWorkspaceAsFile) {
-						const workspace = this.workspacesMainService.resolveWorkspaceSync(candidate);
+						const workspace = this.workspacesMainService.resolveLocalWorkspaceSync(URI.file(candidate));
 						if (workspace) {
 							return { workspace: { id: workspace.id, configPath: workspace.configPath }, remoteAuthority };
 						}
@@ -2128,7 +2128,7 @@ class WorkspacesManager {
 				return workspace.scheme === Schemas.file ? dirname(workspace.fsPath) : undefined;
 			}
 
-			const resolvedWorkspace = workspace.configPath.scheme === Schemas.file && this.workspacesMainService.resolveWorkspaceSync(workspace.configPath.fsPath);
+			const resolvedWorkspace = workspace.configPath.scheme === Schemas.file && this.workspacesMainService.resolveLocalWorkspaceSync(workspace.configPath);
 			if (resolvedWorkspace && resolvedWorkspace.folders.length > 0) {
 				for (const folder of resolvedWorkspace.folders) {
 					if (folder.uri.scheme === Schemas.file) {

@@ -8,7 +8,7 @@ import * as https from 'https';
 import * as nodeurl from 'url';
 
 import { assign } from 'vs/base/common/objects';
-import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
+import { ExtHostWorkspaceProvider } from 'vs/workbench/api/node/extHostWorkspace';
 import { ExtHostConfigProvider } from 'vs/workbench/api/node/extHostConfiguration';
 import { ProxyAgent } from 'vscode-proxy-agent';
 import { MainThreadTelemetryShape } from 'vs/workbench/api/node/extHost.protocol';
@@ -25,7 +25,7 @@ interface ConnectionResult {
 }
 
 export function connectProxyResolver(
-	extHostWorkspace: ExtHostWorkspace,
+	extHostWorkspace: ExtHostWorkspaceProvider,
 	configProvider: ExtHostConfigProvider,
 	extensionService: ExtHostExtensionService,
 	extHostLogService: ExtHostLogService,
@@ -39,7 +39,7 @@ export function connectProxyResolver(
 const maxCacheEntries = 5000; // Cache can grow twice that much due to 'oldCache'.
 
 function createProxyAgents(
-	extHostWorkspace: ExtHostWorkspace,
+	extHostWorkspace: ExtHostWorkspaceProvider,
 	configProvider: ExtHostConfigProvider,
 	extHostLogService: ExtHostLogService,
 	mainThreadTelemetry: MainThreadTelemetryShape

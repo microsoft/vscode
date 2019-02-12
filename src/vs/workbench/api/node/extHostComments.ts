@@ -111,107 +111,68 @@ export class ExtHostComments implements ExtHostCommentsShape {
 	}
 
 	$editComment(handle: number, uri: UriComponents, comment: modes.Comment, text: string): Promise<void> {
-		const data = this._documents.getDocumentData(URI.revive(uri));
-
-		if (!data || !data.document) {
-			throw new Error('Unable to retrieve document from URI');
-		}
-
+		const document = this._documents.getDocument(URI.revive(uri));
 		const handlerData = this._documentProviders.get(handle);
 		return asPromise(() => {
-			return handlerData.provider.editComment(data.document, convertFromComment(comment), text, CancellationToken.None);
+			return handlerData.provider.editComment(document, convertFromComment(comment), text, CancellationToken.None);
 		});
 	}
 
 	$deleteComment(handle: number, uri: UriComponents, comment: modes.Comment): Promise<void> {
-		const data = this._documents.getDocumentData(URI.revive(uri));
-
-		if (!data || !data.document) {
-			throw new Error('Unable to retrieve document from URI');
-		}
-
+		const document = this._documents.getDocument(URI.revive(uri));
 		const handlerData = this._documentProviders.get(handle);
 		return asPromise(() => {
-			return handlerData.provider.deleteComment(data.document, convertFromComment(comment), CancellationToken.None);
+			return handlerData.provider.deleteComment(document, convertFromComment(comment), CancellationToken.None);
 		});
 	}
 
 	$startDraft(handle: number, uri: UriComponents): Promise<void> {
-		const data = this._documents.getDocumentData(URI.revive(uri));
-
-		if (!data || !data.document) {
-			throw new Error('Unable to retrieve document from URI');
-		}
+		const document = this._documents.getDocument(URI.revive(uri));
 
 		const handlerData = this._documentProviders.get(handle);
 		return asPromise(() => {
-			return handlerData.provider.startDraft(data.document, CancellationToken.None);
+			return handlerData.provider.startDraft(document, CancellationToken.None);
 		});
 	}
 
 	$deleteDraft(handle: number, uri: UriComponents): Promise<void> {
-		const data = this._documents.getDocumentData(URI.revive(uri));
-
-		if (!data || !data.document) {
-			throw new Error('Unable to retrieve document from URI');
-		}
-
+		const document = this._documents.getDocument(URI.revive(uri));
 		const handlerData = this._documentProviders.get(handle);
 		return asPromise(() => {
-			return handlerData.provider.deleteDraft(data.document, CancellationToken.None);
+			return handlerData.provider.deleteDraft(document, CancellationToken.None);
 		});
 	}
 
 	$finishDraft(handle: number, uri: UriComponents): Promise<void> {
-		const data = this._documents.getDocumentData(URI.revive(uri));
-
-		if (!data || !data.document) {
-			throw new Error('Unable to retrieve document from URI');
-		}
-
+		const document = this._documents.getDocument(URI.revive(uri));
 		const handlerData = this._documentProviders.get(handle);
 		return asPromise(() => {
-			return handlerData.provider.finishDraft(data.document, CancellationToken.None);
+			return handlerData.provider.finishDraft(document, CancellationToken.None);
 		});
 	}
 
 	$addReaction(handle: number, uri: UriComponents, comment: modes.Comment, reaction: modes.CommentReaction): Promise<void> {
-		const data = this._documents.getDocumentData(URI.revive(uri));
-
-		if (!data || !data.document) {
-			throw new Error('Unable to retrieve document from URI');
-		}
-
+		const document = this._documents.getDocument(URI.revive(uri));
 		const handlerData = this._documentProviders.get(handle);
 
 		return asPromise(() => {
-			return handlerData.provider.addReaction(data.document, convertFromComment(comment), reaction);
+			return handlerData.provider.addReaction(document, convertFromComment(comment), reaction);
 		});
 	}
 
 	$deleteReaction(handle: number, uri: UriComponents, comment: modes.Comment, reaction: modes.CommentReaction): Promise<void> {
-		const data = this._documents.getDocumentData(URI.revive(uri));
-
-		if (!data || !data.document) {
-			throw new Error('Unable to retrieve document from URI');
-		}
-
+		const document = this._documents.getDocument(URI.revive(uri));
 		const handlerData = this._documentProviders.get(handle);
-
 		return asPromise(() => {
-			return handlerData.provider.deleteReaction(data.document, convertFromComment(comment), reaction);
+			return handlerData.provider.deleteReaction(document, convertFromComment(comment), reaction);
 		});
 	}
 
 	$provideDocumentComments(handle: number, uri: UriComponents): Promise<modes.CommentInfo> {
-		const data = this._documents.getDocumentData(URI.revive(uri));
-		if (!data || !data.document) {
-			return Promise.resolve(null);
-		}
-
+		const document = this._documents.getDocument(URI.revive(uri));
 		const handlerData = this._documentProviders.get(handle);
 		return asPromise(() => {
-			return handlerData.provider.provideDocumentComments(data.document, CancellationToken.None);
+			return handlerData.provider.provideDocumentComments(document, CancellationToken.None);
 		}).then(commentInfo => commentInfo ? convertCommentInfo(handle, handlerData.extensionId, handlerData.provider, commentInfo, this._commandsConverter) : null);
 	}
 
@@ -297,6 +258,9 @@ function convertToComment(provider: vscode.DocumentCommentProvider | vscode.Work
 	const canEdit = !!(provider as vscode.DocumentCommentProvider).editComment && vscodeComment.canEdit;
 	const canDelete = !!(provider as vscode.DocumentCommentProvider).deleteComment && vscodeComment.canDelete;
 	const iconPath = vscodeComment.userIconPath ? vscodeComment.userIconPath.toString() : vscodeComment.gravatar;
+	const providerCanDeleteReaction = !!(provider as vscode.DocumentCommentProvider).deleteReaction;
+	const providerCanAddReaction = !!(provider as vscode.DocumentCommentProvider).addReaction;
+
 	return {
 		commentId: vscodeComment.commentId,
 		body: extHostTypeConverter.MarkdownString.from(vscodeComment.body),
@@ -306,6 +270,12 @@ function convertToComment(provider: vscode.DocumentCommentProvider | vscode.Work
 		canDelete: canDelete,
 		command: vscodeComment.command ? commandsConverter.toInternal(vscodeComment.command) : null,
 		isDraft: vscodeComment.isDraft,
-		commentReactions: vscodeComment.commentReactions
+		commentReactions: vscodeComment.commentReactions.map(reaction => {
+			return {
+				label: reaction.label,
+				hasReacted: reaction.hasReacted,
+				canEdit: (reaction.hasReacted && providerCanDeleteReaction) || (!reaction.hasReacted && providerCanAddReaction)
+			};
+		})
 	};
 }

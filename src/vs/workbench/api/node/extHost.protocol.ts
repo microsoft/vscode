@@ -55,18 +55,21 @@ export interface IEnvironment {
 	globalStorageHome: URI;
 }
 
-export interface IWorkspaceData {
+export interface IStaticWorkspaceData {
 	id: string;
 	name: string;
-	folders: { uri: UriComponents, name: string, index: number }[];
 	configuration?: UriComponents;
+}
+
+export interface IWorkspaceData extends IStaticWorkspaceData {
+	folders: { uri: UriComponents, name: string, index: number }[];
 }
 
 export interface IInitData {
 	commit?: string;
 	parentPid: number;
 	environment: IEnvironment;
-	workspace?: IWorkspaceData;
+	workspace?: IStaticWorkspaceData;
 	resolvedExtensions: ExtensionIdentifier[];
 	hostExtensions: ExtensionIdentifier[];
 	extensions: IExtensionDescription[];
@@ -295,7 +298,7 @@ export interface ISerializedSignatureHelpProviderMetadata {
 export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$unregister(handle: number): void;
 	$registerDocumentSymbolProvider(handle: number, selector: ISerializedDocumentFilter[], label: string): void;
-	$registerCodeLensSupport(handle: number, selector: ISerializedDocumentFilter[], eventHandle: number): void;
+	$registerCodeLensSupport(handle: number, selector: ISerializedDocumentFilter[], eventHandle: number | undefined): void;
 	$emitCodeLensEvent(eventHandle: number, event?: any): void;
 	$registerDefinitionSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$registerDeclarationSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
@@ -506,7 +509,7 @@ export interface ExtHostUrlsShape {
 }
 
 export interface MainThreadWorkspaceShape extends IDisposable {
-	$startFileSearch(includePattern: string | undefined, includeFolder: URI, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Promise<UriComponents[]> | undefined;
+	$startFileSearch(includePattern: string | undefined, includeFolder: URI | undefined, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Promise<UriComponents[] | undefined>;
 	$startTextSearch(query: IPatternInfo, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<vscode.TextSearchComplete>;
 	$checkExists(includes: string[], token: CancellationToken): Promise<boolean>;
 	$saveAll(includeUntitled?: boolean): Promise<boolean>;
@@ -652,7 +655,7 @@ export interface ExtHostDiagnosticsShape {
 }
 
 export interface ExtHostDocumentContentProvidersShape {
-	$provideTextDocumentContent(handle: number, uri: UriComponents): Promise<string>;
+	$provideTextDocumentContent(handle: number, uri: UriComponents): Promise<string | null | undefined>;
 }
 
 export interface IModelAddedData {
@@ -720,6 +723,7 @@ export interface ExtHostTreeViewsShape {
 }
 
 export interface ExtHostWorkspaceShape {
+	$initializeWorkspace(workspace: IWorkspaceData | null): void;
 	$acceptWorkspaceData(workspace: IWorkspaceData | null): void;
 	$handleTextSearchResult(result: IRawFileMatch2, requestId: number): void;
 }
@@ -889,35 +893,35 @@ export interface CodeLensDto extends ObjectIdentifier {
 }
 
 export interface ExtHostLanguageFeaturesShape {
-	$provideDocumentSymbols(handle: number, resource: UriComponents, token: CancellationToken): Promise<modes.DocumentSymbol[]>;
+	$provideDocumentSymbols(handle: number, resource: UriComponents, token: CancellationToken): Promise<modes.DocumentSymbol[] | undefined>;
 	$provideCodeLenses(handle: number, resource: UriComponents, token: CancellationToken): Promise<CodeLensDto[]>;
 	$resolveCodeLens(handle: number, resource: UriComponents, symbol: CodeLensDto, token: CancellationToken): Promise<CodeLensDto>;
 	$provideDefinition(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<DefinitionLinkDto[]>;
 	$provideDeclaration(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<DefinitionLinkDto[]>;
 	$provideImplementation(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<DefinitionLinkDto[]>;
 	$provideTypeDefinition(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<DefinitionLinkDto[]>;
-	$provideHover(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.Hover>;
-	$provideDocumentHighlights(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.DocumentHighlight[]>;
-	$provideReferences(handle: number, resource: UriComponents, position: IPosition, context: modes.ReferenceContext, token: CancellationToken): Promise<LocationDto[]>;
-	$provideCodeActions(handle: number, resource: UriComponents, rangeOrSelection: IRange | ISelection, context: modes.CodeActionContext, token: CancellationToken): Promise<CodeActionDto[]>;
-	$provideDocumentFormattingEdits(handle: number, resource: UriComponents, options: modes.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[]>;
-	$provideDocumentRangeFormattingEdits(handle: number, resource: UriComponents, range: IRange, options: modes.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[]>;
-	$provideOnTypeFormattingEdits(handle: number, resource: UriComponents, position: IPosition, ch: string, options: modes.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[]>;
+	$provideHover(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.Hover | undefined>;
+	$provideDocumentHighlights(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.DocumentHighlight[] | undefined>;
+	$provideReferences(handle: number, resource: UriComponents, position: IPosition, context: modes.ReferenceContext, token: CancellationToken): Promise<LocationDto[] | undefined>;
+	$provideCodeActions(handle: number, resource: UriComponents, rangeOrSelection: IRange | ISelection, context: modes.CodeActionContext, token: CancellationToken): Promise<CodeActionDto[] | undefined>;
+	$provideDocumentFormattingEdits(handle: number, resource: UriComponents, options: modes.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined>;
+	$provideDocumentRangeFormattingEdits(handle: number, resource: UriComponents, range: IRange, options: modes.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined>;
+	$provideOnTypeFormattingEdits(handle: number, resource: UriComponents, position: IPosition, ch: string, options: modes.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined>;
 	$provideWorkspaceSymbols(handle: number, search: string, token: CancellationToken): Promise<WorkspaceSymbolsDto>;
-	$resolveWorkspaceSymbol(handle: number, symbol: WorkspaceSymbolDto, token: CancellationToken): Promise<WorkspaceSymbolDto>;
+	$resolveWorkspaceSymbol(handle: number, symbol: WorkspaceSymbolDto, token: CancellationToken): Promise<WorkspaceSymbolDto | undefined>;
 	$releaseWorkspaceSymbols(handle: number, id: number): void;
-	$provideRenameEdits(handle: number, resource: UriComponents, position: IPosition, newName: string, token: CancellationToken): Promise<WorkspaceEditDto>;
-	$resolveRenameLocation(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.RenameLocation>;
+	$provideRenameEdits(handle: number, resource: UriComponents, position: IPosition, newName: string, token: CancellationToken): Promise<WorkspaceEditDto | undefined>;
+	$resolveRenameLocation(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.RenameLocation | undefined>;
 	$provideCompletionItems(handle: number, resource: UriComponents, position: IPosition, context: modes.CompletionContext, token: CancellationToken): Promise<SuggestResultDto>;
 	$resolveCompletionItem(handle: number, resource: UriComponents, position: IPosition, suggestion: modes.CompletionItem, token: CancellationToken): Promise<modes.CompletionItem>;
 	$releaseCompletionItems(handle: number, id: number): void;
-	$provideSignatureHelp(handle: number, resource: UriComponents, position: IPosition, context: modes.SignatureHelpContext, token: CancellationToken): Promise<modes.SignatureHelp>;
-	$provideDocumentLinks(handle: number, resource: UriComponents, token: CancellationToken): Promise<LinkDto[]>;
-	$resolveDocumentLink(handle: number, link: LinkDto, token: CancellationToken): Promise<LinkDto>;
+	$provideSignatureHelp(handle: number, resource: UriComponents, position: IPosition, context: modes.SignatureHelpContext, token: CancellationToken): Promise<modes.SignatureHelp | undefined>;
+	$provideDocumentLinks(handle: number, resource: UriComponents, token: CancellationToken): Promise<LinkDto[] | undefined>;
+	$resolveDocumentLink(handle: number, link: LinkDto, token: CancellationToken): Promise<LinkDto | undefined>;
 	$provideDocumentColors(handle: number, resource: UriComponents, token: CancellationToken): Promise<IRawColorInfo[]>;
 	$provideColorPresentations(handle: number, resource: UriComponents, colorInfo: IRawColorInfo, token: CancellationToken): Promise<modes.IColorPresentation[]>;
 	$provideFoldingRanges(handle: number, resource: UriComponents, context: modes.FoldingContext, token: CancellationToken): Promise<modes.FoldingRange[]>;
-	$provideSelectionRanges(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.SelectionRange[]>;
+	$provideSelectionRanges(handle: number, resource: UriComponents, positions: IPosition[], token: CancellationToken): Promise<modes.SelectionRange[][]>;
 }
 
 export interface ExtHostQuickOpenShape {
@@ -936,7 +940,7 @@ export interface ShellLaunchConfigDto {
 	executable?: string;
 	args?: string[] | string;
 	cwd?: string | URI;
-	env?: { [key: string]: string };
+	env?: { [key: string]: string | null };
 }
 
 export interface ExtHostTerminalServiceShape {
@@ -957,7 +961,7 @@ export interface ExtHostTerminalServiceShape {
 }
 
 export interface ExtHostSCMShape {
-	$provideOriginalResource(sourceControlHandle: number, uri: UriComponents, token: CancellationToken): Promise<UriComponents>;
+	$provideOriginalResource(sourceControlHandle: number, uri: UriComponents, token: CancellationToken): Promise<UriComponents | null>;
 	$onInputBoxValueChange(sourceControlHandle: number, value: string): void;
 	$executeResourceCommand(sourceControlHandle: number, groupHandle: number, handle: number): Promise<void>;
 	$validateInput(sourceControlHandle: number, value: string, cursorPosition: number): Promise<[string, number] | undefined>;

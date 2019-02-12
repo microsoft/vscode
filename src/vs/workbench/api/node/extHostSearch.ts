@@ -35,12 +35,12 @@ export class ExtHostSearch implements ExtHostSearchShape {
 	private _handlePool: number = 0;
 
 	private _internalFileSearchHandle: number;
-	private _internalFileSearchProvider: SearchService;
+	private _internalFileSearchProvider: SearchService | null;
 
 	private _fileSearchManager: FileSearchManager;
 	private _fileIndexSearchManager: FileIndexSearchManager;
 
-	constructor(mainContext: IMainContext, private _schemeTransformer: ISchemeTransformer, private _logService: ILogService, private _extfs = extfs) {
+	constructor(mainContext: IMainContext, private _schemeTransformer: ISchemeTransformer | null, private _logService: ILogService, private _extfs = extfs) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadSearch);
 		this._fileSearchManager = new FileSearchManager();
 		this._fileIndexSearchManager = new FileIndexSearchManager();
@@ -124,6 +124,10 @@ export class ExtHostSearch implements ExtHostSearchShape {
 				}, token);
 			} else {
 				const indexProvider = this._fileIndexProvider.get(handle);
+				if (!indexProvider) {
+					throw new Error('unknown provider: ' + handle);
+				}
+
 				return this._fileIndexSearchManager.fileSearch(query, indexProvider, batch => {
 					this._proxy.$handleFileMatch(handle, session, batch.map(p => p.resource));
 				}, token);
@@ -147,7 +151,11 @@ export class ExtHostSearch implements ExtHostSearchShape {
 			}
 		};
 
-		return this._internalFileSearchProvider.doFileSearch(rawQuery, onResult, token);
+		if (!this._internalFileSearchProvider) {
+			throw new Error('No internal file search handler');
+		}
+
+		return <Promise<ISearchCompleteStats>>this._internalFileSearchProvider.doFileSearch(rawQuery, onResult, token);
 	}
 
 	$clearCache(cacheKey: string): Promise<void> {
@@ -163,8 +171,8 @@ export class ExtHostSearch implements ExtHostSearchShape {
 
 	$provideTextSearchResults(handle: number, session: number, rawQuery: IRawTextQuery, token: CancellationToken): Promise<ISearchCompleteStats> {
 		const provider = this._textSearchProvider.get(handle);
-		if (!provider.provideTextSearchResults) {
-			return Promise.resolve(undefined);
+		if (!provider || !provider.provideTextSearchResults) {
+			throw new Error(`Unknown provider ${handle}`);
 		}
 
 		const query = reviveQuery(rawQuery);

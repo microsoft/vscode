@@ -948,9 +948,9 @@ export class SymbolInformation {
 	kind: SymbolKind;
 	containerName: string | undefined;
 
-	constructor(name: string, kind: SymbolKind, containerName: string, location: Location);
+	constructor(name: string, kind: SymbolKind, containerName: string | undefined, location: Location);
 	constructor(name: string, kind: SymbolKind, range: Range, uri?: URI, containerName?: string);
-	constructor(name: string, kind: SymbolKind, rangeOrContainer: string | Range, locationOrUri?: Location | URI, containerName?: string) {
+	constructor(name: string, kind: SymbolKind, rangeOrContainer: string | undefined | Range, locationOrUri?: Location | URI, containerName?: string) {
 		this.name = name;
 		this.kind = kind;
 		this.containerName = containerName;
@@ -1365,9 +1365,9 @@ export class DocumentLink {
 
 	range: Range;
 
-	target: URI;
+	target?: URI;
 
-	constructor(range: Range, target: URI) {
+	constructor(range: Range, target: URI | undefined) {
 		if (target && !(target instanceof URI)) {
 			throw illegalArgument('target');
 		}
@@ -1930,7 +1930,6 @@ export enum TreeItemCollapsibleState {
 	Expanded = 2
 }
 
-@es5ClassCompat
 export class ThemeIcon {
 	static readonly File = new ThemeIcon('file');
 

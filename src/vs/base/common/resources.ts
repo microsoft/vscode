@@ -89,18 +89,18 @@ export function dirname(resource: URI): URI | null {
 }
 
 /**
- * Join a URI path with a path fragment and normalizes the resulting path.
+ * Join a URI path with path fragments and normalizes the resulting path.
  *
  * @param resource The input URI.
  * @param pathFragment The path fragment to add to the URI path.
  * @returns The resulting URI.
  */
-export function joinPath(resource: URI, pathFragment: string): URI {
+export function joinPath(resource: URI, ...pathFragment: string[]): URI {
 	let joinedPath: string;
 	if (resource.scheme === Schemas.file) {
-		joinedPath = URI.file(paths.join(fsPath(resource), pathFragment)).path;
+		joinedPath = URI.file(paths.join(fsPath(resource), ...pathFragment)).path;
 	} else {
-		joinedPath = paths.join(resource.path, pathFragment);
+		joinedPath = paths.join(resource.path, ...pathFragment);
 	}
 	return resource.with({
 		path: joinedPath

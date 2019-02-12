@@ -184,13 +184,13 @@ export interface IEditorInputFactory {
 	 * Returns a string representation of the provided editor input that contains enough information
 	 * to deserialize back to the original editor input from the deserialize() method.
 	 */
-	serialize(editorInput: EditorInput): string;
+	serialize(editorInput: EditorInput): string | null;
 
 	/**
 	 * Returns an editor input from the provided serialized form of the editor input. This form matches
 	 * the value returned from the serialize() method.
 	 */
-	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput;
+	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput | null;
 }
 
 export interface IUntitledResourceInput extends IBaseResourceInput {

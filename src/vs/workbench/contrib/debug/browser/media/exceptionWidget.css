@@ -31,13 +31,11 @@
 	cursor: pointer;
 }
 
-/* High Contrast Theming */
-
-.mac > .monaco-workbench .zone-widget .zone-widget-container.exception-widget {
+.monaco-workbench.mac .zone-widget .zone-widget-container.exception-widget {
 	font-size: 11px;
 }
 
-.windows > .monaco-workbench .zone-widget .zone-widget-container.exception-widget,
-.linux > .monaco-workbench .zone-widget .zone-widget-container.exception-widget {
+.monaco-workbench.windows .zone-widget .zone-widget-container.exception-widget,
+.monaco-workbench.linux .zone-widget .zone-widget-container.exception-widget {
 	font-size: 13px;
 }

@@ -333,7 +333,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		}
 
 		const webview = new ExtHostWebview(webviewHandle, this._proxy, options);
-		const revivedPanel = new ExtHostWebviewPanel(webviewHandle, this._proxy, viewType, title, typeConverters.ViewColumn.to(position), options, webview);
+		const revivedPanel = new ExtHostWebviewPanel(webviewHandle, this._proxy, viewType, title, typeof position === 'number' ? typeConverters.ViewColumn.to(position) : undefined, options, webview);
 		this._webviewPanels.set(webviewHandle, revivedPanel);
 		return Promise.resolve(serializer.deserializeWebviewPanel(revivedPanel, state));
 	}

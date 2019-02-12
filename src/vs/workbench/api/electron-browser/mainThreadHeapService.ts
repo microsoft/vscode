@@ -51,6 +51,10 @@ export class HeapService implements IHeapService {
 			return;
 		}
 
+		if (this._activeIds.has(obj.$ident)) {
+			return;
+		}
+
 		if (this._ctor) {
 			// track and leave
 			this._activeIds.add(obj.$ident);

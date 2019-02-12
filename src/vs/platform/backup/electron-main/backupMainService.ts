@@ -270,7 +270,6 @@ export class BackupMainService implements IBackupMainService {
 						await this.convertToEmptyWindowBackup(backupPath);
 					}
 				} else {
-					console.log('no backups');
 					await this.deleteStaleBackup(backupPath);
 				}
 			}

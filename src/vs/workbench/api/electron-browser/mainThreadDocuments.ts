@@ -130,14 +130,14 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 
 	private _shouldHandleFileEvent(e: TextFileModelChangeEvent): boolean {
 		const model = this._modelService.getModel(e.resource);
-		return model && shouldSynchronizeModel(model);
+		return !!model && shouldSynchronizeModel(model);
 	}
 
 	private _onModelAdded(model: ITextModel): void {
 		// Same filter as in mainThreadEditorsTracker
 		if (!shouldSynchronizeModel(model)) {
 			// don't synchronize too large models
-			return null;
+			return;
 		}
 		let modelUrl = model.uri;
 		this._modelIsSynced[modelUrl.toString()] = true;

@@ -228,21 +228,21 @@
 .monaco-workbench .part.editor > .content .welcomePage .linux-only {
 	display: none;
 }
-.mac > .monaco-workbench .part.editor > .content .welcomePage .mac-only {
+.monaco-workbench.mac .part.editor > .content .welcomePage .mac-only {
 	display: initial;
 }
-.windows > .monaco-workbench .part.editor > .content .welcomePage .windows-only {
+.monaco-workbench.windows .part.editor > .content .welcomePage .windows-only {
 	display: initial;
 }
-.linux > .monaco-workbench .part.editor > .content .welcomePage .linux-only {
+.monaco-workbench.linux .part.editor > .content .welcomePage .linux-only {
 	display: initial;
 }
-.mac > .monaco-workbench .part.editor > .content .welcomePage li.mac-only {
+.monaco-workbench.mac .part.editor > .content .welcomePage li.mac-only {
 	display: list-item;
 }
-.windows > .monaco-workbench .part.editor > .content .welcomePage li.windows-only {
+.monaco-workbench.windows .part.editor > .content .welcomePage li.windows-only {
 	display: list-item;
 }
-.linux > .monaco-workbench .part.editor > .content .welcomePage li.linux-only {
+.monaco-workbench.linux .part.editor > .content .welcomePage li.linux-only {
 	display: list-item;
 }

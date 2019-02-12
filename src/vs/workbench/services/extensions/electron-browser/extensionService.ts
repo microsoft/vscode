@@ -37,13 +37,13 @@ const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
 
 schema.properties.engines.properties.vscode.default = `^${pkg.version}`;
 
-let productAllowProposedApi: Set<string> = null;
+let productAllowProposedApi: Set<string> | null = null;
 function allowProposedApiFromProduct(id: ExtensionIdentifier): boolean {
 	// create set if needed
-	if (productAllowProposedApi === null) {
+	if (!productAllowProposedApi) {
 		productAllowProposedApi = new Set<string>();
 		if (isNonEmptyArray(product.extensionAllowedProposedApi)) {
-			product.extensionAllowedProposedApi.forEach((id) => productAllowProposedApi.add(ExtensionIdentifier.toKey(id)));
+			product.extensionAllowedProposedApi.forEach((id) => productAllowProposedApi!.add(ExtensionIdentifier.toKey(id)));
 		}
 	}
 	return productAllowProposedApi.has(ExtensionIdentifier.toKey(id));
@@ -167,7 +167,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		}
 
 		while (this._deltaExtensionsQueue.length > 0) {
-			const item = this._deltaExtensionsQueue.shift();
+			const item = this._deltaExtensionsQueue.shift()!;
 			try {
 				this._inHandleDeltaExtensions = true;
 				await this._deltaExtensions(item.toAdd, item.toRemove);
@@ -856,7 +856,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		if (!this._extensionsMessages.has(extensionKey)) {
 			this._extensionsMessages.set(extensionKey, []);
 		}
-		this._extensionsMessages.get(extensionKey).push({
+		this._extensionsMessages.get(extensionKey)!.push({
 			type: severity,
 			message: message,
 			extensionId: null,

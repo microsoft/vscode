@@ -32,13 +32,13 @@ suite('Stat Resolver', () => {
 
 	test('resolve file', function () {
 		let resolver = create('/index.html');
-		return resolver.resolve(null).then(result => {
+		return resolver.resolve(undefined).then(result => {
 			assert.ok(!result.isDirectory);
 			assert.equal(result.name, 'index.html');
 			assert.ok(!!result.etag);
 
 			resolver = create('examples');
-			return resolver.resolve(null).then(result => {
+			return resolver.resolve(undefined).then(result => {
 				assert.ok(result.isDirectory);
 			});
 		});
@@ -49,20 +49,20 @@ suite('Stat Resolver', () => {
 
 		let resolver = create('/');
 
-		return resolver.resolve(null).then(result => {
+		return resolver.resolve(undefined).then(result => {
 			assert.ok(result);
 			assert.ok(result.children);
-			assert.ok(result.children.length > 0);
-			assert.ok(result.isDirectory);
-			assert.equal(result.children.length, testsElements.length);
+			assert.ok(result.children!.length > 0);
+			assert.ok(result!.isDirectory);
+			assert.equal(result.children!.length, testsElements.length);
 
-			assert.ok(result.children.every((entry) => {
+			assert.ok(result.children!.every((entry) => {
 				return testsElements.some((name) => {
 					return path.basename(entry.resource.fsPath) === name;
 				});
 			}));
 
-			result.children.forEach((value) => {
+			result.children!.forEach((value) => {
 				assert.ok(path.basename(value.resource.fsPath));
 				if (['examples', 'other'].indexOf(path.basename(value.resource.fsPath)) >= 0) {
 					assert.ok(value.isDirectory);
@@ -85,20 +85,20 @@ suite('Stat Resolver', () => {
 		return resolver.resolve({ resolveTo: [toResource('other/deep')] }).then(result => {
 			assert.ok(result);
 			assert.ok(result.children);
-			assert.ok(result.children.length > 0);
+			assert.ok(result.children!.length > 0);
 			assert.ok(result.isDirectory);
 
-			let children = result.children;
+			const children = result.children!;
 			assert.equal(children.length, 4);
 
-			let other = utils.getByName(result, 'other');
+			const other = utils.getByName(result, 'other');
 			assert.ok(other);
-			assert.ok(other.children.length > 0);
+			assert.ok(other!.children!.length > 0);
 
-			let deep = utils.getByName(other, 'deep');
+			const deep = utils.getByName(other!, 'deep');
 			assert.ok(deep);
-			assert.ok(deep.children.length > 0);
-			assert.equal(deep.children.length, 4);
+			assert.ok(deep!.children!.length > 0);
+			assert.equal(deep!.children!.length, 4);
 		});
 	});
 
@@ -108,24 +108,24 @@ suite('Stat Resolver', () => {
 		return resolver.resolve({ resolveTo: [toResource('other/Deep')] }).then(result => {
 			assert.ok(result);
 			assert.ok(result.children);
-			assert.ok(result.children.length > 0);
+			assert.ok(result.children!.length > 0);
 			assert.ok(result.isDirectory);
 
-			let children = result.children;
-			assert.equal(children.length, 4);
+			const children = result.children;
+			assert.equal(children!.length, 4);
 
-			let other = utils.getByName(result, 'other');
+			const other = utils.getByName(result, 'other');
 			assert.ok(other);
-			assert.ok(other.children.length > 0);
+			assert.ok(other!.children!.length > 0);
 
-			let deep = utils.getByName(other, 'deep');
+			const deep = utils.getByName(other!, 'deep');
 			if (isLinux) { // Linux has case sensitive file system
 				assert.ok(deep);
-				assert.ok(!deep.children); // not resolved because we got instructed to resolve other/Deep with capital D
+				assert.ok(!deep!.children); // not resolved because we got instructed to resolve other/Deep with capital D
 			} else {
 				assert.ok(deep);
-				assert.ok(deep.children.length > 0);
-				assert.equal(deep.children.length, 4);
+				assert.ok(deep!.children!.length > 0);
+				assert.equal(deep!.children!.length, 4);
 			}
 		});
 	});
@@ -136,25 +136,25 @@ suite('Stat Resolver', () => {
 		return resolver.resolve({ resolveTo: [toResource('other/deep'), toResource('examples')] }).then(result => {
 			assert.ok(result);
 			assert.ok(result.children);
-			assert.ok(result.children.length > 0);
+			assert.ok(result.children!.length > 0);
 			assert.ok(result.isDirectory);
 
-			let children = result.children;
+			const children = result.children!;
 			assert.equal(children.length, 4);
 
-			let other = utils.getByName(result, 'other');
+			const other = utils.getByName(result, 'other');
 			assert.ok(other);
-			assert.ok(other.children.length > 0);
+			assert.ok(other!.children!.length > 0);
 
-			let deep = utils.getByName(other, 'deep');
+			const deep = utils.getByName(other!, 'deep');
 			assert.ok(deep);
-			assert.ok(deep.children.length > 0);
-			assert.equal(deep.children.length, 4);
+			assert.ok(deep!.children!.length > 0);
+			assert.equal(deep!.children!.length, 4);
 
-			let examples = utils.getByName(result, 'examples');
+			const examples = utils.getByName(result, 'examples');
 			assert.ok(examples);
-			assert.ok(examples.children.length > 0);
-			assert.equal(examples.children.length, 4);
+			assert.ok(examples!.children!.length > 0);
+			assert.equal(examples!.children!.length, 4);
 		});
 	});
 
@@ -164,16 +164,16 @@ suite('Stat Resolver', () => {
 		return resolver.resolve({ resolveSingleChildDescendants: true }).then(result => {
 			assert.ok(result);
 			assert.ok(result.children);
-			assert.ok(result.children.length > 0);
+			assert.ok(result.children!.length > 0);
 			assert.ok(result.isDirectory);
 
-			let children = result.children;
+			const children = result.children!;
 			assert.equal(children.length, 1);
 
 			let deep = utils.getByName(result, 'deep');
 			assert.ok(deep);
-			assert.ok(deep.children.length > 0);
-			assert.equal(deep.children.length, 4);
+			assert.ok(deep!.children!.length > 0);
+			assert.equal(deep!.children!.length, 4);
 		});
 	});
 });

@@ -132,7 +132,7 @@ class FolderDetector {
 			gulpCommand = 'gulp';
 		}
 
-		let commandLine = `${gulpCommand} --tasks-simple --no-color`;
+		let commandLine = `\"${gulpCommand}\" --tasks-simple --no-color`;
 		try {
 			let { stdout, stderr } = await exec(commandLine, { cwd: rootPath });
 			if (stderr && stderr.length > 0) {
