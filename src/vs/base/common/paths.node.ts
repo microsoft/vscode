@@ -1653,4 +1653,5 @@ const posix: IPath = {
 posix.win32 = win32.win32 = win32;
 posix.posix = win32.posix = posix;
 
-export default process.platform === 'win32' ? win32 : posix;
+const impl = process.platform === 'win32' ? win32 : posix;
+export = impl;
