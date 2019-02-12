@@ -73,7 +73,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 			return {
 				id: workspaceIdentifier.id,
 				configPath: workspaceIdentifier.configPath,
-				folders: toWorkspaceFolders(workspace.folders, resourcesDirname(path)!)
+				folders: toWorkspaceFolders(workspace.folders, resourcesDirname(path))
 			};
 		} catch (error) {
 			this.logService.warn(error.toString());

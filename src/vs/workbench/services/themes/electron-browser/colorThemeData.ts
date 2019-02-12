@@ -291,7 +291,7 @@ function _loadColorTheme(fileService: IFileService, themeLocation: URI, resultRu
 			}
 			let includeCompletes: Promise<any> = Promise.resolve(null);
 			if (contentValue.include) {
-				includeCompletes = _loadColorTheme(fileService, resources.joinPath(resources.dirname(themeLocation)!, contentValue.include), resultRules, resultColors);
+				includeCompletes = _loadColorTheme(fileService, resources.joinPath(resources.dirname(themeLocation), contentValue.include), resultRules, resultColors);
 			}
 			return includeCompletes.then(_ => {
 				if (Array.isArray(contentValue.settings)) {
@@ -317,7 +317,7 @@ function _loadColorTheme(fileService: IFileService, themeLocation: URI, resultRu
 						resultRules.push(...tokenColors);
 						return null;
 					} else if (typeof tokenColors === 'string') {
-						return _loadSyntaxTokens(fileService, resources.joinPath(resources.dirname(themeLocation)!, tokenColors), resultRules, {});
+						return _loadSyntaxTokens(fileService, resources.joinPath(resources.dirname(themeLocation), tokenColors), resultRules, {});
 					} else {
 						return Promise.reject(new Error(nls.localize({ key: 'error.invalidformat.tokenColors', comment: ['{0} will be replaced by a path. Values in quotes should not be translated.'] }, "Problem parsing color theme file: {0}. Property 'tokenColors' should be either an array specifying colors or a path to a TextMate theme file", themeLocation.toString())));
 					}

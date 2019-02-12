@@ -124,7 +124,7 @@ class FileReferencesTemplate extends Disposable {
 
 	set(element: FileReferences, matches: IMatch[]) {
 		let parent = dirname(element.uri);
-		this.file.setLabel(getBaseLabel(element.uri), parent ? this._uriLabel.getUriLabel(parent, { relative: true }) : undefined, { title: this._uriLabel.getUriLabel(element.uri), matches });
+		this.file.setLabel(getBaseLabel(element.uri), this._uriLabel.getUriLabel(parent, { relative: true }), { title: this._uriLabel.getUriLabel(element.uri), matches });
 		const len = element.children.length;
 		this.badge.setCount(len);
 		if (element.failure) {

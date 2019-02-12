@@ -92,7 +92,7 @@ CommandsRegistry.registerCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, function (acc
 	const folderPicks = folders.map(folder => {
 		return {
 			label: folder.name,
-			description: labelService.getUriLabel(resources.dirname(folder.uri)!, { relative: true }),
+			description: labelService.getUriLabel(resources.dirname(folder.uri), { relative: true }),
 			folder,
 			iconClasses: getIconClasses(modelService, modeService, folder.uri, FileKind.ROOT_FOLDER)
 		} as IQuickPickItem;

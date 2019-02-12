@@ -77,7 +77,7 @@ export function extname(resource: URI): string {
  * @param resource The input URI.
  * @returns The URI representing the directory of the input URI.
  */
-export function dirname(resource: URI): URI | null {
+export function dirname(resource: URI): URI {
 	if (resource.path.length === 0) {
 		return resource;
 	}
@@ -86,7 +86,8 @@ export function dirname(resource: URI): URI | null {
 	}
 	let dirname = paths.posix.dirname(resource.path);
 	if (resource.authority && dirname.length && dirname.charCodeAt(0) !== CharCode.Slash) {
-		return null; // If a URI contains an authority component, then the path component must either be empty or begin with a CharCode.Slash ("/") character
+		console.error(`dirname("${resource.toString})) resulted in a relative path`);
+		dirname = '/'; // If a URI contains an authority component, then the path component must either be empty or begin with a CharCode.Slash ("/") character
 	}
 	return resource.with({
 		path: dirname

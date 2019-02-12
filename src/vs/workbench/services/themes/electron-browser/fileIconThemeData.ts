@@ -202,7 +202,7 @@ function _processIconThemeDocument(id: string, iconThemeDocumentLocation: URI, i
 
 	const iconThemeDocumentLocationDirname = resources.dirname(iconThemeDocumentLocation);
 	function resolvePath(path: string) {
-		return resources.joinPath(iconThemeDocumentLocationDirname!, path);
+		return resources.joinPath(iconThemeDocumentLocationDirname, path);
 	}
 
 	function collectSelectors(associations: IconsAssociation | undefined, baseThemeClassName?: string) {

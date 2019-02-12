@@ -131,7 +131,7 @@ class ExtHostWorkspaceImpl extends Workspace {
 	getWorkspaceFolder(uri: URI, resolveParent?: boolean): vscode.WorkspaceFolder | undefined {
 		if (resolveParent && this._structure.get(uri.toString())) {
 			// `uri` is a workspace folder so we check for its parent
-			uri = dirname(uri)!;
+			uri = dirname(uri);
 		}
 		return this._structure.findSubstr(uri.toString());
 	}
