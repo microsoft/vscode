@@ -13,14 +13,12 @@ import { RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
 import { getZoomLevel, onDidChangeFullscreen, isFullscreen, getZoomFactor } from 'vs/base/browser/browser';
 import { mark } from 'vs/base/common/performance';
 import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
-import { BackupFileService, InMemoryBackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { isWindows, isLinux, isMacintosh, language } from 'vs/base/common/platform';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IEditorInputFactoryRegistry, Extensions as EditorExtensions, TextCompareEditorVisibleContext, TEXT_DIFF_EDITOR_ID, EditorsVisibleContext, InEditorZenModeContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, IUntitledResourceInput, IResourceDiffInput, SplitEditorsVertically, TextCompareEditorActiveContext, ActiveEditorContext } from 'vs/workbench/common/editor';
-import { HistoryService } from 'vs/workbench/services/history/electron-browser/history';
 import { ActivitybarPart } from 'vs/workbench/browser/parts/activitybar/activitybarPart';
 import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
@@ -36,28 +34,21 @@ import { getServices } from 'vs/platform/instantiation/common/extensions';
 import { Position, Parts, IPartService, IDimension, PositionToString, ILayoutOptions } from 'vs/workbench/services/part/common/partService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IStorageService, StorageScope, IWillSaveStateEvent, WillSaveStateReason } from 'vs/platform/storage/common/storage';
-import { ContextMenuService as NativeContextMenuService } from 'vs/workbench/services/contextview/electron-browser/contextmenuService';
 import { ContextMenuService as HTMLContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
-import { WorkbenchKeybindingService } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { WorkspaceService, DefaultConfigurationExportHelper } from 'vs/workbench/services/configuration/node/configurationService';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { JSONEditingService } from 'vs/workbench/services/configuration/node/jsonEditingService';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IKeybindingEditingService, KeybindingsEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
 import { RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IActivityService } from 'vs/workbench/services/activity/common/activity';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { RemoteFileService } from 'vs/workbench/services/files/electron-browser/remoteFileService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { ConfigurationResolverService } from 'vs/workbench/services/configurationResolver/electron-browser/configurationResolverService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { ClipboardService } from 'vs/platform/clipboard/electron-browser/clipboardService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -68,20 +59,16 @@ import { ProgressService2 } from 'vs/workbench/services/progress/browser/progres
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { LifecyclePhase, StartupKind } from 'vs/platform/lifecycle/common/lifecycle';
-import { LifecycleService } from 'vs/platform/lifecycle/electron-browser/lifecycleService';
-import { IWindowService, IWindowConfiguration, IPath, MenuBarVisibility, getTitleBarStyle } from 'vs/platform/windows/common/windows';
+import { LifecyclePhase, StartupKind, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { IWindowService, IWindowConfiguration, IPath, MenuBarVisibility, getTitleBarStyle, IWindowsService } from 'vs/platform/windows/common/windows';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IMenuService, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { MenuService } from 'vs/platform/actions/common/menuService';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
-import { ShowPreviousWindowTab, MoveWindowTabToNewWindow, MergeAllWindowTabs, ShowNextWindowTab, ToggleWindowTabsBar, NewWindowTab, OpenRecentAction, ReloadWindowAction, ReloadWindowWithExtensionsDisabledAction } from 'vs/workbench/electron-browser/actions/windowActions';
-import { ToggleDevToolsAction } from 'vs/workbench/electron-browser/actions/developerActions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
-import { WorkspaceEditingService } from 'vs/workbench/services/workspace/node/workspaceEditingService';
 import { FileDecorationsService } from 'vs/workbench/services/decorations/browser/decorationsService';
 import { IDecorationsService } from 'vs/workbench/services/decorations/browser/decorations';
 import { ActivityService } from 'vs/workbench/services/activity/browser/activityService';
@@ -97,20 +84,14 @@ import { NotificationsAlerts } from 'vs/workbench/browser/parts/notifications/no
 import { NotificationsStatus } from 'vs/workbench/browser/parts/notifications/notificationsStatus';
 import { registerNotificationCommands } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { NotificationsToasts } from 'vs/workbench/browser/parts/notifications/notificationsToasts';
-import { IPCClient } from 'vs/base/parts/ipc/node/ipc';
-import { registerWindowDriver } from 'vs/platform/driver/electron-browser/driver';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { PreferencesService } from 'vs/workbench/services/preferences/browser/preferencesService';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService, GroupDirection, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
-import { IExtensionUrlHandler, ExtensionUrlHandler } from 'vs/workbench/services/extensions/electron-browser/inactiveExtensionUrlHandler';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
-import { WorkbenchThemeService } from 'vs/workbench/services/themes/electron-browser/workbenchThemeService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { RemoteFileDialogService } from 'vs/workbench/services/dialogs/electron-browser/dialogService';
-import { LogStorageAction } from 'vs/platform/storage/node/storageService';
+import { IFileDialogService, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { Sizing, Direction, Grid, View } from 'vs/base/browser/ui/grid/grid';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { WorkbenchLayout } from 'vs/workbench/browser/layout';
@@ -120,6 +101,91 @@ import { restoreFontInfo, readFontInfo, saveFontInfo } from 'vs/editor/browser/c
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { ILogService } from 'vs/platform/log/common/log';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { LabelService } from 'vs/workbench/services/label/common/labelService';
+import { IHashService } from 'vs/workbench/services/hash/common/hashService';
+import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
+import { combinedAppender, LogAppender, NullTelemetryService, configurationTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
+import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
+import { IDownloadService } from 'vs/platform/download/common/download';
+import { IExtensionGalleryService, IExtensionManagementServerService, IExtensionManagementService, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { ExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { CommandService } from 'vs/workbench/services/commands/common/commandService';
+import { IMarkerService } from 'vs/platform/markers/common/markers';
+import { MarkerService } from 'vs/platform/markers/common/markerService';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { WorkbenchModeServiceImpl } from 'vs/workbench/services/mode/common/workbenchModeService';
+import { ITextResourceConfigurationService, ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
+import { TextResourceConfigurationService } from 'vs/editor/common/services/resourceConfigurationImpl';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
+import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
+import { MarkerDecorationsService } from 'vs/editor/common/services/markerDecorationsServiceImpl';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { EditorWorkerServiceImpl } from 'vs/editor/common/services/editorWorkerServiceImpl';
+import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { ISearchService, ISearchHistoryService } from 'vs/workbench/services/search/common/search';
+import { SearchHistoryService } from 'vs/workbench/services/search/common/searchHistoryService';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { CodeEditorService } from 'vs/workbench/services/editor/browser/codeEditorService';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { OpenerService } from 'vs/editor/browser/services/openerService';
+import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
+import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
+
+// import@node
+import product from 'vs/platform/node/product';
+import pkg from 'vs/platform/node/package';
+import { BackupFileService, InMemoryBackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
+import { WorkspaceService, DefaultConfigurationExportHelper } from 'vs/workbench/services/configuration/node/configurationService';
+import { JSONEditingService } from 'vs/workbench/services/configuration/node/jsonEditingService';
+import { WorkspaceEditingService } from 'vs/workbench/services/workspace/node/workspaceEditingService';
+import { IPCClient, getDelayedChannel } from 'vs/base/parts/ipc/node/ipc';
+import { LogStorageAction, StorageService } from 'vs/platform/storage/node/storageService';
+import { HashService } from 'vs/workbench/services/hash/node/hashService';
+import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
+import { DialogChannel } from 'vs/platform/dialogs/node/dialogIpc';
+import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
+import { resolveWorkbenchCommonProperties } from 'vs/platform/telemetry/node/workbenchCommonProperties';
+import { IRequestService } from 'vs/platform/request/node/request';
+import { RequestService } from 'vs/platform/request/node/requestService';
+import { DownloadService } from 'vs/platform/download/node/downloadService';
+import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/node/remoteAgentService';
+import { DownloadServiceChannel } from 'vs/platform/download/node/downloadIpc';
+import { LogLevelSetterChannel } from 'vs/platform/log/node/logIpc';
+import { ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/node/extensionManagementIpc';
+import { ExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
+import { MultiExtensionManagementService } from 'vs/workbench/services/extensionManagement/node/multiExtensionManagement';
+import { SearchService } from 'vs/workbench/services/search/node/searchService';
+import { IntegrityServiceImpl } from 'vs/workbench/services/integrity/node/integrityServiceImpl';
+import { LocalizationsChannelClient } from 'vs/platform/localizations/node/localizationsIpc';
+
+// import@electron-browser
+import { HistoryService } from 'vs/workbench/services/history/electron-browser/history';
+import { ContextMenuService as NativeContextMenuService } from 'vs/workbench/services/contextview/electron-browser/contextmenuService';
+import { WorkbenchKeybindingService } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
+import { RemoteFileService } from 'vs/workbench/services/files/electron-browser/remoteFileService';
+import { ConfigurationResolverService } from 'vs/workbench/services/configurationResolver/electron-browser/configurationResolverService';
+import { ClipboardService } from 'vs/platform/clipboard/electron-browser/clipboardService';
+import { LifecycleService } from 'vs/platform/lifecycle/electron-browser/lifecycleService';
+import { ToggleDevToolsAction } from 'vs/workbench/electron-browser/actions/developerActions';
+import { registerWindowDriver } from 'vs/platform/driver/electron-browser/driver';
+import { IExtensionUrlHandler, ExtensionUrlHandler } from 'vs/workbench/services/extensions/electron-browser/inactiveExtensionUrlHandler';
+import { WorkbenchThemeService } from 'vs/workbench/services/themes/electron-browser/workbenchThemeService';
+import { RemoteFileDialogService, DialogService } from 'vs/workbench/services/dialogs/electron-browser/dialogService';
+import { ShowPreviousWindowTab, MoveWindowTabToNewWindow, MergeAllWindowTabs, ShowNextWindowTab, ToggleWindowTabsBar, NewWindowTab, OpenRecentAction, ReloadWindowAction, ReloadWindowWithExtensionsDisabledAction } from 'vs/workbench/electron-browser/actions/windowActions';
+import { IBroadcastService, BroadcastService } from 'vs/workbench/services/broadcast/electron-browser/broadcastService';
+import { WindowService } from 'vs/platform/windows/electron-browser/windowService';
+import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-browser/remoteAuthorityResolverService';
+import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
+import { ExtensionService } from 'vs/workbench/services/extensions/electron-browser/extensionService';
+import { TextResourcePropertiesService } from 'vs/workbench/services/textfile/electron-browser/textResourcePropertiesService';
+import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
+import { TextMateService } from 'vs/workbench/services/textMate/electron-browser/TMSyntax';
 
 interface WorkbenchParams {
 	configuration: IWindowConfiguration;
@@ -211,6 +277,11 @@ export class Workbench extends Disposable implements IPartService {
 	private contextKeyService: IContextKeyService;
 	private keybindingService: IKeybindingService;
 	private backupFileService: IBackupFileService;
+	private notificationService: NotificationService;
+	private themeService: WorkbenchThemeService;
+	private telemetryService: ITelemetryService;
+	private windowService: IWindowService;
+	private lifecycleService: LifecycleService;
 	private fileService: IFileService;
 	private quickInput: QuickInputService;
 
@@ -262,18 +333,14 @@ export class Workbench extends Disposable implements IPartService {
 		private container: HTMLElement,
 		private configuration: IWindowConfiguration,
 		serviceCollection: ServiceCollection,
-		private lifecycleService: LifecycleService,
 		private mainProcessClient: IPCClient,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IStorageService private readonly storageService: IStorageService,
+		@IStorageService private readonly storageService: StorageService,
 		@IConfigurationService private readonly configurationService: WorkspaceService,
-		@IWorkbenchThemeService private readonly themeService: WorkbenchThemeService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IWindowService private readonly windowService: IWindowService,
-		@INotificationService private readonly notificationService: NotificationService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IWindowsService private readonly windowsService: IWindowsService
 	) {
 		super();
 
@@ -338,9 +405,6 @@ export class Workbench extends Disposable implements IPartService {
 
 	private doStartup(): Promise<void> {
 		this.workbenchStarted = true;
-
-		// Set lifecycle phase to `Ready`
-		this.lifecycleService.phase = LifecyclePhase.Ready;
 
 		// ARIA
 		setARIAContainer(document.body);
@@ -430,11 +494,155 @@ export class Workbench extends Disposable implements IPartService {
 	private initServices(): void {
 		const { serviceCollection } = this.workbenchParams;
 
-		// Services we contribute
+		// Parts
 		serviceCollection.set(IPartService, this);
+
+		// Labels
+		serviceCollection.set(ILabelService, new SyncDescriptor(LabelService, undefined, true));
 
 		// Clipboard
 		serviceCollection.set(IClipboardService, new SyncDescriptor(ClipboardService));
+
+		// Broadcast
+		serviceCollection.set(IBroadcastService, new SyncDescriptor(BroadcastService, [this.configuration.windowId]));
+
+		// Notifications
+		this.notificationService = new NotificationService();
+		serviceCollection.set(INotificationService, this.notificationService);
+
+		// Window
+		this.windowService = this.instantiationService.createInstance(WindowService, this.configuration);
+		serviceCollection.set(IWindowService, this.windowService);
+
+		// Shared Process
+		const sharedProcess = this.windowsService.whenSharedProcessReady()
+			.then(() => connectNet(this.environmentService.sharedIPCHandle, `window:${this.configuration.windowId}`))
+			.then(client => {
+				client.registerChannel('dialog', this.instantiationService.createInstance(DialogChannel));
+
+				return client;
+			});
+
+		// Telemetry
+		if (!this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
+			const channel = getDelayedChannel(sharedProcess.then(c => c.getChannel('telemetryAppender')));
+			const config: ITelemetryServiceConfig = {
+				appender: combinedAppender(new TelemetryAppenderClient(channel), new LogAppender(this.logService)),
+				commonProperties: resolveWorkbenchCommonProperties(this.storageService, product.commit, pkg.version, this.configuration.machineId, this.environmentService.installSourcePath),
+				piiPaths: [this.environmentService.appRoot, this.environmentService.extensionsPath]
+			};
+
+			this.telemetryService = this._register(this.instantiationService.createInstance(TelemetryService, config));
+			this._register(new ErrorTelemetry(this.telemetryService));
+		} else {
+			this.telemetryService = NullTelemetryService;
+		}
+
+		serviceCollection.set(ITelemetryService, this.telemetryService);
+		this._register(configurationTelemetry(this.telemetryService, this.configurationService));
+
+		// Dialogs
+		serviceCollection.set(IDialogService, this.instantiationService.createInstance(DialogService));
+
+		// Lifecycle
+		this.lifecycleService = this.instantiationService.createInstance(LifecycleService);
+		this.lifecycleService.phase = LifecyclePhase.Ready; // Set lifecycle phase to `Ready`
+
+		serviceCollection.set(ILifecycleService, this.lifecycleService);
+
+		this._register(this.lifecycleService.onWillShutdown(event => event.join(this.storageService.close())));
+		this._register(this.lifecycleService.onShutdown(() => this.dispose()));
+
+		// Request Service
+		serviceCollection.set(IRequestService, new SyncDescriptor(RequestService, undefined, true));
+
+		// Download Service
+		serviceCollection.set(IDownloadService, new SyncDescriptor(DownloadService, undefined, true));
+
+		// Extension Gallery
+		serviceCollection.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService, undefined, true));
+
+		// Remote Resolver
+		const remoteAuthorityResolverService = new RemoteAuthorityResolverService();
+		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
+
+		// Remote Agent
+		const remoteAgentService = new RemoteAgentService(this.configuration, this.notificationService, this.environmentService, remoteAuthorityResolverService);
+		serviceCollection.set(IRemoteAgentService, remoteAgentService);
+
+		const remoteAgentConnection = remoteAgentService.getConnection();
+		if (remoteAgentConnection) {
+			remoteAgentConnection.registerChannel('dialog', this.instantiationService.createInstance(DialogChannel));
+			remoteAgentConnection.registerChannel('download', new DownloadServiceChannel());
+			remoteAgentConnection.registerChannel('loglevel', new LogLevelSetterChannel(this.logService));
+		}
+
+		// Extensions Management
+		const extensionManagementChannel = getDelayedChannel(sharedProcess.then(c => c.getChannel('extensions')));
+		const extensionManagementChannelClient = new ExtensionManagementChannelClient(extensionManagementChannel);
+		serviceCollection.set(IExtensionManagementServerService, new SyncDescriptor(ExtensionManagementServerService, [extensionManagementChannelClient]));
+		serviceCollection.set(IExtensionManagementService, new SyncDescriptor(MultiExtensionManagementService));
+
+		// Extension Enablement
+		const extensionEnablementService = this._register(this.instantiationService.createInstance(ExtensionEnablementService));
+		serviceCollection.set(IExtensionEnablementService, extensionEnablementService);
+
+		// Extensions
+		serviceCollection.set(IExtensionService, this.instantiationService.createInstance(ExtensionService));
+
+		// Theming
+		this.themeService = this.instantiationService.createInstance(WorkbenchThemeService, document.body);
+		serviceCollection.set(IWorkbenchThemeService, this.themeService);
+
+		// Commands
+		serviceCollection.set(ICommandService, new SyncDescriptor(CommandService, undefined, true));
+
+		// Markers
+		serviceCollection.set(IMarkerService, new SyncDescriptor(MarkerService, undefined, true));
+
+		// Editor Mode
+		serviceCollection.set(IModeService, new SyncDescriptor(WorkbenchModeServiceImpl));
+
+		// Text Resource Config
+		serviceCollection.set(ITextResourceConfigurationService, new SyncDescriptor(TextResourceConfigurationService));
+
+		// Text Resource Properties
+		serviceCollection.set(ITextResourcePropertiesService, new SyncDescriptor(TextResourcePropertiesService));
+
+		// Editor Models
+		serviceCollection.set(IModelService, new SyncDescriptor(ModelServiceImpl, undefined, true));
+
+		// Marker Decorations
+		serviceCollection.set(IMarkerDecorationsService, new SyncDescriptor(MarkerDecorationsService));
+
+		// Editor Worker
+		serviceCollection.set(IEditorWorkerService, new SyncDescriptor(EditorWorkerServiceImpl));
+
+		// Untitled Editors
+		serviceCollection.set(IUntitledEditorService, new SyncDescriptor(UntitledEditorService, undefined, true));
+
+		// Text Mate
+		serviceCollection.set(ITextMateService, new SyncDescriptor(TextMateService));
+
+		// Search
+		serviceCollection.set(ISearchService, new SyncDescriptor(SearchService));
+		serviceCollection.set(ISearchHistoryService, new SyncDescriptor(SearchHistoryService));
+
+		// Code Editor
+		serviceCollection.set(ICodeEditorService, new SyncDescriptor(CodeEditorService));
+
+		// Opener
+		serviceCollection.set(IOpenerService, new SyncDescriptor(OpenerService, undefined, true));
+
+		// Integrity
+		serviceCollection.set(IIntegrityService, new SyncDescriptor(IntegrityServiceImpl));
+
+		// Localization
+		const localizationsChannel = getDelayedChannel(sharedProcess.then(c => c.getChannel('localizations')));
+		serviceCollection.set(ILocalizationsService, new SyncDescriptor(LocalizationsChannelClient, [localizationsChannel]));
+
+		// Hash
+		serviceCollection.set(IHashService, new SyncDescriptor(HashService, undefined, true));
 
 		// Status bar
 		this.statusbarPart = this.instantiationService.createInstance(StatusbarPart, Identifiers.STATUSBAR_PART);
@@ -1639,7 +1847,7 @@ export class Workbench extends Disposable implements IPartService {
 		}
 	}
 
-	layout(options?: ILayoutOptions): void {
+	private layout(options?: ILayoutOptions): void {
 		this.contextViewService.layout();
 
 		if (this.workbenchStarted && !this.workbenchShutdown) {
@@ -1772,7 +1980,6 @@ export class Workbench extends Disposable implements IPartService {
 			}
 		}
 
-
 		// Remember in settings
 		const defaultHidden = this.contextService.getWorkbenchState() === WorkbenchState.EMPTY;
 		if (hidden !== defaultHidden) {
@@ -1814,7 +2021,6 @@ export class Workbench extends Disposable implements IPartService {
 				this.panelPart.openPanel(panelToOpen, true);
 			}
 		}
-
 
 		// Remember in settings
 		if (!hidden) {
@@ -1960,4 +2166,6 @@ export class Workbench extends Disposable implements IPartService {
 			this.workbenchGrid.layout();
 		}
 	}
+
+	//#endregion
 }

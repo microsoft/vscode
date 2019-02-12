@@ -18,20 +18,23 @@ export class WindowService extends Disposable implements IWindowService {
 
 	_serviceBrand: any;
 
+	private windowId: number;
+
 	private _hasFocus: boolean;
 	get hasFocus(): boolean { return this._hasFocus; }
 
 	constructor(
-		private windowId: number,
 		private configuration: IWindowConfiguration,
 		@IWindowsService private readonly windowsService: IWindowsService
 	) {
 		super();
 
-		const onThisWindowFocus = Event.map(Event.filter(windowsService.onWindowFocus, id => id === windowId), _ => true);
-		const onThisWindowBlur = Event.map(Event.filter(windowsService.onWindowBlur, id => id === windowId), _ => false);
-		const onThisWindowMaximize = Event.map(Event.filter(windowsService.onWindowMaximize, id => id === windowId), _ => true);
-		const onThisWindowUnmaximize = Event.map(Event.filter(windowsService.onWindowUnmaximize, id => id === windowId), _ => false);
+		this.windowId = configuration.windowId;
+
+		const onThisWindowFocus = Event.map(Event.filter(windowsService.onWindowFocus, id => id === this.windowId), _ => true);
+		const onThisWindowBlur = Event.map(Event.filter(windowsService.onWindowBlur, id => id === this.windowId), _ => false);
+		const onThisWindowMaximize = Event.map(Event.filter(windowsService.onWindowMaximize, id => id === this.windowId), _ => true);
+		const onThisWindowUnmaximize = Event.map(Event.filter(windowsService.onWindowUnmaximize, id => id === this.windowId), _ => false);
 		this.onDidChangeFocus = Event.any(onThisWindowFocus, onThisWindowBlur);
 		this.onDidChangeMaximize = Event.any(onThisWindowMaximize, onThisWindowUnmaximize);
 
