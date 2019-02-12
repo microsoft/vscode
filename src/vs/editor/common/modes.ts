@@ -1235,6 +1235,7 @@ export interface NewCommentAction {
 export interface CommentReaction {
 	readonly label?: string;
 	readonly hasReacted?: boolean;
+	readonly canEdit?: boolean;
 }
 
 /**

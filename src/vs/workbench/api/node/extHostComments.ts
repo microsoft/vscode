@@ -258,6 +258,9 @@ function convertToComment(provider: vscode.DocumentCommentProvider | vscode.Work
 	const canEdit = !!(provider as vscode.DocumentCommentProvider).editComment && vscodeComment.canEdit;
 	const canDelete = !!(provider as vscode.DocumentCommentProvider).deleteComment && vscodeComment.canDelete;
 	const iconPath = vscodeComment.userIconPath ? vscodeComment.userIconPath.toString() : vscodeComment.gravatar;
+	const providerCanDeleteReaction = !!(provider as vscode.DocumentCommentProvider).deleteReaction;
+	const providerCanAddReaction = !!(provider as vscode.DocumentCommentProvider).addReaction;
+
 	return {
 		commentId: vscodeComment.commentId,
 		body: extHostTypeConverter.MarkdownString.from(vscodeComment.body),
@@ -267,6 +270,12 @@ function convertToComment(provider: vscode.DocumentCommentProvider | vscode.Work
 		canDelete: canDelete,
 		command: vscodeComment.command ? commandsConverter.toInternal(vscodeComment.command) : null,
 		isDraft: vscodeComment.isDraft,
-		commentReactions: vscodeComment.commentReactions
+		commentReactions: vscodeComment.commentReactions.map(reaction => {
+			return {
+				label: reaction.label,
+				hasReacted: reaction.hasReacted,
+				canEdit: (reaction.hasReacted && providerCanDeleteReaction) || (!reaction.hasReacted && providerCanAddReaction)
+			};
+		})
 	};
 }
