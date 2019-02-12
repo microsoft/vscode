@@ -17,7 +17,6 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import * as resources from 'vs/base/common/resources';
-import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { RemoteFileDialog } from 'vs/workbench/services/dialogs/electron-browser/remoteFileDialog';
 import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
@@ -165,8 +164,7 @@ export class FileDialogService implements IFileDialogService {
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IHistoryService private readonly historyService: IHistoryService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IFileService private readonly fileService: IFileService
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) { }
 
 	defaultFilePath(schemeFilter = this.getSchemeFilterForWindow()): URI | undefined {
@@ -209,10 +207,6 @@ export class FileDialogService implements IFileDialogService {
 		return this.defaultFolderPath(schemeFilter);
 	}
 
-	private getSchemeFilterForWindow() {
-		return !this.windowService.getConfiguration().remoteAuthority ? Schemas.file : REMOTE_HOST_SCHEME;
-	}
-
 	private toNativeOpenDialogOptions(options: IPickAndOpenOptions): INativeOpenDialogOptions {
 		return {
 			forceNewWindow: options.forceNewWindow,
@@ -224,57 +218,66 @@ export class FileDialogService implements IFileDialogService {
 	}
 
 	pickFileFolderAndOpen(options: IPickAndOpenOptions): Promise<any> {
-		let defaultUri = options.defaultUri;
-		if (!defaultUri) {
-			defaultUri = options.defaultUri = this.defaultFilePath();
+		const schema = this.getFileSystemSchema(options);
+
+		if (!options.defaultUri) {
+			options.defaultUri = this.defaultFilePath(schema);
 		}
 
-		if (this.useRemoteDialogs(defaultUri)) {
+		if (schema !== Schemas.file) {
 			const title = nls.localize('openFileOrFolder.title', 'Open File Or Folder');
-			return this.pickRemoteResourceAndOpen({ canSelectFiles: true, canSelectFolders: true, canSelectMany: false, defaultUri, title, allowLocalPaths: options.allowLocalPaths }, options.forceNewWindow, true);
+			const availableFileSystems = [schema, Schemas.file]; // always allow file as well
+			return this.pickRemoteResourceAndOpen({ canSelectFiles: true, canSelectFolders: true, canSelectMany: false, defaultUri: options.defaultUri, title, availableFileSystems }, options.forceNewWindow, true);
 		}
 
 		return this.windowService.pickFileFolderAndOpen(this.toNativeOpenDialogOptions(options));
 	}
 
 	pickFileAndOpen(options: IPickAndOpenOptions): Promise<any> {
-		let defaultUri = options.defaultUri;
-		if (!defaultUri) {
-			defaultUri = options.defaultUri = this.defaultFilePath();
+		const schema = this.getFileSystemSchema(options);
+
+		if (!options.defaultUri) {
+			options.defaultUri = this.defaultFilePath(schema);
 		}
 
-		if (this.useRemoteDialogs(defaultUri)) {
+		if (schema !== Schemas.file) {
 			const title = nls.localize('openFile.title', 'Open File');
-			return this.pickRemoteResourceAndOpen({ canSelectFiles: true, canSelectFolders: false, canSelectMany: false, defaultUri, title, allowLocalPaths: options.allowLocalPaths }, options.forceNewWindow, true);
+			const availableFileSystems = [schema, Schemas.file]; // always allow file as well
+			return this.pickRemoteResourceAndOpen({ canSelectFiles: true, canSelectFolders: false, canSelectMany: false, defaultUri: options.defaultUri, title, availableFileSystems }, options.forceNewWindow, true);
 		}
 
 		return this.windowService.pickFileAndOpen(this.toNativeOpenDialogOptions(options));
 	}
 
 	pickFolderAndOpen(options: IPickAndOpenOptions): Promise<any> {
-		let defaultUri = options.defaultUri;
-		if (!defaultUri) {
-			defaultUri = options.defaultUri = this.defaultFolderPath();
+		const schema = this.getFileSystemSchema(options);
+
+		if (!options.defaultUri) {
+			options.defaultUri = this.defaultFolderPath(schema);
 		}
 
-		if (this.useRemoteDialogs(defaultUri)) {
+		if (schema !== Schemas.file) {
 			const title = nls.localize('openFolder.title', 'Open Folder');
-			return this.pickRemoteResourceAndOpen({ canSelectFiles: false, canSelectFolders: true, canSelectMany: false, defaultUri, title, allowLocalPaths: options.allowLocalPaths }, options.forceNewWindow, false);
+			const availableFileSystems = [schema, Schemas.file]; // always allow file as well
+			return this.pickRemoteResourceAndOpen({ canSelectFiles: false, canSelectFolders: true, canSelectMany: false, defaultUri: options.defaultUri, title, availableFileSystems }, options.forceNewWindow, false);
 		}
 
 		return this.windowService.pickFolderAndOpen(this.toNativeOpenDialogOptions(options));
 	}
 
 	pickWorkspaceAndOpen(options: IPickAndOpenOptions): Promise<void> {
-		let defaultUri = options.defaultUri;
-		if (!defaultUri) {
-			defaultUri = options.defaultUri = this.defaultWorkspacePath();
+		const schema = this.getFileSystemSchema(options);
+
+		if (!options.defaultUri) {
+			options.defaultUri = this.defaultWorkspacePath(schema);
 		}
 
-		if (this.useRemoteDialogs(defaultUri)) {
+		if (schema !== Schemas.file) {
 			const title = nls.localize('openWorkspace.title', 'Open Workspace');
 			const filters: FileFilter[] = [{ name: nls.localize('filterName.workspace', 'Workspace'), extensions: [WORKSPACE_EXTENSION] }];
-			return this.pickRemoteResourceAndOpen({ canSelectFiles: true, canSelectFolders: false, canSelectMany: false, defaultUri, title, filters, allowLocalPaths: options.allowLocalPaths }, options.forceNewWindow, false);
+			const availableFileSystems = [schema, Schemas.file]; // always allow file as well
+			return this.pickRemoteResourceAndOpen({ canSelectFiles: true, canSelectFolders: false, canSelectMany: false, defaultUri: options.defaultUri, title, filters, availableFileSystems }, options.forceNewWindow, false);
+
 		}
 
 		return this.windowService.pickWorkspaceAndOpen(this.toNativeOpenDialogOptions(options));
@@ -290,8 +293,8 @@ export class FileDialogService implements IFileDialogService {
 	}
 
 	showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
-		const defaultUri = options.defaultUri;
-		if (this.useRemoteDialogs(defaultUri)) {
+		const schema = this.getFileSystemSchema(options);
+		if (schema !== Schemas.file) {
 			return this.saveRemoteResource(options);
 		}
 
@@ -305,12 +308,14 @@ export class FileDialogService implements IFileDialogService {
 	}
 
 	showOpenDialog(options: IOpenDialogOptions): Promise<URI[] | undefined> {
-		const defaultUri = options.defaultUri;
-		if (this.useRemoteDialogs(defaultUri)) {
+		const schema = this.getFileSystemSchema(options);
+		if (schema !== Schemas.file) {
 			return this.pickRemoteResource(options).then(urisToOpen => {
 				return urisToOpen && urisToOpen.map(uto => uto.uri);
 			});
 		}
+
+		const defaultUri = options.defaultUri;
 
 		const newOptions: OpenDialogOptions = {
 			title: options.title,
@@ -356,12 +361,12 @@ export class FileDialogService implements IFileDialogService {
 		return remoteFileDialog.showSaveDialog(options);
 	}
 
-	private useRemoteDialogs(defaultUri: URI) {
-		if (defaultUri) {
-			return defaultUri.scheme !== Schemas.file && this.fileService.canHandleResource(defaultUri);
-		} else {
-			return !!this.windowService.getConfiguration().remoteAuthority;
-		}
+	private getSchemeFilterForWindow() {
+		return !this.windowService.getConfiguration().remoteAuthority ? Schemas.file : REMOTE_HOST_SCHEME;
+	}
+
+	private getFileSystemSchema(options: { availableFileSystems?: string[], defaultUri?: URI }): string {
+		return options.availableFileSystems && options.availableFileSystems[0] || options.defaultUri && options.defaultUri.scheme || this.getSchemeFilterForWindow();
 	}
 
 }

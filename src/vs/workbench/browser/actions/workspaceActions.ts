@@ -32,7 +32,7 @@ export class OpenFileAction extends Action {
 	}
 
 	run(event?: any, data?: ITelemetryData): Promise<any> {
-		return this.dialogService.pickFileAndOpen({ forceNewWindow: false, telemetryExtraData: data, allowLocalPaths: true });
+		return this.dialogService.pickFileAndOpen({ forceNewWindow: false, telemetryExtraData: data });
 	}
 }
 
@@ -50,7 +50,7 @@ export class OpenFolderAction extends Action {
 	}
 
 	run(event?: any, data?: ITelemetryData): Promise<any> {
-		return this.dialogService.pickFolderAndOpen({ forceNewWindow: false, telemetryExtraData: data, allowLocalPaths: true });
+		return this.dialogService.pickFolderAndOpen({ forceNewWindow: false, telemetryExtraData: data });
 	}
 }
 
@@ -68,7 +68,7 @@ export class OpenFileFolderAction extends Action {
 	}
 
 	run(event?: any, data?: ITelemetryData): Promise<any> {
-		return this.dialogService.pickFileFolderAndOpen({ forceNewWindow: false, telemetryExtraData: data, allowLocalPaths: true });
+		return this.dialogService.pickFileFolderAndOpen({ forceNewWindow: false, telemetryExtraData: data });
 	}
 }
 
@@ -179,7 +179,7 @@ export class OpenWorkspaceAction extends Action {
 	}
 
 	run(event?: any, data?: ITelemetryData): Promise<any> {
-		return this.dialogService.pickWorkspaceAndOpen({ telemetryExtraData: data, allowLocalPaths: true });
+		return this.dialogService.pickWorkspaceAndOpen({ telemetryExtraData: data });
 	}
 }
 

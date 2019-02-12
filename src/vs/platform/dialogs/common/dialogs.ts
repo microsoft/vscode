@@ -43,7 +43,6 @@ export interface IPickAndOpenOptions {
 	forceNewWindow?: boolean;
 	defaultUri?: URI;
 	telemetryExtraData?: ITelemetryData;
-	allowLocalPaths?: boolean;
 }
 
 export interface ISaveDialogOptions {
@@ -67,6 +66,12 @@ export interface ISaveDialogOptions {
 	 * A human-readable string for the ok button
 	 */
 	saveLabel?: string;
+
+	/**
+	 * Specifies a list of schemas for the file systems the user can save to. If not specified, uses the schema of the defaultURI or, if also not specified,
+	 * the schema of the current window.
+	 */
+	availableFileSystems?: string[];
 }
 
 export interface IOpenDialogOptions {
@@ -107,9 +112,10 @@ export interface IOpenDialogOptions {
 	filters?: FileFilter[];
 
 	/**
-	 * Wheter the user can pick local files or folders as well (only applies to remote dialogs)
+	 * Specifies a list of schemas for the file systems the user can load from. If not specified, uses the schema of the defaultURI or, if also not available,
+	 * the schema of the current window.
 	 */
-	allowLocalPaths?: boolean;
+	availableFileSystems?: string[];
 }
 
 
