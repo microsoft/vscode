@@ -160,6 +160,30 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		}
 	}
 
+	// -- code inset
+
+	$registerCodeInsetSupport(handle: number, selector: ISerializedDocumentFilter[], eventHandle: number): void {
+
+		const provider = <modes.CodeInsetProvider>{
+			provideCodeInsets: (model: ITextModel, token: CancellationToken): modes.ICodeLensSymbol[] | Thenable<modes.ICodeLensSymbol[]> => {
+				const insets = this._heapService.trackRecursive(this._proxy.$provideCodeInsets(handle, model.uri, token));
+				return insets;
+			},
+			resolveCodeInset: (model: ITextModel, codeInset: modes.ICodeInsetSymbol, token: CancellationToken): modes.ICodeInsetSymbol | Thenable<modes.ICodeInsetSymbol> => {
+				return this._heapService.trackRecursive(this._proxy.$resolveCodeInset(handle, model.uri, codeInset, token));
+			}
+		};
+
+		if (typeof eventHandle === 'number') {
+			const emitter = new Emitter<modes.CodeInsetProvider>();
+			this._registrations[eventHandle] = emitter;
+			provider.onDidChange = emitter.event;
+		}
+
+		const langSelector = typeConverters.LanguageSelector.from(selector);
+		this._registrations[handle] = modes.CodeInsetProviderRegistry.register(langSelector, provider);
+	}
+
 	// --- declaration
 
 	$registerDefinitionSupport(handle: number, selector: ISerializedDocumentFilter[]): void {

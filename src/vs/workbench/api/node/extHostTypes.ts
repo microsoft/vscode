@@ -1118,6 +1118,23 @@ export class CodeLens {
 	}
 }
 
+
+export class CodeInset {
+
+	range: Range;
+	isResolved: boolean;
+	uri?: URI;
+	height?: number;
+
+	constructor(range: Range, uri?: URI, height?: number) {
+		this.range = range;
+		this.uri = uri;
+		this.isResolved = !!uri;
+		this.height = height;
+	}
+}
+
+
 @es5ClassCompat
 export class MarkdownString {
 

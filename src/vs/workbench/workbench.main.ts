@@ -108,6 +108,9 @@ import 'vs/workbench/contrib/extensions/electron-browser/extensions.contribution
 import 'vs/workbench/contrib/extensions/browser/extensionsQuickOpen';
 import 'vs/workbench/contrib/extensions/electron-browser/extensionsViewlet';
 
+// Code Insets
+import 'vs/workbench/parts/codeinset/codeInset.contribution';
+
 // Output Panel
 import 'vs/workbench/contrib/output/electron-browser/output.contribution';
 import 'vs/workbench/contrib/output/browser/outputPanel';

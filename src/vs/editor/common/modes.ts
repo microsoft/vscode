@@ -1321,6 +1321,18 @@ export interface CodeLensProvider {
 	resolveCodeLens?(model: model.ITextModel, codeLens: ICodeLensSymbol, token: CancellationToken): ProviderResult<ICodeLensSymbol>;
 }
 
+export interface ICodeInsetSymbol {
+	range: IRange;
+	id?: string;
+	uri?: URI;
+	height?: number;
+}
+export interface CodeInsetProvider {
+	onDidChange?: Event<this>;
+	provideCodeInsets(model: model.ITextModel, token: CancellationToken): ProviderResult<ICodeInsetSymbol[]>;
+	resolveCodeInset?(model: model.ITextModel, codeInset: ICodeInsetSymbol, token: CancellationToken): ProviderResult<ICodeInsetSymbol>;
+}
+
 // --- feature registries ------
 
 /**
@@ -1382,6 +1394,11 @@ export const TypeDefinitionProviderRegistry = new LanguageFeatureRegistry<TypeDe
  * @internal
  */
 export const CodeLensProviderRegistry = new LanguageFeatureRegistry<CodeLensProvider>();
+
+/**
+ * @internal
+ */
+export const CodeInsetProviderRegistry = new LanguageFeatureRegistry<CodeInsetProvider>();
 
 /**
  * @internal

@@ -23,6 +23,7 @@ import { isMacintosh } from 'vs/base/common/platform';
 export interface WebviewOptions {
 	readonly allowSvgs?: boolean;
 	readonly useSameOriginForRoot?: boolean;
+	readonly disableFindView?: boolean;
 	readonly extensionLocation?: URI;
 }
 
@@ -248,6 +249,7 @@ export class WebviewElement extends Disposable {
 		this._webview.setAttribute('partition', `webview${Date.now()}`);
 
 		this._webview.setAttribute('webpreferences', 'contextIsolation=yes');
+		this._webview.setAttribute('autosize', 'on');
 
 		this._webview.style.flex = '0 1';
 		this._webview.style.width = '0';
@@ -347,14 +349,18 @@ export class WebviewElement extends Disposable {
 			this._send('devtools-opened');
 		}));
 
-		this._webviewFindWidget = this._register(instantiationService.createInstance(WebviewFindWidget, this));
+		if (!this._options || !this._options.disableFindView) {
+			this._webviewFindWidget = this._register(instantiationService.createInstance(WebviewFindWidget, this));
+		}
 
 		this.style(this._themeService.getTheme());
 		this._register(this._themeService.onThemeChange(this.style, this));
 	}
 
 	public mountTo(parent: HTMLElement) {
-		parent.appendChild(this._webviewFindWidget.getDomNode()!);
+		if (this._webviewFindWidget) {
+			parent.appendChild(this._webviewFindWidget.getDomNode());
+		}
 		parent.appendChild(this._webview);
 	}
 
@@ -381,6 +387,9 @@ export class WebviewElement extends Disposable {
 
 	private readonly _onMessage = this._register(new Emitter<any>());
 	public readonly onMessage = this._onMessage.event;
+
+	private readonly _onLayout = this._register(new Emitter<{ width: number, height: number }>());
+	public readonly onLayout = this._onLayout.event;
 
 	private _send(channel: string, ...args: any[]): void {
 		this._ready
@@ -482,8 +491,9 @@ export class WebviewElement extends Disposable {
 		const activeTheme = ApiThemeClassName.fromTheme(theme);
 		this._send('styles', styles, activeTheme);
 
-		this._webviewFindWidget.updateTheme(theme);
-
+		if (this._webviewFindWidget) {
+			this._webviewFindWidget.updateTheme(theme);
+		}
 	}
 
 	public layout(): void {
@@ -501,6 +511,20 @@ export class WebviewElement extends Disposable {
 			}
 
 			contents.setZoomFactor(factor);
+			if (!this._webview || !this._webview.parentElement) {
+				return;
+			}
+
+			this._onLayout.fire({ width: this._webview.clientWidth, height: this._webview.clientHeight });
+
+			// const width = this._webview.parentElement.clientWidth;
+			// const height = this._webview.parentElement.clientHeight;
+			// contents.setSize({
+			// 	normal: {
+			// 		width: Math.floor(width * factor),
+			// 		height: Math.floor(height * factor)
+			// 	}
+			// });
 		});
 	}
 
@@ -551,11 +575,15 @@ export class WebviewElement extends Disposable {
 	}
 
 	public showFind() {
-		this._webviewFindWidget.reveal();
+		if (this._webviewFindWidget) {
+			this._webviewFindWidget.reveal();
+		}
 	}
 
 	public hideFind() {
-		this._webviewFindWidget.hide();
+		if (this._webviewFindWidget) {
+			this._webviewFindWidget.hide();
+		}
 	}
 
 	public reload() {

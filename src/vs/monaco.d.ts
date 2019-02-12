@@ -2935,6 +2935,11 @@ declare namespace monaco.editor {
 		 */
 		codeLens?: boolean;
 		/**
+		 * Show code insets
+		 * Defaults to true.
+		 */
+		codeInsets?: boolean;
+		/**
 		 * Control the behavior and rendering of the code action lightbulb.
 		 */
 		lightbulb?: IEditorLightbulbOptions;
@@ -3271,6 +3276,7 @@ declare namespace monaco.editor {
 		readonly selectionHighlight: boolean;
 		readonly occurrencesHighlight: boolean;
 		readonly codeLens: boolean;
+		readonly codeInsets: boolean;
 		readonly folding: boolean;
 		readonly foldingStrategy: 'auto' | 'indentation';
 		readonly showFoldingControls: 'always' | 'mouseover';
@@ -5412,6 +5418,19 @@ declare namespace monaco.languages {
 		onDidChange?: IEvent<this>;
 		provideCodeLenses(model: editor.ITextModel, token: CancellationToken): ProviderResult<ICodeLensSymbol[]>;
 		resolveCodeLens?(model: editor.ITextModel, codeLens: ICodeLensSymbol, token: CancellationToken): ProviderResult<ICodeLensSymbol>;
+	}
+
+	export interface ICodeInsetSymbol {
+		range: IRange;
+		id?: string;
+		uri?: Uri;
+		height?: number;
+	}
+
+	export interface CodeInsetProvider {
+		onDidChange?: IEvent<this>;
+		provideCodeInsets(model: editor.ITextModel, token: CancellationToken): ProviderResult<ICodeInsetSymbol[]>;
+		resolveCodeInset?(model: editor.ITextModel, codeInset: ICodeInsetSymbol, token: CancellationToken): ProviderResult<ICodeInsetSymbol>;
 	}
 
 	export interface ILanguageExtensionPoint {
