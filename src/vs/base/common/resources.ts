@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as paths from 'vs/base/common/paths';
+import * as extpath from 'vs/base/common/paths';
+import * as paths from 'vs/base/common/paths.node';
 import { URI } from 'vs/base/common/uri';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { Schemas } from 'vs/base/common/network';
@@ -32,10 +33,10 @@ export function basenameOrAuthority(resource: URI): string {
 export function isEqualOrParent(base: URI, parentCandidate: URI, ignoreCase = hasToIgnoreCase(base)): boolean {
 	if (base.scheme === parentCandidate.scheme) {
 		if (base.scheme === Schemas.file) {
-			return paths.isEqualOrParent(fsPath(base), fsPath(parentCandidate), ignoreCase);
+			return extpath.isEqualOrParent(fsPath(base), fsPath(parentCandidate), ignoreCase);
 		}
 		if (isEqualAuthority(base.authority, parentCandidate.authority, ignoreCase)) {
-			return paths.isEqualOrParent(base.path, parentCandidate.path, ignoreCase, '/');
+			return extpath.isEqualOrParent(base.path, parentCandidate.path, ignoreCase, '/');
 		}
 	}
 	return false;
@@ -66,6 +67,10 @@ export function basename(resource: URI): string {
 	return paths.basename(resource.path);
 }
 
+export function extname(resource: URI): string {
+	return paths.extname(resource.path);
+}
+
 /**
  * Return a URI representing the directory of a URI path.
  *
@@ -79,7 +84,7 @@ export function dirname(resource: URI): URI | null {
 	if (resource.scheme === Schemas.file) {
 		return URI.file(paths.dirname(fsPath(resource)));
 	}
-	let dirname = paths.dirname(resource.path, '/');
+	let dirname = paths.posix.dirname(resource.path);
 	if (resource.authority && dirname.length && dirname.charCodeAt(0) !== CharCode.Slash) {
 		return null; // If a URI contains an authority component, then the path component must either be empty or begin with a CharCode.Slash ("/") character
 	}
@@ -89,18 +94,18 @@ export function dirname(resource: URI): URI | null {
 }
 
 /**
- * Join a URI path with a path fragment and normalizes the resulting path.
+ * Join a URI path with path fragments and normalizes the resulting path.
  *
  * @param resource The input URI.
  * @param pathFragment The path fragment to add to the URI path.
  * @returns The resulting URI.
  */
-export function joinPath(resource: URI, pathFragment: string): URI {
+export function joinPath(resource: URI, ...pathFragment: string[]): URI {
 	let joinedPath: string;
 	if (resource.scheme === Schemas.file) {
-		joinedPath = URI.file(paths.join(fsPath(resource), pathFragment)).path;
+		joinedPath = URI.file(paths.join(fsPath(resource), ...pathFragment)).path;
 	} else {
-		joinedPath = paths.join(resource.path, pathFragment);
+		joinedPath = paths.join(resource.path, ...pathFragment);
 	}
 	return resource.with({
 		path: joinedPath
@@ -141,7 +146,7 @@ export function fsPath(uri: URI): string {
 	} else if (
 		isWindows
 		&& uriPath.charCodeAt(0) === CharCode.Slash
-		&& paths.isWindowsDriveLetter(uriPath.charCodeAt(1))
+		&& extpath.isWindowsDriveLetter(uriPath.charCodeAt(1))
 		&& uriPath.charCodeAt(2) === CharCode.Colon
 	) {
 		value = uriPath.substr(1);

@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { nativeSep, normalize, basename as pathsBasename, sep } from 'vs/base/common/paths';
+import { normalize, basename as pathsBasename } from 'vs/base/common/paths';
+import { sep, posix } from 'vs/base/common/paths.node';
 import { endsWith, ltrim, startsWithIgnoreCase, rtrim, startsWith } from 'vs/base/common/strings';
 import { Schemas } from 'vs/base/common/network';
 import { isLinux, isWindows, isMacintosh } from 'vs/base/common/platform';
@@ -39,7 +40,7 @@ export function getPathLabel(resource: URI | string, userHomeProvider?: IUserHom
 			if (isEqual(baseResource.uri, resource, !isLinux)) {
 				pathLabel = ''; // no label if paths are identical
 			} else {
-				pathLabel = normalize(ltrim(resource.path.substr(baseResource.uri.path.length), sep)!, true);
+				pathLabel = normalize(ltrim(resource.path.substr(baseResource.uri.path.length), posix.sep)!, true);
 			}
 
 			if (hasMultipleRoots) {
@@ -112,7 +113,7 @@ export function tildify(path: string, userHome: string): string {
 	// Keep a normalized user home path as cache to prevent accumulated string creation
 	let normalizedUserHome = normalizedUserHomeCached.original === userHome ? normalizedUserHomeCached.normalized : undefined;
 	if (!normalizedUserHome) {
-		normalizedUserHome = `${rtrim(userHome, sep)}${sep}`;
+		normalizedUserHome = `${rtrim(userHome, posix.sep)}${posix.sep}`;
 		normalizedUserHomeCached = { original: userHome, normalized: normalizedUserHome };
 	}
 
@@ -169,7 +170,7 @@ export function shorten(paths: string[]): string[] {
 		let path = paths[pathIndex];
 
 		if (path === '') {
-			shortenedPaths[pathIndex] = `.${nativeSep}`;
+			shortenedPaths[pathIndex] = `.${sep}`;
 			continue;
 		}
 
@@ -185,20 +186,20 @@ export function shorten(paths: string[]): string[] {
 		if (path.indexOf(unc) === 0) {
 			prefix = path.substr(0, path.indexOf(unc) + unc.length);
 			path = path.substr(path.indexOf(unc) + unc.length);
-		} else if (path.indexOf(nativeSep) === 0) {
-			prefix = path.substr(0, path.indexOf(nativeSep) + nativeSep.length);
-			path = path.substr(path.indexOf(nativeSep) + nativeSep.length);
+		} else if (path.indexOf(sep) === 0) {
+			prefix = path.substr(0, path.indexOf(sep) + sep.length);
+			path = path.substr(path.indexOf(sep) + sep.length);
 		} else if (path.indexOf(home) === 0) {
 			prefix = path.substr(0, path.indexOf(home) + home.length);
 			path = path.substr(path.indexOf(home) + home.length);
 		}
 
 		// pick the first shortest subpath found
-		const segments: string[] = path.split(nativeSep);
+		const segments: string[] = path.split(sep);
 		for (let subpathLength = 1; match && subpathLength <= segments.length; subpathLength++) {
 			for (let start = segments.length - subpathLength; match && start >= 0; start--) {
 				match = false;
-				let subpath = segments.slice(start, start + subpathLength).join(nativeSep);
+				let subpath = segments.slice(start, start + subpathLength).join(sep);
 
 				// that is unique to any other path
 				for (let otherPathIndex = 0; !match && otherPathIndex < paths.length; otherPathIndex++) {
@@ -209,7 +210,7 @@ export function shorten(paths: string[]): string[] {
 
 						// Adding separator as prefix for subpath, such that 'endsWith(src, trgt)' considers subpath as directory name instead of plain string.
 						// prefix is not added when either subpath is root directory or path[otherPathIndex] does not have multiple directories.
-						const subpathWithSep: string = (start > 0 && paths[otherPathIndex].indexOf(nativeSep) > -1) ? nativeSep + subpath : subpath;
+						const subpathWithSep: string = (start > 0 && paths[otherPathIndex].indexOf(sep) > -1) ? sep + subpath : subpath;
 						const isOtherPathEnding: boolean = endsWith(paths[otherPathIndex], subpathWithSep);
 
 						match = !isSubpathEnding || isOtherPathEnding;
@@ -226,11 +227,11 @@ export function shorten(paths: string[]): string[] {
 							// extend subpath to include disk drive prefix
 							start = 0;
 							subpathLength++;
-							subpath = segments[0] + nativeSep + subpath;
+							subpath = segments[0] + sep + subpath;
 						}
 
 						if (start > 0) {
-							result = segments[0] + nativeSep;
+							result = segments[0] + sep;
 						}
 
 						result = prefix + result;
@@ -238,14 +239,14 @@ export function shorten(paths: string[]): string[] {
 
 					// add ellipsis at the beginning if neeeded
 					if (start > 0) {
-						result = result + ellipsis + nativeSep;
+						result = result + ellipsis + sep;
 					}
 
 					result = result + subpath;
 
 					// add ellipsis at the end if needed
 					if (start + subpathLength < segments.length) {
-						result = result + nativeSep + ellipsis;
+						result = result + sep + ellipsis;
 					}
 
 					shortenedPaths[pathIndex] = result;

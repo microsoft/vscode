@@ -5,11 +5,11 @@
 
 import * as errors from 'vs/base/common/errors';
 import * as nls from 'vs/nls';
-import * as paths from 'vs/base/common/paths';
+import { isAbsolute } from 'vs/base/common/paths.node';
 import * as objects from 'vs/base/common/objects';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { URI } from 'vs/base/common/uri';
-import * as resources from 'vs/base/common/resources';
+import { basename, dirname } from 'vs/base/common/resources';
 import { IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
@@ -23,7 +23,7 @@ import { EditorInput, IWorkbenchEditorConfiguration } from 'vs/workbench/common/
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ISearchService, IFileSearchStats, IFileQuery, ISearchComplete } from 'vs/platform/search/common/search';
+import { ISearchService, IFileSearchStats, IFileQuery, ISearchComplete } from 'vs/workbench/services/search/common/search';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IRange } from 'vs/editor/common/core/range';
@@ -174,8 +174,8 @@ export class OpenFileHandler extends QuickOpenHandler {
 			if (!token.isCancellationRequested) {
 				for (const fileMatch of complete.results) {
 
-					const label = paths.basename(fileMatch.resource.fsPath);
-					const description = this.labelService.getUriLabel(resources.dirname(fileMatch.resource)!, { relative: true });
+					const label = basename(fileMatch.resource);
+					const description = this.labelService.getUriLabel(dirname(fileMatch.resource)!, { relative: true });
 
 					results.push(this.instantiationService.createInstance(FileEntry, fileMatch.resource, label, description, iconClass));
 				}
@@ -186,7 +186,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 	}
 
 	private getAbsolutePathResult(query: IPreparedQuery): Promise<URI | undefined> {
-		if (paths.isAbsolute(query.original)) {
+		if (isAbsolute(query.original)) {
 			const resource = URI.file(query.original);
 
 			return this.fileService.resolveFile(resource).then(stat => stat.isDirectory ? undefined : resource, error => undefined);

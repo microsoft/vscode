@@ -16,6 +16,18 @@ import { generateUuid } from 'vs/base/common/uuid';
 import * as vscode from 'vscode';
 
 
+function es5ClassCompat(target: Function): any {
+	///@ts-ignore
+	function _() { return Reflect.construct(target, arguments, this.constructor); }
+	Object.defineProperty(_, 'name', Object.getOwnPropertyDescriptor(target, 'name')!);
+	///@ts-ignore
+	Object.setPrototypeOf(_, target);
+	///@ts-ignore
+	Object.setPrototypeOf(_.prototype, target.prototype);
+	return _;
+}
+
+@es5ClassCompat
 export class Disposable {
 
 	static from(...inDisposables: { dispose(): any }[]): Disposable {
@@ -46,6 +58,7 @@ export class Disposable {
 	}
 }
 
+@es5ClassCompat
 export class Position {
 
 	static Min(...positions: Position[]): Position {
@@ -217,6 +230,7 @@ export class Position {
 	}
 }
 
+@es5ClassCompat
 export class Range {
 
 	static isRange(thing: any): thing is vscode.Range {
@@ -351,6 +365,7 @@ export class Range {
 	}
 }
 
+@es5ClassCompat
 export class Selection extends Range {
 
 	static isSelection(thing: any): thing is Selection {
@@ -421,6 +436,7 @@ export enum EndOfLine {
 	CRLF = 2
 }
 
+@es5ClassCompat
 export class TextEdit {
 
 	static isTextEdit(thing: any): thing is TextEdit {
@@ -524,6 +540,7 @@ export interface IFileTextEdit {
 	edit: TextEdit;
 }
 
+@es5ClassCompat
 export class WorkspaceEdit implements vscode.WorkspaceEdit {
 
 	private _edits = new Array<IFileOperation | IFileTextEdit>();
@@ -627,6 +644,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	}
 }
 
+@es5ClassCompat
 export class SnippetString {
 
 	static isSnippetString(thing: any): thing is SnippetString {
@@ -720,6 +738,7 @@ export enum DiagnosticSeverity {
 	Error = 0
 }
 
+@es5ClassCompat
 export class Location {
 
 	static isLocation(thing: any): thing is Location {
@@ -758,6 +777,7 @@ export class Location {
 	}
 }
 
+@es5ClassCompat
 export class DiagnosticRelatedInformation {
 
 	static is(thing: any): thing is DiagnosticRelatedInformation {
@@ -791,6 +811,7 @@ export class DiagnosticRelatedInformation {
 	}
 }
 
+@es5ClassCompat
 export class Diagnostic {
 
 	range: Range;
@@ -835,6 +856,7 @@ export class Diagnostic {
 	}
 }
 
+@es5ClassCompat
 export class Hover {
 
 	public contents: vscode.MarkdownString[] | vscode.MarkedString[];
@@ -864,6 +886,7 @@ export enum DocumentHighlightKind {
 	Write = 2
 }
 
+@es5ClassCompat
 export class DocumentHighlight {
 
 	range: Range;
@@ -911,6 +934,7 @@ export enum SymbolKind {
 	TypeParameter = 25
 }
 
+@es5ClassCompat
 export class SymbolInformation {
 
 	static validate(candidate: SymbolInformation): void {
@@ -924,9 +948,9 @@ export class SymbolInformation {
 	kind: SymbolKind;
 	containerName: string | undefined;
 
-	constructor(name: string, kind: SymbolKind, containerName: string, location: Location);
+	constructor(name: string, kind: SymbolKind, containerName: string | undefined, location: Location);
 	constructor(name: string, kind: SymbolKind, range: Range, uri?: URI, containerName?: string);
-	constructor(name: string, kind: SymbolKind, rangeOrContainer: string | Range, locationOrUri?: Location | URI, containerName?: string) {
+	constructor(name: string, kind: SymbolKind, rangeOrContainer: string | undefined | Range, locationOrUri?: Location | URI, containerName?: string) {
 		this.name = name;
 		this.kind = kind;
 		this.containerName = containerName;
@@ -954,6 +978,7 @@ export class SymbolInformation {
 	}
 }
 
+@es5ClassCompat
 export class DocumentSymbol {
 
 	static validate(candidate: DocumentSymbol): void {
@@ -993,6 +1018,7 @@ export enum CodeActionTrigger {
 	Manual = 2,
 }
 
+@es5ClassCompat
 export class CodeAction {
 	title: string;
 
@@ -1011,6 +1037,7 @@ export class CodeAction {
 }
 
 
+@es5ClassCompat
 export class CodeActionKind {
 	private static readonly sep = '.';
 
@@ -1041,6 +1068,7 @@ export class CodeActionKind {
 	}
 }
 
+@es5ClassCompat
 export class SelectionRangeKind {
 
 	private static readonly _sep = '.';
@@ -1060,6 +1088,7 @@ export class SelectionRangeKind {
 	}
 }
 
+@es5ClassCompat
 export class SelectionRange {
 
 	kind: SelectionRangeKind;
@@ -1072,6 +1101,7 @@ export class SelectionRange {
 }
 
 
+@es5ClassCompat
 export class CodeLens {
 
 	range: Range;
@@ -1088,6 +1118,7 @@ export class CodeLens {
 	}
 }
 
+@es5ClassCompat
 export class MarkdownString {
 
 	value: string;
@@ -1118,6 +1149,7 @@ export class MarkdownString {
 	}
 }
 
+@es5ClassCompat
 export class ParameterInformation {
 
 	label: string | [number, number];
@@ -1129,6 +1161,7 @@ export class ParameterInformation {
 	}
 }
 
+@es5ClassCompat
 export class SignatureInformation {
 
 	label: string;
@@ -1142,6 +1175,7 @@ export class SignatureInformation {
 	}
 }
 
+@es5ClassCompat
 export class SignatureHelp {
 
 	signatures: SignatureInformation[];
@@ -1166,8 +1200,8 @@ export enum CompletionTriggerKind {
 }
 
 export interface CompletionContext {
-	triggerKind: CompletionTriggerKind;
-	triggerCharacter: string;
+	readonly triggerKind: CompletionTriggerKind;
+	readonly triggerCharacter?: string;
 }
 
 export enum CompletionItemKind {
@@ -1198,19 +1232,20 @@ export enum CompletionItemKind {
 	TypeParameter = 24
 }
 
+@es5ClassCompat
 export class CompletionItem implements vscode.CompletionItem {
 
 	label: string;
 	kind: CompletionItemKind | undefined;
-	detail: string;
-	documentation: string | MarkdownString;
-	sortText: string;
-	filterText: string;
-	preselect: boolean;
+	detail?: string;
+	documentation?: string | MarkdownString;
+	sortText?: string;
+	filterText?: string;
+	preselect?: boolean;
 	insertText: string | SnippetString;
 	keepWhitespace?: boolean;
 	range: Range;
-	commitCharacters: string[];
+	commitCharacters?: string[];
 	textEdit: TextEdit;
 	additionalTextEdits: TextEdit[];
 	command: vscode.Command;
@@ -1235,6 +1270,7 @@ export class CompletionItem implements vscode.CompletionItem {
 	}
 }
 
+@es5ClassCompat
 export class CompletionList {
 
 	isIncomplete?: boolean;
@@ -1314,7 +1350,7 @@ export enum DecorationRangeBehavior {
 }
 
 export namespace TextEditorSelectionChangeKind {
-	export function fromValue(s: string) {
+	export function fromValue(s: string | undefined) {
 		switch (s) {
 			case 'keyboard': return TextEditorSelectionChangeKind.Keyboard;
 			case 'mouse': return TextEditorSelectionChangeKind.Mouse;
@@ -1324,13 +1360,14 @@ export namespace TextEditorSelectionChangeKind {
 	}
 }
 
+@es5ClassCompat
 export class DocumentLink {
 
 	range: Range;
 
-	target: URI;
+	target?: URI;
 
-	constructor(range: Range, target: URI) {
+	constructor(range: Range, target: URI | undefined) {
 		if (target && !(target instanceof URI)) {
 			throw illegalArgument('target');
 		}
@@ -1342,6 +1379,7 @@ export class DocumentLink {
 	}
 }
 
+@es5ClassCompat
 export class Color {
 	readonly red: number;
 	readonly green: number;
@@ -1358,6 +1396,7 @@ export class Color {
 
 export type IColorFormat = string | { opaque: string, transparent: string };
 
+@es5ClassCompat
 export class ColorInformation {
 	range: Range;
 
@@ -1375,6 +1414,7 @@ export class ColorInformation {
 	}
 }
 
+@es5ClassCompat
 export class ColorPresentation {
 	label: string;
 	textEdit?: TextEdit;
@@ -1416,6 +1456,7 @@ export enum TaskPanelKind {
 	New = 3
 }
 
+@es5ClassCompat
 export class TaskGroup implements vscode.TaskGroup {
 
 	private _id: string;
@@ -1458,6 +1499,7 @@ export class TaskGroup implements vscode.TaskGroup {
 	}
 }
 
+@es5ClassCompat
 export class ProcessExecution implements vscode.ProcessExecution {
 
 	private _process: string;
@@ -1530,6 +1572,7 @@ export class ProcessExecution implements vscode.ProcessExecution {
 	}
 }
 
+@es5ClassCompat
 export class ShellExecution implements vscode.ShellExecution {
 
 	private _commandLine: string;
@@ -1626,32 +1669,33 @@ export enum TaskScope {
 	Workspace = 2
 }
 
-export class ExtensionCallbackExecution implements vscode.ExtensionCallbackExecution {
-	private _callback: (args: vscode.TerminalRenderer, cancellationToken: vscode.CancellationToken) => Thenable<void>;
+export class CustomTaskExecution implements vscode.CustomTaskExecution {
+	private _callback: (args: vscode.TerminalRenderer, cancellationToken: vscode.CancellationToken) => Thenable<number | undefined>;
 
-	constructor(callback: (args: vscode.TerminalRenderer, cancellationToken: vscode.CancellationToken) => Thenable<void>) {
+	constructor(callback: (args: vscode.TerminalRenderer, cancellationToken: vscode.CancellationToken) => Thenable<number | undefined>) {
 		this._callback = callback;
 	}
 
 	public computeId(): string {
 		const hash = crypto.createHash('md5');
-		hash.update('extensionCallback');
+		hash.update('customTaskExecution');
 		hash.update(generateUuid());
 		return hash.digest('hex');
 	}
 
-	public set callback(value: (args: vscode.TerminalRenderer, cancellationToken: vscode.CancellationToken) => Thenable<void>) {
+	public set callback(value: (args: vscode.TerminalRenderer, cancellationToken: vscode.CancellationToken) => Thenable<number | undefined>) {
 		this._callback = value;
 	}
 
-	public get callback(): (args: vscode.TerminalRenderer, cancellationToken: vscode.CancellationToken) => Thenable<void> {
+	public get callback(): (args: vscode.TerminalRenderer, cancellationToken: vscode.CancellationToken) => Thenable<number | undefined> {
 		return this._callback;
 	}
 }
 
-export class Task implements vscode.TaskWithExtensionCallback {
+@es5ClassCompat
+export class Task implements vscode.TaskWithCustomTaskExecution {
 
-	private static ExtensionCallbackType: string = 'extensionCallback';
+	private static ExtensionCallbackType: string = 'customTaskExecution';
 	private static ProcessType: string = 'process';
 	private static ShellType: string = 'shell';
 	private static EmptyType: string = '$empty';
@@ -1661,7 +1705,7 @@ export class Task implements vscode.TaskWithExtensionCallback {
 	private _definition: vscode.TaskDefinition;
 	private _scope: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder | undefined;
 	private _name: string;
-	private _execution: ProcessExecution | ShellExecution | ExtensionCallbackExecution | undefined;
+	private _execution: ProcessExecution | ShellExecution | CustomTaskExecution | undefined;
 	private _problemMatchers: string[];
 	private _hasDefinedMatchers: boolean;
 	private _isBackground: boolean;
@@ -1670,8 +1714,8 @@ export class Task implements vscode.TaskWithExtensionCallback {
 	private _presentationOptions: vscode.TaskPresentationOptions;
 	private _runOptions: vscode.RunOptions;
 
-	constructor(definition: vscode.TaskDefinition, name: string, source: string, execution?: ProcessExecution | ShellExecution | ExtensionCallbackExecution, problemMatchers?: string | string[]);
-	constructor(definition: vscode.TaskDefinition, scope: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder, name: string, source: string, execution?: ProcessExecution | ShellExecution | ExtensionCallbackExecution, problemMatchers?: string | string[]);
+	constructor(definition: vscode.TaskDefinition, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomTaskExecution, problemMatchers?: string | string[]);
+	constructor(definition: vscode.TaskDefinition, scope: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomTaskExecution, problemMatchers?: string | string[]);
 	constructor(definition: vscode.TaskDefinition, arg2: string | (vscode.TaskScope.Global | vscode.TaskScope.Workspace) | vscode.WorkspaceFolder, arg3: any, arg4?: any, arg5?: any, arg6?: any) {
 		this.definition = definition;
 		let problemMatchers: string | string[];
@@ -1736,7 +1780,7 @@ export class Task implements vscode.TaskWithExtensionCallback {
 				type: Task.ShellType,
 				id: this._execution.computeId()
 			};
-		} else if (this._execution instanceof ExtensionCallbackExecution) {
+		} else if (this._execution instanceof CustomTaskExecution) {
 			this._definition = {
 				type: Task.ExtensionCallbackType,
 				id: this._execution.computeId()
@@ -1783,18 +1827,18 @@ export class Task implements vscode.TaskWithExtensionCallback {
 	}
 
 	get execution(): ProcessExecution | ShellExecution | undefined {
-		return (this._execution instanceof ExtensionCallbackExecution) ? undefined : this._execution;
+		return (this._execution instanceof CustomTaskExecution) ? undefined : this._execution;
 	}
 
 	set execution(value: ProcessExecution | ShellExecution | undefined) {
 		this.executionWithExtensionCallback = value;
 	}
 
-	get executionWithExtensionCallback(): ProcessExecution | ShellExecution | ExtensionCallbackExecution | undefined {
+	get executionWithExtensionCallback(): ProcessExecution | ShellExecution | CustomTaskExecution | undefined {
 		return this._execution;
 	}
 
-	set executionWithExtensionCallback(value: ProcessExecution | ShellExecution | ExtensionCallbackExecution | undefined) {
+	set executionWithExtensionCallback(value: ProcessExecution | ShellExecution | CustomTaskExecution | undefined) {
 		if (value === null) {
 			value = undefined;
 		}
@@ -1895,6 +1939,7 @@ export enum ProgressLocation {
 	Notification = 15
 }
 
+@es5ClassCompat
 export class TreeItem {
 
 	label?: string | vscode.TreeItemLabel;
@@ -1934,6 +1979,7 @@ export class ThemeIcon {
 	}
 }
 
+@es5ClassCompat
 export class ThemeColor {
 	id: string;
 	constructor(id: string) {
@@ -1949,6 +1995,7 @@ export enum ConfigurationTarget {
 	WorkspaceFolder = 3
 }
 
+@es5ClassCompat
 export class RelativePattern implements IRelativePattern {
 	base: string;
 	baseFolder?: URI;
@@ -1981,6 +2028,7 @@ export class RelativePattern implements IRelativePattern {
 	}
 }
 
+@es5ClassCompat
 export class Breakpoint {
 
 	private _id: string | undefined;
@@ -2011,6 +2059,7 @@ export class Breakpoint {
 	}
 }
 
+@es5ClassCompat
 export class SourceBreakpoint extends Breakpoint {
 	readonly location: Location;
 
@@ -2023,6 +2072,7 @@ export class SourceBreakpoint extends Breakpoint {
 	}
 }
 
+@es5ClassCompat
 export class FunctionBreakpoint extends Breakpoint {
 	readonly functionName: string;
 
@@ -2035,6 +2085,7 @@ export class FunctionBreakpoint extends Breakpoint {
 	}
 }
 
+@es5ClassCompat
 export class DebugAdapterExecutable implements vscode.DebugAdapterExecutable {
 	readonly command: string;
 	readonly args: string[];
@@ -2047,6 +2098,7 @@ export class DebugAdapterExecutable implements vscode.DebugAdapterExecutable {
 	}
 }
 
+@es5ClassCompat
 export class DebugAdapterServer implements vscode.DebugAdapterServer {
 	readonly port: number;
 	readonly host?: string;
@@ -2058,6 +2110,7 @@ export class DebugAdapterServer implements vscode.DebugAdapterServer {
 }
 
 /*
+@es5ClassCompat
 export class DebugAdapterImplementation implements vscode.DebugAdapterImplementation {
 	readonly implementation: any;
 
@@ -2085,6 +2138,7 @@ export enum FileChangeType {
 	Deleted = 3,
 }
 
+@es5ClassCompat
 export class FileSystemError extends Error {
 
 	static FileExists(messageOrUri?: string | URI): FileSystemError {
@@ -2127,6 +2181,7 @@ export class FileSystemError extends Error {
 
 //#region folding api
 
+@es5ClassCompat
 export class FoldingRange {
 
 	start: number;
@@ -2162,6 +2217,7 @@ export enum CommentThreadCollapsibleState {
 	Expanded = 1
 }
 
+@es5ClassCompat
 export class QuickInputButtons {
 
 	static readonly Back: vscode.QuickInputButton = { iconPath: 'back.svg' };

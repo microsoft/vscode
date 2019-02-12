@@ -5,7 +5,8 @@
 
 import * as arrays from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
-import * as paths from 'vs/base/common/paths';
+import * as extpath from 'vs/base/common/paths';
+import * as paths from 'vs/base/common/paths.node';
 import { LRUCache } from 'vs/base/common/map';
 import { CharCode } from 'vs/base/common/charCode';
 import { isThenable } from 'vs/base/common/async';
@@ -331,7 +332,7 @@ function wrapRelativePattern(parsedPattern: ParsedStringPattern, arg2: string | 
 	}
 
 	return function (path, basename) {
-		if (!paths.isEqualOrParent(path, arg2.base)) {
+		if (!extpath.isEqualOrParent(path, arg2.base)) {
 			return null;
 		}
 
@@ -396,8 +397,8 @@ function trivia3(pattern: string, options: IGlobOptions): ParsedStringPattern {
 
 // common patterns: **/something/else just need endsWith check, something/else just needs and equals check
 function trivia4and5(path: string, pattern: string, matchPathEnds: boolean): ParsedStringPattern {
-	const nativePath = paths.nativeSep !== paths.sep ? path.replace(ALL_FORWARD_SLASHES, paths.nativeSep) : path;
-	const nativePathEnd = paths.nativeSep + nativePath;
+	const nativePath = paths.sep !== paths.posix.sep ? path.replace(ALL_FORWARD_SLASHES, paths.sep) : path;
+	const nativePathEnd = paths.sep + nativePath;
 	const parsedPattern: ParsedStringPattern = matchPathEnds ? function (path, basename) {
 		return typeof path === 'string' && (path === nativePath || strings.endsWith(path, nativePathEnd)) ? pattern : null;
 	} : function (path, basename) {

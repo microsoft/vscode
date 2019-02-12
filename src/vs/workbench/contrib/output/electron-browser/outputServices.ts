@@ -5,6 +5,7 @@
 
 import * as nls from 'vs/nls';
 import * as paths from 'vs/base/common/paths';
+import { dirname } from 'vs/base/common/paths.node';
 import * as strings from 'vs/base/common/strings';
 import * as extfs from 'vs/base/node/extfs';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -37,7 +38,7 @@ import { binarySearch } from 'vs/base/common/arrays';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { OutputAppender } from 'vs/platform/output/node/outputAppender';
+import { OutputAppender } from 'vs/workbench/contrib/output/node/outputAppender';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { isNumber } from 'vs/base/common/types';
 
@@ -189,7 +190,7 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 		// Use one rotating file to check for main file reset
 		this.appender = new OutputAppender(this.id, this.file.fsPath);
 		this.rotatingFilePath = `${outputChannelDescriptor.id}.1.log`;
-		this._register(watchOutputDirectory(paths.dirname(this.file.fsPath), logService, (eventType, file) => this.onFileChangedInOutputDirector(eventType, file)));
+		this._register(watchOutputDirectory(dirname(this.file.fsPath), logService, (eventType, file) => this.onFileChangedInOutputDirector(eventType, file)));
 
 		this.resettingDelayer = new ThrottledDelayer<void>(50);
 	}

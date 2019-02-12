@@ -8,36 +8,6 @@ import * as platform from 'vs/base/common/platform';
 
 suite('Paths', () => {
 
-	function assertDirname(path: string, expected: string, win = false) {
-		const actual = paths.dirname(path, win ? '\\' : '/');
-
-		if (actual !== expected) {
-			assert.fail(`${path}: expected: ${expected}, ours: ${actual}`);
-		}
-	}
-
-	test('dirname', () => {
-		assertDirname('foo/bar', 'foo');
-		assertDirname('foo\\bar', 'foo', true);
-		assertDirname('/foo/bar', '/foo');
-		assertDirname('\\foo\\bar', '\\foo', true);
-		assertDirname('/foo', '/');
-		assertDirname('\\foo', '\\', true);
-		assertDirname('/', '/');
-		assertDirname('\\', '\\', true);
-		assertDirname('foo', '.');
-		assertDirname('f', '.');
-		assertDirname('f/', '.');
-		assertDirname('/folder/', '/');
-		assertDirname('c:\\some\\file.txt', 'c:\\some', true);
-		assertDirname('c:\\some', 'c:\\', true);
-		assertDirname('c:\\', 'c:\\', true);
-		assertDirname('c:', 'c:', true);
-		assertDirname('\\\\server\\share\\some\\path', '\\\\server\\share\\some', true);
-		assertDirname('\\\\server\\share\\some', '\\\\server\\share\\', true);
-		assertDirname('\\\\server\\share\\', '\\\\server\\share\\', true);
-	});
-
 	test('normalize', () => {
 		assert.equal(paths.normalize(''), '.');
 		assert.equal(paths.normalize('.'), '.');
@@ -101,22 +71,6 @@ suite('Paths', () => {
 
 	});
 
-	test('basename', () => {
-		assert.equal(paths.basename('foo/bar'), 'bar');
-		assert.equal(paths.basename('foo\\bar'), 'bar');
-		assert.equal(paths.basename('/foo/bar'), 'bar');
-		assert.equal(paths.basename('\\foo\\bar'), 'bar');
-		assert.equal(paths.basename('./bar'), 'bar');
-		assert.equal(paths.basename('.\\bar'), 'bar');
-		assert.equal(paths.basename('/bar'), 'bar');
-		assert.equal(paths.basename('\\bar'), 'bar');
-		assert.equal(paths.basename('bar/'), 'bar');
-		assert.equal(paths.basename('bar\\'), 'bar');
-		assert.equal(paths.basename('bar'), 'bar');
-		assert.equal(paths.basename('////////'), '');
-		assert.equal(paths.basename('\\\\\\\\'), '');
-	});
-
 	test('join', () => {
 		assert.equal(paths.join('.', 'bar'), 'bar');
 		assert.equal(paths.join('../../foo/bar', '../../foo'), '../../foo');
@@ -142,14 +96,6 @@ suite('Paths', () => {
 		assert.equal(paths.join('foo/bar', './bar/foo'), 'foo/bar/bar/foo');
 		assert.equal(paths.join('http://localhost/test', '../next'), 'http://localhost/next');
 		assert.equal(paths.join('http://localhost/test', 'test'), 'http://localhost/test/test');
-	});
-
-	test('extname', () => {
-		assert.equal(paths.extname('far.boo'), '.boo');
-		assert.equal(paths.extname('far.b'), '.b');
-		assert.equal(paths.extname('far.'), '.');
-		assert.equal(paths.extname('far.boo/boo.far'), '.far');
-		assert.equal(paths.extname('far.boo/boo'), '');
 	});
 
 	test('isUNC', () => {
@@ -184,58 +130,5 @@ suite('Paths', () => {
 			assert.ok(!paths.isValidBasename('tes:t.txt'));
 			assert.ok(!paths.isValidBasename('tes"t.txt'));
 		}
-	});
-
-	test('isAbsolute_win', () => {
-		// Absolute paths
-		[
-			'C:/',
-			'C:\\',
-			'C:/foo',
-			'C:\\foo',
-			'z:/foo/bar.txt',
-			'z:\\foo\\bar.txt',
-
-			'\\\\localhost\\c$\\foo',
-
-			'/',
-			'/foo'
-		].forEach(absolutePath => {
-			assert.ok(paths.isAbsolute_win32(absolutePath), absolutePath);
-		});
-
-		// Not absolute paths
-		[
-			'',
-			'foo',
-			'foo/bar',
-			'./foo',
-			'http://foo.com/bar'
-		].forEach(nonAbsolutePath => {
-			assert.ok(!paths.isAbsolute_win32(nonAbsolutePath), nonAbsolutePath);
-		});
-	});
-
-	test('isAbsolute_posix', () => {
-		// Absolute paths
-		[
-			'/',
-			'/foo',
-			'/foo/bar.txt'
-		].forEach(absolutePath => {
-			assert.ok(paths.isAbsolute_posix(absolutePath), absolutePath);
-		});
-
-		// Not absolute paths
-		[
-			'',
-			'foo',
-			'foo/bar',
-			'./foo',
-			'http://foo.com/bar',
-			'z:/foo/bar.txt',
-		].forEach(nonAbsolutePath => {
-			assert.ok(!paths.isAbsolute_posix(nonAbsolutePath), nonAbsolutePath);
-		});
 	});
 });

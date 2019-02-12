@@ -12,17 +12,17 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IFileMatch, IPatternInfo, ISearchProgressItem, ISearchService } from 'vs/platform/search/common/search';
+import { IFileMatch, IPatternInfo, ISearchProgressItem, ISearchService } from 'vs/workbench/services/search/common/search';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IWindowService } from 'vs/platform/windows/common/windows';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
+import { ExtHostContext, ExtHostWorkspaceShape, IExtHostContext, MainContext, MainThreadWorkspaceShape, IWorkspaceData } from '../node/extHost.protocol';
 import { TextSearchComplete } from 'vscode';
-import { ExtHostContext, ExtHostWorkspaceShape, IExtHostContext, MainContext, MainThreadWorkspaceShape } from '../node/extHost.protocol';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
 export class MainThreadWorkspace implements MainThreadWorkspaceShape {
@@ -44,6 +44,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		@ILabelService private readonly _labelService: ILabelService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostWorkspace);
+		this._proxy.$initializeWorkspace(this.getWorkspaceData(this._contextService.getWorkspace()));
 		this._contextService.onDidChangeWorkspaceFolders(this._onDidChangeWorkspace, this, this._toDispose);
 		this._contextService.onDidChangeWorkbenchState(this._onDidChangeWorkspace, this, this._toDispose);
 	}
@@ -101,22 +102,28 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 	}
 
 	private _onDidChangeWorkspace(): void {
-		const workspace = this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? null : this._contextService.getWorkspace();
-		this._proxy.$acceptWorkspaceData(workspace ? {
+		this._proxy.$acceptWorkspaceData(this.getWorkspaceData(this._contextService.getWorkspace()));
+	}
+
+	private getWorkspaceData(workspace: IWorkspace): IWorkspaceData | null {
+		if (this._contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
+			return null;
+		}
+		return {
 			configuration: workspace.configuration || undefined,
 			folders: workspace.folders,
 			id: workspace.id,
 			name: this._labelService.getWorkspaceLabel(workspace)
-		} : null);
+		};
 	}
 
 	// --- search ---
 
-	$startFileSearch(includePattern: string, _includeFolder: UriComponents, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Promise<URI[]> | undefined {
+	$startFileSearch(includePattern: string, _includeFolder: UriComponents | undefined, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Promise<URI[] | undefined> {
 		const includeFolder = URI.revive(_includeFolder);
 		const workspace = this._contextService.getWorkspace();
 		if (!workspace.folders.length) {
-			return undefined;
+			return Promise.resolve(undefined);
 		}
 
 		const query = this._queryBuilder.file(
@@ -124,6 +131,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 			{
 				maxResults,
 				disregardExcludeSettings: (excludePatternOrDisregardExcludes === false) || undefined,
+				disregardSearchExcludeSettings: true,
 				includePattern,
 				_reason: 'startFileSearch'
 			});

@@ -23,7 +23,7 @@ import * as extfs from 'vs/base/node/extfs';
 import { JSONEditingService } from 'vs/workbench/services/configuration/node/jsonEditingService';
 import { WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { relative } from 'path';
+import { relative, extname } from 'path';
 import { equals } from 'vs/base/common/objects';
 import { Schemas } from 'vs/base/common/network';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -497,7 +497,7 @@ export class FileServiceBasedFolderConfiguration extends AbstractFolderConfigura
 		for (let i = 0, len = events.length; i < len; i++) {
 			const resource = events[i].resource;
 			const basename = resources.basename(resource);
-			const isJson = paths.extname(basename) === '.json';
+			const isJson = extname(basename) === '.json';
 			const isDeletedSettingsFolder = (events[i].type === FileChangeType.DELETED && basename === this.configFolderRelativePath);
 
 			if (!isJson && !isDeletedSettingsFolder) {

@@ -252,7 +252,6 @@ export class BackupMainService implements IBackupMainService {
 		// Validate Workspaces
 		for (let workspace of rootWorkspaces) {
 			if (!isWorkspaceIdentifier(workspace)) {
-				console.log('not a workspace identifer');
 				return []; // wrong format, skip all entries
 			}
 
@@ -267,12 +266,10 @@ export class BackupMainService implements IBackupMainService {
 					if (workspace.configPath.scheme !== Schemas.file || await exists(workspace.configPath.fsPath)) {
 						result.push(workspace);
 					} else {
-						console.log('target workspace missing');
 						// If the workspace has backups, but the target workspace is missing, convert backups to empty ones
 						await this.convertToEmptyWindowBackup(backupPath);
 					}
 				} else {
-					console.log('no backups');
 					await this.deleteStaleBackup(backupPath);
 				}
 			}

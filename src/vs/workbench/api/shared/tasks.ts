@@ -66,8 +66,8 @@ export interface ShellExecutionDTO {
 	options?: ShellExecutionOptionsDTO;
 }
 
-export interface ExtensionCallbackExecutionDTO {
-	extensionCallback: 'extensionCallback';
+export interface CustomTaskExecutionDTO {
+	customTaskExecution: 'customTaskExecution';
 }
 
 export interface TaskSourceDTO {
@@ -83,16 +83,16 @@ export interface TaskHandleDTO {
 
 export interface TaskDTO {
 	_id: string;
-	name: string;
-	execution: ProcessExecutionDTO | ShellExecutionDTO | ExtensionCallbackExecutionDTO;
+	name?: string;
+	execution: ProcessExecutionDTO | ShellExecutionDTO | CustomTaskExecutionDTO;
 	definition: TaskDefinitionDTO;
-	isBackground: boolean;
+	isBackground?: boolean;
 	source: TaskSourceDTO;
 	group?: string;
-	presentationOptions: TaskPresentationOptionsDTO;
+	presentationOptions?: TaskPresentationOptionsDTO;
 	problemMatchers: string[];
 	hasDefinedMatchers: boolean;
-	runOptions: RunOptionsDTO;
+	runOptions?: RunOptionsDTO;
 }
 
 export interface TaskSetDTO {

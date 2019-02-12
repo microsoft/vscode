@@ -8,10 +8,9 @@ import { getTotalHeight, getTotalWidth } from 'vs/base/browser/dom';
 import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { IBroadcastService } from 'vs/platform/broadcast/electron-browser/broadcastService';
+import { IBroadcastService } from 'vs/workbench/services/broadcast/electron-browser/broadcastService';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ColorIdentifier, editorBackground, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { getThemeTypeSelector, IThemeService } from 'vs/platform/theme/common/themeService';
 import { DEFAULT_EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
@@ -19,6 +18,9 @@ import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common
 import * as themes from 'vs/workbench/common/theme';
 import { IPartService, Parts, Position } from 'vs/workbench/services/part/common/partService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IFileService } from 'vs/platform/files/common/files';
+import { URI } from 'vs/base/common/uri';
+import { join } from 'vs/base/common/paths';
 
 class PartsSplash {
 
@@ -32,10 +34,10 @@ class PartsSplash {
 	constructor(
 		@IThemeService private readonly _themeService: IThemeService,
 		@IPartService private readonly _partService: IPartService,
-		@IStorageService private readonly _storageService: IStorageService,
+		@IFileService private readonly _fileService: IFileService,
 		@IEnvironmentService private readonly _envService: IEnvironmentService,
+		@IBroadcastService private readonly _broadcastService: IBroadcastService,
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@IBroadcastService private readonly broadcastService: IBroadcastService
 	) {
 		lifecycleService.when(LifecyclePhase.Restored).then(_ => this._removePartsSplash());
 		Event.debounce(Event.any<any>(
@@ -67,12 +69,16 @@ class PartsSplash {
 			sideBarWidth: getTotalWidth(this._partService.getContainer(Parts.SIDEBAR_PART)!),
 			statusBarHeight: getTotalHeight(this._partService.getContainer(Parts.STATUSBAR_PART)!),
 		};
-		this._storageService.store('parts-splash-data', JSON.stringify({
-			id: PartsSplash._splashElementId,
-			colorInfo,
-			layoutInfo,
-			baseTheme
-		}), StorageScope.GLOBAL);
+		this._fileService.updateContent(
+			URI.file(join(this._envService.userDataPath, 'rapid_render.json')),
+			JSON.stringify({
+				id: PartsSplash._splashElementId,
+				colorInfo,
+				layoutInfo,
+				baseTheme
+			}),
+			{ encoding: 'utf8' }
+		);
 
 		if (baseTheme !== this._lastBaseTheme || colorInfo.editorBackground !== this._lastBackground) {
 			// notify the main window on background color changes: the main window sets the background color to new windows
@@ -81,7 +87,7 @@ class PartsSplash {
 
 			// the color needs to be in hex
 			const backgroundColor = this._themeService.getTheme().getColor(editorBackground) || themes.WORKBENCH_BACKGROUND(this._themeService.getTheme());
-			this.broadcastService.broadcast({ channel: 'vscode:changeColorTheme', payload: JSON.stringify({ baseTheme, background: Color.Format.CSS.formatHex(backgroundColor) }) });
+			this._broadcastService.broadcast({ channel: 'vscode:changeColorTheme', payload: JSON.stringify({ baseTheme, background: Color.Format.CSS.formatHex(backgroundColor) }) });
 		}
 	}
 

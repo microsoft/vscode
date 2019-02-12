@@ -722,7 +722,10 @@ suite('Glob', () => {
 		assert.strictEqual(glob.match(expr, 'bar', hasSibling), '**/bar');
 		assert.strictEqual(glob.match(expr, 'foo', hasSibling), null);
 		assert.strictEqual(glob.match(expr, 'foo/bar', hasSibling), '**/bar');
-		assert.strictEqual(glob.match(expr, 'foo\\bar', hasSibling), '**/bar');
+		if (isWindows) {
+			// backslash is a valid file name character on posix
+			assert.strictEqual(glob.match(expr, 'foo\\bar', hasSibling), '**/bar');
+		}
 		assert.strictEqual(glob.match(expr, 'foo/foo', hasSibling), null);
 		assert.strictEqual(glob.match(expr, 'foo.js', hasSibling), '**/*.js');
 		assert.strictEqual(glob.match(expr, 'bar.js', hasSibling), null);

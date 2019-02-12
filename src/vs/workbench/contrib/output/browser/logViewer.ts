@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as paths from 'vs/base/common/paths';
+import { dirname, basename } from 'vs/base/common/paths.node';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -30,7 +30,7 @@ export class LogViewerInput extends ResourceEditorInput {
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IHashService hashService: IHashService
 	) {
-		super(paths.basename(outputChannelDescriptor.file.path), paths.dirname(outputChannelDescriptor.file.path), URI.from({ scheme: LOG_SCHEME, path: outputChannelDescriptor.id }), textModelResolverService, hashService);
+		super(basename(outputChannelDescriptor.file.path), dirname(outputChannelDescriptor.file.path), URI.from({ scheme: LOG_SCHEME, path: outputChannelDescriptor.id }), textModelResolverService, hashService);
 	}
 
 	public getTypeId(): string {

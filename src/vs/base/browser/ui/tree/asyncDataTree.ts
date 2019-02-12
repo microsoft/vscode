@@ -217,7 +217,13 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 				return options.keyboardNavigationLabelProvider!.getKeyboardNavigationLabel(e.element as T);
 			}
 		},
-		sorter: undefined
+		sorter: undefined,
+		expandOnlyOnTwistieClick: typeof options.expandOnlyOnTwistieClick === 'undefined' ? undefined : (
+			typeof options.expandOnlyOnTwistieClick !== 'function' ? options.expandOnlyOnTwistieClick : (
+				e => (options.expandOnlyOnTwistieClick as ((e: T) => boolean))(e.element as T)
+			)
+		),
+		ariaSetProvider: undefined
 	};
 }
 

@@ -66,6 +66,12 @@ export interface ISaveDialogOptions {
 	 * A human-readable string for the ok button
 	 */
 	saveLabel?: string;
+
+	/**
+	 * Specifies a list of schemas for the file systems the user can save to. If not specified, uses the schema of the defaultURI or, if also not specified,
+	 * the schema of the current window.
+	 */
+	availableFileSystems?: string[];
 }
 
 export interface IOpenDialogOptions {
@@ -104,6 +110,12 @@ export interface IOpenDialogOptions {
 	 * like "TypeScript", and an array of extensions.
 	 */
 	filters?: FileFilter[];
+
+	/**
+	 * Specifies a list of schemas for the file systems the user can load from. If not specified, uses the schema of the defaultURI or, if also not available,
+	 * the schema of the current window.
+	 */
+	availableFileSystems?: string[];
 }
 
 
@@ -150,21 +162,21 @@ export interface IFileDialogService {
 
 	/**
 	 * The default path for a new file based on previously used files.
-	 * @param schemeFilter The scheme of the file path.
+	 * @param schemeFilter The scheme of the file path. If no filter given, the scheme of the current window is used.
 	 */
-	defaultFilePath(schemeFilter: string): URI | undefined;
+	defaultFilePath(schemeFilter?: string): URI | undefined;
 
 	/**
 	 * The default path for a new folder based on previously used folders.
-	 * @param schemeFilter The scheme of the folder path.
+	 * @param schemeFilter The scheme of the folder path. If no filter given, the scheme of the current window is used.
 	 */
-	defaultFolderPath(schemeFilter: string): URI | undefined;
+	defaultFolderPath(schemeFilter?: string): URI | undefined;
 
 	/**
 	 * The default path for a new workspace based on previously used workspaces.
-	 * @param schemeFilter The scheme of the workspace path.
+	 * @param schemeFilter The scheme of the workspace path. If no filter given, the scheme of the current window is used.
 	 */
-	defaultWorkspacePath(schemeFilter: string): URI | undefined;
+	defaultWorkspacePath(schemeFilter?: string): URI | undefined;
 
 	/**
 	 * Shows a file-folder selection dialog and opens the selected entry.

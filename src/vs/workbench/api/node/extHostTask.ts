@@ -16,13 +16,13 @@ import { IExtensionDescription } from 'vs/workbench/services/extensions/common/e
 import { MainContext, MainThreadTaskShape, ExtHostTaskShape, IMainContext } from 'vs/workbench/api/node/extHost.protocol';
 
 import * as types from 'vs/workbench/api/node/extHostTypes';
-import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
+import { ExtHostWorkspace, ExtHostWorkspaceProvider } from 'vs/workbench/api/node/extHostWorkspace';
 import * as vscode from 'vscode';
 import {
 	TaskDefinitionDTO, TaskExecutionDTO, TaskPresentationOptionsDTO,
 	ProcessExecutionOptionsDTO, ProcessExecutionDTO,
 	ShellExecutionOptionsDTO, ShellExecutionDTO,
-	ExtensionCallbackExecutionDTO,
+	CustomTaskExecutionDTO,
 	TaskDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO, TaskSystemInfoDTO, TaskSetDTO
 } from '../shared/tasks';
 import { ExtHostVariableResolverService } from 'vs/workbench/api/node/extHostDebugService';
@@ -79,7 +79,7 @@ namespace ProcessExecutionOptionsDTO {
 }
 
 namespace ProcessExecutionDTO {
-	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | ExtensionCallbackExecutionDTO): value is ProcessExecutionDTO {
+	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CustomTaskExecutionDTO): value is ProcessExecutionDTO {
 		let candidate = value as ProcessExecutionDTO;
 		return candidate && !!candidate.process;
 	}
@@ -120,7 +120,7 @@ namespace ShellExecutionOptionsDTO {
 }
 
 namespace ShellExecutionDTO {
-	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | ExtensionCallbackExecutionDTO): value is ShellExecutionDTO {
+	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CustomTaskExecutionDTO): value is ShellExecutionDTO {
 		let candidate = value as ShellExecutionDTO;
 		return candidate && (!!candidate.commandLine || !!candidate.command);
 	}
@@ -153,15 +153,15 @@ namespace ShellExecutionDTO {
 	}
 }
 
-namespace ExtensionCallbackExecutionDTO {
-	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | ExtensionCallbackExecutionDTO): value is ExtensionCallbackExecutionDTO {
-		let candidate = value as ExtensionCallbackExecutionDTO;
-		return candidate && candidate.extensionCallback === 'extensionCallback';
+namespace CustomTaskExecutionDTO {
+	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CustomTaskExecutionDTO): value is CustomTaskExecutionDTO {
+		let candidate = value as CustomTaskExecutionDTO;
+		return candidate && candidate.customTaskExecution === 'customTaskExecution';
 	}
 
-	export function from(value: vscode.ExtensionCallbackExecution): ExtensionCallbackExecutionDTO {
+	export function from(value: vscode.CustomTaskExecution): CustomTaskExecutionDTO {
 		return {
-			extensionCallback: 'extensionCallback'
+			customTaskExecution: 'customTaskExecution'
 		};
 	}
 }
@@ -199,13 +199,13 @@ namespace TaskDTO {
 		if (value === undefined || value === null) {
 			return undefined;
 		}
-		let execution: ShellExecutionDTO | ProcessExecutionDTO | ExtensionCallbackExecutionDTO;
+		let execution: ShellExecutionDTO | ProcessExecutionDTO | CustomTaskExecutionDTO;
 		if (value.execution instanceof types.ProcessExecution) {
 			execution = ProcessExecutionDTO.from(value.execution);
 		} else if (value.execution instanceof types.ShellExecution) {
 			execution = ShellExecutionDTO.from(value.execution);
-		} else if ((<vscode.TaskWithExtensionCallback>value).executionWithExtensionCallback && (<vscode.TaskWithExtensionCallback>value).executionWithExtensionCallback instanceof types.ExtensionCallbackExecution) {
-			execution = ExtensionCallbackExecutionDTO.from(<types.ExtensionCallbackExecution>(<vscode.TaskWithExtensionCallback>value).executionWithExtensionCallback);
+		} else if ((<vscode.TaskWithCustomTaskExecution>value).executionWithExtensionCallback && (<vscode.TaskWithCustomTaskExecution>value).executionWithExtensionCallback instanceof types.CustomTaskExecution) {
+			execution = CustomTaskExecutionDTO.from(<types.CustomTaskExecution>(<vscode.TaskWithCustomTaskExecution>value).executionWithExtensionCallback);
 		}
 
 		let definition: TaskDefinitionDTO = TaskDefinitionDTO.from(value.definition);
@@ -243,7 +243,7 @@ namespace TaskDTO {
 		};
 		return result;
 	}
-	export function to(value: TaskDTO, workspace: ExtHostWorkspace): types.Task {
+	export function to(value: TaskDTO, workspace: ExtHostWorkspaceProvider): types.Task {
 		if (value === undefined || value === null) {
 			return undefined;
 		}
@@ -320,8 +320,8 @@ class TaskExecutionImpl implements vscode.TaskExecution {
 }
 
 namespace TaskExecutionDTO {
-	export function to(value: TaskExecutionDTO, tasks: ExtHostTask): vscode.TaskExecution {
-		return new TaskExecutionImpl(tasks, value.id, TaskDTO.to(value.task, tasks.extHostWorkspace));
+	export function to(value: TaskExecutionDTO, tasks: ExtHostTask, workspaceProvider: ExtHostWorkspaceProvider): vscode.TaskExecution {
+		return new TaskExecutionImpl(tasks, value.id, TaskDTO.to(value.task, workspaceProvider));
 	}
 	export function from(value: vscode.TaskExecution): TaskExecutionDTO {
 		return {
@@ -344,7 +344,7 @@ class ExtensionCallbackExecutionData implements IDisposable {
 	private terminalId?: number;
 
 	constructor(
-		private readonly callbackData: vscode.ExtensionCallbackExecution,
+		private readonly callbackData: vscode.CustomTaskExecution,
 		private readonly terminalService: ExtHostTerminalService) {
 	}
 
@@ -449,10 +449,6 @@ export class ExtHostTask implements ExtHostTaskShape {
 		this._activeExtensionCallbacks = new Map<string, ExtensionCallbackExecutionData>();
 	}
 
-	public get extHostWorkspace(): ExtHostWorkspace {
-		return this._workspaceService;
-	}
-
 	public registerTaskProvider(extension: IExtensionDescription, provider: vscode.TaskProvider): vscode.Disposable {
 		if (!provider) {
 			return new types.Disposable(() => { });
@@ -471,10 +467,11 @@ export class ExtHostTask implements ExtHostTaskShape {
 	}
 
 	public fetchTasks(filter?: vscode.TaskFilter): Promise<vscode.Task[]> {
-		return this._proxy.$fetchTasks(TaskFilterDTO.from(filter)).then((values) => {
+		return this._proxy.$fetchTasks(TaskFilterDTO.from(filter)).then(async (values) => {
 			let result: vscode.Task[] = [];
+			const workspaceProvider = await this._workspaceService.getWorkspaceProvider();
 			for (let value of values) {
-				let task = TaskDTO.to(value, this._workspaceService);
+				let task = TaskDTO.to(value, workspaceProvider);
 				if (task) {
 					result.push(task);
 				}
@@ -483,17 +480,18 @@ export class ExtHostTask implements ExtHostTaskShape {
 		});
 	}
 
-	public executeTask(extension: IExtensionDescription, task: vscode.Task): Promise<vscode.TaskExecution> {
+	public async executeTask(extension: IExtensionDescription, task: vscode.Task): Promise<vscode.TaskExecution> {
+		const workspaceProvider = await this._workspaceService.getWorkspaceProvider();
 		let tTask = (task as types.Task);
 		// We have a preserved ID. So the task didn't change.
 		if (tTask._id !== undefined) {
-			return this._proxy.$executeTask(TaskHandleDTO.from(tTask)).then(value => this.getTaskExecution(value, task));
+			return this._proxy.$executeTask(TaskHandleDTO.from(tTask)).then(value => this.getTaskExecution(value, workspaceProvider, task));
 		} else {
 			let dto = TaskDTO.from(task, extension);
 			if (dto === undefined) {
 				return Promise.reject(new Error('Task is not valid'));
 			}
-			return this._proxy.$executeTask(dto).then(value => this.getTaskExecution(value, task));
+			return this._proxy.$executeTask(dto).then(value => this.getTaskExecution(value, workspaceProvider, task));
 		}
 	}
 
@@ -514,7 +512,7 @@ export class ExtHostTask implements ExtHostTaskShape {
 		return this._onDidExecuteTask.event;
 	}
 
-	public $onDidStartTask(execution: TaskExecutionDTO, terminalId: number): void {
+	public async $onDidStartTask(execution: TaskExecutionDTO, terminalId: number): Promise<void> {
 		// Once a terminal is spun up for the extension callback task execution
 		// this event will be fired.
 		// At that point, we need to actually start the callback, but
@@ -534,8 +532,9 @@ export class ExtHostTask implements ExtHostTaskShape {
 			extensionCallback.startCallback(terminalId);
 		}
 
+		const workspaceProvider = await this._workspaceService.getWorkspaceProvider();
 		this._onDidExecuteTask.fire({
-			execution: this.getTaskExecution(execution)
+			execution: this.getTaskExecution(execution, workspaceProvider)
 		});
 	}
 
@@ -543,8 +542,9 @@ export class ExtHostTask implements ExtHostTaskShape {
 		return this._onDidTerminateTask.event;
 	}
 
-	public $OnDidEndTask(execution: TaskExecutionDTO): void {
-		const _execution = this.getTaskExecution(execution);
+	public async $OnDidEndTask(execution: TaskExecutionDTO): Promise<void> {
+		const workspaceProvider = await this._workspaceService.getWorkspaceProvider();
+		const _execution = this.getTaskExecution(execution, workspaceProvider);
 		this._taskExecutions.delete(execution.id);
 		this.extensionCallbackTaskComplete(execution);
 		this._onDidTerminateTask.fire({
@@ -556,8 +556,9 @@ export class ExtHostTask implements ExtHostTaskShape {
 		return this._onDidTaskProcessStarted.event;
 	}
 
-	public $onDidStartTaskProcess(value: TaskProcessStartedDTO): void {
-		const execution = this.getTaskExecution(value.id);
+	public async $onDidStartTaskProcess(value: TaskProcessStartedDTO): Promise<void> {
+		const workspaceProvider = await this._workspaceService.getWorkspaceProvider();
+		const execution = this.getTaskExecution(value.id, workspaceProvider);
 		if (execution) {
 			this._onDidTaskProcessStarted.fire({
 				execution: execution,
@@ -570,8 +571,9 @@ export class ExtHostTask implements ExtHostTaskShape {
 		return this._onDidTaskProcessEnded.event;
 	}
 
-	public $onDidEndTaskProcess(value: TaskProcessEndedDTO): void {
-		const execution = this.getTaskExecution(value.id);
+	public async $onDidEndTaskProcess(value: TaskProcessEndedDTO): Promise<void> {
+		const workspaceProvider = await this._workspaceService.getWorkspaceProvider();
+		const execution = this.getTaskExecution(value.id, workspaceProvider);
 		if (execution) {
 			this._onDidTaskProcessEnded.fire({
 				execution: execution,
@@ -610,11 +612,11 @@ export class ExtHostTask implements ExtHostTaskShape {
 				const taskDTO: TaskDTO = TaskDTO.from(task, handler.extension);
 				taskDTOs.push(taskDTO);
 
-				if (ExtensionCallbackExecutionDTO.is(taskDTO.execution)) {
+				if (CustomTaskExecutionDTO.is(taskDTO.execution)) {
 					taskIdPromises.push(new Promise((resolve) => {
 						// The ID is calculated on the main thread task side, so, let's call into it here.
 						this._proxy.$createTaskId(taskDTO).then((taskId) => {
-							this._providedExtensionCallbacks.set(taskId, new ExtensionCallbackExecutionData(<vscode.ExtensionCallbackExecution>(<vscode.TaskWithExtensionCallback>task).executionWithExtensionCallback, this._terminalService));
+							this._providedExtensionCallbacks.set(taskId, new ExtensionCallbackExecutionData(<vscode.CustomTaskExecution>(<vscode.TaskWithCustomTaskExecution>task).executionWithExtensionCallback, this._terminalService));
 							resolve();
 						});
 					}));
@@ -638,13 +640,14 @@ export class ExtHostTask implements ExtHostTaskShape {
 
 	public async $resolveVariables(uriComponents: UriComponents, toResolve: { process?: { name: string; cwd?: string; path?: string }, variables: string[] }): Promise<{ process?: string, variables: { [key: string]: string; } }> {
 		const configProvider = await this._configurationService.getConfigProvider();
+		const workspaceProvider = await this._workspaceService.getWorkspaceProvider();
 		let uri: URI = URI.revive(uriComponents);
 		let result = {
 			process: undefined as string,
 			variables: Object.create(null)
 		};
-		let workspaceFolder = this._workspaceService.resolveWorkspaceFolder(uri);
-		let resolver = new ExtHostVariableResolverService(this._workspaceService, this._editorService, configProvider);
+		let workspaceFolder = workspaceProvider.resolveWorkspaceFolder(uri);
+		let resolver = new ExtHostVariableResolverService(workspaceProvider, this._editorService, configProvider);
 		let ws: IWorkspaceFolder = {
 			uri: workspaceFolder.uri,
 			name: workspaceFolder.name,
@@ -677,7 +680,7 @@ export class ExtHostTask implements ExtHostTaskShape {
 		return this._handleCounter++;
 	}
 
-	private getTaskExecution(execution: TaskExecutionDTO | string, task?: vscode.Task): TaskExecutionImpl {
+	private getTaskExecution(execution: TaskExecutionDTO | string, workspaceProvider: ExtHostWorkspaceProvider, task?: vscode.Task): TaskExecutionImpl {
 		if (typeof execution === 'string') {
 			return this._taskExecutions.get(execution);
 		}
@@ -686,7 +689,7 @@ export class ExtHostTask implements ExtHostTaskShape {
 		if (result) {
 			return result;
 		}
-		result = new TaskExecutionImpl(this, execution.id, task ? task : TaskDTO.to(execution.task, this._workspaceService));
+		result = new TaskExecutionImpl(this, execution.id, task ? task : TaskDTO.to(execution.task, workspaceProvider));
 		this._taskExecutions.set(execution.id, result);
 		return result;
 	}

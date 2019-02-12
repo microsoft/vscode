@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { URI as uri } from 'vs/base/common/uri';
-import * as paths from 'vs/base/common/paths';
+import { normalize, isAbsolute } from 'vs/base/common/paths.node';
 import * as resources from 'vs/base/common/resources';
 import { DEBUG_SCHEME } from 'vs/workbench/contrib/debug/common/debug';
 import { IRange } from 'vs/editor/common/core/range';
@@ -52,7 +52,7 @@ export class Source {
 				this.uri = uri.parse(path);
 			} else {
 				// assume a filesystem path
-				if (paths.isAbsolute_posix(path) || paths.isAbsolute_win32(path)) {
+				if (isAbsolute(path)) {
 					this.uri = uri.file(path);
 				} else {
 					// path is relative: since VS Code cannot deal with this by itself
@@ -104,7 +104,7 @@ export class Source {
 
 		switch (modelUri.scheme) {
 			case Schemas.file:
-				path = paths.normalize(modelUri.fsPath, true);
+				path = normalize(modelUri.fsPath);
 				break;
 			case DEBUG_SCHEME:
 				path = modelUri.path;

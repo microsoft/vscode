@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import * as errors from 'vs/base/common/errors';
-import * as objects from 'vs/base/common/objects';
+import { equals, deepClone, assign } from 'vs/base/common/objects';
 import * as DOM from 'vs/base/browser/dom';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction, Action } from 'vs/base/common/actions';
@@ -24,7 +24,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import { Themable } from 'vs/workbench/common/theme';
-import { ipcRenderer as ipc, webFrame } from 'electron';
+import { ipcRenderer as ipc, webFrame, crashReporter } from 'electron';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { IMenuService, MenuId, IMenu, MenuItemAction, ICommandAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -33,12 +33,14 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { LifecyclePhase, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
-import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
-import { AccessibilitySupport, isRootUser, isWindows, isMacintosh } from 'vs/base/common/platform';
+import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
+import { AccessibilitySupport, isRootUser, isWindows, isMacintosh, isLinux } from 'vs/base/common/platform';
 import product from 'vs/platform/node/product';
+import pkg from 'vs/platform/node/package';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 const TextInputActions: IAction[] = [
 	new Action('undo', nls.localize('undo', "Undo"), undefined, true, () => Promise.resolve(document.execCommand('undo'))),
@@ -79,7 +81,8 @@ export class ElectronWindow extends Themable {
 		@IFileService private readonly fileService: IFileService,
 		@IMenuService private readonly menuService: IMenuService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-		@IIntegrityService private readonly integrityService: IIntegrityService
+		@IIntegrityService private readonly integrityService: IIntegrityService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
 		super(themeService);
 
@@ -297,6 +300,11 @@ export class ElectronWindow extends Themable {
 
 		// Touchbar menu (if enabled)
 		this.updateTouchbarMenu();
+
+		// Crash reporter (if enabled)
+		if (!this.environmentService.disableCrashReporter && product.crashReporter && product.hockeyApp && this.configurationService.getValue('telemetry.enableCrashReporter')) {
+			this.setupCrashReporter();
+		}
 	}
 
 	private updateTouchbarMenu(): void {
@@ -354,10 +362,38 @@ export class ElectronWindow extends Themable {
 		}
 
 		// Only update if the actions have changed
-		if (!objects.equals(this.lastInstalledTouchedBar, items)) {
+		if (!equals(this.lastInstalledTouchedBar, items)) {
 			this.lastInstalledTouchedBar = items;
 			this.windowService.updateTouchBar(items);
 		}
+	}
+
+	private setupCrashReporter(): void {
+
+		// base options with product info
+		const options = {
+			companyName: product.crashReporter.companyName,
+			productName: product.crashReporter.productName,
+			submitURL: isWindows ? product.hockeyApp[`win32-${process.arch}`] : isLinux ? product.hockeyApp[`linux-${process.arch}`] : product.hockeyApp.darwin,
+			extra: {
+				vscode_version: pkg.version,
+				vscode_commit: product.commit
+			}
+		};
+
+		// mixin telemetry info
+		this.telemetryService.getTelemetryInfo()
+			.then(info => {
+				assign(options.extra, {
+					vscode_sessionId: info.sessionId
+				});
+
+				// start crash reporter right here
+				crashReporter.start(deepClone(options));
+
+				// start crash reporter in the main process
+				return this.windowsService.startCrashReporter(options);
+			});
 	}
 
 	private onAddFoldersRequest(request: IAddFoldersRequest): void {

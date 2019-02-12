@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import * as network from 'vs/base/common/network';
-import * as paths from 'vs/base/common/paths';
+import * as paths from 'vs/base/common/paths.node';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
@@ -90,15 +90,17 @@ const enum TemplateId {
 
 export class VirtualDelegate implements IListVirtualDelegate<TreeElement> {
 
+	static LINE_HEIGHT: number = 22;
+
 	constructor(private readonly markersViewState: MarkersViewModel) { }
 
 	getHeight(element: TreeElement): number {
 		if (element instanceof Marker) {
 			const viewModel = this.markersViewState.getViewModel(element);
 			const noOfLines = !viewModel || viewModel.multiline ? element.lines.length : 1;
-			return noOfLines * 22;
+			return noOfLines * VirtualDelegate.LINE_HEIGHT;
 		}
-		return 22;
+		return VirtualDelegate.LINE_HEIGHT;
 	}
 
 	getTemplateId(element: TreeElement): string {
@@ -321,6 +323,9 @@ class MarkerWidget extends Disposable {
 			lastLineElement = dom.append(messageContainer, dom.$('.marker-message-line'));
 			const highlightedLabel = new HighlightedLabel(lastLineElement, false);
 			highlightedLabel.set(lines[index], lineMatches[index]);
+			if (lines[index] === '') {
+				lastLineElement.style.height = `${VirtualDelegate.LINE_HEIGHT}px`;
+			}
 		}
 		this.renderDetails(marker, filterData, multiline ? lastLineElement : this.messageAndDetailsContainer);
 	}
@@ -387,7 +392,7 @@ export class RelatedInformationRenderer implements ITreeRenderer<RelatedInformat
 		const uriMatches = node.filterData && node.filterData.uriMatches || [];
 		const messageMatches = node.filterData && node.filterData.messageMatches || [];
 
-		templateData.resourceLabel.set(paths.basename(relatedInformation.resource.fsPath), uriMatches);
+		templateData.resourceLabel.set(basename(relatedInformation.resource), uriMatches);
 		templateData.resourceLabel.element.title = this.labelService.getUriLabel(relatedInformation.resource, { relative: true });
 		templateData.lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(relatedInformation.startLineNumber, relatedInformation.startColumn);
 		templateData.description.set(relatedInformation.message, messageMatches);
@@ -422,7 +427,7 @@ export class Filter implements ITreeFilter<TreeElement, FilterData> {
 			return false;
 		}
 
-		const uriMatches = FilterOptions._filter(this.options.textFilter, paths.basename(resourceMarkers.resource.fsPath));
+		const uriMatches = FilterOptions._filter(this.options.textFilter, basename(resourceMarkers.resource));
 
 		if (this.options.textFilter && uriMatches) {
 			return { visibility: true, data: { type: FilterDataType.ResourceMarkers, uriMatches } };
@@ -471,7 +476,7 @@ export class Filter implements ITreeFilter<TreeElement, FilterData> {
 			return true;
 		}
 
-		const uriMatches = FilterOptions._filter(this.options.textFilter, paths.basename(relatedInformation.raw.resource.fsPath));
+		const uriMatches = FilterOptions._filter(this.options.textFilter, basename(relatedInformation.raw.resource));
 		const messageMatches = FilterOptions._messageFilter(this.options.textFilter, paths.basename(relatedInformation.raw.message));
 
 		if (uriMatches || messageMatches) {

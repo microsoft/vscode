@@ -428,8 +428,6 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 		this.createSelectList(this.selectDropDownContainer);
 		this.setOptionsList();
 
-		this.cloneElementFont(this.selectElement, this.selectDropDownContainer);
-
 		// This allows us to flip the position based on measurement
 		// Set drop-down position above/below from required height and margins
 		// If pre-layout cannot fit at least one option do not show drop-down
@@ -707,13 +705,6 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 		}
 
 		return elementWidth;
-	}
-
-	private cloneElementFont(source: HTMLElement, target: HTMLElement) {
-		const fontSize = window.getComputedStyle(source, null).getPropertyValue('font-size');
-		const fontFamily = window.getComputedStyle(source, null).getPropertyValue('font-family');
-		target.style.fontFamily = fontFamily;
-		target.style.fontSize = fontSize;
 	}
 
 	private createSelectList(parent: HTMLElement): void {

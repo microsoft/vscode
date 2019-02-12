@@ -109,7 +109,7 @@ export interface IEnvironmentService {
 	backupHome: string;
 	backupWorkspacesPath: string;
 
-	workspacesHome: string;
+	untitledWorkspacesHome: URI;
 
 	isExtensionDevelopment: boolean;
 	disableExtensions: boolean | string[];

@@ -12,6 +12,7 @@ const tsb = require('gulp-tsb');
 const es = require('event-stream');
 const filter = require('gulp-filter');
 const util = require('./lib/util');
+const task = require('./lib/task');
 const watcher = require('./lib/watch');
 const createReporter = require('./lib/reporter').createReporter;
 const glob = require('glob');
@@ -100,18 +101,21 @@ const tasks = compilations.map(function (tsconfigFile) {
 
 	const srcOpts = { cwd: path.dirname(__dirname), base: srcBase };
 
-	const cleanTask = () => util.primraf(out);
+	const cleanTask = util.rimraf(out);
+	cleanTask.displayName = `clean-extension-${name}`;
 
-	const compileTask = util.task.series(cleanTask, () => {
+	const compileTask_ = () => {
 		const pipeline = createPipeline(false, true);
 		const input = gulp.src(src, srcOpts);
 
 		return input
 			.pipe(pipeline())
 			.pipe(gulp.dest(out));
-	});
+	};
+	compileTask_.displayName = `compile-extension-${name}`;
+	const compileTask = task.series(cleanTask, compileTask_);
 
-	const watchTask = util.task.series(cleanTask, () => {
+	const watchTask_ = () => {
 		const pipeline = createPipeline(false);
 		const input = gulp.src(src, srcOpts);
 		const watchInput = watcher(src, srcOpts);
@@ -119,16 +123,20 @@ const tasks = compilations.map(function (tsconfigFile) {
 		return watchInput
 			.pipe(util.incremental(pipeline, input))
 			.pipe(gulp.dest(out));
-	});
+	};
+	watchTask_.displayName = `watch-extension-${name}`;
+	const watchTask = task.series(cleanTask, watchTask_);
 
-	const compileBuildTask = util.task.series(cleanTask, () => {
+	const compileBuildTask_ = () => {
 		const pipeline = createPipeline(true, true);
 		const input = gulp.src(src, srcOpts);
 
 		return input
 			.pipe(pipeline())
 			.pipe(gulp.dest(out));
-	});
+	};
+	compileBuildTask_.displayName = `compile-build-extension-${name}`;
+	const compileBuildTask = task.series(cleanTask, compileBuildTask_);
 
 	// Tasks
 	gulp.task('compile-extension:' + name, compileTask);
@@ -141,16 +149,16 @@ const tasks = compilations.map(function (tsconfigFile) {
 	};
 });
 
-const compileExtensionsTask = util.task.parallel(...tasks.map(t => t.compileTask));
+const compileExtensionsTask = task.parallel(...tasks.map(t => t.compileTask));
 compileExtensionsTask.displayName = 'compile-extensions';
 gulp.task(compileExtensionsTask.displayName, compileExtensionsTask);
 exports.compileExtensionsTask = compileExtensionsTask;
 
-const watchExtensionsTask = util.task.parallel(...tasks.map(t => t.watchTask));
+const watchExtensionsTask = task.parallel(...tasks.map(t => t.watchTask));
 watchExtensionsTask.displayName = 'watch-extensions';
 gulp.task(watchExtensionsTask.displayName, watchExtensionsTask);
 exports.watchExtensionsTask = watchExtensionsTask;
 
-const compileExtensionsBuildTask = util.task.parallel(...tasks.map(t => t.compileBuildTask));
+const compileExtensionsBuildTask = task.parallel(...tasks.map(t => t.compileBuildTask));
 compileExtensionsBuildTask.displayName = 'compile-extensions-build';
 exports.compileExtensionsBuildTask = compileExtensionsBuildTask;

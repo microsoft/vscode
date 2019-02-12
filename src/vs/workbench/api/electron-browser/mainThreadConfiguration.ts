@@ -34,7 +34,7 @@ export class MainThreadConfiguration implements MainThreadConfigurationShape {
 	}
 
 	private _getConfigurationData(): IConfigurationInitData {
-		const configurationData: IConfigurationInitData = { ...this.configurationService.getConfigurationData(), configurationScopes: {} };
+		const configurationData: IConfigurationInitData = { ...(this.configurationService.getConfigurationData()!), configurationScopes: {} };
 		// Send configurations scopes only in development mode.
 		if (!this._environmentService.isBuilt || this._environmentService.isExtensionDevelopment) {
 			configurationData.configurationScopes = getScopes();
@@ -46,17 +46,17 @@ export class MainThreadConfiguration implements MainThreadConfigurationShape {
 		this._configurationListener.dispose();
 	}
 
-	$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any, resourceUriComponenets: UriComponents): Promise<void> {
+	$updateConfigurationOption(target: ConfigurationTarget | null, key: string, value: any, resourceUriComponenets: UriComponents | null): Promise<void> {
 		const resource = resourceUriComponenets ? URI.revive(resourceUriComponenets) : null;
 		return this.writeConfiguration(target, key, value, resource);
 	}
 
-	$removeConfigurationOption(target: ConfigurationTarget, key: string, resourceUriComponenets: UriComponents): Promise<void> {
+	$removeConfigurationOption(target: ConfigurationTarget | null, key: string, resourceUriComponenets: UriComponents | null): Promise<void> {
 		const resource = resourceUriComponenets ? URI.revive(resourceUriComponenets) : null;
 		return this.writeConfiguration(target, key, undefined, resource);
 	}
 
-	private writeConfiguration(target: ConfigurationTarget, key: string, value: any, resource: URI | null): Promise<void> {
+	private writeConfiguration(target: ConfigurationTarget | null, key: string, value: any, resource: URI | null): Promise<void> {
 		target = target !== null && target !== undefined ? target : this.deriveConfigurationTarget(key, resource);
 		return this.configurationService.updateValue(key, value, { resource }, target, true);
 	}

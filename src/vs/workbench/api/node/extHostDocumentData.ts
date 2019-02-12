@@ -14,10 +14,10 @@ import { EndOfLine, Position, Range } from 'vs/workbench/api/node/extHostTypes';
 import * as vscode from 'vscode';
 
 const _modeId2WordDefinition = new Map<string, RegExp>();
-export function setWordDefinitionFor(modeId: string, wordDefinition: RegExp): void {
+export function setWordDefinitionFor(modeId: string, wordDefinition: RegExp | undefined): void {
 	_modeId2WordDefinition.set(modeId, wordDefinition);
 }
-export function getWordDefinitionFor(modeId: string): RegExp {
+export function getWordDefinitionFor(modeId: string): RegExp | undefined {
 	return _modeId2WordDefinition.get(modeId);
 }
 
@@ -131,14 +131,14 @@ export class ExtHostDocumentData extends MirrorTextModel {
 
 	private _lineAt(lineOrPosition: number | vscode.Position): vscode.TextLine {
 
-		let line: number;
+		let line: number | undefined;
 		if (lineOrPosition instanceof Position) {
 			line = lineOrPosition.line;
 		} else if (typeof lineOrPosition === 'number') {
 			line = lineOrPosition;
 		}
 
-		if (line < 0 || line >= this._lines.length) {
+		if (typeof line !== 'number' || line < 0 || line >= this._lines.length) {
 			throw new Error('Illegal value for `line`');
 		}
 
@@ -146,7 +146,7 @@ export class ExtHostDocumentData extends MirrorTextModel {
 		if (!result || result.lineNumber !== line || result.text !== this._lines[line]) {
 
 			const text = this._lines[line];
-			const firstNonWhitespaceCharacterIndex = /^(\s*)/.exec(text)[1].length;
+			const firstNonWhitespaceCharacterIndex = /^(\s*)/.exec(text)![1].length;
 			const range = new Range(line, 0, line, text.length);
 			const rangeIncludingLineBreak = line < this._lines.length - 1
 				? new Range(line, 0, line + 1, 0)
@@ -170,7 +170,7 @@ export class ExtHostDocumentData extends MirrorTextModel {
 	private _offsetAt(position: vscode.Position): number {
 		position = this._validatePosition(position);
 		this._ensureLineStarts();
-		return this._lineStarts.getAccumulatedValue(position.line - 1) + position.character;
+		return this._lineStarts!.getAccumulatedValue(position.line - 1) + position.character;
 	}
 
 	private _positionAt(offset: number): vscode.Position {
@@ -178,7 +178,7 @@ export class ExtHostDocumentData extends MirrorTextModel {
 		offset = Math.max(0, offset);
 
 		this._ensureLineStarts();
-		let out = this._lineStarts.getIndexOf(offset);
+		let out = this._lineStarts!.getIndexOf(offset);
 
 		let lineLength = this._lines[out.index].length;
 
@@ -238,7 +238,7 @@ export class ExtHostDocumentData extends MirrorTextModel {
 		return new Position(line, character);
 	}
 
-	private _getWordRangeAtPosition(_position: vscode.Position, regexp?: RegExp): vscode.Range {
+	private _getWordRangeAtPosition(_position: vscode.Position, regexp?: RegExp): vscode.Range | undefined {
 		let position = this._validatePosition(_position);
 
 		if (!regexp) {

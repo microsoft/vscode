@@ -12,7 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import { FileOperationEvent, FileOperation, IFileStat, IFileService, FileChangesEvent, FILES_EXCLUDE_CONFIG, FileChangeType, IResolveFileOptions } from 'vs/platform/files/common/files';
 import { dirname } from 'vs/base/common/resources';
 import { memoize } from 'vs/base/common/decorators';
-import { ResourceGlobMatcher } from 'vs/workbench/electron-browser/resources';
+import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IExpression } from 'vs/base/common/glob';

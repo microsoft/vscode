@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import * as scorer from 'vs/base/parts/quickopen/common/quickOpenScorer';
 import { URI } from 'vs/base/common/uri';
-import { basename, dirname, nativeSep } from 'vs/base/common/paths';
+import { basename, dirname, sep } from 'vs/base/common/paths.node';
 import { isWindows } from 'vs/base/common/platform';
 
 class ResourceAccessorClass implements scorer.IItemAccessor<URI> {
@@ -815,6 +815,6 @@ suite('Quick Open Scorer', () => {
 		assert.equal(scorer.prepareQuery('model Tester.ts').value, 'modelTester.ts');
 		assert.equal(scorer.prepareQuery('Model Tester.ts').lowercase, 'modeltester.ts');
 		assert.equal(scorer.prepareQuery('ModelTester.ts').containsPathSeparator, false);
-		assert.equal(scorer.prepareQuery('Model' + nativeSep + 'Tester.ts').containsPathSeparator, true);
+		assert.equal(scorer.prepareQuery('Model' + sep + 'Tester.ts').containsPathSeparator, true);
 	});
 });

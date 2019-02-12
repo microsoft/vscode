@@ -46,16 +46,20 @@ export class ExtHostDecorations implements ExtHostDecorationsShape {
 		const result: DecorationReply = Object.create(null);
 		return Promise.all(requests.map(request => {
 			const { handle, uri, id } = request;
-			if (!this._provider.has(handle)) {
+			const entry = this._provider.get(handle);
+			if (!entry) {
 				// might have been unregistered in the meantime
 				return undefined;
 			}
-			const { provider, extensionId } = this._provider.get(handle);
+			const { provider, extensionId } = entry;
 			return Promise.resolve(provider.provideDecoration(URI.revive(uri), token)).then(data => {
 				if (data && data.letter && data.letter.length !== 1) {
 					console.warn(`INVALID decoration from extension '${extensionId.value}'. The 'letter' must be set and be one character, not '${data.letter}'.`);
 				}
-				result[id] = data && <DecorationData>[data.priority, data.bubble, data.title, data.letter, data.color, data.source];
+				if (data) {
+					result[id] = <DecorationData>[data.priority, data.bubble, data.title, data.letter, data.color, data.source];
+
+				}
 			}, err => {
 				console.error(err);
 			});

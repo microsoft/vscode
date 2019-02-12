@@ -6,56 +6,10 @@
 import { isWindows } from 'vs/base/common/platform';
 import { startsWithIgnoreCase, equalsIgnoreCase } from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
-
-/**
- * The forward slash path separator.
- */
-export const sep = '/';
-
-/**
- * The native path separator depending on the OS.
- */
-export const nativeSep = isWindows ? '\\' : '/';
-
+import { sep, posix } from 'vs/base/common/paths.node';
 
 function isPathSeparator(code: number) {
 	return code === CharCode.Slash || code === CharCode.Backslash;
-}
-
-/**
- * @param path the path to get the dirname from
- * @param separator the separator to use
- * @returns the directory name of a path.
- * '.' is returned for empty paths or single segment relative paths (as done by NodeJS)
- * For paths consisting only of a root, the input path is returned
- */
-export function dirname(path: string, separator = nativeSep): string {
-	const len = path.length;
-	if (len === 0) {
-		return '.';
-	} else if (len === 1) {
-		return isPathSeparator(path.charCodeAt(0)) ? path : '.';
-	}
-	const root = getRoot(path, separator);
-	let rootLength = root.length;
-	if (rootLength >= len) {
-		return path; // matched the root
-	}
-	if (rootLength === 0 && isPathSeparator(path.charCodeAt(0))) {
-		rootLength = 1; // absolute paths stay absolute paths.
-	}
-
-	let i = len - 1;
-	if (i > rootLength) {
-		i--; // no need to look at the last character. If it's a trailing slash, we ignore it.
-		while (i > rootLength && !isPathSeparator(path.charCodeAt(i))) {
-			i--;
-		}
-	}
-	if (i === 0) {
-		return '.'; // it was a relative path with a single segment, no root. Nodejs returns '.' here.
-	}
-	return path.substr(0, i);
 }
 
 /**
@@ -70,15 +24,6 @@ export function basename(path: string): string {
 	} else {
 		return path.substr(~idx + 1);
 	}
-}
-
-/**
- * @returns `.far` from `boo.far` or the empty string.
- */
-export function extname(path: string): string {
-	path = basename(path);
-	const idx = ~path.lastIndexOf('.');
-	return idx ? path.substring(~idx) : '';
 }
 
 const _posixBadPath = /(\/\.\.?\/)|(\/\.\.?)$|^(\.\.?\/)|(\/\/+)|(\\)/;
@@ -154,6 +99,34 @@ function streql(value: string, start: number, end: number, other: string): boole
 	return start + other.length === end && value.indexOf(other, start) === start;
 }
 
+export const join: (...parts: string[]) => string = function () {
+	// Not using a function with var-args because of how TS compiles
+	// them to JS - it would result in 2*n runtime cost instead
+	// of 1*n, where n is parts.length.
+
+	let value = '';
+	for (let i = 0; i < arguments.length; i++) {
+		let part = arguments[i];
+		if (i > 0) {
+			// add the separater between two parts unless
+			// there already is one
+			let last = value.charCodeAt(value.length - 1);
+			if (!isPathSeparator(last)) {
+				let next = part.charCodeAt(0);
+				if (!isPathSeparator(next)) {
+					value += posix.sep;
+				}
+			}
+		}
+		value += part;
+	}
+
+	return normalize(value);
+};
+
+
+// #region extpath
+
 /**
  * Computes the _root_ this path, like `getRoot('c:\files') === c:\`,
  * `getRoot('files:///files/path') === files:///`,
@@ -226,33 +199,6 @@ export function getRoot(path: string, sep: string = '/'): string {
 
 	return '';
 }
-
-export const join: (...parts: string[]) => string = function () {
-	// Not using a function with var-args because of how TS compiles
-	// them to JS - it would result in 2*n runtime cost instead
-	// of 1*n, where n is parts.length.
-
-	let value = '';
-	for (let i = 0; i < arguments.length; i++) {
-		let part = arguments[i];
-		if (i > 0) {
-			// add the separater between two parts unless
-			// there already is one
-			let last = value.charCodeAt(value.length - 1);
-			if (!isPathSeparator(last)) {
-				let next = part.charCodeAt(0);
-				if (!isPathSeparator(next)) {
-
-					value += sep;
-				}
-			}
-		}
-		value += part;
-	}
-
-	return normalize(value);
-};
-
 
 /**
  * Check if the path follows this pattern: `\\hostname\sharename`.
@@ -343,7 +289,7 @@ export function isEqual(pathA: string, pathB: string, ignoreCase?: boolean): boo
 	return equalsIgnoreCase(pathA, pathB);
 }
 
-export function isEqualOrParent(path: string, candidate: string, ignoreCase?: boolean, separator = nativeSep): boolean {
+export function isEqualOrParent(path: string, candidate: string, ignoreCase?: boolean, separator = sep): boolean {
 	if (path === candidate) {
 		return true;
 	}
@@ -381,39 +327,8 @@ export function isEqualOrParent(path: string, candidate: string, ignoreCase?: bo
 	return path.indexOf(candidate) === 0;
 }
 
-/**
- * Adapted from Node's path.isAbsolute functions
- */
-export function isAbsolute(path: string): boolean {
-	return isWindows ?
-		isAbsolute_win32(path) :
-		isAbsolute_posix(path);
-}
-
-export function isAbsolute_win32(path: string): boolean {
-	if (!path) {
-		return false;
-	}
-
-	const char0 = path.charCodeAt(0);
-	if (isPathSeparator(char0)) {
-		return true;
-	} else if (isWindowsDriveLetter(char0)) {
-		if (path.length > 2 && path.charCodeAt(1) === CharCode.Colon) {
-			const char2 = path.charCodeAt(2);
-			if (isPathSeparator(char2)) {
-				return true;
-			}
-		}
-	}
-
-	return false;
-}
-
-export function isAbsolute_posix(path: string): boolean {
-	return !!(path && path.charCodeAt(0) === CharCode.Slash);
-}
-
 export function isWindowsDriveLetter(char0: number): boolean {
 	return char0 >= CharCode.A && char0 <= CharCode.Z || char0 >= CharCode.a && char0 <= CharCode.z;
 }
+
+// #endregion

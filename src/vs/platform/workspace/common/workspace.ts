@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import * as paths from 'vs/base/common/paths';
+import { isAbsolute } from 'vs/base/common/paths.node';
 import * as resources from 'vs/base/common/resources';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { TernarySearchTree } from 'vs/base/common/map';
@@ -257,7 +257,7 @@ function parseWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], rela
 
 function toUri(path: string, relativeTo: URI | undefined): URI | null {
 	if (path) {
-		if (paths.isAbsolute(path)) {
+		if (isAbsolute(path)) {
 			return URI.file(path);
 		}
 		if (relativeTo) {

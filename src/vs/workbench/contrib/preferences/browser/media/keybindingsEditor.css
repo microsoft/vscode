@@ -45,30 +45,30 @@
 	margin-right: 4px;
 }
 
-.keybindings-editor > .keybindings-header > .search-container > .keybindings-search-actions-container > .monaco-action-bar .action-item > .sort-by-precedence {
+.keybindings-editor .monaco-action-bar .action-item > .sort-by-precedence {
 	background: url('sort_precedence.svg') center center no-repeat;
 }
 
-.hc-black .keybindings-editor > .keybindings-header > .search-container > .keybindings-search-actions-container > .monaco-action-bar .action-item > .sort-by-precedence,
-.vs-dark .keybindings-editor > .keybindings-header > .search-container > .keybindings-search-actions-container > .monaco-action-bar .action-item > .sort-by-precedence {
+.hc-black .keybindings-editor .monaco-action-bar .action-item > .sort-by-precedence,
+.vs-dark .keybindings-editor .monaco-action-bar .action-item > .sort-by-precedence {
 	background: url('sort_precedence_inverse.svg') center center no-repeat;
 }
 
-.keybindings-editor > .keybindings-header > .search-container > .keybindings-search-actions-container > .monaco-action-bar .action-item > .record-keys {
+.keybindings-editor .monaco-action-bar .action-item > .record-keys {
 	background: url('record-keys.svg') center center no-repeat;
 }
 
-.hc-black .keybindings-editor > .keybindings-header > .search-container > .keybindings-search-actions-container > .monaco-action-bar .action-item > .record-keys,
-.vs-dark .keybindings-editor > .keybindings-header > .search-container > .keybindings-search-actions-container > .monaco-action-bar .action-item > .record-keys {
+.hc-black .keybindings-editor .monaco-action-bar .action-item > .record-keys,
+.vs-dark .keybindings-editor .monaco-action-bar .action-item > .record-keys {
 	background: url('record-keys-inverse.svg') center center no-repeat;
 }
 
-.keybindings-editor > .keybindings-header > .search-container > .keybindings-search-actions-container > .monaco-action-bar .action-item > .clear-input {
+.keybindings-editor .monaco-action-bar .action-item > .clear-input {
 	background: url('clear.svg') center center no-repeat;
 }
 
-.hc-black .keybindings-editor > .keybindings-header > .search-container > .keybindings-search-actions-container > .monaco-action-bar .action-item > .clear-input,
-.vs-dark .keybindings-editor > .keybindings-header > .search-container > .keybindings-search-actions-container > .monaco-action-bar .action-item > .clear-input {
+.hc-black .keybindings-editor .monaco-action-bar .action-item > .clear-input,
+.vs-dark .keybindings-editor .monaco-action-bar .action-item > .clear-input {
 	background: url('clear-inverse.svg') center center no-repeat;
 }
 
@@ -123,18 +123,6 @@
 	align-items: center;
 	display: flex;
 	overflow: hidden;
-	margin-right: 6px;
-}
-
-.keybindings-editor > .keybindings-body > .keybindings-list-header > .actions,
-.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .actions {
-	width: 24px;
-	padding-right: 2px;
-}
-
-.keybindings-editor > .keybindings-body > .keybindings-list-header > .command,
-.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .command {
-	flex: 0.75;
 }
 
 .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .command.vertical-align-column {
@@ -148,27 +136,27 @@
 	margin-top: 2px;
 }
 
-.keybindings-editor > .keybindings-body > .keybindings-list-header > .keybinding,
-.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .keybinding {
-	flex: 0.5;
-}
-
 .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .keybinding .monaco-highlighted-label {
 	padding-left: 10px;
 }
 
-.keybindings-editor > .keybindings-body > .keybindings-list-header > .source,
-.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .source {
-	flex: 0 0 100px;
-}
-
-.keybindings-editor > .keybindings-body > .keybindings-list-header > .when,
-.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .when {
-	flex: 1;
-}
-
 .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row > .when .empty {
 	padding-left: 4px;
+}
+
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row > .when:not(.input-mode) .monaco-inputbox,
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row > .when.input-mode .when-label {
+	display: none;
+}
+
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row > .when .monaco-inputbox {
+	width: 100%;
+	line-height: normal;
+}
+
+.monaco-workbench.mac .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row > .when .monaco-inputbox,
+.monaco-workbench.mac .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row > .when .monaco-inputbox {
+	height: 24px;
 }
 
 .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .command .monaco-highlighted-label,
@@ -201,7 +189,7 @@
 	color: inherit;
 }
 
-.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row > .column .monaco-action-bar {
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row > .column.actions .monaco-action-bar {
 	display: none;
 	flex: 1;
 }

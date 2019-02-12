@@ -224,7 +224,7 @@ export class DefineKeybindingWidget extends Widget {
 		this._domNode.setHeight(DefineKeybindingWidget.HEIGHT);
 
 		const message = nls.localize('defineKeybinding.initial', "Press desired key combination and then press ENTER.");
-		dom.append(this._domNode.domNode, dom.$('.message', null, message));
+		dom.append(this._domNode.domNode, dom.$('.message', undefined, message));
 
 		this._register(attachStylerCallback(this.themeService, { editorWidgetBackground, widgetShadow }, colors => {
 			if (colors.editorWidgetBackground) {

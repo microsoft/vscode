@@ -138,7 +138,11 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 	}
 
 	private _executeContributedCommand<T>(id: string, args: any[]): Promise<T> {
-		let { callback, thisArg, description } = this._commands.get(id);
+		const command = this._commands.get(id);
+		if (!command) {
+			throw new Error('Unknown command');
+		}
+		let { callback, thisArg, description } = command;
 		if (description) {
 			for (let i = 0; i < description.args.length; i++) {
 				try {
@@ -207,7 +211,7 @@ export class CommandsConverter {
 		this._commands.registerCommand(true, this._delegatingCommandId, this._executeConvertedCommand, this);
 	}
 
-	toInternal(command: vscode.Command): CommandDto {
+	toInternal(command: vscode.Command | undefined): CommandDto | undefined {
 
 		if (!command) {
 			return undefined;
@@ -237,7 +241,7 @@ export class CommandsConverter {
 		return result;
 	}
 
-	fromInternal(command: modes.Command): vscode.Command {
+	fromInternal(command: modes.Command | undefined): vscode.Command | undefined {
 
 		if (!command) {
 			return undefined;
@@ -258,7 +262,7 @@ export class CommandsConverter {
 
 	private _executeConvertedCommand<R>(...args: any[]): Promise<R> {
 		const actualCmd = this._heap.get<vscode.Command>(args[0]);
-		return this._commands.executeCommand(actualCmd.command, ...actualCmd.arguments);
+		return this._commands.executeCommand(actualCmd.command, ...(actualCmd.arguments || []));
 	}
 
 }

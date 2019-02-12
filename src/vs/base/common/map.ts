@@ -723,9 +723,21 @@ export class LinkedMap<K, V> {
 			this._tail = undefined;
 		}
 		else if (item === this._head) {
+			// This can only happend if size === 1 which is handle
+			// by the case above.
+			if (!item.next) {
+				throw new Error('Invalid list');
+			}
+			item.next.previous = undefined;
 			this._head = item.next;
 		}
 		else if (item === this._tail) {
+			// This can only happend if size === 1 which is handle
+			// by the case above.
+			if (!item.previous) {
+				throw new Error('Invalid list');
+			}
+			item.previous.next = undefined;
 			this._tail = item.previous;
 		}
 		else {
@@ -737,6 +749,8 @@ export class LinkedMap<K, V> {
 			next.previous = previous;
 			previous.next = next;
 		}
+		item.next = undefined;
+		item.previous = undefined;
 	}
 
 	private touch(item: Item<K, V>, touch: Touch): void {

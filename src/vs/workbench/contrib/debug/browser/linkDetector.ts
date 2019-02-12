@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import strings = require('vs/base/common/strings');
-import { isAbsolute } from 'vs/base/common/paths';
+import { isAbsolute } from 'vs/base/common/paths.node';
 import { URI as uri } from 'vs/base/common/uri';
 import { isMacintosh } from 'vs/base/common/platform';
 import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';

@@ -52,10 +52,13 @@ declare module 'vscode' {
 
 	export interface SelectionRangeProvider {
 		/**
-		 * Provide selection ranges starting at a given position. The first range must [contain](#Range.contains)
-		 * position and subsequent ranges must contain the previous range.
+		 * Provide selection ranges for the given positions. Selection ranges should be computed individually and
+		 * independend for each postion. The editor will merge and deduplicate ranges but providers must return sequences
+		 * of ranges (per position) where a range must [contain](#Range.contains) and subsequent ranges.
+		 *
+		 * todo@joh
 		 */
-		provideSelectionRanges(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<SelectionRange[]>;
+		provideSelectionRanges(document: TextDocument, positions: Position[], token: CancellationToken): ProviderResult<SelectionRange[][]>;
 	}
 
 	export namespace languages {
@@ -1127,61 +1130,24 @@ declare module 'vscode' {
 	//#endregion
 
 	/**
-	 * Interface used to render ANSI output (typically to a [terminal](TerminalRenderer).
-	 */
-	export interface AnsiRenderer {
-		/**
-		 * The dimensions of the renderer, the rows and columns of the renderer can only be set to
-		 * a value smaller than the maximum value, if this is undefined the renderer will auto fit
-		 * to the maximum value [maximumDimensions](AnsiRenderer.maximumDimensions).
-		*/
-		dimensions: TerminalDimensions | undefined;
-
-		/**
-		 * The maximum dimensions of the renderer, this will be undefined immediately after a
-		 * renderer is created and also until the renderer becomes visible in the UI.
-		 * Listen to [onDidChangeMaximumDimensions](AnsiRenderer.onDidChangeMaximumDimensions)
-		 * to get notified when this value changes.
-		 */
-		readonly maximumDimensions: TerminalDimensions | undefined;
-
-		/**
-		 * Write text to the terminal.
-		 * @param text The text to write.
-		 */
-		write(text: string): void;
-
-		/**
-		 * An event which fires on keystrokes entered in the renderer.
-		 */
-		readonly onDidAcceptInput: Event<string>;
-
-		/**
-		 * An event which fires when the [maximum dimensions](#AnsiRenderer.maximumDimensions) of
-		 * the renderer change.
-		 */
-		readonly onDidChangeMaximumDimensions: Event<TerminalDimensions>;
-	}
-
-	/**
 	 * Class used to execute an extension callback as a task.
 	 */
-	export class ExtensionCallbackExecution {
+	export class CustomTaskExecution {
 		/**
 		 * @param callback The callback that will be called when the extension callback task is executed.
 		 */
-		constructor(callback: (ansiRenderer: AnsiRenderer, cancellationToken: CancellationToken, thisArg?: any) => Thenable<void>);
+		constructor(callback: (terminalRenderer: TerminalRenderer, cancellationToken: CancellationToken, thisArg?: any) => Thenable<number | undefined>);
 
 		/**
 		 * The callback used to execute the task.
 		 */
-		callback: (ansiRenderer: AnsiRenderer, cancellationToken: CancellationToken, thisArg?: any) => Thenable<void>;
+		callback: (terminalRenderer: TerminalRenderer, cancellationToken: CancellationToken, thisArg?: any) => Thenable<number | undefined>;
 	}
 
 	/**
 	 * A task to execute
 	 */
-	export class TaskWithExtensionCallback extends Task {
+	export class TaskWithCustomTaskExecution extends Task {
 		/**
 		 * Creates a new task.
 		 *
@@ -1194,12 +1160,12 @@ declare module 'vscode' {
 		 *  or '$eslint'. Problem matchers can be contributed by an extension using
 		 *  the `problemMatchers` extension point.
 		 */
-		constructor(taskDefinition: TaskDefinition, scope: WorkspaceFolder | TaskScope.Global | TaskScope.Workspace, name: string, source: string, execution?: ProcessExecution | ShellExecution | ExtensionCallbackExecution, problemMatchers?: string | string[]);
+		constructor(taskDefinition: TaskDefinition, scope: WorkspaceFolder | TaskScope.Global | TaskScope.Workspace, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomTaskExecution, problemMatchers?: string | string[]);
 
 		/**
 		 * The task's execution engine
 		 */
-		executionWithExtensionCallback?: ProcessExecution | ShellExecution | ExtensionCallbackExecution;
+		executionWithExtensionCallback?: ProcessExecution | ShellExecution | CustomTaskExecution;
 	}
 
 	//#region CodeAction.isPreferred - mjbvz

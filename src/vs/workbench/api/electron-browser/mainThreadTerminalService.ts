@@ -37,7 +37,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._toDispose.push(terminalService.onInstanceProcessIdReady(instance => this._onTerminalProcessIdReady(instance)));
 		this._toDispose.push(terminalService.onInstanceDimensionsChanged(instance => this._onInstanceDimensionsChanged(instance)));
 		this._toDispose.push(terminalService.onInstanceRequestExtHostProcess(request => this._onTerminalRequestExtHostProcess(request)));
-		this._toDispose.push(terminalService.onActiveInstanceChanged(instance => this._onActiveTerminalChanged(instance ? instance.id : undefined)));
+		this._toDispose.push(terminalService.onActiveInstanceChanged(instance => this._onActiveTerminalChanged(instance ? instance.id : null)));
 		this._toDispose.push(terminalService.onInstanceTitleChanged(instance => this._onTitleChanged(instance.id, instance.title)));
 
 		// Set initial ext host state
@@ -90,7 +90,8 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	}
 
 	public $hide(terminalId: number): void {
-		if (this.terminalService.getActiveInstance().id === terminalId) {
+		const instance = this.terminalService.getActiveInstance();
+		if (instance && instance.id === terminalId) {
 			this.terminalService.hidePanel();
 		}
 	}
@@ -173,7 +174,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		terminalInstance.addDisposable(this._terminalOnDidWriteDataListeners[terminalId]);
 	}
 
-	private _onActiveTerminalChanged(terminalId: number | undefined): void {
+	private _onActiveTerminalChanged(terminalId: number | null): void {
 		this._proxy.$acceptActiveTerminalChanged(terminalId);
 	}
 
@@ -204,6 +205,9 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	}
 
 	private _onTerminalProcessIdReady(terminalInstance: ITerminalInstance): void {
+		if (terminalInstance.processId === undefined) {
+			return;
+		}
 		this._proxy.$acceptTerminalProcessId(terminalInstance.id, terminalInstance.processId);
 	}
 

@@ -667,7 +667,7 @@ export interface DocumentHighlight {
 	/**
 	 * The highlight kind, default is [text](#DocumentHighlightKind.Text).
 	 */
-	kind: DocumentHighlightKind;
+	kind?: DocumentHighlightKind;
 }
 /**
  * The document highlight provider interface defines the contract between extensions and
@@ -1064,7 +1064,7 @@ export interface SelectionRangeProvider {
 	/**
 	 * Provide ranges that should be selected from the given position.
 	 */
-	provideSelectionRanges(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<SelectionRange[]>;
+	provideSelectionRanges(model: model.ITextModel, positions: Position[], token: CancellationToken): ProviderResult<SelectionRange[][]>;
 }
 
 export interface FoldingContext {
@@ -1235,6 +1235,7 @@ export interface NewCommentAction {
 export interface CommentReaction {
 	readonly label?: string;
 	readonly hasReacted?: boolean;
+	readonly canEdit?: boolean;
 }
 
 /**

@@ -180,76 +180,10 @@ function rimraf(dir) {
             return cb(err);
         });
     };
-    return cb => retry(cb);
+    retry.displayName = `clean-${path.basename(dir)}`;
+    return retry;
 }
 exports.rimraf = rimraf;
-/**
- * Like rimraf (with 5 retries), but with a promise instead of a callback.
- */
-function primraf(dir) {
-    const fn = rimraf(dir);
-    return new Promise((resolve, reject) => {
-        fn((err) => {
-            if (err) {
-                return reject(err);
-            }
-            resolve();
-        });
-    });
-}
-exports.primraf = primraf;
-var task;
-(function (task_1) {
-    function _isPromise(p) {
-        if (typeof p.then === 'function') {
-            return true;
-        }
-        return false;
-    }
-    async function _execute(task) {
-        // Always invoke as if it were a callback task
-        return new Promise((resolve, reject) => {
-            if (task.length === 1) {
-                // this is a calback task
-                task((err) => {
-                    if (err) {
-                        return reject(err);
-                    }
-                    resolve();
-                });
-                return;
-            }
-            const taskResult = task();
-            if (typeof taskResult === 'undefined') {
-                // this is a sync task
-                resolve();
-                return;
-            }
-            if (_isPromise(taskResult)) {
-                // this is a promise returning task
-                taskResult.then(resolve, reject);
-                return;
-            }
-            // this is a stream returning task
-            taskResult.on('end', _ => resolve());
-            taskResult.on('error', err => reject(err));
-        });
-    }
-    function series(...tasks) {
-        return async () => {
-            for (let i = 0; i < tasks.length; i++) {
-                await _execute(tasks[i]);
-            }
-        };
-    }
-    task_1.series = series;
-    function parallel(...tasks) {
-        return async () => {
-            await Promise.all(tasks.map(t => _execute(t)));
-        };
-    }
-    task_1.parallel = parallel;
-})(task = exports.task || (exports.task = {}));
 function getVersion(root) {
     let version = process.env['BUILD_SOURCEVERSION'];
     if (!version || !/^[0-9a-f]{40}$/i.test(version)) {

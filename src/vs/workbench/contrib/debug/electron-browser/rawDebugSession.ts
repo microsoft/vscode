@@ -64,14 +64,16 @@ export class RawDebugSession {
 
 	// DA events
 	private readonly _onDidExitAdapter: Emitter<AdapterEndEvent>;
+	private debugAdapter: IDebugAdapter | null;
 
 	constructor(
-		private debugAdapter: IDebugAdapter,
+		debugAdapter: IDebugAdapter,
 		dbgr: IDebugger,
 		private telemetryService: ITelemetryService,
 		public customTelemetryService: ITelemetryService,
 		private environmentService: IEnvironmentService
 	) {
+		this.debugAdapter = debugAdapter;
 		this._capabilities = Object.create(null);
 		this._readyForBreakpoints = false;
 		this.inShutdown = false;
@@ -224,6 +226,9 @@ export class RawDebugSession {
 	 * Starts the underlying debug adapter and tracks the session time for telemetry.
 	 */
 	public start(): Promise<void> {
+		if (!this.debugAdapter) {
+			return Promise.reject(new Error('no debug adapter'));
+		}
 		return this.debugAdapter.startSession().then(() => {
 			this.startTime = new Date().getTime();
 		}, err => {
@@ -560,7 +565,7 @@ export class RawDebugSession {
 
 		let spawnArgs = vscodeArgs.args.map(a => {
 			if ((a.prefix === '--file-uri=' || a.prefix === '--folder-uri=') && !isUri(a.path)) {
-				return a.path;
+				return (a.path || '');
 			}
 			return (a.prefix || '') + (a.path || '');
 		});
@@ -622,6 +627,10 @@ export class RawDebugSession {
 
 	private send<R extends DebugProtocol.Response>(command: string, args: any, timeout?: number): Promise<R> {
 		return new Promise<R>((completeDispatch, errorDispatch) => {
+			if (!this.debugAdapter) {
+				errorDispatch(new Error('no debug adapter found'));
+				return;
+			}
 			this.debugAdapter.sendRequest(command, args, (response: R) => {
 				if (response.success) {
 					completeDispatch(response);
@@ -639,7 +648,7 @@ export class RawDebugSession {
 		}
 
 		const error = errorResponse && errorResponse.body ? errorResponse.body.error : null;
-		const errorMessage = errorResponse ? errorResponse.message : '';
+		const errorMessage = errorResponse ? errorResponse.message || '' : '';
 
 		if (error && error.sendTelemetry) {
 			const telemetryMessage = error ? formatPII(error.format, true, error.variables) : errorMessage;
@@ -650,7 +659,7 @@ export class RawDebugSession {
 		if (error && error.url) {
 			const label = error.urlLabel ? error.urlLabel : nls.localize('moreInfo', "More Info");
 			return createErrorWithActions(userMessage, {
-				actions: [new Action('debug.moreInfo', label, null, true, () => {
+				actions: [new Action('debug.moreInfo', label, undefined, true, () => {
 					window.open(error.url);
 					return Promise.resolve(null);
 				})]
@@ -660,7 +669,7 @@ export class RawDebugSession {
 		return new Error(userMessage);
 	}
 
-	private mergeCapabilities(capabilities: DebugProtocol.Capabilities): void {
+	private mergeCapabilities(capabilities: DebugProtocol.Capabilities | undefined): void {
 		if (capabilities) {
 			this._capabilities = objects.mixin(this._capabilities, capabilities);
 		}
@@ -674,11 +683,11 @@ export class RawDebugSession {
 				threadId,
 				allThreadsContinued
 			},
-			seq: undefined
+			seq: undefined!
 		});
 	}
 
-	private telemetryDebugProtocolErrorResponse(telemetryMessage: string) {
+	private telemetryDebugProtocolErrorResponse(telemetryMessage: string | undefined) {
 		/* __GDPR__
 			"debugProtocolErrorResponse" : {
 				"error" : { "classification": "CallstackOrException", "purpose": "FeatureInsight" }

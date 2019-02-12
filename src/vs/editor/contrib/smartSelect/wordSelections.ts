@@ -12,12 +12,16 @@ import { isUpperAsciiLetter, isLowerAsciiLetter } from 'vs/base/common/strings';
 
 export class WordSelectionRangeProvider implements SelectionRangeProvider {
 
-	provideSelectionRanges(model: ITextModel, position: Position): SelectionRange[] {
-		let result: SelectionRange[] = [];
-		this._addInWordRanges(result, model, position);
-		this._addWordRanges(result, model, position);
-		this._addWhitespaceLine(result, model, position);
-		result.push({ range: model.getFullModelRange(), kind: 'statement.all' });
+	provideSelectionRanges(model: ITextModel, positions: Position[]): SelectionRange[][] {
+		const result: SelectionRange[][] = [];
+		for (const position of positions) {
+			const bucket: SelectionRange[] = [];
+			result.push(bucket);
+			this._addInWordRanges(bucket, model, position);
+			this._addWordRanges(bucket, model, position);
+			this._addWhitespaceLine(bucket, model, position);
+			bucket.push({ range: model.getFullModelRange(), kind: 'statement.all' });
+		}
 		return result;
 	}
 

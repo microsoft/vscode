@@ -12,6 +12,7 @@ const assert = require('assert');
 const cp = require('child_process');
 const _7z = require('7zip')['7z'];
 const util = require('./lib/util');
+const task = require('./lib/task');
 const pkg = require('../package.json');
 const product = require('../product.json');
 const vfs = require('vinyl-fs');
@@ -105,8 +106,8 @@ function buildWin32Setup(arch, target) {
 }
 
 function defineWin32SetupTasks(arch, target) {
-	const cleanTask = () => util.primraf(setupDir(arch, target));
-	gulp.task(`vscode-win32-${arch}-${target}-setup`, util.task.series(cleanTask, buildWin32Setup(arch, target)));
+	const cleanTask = util.rimraf(setupDir(arch, target));
+	gulp.task(`vscode-win32-${arch}-${target}-setup`, task.series(cleanTask, buildWin32Setup(arch, target)));
 }
 
 defineWin32SetupTasks('ia32', 'system');
@@ -124,8 +125,8 @@ function archiveWin32Setup(arch) {
 	};
 }
 
-gulp.task('vscode-win32-ia32-archive', util.task.series(util.rimraf(zipDir('ia32')), archiveWin32Setup('ia32')));
-gulp.task('vscode-win32-x64-archive', util.task.series(util.rimraf(zipDir('x64')), archiveWin32Setup('x64')));
+gulp.task('vscode-win32-ia32-archive', task.series(util.rimraf(zipDir('ia32')), archiveWin32Setup('ia32')));
+gulp.task('vscode-win32-x64-archive', task.series(util.rimraf(zipDir('x64')), archiveWin32Setup('x64')));
 
 function copyInnoUpdater(arch) {
 	return () => {
@@ -141,5 +142,5 @@ function patchInnoUpdater(arch) {
 	};
 }
 
-gulp.task('vscode-win32-ia32-inno-updater', util.task.series(copyInnoUpdater('ia32'), patchInnoUpdater('ia32')));
-gulp.task('vscode-win32-x64-inno-updater', util.task.series(copyInnoUpdater('x64'), patchInnoUpdater('x64')));
+gulp.task('vscode-win32-ia32-inno-updater', task.series(copyInnoUpdater('ia32'), patchInnoUpdater('ia32')));
+gulp.task('vscode-win32-x64-inno-updater', task.series(copyInnoUpdater('x64'), patchInnoUpdater('x64')));

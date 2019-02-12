@@ -114,7 +114,7 @@ class UntitledEditorInputFactory implements IEditorInputFactory {
 		@ITextFileService private readonly textFileService: ITextFileService
 	) { }
 
-	serialize(editorInput: EditorInput): string {
+	serialize(editorInput: EditorInput): string | null {
 		if (!this.textFileService.isHotExitEnabled) {
 			return null; // never restore untitled unless hot exit is enabled
 		}
@@ -165,7 +165,7 @@ interface ISerializedSideBySideEditorInput {
 // Register Side by Side Editor Input Factory
 class SideBySideEditorInputFactory implements IEditorInputFactory {
 
-	serialize(editorInput: EditorInput): string {
+	serialize(editorInput: EditorInput): string | null {
 		const input = <SideBySideEditorInput>editorInput;
 
 		if (input.details && input.master) {
@@ -193,7 +193,7 @@ class SideBySideEditorInputFactory implements IEditorInputFactory {
 		return null;
 	}
 
-	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
+	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput | null {
 		const deserialized: ISerializedSideBySideEditorInput = JSON.parse(serializedEditorInput);
 
 		const registry = Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories);
@@ -261,7 +261,7 @@ export class QuickOpenActionContributor extends ActionBarContributor {
 		return actions;
 	}
 
-	private getEntry(context: any): IEditorQuickOpenEntry {
+	private getEntry(context: any): IEditorQuickOpenEntry | null {
 		if (!context || !context.element) {
 			return null;
 		}

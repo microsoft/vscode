@@ -19,7 +19,7 @@ export interface ILabelService {
 	 * If relative is passed returns a label relative to the workspace root that the uri belongs to.
 	 * If noPrefix is passed does not tildify the label and also does not prepand the root name for relative labels in a multi root scenario.
 	 */
-	getUriLabel(resource: URI, options?: { relative?: boolean, noPrefix?: boolean }): string;
+	getUriLabel(resource: URI, options?: { relative?: boolean, noPrefix?: boolean, endWithSeparator?: boolean }): string;
 	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IWorkspace), options?: { verbose: boolean }): string;
 	getHostLabel(): string;
 	registerFormatter(formatter: ResourceLabelFormatter): IDisposable;
@@ -43,12 +43,12 @@ export interface ResourceLabelFormatting {
 
 const LABEL_SERVICE_ID = 'label';
 
-export function getSimpleWorkspaceLabel(workspace: IWorkspaceIdentifier | URI, workspaceHome: string): string {
+export function getSimpleWorkspaceLabel(workspace: IWorkspaceIdentifier | URI, workspaceHome: URI): string {
 	if (isSingleFolderWorkspaceIdentifier(workspace)) {
 		return basename(workspace);
 	}
 	// Workspace: Untitled
-	if (isEqualOrParent(workspace.configPath, URI.file(workspaceHome))) {
+	if (isEqualOrParent(workspace.configPath, workspaceHome)) {
 		return localize('untitledWorkspace', "Untitled (Workspace)");
 	}
 

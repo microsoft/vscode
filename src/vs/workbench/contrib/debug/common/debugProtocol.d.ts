@@ -83,7 +83,7 @@ declare module DebugProtocol {
 		body: {
 			/** The reason for the event.
 				For backward compatibility this string is shown in the UI if the 'description' attribute is missing (but it must not be translated).
-				Values: 'step', 'breakpoint', 'exception', 'pause', 'entry', 'goto', etc.
+				Values: 'step', 'breakpoint', 'exception', 'pause', 'entry', 'goto', 'function breakpoint', 'data breakpoint', etc.
 			*/
 			reason: string;
 			/** The full reason for the event, e.g. 'Paused on exception'. This string is shown in the UI as is and must be translated. */
@@ -487,9 +487,9 @@ declare module DebugProtocol {
 	}
 
 	/** SetFunctionBreakpoints request; value of command field is 'setFunctionBreakpoints'.
-		Sets multiple function breakpoints and clears all previous function breakpoints.
-		To clear all function breakpoint, specify an empty array.
-		When a function breakpoint is hit, a 'stopped' event (event type 'function breakpoint') is generated.
+		Replaces all existing function breakpoints with new function breakpoints.
+		To clear all function breakpoints, specify an empty array.
+		When a function breakpoint is hit, a 'stopped' event (with reason 'function breakpoint') is generated.
 	*/
 	export interface SetFunctionBreakpointsRequest extends Request {
 		// command: 'setFunctionBreakpoints';
@@ -530,6 +530,62 @@ declare module DebugProtocol {
 
 	/** Response to 'setExceptionBreakpoints' request. This is just an acknowledgement, so no body field is required. */
 	export interface SetExceptionBreakpointsResponse extends Response {
+	}
+
+	/** DataBreakpointInfo request; value of command field is 'dataBreakpointInfo'.
+		Obtains information on a possible data breakpoint that could be set on an expression or variable.
+	*/
+	export interface DataBreakpointInfoRequest extends Request {
+		// command: 'dataBreakpointInfo';
+		arguments: DataBreakpointInfoArguments;
+	}
+
+	/** Arguments for 'dataBreakpointInfo' request. */
+	export interface DataBreakpointInfoArguments {
+		/** Reference to the Variable container if the data breakpoint is requested for a child of the container. */
+		variablesReference?: number;
+		/** The name of the Variable's child to obtain data breakpoint information for. If variableReference isn’t provided, this can be an expression. */
+		name: string;
+	}
+
+	/** Response to 'dataBreakpointInfo' request. */
+	export interface DataBreakpointInfoResponse extends Response {
+		body: {
+			/** An identifier for the data on which a data breakpoint can be registered with the setDataBreakpoints request or null if no data breakpoint is available. */
+			dataId: string | null;
+			/** UI string that describes on what data the breakpoint is set on or why a data breakpoint is not available. */
+			description: string;
+			/** Optional attribute listing the available access types for a potential data breakpoint. A UI frontend could surface this information. */
+			accessTypes?: DataBreakpointAccessType[];
+			/** Optional attribute indicating that a potential data breakpoint could be persisted across sessions. */
+			canPersist?: boolean;
+		};
+	}
+
+	/** SetDataBreakpoints request; value of command field is 'setDataBreakpoints'.
+		Replaces all existing data breakpoints with new data breakpoints.
+		To clear all data breakpoints, specify an empty array.
+		When a data breakpoint is hit, a 'stopped' event (with reason 'data breakpoint') is generated.
+	*/
+	export interface SetDataBreakpointsRequest extends Request {
+		// command: 'setDataBreakpoints';
+		arguments: SetDataBreakpointsArguments;
+	}
+
+	/** Arguments for 'setDataBreakpoints' request. */
+	export interface SetDataBreakpointsArguments {
+		/** The contents of this array replaces all existing data breakpoints. An empty array clears all data breakpoints. */
+		breakpoints: DataBreakpoint[];
+	}
+
+	/** Response to 'setDataBreakpoints' request.
+		Returned is information about each breakpoint created by this request.
+	*/
+	export interface SetDataBreakpointsResponse extends Response {
+		body: {
+			/** Information about the data breakpoints. The array elements correspond to the elements of the input argument 'breakpoints' array. */
+			breakpoints: Breakpoint[];
+		};
 	}
 
 	/** Continue request; value of command field is 'continue'.
@@ -812,7 +868,7 @@ declare module DebugProtocol {
 	export interface SetVariableArguments {
 		/** The reference of the variable container. */
 		variablesReference: number;
-		/** The name of the variable. */
+		/** The name of the variable in the container. */
 		name: string;
 		/** The value of the variable. */
 		value: string;
@@ -1200,6 +1256,8 @@ declare module DebugProtocol {
 		supportsSetExpression?: boolean;
 		/** The debug adapter supports the 'terminate' request. */
 		supportsTerminateRequest?: boolean;
+		/** The debug adapter supports data breakpoints. */
+		supportsDataBreakpoints?: boolean;
 	}
 
 	/** An ExceptionBreakpointsFilter is shown in the UI as an option for configuring how exceptions are dealt with. */
@@ -1413,6 +1471,7 @@ declare module DebugProtocol {
 			'interface': Indicates that the object is an interface.
 			'mostDerivedClass': Indicates that the object is the most derived class.
 			'virtual': Indicates that the object is virtual, that means it is a synthetic object introduced by the adapter for rendering purposes, e.g. an index range for large arrays.
+			'dataBreakpoint': Indicates that a data breakpoint is registered for the object.
 			etc.
 		*/
 		kind?: string;
@@ -1452,6 +1511,21 @@ declare module DebugProtocol {
 	export interface FunctionBreakpoint {
 		/** The name of the function. */
 		name: string;
+		/** An optional expression for conditional breakpoints. */
+		condition?: string;
+		/** An optional expression that controls how many hits of the breakpoint are ignored. The backend is expected to interpret the expression as needed. */
+		hitCondition?: string;
+	}
+
+	/** This enumeration defines all possible access types for data breakpoints. */
+	export type DataBreakpointAccessType = 'read' | 'write' | 'readWrite';
+
+	/** Properties of a data breakpoint passed to the setDataBreakpoints request. */
+	export interface DataBreakpoint {
+		/** An id representing the data. This id is returned from the dataBreakpointInfo request. */
+		dataId: string;
+		/** The access type of the data. */
+		accessType?: DataBreakpointAccessType;
 		/** An optional expression for conditional breakpoints. */
 		condition?: string;
 		/** An optional expression that controls how many hits of the breakpoint are ignored. The backend is expected to interpret the expression as needed. */

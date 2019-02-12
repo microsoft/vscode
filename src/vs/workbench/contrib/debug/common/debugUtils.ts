@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equalsIgnoreCase } from 'vs/base/common/strings';
-import { IConfig } from 'vs/workbench/contrib/debug/common/debug';
+import { IConfig, IDebuggerContribution } from 'vs/workbench/contrib/debug/common/debug';
 import { URI as uri } from 'vs/base/common/uri';
-import { isAbsolute_posix, isAbsolute_win32 } from 'vs/base/common/paths';
+import { isAbsolute } from 'vs/base/common/paths.node';
 import { deepClone } from 'vs/base/common/objects';
 
 const _formatPIIRegexp = /{([^}]+)}/g;
@@ -25,6 +25,11 @@ export function formatPII(value: string, excludePII: boolean, args: { [key: stri
 
 export function isExtensionHostDebugging(config: IConfig) {
 	return config.type && equalsIgnoreCase(config.type === 'vslsShare' ? (<any>config).adapterProxy.configuration.type : config.type, 'extensionhost');
+}
+
+// only a debugger contributions with a label, program, or runtime attribute is considered a "defining" or "main" debugger contribution
+export function isDebuggerMainContribution(dbg: IDebuggerContribution) {
+	return dbg.type && (dbg.label || dbg.program || dbg.runtime);
 }
 
 export function getExactExpressionStartAndEnd(lineContent: string, looseStart: number, looseEnd: number): { start: number, end: number } {
@@ -73,10 +78,10 @@ export function getExactExpressionStartAndEnd(lineContent: string, looseStart: n
 // RFC 2396, Appendix A: https://www.ietf.org/rfc/rfc2396.txt
 const _schemePattern = /^[a-zA-Z][a-zA-Z0-9\+\-\.]+:/;
 
-export function isUri(s: string) {
+export function isUri(s: string | undefined): boolean {
 	// heuristics: a valid uri starts with a scheme and
 	// the scheme has at least 2 characters so that it doesn't look like a drive letter.
-	return s && s.match(_schemePattern);
+	return !!(s && s.match(_schemePattern));
 }
 
 function stringToUri(path: string): string {
@@ -85,7 +90,7 @@ function stringToUri(path: string): string {
 			return <string><unknown>uri.parse(path);
 		} else {
 			// assume path
-			if (isAbsolute_posix(path) || isAbsolute_win32(path)) {
+			if (isAbsolute(path)) {
 				return <string><unknown>uri.file(path);
 			} else {
 				// leave relative path as is

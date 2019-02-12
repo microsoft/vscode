@@ -249,9 +249,9 @@ export class ConfigurationManager implements IConfigurationManager {
 						});
 					}
 
-					const duplicate = this.getDebugger(rawAdapter.type);
-					if (duplicate) {
-						duplicate.merge(rawAdapter, added.description);
+					const existing = this.getDebugger(rawAdapter.type);
+					if (existing) {
+						existing.merge(rawAdapter, added.description);
 					} else {
 						this.debuggers.push(this.instantiationService.createInstance(Debugger, this, rawAdapter, added.description));
 					}
@@ -337,7 +337,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		return this.launches;
 	}
 
-	public getLaunch(workspaceUri: uri): ILaunch {
+	public getLaunch(workspaceUri: uri | undefined): ILaunch {
 		if (!uri.isUri(workspaceUri)) {
 			return undefined;
 		}

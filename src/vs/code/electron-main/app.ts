@@ -63,8 +63,9 @@ import { hasArgs } from 'vs/platform/environment/node/argv';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { registerContextMenuListener } from 'vs/base/parts/contextmenu/electron-main/contextmenu';
 import { storeBackgroundColor } from 'vs/code/electron-main/theme';
-import { nativeSep, join } from 'vs/base/common/paths';
+import { join } from 'vs/base/common/paths';
 import { homedir } from 'os';
+import { sep } from 'path';
 import { localize } from 'vs/nls';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from 'vs/platform/remote/node/remoteAgentFileSystemChannel';
@@ -154,7 +155,7 @@ export class CodeApplication extends Disposable {
 					const srcUri = URI.parse(source).fsPath.toLowerCase();
 					const rootUri = URI.file(this.environmentService.appRoot).fsPath.toLowerCase();
 
-					return startsWith(srcUri, rootUri + nativeSep);
+					return startsWith(srcUri, rootUri + sep);
 				};
 
 				// Ensure defaults
@@ -682,10 +683,10 @@ export class CodeApplication extends Disposable {
 			constructor(authority: string, host: string, port: number) {
 				this._authority = authority;
 				this._client = connectRemoteAgentManagement(authority, host, port, `main`, isBuilt);
-				this._disposeRunner = new RunOnceScheduler(() => this._dispose(), 5000);
+				this._disposeRunner = new RunOnceScheduler(() => this.dispose(), 5000);
 			}
 
-			private _dispose(): void {
+			dispose(): void {
 				this._disposeRunner.dispose();
 				connectionPool.delete(this._authority);
 				this._client.then((connection) => {
@@ -693,7 +694,7 @@ export class CodeApplication extends Disposable {
 				});
 			}
 
-			public getClient(): Promise<Client<RemoteAgentConnectionContext>> {
+			getClient(): Promise<Client<RemoteAgentConnectionContext>> {
 				this._disposeRunner.schedule();
 				return this._client;
 			}
@@ -701,8 +702,12 @@ export class CodeApplication extends Disposable {
 
 		const resolvedAuthorities = new Map<string, ResolvedAuthority>();
 		ipc.on('vscode:remoteAuthorityResolved', (event: any, data: ResolvedAuthority) => {
-			this.logService.info('Receieved resolved authority', data.authority);
+			this.logService.info('Received resolved authority', data.authority);
 			resolvedAuthorities.set(data.authority, data);
+			// Make sure to close and remove any existing connections
+			if (connectionPool.has(data.authority)) {
+				connectionPool.get(data.authority)!.dispose();
+			}
 		});
 
 		const resolveAuthority = (authority: string): ResolvedAuthority | null => {
@@ -716,7 +721,7 @@ export class CodeApplication extends Disposable {
 			} else {
 				const [host, strPort] = authority.split(':');
 				const port = parseInt(strPort, 10);
-				return { authority, host, port, syncExtensions: false };
+				return { authority, host, port };
 			}
 		};
 

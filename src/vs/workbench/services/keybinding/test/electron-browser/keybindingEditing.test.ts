@@ -120,28 +120,28 @@ suite('KeybindingsEditing', () => {
 
 	test('errors cases - parse errors', () => {
 		fs.writeFileSync(keybindingsFile, ',,,,,,,,,,,,,,');
-		return testObject.editKeybinding('alt+c', aResolvedKeybindingItem({ firstPart: { keyCode: KeyCode.Escape } }))
+		return testObject.editKeybinding(aResolvedKeybindingItem({ firstPart: { keyCode: KeyCode.Escape } }), 'alt+c', undefined)
 			.then(() => assert.fail('Should fail with parse errors'),
 				error => assert.equal(error.message, 'Unable to write to the keybindings configuration file. Please open it to correct errors/warnings in the file and try again.'));
 	});
 
 	test('errors cases - parse errors 2', () => {
 		fs.writeFileSync(keybindingsFile, '[{"key": }]');
-		return testObject.editKeybinding('alt+c', aResolvedKeybindingItem({ firstPart: { keyCode: KeyCode.Escape } }))
+		return testObject.editKeybinding(aResolvedKeybindingItem({ firstPart: { keyCode: KeyCode.Escape } }), 'alt+c', undefined)
 			.then(() => assert.fail('Should fail with parse errors'),
 				error => assert.equal(error.message, 'Unable to write to the keybindings configuration file. Please open it to correct errors/warnings in the file and try again.'));
 	});
 
 	test('errors cases - dirty', () => {
 		instantiationService.stub(ITextFileService, 'isDirty', true);
-		return testObject.editKeybinding('alt+c', aResolvedKeybindingItem({ firstPart: { keyCode: KeyCode.Escape } }))
+		return testObject.editKeybinding(aResolvedKeybindingItem({ firstPart: { keyCode: KeyCode.Escape } }), 'alt+c', undefined)
 			.then(() => assert.fail('Should fail with dirty error'),
 				error => assert.equal(error.message, 'Unable to write because the keybindings configuration file is dirty. Please save it first and then try again.'));
 	});
 
 	test('errors cases - did not find an array', () => {
 		fs.writeFileSync(keybindingsFile, '{"key": "alt+c", "command": "hello"}');
-		return testObject.editKeybinding('alt+c', aResolvedKeybindingItem({ firstPart: { keyCode: KeyCode.Escape } }))
+		return testObject.editKeybinding(aResolvedKeybindingItem({ firstPart: { keyCode: KeyCode.Escape } }), 'alt+c', undefined)
 			.then(() => assert.fail('Should fail with dirty error'),
 				error => assert.equal(error.message, 'Unable to write to the keybindings configuration file. It has an object which is not of type Array. Please open the file to clean up and try again.'));
 	});
@@ -149,7 +149,7 @@ suite('KeybindingsEditing', () => {
 	test('edit a default keybinding to an empty file', () => {
 		fs.writeFileSync(keybindingsFile, '');
 		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: 'a' }, { key: 'escape', command: '-a' }];
-		return testObject.editKeybinding('alt+c', aResolvedKeybindingItem({ firstPart: { keyCode: KeyCode.Escape }, command: 'a' }))
+		return testObject.editKeybinding(aResolvedKeybindingItem({ firstPart: { keyCode: KeyCode.Escape }, command: 'a' }), 'alt+c', undefined)
 			.then(() => assert.deepEqual(getUserKeybindings(), expected));
 	});
 
@@ -159,41 +159,41 @@ suite('KeybindingsEditing', () => {
 		testObject = instantiationService.createInstance(KeybindingsEditingService);
 
 		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: 'a' }, { key: 'escape', command: '-a' }];
-		return testObject.editKeybinding('alt+c', aResolvedKeybindingItem({ firstPart: { keyCode: KeyCode.Escape }, command: 'a' }))
+		return testObject.editKeybinding(aResolvedKeybindingItem({ firstPart: { keyCode: KeyCode.Escape }, command: 'a' }), 'alt+c', undefined)
 			.then(() => assert.deepEqual(getUserKeybindings(), expected));
 	});
 
 	test('edit a default keybinding to an empty array', () => {
 		writeToKeybindingsFile();
 		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: 'a' }, { key: 'escape', command: '-a' }];
-		return testObject.editKeybinding('alt+c', aResolvedKeybindingItem({ firstPart: { keyCode: KeyCode.Escape }, command: 'a' }))
+		return testObject.editKeybinding(aResolvedKeybindingItem({ firstPart: { keyCode: KeyCode.Escape }, command: 'a' }), 'alt+c', undefined)
 			.then(() => assert.deepEqual(getUserKeybindings(), expected));
 	});
 
 	test('edit a default keybinding in an existing array', () => {
 		writeToKeybindingsFile({ command: 'b', key: 'shift+c' });
 		const expected: IUserFriendlyKeybinding[] = [{ key: 'shift+c', command: 'b' }, { key: 'alt+c', command: 'a' }, { key: 'escape', command: '-a' }];
-		return testObject.editKeybinding('alt+c', aResolvedKeybindingItem({ firstPart: { keyCode: KeyCode.Escape }, command: 'a' }))
+		return testObject.editKeybinding(aResolvedKeybindingItem({ firstPart: { keyCode: KeyCode.Escape }, command: 'a' }), 'alt+c', undefined)
 			.then(() => assert.deepEqual(getUserKeybindings(), expected));
 	});
 
 	test('add a new default keybinding', () => {
 		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: 'a' }];
-		return testObject.editKeybinding('alt+c', aResolvedKeybindingItem({ command: 'a' }))
+		return testObject.editKeybinding(aResolvedKeybindingItem({ command: 'a' }), 'alt+c', undefined)
 			.then(() => assert.deepEqual(getUserKeybindings(), expected));
 	});
 
 	test('edit an user keybinding', () => {
 		writeToKeybindingsFile({ key: 'escape', command: 'b' });
 		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: 'b' }];
-		return testObject.editKeybinding('alt+c', aResolvedKeybindingItem({ firstPart: { keyCode: KeyCode.Escape }, command: 'b', isDefault: false }))
+		return testObject.editKeybinding(aResolvedKeybindingItem({ firstPart: { keyCode: KeyCode.Escape }, command: 'b', isDefault: false }), 'alt+c', undefined)
 			.then(() => assert.deepEqual(getUserKeybindings(), expected));
 	});
 
 	test('edit an user keybinding with more than one element', () => {
 		writeToKeybindingsFile({ key: 'escape', command: 'b' }, { key: 'alt+shift+g', command: 'c' });
 		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: 'b' }, { key: 'alt+shift+g', command: 'c' }];
-		return testObject.editKeybinding('alt+c', aResolvedKeybindingItem({ firstPart: { keyCode: KeyCode.Escape }, command: 'b', isDefault: false }))
+		return testObject.editKeybinding(aResolvedKeybindingItem({ firstPart: { keyCode: KeyCode.Escape }, command: 'b', isDefault: false }), 'alt+c', undefined)
 			.then(() => assert.deepEqual(getUserKeybindings(), expected));
 	});
 
@@ -232,7 +232,28 @@ suite('KeybindingsEditing', () => {
 	test('add a new keybinding to unassigned keybinding', () => {
 		writeToKeybindingsFile({ key: 'alt+c', command: '-a' });
 		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: '-a' }, { key: 'shift+alt+c', command: 'a' }];
-		return testObject.editKeybinding('shift+alt+c', aResolvedKeybindingItem({ command: 'a', isDefault: false }))
+		return testObject.editKeybinding(aResolvedKeybindingItem({ command: 'a', isDefault: false }), 'shift+alt+c', undefined)
+			.then(() => assert.deepEqual(getUserKeybindings(), expected));
+	});
+
+	test('add when expression', () => {
+		writeToKeybindingsFile({ key: 'alt+c', command: '-a' });
+		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: '-a' }, { key: 'shift+alt+c', command: 'a', when: 'editorTextFocus' }];
+		return testObject.editKeybinding(aResolvedKeybindingItem({ command: 'a', isDefault: false }), 'shift+alt+c', 'editorTextFocus')
+			.then(() => assert.deepEqual(getUserKeybindings(), expected));
+	});
+
+	test('update when expression', () => {
+		writeToKeybindingsFile({ key: 'alt+c', command: '-a', when: 'editorTextFocus && !editorReadonly' });
+		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: '-a', when: 'editorTextFocus && !editorReadonly' }, { key: 'shift+alt+c', command: 'a', when: 'editorTextFocus' }];
+		return testObject.editKeybinding(aResolvedKeybindingItem({ command: 'a', isDefault: false }), 'shift+alt+c', 'editorTextFocus')
+			.then(() => assert.deepEqual(getUserKeybindings(), expected));
+	});
+
+	test('remove when expression', () => {
+		writeToKeybindingsFile({ key: 'alt+c', command: '-a', when: 'editorTextFocus && !editorReadonly' });
+		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: '-a', when: 'editorTextFocus && !editorReadonly' }, { key: 'shift+alt+c', command: 'a' }];
+		return testObject.editKeybinding(aResolvedKeybindingItem({ command: 'a', isDefault: false }), 'shift+alt+c', undefined)
 			.then(() => assert.deepEqual(getUserKeybindings(), expected));
 	});
 

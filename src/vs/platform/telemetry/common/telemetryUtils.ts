@@ -5,7 +5,7 @@
 
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { guessMimeTypes } from 'vs/base/common/mime';
-import * as paths from 'vs/base/common/paths';
+import { extname } from 'vs/base/common/paths.node';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService, ConfigurationTarget, ConfigurationTargetToString } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
@@ -79,7 +79,7 @@ export interface URIDescriptor {
 
 export function telemetryURIDescriptor(uri: URI, hashPath: (path: string) => string): URIDescriptor {
 	const fsPath = uri && uri.fsPath;
-	return fsPath ? { mimeType: guessMimeTypes(fsPath).join(', '), scheme: uri.scheme, ext: paths.extname(fsPath), path: hashPath(fsPath) } : {};
+	return fsPath ? { mimeType: guessMimeTypes(fsPath).join(', '), scheme: uri.scheme, ext: extname(fsPath), path: hashPath(fsPath) } : {};
 }
 
 /**

@@ -64,7 +64,7 @@
 	margin-top: 7px;
 }
 
-.mac > .monaco-workbench .part > .title > .title-actions .start-debug-action-item {
+.monaco-workbench.mac .part > .title > .title-actions .start-debug-action-item {
 	border-radius: 4px;
 }
 

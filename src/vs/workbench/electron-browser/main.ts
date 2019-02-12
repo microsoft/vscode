@@ -138,11 +138,6 @@ function openWorkbench(configuration: IWindowConfiguration): Promise<void> {
 					storageService
 				}, mainServices, mainProcessClient, configuration);
 
-				// Gracefully Shutdown Storage
-				shell.onWillShutdown(event => {
-					event.join(storageService.close());
-				});
-
 				// Open Shell
 				shell.open();
 
@@ -150,7 +145,7 @@ function openWorkbench(configuration: IWindowConfiguration): Promise<void> {
 				(<any>self).require.config({
 					onError: err => {
 						if (err.errorCode === 'load') {
-							shell.onUnexpectedError(new Error(nls.localize('loaderErrorNative', "Failed to load a required file. Please restart the application to try again. Details: {0}", JSON.stringify(err))));
+							onUnexpectedError(new Error(nls.localize('loaderErrorNative', "Failed to load a required file. Please restart the application to try again. Details: {0}", JSON.stringify(err))));
 						}
 					}
 				});

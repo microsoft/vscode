@@ -14,7 +14,7 @@ import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/comm
 import { isEqual, basenameOrAuthority, isEqualOrParent, basename, joinPath, dirname } from 'vs/base/common/resources';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { tildify, getPathLabel } from 'vs/base/common/labels';
-import { ltrim } from 'vs/base/common/strings';
+import { ltrim, endsWith } from 'vs/base/common/strings';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, WORKSPACE_EXTENSION, toWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { Schemas } from 'vs/base/common/network';
 import { IWindowService } from 'vs/platform/windows/common/windows';
@@ -130,34 +130,36 @@ export class LabelService implements ILabelService {
 		return bestResult ? bestResult.formatting : undefined;
 	}
 
-	getUriLabel(resource: URI, options: { relative?: boolean, noPrefix?: boolean } = {}): string {
+	getUriLabel(resource: URI, options: { relative?: boolean, noPrefix?: boolean, endWithSeparator?: boolean } = {}): string {
 		const formatting = this.findFormatting(resource);
 		if (!formatting) {
 			return getPathLabel(resource.path, this.environmentService, options.relative ? this.contextService : undefined);
 		}
 
-		if (options.relative) {
-			const baseResource = this.contextService && this.contextService.getWorkspaceFolder(resource);
-			if (baseResource) {
-				let relativeLabel: string;
-				if (isEqual(baseResource.uri, resource, !isLinux)) {
-					relativeLabel = ''; // no label if resources are identical
-				} else {
-					const baseResourceLabel = this.formatUri(baseResource.uri, formatting, options.noPrefix);
-					relativeLabel = ltrim(this.formatUri(resource, formatting, options.noPrefix).substring(baseResourceLabel.length), formatting.separator);
-				}
+		let label: string | undefined;
+		const baseResource = this.contextService && this.contextService.getWorkspaceFolder(resource);
 
-				const hasMultipleRoots = this.contextService.getWorkspace().folders.length > 1;
-				if (hasMultipleRoots && !options.noPrefix) {
-					const rootName = (baseResource && baseResource.name) ? baseResource.name : basenameOrAuthority(baseResource.uri);
-					relativeLabel = relativeLabel ? (rootName + ' • ' + relativeLabel) : rootName; // always show root basename if there are multiple
-				}
-
-				return relativeLabel;
+		if (options.relative && baseResource) {
+			let relativeLabel: string;
+			if (isEqual(baseResource.uri, resource, !isLinux)) {
+				relativeLabel = ''; // no label if resources are identical
+			} else {
+				const baseResourceLabel = this.formatUri(baseResource.uri, formatting, options.noPrefix);
+				relativeLabel = ltrim(this.formatUri(resource, formatting, options.noPrefix).substring(baseResourceLabel.length), formatting.separator);
 			}
+
+			const hasMultipleRoots = this.contextService.getWorkspace().folders.length > 1;
+			if (hasMultipleRoots && !options.noPrefix) {
+				const rootName = (baseResource && baseResource.name) ? baseResource.name : basenameOrAuthority(baseResource.uri);
+				relativeLabel = relativeLabel ? (rootName + ' • ' + relativeLabel) : rootName; // always show root basename if there are multiple
+			}
+
+			label = relativeLabel;
+		} else {
+			label = this.formatUri(resource, formatting, options.noPrefix);
 		}
 
-		return this.formatUri(resource, formatting, options.noPrefix);
+		return options.endWithSeparator ? this.appendSeparatorIfMissing(label, formatting) : label;
 	}
 
 	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IWorkspace), options?: { verbose: boolean }): string {
@@ -184,7 +186,7 @@ export class LabelService implements ILabelService {
 		}
 
 		// Workspace: Untitled
-		if (isEqualOrParent(workspace.configPath, URI.file(this.environmentService.workspacesHome))) {
+		if (isEqualOrParent(workspace.configPath, this.environmentService.untitledWorkspacesHome)) {
 			return localize('untitledWorkspace', "Untitled (Workspace)");
 		}
 
@@ -246,5 +248,13 @@ export class LabelService implements ILabelService {
 		}
 
 		return label.replace(sepRegexp, formatting.separator);
+	}
+
+	private appendSeparatorIfMissing(label: string, formatting: ResourceLabelFormatting): string {
+		let appendedLabel = label;
+		if (!endsWith(label, formatting.separator)) {
+			appendedLabel += formatting.separator;
+		}
+		return appendedLabel;
 	}
 }

@@ -1142,7 +1142,7 @@ export class StatResolver {
 		this.etag = etag(size, mtime);
 	}
 
-	resolve(options: IResolveFileOptions): Promise<IFileStat> {
+	resolve(options: IResolveFileOptions | undefined): Promise<IFileStat> {
 
 		// General Data
 		const fileStat: IFileStat = {

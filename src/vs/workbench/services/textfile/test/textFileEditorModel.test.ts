@@ -264,7 +264,7 @@ suite('Files - TextFileEditorModel', () => {
 
 		model.onDidStateChange(e => {
 			if (e === StateChange.SAVED) {
-				assert.equal(snapshotToString(model.createSnapshot()), 'bar');
+				assert.equal(snapshotToString(model.createSnapshot()!), 'bar');
 				assert.ok(!model.isDirty());
 				eventCounter++;
 			}
@@ -337,7 +337,7 @@ suite('Files - TextFileEditorModel', () => {
 		assert.ok(!sequentializer.pendingSave);
 
 		// pending removes itself after done
-		return sequentializer.setPending(1, Promise.resolve(null)).then(() => {
+		return sequentializer.setPending(1, Promise.resolve()).then(() => {
 			assert.ok(!sequentializer.hasPendingSave());
 			assert.ok(!sequentializer.hasPendingSave(1));
 			assert.ok(!sequentializer.pendingSave);
@@ -361,11 +361,11 @@ suite('Files - TextFileEditorModel', () => {
 		const sequentializer = new SaveSequentializer();
 
 		let pendingDone = false;
-		sequentializer.setPending(1, timeout(1).then(() => { pendingDone = true; return null; }));
+		sequentializer.setPending(1, timeout(1).then(() => { pendingDone = true; return; }));
 
 		// next finishes instantly
 		let nextDone = false;
-		const res = sequentializer.setNext(() => Promise.resolve(null).then(() => { nextDone = true; return null; }));
+		const res = sequentializer.setNext(() => Promise.resolve(null).then(() => { nextDone = true; return; }));
 
 		return res.then(() => {
 			assert.ok(pendingDone);
@@ -377,11 +377,11 @@ suite('Files - TextFileEditorModel', () => {
 		const sequentializer = new SaveSequentializer();
 
 		let pendingDone = false;
-		sequentializer.setPending(1, timeout(1).then(() => { pendingDone = true; return null; }));
+		sequentializer.setPending(1, timeout(1).then(() => { pendingDone = true; return; }));
 
 		// next finishes after timeout
 		let nextDone = false;
-		const res = sequentializer.setNext(() => timeout(1).then(() => { nextDone = true; return null; }));
+		const res = sequentializer.setNext(() => timeout(1).then(() => { nextDone = true; return; }));
 
 		return res.then(() => {
 			assert.ok(pendingDone);
@@ -393,17 +393,17 @@ suite('Files - TextFileEditorModel', () => {
 		const sequentializer = new SaveSequentializer();
 
 		let pendingDone = false;
-		sequentializer.setPending(1, timeout(1).then(() => { pendingDone = true; return null; }));
+		sequentializer.setPending(1, timeout(1).then(() => { pendingDone = true; return; }));
 
 		// next finishes after timeout
 		let firstDone = false;
-		let firstRes = sequentializer.setNext(() => timeout(2).then(() => { firstDone = true; return null; }));
+		let firstRes = sequentializer.setNext(() => timeout(2).then(() => { firstDone = true; return; }));
 
 		let secondDone = false;
-		let secondRes = sequentializer.setNext(() => timeout(3).then(() => { secondDone = true; return null; }));
+		let secondRes = sequentializer.setNext(() => timeout(3).then(() => { secondDone = true; return; }));
 
 		let thirdDone = false;
-		let thirdRes = sequentializer.setNext(() => timeout(4).then(() => { thirdDone = true; return null; }));
+		let thirdRes = sequentializer.setNext(() => timeout(4).then(() => { thirdDone = true; return; }));
 
 		return Promise.all([firstRes, secondRes, thirdRes]).then(() => {
 			assert.ok(pendingDone);

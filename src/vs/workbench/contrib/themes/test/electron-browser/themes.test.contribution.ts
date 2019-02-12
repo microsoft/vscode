@@ -21,7 +21,7 @@ import { Color } from 'vs/base/common/color';
 interface IToken {
 	c: string;
 	t: string;
-	r: { [themeName: string]: string; };
+	r: { [themeName: string]: string | undefined; };
 }
 
 interface IThemedToken {
@@ -48,7 +48,7 @@ class ThemeDocument {
 		for (let i = 0, len = this._theme.tokenColors.length; i < len; i++) {
 			let rule = this._theme.tokenColors[i];
 			if (!rule.scope) {
-				this._defaultColor = rule.settings.foreground;
+				this._defaultColor = rule.settings.foreground!;
 			}
 		}
 	}
@@ -124,7 +124,8 @@ class Snapper {
 
 	private _tokenize(grammar: IGrammar, lines: string[]): IToken[] {
 		let state: StackElement | null = null;
-		let result: IToken[] = [], resultLen = 0;
+		let result: IToken[] = [];
+		let resultLen = 0;
 		for (let i = 0, len = lines.length; i < len; i++) {
 			let line = lines[i];
 
@@ -144,11 +145,11 @@ class Snapper {
 						c: tokenText,
 						t: tokenScopes,
 						r: {
-							dark_plus: null,
-							light_plus: null,
-							dark_vs: null,
-							light_vs: null,
-							hc_black: null,
+							dark_plus: undefined,
+							light_plus: undefined,
+							dark_vs: undefined,
+							light_vs: undefined,
+							hc_black: undefined,
 						}
 					};
 				}

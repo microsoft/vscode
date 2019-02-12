@@ -14,13 +14,12 @@ import { buttonBackground, buttonForeground, editorBackground, editorForeground,
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { Schemas } from 'vs/base/common/network';
-import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
-import { extname } from 'vs/base/common/paths';
+import { hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
 import { Disposable, dispose } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { isEqual } from 'vs/base/common/resources';
+import { IFileService } from 'vs/platform/files/common/files';
 
 export class FloatingClickWidget extends Widget implements IOverlayWidget {
 
@@ -108,7 +107,8 @@ export class OpenWorkspaceButtonContribution extends Disposable implements IEdit
 		private editor: ICodeEditor,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWindowService private readonly windowService: IWindowService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		super();
 
@@ -139,8 +139,12 @@ export class OpenWorkspaceButtonContribution extends Disposable implements IEdit
 			return false; // we need a model
 		}
 
-		if (model.uri.scheme !== Schemas.file || extname(model.uri.fsPath) !== `.${WORKSPACE_EXTENSION}`) {
-			return false; // we need a local workspace file
+		if (!hasWorkspaceFileExtension(model.uri.fsPath)) {
+			return false; // we need a workspace file
+		}
+
+		if (!this.fileService.canHandleResource(model.uri)) {
+			return false; // needs to be backed by a file service
 		}
 
 		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {

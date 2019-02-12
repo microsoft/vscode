@@ -52,7 +52,7 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 		this.pendingUpdates.forEach(cancellationSource => cancellationSource.dispose());
 	}
 
-	provideTextContent(resource: uri): Promise<ITextModel> {
+	provideTextContent(resource: uri): Promise<ITextModel> | null {
 		return this.createOrUpdateContentModel(resource, true);
 	}
 
@@ -69,15 +69,15 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 	/**
 	 * Create or reload the model content of the given resource.
 	 */
-	private createOrUpdateContentModel(resource: uri, createIfNotExists: boolean): Promise<ITextModel> {
+	private createOrUpdateContentModel(resource: uri, createIfNotExists: boolean): Promise<ITextModel> | null {
 
 		const model = this.modelService.getModel(resource);
 		if (!model && !createIfNotExists) {
 			// nothing to do
-			return undefined;
+			return null;
 		}
 
-		let session: IDebugSession;
+		let session: IDebugSession | undefined;
 
 		if (resource.query) {
 			const data = Source.getEncodedDebugData(resource);
@@ -125,7 +125,7 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 						// remove token
 						this.pendingUpdates.delete(model.id);
 
-						if (!myToken.token.isCancellationRequested && edits.length > 0) {
+						if (!myToken.token.isCancellationRequested && edits && edits.length > 0) {
 							// use the evil-edit as these models show in readonly-editor only
 							model.applyEdits(edits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
 						}

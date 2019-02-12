@@ -68,7 +68,7 @@ export interface ISCMProvider extends IDisposable {
 	readonly statusBarCommands?: Command[];
 	readonly onDidChange: Event<void>;
 
-	getOriginalResource(uri: URI): Promise<URI>;
+	getOriginalResource(uri: URI): Promise<URI | null>;
 }
 
 export const enum InputValidationType {

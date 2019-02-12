@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import * as paths from 'vs/base/common/paths';
+import { isEqual } from 'vs/base/common/paths';
+import { posix } from 'vs/base/common/paths.node';
 import * as resources from 'vs/base/common/resources';
 import { ResourceMap } from 'vs/base/common/map';
 import { isLinux } from 'vs/base/common/platform';
@@ -331,24 +332,24 @@ export class ExplorerItem {
 		// For performance reasons try to do the comparison as fast as possible
 		if (resource && this.resource.scheme === resource.scheme && equalsIgnoreCase(this.resource.authority, resource.authority) &&
 			(resources.hasToIgnoreCase(resource) ? startsWithIgnoreCase(resource.path, this.resource.path) : startsWith(resource.path, this.resource.path))) {
-			return this.findByPath(rtrim(resource.path, paths.sep), this.resource.path.length);
+			return this.findByPath(rtrim(resource.path, posix.sep), this.resource.path.length);
 		}
 
 		return null; //Unable to find
 	}
 
 	private findByPath(path: string, index: number): ExplorerItem | null {
-		if (paths.isEqual(rtrim(this.resource.path, paths.sep), path, !isLinux)) {
+		if (isEqual(rtrim(this.resource.path, posix.sep), path, !isLinux)) {
 			return this;
 		}
 
 		if (this.isDirectory) {
 			// Ignore separtor to more easily deduct the next name to search
-			while (index < path.length && path[index] === paths.sep) {
+			while (index < path.length && path[index] === posix.sep) {
 				index++;
 			}
 
-			let indexOfNextSep = path.indexOf(paths.sep, index);
+			let indexOfNextSep = path.indexOf(posix.sep, index);
 			if (indexOfNextSep === -1) {
 				// If there is no separator take the remainder of the path
 				indexOfNextSep = path.length;

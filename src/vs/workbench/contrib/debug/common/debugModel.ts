@@ -20,7 +20,7 @@ import {
 } from 'vs/workbench/contrib/debug/common/debug';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { commonSuffixLength } from 'vs/base/common/strings';
-import { sep } from 'vs/base/common/paths';
+import { posix } from 'vs/base/common/paths.node';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
@@ -95,7 +95,7 @@ export class ExpressionContainer implements IExpressionContainer {
 
 	public valueChanged: boolean;
 	private _value: string;
-	protected children: Promise<IExpression[]>;
+	protected children?: Promise<IExpression[]>;
 
 	constructor(
 		protected session: IDebugSession,
@@ -187,7 +187,7 @@ export class ExpressionContainer implements IExpressionContainer {
 
 	set value(value: string) {
 		this._value = value;
-		this.valueChanged = ExpressionContainer.allValues.get(this.getId()) &&
+		this.valueChanged = !!ExpressionContainer.allValues.get(this.getId()) &&
 			ExpressionContainer.allValues.get(this.getId()) !== Expression.DEFAULT_VALUE && ExpressionContainer.allValues.get(this.getId()) !== value;
 		ExpressionContainer.allValues.set(this.getId(), value);
 	}
@@ -259,7 +259,7 @@ export class Variable extends ExpressionContainer implements IExpression {
 		namedVariables: number,
 		indexedVariables: number,
 		public presentationHint: DebugProtocol.VariablePresentationHint,
-		public type: string | null = null,
+		public type: string | undefined = undefined,
 		public available = true,
 		startOfVariables = 0
 	) {
@@ -308,7 +308,7 @@ export class Scope extends ExpressionContainer implements IScope {
 
 export class StackFrame implements IStackFrame {
 
-	private scopes: Promise<Scope[]>;
+	private scopes: Promise<Scope[]> | null;
 
 	constructor(
 		public thread: IThread,
@@ -354,7 +354,7 @@ export class StackFrame implements IStackFrame {
 			return this.source.name;
 		}
 
-		const from = Math.max(0, this.source.uri.path.lastIndexOf(sep, this.source.uri.path.length - suffixLength - 1));
+		const from = Math.max(0, this.source.uri.path.lastIndexOf(posix.sep, this.source.uri.path.length - suffixLength - 1));
 		return (from > 0 ? '...' : '') + this.source.uri.path.substr(from);
 	}
 
@@ -367,7 +367,7 @@ export class StackFrame implements IStackFrame {
 			}
 
 			const scopesContainingRange = scopes.filter(scope => scope.range && Range.containsRange(scope.range, range))
-				.sort((first, second) => (first.range.endLineNumber - first.range.startLineNumber) - (second.range.endLineNumber - second.range.startLineNumber));
+				.sort((first, second) => (first.range!.endLineNumber - first.range!.startLineNumber) - (second.range!.endLineNumber - second.range!.startLineNumber));
 			return scopesContainingRange.length ? scopesContainingRange : scopes;
 		});
 	}
@@ -564,7 +564,7 @@ export class BaseBreakpoint extends Enablement implements IBaseBreakpoint {
 		return data ? data.verified : true;
 	}
 
-	get idFromAdapter(): number {
+	get idFromAdapter(): number | undefined {
 		const data = this.getSessionData();
 		return data ? data.id : undefined;
 	}
@@ -617,7 +617,7 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 		return data && typeof data.column === 'number' && typeof this._column === 'number' ? data.column : this._column;
 	}
 
-	get message(): string {
+	get message(): string | undefined {
 		const data = this.getSessionData();
 		if (!data) {
 			return undefined;
@@ -634,12 +634,12 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 		return data && data.source && data.source.adapterData ? data.source.adapterData : this._adapterData;
 	}
 
-	get endLineNumber(): number {
+	get endLineNumber(): number | undefined {
 		const data = this.getSessionData();
 		return data ? data.endLine : undefined;
 	}
 
-	get endColumn(): number {
+	get endColumn(): number | undefined {
 		const data = this.getSessionData();
 		return data ? data.endColumn : undefined;
 	}
@@ -743,9 +743,9 @@ export class DebugModel implements IDebugModel {
 	private toDispose: lifecycle.IDisposable[];
 	private schedulers = new Map<string, RunOnceScheduler>();
 	private breakpointsSessionId: string;
-	private readonly _onDidChangeBreakpoints: Emitter<IBreakpointsChangeEvent>;
+	private readonly _onDidChangeBreakpoints: Emitter<IBreakpointsChangeEvent | undefined>;
 	private readonly _onDidChangeCallStack: Emitter<void>;
-	private readonly _onDidChangeWatchExpressions: Emitter<IExpression>;
+	private readonly _onDidChangeWatchExpressions: Emitter<IExpression | undefined>;
 
 	constructor(
 		private breakpoints: Breakpoint[],
@@ -797,7 +797,7 @@ export class DebugModel implements IDebugModel {
 		return this._onDidChangeCallStack.event;
 	}
 
-	get onDidChangeWatchExpressions(): Event<IExpression> {
+	get onDidChangeWatchExpressions(): Event<IExpression | undefined> {
 		return this._onDidChangeWatchExpressions.event;
 	}
 
@@ -830,7 +830,7 @@ export class DebugModel implements IDebugModel {
 					}, 420));
 				}
 
-				this.schedulers.get(thread.getId()).schedule();
+				this.schedulers.get(thread.getId())!.schedule();
 				this._onDidChangeCallStack.fire();
 			});
 		}

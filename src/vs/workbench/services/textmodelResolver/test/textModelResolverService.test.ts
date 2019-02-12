@@ -72,7 +72,7 @@ suite('Workbench - TextModelResolverService', () => {
 
 		return input.resolve().then(async model => {
 			assert.ok(model);
-			assert.equal(snapshotToString((model as ResourceEditorModel).createSnapshot()), 'Hello Test');
+			assert.equal(snapshotToString((model as ResourceEditorModel).createSnapshot()!), 'Hello Test');
 
 			let disposed = false;
 			let disposedPromise = new Promise(resolve => {

@@ -90,7 +90,7 @@ interface IRuntimeExtension {
 	description: IExtensionDescription;
 	marketplaceInfo: IExtension;
 	status: IExtensionsStatus;
-	profileInfo: IExtensionProfileInformation;
+	profileInfo?: IExtensionProfileInformation;
 	unresponsiveProfile?: IExtensionHostProfile;
 }
 
@@ -98,10 +98,10 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 	public static readonly ID: string = 'workbench.editor.runtimeExtensions';
 
-	private _list: WorkbenchList<IRuntimeExtension>;
+	private _list: WorkbenchList<IRuntimeExtension> | null;
 	private _profileInfo: IExtensionHostProfile;
 
-	private _elements: IRuntimeExtension[];
+	private _elements: IRuntimeExtension[] | null;
 	private _extensionsDescriptions: IExtensionDescription[];
 	private _updateSoon: RunOnceScheduler;
 	private _profileSessionState: IContextKey<string>;
@@ -214,7 +214,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				description: extensionDescription,
 				marketplaceInfo: marketplaceMap[ExtensionIdentifier.toKey(extensionDescription.identifier)],
 				status: statusMap[extensionDescription.identifier.value],
-				profileInfo: profileInfo,
+				profileInfo: profileInfo || undefined,
 				unresponsiveProfile: this._extensionHostProfileService.getUnresponsiveProfile(extensionDescription.identifier)
 			};
 		}
@@ -299,7 +299,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 				toggleClass(data.root, 'odd', index % 2 === 1);
 
-				data.name.textContent = element.marketplaceInfo ? element.marketplaceInfo.displayName : element.description.displayName;
+				data.name.textContent = element.marketplaceInfo ? element.marketplaceInfo.displayName : element.description.displayName || '';
 
 				const activationTimes = element.status.activationTimes;
 				let syncTime = activationTimes.codeLoadingTime + activationTimes.activateCallTime;
@@ -402,7 +402,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 			horizontalScrolling: false
 		}) as WorkbenchList<IRuntimeExtension>;
 
-		this._list.splice(0, this._list.length, this._elements);
+		this._list.splice(0, this._list.length, this._elements || undefined);
 
 		this._list.onContextMenu((e) => {
 			if (!e.element) {
@@ -415,8 +415,8 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 			actions.push(new Separator());
 
 			if (e.element.marketplaceInfo) {
-				actions.push(new Action('runtimeExtensionsEditor.action.disableWorkspace', nls.localize('disable workspace', "Disable (Workspace)"), null, true, () => this._extensionsWorkbenchService.setEnablement(e.element.marketplaceInfo, EnablementState.WorkspaceDisabled)));
-				actions.push(new Action('runtimeExtensionsEditor.action.disable', nls.localize('disable', "Disable"), null, true, () => this._extensionsWorkbenchService.setEnablement(e.element.marketplaceInfo, EnablementState.Disabled)));
+				actions.push(new Action('runtimeExtensionsEditor.action.disableWorkspace', nls.localize('disable workspace', "Disable (Workspace)"), undefined, true, () => this._extensionsWorkbenchService.setEnablement(e.element!.marketplaceInfo, EnablementState.WorkspaceDisabled)));
+				actions.push(new Action('runtimeExtensionsEditor.action.disable', nls.localize('disable', "Disable"), undefined, true, () => this._extensionsWorkbenchService.setEnablement(e.element!.marketplaceInfo, EnablementState.Disabled)));
 				actions.push(new Separator());
 			}
 			const state = this._extensionHostProfileService.state;
@@ -440,7 +440,9 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 	}
 
 	public layout(dimension: Dimension): void {
-		this._list.layout(dimension.height);
+		if (this._list) {
+			this._list.layout(dimension.height);
+		}
 	}
 }
 
@@ -577,7 +579,7 @@ export class DebugExtensionHostAction extends Action {
 			}
 		}
 
-		return this._debugService.startDebugging(null, {
+		return this._debugService.startDebugging(undefined, {
 			type: 'node',
 			name: nls.localize('debugExtensionHost.launch.name', "Attach Extension Host"),
 			request: 'attach',

@@ -37,13 +37,13 @@ const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
 
 schema.properties.engines.properties.vscode.default = `^${pkg.version}`;
 
-let productAllowProposedApi: Set<string> = null;
+let productAllowProposedApi: Set<string> | null = null;
 function allowProposedApiFromProduct(id: ExtensionIdentifier): boolean {
 	// create set if needed
-	if (productAllowProposedApi === null) {
+	if (!productAllowProposedApi) {
 		productAllowProposedApi = new Set<string>();
 		if (isNonEmptyArray(product.extensionAllowedProposedApi)) {
-			product.extensionAllowedProposedApi.forEach((id) => productAllowProposedApi.add(ExtensionIdentifier.toKey(id)));
+			product.extensionAllowedProposedApi.forEach((id) => productAllowProposedApi!.add(ExtensionIdentifier.toKey(id)));
 		}
 	}
 	return productAllowProposedApi.has(ExtensionIdentifier.toKey(id));
@@ -167,7 +167,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		}
 
 		while (this._deltaExtensionsQueue.length > 0) {
-			const item = this._deltaExtensionsQueue.shift();
+			const item = this._deltaExtensionsQueue.shift()!;
 			try {
 				this._inHandleDeltaExtensions = true;
 				await this._deltaExtensions(item.toAdd, item.toRemove);
@@ -227,7 +227,11 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		}
 
 		// Update the local registry
-		this._registry.deltaExtensions(toAdd, toRemove.map(e => e.identifier));
+		const result = this._registry.deltaExtensions(toAdd, toRemove.map(e => e.identifier));
+		toRemove = toRemove.concat(result.removedDueToLooping);
+		if (result.removedDueToLooping.length > 0) {
+			this._logOrShowMessage(Severity.Error, nls.localize('looping', "The following extensions contain dependency loops and have been disabled: {0}", result.removedDueToLooping.map(e => `'${e.identifier.value}'`).join(', ')));
+		}
 
 		// Update extension points
 		this._rehandleExtensionPoints((<IExtensionDescription[]>[]).concat(toAdd).concat(toRemove));
@@ -625,12 +629,16 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		const enabledExtensions = await this._getRuntimeExtensions(extensions);
 
 		this._handleExtensionPoints(enabledExtensions);
-		extensionHost.start(enabledExtensions.map(extension => extension.identifier));
+		extensionHost.start(enabledExtensions.map(extension => extension.identifier).filter(id => this._registry.containsExtension(id)));
 		this._releaseBarrier();
 	}
 
 	private _handleExtensionPoints(allExtensions: IExtensionDescription[]): void {
-		this._registry = new ExtensionDescriptionRegistry(allExtensions);
+		this._registry = new ExtensionDescriptionRegistry([]);
+		const result = this._registry.deltaExtensions(allExtensions, []);
+		if (result.removedDueToLooping.length > 0) {
+			this._logOrShowMessage(Severity.Error, nls.localize('looping', "The following extensions contain dependency loops and have been disabled: {0}", result.removedDueToLooping.map(e => `'${e.identifier.value}'`).join(', ')));
+		}
 
 		let availableExtensions = this._registry.getAllExtensionDescriptions();
 		let extensionPoints = ExtensionsRegistry.getExtensionPoints();
@@ -815,6 +823,16 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		}
 	}
 
+	public async _activateById(extensionId: ExtensionIdentifier, activationEvent: string): Promise<void> {
+		const results = await Promise.all(
+			this._extensionHostProcessManagers.map(manager => manager.activate(extensionId, activationEvent))
+		);
+		const activated = results.some(e => e);
+		if (!activated) {
+			throw new Error(`Unknown extension ${extensionId.value}`);
+		}
+	}
+
 	public _onWillActivateExtension(extensionId: ExtensionIdentifier): void {
 		this._extensionHostActiveExtensions.set(ExtensionIdentifier.toKey(extensionId), extensionId);
 	}
@@ -838,7 +856,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		if (!this._extensionsMessages.has(extensionKey)) {
 			this._extensionsMessages.set(extensionKey, []);
 		}
-		this._extensionsMessages.get(extensionKey).push({
+		this._extensionsMessages.get(extensionKey)!.push({
 			type: severity,
 			message: message,
 			extensionId: null,

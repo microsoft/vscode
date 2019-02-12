@@ -188,7 +188,7 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 	}
 }
 
-export class ExtHostTerminalRenderer extends BaseExtHostTerminal implements vscode.TerminalRenderer, vscode.AnsiRenderer {
+export class ExtHostTerminalRenderer extends BaseExtHostTerminal implements vscode.TerminalRenderer {
 	public get name(): string { return this._name; }
 	public set name(newName: string) {
 		this._name = newName;

@@ -5,7 +5,7 @@
 
 import { compareAnything } from 'vs/base/common/comparers';
 import { matchesPrefix, IMatch, matchesCamelCase, isUpper } from 'vs/base/common/filters';
-import { nativeSep } from 'vs/base/common/paths';
+import { sep } from 'vs/base/common/paths.node';
 import { isWindows, isLinux } from 'vs/base/common/platform';
 import { stripWildcards, equalsIgnoreCase } from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
@@ -320,11 +320,11 @@ export function prepareQuery(original: string): IPreparedQuery {
 
 	let value = stripWildcards(original).replace(/\s/g, ''); // get rid of all wildcards and whitespace
 	if (isWindows) {
-		value = value.replace(/\//g, nativeSep); // Help Windows users to search for paths when using slash
+		value = value.replace(/\//g, sep); // Help Windows users to search for paths when using slash
 	}
 
 	const lowercase = value.toLowerCase();
-	const containsPathSeparator = value.indexOf(nativeSep) >= 0;
+	const containsPathSeparator = value.indexOf(sep) >= 0;
 
 	return { original, value, lowercase, containsPathSeparator };
 }
@@ -410,7 +410,7 @@ function doScoreItem(label: string, description: string | null, path: string | u
 	if (description) {
 		let descriptionPrefix = description;
 		if (!!path) {
-			descriptionPrefix = `${description}${nativeSep}`; // assume this is a file path
+			descriptionPrefix = `${description}${sep}`; // assume this is a file path
 		}
 
 		const descriptionPrefixLength = descriptionPrefix.length;

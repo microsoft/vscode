@@ -8,6 +8,7 @@ import { localize } from 'vs/nls';
 import { Event } from 'vs/base/common/event';
 import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { URI, UriComponents } from 'vs/base/common/uri';
+import { extname } from 'vs/base/common/paths.node';
 
 export const IWorkspacesMainService = createDecorator<IWorkspacesMainService>('workspacesMainService');
 export const IWorkspacesService = createDecorator<IWorkspacesService>('workspacesService');
@@ -87,7 +88,7 @@ export interface IWorkspacesMainService extends IWorkspacesService {
 
 	createUntitledWorkspaceSync(folders?: IWorkspaceFolderCreationData[]): IWorkspaceIdentifier;
 
-	resolveWorkspaceSync(path: string): IResolvedWorkspace | null;
+	resolveLocalWorkspaceSync(path: URI): IResolvedWorkspace | null;
 
 	isUntitledWorkspace(workspace: IWorkspaceIdentifier): boolean;
 
@@ -137,4 +138,10 @@ export type IWorkspaceInitializationPayload = IMultiFolderWorkspaceInitializatio
 
 export function isSingleFolderWorkspaceInitializationPayload(obj: any): obj is ISingleFolderWorkspaceInitializationPayload {
 	return isSingleFolderWorkspaceIdentifier((obj.folder as ISingleFolderWorkspaceIdentifier));
+}
+
+const WORKSPACE_SUFFIX = '.' + WORKSPACE_EXTENSION;
+
+export function hasWorkspaceFileExtension(path: string) {
+	return extname(path) === WORKSPACE_SUFFIX;
 }

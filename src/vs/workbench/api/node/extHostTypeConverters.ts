@@ -28,6 +28,7 @@ import * as marked from 'vs/base/common/marked/marked';
 import { parse } from 'vs/base/common/marshalling';
 import { cloneAndChange } from 'vs/base/common/objects';
 import { LogLevel as _MainLogLevel } from 'vs/platform/log/common/log';
+import { coalesce } from 'vs/base/common/arrays';
 
 export interface PositionLike {
 	line: number;
@@ -64,7 +65,10 @@ export namespace Selection {
 }
 export namespace Range {
 
-	export function from(range: RangeLike): IRange {
+	export function from(range: undefined): undefined;
+	export function from(range: RangeLike): IRange;
+	export function from(range: RangeLike | undefined): IRange | undefined;
+	export function from(range: RangeLike | undefined): IRange | undefined {
 		if (!range) {
 			return undefined;
 		}
@@ -77,7 +81,10 @@ export namespace Range {
 		};
 	}
 
-	export function to(range: IRange): types.Range {
+	export function to(range: undefined): types.Range;
+	export function to(range: IRange): types.Range;
+	export function to(range: IRange | undefined): types.Range | undefined;
+	export function to(range: IRange | undefined): types.Range | undefined {
 		if (!range) {
 			return undefined;
 		}
@@ -96,7 +103,7 @@ export namespace Position {
 }
 
 export namespace DiagnosticTag {
-	export function from(value: vscode.DiagnosticTag): MarkerTag {
+	export function from(value: vscode.DiagnosticTag): MarkerTag | undefined {
 		switch (value) {
 			case types.DiagnosticTag.Unnecessary:
 				return MarkerTag.Unnecessary;
@@ -114,7 +121,7 @@ export namespace Diagnostic {
 			code: isString(value.code) || isNumber(value.code) ? String(value.code) : undefined,
 			severity: DiagnosticSeverity.from(value.severity),
 			relatedInformation: value.relatedInformation && value.relatedInformation.map(DiagnosticRelatedInformation.from),
-			tags: Array.isArray(value.tags) ? value.tags.map(DiagnosticTag.from) : undefined,
+			tags: Array.isArray(value.tags) ? coalesce(value.tags.map(DiagnosticTag.from)) : undefined,
 		};
 	}
 }
@@ -175,12 +182,12 @@ export namespace ViewColumn {
 		return ACTIVE_GROUP; // default is always the active group
 	}
 
-	export function to(position?: EditorViewColumn): vscode.ViewColumn {
+	export function to(position: EditorViewColumn): vscode.ViewColumn {
 		if (typeof position === 'number' && position >= 0) {
 			return position + 1; // adjust to index (ViewColumn.ONE => 1)
 		}
 
-		return undefined;
+		throw new Error(`invalid 'EditorViewColumn'`);
 	}
 }
 
@@ -226,13 +233,15 @@ export namespace MarkdownString {
 		}
 
 		// extract uris into a separate object
-		res.uris = Object.create(null);
+		const resUris: { [href: string]: UriComponents } = Object.create(null);
+		res.uris = resUris;
+
 		let renderer = new marked.Renderer();
 		renderer.image = renderer.link = (href: string): string => {
 			try {
 				let uri = URI.parse(href, true);
-				uri = uri.with({ query: _uriMassage(uri.query, res.uris) });
-				res.uris[href] = uri;
+				uri = uri.with({ query: _uriMassage(uri.query, resUris) });
+				resUris[href] = uri;
 			} catch (e) {
 				// ignore
 			}
@@ -284,10 +293,12 @@ export namespace MarkdownString {
 
 export function fromRangeOrRangeWithMessage(ranges: vscode.Range[] | vscode.DecorationOptions[]): IDecorationOptions[] {
 	if (isDecorationOptionsArr(ranges)) {
-		return ranges.map(r => {
+		return ranges.map((r): IDecorationOptions => {
 			return {
 				range: Range.from(r.range),
-				hoverMessage: Array.isArray(r.hoverMessage) ? MarkdownString.fromMany(r.hoverMessage) : r.hoverMessage && MarkdownString.from(r.hoverMessage),
+				hoverMessage: Array.isArray(r.hoverMessage)
+					? MarkdownString.fromMany(r.hoverMessage)
+					: (r.hoverMessage ? MarkdownString.from(r.hoverMessage) : undefined),
 				renderOptions: <any> /* URI vs Uri */r.renderOptions
 			};
 		});
@@ -318,7 +329,7 @@ export namespace ThemableDecorationAttachmentRenderOptions {
 		}
 		return {
 			contentText: options.contentText,
-			contentIconPath: pathOrURIToURI(options.contentIconPath),
+			contentIconPath: options.contentIconPath ? pathOrURIToURI(options.contentIconPath) : undefined,
 			border: options.border,
 			borderColor: <string | types.ThemeColor>options.borderColor,
 			fontStyle: options.fontStyle,
@@ -357,11 +368,11 @@ export namespace ThemableDecorationRenderOptions {
 			color: <string | types.ThemeColor>options.color,
 			opacity: options.opacity,
 			letterSpacing: options.letterSpacing,
-			gutterIconPath: pathOrURIToURI(options.gutterIconPath),
+			gutterIconPath: options.gutterIconPath ? pathOrURIToURI(options.gutterIconPath) : undefined,
 			gutterIconSize: options.gutterIconSize,
 			overviewRulerColor: <string | types.ThemeColor>options.overviewRulerColor,
-			before: ThemableDecorationAttachmentRenderOptions.from(options.before),
-			after: ThemableDecorationAttachmentRenderOptions.from(options.after),
+			before: options.before ? ThemableDecorationAttachmentRenderOptions.from(options.before) : undefined,
+			after: options.after ? ThemableDecorationAttachmentRenderOptions.from(options.after) : undefined,
 		};
 	}
 }
@@ -388,10 +399,10 @@ export namespace DecorationRenderOptions {
 	export function from(options: vscode.DecorationRenderOptions): IDecorationRenderOptions {
 		return {
 			isWholeLine: options.isWholeLine,
-			rangeBehavior: DecorationRangeBehavior.from(options.rangeBehavior),
+			rangeBehavior: options.rangeBehavior ? DecorationRangeBehavior.from(options.rangeBehavior) : undefined,
 			overviewRulerLane: options.overviewRulerLane,
-			light: ThemableDecorationRenderOptions.from(options.light),
-			dark: ThemableDecorationRenderOptions.from(options.dark),
+			light: options.light ? ThemableDecorationRenderOptions.from(options.light) : undefined,
+			dark: options.dark ? ThemableDecorationRenderOptions.from(options.dark) : undefined,
 
 			backgroundColor: <string | types.ThemeColor>options.backgroundColor,
 			outline: options.outline,
@@ -411,11 +422,11 @@ export namespace DecorationRenderOptions {
 			color: <string | types.ThemeColor>options.color,
 			opacity: options.opacity,
 			letterSpacing: options.letterSpacing,
-			gutterIconPath: pathOrURIToURI(options.gutterIconPath),
+			gutterIconPath: options.gutterIconPath ? pathOrURIToURI(options.gutterIconPath) : undefined,
 			gutterIconSize: options.gutterIconSize,
 			overviewRulerColor: <string | types.ThemeColor>options.overviewRulerColor,
-			before: ThemableDecorationAttachmentRenderOptions.from(options.before),
-			after: ThemableDecorationAttachmentRenderOptions.from(options.after),
+			before: options.before ? ThemableDecorationAttachmentRenderOptions.from(options.before) : undefined,
+			after: options.after ? ThemableDecorationAttachmentRenderOptions.from(options.after) : undefined,
 		};
 	}
 }
@@ -432,7 +443,7 @@ export namespace TextEdit {
 
 	export function to(edit: modes.TextEdit): types.TextEdit {
 		const result = new types.TextEdit(Range.to(edit.range), edit.text);
-		result.newEol = EndOfLine.to(edit.eol);
+		result.newEol = (typeof edit.eol === 'undefined' ? undefined : EndOfLine.to(edit.eol))!;
 		return result;
 	}
 }
@@ -446,7 +457,7 @@ export namespace WorkspaceEdit {
 			const [uri, uriOrEdits] = entry;
 			if (Array.isArray(uriOrEdits)) {
 				// text edits
-				const doc = documents ? documents.getDocument(uri.toString()) : undefined;
+				const doc = documents && uri ? documents.getDocument(uri.toString()) : undefined;
 				result.edits.push(<ResourceTextEditDto>{ resource: uri, modelVersionId: doc && doc.version, edits: uriOrEdits.map(TextEdit.from) });
 			} else {
 				// resource edits
@@ -648,7 +659,7 @@ export namespace CompletionContext {
 
 export namespace CompletionItemKind {
 
-	export function from(kind: types.CompletionItemKind): modes.CompletionItemKind {
+	export function from(kind: types.CompletionItemKind | undefined): modes.CompletionItemKind {
 		switch (kind) {
 			case types.CompletionItemKind.Method: return modes.CompletionItemKind.Method;
 			case types.CompletionItemKind.Function: return modes.CompletionItemKind.Function;
@@ -724,9 +735,9 @@ export namespace CompletionItem {
 		result.preselect = suggestion.preselect;
 		result.commitCharacters = suggestion.commitCharacters;
 		result.range = Range.to(suggestion.range);
-		result.keepWhitespace = Boolean(suggestion.insertTextRules & modes.CompletionItemInsertTextRule.KeepWhitespace);
+		result.keepWhitespace = typeof suggestion.insertTextRules === 'undefined' ? false : Boolean(suggestion.insertTextRules & modes.CompletionItemInsertTextRule.KeepWhitespace);
 		// 'inserText'-logic
-		if (suggestion.insertTextRules & modes.CompletionItemInsertTextRule.InsertAsSnippet) {
+		if (typeof suggestion.insertTextRules !== 'undefined' && suggestion.insertTextRules & modes.CompletionItemInsertTextRule.InsertAsSnippet) {
 			result.insertText = new types.SnippetString(suggestion.insertText);
 		} else {
 			result.insertText = suggestion.insertText;
@@ -742,7 +753,7 @@ export namespace ParameterInformation {
 	export function from(info: types.ParameterInformation): modes.ParameterInformation {
 		return {
 			label: info.label,
-			documentation: MarkdownString.fromStrict(info.documentation)
+			documentation: info.documentation ? MarkdownString.fromStrict(info.documentation) : undefined
 		};
 	}
 	export function to(info: modes.ParameterInformation): types.ParameterInformation {
@@ -758,7 +769,7 @@ export namespace SignatureInformation {
 	export function from(info: types.SignatureInformation): modes.SignatureInformation {
 		return {
 			label: info.label,
-			documentation: MarkdownString.fromStrict(info.documentation),
+			documentation: info.documentation ? MarkdownString.fromStrict(info.documentation) : undefined,
 			parameters: info.parameters && info.parameters.map(ParameterInformation.from)
 		};
 	}
@@ -801,7 +812,7 @@ export namespace DocumentLink {
 	}
 
 	export function to(link: modes.ILink): vscode.DocumentLink {
-		return new types.DocumentLink(Range.to(link.range), link.url && URI.parse(link.url));
+		return new types.DocumentLink(Range.to(link.range), link.url ? URI.parse(link.url) : undefined);
 	}
 }
 
@@ -877,7 +888,7 @@ export namespace TextDocumentSaveReason {
 
 export namespace EndOfLine {
 
-	export function from(eol: vscode.EndOfLine): EndOfLineSequence {
+	export function from(eol: vscode.EndOfLine): EndOfLineSequence | undefined {
 		if (eol === types.EndOfLine.CRLF) {
 			return EndOfLineSequence.CRLF;
 		} else if (eol === types.EndOfLine.LF) {
@@ -886,7 +897,7 @@ export namespace EndOfLine {
 		return undefined;
 	}
 
-	export function to(eol: EndOfLineSequence): vscode.EndOfLine {
+	export function to(eol: EndOfLineSequence): vscode.EndOfLine | undefined {
 		if (eol === EndOfLineSequence.CRLF) {
 			return types.EndOfLine.CRLF;
 		} else if (eol === EndOfLineSequence.LF) {
@@ -903,7 +914,7 @@ export namespace ProgressLocation {
 			case types.ProgressLocation.Window: return MainProgressLocation.Window;
 			case types.ProgressLocation.Notification: return MainProgressLocation.Notification;
 		}
-		return undefined;
+		throw new Error(`Unknown 'ProgressLocation'`);
 	}
 }
 
@@ -935,7 +946,7 @@ export namespace FoldingRangeKind {
 
 export namespace TextEditorOptions {
 
-	export function from(options?: vscode.TextDocumentShowOptions): ITextEditorOptions {
+	export function from(options?: vscode.TextDocumentShowOptions): ITextEditorOptions | undefined {
 		if (options) {
 			return {
 				pinned: typeof options.preview === 'boolean' ? !options.preview : undefined,
@@ -975,7 +986,10 @@ export namespace GlobPattern {
 
 export namespace LanguageSelector {
 
-	export function from(selector: vscode.DocumentSelector): languageSelector.LanguageSelector {
+	export function from(selector: undefined): undefined;
+	export function from(selector: vscode.DocumentSelector): languageSelector.LanguageSelector;
+	export function from(selector: vscode.DocumentSelector | undefined): languageSelector.LanguageSelector | undefined;
+	export function from(selector: vscode.DocumentSelector | undefined): languageSelector.LanguageSelector | undefined {
 		if (!selector) {
 			return undefined;
 		} else if (Array.isArray(selector)) {
@@ -986,7 +1000,7 @@ export namespace LanguageSelector {
 			return <languageSelector.LanguageFilter>{
 				language: selector.language,
 				scheme: selector.scheme,
-				pattern: GlobPattern.from(selector.pattern),
+				pattern: typeof selector.pattern === 'undefined' ? undefined : GlobPattern.from(selector.pattern),
 				exclusive: selector.exclusive
 			};
 		}

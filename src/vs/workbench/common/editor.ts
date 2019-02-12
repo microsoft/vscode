@@ -184,13 +184,13 @@ export interface IEditorInputFactory {
 	 * Returns a string representation of the provided editor input that contains enough information
 	 * to deserialize back to the original editor input from the deserialize() method.
 	 */
-	serialize(editorInput: EditorInput): string;
+	serialize(editorInput: EditorInput): string | null;
 
 	/**
 	 * Returns an editor input from the provided serialized form of the editor input. This form matches
 	 * the value returned from the serialize() method.
 	 */
-	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput;
+	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput | null;
 }
 
 export interface IUntitledResourceInput extends IBaseResourceInput {
@@ -638,7 +638,7 @@ export class EditorModel extends Disposable implements IEditorModel {
 	/**
 	 * Causes this model to load returning a promise when loading is completed.
 	 */
-	load(): Promise<EditorModel> {
+	load(): Promise<IEditorModel> {
 		return Promise.resolve(this);
 	}
 
@@ -688,6 +688,7 @@ export class EditorOptions implements IEditorOptions {
 		options.pinned = settings.pinned;
 		options.index = settings.index;
 		options.inactive = settings.inactive;
+		options.ignoreError = settings.ignoreError;
 
 		return options;
 	}
@@ -731,6 +732,12 @@ export class EditorOptions implements IEditorOptions {
 	 * in the background.
 	 */
 	inactive: boolean | undefined;
+
+	/**
+	 * Will not show an error in case opening the editor fails and thus allows to show a custom error
+	 * message as needed. By default, an error will be presented as notification if opening was not possible.
+	 */
+	ignoreError: boolean | undefined;
 }
 
 /**
@@ -794,6 +801,10 @@ export class TextEditorOptions extends EditorOptions {
 
 		if (options.inactive) {
 			textEditorOptions.inactive = true;
+		}
+
+		if (options.ignoreError) {
+			textEditorOptions.ignoreError = true;
 		}
 
 		if (typeof options.index === 'number') {

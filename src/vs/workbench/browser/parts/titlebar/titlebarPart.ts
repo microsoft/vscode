@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/titlebarpart';
-import * as paths from 'vs/base/common/paths';
+import { dirname, posix } from 'vs/base/common/paths.node';
 import * as resources from 'vs/base/common/resources';
 import { Part } from 'vs/workbench/browser/part';
 import { ITitleService, ITitleProperties } from 'vs/workbench/services/title/common/titleService';
@@ -514,7 +514,7 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 		const actions: IAction[] = [];
 
 		if (this.representedFileName) {
-			const segments = this.representedFileName.split(paths.sep);
+			const segments = this.representedFileName.split(posix.sep);
 			for (let i = segments.length; i > 0; i--) {
 				const isFile = (i === segments.length);
 
@@ -523,16 +523,16 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 					pathOffset++; // for segments which are not the file name we want to open the folder
 				}
 
-				const path = segments.slice(0, pathOffset).join(paths.sep);
+				const path = segments.slice(0, pathOffset).join(posix.sep);
 
 				let label: string;
 				if (!isFile) {
-					label = getBaseLabel(paths.dirname(path));
+					label = getBaseLabel(dirname(path));
 				} else {
 					label = getBaseLabel(path);
 				}
 
-				actions.push(new ShowItemInFolderAction(path, label || paths.sep, this.windowsService));
+				actions.push(new ShowItemInFolderAction(path, label || posix.sep, this.windowsService));
 			}
 		}
 
