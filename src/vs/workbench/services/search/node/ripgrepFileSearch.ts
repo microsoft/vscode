@@ -159,7 +159,7 @@ function globExprsToRgGlobs(patterns: glob.IExpression, folder?: string, exclude
  * Exported for testing
  */
 export function getAbsoluteGlob(folder: string, key: string): string {
-	return paths.isAbsolute(key) ?
+	return path.isAbsolute(key) ?
 		key :
 		path.join(folder, key);
 }

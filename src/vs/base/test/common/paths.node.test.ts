@@ -628,6 +628,55 @@ suite('Paths (Node Implementation)', () => {
 		assert.strictEqual(path.posix.isAbsolute('/home/foo/..'), true);
 		assert.strictEqual(path.posix.isAbsolute('bar/'), false);
 		assert.strictEqual(path.posix.isAbsolute('./baz'), false);
+
+		// Tests from us:
+
+		// Absolute Paths
+		[
+			'C:/',
+			'C:\\',
+			'C:/foo',
+			'C:\\foo',
+			'z:/foo/bar.txt',
+			'z:\\foo\\bar.txt',
+
+			'\\\\localhost\\c$\\foo',
+
+			'/',
+			'/foo'
+		].forEach(absolutePath => {
+			assert.ok(path.win32.isAbsolute(absolutePath), absolutePath);
+		});
+
+		[
+			'/',
+			'/foo',
+			'/foo/bar.txt'
+		].forEach(absolutePath => {
+			assert.ok(path.posix.isAbsolute(absolutePath), absolutePath);
+		});
+
+		// Relative Paths
+		[
+			'',
+			'foo',
+			'foo/bar',
+			'./foo',
+			'http://foo.com/bar'
+		].forEach(nonAbsolutePath => {
+			assert.ok(!path.win32.isAbsolute(nonAbsolutePath), nonAbsolutePath);
+		});
+
+		[
+			'',
+			'foo',
+			'foo/bar',
+			'./foo',
+			'http://foo.com/bar',
+			'z:/foo/bar.txt',
+		].forEach(nonAbsolutePath => {
+			assert.ok(!path.posix.isAbsolute(nonAbsolutePath), nonAbsolutePath);
+		});
 	});
 
 	test('path', () => {

@@ -8,6 +8,7 @@ import * as cp from 'child_process';
 import * as stream from 'stream';
 import * as nls from 'vs/nls';
 import * as net from 'net';
+import * as path from 'path';
 import * as paths from 'vs/base/common/paths';
 import * as strings from 'vs/base/common/strings';
 import * as objects from 'vs/base/common/objects';
@@ -316,7 +317,7 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 
 			// verify executables
 			if (this.adapterExecutable.command) {
-				if (paths.isAbsolute(this.adapterExecutable.command)) {
+				if (path.isAbsolute(this.adapterExecutable.command)) {
 					if (!fs.existsSync(this.adapterExecutable.command)) {
 						reject(new Error(nls.localize('debugAdapterBinNotFound', "Debug adapter executable '{0}' does not exist.", this.adapterExecutable.command)));
 					}
@@ -449,7 +450,7 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 			result.runtimeArgs = contribution.runtimeArgs;
 		}
 		if (contribution.program) {
-			if (!paths.isAbsolute(contribution.program)) {
+			if (!path.isAbsolute(contribution.program)) {
 				result.program = paths.join(extensionFolderPath, contribution.program);
 			} else {
 				result.program = contribution.program;

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as paths from 'vs/base/common/paths';
+import { isAbsolute } from 'vs/base/common/paths.node';
 import { URI } from 'vs/base/common/uri';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { Schemas } from 'vs/base/common/network';
@@ -159,7 +160,7 @@ export function fsPath(uri: URI): string {
  * Returns true if the URI path is absolute.
  */
 export function isAbsolutePath(resource: URI): boolean {
-	return paths.isAbsolute(resource.path);
+	return isAbsolute(resource.path);
 }
 
 export function distinctParents<T>(items: T[], resourceAccessor: (item: T) => URI): T[] {

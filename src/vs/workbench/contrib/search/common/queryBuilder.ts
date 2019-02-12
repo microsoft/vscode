@@ -8,7 +8,7 @@ import * as collections from 'vs/base/common/collections';
 import * as glob from 'vs/base/common/glob';
 import { untildify } from 'vs/base/common/labels';
 import { values } from 'vs/base/common/map';
-import * as paths from 'vs/base/common/paths';
+import * as path from 'vs/base/common/paths.node';
 import { isEqual } from 'vs/base/common/resources';
 import * as strings from 'vs/base/common/strings';
 import { URI as uri } from 'vs/base/common/uri';
@@ -211,7 +211,7 @@ export class QueryBuilder {
 	parseSearchPaths(pattern: string): ISearchPathsResult {
 		const isSearchPath = (segment: string) => {
 			// A segment is a search path if it is an absolute path or starts with ./, ../, .\, or ..\
-			return paths.isAbsolute(segment) || /^\.\.?[\/\\]/.test(segment);
+			return path.isAbsolute(segment) || /^\.\.?[\/\\]/.test(segment);
 		};
 
 		const segments = splitGlobPattern(pattern)
@@ -301,11 +301,11 @@ export class QueryBuilder {
 	 * Takes a searchPath like `./a/foo` and expands it to absolute paths for all the workspaces it matches.
 	 */
 	private expandOneSearchPath(searchPath: string): IOneSearchPathPattern[] {
-		if (paths.isAbsolute(searchPath)) {
+		if (path.isAbsolute(searchPath)) {
 			// Currently only local resources can be searched for with absolute search paths.
 			// TODO convert this to a workspace folder + pattern, so excludes will be resolved properly for an absolute path inside a workspace folder
 			return [{
-				searchPath: uri.file(paths.normalize(searchPath))
+				searchPath: uri.file(path.normalize(searchPath))
 			}];
 		}
 
