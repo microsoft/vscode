@@ -64,11 +64,11 @@ export function isEqual(first: URI | undefined, second: URI | undefined, ignoreC
 }
 
 export function basename(resource: URI): string {
-	return paths.basename(resource.path);
+	return paths.posix.basename(resource.path);
 }
 
 export function extname(resource: URI): string {
-	return paths.extname(resource.path);
+	return paths.posix.extname(resource.path);
 }
 
 /**
@@ -106,7 +106,7 @@ export function joinPath(resource: URI, ...pathFragment: string[]): URI {
 	if (resource.scheme === Schemas.file) {
 		joinedPath = URI.file(paths.join(fsPath(resource), ...pathFragment)).path;
 	} else {
-		joinedPath = paths.join(resource.path, ...pathFragment);
+		joinedPath = paths.posix.join(resource.path, ...pathFragment);
 	}
 	return resource.with({
 		path: joinedPath
@@ -127,7 +127,7 @@ export function normalizePath(resource: URI): URI {
 	if (resource.scheme === Schemas.file) {
 		normalizedPath = URI.file(paths.normalize(fsPath(resource))).path;
 	} else {
-		normalizedPath = paths.normalize(resource.path);
+		normalizedPath = paths.posix.normalize(resource.path);
 	}
 	return resource.with({
 		path: normalizedPath
@@ -165,7 +165,10 @@ export function fsPath(uri: URI): string {
  * Returns true if the URI path is absolute.
  */
 export function isAbsolutePath(resource: URI): boolean {
-	return paths.isAbsolute(resource.path);
+	if (resource.scheme === Schemas.file) {
+		return paths.isAbsolute(fsPath(resource));
+	}
+	return paths.posix.isAbsolute(resource.path);
 }
 
 export function distinctParents<T>(items: T[], resourceAccessor: (item: T) => URI): T[] {
