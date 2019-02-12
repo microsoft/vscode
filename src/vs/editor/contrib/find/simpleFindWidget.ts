@@ -228,11 +228,11 @@ export abstract class SimpleFindWidget extends Widget {
 
 	public hide(): void {
 		if (this._isVisible) {
-			this._isVisible = false;
 			dom.removeClass(this._innerDomNode, 'visible-transition');
 			this._innerDomNode.setAttribute('aria-hidden', 'true');
 			// Need to delay toggling visibility until after Transition, then visibility hidden - removes from tabIndex list
 			setTimeout(() => {
+				this._isVisible = false;
 				dom.removeClass(this._innerDomNode, 'visible');
 			}, 200);
 		}
