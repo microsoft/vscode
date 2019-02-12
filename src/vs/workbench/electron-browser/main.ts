@@ -138,11 +138,6 @@ function openWorkbench(configuration: IWindowConfiguration): Promise<void> {
 					storageService
 				}, mainServices, mainProcessClient, configuration);
 
-				// Gracefully Shutdown Storage
-				shell.onWillShutdown(event => {
-					event.join(storageService.close());
-				});
-
 				// Open Shell
 				shell.open();
 
