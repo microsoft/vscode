@@ -22,8 +22,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
-// todo@joh not nice!
-export let mainThreadWebviews: MainThreadWebviews;
 
 @extHostNamedCustomer(MainContext.MainThreadWebviews)
 export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviver {
@@ -54,7 +52,6 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
-		mainThreadWebviews = this;
 		this._proxy = context.getProxy(ExtHostContext.ExtHostWebviews);
 		_editorService.onDidActiveEditorChange(this.onActiveEditorChanged, this, this._toDispose);
 		_editorService.onDidVisibleEditorsChange(this.onVisibleEditorsChanged, this, this._toDispose);

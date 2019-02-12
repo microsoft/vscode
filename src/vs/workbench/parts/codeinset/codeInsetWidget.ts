@@ -12,7 +12,7 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IModelDeltaDecoration, IModelDecorationsChangeAccessor, ITextModel } from 'vs/editor/common/model';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { WebviewEditorInput } from 'vs/workbench/contrib/webview/electron-browser/webviewEditorInput';
-import { mainThreadWebviews, MainThreadWebviews } from 'vs/workbench/api/electron-browser/mainThreadWebview';
+import { MainThreadWebviews } from 'vs/workbench/api/electron-browser/mainThreadWebview';
 import { UriComponents } from 'vs/base/common/uri';
 
 
@@ -144,7 +144,7 @@ export class CodeInsetWidget {
 
 	static webviewPool = 1;
 
-	public createWebview(mainThreadWebview: MainThreadWebviews, extensionLocation: UriComponents) {
+	public createWebview(mainThreadWebviews: MainThreadWebviews, extensionLocation: UriComponents) {
 		if (this._webviewHandle) { return this._webviewHandle; }
 
 		const lineNumber = this._range.endLineNumber;
