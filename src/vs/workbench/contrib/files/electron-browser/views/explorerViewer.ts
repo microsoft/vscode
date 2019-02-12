@@ -28,7 +28,7 @@ import { once } from 'vs/base/common/functional';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { normalize } from 'vs/base/common/paths';
 import { equals, deepClone } from 'vs/base/common/objects';
-import * as path from 'path';
+import * as path from 'vs/base/common/paths.node';
 import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { compareFileExtensions, compareFileNames } from 'vs/base/common/comparers';
 import { fillResourceDataTransfers, CodeDataTransfers, extractResources } from 'vs/workbench/browser/dnd';

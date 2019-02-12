@@ -24,7 +24,7 @@ suite('URI Label', () => {
 			scheme: 'file',
 			formatting: {
 				label: '${path}',
-				separator: sep === '/' ? '/' : '\\',
+				separator: sep,
 				tildify: !isWindows,
 				normalizeDriveLetter: isWindows
 			}

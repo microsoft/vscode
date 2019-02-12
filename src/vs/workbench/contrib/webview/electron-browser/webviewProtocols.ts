@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { extname, sep } from 'path';
+import { extname, sep } from 'vs/base/common/paths.node';
 import { getMediaMime, MIME_UNKNOWN } from 'vs/base/common/mime';
 import { startsWith } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';

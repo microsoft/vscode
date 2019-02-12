@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { relative } from 'path';
+import { relative } from 'vs/base/common/paths.node';
 import { Action } from 'vs/base/common/actions';
 import { distinct } from 'vs/base/common/arrays';
 import { illegalArgument } from 'vs/base/common/errors';

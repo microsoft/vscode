@@ -40,7 +40,7 @@ import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/cont
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
-import { join } from 'path';
+import { join } from 'vs/base/common/paths.node';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ExtensionIdentifier, ExtensionType } from 'vs/platform/extensions/common/extensions';
 
