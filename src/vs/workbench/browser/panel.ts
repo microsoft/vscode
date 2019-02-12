@@ -95,7 +95,7 @@ export abstract class TogglePanelAction extends Action {
 	private isPanelActive(): boolean {
 		const activePanel = this.panelService.getActivePanel();
 
-		return activePanel && activePanel.getId() === this.panelId;
+		return !!activePanel && activePanel.getId() === this.panelId;
 	}
 
 	private isPanelFocused(): boolean {
