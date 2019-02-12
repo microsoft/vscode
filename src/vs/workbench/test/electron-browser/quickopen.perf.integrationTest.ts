@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import * as minimist from 'minimist';
-import * as path from 'path';
+import * as path from 'vs/base/common/paths.node';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
 import { IModelService } from 'vs/editor/common/services/modelService';

@@ -65,7 +65,7 @@ import { registerContextMenuListener } from 'vs/base/parts/contextmenu/electron-
 import { storeBackgroundColor } from 'vs/code/electron-main/theme';
 import { join } from 'vs/base/common/paths';
 import { homedir } from 'os';
-import { sep } from 'path';
+import { sep } from 'vs/base/common/paths.node';
 import { localize } from 'vs/nls';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from 'vs/platform/remote/node/remoteAgentFileSystemChannel';
