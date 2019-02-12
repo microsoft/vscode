@@ -1129,18 +1129,6 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	//#region CodeAction.isPreferred - mjbvz
-	export interface CodeAction {
-		/**
-		 * Marks this as a preferred action. Preferred actions are used by the `auto fix` command.
-		 *
-		 * A quick fix should be marked preferred if it properly addresses the underlying error.
-		 * A refactoring should be marked preferred if it is the most reasonable choice of actions to take.
-		 */
-		isPreferred?: boolean;
-	}
-	//#endregion
-
 	//#region Tasks
 	export interface TaskPresentationOptions {
 		/**
