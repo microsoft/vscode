@@ -305,6 +305,7 @@ export function createApiFactory(
 				return extHostLanguageFeatures.registerCodeLensProvider(extension, checkSelector(selector), provider);
 			},
 			registerCodeInsetProvider(selector: vscode.DocumentSelector, provider: vscode.CodeInsetProvider): vscode.Disposable {
+				checkProposedApiEnabled(extension);
 				return extHostLanguageFeatures.registerCodeInsetProvider(extension, checkSelector(selector), provider);
 			},
 			registerDefinitionProvider(selector: vscode.DocumentSelector, provider: vscode.DefinitionProvider): vscode.Disposable {
