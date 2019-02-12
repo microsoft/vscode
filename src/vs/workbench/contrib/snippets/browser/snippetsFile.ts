@@ -7,7 +7,7 @@ import { parse as jsonParse } from 'vs/base/common/json';
 import { forEach } from 'vs/base/common/collections';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { localize } from 'vs/nls';
-import { extname, basename } from 'vs/base/common/paths.node';
+import { extname, basename } from 'vs/base/common/path';
 import { SnippetParser, Variable, Placeholder, Text } from 'vs/editor/contrib/snippet/snippetParser';
 import { KnownSnippetVariableNames } from 'vs/editor/contrib/snippet/snippetVariables';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';

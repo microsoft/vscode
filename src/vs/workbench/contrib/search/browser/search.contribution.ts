@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/search.contribution';
 
-import { relative } from 'vs/base/common/paths.node';
+import { relative } from 'vs/base/common/path';
 import { Action } from 'vs/base/common/actions';
 import { distinct } from 'vs/base/common/arrays';
 import { illegalArgument } from 'vs/base/common/errors';

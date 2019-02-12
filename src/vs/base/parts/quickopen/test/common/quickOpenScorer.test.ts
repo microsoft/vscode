@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import * as scorer from 'vs/base/parts/quickopen/common/quickOpenScorer';
 import { URI } from 'vs/base/common/uri';
-import { basename, dirname, sep } from 'vs/base/common/paths.node';
+import { basename, dirname, sep } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
 
 class ResourceAccessorClass implements scorer.IItemAccessor<URI> {

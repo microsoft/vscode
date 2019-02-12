@@ -6,7 +6,7 @@
 import { isWindows } from 'vs/base/common/platform';
 import { startsWithIgnoreCase, equalsIgnoreCase } from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
-import { sep, posix } from 'vs/base/common/paths.node';
+import { sep, posix } from 'vs/base/common/path';
 
 function isPathSeparator(code: number) {
 	return code === CharCode.Slash || code === CharCode.Backslash;

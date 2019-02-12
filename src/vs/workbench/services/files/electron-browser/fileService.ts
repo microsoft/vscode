@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as paths from 'vs/base/common/paths.node';
+import * as paths from 'vs/base/common/path';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as crypto from 'crypto';

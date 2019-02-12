@@ -5,7 +5,7 @@
 
 import * as errors from 'vs/base/common/errors';
 import * as nls from 'vs/nls';
-import { isAbsolute } from 'vs/base/common/paths.node';
+import { isAbsolute } from 'vs/base/common/path';
 import * as objects from 'vs/base/common/objects';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { URI } from 'vs/base/common/uri';

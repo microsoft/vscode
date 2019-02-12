@@ -5,7 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import { normalize } from 'vs/base/common/extpath';
-import { sep, posix } from 'vs/base/common/paths.node';
+import { sep, posix } from 'vs/base/common/path';
 import { endsWith, ltrim, startsWithIgnoreCase, rtrim, startsWith } from 'vs/base/common/strings';
 import { Schemas } from 'vs/base/common/network';
 import { isLinux, isWindows, isMacintosh } from 'vs/base/common/platform';

@@ -5,7 +5,7 @@
 
 import * as childProcess from 'child_process';
 import * as fs from 'fs';
-import * as path from 'vs/base/common/paths.node';
+import * as path from 'vs/base/common/path';
 import { Readable } from 'stream';
 import { NodeStringDecoder, StringDecoder } from 'string_decoder';
 import * as arrays from 'vs/base/common/arrays';

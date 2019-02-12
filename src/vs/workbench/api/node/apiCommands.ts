@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { tmpdir } from 'os';
-import { posix } from 'vs/base/common/paths.node';
+import { posix } from 'vs/base/common/path';
 import * as vscode from 'vscode';
 import { URI } from 'vs/base/common/uri';
 import { isMalformedFileUri } from 'vs/base/common/resources';

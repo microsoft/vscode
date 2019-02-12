@@ -7,7 +7,7 @@ import { URI } from 'vs/base/common/uri';
 import * as extpath from 'vs/base/common/extpath';
 import * as objects from 'vs/base/common/objects';
 import { Event, Emitter } from 'vs/base/common/event';
-import { relative } from 'vs/base/common/paths.node';
+import { relative } from 'vs/base/common/path';
 import { basename, extname } from 'vs/base/common/resources';
 import { RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IModeService } from 'vs/editor/common/services/modeService';

@@ -6,7 +6,7 @@
 import * as arrays from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
 import * as extpath from 'vs/base/common/extpath';
-import * as paths from 'vs/base/common/paths.node';
+import * as paths from 'vs/base/common/path';
 import { LRUCache } from 'vs/base/common/map';
 import { CharCode } from 'vs/base/common/charCode';
 import { isThenable } from 'vs/base/common/async';

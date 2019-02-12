@@ -5,7 +5,7 @@
 
 import { execFile } from 'child_process';
 import * as os from 'os';
-import * as path from 'vs/base/common/paths.node';
+import * as path from 'vs/base/common/path';
 import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';

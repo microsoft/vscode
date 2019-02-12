@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
-import { basename } from 'vs/base/common/paths.node';
+import { basename } from 'vs/base/common/path';
 import { ExtHostWorkspaceProvider } from 'vs/workbench/api/node/extHostWorkspace';
 import { TestRPCProtocol } from './testRPCProtocol';
 import { normalize } from 'vs/base/common/extpath';

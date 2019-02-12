@@ -10,7 +10,7 @@ import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/works
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { isEqualOrParent, normalize } from 'vs/base/common/extpath';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
-import { isAbsolute, relative, posix, resolve, extname } from 'vs/base/common/paths.node';
+import { isAbsolute, relative, posix, resolve, extname } from 'vs/base/common/path';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { fsPath, dirname } from 'vs/base/common/resources';
 import { Schemas } from 'vs/base/common/network';

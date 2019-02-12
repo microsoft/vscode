@@ -6,7 +6,7 @@
 import 'vs/css!./welcomePage';
 import { URI } from 'vs/base/common/uri';
 import * as strings from 'vs/base/common/strings';
-import * as path from 'vs/base/common/paths.node';
+import * as path from 'vs/base/common/path';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import * as arrays from 'vs/base/common/arrays';
 import { WalkThroughInput } from 'vs/workbench/contrib/welcome/walkThrough/node/walkThroughInput';

@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import * as network from 'vs/base/common/network';
-import * as paths from 'vs/base/common/paths.node';
+import * as paths from 'vs/base/common/path';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';

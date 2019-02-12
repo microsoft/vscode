@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as path from 'vs/base/common/paths.node';
+import * as path from 'vs/base/common/path';
 import * as os from 'os';
 import { extract } from 'vs/platform/node/zip';
 import { generateUuid } from 'vs/base/common/uuid';

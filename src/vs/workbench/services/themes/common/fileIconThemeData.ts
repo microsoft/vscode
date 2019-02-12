@@ -5,7 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
-import * as Paths from 'vs/base/common/paths.node';
+import * as Paths from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import * as Json from 'vs/base/common/json';
 import { ExtensionData, IThemeExtensionPoint, IFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';

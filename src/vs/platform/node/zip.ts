@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as path from 'vs/base/common/paths.node';
+import * as path from 'vs/base/common/path';
 import { createWriteStream, WriteStream } from 'fs';
 import { Readable } from 'stream';
 import { nfcall, ninvoke, Sequencer, createCancelablePromise } from 'vs/base/common/async';

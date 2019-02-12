@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import * as crypto from 'crypto';
-import * as path from 'vs/base/common/paths.node';
+import * as path from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
 import { writeFileAndFlushSync } from 'vs/base/node/extfs';
 import * as arrays from 'vs/base/common/arrays';

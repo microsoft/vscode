@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import * as extpath from 'vs/base/common/extpath';
-import { dirname } from 'vs/base/common/paths.node';
+import { dirname } from 'vs/base/common/path';
 import * as strings from 'vs/base/common/strings';
 import * as extfs from 'vs/base/node/extfs';
 import { Event, Emitter } from 'vs/base/common/event';

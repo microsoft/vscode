@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// extracted from nodejs commit 'https://github.com/nodejs/node/tree/43dd49c9782848c25e5b03448c8a0f923f13c158'
+// NOTE: VSCode's copy of nodejs path library to be usable in common (non-node) namespace
+// Copied from: https://github.com/nodejs/node/tree/43dd49c9782848c25e5b03448c8a0f923f13c158
 
 // Copyright Joyent, Inc. and other Node contributors.
 //

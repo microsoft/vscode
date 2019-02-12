@@ -16,7 +16,7 @@ import product from 'vs/platform/node/product';
 import { distinct, equals } from 'vs/base/common/arrays';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
-import { posix } from 'vs/base/common/paths.node';
+import { posix } from 'vs/base/common/path';
 
 interface ILanguagePack {
 	hash: string;

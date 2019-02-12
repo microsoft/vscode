@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import * as os from 'os';
-import * as path from 'vs/base/common/paths.node';
+import * as path from 'vs/base/common/path';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import * as errors from 'vs/base/common/errors';
 import { Schemas } from 'vs/base/common/network';

@@ -5,7 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import { isEqual } from 'vs/base/common/extpath';
-import { posix } from 'vs/base/common/paths.node';
+import { posix } from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import { ResourceMap } from 'vs/base/common/map';
 import { isLinux } from 'vs/base/common/platform';

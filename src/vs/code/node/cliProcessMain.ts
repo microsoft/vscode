@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
-import * as path from 'vs/base/common/paths.node';
+import * as path from 'vs/base/common/path';
 import * as semver from 'semver';
 
 import { sequence } from 'vs/base/common/async';

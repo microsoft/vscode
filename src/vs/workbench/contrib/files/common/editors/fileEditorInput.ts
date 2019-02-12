@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { memoize } from 'vs/base/common/decorators';
-import { basename } from 'vs/base/common/paths.node';
+import { basename } from 'vs/base/common/path';
 import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { EncodingMode, ConfirmResult, EditorInput, IFileEditorInput, ITextEditorModel, Verbosity, IRevertOptions } from 'vs/workbench/common/editor';

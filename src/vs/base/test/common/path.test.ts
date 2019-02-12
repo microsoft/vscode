@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// extracted from nodejs commit 'https://github.com/nodejs/node/tree/43dd49c9782848c25e5b03448c8a0f923f13c158'
+// NOTE: VSCode's copy of nodejs path library to be usable in common (non-node) namespace
+// Copied from: https://github.com/nodejs/node/tree/43dd49c9782848c25e5b03448c8a0f923f13c158
 
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -27,7 +28,7 @@
 // USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 import * as assert from 'assert';
-import * as path from 'vs/base/common/paths.node';
+import * as path from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
 
 suite('Paths (Node Implementation)', () => {
@@ -436,8 +437,8 @@ suite('Paths (Node Implementation)', () => {
 	});
 
 	test('basename', () => {
-		assert.strictEqual(path.basename(__filename), 'paths.node.test.js');
-		assert.strictEqual(path.basename(__filename, '.js'), 'paths.node.test');
+		assert.strictEqual(path.basename(__filename), 'path.test.js');
+		assert.strictEqual(path.basename(__filename, '.js'), 'path.test');
 		assert.strictEqual(path.basename('.js', '.js'), '');
 		assert.strictEqual(path.basename(''), '');
 		assert.strictEqual(path.basename('/dir/basename.ext'), 'basename.ext');

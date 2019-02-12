@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as path from 'vs/base/common/paths.node';
+import * as path from 'vs/base/common/path';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { join, normalize } from 'vs/base/common/extpath';
 import * as platform from 'vs/base/common/platform';

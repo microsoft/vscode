@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as paths from 'vs/base/common/paths.node';
+import * as paths from 'vs/base/common/path';
 import * as types from 'vs/base/common/types';
 import * as objects from 'vs/base/common/objects';
 import { IStringDictionary } from 'vs/base/common/collections';
