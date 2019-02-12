@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { normalize, basename as pathsBasename } from 'vs/base/common/paths';
+import { normalize } from 'vs/base/common/paths';
 import { sep, posix } from 'vs/base/common/paths.node';
 import { endsWith, ltrim, startsWithIgnoreCase, rtrim, startsWith } from 'vs/base/common/strings';
 import { Schemas } from 'vs/base/common/network';
 import { isLinux, isWindows, isMacintosh } from 'vs/base/common/platform';
-import { isEqual } from 'vs/base/common/resources';
+import { isEqual, basename } from 'vs/base/common/resources';
 
 export interface IWorkspaceFolderProvider {
 	getWorkspaceFolder(resource: URI): { uri: URI, name?: string } | null;
@@ -44,7 +44,7 @@ export function getPathLabel(resource: URI | string, userHomeProvider?: IUserHom
 			}
 
 			if (hasMultipleRoots) {
-				const rootName = (baseResource && baseResource.name) ? baseResource.name : pathsBasename(baseResource.uri.fsPath);
+				const rootName = (baseResource && baseResource.name) ? baseResource.name : basename(baseResource.uri);
 				pathLabel = pathLabel ? (rootName + ' • ' + pathLabel) : rootName; // always show root basename if there are multiple
 			}
 
@@ -82,7 +82,7 @@ export function getBaseLabel(resource: URI | string | undefined): string | undef
 		resource = URI.file(resource);
 	}
 
-	const base = pathsBasename(resource.path) || (resource.scheme === Schemas.file ? resource.fsPath : resource.path) /* can be empty string if '/' is passed in */;
+	const base = basename(resource) || (resource.scheme === Schemas.file ? resource.fsPath : resource.path) /* can be empty string if '/' is passed in */;
 
 	// convert c: => C:
 	if (hasDriveLetter(base)) {

@@ -294,7 +294,7 @@ export class HistoryMainService implements IHistoryMainService {
 					let args;
 					if (isSingleFolderWorkspaceIdentifier(workspace)) {
 						const parentFolder = dirname(workspace);
-						description = parentFolder ? nls.localize('folderDesc', "{0} {1}", getBaseLabel(workspace), getPathLabel(parentFolder, this.environmentService)) : getBaseLabel(workspace);
+						description = nls.localize('folderDesc', "{0} {1}", getBaseLabel(workspace), getPathLabel(parentFolder, this.environmentService));
 						args = `--folder-uri "${workspace.toString()}"`;
 					} else {
 						description = nls.localize('codeWorkspace', "Code Workspace");

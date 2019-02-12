@@ -217,7 +217,7 @@ export class ExplorerService implements IExplorerService {
 			const newParentResource = dirname(newElement.resource);
 
 			// Handle Rename
-			if (oldParentResource && newParentResource && oldParentResource.toString() === newParentResource.toString()) {
+			if (oldParentResource.toString() === newParentResource.toString()) {
 				const modelElements = this.model.findAll(oldResource);
 				modelElements.forEach(modelElement => {
 					// Rename File (Model)
@@ -227,7 +227,7 @@ export class ExplorerService implements IExplorerService {
 			}
 
 			// Handle Move
-			else if (oldParentResource && newParentResource) {
+			else {
 				const newParents = this.model.findAll(newParentResource);
 				const modelElements = this.model.findAll(oldResource);
 
@@ -281,9 +281,6 @@ export class ExplorerService implements IExplorerService {
 
 					// Find parent
 					const parent = dirname(change.resource);
-					if (!parent) {
-						continue;
-					}
 
 					// Continue if parent was already determined as to be ignored
 					if (ignoredPaths[parent.toString()]) {

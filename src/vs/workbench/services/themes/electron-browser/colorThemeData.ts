@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as Paths from 'vs/base/common/paths';
+import { basename } from 'vs/base/common/paths.node';
 import * as Json from 'vs/base/common/json';
 import { Color } from 'vs/base/common/color';
 import { ExtensionData, ITokenColorCustomizations, ITokenColorizationRule, IColorTheme, IColorMap, IThemeExtensionPoint, VS_LIGHT_THEME, VS_HC_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
@@ -261,7 +262,7 @@ export class ColorThemeData implements IColorTheme {
 		let themeSelector = toCSSSelector(extensionData.extensionId + '-' + Paths.normalize(theme.path));
 		let themeData = new ColorThemeData();
 		themeData.id = `${baseTheme} ${themeSelector}`;
-		themeData.label = theme.label || Paths.basename(theme.path);
+		themeData.label = theme.label || basename(theme.path);
 		themeData.settingsId = theme.id || themeData.label;
 		themeData.description = theme.description;
 		themeData.watch = theme._watch === true;
@@ -272,8 +273,6 @@ export class ColorThemeData implements IColorTheme {
 	}
 }
 
-
-
 function toCSSSelector(str: string) {
 	str = str.replace(/[^_\-a-zA-Z0-9]/g, '-');
 	if (str.charAt(0).match(/[0-9\-]/)) {
@@ -283,7 +282,7 @@ function toCSSSelector(str: string) {
 }
 
 function _loadColorTheme(fileService: IFileService, themeLocation: URI, resultRules: ITokenColorizationRule[], resultColors: IColorMap): Promise<any> {
-	if (Paths.extname(themeLocation.path) === '.json') {
+	if (resources.extname(themeLocation) === '.json') {
 		return fileService.resolveContent(themeLocation, { encoding: 'utf8' }).then(content => {
 			let errors: Json.ParseError[] = [];
 			let contentValue = Json.parse(content.value.toString(), errors);
@@ -292,7 +291,7 @@ function _loadColorTheme(fileService: IFileService, themeLocation: URI, resultRu
 			}
 			let includeCompletes: Promise<any> = Promise.resolve(null);
 			if (contentValue.include) {
-				includeCompletes = _loadColorTheme(fileService, resources.joinPath(resources.dirname(themeLocation)!, contentValue.include), resultRules, resultColors);
+				includeCompletes = _loadColorTheme(fileService, resources.joinPath(resources.dirname(themeLocation), contentValue.include), resultRules, resultColors);
 			}
 			return includeCompletes.then(_ => {
 				if (Array.isArray(contentValue.settings)) {
@@ -318,7 +317,7 @@ function _loadColorTheme(fileService: IFileService, themeLocation: URI, resultRu
 						resultRules.push(...tokenColors);
 						return null;
 					} else if (typeof tokenColors === 'string') {
-						return _loadSyntaxTokens(fileService, resources.joinPath(resources.dirname(themeLocation)!, tokenColors), resultRules, {});
+						return _loadSyntaxTokens(fileService, resources.joinPath(resources.dirname(themeLocation), tokenColors), resultRules, {});
 					} else {
 						return Promise.reject(new Error(nls.localize({ key: 'error.invalidformat.tokenColors', comment: ['{0} will be replaced by a path. Values in quotes should not be translated.'] }, "Problem parsing color theme file: {0}. Property 'tokenColors' should be either an array specifying colors or a path to a TextMate theme file", themeLocation.toString())));
 					}

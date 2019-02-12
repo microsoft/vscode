@@ -175,7 +175,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 				for (const fileMatch of complete.results) {
 
 					const label = basename(fileMatch.resource);
-					const description = this.labelService.getUriLabel(dirname(fileMatch.resource)!, { relative: true });
+					const description = this.labelService.getUriLabel(dirname(fileMatch.resource), { relative: true });
 
 					results.push(this.instantiationService.createInstance(FileEntry, fileMatch.resource, label, description, iconClass));
 				}

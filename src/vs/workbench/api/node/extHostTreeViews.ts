@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import * as vscode from 'vscode';
-import { basename } from 'vs/base/common/paths';
+import { basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -448,7 +448,7 @@ class ExtHostTreeView<T> extends Disposable {
 
 		const treeItemLabel = toTreeItemLabel(label, this.extension);
 		const prefix: string = parent ? parent.item.handle : ExtHostTreeView.LABEL_HANDLE_PREFIX;
-		let elementId = treeItemLabel ? treeItemLabel.label : resourceUri ? basename(resourceUri.path) : '';
+		let elementId = treeItemLabel ? treeItemLabel.label : resourceUri ? basename(resourceUri) : '';
 		elementId = elementId.indexOf('/') !== -1 ? elementId.replace('/', '//') : elementId;
 		const existingHandle = this.nodes.has(element) ? this.nodes.get(element).item.handle : undefined;
 		const childrenNodes = (this.getChildrenNodes(parent) || []);

@@ -45,6 +45,7 @@ import { IExperimentService, ExperimentActionType, ExperimentState } from 'vs/wo
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { getKeywordsForExtension } from 'vs/workbench/contrib/extensions/electron-browser/extensionsUtils';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { extname } from 'vs/base/common/resources';
 
 const milliSecondsInADay = 1000 * 60 * 60 * 24;
 const choiceNever = localize('neverShowAgain', "Don't Show Again");
@@ -586,7 +587,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			return;
 		}
 
-		let fileExtension = paths.extname(uri.path);
+		let fileExtension = extname(uri);
 		if (fileExtension) {
 			if (processedFileExtensions.indexOf(fileExtension) > -1) {
 				return;

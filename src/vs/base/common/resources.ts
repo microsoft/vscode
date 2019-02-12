@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as paths from 'vs/base/common/paths';
-import { isAbsolute, posix, dirname as pathDirname } from 'vs/base/common/paths.node';
+import * as extpath from 'vs/base/common/paths';
+import * as paths from 'vs/base/common/paths.node';
 import { URI } from 'vs/base/common/uri';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { Schemas } from 'vs/base/common/network';
@@ -33,10 +33,10 @@ export function basenameOrAuthority(resource: URI): string {
 export function isEqualOrParent(base: URI, parentCandidate: URI, ignoreCase = hasToIgnoreCase(base)): boolean {
 	if (base.scheme === parentCandidate.scheme) {
 		if (base.scheme === Schemas.file) {
-			return paths.isEqualOrParent(fsPath(base), fsPath(parentCandidate), ignoreCase);
+			return extpath.isEqualOrParent(fsPath(base), fsPath(parentCandidate), ignoreCase);
 		}
 		if (isEqualAuthority(base.authority, parentCandidate.authority, ignoreCase)) {
-			return paths.isEqualOrParent(base.path, parentCandidate.path, ignoreCase, '/');
+			return extpath.isEqualOrParent(base.path, parentCandidate.path, ignoreCase, '/');
 		}
 	}
 	return false;
@@ -64,11 +64,19 @@ export function isEqual(first: URI | undefined, second: URI | undefined, ignoreC
 }
 
 export function basename(resource: URI): string {
-	return paths.basename(resource.path);
+	if (resource.scheme === Schemas.file) {
+		return paths.basename(resource.path);
+	}
+
+	return paths.posix.basename(resource.path);
 }
 
 export function extname(resource: URI): string {
-	return paths.extname(resource.path);
+	if (resource.scheme === Schemas.file) {
+		return paths.extname(resource.path);
+	}
+
+	return paths.posix.extname(resource.path);
 }
 
 /**
@@ -77,16 +85,17 @@ export function extname(resource: URI): string {
  * @param resource The input URI.
  * @returns The URI representing the directory of the input URI.
  */
-export function dirname(resource: URI): URI | null {
+export function dirname(resource: URI): URI {
 	if (resource.path.length === 0) {
 		return resource;
 	}
 	if (resource.scheme === Schemas.file) {
-		return URI.file(pathDirname(fsPath(resource)));
+		return URI.file(paths.dirname(fsPath(resource)));
 	}
-	let dirname = posix.dirname(resource.path);
+	let dirname = paths.posix.dirname(resource.path);
 	if (resource.authority && dirname.length && dirname.charCodeAt(0) !== CharCode.Slash) {
-		return null; // If a URI contains an authority component, then the path component must either be empty or begin with a CharCode.Slash ("/") character
+		console.error(`dirname("${resource.toString})) resulted in a relative path`);
+		dirname = '/'; // If a URI contains an authority component, then the path component must either be empty or begin with a CharCode.Slash ("/") character
 	}
 	return resource.with({
 		path: dirname
@@ -105,7 +114,7 @@ export function joinPath(resource: URI, ...pathFragment: string[]): URI {
 	if (resource.scheme === Schemas.file) {
 		joinedPath = URI.file(paths.join(fsPath(resource), ...pathFragment)).path;
 	} else {
-		joinedPath = paths.join(resource.path, ...pathFragment);
+		joinedPath = paths.posix.join(resource.path, ...pathFragment);
 	}
 	return resource.with({
 		path: joinedPath
@@ -126,7 +135,7 @@ export function normalizePath(resource: URI): URI {
 	if (resource.scheme === Schemas.file) {
 		normalizedPath = URI.file(paths.normalize(fsPath(resource))).path;
 	} else {
-		normalizedPath = paths.normalize(resource.path);
+		normalizedPath = paths.posix.normalize(resource.path);
 	}
 	return resource.with({
 		path: normalizedPath
@@ -146,7 +155,7 @@ export function fsPath(uri: URI): string {
 	} else if (
 		isWindows
 		&& uriPath.charCodeAt(0) === CharCode.Slash
-		&& paths.isWindowsDriveLetter(uriPath.charCodeAt(1))
+		&& extpath.isWindowsDriveLetter(uriPath.charCodeAt(1))
 		&& uriPath.charCodeAt(2) === CharCode.Colon
 	) {
 		value = uriPath.substr(1);
@@ -164,7 +173,10 @@ export function fsPath(uri: URI): string {
  * Returns true if the URI path is absolute.
  */
 export function isAbsolutePath(resource: URI): boolean {
-	return isAbsolute(resource.path);
+	if (resource.scheme === Schemas.file) {
+		return paths.isAbsolute(fsPath(resource));
+	}
+	return paths.posix.isAbsolute(resource.path);
 }
 
 export function distinctParents<T>(items: T[], resourceAccessor: (item: T) => URI): T[] {

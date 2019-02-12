@@ -354,6 +354,13 @@ suite('Paths (Node Implementation)', () => {
 		assert.strictEqual(path.posix.extname('file\\\\'), '');
 		assert.strictEqual(path.posix.extname('file.\\'), '.\\');
 		assert.strictEqual(path.posix.extname('file.\\\\'), '.\\\\');
+
+		// Tests from VSCode
+		assert.equal(path.extname('far.boo'), '.boo');
+		assert.equal(path.extname('far.b'), '.b');
+		assert.equal(path.extname('far.'), '.');
+		assert.equal(path.extname('far.boo/boo.far'), '.far');
+		assert.equal(path.extname('far.boo/boo'), '');
 	});
 
 	test('resolve', () => {
@@ -496,6 +503,27 @@ suite('Paths (Node Implementation)', () => {
 		const controlCharFilename = `Icon${String.fromCharCode(13)}`;
 		assert.strictEqual(path.posix.basename(`/a/b/${controlCharFilename}`),
 			controlCharFilename);
+
+		// Tests from VSCode
+		assert.equal(path.basename('foo/bar'), 'bar');
+		assert.equal(path.posix.basename('foo\\bar'), 'foo\\bar');
+		assert.equal(path.win32.basename('foo\\bar'), 'bar');
+		assert.equal(path.basename('/foo/bar'), 'bar');
+		assert.equal(path.posix.basename('\\foo\\bar'), '\\foo\\bar');
+		assert.equal(path.win32.basename('\\foo\\bar'), 'bar');
+		assert.equal(path.basename('./bar'), 'bar');
+		assert.equal(path.posix.basename('.\\bar'), '.\\bar');
+		assert.equal(path.win32.basename('.\\bar'), 'bar');
+		assert.equal(path.basename('/bar'), 'bar');
+		assert.equal(path.posix.basename('\\bar'), '\\bar');
+		assert.equal(path.win32.basename('\\bar'), 'bar');
+		assert.equal(path.basename('bar/'), 'bar');
+		assert.equal(path.posix.basename('bar\\'), 'bar\\');
+		assert.equal(path.win32.basename('bar\\'), 'bar');
+		assert.equal(path.basename('bar'), 'bar');
+		assert.equal(path.basename('////////'), '');
+		assert.equal(path.posix.basename('\\\\\\\\'), '\\\\\\\\');
+		assert.equal(path.win32.basename('\\\\\\\\'), '');
 	});
 
 	test('relative', () => {
