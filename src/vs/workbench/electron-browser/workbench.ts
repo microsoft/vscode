@@ -351,6 +351,10 @@ export class Workbench extends Disposable implements IPartService {
 			(configuration.filesToOpen && configuration.filesToOpen.length > 0) ||
 			(configuration.filesToDiff && configuration.filesToDiff.length > 0);
 
+		// TODO@Ben debt
+		this._register(mainProcessClient);
+		this._register(logService);
+
 		this.registerErrorHandler();
 	}
 

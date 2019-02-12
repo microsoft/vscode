@@ -5,7 +5,8 @@
 
 import * as nls from 'vs/nls';
 import * as perf from 'vs/base/common/performance';
-import { Shell } from 'vs/workbench/electron-browser/shell';
+import { Workbench } from 'vs/workbench/electron-browser/workbench';
+import { ElectronWindow } from 'vs/workbench/electron-browser/window';
 import * as browser from 'vs/base/browser/browser';
 import { domContentLoaded } from 'vs/base/browser/dom';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -47,6 +48,10 @@ import { createHash } from 'crypto';
 import { IdleValue } from 'vs/base/common/async';
 import { setGlobalLeakWarningThreshold } from 'vs/base/common/event';
 import { GlobalStorageDatabaseChannelClient } from 'vs/platform/storage/node/storageIpc';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 
 gracefulFs.gracefulify(fs); // enable gracefulFs
 
@@ -126,20 +131,35 @@ function openWorkbench(configuration: IWindowConfiguration): Promise<void> {
 			const workspaceService = services[0];
 			const storageService = services[1];
 
+			// Core services
+			const serviceCollection = new ServiceCollection();
+			serviceCollection.set(IWorkspaceContextService, workspaceService);
+			serviceCollection.set(IConfigurationService, workspaceService);
+			serviceCollection.set(IEnvironmentService, environmentService);
+			serviceCollection.set(ILogService, logService);
+			serviceCollection.set(IStorageService, storageService);
+
+			mainServices.forEach((serviceIdentifier, serviceInstance) => {
+				serviceCollection.set(serviceIdentifier, serviceInstance);
+			});
+
+			const instantiationService = new InstantiationService(serviceCollection, true);
+
 			return domContentLoaded().then(() => {
 				perf.mark('willStartWorkbench');
 
-				// Create Shell
-				const shell = new Shell(document.body, {
-					contextService: workspaceService,
-					configurationService: workspaceService,
-					environmentService,
-					logService,
-					storageService
-				}, mainServices, mainProcessClient, configuration);
+				// Startup Workbench
+				const workbench = instantiationService.createInstance(
+					Workbench,
+					document.body,
+					configuration,
+					serviceCollection,
+					mainProcessClient
+				);
+				workbench.startup();
 
-				// Open Shell
-				shell.open();
+				// Window
+				workbench.getInstantiationService().createInstance(ElectronWindow);
 
 				// Inform user about loading issues from the loader
 				(<any>self).require.config({
