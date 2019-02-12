@@ -22,8 +22,13 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
+
+export let mainThreadWebviews: MainThreadWebviews;
+
 @extHostNamedCustomer(MainContext.MainThreadWebviews)
 export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviver {
+
+	_serviceBrand: any;
 
 	private static readonly viewType = 'mainThreadWebview';
 
@@ -49,6 +54,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
+		mainThreadWebviews = this;
 		this._proxy = context.getProxy(ExtHostContext.ExtHostWebviews);
 		_editorService.onDidActiveEditorChange(this.onActiveEditorChanged, this, this._toDispose);
 		_editorService.onDidVisibleEditorsChange(this.onVisibleEditorsChanged, this, this._toDispose);
@@ -64,7 +70,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		this._toDispose = dispose(this._toDispose);
 	}
 
-	public $createWebviewPanel(
+	public $createWebview(
 		handle: WebviewPanelHandle,
 		viewType: string,
 		title: string,
@@ -94,6 +100,23 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 			}
 		*/
 		this._telemetryService.publicLog('webviews:createWebviewPanel', { extensionId: extensionId.value });
+	}
+
+	public createInsetWebview(
+		handle: WebviewPanelHandle,
+		parent: HTMLElement,
+		options: WebviewInputOptions,
+		extensionLocation: UriComponents
+	): WebviewEditorInput {
+		const webview = this._webviewService.createInsetWebview(parent, reviveWebviewOptions(options), URI.revive(extensionLocation), this.createWebviewEventDelegate(handle));
+		webview.state = {
+			viewType: webview.viewType,
+			state: undefined
+		};
+
+		this._webviews.set(handle, webview);
+		this._activeWebview = handle;
+		return webview;
 	}
 
 	public $disposeWebview(handle: WebviewPanelHandle): void {
@@ -289,7 +312,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		}
 	}
 
-	private getWebview(handle: WebviewPanelHandle): WebviewEditorInput {
+	public getWebview(handle: WebviewPanelHandle): WebviewEditorInput {
 		const webview = this._webviews.get(handle);
 		if (!webview) {
 			throw new Error('Unknown webview handle:' + handle);

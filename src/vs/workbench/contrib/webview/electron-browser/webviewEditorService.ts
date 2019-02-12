@@ -12,6 +12,8 @@ import * as vscode from 'vscode';
 import { WebviewEditorInput } from './webviewEditorInput';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
 import { equals } from 'vs/base/common/arrays';
+import { WebviewElement } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
+import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 
 export const IWebviewEditorService = createDecorator<IWebviewEditorService>('webviewEditorService');
 
@@ -28,6 +30,13 @@ export interface IWebviewEditorService {
 		title: string,
 		showOptions: ICreateWebViewShowOptions,
 		options: WebviewInputOptions,
+		extensionLocation: URI,
+		events: WebviewEvents
+	): WebviewEditorInput;
+
+	createInsetWebview(
+		parent: HTMLElement,
+		options: vscode.WebviewOptions,
 		extensionLocation: URI,
 		events: WebviewEvents
 	): WebviewEditorInput;
@@ -97,6 +106,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 		@IEditorService private readonly _editorService: IEditorService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
+		@IPartService private readonly _partService: IPartService,
 	) { }
 
 	createWebview(
@@ -110,6 +120,21 @@ export class WebviewEditorService implements IWebviewEditorService {
 		const webviewInput = this._instantiationService.createInstance(WebviewEditorInput, viewType, undefined, title, options, {}, events, extensionLocation, undefined);
 		this._editorService.openEditor(webviewInput, { pinned: true, preserveFocus: showOptions.preserveFocus }, showOptions.group);
 		return webviewInput;
+	}
+
+	createInsetWebview(
+		parent: HTMLElement,
+		options: vscode.WebviewOptions,
+		extensionLocation: URI,
+		events: WebviewEvents
+	): WebviewEditorInput {
+		const webviewEditorInput = this._instantiationService.createInstance(WebviewEditorInput, 'codeinset', undefined, '', options, {}, events, extensionLocation, undefined);
+		webviewEditorInput.webview = this._instantiationService.createInstance(WebviewElement,
+			this._partService.getContainer(Parts.EDITOR_PART),
+			{ allowSvgs: true, useSameOriginForRoot: true },
+			{ allowScripts: true, disableFindView: true });
+		webviewEditorInput.webview.mountTo(parent);
+		return webviewEditorInput;
 	}
 
 	revealWebview(

@@ -601,6 +601,11 @@ export interface IEditorOptions {
 	 */
 	codeLens?: boolean;
 	/**
+	 * Show code insets
+	 * Defaults to true.
+	 */
+	codeInsets?: boolean;
+	/**
 	 * Control the behavior and rendering of the code action lightbulb.
 	 */
 	lightbulb?: IEditorLightbulbOptions;
@@ -996,6 +1001,7 @@ export interface EditorContribOptions {
 	readonly selectionHighlight: boolean;
 	readonly occurrencesHighlight: boolean;
 	readonly codeLens: boolean;
+	readonly codeInsets: boolean;
 	readonly folding: boolean;
 	readonly foldingStrategy: 'auto' | 'indentation';
 	readonly showFoldingControls: 'always' | 'mouseover';
@@ -2051,6 +2057,7 @@ export class EditorOptionsValidator {
 			selectionHighlight: _boolean(opts.selectionHighlight, defaults.selectionHighlight),
 			occurrencesHighlight: _boolean(opts.occurrencesHighlight, defaults.occurrencesHighlight),
 			codeLens: _boolean(opts.codeLens, defaults.codeLens),
+			codeInsets: _boolean(opts.codeInsets, defaults.codeInsets),
 			folding: _boolean(opts.folding, defaults.folding),
 			foldingStrategy: _stringSet<'auto' | 'indentation'>(opts.foldingStrategy, defaults.foldingStrategy, ['auto', 'indentation']),
 			showFoldingControls: _stringSet<'always' | 'mouseover'>(opts.showFoldingControls, defaults.showFoldingControls, ['always', 'mouseover']),
@@ -2164,6 +2171,7 @@ export class InternalEditorOptionsFactory {
 				selectionHighlight: (accessibilityIsOn ? false : opts.contribInfo.selectionHighlight), // DISABLED WHEN SCREEN READER IS ATTACHED
 				occurrencesHighlight: (accessibilityIsOn ? false : opts.contribInfo.occurrencesHighlight), // DISABLED WHEN SCREEN READER IS ATTACHED
 				codeLens: (accessibilityIsOn ? false : opts.contribInfo.codeLens), // DISABLED WHEN SCREEN READER IS ATTACHED
+				codeInsets: (accessibilityIsOn ? false : opts.contribInfo.codeInsets),
 				folding: (accessibilityIsOn ? false : opts.contribInfo.folding), // DISABLED WHEN SCREEN READER IS ATTACHED
 				foldingStrategy: opts.contribInfo.foldingStrategy,
 				showFoldingControls: opts.contribInfo.showFoldingControls,
@@ -2653,6 +2661,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		selectionHighlight: true,
 		occurrencesHighlight: true,
 		codeLens: true,
+		codeInsets: true,
 		folding: true,
 		foldingStrategy: 'auto',
 		showFoldingControls: 'mouseover',

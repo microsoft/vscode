@@ -15,7 +15,7 @@ import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHostCommands';
 import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
 import { asPromise } from 'vs/base/common/async';
-import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IMainContext, IdObject, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, ISerializedLanguageConfiguration, WorkspaceSymbolDto, SuggestResultDto, WorkspaceSymbolsDto, SuggestionDto, CodeActionDto, ISerializedDocumentFilter, WorkspaceEditDto, ISerializedSignatureHelpProviderMetadata, LinkDto, CodeLensDto } from './extHost.protocol';
+import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IMainContext, IdObject, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, ISerializedLanguageConfiguration, WorkspaceSymbolDto, SuggestResultDto, WorkspaceSymbolsDto, SuggestionDto, CodeActionDto, ISerializedDocumentFilter, WorkspaceEditDto, ISerializedSignatureHelpProviderMetadata, LinkDto, CodeLensDto, MainThreadWebviewsShape } from './extHost.protocol';
 import { regExpLeadsToEndlessLoop, regExpFlags } from 'vs/base/common/strings';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range as EditorRange } from 'vs/editor/common/core/range';
@@ -26,6 +26,7 @@ import { IExtensionDescription } from 'vs/workbench/services/extensions/common/e
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtHostWebview } from 'vs/workbench/api/node/extHostWebview';
 
 // --- adapter
 
@@ -139,6 +140,52 @@ class CodeLensAdapter {
 		return resolve.then(newLens => {
 			newLens = newLens || lens;
 			symbol.command = this._commands.toInternal(newLens.command || CodeLensAdapter._badCmd);
+			return symbol;
+		});
+	}
+}
+
+class CodeInsetAdapter {
+
+	constructor(
+		private readonly _documents: ExtHostDocuments,
+		private readonly _heapService: ExtHostHeapService,
+		private readonly _provider: vscode.CodeInsetProvider
+	) { }
+
+	provideCodeInsets(resource: URI, token: CancellationToken): Promise<modes.ICodeInsetSymbol[]> {
+		const doc = this._documents.getDocumentData(resource).document;
+		return asPromise(() => this._provider.provideCodeInsets(doc, token)).then(insets => {
+			if (Array.isArray(insets)) {
+				return insets.map(inset => {
+					const id = this._heapService.keep(inset);
+					return ObjectIdentifier.mixin({
+						range: typeConvert.Range.from(inset.range),
+						height: inset.height
+					}, id);
+				});
+			} else {
+				return undefined;
+			}
+		});
+	}
+
+	resolveCodeInset(symbol: modes.ICodeInsetSymbol, webview: vscode.Webview, token: CancellationToken): Promise<modes.ICodeInsetSymbol> {
+
+		const inset = this._heapService.get<vscode.CodeInset>(ObjectIdentifier.of(symbol));
+		if (!inset) {
+			return undefined;
+		}
+
+		let resolve: Promise<vscode.CodeInset>;
+		if (typeof this._provider.resolveCodeInset !== 'function') {
+			resolve = Promise.resolve(inset);
+		} else {
+			resolve = asPromise(() => this._provider.resolveCodeInset(inset, webview, token));
+		}
+
+		return resolve.then(newInset => {
+			newInset = newInset || inset;
 			return symbol;
 		});
 	}
@@ -916,7 +963,7 @@ type Adapter = DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | Hov
 	| DocumentHighlightAdapter | ReferenceAdapter | CodeActionAdapter | DocumentFormattingAdapter
 	| RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
 	| SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter | ImplementationAdapter | TypeDefinitionAdapter
-	| ColorProviderAdapter | FoldingProviderAdapter | DeclarationAdapter | SelectionRangeAdapter;
+	| ColorProviderAdapter | FoldingProviderAdapter | CodeInsetAdapter | DeclarationAdapter | SelectionRangeAdapter;
 
 class AdapterData {
 	constructor(
@@ -941,6 +988,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 	private _diagnostics: ExtHostDiagnostics;
 	private _adapter = new Map<number, AdapterData>();
 	private readonly _logService: ILogService;
+	private _webviewProxy: MainThreadWebviewsShape;
 
 	constructor(
 		mainContext: IMainContext,
@@ -958,6 +1006,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		this._heapService = heapMonitor;
 		this._diagnostics = diagnostics;
 		this._logService = logService;
+		this._webviewProxy = mainContext.getProxy(MainContext.MainThreadWebviews);
 	}
 
 	private _transformDocumentSelector(selector: vscode.DocumentSelector): ISerializedDocumentFilter[] {
@@ -1082,6 +1131,38 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	$resolveCodeLens(handle: number, resource: UriComponents, symbol: modes.ICodeLensSymbol, token: CancellationToken): Promise<modes.ICodeLensSymbol> {
 		return this._withAdapter(handle, CodeLensAdapter, adapter => adapter.resolveCodeLens(URI.revive(resource), symbol, token));
+	}
+
+	// --- code insets
+
+	registerCodeInsetProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.CodeInsetProvider): vscode.Disposable {
+		const handle = this._nextHandle();
+		const eventHandle = typeof provider.onDidChangeCodeInsets === 'function' ? this._nextHandle() : undefined;
+
+		this._adapter.set(handle, new AdapterData(new CodeInsetAdapter(this._documents, this._heapService, provider), extension));
+		this._proxy.$registerCodeInsetSupport(handle, this._transformDocumentSelector(selector), eventHandle, extension);
+		let result = this._createDisposable(handle);
+
+		if (eventHandle !== undefined) {
+			const subscription = provider.onDidChangeCodeInsets(_ => this._proxy.$emitCodeLensEvent(eventHandle));
+			result = Disposable.from(result, subscription);
+		}
+
+		return result;
+	}
+
+	$provideCodeInsets(handle: number, resource: UriComponents, token: CancellationToken): Promise<modes.ICodeInsetSymbol[]> {
+		return this._withAdapter(handle, CodeInsetAdapter, adapter => adapter.provideCodeInsets(URI.revive(resource), token));
+	}
+
+	$resolveCodeInset(handle: number, resource: UriComponents, symbol: modes.ICodeInsetSymbol, token: CancellationToken): Promise<modes.ICodeInsetSymbol> {
+		const webview = new ExtHostWebview(symbol.webviewHandle, this._webviewProxy, { enableScripts: true });
+		webview.html = '<html><body></body></html>';
+		const x = this._withAdapter(handle, CodeInsetAdapter, adapter => adapter.resolveCodeInset(symbol, webview, token));
+		return x;
+	}
+
+	$createCodeInsetWebview(handle: number) {
 	}
 
 	// --- declaration

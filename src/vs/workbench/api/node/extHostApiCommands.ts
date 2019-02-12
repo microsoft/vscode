@@ -146,6 +146,13 @@ export class ExtHostApiCommands {
 			],
 			returns: 'A promise that resolves to an array of CodeLens-instances.'
 		});
+		this._register('vscode.executeCodeInsetProvider', this._executeCodeInsetProvider, {
+			description: 'Execute CodeInset provider.',
+			args: [
+				{ name: 'uri', description: 'Uri of a text document', constraint: URI }
+			],
+			returns: 'A promise that resolves to an array of CodeInset-instances.'
+		});
 		this._register('vscode.executeFormatDocumentProvider', this._executeFormatDocumentProvider, {
 			description: 'Execute document format provider.',
 			args: [
@@ -512,6 +519,14 @@ export class ExtHostApiCommands {
 					this._commands.converter.fromInternal(item.command));
 			}));
 
+	}
+
+	private _executeCodeInsetProvider(resource: URI): Thenable<vscode.CodeInset[]> {
+		const args = { resource };
+		return this._commands.executeCommand<modes.ICodeInsetSymbol[]>('_executeCodeInsetProvider', args)
+			.then(tryMapWith(item =>
+				new types.CodeInset(
+					typeConverters.Range.to(item.range))));
 	}
 
 	private _executeFormatDocumentProvider(resource: URI, options: vscode.FormattingOptions): Promise<vscode.TextEdit[]> {

@@ -2235,6 +2235,24 @@ declare module 'vscode' {
 		resolveCodeLens?(codeLens: CodeLens, token: CancellationToken): ProviderResult<CodeLens>;
 	}
 
+
+	/**
+	 */
+	export class CodeInset {
+		range: Range;
+		height?: number;
+		constructor(range: Range, height?: number);
+	}
+
+	export interface CodeInsetProvider {
+
+		onDidChangeCodeInsets?: Event<void>;
+
+		provideCodeInsets(document: TextDocument, token: CancellationToken): ProviderResult<CodeInset[]>;
+		resolveCodeInset?(codeInset: CodeInset, webview: Webview, token: CancellationToken): ProviderResult<CodeInset>;
+	}
+
+
 	/**
 	 * Information about where a symbol is defined.
 	 *
@@ -7854,6 +7872,12 @@ declare module 'vscode' {
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
 		export function registerCodeLensProvider(selector: DocumentSelector, provider: CodeLensProvider): Disposable;
+
+		/**
+		 * Register a code inset provider.
+		 *
+		 */
+		export function registerCodeInsetProvider(selector: DocumentSelector, provider: CodeInsetProvider): Disposable;
 
 		/**
 		 * Register a definition provider.

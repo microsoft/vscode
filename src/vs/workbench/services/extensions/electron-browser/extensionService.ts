@@ -417,6 +417,11 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		this._stopExtensionHostProcess();
 	}
 
+	public getNamedCustomer(sid: string): any {
+		const ncs = this._extensionHostProcessManagers.map(m => m.getNamedCustomer(sid)).filter(c => c);
+		return ncs.length ? ncs[0] : undefined;
+	}
+
 	private _stopExtensionHostProcess(): void {
 		let previouslyActivatedExtensionIds: ExtensionIdentifier[] = [];
 		this._extensionHostActiveExtensions.forEach((value) => {

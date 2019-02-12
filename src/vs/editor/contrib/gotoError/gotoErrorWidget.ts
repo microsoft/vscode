@@ -188,7 +188,7 @@ export class MarkerNavigationWidget extends ZoneWidget {
 	}
 
 	private _applyTheme(theme: ITheme) {
-		this._backgroundColor = theme.getColor(editorMarkerNavigationBackground);
+		this._backgroundColor = theme.getColor(editorMarkerNavigationBackground) || undefined;
 		let colorId = editorMarkerNavigationError;
 		if (this._severity === MarkerSeverity.Warning) {
 			colorId = editorMarkerNavigationWarning;

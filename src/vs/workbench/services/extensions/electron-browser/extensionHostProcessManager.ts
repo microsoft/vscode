@@ -48,6 +48,7 @@ export class ExtensionHostProcessManager extends Disposable {
 	private _extensionHostProcessRPCProtocol: RPCProtocol;
 	private readonly _extensionHostProcessCustomers: IDisposable[];
 	private readonly _extensionHostProcessWorker: IExtensionHostStarter;
+	private readonly _namedCustomerById: { [sid: string]: any } = {};
 	/**
 	 * winjs believes a proxy is a promise because it has a `then` method, so wrap the result in an object.
 	 */
@@ -183,6 +184,7 @@ export class ExtensionHostProcessManager extends Disposable {
 			const instance = this._instantiationService.createInstance(ctor, extHostContext);
 			this._extensionHostProcessCustomers.push(instance);
 			this._extensionHostProcessRPCProtocol.set(id, instance);
+			this._namedCustomerById[id.sid] = instance;
 		}
 
 		// Customers
@@ -203,6 +205,10 @@ export class ExtensionHostProcessManager extends Disposable {
 		return this._extensionHostProcessProxy.then((proxy) => {
 			return proxy.value.$activate(extension, activationEvent);
 		});
+	}
+
+	public getNamedCustomer(sid: string): any {
+		return this._namedCustomerById[sid];
 	}
 
 	public activateByEvent(activationEvent: string): Promise<void> {
