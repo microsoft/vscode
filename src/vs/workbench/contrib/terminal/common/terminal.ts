@@ -432,7 +432,7 @@ export interface ITerminalInstance {
 	/**
 	 * Indicates that a consumer of a renderer only terminal is finished with it.
 	 */
-	finishedWithRenderer(): void;
+	finishedWithRenderer(result: number | undefined): void;
 
 	/**
 	 * Forces the terminal to redraw its viewport.

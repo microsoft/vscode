@@ -30,9 +30,8 @@ import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostC
 import { ExtHostContext, MainThreadTaskShape, ExtHostTaskShape, MainContext, IExtHostContext } from 'vs/workbench/api/node/extHost.protocol';
 import {
 	TaskDefinitionDTO, TaskExecutionDTO, ProcessExecutionOptionsDTO, TaskPresentationOptionsDTO,
-	ProcessExecutionDTO, ShellExecutionDTO, ShellExecutionOptionsDTO, TaskDTO, TaskSourceDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO, TaskSystemInfoDTO,
-	RunOptionsDTO,
-	CustomTaskExecutionDTO
+	ProcessExecutionDTO, ShellExecutionDTO, ShellExecutionOptionsDTO, CustomTaskExecutionDTO, TaskDTO, TaskSourceDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO, TaskSystemInfoDTO,
+	RunOptionsDTO
 } from 'vs/workbench/api/shared/tasks';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 
@@ -252,7 +251,7 @@ namespace CustomTaskExecutionDTO {
 
 	export function to(value: CustomTaskExecutionDTO): CommandConfiguration {
 		return {
-			runtime: RuntimeType.ExtensionCallback,
+			runtime: RuntimeType.CustomTaskExecution,
 			presentation: undefined
 		};
 	}
@@ -519,12 +518,12 @@ export class MainThreadTask implements MainThreadTaskShape {
 		});
 	}
 
-	public $extensionCallbackTaskComplete(id: string): Promise<void> {
+	public $customTaskExecutionComplete(id: string, result: number | undefined): Promise<void> {
 		return new Promise<void>((resolve, reject) => {
 			this._taskService.getActiveTasks().then((tasks) => {
 				for (let task of tasks) {
 					if (id === task._id) {
-						this._taskService.extensionCallbackTaskComplete(task).then((value) => {
+						this._taskService.extensionCallbackTaskComplete(task, result).then((value) => {
 							resolve(undefined);
 						}, (error) => {
 							reject(error);

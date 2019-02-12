@@ -266,14 +266,14 @@ export class TerminalTaskSystem implements ITaskSystem {
 		return Object.keys(this.activeTasks).map(key => this.activeTasks[key].task);
 	}
 
-	public extensionCallbackTaskComplete(task: Task): Promise<void> {
+	public extensionCallbackTaskComplete(task: Task, result: number | undefined): Promise<void> {
 		let activeTerminal = this.activeTasks[task.getMapKey()];
 		if (!activeTerminal) {
 			return Promise.reject(new Error('Expected to have a terminal for an extension callback task'));
 		}
 
 		return new Promise<void>((resolve) => {
-			activeTerminal.terminal.finishedWithRenderer();
+			activeTerminal.terminal.finishedWithRenderer(result);
 			resolve();
 		});
 	}
@@ -550,7 +550,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 				let processStartedSignaled = false;
 				terminal.processReady.then(() => {
 					if (!processStartedSignaled) {
-						if (task.command.runtime !== RuntimeType.ExtensionCallback) {
+						if (task.command.runtime !== RuntimeType.CustomTaskExecution) {
 							this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal!.processId!));
 						}
 						processStartedSignaled = true;
@@ -622,7 +622,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 				let processStartedSignaled = false;
 				terminal.processReady.then(() => {
 					if (!processStartedSignaled) {
-						if (task.command.runtime !== RuntimeType.ExtensionCallback) {
+						if (task.command.runtime !== RuntimeType.CustomTaskExecution) {
 							this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal!.processId!));
 						}
 						processStartedSignaled = true;
@@ -826,7 +826,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 				}
 			}
 		} else {
-			let commandExecutable = task.command.runtime !== RuntimeType.ExtensionCallback ? CommandString.value(command) : undefined;
+			let commandExecutable = task.command.runtime !== RuntimeType.CustomTaskExecution ? CommandString.value(command) : undefined;
 			let executable = !isShellCommand
 				? this.resolveVariable(variableResolver, '${' + TerminalTaskSystem.ProcessVarName + '}')
 				: commandExecutable;
@@ -906,7 +906,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		let command: CommandString | undefined;
 		let args: CommandString[] | undefined;
 
-		if (task.command.runtime === RuntimeType.ExtensionCallback) {
+		if (task.command.runtime === RuntimeType.CustomTaskExecution) {
 			this.currentTask.shellLaunchConfig = {
 				isRendererOnly: true,
 				waitOnExit,
@@ -1126,7 +1126,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 	private collectCommandVariables(variables: Set<string>, command: CommandConfiguration, task: CustomTask | ContributedTask): void {
 		// An extension callback should have everything it needs already as it provided
 		// the callback.
-		if (command.runtime === RuntimeType.ExtensionCallback) {
+		if (command.runtime === RuntimeType.CustomTaskExecution) {
 			return;
 		}
 

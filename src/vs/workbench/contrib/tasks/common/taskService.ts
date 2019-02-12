@@ -83,5 +83,5 @@ export interface ITaskService {
 
 	registerTaskSystem(scheme: string, taskSystemInfo: TaskSystemInfo): void;
 
-	extensionCallbackTaskComplete(task: Task): Promise<void>;
+	extensionCallbackTaskComplete(task: Task, result: number | undefined): Promise<void>;
 }

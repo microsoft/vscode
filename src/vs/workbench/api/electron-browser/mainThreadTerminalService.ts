@@ -196,10 +196,10 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 
 	private _onTerminalOpened(terminalInstance: ITerminalInstance): void {
 		if (terminalInstance.title) {
-			this._proxy.$acceptTerminalOpened(terminalInstance.id, terminalInstance.title, terminalInstance.shellLaunchConfig.isRendererOnly, terminalInstance.cols, terminalInstance.rows);
+			this._proxy.$acceptTerminalOpened(terminalInstance.id, terminalInstance.title, !!terminalInstance.shellLaunchConfig.isRendererOnly, terminalInstance.cols, terminalInstance.rows);
 		} else {
 			terminalInstance.waitForTitle().then(title => {
-				this._proxy.$acceptTerminalOpened(terminalInstance.id, title, terminalInstance.shellLaunchConfig.isRendererOnly, terminalInstance.cols, terminalInstance.rows);
+				this._proxy.$acceptTerminalOpened(terminalInstance.id, title, !!terminalInstance.shellLaunchConfig.isRendererOnly, terminalInstance.cols, terminalInstance.rows);
 			});
 		}
 	}

@@ -754,7 +754,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._disposables = lifecycle.dispose(this._disposables);
 	}
 
-	public finishedWithRenderer(): void {
+	public finishedWithRenderer(result: number | undefined): void {
 		// The use of this API is for cases where there is no backing process
 		// behind a terminal instance (such as when executing an extension callback task).
 		// There is no associated string, error text, etc, as the consumer of the renderer
@@ -764,7 +764,7 @@ export class TerminalInstance implements ITerminalInstance {
 			return;
 		}
 
-		return this._onProcessOrExtensionCallbackExit();
+		return this._onProcessOrExtensionCallbackExit(result);
 	}
 
 	public forceRedraw(): void {
