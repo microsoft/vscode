@@ -135,6 +135,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
+import { HistoryService } from 'vs/workbench/services/history/browser/history';
 
 // import@node
 import product from 'vs/platform/node/product';
@@ -165,7 +166,6 @@ import { IntegrityServiceImpl } from 'vs/workbench/services/integrity/node/integ
 import { LocalizationsChannelClient } from 'vs/platform/localizations/node/localizationsIpc';
 
 // import@electron-browser
-import { HistoryService } from 'vs/workbench/services/history/electron-browser/history';
 import { ContextMenuService as NativeContextMenuService } from 'vs/workbench/services/contextview/electron-browser/contextmenuService';
 import { WorkbenchKeybindingService } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import { RemoteFileService } from 'vs/workbench/services/files/electron-browser/remoteFileService';
