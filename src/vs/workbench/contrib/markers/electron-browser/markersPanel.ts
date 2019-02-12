@@ -402,7 +402,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 	}
 
 	private createActions(): void {
-		this.collapseAllAction = new Action('vs.tree.collapse', localize('collapse', "Collapse"), 'monaco-tree-action collapse-all', true, async () => {
+		this.collapseAllAction = new Action('vs.tree.collapse', localize('collapseAll', "Collapse All"), 'monaco-tree-action collapse-all', true, async () => {
 			this.tree.collapseAll();
 			this.tree.setSelection([]);
 			this.tree.setFocus([]);
