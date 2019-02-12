@@ -182,7 +182,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private _titleReadyComplete: (title: string) => any;
 
 	private _disposables: lifecycle.IDisposable[];
-	private _messageTitleDisposable: lifecycle.IDisposable;
+	private _messageTitleDisposable: lifecycle.IDisposable | undefined;
 
 	private _widgetManager: TerminalWidgetManager;
 	private _linkHandler: TerminalLinkHandler;
@@ -1255,6 +1255,7 @@ export class TerminalInstance implements ITerminalInstance {
 			// automatically updates the terminal name
 			if (this._messageTitleDisposable) {
 				lifecycle.dispose(this._messageTitleDisposable);
+				this._messageTitleDisposable = undefined;
 			}
 		}
 		const didTitleChange = title !== this._title;
