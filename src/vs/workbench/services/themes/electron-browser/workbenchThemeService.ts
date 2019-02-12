@@ -31,7 +31,6 @@ import * as resources from 'vs/base/common/resources';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { textmateColorsSchemaId, registerColorThemeSchemas, textmateColorSettingsSchemaId } from 'vs/workbench/services/themes/common/colorThemeSchema';
 import { workbenchColorsSchemaId } from 'vs/platform/theme/common/colorRegistry';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 // implementation
 
@@ -320,9 +319,8 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return this.currentColorTheme;
 	}
 
-	public async getColorThemes(extensionId?: ExtensionIdentifier): Promise<IColorTheme[]> {
-		const colorThemes = await this.colorThemeStore.getColorThemes();
-		return extensionId ? colorThemes.filter(c => ExtensionIdentifier.equals(new ExtensionIdentifier(c.extensionData.extensionId), extensionId)) : colorThemes;
+	public getColorThemes(): Promise<IColorTheme[]> {
+		return this.colorThemeStore.getColorThemes();
 	}
 
 	public getTheme(): ITheme {
@@ -460,9 +458,8 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		}
 	}
 
-	public async getFileIconThemes(extensionId?: ExtensionIdentifier): Promise<IFileIconTheme[]> {
-		const filIconThemes = await this.iconThemeStore.getFileIconThemes();
-		return extensionId ? filIconThemes.filter(c => c.extensionData && ExtensionIdentifier.equals(new ExtensionIdentifier(c.extensionData.extensionId), extensionId)) : filIconThemes;
+	public getFileIconThemes(): Promise<IFileIconTheme[]> {
+		return this.iconThemeStore.getFileIconThemes();
 	}
 
 	public getFileIconTheme() {

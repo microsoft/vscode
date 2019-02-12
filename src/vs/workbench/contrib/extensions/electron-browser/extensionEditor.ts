@@ -52,6 +52,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { getDefaultValue } from 'vs/platform/configuration/common/configurationRegistry';
 import { isUndefined } from 'vs/base/common/types';
+import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 
 function renderBody(body: string): string {
 	const styleSheetPath = require.toUrl('./media/markdown.css').replace('file://', 'vscode-core-resource://');
@@ -199,7 +200,9 @@ export class ExtensionEditor extends BaseEditor {
 		@IPartService private readonly partService: IPartService,
 		@IExtensionTipsService private readonly extensionTipsService: IExtensionTipsService,
 		@IStorageService storageService: IStorageService,
-		@IExtensionService private readonly extensionService: IExtensionService
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService
+
 	) {
 		super(ExtensionEditor.ID, telemetryService, themeService, storageService);
 		this.disposables = [];
@@ -278,138 +281,139 @@ export class ExtensionEditor extends BaseEditor {
 		this.content = append(body, $('.content'));
 	}
 
-	setInput(input: ExtensionsInput, options: EditorOptions, token: CancellationToken): Promise<void> {
-		return this.extensionService.getExtensions()
-			.then(runningExtensions => {
-				this.activeElement = null;
-				this.editorLoadComplete = false;
-				const extension = input.extension;
+	async setInput(input: ExtensionsInput, options: EditorOptions, token: CancellationToken): Promise<void> {
+		const runningExtensions = await this.extensionService.getExtensions();
+		const colorThemes = await this.workbenchThemeService.getColorThemes();
+		const fileIconThemes = await this.workbenchThemeService.getFileIconThemes();
 
-				this.transientDisposables = dispose(this.transientDisposables);
+		this.activeElement = null;
+		this.editorLoadComplete = false;
+		const extension = input.extension;
 
-				this.extensionReadme = new Cache(() => createCancelablePromise(token => extension.getReadme(token)));
-				this.extensionChangelog = new Cache(() => createCancelablePromise(token => extension.getChangelog(token)));
-				this.extensionManifest = new Cache(() => createCancelablePromise(token => extension.getManifest(token)));
-				this.extensionDependencies = new Cache(() => createCancelablePromise(token => this.extensionsWorkbenchService.loadDependencies(extension, token)));
+		this.transientDisposables = dispose(this.transientDisposables);
 
-				const remoteBadge = this.instantiationService.createInstance(RemoteBadgeWidget, this.iconContainer);
-				const onError = Event.once(domEvent(this.icon, 'error'));
-				onError(() => this.icon.src = extension.iconUrlFallback, null, this.transientDisposables);
-				this.icon.src = extension.iconUrl;
+		this.extensionReadme = new Cache(() => createCancelablePromise(token => extension.getReadme(token)));
+		this.extensionChangelog = new Cache(() => createCancelablePromise(token => extension.getChangelog(token)));
+		this.extensionManifest = new Cache(() => createCancelablePromise(token => extension.getManifest(token)));
+		this.extensionDependencies = new Cache(() => createCancelablePromise(token => this.extensionsWorkbenchService.loadDependencies(extension, token)));
 
-				this.name.textContent = extension.displayName;
-				this.identifier.textContent = extension.identifier.id;
-				this.preview.style.display = extension.preview ? 'inherit' : 'none';
-				this.builtin.style.display = extension.type === ExtensionType.System ? 'inherit' : 'none';
+		const remoteBadge = this.instantiationService.createInstance(RemoteBadgeWidget, this.iconContainer);
+		const onError = Event.once(domEvent(this.icon, 'error'));
+		onError(() => this.icon.src = extension.iconUrlFallback, null, this.transientDisposables);
+		this.icon.src = extension.iconUrl;
 
-				this.publisher.textContent = extension.publisherDisplayName;
-				this.description.textContent = extension.description;
+		this.name.textContent = extension.displayName;
+		this.identifier.textContent = extension.identifier.id;
+		this.preview.style.display = extension.preview ? 'inherit' : 'none';
+		this.builtin.style.display = extension.type === ExtensionType.System ? 'inherit' : 'none';
 
-				const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
-				let recommendationsData = {};
-				if (extRecommendations[extension.identifier.id.toLowerCase()]) {
-					recommendationsData = { recommendationReason: extRecommendations[extension.identifier.id.toLowerCase()].reasonId };
-				}
+		this.publisher.textContent = extension.publisherDisplayName;
+		this.description.textContent = extension.description;
 
-				/* __GDPR__
-				"extensionGallery:openExtension" : {
-					"recommendationReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-					"${include}": [
-						"${GalleryExtensionTelemetryData}"
-					]
-				}
-				*/
-				this.telemetryService.publicLog('extensionGallery:openExtension', assign(extension.telemetryData, recommendationsData));
+		const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
+		let recommendationsData = {};
+		if (extRecommendations[extension.identifier.id.toLowerCase()]) {
+			recommendationsData = { recommendationReason: extRecommendations[extension.identifier.id.toLowerCase()].reasonId };
+		}
 
-				toggleClass(this.name, 'clickable', !!extension.url);
-				toggleClass(this.publisher, 'clickable', !!extension.url);
-				toggleClass(this.rating, 'clickable', !!extension.url);
-				if (extension.url) {
-					this.name.onclick = finalHandler(() => window.open(extension.url));
-					this.rating.onclick = finalHandler(() => window.open(`${extension.url}#review-details`));
-					this.publisher.onclick = finalHandler(() => {
-						this.viewletService.openViewlet(VIEWLET_ID, true)
-							.then(viewlet => viewlet as IExtensionsViewlet)
-							.then(viewlet => viewlet.search(`publisher:"${extension.publisherDisplayName}"`));
-					});
+		/* __GDPR__
+		"extensionGallery:openExtension" : {
+			"recommendationReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"${include}": [
+				"${GalleryExtensionTelemetryData}"
+			]
+		}
+		*/
+		this.telemetryService.publicLog('extensionGallery:openExtension', assign(extension.telemetryData, recommendationsData));
 
-					if (extension.licenseUrl) {
-						this.license.onclick = finalHandler(() => window.open(extension.licenseUrl));
-						this.license.style.display = 'initial';
-					} else {
-						this.license.onclick = null;
-						this.license.style.display = 'none';
-					}
-				} else {
-					this.name.onclick = null;
-					this.rating.onclick = null;
-					this.publisher.onclick = null;
-					this.license.onclick = null;
-					this.license.style.display = 'none';
-				}
-
-				if (extension.repository) {
-					this.repository.onclick = finalHandler(() => window.open(extension.repository));
-					this.repository.style.display = 'initial';
-				}
-				else {
-					this.repository.onclick = null;
-					this.repository.style.display = 'none';
-				}
-
-				const widgets = [
-					remoteBadge,
-					this.instantiationService.createInstance(InstallCountWidget, this.installCount, false),
-					this.instantiationService.createInstance(RatingsWidget, this.rating, false)
-				];
-				const reloadAction = this.instantiationService.createInstance(ReloadAction);
-				const actions = [
-					reloadAction,
-					this.instantiationService.createInstance(StatusLabelAction),
-					this.instantiationService.createInstance(UpdateAction),
-					this.instantiationService.createInstance(SetColorThemeAction),
-					this.instantiationService.createInstance(SetFileIconThemeAction),
-					this.instantiationService.createInstance(EnableDropDownAction),
-					this.instantiationService.createInstance(DisableDropDownAction, runningExtensions),
-					this.instantiationService.createInstance(CombinedInstallAction),
-					this.instantiationService.createInstance(MaliciousStatusLabelAction, true),
-				];
-				const extensionContainers: ExtensionContainers = this.instantiationService.createInstance(ExtensionContainers, [...actions, ...widgets]);
-				extensionContainers.extension = extension;
-
-				this.extensionActionBar.clear();
-				this.extensionActionBar.push(actions, { icon: true, label: true });
-				this.transientDisposables.push(...[...actions, ...widgets, extensionContainers]);
-
-				this.setSubText(extension, reloadAction);
-				this.content.innerHTML = ''; // Clear content before setting navbar actions.
-
-				this.navbar.clear();
-				this.navbar.onChange(this.onNavbarChange.bind(this, extension), this, this.transientDisposables);
-
-				if (extension.hasReadme()) {
-					this.navbar.push(NavbarSection.Readme, localize('details', "Details"), localize('detailstooltip', "Extension details, rendered from the extension's 'README.md' file"));
-				}
-				this.extensionManifest.get()
-					.promise
-					.then(manifest => {
-						if (extension.extensionPack.length) {
-							this.navbar.push(NavbarSection.ExtensionPack, localize('extensionPack', "Extension Pack"), localize('extensionsPack', "Set of extensions that can be installed together"));
-						}
-						if (manifest && manifest.contributes) {
-							this.navbar.push(NavbarSection.Contributions, localize('contributions', "Contributions"), localize('contributionstooltip', "Lists contributions to VS Code by this extension"));
-						}
-						if (extension.hasChangelog()) {
-							this.navbar.push(NavbarSection.Changelog, localize('changelog', "Changelog"), localize('changelogtooltip', "Extension update history, rendered from the extension's 'CHANGELOG.md' file"));
-						}
-						if (extension.dependencies.length) {
-							this.navbar.push(NavbarSection.Dependencies, localize('dependencies', "Dependencies"), localize('dependenciestooltip', "Lists extensions this extension depends on"));
-						}
-						this.editorLoadComplete = true;
-					});
-
-				return super.setInput(input, options, token);
+		toggleClass(this.name, 'clickable', !!extension.url);
+		toggleClass(this.publisher, 'clickable', !!extension.url);
+		toggleClass(this.rating, 'clickable', !!extension.url);
+		if (extension.url) {
+			this.name.onclick = finalHandler(() => window.open(extension.url));
+			this.rating.onclick = finalHandler(() => window.open(`${extension.url}#review-details`));
+			this.publisher.onclick = finalHandler(() => {
+				this.viewletService.openViewlet(VIEWLET_ID, true)
+					.then(viewlet => viewlet as IExtensionsViewlet)
+					.then(viewlet => viewlet.search(`publisher:"${extension.publisherDisplayName}"`));
 			});
+
+			if (extension.licenseUrl) {
+				this.license.onclick = finalHandler(() => window.open(extension.licenseUrl));
+				this.license.style.display = 'initial';
+			} else {
+				this.license.onclick = null;
+				this.license.style.display = 'none';
+			}
+		} else {
+			this.name.onclick = null;
+			this.rating.onclick = null;
+			this.publisher.onclick = null;
+			this.license.onclick = null;
+			this.license.style.display = 'none';
+		}
+
+		if (extension.repository) {
+			this.repository.onclick = finalHandler(() => window.open(extension.repository));
+			this.repository.style.display = 'initial';
+		}
+		else {
+			this.repository.onclick = null;
+			this.repository.style.display = 'none';
+		}
+
+		const widgets = [
+			remoteBadge,
+			this.instantiationService.createInstance(InstallCountWidget, this.installCount, false),
+			this.instantiationService.createInstance(RatingsWidget, this.rating, false)
+		];
+		const reloadAction = this.instantiationService.createInstance(ReloadAction);
+		const actions = [
+			reloadAction,
+			this.instantiationService.createInstance(StatusLabelAction),
+			this.instantiationService.createInstance(UpdateAction),
+			this.instantiationService.createInstance(SetColorThemeAction, colorThemes),
+			this.instantiationService.createInstance(SetFileIconThemeAction, fileIconThemes),
+			this.instantiationService.createInstance(EnableDropDownAction),
+			this.instantiationService.createInstance(DisableDropDownAction, runningExtensions),
+			this.instantiationService.createInstance(CombinedInstallAction),
+			this.instantiationService.createInstance(MaliciousStatusLabelAction, true),
+		];
+		const extensionContainers: ExtensionContainers = this.instantiationService.createInstance(ExtensionContainers, [...actions, ...widgets]);
+		extensionContainers.extension = extension;
+
+		this.extensionActionBar.clear();
+		this.extensionActionBar.push(actions, { icon: true, label: true });
+		this.transientDisposables.push(...[...actions, ...widgets, extensionContainers]);
+
+		this.setSubText(extension, reloadAction);
+		this.content.innerHTML = ''; // Clear content before setting navbar actions.
+
+		this.navbar.clear();
+		this.navbar.onChange(this.onNavbarChange.bind(this, extension), this, this.transientDisposables);
+
+		if (extension.hasReadme()) {
+			this.navbar.push(NavbarSection.Readme, localize('details', "Details"), localize('detailstooltip', "Extension details, rendered from the extension's 'README.md' file"));
+		}
+		this.extensionManifest.get()
+			.promise
+			.then(manifest => {
+				if (extension.extensionPack.length) {
+					this.navbar.push(NavbarSection.ExtensionPack, localize('extensionPack', "Extension Pack"), localize('extensionsPack', "Set of extensions that can be installed together"));
+				}
+				if (manifest && manifest.contributes) {
+					this.navbar.push(NavbarSection.Contributions, localize('contributions', "Contributions"), localize('contributionstooltip', "Lists contributions to VS Code by this extension"));
+				}
+				if (extension.hasChangelog()) {
+					this.navbar.push(NavbarSection.Changelog, localize('changelog', "Changelog"), localize('changelogtooltip', "Extension update history, rendered from the extension's 'CHANGELOG.md' file"));
+				}
+				if (extension.dependencies.length) {
+					this.navbar.push(NavbarSection.Dependencies, localize('dependencies', "Dependencies"), localize('dependenciestooltip', "Lists extensions this extension depends on"));
+				}
+				this.editorLoadComplete = true;
+			});
+
+		return super.setInput(input, options, token);
 	}
 
 	private setSubText(extension: IExtension, reloadAction: ReloadAction): void {

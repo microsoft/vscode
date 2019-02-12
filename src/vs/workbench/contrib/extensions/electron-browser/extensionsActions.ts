@@ -55,7 +55,7 @@ import { clipboard } from 'electron';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { coalesce } from 'vs/base/common/arrays';
-import { IWorkbenchThemeService, COLOR_THEME_SETTING, ICON_THEME_SETTING } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IWorkbenchThemeService, COLOR_THEME_SETTING, ICON_THEME_SETTING, IFileIconTheme, IColorTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 
 function toExtensionDescription(local: ILocalExtension): IExtensionDescription {
 	return {
@@ -185,15 +185,15 @@ export class InstallAction extends ExtensionAction {
 		if (extension.local) {
 			const runningExtension = await this.getRunningExtension(extension.local);
 			if (runningExtension) {
-				const colorThemes = await this.workbenchThemeService.getColorThemes(runningExtension.identifier);
-				const fileIconThemes = await this.workbenchThemeService.getFileIconThemes(runningExtension.identifier);
-				if (colorThemes.length) {
-					const action = this.instantiationService.createInstance(SetColorThemeAction);
+				const colorThemes = await this.workbenchThemeService.getColorThemes();
+				const fileIconThemes = await this.workbenchThemeService.getFileIconThemes();
+				if (SetColorThemeAction.getColorThemes(colorThemes, this.extension).length) {
+					const action = this.instantiationService.createInstance(SetColorThemeAction, colorThemes);
 					action.extension = extension;
 					return action.run(true);
 				}
-				if (fileIconThemes.length) {
-					const action = this.instantiationService.createInstance(SetFileIconThemeAction);
+				if (SetFileIconThemeAction.getFileIconThemes(fileIconThemes, this.extension).length) {
+					const action = this.instantiationService.createInstance(SetFileIconThemeAction, fileIconThemes);
 					action.extension = extension;
 					return action.run(true);
 				}
@@ -548,7 +548,8 @@ export class ManageExtensionAction extends ExtensionDropDownAction {
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IExtensionService private readonly extensionService: IExtensionService
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService
 	) {
 
 		super(ManageExtensionAction.ID, '', '', true, true, instantiationService);
@@ -558,8 +559,22 @@ export class ManageExtensionAction extends ExtensionDropDownAction {
 		this.update();
 	}
 
-	getActionGroups(runningExtensions: IExtensionDescription[]): IAction[][] {
+	getActionGroups(runningExtensions: IExtensionDescription[], colorThemes: IColorTheme[], fileIconThemes: IFileIconTheme[]): IAction[][] {
 		const groups: ExtensionAction[][] = [];
+		if (this.extension) {
+			const extensionColorThemes = SetColorThemeAction.getColorThemes(colorThemes, this.extension);
+			const extensionFileIconThemes = SetFileIconThemeAction.getFileIconThemes(fileIconThemes, this.extension);
+			if (extensionColorThemes.length || extensionFileIconThemes.length) {
+				const themesGroup: ExtensionAction[] = [];
+				if (extensionColorThemes.length) {
+					themesGroup.push(this.instantiationService.createInstance(SetColorThemeAction, colorThemes));
+				}
+				if (extensionFileIconThemes.length) {
+					themesGroup.push(this.instantiationService.createInstance(SetFileIconThemeAction, fileIconThemes));
+				}
+				groups.push(themesGroup);
+			}
+		}
 		groups.push([
 			this.instantiationService.createInstance(EnableGloballyAction),
 			this.instantiationService.createInstance(EnableForWorkspaceAction)
@@ -577,8 +592,11 @@ export class ManageExtensionAction extends ExtensionDropDownAction {
 		return groups;
 	}
 
-	run(): Promise<any> {
-		return this.extensionService.getExtensions().then(runtimeExtensions => super.run({ actionGroups: this.getActionGroups(runtimeExtensions), disposeActionsOnHide: true }));
+	async run(): Promise<any> {
+		const runtimeExtensions = await this.extensionService.getExtensions();
+		const colorThemes = await this.workbenchThemeService.getColorThemes();
+		const fileIconThemes = await this.workbenchThemeService.getFileIconThemes();
+		return super.run({ actionGroups: this.getActionGroups(runtimeExtensions, colorThemes, fileIconThemes), disposeActionsOnHide: true });
 	}
 
 	update(): void {
@@ -1107,12 +1125,17 @@ export class ReloadAction extends ExtensionAction {
 
 export class SetColorThemeAction extends ExtensionAction {
 
+	static getColorThemes(colorThemes: IColorTheme[], extension: IExtension): IColorTheme[] {
+		return colorThemes.filter(c => ExtensionIdentifier.equals(c.extensionData.extensionId, extension.identifier.id));
+	}
+
 	private static readonly EnabledClass = 'extension-action theme';
 	private static readonly DisabledClass = `${SetColorThemeAction.EnabledClass} disabled`;
 
 	private disposables: IDisposable[] = [];
 
 	constructor(
+		private readonly colorThemes: IColorTheme[],
 		@IExtensionService extensionService: IExtensionService,
 		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
@@ -1123,34 +1146,33 @@ export class SetColorThemeAction extends ExtensionAction {
 		this.update();
 	}
 
-	async update(): Promise<void> {
+	update(): void {
 		this.enabled = false;
 		if (this.extension) {
 			const isInstalled = this.extension.state === ExtensionState.Installed;
 			if (isInstalled) {
-				const colorThemes = await this.workbenchThemeService.getColorThemes(new ExtensionIdentifier(this.extension.identifier.id));
-				this.enabled = colorThemes.length > 0;
+				const extensionThemes = SetColorThemeAction.getColorThemes(this.colorThemes, this.extension);
+				this.enabled = extensionThemes.length > 0;
 			}
 		}
 		this.class = this.enabled ? SetColorThemeAction.EnabledClass : SetColorThemeAction.DisabledClass;
 	}
 
 	async run(showCurrentTheme: boolean): Promise<any> {
-		await this.update();
+		this.update();
 		if (!this.enabled) {
 			return;
 		}
-		let colorThemes = await this.workbenchThemeService.getColorThemes(new ExtensionIdentifier(this.extension.identifier.id));
-		const allThemes = await this.workbenchThemeService.getColorThemes();
-		const currentTheme = allThemes.filter(t => t.settingsId === this.configurationService.getValue(COLOR_THEME_SETTING))[0];
-		showCurrentTheme = showCurrentTheme || colorThemes.some(t => t.id === currentTheme.id);
+		let extensionThemes = SetColorThemeAction.getColorThemes(this.colorThemes, this.extension);
+		const currentTheme = this.colorThemes.filter(t => t.settingsId === this.configurationService.getValue(COLOR_THEME_SETTING))[0];
+		showCurrentTheme = showCurrentTheme || extensionThemes.some(t => t.id === currentTheme.id);
 		if (showCurrentTheme) {
-			colorThemes = colorThemes.filter(t => t.id !== currentTheme.id);
+			extensionThemes = extensionThemes.filter(t => t.id !== currentTheme.id);
 		}
 
 		const delayer = new Delayer<any>(100);
 		const picks: (IQuickPickItem | IQuickPickSeparator)[] = [];
-		picks.push(...colorThemes.map(theme => (<IQuickPickItem>{ label: theme.label, id: theme.id })));
+		picks.push(...extensionThemes.map(theme => (<IQuickPickItem>{ label: theme.label, id: theme.id })));
 		if (showCurrentTheme) {
 			picks.push(<IQuickPickSeparator>{ type: 'separator', label: localize('current', "Current") });
 			picks.push(<IQuickPickItem>{ label: currentTheme.label, id: currentTheme.id });
@@ -1179,7 +1201,12 @@ export class SetFileIconThemeAction extends ExtensionAction {
 
 	private disposables: IDisposable[] = [];
 
+	static getFileIconThemes(fileIconThemes: IFileIconTheme[], extension: IExtension): IFileIconTheme[] {
+		return fileIconThemes.filter(c => c.extensionData && ExtensionIdentifier.equals(c.extensionData.extensionId, extension.identifier.id));
+	}
+
 	constructor(
+		private readonly fileIconThemes: IFileIconTheme[],
 		@IExtensionService extensionService: IExtensionService,
 		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
@@ -1190,13 +1217,13 @@ export class SetFileIconThemeAction extends ExtensionAction {
 		this.update();
 	}
 
-	async update(): Promise<void> {
+	update(): void {
 		this.enabled = false;
 		if (this.extension) {
 			const isInstalled = this.extension.state === ExtensionState.Installed;
 			if (isInstalled) {
-				const fileIconThemes = await this.workbenchThemeService.getFileIconThemes(new ExtensionIdentifier(this.extension.identifier.id));
-				this.enabled = fileIconThemes.length > 0;
+				const extensionThemes = SetFileIconThemeAction.getFileIconThemes(this.fileIconThemes, this.extension);
+				this.enabled = extensionThemes.length > 0;
 			}
 		}
 		this.class = this.enabled ? SetFileIconThemeAction.EnabledClass : SetFileIconThemeAction.DisabledClass;
@@ -1207,17 +1234,16 @@ export class SetFileIconThemeAction extends ExtensionAction {
 		if (!this.enabled) {
 			return;
 		}
-		let fileIconThemes = await this.workbenchThemeService.getFileIconThemes(new ExtensionIdentifier(this.extension.identifier.id));
-		const allThemes = await this.workbenchThemeService.getFileIconThemes();
-		const currentTheme = allThemes.filter(t => t.settingsId === this.configurationService.getValue(ICON_THEME_SETTING))[0] || this.workbenchThemeService.getFileIconTheme();
-		showCurrentTheme = showCurrentTheme || fileIconThemes.some(t => t.id === currentTheme.id);
+		let extensionThemes = SetFileIconThemeAction.getFileIconThemes(this.fileIconThemes, this.extension);
+		const currentTheme = this.fileIconThemes.filter(t => t.settingsId === this.configurationService.getValue(ICON_THEME_SETTING))[0] || this.workbenchThemeService.getFileIconTheme();
+		showCurrentTheme = showCurrentTheme || extensionThemes.some(t => t.id === currentTheme.id);
 		if (showCurrentTheme) {
-			fileIconThemes = fileIconThemes.filter(t => t.id !== currentTheme.id);
+			extensionThemes = extensionThemes.filter(t => t.id !== currentTheme.id);
 		}
 
 		const delayer = new Delayer<any>(100);
 		const picks: (IQuickPickItem | IQuickPickSeparator)[] = [];
-		picks.push(...fileIconThemes.map(theme => (<IQuickPickItem>{ label: theme.label, id: theme.id })));
+		picks.push(...extensionThemes.map(theme => (<IQuickPickItem>{ label: theme.label, id: theme.id })));
 		if (showCurrentTheme && currentTheme.label) {
 			picks.push(<IQuickPickSeparator>{ type: 'separator', label: localize('current', "Current") });
 			picks.push(<IQuickPickItem>{ label: currentTheme.label, id: currentTheme.id });
