@@ -24,8 +24,6 @@
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
 // USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-'use strict';
-
 import { isWindows } from 'vs/base/common/platform';
 
 const CHAR_UPPERCASE_A = 65;/* A */
@@ -44,15 +42,11 @@ interface IProcess {
 	env: object;
 }
 
-declare let process: IProcess;
-if (typeof process === 'undefined') {
-	// Logic to set up process
-	process = {
-		cwd() { return '/'; },
-		env: {},
-		get platform() { return isWindows ? 'win32' : 'posix'; }
-	};
-}
+const safeProcess: IProcess = (typeof process === 'undefined') ? {
+	cwd() { return '/'; },
+	env: {},
+	get platform() { return isWindows ? 'win32' : 'posix'; }
+} : process;
 
 class ErrorInvalidArgType extends Error {
 	code: 'ERR_INVALID_ARG_TYPE';
@@ -216,14 +210,14 @@ const win32: IPath = {
 			if (i >= 0) {
 				path = pathSegments[i];
 			} else if (!resolvedDevice) {
-				path = process.cwd();
+				path = safeProcess.cwd();
 			} else {
 				// Windows has the concept of drive-specific current working
 				// directories. If we've resolved a drive letter but not yet an
 				// absolute path, get cwd for that drive, or the process cwd if
 				// the drive cwd is not available. We're sure the device is not
 				// a UNC path at this points, because UNC paths are always absolute.
-				path = process.env['=' + resolvedDevice] || process.cwd();
+				path = safeProcess.env['=' + resolvedDevice] || safeProcess.cwd();
 
 				// Verify that a cwd was found and that it actually points
 				// to our drive. If not, default to the drive's root.
@@ -1205,7 +1199,7 @@ const posix: IPath = {
 				path = pathSegments[i];
 			}
 			else {
-				path = process.cwd();
+				path = safeProcess.cwd();
 			}
 
 			validateString(path, 'path');
@@ -1679,5 +1673,5 @@ const posix: IPath = {
 posix.win32 = win32.win32 = win32;
 posix.posix = win32.posix = posix;
 
-const impl = (process.platform === 'win32' ? win32 : posix) as IExportedPath;
+const impl = (safeProcess.platform === 'win32' ? win32 : posix) as IExportedPath;
 export = impl;
