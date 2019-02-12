@@ -312,7 +312,7 @@ export class CodeInsetController implements editorCommon.IEditorContribution {
 
 				const widgetPromises = widgetRequests.map(request => {
 					const symbol = request.symbol;
-					if (typeof request.provider.resolveCodeInset === 'function') {
+					if (!symbol.webviewHandle && typeof request.provider.resolveCodeInset === 'function') {
 						const mainThreadWebviews = this.getWebviewService();
 						symbol.webviewHandle = insetWidgets[r].createWebview(mainThreadWebviews, request.provider.extensionLocation);
 						return request.provider.resolveCodeInset(model, symbol, token);
