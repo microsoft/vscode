@@ -8,7 +8,7 @@ import { isWindows } from 'vs/base/common/platform';
 
 suite('Paths (Node Implementation)', () => {
 	test('join', () => {
-		const failures = [];
+		const failures = [] as string[];
 		const backslashRE = /\\/g;
 
 		const joinTests: any = [
@@ -204,7 +204,7 @@ suite('Paths (Node Implementation)', () => {
 	});
 
 	test('extname', () => {
-		const failures = [];
+		const failures = [] as string[];
 		const slashRE = /\//g;
 
 		[
@@ -303,7 +303,7 @@ suite('Paths (Node Implementation)', () => {
 	});
 
 	test('resolve', () => {
-		const failures = [];
+		const failures = [] as string[];
 		const slashRE = /\//g;
 		const backslashRE = /\\/g;
 
@@ -445,7 +445,7 @@ suite('Paths (Node Implementation)', () => {
 	});
 
 	test('relative', () => {
-		const failures = [];
+		const failures = [] as string[];
 
 		const relativeTests = [
 			[path.win32.relative,

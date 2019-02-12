@@ -174,6 +174,11 @@ interface IPath {
 	toNamespacedPath(path: string): string;
 	sep: string;
 	delimiter: string;
+	win32: IPath | null;
+	posix: IPath | null;
+}
+
+interface IExportedPath extends IPath {
 	win32: IPath;
 	posix: IPath;
 }
@@ -1653,5 +1658,5 @@ const posix: IPath = {
 posix.win32 = win32.win32 = win32;
 posix.posix = win32.posix = posix;
 
-const impl = process.platform === 'win32' ? win32 : posix;
+const impl = (process.platform === 'win32' ? win32 : posix) as IExportedPath;
 export = impl;
