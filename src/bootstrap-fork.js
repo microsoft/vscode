@@ -51,7 +51,7 @@ function pipeLoggingToParent() {
 
 		// Massage some arguments with special treatment
 		if (args.length) {
-			for (let i = 0; i < args.length; i++) {
+			for (let i = 0; i < args.length; ++i) {
 
 				// Any argument of type 'undefined' needs to be specially treated because
 				// JSON.stringify will simply ignore those. We replace them with the string
