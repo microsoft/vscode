@@ -6,6 +6,7 @@
 const gulp = require('gulp');
 const path = require('path');
 const util = require('./lib/util');
+const task = require('./lib/task');
 const common = require('./lib/optimize');
 const es = require('event-stream');
 const File = require('vinyl');
@@ -290,8 +291,8 @@ const finalEditorResourcesTask = function () {
 finalEditorResourcesTask.displayName = 'final-editor-resources';
 
 gulp.task('editor-distro',
-	util.task.series(
-		util.task.parallel(
+	task.series(
+		task.parallel(
 			util.rimraf('out-editor-src'),
 			util.rimraf('out-editor-build'),
 			util.rimraf('out-editor-esm'),
@@ -300,13 +301,13 @@ gulp.task('editor-distro',
 			util.rimraf('out-editor-min')
 		),
 		extractEditorSrcTask,
-		util.task.parallel(
-			util.task.series(
+		task.parallel(
+			task.series(
 				compileEditorAMDTask,
 				optimizeEditorAMDTask,
 				minifyEditorAMDTask
 			),
-			util.task.series(
+			task.series(
 				createESMSourcesAndResourcesTask,
 				compileEditorESMTask
 			)
