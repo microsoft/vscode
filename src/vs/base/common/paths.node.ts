@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// extracted from nodejs commit 'https://github.com/nodejs/node/tree/43dd49c9782848c25e5b03448c8a0f923f13c158'
+
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
