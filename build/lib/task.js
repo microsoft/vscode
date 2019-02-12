@@ -13,16 +13,7 @@ function _isPromise(p) {
     return false;
 }
 function _renderTime(time) {
-    if (time < 1000) {
-        return `${time.toFixed(2)} ms`;
-    }
-    let seconds = time / 1000;
-    if (seconds < 60) {
-        return `${seconds.toFixed(1)} s`;
-    }
-    let minutes = Math.floor(seconds / 60);
-    seconds -= minutes * 60;
-    return `${minutes} m and ${seconds} s`;
+    return `${Math.round(time)} ms`;
 }
 async function _execute(task) {
     const name = task.taskName || task.displayName || `<anonymous>`;
@@ -34,7 +25,7 @@ async function _execute(task) {
     const elapsedArr = process.hrtime(startTime);
     const elapsedNanoseconds = (elapsedArr[0] * 1e9 + elapsedArr[1]);
     if (!task._tasks) {
-        fancyLog(`Finished`, ansiColors.cyan(name), 'after', ansiColors.green(_renderTime(elapsedNanoseconds / 1e6)));
+        fancyLog(`Finished`, ansiColors.cyan(name), 'after', ansiColors.magenta(_renderTime(elapsedNanoseconds / 1e6)));
     }
 }
 async function _doExecute(task) {

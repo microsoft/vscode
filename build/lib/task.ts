@@ -33,16 +33,7 @@ function _isPromise(p: Promise<void> | NodeJS.ReadWriteStream): p is Promise<voi
 }
 
 function _renderTime(time: number): string {
-	if (time < 1000) {
-		return `${time.toFixed(2)} ms`;
-	}
-	let seconds = time / 1000;
-	if (seconds < 60) {
-		return `${seconds.toFixed(1)} s`;
-	}
-	let minutes = Math.floor(seconds / 60);
-	seconds -= minutes * 60;
-	return `${minutes} m and ${seconds} s`;
+	return `${Math.round(time)} ms`;
 }
 
 async function _execute(task: Task): Promise<void> {
@@ -55,7 +46,7 @@ async function _execute(task: Task): Promise<void> {
 	const elapsedArr = process.hrtime(startTime);
 	const elapsedNanoseconds = (elapsedArr[0] * 1e9 + elapsedArr[1]);
 	if (!task._tasks) {
-		fancyLog(`Finished`, ansiColors.cyan(name), 'after', ansiColors.green(_renderTime(elapsedNanoseconds / 1e6)));
+		fancyLog(`Finished`, ansiColors.cyan(name), 'after', ansiColors.magenta(_renderTime(elapsedNanoseconds / 1e6)));
 	}
 }
 
