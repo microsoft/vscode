@@ -178,8 +178,8 @@ function _format(sep, pathObject) {
 interface IPath {
 	normalize(path: string): string;
 	isAbsolute(path: string): boolean;
-	join(...paths: any[]): string;
-	resolve(...pathSegments: any[]): string;
+	join(...paths: string[]): string;
+	resolve(...pathSegments: string[]): string;
 	relative(from: string, to: string): string;
 	dirname(path: string): string;
 	basename(path: string, ext?: string): string;
@@ -200,7 +200,7 @@ interface IExportedPath extends IPath {
 
 const win32: IPath = {
 	// path.resolve([from ...], to)
-	resolve(...pathSegments: any[]): string {
+	resolve(...pathSegments: string[]): string {
 		let resolvedDevice = '';
 		let resolvedTail = '';
 		let resolvedAbsolute = false;
@@ -499,7 +499,7 @@ const win32: IPath = {
 		return false;
 	},
 
-	join(...paths: any[]): string {
+	join(...paths: string[]): string {
 		if (paths.length === 0) {
 			return '.';
 		}
@@ -1189,7 +1189,7 @@ const win32: IPath = {
 
 const posix: IPath = {
 	// path.resolve([from ...], to)
-	resolve(...pathSegments: any[]): string {
+	resolve(...pathSegments: string[]): string {
 		let resolvedPath = '';
 		let resolvedAbsolute = false;
 
@@ -1266,7 +1266,7 @@ const posix: IPath = {
 		return path.length > 0 && path.charCodeAt(0) === CHAR_FORWARD_SLASH;
 	},
 
-	join(...paths: any[]): string {
+	join(...paths: string[]): string {
 		if (paths.length === 0) {
 			return '.';
 		}
