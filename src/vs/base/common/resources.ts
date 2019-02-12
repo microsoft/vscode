@@ -64,18 +64,10 @@ export function isEqual(first: URI | undefined, second: URI | undefined, ignoreC
 }
 
 export function basename(resource: URI): string {
-	if (resource.scheme === Schemas.file) {
-		return paths.basename(resource.path);
-	}
-
 	return paths.posix.basename(resource.path);
 }
 
 export function extname(resource: URI): string {
-	if (resource.scheme === Schemas.file) {
-		return paths.extname(resource.path);
-	}
-
 	return paths.posix.extname(resource.path);
 }
 
