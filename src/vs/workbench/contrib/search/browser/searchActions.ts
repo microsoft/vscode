@@ -54,7 +54,7 @@ export function openSearchView(viewletService: IViewletService, panelService: IP
 	return Promise.resolve(panelService.openPanel(VIEW_ID, focus) as SearchView);
 }
 
-export function getSearchView(viewletService: IViewletService, panelService: IPanelService): SearchView {
+export function getSearchView(viewletService: IViewletService, panelService: IPanelService): SearchView | null {
 	const activeViewlet = viewletService.getActiveViewlet();
 	if (activeViewlet && activeViewlet.getId() === VIEW_ID) {
 		return <SearchView>activeViewlet;
@@ -65,7 +65,7 @@ export function getSearchView(viewletService: IViewletService, panelService: IPa
 		return <SearchView>activePanel;
 	}
 
-	return undefined;
+	return null;
 }
 
 function doAppendKeyBindingLabel(label: string, keyBinding: ResolvedKeybinding): string {
@@ -230,7 +230,7 @@ export class RefreshAction extends Action {
 	}
 
 	get enabled(): boolean {
-		return this.searchView.isSearchSubmitted();
+		return this.searchView && this.searchView.isSearchSubmitted();
 	}
 
 	update(): void {
@@ -242,6 +242,7 @@ export class RefreshAction extends Action {
 		if (searchView) {
 			searchView.onQueryChanged();
 		}
+
 		return Promise.resolve(null);
 	}
 }

@@ -39,6 +39,11 @@ export interface IOpenEditorOverride {
 	override?: Promise<IEditor>;
 }
 
+export interface IActiveEditor extends IEditor {
+	input: IEditorInput;
+	group: IEditorGroup;
+}
+
 export interface IEditorService {
 	_serviceBrand: ServiceIdentifier<any>;
 
@@ -69,7 +74,7 @@ export interface IEditorService {
 	 *
 	 * @see `IEditorService.activeEditor`
 	 */
-	readonly activeControl: IEditor;
+	readonly activeControl: IActiveEditor;
 
 	/**
 	 * The currently active text editor widget or `undefined` if there is currently no active

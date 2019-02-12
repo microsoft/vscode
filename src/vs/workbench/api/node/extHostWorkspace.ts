@@ -23,8 +23,9 @@ import { Range, RelativePattern } from 'vs/workbench/api/node/extHostTypes';
 import { ITextQueryBuilderOptions } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import * as vscode from 'vscode';
-import { ExtHostWorkspaceShape, IMainContext, IWorkspaceData, MainContext, MainThreadMessageServiceShape, MainThreadWorkspaceShape } from './extHost.protocol';
+import { ExtHostWorkspaceShape, IWorkspaceData, MainThreadMessageServiceShape, MainThreadWorkspaceShape, IMainContext, MainContext } from './extHost.protocol';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { Barrier } from 'vs/base/common/async';
 
 function isFolderEqual(folderA: URI, folderB: URI): boolean {
 	return isEqual(folderA, folderB, !isLinux);
@@ -68,7 +69,7 @@ class ExtHostWorkspaceImpl extends Workspace {
 		// data and update their properties. It could be that an extension stored them
 		// for later use and we want to keep them "live" if they are still present.
 		const oldWorkspace = previousConfirmedWorkspace;
-		if (oldWorkspace) {
+		if (previousConfirmedWorkspace) {
 			folders.forEach((folderData, index) => {
 				const folderUri = URI.revive(folderData.uri);
 				const existingFolder = ExtHostWorkspaceImpl._findFolder(previousUnconfirmedWorkspace || previousConfirmedWorkspace, folderUri);
@@ -127,28 +128,70 @@ class ExtHostWorkspaceImpl extends Workspace {
 		return this._workspaceFolders.slice(0);
 	}
 
-	getWorkspaceFolder(uri: URI, resolveParent?: boolean): vscode.WorkspaceFolder {
+	getWorkspaceFolder(uri: URI, resolveParent?: boolean): vscode.WorkspaceFolder | undefined {
 		if (resolveParent && this._structure.get(uri.toString())) {
 			// `uri` is a workspace folder so we check for its parent
-			uri = dirname(uri);
+			uri = dirname(uri)!;
 		}
 		return this._structure.findSubstr(uri.toString());
 	}
 
-	resolveWorkspaceFolder(uri: URI): vscode.WorkspaceFolder {
+	resolveWorkspaceFolder(uri: URI): vscode.WorkspaceFolder | undefined {
 		return this._structure.get(uri.toString());
 	}
 }
 
 export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 
-	private readonly _onDidChangeWorkspace = new Emitter<vscode.WorkspaceFoldersChangeEvent>();
-	private readonly _proxy: MainThreadWorkspaceShape;
+	private readonly _mainContext: IMainContext;
+	private readonly _logService: ILogService;
+	private readonly _requestIdProvider: Counter;
+	private readonly _barrier: Barrier;
+	private _actual: ExtHostWorkspaceProvider | null;
 
-	private _confirmedWorkspace: ExtHostWorkspaceImpl;
+	constructor(
+		mainContext: IMainContext,
+		logService: ILogService,
+		requestIdProvider: Counter
+	) {
+		this._mainContext = mainContext;
+		this._logService = logService;
+		this._requestIdProvider = requestIdProvider;
+		this._barrier = new Barrier();
+		this._actual = null;
+	}
+
+	public getWorkspaceProvider(): Promise<ExtHostWorkspaceProvider> {
+		return this._barrier.wait().then(_ => this._actual!);
+	}
+
+	$initializeWorkspace(data: IWorkspaceData): void {
+		this._actual = new ExtHostWorkspaceProvider(this._mainContext, data, this._logService, this._requestIdProvider);
+		this._barrier.open();
+	}
+
+	$acceptWorkspaceData(workspace: IWorkspaceData): void {
+		if (this._actual) {
+			this._actual.$acceptWorkspaceData(workspace);
+		}
+	}
+
+	$handleTextSearchResult(result: IRawFileMatch2, requestId: number): void {
+		if (this._actual) {
+			this._actual.$handleTextSearchResult(result, requestId);
+		}
+	}
+
+}
+export class ExtHostWorkspaceProvider {
+
+	private readonly _onDidChangeWorkspace = new Emitter<vscode.WorkspaceFoldersChangeEvent>();
+
+	private _confirmedWorkspace?: ExtHostWorkspaceImpl;
 	private _unconfirmedWorkspace?: ExtHostWorkspaceImpl;
 
-	private _messageService: MainThreadMessageServiceShape;
+	private readonly _proxy: MainThreadWorkspaceShape;
+	private readonly _messageService: MainThreadMessageServiceShape;
 
 	readonly onDidChangeWorkspace: Event<vscode.WorkspaceFoldersChangeEvent> = this._onDidChangeWorkspace.event;
 
@@ -162,12 +205,12 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadWorkspace);
 		this._messageService = mainContext.getProxy(MainContext.MainThreadMessageService);
-		this._confirmedWorkspace = ExtHostWorkspaceImpl.toExtHostWorkspace(data).workspace;
+		this._confirmedWorkspace = ExtHostWorkspaceImpl.toExtHostWorkspace(data).workspace || undefined;
 	}
 
 	// --- workspace ---
 
-	get workspace(): Workspace {
+	get workspace(): Workspace | undefined {
 		return this._actualWorkspace;
 	}
 
@@ -175,7 +218,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 		return this._actualWorkspace ? this._actualWorkspace.name : undefined;
 	}
 
-	private get _actualWorkspace(): ExtHostWorkspaceImpl {
+	private get _actualWorkspace(): ExtHostWorkspaceImpl | undefined {
 		return this._unconfirmedWorkspace || this._confirmedWorkspace;
 	}
 
@@ -215,7 +258,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 
 		// Simulate the updateWorkspaceFolders method on our data to do more validation
 		const newWorkspaceFolders = currentWorkspaceFolders.slice(0);
-		newWorkspaceFolders.splice(index, deleteCount, ...validatedDistinctWorkspaceFoldersToAdd.map(f => ({ uri: f.uri, name: f.name || basenameOrAuthority(f.uri), index: undefined })));
+		newWorkspaceFolders.splice(index, deleteCount, ...validatedDistinctWorkspaceFoldersToAdd.map(f => ({ uri: f.uri, name: f.name || basenameOrAuthority(f.uri), index: undefined! /* fixed later */ })));
 
 		for (let i = 0; i < newWorkspaceFolders.length; i++) {
 			const folder = newWorkspaceFolders[i];
@@ -250,7 +293,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 		return true;
 	}
 
-	getWorkspaceFolder(uri: vscode.Uri, resolveParent?: boolean): vscode.WorkspaceFolder {
+	getWorkspaceFolder(uri: vscode.Uri, resolveParent?: boolean): vscode.WorkspaceFolder | undefined {
 		if (!this._actualWorkspace) {
 			return undefined;
 		}
@@ -303,7 +346,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 			return path;
 		}
 
-		if (typeof includeWorkspace === 'undefined') {
+		if (typeof includeWorkspace === 'undefined' && this._actualWorkspace) {
 			includeWorkspace = this._actualWorkspace.folders.length > 1;
 		}
 
@@ -324,7 +367,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 				name: this._actualWorkspace.name,
 				configuration: this._actualWorkspace.configuration,
 				folders
-			} as IWorkspaceData, this._actualWorkspace).workspace;
+			} as IWorkspaceData, this._actualWorkspace).workspace || undefined;
 		}
 	}
 
@@ -334,7 +377,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 
 		// Update our workspace object. We have a confirmed workspace, so we drop our
 		// unconfirmed workspace.
-		this._confirmedWorkspace = workspace;
+		this._confirmedWorkspace = workspace || undefined;
 		this._unconfirmedWorkspace = undefined;
 
 		// Events
@@ -362,7 +405,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 			}
 		}
 
-		let excludePatternOrDisregardExcludes: string | false | undefined;
+		let excludePatternOrDisregardExcludes: string | false = false;
 		if (exclude === null) {
 			excludePatternOrDisregardExcludes = false;
 		} else if (exclude) {

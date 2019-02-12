@@ -289,7 +289,7 @@ export class HistoryMainService implements IHistoryMainService {
 				type: 'custom',
 				name: nls.localize('recentFolders', "Recent Workspaces"),
 				items: arrays.coalesce(this.getRecentlyOpened().workspaces.slice(0, 7 /* limit number of entries here */).map(workspace => {
-					const title = getSimpleWorkspaceLabel(workspace, this.environmentService.workspacesHome);
+					const title = getSimpleWorkspaceLabel(workspace, this.environmentService.untitledWorkspacesHome);
 					let description;
 					let args;
 					if (isSingleFolderWorkspaceIdentifier(workspace)) {

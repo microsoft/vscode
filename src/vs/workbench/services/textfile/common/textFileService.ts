@@ -28,11 +28,16 @@ import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
+import { createTextBufferFactoryFromSnapshot, createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { isEqualOrParent, isEqual, joinPath, dirname } from 'vs/base/common/resources';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
+import { getConfirmMessage, IDialogService, IFileDialogService, ISaveDialogOptions, IConfirmation } from 'vs/platform/dialogs/common/dialogs';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { coalesce } from 'vs/base/common/arrays';
+import { trim } from 'vs/base/common/strings';
 
 export interface IBackupResult {
 	didBackup: boolean;
@@ -43,7 +48,7 @@ export interface IBackupResult {
  *
  * It also adds diagnostics and logging around file system operations.
  */
-export abstract class TextFileService extends Disposable implements ITextFileService {
+export class TextFileService extends Disposable implements ITextFileService {
 
 	_serviceBrand: any;
 
@@ -65,27 +70,31 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 	private autoSaveContext: IContextKey<string>;
 
 	constructor(
-		private lifecycleService: ILifecycleService,
-		private contextService: IWorkspaceContextService,
-		private configurationService: IConfigurationService,
-		protected fileService: IFileService,
-		private untitledEditorService: IUntitledEditorService,
-		private instantiationService: IInstantiationService,
-		private notificationService: INotificationService,
-		protected environmentService: IEnvironmentService,
-		private backupFileService: IBackupFileService,
-		private windowsService: IWindowsService,
-		protected windowService: IWindowService,
-		private historyService: IHistoryService,
-		contextKeyService: IContextKeyService,
-		private modelService: IModelService
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IFileService protected readonly fileService: IFileService,
+		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IModeService private readonly modeService: IModeService,
+		@IModelService private readonly modelService: IModelService,
+		@IWindowService private readonly windowService: IWindowService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IBackupFileService private readonly backupFileService: IBackupFileService,
+		@IWindowsService private readonly windowsService: IWindowsService,
+		@IHistoryService private readonly historyService: IHistoryService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		super();
 
-		this._models = this.instantiationService.createInstance(TextFileEditorModelManager);
+		this._models = instantiationService.createInstance(TextFileEditorModelManager);
 		this.autoSaveContext = AutoSaveContext.bindTo(contextKeyService);
 
-		const configuration = this.configurationService.getValue<IFilesConfiguration>();
+		const configuration = configurationService.getValue<IFilesConfiguration>();
 		this.currentFilesAssociationConfig = configuration && configuration.files && configuration.files.associations;
 
 		this.onFilesConfigurationChange(configuration);
@@ -97,13 +106,124 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		return this._models;
 	}
 
-	abstract resolveTextContent(resource: URI, options?: IResolveContentOptions): Promise<IRawTextContent>;
+	resolveTextContent(resource: URI, options?: IResolveContentOptions): Promise<IRawTextContent> {
+		return this.fileService.resolveStreamContent(resource, options).then(streamContent => {
+			return createTextBufferFactoryFromStream(streamContent.value).then(res => {
+				const r: IRawTextContent = {
+					resource: streamContent.resource,
+					name: streamContent.name,
+					mtime: streamContent.mtime,
+					etag: streamContent.etag,
+					encoding: streamContent.encoding,
+					isReadonly: streamContent.isReadonly,
+					value: res
+				};
+				return r;
+			});
+		});
+	}
 
-	abstract promptForPath(resource: URI, defaultPath: URI): Promise<URI>;
+	promptForPath(resource: URI, defaultUri: URI): Promise<URI> {
 
-	abstract confirmSave(resources?: URI[]): Promise<ConfirmResult>;
+		// Help user to find a name for the file by opening it first
+		return this.editorService.openEditor({ resource, options: { revealIfOpened: true, preserveFocus: true, } }).then(() => {
+			return this.fileDialogService.showSaveDialog(this.getSaveDialogOptions(defaultUri));
+		});
+	}
 
-	abstract confirmOverwrite(resource: URI): Promise<boolean>;
+	private getSaveDialogOptions(defaultUri: URI): ISaveDialogOptions {
+		const options: ISaveDialogOptions = {
+			defaultUri,
+			title: nls.localize('saveAsTitle', "Save As")
+		};
+
+		// Filters are only enabled on Windows where they work properly
+		if (!platform.isWindows) {
+			return options;
+		}
+
+		interface IFilter { name: string; extensions: string[]; }
+
+		// Build the file filter by using our known languages
+		const ext: string = defaultUri ? paths.extname(defaultUri.path) : undefined;
+		let matchingFilter: IFilter;
+		const filters: IFilter[] = coalesce(this.modeService.getRegisteredLanguageNames().map(languageName => {
+			const extensions = this.modeService.getExtensions(languageName);
+			if (!extensions || !extensions.length) {
+				return null;
+			}
+
+			const filter: IFilter = { name: languageName, extensions: extensions.slice(0, 10).map(e => trim(e, '.')) };
+
+			if (ext && extensions.indexOf(ext) >= 0) {
+				matchingFilter = filter;
+
+				return null; // matching filter will be added last to the top
+			}
+
+			return filter;
+		}));
+
+		// Filters are a bit weird on Windows, based on having a match or not:
+		// Match: we put the matching filter first so that it shows up selected and the all files last
+		// No match: we put the all files filter first
+		const allFilesFilter = { name: nls.localize('allFiles', "All Files"), extensions: ['*'] };
+		if (matchingFilter) {
+			filters.unshift(matchingFilter);
+			filters.unshift(allFilesFilter);
+		} else {
+			filters.unshift(allFilesFilter);
+		}
+
+		// Allow to save file without extension
+		filters.push({ name: nls.localize('noExt', "No Extension"), extensions: [''] });
+
+		options.filters = filters;
+
+		return options;
+	}
+
+	confirmSave(resources?: URI[]): Promise<ConfirmResult> {
+		if (this.environmentService.isExtensionDevelopment) {
+			return Promise.resolve(ConfirmResult.DONT_SAVE); // no veto when we are in extension dev mode because we cannot assum we run interactive (e.g. tests)
+		}
+
+		const resourcesToConfirm = this.getDirty(resources);
+		if (resourcesToConfirm.length === 0) {
+			return Promise.resolve(ConfirmResult.DONT_SAVE);
+		}
+
+		const message = resourcesToConfirm.length === 1 ? nls.localize('saveChangesMessage', "Do you want to save the changes you made to {0}?", paths.basename(resourcesToConfirm[0].fsPath))
+			: getConfirmMessage(nls.localize('saveChangesMessages', "Do you want to save the changes to the following {0} files?", resourcesToConfirm.length), resourcesToConfirm);
+
+		const buttons: string[] = [
+			resourcesToConfirm.length > 1 ? nls.localize({ key: 'saveAll', comment: ['&& denotes a mnemonic'] }, "&&Save All") : nls.localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save"),
+			nls.localize({ key: 'dontSave', comment: ['&& denotes a mnemonic'] }, "Do&&n't Save"),
+			nls.localize('cancel', "Cancel")
+		];
+
+		return this.dialogService.show(Severity.Warning, message, buttons, {
+			cancelId: 2,
+			detail: nls.localize('saveChangesDetail', "Your changes will be lost if you don't save them.")
+		}).then(index => {
+			switch (index) {
+				case 0: return ConfirmResult.SAVE;
+				case 1: return ConfirmResult.DONT_SAVE;
+				default: return ConfirmResult.CANCEL;
+			}
+		});
+	}
+
+	confirmOverwrite(resource: URI): Promise<boolean> {
+		const confirm: IConfirmation = {
+			message: nls.localize('confirmOverwrite', "'{0}' already exists. Do you want to replace it?", paths.basename(resource.fsPath)),
+			detail: nls.localize('irreversible', "A file or folder with the same name already exists in the folder {0}. Replacing it will overwrite its current contents.", paths.basename(paths.dirname(resource.fsPath))),
+			primaryButton: nls.localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
+			type: 'warning'
+		};
+
+		return this.dialogService.confirm(confirm).then(result => result.confirmed);
+	}
 
 	private registerListeners(): void {
 

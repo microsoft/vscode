@@ -189,8 +189,8 @@ export class ExtensionDescriptionRegistry {
 		return this._extensionsArr.slice(0);
 	}
 
-	public getExtensionDescription(extensionId: ExtensionIdentifier | string): IExtensionDescription | null {
+	public getExtensionDescription(extensionId: ExtensionIdentifier | string): IExtensionDescription | undefined {
 		const extension = this._extensionsMap.get(ExtensionIdentifier.toKey(extensionId));
-		return extension ? extension : null;
+		return extension ? extension : undefined;
 	}
 }

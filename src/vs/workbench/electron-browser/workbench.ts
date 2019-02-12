@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/workbench';
+import 'vs/workbench/browser/style';
 
 import { localize } from 'vs/nls';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
@@ -61,7 +61,7 @@ import { ClipboardService } from 'vs/platform/clipboard/electron-browser/clipboa
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { TextFileService } from 'vs/workbench/services/textfile/electron-browser/textFileService';
+import { TextFileService } from 'vs/workbench/services/textfile/common/textFileService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IProgressService2 } from 'vs/platform/progress/common/progress';
 import { ProgressService2 } from 'vs/workbench/services/progress/browser/progressService2';
@@ -314,7 +314,8 @@ export class Workbench extends Disposable implements IPartService {
 	private createWorkbench(): void {
 		this.workbench = document.createElement('div');
 		this.workbench.id = Identifiers.WORKBENCH_CONTAINER;
-		DOM.addClass(this.workbench, 'monaco-workbench');
+
+		DOM.addClasses(this.workbench, 'monaco-workbench', isWindows ? 'windows' : isLinux ? 'linux' : 'mac');
 
 		this._register(DOM.addDisposableListener(this.workbench, DOM.EventType.SCROLL, () => {
 			this.workbench.scrollTop = 0; // Prevent workbench from scrolling #55456

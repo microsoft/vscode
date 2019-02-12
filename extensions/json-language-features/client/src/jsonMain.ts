@@ -200,18 +200,20 @@ export function activate(context: ExtensionContext) {
 
 		documentSelector.forEach(selector => {
 			toDispose.push(languages.registerSelectionRangeProvider(selector, {
-				async provideSelectionRanges(document: TextDocument, position: Position): Promise<SelectionRange[]> {
+				async provideSelectionRanges(document: TextDocument, positions: Position[]): Promise<SelectionRange[][]> {
 					const textDocument = client.code2ProtocolConverter.asTextDocumentIdentifier(document);
-					const rawRanges = await client.sendRequest<Range[]>('$/textDocument/selectionRange', { textDocument, position });
-					if (Array.isArray(rawRanges)) {
-						return rawRanges.map(r => {
-							return {
-								range: client.protocol2CodeConverter.asRange(r),
-								kind: SelectionRangeKind.Declaration
-							};
-						});
-					}
-					return [];
+					return Promise.all(positions.map(async position => {
+						const rawRanges = await client.sendRequest<Range[]>('$/textDocument/selectionRange', { textDocument, position });
+						if (Array.isArray(rawRanges)) {
+							return rawRanges.map(r => {
+								return {
+									range: client.protocol2CodeConverter.asRange(r),
+									kind: SelectionRangeKind.Declaration
+								};
+							});
+						}
+						return [];
+					}));
 				}
 			}));
 		});

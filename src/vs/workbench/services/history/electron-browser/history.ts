@@ -899,7 +899,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 					this.onEditorDispose(input, () => this.removeFromHistory(input), this.editorHistoryListeners);
 				}
 
-				return input;
+				return input || undefined;
 			}
 		}
 

@@ -382,6 +382,7 @@ class TimerService implements ITimerService {
 		}
 
 		const activeViewlet = this._viewletService.getActiveViewlet();
+		const activePanel = this._panelService.getActivePanel();
 		return {
 			version: 2,
 			ellapsed: perf.getDuration(startMark, 'didStartWorkbench'),
@@ -393,7 +394,7 @@ class TimerService implements ITimerService {
 			windowCount: await this._windowsService.getWindowCount(),
 			viewletId: activeViewlet ? activeViewlet.getId() : undefined,
 			editorIds: this._editorService.visibleEditors.map(input => input.getTypeId()),
-			panelId: this._panelService.getActivePanel() ? this._panelService.getActivePanel().getId() : undefined,
+			panelId: activePanel ? activePanel.getId() : undefined,
 
 			// timers
 			timers: {

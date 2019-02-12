@@ -24,7 +24,7 @@ function options(custom?: Partial<IBestWindowOrFolderOptions<ISimpleWindow>>): I
 		newWindow: false,
 		context: OpenContext.CLI,
 		codeSettingsFolder: '_vscode',
-		workspaceResolver: workspace => { return workspace === testWorkspace ? { id: testWorkspace.id, configPath: workspace.configPath, folders: toWorkspaceFolders([{ path: path.join(fixturesFolder, 'vscode_workspace_1_folder') }, { path: path.join(fixturesFolder, 'vscode_workspace_2_folder') }]) } : null!; },
+		localWorkspaceResolver: workspace => { return workspace === testWorkspace ? { id: testWorkspace.id, configPath: workspace.configPath, folders: toWorkspaceFolders([{ path: path.join(fixturesFolder, 'vscode_workspace_1_folder') }, { path: path.join(fixturesFolder, 'vscode_workspace_2_folder') }]) } : null!; },
 		...custom
 	};
 }

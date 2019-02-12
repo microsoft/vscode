@@ -142,12 +142,12 @@
 	font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback";
 }
 
-.mac > .monaco-workbench .monaco-list-row .expression {
+.monaco-workbench.mac .monaco-list-row .expression {
 	font-size: 11px;
 }
 
-.windows > .monaco-workbench .monaco-list-row .expression,
-.linux > .monaco-workbench .monaco-list-row .expression {
+.monaco-workbench.windows .monaco-list-row .expression,
+.monaco-workbench.linux .monaco-list-row .expression {
 	font-size: 13px;
 }
 

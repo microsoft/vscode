@@ -68,14 +68,14 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		handle: WebviewPanelHandle,
 		viewType: string,
 		title: string,
-		showOptions: { viewColumn: EditorViewColumn | null, preserveFocus: boolean },
+		showOptions: { viewColumn?: EditorViewColumn, preserveFocus?: boolean },
 		options: WebviewInputOptions,
 		extensionId: ExtensionIdentifier,
 		extensionLocation: UriComponents
 	): void {
 		const mainThreadShowOptions: ICreateWebViewShowOptions = Object.create(null);
 		if (showOptions) {
-			mainThreadShowOptions.preserveFocus = showOptions.preserveFocus;
+			mainThreadShowOptions.preserveFocus = !!showOptions.preserveFocus;
 			mainThreadShowOptions.group = viewColumnToEditorGroup(this._editorGroupService, showOptions.viewColumn);
 		}
 
@@ -129,7 +129,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 
 		const targetGroup = this._editorGroupService.getGroup(viewColumnToEditorGroup(this._editorGroupService, showOptions.viewColumn));
 
-		this._webviewService.revealWebview(webview, targetGroup || this._editorGroupService.activeGroup, showOptions.preserveFocus);
+		this._webviewService.revealWebview(webview, targetGroup || this._editorGroupService.getGroup(webview.group), !!showOptions.preserveFocus);
 	}
 
 	public $postMessage(handle: WebviewPanelHandle, message: any): Promise<boolean> {
@@ -137,7 +137,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		const editors = this._editorService.visibleControls
 			.filter(e => e instanceof WebviewEditor)
 			.map(e => e as WebviewEditor)
-			.filter(e => e.input.matches(webview));
+			.filter(e => e.input!.matches(webview));
 
 		for (const editor of editors) {
 			editor.sendMessage(message);
@@ -216,7 +216,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		let newActiveWebview: { input: WebviewEditorInput, handle: WebviewPanelHandle } | undefined = undefined;
 		if (activeEditor && activeEditor.input instanceof WebviewEditorInput) {
 			for (const handle of map.keys(this._webviews)) {
-				const input = this._webviews.get(handle);
+				const input = this._webviews.get(handle)!;
 				if (input.matches(activeEditor.input)) {
 					newActiveWebview = { input, handle };
 					break;
@@ -240,7 +240,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 			if (oldActiveWebview) {
 				this._proxy.$onDidChangeWebviewPanelViewState(this._activeWebview, {
 					active: false,
-					visible: this._editorService.visibleControls.some(editor => editor.input && editor.input.matches(oldActiveWebview)),
+					visible: this._editorService.visibleControls.some(editor => !!editor.input && editor.input.matches(oldActiveWebview)),
 					position: editorGroupToViewColumn(this._editorGroupService, oldActiveWebview.group),
 				});
 			}

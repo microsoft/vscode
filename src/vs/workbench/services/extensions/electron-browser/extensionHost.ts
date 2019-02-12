@@ -435,7 +435,6 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 					},
 					workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? undefined : {
 						configuration: workspace.configuration || undefined,
-						folders: workspace.folders,
 						id: workspace.id,
 						name: this._labelService.getWorkspaceLabel(workspace)
 					},

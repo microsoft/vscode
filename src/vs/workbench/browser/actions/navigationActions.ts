@@ -68,7 +68,7 @@ abstract class BaseNavigationAction extends Action {
 			return false;
 		}
 
-		const activePanelId = this.panelService.getActivePanel().getId();
+		const activePanelId = this.panelService.getActivePanel()!.getId();
 
 		return this.panelService.openPanel(activePanelId, true);
 	}

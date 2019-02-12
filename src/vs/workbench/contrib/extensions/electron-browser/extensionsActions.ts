@@ -6,7 +6,7 @@
 import 'vs/css!./media/extensionActions';
 import { localize } from 'vs/nls';
 import { IAction, Action } from 'vs/base/common/actions';
-import { Throttler } from 'vs/base/common/async';
+import { Throttler, Delayer } from 'vs/base/common/async';
 import * as DOM from 'vs/base/browser/dom';
 import * as paths from 'vs/base/common/paths';
 import { Event } from 'vs/base/common/event';
@@ -29,7 +29,7 @@ import { IWindowService, IWindowsService } from 'vs/platform/windows/common/wind
 import { IExtensionService, IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { buttonBackground, buttonForeground, buttonHoverBackground, contrastBorder, registerColor, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { Color } from 'vs/base/common/color';
@@ -49,12 +49,13 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import product from 'vs/platform/node/product';
-import { IQuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickPickItem, IQuickInputService, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { clipboard } from 'electron';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { coalesce } from 'vs/base/common/arrays';
+import { IWorkbenchThemeService, COLOR_THEME_SETTING, ICON_THEME_SETTING } from 'vs/workbench/services/themes/common/workbenchThemeService';
 
 function toExtensionDescription(local: ILocalExtension): IExtensionDescription {
 	return {
@@ -145,7 +146,9 @@ export class InstallAction extends ExtensionAction {
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IOpenerService private readonly openerService: IOpenerService
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IExtensionService private readonly runtimeExtensionService: IExtensionService,
+		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService
 	) {
 		super(`extensions.install`, InstallAction.INSTALL_LABEL, InstallAction.Class, false);
 		this.update();
@@ -172,24 +175,63 @@ export class InstallAction extends ExtensionAction {
 		}
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<any> {
 		this.extensionsWorkbenchService.open(this.extension);
 
 		alert(localize('installExtensionStart', "Installing extension {0} started. An editor is now open with more details on this extension", this.extension.displayName));
 
-		return this.install(this.extension);
+		const extension = await this.install(this.extension);
+
+		if (extension.local) {
+			const runningExtension = await this.getRunningExtension(extension.local);
+			if (runningExtension) {
+				const colorThemes = await this.workbenchThemeService.getColorThemes(runningExtension.identifier);
+				const fileIconThemes = await this.workbenchThemeService.getFileIconThemes(runningExtension.identifier);
+				if (colorThemes.length) {
+					const action = this.instantiationService.createInstance(SetColorThemeAction);
+					action.extension = extension;
+					return action.run(true);
+				}
+				if (fileIconThemes.length) {
+					const action = this.instantiationService.createInstance(SetFileIconThemeAction);
+					action.extension = extension;
+					return action.run(true);
+				}
+			}
+		}
+
 	}
 
-	private install(extension: IExtension): Promise<any> {
-		return this.extensionsWorkbenchService.install(extension).then(null, err => {
-			if (!extension.gallery) {
-				return this.notificationService.error(err);
-			}
+	private install(extension: IExtension): Promise<IExtension> {
+		return this.extensionsWorkbenchService.install(extension)
+			.then(null, err => {
+				if (!extension.gallery) {
+					return this.notificationService.error(err);
+				}
 
-			console.error(err);
+				console.error(err);
 
-			return promptDownloadManually(extension.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", extension.identifier.id), err, this.instantiationService, this.notificationService, this.openerService);
-		});
+				return promptDownloadManually(extension.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", extension.identifier.id), err, this.instantiationService, this.notificationService, this.openerService);
+			});
+	}
+
+	private async getRunningExtension(extension: ILocalExtension): Promise<IExtensionDescription | null> {
+		const runningExtension = await this.runtimeExtensionService.getExtension(extension.identifier.id);
+		if (runningExtension) {
+			return runningExtension;
+		}
+		if (this.runtimeExtensionService.canAddExtension(toExtensionDescription(extension))) {
+			return new Promise<IExtensionDescription | null>((c, e) => {
+				const disposable = this.runtimeExtensionService.onDidChangeExtensions(async () => {
+					const runningExtension = await this.runtimeExtensionService.getExtension(extension.identifier.id);
+					if (runningExtension) {
+						disposable.dispose();
+						c(runningExtension);
+					}
+				});
+			});
+		}
+		return null;
 	}
 }
 
@@ -1059,6 +1101,140 @@ export class ReloadAction extends ExtensionAction {
 
 	dispose(): void {
 		dispose(this.disposables);
+		super.dispose();
+	}
+}
+
+export class SetColorThemeAction extends ExtensionAction {
+
+	private static readonly EnabledClass = 'extension-action theme';
+	private static readonly DisabledClass = `${SetColorThemeAction.EnabledClass} disabled`;
+
+	private disposables: IDisposable[] = [];
+
+	constructor(
+		@IExtensionService extensionService: IExtensionService,
+		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
+	) {
+		super(`extensions.colorTheme`, localize('color theme', "Set Color Theme"), SetColorThemeAction.DisabledClass, false);
+		Event.any<any>(extensionService.onDidChangeExtensions, workbenchThemeService.onDidColorThemeChange)(() => this.update(), this, this.disposables);
+		this.update();
+	}
+
+	async update(): Promise<void> {
+		this.enabled = false;
+		if (this.extension) {
+			const isInstalled = this.extension.state === ExtensionState.Installed;
+			if (isInstalled) {
+				const colorThemes = await this.workbenchThemeService.getColorThemes(new ExtensionIdentifier(this.extension.identifier.id));
+				this.enabled = colorThemes.length > 0;
+			}
+		}
+		this.class = this.enabled ? SetColorThemeAction.EnabledClass : SetColorThemeAction.DisabledClass;
+	}
+
+	async run(showCurrentTheme: boolean): Promise<any> {
+		await this.update();
+		if (!this.enabled) {
+			return;
+		}
+		let colorThemes = await this.workbenchThemeService.getColorThemes(new ExtensionIdentifier(this.extension.identifier.id));
+		const allThemes = await this.workbenchThemeService.getColorThemes();
+		const currentTheme = allThemes.filter(t => t.settingsId === this.configurationService.getValue(COLOR_THEME_SETTING))[0];
+		showCurrentTheme = showCurrentTheme || colorThemes.some(t => t.id === currentTheme.id);
+		if (showCurrentTheme) {
+			colorThemes = colorThemes.filter(t => t.id !== currentTheme.id);
+		}
+
+		const delayer = new Delayer<any>(100);
+		const picks: (IQuickPickItem | IQuickPickSeparator)[] = [];
+		picks.push(...colorThemes.map(theme => (<IQuickPickItem>{ label: theme.label, id: theme.id })));
+		if (showCurrentTheme) {
+			picks.push(<IQuickPickSeparator>{ type: 'separator', label: localize('current', "Current") });
+			picks.push(<IQuickPickItem>{ label: currentTheme.label, id: currentTheme.id });
+		}
+		const pickedTheme = await this.quickInputService.pick(
+			picks,
+			{
+				placeHolder: localize('select color theme', "Select Color Theme"),
+				onDidFocus: item => delayer.trigger(() => this.workbenchThemeService.setColorTheme(item.id, undefined))
+			});
+		let confValue = this.configurationService.inspect(COLOR_THEME_SETTING);
+		const target = typeof confValue.workspace !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
+		return this.workbenchThemeService.setColorTheme(pickedTheme ? pickedTheme.id : currentTheme.id, target);
+	}
+
+	dispose() {
+		this.disposables = dispose(this.disposables);
+		super.dispose();
+	}
+}
+
+export class SetFileIconThemeAction extends ExtensionAction {
+
+	private static readonly EnabledClass = 'extension-action theme';
+	private static readonly DisabledClass = `${SetFileIconThemeAction.EnabledClass} disabled`;
+
+	private disposables: IDisposable[] = [];
+
+	constructor(
+		@IExtensionService extensionService: IExtensionService,
+		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
+	) {
+		super(`extensions.fileIconTheme`, localize('file icon theme', "Set File Icon Theme"), SetFileIconThemeAction.DisabledClass, false);
+		Event.any<any>(extensionService.onDidChangeExtensions, workbenchThemeService.onDidFileIconThemeChange)(() => this.update(), this, this.disposables);
+		this.update();
+	}
+
+	async update(): Promise<void> {
+		this.enabled = false;
+		if (this.extension) {
+			const isInstalled = this.extension.state === ExtensionState.Installed;
+			if (isInstalled) {
+				const fileIconThemes = await this.workbenchThemeService.getFileIconThemes(new ExtensionIdentifier(this.extension.identifier.id));
+				this.enabled = fileIconThemes.length > 0;
+			}
+		}
+		this.class = this.enabled ? SetFileIconThemeAction.EnabledClass : SetFileIconThemeAction.DisabledClass;
+	}
+
+	async run(showCurrentTheme: boolean): Promise<any> {
+		await this.update();
+		if (!this.enabled) {
+			return;
+		}
+		let fileIconThemes = await this.workbenchThemeService.getFileIconThemes(new ExtensionIdentifier(this.extension.identifier.id));
+		const allThemes = await this.workbenchThemeService.getFileIconThemes();
+		const currentTheme = allThemes.filter(t => t.settingsId === this.configurationService.getValue(ICON_THEME_SETTING))[0] || this.workbenchThemeService.getFileIconTheme();
+		showCurrentTheme = showCurrentTheme || fileIconThemes.some(t => t.id === currentTheme.id);
+		if (showCurrentTheme) {
+			fileIconThemes = fileIconThemes.filter(t => t.id !== currentTheme.id);
+		}
+
+		const delayer = new Delayer<any>(100);
+		const picks: (IQuickPickItem | IQuickPickSeparator)[] = [];
+		picks.push(...fileIconThemes.map(theme => (<IQuickPickItem>{ label: theme.label, id: theme.id })));
+		if (showCurrentTheme && currentTheme.label) {
+			picks.push(<IQuickPickSeparator>{ type: 'separator', label: localize('current', "Current") });
+			picks.push(<IQuickPickItem>{ label: currentTheme.label, id: currentTheme.id });
+		}
+		const pickedTheme = await this.quickInputService.pick(
+			picks,
+			{
+				placeHolder: localize('select file icon theme', "Select File Icon Theme"),
+				onDidFocus: item => delayer.trigger(() => this.workbenchThemeService.setFileIconTheme(item.id, undefined))
+			});
+		let confValue = this.configurationService.inspect(ICON_THEME_SETTING);
+		const target = typeof confValue.workspace !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
+		return this.workbenchThemeService.setFileIconTheme(pickedTheme ? pickedTheme.id : currentTheme.id, target);
+	}
+
+	dispose() {
+		this.disposables = dispose(this.disposables);
 		super.dispose();
 	}
 }

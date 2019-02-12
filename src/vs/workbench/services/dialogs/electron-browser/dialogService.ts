@@ -18,7 +18,6 @@ import { URI } from 'vs/base/common/uri';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { Schemas } from 'vs/base/common/network';
 import * as resources from 'vs/base/common/resources';
-import { isParent } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { RemoteFileDialog } from 'vs/workbench/services/dialogs/electron-browser/remoteFileDialog';
 
@@ -196,9 +195,9 @@ export class FileDialogService implements IFileDialogService {
 	defaultWorkspacePath(schemeFilter: string): URI | undefined {
 
 		// Check for current workspace config file first...
-		if (schemeFilter === Schemas.file && this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
+		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 			const configuration = this.contextService.getWorkspace().configuration;
-			if (configuration && !isUntitledWorkspace(configuration.fsPath, this.environmentService)) {
+			if (configuration && !isUntitledWorkspace(configuration, this.environmentService)) {
 				return resources.dirname(configuration) || undefined;
 			}
 		}
@@ -340,6 +339,6 @@ export class RemoteFileDialogService extends FileDialogService {
 	}
 }
 
-function isUntitledWorkspace(path: string, environmentService: IEnvironmentService): boolean {
-	return isParent(path, environmentService.workspacesHome, !isLinux /* ignore case */);
+function isUntitledWorkspace(path: URI, environmentService: IEnvironmentService): boolean {
+	return resources.isEqualOrParent(path, environmentService.untitledWorkspacesHome);
 }

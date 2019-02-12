@@ -924,7 +924,7 @@ export class TerminalInstance implements ITerminalInstance {
 
 	private _refreshSelectionContextKey() {
 		const activePanel = this._panelService.getActivePanel();
-		const isActive = activePanel && activePanel.getId() === TERMINAL_PANEL_ID;
+		const isActive = !!activePanel && activePanel.getId() === TERMINAL_PANEL_ID;
 
 		this._terminalHasTextContextKey.set(isActive && this.hasSelection());
 	}

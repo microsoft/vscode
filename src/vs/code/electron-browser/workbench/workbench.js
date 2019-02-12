@@ -42,7 +42,6 @@ bootstrapWindow.load([
 					onNodeCachedData.push(arguments);
 				};
 			}
-
 		},
 		beforeRequire: function () {
 			perf.mark('willLoadWorkbenchMain');

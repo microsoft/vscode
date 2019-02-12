@@ -180,7 +180,7 @@ export class CommentNode extends Disposable {
 		this._toDispose.push(this._reactionsActionBar);
 
 		let reactionActions = this.comment.commentReactions!.map(reaction => {
-			return new Action(`reaction.${reaction.label}`, `${reaction.label}`, reaction.hasReacted ? 'active' : '', true, async () => {
+			return new Action(`reaction.${reaction.label}`, `${reaction.label}`, reaction.hasReacted && reaction.canEdit ? 'active' : '', reaction.canEdit, async () => {
 				try {
 					if (reaction.hasReacted) {
 						await this.commentService.deleteReaction(this.owner, this.resource, this.comment, reaction);

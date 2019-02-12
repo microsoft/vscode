@@ -28,7 +28,7 @@ import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, IExtension
 import { RatingsWidget, InstallCountWidget, RemoteBadgeWidget } from 'vs/workbench/contrib/extensions/electron-browser/extensionsWidgets';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { CombinedInstallAction, UpdateAction, ExtensionEditorDropDownAction, ReloadAction, MaliciousStatusLabelAction, IgnoreExtensionRecommendationAction, UndoIgnoreExtensionRecommendationAction, EnableDropDownAction, DisableDropDownAction, StatusLabelAction } from 'vs/workbench/contrib/extensions/electron-browser/extensionsActions';
+import { CombinedInstallAction, UpdateAction, ExtensionEditorDropDownAction, ReloadAction, MaliciousStatusLabelAction, IgnoreExtensionRecommendationAction, UndoIgnoreExtensionRecommendationAction, EnableDropDownAction, DisableDropDownAction, StatusLabelAction, SetFileIconThemeAction, SetColorThemeAction } from 'vs/workbench/contrib/extensions/electron-browser/extensionsActions';
 import { WebviewElement } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -367,6 +367,8 @@ export class ExtensionEditor extends BaseEditor {
 					reloadAction,
 					this.instantiationService.createInstance(StatusLabelAction),
 					this.instantiationService.createInstance(UpdateAction),
+					this.instantiationService.createInstance(SetColorThemeAction),
+					this.instantiationService.createInstance(SetFileIconThemeAction),
 					this.instantiationService.createInstance(EnableDropDownAction),
 					this.instantiationService.createInstance(DisableDropDownAction, runningExtensions),
 					this.instantiationService.createInstance(CombinedInstallAction),

@@ -72,7 +72,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 
 	private _deliverEventAsyncAndBlameBadListeners([listener, thisArg, extension]: Listener, stubEvent: vscode.TextDocumentWillSaveEvent): Promise<any> {
 		const errors = this._badListeners.get(listener);
-		if (errors > this._thresholds.errors) {
+		if (typeof errors === 'number' && errors > this._thresholds.errors) {
 			// bad listener - ignore
 			return Promise.resolve(false);
 		}
@@ -90,7 +90,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 				const errors = this._badListeners.get(listener);
 				this._badListeners.set(listener, !errors ? 1 : errors + 1);
 
-				if (errors > this._thresholds.errors) {
+				if (typeof errors === 'number' && errors > this._thresholds.errors) {
 					this._logService.info(`onWillSaveTextDocument-listener from extension '${extension.identifier.value}' will now be IGNORED because of timeouts and/or errors`);
 				}
 			}
