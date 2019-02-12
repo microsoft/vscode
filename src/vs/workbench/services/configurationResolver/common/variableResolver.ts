@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as paths from 'vs/base/common/paths';
+import * as paths from 'vs/base/common/paths.node';
 import * as types from 'vs/base/common/types';
 import * as objects from 'vs/base/common/objects';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { relative } from 'path';
 import { IProcessEnvironment, isWindows, isMacintosh, isLinux } from 'vs/base/common/platform';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { localize } from 'vs/nls';
@@ -237,7 +236,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 
 						case 'relativeFile':
 							if (folderUri) {
-								return resolvedValue = paths.normalize(relative(folderUri.fsPath, filePath));
+								return resolvedValue = paths.posix.normalize(paths.relative(folderUri.fsPath, filePath));
 							}
 							return resolvedValue = filePath;
 

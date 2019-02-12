@@ -5,6 +5,7 @@
 
 import * as nls from 'vs/nls';
 import * as paths from 'vs/base/common/paths';
+import { dirname } from 'vs/base/common/paths.node';
 import * as strings from 'vs/base/common/strings';
 import * as extfs from 'vs/base/node/extfs';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -189,7 +190,7 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 		// Use one rotating file to check for main file reset
 		this.appender = new OutputAppender(this.id, this.file.fsPath);
 		this.rotatingFilePath = `${outputChannelDescriptor.id}.1.log`;
-		this._register(watchOutputDirectory(paths.dirname(this.file.fsPath), logService, (eventType, file) => this.onFileChangedInOutputDirector(eventType, file)));
+		this._register(watchOutputDirectory(dirname(this.file.fsPath), logService, (eventType, file) => this.onFileChangedInOutputDirector(eventType, file)));
 
 		this.resettingDelayer = new ThrottledDelayer<void>(50);
 	}

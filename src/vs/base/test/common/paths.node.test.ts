@@ -223,6 +223,36 @@ suite('Paths (Node Implementation)', () => {
 		assert.strictEqual(path.win32.dirname('/'), '/');
 		assert.strictEqual(path.win32.dirname('////'), '/');
 		assert.strictEqual(path.win32.dirname('foo'), '.');
+
+		// Tests from VSCode
+
+		function assertDirname(p: string, expected: string, win = false) {
+			const actual = win ? path.win32.dirname(p) : path.posix.dirname(p);
+
+			if (actual !== expected) {
+				assert.fail(`${p}: expected: ${expected}, ours: ${actual}`);
+			}
+		}
+
+		assertDirname('foo/bar', 'foo');
+		assertDirname('foo\\bar', 'foo', true);
+		assertDirname('/foo/bar', '/foo');
+		assertDirname('\\foo\\bar', '\\foo', true);
+		assertDirname('/foo', '/');
+		assertDirname('\\foo', '\\', true);
+		assertDirname('/', '/');
+		assertDirname('\\', '\\', true);
+		assertDirname('foo', '.');
+		assertDirname('f', '.');
+		assertDirname('f/', '.');
+		assertDirname('/folder/', '/');
+		assertDirname('c:\\some\\file.txt', 'c:\\some', true);
+		assertDirname('c:\\some', 'c:\\', true);
+		assertDirname('c:\\', 'c:\\', true);
+		assertDirname('c:', 'c:', true);
+		assertDirname('\\\\server\\share\\some\\path', '\\\\server\\share\\some', true);
+		assertDirname('\\\\server\\share\\some', '\\\\server\\share\\', true);
+		assertDirname('\\\\server\\share\\', '\\\\server\\share\\', true);
 	});
 
 	test('extname', () => {
@@ -629,7 +659,7 @@ suite('Paths (Node Implementation)', () => {
 		assert.strictEqual(path.posix.isAbsolute('bar/'), false);
 		assert.strictEqual(path.posix.isAbsolute('./baz'), false);
 
-		// Tests from us:
+		// Tests from VSCode:
 
 		// Absolute Paths
 		[

@@ -31,7 +31,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { createTextBufferFactoryFromSnapshot, createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { isEqualOrParent, isEqual, joinPath, dirname } from 'vs/base/common/resources';
+import { isEqualOrParent, isEqual, joinPath, dirname, extname, basename } from 'vs/base/common/resources';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { getConfirmMessage, IDialogService, IFileDialogService, ISaveDialogOptions, IConfirmation } from 'vs/platform/dialogs/common/dialogs';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -145,7 +145,7 @@ export class TextFileService extends Disposable implements ITextFileService {
 		interface IFilter { name: string; extensions: string[]; }
 
 		// Build the file filter by using our known languages
-		const ext: string = defaultUri ? paths.extname(defaultUri.path) : undefined;
+		const ext: string = defaultUri ? extname(defaultUri) : undefined;
 		let matchingFilter: IFilter;
 		const filters: IFilter[] = coalesce(this.modeService.getRegisteredLanguageNames().map(languageName => {
 			const extensions = this.modeService.getExtensions(languageName);
@@ -193,7 +193,7 @@ export class TextFileService extends Disposable implements ITextFileService {
 			return Promise.resolve(ConfirmResult.DONT_SAVE);
 		}
 
-		const message = resourcesToConfirm.length === 1 ? nls.localize('saveChangesMessage', "Do you want to save the changes you made to {0}?", paths.basename(resourcesToConfirm[0].fsPath))
+		const message = resourcesToConfirm.length === 1 ? nls.localize('saveChangesMessage', "Do you want to save the changes you made to {0}?", basename(resourcesToConfirm[0]))
 			: getConfirmMessage(nls.localize('saveChangesMessages', "Do you want to save the changes to the following {0} files?", resourcesToConfirm.length), resourcesToConfirm);
 
 		const buttons: string[] = [
@@ -216,8 +216,8 @@ export class TextFileService extends Disposable implements ITextFileService {
 
 	confirmOverwrite(resource: URI): Promise<boolean> {
 		const confirm: IConfirmation = {
-			message: nls.localize('confirmOverwrite', "'{0}' already exists. Do you want to replace it?", paths.basename(resource.fsPath)),
-			detail: nls.localize('irreversible', "A file or folder with the same name already exists in the folder {0}. Replacing it will overwrite its current contents.", paths.basename(paths.dirname(resource.fsPath))),
+			message: nls.localize('confirmOverwrite', "'{0}' already exists. Do you want to replace it?", basename(resource)),
+			detail: nls.localize('irreversible', "A file or folder with the same name already exists in the folder {0}. Replacing it will overwrite its current contents.", basename(dirname(resource))),
 			primaryButton: nls.localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
 			type: 'warning'
 		};

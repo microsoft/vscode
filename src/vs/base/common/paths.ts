@@ -13,42 +13,6 @@ function isPathSeparator(code: number) {
 }
 
 /**
- * @param path the path to get the dirname from
- * @param separator the separator to use
- * @returns the directory name of a path.
- * '.' is returned for empty paths or single segment relative paths (as done by NodeJS)
- * For paths consisting only of a root, the input path is returned
- */
-export function dirname(path: string, separator = sep): string {
-	const len = path.length;
-	if (len === 0) {
-		return '.';
-	} else if (len === 1) {
-		return isPathSeparator(path.charCodeAt(0)) ? path : '.';
-	}
-	const root = getRoot(path, separator);
-	let rootLength = root.length;
-	if (rootLength >= len) {
-		return path; // matched the root
-	}
-	if (rootLength === 0 && isPathSeparator(path.charCodeAt(0))) {
-		rootLength = 1; // absolute paths stay absolute paths.
-	}
-
-	let i = len - 1;
-	if (i > rootLength) {
-		i--; // no need to look at the last character. If it's a trailing slash, we ignore it.
-		while (i > rootLength && !isPathSeparator(path.charCodeAt(i))) {
-			i--;
-		}
-	}
-	if (i === 0) {
-		return '.'; // it was a relative path with a single segment, no root. Nodejs returns '.' here.
-	}
-	return path.substr(0, i);
-}
-
-/**
  * @returns the base name of a path.
  */
 export function basename(path: string): string {

@@ -136,6 +136,7 @@ import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 import { HistoryService } from 'vs/workbench/services/history/browser/history';
+import { ConfigurationResolverService } from 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
 
 // import@node
 import product from 'vs/platform/node/product';
@@ -169,7 +170,6 @@ import { LocalizationsChannelClient } from 'vs/platform/localizations/node/local
 import { ContextMenuService as NativeContextMenuService } from 'vs/workbench/services/contextview/electron-browser/contextmenuService';
 import { WorkbenchKeybindingService } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import { RemoteFileService } from 'vs/workbench/services/files/electron-browser/remoteFileService';
-import { ConfigurationResolverService } from 'vs/workbench/services/configurationResolver/electron-browser/configurationResolverService';
 import { ClipboardService } from 'vs/platform/clipboard/electron-browser/clipboardService';
 import { LifecycleService } from 'vs/platform/lifecycle/electron-browser/lifecycleService';
 import { ToggleDevToolsAction } from 'vs/workbench/electron-browser/actions/developerActions';

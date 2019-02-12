@@ -9,7 +9,7 @@ import * as platform from 'vs/base/common/platform';
 import { IConfigurationService, getConfigurationValue, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { ConfigurationResolverService } from 'vs/workbench/services/configurationResolver/electron-browser/configurationResolverService';
+import { ConfigurationResolverService } from 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { TestEnvironmentService, TestEditorService, TestContextService } from 'vs/workbench/test/workbenchTestServices';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';

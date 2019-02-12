@@ -8,36 +8,6 @@ import * as platform from 'vs/base/common/platform';
 
 suite('Paths', () => {
 
-	function assertDirname(path: string, expected: string, win = false) {
-		const actual = paths.dirname(path, win ? '\\' : '/');
-
-		if (actual !== expected) {
-			assert.fail(`${path}: expected: ${expected}, ours: ${actual}`);
-		}
-	}
-
-	test('dirname', () => {
-		assertDirname('foo/bar', 'foo');
-		assertDirname('foo\\bar', 'foo', true);
-		assertDirname('/foo/bar', '/foo');
-		assertDirname('\\foo\\bar', '\\foo', true);
-		assertDirname('/foo', '/');
-		assertDirname('\\foo', '\\', true);
-		assertDirname('/', '/');
-		assertDirname('\\', '\\', true);
-		assertDirname('foo', '.');
-		assertDirname('f', '.');
-		assertDirname('f/', '.');
-		assertDirname('/folder/', '/');
-		assertDirname('c:\\some\\file.txt', 'c:\\some', true);
-		assertDirname('c:\\some', 'c:\\', true);
-		assertDirname('c:\\', 'c:\\', true);
-		assertDirname('c:', 'c:', true);
-		assertDirname('\\\\server\\share\\some\\path', '\\\\server\\share\\some', true);
-		assertDirname('\\\\server\\share\\some', '\\\\server\\share\\', true);
-		assertDirname('\\\\server\\share\\', '\\\\server\\share\\', true);
-	});
-
 	test('normalize', () => {
 		assert.equal(paths.normalize(''), '.');
 		assert.equal(paths.normalize('.'), '.');

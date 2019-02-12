@@ -16,7 +16,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceFolder, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/node/variableResolver';
+import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IQuickInputService, IInputOptions, IQuickPickItem, IPickOptions } from 'vs/platform/quickinput/common/quickInput';

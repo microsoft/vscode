@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as paths from 'vs/base/common/paths';
-import { isAbsolute } from 'vs/base/common/paths.node';
+import { isAbsolute, posix, dirname as pathDirname } from 'vs/base/common/paths.node';
 import { URI } from 'vs/base/common/uri';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { Schemas } from 'vs/base/common/network';
@@ -67,6 +67,10 @@ export function basename(resource: URI): string {
 	return paths.basename(resource.path);
 }
 
+export function extname(resource: URI): string {
+	return paths.extname(resource.path);
+}
+
 /**
  * Return a URI representing the directory of a URI path.
  *
@@ -78,9 +82,9 @@ export function dirname(resource: URI): URI | null {
 		return resource;
 	}
 	if (resource.scheme === Schemas.file) {
-		return URI.file(paths.dirname(fsPath(resource)));
+		return URI.file(pathDirname(fsPath(resource)));
 	}
-	let dirname = paths.dirname(resource.path, '/');
+	let dirname = posix.dirname(resource.path);
 	if (resource.authority && dirname.length && dirname.charCodeAt(0) !== CharCode.Slash) {
 		return null; // If a URI contains an authority component, then the path component must either be empty or begin with a CharCode.Slash ("/") character
 	}

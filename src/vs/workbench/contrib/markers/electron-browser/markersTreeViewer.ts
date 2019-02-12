@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import * as network from 'vs/base/common/network';
-import * as paths from 'vs/base/common/paths';
+import * as paths from 'vs/base/common/paths.node';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
@@ -392,7 +392,7 @@ export class RelatedInformationRenderer implements ITreeRenderer<RelatedInformat
 		const uriMatches = node.filterData && node.filterData.uriMatches || [];
 		const messageMatches = node.filterData && node.filterData.messageMatches || [];
 
-		templateData.resourceLabel.set(paths.basename(relatedInformation.resource.fsPath), uriMatches);
+		templateData.resourceLabel.set(basename(relatedInformation.resource), uriMatches);
 		templateData.resourceLabel.element.title = this.labelService.getUriLabel(relatedInformation.resource, { relative: true });
 		templateData.lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(relatedInformation.startLineNumber, relatedInformation.startColumn);
 		templateData.description.set(relatedInformation.message, messageMatches);
@@ -427,7 +427,7 @@ export class Filter implements ITreeFilter<TreeElement, FilterData> {
 			return false;
 		}
 
-		const uriMatches = FilterOptions._filter(this.options.textFilter, paths.basename(resourceMarkers.resource.fsPath));
+		const uriMatches = FilterOptions._filter(this.options.textFilter, basename(resourceMarkers.resource));
 
 		if (this.options.textFilter && uriMatches) {
 			return { visibility: true, data: { type: FilterDataType.ResourceMarkers, uriMatches } };
@@ -476,7 +476,7 @@ export class Filter implements ITreeFilter<TreeElement, FilterData> {
 			return true;
 		}
 
-		const uriMatches = FilterOptions._filter(this.options.textFilter, paths.basename(relatedInformation.raw.resource.fsPath));
+		const uriMatches = FilterOptions._filter(this.options.textFilter, basename(relatedInformation.raw.resource));
 		const messageMatches = FilterOptions._messageFilter(this.options.textFilter, paths.basename(relatedInformation.raw.message));
 
 		if (uriMatches || messageMatches) {

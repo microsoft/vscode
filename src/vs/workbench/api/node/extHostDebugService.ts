@@ -22,7 +22,7 @@ import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumen
 import { ITerminalSettings, IDebuggerContribution, IConfig, IDebugAdapter, IDebugAdapterServer, IDebugAdapterExecutable, IAdapterDescriptor } from 'vs/workbench/contrib/debug/common/debug';
 import { getTerminalLauncher, hasChildProcesses, prepareCommand } from 'vs/workbench/contrib/debug/node/terminals';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/node/variableResolver';
+import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
 import { ExtHostConfiguration, ExtHostConfigProvider } from './extHostConfiguration';
 import { convertToVSCPaths, convertToDAPaths, isDebuggerMainContribution } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { ExtHostTerminalService } from 'vs/workbench/api/node/extHostTerminalService';

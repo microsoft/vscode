@@ -11,7 +11,7 @@ import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { ITreeNode, ITreeRenderer, ITreeDragAndDrop, ITreeDragOverReaction } from 'vs/base/browser/ui/tree/tree';
 import { IAction } from 'vs/base/common/actions';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
-import * as paths from 'vs/base/common/paths';
+import * as paths from 'vs/base/common/paths.node';
 import * as resources from 'vs/base/common/resources';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
