@@ -393,7 +393,7 @@ export function prepareCommand(args: DebugProtocol.RunInTerminalRequestArguments
 			};
 
 			hardQuote = (s: string) => {
-				return /[^\w%\/+=,.:^-]/.test(s) ? `'${s.replace(/'/g, '\'\\\'\'')}'` : s;
+				return /[^\w@%\/+=,.:^-]/.test(s) ? `'${s.replace(/'/g, '\'\\\'\'')}'` : s;
 			};
 
 			if (args.cwd) {
