@@ -53,8 +53,8 @@ export class EditorControl extends Disposable {
 		this.editorOperation = this._register(new LongRunningOperation(progressService));
 	}
 
-	get activeControl(): IActiveEditor {
-		return this._activeControl;
+	get activeControl(): IActiveEditor | null {
+		return this._activeControl as IActiveEditor | null;
 	}
 
 	openEditor(editor: EditorInput, options?: EditorOptions): Promise<IOpenEditorResult> {
