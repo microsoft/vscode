@@ -18,7 +18,6 @@ import { isUndefinedOrNull, isString } from 'vs/base/common/types';
 import { equals, coalesce } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtensionDescription, checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
-import * as typeConvert from 'vs/workbench/api/node/extHostTypeConverters';
 
 type TreeItemHandle = string;
 
@@ -142,6 +141,8 @@ interface TreeNode {
 	children: TreeNode[];
 }
 
+type TreeData<T> = { message: boolean, element: T | null | undefined | false };
+
 class ExtHostTreeView<T> extends Disposable {
 
 	private static LABEL_HANDLE_PREFIX = '0';
@@ -171,6 +172,8 @@ class ExtHostTreeView<T> extends Disposable {
 	private _onDidChangeVisibility: Emitter<vscode.TreeViewVisibilityChangeEvent> = this._register(new Emitter<vscode.TreeViewVisibilityChangeEvent>());
 	readonly onDidChangeVisibility: Event<vscode.TreeViewVisibilityChangeEvent> = this._onDidChangeVisibility.event;
 
+	private _onDidChangeData: Emitter<TreeData<T>> = this._register(new Emitter<TreeData<T>>());
+
 	private refreshPromise: Promise<void> = Promise.resolve(null);
 
 	constructor(private viewId: string, options: vscode.TreeViewOptions<T>, private proxy: MainThreadTreeViewsShape, private commands: CommandsConverter, private logService: ILogService, private extension: IExtensionDescription) {
@@ -178,20 +181,36 @@ class ExtHostTreeView<T> extends Disposable {
 		this.dataProvider = options.treeDataProvider;
 		this.proxy.$registerTreeViewDataProvider(viewId, { showCollapseAll: !!options.showCollapseAll });
 		if (this.dataProvider.onDidChangeTreeData) {
-			let refreshingPromise, promiseCallback;
-			this._register(Event.debounce<T, T[]>(this.dataProvider.onDidChangeTreeData, (last, current) => {
+			this._register(this.dataProvider.onDidChangeTreeData(element => this._onDidChangeData.fire({ message: false, element })));
+		}
+
+		let refreshingPromise, promiseCallback;
+		this._register(Event.debounce<TreeData<T>, { message: boolean, elements: T[] }>(this._onDidChangeData.event, (result, current) => {
+			if (!result) {
+				result = { message: false, elements: [] };
+			}
+			if (current.element !== false) {
 				if (!refreshingPromise) {
 					// New refresh has started
 					refreshingPromise = new Promise(c => promiseCallback = c);
 					this.refreshPromise = this.refreshPromise.then(() => refreshingPromise);
 				}
-				return last ? [...last, current] : [current];
-			}, 200)(elements => {
+				result.elements.push(current.element);
+			}
+			if (current.message) {
+				result.message = true;
+			}
+			return result;
+		}, 200)(({ message, elements }) => {
+			if (elements.length) {
 				const _promiseCallback = promiseCallback;
 				refreshingPromise = null;
 				this.refresh(elements).then(() => _promiseCallback());
-			}));
-		}
+			}
+			if (message) {
+				this.proxy.$setMessage(this.viewId, this._message);
+			}
+		}));
 	}
 
 	getChildren(parentHandle?: TreeItemHandle): Promise<ITreeItem[]> {
@@ -232,7 +251,7 @@ class ExtHostTreeView<T> extends Disposable {
 
 	set message(message: string | MarkdownString) {
 		this._message = message;
-		this.proxy.$setMessage(this.viewId, typeConvert.MarkdownString.fromStrict(this._message));
+		this._onDidChangeData.fire({ message: true, element: false });
 	}
 
 	setExpanded(treeItemHandle: TreeItemHandle, expanded: boolean): void {
