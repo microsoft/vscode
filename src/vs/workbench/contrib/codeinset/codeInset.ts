@@ -3,13 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { ITextModel } from 'vs/editor/common/model';
-import { onUnexpectedExternalError, illegalArgument } from 'vs/base/common/errors';
+import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { mergeSort } from 'vs/base/common/arrays';
-import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
-import { IModelService } from 'vs/editor/common/services/modelService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { LanguageFeatureRegistry } from 'vs/editor/common/modes/languageFeatureRegistry';
 import { ProviderResult } from 'vs/editor/common/modes';
@@ -71,35 +68,3 @@ export function getCodeInsetData(model: ITextModel, token: CancellationToken): P
 		});
 	});
 }
-
-registerLanguageCommand('_executeCodeInsetProvider', function (accessor, args) {
-	let { resource, itemResolveCount } = args;
-	if (!(resource instanceof URI)) {
-		throw illegalArgument();
-	}
-
-	const model = accessor.get(IModelService).getModel(resource);
-	if (!model) {
-		throw illegalArgument();
-	}
-
-	const result: ICodeInsetSymbol[] = [];
-	return getCodeInsetData(model, CancellationToken.None).then(value => {
-
-		let resolve: Thenable<any>[] = [];
-
-		for (const item of value) {
-			if (typeof itemResolveCount === 'undefined') {
-				result.push(item.symbol);
-			} else if (itemResolveCount-- > 0) {
-				resolve.push(Promise.resolve(item.provider.resolveCodeInset(model, item.symbol, CancellationToken.None))
-					.then(symbol => result.push(symbol || item.symbol)));
-			}
-		}
-
-		return Promise.all(resolve);
-
-	}).then(() => {
-		return result;
-	});
-});

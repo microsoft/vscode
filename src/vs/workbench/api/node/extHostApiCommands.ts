@@ -18,7 +18,6 @@ import { CustomCodeAction } from 'vs/workbench/api/node/extHostLanguageFeatures'
 import { ICommandsExecutor, PreviewHTMLAPICommand, OpenFolderAPICommand, DiffAPICommand, OpenAPICommand, RemoveFromRecentlyOpenedAPICommand, SetEditorLayoutAPICommand } from './apiCommands';
 import { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
-import * as codeInset from 'vs/workbench/contrib/codeinset/codeInset';
 
 export class ExtHostApiCommands {
 
@@ -146,13 +145,6 @@ export class ExtHostApiCommands {
 				{ name: 'itemResolveCount', description: '(optional) Number of lenses that should be resolved and returned. Will only retrun resolved lenses, will impact performance)', constraint: (value: any) => value === undefined || typeof value === 'number' }
 			],
 			returns: 'A promise that resolves to an array of CodeLens-instances.'
-		});
-		this._register('vscode.executeCodeInsetProvider', this._executeCodeInsetProvider, {
-			description: 'Execute CodeInset provider.',
-			args: [
-				{ name: 'uri', description: 'Uri of a text document', constraint: URI }
-			],
-			returns: 'A promise that resolves to an array of CodeInset-instances.'
 		});
 		this._register('vscode.executeFormatDocumentProvider', this._executeFormatDocumentProvider, {
 			description: 'Execute document format provider.',
@@ -520,14 +512,6 @@ export class ExtHostApiCommands {
 					this._commands.converter.fromInternal(item.command));
 			}));
 
-	}
-
-	private _executeCodeInsetProvider(resource: URI): Thenable<vscode.CodeInset[]> {
-		const args = { resource };
-		return this._commands.executeCommand<codeInset.ICodeInsetSymbol[]>('_executeCodeInsetProvider', args)
-			.then(tryMapWith(item =>
-				new types.CodeInset(
-					typeConverters.Range.to(item.range))));
 	}
 
 	private _executeFormatDocumentProvider(resource: URI, options: vscode.FormattingOptions): Promise<vscode.TextEdit[]> {
