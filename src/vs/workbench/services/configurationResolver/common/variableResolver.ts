@@ -236,7 +236,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 
 						case 'relativeFile':
 							if (folderUri) {
-								return resolvedValue = paths.posix.normalize(paths.relative(folderUri.fsPath, filePath));
+								return resolvedValue = paths.normalize(paths.relative(folderUri.fsPath, filePath));
 							}
 							return resolvedValue = filePath;
 

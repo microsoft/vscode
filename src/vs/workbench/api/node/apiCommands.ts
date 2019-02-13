@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { tmpdir } from 'os';
-import { posix } from 'vs/base/common/path';
+import { join } from 'vs/base/common/path';
 import * as vscode from 'vscode';
 import { URI } from 'vs/base/common/uri';
 import { isMalformedFileUri } from 'vs/base/common/resources';
@@ -130,7 +130,7 @@ CommandsRegistry.registerCommand(SetEditorLayoutAPICommand.ID, adjustHandler(Set
 
 CommandsRegistry.registerCommand('_workbench.downloadResource', function (accessor: ServicesAccessor, resource: URI) {
 	const downloadService = accessor.get(IDownloadService);
-	const location = posix.join(tmpdir(), generateUuid());
+	const location = join(tmpdir(), generateUuid());
 
 	return downloadService.download(resource, location).then(() => URI.file(location));
 });
