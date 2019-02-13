@@ -131,7 +131,7 @@ export class MenubarControl extends Disposable {
 			this.recentlyOpened = recentlyOpened;
 		});
 
-		this.detectAndRecommendCustomTitlebar();
+		this.notifyExistingLinuxUser();
 
 		this.registerListeners();
 	}
@@ -190,10 +190,6 @@ export class MenubarControl extends Disposable {
 		if (this.keys.some(key => event.affectsConfiguration(key))) {
 			this.updateMenubar();
 		}
-
-		if (event.affectsConfiguration('window.menuBarVisibility')) {
-			this.detectAndRecommendCustomTitlebar();
-		}
 	}
 
 	private onRecentlyOpenedChange(): void {
@@ -203,39 +199,40 @@ export class MenubarControl extends Disposable {
 		});
 	}
 
-	private detectAndRecommendCustomTitlebar(): void {
+	// TODO@sbatten remove after feb19
+	private notifyExistingLinuxUser(): void {
 		if (!isLinux) {
 			return;
 		}
 
-		if (!this.storageService.getBoolean('menubar/electronFixRecommended', StorageScope.GLOBAL, false)) {
-			if (this.currentMenubarVisibility === 'hidden' || this.currentTitlebarStyleSetting === 'custom') {
-				// Issue will not arise for user, abort notification
-				return;
-			}
-
-			const message = nls.localize('menubar.electronFixRecommendation', "If you experience hard to read text in the menu bar, we recommend trying out the custom title bar.");
-			this.notificationService.prompt(Severity.Info, message, [
-				{
-					label: nls.localize('goToSetting', "Open Settings"),
-					run: () => {
-						return this.preferencesService.openGlobalSettings(undefined, { query: 'window.titleBarStyle' });
-					}
-				},
-				{
-					label: nls.localize('moreInfo', "More Info"),
-					run: () => {
-						window.open('https://go.microsoft.com/fwlink/?linkid=2038566');
-					}
-				},
-				{
-					label: nls.localize('neverShowAgain', "Don't Show Again"),
-					run: () => {
-						this.storageService.store('menubar/electronFixRecommended', true, StorageScope.GLOBAL);
-					}
-				}
-			]);
+		const isNewUser = !this.storageService.get('telemetry.lastSessionDate', StorageScope.GLOBAL);
+		const hasBeenNotified = this.storageService.getBoolean('menubar/linuxTitlebarRevertNotified', StorageScope.GLOBAL, false);
+		const titleBarConfiguration = this.configurationService.inspect('window.titleBarStyle');
+		if (isNewUser || hasBeenNotified || (titleBarConfiguration && titleBarConfiguration.user)) {
+			return;
 		}
+
+		const message = nls.localize('menubar.linuxTitlebarRevertNotification', "We have updated the default title bar on Linux to use the native setting. If you prefer, you can go back to the custom setting ");
+		this.notificationService.prompt(Severity.Info, message, [
+			{
+				label: nls.localize('goToSetting', "Open Settings"),
+				run: () => {
+					return this.preferencesService.openGlobalSettings(undefined, { query: 'window.titleBarStyle' });
+				}
+			},
+			{
+				label: nls.localize('moreInfo', "More Info"),
+				run: () => {
+					window.open('https://go.microsoft.com/fwlink/?linkid=2038566');
+				}
+			},
+			{
+				label: nls.localize('neverShowAgain', "Don't Show Again"),
+				run: () => {
+					this.storageService.store('menubar/linuxTitlebarRevertNotified', true, StorageScope.GLOBAL);
+				}
+			}
+		]);
 	}
 
 	private registerListeners(): void {

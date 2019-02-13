@@ -6,7 +6,7 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
+import { IProcessEnvironment, isMacintosh, isLinux } from 'vs/base/common/platform';
 import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
@@ -277,12 +277,12 @@ export function getTitleBarStyle(configurationService: IConfigurationService, en
 		}
 
 		const style = configuration.titleBarStyle;
-		if (style === 'native') {
-			return 'native';
+		if (style === 'native' || style === 'custom') {
+			return style;
 		}
 	}
 
-	return 'custom'; // default to custom on all OS
+	return isLinux ? 'native' : 'custom'; // default to custom on all macOS and Windows
 }
 
 export const enum OpenContext {
