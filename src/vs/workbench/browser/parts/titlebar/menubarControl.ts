@@ -223,7 +223,7 @@ export class MenubarControl extends Disposable {
 			{
 				label: nls.localize('moreInfo', "More Info"),
 				run: () => {
-					window.open('https://go.microsoft.com/fwlink/?linkid=2038566');
+					window.open('https://go.microsoft.com/fwlink/?linkid=2074137');
 				}
 			},
 			{
