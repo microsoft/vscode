@@ -41,6 +41,7 @@ import { areSameExtensions } from 'vs/platform/extensionManagement/common/extens
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { joinPath } from 'vs/base/common/resources';
 
 used();
 
@@ -73,9 +74,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 								.then(files => {
 									const file = arrays.find(files.sort(), file => strings.startsWith(file.toLowerCase(), 'readme'));
 									if (file) {
-										return folderUri.with({
-											path: path.posix.join(folderUri.path, file)
-										});
+										return joinPath(folderUri, file);
 									}
 									return undefined;
 								}, onUnexpectedError);
