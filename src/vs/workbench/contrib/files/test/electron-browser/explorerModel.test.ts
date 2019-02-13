@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { join } from 'vs/base/common/extpath';
+import { join } from 'vs/base/common/path';
 import { validateFileName } from 'vs/workbench/contrib/files/electron-browser/fileActions';
 import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 

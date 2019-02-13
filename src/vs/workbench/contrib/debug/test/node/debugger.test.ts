@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as extpath from 'vs/base/common/extpath';
+import * as path from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
 import { IDebugAdapterExecutable, IConfigurationManager, IConfig, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
 import { Debugger } from 'vs/workbench/contrib/debug/node/debugger';
@@ -144,7 +144,7 @@ suite('Debug - Debugger', () => {
 
 		const ae = ExecutableDebugAdapter.platformAdapterExecutable([extensionDescriptor0], 'mock');
 
-		assert.equal(ae!.command, extpath.join(extensionFolderPath, debuggerContribution.program));
+		assert.equal(ae!.command, path.join(extensionFolderPath, debuggerContribution.program));
 		assert.deepEqual(ae!.args, debuggerContribution.args);
 	});
 
