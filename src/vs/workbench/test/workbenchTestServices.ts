@@ -629,7 +629,7 @@ export class TestEditorGroup implements IEditorGroupView {
 	constructor(public id: number) { }
 
 	get group(): EditorGroup { throw new Error('not implemented'); }
-	activeControl: IEditor;
+	activeControl: IActiveEditor;
 	activeEditor: IEditorInput;
 	previewEditor: IEditorInput;
 	count: number;

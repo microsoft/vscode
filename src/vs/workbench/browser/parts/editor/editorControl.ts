@@ -14,6 +14,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IProgressService, LongRunningOperation } from 'vs/platform/progress/common/progress';
 import { IEditorGroupView, DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
 import { Event, Emitter } from 'vs/base/common/event';
+import { IActiveEditor } from 'vs/workbench/services/editor/common/editorService';
 
 export interface IOpenEditorResult {
 	readonly control: BaseEditor;
@@ -52,7 +53,7 @@ export class EditorControl extends Disposable {
 		this.editorOperation = this._register(new LongRunningOperation(progressService));
 	}
 
-	get activeControl() {
+	get activeControl(): IActiveEditor {
 		return this._activeControl;
 	}
 
