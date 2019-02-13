@@ -229,5 +229,5 @@ export class ExtensionIdentifier {
 }
 
 export function isLanguagePackExtension(manifest: IExtensionManifest): boolean {
-	return manifest.contributes && manifest.contributes.localizations && manifest.contributes.localizations.length > 0;
+	return manifest.contributes && manifest.contributes.localizations ? manifest.contributes.localizations.length > 0 : false;
 }

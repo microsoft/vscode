@@ -162,7 +162,7 @@ export class Main {
 					}
 
 					const manifest = await this.extensionGalleryService.getManifest(extension, CancellationToken.None);
-					if (this.remote && isUIExtension(manifest, this.configurationService)) {
+					if (this.remote && manifest && isUIExtension(manifest, this.configurationService)) {
 						console.log(localize('notSupportedUIExtension', "Can't install extension {0} since UI Extensions are not supported", extension.identifier.id));
 						return null;
 					}
