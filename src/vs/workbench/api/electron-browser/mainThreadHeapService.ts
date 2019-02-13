@@ -47,18 +47,23 @@ export class HeapService implements IHeapService {
 	}
 
 	trackObject(obj: ObjectIdentifier | undefined | null): void {
-		if (!obj || typeof obj.$ident !== 'number') {
+		if (!obj) {
 			return;
 		}
 
-		if (this._activeIds.has(obj.$ident)) {
+		const ident = obj.$ident;
+		if (typeof ident !== 'number') {
+			return;
+		}
+
+		if (this._activeIds.has(ident)) {
 			return;
 		}
 
 		if (this._ctor) {
 			// track and leave
-			this._activeIds.add(obj.$ident);
-			this._activeSignals.set(obj, new this._ctor(obj.$ident));
+			this._activeIds.add(ident);
+			this._activeSignals.set(obj, new this._ctor(ident));
 
 		} else {
 			// make sure to load gc-signals, then track and leave
@@ -81,8 +86,8 @@ export class HeapService implements IHeapService {
 			}
 
 			this._ctorInit.then(() => {
-				this._activeIds.add(obj.$ident);
-				this._activeSignals.set(obj, new this._ctor(obj.$ident));
+				this._activeIds.add(ident);
+				this._activeSignals.set(obj, new this._ctor(ident));
 			});
 		}
 	}
