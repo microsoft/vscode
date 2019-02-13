@@ -427,12 +427,12 @@ connection.onFoldingRanges((params, token) => {
 	}, null, `Error while computing folding ranges for ${params.textDocument.uri}`, token);
 });
 
-connection.onRequest('$/textDocument/selectionRange', async (params, token) => {
+connection.onRequest('$/textDocument/selectionRanges', async (params, token) => {
 	return runSafe(() => {
 		const document = documents.get(params.textDocument.uri);
 		if (document) {
 			const jsonDocument = getJSONDocument(document);
-			return languageService.getSelectionRanges(document, params.position, jsonDocument);
+			return languageService.getSelectionRanges(document, params.positions, jsonDocument);
 		}
 		return [];
 	}, [], `Error while computing selection ranges for ${params.textDocument.uri}`, token);
