@@ -172,6 +172,62 @@ suite('Paths (Node Implementation)', () => {
 			});
 		});
 		assert.strictEqual(failures.length, 0, failures.join(''));
+
+		// Tests from VSCode
+
+		assert.equal(path.posix.join('.', 'bar'), 'bar');
+		assert.equal(path.posix.join('../../foo/bar', '../../foo'), '../../foo');
+		assert.equal(path.posix.join('../../foo/bar', '../bar/foo'), '../../foo/bar/foo');
+		assert.equal(path.posix.join('../foo/bar', '../bar/foo'), '../foo/bar/foo');
+		assert.equal(path.posix.join('/', 'bar'), '/bar');
+		assert.equal(path.posix.join('/foo/', '/bar'), '/foo/bar');
+		assert.equal(path.posix.join('foo', '/bar'), 'foo/bar');
+		assert.equal(path.posix.join('foo', 'bar'), 'foo/bar');
+		assert.equal(path.posix.join('foo', 'bar/'), 'foo/bar/');
+		assert.equal(path.posix.join('foo/', '/bar'), 'foo/bar');
+		assert.equal(path.posix.join('foo/', '/bar/'), 'foo/bar/');
+		assert.equal(path.posix.join('foo/', 'bar'), 'foo/bar');
+		assert.equal(path.posix.join('foo/bar', '../bar/foo'), 'foo/bar/foo');
+		assert.equal(path.posix.join('foo/bar', './bar/foo'), 'foo/bar/bar/foo');
+
+		assert.equal(path.win32.join('.', 'bar'), 'bar');
+		assert.equal(path.win32.join('../../foo/bar', '../../foo'), '..\\..\\foo');
+		assert.equal(path.win32.join('../../foo/bar', '../bar/foo'), '..\\..\\foo\\bar\\foo');
+		assert.equal(path.win32.join('../foo/bar', '../bar/foo'), '..\\foo\\bar\\foo');
+		assert.equal(path.win32.join('/', 'bar'), '\\bar');
+		assert.equal(path.win32.join('/foo/', '/bar'), '\\foo\\bar');
+		assert.equal(path.win32.join('foo', '/bar'), 'foo\\bar');
+		assert.equal(path.win32.join('foo', 'bar'), 'foo\\bar');
+		assert.equal(path.win32.join('foo', 'bar/'), 'foo\\bar\\');
+		assert.equal(path.win32.join('foo/', '/bar'), 'foo\\bar');
+		assert.equal(path.win32.join('foo/', '/bar/'), 'foo\\bar\\');
+		assert.equal(path.win32.join('foo/', 'bar'), 'foo\\bar');
+		assert.equal(path.win32.join('foo/bar', '../bar/foo'), 'foo\\bar\\foo');
+		assert.equal(path.win32.join('foo/bar', './bar/foo'), 'foo\\bar\\bar\\foo');
+
+		assert.equal(path.win32.join('.', 'bar'), 'bar');
+		assert.equal(path.win32.join('..\\..\\foo\\bar', '..\\..\\foo'), '..\\..\\foo');
+		assert.equal(path.win32.join('..\\..\\foo\\bar', '..\\bar\\foo'), '..\\..\\foo\\bar\\foo');
+		assert.equal(path.win32.join('..\\foo\\bar', '..\\bar\\foo'), '..\\foo\\bar\\foo');
+		assert.equal(path.win32.join('\\', 'bar'), '\\bar');
+		assert.equal(path.win32.join('\\foo\\', '\\bar'), '\\foo\\bar');
+		assert.equal(path.win32.join('foo', '\\bar'), 'foo\\bar');
+		assert.equal(path.win32.join('foo', 'bar'), 'foo\\bar');
+		assert.equal(path.win32.join('foo', 'bar\\'), 'foo\\bar\\');
+		assert.equal(path.win32.join('foo\\', '\\bar'), 'foo\\bar');
+		assert.equal(path.win32.join('foo\\', '\\bar\\'), 'foo\\bar\\');
+		assert.equal(path.win32.join('foo\\', 'bar'), 'foo\\bar');
+		assert.equal(path.win32.join('foo\\bar', '..\\bar\\foo'), 'foo\\bar\\foo');
+		assert.equal(path.win32.join('foo\\bar', '.\\bar\\foo'), 'foo\\bar\\bar\\foo');
+
+		assert.equal(path.win32.join('//server/far/boo', '../file.txt'), '\\\\server\\far\\file.txt');
+		assert.equal(path.win32.join('\\\\server\\far\\boo', '../file.txt'), '\\\\server\\far\\file.txt');
+		assert.equal(path.win32.join('\\\\server\\far\\boo', './file.txt'), '\\\\server\\far\\boo\\file.txt');
+		assert.equal(path.win32.join('\\\\server\\far\\boo', '.\\file.txt'), '\\\\server\\far\\boo\\file.txt');
+		assert.equal(path.win32.join('\\\\server\\far\\boo', 'file.txt'), '\\\\server\\far\\boo\\file.txt');
+
+		// https://github.com/Microsoft/vscode/issues/7234
+		assert.equal(path.posix.join('/home/aeschli/workspaces/vscode/extensions/css', './syntaxes/css.plist'), '/home/aeschli/workspaces/vscode/extensions/css/syntaxes/css.plist');
 	});
 
 	test('dirname', () => {
