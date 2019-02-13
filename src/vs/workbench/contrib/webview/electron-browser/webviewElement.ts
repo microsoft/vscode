@@ -200,23 +200,14 @@ class WebviewKeyboardHandler extends Disposable {
 	}
 
 	private handleKeydown(event: IKeydownEvent): void {
-		// return;
 		// Create a fake KeyboardEvent from the data provided
-		const emulatedKeyboardEvent = new KeyboardEvent('keydown', {
-			code: event.code,
-			key: event.key,
-			keyCode: event.keyCode,
-			shiftKey: event.shiftKey,
-			altKey: event.altKey,
-			ctrlKey: event.ctrlKey,
-			metaKey: event.metaKey,
-			repeat: event.repeat
-		} as KeyboardEvent);
-
-		// Dispatch through our keybinding service
-		// Note: we set the <webview> as target of the event so that scoped context key
-		// services function properly to enable commands like select all and find.
-		this._keybindingService.dispatchEvent(new StandardKeyboardEvent(emulatedKeyboardEvent), this._webview);
+		const emulatedKeyboardEvent = new KeyboardEvent('keydown', event);
+		// Force override the target
+		Object.defineProperty(emulatedKeyboardEvent, 'target', {
+			get: () => this._webview
+		});
+		// And re-dispatch
+		window.dispatchEvent(emulatedKeyboardEvent);
 	}
 }
 
