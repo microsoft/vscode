@@ -8,51 +8,7 @@ import * as platform from 'vs/base/common/platform';
 
 suite('Paths', () => {
 
-	test('normalize', () => {
-		assert.equal(extpath.normalize(''), '.');
-		assert.equal(extpath.normalize('.'), '.');
-		assert.equal(extpath.normalize('.'), '.');
-		assert.equal(extpath.normalize('../../far'), '../../far');
-		assert.equal(extpath.normalize('../bar'), '../bar');
-		assert.equal(extpath.normalize('../far'), '../far');
-		assert.equal(extpath.normalize('./'), './');
-		assert.equal(extpath.normalize('./././'), './');
-		assert.equal(extpath.normalize('./ff/./'), 'ff/');
-		assert.equal(extpath.normalize('./foo'), 'foo');
-		assert.equal(extpath.normalize('/'), '/');
-		assert.equal(extpath.normalize('/..'), '/');
-		assert.equal(extpath.normalize('///'), '/');
-		assert.equal(extpath.normalize('//foo'), '/foo');
-		assert.equal(extpath.normalize('//foo//'), '/foo/');
-		assert.equal(extpath.normalize('/foo'), '/foo');
-		assert.equal(extpath.normalize('/foo/bar.test'), '/foo/bar.test');
-		assert.equal(extpath.normalize('\\\\\\'), '/');
-		assert.equal(extpath.normalize('c:/../ff'), 'c:/ff');
-		assert.equal(extpath.normalize('c:\\./'), 'c:/');
-		assert.equal(extpath.normalize('foo/'), 'foo/');
-		assert.equal(extpath.normalize('foo/../../bar'), '../bar');
-		assert.equal(extpath.normalize('foo/./'), 'foo/');
-		assert.equal(extpath.normalize('foo/./bar'), 'foo/bar');
-		assert.equal(extpath.normalize('foo//'), 'foo/');
-		assert.equal(extpath.normalize('foo//'), 'foo/');
-		assert.equal(extpath.normalize('foo//bar'), 'foo/bar');
-		assert.equal(extpath.normalize('foo//bar/far'), 'foo/bar/far');
-		assert.equal(extpath.normalize('foo/bar/../../far'), 'far');
-		assert.equal(extpath.normalize('foo/bar/../far'), 'foo/far');
-		assert.equal(extpath.normalize('foo/far/../../bar'), 'bar');
-		assert.equal(extpath.normalize('foo/far/../../bar'), 'bar');
-		assert.equal(extpath.normalize('foo/xxx/..'), 'foo');
-		assert.equal(extpath.normalize('foo/xxx/../bar'), 'foo/bar');
-		assert.equal(extpath.normalize('foo/xxx/./..'), 'foo');
-		assert.equal(extpath.normalize('foo/xxx/./../bar'), 'foo/bar');
-		assert.equal(extpath.normalize('foo/xxx/./bar'), 'foo/xxx/bar');
-		assert.equal(extpath.normalize('foo\\bar'), 'foo/bar');
-		assert.equal(extpath.normalize(null), null);
-		assert.equal(extpath.normalize(undefined), undefined);
-	});
-
 	test('getRootLength', () => {
-
 		assert.equal(extpath.getRoot('/user/far'), '/');
 		assert.equal(extpath.getRoot('\\\\server\\share\\some\\path'), '//server/share/');
 		assert.equal(extpath.getRoot('//server/share/some/path'), '//server/share/');
@@ -65,7 +21,6 @@ suite('Paths', () => {
 		assert.equal(extpath.getRoot('http://www/'), 'http://www/');
 		assert.equal(extpath.getRoot('file:///foo'), 'file:///');
 		assert.equal(extpath.getRoot('file://foo'), '');
-
 	});
 
 	test('isUNC', () => {

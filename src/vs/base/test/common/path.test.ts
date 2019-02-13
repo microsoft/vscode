@@ -719,6 +719,87 @@ suite('Paths (Node Implementation)', () => {
 			'../../../../baz'
 		);
 		assert.strictEqual(path.posix.normalize('foo/bar\\baz'), 'foo/bar\\baz');
+
+		// Tests from VSCode
+		assert.equal(path.posix.normalize(''), '.');
+		assert.equal(path.posix.normalize('.'), '.');
+		assert.equal(path.posix.normalize('.'), '.');
+
+		assert.equal(path.win32.normalize(''), '.');
+		assert.equal(path.win32.normalize('.'), '.');
+		assert.equal(path.win32.normalize('.'), '.');
+
+
+		assert.equal(path.posix.normalize('../../far'), '../../far');
+		assert.equal(path.posix.normalize('../bar'), '../bar');
+		assert.equal(path.posix.normalize('../far'), '../far');
+		assert.equal(path.posix.normalize('./'), './');
+		assert.equal(path.posix.normalize('./././'), './');
+		assert.equal(path.posix.normalize('./ff/./'), 'ff/');
+		assert.equal(path.posix.normalize('./foo'), 'foo');
+		assert.equal(path.posix.normalize('/'), '/');
+		assert.equal(path.posix.normalize('/..'), '/');
+		assert.equal(path.posix.normalize('///'), '/');
+		assert.equal(path.posix.normalize('//foo'), '/foo');
+		assert.equal(path.posix.normalize('//foo//'), '/foo/');
+		assert.equal(path.posix.normalize('/foo'), '/foo');
+		assert.equal(path.posix.normalize('/foo/bar.test'), '/foo/bar.test');
+
+		assert.equal(path.win32.normalize('..\\..\\far'), '..\\..\\far');
+		assert.equal(path.win32.normalize('..\\bar'), '..\\bar');
+		assert.equal(path.win32.normalize('..\\far'), '..\\far');
+		assert.equal(path.win32.normalize('.\\'), '.\\');
+		assert.equal(path.win32.normalize('.\\.\\.\\'), '.\\');
+		assert.equal(path.win32.normalize('.\\ff\\.\\'), 'ff\\');
+		assert.equal(path.win32.normalize('.\\foo'), 'foo');
+		assert.equal(path.win32.normalize('\\'), '\\');
+		assert.equal(path.win32.normalize('\\..'), '\\');
+		assert.equal(path.win32.normalize('\\'), '\\');
+		assert.equal(path.win32.normalize('\\foo'), '\\foo');
+		assert.equal(path.win32.normalize('\\foo\\'), '\\foo\\');
+		assert.equal(path.win32.normalize('\\foo'), '\\foo');
+		assert.equal(path.win32.normalize('\\foo\\bar.test'), '\\foo\\bar.test');
+
+		assert.equal(path.posix.normalize('\\\\\\'), '\\\\\\');
+
+		assert.equal(path.win32.normalize('c:/../ff'), 'c:\\ff');
+		assert.equal(path.win32.normalize('c:\\./'), 'c:\\');
+
+		assert.equal(path.posix.normalize('foo/'), 'foo/');
+		assert.equal(path.posix.normalize('foo/../../bar'), '../bar');
+		assert.equal(path.posix.normalize('foo/./'), 'foo/');
+		assert.equal(path.posix.normalize('foo/./bar'), 'foo/bar');
+		assert.equal(path.posix.normalize('foo//'), 'foo/');
+		assert.equal(path.posix.normalize('foo//'), 'foo/');
+		assert.equal(path.posix.normalize('foo//bar'), 'foo/bar');
+		assert.equal(path.posix.normalize('foo//bar/far'), 'foo/bar/far');
+		assert.equal(path.posix.normalize('foo/bar/../../far'), 'far');
+		assert.equal(path.posix.normalize('foo/bar/../far'), 'foo/far');
+		assert.equal(path.posix.normalize('foo/far/../../bar'), 'bar');
+		assert.equal(path.posix.normalize('foo/far/../../bar'), 'bar');
+		assert.equal(path.posix.normalize('foo/xxx/..'), 'foo');
+		assert.equal(path.posix.normalize('foo/xxx/../bar'), 'foo/bar');
+		assert.equal(path.posix.normalize('foo/xxx/./..'), 'foo');
+		assert.equal(path.posix.normalize('foo/xxx/./../bar'), 'foo/bar');
+		assert.equal(path.posix.normalize('foo/xxx/./bar'), 'foo/xxx/bar');
+
+		assert.equal(path.win32.normalize('foo\\'), 'foo\\');
+		assert.equal(path.win32.normalize('foo\\..\\..\\bar'), '..\\bar');
+		assert.equal(path.win32.normalize('foo\\.\\'), 'foo\\');
+		assert.equal(path.win32.normalize('foo\\.\\bar'), 'foo\\bar');
+		assert.equal(path.win32.normalize('foo\\\\'), 'foo\\');
+		assert.equal(path.win32.normalize('foo\\\\'), 'foo\\');
+		assert.equal(path.win32.normalize('foo\\\\bar'), 'foo\\bar');
+		assert.equal(path.win32.normalize('foo\\\\bar\\far'), 'foo\\bar\\far');
+		assert.equal(path.win32.normalize('foo\\bar\\..\\..\\far'), 'far');
+		assert.equal(path.win32.normalize('foo\\bar\\..\\far'), 'foo\\far');
+		assert.equal(path.win32.normalize('foo\\far\\..\\..\\bar'), 'bar');
+		assert.equal(path.win32.normalize('foo\\far\\..\\..\\bar'), 'bar');
+		assert.equal(path.win32.normalize('foo\\xxx\\..'), 'foo');
+		assert.equal(path.win32.normalize('foo\\xxx\\..\\bar'), 'foo\\bar');
+		assert.equal(path.win32.normalize('foo\\xxx\\.\\..'), 'foo');
+		assert.equal(path.win32.normalize('foo\\xxx\\.\\..\\bar'), 'foo\\bar');
+		assert.equal(path.win32.normalize('foo\\xxx\\.\\bar'), 'foo\\xxx\\bar');
 	});
 
 	test('isAbsolute', () => {
