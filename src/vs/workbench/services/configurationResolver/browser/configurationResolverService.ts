@@ -5,7 +5,7 @@
 
 import { URI as uri } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
-import * as paths from 'vs/base/common/paths';
+import * as extpath from 'vs/base/common/extpath';
 import * as platform from 'vs/base/common/platform';
 import * as Types from 'vs/base/common/types';
 import { Schemas } from 'vs/base/common/network';
@@ -16,7 +16,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceFolder, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/node/variableResolver';
+import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IQuickInputService, IInputOptions, IQuickPickItem, IPickOptions } from 'vs/platform/quickinput/common/quickInput';
@@ -58,7 +58,7 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 				if (!fileResource) {
 					return undefined;
 				}
-				return paths.normalize(fileResource.fsPath, true);
+				return extpath.normalize(fileResource.fsPath, true);
 			},
 			getSelectedText: (): string | undefined => {
 				const activeTextEditorWidget = editorService.activeTextEditorWidget;

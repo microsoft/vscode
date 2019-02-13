@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import * as os from 'os';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 
 import { restoreWindowsState, getWindowsStateStoreData } from 'vs/code/electron-main/windowsStateStorage';
 import { IWindowState as IWindowUIState, WindowMode } from 'vs/platform/windows/electron-main/windows';

@@ -9,7 +9,7 @@ import { Event } from 'vs/base/common/event';
 import * as glob from 'vs/base/common/glob';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
-import * as paths from 'vs/base/common/paths';
+import * as extpath from 'vs/base/common/extpath';
 import { getNLines } from 'vs/base/common/strings';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IFilesConfiguration } from 'vs/platform/files/common/files';
@@ -371,7 +371,7 @@ export function pathIncludedInQuery(queryProps: ICommonQueryProps<URI>, fsPath: 
 	if (queryProps.usingSearchPaths) {
 		return !!queryProps.folderQueries && queryProps.folderQueries.every(fq => {
 			const searchPath = fq.folder.fsPath;
-			if (paths.isEqualOrParent(fsPath, searchPath)) {
+			if (extpath.isEqualOrParent(fsPath, searchPath)) {
 				return !fq.includePattern || !!glob.match(fq.includePattern, fsPath);
 			} else {
 				return false;

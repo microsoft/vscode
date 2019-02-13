@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import * as gracefulFs from 'graceful-fs';
-import { join, sep } from 'path';
+import { join, sep } from 'vs/base/common/path';
 import * as arrays from 'vs/base/common/arrays';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';

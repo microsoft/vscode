@@ -5,7 +5,7 @@
 
 import * as Collections from 'vs/base/common/collections';
 import * as Objects from 'vs/base/common/objects';
-import * as Paths from 'vs/base/common/paths';
+import * as Extpath from 'vs/base/common/extpath';
 import { CommandOptions, ErrorData, Source } from 'vs/base/common/processes';
 import * as Strings from 'vs/base/common/strings';
 import { LineData, LineProcess } from 'vs/base/node/processes';
@@ -156,7 +156,7 @@ export class ProcessRunnerDetector {
 		this._workspaceRoot = workspaceFolder;
 		this._stderr = [];
 		this._stdout = [];
-		this._cwd = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? Paths.normalize(this._workspaceRoot.uri.fsPath, true) : '';
+		this._cwd = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? Extpath.normalize(this._workspaceRoot.uri.fsPath, true) : '';
 	}
 
 	public get stderr(): string[] {

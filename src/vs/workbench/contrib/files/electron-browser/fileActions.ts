@@ -7,7 +7,7 @@ import 'vs/css!./media/fileactions';
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import { isWindows, isLinux } from 'vs/base/common/platform';
-import * as paths from 'vs/base/common/paths';
+import * as extpath from 'vs/base/common/extpath';
 import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -245,7 +245,7 @@ class BaseDeleteFileAction extends BaseErrorReportingAction {
 	) {
 		super('moveFileToTrash', MOVE_FILE_TO_TRASH_LABEL, notificationService);
 
-		this.useTrash = useTrash && elements.every(e => !paths.isUNC(e.resource.fsPath)); // on UNC shares there is no trash
+		this.useTrash = useTrash && elements.every(e => !extpath.isUNC(e.resource.fsPath)); // on UNC shares there is no trash
 		this.enabled = this.elements && this.elements.every(e => !e.isReadonly);
 	}
 
@@ -916,7 +916,7 @@ export function validateFileName(item: ExplorerItem, name: string): string {
 	}
 
 	// Invalid File name
-	if (names.some((folderName) => !paths.isValidBasename(folderName))) {
+	if (names.some((folderName) => !extpath.isValidBasename(folderName))) {
 		return nls.localize('invalidFileNameError', "The name **{0}** is not valid as a file or folder name. Please choose a different name.", trimLongName(name));
 	}
 

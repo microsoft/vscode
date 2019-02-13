@@ -20,8 +20,8 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { registerFileIconThemeSchemas } from 'vs/workbench/services/themes/common/fileIconThemeSchema';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ColorThemeStore } from 'vs/workbench/services/themes/electron-browser/colorThemeStore';
-import { FileIconThemeStore } from 'vs/workbench/services/themes/electron-browser/fileIconThemeStore';
-import { FileIconThemeData } from 'vs/workbench/services/themes/electron-browser/fileIconThemeData';
+import { FileIconThemeStore } from 'vs/workbench/services/themes/common/fileIconThemeStore';
+import { FileIconThemeData } from 'vs/workbench/services/themes/common/fileIconThemeData';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { removeClasses, addClasses } from 'vs/base/browser/dom';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -31,7 +31,6 @@ import * as resources from 'vs/base/common/resources';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { textmateColorsSchemaId, registerColorThemeSchemas, textmateColorSettingsSchemaId } from 'vs/workbench/services/themes/common/colorThemeSchema';
 import { workbenchColorsSchemaId } from 'vs/platform/theme/common/colorRegistry';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 // implementation
 
@@ -320,9 +319,8 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return this.currentColorTheme;
 	}
 
-	public async getColorThemes(extensionId?: ExtensionIdentifier): Promise<IColorTheme[]> {
-		const colorThemes = await this.colorThemeStore.getColorThemes();
-		return extensionId ? colorThemes.filter(c => ExtensionIdentifier.equals(new ExtensionIdentifier(c.extensionData.extensionId), extensionId)) : colorThemes;
+	public getColorThemes(): Promise<IColorTheme[]> {
+		return this.colorThemeStore.getColorThemes();
 	}
 
 	public getTheme(): ITheme {
@@ -460,9 +458,8 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		}
 	}
 
-	public async getFileIconThemes(extensionId?: ExtensionIdentifier): Promise<IFileIconTheme[]> {
-		const filIconThemes = await this.iconThemeStore.getFileIconThemes();
-		return extensionId ? filIconThemes.filter(c => c.extensionData && ExtensionIdentifier.equals(new ExtensionIdentifier(c.extensionData.extensionId), extensionId)) : filIconThemes;
+	public getFileIconThemes(): Promise<IFileIconTheme[]> {
+		return this.iconThemeStore.getFileIconThemes();
 	}
 
 	public getFileIconTheme() {

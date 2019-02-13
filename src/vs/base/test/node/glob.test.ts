@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import * as glob from 'vs/base/common/glob';
 import { isWindows } from 'vs/base/common/platform';
 
@@ -722,7 +722,10 @@ suite('Glob', () => {
 		assert.strictEqual(glob.match(expr, 'bar', hasSibling), '**/bar');
 		assert.strictEqual(glob.match(expr, 'foo', hasSibling), null);
 		assert.strictEqual(glob.match(expr, 'foo/bar', hasSibling), '**/bar');
-		assert.strictEqual(glob.match(expr, 'foo\\bar', hasSibling), '**/bar');
+		if (isWindows) {
+			// backslash is a valid file name character on posix
+			assert.strictEqual(glob.match(expr, 'foo\\bar', hasSibling), '**/bar');
+		}
 		assert.strictEqual(glob.match(expr, 'foo/foo', hasSibling), null);
 		assert.strictEqual(glob.match(expr, 'foo.js', hasSibling), '**/*.js');
 		assert.strictEqual(glob.match(expr, 'bar.js', hasSibling), null);

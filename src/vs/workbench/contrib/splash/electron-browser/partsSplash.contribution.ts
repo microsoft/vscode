@@ -20,7 +20,7 @@ import { IPartService, Parts, Position } from 'vs/workbench/services/part/common
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
-import { join } from 'vs/base/common/paths';
+import { join } from 'vs/base/common/extpath';
 
 class PartsSplash {
 

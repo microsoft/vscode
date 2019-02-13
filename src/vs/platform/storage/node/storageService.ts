@@ -12,7 +12,7 @@ import { Action } from 'vs/base/common/actions';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { localize } from 'vs/nls';
 import { mark, getDuration } from 'vs/base/common/performance';
-import { join } from 'path';
+import { join } from 'vs/base/common/path';
 import { copy, exists, mkdirp, writeFile } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceInitializationPayload, isWorkspaceIdentifier, isSingleFolderWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';

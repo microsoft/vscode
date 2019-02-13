@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { FileEditorTracker } from 'vs/workbench/contrib/files/browser/editors/fileEditorTracker';
 import { URI } from 'vs/base/common/uri';
-import { join } from 'vs/base/common/paths';
+import { join } from 'vs/base/common/extpath';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { workbenchInstantiationService, TestTextFileService, TestFileService } from 'vs/workbench/test/workbenchTestServices';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';

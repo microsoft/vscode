@@ -9,7 +9,7 @@ import { buildHelpMessage, buildVersionMessage } from 'vs/platform/environment/n
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
-import * as paths from 'path';
+import * as paths from 'vs/base/common/path';
 import * as os from 'os';
 import * as fs from 'fs';
 import { whenDeleted } from 'vs/base/node/pfs';

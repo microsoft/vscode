@@ -8,7 +8,6 @@ import { Event } from 'vs/base/common/event';
 import { Color } from 'vs/base/common/color';
 import { ITheme, IThemeService, IIconTheme } from 'vs/platform/theme/common/themeService';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export const IWorkbenchThemeService = createDecorator<IWorkbenchThemeService>('themeService');
 
@@ -55,13 +54,13 @@ export interface IWorkbenchThemeService extends IThemeService {
 	_serviceBrand: any;
 	setColorTheme(themeId: string | undefined, settingsTarget: ConfigurationTarget | undefined): Promise<IColorTheme | null>;
 	getColorTheme(): IColorTheme;
-	getColorThemes(extensionId?: ExtensionIdentifier): Promise<IColorTheme[]>;
+	getColorThemes(): Promise<IColorTheme[]>;
 	onDidColorThemeChange: Event<IColorTheme>;
 	restoreColorTheme();
 
 	setFileIconTheme(iconThemeId: string | undefined, settingsTarget: ConfigurationTarget | undefined): Promise<IFileIconTheme>;
 	getFileIconTheme(): IFileIconTheme;
-	getFileIconThemes(extensionId?: ExtensionIdentifier): Promise<IFileIconTheme[]>;
+	getFileIconThemes(): Promise<IFileIconTheme[]>;
 	onDidFileIconThemeChange: Event<IFileIconTheme>;
 }
 

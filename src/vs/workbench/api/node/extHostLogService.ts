@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { join } from 'vs/base/common/paths';
+import { join } from 'vs/base/common/extpath';
 import { ILogService, DelegatedLogService, LogLevel } from 'vs/platform/log/common/log';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { ExtHostLogServiceShape } from 'vs/workbench/api/node/extHost.protocol';

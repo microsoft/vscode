@@ -2014,6 +2014,14 @@ declare module 'vscode' {
 		 */
 		static readonly SourceOrganizeImports: CodeActionKind;
 
+		/**
+		 * Base kind for auto-fix source actions: `source.fixAll`.
+		 *
+		 * Fix all actions automatically fix errors that have a clear fix that do not require user input.
+		 * They should not suppress errors or perform unsafe fixes such as generating new types or classes.
+		 */
+		static readonly SourceFixAll: CodeActionKind;
+
 		private constructor(value: string);
 
 		/**
@@ -2101,6 +2109,15 @@ declare module 'vscode' {
 		 * Used to filter code actions.
 		 */
 		kind?: CodeActionKind;
+
+		/**
+		 * Marks this as a preferred action. Preferred actions are used by the `auto fix` command and can be targeted
+		 * by keybindings.
+		 *
+		 * A quick fix should be marked preferred if it properly addresses the underlying error.
+		 * A refactoring should be marked preferred if it is the most reasonable choice of actions to take.
+		 */
+		isPreferred?: boolean;
 
 		/**
 		 * Creates a new code action.

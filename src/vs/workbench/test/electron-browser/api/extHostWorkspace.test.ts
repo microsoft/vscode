@@ -5,10 +5,10 @@
 
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
-import { basename } from 'path';
+import { basename } from 'vs/base/common/path';
 import { ExtHostWorkspaceProvider } from 'vs/workbench/api/node/extHostWorkspace';
 import { TestRPCProtocol } from './testRPCProtocol';
-import { normalize } from 'vs/base/common/paths';
+import { normalize } from 'vs/base/common/extpath';
 import { IWorkspaceFolderData } from 'vs/platform/workspace/common/workspace';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { NullLogService } from 'vs/platform/log/common/log';

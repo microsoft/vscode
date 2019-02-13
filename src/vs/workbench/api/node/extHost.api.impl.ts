@@ -8,7 +8,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { TernarySearchTree } from 'vs/base/common/map';
-import * as paths from 'vs/base/common/paths';
+import * as extpath from 'vs/base/common/extpath';
 import * as platform from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
@@ -857,7 +857,7 @@ class Extension<T> implements vscode.Extension<T> {
 		this._extensionService = extensionService;
 		this._identifier = description.identifier;
 		this.id = description.identifier.value;
-		this.extensionPath = paths.normalize(originalFSPath(description.extensionLocation), true);
+		this.extensionPath = extpath.normalize(originalFSPath(description.extensionLocation), true);
 		this.packageJSON = description;
 	}
 

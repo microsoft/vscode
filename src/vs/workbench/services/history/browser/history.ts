@@ -25,7 +25,7 @@ import { getExcludes, ISearchConfiguration } from 'vs/workbench/services/search/
 import { IExpression } from 'vs/base/common/glob';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ResourceGlobMatcher } from 'vs/workbench/electron-browser/resources';
+import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
 import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';

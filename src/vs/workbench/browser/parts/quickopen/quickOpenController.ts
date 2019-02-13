@@ -753,7 +753,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 			const resourceInput = input as IResourceInput;
 			this.resource = resourceInput.resource;
 			this.label = resources.basenameOrAuthority(resourceInput.resource);
-			this.description = labelService.getUriLabel(resources.dirname(this.resource)!, { relative: true });
+			this.description = labelService.getUriLabel(resources.dirname(this.resource), { relative: true });
 			this.dirty = this.resource && this.textFileService.isDirty(this.resource);
 
 			if (this.dirty && this.textFileService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {

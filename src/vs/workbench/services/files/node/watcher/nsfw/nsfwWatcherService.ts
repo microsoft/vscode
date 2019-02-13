@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as glob from 'vs/base/common/glob';
-import * as paths from 'vs/base/common/paths';
-import * as path from 'path';
+import * as extpath from 'vs/base/common/extpath';
+import * as path from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
 import * as watcher from 'vs/workbench/services/files/node/watcher/common';
 import * as nsfw from 'vscode-nsfw';
@@ -233,7 +233,7 @@ export class NsfwWatcherService implements IWatcherService {
 	 */
 	protected _normalizeRoots(roots: IWatcherRequest[]): IWatcherRequest[] {
 		return roots.filter(r => roots.every(other => {
-			return !(r.basePath.length > other.basePath.length && paths.isEqualOrParent(r.basePath, other.basePath));
+			return !(r.basePath.length > other.basePath.length && extpath.isEqualOrParent(r.basePath, other.basePath));
 		}));
 	}
 

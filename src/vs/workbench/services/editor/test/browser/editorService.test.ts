@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as paths from 'vs/base/common/paths';
+import * as extpath from 'vs/base/common/extpath';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
@@ -604,5 +604,5 @@ function toResource(path: string) {
 }
 
 function toFileResource(self: any, path: string) {
-	return URI.file(paths.join('C:\\', Buffer.from(self.test.fullTitle()).toString('base64'), path));
+	return URI.file(extpath.join('C:\\', Buffer.from(self.test.fullTitle()).toString('base64'), path));
 }

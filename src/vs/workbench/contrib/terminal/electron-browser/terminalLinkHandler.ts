@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
 import * as pfs from 'vs/base/node/pfs';
 import { URI as Uri } from 'vs/base/common/uri';

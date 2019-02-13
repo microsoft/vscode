@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
-import { normalize } from 'vs/base/common/paths';
+import { normalize } from 'vs/base/common/extpath';
 import { isWindows } from 'vs/base/common/platform';
 
 

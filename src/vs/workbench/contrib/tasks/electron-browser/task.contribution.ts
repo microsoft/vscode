@@ -2640,17 +2640,18 @@ let schema: IJSONSchema = {
 	description: 'Task definition file',
 	type: 'object',
 	default: {
-		version: '0.1.0',
-		command: 'myCommand',
-		isShellCommand: false,
-		args: [],
-		showOutput: 'always',
+		version: '2.0.0',
 		tasks: [
 			{
-				taskName: 'build',
-				showOutput: 'silent',
-				isBuildCommand: true,
-				problemMatcher: ['$tsc', '$lessCompile']
+				label: 'My Task',
+				command: 'echo hello',
+				type: 'shell',
+				args: [],
+				problemMatcher: ['$tsc'],
+				presentation: {
+					reveal: 'always'
+				},
+				group: 'build'
 			}
 		]
 	}

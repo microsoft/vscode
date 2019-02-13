@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import * as paths from 'vs/base/common/paths';
+import { basename } from 'vs/base/common/resources';
 import { Action } from 'vs/base/common/actions';
 import { URI } from 'vs/base/common/uri';
 import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
@@ -124,7 +124,7 @@ export class SaveErrorHandler extends Disposable implements ISaveErrorHandler, I
 
 			// Otherwise show the message that will lead the user into the save conflict editor.
 			else {
-				message = nls.localize('staleSaveError', "Failed to save '{0}': The content on disk is newer. Please compare your version with the one on disk.", paths.basename(resource.fsPath));
+				message = nls.localize('staleSaveError', "Failed to save '{0}': The content on disk is newer. Please compare your version with the one on disk.", basename(resource));
 
 				actions.primary.push(this.instantiationService.createInstance(ResolveSaveConflictAction, model));
 			}
@@ -159,14 +159,14 @@ export class SaveErrorHandler extends Disposable implements ISaveErrorHandler, I
 
 			if (isReadonly) {
 				if (triedToMakeWriteable) {
-					message = isWindows ? nls.localize('readonlySaveErrorAdmin', "Failed to save '{0}': File is write protected. Select 'Overwrite as Admin' to retry as administrator.", paths.basename(resource.fsPath)) : nls.localize('readonlySaveErrorSudo', "Failed to save '{0}': File is write protected. Select 'Overwrite as Sudo' to retry as superuser.", paths.basename(resource.fsPath));
+					message = isWindows ? nls.localize('readonlySaveErrorAdmin', "Failed to save '{0}': File is write protected. Select 'Overwrite as Admin' to retry as administrator.", basename(resource)) : nls.localize('readonlySaveErrorSudo', "Failed to save '{0}': File is write protected. Select 'Overwrite as Sudo' to retry as superuser.", basename(resource));
 				} else {
-					message = nls.localize('readonlySaveError', "Failed to save '{0}': File is write protected. Select 'Overwrite' to attempt to remove protection.", paths.basename(resource.fsPath));
+					message = nls.localize('readonlySaveError', "Failed to save '{0}': File is write protected. Select 'Overwrite' to attempt to remove protection.", basename(resource));
 				}
 			} else if (isPermissionDenied) {
-				message = isWindows ? nls.localize('permissionDeniedSaveError', "Failed to save '{0}': Insufficient permissions. Select 'Retry as Admin' to retry as administrator.", paths.basename(resource.fsPath)) : nls.localize('permissionDeniedSaveErrorSudo', "Failed to save '{0}': Insufficient permissions. Select 'Retry as Sudo' to retry as superuser.", paths.basename(resource.fsPath));
+				message = isWindows ? nls.localize('permissionDeniedSaveError', "Failed to save '{0}': Insufficient permissions. Select 'Retry as Admin' to retry as administrator.", basename(resource)) : nls.localize('permissionDeniedSaveErrorSudo', "Failed to save '{0}': Insufficient permissions. Select 'Retry as Sudo' to retry as superuser.", basename(resource));
 			} else {
-				message = nls.localize('genericSaveError', "Failed to save '{0}': {1}", paths.basename(resource.fsPath), toErrorMessage(error, false));
+				message = nls.localize('genericSaveError', "Failed to save '{0}': {1}", basename(resource), toErrorMessage(error, false));
 			}
 		}
 
@@ -237,7 +237,7 @@ class ResolveSaveConflictAction extends Action {
 	run(): Promise<any> {
 		if (!this.model.isDisposed()) {
 			const resource = this.model.getResource();
-			const name = paths.basename(resource.fsPath);
+			const name = basename(resource);
 			const editorLabel = nls.localize('saveConflictDiffLabel', "{0} (on disk) ↔ {1} (in {2}) - Resolve save conflict", name, name, this.environmentService.appNameLong);
 
 			return this.editorService.openEditor(

@@ -5,7 +5,7 @@
 
 import { IStringDictionary } from 'vs/base/common/collections';
 import { Event } from 'vs/base/common/event';
-import { join } from 'vs/base/common/paths';
+import { join } from 'vs/base/common/extpath';
 import { URI } from 'vs/base/common/uri';
 import { IRange } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
@@ -135,7 +135,7 @@ export interface IFilterMetadata {
 
 export interface IPreferencesEditorModel<T> {
 	uri?: URI;
-	getPreference(key: string): T;
+	getPreference(key: string): T | null;
 	dispose(): void;
 }
 
@@ -147,7 +147,7 @@ export interface ISettingsEditorModel extends IPreferencesEditorModel<ISetting> 
 	settingsGroups: ISettingsGroup[];
 	filterSettings(filter: string, groupFilter: IGroupFilter, settingMatcher: ISettingMatcher): ISettingMatch[];
 	findValueMatches(filter: string, setting: ISetting): IRange[];
-	updateResultGroup(id: string, resultGroup: ISearchResultGroup): IFilterResult;
+	updateResultGroup(id: string, resultGroup: ISearchResultGroup): IFilterResult | null;
 }
 
 export interface ISettingsEditorOptions extends IEditorOptions {
@@ -165,7 +165,7 @@ export class SettingsEditorOptions extends EditorOptions implements ISettingsEdi
 	folderUri?: URI;
 	query?: string;
 
-	static create(settings: ISettingsEditorOptions): SettingsEditorOptions {
+	static create(settings: ISettingsEditorOptions): SettingsEditorOptions | null {
 		if (!settings) {
 			return null;
 		}
