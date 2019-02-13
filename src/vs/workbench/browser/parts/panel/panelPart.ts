@@ -54,23 +54,24 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService, IS
 
 	_serviceBrand: any;
 
+	element: HTMLElement;
+
+	readonly minimumWidth: number = 300;
+	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
+	readonly minimumHeight: number = 77;
+	readonly maximumHeight: number = Number.POSITIVE_INFINITY;
+	readonly snapSize: number = 50;
+	readonly priority: LayoutPriority = LayoutPriority.Low;
+
+	private _onDidChange = this._register(new Emitter<{ width: number; height: number; }>());
+	get onDidChange(): Event<{ width: number, height: number }> { return this._onDidChange.event; }
+
 	private activePanelContextKey: IContextKey<string>;
 	private panelFocusContextKey: IContextKey<boolean>;
 	private blockOpeningPanel: boolean;
 	private compositeBar: CompositeBar;
 	private compositeActions: { [compositeId: string]: { activityAction: PanelActivityAction, pinnedAction: ToggleCompositePinnedAction } } = Object.create(null);
 	private dimension: Dimension;
-
-	element: HTMLElement;
-	minimumWidth: number = 300;
-	maximumWidth: number = Number.POSITIVE_INFINITY;
-	minimumHeight: number = 77;
-	maximumHeight: number = Number.POSITIVE_INFINITY;
-	snapSize: number = 50;
-	priority: LayoutPriority = LayoutPriority.Low;
-
-	private _onDidChange = new Emitter<{ width: number; height: number; }>();
-	readonly onDidChange = this._onDidChange.event;
 
 	constructor(
 		id: string,
@@ -194,11 +195,11 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService, IS
 	}
 
 	get onDidPanelOpen(): Event<{ panel: IPanel, focus: boolean }> {
-		return Event.map(this._onDidCompositeOpen.event, compositeOpen => ({ panel: compositeOpen.composite, focus: compositeOpen.focus }));
+		return Event.map(this.onDidCompositeOpen.event, compositeOpen => ({ panel: compositeOpen.composite, focus: compositeOpen.focus }));
 	}
 
 	get onDidPanelClose(): Event<IPanel> {
-		return this._onDidCompositeClose.event;
+		return this.onDidCompositeClose.event;
 	}
 
 	updateStyles(): void {

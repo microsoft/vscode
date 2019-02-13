@@ -38,8 +38,6 @@ import { Parts } from 'vs/workbench/services/part/common/partService';
 
 export class TitlebarPart extends Part implements ITitleService, ISerializableView {
 
-	_serviceBrand: any;
-
 	private static readonly NLS_UNSUPPORTED = nls.localize('patchedWindowTitle', "[Unsupported]");
 	private static readonly NLS_USER_IS_ADMIN = isWindows ? nls.localize('userIsAdmin', "[Administrator]") : nls.localize('userIsSudo', "[Superuser]");
 	private static readonly NLS_EXTENSION_HOST = nls.localize('devExtensionWindowTitlePrefix', "[Extension Development Host]");
@@ -47,6 +45,17 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 	private static readonly TITLE_SEPARATOR = isMacintosh ? ' — ' : ' - '; // macOS uses special - separator
 
 	element: HTMLElement;
+
+	readonly minimumWidth: number = 0;
+	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
+	get minimumHeight(): number { return isMacintosh ? 22 / getZoomFactor() : (30 / (this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility') === 'hidden' ? getZoomFactor() : 1)); }
+	get maximumHeight(): number { return isMacintosh ? 22 / getZoomFactor() : (30 / (this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility') === 'hidden' ? getZoomFactor() : 1)); }
+
+	private _onDidChange = this._register(new Emitter<{ width: number; height: number; }>());
+	get onDidChange(): Event<{ width: number, height: number }> { return this._onDidChange.event; }
+
+	_serviceBrand: any;
+
 	private title: HTMLElement;
 	private dragRegion: HTMLElement;
 	private windowControls: HTMLElement;
@@ -63,14 +72,6 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 
 	private properties: ITitleProperties;
 	private activeEditorListeners: IDisposable[];
-
-	minimumWidth: number = 0;
-	maximumWidth: number = Number.POSITIVE_INFINITY;
-	get minimumHeight(): number { return isMacintosh ? 22 / getZoomFactor() : (30 / (this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility') === 'hidden' ? getZoomFactor() : 1)); }
-	get maximumHeight(): number { return isMacintosh ? 22 / getZoomFactor() : (30 / (this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility') === 'hidden' ? getZoomFactor() : 1)); }
-
-	private _onDidChange = new Emitter<{ width: number; height: number; }>();
-	readonly onDidChange = this._onDidChange.event;
 
 	constructor(
 		id: string,
