@@ -6,7 +6,7 @@
 import { isWindows } from 'vs/base/common/platform';
 import { startsWithIgnoreCase, equalsIgnoreCase } from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
-import { sep, posix } from 'vs/base/common/path';
+import { sep } from 'vs/base/common/path';
 
 function isPathSeparator(code: number) {
 	return code === CharCode.Slash || code === CharCode.Backslash;
@@ -84,32 +84,6 @@ export function normalize(path: string | null | undefined, toOSPath?: boolean): 
 function streql(value: string, start: number, end: number, other: string): boolean {
 	return start + other.length === end && value.indexOf(other, start) === start;
 }
-
-export const join: (...parts: string[]) => string = function () {
-	// Not using a function with var-args because of how TS compiles
-	// them to JS - it would result in 2*n runtime cost instead
-	// of 1*n, where n is parts.length.
-
-	let value = '';
-	for (let i = 0; i < arguments.length; i++) {
-		let part = arguments[i];
-		if (i > 0) {
-			// add the separater between two parts unless
-			// there already is one
-			let last = value.charCodeAt(value.length - 1);
-			if (!isPathSeparator(last)) {
-				let next = part.charCodeAt(0);
-				if (!isPathSeparator(next)) {
-					value += posix.sep;
-				}
-			}
-		}
-		value += part;
-	}
-
-	return normalize(value);
-};
-
 
 // #region extpath
 

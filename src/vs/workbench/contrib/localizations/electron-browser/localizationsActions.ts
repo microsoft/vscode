@@ -8,7 +8,7 @@ import { Action } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IEditor } from 'vs/workbench/common/editor';
-import { join } from 'vs/base/common/extpath';
+import { join } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { language } from 'vs/base/common/platform';

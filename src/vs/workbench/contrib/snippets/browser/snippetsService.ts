@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { join } from 'vs/base/common/extpath';
+import { join } from 'vs/base/common/path';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { combinedDisposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { values } from 'vs/base/common/map';

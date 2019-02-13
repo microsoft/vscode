@@ -5,7 +5,7 @@
 
 import { IStringDictionary } from 'vs/base/common/collections';
 import { Event } from 'vs/base/common/event';
-import { join } from 'vs/base/common/extpath';
+import { posix } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import { IRange } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
@@ -230,6 +230,6 @@ export function getSettingsTargetName(target: ConfigurationTarget, resource: URI
 	return '';
 }
 
-export const FOLDER_SETTINGS_PATH = join('.vscode', 'settings.json');
+export const FOLDER_SETTINGS_PATH = posix.join('.vscode', 'settings.json');
 export const DEFAULT_SETTINGS_EDITOR_SETTING = 'workbench.settings.openDefaultSettings';
 export const USE_SPLIT_JSON_SETTING = 'workbench.settings.useSplitJSON';

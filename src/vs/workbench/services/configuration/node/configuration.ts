@@ -23,7 +23,7 @@ import * as extfs from 'vs/base/node/extfs';
 import { JSONEditingService } from 'vs/workbench/services/configuration/node/jsonEditingService';
 import { WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { relative, extname } from 'vs/base/common/path';
+import { join, relative, extname } from 'vs/base/common/path';
 import { equals } from 'vs/base/common/objects';
 import { Schemas } from 'vs/base/common/network';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -308,8 +308,8 @@ class CachedWorkspaceConfiguration extends Disposable implements IWorkspaceConfi
 	}
 
 	private createPaths(workspaceIdentifier: IWorkspaceIdentifier) {
-		this.cachedWorkspacePath = extpath.join(this.environmentService.userDataPath, 'CachedConfigurations', 'workspaces', workspaceIdentifier.id);
-		this.cachedConfigurationPath = extpath.join(this.cachedWorkspacePath, 'workspace.json');
+		this.cachedWorkspacePath = join(this.environmentService.userDataPath, 'CachedConfigurations', 'workspaces', workspaceIdentifier.id);
+		this.cachedConfigurationPath = join(this.cachedWorkspacePath, 'workspace.json');
 	}
 }
 
@@ -559,8 +559,8 @@ export class CachedFolderConfiguration extends Disposable implements IFolderConf
 		configFolderRelativePath: string,
 		environmentService: IEnvironmentService) {
 		super();
-		this.cachedFolderPath = extpath.join(environmentService.userDataPath, 'CachedConfigurations', 'folders', createHash('md5').update(extpath.join(folder.path, configFolderRelativePath)).digest('hex'));
-		this.cachedConfigurationPath = extpath.join(this.cachedFolderPath, 'configuration.json');
+		this.cachedFolderPath = join(environmentService.userDataPath, 'CachedConfigurations', 'folders', createHash('md5').update(join(folder.path, configFolderRelativePath)).digest('hex'));
+		this.cachedConfigurationPath = join(this.cachedFolderPath, 'configuration.json');
 		this.configurationModel = new ConfigurationModel();
 	}
 
