@@ -1,6 +1,10 @@
+<<<<<<< HEAD
 {
 	"compilerOptions": {
 		"target": "es2017",
+=======
+{	"compilerOptions": {
+>>>>>>>  commiy
 		"module": "commonjs",
 		"removeComments": false,
 		"preserveConstEnums": true,

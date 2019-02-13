@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 'use strict';
+<<<<<<< HEAD
 
 const gulp = require('gulp');
 const replace = require('gulp-replace');
@@ -21,15 +22,29 @@ const commit = util.getVersion(root);
 
 const linuxPackageRevision = Math.floor(new Date().getTime() / 1000);
 
+=======
+const gulp = require('gulp'),
+	  replace = require('gulp-replace'),
+	  rename = require('gulp-rename'),
+	  shell = require('gulp-shell'),
+	  es = require('event-stream'),
+	  symdest = require('gulp-symdest'),
+	  util = require('./lib/util'),
+	  packageJson = require('../package.json'),
+	  product = require('../product.json');
+>>>>>>>  commiy
 function getDebPackageArch(arch) {
 	return { x64: 'amd64', ia32: 'i386', arm: 'armhf', arm64: "arm64" }[arch];
 }
+<<<<<<< HEAD
 
+=======
+const linuxPackageRevision = Math.floor(new Date().getTime() / 1000);
+>>>>>>>  commiy
 function prepareDebPackage(arch) {
-	const binaryDir = '../VSCode-linux-' + arch;
-	const debArch = getDebPackageArch(arch);
-	const destination = '.build/linux/deb/' + debArch + '/' + product.applicationName + '-' + debArch;
-
+	const binaryDir = '../VSCode-linux-' + arch,
+		  debArch = getDebPackageArch(arch),
+		  destination = '.build/linux/deb/' + debArch + '/' + product.applicationName + '-' + debArch;
 	return function () {
 		const desktop = gulp.src('resources/linux/code.desktop', { base: '.' })
 			.pipe(rename('usr/share/applications/' + product.applicationName + '.desktop'));
@@ -41,6 +56,7 @@ function prepareDebPackage(arch) {
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
 			.pipe(replace('@@NAME_SHORT@@', product.nameShort))
 			.pipe(replace('@@NAME@@', product.applicationName))
+<<<<<<< HEAD
 			.pipe(replace('@@ICON@@', product.applicationName))
 			.pipe(replace('@@URLPROTOCOL@@', product.urlProtocol));
 
@@ -59,9 +75,13 @@ function prepareDebPackage(arch) {
 		// const zsh_completion = gulp.src('resources/completions/zsh/_code')
 		// 	.pipe(rename('usr/share/zsh/vendor-completions/_code'));
 
+=======
+			.pipe(rename('usr/share/applications/' + product.applicationName + '.desktop'));
+		const icon = gulp.src('resources/linux/code.png', { base: '.' })
+			.pipe(rename('usr/share/pixmaps/' + product.applicationName + '.png'));
+>>>>>>>  commiy
 		const code = gulp.src(binaryDir + '/**/*', { base: binaryDir })
 			.pipe(rename(function (p) { p.dirname = 'usr/share/' + product.applicationName + '/' + p.dirname; }));
-
 		let size = 0;
 		const control = code.pipe(es.through(
 			function (f) { size += f.isDirectory() ? 4096 : f.contents.length; },
@@ -75,15 +95,21 @@ function prepareDebPackage(arch) {
 					.pipe(rename('DEBIAN/control'))
 					.pipe(es.through(function (f) { that.emit('data', f); }, function () { that.emit('end'); }));
 			}));
-
 		const prerm = gulp.src('resources/linux/debian/prerm.template', { base: '.' })
 			.pipe(replace('@@NAME@@', product.applicationName))
+<<<<<<< HEAD
 			.pipe(rename('DEBIAN/prerm'));
 
 		const postrm = gulp.src('resources/linux/debian/postrm.template', { base: '.' })
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(rename('DEBIAN/postrm'));
 
+=======
+			.pipe(rename('DEBIAN/prerm'))
+		const postrm = gulp.src('resources/linux/debian/postrm.template', { base: '.' })
+			.pipe(replace('@@NAME@@', product.applicationName))
+			.pipe(rename('DEBIAN/postrm'))
+>>>>>>>  commiy
 		const postinst = gulp.src('resources/linux/debian/postinst.template', { base: '.' })
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(replace('@@ARCHITECTURE@@', debArch))
@@ -91,14 +117,19 @@ function prepareDebPackage(arch) {
 			.pipe(replace('@@QUALITY@@', product.quality || '@@QUALITY@@'))
 			// @ts-ignore JSON checking: updateUrl is optional
 			.pipe(replace('@@UPDATEURL@@', product.updateUrl || '@@UPDATEURL@@'))
+<<<<<<< HEAD
 			.pipe(rename('DEBIAN/postinst'));
 
 		const all = es.merge(control, postinst, postrm, prerm, desktops, appdata, icon, /* bash_completion, zsh_completion, */ code);
 
 		return all.pipe(vfs.dest(destination));
+=======
+			.pipe(rename('DEBIAN/postinst'))
+		const all = es.merge(control, postinst, postrm, prerm, desktop, icon, code);
+		return all.pipe(symdest(destination));
+>>>>>>>  commiy
 	};
 }
-
 function buildDebPackage(arch) {
 	const debArch = getDebPackageArch(arch);
 	return shell.task([
@@ -107,19 +138,15 @@ function buildDebPackage(arch) {
 		'fakeroot dpkg-deb -b ' + product.applicationName + '-' + debArch + ' deb'
 	], { cwd: '.build/linux/deb/' + debArch });
 }
-
 function getRpmBuildPath(rpmArch) {
 	return '.build/linux/rpm/' + rpmArch + '/rpmbuild';
 }
-
 function getRpmPackageArch(arch) {
 	return { x64: 'x86_64', ia32: 'i386', arm: 'armhf', arm64: "arm64" }[arch];
 }
-
 function prepareRpmPackage(arch) {
-	const binaryDir = '../VSCode-linux-' + arch;
-	const rpmArch = getRpmPackageArch(arch);
-
+	const binaryDir = '../VSCode-linux-' + arch,
+		  rpmArch = getRpmPackageArch(arch);
 	return function () {
 		const desktop = gulp.src('resources/linux/code.desktop', { base: '.' })
 			.pipe(rename('BUILD/usr/share/applications/' + product.applicationName + '.desktop'));
@@ -131,6 +158,7 @@ function prepareRpmPackage(arch) {
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
 			.pipe(replace('@@NAME_SHORT@@', product.nameShort))
 			.pipe(replace('@@NAME@@', product.applicationName))
+<<<<<<< HEAD
 			.pipe(replace('@@ICON@@', product.applicationName))
 			.pipe(replace('@@URLPROTOCOL@@', product.urlProtocol));
 
@@ -149,9 +177,13 @@ function prepareRpmPackage(arch) {
 		// const zsh_completion = gulp.src('resources/completions/zsh/_code')
 		// 	.pipe(rename('BUILD/usr/share/zsh/site-functions/_code'));
 
+=======
+			.pipe(rename('BUILD/usr/share/applications/' + product.applicationName + '.desktop'));
+		const icon = gulp.src('resources/linux/code.png', { base: '.' })
+			.pipe(rename('BUILD/usr/share/pixmaps/' + product.applicationName + '.png'));
+>>>>>>>  commiy
 		const code = gulp.src(binaryDir + '/**/*', { base: binaryDir })
 			.pipe(rename(function (p) { p.dirname = 'BUILD/usr/share/' + product.applicationName + '/' + p.dirname; }));
-
 		const spec = gulp.src('resources/linux/rpm/code.spec.template', { base: '.' })
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
@@ -165,16 +197,20 @@ function prepareRpmPackage(arch) {
 			.pipe(replace('@@UPDATEURL@@', product.updateUrl || '@@UPDATEURL@@'))
 			.pipe(replace('@@DEPENDENCIES@@', rpmDependencies[rpmArch].join(', ')))
 			.pipe(rename('SPECS/' + product.applicationName + '.spec'));
-
 		const specIcon = gulp.src('resources/linux/rpm/code.xpm', { base: '.' })
 			.pipe(rename('SOURCES/' + product.applicationName + '.xpm'));
+<<<<<<< HEAD
 
 		const all = es.merge(code, desktops, appdata, icon, /* bash_completion, zsh_completion, */ spec, specIcon);
 
 		return all.pipe(vfs.dest(getRpmBuildPath(rpmArch)));
 	};
+=======
+		const all = es.merge(code, desktop, icon, spec, specIcon);
+		return all.pipe(symdest(getRpmBuildPath(rpmArch)));
+	}
+>>>>>>>  commiy
 }
-
 function buildRpmPackage(arch) {
 	const rpmArch = getRpmPackageArch(arch);
 	const rpmBuildPath = getRpmBuildPath(rpmArch);
@@ -187,6 +223,7 @@ function buildRpmPackage(arch) {
 		'cp "' + rpmOut + '/$(ls ' + rpmOut + ')" ' + destination + '/'
 	]);
 }
+<<<<<<< HEAD
 
 function getSnapBuildPath(arch) {
 	return `.build/linux/snap/${arch}/${product.applicationName}-${arch}`;
@@ -268,3 +305,17 @@ BUILD_TARGETS.forEach((buildTarget) => {
 		gulp.task(buildSnapTask.displayName, buildSnapTask);
 	}
 });
+=======
+gulp.task('clean-vscode-linux-ia32-deb', util.rimraf('.build/linux/deb/i386'));
+gulp.task('clean-vscode-linux-x64-deb', util.rimraf('.build/linux/deb/amd64'));
+gulp.task('clean-vscode-linux-ia32-rpm', util.rimraf('.build/linux/rpm/i386'));
+gulp.task('clean-vscode-linux-x64-rpm', util.rimraf('.build/linux/rpm/x86_64'));
+gulp.task('vscode-linux-ia32-prepare-deb', ['clean-vscode-linux-ia32-deb', 'vscode-linux-ia32-min'], prepareDebPackage('ia32'));
+gulp.task('vscode-linux-x64-prepare-deb', ['clean-vscode-linux-x64-deb', 'vscode-linux-x64-min'], prepareDebPackage('x64'));
+gulp.task('vscode-linux-ia32-build-deb', ['vscode-linux-ia32-prepare-deb'], buildDebPackage('ia32'));
+gulp.task('vscode-linux-x64-build-deb', ['vscode-linux-x64-prepare-deb'], buildDebPackage('x64'));
+gulp.task('vscode-linux-ia32-prepare-rpm', ['clean-vscode-linux-ia32-rpm', 'vscode-linux-ia32-min'], prepareRpmPackage('ia32'));
+gulp.task('vscode-linux-x64-prepare-rpm', ['clean-vscode-linux-x64-rpm', 'vscode-linux-x64-min'], prepareRpmPackage('x64'));
+gulp.task('vscode-linux-ia32-build-rpm', ['vscode-linux-ia32-prepare-rpm'], buildRpmPackage('ia32'));
+gulp.task('vscode-linux-x64-build-rpm', ['vscode-linux-x64-prepare-rpm'], buildRpmPackage('x64'));
+>>>>>>>  commiy

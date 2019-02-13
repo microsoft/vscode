@@ -5,6 +5,7 @@
 
 'use strict';
 
+<<<<<<< HEAD
 const gulp = require('gulp');
 const path = require('path');
 const fs = require('fs');
@@ -27,6 +28,19 @@ const issPath = path.join(__dirname, 'win32', 'code.iss');
 const innoSetupPath = path.join(path.dirname(path.dirname(require.resolve('innosetup-compiler'))), 'bin', 'ISCC.exe');
 const signPS1 = path.join(repoPath, 'build', 'azure-pipelines', 'win32', 'sign.ps1');
 
+=======
+const gulp = require('gulp'),
+	  path = require('path'),
+	  assert = require('assert'),
+	  cp = require('child_process'),
+	  util = require('./lib/util'),
+	  pkg = require('../package.json'),
+	  product = require('../product.json'),
+	  repoPath = path.dirname(__dirname),
+	  buildPath = path.join(path.dirname(repoPath), 'VSCode-win32'),
+	  issPath = path.join(__dirname, 'win32', 'code.iss'),
+	  innoSetupPath = path.join(path.dirname(path.dirname(require.resolve('innosetup-compiler'))), 'bin', 'ISCC.exe');
+>>>>>>>  commiy
 function packageInnoSetup(iss, options, cb) {
 	options = options || {};
 
@@ -41,6 +55,7 @@ function packageInnoSetup(iss, options, cb) {
 	}
 
 	const keys = Object.keys(definitions);
+<<<<<<< HEAD
 
 	keys.forEach(key => assert(typeof definitions[key] === 'string', `Missing value for '${key}' in Inno Setup package step`));
 
@@ -52,6 +67,12 @@ function packageInnoSetup(iss, options, cb) {
 	];
 
 	cp.spawn(innoSetupPath, args, { stdio: ['ignore', 'inherit', 'inherit'] })
+=======
+	keys.forEach(key => assert(typeof definitions[key] === 'string', `Missing value for '${ key }' in Inno Setup package step`));
+	const defs = keys.map(key => `/d${ key }=${ definitions[key] }`);
+	const args = [iss].concat(defs);
+	cp.spawn(innoSetupPath, args, { stdio: 'inherit' })
+>>>>>>>  commiy
 		.on('error', cb)
 		.on('exit', () => cb(null));
 }
@@ -102,6 +123,7 @@ function buildWin32Setup(arch, target) {
 
 		packageInnoSetup(issPath, { definitions }, cb);
 	};
+<<<<<<< HEAD
 }
 
 function defineWin32SetupTasks(arch, target) {
@@ -143,3 +165,9 @@ function patchInnoUpdater(arch) {
 
 gulp.task('vscode-win32-ia32-inno-updater', util.task.series(copyInnoUpdater('ia32'), patchInnoUpdater('ia32')));
 gulp.task('vscode-win32-x64-inno-updater', util.task.series(copyInnoUpdater('x64'), patchInnoUpdater('x64')));
+=======
+	packageInnoSetup(issPath, { definitions }, cb);
+}
+gulp.task('clean-vscode-win32-setup', util.rimraf('.build/win32/setup'));
+gulp.task('vscode-win32-setup', ['clean-vscode-win32-setup', 'vscode-win32-min'], buildWin32Setup);
+>>>>>>>  commiy

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 'use strict';
+<<<<<<< HEAD
 
 const gulp = require('gulp');
 const filter = require('gulp-filter');
@@ -28,16 +29,29 @@ const pall = require('p-all');
  */
 
 const all = [
+=======
+const gulp = require('gulp'),
+	  filter = require('gulp-filter'),
+	  es = require('event-stream'),
+	  gulptslint = require('gulp-tslint'),
+	  tslint = require('tslint'),
+	  all = [
+>>>>>>>  commiy
 	'*',
 	'build/**/*',
 	'extensions/**/*',
 	'scripts/**/*',
 	'src/**/*',
+<<<<<<< HEAD
 	'test/**/*',
 	'!**/node_modules/**'
 ];
 
 const indentationFilter = [
+=======
+	'test/**/*'
+],eolFilter = [
+>>>>>>>  commiy
 	'**',
 
 	// except specific files
@@ -59,9 +73,24 @@ const indentationFilter = [
 	'!extensions/vscode-api-tests/testWorkspace/**',
 	'!extensions/vscode-api-tests/testWorkspace2/**',
 	'!build/monaco/**',
+<<<<<<< HEAD
 	'!build/win32/**',
 
 	// except multiple specific files
+=======
+	'!build/win32/**'
+],indentationFilter = [
+	'**',
+	'!ThirdPartyNotices.txt',
+	'!**/*.md',
+	'!**/*.template',
+	'!**/*.yml',
+	'!**/lib/**',
+	'!**/*.d.ts',
+	'!**/*.d.ts.recipe',
+	'!extensions/typescript/server/**',
+	'!test/assert.js',
+>>>>>>>  commiy
 	'!**/package.json',
 	'!**/yarn.lock',
 	'!**/yarn-error.log',
@@ -75,6 +104,7 @@ const indentationFilter = [
 	'!extensions/**/syntaxes/**',
 	'!extensions/**/themes/**',
 	'!extensions/**/colorize-fixtures/**',
+<<<<<<< HEAD
 
 	// except specific file types
 	'!src/vs/*/**/*.d.ts',
@@ -92,6 +122,10 @@ const indentationFilter = [
 ];
 
 const copyrightFilter = [
+=======
+	'!extensions/vscode-api-tests/testWorkspace/**'
+],copyrightFilter = [
+>>>>>>>  commiy
 	'**',
 	'!**/*.desktop',
 	'!**/*.json',
@@ -106,6 +140,7 @@ const copyrightFilter = [
 	'!**/*.sh',
 	'!**/*.txt',
 	'!**/*.xpm',
+<<<<<<< HEAD
 	'!**/*.opts',
 	'!**/*.disabled',
 	'!**/*.code-workspace',
@@ -133,11 +168,16 @@ const eslintFilter = [
 ];
 
 const tslintFilter = [
+=======
+	'!extensions/markdown/media/tomorrow.css'
+],tslintFilter = [
+>>>>>>>  commiy
 	'src/**/*.ts',
 	'test/**/*.ts',
 	'extensions/**/*.ts',
 	'!**/fixtures/**',
 	'!**/typings/**',
+<<<<<<< HEAD
 	'!**/node_modules/**',
 	'!extensions/typescript/test/colorize-fixtures/**',
 	'!extensions/vscode-api-tests/testWorkspace/**',
@@ -147,10 +187,18 @@ const tslintFilter = [
 ];
 
 const copyrightHeaderLines = [
+=======
+	'!src/vs/base/**/*.test.ts',
+	'!src/vs/languages/**/*.test.ts',
+	'!src/vs/workbench/**/*.test.ts',
+	'!extensions/**/*.test.ts'
+],copyrightHeader = [
+>>>>>>>  commiy
 	'/*---------------------------------------------------------------------------------------------',
 	' *  Copyright (c) Microsoft Corporation. All rights reserved.',
 	' *  Licensed under the MIT License. See License.txt in the project root for license information.',
 	' *--------------------------------------------------------------------------------------------*/'
+<<<<<<< HEAD
 ];
 
 gulp.task('eslint', () => {
@@ -165,6 +213,21 @@ gulp.task('tslint', () => {
 	const options = { emitError: true };
 
 	return vfs.src(all, { base: '.', follow: true, allowEmpty: true })
+=======
+].join('\n');
+function reportFailures(failures) {
+	failures.forEach(failure => {
+		const name = failure.name || failure.fileName;
+		const position = failure.startPosition;
+		const line = position.lineAndCharacter ? position.lineAndCharacter.line : position.line;
+		const character = position.lineAndCharacter ? position.lineAndCharacter.character : position.character;
+		console.error(`${ name }:${ line + 1}:${ character + 1 }:${ failure.failure }`);
+	});
+}
+gulp.task('tslint', () => {
+	const options = { summarizeFailureOutput: true };
+	return gulp.src(all, { base: '.' })
+>>>>>>>  commiy
 		.pipe(filter(tslintFilter))
 		.pipe(gulptslint.default({ rulesDirectory: 'build/lib/tslint' }))
 		.pipe(gulptslint.default.report(options));
@@ -172,7 +235,17 @@ gulp.task('tslint', () => {
 
 function hygiene(some) {
 	let errorCount = 0;
+<<<<<<< HEAD
 
+=======
+	const eol = es.through(function (file) {
+		if (/\r\n?/g.test(file.contents.toString('utf8'))) {
+			console.error(file.relative + ': Bad EOL found');
+			errorCount++;
+		}
+		this.emit('data', file);
+	});
+>>>>>>>  commiy
 	const indentation = es.through(function (file) {
 		const lines = file.contents.toString('utf8').split(/\r\n|\r|\n/);
 		file.__lines = lines;
@@ -190,10 +263,8 @@ function hygiene(some) {
 					errorCount++;
 				}
 			});
-
 		this.emit('data', file);
 	});
-
 	const copyrights = es.through(function (file) {
 		const lines = file.__lines;
 
@@ -204,9 +275,9 @@ function hygiene(some) {
 				break;
 			}
 		}
-
 		this.emit('data', file);
 	});
+<<<<<<< HEAD
 
 	const formatting = es.map(function (file, cb) {
 		tsfmt.processString(file.path, file.contents.toString('utf8'), {
@@ -257,6 +328,20 @@ function hygiene(some) {
 	}
 
 	const result = input
+=======
+	const tsl = es.through(function(file) {
+		const configuration = tslint.findConfiguration(null, '.');
+		const options = { configuration, formatter: 'json', rulesDirectory: 'build/lib/tslint' };
+		const contents = file.contents.toString('utf8');
+		const linter = new tslint(file.relative, contents, options);
+		const result = linter.lint();
+		if (result.failureCount > 0) {
+			reportFailures(result.failures);
+			errorCount += result.failureCount;
+		};		this.emit('data', file);
+	});
+	return gulp.src(some || all, { base: '.' })
+>>>>>>>  commiy
 		.pipe(filter(f => !f.stat.isDirectory()))
 		.pipe(filter(indentationFilter))
 		.pipe(indentation)
@@ -304,6 +389,7 @@ function hygiene(some) {
 				this.emit('end');
 			}
 		}));
+<<<<<<< HEAD
 }
 
 function createGitIndexVinyls(paths) {
@@ -339,11 +425,14 @@ function createGitIndexVinyls(paths) {
 		.then(r => r.filter(p => !!p));
 }
 
+=======
+};
+>>>>>>>  commiy
 gulp.task('hygiene', () => hygiene());
-
 // this allows us to run hygiene as a git pre-commit hook
 if (require.main === module) {
 	const cp = require('child_process');
+<<<<<<< HEAD
 
 	process.on('unhandledRejection', (reason, p) => {
 		console.log('Unhandled Rejection at: Promise', p, 'reason:', reason);
@@ -357,6 +446,10 @@ if (require.main === module) {
 			process.exit(1);
 		});
 	} else {
+=======
+	cp.exec('git config core.autocrlf', (err, out) => {
+		const skipEOL = out.trim() === 'true';
+>>>>>>>  commiy
 		cp.exec('git diff --cached --name-only', { maxBuffer: 2000 * 1024 }, (err, out) => {
 			if (err) {
 				console.error();
@@ -364,10 +457,10 @@ if (require.main === module) {
 				process.exit(1);
 				return;
 			}
-
 			const some = out
 				.split(/\r?\n/)
 				.filter(l => !!l);
+<<<<<<< HEAD
 
 			if (some.length > 0) {
 				console.log('Reading git index versions...');
@@ -382,6 +475,13 @@ if (require.main === module) {
 						process.exit(1);
 					});
 			}
+=======
+			hygiene(some, { skipEOL: skipEOL }).on('error', err => {
+				console.error();
+				console.error(err);
+				process.exit(1);
+			});
+>>>>>>>  commiy
 		});
 	}
 }

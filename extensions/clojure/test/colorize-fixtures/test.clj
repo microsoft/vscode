@@ -8,7 +8,6 @@
 #{:a :b :c}
 '(1 2 3)
 (def my-stuff ["shirt" "coat" "hat"])   ; this is more typical usage.
-
 (my-func (my-func2 arg1
                    arg2)
          (other-func arg-a
