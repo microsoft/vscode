@@ -96,7 +96,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 	constructor(
 		@IEditorService private readonly _editorService: IEditorService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService
+		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 	) { }
 
 	createWebview(

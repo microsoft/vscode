@@ -373,7 +373,7 @@ export class WebviewElement extends Disposable {
 
 	public mountTo(parent: HTMLElement) {
 		if (this._webviewFindWidget) {
-			parent.appendChild(this._webviewFindWidget.getDomNode());
+			parent.appendChild(this._webviewFindWidget.getDomNode()!);
 		}
 		parent.appendChild(this._webview);
 	}
@@ -401,9 +401,6 @@ export class WebviewElement extends Disposable {
 
 	private readonly _onMessage = this._register(new Emitter<any>());
 	public readonly onMessage = this._onMessage.event;
-
-	private readonly _onLayout = this._register(new Emitter<{ width: number, height: number }>());
-	public readonly onLayout = this._onLayout.event;
 
 	private _send(channel: string, ...args: any[]): void {
 		this._ready
@@ -525,11 +522,6 @@ export class WebviewElement extends Disposable {
 			}
 
 			contents.setZoomFactor(factor);
-			if (!this._webview || !this._webview.parentElement) {
-				return;
-			}
-
-			this._onLayout.fire({ width: this._webview.clientWidth, height: this._webview.clientHeight });
 		});
 	}
 
