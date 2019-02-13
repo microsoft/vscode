@@ -15,5 +15,6 @@ Steps to Reproduce:
 1.
 2.
 
-<!-- Launch with `code --disable-extensions` to check. -->
+<!-- If it's snap app, launch with `vscode --disable-extensions` to check. -->
+<!-- Else, launch with `code --disable-extensions` to check. -->
 Does this issue occur when all extensions are disabled?: Yes/No
