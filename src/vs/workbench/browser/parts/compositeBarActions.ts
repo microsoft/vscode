@@ -23,7 +23,7 @@ import { Color } from 'vs/base/common/color';
 
 export interface ICompositeActivity {
 	badge: IBadge;
-	clazz: string;
+	clazz?: string;
 	priority: number;
 }
 

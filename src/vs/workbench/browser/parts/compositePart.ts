@@ -84,7 +84,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		private defaultCompositeId: string,
 		private nameForTelemetry: string,
 		private compositeCSSClass: string,
-		private titleForegroundColor: string,
+		private titleForegroundColor: string | undefined,
 		id: string,
 		options: IPartOptions
 	) {
@@ -415,7 +415,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			},
 
 			updateStyles: () => {
-				titleLabel.style.color = $this.getColor($this.titleForegroundColor);
+				titleLabel.style.color = $this.titleForegroundColor ? $this.getColor($this.titleForegroundColor) : null;
 			}
 		};
 	}

@@ -100,7 +100,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService, IS
 			Registry.as<PanelRegistry>(PanelExtensions.Panels).getDefaultPanelId(),
 			'panel',
 			'panel',
-			null,
+			undefined,
 			id,
 			{ hasTitle: true }
 		);
@@ -210,10 +210,12 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService, IS
 		container.style.borderLeftColor = this.getColor(PANEL_BORDER) || this.getColor(contrastBorder);
 
 		const title = this.getTitleArea();
-		title.style.borderTopColor = this.getColor(PANEL_BORDER) || this.getColor(contrastBorder);
+		if (title) {
+			title.style.borderTopColor = this.getColor(PANEL_BORDER) || this.getColor(contrastBorder);
+		}
 	}
 
-	openPanel(id: string, focus?: boolean): Panel {
+	openPanel(id: string, focus?: boolean): Panel | null {
 		if (this.blockOpeningPanel) {
 			return null; // Workaround against a potential race condition
 		}
@@ -228,14 +230,14 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService, IS
 			}
 		}
 
-		return this.openComposite(id, focus);
+		return this.openComposite(id, focus) || null;
 	}
 
 	showActivity(panelId: string, badge: IBadge, clazz?: string): IDisposable {
 		return this.compositeBar.showActivity(panelId, badge, clazz);
 	}
 
-	private getPanel(panelId: string): IPanelIdentifier {
+	private getPanel(panelId: string): IPanelIdentifier | undefined {
 		return this.getPanels().filter(p => p.id === panelId).pop();
 	}
 
@@ -258,7 +260,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService, IS
 		];
 	}
 
-	getActivePanel(): IPanel {
+	getActivePanel(): IPanel | null {
 		return this.getActiveComposite();
 	}
 
@@ -302,9 +304,9 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService, IS
 
 		if (this.partService.getPanelPosition() === Position.RIGHT) {
 			// Take into account the 1px border when layouting
-			this.dimension = new Dimension(width - 1, height);
+			this.dimension = new Dimension(width - 1, height!);
 		} else {
-			this.dimension = new Dimension(width, height);
+			this.dimension = new Dimension(width, height!);
 		}
 
 		const sizes = super.layout(this.dimension.width, this.dimension.height);
@@ -413,7 +415,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService, IS
 		return cachedPanels;
 	}
 
-	private _cachedPanelsValue: string;
+	private _cachedPanelsValue: string | null;
 	private get cachedPanelsValue(): string {
 		if (!this._cachedPanelsValue) {
 			this._cachedPanelsValue = this.getStoredCachedPanelsValue();

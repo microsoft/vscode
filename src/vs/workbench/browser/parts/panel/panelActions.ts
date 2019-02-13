@@ -204,14 +204,16 @@ export class SwitchPanelViewAction extends Action {
 		if (!activePanel) {
 			return Promise.resolve(null);
 		}
-		let targetPanelId: string;
+		let targetPanelId: string | undefined;
 		for (let i = 0; i < pinnedPanels.length; i++) {
 			if (pinnedPanels[i].id === activePanel.getId()) {
 				targetPanelId = pinnedPanels[(i + pinnedPanels.length + offset) % pinnedPanels.length].id;
 				break;
 			}
 		}
-		this.panelService.openPanel(targetPanelId, true);
+		if (typeof targetPanelId === 'string') {
+			this.panelService.openPanel(targetPanelId, true);
+		}
 		return Promise.resolve(null);
 	}
 }
