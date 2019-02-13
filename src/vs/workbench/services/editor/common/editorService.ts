@@ -27,7 +27,7 @@ export const SIDE_GROUP = -2;
 export type SIDE_GROUP_TYPE = typeof SIDE_GROUP;
 
 export interface IOpenEditorOverrideHandler {
-	(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions, group: IEditorGroup): IOpenEditorOverride;
+	(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions, group: IEditorGroup): IOpenEditorOverride | undefined;
 }
 
 export interface IOpenEditorOverride {
@@ -36,7 +36,7 @@ export interface IOpenEditorOverride {
 	 * If defined, will prevent the opening of an editor and replace the resulting
 	 * promise with the provided promise for the openEditor() call.
 	 */
-	override?: Promise<IEditor>;
+	override?: Promise<IEditor | undefined>;
 }
 
 export interface IActiveEditor extends IEditor {
