@@ -370,8 +370,8 @@ export class WebviewElement extends Disposable {
 			}
 		}
 
-		this._webview = undefined;
-		this._webviewFindWidget = undefined;
+		this._webview = undefined!;
+		this._webviewFindWidget = undefined!;
 		super.dispose();
 	}
 

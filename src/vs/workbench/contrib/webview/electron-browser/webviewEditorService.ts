@@ -39,7 +39,7 @@ export interface IWebviewEditorService {
 		iconPath: { light: URI, dark: URI } | undefined,
 		state: any,
 		options: WebviewInputOptions,
-		extensionLocation: URI
+		extensionLocation: URI | undefined,
 	): WebviewEditorInput;
 
 	revealWebview(
@@ -120,7 +120,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 		if (webview.group === group.id) {
 			this._editorService.openEditor(webview, { preserveFocus }, webview.group);
 		} else {
-			this._editorGroupService.getGroup(webview.group).moveEditor(webview, group, { preserveFocus });
+			this._editorGroupService.getGroup(webview.group!).moveEditor(webview, group, { preserveFocus });
 		}
 	}
 
@@ -146,7 +146,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 					// A reviver may not be registered yet. Put into queue and resolve promise when we can revive
 					let resolve: (value: void) => void;
 					const promise = new Promise<void>(r => { resolve = r; });
-					this._awaitingRevival.push({ input: webview, resolve });
+					this._awaitingRevival.push({ input: webview, resolve: resolve! });
 					return promise;
 				});
 			}
@@ -159,8 +159,9 @@ export class WebviewEditorService implements IWebviewEditorService {
 		viewType: string,
 		reviver: WebviewReviver
 	): IDisposable {
-		if (this._revivers.has(viewType)) {
-			this._revivers.get(viewType).push(reviver);
+		const currentRevivers = this._revivers.get(viewType);
+		if (currentRevivers) {
+			currentRevivers.push(reviver);
 		} else {
 			this._revivers.set(viewType, [reviver]);
 		}
@@ -183,7 +184,8 @@ export class WebviewEditorService implements IWebviewEditorService {
 		webview: WebviewEditorInput
 	): boolean {
 		const viewType = webview.viewType;
-		return this._revivers.has(viewType) && this._revivers.get(viewType).some(reviver => reviver.canRevive(webview));
+		const revivers = this._revivers.get(viewType);
+		return !!revivers && revivers.some(reviver => reviver.canRevive(webview));
 	}
 
 	private async tryRevive(
