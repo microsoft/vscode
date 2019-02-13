@@ -190,12 +190,12 @@ export class InstallAction extends ExtensionAction {
 				if (SetColorThemeAction.getColorThemes(colorThemes, this.extension).length) {
 					const action = this.instantiationService.createInstance(SetColorThemeAction, colorThemes);
 					action.extension = extension;
-					return action.run(true);
+					return action.run({ showCurrentTheme: true, ignoreFocusLost: true });
 				}
 				if (SetFileIconThemeAction.getFileIconThemes(fileIconThemes, this.extension).length) {
 					const action = this.instantiationService.createInstance(SetFileIconThemeAction, fileIconThemes);
 					action.extension = extension;
-					return action.run(true);
+					return action.run({ showCurrentTheme: true, ignoreFocusLost: true });
 				}
 			}
 		}
@@ -1158,7 +1158,7 @@ export class SetColorThemeAction extends ExtensionAction {
 		this.class = this.enabled ? SetColorThemeAction.EnabledClass : SetColorThemeAction.DisabledClass;
 	}
 
-	async run(showCurrentTheme: boolean): Promise<any> {
+	async run({ showCurrentTheme, ignoreFocusLost }: { showCurrentTheme: boolean, ignoreFocusLost: boolean } = { showCurrentTheme: false, ignoreFocusLost: false }): Promise<any> {
 		this.update();
 		if (!this.enabled) {
 			return;
@@ -1181,7 +1181,8 @@ export class SetColorThemeAction extends ExtensionAction {
 			picks,
 			{
 				placeHolder: localize('select color theme', "Select Color Theme"),
-				onDidFocus: item => delayer.trigger(() => this.workbenchThemeService.setColorTheme(item.id, undefined))
+				onDidFocus: item => delayer.trigger(() => this.workbenchThemeService.setColorTheme(item.id, undefined)),
+				ignoreFocusLost
 			});
 		let confValue = this.configurationService.inspect(COLOR_THEME_SETTING);
 		const target = typeof confValue.workspace !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
@@ -1229,7 +1230,7 @@ export class SetFileIconThemeAction extends ExtensionAction {
 		this.class = this.enabled ? SetFileIconThemeAction.EnabledClass : SetFileIconThemeAction.DisabledClass;
 	}
 
-	async run(showCurrentTheme: boolean): Promise<any> {
+	async run({ showCurrentTheme, ignoreFocusLost }: { showCurrentTheme: boolean, ignoreFocusLost: boolean } = { showCurrentTheme: false, ignoreFocusLost: false }): Promise<any> {
 		await this.update();
 		if (!this.enabled) {
 			return;
@@ -1252,7 +1253,8 @@ export class SetFileIconThemeAction extends ExtensionAction {
 			picks,
 			{
 				placeHolder: localize('select file icon theme', "Select File Icon Theme"),
-				onDidFocus: item => delayer.trigger(() => this.workbenchThemeService.setFileIconTheme(item.id, undefined))
+				onDidFocus: item => delayer.trigger(() => this.workbenchThemeService.setFileIconTheme(item.id, undefined)),
+				ignoreFocusLost
 			});
 		let confValue = this.configurationService.inspect(ICON_THEME_SETTING);
 		const target = typeof confValue.workspace !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
