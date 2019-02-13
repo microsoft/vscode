@@ -236,7 +236,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 			}
 
 			const { total, filtered } = this.getFilterStats();
-			dom.toggleClass(this.treeContainer, 'hidden', total > 0 && filtered === 0);
+			dom.toggleClass(this.treeContainer, 'hidden', total === 0 || filtered === 0);
 			this.renderMessage();
 			this._onDidFilter.fire();
 		}
@@ -254,7 +254,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		this._onDidFilter.fire();
 
 		const { total, filtered } = this.getFilterStats();
-		dom.toggleClass(this.treeContainer, 'hidden', total > 0 && filtered === 0);
+		dom.toggleClass(this.treeContainer, 'hidden', total === 0 || filtered === 0);
 		this.renderMessage();
 	}
 
@@ -498,7 +498,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		this.cachedFilterStats = undefined;
 		this.tree.setChildren(null, createModelIterator(this.markersWorkbenchService.markersModel));
 		const { total, filtered } = this.getFilterStats();
-		dom.toggleClass(this.treeContainer, 'hidden', total > 0 && filtered === 0);
+		dom.toggleClass(this.treeContainer, 'hidden', total === 0 || filtered === 0);
 		this.renderMessage();
 	}
 
