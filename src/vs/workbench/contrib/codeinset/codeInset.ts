@@ -7,7 +7,7 @@ import { registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { ITextModel } from 'vs/editor/common/model';
 import { onUnexpectedExternalError, illegalArgument } from 'vs/base/common/errors';
 import { mergeSort } from 'vs/base/common/arrays';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -23,7 +23,6 @@ export interface ICodeInsetSymbol {
 
 export interface CodeInsetProvider {
 	onDidChange?: Event<this>;
-	extensionLocation: UriComponents;
 	provideCodeInsets(model: ITextModel, token: CancellationToken): ProviderResult<ICodeInsetSymbol[]>;
 	resolveCodeInset(model: ITextModel, codeInset: ICodeInsetSymbol, token: CancellationToken): ProviderResult<ICodeInsetSymbol>;
 }

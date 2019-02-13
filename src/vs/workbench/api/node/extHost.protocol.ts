@@ -300,7 +300,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$unregister(handle: number): void;
 	$registerDocumentSymbolProvider(handle: number, selector: ISerializedDocumentFilter[], label: string): void;
 	$registerCodeLensSupport(handle: number, selector: ISerializedDocumentFilter[], eventHandle: number | undefined): void;
-	$registerCodeInsetSupport(handle: number, selector: ISerializedDocumentFilter[], eventHandle: number, extension: IExtensionDescription): void;
+	$registerCodeInsetSupport(handle: number, selector: ISerializedDocumentFilter[], eventHandle: number): void;
 	$emitCodeLensEvent(eventHandle: number, event?: any): void;
 	$registerDefinitionSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$registerDeclarationSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
