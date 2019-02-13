@@ -435,7 +435,11 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 
 	protected saveState(): void {
 		const value = this.searchBox.getValue();
-		this.searchViewletState['query.value'] = value;
+		if (value.indexOf('@installed') >= 0) {
+			this.searchViewletState['query.value'] = value;
+		} else {
+			this.searchViewletState['query.value'] = '';
+		}
 		super.saveState();
 	}
 
