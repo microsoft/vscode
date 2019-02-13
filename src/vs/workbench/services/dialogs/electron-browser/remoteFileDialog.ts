@@ -58,7 +58,8 @@ export class RemoteFileDialog {
 		return this.pickResource({ title, defaultUri, canSelectFiles: true, canSelectFolders: true }).then(async fileFolderUri => {
 			if (fileFolderUri) {
 				const stat = await this.remoteFileService.resolveFile(fileFolderUri);
-				return [{ uri: fileFolderUri, type: stat.isDirectory ? 'folder' : 'file' }];
+				return <IURIToOpen[]>[{ uri: fileFolderUri, typeHint: stat.isDirectory ? 'folder' : 'file' }];
+
 			}
 			return Promise.resolve(undefined);
 		});
