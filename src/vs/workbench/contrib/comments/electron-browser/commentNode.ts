@@ -11,7 +11,7 @@ import { ActionsOrientation, ActionItem, ActionBar } from 'vs/base/browser/ui/ac
 import { Button } from 'vs/base/browser/ui/button/button';
 import { Action, IActionRunner, IAction } from 'vs/base/common/actions';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -64,6 +64,43 @@ class ToggleReactionsAction extends Action {
 
 	set menuActions(actions: IAction[]) {
 		this._menuActions = actions;
+	}
+}
+
+class ReactionActionItem extends ActionItem {
+
+	constructor(action: ReactionAction) {
+		super(null, action, {});
+	}
+
+	updateLabel(): void {
+		let action = this.getAction() as ReactionAction;
+
+		this.label.classList.add(action.class);
+
+		if (!action.icon) {
+			let reactionLabel = dom.append(this.label, dom.$('span.reaction-label'));
+			reactionLabel.innerText = action.label;
+		} else {
+			let reactionIcon = dom.append(this.label, dom.$('.reaction-icon'));
+			reactionIcon.style.display = '';
+			let uri = URI.revive(action.icon);
+			reactionIcon.style.backgroundImage = `url('${uri}')`;
+			reactionIcon.title = action.label;
+		}
+
+		if (action.count) {
+			let reactionCount = dom.append(this.label, dom.$('span.reaction-count'));
+			reactionCount.innerText = `${action.count}`;
+		}
+	}
+}
+
+class ReactionAction extends Action {
+	static readonly ID = 'toolbar.toggle.reaction';
+
+	constructor(id: string, label: string = '', cssClass: string = '', enabled: boolean = true, actionCallback?: (event?: any) => Promise<any>, public icon?: UriComponents, public count?: number) {
+		super(ReactionAction.ID, label, cssClass, enabled, actionCallback);
 	}
 }
 
@@ -206,8 +243,13 @@ export class CommentNode extends Disposable {
 			options = { label: true, icon: true };
 		}
 
-		let item = new ActionItem({}, action, options);
-		return item;
+		if (action.id === ReactionAction.ID) {
+			let item = new ReactionActionItem(action);
+			return item;
+		} else {
+			let item = new ActionItem({}, action, options);
+			return item;
+		}
 	}
 
 	private createReactionPicker(): ToggleReactionsAction {
@@ -280,7 +322,7 @@ export class CommentNode extends Disposable {
 		this._toDispose.push(this._reactionsActionBar);
 
 		this.comment.commentReactions!.map(reaction => {
-			let action = new Action(`reaction.${reaction.label}`, `${reaction.label}`, reaction.hasReacted && reaction.canEdit ? 'active' : '', reaction.canEdit, async () => {
+			let action = new ReactionAction(`reaction.${reaction.label}`, `${reaction.label}`, reaction.hasReacted && reaction.canEdit ? 'active' : '', reaction.canEdit, async () => {
 				try {
 					if (reaction.hasReacted) {
 						await this.commentService.deleteReaction(this.owner, this.resource, this.comment, reaction);
@@ -301,7 +343,7 @@ export class CommentNode extends Disposable {
 					}
 					this.notificationService.error(error);
 				}
-			});
+			}, reaction.iconPath, reaction.count);
 
 			this._reactionsActionBar.push(action, { label: true, icon: true });
 		});

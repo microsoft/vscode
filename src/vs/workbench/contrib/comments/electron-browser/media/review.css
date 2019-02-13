@@ -148,11 +148,10 @@
 	white-space: pre;
 	text-align: center;
 	font-size: 14px;
-	margin: 4px;
 }
 
-.monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label.active {
-	border: 1px solid grey;
+.monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item .action-label .reaction-label {
+	line-height: 20px;
 }
 
 .monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label.toolbar-toggle-pickReactions {
