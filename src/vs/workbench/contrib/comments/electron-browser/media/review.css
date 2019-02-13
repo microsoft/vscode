@@ -115,10 +115,13 @@
 	margin: 0;
 }
 
+.monaco-editor .review-widget .body .review-comment .review-comment-contents .author {
+	line-height: 22px;
+}
+
 .monaco-editor.vs-dark .review-widget .body .review-comment .review-comment-contents .author {
 	color: #fff;
 	font-weight: 600;
-	line-height: 22px;
 }
 
 .monaco-editor .review-widget .body .review-comment .review-comment-contents .isPending {
