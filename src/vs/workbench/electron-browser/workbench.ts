@@ -1652,7 +1652,7 @@ export class Workbench extends Disposable implements IPartService {
 		let offset = 0;
 		if (this.isVisible(Parts.TITLEBAR_PART)) {
 			if (this.workbenchGrid instanceof Grid) {
-				offset = this.gridHasView(this.titlebarPartView) ? this.workbenchGrid.getViewSize2(this.titlebarPartView).height : 0;
+				offset = this.titlebarPart.maximumHeight;
 			} else {
 				offset = this.workbenchGrid.partLayoutInfo.titlebar.height;
 
