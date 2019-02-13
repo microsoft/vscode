@@ -509,6 +509,7 @@
 		"./vs/workbench/contrib/codeEditor/electron-browser/toggleRenderControlCharacter.ts",
 		"./vs/workbench/contrib/codeEditor/electron-browser/toggleRenderWhitespace.ts",
 		"./vs/workbench/contrib/codeEditor/electron-browser/toggleWordWrap.ts",
+		"./vs/workbench/contrib/codeinset/common/codeInset.ts",
 		"./vs/workbench/contrib/comments/common/commentModel.ts",
 		"./vs/workbench/contrib/comments/electron-browser/commentGlyphWidget.ts",
 		"./vs/workbench/contrib/comments/electron-browser/commentService.ts",
