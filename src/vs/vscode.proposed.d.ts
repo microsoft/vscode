@@ -38,6 +38,34 @@ declare module 'vscode' {
 	//#endregion
 
 
+	// #region Joh - code insets
+
+	/**
+	 */
+	export class CodeInset {
+		range: Range;
+		height?: number;
+		constructor(range: Range, height?: number);
+	}
+
+	export interface CodeInsetProvider {
+		onDidChangeCodeInsets?: Event<void>;
+		provideCodeInsets(document: TextDocument, token: CancellationToken): ProviderResult<CodeInset[]>;
+		resolveCodeInset(codeInset: CodeInset, webview: Webview, token: CancellationToken): ProviderResult<CodeInset>;
+	}
+
+	export namespace languages {
+
+		/**
+		 * Register a code inset provider.
+		 *
+		 */
+		export function registerCodeInsetProvider(selector: DocumentSelector, provider: CodeInsetProvider): Disposable;
+	}
+
+	//#endregion
+
+
 	//#region Joh - selection range provider
 
 	export class SelectionRangeKind {

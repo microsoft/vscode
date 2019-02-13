@@ -30,6 +30,7 @@ export interface WebviewContentOptions {
 	readonly allowScripts?: boolean;
 	readonly svgWhiteList?: string[];
 	readonly localResourceRoots?: ReadonlyArray<URI>;
+	readonly disableFindView?: boolean;
 }
 
 interface IKeydownEvent {
@@ -347,14 +348,18 @@ export class WebviewElement extends Disposable {
 			this._send('devtools-opened');
 		}));
 
-		this._webviewFindWidget = this._register(instantiationService.createInstance(WebviewFindWidget, this));
+		if (!this.options || !this.options.disableFindView) {
+			this._webviewFindWidget = this._register(instantiationService.createInstance(WebviewFindWidget, this));
+		}
 
 		this.style(this._themeService.getTheme());
 		this._register(this._themeService.onThemeChange(this.style, this));
 	}
 
 	public mountTo(parent: HTMLElement) {
-		parent.appendChild(this._webviewFindWidget.getDomNode()!);
+		if (this._webviewFindWidget) {
+			parent.appendChild(this._webviewFindWidget.getDomNode()!);
+		}
 		parent.appendChild(this._webview);
 	}
 
@@ -482,8 +487,9 @@ export class WebviewElement extends Disposable {
 		const activeTheme = ApiThemeClassName.fromTheme(theme);
 		this._send('styles', styles, activeTheme);
 
-		this._webviewFindWidget.updateTheme(theme);
-
+		if (this._webviewFindWidget) {
+			this._webviewFindWidget.updateTheme(theme);
+		}
 	}
 
 	public layout(): void {
@@ -551,11 +557,15 @@ export class WebviewElement extends Disposable {
 	}
 
 	public showFind() {
-		this._webviewFindWidget.reveal();
+		if (this._webviewFindWidget) {
+			this._webviewFindWidget.reveal();
+		}
 	}
 
 	public hideFind() {
-		this._webviewFindWidget.hide();
+		if (this._webviewFindWidget) {
+			this._webviewFindWidget.hide();
+		}
 	}
 
 	public reload() {

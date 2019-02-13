@@ -8,7 +8,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ExtHostContext, ExtHostWebviewsShape, IExtHostContext, MainContext, MainThreadWebviewsShape, WebviewPanelHandle, WebviewPanelShowOptions } from 'vs/workbench/api/node/extHost.protocol';
+import { ExtHostContext, ExtHostWebviewsShape, IExtHostContext, MainContext, MainThreadWebviewsShape, WebviewPanelHandle, WebviewPanelShowOptions, WebviewInsetHandle } from 'vs/workbench/api/node/extHost.protocol';
 import { editorGroupToViewColumn, EditorViewColumn, viewColumnToEditorGroup } from 'vs/workbench/api/shared/editor';
 import { WebviewEditor } from 'vs/workbench/contrib/webview/electron-browser/webviewEditor';
 import { WebviewEditorInput } from 'vs/workbench/contrib/webview/electron-browser/webviewEditorInput';
@@ -21,6 +21,11 @@ import { extHostNamedCustomer } from './extHostCustomers';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { WebviewElement } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { CodeInsetController } from 'vs/workbench/contrib/codeinset/codeInset.contribution';
+import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 
 @extHostNamedCustomer(MainContext.MainThreadWebviews)
 export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviver {
@@ -35,6 +40,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 
 	private readonly _proxy: ExtHostWebviewsShape;
 	private readonly _webviews = new Map<WebviewPanelHandle, WebviewEditorInput>();
+	private readonly _webviewsElements = new Map<WebviewInsetHandle, WebviewElement>();
 	private readonly _revivers = new Set<string>();
 
 	private _activeWebview: WebviewPanelHandle | undefined = undefined;
@@ -47,7 +53,10 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		@IWebviewEditorService private readonly _webviewService: IWebviewEditorService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
+		@IPartService private readonly _partService: IPartService,
 	) {
 		this._proxy = context.getProxy(ExtHostContext.ExtHostWebviews);
 		_editorService.onDidActiveEditorChange(this.onActiveEditorChanged, this, this._toDispose);
@@ -96,6 +105,44 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		this._telemetryService.publicLog('webviews:createWebviewPanel', { extensionId: extensionId.value });
 	}
 
+	$createWebviewCodeInset(handle: WebviewInsetHandle, symbolId: string, options: vscode.WebviewOptions, extensionLocation: UriComponents): void {
+		// todo@joh main is for the lack of a code-inset service
+		// which we maybe wanna have... this is how it now works
+		// 1) create webview element
+		// 2) find the code inset controller that request it
+		// 3) let the controller adopt the widget
+		// 4) continue to forward messages to the webview
+		const webview = this._instantiationService.createInstance(
+			WebviewElement,
+			this._partService.getContainer(Parts.EDITOR_PART),
+			{
+				useSameOriginForRoot: true,
+				extensionLocation: URI.revive(extensionLocation)
+			},
+			{
+				allowScripts: options.enableScripts
+			}
+		);
+
+		let found = false;
+		for (const editor of this._codeEditorService.listCodeEditors()) {
+			const ctrl = CodeInsetController.get(editor);
+			if (ctrl && ctrl.acceptWebview(symbolId, webview)) {
+				found = true;
+				break;
+			}
+		}
+
+		if (!found) {
+			webview.dispose();
+			return;
+		}
+		// this will leak... the adopted webview will be disposed by the
+		// code inset controller. we might need a dispose-event here so that
+		// we can clean up things.
+		this._webviewsElements.set(handle, webview);
+	}
+
 	public $disposeWebview(handle: WebviewPanelHandle): void {
 		const webview = this.getWebview(handle);
 		webview.dispose();
@@ -111,14 +158,22 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		webview.iconPath = reviveWebviewIcon(value);
 	}
 
-	public $setHtml(handle: WebviewPanelHandle, value: string): void {
-		const webview = this.getWebview(handle);
-		webview.html = value;
+	public $setHtml(handle: WebviewPanelHandle | WebviewInsetHandle, value: string): void {
+		if (typeof handle === 'number') {
+			this._webviewsElements.get(handle).contents = value;
+		} else {
+			const webview = this.getWebview(handle);
+			webview.html = value;
+		}
 	}
 
-	public $setOptions(handle: WebviewPanelHandle, options: vscode.WebviewOptions): void {
-		const webview = this.getWebview(handle);
-		webview.setOptions(reviveWebviewOptions(options));
+	public $setOptions(handle: WebviewPanelHandle | WebviewInsetHandle, options: vscode.WebviewOptions): void {
+		if (typeof handle === 'number') {
+			this._webviewsElements.get(handle).options = reviveWebviewOptions(options);
+		} else {
+			const webview = this.getWebview(handle);
+			webview.setOptions(reviveWebviewOptions(options));
+		}
 	}
 
 	public $reveal(handle: WebviewPanelHandle, showOptions: WebviewPanelShowOptions): void {
@@ -132,18 +187,24 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		this._webviewService.revealWebview(webview, targetGroup || this._editorGroupService.getGroup(webview.group), !!showOptions.preserveFocus);
 	}
 
-	public $postMessage(handle: WebviewPanelHandle, message: any): Promise<boolean> {
-		const webview = this.getWebview(handle);
-		const editors = this._editorService.visibleControls
-			.filter(e => e instanceof WebviewEditor)
-			.map(e => e as WebviewEditor)
-			.filter(e => e.input!.matches(webview));
+	public $postMessage(handle: WebviewPanelHandle | WebviewInsetHandle, message: any): Promise<boolean> {
+		if (typeof handle === 'number') {
+			this._webviewsElements.get(handle).sendMessage(message);
+			return Promise.resolve(true);
 
-		for (const editor of editors) {
-			editor.sendMessage(message);
+		} else {
+			const webview = this.getWebview(handle);
+			const editors = this._editorService.visibleControls
+				.filter(e => e instanceof WebviewEditor)
+				.map(e => e as WebviewEditor)
+				.filter(e => e.input!.matches(webview));
+
+			for (const editor of editors) {
+				editor.sendMessage(message);
+			}
+
+			return Promise.resolve(editors.length > 0);
 		}
-
-		return Promise.resolve(editors.length > 0);
 	}
 
 	public $registerSerializer(viewType: string): void {

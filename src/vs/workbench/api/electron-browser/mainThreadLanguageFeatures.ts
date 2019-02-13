@@ -11,7 +11,7 @@ import * as search from 'vs/workbench/contrib/search/common/search';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Position as EditorPosition } from 'vs/editor/common/core/position';
 import { Range as EditorRange } from 'vs/editor/common/core/range';
-import { ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, MainContext, IExtHostContext, ISerializedLanguageConfiguration, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, LocationDto, WorkspaceSymbolDto, CodeActionDto, reviveWorkspaceEditDto, ISerializedDocumentFilter, DefinitionLinkDto, ISerializedSignatureHelpProviderMetadata } from '../node/extHost.protocol';
+import { ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, MainContext, IExtHostContext, ISerializedLanguageConfiguration, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, LocationDto, WorkspaceSymbolDto, CodeActionDto, reviveWorkspaceEditDto, ISerializedDocumentFilter, DefinitionLinkDto, ISerializedSignatureHelpProviderMetadata, CodeInsetDto } from '../node/extHost.protocol';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { LanguageConfiguration, IndentationRule, OnEnterRule } from 'vs/editor/common/modes/languageConfiguration';
 import { IHeapService } from './mainThreadHeapService';
@@ -20,6 +20,7 @@ import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostC
 import * as typeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import { URI } from 'vs/base/common/uri';
 import { Selection } from 'vs/editor/common/core/selection';
+import * as codeInset from 'vs/workbench/contrib/codeinset/codeInset';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesShape {
@@ -158,6 +159,35 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		if (obj instanceof Emitter) {
 			obj.fire(event);
 		}
+	}
+
+	// -- code inset
+
+	$registerCodeInsetSupport(handle: number, selector: ISerializedDocumentFilter[], eventHandle: number): void {
+
+		const provider = <codeInset.CodeInsetProvider>{
+			provideCodeInsets: (model: ITextModel, token: CancellationToken): CodeInsetDto[] | Thenable<CodeInsetDto[]> => {
+				return this._proxy.$provideCodeInsets(handle, model.uri, token).then(dto => {
+					if (dto) { dto.forEach(obj => this._heapService.trackObject(obj)); }
+					return dto;
+				});
+			},
+			resolveCodeInset: (model: ITextModel, codeInset: CodeInsetDto, token: CancellationToken): CodeInsetDto | Thenable<CodeInsetDto> => {
+				return this._proxy.$resolveCodeInset(handle, model.uri, codeInset, token).then(obj => {
+					this._heapService.trackObject(obj);
+					return obj;
+				});
+			}
+		};
+
+		if (typeof eventHandle === 'number') {
+			const emitter = new Emitter<codeInset.CodeInsetProvider>();
+			this._registrations[eventHandle] = emitter;
+			provider.onDidChange = emitter.event;
+		}
+
+		const langSelector = typeConverters.LanguageSelector.from(selector);
+		this._registrations[handle] = codeInset.CodeInsetProviderRegistry.register(langSelector, provider);
 	}
 
 	// --- declaration
