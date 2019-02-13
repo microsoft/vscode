@@ -287,7 +287,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		return Object.keys(expr)
 			.reduce((absExpr: IExpression, key: string) => {
 				if (expr[key] && !isAbsolute(key)) {
-					const absPattern = posix.join(root, key);
+					const absPattern = posix.join(root, key); // enforce posix: glob is always using "/" for path separator
 					absExpr[absPattern] = expr[key];
 				}
 

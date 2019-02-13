@@ -11,8 +11,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
 import * as glob from 'vs/base/common/glob';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { posix } from 'vs/base/common/path';
-import { basename, dirname, isEqual } from 'vs/base/common/resources';
+import { basename, dirname, isEqual, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/breadcrumbscontrol';
 import { OutlineElement, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
@@ -299,7 +298,7 @@ class FileFilter implements ITreeFilter<IWorkspaceFolder | IFileStat> {
 						continue;
 					}
 					let patternAbs = pattern.indexOf('**/') !== 0
-						? posix.join(folder.uri.path, pattern)
+						? joinPath(folder.uri, pattern).path
 						: pattern;
 
 					adjustedConfig[patternAbs] = excludesConfig[pattern];
