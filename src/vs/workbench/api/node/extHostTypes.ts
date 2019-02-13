@@ -431,6 +431,24 @@ export class Selection extends Range {
 	}
 }
 
+export class ResolvedAuthority {
+	readonly host: string;
+	readonly port: number;
+	debugListenPort?: number;
+	debugConnectPort?: number;
+
+	constructor(host: string, port: number) {
+		if (typeof host !== 'string' || host.length === 0) {
+			throw illegalArgument('host');
+		}
+		if (typeof port !== 'number' || port === 0 || Math.round(port) !== port) {
+			throw illegalArgument('port');
+		}
+		this.host = host;
+		this.port = Math.round(port);
+	}
+}
+
 export enum EndOfLine {
 	LF = 1,
 	CRLF = 2

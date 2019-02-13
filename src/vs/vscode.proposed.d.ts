@@ -16,6 +16,28 @@
 
 declare module 'vscode' {
 
+	//#region Alex - resolvers
+
+	export class ResolvedAuthority {
+		readonly host: string;
+		readonly port: number;
+		debugListenPort?: number;
+		debugConnectPort?: number;
+
+		constructor(host: string, port: number);
+	}
+
+	export interface RemoteAuthorityResolver {
+		resolve(authority: string): ResolvedAuthority | Thenable<ResolvedAuthority>;
+	}
+
+	export namespace workspace {
+		export function registerRemoteAuthorityResolver(authorityPrefix: string, resolver: RemoteAuthorityResolver): Disposable;
+	}
+
+	//#endregion
+
+
 	//#region Joh - selection range provider
 
 	export class SelectionRangeKind {

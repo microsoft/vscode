@@ -641,6 +641,9 @@ export function createApiFactory(
 			registerWorkspaceCommentProvider: proposedApiFunction(extension, (provider: vscode.WorkspaceCommentProvider) => {
 				return exthostCommentProviders.registerWorkspaceCommentProvider(extension.identifier, provider);
 			}),
+			registerRemoteAuthorityResolver: proposedApiFunction(extension, (authorityPrefix: string, resolver: vscode.RemoteAuthorityResolver) => {
+				return extensionService.registerRemoteAuthorityResolver(authorityPrefix, resolver);
+			}),
 			onDidRenameFile: proposedApiFunction(extension, (listener, thisArg?, disposables?) => {
 				return extHostFileSystemEvent.onDidRenameFile(listener, thisArg, disposables);
 			}),
@@ -793,6 +796,7 @@ export function createApiFactory(
 			QuickInputButtons: extHostTypes.QuickInputButtons,
 			Range: extHostTypes.Range,
 			RelativePattern: extHostTypes.RelativePattern,
+			ResolvedAuthority: extHostTypes.ResolvedAuthority,
 			Selection: extHostTypes.Selection,
 			SelectionRange: extHostTypes.SelectionRange,
 			SelectionRangeKind: extHostTypes.SelectionRangeKind,
