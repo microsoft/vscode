@@ -222,9 +222,6 @@ export interface IExtensionService extends ICpuProfilerTarget {
 	 * Stops the extension host.
 	 */
 	stopExtensionHost(): void;
-
-	getNamedCustomer?(sid: string): any;
-
 }
 
 export interface ICpuProfilerTarget {

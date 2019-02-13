@@ -15,7 +15,7 @@ import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHostCommands';
 import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
 import { asPromise } from 'vs/base/common/async';
-import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IMainContext, IdObject, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, ISerializedLanguageConfiguration, WorkspaceSymbolDto, SuggestResultDto, WorkspaceSymbolsDto, SuggestionDto, CodeActionDto, ISerializedDocumentFilter, WorkspaceEditDto, ISerializedSignatureHelpProviderMetadata, LinkDto, CodeLensDto, MainThreadWebviewsShape } from './extHost.protocol';
+import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IMainContext, IdObject, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, ISerializedLanguageConfiguration, WorkspaceSymbolDto, SuggestResultDto, WorkspaceSymbolsDto, SuggestionDto, CodeActionDto, ISerializedDocumentFilter, WorkspaceEditDto, ISerializedSignatureHelpProviderMetadata, LinkDto, CodeLensDto, MainThreadWebviewsShape, CodeInsetDto } from './extHost.protocol';
 import { regExpLeadsToEndlessLoop, regExpFlags } from 'vs/base/common/strings';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range as EditorRange } from 'vs/editor/common/core/range';
@@ -28,6 +28,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ExtHostWebview } from 'vs/workbench/api/node/extHostWebview';
 import * as codeInset from 'vs/workbench/contrib/codeinset/codeInset';
+import { generateUuid } from 'vs/base/common/uuid';
 
 // --- adapter
 
@@ -154,38 +155,33 @@ class CodeInsetAdapter {
 		private readonly _provider: vscode.CodeInsetProvider
 	) { }
 
-	provideCodeInsets(resource: URI, token: CancellationToken): Promise<codeInset.ICodeInsetSymbol[]> {
+	provideCodeInsets(resource: URI, token: CancellationToken): Promise<CodeInsetDto[]> {
 		const doc = this._documents.getDocumentData(resource).document;
 		return asPromise(() => this._provider.provideCodeInsets(doc, token)).then(insets => {
 			if (Array.isArray(insets)) {
 				return insets.map(inset => {
-					const id = this._heapService.keep(inset);
-					return ObjectIdentifier.mixin({
+					const $ident = this._heapService.keep(inset);
+					const id = generateUuid();
+					return {
+						$ident,
+						id,
 						range: typeConvert.Range.from(inset.range),
 						height: inset.height
-					}, id);
+					};
 				});
-			} else {
-				return undefined;
 			}
+			return undefined;
 		});
 	}
 
-	resolveCodeInset(symbol: codeInset.ICodeInsetSymbol, webview: vscode.Webview, token: CancellationToken): Promise<codeInset.ICodeInsetSymbol> {
+	resolveCodeInset(symbol: CodeInsetDto, webview: vscode.Webview, token: CancellationToken): Promise<CodeInsetDto> {
 
 		const inset = this._heapService.get<vscode.CodeInset>(ObjectIdentifier.of(symbol));
 		if (!inset) {
-			return undefined;
+			return Promise.resolve(symbol);
 		}
 
-		let resolve: Promise<vscode.CodeInset>;
-		if (typeof this._provider.resolveCodeInset !== 'function') {
-			resolve = Promise.resolve(inset);
-		} else {
-			resolve = asPromise(() => this._provider.resolveCodeInset(inset, webview, token));
-		}
-
-		return resolve.then(newInset => {
+		return asPromise(() => this._provider.resolveCodeInset(inset, webview, token)).then(newInset => {
 			newInset = newInset || inset;
 			return symbol;
 		});
@@ -1057,7 +1053,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return ExtHostLanguageFeatures._handlePool++;
 	}
 
-	private _withAdapter<A, R>(handle: number, ctor: { new(...args: any[]): A }, callback: (adapter: A) => Promise<R>): Promise<R> {
+	private _withAdapter<A, R>(handle: number, ctor: { new(...args: any[]): A }, callback: (adapter: A, extenson: IExtensionDescription) => Promise<R>): Promise<R> {
 		const data = this._adapter.get(handle);
 		if (!data) {
 			return Promise.reject(new Error('no adapter found'));
@@ -1069,7 +1065,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 				t1 = Date.now();
 				this._logService.trace(`[${data.extension.identifier.value}] INVOKE provider '${(ctor as any).name}'`);
 			}
-			let p = callback(data.adapter);
+			let p = callback(data.adapter, data.extension);
 			const extension = data.extension;
 			if (extension) {
 				Promise.resolve(p).then(
@@ -1156,14 +1152,13 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._withAdapter(handle, CodeInsetAdapter, adapter => adapter.provideCodeInsets(URI.revive(resource), token));
 	}
 
-	$resolveCodeInset(handle: number, resource: UriComponents, symbol: codeInset.ICodeInsetSymbol, token: CancellationToken): Promise<codeInset.ICodeInsetSymbol> {
-		const webview = new ExtHostWebview(symbol.webviewHandle, this._webviewProxy, { enableScripts: true });
-		webview.html = '<html><body></body></html>';
-		const x = this._withAdapter(handle, CodeInsetAdapter, adapter => adapter.resolveCodeInset(symbol, webview, token));
-		return x;
-	}
-
-	$createCodeInsetWebview(handle: number) {
+	$resolveCodeInset(handle: number, _resource: UriComponents, symbol: codeInset.ICodeInsetSymbol, token: CancellationToken): Promise<codeInset.ICodeInsetSymbol> {
+		const webviewHandle = Math.random();
+		const webview = new ExtHostWebview(webviewHandle, this._webviewProxy, { enableScripts: true });
+		return this._withAdapter(handle, CodeInsetAdapter, async (adapter, extension) => {
+			await this._webviewProxy.$createWebviewCodeInset(webviewHandle, symbol.id, { enableCommandUris: true, enableScripts: true }, extension.extensionLocation);
+			return adapter.resolveCodeInset(symbol, webview, token);
+		});
 	}
 
 	// --- declaration

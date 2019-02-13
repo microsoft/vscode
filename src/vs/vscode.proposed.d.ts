@@ -51,7 +51,7 @@ declare module 'vscode' {
 	export interface CodeInsetProvider {
 		onDidChangeCodeInsets?: Event<void>;
 		provideCodeInsets(document: TextDocument, token: CancellationToken): ProviderResult<CodeInset[]>;
-		resolveCodeInset?(codeInset: CodeInset, webview: Webview, token: CancellationToken): ProviderResult<CodeInset>;
+		resolveCodeInset(codeInset: CodeInset, webview: Webview, token: CancellationToken): ProviderResult<CodeInset>;
 	}
 
 	export namespace languages {

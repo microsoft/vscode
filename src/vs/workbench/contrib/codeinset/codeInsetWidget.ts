@@ -4,16 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./codeInsetWidget';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { ICodeInsetData } from './codeInset';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IModelDeltaDecoration, IModelDecorationsChangeAccessor, ITextModel } from 'vs/editor/common/model';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { WebviewEditorInput } from 'vs/workbench/contrib/webview/electron-browser/webviewEditorInput';
-import { MainThreadWebviews } from 'vs/workbench/api/electron-browser/mainThreadWebview';
-import { UriComponents } from 'vs/base/common/uri';
+import { WebviewElement } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
 
 
 export interface IDecorationIdCallback {
@@ -52,21 +48,17 @@ export class CodeInsetHelper {
 export class CodeInsetWidget {
 
 	private readonly _editor: editorBrowser.ICodeEditor;
+	private _webview: WebviewElement;
 	private _viewZone: editorBrowser.IViewZone;
 	private _viewZoneId?: number = undefined;
 	private _decorationIds: string[];
 	private _data: ICodeInsetData[];
-	private _webview: WebviewEditorInput | undefined;
-	private _webviewHandle: string | undefined;
 	private _range: Range;
 
 	constructor(
 		data: ICodeInsetData[], // all the insets on the same line (often just one)
 		editor: editorBrowser.ICodeEditor,
-		helper: CodeInsetHelper,
-		commandService: ICommandService,
-		notificationService: INotificationService,
-		updateCallabck: Function
+		helper: CodeInsetHelper
 	) {
 		this._editor = editor;
 		this._data = data;
@@ -89,13 +81,15 @@ export class CodeInsetWidget {
 	}
 
 	public dispose(helper: CodeInsetHelper, viewZoneChangeAccessor: editorBrowser.IViewZoneChangeAccessor): void {
-		console.log('DISPOSE');
 		while (this._decorationIds.length) {
 			helper.removeDecoration(this._decorationIds.pop());
 		}
 		if (viewZoneChangeAccessor) {
 			viewZoneChangeAccessor.removeZone(this._viewZoneId);
 			this._viewZone = undefined;
+		}
+		if (this._webview) {
+			this._webview.dispose();
 		}
 	}
 
@@ -140,25 +134,17 @@ export class CodeInsetWidget {
 		return -1;
 	}
 
-	public get webview() { return this._webview; }
-
-	static webviewPool = 1;
-
-	public createWebview(mainThreadWebviews: MainThreadWebviews, extensionLocation: UriComponents) {
-		if (this._webviewHandle) { return this._webviewHandle; }
+	public adoptWebview(webview: WebviewElement): void {
 
 		const lineNumber = this._range.endLineNumber;
 		this._editor.changeViewZones(accessor => {
+
 			if (this._viewZoneId) {
-				this._webview.dispose();
 				accessor.removeZone(this._viewZoneId);
+				this._webview.dispose();
 			}
+
 			const div = document.createElement('div');
-
-			this._webviewHandle = CodeInsetWidget.webviewPool++ + '';
-			this._webview = mainThreadWebviews.createInsetWebview(this._webviewHandle, div, { enableScripts: true }, extensionLocation);
-
-			const webview = this._webview.webview;
 			webview.mountTo(div);
 			webview.onMessage((e: { type: string, payload: any }) => {
 				// The webview contents can use a "size-info" message to report its size.
@@ -170,15 +156,14 @@ export class CodeInsetWidget {
 					});
 				}
 			});
-
 			this._viewZone = {
 				afterLineNumber: lineNumber,
 				heightInPx: 50,
 				domNode: div
 			};
 			this._viewZoneId = accessor.addZone(this._viewZone);
+			this._webview = webview;
 		});
-		return this._webviewHandle;
 	}
 
 	public reposition(viewZoneChangeAccessor: editorBrowser.IViewZoneChangeAccessor): void {

@@ -16,17 +16,16 @@ import { ProviderResult } from 'vs/editor/common/modes';
 import { IRange } from 'vs/editor/common/core/range';
 
 export interface ICodeInsetSymbol {
+	id: string;
 	range: IRange;
-	id?: string;
 	height?: number;
-	webviewHandle?: string;
 }
 
 export interface CodeInsetProvider {
 	onDidChange?: Event<this>;
 	extensionLocation: UriComponents;
 	provideCodeInsets(model: ITextModel, token: CancellationToken): ProviderResult<ICodeInsetSymbol[]>;
-	resolveCodeInset?(model: ITextModel, codeInset: ICodeInsetSymbol, token: CancellationToken): ProviderResult<ICodeInsetSymbol>;
+	resolveCodeInset(model: ITextModel, codeInset: ICodeInsetSymbol, token: CancellationToken): ProviderResult<ICodeInsetSymbol>;
 }
 
 export const CodeInsetProviderRegistry = new LanguageFeatureRegistry<CodeInsetProvider>();
@@ -34,6 +33,7 @@ export const CodeInsetProviderRegistry = new LanguageFeatureRegistry<CodeInsetPr
 export interface ICodeInsetData {
 	symbol: ICodeInsetSymbol;
 	provider: CodeInsetProvider;
+	resolved?: boolean;
 }
 
 export function getCodeInsetData(model: ITextModel, token: CancellationToken): Promise<ICodeInsetData[]> {

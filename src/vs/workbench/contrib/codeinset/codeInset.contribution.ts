@@ -12,17 +12,18 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
 import { CodeInsetProviderRegistry, getCodeInsetData, ICodeInsetData } from './codeInset';
 import { CodeInsetWidget, CodeInsetHelper } from './codeInsetWidget';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { MainThreadWebviews } from 'vs/workbench/api/electron-browser/mainThreadWebview';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { localize } from 'vs/nls.mock';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { WebviewElement } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
 
 export class CodeInsetController implements editorCommon.IEditorContribution {
+
+	static get(editor: editorBrowser.ICodeEditor): CodeInsetController {
+		return editor.getContribution(CodeInsetController.ID);
+	}
 
 	private static readonly ID: string = 'css.editor.codeInset';
 
@@ -31,17 +32,14 @@ export class CodeInsetController implements editorCommon.IEditorContribution {
 	private _globalToDispose: IDisposable[];
 	private _localToDispose: IDisposable[];
 	private _insetWidgets: CodeInsetWidget[];
+	private _pendingWebviews = new Map<string, (element: WebviewElement) => any>();
 	private _currentFindCodeInsetSymbolsPromise: CancelablePromise<ICodeInsetData[]>;
 	private _modelChangeCounter: number;
 	private _currentResolveCodeInsetSymbolsPromise: CancelablePromise<any>;
 	private _detectVisibleInsets: RunOnceScheduler;
-	private _mainThreadWebviews: MainThreadWebviews;
 
 	constructor(
 		private _editor: editorBrowser.ICodeEditor,
-		@ICommandService private readonly _commandService: ICommandService,
-		@INotificationService private readonly _notificationService: INotificationService,
-		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IConfigurationService private readonly _configService: IConfigurationService,
 	) {
 		this._isEnabled = this._configService.getValue<boolean>('editor.codeInsets');
@@ -70,6 +68,15 @@ export class CodeInsetController implements editorCommon.IEditorContribution {
 	dispose(): void {
 		this._localDispose();
 		this._globalToDispose = dispose(this._globalToDispose);
+	}
+
+	acceptWebview(symbolId: string, webviewElement: WebviewElement): boolean {
+		if (this._pendingWebviews.has(symbolId)) {
+			this._pendingWebviews.get(symbolId)(webviewElement);
+			this._pendingWebviews.delete(symbolId);
+			return true;
+		}
+		return false;
 	}
 
 	private _localDispose(): void {
@@ -239,11 +246,11 @@ export class CodeInsetController implements editorCommon.IEditorContribution {
 						groupsIndex++;
 						codeInsetIndex++;
 					} else {
-						this._insetWidgets.splice(codeInsetIndex, 0,
-							new CodeInsetWidget(groups[groupsIndex],
-								this._editor, helper,
-								this._commandService, this._notificationService,
-								() => this._detectVisibleInsets.schedule()));
+						this._insetWidgets.splice(
+							codeInsetIndex,
+							0,
+							new CodeInsetWidget(groups[groupsIndex], this._editor, helper)
+						);
 						codeInsetIndex++;
 						groupsIndex++;
 					}
@@ -257,11 +264,10 @@ export class CodeInsetController implements editorCommon.IEditorContribution {
 
 				// Create extra symbols
 				while (groupsIndex < groups.length) {
-					this._insetWidgets.push(
-						new CodeInsetWidget(groups[groupsIndex],
-							this._editor, helper,
-							this._commandService, this._notificationService,
-							() => this._detectVisibleInsets.schedule()));
+					this._insetWidgets.push(new CodeInsetWidget(
+						groups[groupsIndex],
+						this._editor, helper
+					));
 					groupsIndex++;
 				}
 
@@ -271,15 +277,6 @@ export class CodeInsetController implements editorCommon.IEditorContribution {
 
 		scrollState.restore(this._editor);
 	}
-
-
-	private getWebviewService(): MainThreadWebviews {
-		if (!this._mainThreadWebviews) {
-			this._mainThreadWebviews = this._extensionService.getNamedCustomer('MainThreadWebviews');
-		}
-		return this._mainThreadWebviews;
-	}
-
 
 	private _onViewportChanged(): void {
 		if (this._currentResolveCodeInsetSymbolsPromise) {
@@ -311,13 +308,18 @@ export class CodeInsetController implements editorCommon.IEditorContribution {
 			const allPromises = allWidgetRequests.map((widgetRequests, r) => {
 
 				const widgetPromises = widgetRequests.map(request => {
-					const symbol = request.symbol;
-					if (!symbol.webviewHandle && typeof request.provider.resolveCodeInset === 'function') {
-						const mainThreadWebviews = this.getWebviewService();
-						symbol.webviewHandle = insetWidgets[r].createWebview(mainThreadWebviews, request.provider.extensionLocation);
-						return request.provider.resolveCodeInset(model, symbol, token);
+					if (request.resolved) {
+						return Promise.resolve(void 0);
 					}
-					return Promise.resolve(void 0);
+					let a = new Promise(resolve => {
+						this._pendingWebviews.set(request.symbol.id, element => {
+							request.resolved = true;
+							insetWidgets[r].adoptWebview(element);
+							resolve();
+						});
+					});
+					let b = request.provider.resolveCodeInset(model, request.symbol, token);
+					return Promise.all([a, b]);
 				});
 
 				return Promise.all(widgetPromises);
