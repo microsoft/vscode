@@ -36,6 +36,7 @@ import { extHostCustomer } from 'vs/workbench/api/electron-browser/extHostCustom
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { ISaveParticipant, ITextFileEditorModel, SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { ExtHostContext, ExtHostDocumentSaveParticipantShape, IExtHostContext } from '../node/extHost.protocol';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export interface ISaveParticipantParticipant extends ISaveParticipant {
 	// progressMessage: string;
@@ -215,7 +216,8 @@ class FormatOnSaveParticipant implements ISaveParticipantParticipant {
 	constructor(
 		@ICodeEditorService private readonly _editorService: ICodeEditorService,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		// Nothing
 	}
@@ -235,14 +237,14 @@ class FormatOnSaveParticipant implements ISaveParticipantParticipant {
 
 		return new Promise<ISingleEditOperation[] | null | undefined>((resolve, reject) => {
 			let source = new CancellationTokenSource();
-			let request = getDocumentFormattingEdits(model, { tabSize, insertSpaces }, source.token);
+			let request = getDocumentFormattingEdits(this._telemetryService, this._editorWorkerService, model, { tabSize, insertSpaces }, source.token);
 
 			setTimeout(() => {
 				reject(localize('timeout.formatOnSave', "Aborted format on save after {0}ms", timeout));
 				source.cancel();
 			}, timeout);
 
-			request.then(edits => this._editorWorkerService.computeMoreMinimalEdits(model.uri, edits)).then(resolve, err => {
+			request.then(resolve, err => {
 				if (!NoProviderError.is(err)) {
 					reject(err);
 				} else {

@@ -46,6 +46,9 @@ import { getColors } from 'vs/editor/contrib/colorPicker/color';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { nullExtensionDescription as defaultExtension } from 'vs/workbench/services/extensions/common/extensions';
 import { provideSelectionRanges } from 'vs/editor/contrib/smartSelect/smartSelect';
+import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { mock } from 'vs/workbench/test/electron-browser/api/mock';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 
 const defaultSelector = { scheme: 'far' };
 const model: ITextModel = EditorModel.createFromString(
@@ -63,6 +66,8 @@ let mainThread: MainThreadLanguageFeatures;
 let disposables: vscode.Disposable[] = [];
 let rpcProtocol: TestRPCProtocol;
 let originalErrorHandler: (e: any) => any;
+
+
 
 suite('ExtHostLanguageFeatures', function () {
 
@@ -906,6 +911,12 @@ suite('ExtHostLanguageFeatures', function () {
 
 	// --- format
 
+	const NullWorkerService = new class extends mock<IEditorWorkerService>() {
+		computeMoreMinimalEdits(resource: URI, edits: modes.TextEdit[] | null | undefined): Promise<modes.TextEdit[] | null | undefined> {
+			return Promise.resolve(edits);
+		}
+	};
+
 	test('Format Doc, data conversion', async () => {
 		disposables.push(extHost.registerDocumentFormattingEditProvider(defaultExtension, defaultSelector, new class implements vscode.DocumentFormattingEditProvider {
 			provideDocumentFormattingEdits(): any {
@@ -914,7 +925,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let value = await getDocumentFormattingEdits(model, { insertSpaces: true, tabSize: 4 }, CancellationToken.None);
+		let value = await getDocumentFormattingEdits(NullTelemetryService, NullWorkerService, model, { insertSpaces: true, tabSize: 4 }, CancellationToken.None);
 		assert.equal(value.length, 2);
 		let [first, second] = value;
 		assert.equal(first.text, 'testing');
@@ -932,7 +943,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		return getDocumentFormattingEdits(model, { insertSpaces: true, tabSize: 4 }, CancellationToken.None);
+		return getDocumentFormattingEdits(NullTelemetryService, NullWorkerService, model, { insertSpaces: true, tabSize: 4 }, CancellationToken.None);
 	});
 
 	test('Format Doc, order', async () => {
@@ -956,7 +967,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let value = await getDocumentFormattingEdits(model, { insertSpaces: true, tabSize: 4 }, CancellationToken.None);
+		let value = await getDocumentFormattingEdits(NullTelemetryService, NullWorkerService, model, { insertSpaces: true, tabSize: 4 }, CancellationToken.None);
 		assert.equal(value.length, 1);
 		let [first] = value;
 		assert.equal(first.text, 'testing');
@@ -971,7 +982,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let value = await getDocumentRangeFormattingEdits(model, new EditorRange(1, 1, 1, 1), { insertSpaces: true, tabSize: 4 }, CancellationToken.None);
+		let value = await getDocumentRangeFormattingEdits(NullTelemetryService, NullWorkerService, model, new EditorRange(1, 1, 1, 1), { insertSpaces: true, tabSize: 4 }, CancellationToken.None);
 		assert.equal(value.length, 1);
 		let [first] = value;
 		assert.equal(first.text, 'testing');
@@ -995,7 +1006,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 		await rpcProtocol.sync();
-		let value = await getDocumentRangeFormattingEdits(model, new EditorRange(1, 1, 1, 1), { insertSpaces: true, tabSize: 4 }, CancellationToken.None);
+		let value = await getDocumentRangeFormattingEdits(NullTelemetryService, NullWorkerService, model, new EditorRange(1, 1, 1, 1), { insertSpaces: true, tabSize: 4 }, CancellationToken.None);
 		assert.equal(value.length, 1);
 		let [first] = value;
 		assert.equal(first.text, 'range2');
@@ -1013,7 +1024,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		return getDocumentRangeFormattingEdits(model, new EditorRange(1, 1, 1, 1), { insertSpaces: true, tabSize: 4 }, CancellationToken.None);
+		return getDocumentRangeFormattingEdits(NullTelemetryService, NullWorkerService, model, new EditorRange(1, 1, 1, 1), { insertSpaces: true, tabSize: 4 }, CancellationToken.None);
 	});
 
 	test('Format on Type, data conversion', async () => {
@@ -1025,7 +1036,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}, [';']));
 
 		await rpcProtocol.sync();
-		let value = await getOnTypeFormattingEdits(model, new EditorPosition(1, 1), ';', { insertSpaces: true, tabSize: 2 });
+		let value = await getOnTypeFormattingEdits(NullTelemetryService, NullWorkerService, model, new EditorPosition(1, 1), ';', { insertSpaces: true, tabSize: 2 });
 		assert.equal(value.length, 1);
 		let [first] = value;
 		assert.equal(first.text, ';');

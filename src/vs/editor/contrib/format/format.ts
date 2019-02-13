@@ -8,12 +8,14 @@ import { URI } from 'vs/base/common/uri';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
-import { registerDefaultLanguageCommand, registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
+import { registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { DocumentFormattingEditProviderRegistry, DocumentRangeFormattingEditProviderRegistry, OnTypeFormattingEditProviderRegistry, FormattingOptions, TextEdit } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { first } from 'vs/base/common/async';
 import { Position } from 'vs/editor/common/core/position';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export class NoProviderError extends Error {
 
@@ -32,44 +34,114 @@ export class NoProviderError extends Error {
 	}
 }
 
-export function getDocumentRangeFormattingEdits(model: ITextModel, range: Range, options: FormattingOptions, token: CancellationToken): Promise<TextEdit[] | undefined | null> {
+export function getDocumentRangeFormattingEdits(
+	telemetryService: ITelemetryService,
+	workerService: IEditorWorkerService,
+	model: ITextModel,
+	range: Range,
+	options: FormattingOptions,
+	token: CancellationToken
+): Promise<TextEdit[] | undefined | null> {
 
-	const providers = DocumentRangeFormattingEditProviderRegistry.ordered(model);
+	const allProvider = DocumentRangeFormattingEditProviderRegistry.ordered(model);
 
-	if (providers.length === 0) {
+	/* __GDPR__
+		"formatterInfo" : {
+			"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"language" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+		}
+	 */
+	telemetryService.publicLog('formatterInfo', {
+		type: 'range',
+		language: model.getLanguageIdentifier().language,
+		count: allProvider.length,
+	});
+
+	if (allProvider.length === 0) {
 		return Promise.reject(new NoProviderError());
 	}
 
-	return first(providers.map(provider => () => {
-		return Promise.resolve(provider.provideDocumentRangeFormattingEdits(model, range, options, token))
-			.then(undefined, onUnexpectedExternalError);
-	}), isNonEmptyArray);
+	return first(allProvider.map(provider => () => {
+		return Promise.resolve(provider.provideDocumentRangeFormattingEdits(model, range, options, token)).catch(onUnexpectedExternalError);
+	}), isNonEmptyArray).then(edits => {
+		// break edits into smaller edits
+		return workerService.computeMoreMinimalEdits(model.uri, edits);
+	});
 }
 
-export function getDocumentFormattingEdits(model: ITextModel, options: FormattingOptions, token: CancellationToken): Promise<TextEdit[] | null | undefined> {
+export function getDocumentFormattingEdits(
+	telemetryService: ITelemetryService,
+	workerService: IEditorWorkerService,
+	model: ITextModel,
+	options: FormattingOptions,
+	token: CancellationToken
+): Promise<TextEdit[] | null | undefined> {
+
 	const providers = DocumentFormattingEditProviderRegistry.ordered(model);
+
+	/* __GDPR__
+		"formatterInfo" : {
+			"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"language" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+		}
+	 */
+	telemetryService.publicLog('formatterInfo', {
+		type: 'document',
+		language: model.getLanguageIdentifier().language,
+		count: providers.length,
+	});
 
 	// try range formatters when no document formatter is registered
 	if (providers.length === 0) {
-		return getDocumentRangeFormattingEdits(model, model.getFullModelRange(), options, token);
+		return getDocumentRangeFormattingEdits(telemetryService, workerService, model, model.getFullModelRange(), options, token);
 	}
 
 	return first(providers.map(provider => () => {
-		return Promise.resolve(provider.provideDocumentFormattingEdits(model, options, token))
-			.then(undefined, onUnexpectedExternalError);
-	}), isNonEmptyArray);
+		// first with result wins...
+		return Promise.resolve(provider.provideDocumentFormattingEdits(model, options, token)).catch(onUnexpectedExternalError);
+	}), isNonEmptyArray).then(edits => {
+		// break edits into smaller edits
+		return workerService.computeMoreMinimalEdits(model.uri, edits);
+	});
 }
 
-export function getOnTypeFormattingEdits(model: ITextModel, position: Position, ch: string, options: FormattingOptions): Promise<TextEdit[] | null | undefined> {
-	const [support] = OnTypeFormattingEditProviderRegistry.ordered(model);
-	if (!support) {
-		return Promise.resolve(undefined);
-	}
-	if (support.autoFormatTriggerCharacters.indexOf(ch) < 0) {
+export function getOnTypeFormattingEdits(
+	telemetryService: ITelemetryService,
+	workerService: IEditorWorkerService,
+	model: ITextModel,
+	position: Position,
+	ch: string,
+	options: FormattingOptions
+): Promise<TextEdit[] | null | undefined> {
+
+	const providers = OnTypeFormattingEditProviderRegistry.ordered(model);
+
+	/* __GDPR__
+		"formatterInfo" : {
+			"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"language" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+		}
+	 */
+	telemetryService.publicLog('formatterInfo', {
+		type: 'ontype',
+		language: model.getLanguageIdentifier().language,
+		count: providers.length,
+	});
+
+	if (providers.length === 0) {
 		return Promise.resolve(undefined);
 	}
 
-	return Promise.resolve(support.provideOnTypeFormattingEdits(model, position, ch, options, CancellationToken.None)).then(r => r, onUnexpectedExternalError);
+	if (providers[0].autoFormatTriggerCharacters.indexOf(ch) < 0) {
+		return Promise.resolve(undefined);
+	}
+
+	return Promise.resolve(providers[0].provideOnTypeFormattingEdits(model, position, ch, options, CancellationToken.None)).catch(onUnexpectedExternalError).then(edits => {
+		return workerService.computeMoreMinimalEdits(model.uri, edits);
+	});
 }
 
 registerLanguageCommand('_executeFormatRangeProvider', function (accessor, args) {
@@ -81,7 +153,7 @@ registerLanguageCommand('_executeFormatRangeProvider', function (accessor, args)
 	if (!model) {
 		throw illegalArgument('resource');
 	}
-	return getDocumentRangeFormattingEdits(model, Range.lift(range), options, CancellationToken.None);
+	return getDocumentRangeFormattingEdits(accessor.get(ITelemetryService), accessor.get(IEditorWorkerService), model, Range.lift(range), options, CancellationToken.None);
 });
 
 registerLanguageCommand('_executeFormatDocumentProvider', function (accessor, args) {
@@ -94,13 +166,18 @@ registerLanguageCommand('_executeFormatDocumentProvider', function (accessor, ar
 		throw illegalArgument('resource');
 	}
 
-	return getDocumentFormattingEdits(model, options, CancellationToken.None);
+	return getDocumentFormattingEdits(accessor.get(ITelemetryService), accessor.get(IEditorWorkerService), model, options, CancellationToken.None);
 });
 
-registerDefaultLanguageCommand('_executeFormatOnTypeProvider', function (model, position, args) {
-	const { ch, options } = args;
-	if (typeof ch !== 'string') {
-		throw illegalArgument('ch');
+registerLanguageCommand('_executeFormatOnTypeProvider', function (accessor, args) {
+	const { resource, position, ch, options } = args;
+	if (!(resource instanceof URI) || !Position.isIPosition(position) || typeof ch !== 'string') {
+		throw illegalArgument();
 	}
-	return getOnTypeFormattingEdits(model, position, ch, options);
+	const model = accessor.get(IModelService).getModel(resource);
+	if (!model) {
+		throw illegalArgument('resource');
+	}
+
+	return getOnTypeFormattingEdits(accessor.get(ITelemetryService), accessor.get(IEditorWorkerService), model, Position.lift(position), ch, options);
 });
