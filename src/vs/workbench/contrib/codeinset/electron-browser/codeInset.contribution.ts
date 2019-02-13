@@ -10,7 +10,7 @@ import { StableEditorScrollState } from 'vs/editor/browser/core/editorState';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
-import { CodeInsetProviderRegistry, getCodeInsetData, ICodeInsetData } from './codeInset';
+import { CodeInsetProviderRegistry, getCodeInsetData, ICodeInsetData } from '../common/codeInset';
 import { CodeInsetWidget, CodeInsetHelper } from './codeInsetWidget';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { Registry } from 'vs/platform/registry/common/platform';

@@ -24,7 +24,7 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { WebviewElement } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { CodeInsetController } from 'vs/workbench/contrib/codeinset/codeInset.contribution';
+import { CodeInsetController } from 'vs/workbench/contrib/codeinset/electron-browser/codeInset.contribution';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 
 @extHostNamedCustomer(MainContext.MainThreadWebviews)

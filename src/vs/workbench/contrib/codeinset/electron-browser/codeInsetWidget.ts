@@ -6,7 +6,7 @@
 import 'vs/css!./codeInsetWidget';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
-import { ICodeInsetData } from './codeInset';
+import { ICodeInsetData } from '../common/codeInset';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IModelDeltaDecoration, IModelDecorationsChangeAccessor, ITextModel } from 'vs/editor/common/model';
 import { WebviewElement } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';

@@ -20,7 +20,7 @@ import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostC
 import * as typeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import { URI } from 'vs/base/common/uri';
 import { Selection } from 'vs/editor/common/core/selection';
-import * as codeInset from 'vs/workbench/contrib/codeinset/codeInset';
+import * as codeInset from 'vs/workbench/contrib/codeinset/common/codeInset';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesShape {

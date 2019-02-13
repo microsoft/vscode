@@ -45,7 +45,7 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { ResolvedAuthority } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IRemoteConsoleLog } from 'vs/base/node/console';
-import * as codeInset from 'vs/workbench/contrib/codeinset/codeInset';
+import * as codeInset from 'vs/workbench/contrib/codeinset/common/codeInset';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
