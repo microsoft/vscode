@@ -9,7 +9,7 @@ import * as pfs from 'vs/base/node/pfs';
 import { assign } from 'vs/base/common/objects';
 import { toDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { flatten } from 'vs/base/common/arrays';
-import { extract, ExtractError, zip, IFile } from 'vs/platform/node/zip';
+import { extract, ExtractError, zip, IFile } from 'vs/base/node/zip';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension,
 	IGalleryExtension, IGalleryMetadata,
@@ -472,7 +472,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		this.logService.trace(`Started extracting the extension from ${zipPath} to ${extractPath}`);
 		return pfs.rimraf(extractPath)
 			.then(
-				() => extract(zipPath, extractPath, { sourcePath: 'extension', overwrite: true }, this.logService, token)
+				() => extract(zipPath, extractPath, { sourcePath: 'extension', overwrite: true }, token)
 					.then(
 						() => this.logService.info(`Extracted extension to ${extractPath}:`, identifier.id),
 						e => pfs.rimraf(extractPath).finally(() => null)
