@@ -320,7 +320,6 @@ export function prepareCommand(args: DebugProtocol.RunInTerminalRequestArguments
 	}
 
 	let quote: (s: string) => string;
-	let hardQuote: (s: string) => string;
 	let command = '';
 
 	switch (shellType) {
@@ -392,12 +391,12 @@ export function prepareCommand(args: DebugProtocol.RunInTerminalRequestArguments
 				return (s.indexOf(' ') >= 0 || s.indexOf('\\') >= 0) ? `"${s}"` : s;
 			};
 
-			hardQuote = (s: string) => {
+			const hardQuote = (s: string) => {
 				return /[^\w@%\/+=,.:^-]/.test(s) ? `'${s.replace(/'/g, '\'\\\'\'')}'` : s;
 			};
 
 			if (args.cwd) {
-				command += `cd ${hardQuote(args.cwd)} && `;
+				command += `cd ${quote(args.cwd)} && `;
 			}
 			if (args.env) {
 				command += 'env';
