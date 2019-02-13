@@ -5,8 +5,7 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { posix } from 'vs/base/common/path';
-import { ISettingsEditorModel, ISearchResult } from 'vs/workbench/services/preferences/common/preferences';
+import { ISettingsEditorModel, ISearchResult, FOLDER_SETTINGS_PATH as COMMON_FOLDER_SETTINGS_PATH } from 'vs/workbench/services/preferences/common/preferences';
 import { IEditor } from 'vs/workbench/common/editor';
 import { IKeybindingItemEntry } from 'vs/workbench/services/preferences/common/keybindingsEditorModel';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -106,7 +105,7 @@ export const KEYBINDINGS_EDITOR_CLEAR_INPUT = 'keybindings.editor.showDefaultKey
 export const KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS = 'keybindings.editor.showDefaultKeybindings';
 export const KEYBINDINGS_EDITOR_SHOW_USER_KEYBINDINGS = 'keybindings.editor.showUserKeybindings';
 
-export const FOLDER_SETTINGS_PATH = posix.join('.vscode', 'settings.json');
+export const FOLDER_SETTINGS_PATH = COMMON_FOLDER_SETTINGS_PATH;
 export const DEFAULT_SETTINGS_EDITOR_SETTING = 'workbench.settings.openDefaultSettings';
 
 export const MODIFIED_SETTING_TAG = 'modified';

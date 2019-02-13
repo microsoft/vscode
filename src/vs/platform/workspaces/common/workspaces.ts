@@ -179,7 +179,7 @@ export function massageFolderPathForWorkspace(absoluteFolderPath: string, target
 		if (isWindows) {
 			if (isAbsolute(absoluteFolderPath)) {
 				if (shouldUseSlashForPath(existingFolders)) {
-					absoluteFolderPath = posix.normalize(absoluteFolderPath); // do not use OS path separator;
+					absoluteFolderPath = posix.normalize(absoluteFolderPath); // do not use OS path separator
 				}
 
 				absoluteFolderPath = normalizeDriveLetter(absoluteFolderPath);
@@ -189,7 +189,7 @@ export function massageFolderPathForWorkspace(absoluteFolderPath: string, target
 		}
 	} else {
 		if (isEqualOrParent(absoluteFolderPath, targetConfigFolderURI.path)) {
-			absoluteFolderPath = posix.relative(absoluteFolderPath, targetConfigFolderURI.path) || '.';
+			absoluteFolderPath = relative(absoluteFolderPath, targetConfigFolderURI.path) || '.';
 		}
 	}
 
