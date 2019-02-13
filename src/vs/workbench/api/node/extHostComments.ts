@@ -250,7 +250,13 @@ function convertFromComment(comment: modes.Comment): vscode.Comment {
 		canEdit: comment.canEdit,
 		canDelete: comment.canDelete,
 		isDraft: comment.isDraft,
-		commentReactions: comment.commentReactions
+		commentReactions: comment.commentReactions ? comment.commentReactions.map(reaction => {
+			return {
+				label: reaction.label,
+				count: reaction.count,
+				hasReacted: reaction.hasReacted
+			};
+		}) : undefined
 	};
 }
 
@@ -273,6 +279,8 @@ function convertToComment(provider: vscode.DocumentCommentProvider | vscode.Work
 		commentReactions: vscodeComment.commentReactions ? vscodeComment.commentReactions.map(reaction => {
 			return {
 				label: reaction.label,
+				iconPath: reaction.iconPath ? extHostTypeConverter.pathOrURIToURI(reaction.iconPath) : undefined,
+				count: reaction.count,
 				hasReacted: reaction.hasReacted,
 				canEdit: (reaction.hasReacted && providerCanDeleteReaction) || (!reaction.hasReacted && providerCanAddReaction)
 			};

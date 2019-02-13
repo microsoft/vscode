@@ -9,7 +9,7 @@ import * as modes from 'vs/editor/common/modes';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionsOrientation, ActionItem, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Button } from 'vs/base/browser/ui/button/button';
-import { Action, IActionRunner } from 'vs/base/common/actions';
+import { Action, IActionRunner, IAction } from 'vs/base/common/actions';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
@@ -32,9 +32,40 @@ import { assign } from 'vs/base/common/objects';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { DropdownMenuActionItem } from 'vs/base/browser/ui/dropdown/dropdown';
+import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 
 const UPDATE_COMMENT_LABEL = nls.localize('label.updateComment', "Update comment");
 const UPDATE_IN_PROGRESS_LABEL = nls.localize('label.updatingComment', "Updating comment...");
+
+class ToggleReactionsAction extends Action {
+
+	static readonly ID = 'toolbar.toggle.pickReactions';
+
+	private _menuActions: IAction[];
+	private toggleDropdownMenu: () => void;
+
+	constructor(toggleDropdownMenu: () => void, title?: string) {
+		title = title || nls.localize('pickReactions', "Pick Reactions...");
+		super(ToggleReactionsAction.ID, title, 'toggle-reactions', true);
+
+		this.toggleDropdownMenu = toggleDropdownMenu;
+	}
+
+	run(): Promise<any> {
+		this.toggleDropdownMenu();
+
+		return Promise.resolve(true);
+	}
+
+	get menuActions() {
+		return this._menuActions;
+	}
+
+	set menuActions(actions: IAction[]) {
+		this._menuActions = actions;
+	}
+}
 
 export class CommentNode extends Disposable {
 	private _domNode: HTMLElement;
@@ -96,7 +127,7 @@ export class CommentNode extends Disposable {
 		this._body.appendChild(this._md);
 
 		if (this.comment.commentReactions && this.comment.commentReactions.length) {
-			this.createReactions(this._commentDetailsContainer);
+			this.createReactionsContainer(this._commentDetailsContainer);
 		}
 
 		this._domNode.setAttribute('aria-label', `${comment.userName}, ${comment.body.value}`);
@@ -120,6 +151,13 @@ export class CommentNode extends Disposable {
 		}
 
 		const actions: Action[] = [];
+
+		let reactionGroup = this.commentService.getReactionGroup(this.owner);
+		if (reactionGroup && reactionGroup.length) {
+			let toggleReactionAction = this.createReactionPicker();
+			actions.push(toggleReactionAction);
+		}
+
 		if (this.comment.canEdit) {
 			this._editAction = this.createEditAction(commentDetailsContainer);
 			actions.push(this._editAction);
@@ -134,37 +172,35 @@ export class CommentNode extends Disposable {
 			const actionsContainer = dom.append(header, dom.$('.comment-actions.hidden'));
 
 			this.toolbar = new ToolBar(actionsContainer, this.contextMenuService, {
-				actionItemProvider: action => this.actionItemProvider(action as Action),
+				actionItemProvider: action => {
+					if (action.id === ToggleReactionsAction.ID) {
+						return new DropdownMenuActionItem(
+							action,
+							(<ToggleReactionsAction>action).menuActions,
+							this.contextMenuService,
+							action => {
+								return this.actionItemProvider(action as Action);
+							},
+							this.actionRunner,
+							undefined,
+							'toolbar-toggle-pickReactions',
+							() => { return AnchorAlignment.RIGHT; }
+						);
+					}
+					return this.actionItemProvider(action as Action);
+				},
 				orientation: ActionsOrientation.HORIZONTAL
 			});
 
 			this.registerActionBarListeners(actionsContainer);
-
-			let reactionActions: Action[] = [];
-			let reactionGroup = this.commentService.getReactionGroup(this.owner);
-			if (reactionGroup && reactionGroup.length) {
-				reactionActions = reactionGroup.map((reaction) => {
-					return new Action(`reaction.command.${reaction.label}`, `${reaction.label}`, '', true, async () => {
-						try {
-							await this.commentService.addReaction(this.owner, this.resource, this.comment, reaction);
-						} catch (e) {
-							const error = e.message
-								? nls.localize('commentAddReactionError', "Deleting the comment reaction failed: {0}.", e.message)
-								: nls.localize('commentAddReactionDefaultError', "Deleting the comment reaction failed");
-							this.notificationService.error(error);
-						}
-					});
-				});
-			}
-
-			this.toolbar.setActions(actions, reactionActions)();
+			this.toolbar.setActions(actions, [])();
 			this._toDispose.push(this.toolbar);
 		}
 	}
 
 	actionItemProvider(action: Action) {
 		let options = {};
-		if (action.id === 'comment.delete' || action.id === 'comment.edit') {
+		if (action.id === 'comment.delete' || action.id === 'comment.edit' || action.id === ToggleReactionsAction.ID) {
 			options = { label: false, icon: true };
 		} else {
 			options = { label: true, icon: true };
@@ -174,13 +210,77 @@ export class CommentNode extends Disposable {
 		return item;
 	}
 
-	private createReactions(commentDetailsContainer: HTMLElement): void {
+	private createReactionPicker(): ToggleReactionsAction {
+		let toggleReactionActionItem: DropdownMenuActionItem;
+		let toggleReactionAction = this._register(new ToggleReactionsAction(() => {
+			if (toggleReactionActionItem) {
+				toggleReactionActionItem.show();
+			}
+		}, 'Pick'));
+
+		let reactionMenuActions: Action[] = [];
+		let reactionGroup = this.commentService.getReactionGroup(this.owner);
+		if (reactionGroup && reactionGroup.length) {
+			reactionMenuActions = reactionGroup.map((reaction) => {
+				return new Action(`reaction.command.${reaction.label}`, `${reaction.label}`, '', true, async () => {
+					try {
+						await this.commentService.addReaction(this.owner, this.resource, this.comment, reaction);
+					} catch (e) {
+						const error = e.message
+							? nls.localize('commentAddReactionError', "Deleting the comment reaction failed: {0}.", e.message)
+							: nls.localize('commentAddReactionDefaultError', "Deleting the comment reaction failed");
+						this.notificationService.error(error);
+					}
+				});
+			});
+		}
+
+		toggleReactionAction.menuActions = reactionMenuActions;
+
+		toggleReactionActionItem = new DropdownMenuActionItem(
+			toggleReactionAction,
+			(<ToggleReactionsAction>toggleReactionAction).menuActions,
+			this.contextMenuService,
+			action => {
+				if (action.id === ToggleReactionsAction.ID) {
+					return toggleReactionActionItem;
+				}
+				return this.actionItemProvider(action as Action);
+			},
+			this.actionRunner,
+			undefined,
+			'toolbar-toggle-pickReactions',
+			() => { return AnchorAlignment.RIGHT; }
+		);
+
+		return toggleReactionAction;
+	}
+
+	private createReactionsContainer(commentDetailsContainer: HTMLElement): void {
 		this._actionsContainer = dom.append(commentDetailsContainer, dom.$('div.comment-reactions'));
-		this._reactionsActionBar = new ActionBar(this._actionsContainer, {});
+		this._reactionsActionBar = new ActionBar(this._actionsContainer, {
+			actionItemProvider: action => {
+				if (action.id === ToggleReactionsAction.ID) {
+					return new DropdownMenuActionItem(
+						action,
+						(<ToggleReactionsAction>action).menuActions,
+						this.contextMenuService,
+						action => {
+							return this.actionItemProvider(action as Action);
+						},
+						this.actionRunner,
+						undefined,
+						'toolbar-toggle-pickReactions',
+						() => { return AnchorAlignment.RIGHT; }
+					);
+				}
+				return this.actionItemProvider(action as Action);
+			}
+		});
 		this._toDispose.push(this._reactionsActionBar);
 
-		let reactionActions = this.comment.commentReactions!.map(reaction => {
-			return new Action(`reaction.${reaction.label}`, `${reaction.label}`, reaction.hasReacted && reaction.canEdit ? 'active' : '', reaction.canEdit, async () => {
+		this.comment.commentReactions!.map(reaction => {
+			let action = new Action(`reaction.${reaction.label}`, `${reaction.label}`, reaction.hasReacted && reaction.canEdit ? 'active' : '', reaction.canEdit, async () => {
 				try {
 					if (reaction.hasReacted) {
 						await this.commentService.deleteReaction(this.owner, this.resource, this.comment, reaction);
@@ -202,9 +302,15 @@ export class CommentNode extends Disposable {
 					this.notificationService.error(error);
 				}
 			});
+
+			this._reactionsActionBar.push(action, { label: true, icon: true });
 		});
 
-		reactionActions.forEach(action => this._reactionsActionBar!.push(action, { label: true, icon: true }));
+		let reactionGroup = this.commentService.getReactionGroup(this.owner);
+		if (reactionGroup && reactionGroup.length) {
+			let toggleReactionAction = this.createReactionPicker();
+			this._reactionsActionBar.push(toggleReactionAction, { label: false, icon: true });
+		}
 	}
 
 	private createCommentEditor(): void {
@@ -383,7 +489,7 @@ export class CommentNode extends Disposable {
 		}
 
 		if (this.comment.commentReactions && this.comment.commentReactions.length) {
-			this.createReactions(this._commentDetailsContainer);
+			this.createReactionsContainer(this._commentDetailsContainer);
 		}
 	}
 

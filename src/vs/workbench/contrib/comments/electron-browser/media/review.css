@@ -153,7 +153,39 @@
 
 .monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label.active {
 	border: 1px solid grey;
-	border-radius: 3px;
+}
+
+.monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label.toolbar-toggle-pickReactions {
+	background-image: url(./reaction.svg);
+	width: 16px;
+	height: 16px;
+	background-repeat: no-repeat;
+	background-position: center;
+}
+
+.monaco-editor.vs-dark .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label.toolbar-toggle-pickReactions {
+	background-image: url(./reaction-dark.svg);
+}
+
+.monaco-editor.hc-black .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label.toolbar-toggle-pickReactions {
+	background-image: url(./reaction-hc.svg);
+}
+
+.monaco-editor .review-widget .body .review-comment .comment-title .action-label.toolbar-toggle-pickReactions {
+	background-image: url(./reaction.svg);
+	width: 22px;
+	height: 18px;
+	background-size: 100% auto;
+	background-position: center;
+	background-repeat: no-repeat;
+}
+
+.monaco-editor.vs-dark .review-widget .body .review-comment .comment-title .action-label.toolbar-toggle-pickReactions {
+	background-image: url(./reaction-dark.svg);
+}
+
+.monaco-editor.hc-black .review-widget .body .review-comment .comment-title .action-label.toolbar-toggle-pickReactions {
+	background-image: url(./reaction-hc.svg);
 }
 
 .monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label.disabled {

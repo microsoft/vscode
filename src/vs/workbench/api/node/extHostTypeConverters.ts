@@ -311,7 +311,7 @@ export function fromRangeOrRangeWithMessage(ranges: vscode.Range[] | vscode.Deco
 	}
 }
 
-function pathOrURIToURI(value: string | URI): URI {
+export function pathOrURIToURI(value: string | URI): URI {
 	if (typeof value === 'undefined') {
 		return value;
 	}
