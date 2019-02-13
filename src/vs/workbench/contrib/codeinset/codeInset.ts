@@ -94,7 +94,7 @@ registerLanguageCommand('_executeCodeInsetProvider', function (accessor, args) {
 				result.push(item.symbol);
 			} else if (itemResolveCount-- > 0) {
 				resolve.push(Promise.resolve(item.provider.resolveCodeInset(model, item.symbol, CancellationToken.None))
-					.then(symbol => result.push(symbol)));
+					.then(symbol => result.push(symbol || item.symbol)));
 			}
 		}
 
