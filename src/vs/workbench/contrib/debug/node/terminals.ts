@@ -320,6 +320,7 @@ export function prepareCommand(args: DebugProtocol.RunInTerminalRequestArguments
 	}
 
 	let quote: (s: string) => string;
+	let hardQuote: (s: string) => string;
 	let command = '';
 
 	switch (shellType) {
