@@ -1655,10 +1655,10 @@ export class Workbench extends Disposable implements IPartService {
 				offset = this.gridHasView(this.titlebarPartView) ? this.workbenchGrid.getViewSize2(this.titlebarPartView).height : 0;
 			} else {
 				offset = this.workbenchGrid.partLayoutInfo.titlebar.height;
-			}
 
-			if (isMacintosh || this.menubarVisibility === 'hidden') {
-				offset /= getZoomFactor();
+				if (isMacintosh || this.menubarVisibility === 'hidden') {
+					offset /= getZoomFactor();
+				}
 			}
 		}
 
