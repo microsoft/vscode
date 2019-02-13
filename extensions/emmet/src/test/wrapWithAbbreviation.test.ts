@@ -63,22 +63,6 @@ const wrapInlineElementExpectedFormatFalse = `
 	</ul>
 `;
 
-const wrapMultiLineJsxExpected = `
-	<ul class="nav main">
-		<div className="hello">
-			<li class="item1">img</li>
-			<li class="item2">$hithere</li>
-		</div>
-	</ul>
-`;
-
-const wrapIndividualLinesJsxExpected = `
-	<ul class="nav main">
-		<div className="hello1"><li class="item1">img</li></div>
-		<div className="hello2"><li class="item2">$hithere</li></div>
-	</ul>
-`;
-
 suite('Tests for Wrap with Abbreviations', () => {
 	teardown(closeAllEditors);
 
@@ -309,10 +293,26 @@ suite('Tests for Wrap with Abbreviations', () => {
 	});
 
 	test('Wrap multiline with abbreviation uses className for jsx files', () => {
+		const wrapMultiLineJsxExpected = `
+	<ul class="nav main">
+		<div className="hello">
+			<li class="item1">img</li>
+			<li class="item2">$hithere</li>
+		</div>
+	</ul>
+`;
+
 		return testWrapWithAbbreviation([new Selection(2,2,3,33)], '.hello', wrapMultiLineJsxExpected, htmlContentsForWrapTests, 'jsx');
 	});
 
 	test('Wrap individual line with abbreviation uses className for jsx files', () => {
+		const wrapIndividualLinesJsxExpected = `
+	<ul class="nav main">
+		<div className="hello1"><li class="item1">img</li></div>
+		<div className="hello2"><li class="item2">$hithere</li></div>
+	</ul>
+`;
+
 		return testWrapIndividualLinesWithAbbreviation([new Selection(2,2,3,33)], '.hello$*', wrapIndividualLinesJsxExpected, htmlContentsForWrapTests, 'jsx');
 	});
 });
