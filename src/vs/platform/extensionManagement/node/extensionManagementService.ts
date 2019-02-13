@@ -44,7 +44,7 @@ import { Schemas } from 'vs/base/common/network';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { getManifest } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
-import { IExtensionManifest, ExtensionType, ExtensionIdentifierWithVersion } from 'vs/platform/extensions/common/extensions';
+import { IExtensionManifest, ExtensionType, ExtensionIdentifierWithVersion, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { isUIExtension } from 'vs/platform/extensions/node/extensionsUtil';
 
@@ -345,7 +345,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 
 		if (this.remote) {
 			const manifest = await this.galleryService.getManifest(extension, CancellationToken.None);
-			if (manifest && isUIExtension(manifest, this.configurationService)) {
+			if (manifest && isUIExtension(manifest, this.configurationService) && !isLanguagePackExtension(manifest)) {
 				return Promise.reject(new Error(nls.localize('notSupportedUIExtension', "Can't install extension {0} since UI Extensions are not supported", extension.identifier.id)));
 			}
 		}
@@ -516,7 +516,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 									return Promise.all(extensionsToInstall.map(async e => {
 										if (this.remote) {
 											const manifest = await this.galleryService.getManifest(e, CancellationToken.None);
-											if (manifest && isUIExtension(manifest, this.configurationService)) {
+											if (manifest && isUIExtension(manifest, this.configurationService) && !isLanguagePackExtension(manifest)) {
 												this.logService.info('Ignored installing the UI dependency', e.identifier.id);
 												return;
 											}
