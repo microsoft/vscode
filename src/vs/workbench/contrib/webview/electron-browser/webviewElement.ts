@@ -15,8 +15,6 @@ import { DARK, ITheme, IThemeService, LIGHT } from 'vs/platform/theme/common/the
 import { registerFileProtocol, WebviewProtocol } from 'vs/workbench/contrib/webview/electron-browser/webviewProtocols';
 import { areWebviewInputOptionsEqual } from './webviewEditorService';
 import { WebviewFindWidget } from './webviewFindWidget';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { endsWith } from 'vs/base/common/strings';
 import { isMacintosh } from 'vs/base/common/platform';
 
@@ -143,8 +141,7 @@ class SvgBlocker extends Disposable {
 
 class WebviewKeyboardHandler extends Disposable {
 	constructor(
-		private readonly _webview: Electron.WebviewTag,
-		private readonly _keybindingService: IKeybindingService
+		private readonly _webview: Electron.WebviewTag
 	) {
 		super();
 
@@ -232,8 +229,7 @@ export class WebviewElement extends Disposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IFileService fileService: IFileService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService
+		@IFileService fileService: IFileService
 	) {
 		super();
 		this._webview = document.createElement('webview');
@@ -274,7 +270,7 @@ export class WebviewElement extends Disposable {
 			svgBlocker.onDidBlockSvg(() => this.onDidBlockSvg());
 		}
 
-		this._register(new WebviewKeyboardHandler(this._webview, this._keybindingService));
+		this._register(new WebviewKeyboardHandler(this._webview));
 
 		this._register(addDisposableListener(this._webview, 'console-message', function (e: { level: number; message: string; line: number; sourceId: string; }) {
 			console.log(`[Embedded Page] ${e.message}`);
