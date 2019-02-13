@@ -23,7 +23,7 @@ import * as extfs from 'vs/base/node/extfs';
 import { JSONEditingService } from 'vs/workbench/services/configuration/node/jsonEditingService';
 import { WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { join, relative, extname } from 'vs/base/common/path';
+import { posix, join, relative, extname } from 'vs/base/common/path';
 import { equals } from 'vs/base/common/objects';
 import { Schemas } from 'vs/base/common/network';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -532,11 +532,11 @@ export class FileServiceBasedFolderConfiguration extends AbstractFolderConfigura
 	private toFolderRelativePath(resource: URI): string | null {
 		if (resource.scheme === Schemas.file) {
 			if (extpath.isEqualOrParent(resource.fsPath, this.folderConfigurationPath.fsPath, !isLinux /* ignorecase */)) {
-				return extpath.normalize(relative(this.folderConfigurationPath.fsPath, resource.fsPath));
+				return posix.normalize(relative(this.folderConfigurationPath.fsPath, resource.fsPath));
 			}
 		} else {
 			if (resources.isEqualOrParent(resource, this.folderConfigurationPath)) {
-				return extpath.normalize(relative(this.folderConfigurationPath.path, resource.path));
+				return posix.normalize(relative(this.folderConfigurationPath.path, resource.path));
 			}
 		}
 		return null;
