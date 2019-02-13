@@ -9,7 +9,7 @@ import { INavigator } from 'vs/base/common/iterator';
 import { createKeybinding, ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
-import { normalize } from 'vs/base/common/extpath';
+import { normalize } from 'vs/base/common/path';
 import { isWindows, OS } from 'vs/base/common/platform';
 import { repeat } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
@@ -640,7 +640,7 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 }
 
 function uriToClipboardString(resource: URI): string {
-	return resource.scheme === Schemas.file ? normalize(normalizeDriveLetter(resource.fsPath), true) : resource.toString();
+	return resource.scheme === Schemas.file ? normalize(normalizeDriveLetter(resource.fsPath)) : resource.toString();
 }
 
 export const copyPathCommand: ICommandHandler = (accessor, fileMatch: FileMatch | FolderMatch) => {

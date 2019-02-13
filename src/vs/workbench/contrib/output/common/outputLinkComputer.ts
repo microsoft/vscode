@@ -6,7 +6,7 @@
 import { IMirrorModel, IWorkerContext } from 'vs/editor/common/services/editorSimpleWorker';
 import { ILink } from 'vs/editor/common/modes';
 import { URI } from 'vs/base/common/uri';
-import * as extpath from 'vs/base/common/extpath';
+import * as path from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import * as strings from 'vs/base/common/strings';
 import * as arrays from 'vs/base/common/arrays';
@@ -88,8 +88,8 @@ export class OutputLinkComputer {
 
 		const workspaceFolderPath = workspaceFolder.scheme === 'file' ? workspaceFolder.fsPath : workspaceFolder.path;
 		const workspaceFolderVariants = arrays.distinct([
-			extpath.normalize(workspaceFolderPath, true),
-			extpath.normalize(workspaceFolderPath, false)
+			path.normalize(workspaceFolderPath),
+			path.posix.normalize(workspaceFolderPath)
 		]);
 
 		workspaceFolderVariants.forEach(workspaceFolderVariant => {

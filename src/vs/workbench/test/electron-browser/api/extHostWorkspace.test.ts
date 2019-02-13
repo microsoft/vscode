@@ -5,10 +5,9 @@
 
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
-import { basename } from 'vs/base/common/path';
+import { basename, normalize } from 'vs/base/common/path';
 import { ExtHostWorkspaceProvider } from 'vs/workbench/api/node/extHostWorkspace';
 import { TestRPCProtocol } from './testRPCProtocol';
-import { normalize } from 'vs/base/common/extpath';
 import { IWorkspaceFolderData } from 'vs/platform/workspace/common/workspace';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { NullLogService } from 'vs/platform/log/common/log';
@@ -35,7 +34,7 @@ suite('ExtHostWorkspace', function () {
 		if (actual === expected) {
 			assert.ok(true);
 		} else {
-			assert.equal(actual, normalize(expected, true));
+			assert.equal(actual, normalize(expected));
 		}
 	}
 

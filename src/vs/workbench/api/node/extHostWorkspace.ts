@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { join, relative } from 'vs/base/common/path';
+import { join, relative, normalize } from 'vs/base/common/path';
 import { delta as arrayDelta, mapArrayOrNot } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { Counter } from 'vs/base/common/numbers';
-import { normalize } from 'vs/base/common/extpath';
 import { isLinux } from 'vs/base/common/platform';
 import { basenameOrAuthority, dirname, isEqual } from 'vs/base/common/resources';
 import { compare } from 'vs/base/common/strings';
@@ -354,7 +353,7 @@ export class ExtHostWorkspaceProvider {
 		if (includeWorkspace) {
 			result = `${folder.name}/${result}`;
 		}
-		return normalize(result, true);
+		return normalize(result);
 	}
 
 	private trySetWorkspaceFolders(folders: vscode.WorkspaceFolder[]): void {

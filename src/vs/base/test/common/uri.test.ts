@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
-import { normalize } from 'vs/base/common/extpath';
+import { normalize } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
-
 
 suite('URI', () => {
 	test('file#toString', () => {
@@ -141,7 +140,7 @@ suite('URI', () => {
 		assert.equal(value.scheme, 'http');
 		assert.equal(value.authority, 'api');
 		assert.equal(value.path, '/files/test.me');
-		assert.equal(value.fsPath, normalize('/files/test.me', true));
+		assert.equal(value.fsPath, normalize('/files/test.me'));
 		assert.equal(value.query, 't=1234');
 		assert.equal(value.fragment, '');
 
@@ -151,7 +150,7 @@ suite('URI', () => {
 		assert.equal(value.path, '/c:/test/me');
 		assert.equal(value.fragment, '');
 		assert.equal(value.query, '');
-		assert.equal(value.fsPath, normalize('c:/test/me', true));
+		assert.equal(value.fsPath, normalize('c:/test/me'));
 
 		value = URI.parse('file://shares/files/c%23/p.cs');
 		assert.equal(value.scheme, 'file');
@@ -159,7 +158,7 @@ suite('URI', () => {
 		assert.equal(value.path, '/files/c#/p.cs');
 		assert.equal(value.fragment, '');
 		assert.equal(value.query, '');
-		assert.equal(value.fsPath, normalize('//shares/files/c#/p.cs', true));
+		assert.equal(value.fsPath, normalize('//shares/files/c#/p.cs'));
 
 		value = URI.parse('file:///c:/Source/Z%C3%BCrich%20or%20Zurich%20(%CB%88zj%CA%8A%C9%99r%C9%AAk,/Code/resources/app/plugins/c%23/plugin.json');
 		assert.equal(value.scheme, 'file');
@@ -360,7 +359,7 @@ suite('URI', () => {
 	test('correctFileUriToFilePath2', () => {
 
 		const test = (input: string, expected: string) => {
-			expected = normalize(expected, true);
+			expected = normalize(expected);
 			const value = URI.parse(input);
 			assert.equal(value.fsPath, expected, 'Result for ' + input);
 			const value2 = URI.file(value.fsPath);
