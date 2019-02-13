@@ -208,7 +208,8 @@ export class MenubarControl extends Disposable {
 		const isNewUser = !this.storageService.get('telemetry.lastSessionDate', StorageScope.GLOBAL);
 		const hasBeenNotified = this.storageService.getBoolean('menubar/linuxTitlebarRevertNotified', StorageScope.GLOBAL, false);
 		const titleBarConfiguration = this.configurationService.inspect('window.titleBarStyle');
-		if (isNewUser || hasBeenNotified || (titleBarConfiguration && titleBarConfiguration.user)) {
+		const customShown = getTitleBarStyle(this.configurationService, this.environmentService) === 'custom';
+		if (isNewUser || hasBeenNotified || (titleBarConfiguration && titleBarConfiguration.user) || customShown) {
 			return;
 		}
 

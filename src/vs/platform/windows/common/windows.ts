@@ -265,6 +265,11 @@ export function getTitleBarStyle(configurationService: IConfigurationService, en
 		return 'native'; // not enabled when developing due to https://github.com/electron/electron/issues/3647
 	}
 
+	const accessibilityMode = configurationService.getValue('editor.accessibilitySupport');
+	if (!isMacintosh && accessibilityMode) {
+		return 'custom';
+	}
+
 	if (configuration) {
 		const useNativeTabs = isMacintosh && configuration.nativeTabs === true;
 		if (useNativeTabs) {
