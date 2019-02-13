@@ -196,7 +196,7 @@ export class BreadcrumbsControl {
 		this.domNode.remove();
 	}
 
-	layout(dim: dom.Dimension): void {
+	layout(dim: dom.Dimension | undefined): void {
 		this._widget.layout(dim);
 	}
 
