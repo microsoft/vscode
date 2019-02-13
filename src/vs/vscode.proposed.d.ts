@@ -33,8 +33,8 @@ declare module 'vscode' {
 
 	export namespace workspace {
 		export function registerRemoteAuthorityResolver(authorityPrefix: string, resolver: RemoteAuthorityResolver): Disposable;
-
 	}
+
 	//#endregion
 
 

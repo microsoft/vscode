@@ -30,8 +30,6 @@ import { IPartService, Parts } from 'vs/workbench/services/part/common/partServi
 @extHostNamedCustomer(MainContext.MainThreadWebviews)
 export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviver {
 
-	_serviceBrand: any;
-
 	private static readonly viewType = 'mainThreadWebview';
 
 	private static readonly standardSupportedLinkSchemes = ['http', 'https', 'mailto'];
@@ -352,7 +350,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		}
 	}
 
-	public getWebview(handle: WebviewPanelHandle): WebviewEditorInput {
+	private getWebview(handle: WebviewPanelHandle): WebviewEditorInput {
 		const webview = this._webviews.get(handle);
 		if (!webview) {
 			throw new Error('Unknown webview handle:' + handle);

@@ -505,18 +505,6 @@ export interface ExtHostWebviewsShape {
 	$deserializeWebviewPanel(newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, state: any, position: EditorViewColumn, options: vscode.WebviewOptions): Promise<void>;
 }
 
-// export type CodeInsetWebviewHandle = string;
-
-// export interface ExtHostCodeInsetWebviewsShape {
-// }
-
-// export interface ExtHostCodeInsetWebviewShape extends IDisposable {
-// 	$setHtml(handle: WebviewPanelHandle, value: string): void;
-// 	$setOptions(handle: WebviewPanelHandle, options: vscode.WebviewOptions): void;
-// 	$postMessage(handle: WebviewPanelHandle, value: any): Promise<boolean>;
-// }
-
-
 export interface MainThreadUrlsShape extends IDisposable {
 	$registerUriHandler(handle: number, extensionId: ExtensionIdentifier): Promise<void>;
 	$unregisterUriHandler(handle: number): Promise<void>;
@@ -1179,7 +1167,6 @@ export const ExtHostContext = {
 	ExtHostWorkspace: createExtId<ExtHostWorkspaceShape>('ExtHostWorkspace'),
 	ExtHostWindow: createExtId<ExtHostWindowShape>('ExtHostWindow'),
 	ExtHostWebviews: createExtId<ExtHostWebviewsShape>('ExtHostWebviews'),
-	// ExtHostCodeInsetWebviews: createExtId<ExtHostCodeInsetWebviewsShape>('ExtHostWebviews'),
 	ExtHostProgress: createMainId<ExtHostProgressShape>('ExtHostProgress'),
 	ExtHostComments: createMainId<ExtHostCommentsShape>('ExtHostComments'),
 	ExtHostStorage: createMainId<ExtHostStorageShape>('ExtHostStorage'),

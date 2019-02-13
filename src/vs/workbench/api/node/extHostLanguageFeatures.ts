@@ -1134,16 +1134,16 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	registerCodeInsetProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.CodeInsetProvider): vscode.Disposable {
 		const handle = this._nextHandle();
-		// const eventHandle = typeof provider.onDidChangeCodeInsets === 'function' ? this._nextHandle() : undefined;
+		const eventHandle = typeof provider.onDidChangeCodeInsets === 'function' ? this._nextHandle() : undefined;
 
 		this._adapter.set(handle, new AdapterData(new CodeInsetAdapter(this._documents, this._heapService, provider), extension));
-		this._proxy.$registerCodeInsetSupport(handle, this._transformDocumentSelector(selector), undefined);
+		this._proxy.$registerCodeInsetSupport(handle, this._transformDocumentSelector(selector), eventHandle);
 		let result = this._createDisposable(handle);
 
-		// if (eventHandle !== undefined) {
-		// 	const subscription = provider.onDidChangeCodeInsets(_ => this._proxy.$emitCodeLensEvent(eventHandle));
-		// 	result = Disposable.from(result, subscription);
-		// }
+		if (eventHandle !== undefined) {
+			const subscription = provider.onDidChangeCodeInsets(_ => this._proxy.$emitCodeLensEvent(eventHandle));
+			result = Disposable.from(result, subscription);
+		}
 
 		return result;
 	}

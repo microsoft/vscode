@@ -13,12 +13,12 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 import { DARK, ITheme, IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
 import { registerFileProtocol, WebviewProtocol } from 'vs/workbench/contrib/webview/electron-browser/webviewProtocols';
+import { areWebviewInputOptionsEqual } from './webviewEditorService';
 import { WebviewFindWidget } from './webviewFindWidget';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { endsWith } from 'vs/base/common/strings';
 import { isMacintosh } from 'vs/base/common/platform';
-import { equals } from 'vs/base/common/arrays';
 
 export interface WebviewOptions {
 	readonly allowSvgs?: boolean;
@@ -32,20 +32,6 @@ export interface WebviewContentOptions {
 	readonly localResourceRoots?: ReadonlyArray<URI>;
 	readonly disableFindView?: boolean;
 }
-
-
-export function areWebviewContentOptionsEqual(a: WebviewContentOptions, b: WebviewContentOptions): boolean {
-	const sameArray = <T>(a1: ReadonlyArray<T>, a2: ReadonlyArray<T>) =>
-		(a.localResourceRoots === b.localResourceRoots
-			|| (Array.isArray(a.localResourceRoots) && Array.isArray(b.localResourceRoots)
-				&& equals(a.localResourceRoots, b.localResourceRoots, (a, b) => a.toString() === b.toString())));
-
-	return a.allowScripts === b.allowScripts
-		&& a.disableFindView === b.disableFindView
-		&& sameArray(a.svgWhiteList, b.svgWhiteList)
-		&& sameArray(a.localResourceRoots, b.localResourceRoots);
-}
-
 
 interface IKeydownEvent {
 	key: string;
@@ -263,7 +249,6 @@ export class WebviewElement extends Disposable {
 		this._webview.setAttribute('partition', `webview${Date.now()}`);
 
 		this._webview.setAttribute('webpreferences', 'contextIsolation=yes');
-		this._webview.setAttribute('autosize', 'on');
 
 		this._webview.style.flex = '0 1';
 		this._webview.style.width = '0';
@@ -417,7 +402,7 @@ export class WebviewElement extends Disposable {
 	}
 
 	public set options(value: WebviewContentOptions) {
-		if (this._contentOptions && areWebviewContentOptionsEqual(value, this._contentOptions)) {
+		if (this._contentOptions && areWebviewInputOptionsEqual(value, this._contentOptions)) {
 			return;
 		}
 
@@ -439,7 +424,7 @@ export class WebviewElement extends Disposable {
 	}
 
 	public update(value: string, options: WebviewContentOptions, retainContextWhenHidden: boolean) {
-		if (retainContextWhenHidden && value === this._contents && this._contentOptions && areWebviewContentOptionsEqual(options, this._contentOptions)) {
+		if (retainContextWhenHidden && value === this._contents && this._contentOptions && areWebviewInputOptionsEqual(options, this._contentOptions)) {
 			return;
 		}
 		this._contents = value;

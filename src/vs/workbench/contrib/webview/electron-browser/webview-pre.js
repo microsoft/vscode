@@ -243,7 +243,7 @@
 					delete window.frameElement;
 				`;
 
-				newDocument.head.prepend(defaultScript);
+				newDocument.head.prepend(defaultScript, newDocument.head.firstChild);
 			}
 
 			// apply default styles
