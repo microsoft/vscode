@@ -15,9 +15,9 @@ import { CodeInsetWidget, CodeInsetHelper } from './codeInsetWidget';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { localize } from 'vs/nls.mock';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { WebviewElement } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
+import { localize } from 'vs/nls';
 
 export class CodeInsetController implements editorCommon.IEditorContribution {
 
