@@ -571,6 +571,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 }
 
 let schemaId = 'vscode://schemas/keybindings';
+let commandsSchemas: IJSONSchema[] = [];
 let schema: IJSONSchema = {
 	'id': schemaId,
 	'type': 'array',
@@ -614,7 +615,7 @@ let schema: IJSONSchema = {
 				'description': nls.localize('keybindings.json.args', "Arguments to pass to the command to execute.")
 			}
 		},
-		'allOf': []
+		'allOf': commandsSchemas
 	}
 };
 
@@ -643,7 +644,7 @@ function updateSchema() {
 			}
 		};
 
-		schema['items']['allOf'].push(addition);
+		commandsSchemas.push(addition);
 	}
 }
 
