@@ -253,7 +253,27 @@ export class CodeActionCommand extends EditorCommand {
 	constructor() {
 		super({
 			id: CodeActionCommand.Id,
-			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider)
+			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
+			description: {
+				description: `Trigger a code action`,
+				args: [{
+					name: 'args',
+					schema: {
+						'type': 'object',
+						'required': ['kind'],
+						'properties': {
+							'kind': {
+								'type': 'string'
+							},
+							'apply': {
+								'type': 'string',
+								'default': 'ifSingle',
+								'enum': ['first', 'ifSingle', 'never']
+							}
+						}
+					}
+				}]
+			}
 		});
 	}
 
@@ -297,6 +317,25 @@ export class RefactorAction extends EditorAction {
 				when: ContextKeyExpr.and(
 					EditorContextKeys.writable,
 					contextKeyForSupportedActions(CodeActionKind.Refactor)),
+			},
+			description: {
+				description: 'Refactor...',
+				args: [{
+					name: 'args',
+					schema: {
+						'type': 'object',
+						'properties': {
+							'kind': {
+								'type': 'string'
+							},
+							'apply': {
+								'type': 'string',
+								'default': 'never',
+								'enum': ['first', 'ifSingle', 'never']
+							}
+						}
+					}
+				}]
 			}
 		});
 	}
@@ -333,6 +372,25 @@ export class SourceAction extends EditorAction {
 				when: ContextKeyExpr.and(
 					EditorContextKeys.writable,
 					contextKeyForSupportedActions(CodeActionKind.Source)),
+			},
+			description: {
+				description: 'Source Action...',
+				args: [{
+					name: 'args',
+					schema: {
+						'type': 'object',
+						'properties': {
+							'kind': {
+								'type': 'string'
+							},
+							'apply': {
+								'type': 'string',
+								'default': 'never',
+								'enum': ['first', 'ifSingle', 'never']
+							}
+						}
+					}
+				}]
 			}
 		});
 	}

@@ -519,7 +519,27 @@ class UnfoldAction extends FoldingAction<FoldingArguments> {
 						* 'direction': If 'up', unfold given number of levels up otherwise unfolds down.
 						* 'selectionLines': The start lines (0-based) of the editor selections to apply the unfold action to. If not set, the active selection(s) will be used.
 						`,
-						constraint: foldingArgumentsConstraint
+						constraint: foldingArgumentsConstraint,
+						schema: {
+							'type': 'object',
+							'properties': {
+								'levels': {
+									'type': 'number',
+									'default': 1
+								},
+								'direction': {
+									'type': 'string',
+									'enum': ['up', 'down'],
+									'default': 'down'
+								},
+								'selectionLines': {
+									'type': 'array',
+									'items': {
+										'type': 'number'
+									}
+								}
+							}
+						}
 					}
 				]
 			}
@@ -584,7 +604,27 @@ class FoldAction extends FoldingAction<FoldingArguments> {
 							* 'direction': If 'up', folds given number of levels up otherwise folds down.
 							* 'selectionLines': The start lines (0-based) of the editor selections to apply the fold action to. If not set, the active selection(s) will be used.
 						`,
-						constraint: foldingArgumentsConstraint
+						constraint: foldingArgumentsConstraint,
+						schema: {
+							'type': 'object',
+							'properties': {
+								'levels': {
+									'type': 'number',
+									'default': 1
+								},
+								'direction': {
+									'type': 'string',
+									'enum': ['up', 'down'],
+									'default': 'down'
+								},
+								'selectionLines': {
+									'type': 'array',
+									'items': {
+										'type': 'number'
+									}
+								}
+							}
+						}
 					}
 				]
 			}

@@ -15,7 +15,7 @@ import { Keybinding, ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { ConfigWatcher } from 'vs/base/node/config';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Extensions as ConfigExtensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -279,6 +279,8 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		@IWindowService private readonly windowService: IWindowService
 	) {
 		super(contextKeyService, commandService, telemetryService, notificationService, statusBarService);
+
+		updateSchema();
 
 		let dispatchConfig = getDispatchConfig(configurationService);
 		configurationService.onDidChangeConfiguration((e) => {
@@ -574,13 +576,13 @@ let schema: IJSONSchema = {
 	'type': 'array',
 	'title': nls.localize('keybindings.json.title', "Keybindings configuration"),
 	'definitions': {
-		'editorGroups': {
+		'editorGroupsSchema': {
 			'type': 'array',
 			'items': {
 				'type': 'object',
 				'properties': {
 					'groups': {
-						'$ref': '#/definitions/editorGroups',
+						'$ref': '#/definitions/editorGroupsSchema',
 						'default': [{}, {}]
 					},
 					'size': {
@@ -612,333 +614,38 @@ let schema: IJSONSchema = {
 				'description': nls.localize('keybindings.json.args', "Arguments to pass to the command to execute.")
 			}
 		},
-		'allOf': [{
-			'if': {
-				'properties': {
-					'command': { 'const': 'vscode.openFolder' },
-				}
-			},
-			'then': {
-				'required': ['args'],
-				'properties': {
-					'args': {
-						'type': 'object',
-						'required': ['path'],
-						'properties': {
-							'path': {
-								'type': 'string'
-							},
-						}
-					}
-				}
-			}
-		}, {
-			'if': {
-				'properties': {
-					'command': { 'const': 'vscode.setEditorLayout' },
-				}
-			},
-			'then': {
-				'required': ['args'],
-				'properties': {
-					'args': {
-						'type': 'object',
-						'required': ['groups'],
-						'properties': {
-							'orientation': {
-								'type': 'number',
-								'default': 0,
-								'enum': [0, 1]
-							},
-							'groups': {
-								'$ref': '#/definitions/editorGroups',
-								'default': [{}, {}]
-							}
-						}
-					}
-				}
-			}
-		}, {
-			'if': {
-				'properties': {
-					'command': { 'const': 'editor.action.codeAction' },
-				}
-			},
-			'then': {
-				'required': ['args'],
-				'properties': {
-					'args': {
-						'type': 'object',
-						'required': ['kind'],
-						'properties': {
-							'kind': {
-								'type': 'string'
-							},
-							'apply': {
-								'type': 'string',
-								'default': 'ifSingle',
-								'enum': ['first', 'ifSingle', 'never']
-							}
-						}
-					}
-				}
-			}
-		}, {
-			'if': {
-				'properties': {
-					'command': { 'enum': ['editor.action.refactor', 'editor.action.sourceAction'] },
-				}
-			},
-			'then': {
-				'properties': {
-					'args': {
-						'type': 'object',
-						'properties': {
-							'kind': {
-								'type': 'string'
-							},
-							'apply': {
-								'type': 'string',
-								'default': 'never',
-								'enum': ['first', 'ifSingle', 'never']
-							}
-						}
-					}
-				}
-			}
-		}, {
-			'if': {
-				'properties': {
-					'command': { 'const': 'workbench.action.tasks.runTask' },
-				}
-			},
-			'then': {
-				'required': ['args'],
-				'properties': {
-					'args': {
-						'type': 'string',
-					}
-				}
-			}
-		}, {
-			'if': {
-				'properties': {
-					'command': { 'enum': ['workbench.action.terminal.sendSequence', 'type'] },
-				}
-			},
-			'then': {
-				'required': ['args'],
-				'properties': {
-					'args': {
-						'type': 'object',
-						'required': ['text'],
-						'properties': {
-							'text': {
-								'type': 'string'
-							}
-						},
-					}
-				}
-			}
-		},
-		{
-			'if': {
-				'properties': {
-					'command': { 'const': 'editor.action.insertSnippet' },
-				}
-			},
-			'then': {
-				'required': ['args'],
-				'properties': {
-					'args': {
-						'type': 'object',
-						'properties': {
-							'snippet': {
-								'type': 'string'
-							},
-							'langId': {
-								'type': 'string',
-
-							},
-							'name': {
-								'type': 'string'
-							}
-						},
-					}
-				}
-			}
-		},
-		{
-			'if': {
-				'properties': {
-					'command': { 'const': 'moveActiveEditor' },
-				}
-			},
-			'then': {
-				'required': ['args'],
-				'properties': {
-					'args': {
-						'type': 'object',
-						'required': ['to'],
-						'properties': {
-							'to': {
-								'type': 'string',
-								'enum': ['left', 'right']
-							},
-							'by': {
-								'type': 'string',
-								'enum': ['tab', 'group']
-							},
-							'value': {
-								'type': 'number'
-							}
-						},
-					}
-				}
-			}
-		},
-		{
-			'if': {
-				'properties': {
-					'command': { 'const': 'editorScroll' },
-				}
-			},
-			'then': {
-				'required': ['args'],
-				'properties': {
-					'args': {
-						'type': 'object',
-						'required': ['to'],
-						'properties': {
-							'to': {
-								'type': 'string',
-								'enum': ['up', 'down']
-							},
-							'by': {
-								'type': 'string',
-								'enum': ['line', 'wrappedLine', 'page', 'halfPage']
-							},
-							'value': {
-								'type': 'number',
-								'default': 1
-							},
-							'revealCursor': {
-								'type': 'boolean',
-							}
-						}
-					}
-				}
-			}
-		},
-		{
-			'if': {
-				'properties': {
-					'command': { 'const': 'revealLine' },
-				}
-			},
-			'then': {
-				'required': ['args'],
-				'properties': {
-					'args': {
-						'type': 'object',
-						'required': ['lineNumber'],
-						'properties': {
-							'lineNumber': {
-								'type': 'number',
-							},
-							'at': {
-								'type': 'string',
-								'enum': ['top', 'center', 'bottom']
-							}
-						}
-					}
-				}
-			}
-		},
-		{
-			'if': {
-				'properties': {
-					'command': { 'const': 'cursorMove' },
-				}
-			},
-			'then': {
-				'required': ['args'],
-				'properties': {
-					'args': {
-						'type': 'object',
-						'required': ['to'],
-						'properties': {
-							'to': {
-								'type': 'string',
-								'enum': ['left', 'right', 'up', 'down', 'wrappedLineStart', 'wrappedLineEnd', 'wrappedLineColumnCenter', 'wrappedLineFirstNonWhitespaceCharacter', 'wrappedLineLastNonWhitespaceCharacter', 'viewPortTop', 'viewPortCenter', 'viewPortBottom', 'viewPortIfOutside']
-							},
-							'by': {
-								'type': 'string',
-								'enum': ['line', 'wrappedLine', 'character', 'halfLine']
-							},
-							'value': {
-								'type': 'number',
-								'default': 1
-							},
-							'select': {
-								'type': 'boolean',
-								'default': false
-							}
-						}
-					}
-				}
-			}
-		},
-		{
-			'if': {
-				'properties': {
-					'command': { 'enum': ['editor.fold', 'editor.unfold'] },
-				}
-			},
-			'then': {
-				'properties': {
-					'args': {
-						'type': 'object',
-						'properties': {
-							'levels': {
-								'type': 'number',
-								'default': 1
-							},
-							'direction': {
-								'type': 'string',
-								'enum': ['up', 'down'],
-								'default': 'down'
-							},
-							'selectionLines': {
-								'type': 'array',
-								'items': {
-									'type': 'number'
-								}
-							}
-						}
-					}
-				}
-			}
-		},
-		{
-			'if': {
-				'properties': {
-					'command': { 'const': 'workbench.action.quickOpen' }
-				}
-			},
-			'then': {
-				'properties': {
-					'args': {
-						'type': 'string'
-					}
-				}
-			}
-		}]
+		'allOf': []
 	}
 };
 
 let schemaRegistry = Registry.as<IJSONContributionRegistry>(Extensions.JSONContribution);
 schemaRegistry.registerSchema(schemaId, schema);
+
+function updateSchema() {
+	const allCommands = CommandsRegistry.getCommands();
+	for (let commandId in allCommands) {
+		const commandDescription = allCommands[commandId].description;
+		if (!commandDescription || !commandDescription.args || commandDescription.args.length !== 1 || !commandDescription.args[0].schema) {
+			continue;
+		}
+
+		const argsSchema = commandDescription.args[0].schema;
+		const addition = {
+			'if': {
+				'properties': {
+					'command': { 'const': commandId }
+				}
+			},
+			'then': {
+				'properties': {
+					'args': argsSchema
+				}
+			}
+		};
+
+		schema['items']['allOf'].push(addition);
+	}
+}
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigExtensions.Configuration);
 const keyboardConfiguration: IConfigurationNode = {
