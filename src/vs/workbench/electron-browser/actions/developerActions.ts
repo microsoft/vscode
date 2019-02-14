@@ -194,6 +194,7 @@ export class ToggleScreencastModeAction extends Action {
 			const keybinding = this.keybindingService.resolveKeyboardEvent(event);
 			const label = keybinding.getLabel();
 
+<<<<<<< HEAD
 			if (event.ctrlKey || event.altKey || event.metaKey) {
 				if (isChord) {
 					keyboardMarker.textContent += ' ' + label;
@@ -218,6 +219,12 @@ export class ToggleScreencastModeAction extends Action {
 
 			if (keyboardMarker.textContent !== null && label !== null && keyboardMarker.scrollHeight > keyboardMarker.clientHeight) {
 				keyboardMarker.textContent = keyboardMarker.textContent.substring(label.length + 3);
+=======
+			keyboardMarker.textContent += ' ' + label;
+
+			if (keyboardMarker.scrollHeight > keyboardMarker.clientHeight || event.ctrlKey || event.altKey || event.metaKey || event.shiftKey || !this.keybindingService.mightProducePrintableCharacter(event) || !label) {
+				keyboardMarker.textContent = label;
+>>>>>>> fixes overflow in screencast mode
 			}
 
 			keyboardMarker.style.display = 'block';
