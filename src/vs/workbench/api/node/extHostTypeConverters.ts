@@ -807,12 +807,20 @@ export namespace DocumentLink {
 	export function from(link: vscode.DocumentLink): modes.ILink {
 		return {
 			range: Range.from(link.range),
-			url: link.target && link.target.toString()
+			url: link.target
 		};
 	}
 
 	export function to(link: modes.ILink): vscode.DocumentLink {
-		return new types.DocumentLink(Range.to(link.range), link.url ? URI.parse(link.url) : undefined);
+		let target = undefined;
+		if (link.url) {
+			try {
+				target = typeof link.url === 'string' ? URI.parse(link.url, true) : URI.revive(link.url);
+			} catch (err) {
+				// ignore
+			}
+		}
+		return new types.DocumentLink(Range.to(link.range), target);
 	}
 }
 

@@ -11,7 +11,7 @@ import * as search from 'vs/workbench/contrib/search/common/search';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Position as EditorPosition } from 'vs/editor/common/core/position';
 import { Range as EditorRange } from 'vs/editor/common/core/range';
-import { ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, MainContext, IExtHostContext, ISerializedLanguageConfiguration, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, LocationDto, WorkspaceSymbolDto, CodeActionDto, reviveWorkspaceEditDto, ISerializedDocumentFilter, DefinitionLinkDto, ISerializedSignatureHelpProviderMetadata, CodeInsetDto } from '../node/extHost.protocol';
+import { ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, MainContext, IExtHostContext, ISerializedLanguageConfiguration, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, LocationDto, WorkspaceSymbolDto, CodeActionDto, reviveWorkspaceEditDto, ISerializedDocumentFilter, DefinitionLinkDto, ISerializedSignatureHelpProviderMetadata, CodeInsetDto, LinkDto } from '../node/extHost.protocol';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { LanguageConfiguration, IndentationRule, OnEnterRule } from 'vs/editor/common/modes/languageConfiguration';
 import { IHeapService } from './mainThreadHeapService';
@@ -104,6 +104,13 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 			data.forEach(code => reviveWorkspaceEditDto(code.edit));
 		}
 		return <modes.CodeAction[]>data;
+	}
+
+	private static _reviveLinkDTO(data: LinkDto): modes.ILink {
+		if (data.url && typeof data.url !== 'string') {
+			data.url = URI.revive(data.url);
+		}
+		return <modes.ILink>data;
 	}
 
 	//#endregion
@@ -376,12 +383,18 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		this._registrations[handle] = modes.LinkProviderRegistry.register(typeConverters.LanguageSelector.from(selector), <modes.LinkProvider>{
 			provideLinks: (model, token) => {
 				return this._proxy.$provideDocumentLinks(handle, model.uri, token).then(dto => {
-					if (dto) { dto.forEach(obj => this._heapService.trackObject(obj)); }
+					if (dto) {
+						dto.forEach(obj => {
+							MainThreadLanguageFeatures._reviveLinkDTO(obj);
+							this._heapService.trackObject(obj);
+						});
+					}
 					return dto;
 				});
 			},
 			resolveLink: (link, token) => {
 				return this._proxy.$resolveDocumentLink(handle, link, token).then(obj => {
+					MainThreadLanguageFeatures._reviveLinkDTO(obj);
 					this._heapService.trackObject(obj);
 					return obj;
 				});

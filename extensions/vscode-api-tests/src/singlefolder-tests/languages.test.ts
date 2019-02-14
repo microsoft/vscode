@@ -144,4 +144,5 @@ suite('languages namespace tests', () => {
 		assert.ok(ran);
 		assert.equal(result!.items[0].label, 'foo');
 	});
+	
 });

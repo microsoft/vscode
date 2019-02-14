@@ -890,7 +890,10 @@ export interface CodeActionDto {
 	isPreferred?: boolean;
 }
 
-export type LinkDto = ObjectIdentifier & modes.ILink;
+export interface LinkDto extends ObjectIdentifier {
+	range: IRange;
+	url?: string | UriComponents;
+}
 
 export interface CodeLensDto extends ObjectIdentifier {
 	range: IRange;
