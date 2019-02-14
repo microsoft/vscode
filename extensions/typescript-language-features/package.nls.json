@@ -37,8 +37,6 @@
 	"typescript.restartTsServer": "Restart TS server.",
 	"typescript.selectTypeScriptVersion.title": "Select TypeScript Version.",
 	"typescript.reportStyleChecksAsWarnings": "Report style checks as warnings.",
-	"jsDocCompletion.enabled": "Enable/disable auto JSDoc comments.",
-	"jsDocCompletion.deprecationMessage": "This setting has renamed to `javascript.suggest.completeJSDocs` and `typescript.suggest.completeJSDocs` and will be removed.",
 	"javascript.implicitProjectConfig.checkJs": "Enable/disable semantic checking of JavaScript files. Existing jsconfig.json or tsconfig.json files override this setting. Requires using TypeScript 2.3.1 or newer in the workspace.",
 	"typescript.npm": "Specifies the path to the NPM executable used for Automatic Type Acquisition. Requires using TypeScript 2.3.4 or newer in the workspace.",
 	"typescript.check.npmIsInstalled": "Check if NPM is installed for Automatic Type Acquisition.",

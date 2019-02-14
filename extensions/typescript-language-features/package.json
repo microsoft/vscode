@@ -358,13 +358,6 @@
           "description": "%format.placeOpenBraceOnNewLineForControlBlocks%",
           "scope": "resource"
         },
-        "jsDocCompletion.enabled": {
-          "type": "boolean",
-          "default": true,
-          "description": "%jsDocCompletion.enabled%",
-          "deprecationMessage": "%jsDocCompletion.deprecationMessage%",
-          "scope": "resource"
-        },
         "javascript.implicitProjectConfig.checkJs": {
           "type": "boolean",
           "default": false,
