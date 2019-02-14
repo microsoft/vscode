@@ -515,7 +515,7 @@ export class TextFileService extends Disposable implements ITextFileService {
 			}
 		}
 
-		return this.saveAll([resource], options).then(result => result.results.length === 1 && result.results[0].success);
+		return this.saveAll([resource], options).then(result => result.results.length === 1 && !!result.results[0].success);
 	}
 
 	saveAll(includeUntitled?: boolean, options?: ISaveOptions): Promise<ITextFileOperationResult>;
@@ -794,7 +794,7 @@ export class TextFileService extends Disposable implements ITextFileService {
 	}
 
 	revert(resource: URI, options?: IRevertOptions): Promise<boolean> {
-		return this.revertAll([resource], options).then(result => result.results.length === 1 && result.results[0].success);
+		return this.revertAll([resource], options).then(result => result.results.length === 1 && !!result.results[0].success);
 	}
 
 	revertAll(resources?: URI[], options?: IRevertOptions): Promise<ITextFileOperationResult> {

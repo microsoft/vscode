@@ -1004,7 +1004,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	isReadonly(): boolean {
-		return this.lastResolvedDiskStat && this.lastResolvedDiskStat.isReadonly;
+		return !!(this.lastResolvedDiskStat && this.lastResolvedDiskStat.isReadonly);
 	}
 
 	isDisposed(): boolean {

@@ -97,7 +97,7 @@ export class CodeInsetWidget {
 		return this._decorationIds.some((id, i) => {
 			const range = this._editor.getModel().getDecorationRange(id);
 			const symbol = this._data[i].symbol;
-			return range && Range.isEmpty(symbol.range) === range.isEmpty();
+			return !!range && Range.isEmpty(symbol.range) === range.isEmpty();
 		});
 	}
 

@@ -796,7 +796,7 @@ export class EditorStatus implements IStatusbarItem {
 	private isActiveEditor(control: IBaseEditor): boolean {
 		const activeControl = this.editorService.activeControl;
 
-		return activeControl && activeControl === control;
+		return !!activeControl && activeControl === control;
 	}
 }
 

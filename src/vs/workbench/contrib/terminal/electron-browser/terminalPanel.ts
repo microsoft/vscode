@@ -161,7 +161,7 @@ export class TerminalPanel extends Panel {
 			});
 		}
 		const activeInstance = this._terminalService.getActiveInstance();
-		this._copyContextMenuAction.enabled = activeInstance && activeInstance.hasSelection();
+		this._copyContextMenuAction.enabled = !!activeInstance && activeInstance.hasSelection();
 		return this._contextMenuActions;
 	}
 

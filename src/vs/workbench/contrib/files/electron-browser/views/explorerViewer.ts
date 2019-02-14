@@ -472,7 +472,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			if (!target) {
 				// Droping onto the empty area. Do not accept if items dragged are already
 				// children of the root unless we are copying the file
-				if (!isCopy && items.every(i => i.parent && i.parent.isRoot)) {
+				if (!isCopy && items.every(i => !!i.parent && i.parent.isRoot)) {
 					return false;
 				}
 

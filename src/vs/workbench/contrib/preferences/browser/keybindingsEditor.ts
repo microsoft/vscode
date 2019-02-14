@@ -129,7 +129,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	setInput(input: KeybindingsEditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
 		this.keybindingsEditorContextKey.set(true);
 		return super.setInput(input, options, token)
-			.then(() => this.render(options && options.preserveFocus, token));
+			.then(() => this.render(!!(options && options.preserveFocus), token));
 	}
 
 	clearInput(): void {

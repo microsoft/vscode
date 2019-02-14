@@ -146,9 +146,9 @@ export class Debugger implements IDebugger {
 
 	private inExtHost(): boolean {
 		const debugConfigs = this.configurationService.getValue<IDebugConfiguration>('debug');
-		return debugConfigs.extensionHostDebugAdapter
+		return !!debugConfigs.extensionHostDebugAdapter
 			|| this.configurationManager.needsToRunInExtHost(this.type)
-			|| (this.mainExtensionDescription && this.mainExtensionDescription.extensionLocation.scheme !== 'file');
+			|| (!!this.mainExtensionDescription && this.mainExtensionDescription.extensionLocation.scheme !== 'file');
 	}
 
 	get label(): string {

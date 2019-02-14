@@ -594,7 +594,7 @@ export class SetValueAction extends AbstractDebugAction {
 
 	protected isEnabled(state: State): boolean {
 		const session = this.debugService.getViewModel().focusedSession;
-		return super.isEnabled(state) && state === State.Stopped && session && session.capabilities.supportsSetVariable;
+		return !!(super.isEnabled(state) && state === State.Stopped && session && session.capabilities.supportsSetVariable);
 	}
 }
 
@@ -774,8 +774,8 @@ export class StepBackAction extends AbstractDebugAction {
 
 	protected isEnabled(state: State): boolean {
 		const session = this.debugService.getViewModel().focusedSession;
-		return super.isEnabled(state) && state === State.Stopped &&
-			session && session.capabilities.supportsStepBack;
+		return !!(super.isEnabled(state) && state === State.Stopped &&
+			session && session.capabilities.supportsStepBack);
 	}
 }
 
@@ -797,8 +797,8 @@ export class ReverseContinueAction extends AbstractDebugAction {
 
 	protected isEnabled(state: State): boolean {
 		const session = this.debugService.getViewModel().focusedSession;
-		return super.isEnabled(state) && state === State.Stopped &&
-			session && session.capabilities.supportsStepBack;
+		return !!(super.isEnabled(state) && state === State.Stopped &&
+			session && session.capabilities.supportsStepBack);
 	}
 }
 

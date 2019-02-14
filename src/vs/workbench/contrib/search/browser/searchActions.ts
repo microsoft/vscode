@@ -34,7 +34,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 export function isSearchViewFocused(viewletService: IViewletService, panelService: IPanelService): boolean {
 	const searchView = getSearchView(viewletService, panelService);
 	const activeElement = document.activeElement;
-	return searchView && activeElement && DOM.isAncestor(activeElement, searchView.getContainer());
+	return !!(searchView && activeElement && DOM.isAncestor(activeElement, searchView.getContainer()));
 }
 
 export function appendKeyBindingLabel(label: string, keyBinding: number | ResolvedKeybinding, keyBindingService2: IKeybindingService): string {
@@ -262,7 +262,7 @@ export class CollapseDeepestExpandedLevelAction extends Action {
 
 	update(): void {
 		const searchView = getSearchView(this.viewletService, this.panelService);
-		this.enabled = searchView && searchView.hasSearchResults();
+		this.enabled = !!searchView && searchView.hasSearchResults();
 	}
 
 	run(): Promise<void> {
@@ -319,7 +319,7 @@ export class ClearSearchResultsAction extends Action {
 
 	update(): void {
 		const searchView = getSearchView(this.viewletService, this.panelService);
-		this.enabled = searchView && (!searchView.allSearchFieldsClear() || searchView.hasSearchResults());
+		this.enabled = !!searchView && (!searchView.allSearchFieldsClear() || searchView.hasSearchResults());
 	}
 
 	run(): Promise<void> {
@@ -327,7 +327,7 @@ export class ClearSearchResultsAction extends Action {
 		if (searchView) {
 			searchView.clearSearchResults();
 		}
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 
@@ -346,7 +346,7 @@ export class CancelSearchAction extends Action {
 
 	update(): void {
 		const searchView = getSearchView(this.viewletService, this.panelService);
-		this.enabled = searchView && searchView.isSearching();
+		this.enabled = !!searchView && searchView.isSearching();
 	}
 
 	run(): Promise<void> {

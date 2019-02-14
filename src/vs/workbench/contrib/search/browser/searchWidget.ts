@@ -185,7 +185,7 @@ export class SearchWidget extends Widget {
 	}
 
 	isReplaceActive(): boolean {
-		return this.replaceActive.get();
+		return !!this.replaceActive.get();
 	}
 
 	getReplaceValue(): string {

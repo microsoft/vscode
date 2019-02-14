@@ -839,11 +839,11 @@ export class FileService extends Disposable implements IFileService {
 	}
 
 	moveFile(source: uri, target: uri, overwrite?: boolean): Promise<IFileStat> {
-		return this.moveOrCopyFile(source, target, false, overwrite);
+		return this.moveOrCopyFile(source, target, false, !!overwrite);
 	}
 
 	copyFile(source: uri, target: uri, overwrite?: boolean): Promise<IFileStat> {
-		return this.moveOrCopyFile(source, target, true, overwrite);
+		return this.moveOrCopyFile(source, target, true, !!overwrite);
 	}
 
 	private moveOrCopyFile(source: uri, target: uri, keepCopy: boolean, overwrite: boolean): Promise<IFileStat> {
@@ -915,7 +915,7 @@ export class FileService extends Disposable implements IFileService {
 			return this.doMoveItemToTrash(resource);
 		}
 
-		return this.doDelete(resource, options && options.recursive);
+		return this.doDelete(resource, !!(options && options.recursive));
 	}
 
 	private doMoveItemToTrash(resource: uri): Promise<void> {

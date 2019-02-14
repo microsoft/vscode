@@ -493,10 +493,10 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		this.activeChannel = channel;
 		let promise: Promise<void>;
 		if (this.isPanelShown()) {
-			promise = this.doShowChannel(channel, preserveFocus);
+			promise = this.doShowChannel(channel, !!preserveFocus);
 		} else {
 			this.panelService.openPanel(OUTPUT_PANEL_ID);
-			promise = this.doShowChannel(this.activeChannel, preserveFocus);
+			promise = this.doShowChannel(this.activeChannel, !!preserveFocus);
 		}
 		return promise.then(() => this._onActiveOutputChannel.fire(id));
 	}
@@ -613,7 +613,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 
 	private isPanelShown(): boolean {
 		const panel = this.panelService.getActivePanel();
-		return panel && panel.getId() === OUTPUT_PANEL_ID;
+		return !!panel && panel.getId() === OUTPUT_PANEL_ID;
 	}
 
 	private createInput(channel: IOutputChannel): ResourceEditorInput {

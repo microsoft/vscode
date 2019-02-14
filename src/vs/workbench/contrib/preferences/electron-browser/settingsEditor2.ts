@@ -755,7 +755,7 @@ export class SettingsEditor2 extends BaseEditor {
 					query: this.searchWidget.getValue(),
 					searchResults: this.searchResultModel && this.searchResultModel.getUniqueResults(),
 					rawResults: this.searchResultModel && this.searchResultModel.getRawResults(),
-					showConfiguredOnly: this.viewState.tagFilters && this.viewState.tagFilters.has(MODIFIED_SETTING_TAG),
+					showConfiguredOnly: !!this.viewState.tagFilters && this.viewState.tagFilters.has(MODIFIED_SETTING_TAG),
 					isReset: typeof value === 'undefined',
 					settingsTarget: this.settingsTargetsWidget.settingsTarget as SettingsTarget
 				};

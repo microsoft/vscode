@@ -126,7 +126,7 @@ class NavBar {
 
 	_update(id: string | null = this.currentId, focus?: boolean): Promise<void> {
 		this.currentId = id;
-		this._onChange.fire({ id, focus });
+		this._onChange.fire({ id, focus: !!focus });
 		this.actions.forEach(a => a.enabled = a.id !== id);
 		return Promise.resolve(undefined);
 	}
