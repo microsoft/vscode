@@ -86,7 +86,28 @@ export namespace EditorScroll_ {
 					* 'value': Number of units to move. Default is '1'.
 					* 'revealCursor': If 'true' reveals the cursor if it is outside view port.
 				`,
-				constraint: isEditorScrollArgs
+				constraint: isEditorScrollArgs,
+				schema: {
+					'type': 'object',
+					'required': ['to'],
+					'properties': {
+						'to': {
+							'type': 'string',
+							'enum': ['up', 'down']
+						},
+						'by': {
+							'type': 'string',
+							'enum': ['line', 'wrappedLine', 'page', 'halfPage']
+						},
+						'value': {
+							'type': 'number',
+							'default': 1
+						},
+						'revealCursor': {
+							'type': 'boolean',
+						}
+					}
+				}
 			}
 		]
 	};
@@ -217,7 +238,20 @@ export namespace RevealLine_ {
 						'top', 'center', 'bottom'
 						\`\`\`
 				`,
-				constraint: isRevealLineArgs
+				constraint: isRevealLineArgs,
+				schema: {
+					'type': 'object',
+					'required': ['lineNumber'],
+					'properties': {
+						'lineNumber': {
+							'type': 'number',
+						},
+						'at': {
+							'type': 'string',
+							'enum': ['top', 'center', 'bottom']
+						}
+					}
+				}
 			}
 		]
 	};
@@ -1691,10 +1725,11 @@ class EditorHandlerCommand extends Command {
 
 	private readonly _handlerId: string;
 
-	constructor(id: string, handlerId: string) {
+	constructor(id: string, handlerId: string, description?: ICommandHandlerDescription) {
 		super({
 			id: id,
-			precondition: null
+			precondition: null,
+			description: description
 		});
 		this._handlerId = handlerId;
 	}
@@ -1767,12 +1802,26 @@ registerCommand(new EditorOrNativeTextInputCommand({
 }));
 registerCommand(new EditorHandlerCommand('default:' + Handler.Redo, Handler.Redo));
 
-function registerOverwritableCommand(handlerId: string): void {
+function registerOverwritableCommand(handlerId: string, description?: ICommandHandlerDescription): void {
 	registerCommand(new EditorHandlerCommand('default:' + handlerId, handlerId));
-	registerCommand(new EditorHandlerCommand(handlerId, handlerId));
+	registerCommand(new EditorHandlerCommand(handlerId, handlerId, description));
 }
 
-registerOverwritableCommand(Handler.Type);
+registerOverwritableCommand(Handler.Type, {
+	description: `Type`,
+	args: [{
+		name: 'args',
+		schema: {
+			'type': 'object',
+			'required': ['text'],
+			'properties': {
+				'text': {
+					'type': 'string'
+				}
+			},
+		}
+	}]
+});
 registerOverwritableCommand(Handler.ReplacePreviousChar);
 registerOverwritableCommand(Handler.CompositionStart);
 registerOverwritableCommand(Handler.CompositionEnd);

@@ -549,8 +549,20 @@ class TaskService extends Disposable implements ITaskService {
 	}
 
 	private registerCommands(): void {
-		CommandsRegistry.registerCommand('workbench.action.tasks.runTask', (accessor, arg) => {
-			this.runTaskCommand(arg);
+		CommandsRegistry.registerCommand({
+			id: 'workbench.action.tasks.runTask',
+			handler: (accessor, arg) => {
+				this.runTaskCommand(arg);
+			},
+			description: {
+				description: 'Run Task',
+				args: [{
+					name: 'args',
+					schema: {
+						'type': 'string',
+					}
+				}]
+			}
 		});
 
 		CommandsRegistry.registerCommand('workbench.action.tasks.reRunTask', (accessor, arg) => {
