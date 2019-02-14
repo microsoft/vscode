@@ -27,17 +27,63 @@ import { RequestItem, RequestQueue, RequestQueueingType } from './requestQueue';
 
 class TypeScriptServerError extends Error {
 
+	public static create(
+		version: TypeScriptVersion,
+		response: Proto.Response,
+	): TypeScriptServerError {
+		const parsedResult = TypeScriptServerError.parseErrorText(version, response);
+		return new TypeScriptServerError(version, response,
+			parsedResult ? parsedResult.message : undefined,
+			parsedResult ? parsedResult.stack : undefined);
+	}
+
 	constructor(
 		version: TypeScriptVersion,
-		public readonly response: Proto.Response,
+		private readonly response: Proto.Response,
+		public readonly serverMessage: string | undefined,
+		public readonly serverStack: string | undefined,
 	) {
-		super(`TypeScript Server Error (${version.versionString})\n${TypeScriptServerError.normalizeMessageStack(version, response.message)}`);
+		super(`TypeScript Server Error (${version.versionString})\n${serverMessage}\n${serverStack}`);
+	}
+
+	public get serverErrorText() {
+		return this.response.message;
+	}
+
+	public get serverCommand() {
+		return this.response.command;
+	}
+
+	/**
+	 * Given a `errorText` from a tsserver request indicating failure in handling a request,
+	 * prepares a payload for telemetry-logging.
+	 */
+	private static parseErrorText(
+		version: TypeScriptVersion,
+		response: Proto.Response,
+	) {
+		const errorText = response.message;
+		if (errorText) {
+			const errorPrefix = 'Error processing request. ';
+			if (errorText.startsWith(errorPrefix)) {
+				const prefixFreeErrorText = errorText.substr(errorPrefix.length);
+				const newlineIndex = prefixFreeErrorText.indexOf('\n');
+				if (newlineIndex >= 0) {
+					// Newline expected between message and stack.
+					return {
+						message: prefixFreeErrorText.substring(0, newlineIndex),
+						stack: TypeScriptServerError.normalizeMessageStack(version, prefixFreeErrorText.substring(newlineIndex + 1))
+					};
+				}
+			}
+		}
+		return undefined;
 	}
 
 	/**
 	 * Try to replace full TS Server paths with 'tsserver.js' so that we don't have to post process the data as much
 	 */
-	public static normalizeMessageStack(
+	private static normalizeMessageStack(
 		version: TypeScriptVersion,
 		message: string | undefined,
 	) {
@@ -317,7 +363,7 @@ export class TypeScriptServer extends Disposable {
 			// Special case where response itself is successful but there is not any data to return.
 			callback.onSuccess(ServerResponse.NoContent);
 		} else {
-			callback.onError(new TypeScriptServerError(this._version, response));
+			callback.onError(TypeScriptServerError.create(this._version, response));
 		}
 	}
 
@@ -344,7 +390,6 @@ export class TypeScriptServer extends Disposable {
 			}).catch((err: Error) => {
 				if (err instanceof TypeScriptServerError) {
 					if (!executeInfo.token || !executeInfo.token.isCancellationRequested) {
-						const properties = this.parseErrorText(err.response.message, err.response.command);
 						/* __GDPR__
 							"languageServiceErrorResponse" : {
 								"command" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -356,7 +401,12 @@ export class TypeScriptServer extends Disposable {
 								]
 							}
 						*/
-						this._telemetryReporter.logTelemetry('languageServiceErrorResponse', properties);
+						this._telemetryReporter.logTelemetry('languageServiceErrorResponse', {
+							command: err.serverCommand,
+							message: err.serverMessage || '',
+							stack: err.serverStack || '',
+							errortext: err.serverErrorText || '',
+						});
 					}
 				}
 
@@ -368,30 +418,6 @@ export class TypeScriptServer extends Disposable {
 		this.sendNextRequests();
 
 		return result;
-	}
-
-	/**
-	 * Given a `errorText` from a tsserver request indicating failure in handling a request,
-	 * prepares a payload for telemetry-logging.
-	 */
-	private parseErrorText(errorText: string | undefined, command: string) {
-		const properties: ObjectMap<string> = Object.create(null);
-		properties['command'] = command;
-		if (errorText) {
-			properties['errorText'] = errorText;
-
-			const errorPrefix = 'Error processing request. ';
-			if (errorText.startsWith(errorPrefix)) {
-				const prefixFreeErrorText = errorText.substr(errorPrefix.length);
-				const newlineIndex = prefixFreeErrorText.indexOf('\n');
-				if (newlineIndex >= 0) {
-					// Newline expected between message and stack.
-					properties['message'] = prefixFreeErrorText.substring(0, newlineIndex);
-					properties['stack'] = TypeScriptServerError.normalizeMessageStack(this._version, prefixFreeErrorText.substring(newlineIndex + 1));
-				}
-			}
-		}
-		return properties;
 	}
 
 	private sendNextRequests(): void {
