@@ -1,8 +1,8 @@
 {
   "name": "code-oss-dev",
-  "version": "1.5.0",
+  "version": "1.8.1",
   "electronVersion": "0.37.6",
-  "author": { "name": "Microsoft Corporation"},
+  "author": "Microsoft Corporation",
   "main": "./out/main",
   "private": true,
   "scripts": {
@@ -22,11 +22,14 @@
     "iconv-lite": "0.4.13",
     "minimist": "1.2.0",
     "native-keymap": "0.1.2",
+    "npm": "^6.8.0",
     "pty.js": "https://github.com/Tyriar/pty.js/tarball/fffbf86eb9e8051b5b2be4ba9c7b07faa018ce8d",
+    "run": "^1.4.0",
     "sax": "1.1.2",
     "semver": "4.3.6",
     "vscode-debugprotocol": "1.11.0",
     "vscode-textmate": "2.0.1",
+    "windows-mutex": "^0.2.0",
     "winreg": "1.2.0",
     "xterm": "git+https://github.com/sourcelair/xterm.js.git#b32a34b",
     "yauzl": "2.3.1"
@@ -89,10 +92,7 @@
     "vinyl": "^0.4.5",
     "vscode-nls-dev": "^1.0.0"
   },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/Microsoft/vscode.git"
-  },
+  "repository": "git+https://github.com/Microsoft/vscode.git",
   "bugs": {
     "url": "https://github.com/Microsoft/vscode/issues"
   },
@@ -103,5 +103,20 @@
   },
   "optionalDependencies": {
     "windows-mutex": "^0.2.0"
-  }
+  },
+  "description": "[![Build Status](https://travis-ci.org/Microsoft/vscode.svg?branch=master)](https://travis-ci.org/Microsoft/vscode) [![Build status](https://ci.appveyor.com/api/projects/status/vuhlhg80tj3e2a0l?svg=true)](https://ci.appveyor.com/project/VSCode/vscode) [![Coverage Status](https://img.shields.io/coveralls/Microsoft/vscode/master.svg)](https://coveralls.io/github/Microsoft/vscode?branch=master)",
+  "homepage": "https://github.com/Microsoft/vscode#readme",
+  "directories": {
+    "test": "test"
+  },
+  "keywords": [
+    "yarn",
+    "npm",
+    "install",
+    "npm",
+    "run",
+    "yarn",
+    "watch"
+  ],
+  "license": "Apache-2.0"
 }
