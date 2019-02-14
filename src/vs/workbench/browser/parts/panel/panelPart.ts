@@ -41,7 +41,7 @@ export const PanelFocusContext = new RawContextKey<boolean>('panelFocus', false)
 interface ICachedPanel {
 	id: string;
 	pinned: boolean;
-	order: number;
+	order?: number;
 	visible: boolean;
 }
 
@@ -243,7 +243,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService, IS
 
 	getPanels(): PanelDescriptor[] {
 		return Registry.as<PanelRegistry>(PanelExtensions.Panels).getPanels()
-			.sort((v1, v2) => v1.order - v2.order);
+			.sort((v1, v2) => typeof v1.order === 'number' && typeof v2.order === 'number' ? v1.order - v2.order : NaN);
 	}
 
 	getPinnedPanels(): PanelDescriptor[] {
