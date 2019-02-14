@@ -31,10 +31,10 @@ export const enum FormatKind {
 }
 
 export interface IFormatterConflictCallback {
-	(extensionIds: ExtensionIdentifier[], model: ITextModel, mode: number): void;
+	(extensionIds: (ExtensionIdentifier | undefined)[], model: ITextModel, mode: number): void;
 }
 
-let _conflictResolver: IFormatterConflictCallback;
+let _conflictResolver: IFormatterConflictCallback | undefined;
 
 export function setFormatterConflictCallback(callback: IFormatterConflictCallback): IDisposable {
 	let oldCallback = _conflictResolver;
