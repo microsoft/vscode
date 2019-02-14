@@ -525,6 +525,18 @@
           "description": "%typescript.preferences.importModuleSpecifier%",
           "scope": "resource"
         },
+        "javascript.preferences.renameShorthandProperties": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.preferences.renameShorthandProperties%",
+          "scope": "resource"
+        },
+        "typescript.preferences.renameShorthandProperties": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.preferences.renameShorthandProperties%",
+          "scope": "resource"
+        },
         "typescript.updateImportsOnFileMove.enabled": {
           "type": "string",
           "enum": [
