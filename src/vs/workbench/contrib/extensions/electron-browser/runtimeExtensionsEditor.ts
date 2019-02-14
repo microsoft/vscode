@@ -601,7 +601,7 @@ export class StartExtensionHostProfileAction extends Action {
 
 	run(): Promise<any> {
 		this._extensionHostProfileService.startProfiling();
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 
@@ -618,7 +618,7 @@ export class StopExtensionHostProfileAction extends Action {
 
 	run(): Promise<any> {
 		this._extensionHostProfileService.stopProfiling();
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 

@@ -704,7 +704,7 @@ export class CloseEditorsInOtherGroupsAction extends Action {
 		const groupToSkip = context ? this.editorGroupService.getGroup(context.groupId) : this.editorGroupService.activeGroup;
 		return Promise.all(this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).map(g => {
 			if (g.id === groupToSkip.id) {
-				return Promise.resolve(null);
+				return Promise.resolve();
 			}
 
 			return g.closeAllEditors();
@@ -732,7 +732,7 @@ export class CloseEditorInAllGroupsAction extends Action {
 			return Promise.all(this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).map(g => g.closeEditor(activeEditor)));
 		}
 
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 
@@ -1105,7 +1105,7 @@ export class NavigateForwardAction extends Action {
 	run(): Promise<any> {
 		this.historyService.forward();
 
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 
@@ -1121,7 +1121,7 @@ export class NavigateBackwardsAction extends Action {
 	run(): Promise<any> {
 		this.historyService.back();
 
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 
@@ -1137,7 +1137,7 @@ export class NavigateToLastEditLocationAction extends Action {
 	run(): Promise<any> {
 		this.historyService.openLastEditLocation();
 
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 
@@ -1153,7 +1153,7 @@ export class NavigateLastAction extends Action {
 	run(): Promise<any> {
 		this.historyService.last();
 
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 
@@ -1314,7 +1314,7 @@ export class OpenNextRecentlyUsedEditorAction extends Action {
 	run(): Promise<any> {
 		this.historyService.forward(true);
 
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 
@@ -1330,7 +1330,7 @@ export class OpenPreviousRecentlyUsedEditorAction extends Action {
 	run(): Promise<any> {
 		this.historyService.back(true);
 
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 

@@ -959,11 +959,11 @@ export class SettingsEditor2 extends BaseEditor {
 
 					this.updateModifiedLabelForKey(key);
 					this.scheduleRefresh(focusedSetting, key);
-					return Promise.resolve(null);
+					return Promise.resolve();
 				}
 			} else {
 				this.scheduleRefresh(focusedSetting);
-				return Promise.resolve(null);
+				return Promise.resolve();
 			}
 		}
 
@@ -976,7 +976,7 @@ export class SettingsEditor2 extends BaseEditor {
 				this.refreshTree();
 			} else {
 				// Refresh requested for a key that we don't know about
-				return Promise.resolve(null);
+				return Promise.resolve();
 			}
 		} else {
 			this.refreshTree();

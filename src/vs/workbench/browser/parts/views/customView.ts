@@ -507,7 +507,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		if (this.tree) {
 			return this.tree.reveal(item);
 		}
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 
 	private activate() {

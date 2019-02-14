@@ -360,7 +360,7 @@ export class CombinedInstallAction extends ExtensionAction {
 			return this.uninstallAction.run();
 		}
 
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 
 	dispose(): void {
@@ -492,7 +492,7 @@ export abstract class ExtensionDropDownAction extends ExtensionAction {
 		if (this._actionItem) {
 			this._actionItem.showMenu(actionGroups, disposeActionsOnHide);
 		}
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 
 	dispose(): void {
@@ -690,7 +690,7 @@ export class ExtensionInfoAction extends ExtensionAction {
 		const clipboardStr = `${name}\n${id}\n${description}\n${verision}\n${publisher}${link ? '\n' + link : ''}`;
 
 		clipboard.writeText(clipboardStr);
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 
@@ -835,7 +835,7 @@ export abstract class ExtensionEditorDropDownAction extends ExtensionDropDownAct
 		} else {
 			return super.run({ actionGroups: [this.actions], disposeActionsOnHide: false });
 		}
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 
@@ -1594,7 +1594,7 @@ export class IgnoreExtensionRecommendationAction extends Action {
 
 	public run(): Promise<any> {
 		this.extensionsTipsService.toggleIgnoredRecommendation(this.extension.identifier.id, true);
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 
 	dispose(): void {
@@ -1624,7 +1624,7 @@ export class UndoIgnoreExtensionRecommendationAction extends Action {
 
 	public run(): Promise<any> {
 		this.extensionsTipsService.toggleIgnoredRecommendation(this.extension.identifier.id, false);
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 
 	dispose(): void {
@@ -2348,7 +2348,7 @@ export class StatusLabelAction extends Action implements IExtensionContainer {
 	}
 
 	run(): Promise<any> {
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 
 }
@@ -2373,7 +2373,7 @@ export class MaliciousStatusLabelAction extends ExtensionAction {
 	}
 
 	run(): Promise<any> {
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 
@@ -2560,7 +2560,7 @@ export class InstallVSIXAction extends Action {
 			buttonLabel: mnemonicButtonLabel(localize({ key: 'installButton', comment: ['&& denotes a mnemonic'] }, "&&Install"))
 		})).then(result => {
 			if (!result) {
-				return Promise.resolve(null);
+				return Promise.resolve();
 			}
 
 			return Promise.all(result.map(vsix => this.extensionsWorkbenchService.install(vsix)))

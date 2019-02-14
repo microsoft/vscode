@@ -174,7 +174,7 @@ class ExtHostTreeView<T> extends Disposable {
 
 	private _onDidChangeData: Emitter<TreeData<T>> = this._register(new Emitter<TreeData<T>>());
 
-	private refreshPromise: Promise<void> = Promise.resolve(null);
+	private refreshPromise: Promise<void> = Promise.resolve();
 
 	constructor(private viewId: string, options: vscode.TreeViewOptions<T>, private proxy: MainThreadTreeViewsShape, private commands: CommandsConverter, private logService: ILogService, private extension: IExtensionDescription) {
 		super();
