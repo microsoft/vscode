@@ -63,7 +63,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 					return undefined;
 				}
 
-				const document = this._documents.getDocumentData(resource).document;
+				const document = this._documents.getDocument(resource);
 				return this._deliverEventAsyncAndBlameBadListeners(listener, <any>{ document, reason: TextDocumentSaveReason.to(reason) });
 			};
 		}));

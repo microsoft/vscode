@@ -812,7 +812,7 @@ export namespace DocumentLink {
 	}
 
 	export function to(link: modes.ILink): vscode.DocumentLink {
-		let target = undefined;
+		let target: URI | undefined = undefined;
 		if (link.url) {
 			try {
 				target = typeof link.url === 'string' ? URI.parse(link.url, true) : URI.revive(link.url);
