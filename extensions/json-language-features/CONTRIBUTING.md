@@ -10,16 +10,17 @@
 	- Launch the `preLaunchTask` task to compile the extension
 	- Launch a new VS Code instance with the `json-language-features` extension loaded
 	- You should see a notification saying the development version of `json-language-features` overwrites the bundled version of `json-language-features`
-	- Open a `.json` file to activate the extension. The extension will start a JSON language server process.
-	- You can debug the language server process by using `Attach to Node Process` command in the first VS Code window.
-- Test the behavior of this extension by editing json files
+- Open a `.json` file to activate the extension. The extension will start the JSON language server process.
+- Add `"json.trace.server": "verbose"` to the settings to observe the communication between client and server.
+- Debug the language server process by using `Attach to Node Process` command in the  VS Code window opened on `json-language-features`
 - Run `Reload Window` command in the launched instance to reload the extension
+
 
 ### Contribute to vscode-json-languageservice
 
-[Microsoft/vscode-json-languageservice](https://github.com/Microsoft/vscode-json-languageservice) contains the language smarts for json.
-This extension wraps the json language service into a Language Server for VS Code.
-If you want to fix json issues or make improvements, you should make changes at [Microsoft/vscode-json-languageservice](https://github.com/Microsoft/vscode-json-languageservice).
+[Microsoft/vscode-json-languageservice](https://github.com/Microsoft/vscode-json-languageservice) is the library that implements the language smarts for JSON.
+The JSON language server forwards most the of requests to the service library.
+If you want to fix JSON issues or make improvements, you should make changes at [Microsoft/vscode-json-languageservice](https://github.com/Microsoft/vscode-json-languageservice).
 
 However, within this extension, you can run a development version of `vscode-json-languageservice` to debug code or test language features interactively:
 
