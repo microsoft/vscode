@@ -115,12 +115,12 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 	private resolveString(folderUri: uri, value: string, commandValueMapping: IStringDictionary<string>): { replaced: string, variableName: string, resolvedValue: string } {
 
 		const filePath = this._context.getFilePath();
-		let variableName: string;
-		let resolvedValue: string;
+		let variableName: string | undefined;
+		let resolvedValue: string | undefined;
 		const replaced = value.replace(AbstractVariableResolverService.VARIABLE_REGEXP, (match: string, variable: string) => {
 
 			variableName = variable;
-			let argument: string;
+			let argument: string | undefined;
 			const parts = variable.split(':');
 			if (parts && parts.length > 1) {
 				variable = parts[0];

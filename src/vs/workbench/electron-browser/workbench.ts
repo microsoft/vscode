@@ -1085,7 +1085,7 @@ export class Workbench extends Disposable implements IPartService {
 		}).then(() => mark('didRestoreEditors')));
 
 		// Restore Sidebar
-		let viewletIdToRestore: string;
+		let viewletIdToRestore: string | undefined;
 		if (!this.sideBarHidden) {
 			this.sideBarVisibleContext.set(true);
 

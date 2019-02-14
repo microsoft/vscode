@@ -246,7 +246,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	}
 
 	private findTargetGroup(input: IEditorInput, options?: IEditorOptions, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): IEditorGroup {
-		let targetGroup: IEditorGroup;
+		let targetGroup: IEditorGroup | undefined;
 
 		// Group: Instance of Group
 		if (group && typeof group !== 'number') {

@@ -126,7 +126,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 			return this.getName();
 		}
 
-		let title: string;
+		let title: string | undefined;
 		switch (verbosity) {
 			case Verbosity.SHORT:
 				title = this.shortTitle;

@@ -474,7 +474,7 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 			this.viewer.setFocus([nextFocusElement], getKeyboardEventForEditorOpen());
 		}
 
-		let elementToRefresh: FolderMatch | FileMatch | SearchResult;
+		let elementToRefresh: FolderMatch | FileMatch | SearchResult | undefined;
 		const element = this.element;
 		if (element instanceof FolderMatch) {
 			const parent = element.parent();
@@ -711,7 +711,7 @@ const maxClipboardMatches = 1e4;
 export const copyMatchCommand: ICommandHandler = (accessor, match: RenderableMatch) => {
 	const clipboardService = accessor.get(IClipboardService);
 
-	let text: string;
+	let text: string | undefined;
 	if (match instanceof Match) {
 		text = matchToString(match);
 	} else if (match instanceof FileMatch) {

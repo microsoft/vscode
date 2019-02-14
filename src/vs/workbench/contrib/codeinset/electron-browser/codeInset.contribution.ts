@@ -209,7 +209,7 @@ export class CodeInsetController implements editorCommon.IEditorContribution {
 
 		let maxLineNumber = this._editor.getModel().getLineCount();
 		let groups: ICodeInsetData[][] = [];
-		let lastGroup: ICodeInsetData[];
+		let lastGroup: ICodeInsetData[] | undefined;
 
 		for (let symbol of symbols) {
 			let line = symbol.symbol.range.startLineNumber;

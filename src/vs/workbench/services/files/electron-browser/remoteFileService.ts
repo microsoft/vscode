@@ -291,7 +291,7 @@ export class RemoteFileService extends FileService {
 
 		// soft-groupBy, keep order, don't rearrange/merge groups
 		let groups: Array<typeof toResolve> = [];
-		let group: typeof toResolve;
+		let group: typeof toResolve | undefined;
 		for (const request of toResolve) {
 			if (!group || group[0].resource.scheme !== request.resource.scheme) {
 				group = [];

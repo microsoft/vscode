@@ -298,7 +298,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				}
 			});
 		} else {
-			let overrides: IConfigurationOverrides;
+			let overrides: IConfigurationOverrides | undefined;
 			if (model) {
 				overrides = {
 					resource: model.uri,
@@ -537,7 +537,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			"debug/addLaunchConfiguration" : {}
 		*/
 		this.telemetryService.publicLog('debug/addLaunchConfiguration');
-		let configurationsArrayPosition: Position;
+		let configurationsArrayPosition: Position | undefined;
 		const model = this.editor.getModel();
 		let depthInArray = 0;
 		let lastProperty: string;

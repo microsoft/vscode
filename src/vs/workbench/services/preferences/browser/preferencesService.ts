@@ -110,7 +110,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			const languageSelection = this.modeService.create('jsonc');
 			const model = this._register(this.modelService.createModel('', languageSelection, uri));
 
-			let defaultSettings: DefaultSettings;
+			let defaultSettings: DefaultSettings | undefined;
 			this.configurationService.onDidChangeConfiguration(e => {
 				if (e.source === ConfigurationTarget.DEFAULT) {
 					const model = this.modelService.getModel(uri);

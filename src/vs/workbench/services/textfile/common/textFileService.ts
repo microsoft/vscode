@@ -146,7 +146,7 @@ export class TextFileService extends Disposable implements ITextFileService {
 
 		// Build the file filter by using our known languages
 		const ext: string = defaultUri ? extname(defaultUri) : undefined;
-		let matchingFilter: IFilter;
+		let matchingFilter: IFilter | undefined;
 		const filters: IFilter[] = coalesce(this.modeService.getRegisteredLanguageNames().map(languageName => {
 			const extensions = this.modeService.getExtensions(languageName);
 			if (!extensions || !extensions.length) {
@@ -299,7 +299,7 @@ export class TextFileService extends Disposable implements ITextFileService {
 			// closed is the only VS Code window open, except for on Mac where hot exit is only
 			// ever activated when quit is requested.
 
-			let doBackup: boolean;
+			let doBackup: boolean | undefined;
 			switch (reason) {
 				case ShutdownReason.CLOSE:
 					if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.configuredHotExit === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE) {

@@ -1100,8 +1100,8 @@ export class SaveSequentializer {
 		// so that we can return a promise that completes when the save operation
 		// has completed.
 		if (!this._nextSave) {
-			let promiseResolve: () => void;
-			let promiseReject: (error: Error) => void;
+			let promiseResolve: (() => void) | undefined;
+			let promiseReject: ((error: Error) => void) | undefined;
 			const promise = new Promise<void>((resolve, reject) => {
 				promiseResolve = resolve;
 				promiseReject = reject;

@@ -262,7 +262,7 @@ export class TitlebarPart extends Part implements ITitleService, ISerializableVi
 		const workspace = this.contextService.getWorkspace();
 
 		// Compute root
-		let root: URI;
+		let root: URI | undefined;
 		if (workspace.configuration) {
 			root = workspace.configuration;
 		} else if (workspace.folders.length) {

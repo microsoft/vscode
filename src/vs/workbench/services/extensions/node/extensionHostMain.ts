@@ -87,7 +87,7 @@ export class ExtensionHostMain {
 		this._extensionService.getExtensionPathIndex().then(map => {
 			(<any>Error).prepareStackTrace = (error: Error, stackTrace: errors.V8CallSite[]) => {
 				let stackTraceMessage = '';
-				let extension: IExtensionDescription;
+				let extension: IExtensionDescription | undefined;
 				let fileName: string;
 				for (const call of stackTrace) {
 					stackTraceMessage += `\n\tat ${call.toString()}`;

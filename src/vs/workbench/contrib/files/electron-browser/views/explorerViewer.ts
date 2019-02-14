@@ -746,7 +746,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		}
 
 		const folders = this.contextService.getWorkspace().folders;
-		let targetIndex: number;
+		let targetIndex: number | undefined;
 		const workspaceCreationData: IWorkspaceFolderCreationData[] = [];
 		const rootsToMove: IWorkspaceFolderCreationData[] = [];
 

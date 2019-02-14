@@ -305,6 +305,8 @@ export function prepareCommand(args: DebugProtocol.RunInTerminalRequestArguments
 	} else if (env.isMacintosh) {
 		shell = shell_config.osx;
 		shellType = ShellType.bash;
+	} else {
+		throw new Error('Unknown platform');
 	}
 
 	// try to determine the shell type

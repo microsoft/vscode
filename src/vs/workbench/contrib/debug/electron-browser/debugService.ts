@@ -263,7 +263,8 @@ export class DebugService implements IDebugService {
 			return this.textFileService.saveAll().then(() => this.configurationService.reloadConfiguration(launch ? launch.workspace : undefined).then(() => {
 				return this.extensionService.whenInstalledExtensionsRegistered().then(() => {
 
-					let config: IConfig, compound: ICompound;
+					let config: IConfig | undefined;
+					let compound: ICompound | undefined;
 					if (!configOrName) {
 						configOrName = this.configurationManager.selectedConfiguration.name;
 					}
@@ -296,7 +297,7 @@ export class DebugService implements IDebugService {
 								return Promise.resolve(false);
 							}
 
-							let launchForName: ILaunch;
+							let launchForName: ILaunch | undefined;
 							if (typeof configData === 'string') {
 								const launchesContainingName = this.configurationManager.getLaunches().filter(l => !!l.getConfiguration(name));
 								if (launchesContainingName.length === 1) {
@@ -346,7 +347,7 @@ export class DebugService implements IDebugService {
 	private createSession(launch: ILaunch, config: IConfig, unresolvedConfig: IConfig, noDebug: boolean): Promise<boolean> {
 		// We keep the debug type in a separate variable 'type' so that a no-folder config has no attributes.
 		// Storing the type in the config would break extensions that assume that the no-folder case is indicated by an empty config.
-		let type: string;
+		let type: string | undefined;
 		if (config) {
 			type = config.type;
 		} else {
@@ -581,7 +582,7 @@ export class DebugService implements IDebugService {
 
 							// Read the configuration again if a launch.json has been changed, if not just use the inmemory configuration
 							let needsToSubstitute = false;
-							let unresolved: IConfig;
+							let unresolved: IConfig | undefined;
 							const launch = session.root ? this.configurationManager.getLaunch(session.root.uri) : undefined;
 							if (launch) {
 								unresolved = launch.getConfiguration(session.configuration.name);
@@ -934,7 +935,7 @@ export class DebugService implements IDebugService {
 	}
 
 	private loadBreakpoints(): Breakpoint[] {
-		let result: Breakpoint[];
+		let result: Breakpoint[] | undefined;
 		try {
 			result = JSON.parse(this.storageService.get(DEBUG_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((breakpoint: any) => {
 				return new Breakpoint(uri.parse(breakpoint.uri.external || breakpoint.source.uri.external), breakpoint.lineNumber, breakpoint.column, breakpoint.enabled, breakpoint.condition, breakpoint.hitCondition, breakpoint.logMessage, breakpoint.adapterData, this.textFileService);
@@ -945,7 +946,7 @@ export class DebugService implements IDebugService {
 	}
 
 	private loadFunctionBreakpoints(): FunctionBreakpoint[] {
-		let result: FunctionBreakpoint[];
+		let result: FunctionBreakpoint[] | undefined;
 		try {
 			result = JSON.parse(this.storageService.get(DEBUG_FUNCTION_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((fb: any) => {
 				return new FunctionBreakpoint(fb.name, fb.enabled, fb.hitCondition, fb.condition, fb.logMessage);
@@ -956,7 +957,7 @@ export class DebugService implements IDebugService {
 	}
 
 	private loadExceptionBreakpoints(): ExceptionBreakpoint[] {
-		let result: ExceptionBreakpoint[];
+		let result: ExceptionBreakpoint[] | undefined;
 		try {
 			result = JSON.parse(this.storageService.get(DEBUG_EXCEPTION_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((exBreakpoint: any) => {
 				return new ExceptionBreakpoint(exBreakpoint.filter, exBreakpoint.label, exBreakpoint.enabled);
@@ -967,7 +968,7 @@ export class DebugService implements IDebugService {
 	}
 
 	private loadWatchExpressions(): Expression[] {
-		let result: Expression[];
+		let result: Expression[] | undefined;
 		try {
 			result = JSON.parse(this.storageService.get(DEBUG_WATCH_EXPRESSIONS_KEY, StorageScope.WORKSPACE, '[]')).map((watchStoredData: { name: string, id: string }) => {
 				return new Expression(watchStoredData.name, watchStoredData.id);

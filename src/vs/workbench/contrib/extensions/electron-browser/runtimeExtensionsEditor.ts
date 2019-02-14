@@ -501,7 +501,7 @@ export class ReportExtensionIssueAction extends Action {
 		unresponsiveProfile?: IExtensionHostProfile
 	}): { url: string, task?: () => Promise<any> } {
 
-		let task: () => Promise<any>;
+		let task: () => Promise<any> | undefined;
 		let baseUrl = extension.marketplaceInfo && extension.marketplaceInfo.type === ExtensionType.User && extension.description.repository ? extension.description.repository.url : undefined;
 		if (!!baseUrl) {
 			baseUrl = `${baseUrl.indexOf('.git') !== -1 ? baseUrl.substr(0, baseUrl.length - 4) : baseUrl}/issues/new/`;
