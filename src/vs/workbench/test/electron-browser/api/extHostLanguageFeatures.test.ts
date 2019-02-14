@@ -33,7 +33,7 @@ import { getWorkspaceSymbols } from 'vs/workbench/contrib/search/common/search';
 import { rename } from 'vs/editor/contrib/rename/rename';
 import { provideSignatureHelp } from 'vs/editor/contrib/parameterHints/provideSignatureHelp';
 import { provideSuggestionItems } from 'vs/editor/contrib/suggest/suggest';
-import { getDocumentFormattingEdits, getDocumentRangeFormattingEdits, getOnTypeFormattingEdits } from 'vs/editor/contrib/format/format';
+import { getDocumentFormattingEdits, getDocumentRangeFormattingEdits, getOnTypeFormattingEdits, FormatMode } from 'vs/editor/contrib/format/format';
 import { getLinks } from 'vs/editor/contrib/links/getLinks';
 import { MainContext, ExtHostContext } from 'vs/workbench/api/node/extHost.protocol';
 import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
@@ -925,7 +925,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let value = await getDocumentFormattingEdits(NullTelemetryService, NullWorkerService, model, { insertSpaces: true, tabSize: 4 }, CancellationToken.None);
+		let value = await getDocumentFormattingEdits(NullTelemetryService, NullWorkerService, model, { insertSpaces: true, tabSize: 4 }, FormatMode.Auto, CancellationToken.None);
 		assert.equal(value.length, 2);
 		let [first, second] = value;
 		assert.equal(first.text, 'testing');
@@ -943,7 +943,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		return getDocumentFormattingEdits(NullTelemetryService, NullWorkerService, model, { insertSpaces: true, tabSize: 4 }, CancellationToken.None);
+		return getDocumentFormattingEdits(NullTelemetryService, NullWorkerService, model, { insertSpaces: true, tabSize: 4 }, FormatMode.Auto, CancellationToken.None);
 	});
 
 	test('Format Doc, order', async () => {
@@ -967,7 +967,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let value = await getDocumentFormattingEdits(NullTelemetryService, NullWorkerService, model, { insertSpaces: true, tabSize: 4 }, CancellationToken.None);
+		let value = await getDocumentFormattingEdits(NullTelemetryService, NullWorkerService, model, { insertSpaces: true, tabSize: 4 }, FormatMode.Auto, CancellationToken.None);
 		assert.equal(value.length, 1);
 		let [first] = value;
 		assert.equal(first.text, 'testing');
@@ -982,7 +982,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let value = await getDocumentRangeFormattingEdits(NullTelemetryService, NullWorkerService, model, new EditorRange(1, 1, 1, 1), { insertSpaces: true, tabSize: 4 }, CancellationToken.None);
+		let value = await getDocumentRangeFormattingEdits(NullTelemetryService, NullWorkerService, model, new EditorRange(1, 1, 1, 1), { insertSpaces: true, tabSize: 4 }, FormatMode.Auto, CancellationToken.None);
 		assert.equal(value.length, 1);
 		let [first] = value;
 		assert.equal(first.text, 'testing');
@@ -1006,7 +1006,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 		await rpcProtocol.sync();
-		let value = await getDocumentRangeFormattingEdits(NullTelemetryService, NullWorkerService, model, new EditorRange(1, 1, 1, 1), { insertSpaces: true, tabSize: 4 }, CancellationToken.None);
+		let value = await getDocumentRangeFormattingEdits(NullTelemetryService, NullWorkerService, model, new EditorRange(1, 1, 1, 1), { insertSpaces: true, tabSize: 4 }, FormatMode.Auto, CancellationToken.None);
 		assert.equal(value.length, 1);
 		let [first] = value;
 		assert.equal(first.text, 'range2');
@@ -1024,7 +1024,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		return getDocumentRangeFormattingEdits(NullTelemetryService, NullWorkerService, model, new EditorRange(1, 1, 1, 1), { insertSpaces: true, tabSize: 4 }, CancellationToken.None);
+		return getDocumentRangeFormattingEdits(NullTelemetryService, NullWorkerService, model, new EditorRange(1, 1, 1, 1), { insertSpaces: true, tabSize: 4 }, FormatMode.Auto, CancellationToken.None);
 	});
 
 	test('Format on Type, data conversion', async () => {

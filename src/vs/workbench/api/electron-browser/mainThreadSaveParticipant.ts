@@ -23,7 +23,7 @@ import { shouldSynchronizeModel } from 'vs/editor/common/services/modelService';
 import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
 import { applyCodeAction } from 'vs/editor/contrib/codeAction/codeActionCommands';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
-import { getDocumentFormattingEdits, NoProviderError } from 'vs/editor/contrib/format/format';
+import { getDocumentFormattingEdits, FormatMode } from 'vs/editor/contrib/format/format';
 import { FormattingEdit } from 'vs/editor/contrib/format/formattingEdit';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { localize } from 'vs/nls';
@@ -237,20 +237,14 @@ class FormatOnSaveParticipant implements ISaveParticipantParticipant {
 
 		return new Promise<ISingleEditOperation[] | null | undefined>((resolve, reject) => {
 			let source = new CancellationTokenSource();
-			let request = getDocumentFormattingEdits(this._telemetryService, this._editorWorkerService, model, { tabSize, insertSpaces }, source.token);
+			let request = getDocumentFormattingEdits(this._telemetryService, this._editorWorkerService, model, { tabSize, insertSpaces }, FormatMode.Auto, source.token);
 
 			setTimeout(() => {
 				reject(localize('timeout.formatOnSave', "Aborted format on save after {0}ms", timeout));
 				source.cancel();
 			}, timeout);
 
-			request.then(resolve, err => {
-				if (!NoProviderError.is(err)) {
-					reject(err);
-				} else {
-					resolve();
-				}
-			});
+			request.then(resolve, reject);
 
 		}).then(edits => {
 			if (isNonEmptyArray(edits) && versionNow === model.getVersionId()) {

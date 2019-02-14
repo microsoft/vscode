@@ -17,17 +17,15 @@ import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ISingleEditOperation } from 'vs/editor/common/model';
-import { DocumentFormattingEditProviderRegistry, DocumentRangeFormattingEditProviderRegistry, FormattingOptions, OnTypeFormattingEditProviderRegistry } from 'vs/editor/common/modes';
+import { DocumentRangeFormattingEditProviderRegistry, FormattingOptions, OnTypeFormattingEditProviderRegistry } from 'vs/editor/common/modes';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { getOnTypeFormattingEdits, NoProviderError, getDocumentFormattingEdits, getDocumentRangeFormattingEdits } from 'vs/editor/contrib/format/format';
+import { getOnTypeFormattingEdits, getDocumentFormattingEdits, getDocumentRangeFormattingEdits, FormatMode } from 'vs/editor/contrib/format/format';
 import { FormattingEdit } from 'vs/editor/contrib/format/formattingEdit';
 import * as nls from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { MenuRegistry } from 'vs/platform/actions/common/actions';
 
 function alertFormattingEdits(edits: ISingleEditOperation[]): void {
 
@@ -56,12 +54,12 @@ function alertFormattingEdits(edits: ISingleEditOperation[]): void {
 	}
 }
 
-export const enum FormatRangeType {
+const enum FormatRangeType {
 	Full,
 	Selection,
 }
 
-export function formatDocumentRange(
+function formatDocumentRange(
 	telemetryService: ITelemetryService,
 	workerService: IEditorWorkerService,
 	editor: IActiveCodeEditor,
@@ -90,7 +88,7 @@ export function formatDocumentRange(
 		range = rangeOrRangeType;
 	}
 
-	return getDocumentRangeFormattingEdits(telemetryService, workerService, model, range, options, token).then(edits => {
+	return getDocumentRangeFormattingEdits(telemetryService, workerService, model, range, options, FormatMode.Manual, token).then(edits => {
 		// make edit only when the editor didn't change while
 		// computing and only when there are edits
 		if (state.validate(editor) && isNonEmptyArray(edits)) {
@@ -103,12 +101,12 @@ export function formatDocumentRange(
 
 }
 
-export function formatDocument(telemetryService: ITelemetryService, workerService: IEditorWorkerService, editor: IActiveCodeEditor, options: FormattingOptions, token: CancellationToken): Promise<void> {
+function formatDocument(telemetryService: ITelemetryService, workerService: IEditorWorkerService, editor: IActiveCodeEditor, options: FormattingOptions, token: CancellationToken): Promise<void> {
 
 	const allEdits: ISingleEditOperation[] = [];
 	const state = new EditorState(editor, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position);
 
-	return getDocumentFormattingEdits(telemetryService, workerService, editor.getModel(), options, token).then(edits => {
+	return getDocumentFormattingEdits(telemetryService, workerService, editor.getModel(), options, FormatMode.Manual, token).then(edits => {
 		// make edit only when the editor didn't change while
 		// computing and only when there are edits
 		if (state.validate(editor) && isNonEmptyArray(edits)) {
@@ -354,15 +352,10 @@ export class FormatDocumentAction extends EditorAction {
 		if (!editor.hasModel()) {
 			return;
 		}
-		const notificationService = accessor.get(INotificationService);
 		const workerService = accessor.get(IEditorWorkerService);
 		const telemetryService = accessor.get(ITelemetryService);
 		const { tabSize, insertSpaces } = editor.getModel().getOptions();
-		return formatDocument(telemetryService, workerService, editor, { tabSize, insertSpaces }, CancellationToken.None).catch(err => {
-			if (NoProviderError.is(err)) {
-				notificationService.info(nls.localize('no.documentprovider', "There is no document formatter for '{0}'-files installed.", editor.getModel().getLanguageIdentifier().language));
-			}
-		});
+		return formatDocument(telemetryService, workerService, editor, { tabSize, insertSpaces }, CancellationToken.None);
 	}
 }
 
@@ -391,15 +384,10 @@ export class FormatSelectionAction extends EditorAction {
 		if (!editor.hasModel()) {
 			return;
 		}
-		const notificationService = accessor.get(INotificationService);
 		const workerService = accessor.get(IEditorWorkerService);
 		const telemetryService = accessor.get(ITelemetryService);
 		const { tabSize, insertSpaces } = editor.getModel().getOptions();
-		return formatDocumentRange(telemetryService, workerService, editor, FormatRangeType.Selection, { tabSize, insertSpaces }, CancellationToken.None).catch(err => {
-			if (NoProviderError.is(err)) {
-				notificationService.info(nls.localize('no.selectionprovider', "There is no selection formatter for '{0}'-files installed.", editor.getModel().getLanguageIdentifier().language));
-			}
-		});
+		return formatDocumentRange(telemetryService, workerService, editor, FormatRangeType.Selection, { tabSize, insertSpaces }, CancellationToken.None);
 	}
 }
 
@@ -424,39 +412,4 @@ CommandsRegistry.registerCommand('editor.action.format', accessor => {
 	} else {
 		return formatDocumentRange(telemetryService, workerService, editor, FormatRangeType.Selection, { tabSize, insertSpaces }, CancellationToken.None);
 	}
-});
-
-
-CommandsRegistry.registerCommand('editor.action.formatInspect', accessor => {
-
-	const editor = accessor.get(ICodeEditorService).getActiveCodeEditor();
-	if (!editor || !editor.hasModel()) {
-		return;
-	}
-	console.log(`Available Formatters for: ${editor.getModel().uri.toString(true)}`);
-	// range formatters
-	const documentRangeProvider = DocumentRangeFormattingEditProviderRegistry.ordered(editor.getModel());
-	console.group('Range Formatters');
-	if (documentRangeProvider.length === 0) {
-		console.log('none');
-	} else {
-		documentRangeProvider.forEach(value => console.log(value.displayName));
-	}
-	console.groupEnd();
-
-	// whole document formatters
-	const documentProvider = DocumentFormattingEditProviderRegistry.ordered(editor.getModel());
-	console.group('Document Formatters');
-	if (documentProvider.length === 0) {
-		console.log('none');
-	} else {
-		documentProvider.forEach(value => console.log(value.displayName));
-	}
-	console.groupEnd();
-});
-
-MenuRegistry.addCommand({
-	id: 'editor.action.formatInspect',
-	category: nls.localize('cat', "Developer"),
-	title: nls.localize('title', "Print Available Formatters..."),
 });

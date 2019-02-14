@@ -1256,7 +1256,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	registerDocumentFormattingEditProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentFormattingEditProvider): vscode.Disposable {
 		const handle = this._addNewAdapter(new DocumentFormattingAdapter(this._documents, provider), extension);
-		this._proxy.$registerDocumentFormattingSupport(handle, this._transformDocumentSelector(selector), ExtHostLanguageFeatures._extLabel(extension));
+		this._proxy.$registerDocumentFormattingSupport(handle, this._transformDocumentSelector(selector), extension.identifier);
 		return this._createDisposable(handle);
 	}
 
@@ -1266,7 +1266,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	registerDocumentRangeFormattingEditProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentRangeFormattingEditProvider): vscode.Disposable {
 		const handle = this._addNewAdapter(new RangeFormattingAdapter(this._documents, provider), extension);
-		this._proxy.$registerRangeFormattingSupport(handle, this._transformDocumentSelector(selector), ExtHostLanguageFeatures._extLabel(extension));
+		this._proxy.$registerRangeFormattingSupport(handle, this._transformDocumentSelector(selector), extension.identifier);
 		return this._createDisposable(handle);
 	}
 
@@ -1276,7 +1276,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	registerOnTypeFormattingEditProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.OnTypeFormattingEditProvider, triggerCharacters: string[]): vscode.Disposable {
 		const handle = this._addNewAdapter(new OnTypeFormattingAdapter(this._documents, provider), extension);
-		this._proxy.$registerOnTypeFormattingSupport(handle, this._transformDocumentSelector(selector), triggerCharacters);
+		this._proxy.$registerOnTypeFormattingSupport(handle, this._transformDocumentSelector(selector), triggerCharacters, extension.identifier);
 		return this._createDisposable(handle);
 	}
 

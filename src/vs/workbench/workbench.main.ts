@@ -140,6 +140,9 @@ import 'vs/workbench/contrib/snippets/browser/insertSnippet';
 import 'vs/workbench/contrib/snippets/browser/configureSnippets';
 import 'vs/workbench/contrib/snippets/browser/tabCompletion';
 
+// Formatter Help
+import 'vs/workbench/contrib/format/browser/format.contribution';
+
 // Send a Smile
 import 'vs/workbench/contrib/feedback/electron-browser/feedback.contribution';
 

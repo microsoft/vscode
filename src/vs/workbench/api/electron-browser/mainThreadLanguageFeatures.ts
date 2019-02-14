@@ -21,6 +21,7 @@ import * as typeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import { URI } from 'vs/base/common/uri';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as codeInset from 'vs/workbench/contrib/codeinset/common/codeInset';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesShape {
@@ -270,29 +271,28 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	// --- formatting
 
-	$registerDocumentFormattingSupport(handle: number, selector: ISerializedDocumentFilter[], displayName: string): void {
+	$registerDocumentFormattingSupport(handle: number, selector: ISerializedDocumentFilter[], extensionId: ExtensionIdentifier): void {
 		this._registrations[handle] = modes.DocumentFormattingEditProviderRegistry.register(typeConverters.LanguageSelector.from(selector), <modes.DocumentFormattingEditProvider>{
-			displayName,
+			extensionId,
 			provideDocumentFormattingEdits: (model: ITextModel, options: modes.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined> => {
 				return this._proxy.$provideDocumentFormattingEdits(handle, model.uri, options, token);
 			}
 		});
 	}
 
-	$registerRangeFormattingSupport(handle: number, selector: ISerializedDocumentFilter[], displayName: string): void {
+	$registerRangeFormattingSupport(handle: number, selector: ISerializedDocumentFilter[], extensionId: ExtensionIdentifier): void {
 		this._registrations[handle] = modes.DocumentRangeFormattingEditProviderRegistry.register(typeConverters.LanguageSelector.from(selector), <modes.DocumentRangeFormattingEditProvider>{
-			displayName,
+			extensionId,
 			provideDocumentRangeFormattingEdits: (model: ITextModel, range: EditorRange, options: modes.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined> => {
 				return this._proxy.$provideDocumentRangeFormattingEdits(handle, model.uri, range, options, token);
 			}
 		});
 	}
 
-	$registerOnTypeFormattingSupport(handle: number, selector: ISerializedDocumentFilter[], autoFormatTriggerCharacters: string[]): void {
+	$registerOnTypeFormattingSupport(handle: number, selector: ISerializedDocumentFilter[], autoFormatTriggerCharacters: string[], extensionId: ExtensionIdentifier): void {
 		this._registrations[handle] = modes.OnTypeFormattingEditProviderRegistry.register(typeConverters.LanguageSelector.from(selector), <modes.OnTypeFormattingEditProvider>{
-
+			extensionId,
 			autoFormatTriggerCharacters,
-
 			provideOnTypeFormattingEdits: (model: ITextModel, position: EditorPosition, ch: string, options: modes.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined> => {
 				return this._proxy.$provideOnTypeFormattingEdits(handle, model.uri, position, ch, options, token);
 			}
