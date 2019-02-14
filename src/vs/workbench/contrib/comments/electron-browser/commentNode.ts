@@ -9,9 +9,9 @@ import * as modes from 'vs/editor/common/modes';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionsOrientation, ActionItem, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Button } from 'vs/base/browser/ui/button/button';
-import { Action, IActionRunner, IAction } from 'vs/base/common/actions';
+import { Action, IActionRunner } from 'vs/base/common/actions';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -34,75 +34,10 @@ import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { DropdownMenuActionItem } from 'vs/base/browser/ui/dropdown/dropdown';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
+import { ToggleReactionsAction, ReactionAction, ReactionActionItem } from './reactionsAction';
 
 const UPDATE_COMMENT_LABEL = nls.localize('label.updateComment', "Update comment");
 const UPDATE_IN_PROGRESS_LABEL = nls.localize('label.updatingComment', "Updating comment...");
-
-class ToggleReactionsAction extends Action {
-
-	static readonly ID = 'toolbar.toggle.pickReactions';
-
-	private _menuActions: IAction[];
-	private toggleDropdownMenu: () => void;
-
-	constructor(toggleDropdownMenu: () => void, title?: string) {
-		title = title || nls.localize('pickReactions', "Pick Reactions...");
-		super(ToggleReactionsAction.ID, title, 'toggle-reactions', true);
-
-		this.toggleDropdownMenu = toggleDropdownMenu;
-	}
-
-	run(): Promise<any> {
-		this.toggleDropdownMenu();
-
-		return Promise.resolve(true);
-	}
-
-	get menuActions() {
-		return this._menuActions;
-	}
-
-	set menuActions(actions: IAction[]) {
-		this._menuActions = actions;
-	}
-}
-
-class ReactionActionItem extends ActionItem {
-
-	constructor(action: ReactionAction) {
-		super(null, action, {});
-	}
-
-	updateLabel(): void {
-		let action = this.getAction() as ReactionAction;
-
-		this.label.classList.add(action.class);
-
-		if (!action.icon) {
-			let reactionLabel = dom.append(this.label, dom.$('span.reaction-label'));
-			reactionLabel.innerText = action.label;
-		} else {
-			let reactionIcon = dom.append(this.label, dom.$('.reaction-icon'));
-			reactionIcon.style.display = '';
-			let uri = URI.revive(action.icon);
-			reactionIcon.style.backgroundImage = `url('${uri}')`;
-			reactionIcon.title = action.label;
-		}
-
-		if (action.count) {
-			let reactionCount = dom.append(this.label, dom.$('span.reaction-count'));
-			reactionCount.innerText = `${action.count}`;
-		}
-	}
-}
-
-class ReactionAction extends Action {
-	static readonly ID = 'toolbar.toggle.reaction';
-
-	constructor(id: string, label: string = '', cssClass: string = '', enabled: boolean = true, actionCallback?: (event?: any) => Promise<any>, public icon?: UriComponents, public count?: number) {
-		super(ReactionAction.ID, label, cssClass, enabled, actionCallback);
-	}
-}
 
 export class CommentNode extends Disposable {
 	private _domNode: HTMLElement;
