@@ -193,7 +193,7 @@ export class CommentNode extends Disposable {
 			if (toggleReactionActionItem) {
 				toggleReactionActionItem.show();
 			}
-		}, 'Pick'));
+		}, nls.localize('commentAddReaction', "Add Reaction")));
 
 		let reactionMenuActions: Action[] = [];
 		let reactionGroup = this.commentService.getReactionGroup(this.owner);
