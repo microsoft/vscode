@@ -37,12 +37,12 @@ class TypeScriptServerError extends Error {
 	/**
 	 * Try to replace full TS Server paths with 'tsserver.js' so that we don't have to post process the data as much
 	 */
-	private static normalizeMessageStack(
+	public static normalizeMessageStack(
 		version: TypeScriptVersion,
 		message: string | undefined,
 	) {
 		if (!message) {
-			return message;
+			return '';
 		}
 		return message.replace(new RegExp(`${escapeRegExp(version.path)}[/\\\\]tsserver.js:`, 'gi'), 'tsserver.js:');
 	}
@@ -387,7 +387,7 @@ export class TypeScriptServer extends Disposable {
 				if (newlineIndex >= 0) {
 					// Newline expected between message and stack.
 					properties['message'] = prefixFreeErrorText.substring(0, newlineIndex);
-					properties['stack'] = prefixFreeErrorText.substring(newlineIndex + 1);
+					properties['stack'] = TypeScriptServerError.normalizeMessageStack(this._version, prefixFreeErrorText.substring(newlineIndex + 1));
 				}
 			}
 		}
