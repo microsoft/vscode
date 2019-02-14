@@ -1162,7 +1162,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 					}
 					validation.then(result => {
 						if (value === validationValue) {
-							input.validationMessage = result;
+							input.validationMessage = result === null ? undefined : result;
 						}
 					});
 				}),
