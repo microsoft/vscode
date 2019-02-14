@@ -173,7 +173,10 @@ export class ToggleScreencastModeAction extends Action {
 		keyboardMarker.style.textAlign = 'center';
 		keyboardMarker.style.fontSize = '56px';
 		keyboardMarker.style.display = 'none';
+		keyboardMarker.style.whiteSpace = 'nowrap';
 		keyboardMarker.style.overflow = 'hidden';
+		keyboardMarker.style.textOverflow = 'ellipsis';
+		keyboardMarker.style.direction = 'rtl';
 
 		const onKeyDown = domEvent(document.body, 'keydown', true);
 		let keyboardTimeout: IDisposable = Disposable.None;
@@ -189,9 +192,6 @@ export class ToggleScreencastModeAction extends Action {
 				keyboardMarker.textContent += ' ' + label;
 			} else {
 				keyboardMarker.textContent = label;
-			}
-			while (keyboardMarker.scrollHeight > keyboardMarker.clientHeight) {
-				keyboardMarker.textContent = keyboardMarker.textContent.slice(1);
 			}
 
 			keyboardMarker.style.display = 'block';
