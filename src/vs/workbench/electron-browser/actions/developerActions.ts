@@ -184,9 +184,9 @@ export class ToggleScreencastModeAction extends Action {
 			const keybinding = this.keybindingService.resolveKeyboardEvent(event);
 			const label = keybinding.getLabel();
 
-			if (!event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey && this.keybindingService.mightProducePrintableCharacter(event) && label) {
-				keyboardMarker.textContent += ' ' + label;
-			} else {
+			keyboardMarker.textContent += ' ' + label;
+
+			if (keyboardMarker.scrollHeight > keyboardMarker.clientHeight || event.ctrlKey || event.altKey || event.metaKey || event.shiftKey || !this.keybindingService.mightProducePrintableCharacter(event) || !label) {
 				keyboardMarker.textContent = label;
 			}
 
