@@ -193,7 +193,14 @@ export class FoldingController implements IEditorContribution {
 
 		this.cursorChangedScheduler = new RunOnceScheduler(() => this.revealCursor(), 200);
 		this.localToDispose.push(this.cursorChangedScheduler);
-		this.localToDispose.push(this.editor.onDidChangeModelLanguageConfiguration(() => this.onModelContentChanged())); // covers model language changes as well
+		this.localToDispose.push(this.editor.onDidChangeModelLanguageConfiguration(() => { // covers model language changes as well
+			// Clear previous range provider
+			if (this.rangeProvider) {
+				this.rangeProvider.dispose();
+			}
+			this.rangeProvider = null;
+			this.onModelContentChanged();
+		}));
 		this.localToDispose.push(this.editor.onDidChangeModelContent(() => this.onModelContentChanged()));
 		this.localToDispose.push(this.editor.onDidChangeCursorPosition(() => this.onCursorPositionChanged()));
 		this.localToDispose.push(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
