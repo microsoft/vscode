@@ -204,7 +204,7 @@ export function relativePath(from: URI, to: URI): string | undefined {
 	}
 	if (from.scheme === Schemas.file) {
 		const relativePath = paths.relative(from.path, to.path);
-		return isWindows ? extpath.toForwardSlashes(relativePath) : relativePath;
+		return isWindows ? extpath.toSlashes(relativePath) : relativePath;
 	}
 	return paths.posix.relative(from.path || '/', to.path || '/');
 }

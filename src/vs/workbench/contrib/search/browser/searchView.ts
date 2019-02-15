@@ -17,7 +17,6 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Iterator } from 'vs/base/common/iterator';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import * as extpath from 'vs/base/common/extpath';
 import * as env from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
@@ -62,6 +61,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPreferencesService, ISettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { relativePath } from 'vs/base/common/resources';
 
 const $ = dom.$;
 
@@ -1076,7 +1076,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		}
 	}
 
-	searchInFolders(resources: URI[], pathToRelative: (from: string, to: string) => string): void {
+	searchInFolders(resources: URI[]): void {
 		const folderPaths: string[] = [];
 		const workspace = this.contextService.getWorkspace();
 
@@ -1085,7 +1085,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 				let folderPath: string | undefined;
 				if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
 					// Show relative path from the root for single-root mode
-					folderPath = extpath.normalize(pathToRelative(workspace.folders[0].uri.fsPath, resource.fsPath));
+					folderPath = relativePath(workspace.folders[0].uri, resource); // always uses forward slashes
 					if (folderPath && folderPath !== '.') {
 						folderPath = './' + folderPath;
 					}
@@ -1097,14 +1097,14 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 						// If this root is the only one with its basename, use a relative ./ path. If there is another, use an absolute path
 						const isUniqueFolder = workspace.folders.filter(folder => folder.name === owningRootName).length === 1;
 						if (isUniqueFolder) {
-							const relativePath = extpath.normalize(pathToRelative(owningFolder.uri.fsPath, resource.fsPath));
-							if (relativePath === '.') {
+							const relPath = relativePath(owningFolder.uri, resource); // always uses forward slashes
+							if (relPath === '') {
 								folderPath = `./${owningFolder.name}`;
 							} else {
 								folderPath = `./${owningFolder.name}/${relativePath}`;
 							}
 						} else {
-							folderPath = resource.fsPath;
+							folderPath = resource.fsPath; // TODO rob: handle on-file URIs
 						}
 					}
 				}

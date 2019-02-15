@@ -26,14 +26,14 @@ function _isNormal(path: string, win: boolean): boolean {
  * This should only be done for OS paths from Windows (or user provided paths potentially from Windows).
  * Using it on a Linux or MaxOS path might change it.
  */
-export function toForwardSlashes(osPath: string) {
+export function toSlashes(osPath: string) {
 	return osPath.replace(/[\\/]/g, '/');
 }
 
-export function normalize(path: undefined): undefined;
-export function normalize(path: null): null;
-export function normalize(path: string): string;
-export function normalize(path: string | null | undefined): string | null | undefined {
+export function normalizeWithSlashes(path: undefined): undefined;
+export function normalizeWithSlashes(path: null): null;
+export function normalizeWithSlashes(path: string): string;
+export function normalizeWithSlashes(path: string | null | undefined): string | null | undefined {
 
 	if (path === null || path === undefined) {
 		return path;
@@ -115,7 +115,7 @@ export const join: (...parts: string[]) => string = function () {
 		value += part;
 	}
 
-	return normalize(value);
+	return normalizeWithSlashes(value);
 };
 
 

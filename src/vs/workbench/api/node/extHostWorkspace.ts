@@ -3,15 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { join, relative } from 'vs/base/common/path';
+import { join } from 'vs/base/common/path';
 import { delta as arrayDelta, mapArrayOrNot } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { Counter } from 'vs/base/common/numbers';
-import { normalize } from 'vs/base/common/extpath';
 import { isLinux } from 'vs/base/common/platform';
-import { basenameOrAuthority, dirname, isEqual } from 'vs/base/common/resources';
+import { basenameOrAuthority, dirname, isEqual, relativePath } from 'vs/base/common/resources';
 import { compare } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
@@ -326,35 +325,35 @@ export class ExtHostWorkspaceProvider {
 
 	getRelativePath(pathOrUri: string | vscode.Uri, includeWorkspace?: boolean): string | undefined {
 
-		let path: string | undefined;
+		let resource: URI | undefined;
 		if (typeof pathOrUri === 'string') {
-			path = pathOrUri;
+			resource = URI.file(pathOrUri);
 		} else if (typeof pathOrUri !== 'undefined') {
-			path = pathOrUri.fsPath;
+			resource = pathOrUri;
 		}
 
-		if (!path) {
-			return path;
+		if (!resource) {
+			return undefined;
 		}
 
 		const folder = this.getWorkspaceFolder(
-			typeof pathOrUri === 'string' ? URI.file(pathOrUri) : pathOrUri,
+			resource,
 			true
 		);
 
 		if (!folder) {
-			return path;
+			return resource.fsPath;
 		}
 
 		if (typeof includeWorkspace === 'undefined' && this._actualWorkspace) {
 			includeWorkspace = this._actualWorkspace.folders.length > 1;
 		}
 
-		let result = relative(folder.uri.fsPath, path);
-		if (includeWorkspace) {
+		let result = relativePath(folder.uri, resource);
+		if (includeWorkspace && folder.name) {
 			result = `${folder.name}/${result}`;
 		}
-		return normalize(result);
+		return result;
 	}
 
 	private trySetWorkspaceFolders(folders: vscode.WorkspaceFolder[]): void {

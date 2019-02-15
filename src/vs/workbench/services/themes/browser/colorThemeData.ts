@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as Extpath from 'vs/base/common/extpath';
+import { toSlashes } from 'vs/base/common/extpath';
 import { basename } from 'vs/base/common/path';
 import * as Json from 'vs/base/common/json';
 import { Color } from 'vs/base/common/color';
@@ -260,7 +260,7 @@ export class ColorThemeData implements IColorTheme {
 	static fromExtensionTheme(theme: IThemeExtensionPoint, colorThemeLocation: URI, extensionData: ExtensionData): ColorThemeData {
 		let baseTheme: string = theme['uiTheme'] || 'vs-dark';
 
-		let themeSelector = toCSSSelector(extensionData.extensionId + '-' + Extpath.normalize(theme.path));
+		let themeSelector = toCSSSelector(extensionData.extensionId + '-' + toSlashes(theme.path));
 		let themeData = new ColorThemeData();
 		themeData.id = `${baseTheme} ${themeSelector}`;
 		themeData.label = theme.label || basename(theme.path);

@@ -14,7 +14,6 @@ import * as collections from 'vs/base/common/collections';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler, Delayer } from 'vs/base/common/async';
 import { FileChangeType, FileChangesEvent, IContent, IFileService } from 'vs/platform/files/common/files';
-import { isLinux } from 'vs/base/common/platform';
 import { ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { WorkspaceConfigurationModelParser, FolderSettingsModelParser, StandaloneConfigurationModelParser } from 'vs/workbench/services/configuration/common/configurationModels';
 import { FOLDER_SETTINGS_PATH, TASKS_CONFIGURATION_KEY, FOLDER_SETTINGS_NAME, LAUNCH_CONFIGURATION_KEY } from 'vs/workbench/services/configuration/common/configuration';
@@ -23,7 +22,7 @@ import * as extfs from 'vs/base/node/extfs';
 import { JSONEditingService } from 'vs/workbench/services/configuration/node/jsonEditingService';
 import { WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { relative, extname } from 'vs/base/common/path';
+import { extname } from 'vs/base/common/path';
 import { equals } from 'vs/base/common/objects';
 import { Schemas } from 'vs/base/common/network';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -530,14 +529,8 @@ export class FileServiceBasedFolderConfiguration extends AbstractFolderConfigura
 	}
 
 	private toFolderRelativePath(resource: URI): string | null {
-		if (resource.scheme === Schemas.file) {
-			if (extpath.isEqualOrParent(resource.fsPath, this.folderConfigurationPath.fsPath, !isLinux /* ignorecase */)) {
-				return extpath.normalize(relative(this.folderConfigurationPath.fsPath, resource.fsPath));
-			}
-		} else {
-			if (resources.isEqualOrParent(resource, this.folderConfigurationPath)) {
-				return extpath.normalize(relative(this.folderConfigurationPath.path, resource.path));
-			}
+		if (resources.isEqualOrParent(resource, this.folderConfigurationPath)) {
+			return resources.relativePath(this.folderConfigurationPath, resource);
 		}
 		return null;
 	}

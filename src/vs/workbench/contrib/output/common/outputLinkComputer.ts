@@ -90,7 +90,7 @@ export class OutputLinkComputer {
 		const workspaceFolderPath = workspaceFolder.scheme === 'file' ? workspaceFolder.fsPath : workspaceFolder.path;
 		const workspaceFolderVariants = arrays.distinct([
 			path.normalize(workspaceFolderPath),
-			extpath.normalize(workspaceFolderPath)
+			extpath.normalizeWithSlashes(workspaceFolderPath)
 		]);
 
 		workspaceFolderVariants.forEach(workspaceFolderVariant => {

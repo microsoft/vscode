@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { Event } from 'vs/base/common/event';
 import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { isEqualOrParent, normalize } from 'vs/base/common/extpath';
+import { isEqualOrParent, normalizeWithSlashes } from 'vs/base/common/extpath';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
 import { isAbsolute, relative, posix, resolve, extname } from 'vs/base/common/path';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
@@ -179,7 +179,7 @@ export function massageFolderPathForWorkspace(absoluteFolderPath: string, target
 		if (isWindows) {
 			if (isAbsolute(absoluteFolderPath)) {
 				if (shouldUseSlashForPath(existingFolders)) {
-					absoluteFolderPath = normalize(absoluteFolderPath /* do not use OS path separator */);
+					absoluteFolderPath = normalizeWithSlashes(absoluteFolderPath /* do not use OS path separator */);
 				}
 
 				absoluteFolderPath = normalizeDriveLetter(absoluteFolderPath);
