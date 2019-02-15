@@ -12,7 +12,7 @@ import { isEqualOrParent, normalizeWithSlashes } from 'vs/base/common/extpath';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
 import { isAbsolute, relative, posix, resolve, extname } from 'vs/base/common/path';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
-import { fsPath, dirname } from 'vs/base/common/resources';
+import { originalFSPath, dirname } from 'vs/base/common/resources';
 import { Schemas } from 'vs/base/common/network';
 import * as jsonEdit from 'vs/base/common/jsonEdit';
 import * as json from 'vs/base/common/json';
@@ -166,7 +166,7 @@ const SLASH = '/';
 export function massageFolderPathForWorkspace(absoluteFolderPath: string, targetConfigFolderURI: URI, existingFolders: IStoredWorkspaceFolder[]): string {
 
 	if (targetConfigFolderURI.scheme === Schemas.file) {
-		const targetFolderPath = fsPath(targetConfigFolderURI);
+		const targetFolderPath = originalFSPath(targetConfigFolderURI);
 		// Convert path to relative path if the target config folder
 		// is a parent of the path.
 		if (isEqualOrParent(absoluteFolderPath, targetFolderPath, !isLinux)) {
@@ -213,7 +213,7 @@ export function rewriteWorkspaceFileForNewLocation(rawWorkspaceContents: string,
 		if (isRawFileWorkspaceFolder(folder)) {
 			if (sourceConfigFolder.scheme === Schemas.file) {
 				if (!isAbsolute(folder.path)) {
-					folder.path = resolve(fsPath(sourceConfigFolder), folder.path); // relative paths get resolved against the workspace location
+					folder.path = resolve(originalFSPath(sourceConfigFolder), folder.path); // relative paths get resolved against the workspace location
 				}
 				folder.path = massageFolderPathForWorkspace(folder.path, targetConfigFolder, storedWorkspace.folders);
 			}

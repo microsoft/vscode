@@ -33,7 +33,7 @@ export function basenameOrAuthority(resource: URI): string {
 export function isEqualOrParent(base: URI, parentCandidate: URI, ignoreCase = hasToIgnoreCase(base)): boolean {
 	if (base.scheme === parentCandidate.scheme) {
 		if (base.scheme === Schemas.file) {
-			return extpath.isEqualOrParent(fsPath(base), fsPath(parentCandidate), ignoreCase);
+			return extpath.isEqualOrParent(originalFSPath(base), originalFSPath(parentCandidate), ignoreCase);
 		}
 		if (isEqualAuthority(base.authority, parentCandidate.authority)) {
 			return extpath.isEqualOrParent(base.path, parentCandidate.path, ignoreCase, '/');
@@ -82,7 +82,7 @@ export function dirname(resource: URI): URI {
 		return resource;
 	}
 	if (resource.scheme === Schemas.file) {
-		return URI.file(paths.dirname(fsPath(resource)));
+		return URI.file(paths.dirname(originalFSPath(resource)));
 	}
 	let dirname = paths.posix.dirname(resource.path);
 	if (resource.authority && dirname.length && dirname.charCodeAt(0) !== CharCode.Slash) {
@@ -104,7 +104,7 @@ export function dirname(resource: URI): URI {
 export function joinPath(resource: URI, ...pathFragment: string[]): URI {
 	let joinedPath: string;
 	if (resource.scheme === Schemas.file) {
-		joinedPath = URI.file(paths.join(fsPath(resource), ...pathFragment)).path;
+		joinedPath = URI.file(paths.join(originalFSPath(resource), ...pathFragment)).path;
 	} else {
 		joinedPath = paths.posix.join(resource.path || '/', ...pathFragment);
 	}
@@ -125,7 +125,7 @@ export function normalizePath(resource: URI): URI {
 	}
 	let normalizedPath: string;
 	if (resource.scheme === Schemas.file) {
-		normalizedPath = URI.file(paths.normalize(fsPath(resource))).path;
+		normalizedPath = URI.file(paths.normalize(originalFSPath(resource))).path;
 	} else {
 		normalizedPath = paths.posix.normalize(resource.path);
 	}
@@ -138,7 +138,7 @@ export function normalizePath(resource: URI): URI {
  * Returns the fsPath of an URI where the drive letter is not normalized.
  * See #56403.
  */
-export function fsPath(uri: URI): string {
+export function originalFSPath(uri: URI): string {
 	let value: string;
 	const uriPath = uri.path;
 	if (uri.authority && uriPath.length > 1 && uri.scheme === 'file') {
@@ -173,7 +173,7 @@ export function isAbsolutePath(resource: URI): boolean {
  */
 export function hasTrailingPathSeparator(resource: URI): boolean {
 	if (resource.scheme === Schemas.file) {
-		const fsp = fsPath(resource);
+		const fsp = originalFSPath(resource);
 		return fsp.length > extpath.getRoot(fsp).length && fsp[fsp.length - 1] === paths.sep;
 	} else {
 		let p = resource.path;

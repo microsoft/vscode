@@ -34,7 +34,7 @@ import { normalizeNFC } from 'vs/base/common/normalization';
 import { URI } from 'vs/base/common/uri';
 import { Queue, timeout } from 'vs/base/common/async';
 import { exists } from 'vs/base/node/pfs';
-import { getComparisonKey, isEqual, normalizePath, basename as resourcesBasename, fsPath, hasTrailingPathSeparator, removeTrailingPathSeparator } from 'vs/base/common/resources';
+import { getComparisonKey, isEqual, normalizePath, basename as resourcesBasename, originalFSPath, hasTrailingPathSeparator, removeTrailingPathSeparator } from 'vs/base/common/resources';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 import { restoreWindowsState, WindowsStateStorageData, getWindowsStateStoreData } from 'vs/code/electron-main/windowsStateStorage';
 
@@ -1150,7 +1150,7 @@ export class WindowsManager implements IWindowsMainService {
 					}
 				} else {
 					if (workspaceToOpen.configPath.scheme === Schemas.file) {
-						cliArgs = [fsPath(workspaceToOpen.configPath)];
+						cliArgs = [originalFSPath(workspaceToOpen.configPath)];
 					} else {
 						fileUris = [workspaceToOpen.configPath.toString()];
 					}

@@ -64,6 +64,7 @@ import { ProxyIdentifier } from 'vs/workbench/services/extensions/node/proxyIden
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
 import * as vscode from 'vscode';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { originalFSPath } from 'vs/base/common/resources';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription, registry: ExtensionDescriptionRegistry, workspaceProvider: ExtHostWorkspaceProvider, configProvider: ExtHostConfigProvider): typeof vscode;
@@ -839,18 +840,6 @@ export function createApiFactory(
 			// functions
 		};
 	};
-}
-
-/**
- * Returns the original fs path (using the original casing for the drive letter)
- */
-export function originalFSPath(uri: URI): string {
-	const result = uri.fsPath;
-	if (/^[a-zA-Z]:/.test(result) && uri.path.charAt(1).toLowerCase() === result.charAt(0)) {
-		// Restore original drive letter casing
-		return uri.path.charAt(1) + result.substr(1);
-	}
-	return result;
 }
 
 class Extension<T> implements vscode.Extension<T> {

@@ -36,7 +36,7 @@ import { Uri } from 'vscode';
 import { createHash } from 'crypto';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
-import { fsPath } from 'vs/base/common/resources';
+import { originalFSPath } from 'vs/base/common/resources';
 import { isLinux } from 'vs/base/common/platform';
 import { IWorkspaceIdentifier } from 'vs/workbench/services/configuration/node/configuration';
 
@@ -1246,7 +1246,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 });
 
 function getWorkspaceId(configPath: URI): string {
-	let workspaceConfigPath = configPath.scheme === Schemas.file ? fsPath(configPath) : configPath.toString();
+	let workspaceConfigPath = configPath.scheme === Schemas.file ? originalFSPath(configPath) : configPath.toString();
 	if (!isLinux) {
 		workspaceConfigPath = workspaceConfigPath.toLowerCase(); // sanitize for platform file system
 	}
