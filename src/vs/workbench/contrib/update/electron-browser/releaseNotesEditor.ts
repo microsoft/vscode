@@ -26,6 +26,7 @@ import { WebviewEditorInput } from 'vs/workbench/contrib/webview/electron-browse
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 function renderBody(
 	body: string,
@@ -60,6 +61,7 @@ export class ReleaseNotesManager {
 		@IRequestService private readonly _requestService: IRequestService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IEditorService private readonly _editorService: IEditorService,
+		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 		@IWebviewEditorService private readonly _webviewEditorService: IWebviewEditorService,
 		@IExtensionService private readonly _extensionService: IExtensionService
 	) {
@@ -87,7 +89,7 @@ export class ReleaseNotesManager {
 		if (this._currentReleaseNotes) {
 			this._currentReleaseNotes.setName(title);
 			this._currentReleaseNotes.html = html;
-			this._webviewEditorService.revealWebview(this._currentReleaseNotes, activeControl ? activeControl.group : undefined, false);
+			this._webviewEditorService.revealWebview(this._currentReleaseNotes, activeControl ? activeControl.group : this._editorGroupService.activeGroup, false);
 		} else {
 			this._currentReleaseNotes = this._webviewEditorService.createWebview(
 				'releaseNotes',
@@ -129,7 +131,7 @@ export class ReleaseNotesManager {
 					return unassigned;
 				}
 
-				return keybinding.getLabel();
+				return keybinding.getLabel() || unassigned;
 			};
 
 			const kbstyle = (match: string, kb: string) => {
@@ -145,7 +147,7 @@ export class ReleaseNotesManager {
 					return unassigned;
 				}
 
-				return resolvedKeybindings[0].getLabel();
+				return resolvedKeybindings[0].getLabel() || unassigned;
 			};
 
 			return text
@@ -157,7 +159,7 @@ export class ReleaseNotesManager {
 			this._releaseNotesCache[version] = this._requestService.request({ url }, CancellationToken.None)
 				.then(asText)
 				.then(text => {
-					if (!/^#\s/.test(text)) { // release notes always starts with `#` followed by whitespace
+					if (!text || !/^#\s/.test(text)) { // release notes always starts with `#` followed by whitespace
 						return Promise.reject(new Error('Invalid release notes'));
 					}
 
@@ -178,7 +180,7 @@ export class ReleaseNotesManager {
 	private async renderBody(text: string) {
 		const content = await this.renderContent(text);
 		const colorMap = TokenizationRegistry.getColorMap();
-		const css = generateTokensCSSForColorMap(colorMap);
+		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
 		const body = renderBody(content, css);
 		return body;
 	}
@@ -189,14 +191,16 @@ export class ReleaseNotesManager {
 	}
 
 	private async getRenderer(text: string): Promise<marked.Renderer> {
-		let result: Promise<ITokenizationSupport>[] = [];
+		let result: Promise<ITokenizationSupport | null>[] = [];
 		const renderer = new marked.Renderer();
 		renderer.code = (_code, lang) => {
 			const modeId = this._modeService.getModeIdForLanguageName(lang);
-			result.push(this._extensionService.whenInstalledExtensionsRegistered().then(_ => {
-				this._modeService.triggerMode(modeId);
-				return TokenizationRegistry.getPromise(modeId);
-			}));
+			if (modeId) {
+				result.push(this._extensionService.whenInstalledExtensionsRegistered().then<ITokenizationSupport | null>(() => {
+					this._modeService.triggerMode(modeId);
+					return TokenizationRegistry.getPromise(modeId);
+				}));
+			}
 			return '';
 		};
 
@@ -205,7 +209,7 @@ export class ReleaseNotesManager {
 
 		renderer.code = (code, lang) => {
 			const modeId = this._modeService.getModeIdForLanguageName(lang);
-			return `<code>${tokenizeToString(code, TokenizationRegistry.get(modeId))}</code>`;
+			return `<code>${tokenizeToString(code, modeId ? TokenizationRegistry.get(modeId) : undefined)}</code>`;
 		};
 		return renderer;
 	}

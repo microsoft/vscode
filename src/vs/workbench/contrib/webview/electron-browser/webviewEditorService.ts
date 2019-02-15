@@ -28,7 +28,7 @@ export interface IWebviewEditorService {
 		title: string,
 		showOptions: ICreateWebViewShowOptions,
 		options: WebviewInputOptions,
-		extensionLocation: URI,
+		extensionLocation: URI | undefined,
 		events: WebviewEvents
 	): WebviewEditorInput;
 
@@ -104,7 +104,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 		title: string,
 		showOptions: ICreateWebViewShowOptions,
 		options: vscode.WebviewOptions,
-		extensionLocation: URI,
+		extensionLocation: URI | undefined,
 		events: WebviewEvents
 	): WebviewEditorInput {
 		const webviewInput = this._instantiationService.createInstance(WebviewEditorInput, viewType, undefined, title, options, {}, events, extensionLocation, undefined);
