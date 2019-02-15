@@ -295,6 +295,7 @@ export class FileDialogService implements IFileDialogService {
 	showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
 		const schema = this.getFileSystemSchema(options);
 		if (schema !== Schemas.file) {
+			options.availableFileSystems = [schema, Schemas.file]; // always allow file as well
 			return this.saveRemoteResource(options);
 		}
 
