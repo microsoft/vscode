@@ -116,7 +116,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 	private currentSelectedFileMatch: FileMatch;
 
-	private readonly selectCurrentMatchEmitter: Emitter<string>;
+	private readonly selectCurrentMatchEmitter: Emitter<string | undefined>;
 	private delayedRefresh: Delayer<void>;
 	private changedWhileHidden: boolean;
 
@@ -704,7 +704,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	}
 
 	selectNextMatch(): void {
-		const [selected]: RenderableMatch[] = this.tree.getSelection();
+		const [selected] = this.tree.getSelection();
 
 		// Expand the initial selected node, if needed
 		if (selected instanceof FileMatch) {
@@ -742,7 +742,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	}
 
 	selectPreviousMatch(): void {
-		const [selected]: RenderableMatch[] = this.tree.getSelection();
+		const [selected] = this.tree.getSelection();
 		let navigator = this.tree.navigate(selected);
 
 		let prev = navigator.previous();
@@ -757,7 +757,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 				// This is complicated because .last will set the navigator to the last FileMatch,
 				// so expand it and FF to its last child
 				this.tree.expand(prev);
-				let tmp: RenderableMatch;
+				let tmp: RenderableMatch | null;
 				while (tmp = navigator.next()) {
 					prev = tmp;
 				}
@@ -967,7 +967,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		}
 	}
 
-	private getSearchTextFromEditor(allowUnselectedWord: boolean): string {
+	private getSearchTextFromEditor(allowUnselectedWord: boolean): string | null {
 		if (!this.editorService.activeEditor) {
 			return null;
 		}
@@ -985,7 +985,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			}
 		}
 
-		if (!isCodeEditor(activeTextEditorWidget)) {
+		if (!isCodeEditor(activeTextEditorWidget) || !activeTextEditorWidget.hasModel()) {
 			return null;
 		}
 

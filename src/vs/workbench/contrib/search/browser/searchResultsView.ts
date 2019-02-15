@@ -308,7 +308,7 @@ export class SearchAccessibilityProvider implements IAccessibilityProvider<Rende
 	) {
 	}
 
-	getAriaLabel(element: RenderableMatch): string {
+	getAriaLabel(element: RenderableMatch): string | null {
 		if (element instanceof BaseFolderMatch) {
 			return element.hasResource() ?
 				nls.localize('folderMatchAriaLabel', "{0} matches in folder root {1}, Search result", element.count(), element.name()) :
@@ -334,7 +334,7 @@ export class SearchAccessibilityProvider implements IAccessibilityProvider<Rende
 
 			return nls.localize('searchResultAria', "Found term {0} at column position {1} in line with text {2}", matchString, range.startColumn + 1, matchText);
 		}
-		return undefined;
+		return null;
 	}
 }
 

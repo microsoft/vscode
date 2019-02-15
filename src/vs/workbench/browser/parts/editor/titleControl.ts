@@ -217,7 +217,7 @@ export abstract class TitleControl extends Themable {
 		this.editorToolBarMenuDisposables = dispose(this.editorToolBarMenuDisposables);
 
 		// Update the resource context
-		this.resourceContext.set(toResource(this.group.activeEditor, { supportSideBySide: true }));
+		this.resourceContext.set(this.group.activeEditor ? toResource(this.group.activeEditor, { supportSideBySide: true }) : null);
 
 		// Editor actions require the editor control to be there, so we retrieve it via service
 		const activeControl = this.group.activeControl;
@@ -312,7 +312,7 @@ export abstract class TitleControl extends Themable {
 		});
 	}
 
-	private getKeybinding(action: IAction): ResolvedKeybinding {
+	private getKeybinding(action: IAction): ResolvedKeybinding | undefined {
 		return this.keybindingService.lookupKeybinding(action.id);
 	}
 
