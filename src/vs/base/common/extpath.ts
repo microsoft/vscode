@@ -21,6 +21,15 @@ function _isNormal(path: string, win: boolean): boolean {
 		: !_posixBadPath.test(path);
 }
 
+/**
+ * Takes a Windows OS path and changes backward slashes to forward slashes.
+ * This should only be done for OS paths from Windows (or user provided paths potentially from Windows).
+ * Using it on a Linux or MaxOS path might change it.
+ */
+export function toForwardSlashes(osPath: string) {
+	return osPath.replace(/[\\/]/g, '/');
+}
+
 export function normalize(path: undefined, toOSPath?: boolean): undefined;
 export function normalize(path: null, toOSPath?: boolean): null;
 export function normalize(path: string, toOSPath?: boolean): string;

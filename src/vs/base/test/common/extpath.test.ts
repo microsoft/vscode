@@ -8,6 +8,14 @@ import * as platform from 'vs/base/common/platform';
 
 suite('Paths', () => {
 
+	test('toForwardSlashes', () => {
+		assert.equal(extpath.toForwardSlashes('\\\\server\\share\\some\\path'), '//server/share/some/path');
+		assert.equal(extpath.toForwardSlashes('c:\\test'), 'c:/test');
+		assert.equal(extpath.toForwardSlashes('foo\\bar'), 'foo/bar');
+		assert.equal(extpath.toForwardSlashes('/user/far'), '/user/far');
+	});
+
+
 	test('normalize', () => {
 		assert.equal(extpath.normalize(''), '.');
 		assert.equal(extpath.normalize('.'), '.');
@@ -54,7 +62,7 @@ suite('Paths', () => {
 		assert.equal(extpath.join('/home/aeschli/workspaces/vscode/extensions/css', './syntaxes/css.plist'), '/home/aeschli/workspaces/vscode/extensions/css/syntaxes/css.plist');
 	});
 
-	test('getRootLength', () => {
+	test('getRoot', () => {
 
 		assert.equal(extpath.getRoot('/user/far'), '/');
 		assert.equal(extpath.getRoot('\\\\server\\share\\some\\path'), '//server/share/');
