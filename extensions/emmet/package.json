@@ -3,7 +3,8 @@
     "displayName": "Emmet",
     "description": "%description%",
     "version": "1.0.0",
-    "publisher": "vscode",
+	"publisher": "vscode",
+	"license": "MIT",
     "engines": {
         "vscode": "^1.13.0"
     },

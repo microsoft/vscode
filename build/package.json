@@ -1,6 +1,7 @@
 {
   "name": "code-oss-dev-build",
   "version": "1.0.0",
+  "license": "MIT",
   "devDependencies": {
     "@types/ansi-colors": "^3.2.0",
     "@types/azure": "0.9.19",
