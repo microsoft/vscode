@@ -832,6 +832,11 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.contribInfo.lightbulbEnabled,
 			'description': nls.localize('codeActions', "Enables the code action lightbulb in the editor.")
 		},
+		'editor.maxTokenizationLineLength': {
+			'type': 'integer',
+			'default': 20_000,
+			'description': nls.localize('maxTokenizationLineLength', "Configures length of lines, for which tokenization process will be skipped for performance reasons")
+		},
 		'editor.codeActionsOnSave': {
 			'type': 'object',
 			'properties': {
