@@ -2433,6 +2433,7 @@ declare namespace monaco.editor {
 		 * Controls if Find in Selection flag is turned on when multiple lines of text are selected in the editor.
 		 */
 		autoFindInSelection: boolean;
+		addExtraSpaceOnTop?: boolean;
 	}
 
 	/**
@@ -3169,6 +3170,7 @@ declare namespace monaco.editor {
 	export interface InternalEditorFindOptions {
 		readonly seedSearchStringFromSelection: boolean;
 		readonly autoFindInSelection: boolean;
+		readonly addExtraSpaceOnTop: boolean;
 	}
 
 	export interface InternalEditorHoverOptions {
