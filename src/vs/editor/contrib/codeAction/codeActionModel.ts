@@ -206,7 +206,7 @@ export class CodeActionModel {
 		}
 
 		if (this._state.type === CodeActionsState.Type.Triggered) {
-			// this._state.actions.cancel();
+			this._state.actions.cancel();
 		}
 		this.setState(CodeActionsState.Empty);
 
