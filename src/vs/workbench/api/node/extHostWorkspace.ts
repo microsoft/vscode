@@ -326,14 +326,17 @@ export class ExtHostWorkspaceProvider {
 	getRelativePath(pathOrUri: string | vscode.Uri, includeWorkspace?: boolean): string | undefined {
 
 		let resource: URI | undefined;
+		let path: string | undefined;
 		if (typeof pathOrUri === 'string') {
 			resource = URI.file(pathOrUri);
+			path = pathOrUri;
 		} else if (typeof pathOrUri !== 'undefined') {
 			resource = pathOrUri;
+			path = pathOrUri.fsPath;
 		}
 
 		if (!resource) {
-			return undefined;
+			return path;
 		}
 
 		const folder = this.getWorkspaceFolder(
@@ -342,7 +345,7 @@ export class ExtHostWorkspaceProvider {
 		);
 
 		if (!folder) {
-			return resource.fsPath;
+			return path;
 		}
 
 		if (typeof includeWorkspace === 'undefined' && this._actualWorkspace) {

@@ -195,7 +195,7 @@ export class ResourceGlobMatcher extends Disposable {
 		// but can match on "src/file.txt"
 		let resourcePathToMatch: string;
 		if (folder) {
-			resourcePathToMatch = relativePath(folder.uri, resource); // always uses forward slashes
+			resourcePathToMatch = relativePath(folder.uri, resource)!; // always uses forward slashes
 		} else {
 			resourcePathToMatch = resource.fsPath; // TODO@isidor: support non-file URIs
 		}
