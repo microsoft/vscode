@@ -68,6 +68,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 const $ = dom.$;
 
@@ -159,6 +160,11 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 				this.replInput.setModel(this.model);
 				this.updateInputDecoration();
 				this.refreshReplElements(true);
+			}
+		}));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('editor')) {
+				this.updateStyles();
 			}
 		}));
 	}
@@ -266,6 +272,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	}
 
 	layout(dimension: dom.Dimension): void {
+		this.updateStyles();
 		this.dimension = dimension;
 		if (this.tree) {
 			this.replDelegate.setWidth(dimension.width - 25, this.characterWidth);
@@ -367,6 +374,14 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		this.toDispose.push(this.tree.onContextMenu(e => this.onContextMenu(e)));
 		// Make sure to select the session if debugging is already active
 		this.selectSession();
+	}
+
+	updateStyles(): void {
+		super.updateStyles();
+		this.container.style.fontSize =
+			this.configurationService.getValue<IEditorOptions>('editor').fontSize + 'px';
+		this.container.style.fontFamily =
+			this.configurationService.getValue<IEditorOptions>('editor').fontFamily;
 	}
 
 	private createReplInput(container: HTMLElement): void {

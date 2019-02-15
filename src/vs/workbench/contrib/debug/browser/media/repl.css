@@ -12,7 +12,6 @@
 }
 
 .repl .surveyor {
-	font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback";
 	position: absolute;
 	display: inline-block;
 	width : auto;
@@ -41,11 +40,6 @@
 	cursor: pointer;
 }
 
-.monaco-workbench.mac .repl .repl-tree .input.expression,
-.monaco-workbench.mac .repl .repl-tree .output.expression {
-	font-size: 12px;
-}
-
 .repl .repl-tree .output.expression.value-and-source {
 	display: flex;
 }
@@ -63,13 +57,6 @@
 
 .repl .repl-tree .monaco-list-row {
 	cursor: text;
-}
-
-.monaco-workbench.windows .repl .repl-tree .monaco-list-row .input.expression,
-.monaco-workbench.windows .repl .repl-tree .monaco-list-row .output.expression,
-.monaco-workbench.linux .repl .repl-tree .monaco-list-row .input.expression,
-.monaco-workbench.linux .repl .repl-tree .monaco-list-row .output.expression {
-	font-size: 14px;
 }
 
 .repl .repl-tree .output.expression > .value {
