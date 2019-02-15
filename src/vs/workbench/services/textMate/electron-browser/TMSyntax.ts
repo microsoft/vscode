@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { Color } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -12,18 +11,21 @@ import * as resources from 'vs/base/common/resources';
 import * as types from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
-import { IState, ITokenizationSupport, LanguageId, TokenMetadata, TokenizationRegistry } from 'vs/editor/common/modes';
+import { IState, ITokenizationSupport, LanguageId, TokenizationRegistry, TokenMetadata } from 'vs/editor/common/modes';
 import { nullTokenize2 } from 'vs/editor/common/modes/nullMode';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import * as nls from 'vs/nls';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IEmbeddedLanguagesMap, ITMSyntaxExtensionPoint, TokenTypesContribution, grammarsExtPoint } from 'vs/workbench/services/textMate/electron-browser/TMGrammars';
 import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
+import { grammarsExtPoint, IEmbeddedLanguagesMap, ITMSyntaxExtensionPoint, TokenTypesContribution } from 'vs/workbench/services/textMate/electron-browser/TMGrammars';
 import { ITokenColorizationRule, IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IEmbeddedLanguagesMap as IEmbeddedLanguagesMap2, IGrammar, ITokenTypeMap, Registry, StackElement, StandardTokenType } from 'vscode-textmate';
+import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 export class TMScopeRegistry {
@@ -158,7 +160,8 @@ export class TextMateService extends Disposable implements ITextMateService {
 		@IWorkbenchThemeService private readonly _themeService: IWorkbenchThemeService,
 		@IFileService private readonly _fileService: IFileService,
 		@INotificationService private readonly _notificationService: INotificationService,
-		@ILogService private readonly _logService: ILogService
+		@ILogService private readonly _logService: ILogService,
+		@IConfigurationService private readonly _configurationService: ConfigurationService
 	) {
 		super();
 		this._styleElement = dom.createStyleSheet();
@@ -226,7 +229,7 @@ export class TextMateService extends Disposable implements ITextMateService {
 	private _registerDefinitionIfAvailable(modeId: string): void {
 		if (this._languageToScope.has(modeId)) {
 			const promise = this._createGrammar(modeId).then((r) => {
-				return new TMTokenization(this._scopeRegistry, r.languageId, r.grammar, r.initialState, r.containsEmbeddedLanguages, this._notificationService);
+				return new TMTokenization(this._scopeRegistry, r.languageId, r.grammar, r.initialState, r.containsEmbeddedLanguages, this._notificationService, this._configurationService);
 			}, e => {
 				onUnexpectedError(e);
 				return null;
@@ -442,15 +445,17 @@ class TMTokenization implements ITokenizationSupport {
 	private readonly _containsEmbeddedLanguages: boolean;
 	private readonly _seenLanguages: boolean[];
 	private readonly _initialState: StackElement;
+	private _maxTokenizationLineLength: number;
 	private _tokenizationWarningAlreadyShown: boolean;
 
-	constructor(scopeRegistry: TMScopeRegistry, languageId: LanguageId, grammar: IGrammar, initialState: StackElement, containsEmbeddedLanguages: boolean, @INotificationService private readonly notificationService: INotificationService) {
+	constructor(scopeRegistry: TMScopeRegistry, languageId: LanguageId, grammar: IGrammar, initialState: StackElement, containsEmbeddedLanguages: boolean, @INotificationService private readonly notificationService: INotificationService, @IConfigurationService readonly configurationService: IConfigurationService) {
 		this._scopeRegistry = scopeRegistry;
 		this._languageId = languageId;
 		this._grammar = grammar;
 		this._initialState = initialState;
 		this._containsEmbeddedLanguages = containsEmbeddedLanguages;
 		this._seenLanguages = [];
+		this._maxTokenizationLineLength = configurationService.getValue<number>('editor.maxTokenizationLineLength');
 	}
 
 	public getInitialState(): IState {
@@ -466,13 +471,13 @@ class TMTokenization implements ITokenizationSupport {
 			throw new Error('Unexpected: offsetDelta should be 0.');
 		}
 
-		// Do not attempt to tokenize if a line has over 20k
-		if (line.length >= 20000) {
+		// Do not attempt to tokenize if a line is too long
+		if (line.length >= this._maxTokenizationLineLength) {
 			if (!this._tokenizationWarningAlreadyShown) {
 				this._tokenizationWarningAlreadyShown = true;
-				this.notificationService.warn(nls.localize('too many characters', "Tokenization is skipped for lines longer than 20k characters for performance reasons."));
+				this.notificationService.warn(nls.localize('too many characters', 'Tokenization is skipped for long lines for performance reasons. The length of a long line can be set by configuring editor.maxTokenizationLineLength in settings'));
 			}
-			console.log(`Line (${line.substr(0, 15)}...): longer than 20k characters, tokenization skipped.`);
+			console.log(`Line (${line.substr(0, 15)}...): longer than ${this._maxTokenizationLineLength} characters, tokenization skipped.`);
 			return nullTokenize2(this._languageId, line, state, offsetDelta);
 		}
 
