@@ -62,12 +62,12 @@ export interface IExtensionHostProfileService {
 	readonly onDidChangeLastProfile: Event<void>;
 
 	readonly state: ProfileSessionState;
-	readonly lastProfile: IExtensionHostProfile;
+	readonly lastProfile: IExtensionHostProfile | null;
 
 	startProfiling(): void;
 	stopProfiling(): void;
 
-	getUnresponsiveProfile(extensionId: ExtensionIdentifier): IExtensionHostProfile;
+	getUnresponsiveProfile(extensionId: ExtensionIdentifier): IExtensionHostProfile | undefined;
 	setUnresponsiveProfile(extensionId: ExtensionIdentifier, profile: IExtensionHostProfile): void;
 }
 
