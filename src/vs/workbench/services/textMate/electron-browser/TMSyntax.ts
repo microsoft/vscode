@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { Color } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -11,22 +12,21 @@ import * as resources from 'vs/base/common/resources';
 import * as types from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
-import { IState, ITokenizationSupport, LanguageId, TokenizationRegistry, TokenMetadata } from 'vs/editor/common/modes';
+import { IState, ITokenizationSupport, LanguageId, TokenMetadata, TokenizationRegistry } from 'vs/editor/common/modes';
 import { nullTokenize2 } from 'vs/editor/common/modes/nullMode';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import * as nls from 'vs/nls';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { IEmbeddedLanguagesMap, ITMSyntaxExtensionPoint, TokenTypesContribution, grammarsExtPoint } from 'vs/workbench/services/textMate/electron-browser/TMGrammars';
 import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
-import { grammarsExtPoint, IEmbeddedLanguagesMap, ITMSyntaxExtensionPoint, TokenTypesContribution } from 'vs/workbench/services/textMate/electron-browser/TMGrammars';
 import { ITokenColorizationRule, IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IEmbeddedLanguagesMap as IEmbeddedLanguagesMap2, IGrammar, ITokenTypeMap, Registry, StackElement, StandardTokenType } from 'vscode-textmate';
+import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 export class TMScopeRegistry {
 
@@ -475,7 +475,7 @@ class TMTokenization implements ITokenizationSupport {
 		if (line.length >= this._maxTokenizationLineLength) {
 			if (!this._tokenizationWarningAlreadyShown) {
 				this._tokenizationWarningAlreadyShown = true;
-				this.notificationService.warn(nls.localize('too many characters', 'Tokenization is skipped for long lines for performance reasons. The length of a long line can be set by configuring editor.maxTokenizationLineLength in settings'));
+				this.notificationService.warn(nls.localize('too many characters', "Tokenization is skipped for long lines for performance reasons. The length of a long line can be configured via `editor.maxTokenizationLineLength`."));
 			}
 			console.log(`Line (${line.substr(0, 15)}...): longer than ${this._maxTokenizationLineLength} characters, tokenization skipped.`);
 			return nullTokenize2(this._languageId, line, state, offsetDelta);

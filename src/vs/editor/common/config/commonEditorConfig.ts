@@ -835,7 +835,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.maxTokenizationLineLength': {
 			'type': 'integer',
 			'default': 20_000,
-			'description': nls.localize('maxTokenizationLineLength', "Configures length of lines, for which tokenization process will be skipped for performance reasons")
+			'description': nls.localize('maxTokenizationLineLength', "Lines above this length will not be tokenized for performance reasons")
 		},
 		'editor.codeActionsOnSave': {
 			'type': 'object',
