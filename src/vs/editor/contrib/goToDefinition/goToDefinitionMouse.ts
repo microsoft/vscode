@@ -34,8 +34,8 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 	private editor: ICodeEditor;
 	private toUnhook: IDisposable[];
 	private decorations: string[];
-	private currentWordUnderMouse: IWordAtPosition;
-	private previousPromise: CancelablePromise<LocationLink[]>;
+	private currentWordUnderMouse: IWordAtPosition | null;
+	private previousPromise: CancelablePromise<LocationLink[] | null> | null;
 
 	constructor(
 		editor: ICodeEditor,
@@ -51,7 +51,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 		this.toUnhook.push(linkGesture);
 
 		this.toUnhook.push(linkGesture.onMouseMoveOrRelevantKeyDown(([mouseEvent, keyboardEvent]) => {
-			this.startFindDefinition(mouseEvent, keyboardEvent);
+			this.startFindDefinition(mouseEvent, keyboardEvent || undefined);
 		}));
 
 		this.toUnhook.push(linkGesture.onExecute((mouseEvent: ClickLinkMouseEvent) => {
@@ -79,20 +79,20 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 			return;
 		}
 
-		if (!this.isEnabled(mouseEvent, withKey)) {
+		if (!this.editor.hasModel() || !this.isEnabled(mouseEvent, withKey)) {
 			this.currentWordUnderMouse = null;
 			this.removeDecorations();
 			return;
 		}
 
 		// Find word at mouse position
-		let position = mouseEvent.target.position;
-		let word = position ? this.editor.getModel().getWordAtPosition(position) : null;
+		const word = mouseEvent.target.position ? this.editor.getModel().getWordAtPosition(mouseEvent.target.position) : null;
 		if (!word) {
 			this.currentWordUnderMouse = null;
 			this.removeDecorations();
 			return;
 		}
+		const position = mouseEvent.target.position!;
 
 		// Return early if word at position is still the same
 		if (this.currentWordUnderMouse && this.currentWordUnderMouse.startColumn === word.startColumn && this.currentWordUnderMouse.endColumn === word.endColumn && this.currentWordUnderMouse.word === word.word) {
@@ -158,9 +158,10 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 						wordRange = new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
 					}
 
+					const modeId = this.modeService.getModeIdByFilepathOrFirstLine(textEditorModel.uri.fsPath);
 					this.addDecoration(
 						wordRange,
-						new MarkdownString().appendCodeblock(this.modeService.getModeIdByFilepathOrFirstLine(textEditorModel.uri.fsPath), previewValue)
+						new MarkdownString().appendCodeblock(modeId ? modeId : '', previewValue)
 					);
 					ref.dispose();
 				});
@@ -274,10 +275,10 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 	}
 
 	private isEnabled(mouseEvent: ClickLinkMouseEvent, withKey?: ClickLinkKeyboardEvent): boolean {
-		return this.editor.getModel() &&
+		return this.editor.hasModel() &&
 			mouseEvent.isNoneOrSingleMouseDown &&
 			(mouseEvent.target.type === MouseTargetType.CONTENT_TEXT) &&
-			(mouseEvent.hasTriggerModifier || (withKey && withKey.keyCodeIsTriggerKey)) &&
+			(mouseEvent.hasTriggerModifier || (withKey ? withKey.keyCodeIsTriggerKey : false)) &&
 			DefinitionProviderRegistry.has(this.editor.getModel());
 	}
 
@@ -287,11 +288,11 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 			return Promise.resolve(null);
 		}
 
-		return getDefinitionsAtPosition(model, target.position, token);
+		return getDefinitionsAtPosition(model, target.position!, token);
 	}
 
 	private gotoDefinition(target: IMouseTarget, sideBySide: boolean): Promise<any> {
-		this.editor.setPosition(target.position);
+		this.editor.setPosition(target.position!);
 		const action = new DefinitionAction(new DefinitionActionConfig(sideBySide, false, true, false), { alias: undefined, label: undefined, id: undefined, precondition: undefined });
 		return this.editor.invokeWithinContext(accessor => action.run(accessor, this.editor));
 	}

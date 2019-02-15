@@ -7,7 +7,7 @@ import { mixin, deepClone } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as vscode from 'vscode';
-import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
+import { ExtHostWorkspace, ExtHostWorkspaceProvider } from 'vs/workbench/api/node/extHostWorkspace';
 import { ExtHostConfigurationShape, MainThreadConfigurationShape, IWorkspaceConfigurationChangeEventData, IConfigurationInitData } from './extHost.protocol';
 import { ConfigurationTarget as ExtHostConfigurationTarget } from './extHostTypes';
 import { IConfigurationData, ConfigurationTarget, IConfigurationModel } from 'vs/platform/configuration/common/configuration';
@@ -43,7 +43,7 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 	private readonly _proxy: MainThreadConfigurationShape;
 	private readonly _extHostWorkspace: ExtHostWorkspace;
 	private readonly _barrier: Barrier;
-	private _actual: ExtHostConfigProvider;
+	private _actual: ExtHostConfigProvider | null;
 
 	constructor(proxy: MainThreadConfigurationShape, extHostWorkspace: ExtHostWorkspace) {
 		this._proxy = proxy;
@@ -53,12 +53,14 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 	}
 
 	public getConfigProvider(): Promise<ExtHostConfigProvider> {
-		return this._barrier.wait().then(_ => this._actual);
+		return this._barrier.wait().then(_ => this._actual!);
 	}
 
 	$initializeConfiguration(data: IConfigurationInitData): void {
-		this._actual = new ExtHostConfigProvider(this._proxy, this._extHostWorkspace, data);
-		this._barrier.open();
+		this._extHostWorkspace.getWorkspaceProvider().then(workspaceProvider => {
+			this._actual = new ExtHostConfigProvider(this._proxy, workspaceProvider, data);
+			this._barrier.open();
+		});
 	}
 
 	$acceptConfigurationChanged(data: IConfigurationInitData, eventData: IWorkspaceConfigurationChangeEventData): void {
@@ -70,11 +72,11 @@ export class ExtHostConfigProvider {
 
 	private readonly _onDidChangeConfiguration = new Emitter<vscode.ConfigurationChangeEvent>();
 	private readonly _proxy: MainThreadConfigurationShape;
-	private readonly _extHostWorkspace: ExtHostWorkspace;
+	private readonly _extHostWorkspace: ExtHostWorkspaceProvider;
 	private _configurationScopes: { [key: string]: ConfigurationScope };
 	private _configuration: Configuration;
 
-	constructor(proxy: MainThreadConfigurationShape, extHostWorkspace: ExtHostWorkspace, data: IConfigurationInitData) {
+	constructor(proxy: MainThreadConfigurationShape, extHostWorkspace: ExtHostWorkspaceProvider, data: IConfigurationInitData) {
 		this._proxy = proxy;
 		this._extHostWorkspace = extHostWorkspace;
 		this._configuration = ExtHostConfigProvider.parse(data);
@@ -93,14 +95,14 @@ export class ExtHostConfigProvider {
 
 	getConfiguration(section?: string, resource?: URI, extensionId?: ExtensionIdentifier): vscode.WorkspaceConfiguration {
 		const config = this._toReadonlyValue(section
-			? lookUp(this._configuration.getValue(null, { resource }, this._extHostWorkspace.workspace), section)
-			: this._configuration.getValue(null, { resource }, this._extHostWorkspace.workspace));
+			? lookUp(this._configuration.getValue(undefined, { resource }, this._extHostWorkspace.workspace), section)
+			: this._configuration.getValue(undefined, { resource }, this._extHostWorkspace.workspace));
 
 		if (section) {
 			this._validateConfigurationAccess(section, resource, extensionId);
 		}
 
-		function parseConfigurationTarget(arg: boolean | ExtHostConfigurationTarget): ConfigurationTarget {
+		function parseConfigurationTarget(arg: boolean | ExtHostConfigurationTarget): ConfigurationTarget | null {
 			if (arg === undefined || arg === null) {
 				return null;
 			}
@@ -218,7 +220,7 @@ export class ExtHostConfigProvider {
 		return readonlyProxy(result);
 	}
 
-	private _validateConfigurationAccess(key: string, resource: URI, extensionId: ExtensionIdentifier): void {
+	private _validateConfigurationAccess(key: string, resource: URI | undefined, extensionId: ExtensionIdentifier): void {
 		const scope = OVERRIDE_PROPERTY_PATTERN.test(key) ? ConfigurationScope.RESOURCE : this._configurationScopes[key];
 		const extensionIdText = extensionId ? `[${extensionId.value}] ` : '';
 		if (ConfigurationScope.RESOURCE === scope) {

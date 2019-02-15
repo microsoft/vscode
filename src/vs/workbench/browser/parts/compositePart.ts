@@ -54,8 +54,8 @@ interface CompositeItem {
 
 export abstract class CompositePart<T extends Composite> extends Part {
 
-	protected _onDidCompositeOpen = this._register(new Emitter<{ composite: IComposite, focus: boolean }>());
-	protected _onDidCompositeClose = this._register(new Emitter<IComposite>());
+	protected readonly onDidCompositeOpen = this._register(new Emitter<{ composite: IComposite, focus: boolean }>());
+	protected readonly onDidCompositeClose = this._register(new Emitter<IComposite>());
 
 	protected toolBar: ToolBar;
 
@@ -84,7 +84,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		private defaultCompositeId: string,
 		private nameForTelemetry: string,
 		private compositeCSSClass: string,
-		private titleForegroundColor: string,
+		private titleForegroundColor: string | undefined,
 		id: string,
 		options: IPartOptions
 	) {
@@ -140,7 +140,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 				composite.focus();
 			}
 
-			this._onDidCompositeOpen.fire({ composite, focus });
+			this.onDidCompositeOpen.fire({ composite, focus });
 			return composite;
 		}
 
@@ -152,7 +152,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 		// Return with the composite that is being opened
 		if (composite) {
-			this._onDidCompositeOpen.fire({ composite, focus });
+			this.onDidCompositeOpen.fire({ composite, focus });
 		}
 
 		return composite;
@@ -375,7 +375,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 		// Empty Actions
 		this.toolBar.setActions([])();
-		this._onDidCompositeClose.fire(composite);
+		this.onDidCompositeClose.fire(composite);
 
 		return composite;
 	}
@@ -415,7 +415,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			},
 
 			updateStyles: () => {
-				titleLabel.style.color = $this.getColor($this.titleForegroundColor);
+				titleLabel.style.color = $this.titleForegroundColor ? $this.getColor($this.titleForegroundColor) : null;
 			}
 		};
 	}
@@ -464,10 +464,11 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		return AnchorAlignment.RIGHT;
 	}
 
-	layout(dimension: Dimension): Dimension[] {
-
+	layout(dimension: Dimension): Dimension[];
+	layout(width: number, height: number): void;
+	layout(dim1: Dimension | number, dim2?: number): Dimension[] | void {
 		// Pass to super
-		const sizes = super.layout(dimension);
+		const sizes = super.layout(dim1 instanceof Dimension ? dim1 : new Dimension(dim1, dim2!));
 
 		// Pass Contentsize to composite
 		this.contentAreaSize = sizes[1];
@@ -475,7 +476,9 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			this.activeComposite.layout(this.contentAreaSize);
 		}
 
-		return sizes;
+		if (dim1 instanceof Dimension) {
+			return sizes;
+		}
 	}
 
 	protected removeComposite(compositeId: string): boolean {

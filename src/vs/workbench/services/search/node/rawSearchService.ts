@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import * as gracefulFs from 'graceful-fs';
-import { join, sep } from 'path';
+import { join, sep } from 'vs/base/common/path';
 import * as arrays from 'vs/base/common/arrays';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -17,9 +17,8 @@ import * as strings from 'vs/base/common/strings';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { compareItemsByScore, IItemAccessor, prepareQuery, ScorerCache } from 'vs/base/parts/quickopen/common/quickOpenScorer';
 import { MAX_FILE_SIZE } from 'vs/platform/files/node/files';
-import { ICachedSearchStats, IFileQuery, IFileSearchStats, IFolderQuery, IProgress, IRawFileQuery, IRawQuery, IRawTextQuery, ITextQuery } from 'vs/platform/search/common/search';
+import { ICachedSearchStats, IFileQuery, IFileSearchStats, IFolderQuery, IProgress, IRawFileQuery, IRawQuery, IRawTextQuery, ITextQuery } from 'vs/workbench/services/search/common/search';
 import { Engine as FileSearchEngine } from 'vs/workbench/services/search/node/fileSearch';
-import { LegacyTextSearchService } from 'vs/workbench/services/search/node/legacy/rawLegacyTextSearchService';
 import { TextSearchEngineAdapter } from 'vs/workbench/services/search/node/textSearchAdapter';
 import { IFileSearchProgressItem, IRawFileMatch, IRawSearchService, ISearchEngine, ISearchEngineSuccess, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess } from './search';
 
@@ -32,7 +31,6 @@ export class SearchService implements IRawSearchService {
 
 	private static readonly BATCH_SIZE = 512;
 
-	private legacyTextSearchService = new LegacyTextSearchService();
 	private caches: { [cacheKey: string]: Cache; } = Object.create(null);
 
 	fileSearch(config: IRawFileQuery): Event<ISerializedSearchProgressItem | ISerializedSearchComplete> {
@@ -64,9 +62,7 @@ export class SearchService implements IRawSearchService {
 		const emitter = new Emitter<ISerializedSearchProgressItem | ISerializedSearchComplete>({
 			onFirstListenerDidAdd: () => {
 				promise = createCancelablePromise(token => {
-					return (rawQuery.useRipgrep ?
-						this.ripgrepTextSearch(query, p => emitter.fire(p), token) :
-						this.legacyTextSearchService.textSearch(query, p => emitter.fire(p), token));
+					return this.ripgrepTextSearch(query, p => emitter.fire(p), token);
 				});
 
 				promise.then(
@@ -393,6 +389,9 @@ export class SearchService implements IRawSearchService {
 			}
 			catch(reject?) {
 				return this.then(undefined, reject);
+			}
+			finally(onFinally) {
+				return promise.finally(onFinally);
 			}
 		};
 	}

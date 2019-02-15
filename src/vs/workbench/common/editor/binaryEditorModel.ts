@@ -16,7 +16,7 @@ export class BinaryEditorModel extends EditorModel {
 	private name: string;
 	private resource: URI;
 	private size: number;
-	private etag: string;
+	private etag?: string;
 	private mime: string;
 
 	constructor(
@@ -70,7 +70,7 @@ export class BinaryEditorModel extends EditorModel {
 	/**
 	 * The etag of the binary resource if known.
 	 */
-	getETag(): string {
+	getETag(): string | undefined {
 		return this.etag;
 	}
 

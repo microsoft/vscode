@@ -7,7 +7,7 @@ import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { values } from 'vs/base/common/map';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { IFileMatch, IRawFileMatch2, ISearchComplete, ISearchCompleteStats, ISearchProgressItem, ISearchResultProvider, ISearchService, QueryType, SearchProviderType, ITextQuery, IFileQuery } from 'vs/platform/search/common/search';
+import { IFileMatch, IRawFileMatch2, ISearchComplete, ISearchCompleteStats, ISearchProgressItem, ISearchResultProvider, ISearchService, QueryType, SearchProviderType, ITextQuery, IFileQuery } from 'vs/workbench/services/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { ExtHostContext, ExtHostSearchShape, IExtHostContext, MainContext, MainThreadSearchShape } from '../node/extHost.protocol';
@@ -50,11 +50,21 @@ export class MainThreadSearch implements MainThreadSearchShape {
 	}
 
 	$handleFileMatch(handle: number, session, data: UriComponents[]): void {
-		this._searchProvider.get(handle).handleFindMatch(session, data);
+		const provider = this._searchProvider.get(handle);
+		if (!provider) {
+			throw new Error('Got result for unknown provider');
+		}
+
+		provider.handleFindMatch(session, data);
 	}
 
 	$handleTextMatch(handle: number, session, data: IRawFileMatch2[]): void {
-		this._searchProvider.get(handle).handleFindMatch(session, data);
+		const provider = this._searchProvider.get(handle);
+		if (!provider) {
+			throw new Error('Got result for unknown provider');
+		}
+
+		provider.handleFindMatch(session, data);
 	}
 
 	$handleTelemetry(eventName: string, data: any): void {
@@ -77,7 +87,8 @@ class SearchOperation {
 	addMatch(match: IFileMatch): void {
 		if (this.matches.has(match.resource.toString())) {
 			// Merge with previous IFileMatches
-			this.matches.get(match.resource.toString()).results.push(...match.results);
+			// TODO@rob clean up text/file result types
+			this.matches.get(match.resource.toString())!.results!.push(...match.results!);
 		} else {
 			this.matches.set(match.resource.toString(), match);
 		}
@@ -107,15 +118,15 @@ class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 		dispose(this._registrations);
 	}
 
-	fileSearch(query: IFileQuery, token: CancellationToken = CancellationToken.None): Promise<ISearchComplete> {
-		return this.doSearch(query, null, token);
+	fileSearch(query: IFileQuery, token: CancellationToken = CancellationToken.None): Promise<ISearchComplete | undefined> {
+		return this.doSearch(query, undefined, token);
 	}
 
-	textSearch(query: ITextQuery, onProgress?: (p: ISearchProgressItem) => void, token: CancellationToken = CancellationToken.None): Promise<ISearchComplete> {
+	textSearch(query: ITextQuery, onProgress?: (p: ISearchProgressItem) => void, token: CancellationToken = CancellationToken.None): Promise<ISearchComplete | undefined> {
 		return this.doSearch(query, onProgress, token);
 	}
 
-	doSearch(query: ITextQuery | IFileQuery, onProgress?: (p: ISearchProgressItem) => void, token: CancellationToken = CancellationToken.None): Promise<ISearchComplete> {
+	doSearch(query: ITextQuery | IFileQuery, onProgress?: (p: ISearchProgressItem) => void, token: CancellationToken = CancellationToken.None): Promise<ISearchComplete | undefined> {
 		if (isFalsyOrEmpty(query.folderQueries)) {
 			return Promise.resolve(undefined);
 		}
@@ -141,12 +152,13 @@ class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 	}
 
 	handleFindMatch(session: number, dataOrUri: Array<UriComponents | IRawFileMatch2>): void {
-		if (!this._searches.has(session)) {
+		const searchOp = this._searches.get(session);
+
+		if (!searchOp) {
 			// ignore...
 			return;
 		}
 
-		const searchOp = this._searches.get(session);
 		dataOrUri.forEach(result => {
 			if ((<IRawFileMatch2>result).results) {
 				searchOp.addMatch({

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 export interface IProductConfiguration {
@@ -80,6 +80,7 @@ export interface IProductConfiguration {
 	};
 	logUploaderUrl: string;
 	portable?: string;
+	uiExtensions?: string[];
 }
 
 export interface ISurveyData {

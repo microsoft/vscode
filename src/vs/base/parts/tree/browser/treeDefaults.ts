@@ -555,7 +555,7 @@ export class DefaultTreestyler implements _.ITreeStyler {
 export class CollapseAllAction extends Action {
 
 	constructor(private viewer: _.ITree, enabled: boolean) {
-		super('vs.tree.collapse', nls.localize('collapse', "Collapse"), 'monaco-tree-action collapse-all', enabled);
+		super('vs.tree.collapse', nls.localize('collapse all', "Collapse All"), 'monaco-tree-action collapse-all', enabled);
 	}
 
 	public run(context?: any): Promise<any> {

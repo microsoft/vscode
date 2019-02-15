@@ -213,7 +213,7 @@ export class RemoteFileService extends FileService {
 		return resource.scheme === Schemas.file || this._provider.has(resource.scheme);
 	}
 
-	private _tryParseFileOperationResult(err: any): FileOperationResult {
+	private _tryParseFileOperationResult(err: any): FileOperationResult | undefined {
 		if (!(err instanceof Error)) {
 			return undefined;
 		}
@@ -221,27 +221,20 @@ export class RemoteFileService extends FileService {
 		if (!match) {
 			return undefined;
 		}
-		let res: FileOperationResult;
 		switch (match[1]) {
 			case 'EntryNotFound':
-				res = FileOperationResult.FILE_NOT_FOUND;
-				break;
+				return FileOperationResult.FILE_NOT_FOUND;
 			case 'EntryIsADirectory':
-				res = FileOperationResult.FILE_IS_DIRECTORY;
-				break;
+				return FileOperationResult.FILE_IS_DIRECTORY;
 			case 'NoPermissions':
-				res = FileOperationResult.FILE_PERMISSION_DENIED;
-				break;
+				return FileOperationResult.FILE_PERMISSION_DENIED;
 			case 'EntryExists':
-				res = FileOperationResult.FILE_MOVE_CONFLICT;
-				break;
+				return FileOperationResult.FILE_MOVE_CONFLICT;
 			case 'EntryNotADirectory':
 			default:
 				// todo
-				res = undefined;
-				break;
+				return undefined;
 		}
-		return res;
 	}
 
 	// --- stat
@@ -298,7 +291,7 @@ export class RemoteFileService extends FileService {
 
 		// soft-groupBy, keep order, don't rearrange/merge groups
 		let groups: Array<typeof toResolve> = [];
-		let group: typeof toResolve;
+		let group: typeof toResolve | undefined;
 		for (const request of toResolve) {
 			if (!group || group[0].resource.scheme !== request.resource.scheme) {
 				group = [];
@@ -386,7 +379,7 @@ export class RemoteFileService extends FileService {
 				return toDecodeStream(readable, decodeStreamOpts).then(data => {
 
 					if (options.acceptTextOnly && data.detected.seemsBinary) {
-						return Promise.reject(new FileOperationError(
+						return Promise.reject<any>(new FileOperationError(
 							localize('fileBinaryError', "File seems to be binary and cannot be opened as text"),
 							FileOperationResult.FILE_IS_BINARY,
 							options
@@ -512,7 +505,7 @@ export class RemoteFileService extends FileService {
 			return super.del(resource, options);
 		} else {
 			return this._withProvider(resource).then(RemoteFileService._throwIfFileSystemIsReadonly).then(provider => {
-				return provider.delete(resource, { recursive: options && options.recursive }).then(() => {
+				return provider.delete(resource, { recursive: !!(options && options.recursive) }).then(() => {
 					this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.DELETE));
 				});
 			});
@@ -563,17 +556,19 @@ export class RemoteFileService extends FileService {
 			: Promise.resolve(null);
 
 		return prepare.then(() => this._withProvider(source)).then(RemoteFileService._throwIfFileSystemIsReadonly).then(provider => {
-			return provider.rename(source, target, { overwrite }).then(() => {
-				return this.resolveFile(target);
-			}).then(fileStat => {
-				this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.MOVE, fileStat));
-				return fileStat;
-			}, err => {
-				const result = this._tryParseFileOperationResult(err);
-				if (result === FileOperationResult.FILE_MOVE_CONFLICT) {
-					throw new FileOperationError(localize('fileMoveConflict', "Unable to move/copy. File already exists at destination."), result);
-				}
-				throw err;
+			return RemoteFileService._mkdirp(provider, resources.dirname(target)).then(() => {
+				return provider.rename(source, target, { overwrite }).then(() => {
+					return this.resolveFile(target);
+				}).then(fileStat => {
+					this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.MOVE, fileStat));
+					return fileStat;
+				}, err => {
+					const result = this._tryParseFileOperationResult(err);
+					if (result === FileOperationResult.FILE_MOVE_CONFLICT) {
+						throw new FileOperationError(localize('fileMoveConflict', "Unable to move/copy. File already exists at destination."), result);
+					}
+					throw err;
+				});
 			});
 		});
 	}
@@ -598,7 +593,7 @@ export class RemoteFileService extends FileService {
 
 			if (source.scheme === target.scheme && (provider.capabilities & FileSystemProviderCapabilities.FileFolderCopy)) {
 				// good: provider supports copy withing scheme
-				return provider.copy(source, target, { overwrite }).then(() => {
+				return provider.copy(source, target, { overwrite: !!overwrite }).then(() => {
 					return this.resolveFile(target);
 				}).then(fileStat => {
 					this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.COPY, fileStat));
@@ -625,7 +620,7 @@ export class RemoteFileService extends FileService {
 							provider, target,
 							new StringSnapshot(content.value),
 							content.encoding,
-							{ create: true, overwrite }
+							{ create: true, overwrite: !!overwrite }
 						).then(fileStat => {
 							this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.COPY, fileStat));
 							return fileStat;

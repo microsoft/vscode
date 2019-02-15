@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-import { workspace, window, languages, commands, ExtensionContext, extensions, Uri, LanguageConfiguration, Diagnostic, StatusBarAlignment, TextEditor } from 'vscode';
+import { workspace, window, languages, commands, ExtensionContext, extensions, Uri, LanguageConfiguration, Diagnostic, StatusBarAlignment, TextEditor, TextDocument, Position, SelectionRange } from 'vscode';
 import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification, HandleDiagnosticsSignature } from 'vscode-languageclient';
 import TelemetryReporter from 'vscode-extension-telemetry';
 
@@ -193,7 +193,33 @@ export function activate(context: ExtensionContext) {
 		toDispose.push(commands.registerCommand('_json.retryResolveSchema', handleRetryResolveSchemaCommand));
 
 		client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociation(context));
+
+		extensions.onDidChange(_ => {
+			client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociation(context));
+		});
+
+		documentSelector.forEach(selector => {
+			toDispose.push(languages.registerSelectionRangeProvider(selector, {
+				async provideSelectionRanges(document: TextDocument, positions: Position[]): Promise<SelectionRange[][]> {
+					const textDocument = client.code2ProtocolConverter.asTextDocumentIdentifier(document);
+					const rawResult = await client.sendRequest<SelectionRange[][]>('$/textDocument/selectionRanges', { textDocument, positions: positions.map(client.code2ProtocolConverter.asPosition) });
+					if (Array.isArray(rawResult)) {
+						return rawResult.map(rawSelectionRanges => {
+							return rawSelectionRanges.map(selectionRange => {
+								return {
+									range: client.protocol2CodeConverter.asRange(selectionRange.range),
+									kind: selectionRange.kind
+								};
+							});
+						});
+					}
+					return [];
+				}
+			}));
+		});
 	});
+
+
 
 	let languageConfiguration: LanguageConfiguration = {
 		wordPattern: /("(?:[^\\\"]*(?:\\.)?)*"?)|[^\s{}\[\],:]+/,

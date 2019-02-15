@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'vs/base/common/paths';
+import * as extpath from 'vs/base/common/extpath';
 import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { guessMimeTypes } from 'vs/base/common/mime';
@@ -29,7 +29,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { isLinux } from 'vs/base/common/platform';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
-import { isEqual, isEqualOrParent } from 'vs/base/common/resources';
+import { isEqual, isEqualOrParent, extname, basename } from 'vs/base/common/resources';
 import { onUnexpectedError } from 'vs/base/common/errors';
 
 /**
@@ -45,8 +45,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private static saveErrorHandler: ISaveErrorHandler;
 	static setSaveErrorHandler(handler: ISaveErrorHandler): void { TextFileEditorModel.saveErrorHandler = handler; }
 
-	private static saveParticipant: ISaveParticipant;
-	static setSaveParticipant(handler: ISaveParticipant): void { TextFileEditorModel.saveParticipant = handler; }
+	private static saveParticipant: ISaveParticipant | null;
+	static setSaveParticipant(handler: ISaveParticipant | null): void { TextFileEditorModel.saveParticipant = handler; }
 
 	private readonly _onDidContentChange: Emitter<StateChange> = this._register(new Emitter<StateChange>());
 	get onDidContentChange(): Event<StateChange> { return this._onDidContentChange.event; }
@@ -62,9 +62,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private bufferSavedVersionId: number;
 	private lastResolvedDiskStat: IFileStat;
 	private blockModelContentChange: boolean;
-	private autoSaveAfterMillies: number;
+	private autoSaveAfterMillies?: number;
 	private autoSaveAfterMilliesEnabled: boolean;
-	private autoSaveDisposable: IDisposable;
+	private autoSaveDisposable?: IDisposable;
 	private contentChangeEventScheduler: RunOnceScheduler;
 	private orphanedChangeEventScheduler: RunOnceScheduler;
 	private saveSequentializer: SaveSequentializer;
@@ -129,7 +129,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	private onFileChanges(e: FileChangesEvent): void {
 		let fileEventImpactsModel = false;
-		let newInOrphanModeGuess: boolean;
+		let newInOrphanModeGuess: boolean | undefined;
 
 		// If we are currently orphaned, we check if the model file was added back
 		if (this.inOrphanMode) {
@@ -215,7 +215,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// Unset flags
 		const undo = this.setDirty(false);
 
-		let loadPromise: Promise<TextFileEditorModel>;
+		let loadPromise: Promise<any>;
 		if (soft) {
 			loadPromise = Promise.resolve();
 		} else {
@@ -235,7 +235,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		});
 	}
 
-	load(options?: ILoadOptions): Promise<TextFileEditorModel> {
+	load(options?: ILoadOptions): Promise<ITextFileEditorModel> {
 		this.logService.trace('load() - enter', this.resource);
 
 		// It is very important to not reload the model when the model is dirty.
@@ -268,7 +268,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			if (!!backup) {
 				const content: IRawTextContent = {
 					resource: this.resource,
-					name: path.basename(this.resource.fsPath),
+					name: basename(this.resource),
 					mtime: Date.now(),
 					etag: undefined,
 					value: createTextBufferFactory(''), /* will be filled later from backup */
@@ -289,7 +289,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		const allowBinary = this.isResolved() /* always allow if we resolved previously */ || (options && options.allowBinary);
 
 		// Decide on etag
-		let etag: string;
+		let etag: string | undefined;
 		if (forceReadFromDisk) {
 			etag = undefined; // reset ETag if we enforce to read from disk
 		} else if (this.lastResolvedDiskStat) {
@@ -491,7 +491,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.backupFileService.resolveBackupContent(backup).then(backupContent => backupContent, error => null /* ignore errors */);
 	}
 
-	protected getOrCreateMode(modeService: IModeService, preferredModeIds: string, firstLineText?: string): ILanguageSelection {
+	protected getOrCreateMode(modeService: IModeService, preferredModeIds: string | undefined, firstLineText?: string): ILanguageSelection {
 		return modeService.createByFilepathOrFirstLine(this.resource.fsPath, firstLineText);
 	}
 
@@ -769,7 +769,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	private getTypeIfSettings(): string {
-		if (path.extname(this.resource.fsPath) !== '.json') {
+		if (extname(this.resource) !== '.json') {
 			return '';
 		}
 
@@ -784,12 +784,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		// Check for locale file
-		if (isEqual(this.resource, URI.file(path.join(this.environmentService.appSettingsHome, 'locale.json')), !isLinux)) {
+		if (isEqual(this.resource, URI.file(extpath.join(this.environmentService.appSettingsHome, 'locale.json')), !isLinux)) {
 			return 'locale';
 		}
 
 		// Check for snippets
-		if (isEqualOrParent(this.resource, URI.file(path.join(this.environmentService.appSettingsHome, 'snippets')))) {
+		if (isEqualOrParent(this.resource, URI.file(extpath.join(this.environmentService.appSettingsHome, 'snippets')))) {
 			return 'snippets';
 		}
 
@@ -797,7 +797,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		const folders = this.contextService.getWorkspace().folders;
 		for (const folder of folders) {
 			if (isEqualOrParent(this.resource, folder.toResource('.vscode'))) {
-				const filename = path.basename(this.resource.fsPath);
+				const filename = basename(this.resource);
 				if (TextFileEditorModel.WHITELIST_WORKSPACE_JSON.indexOf(filename) > -1) {
 					return `.vscode/${filename}`;
 				}
@@ -808,8 +808,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	private getTelemetryData(reason: number): Object {
-		const ext = path.extname(this.resource.fsPath);
-		const fileName = path.basename(this.resource.fsPath);
+		const ext = extname(this.resource);
+		const fileName = basename(this.resource);
 		const telemetryData = {
 			mimeType: guessMimeTypes(this.resource.fsPath).join(', '),
 			ext,
@@ -914,7 +914,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.lastSaveAttemptTime;
 	}
 
-	getETag(): string {
+	getETag(): string | null {
 		return this.lastResolvedDiskStat ? this.lastResolvedDiskStat.etag : null;
 	}
 
@@ -1004,7 +1004,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	isReadonly(): boolean {
-		return this.lastResolvedDiskStat && this.lastResolvedDiskStat.isReadonly;
+		return !!(this.lastResolvedDiskStat && this.lastResolvedDiskStat.isReadonly);
 	}
 
 	isDisposed(): boolean {
@@ -1046,8 +1046,8 @@ interface ISaveOperation {
 }
 
 export class SaveSequentializer {
-	private _pendingSave: IPendingSave;
-	private _nextSave: ISaveOperation;
+	private _pendingSave?: IPendingSave;
+	private _nextSave?: ISaveOperation;
 
 	hasPendingSave(versionId?: number): boolean {
 		if (!this._pendingSave) {
@@ -1061,7 +1061,7 @@ export class SaveSequentializer {
 		return !!this._pendingSave;
 	}
 
-	get pendingSave(): Promise<void> {
+	get pendingSave(): Promise<void> | undefined {
 		return this._pendingSave ? this._pendingSave.promise : undefined;
 	}
 
@@ -1100,8 +1100,8 @@ export class SaveSequentializer {
 		// so that we can return a promise that completes when the save operation
 		// has completed.
 		if (!this._nextSave) {
-			let promiseResolve: () => void;
-			let promiseReject: (error: Error) => void;
+			let promiseResolve: (() => void) | undefined;
+			let promiseReject: ((error: Error) => void) | undefined;
 			const promise = new Promise<void>((resolve, reject) => {
 				promiseResolve = resolve;
 				promiseReject = reject;
@@ -1129,6 +1129,6 @@ class DefaultSaveErrorHandler implements ISaveErrorHandler {
 	constructor(@INotificationService private readonly notificationService: INotificationService) { }
 
 	onSaveError(error: any, model: TextFileEditorModel): void {
-		this.notificationService.error(nls.localize('genericSaveError', "Failed to save '{0}': {1}", path.basename(model.getResource().fsPath), toErrorMessage(error, false)));
+		this.notificationService.error(nls.localize('genericSaveError', "Failed to save '{0}': {1}", basename(model.getResource()), toErrorMessage(error, false)));
 	}
 }

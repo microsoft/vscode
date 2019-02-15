@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/panelpart';
 import { IAction } from 'vs/base/common/actions';
-import { Event } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IPanel } from 'vs/workbench/common/panel';
@@ -32,6 +32,8 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { ISerializableView } from 'vs/base/browser/ui/grid/grid';
+import { LayoutPriority } from 'vs/base/browser/ui/grid/gridview';
 
 export const ActivePanelContext = new RawContextKey<string>('activePanel', '');
 export const PanelFocusContext = new RawContextKey<boolean>('panelFocus', false);
@@ -39,11 +41,11 @@ export const PanelFocusContext = new RawContextKey<boolean>('panelFocus', false)
 interface ICachedPanel {
 	id: string;
 	pinned: boolean;
-	order: number;
+	order?: number;
 	visible: boolean;
 }
 
-export class PanelPart extends CompositePart<Panel> implements IPanelService {
+export class PanelPart extends CompositePart<Panel> implements IPanelService, ISerializableView {
 
 	static readonly activePanelSettingsKey = 'workbench.panelpart.activepanelid';
 
@@ -51,6 +53,18 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	private static readonly MIN_COMPOSITE_BAR_WIDTH = 50;
 
 	_serviceBrand: any;
+
+	element: HTMLElement;
+
+	readonly minimumWidth: number = 300;
+	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
+	readonly minimumHeight: number = 77;
+	readonly maximumHeight: number = Number.POSITIVE_INFINITY;
+	readonly snapSize: number = 50;
+	readonly priority: LayoutPriority = LayoutPriority.Low;
+
+	private _onDidChange = this._register(new Emitter<{ width: number; height: number; }>());
+	get onDidChange(): Event<{ width: number, height: number }> { return this._onDidChange.event; }
 
 	private activePanelContextKey: IContextKey<string>;
 	private panelFocusContextKey: IContextKey<boolean>;
@@ -86,7 +100,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			Registry.as<PanelRegistry>(PanelExtensions.Panels).getDefaultPanelId(),
 			'panel',
 			'panel',
-			null,
+			undefined,
 			id,
 			{ hasTitle: true }
 		);
@@ -129,6 +143,8 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	}
 
 	create(parent: HTMLElement): void {
+		this.element = parent;
+
 		super.create(parent);
 
 		const focusTracker = trackFocus(parent);
@@ -179,11 +195,11 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	}
 
 	get onDidPanelOpen(): Event<{ panel: IPanel, focus: boolean }> {
-		return Event.map(this._onDidCompositeOpen.event, compositeOpen => ({ panel: compositeOpen.composite, focus: compositeOpen.focus }));
+		return Event.map(this.onDidCompositeOpen.event, compositeOpen => ({ panel: compositeOpen.composite, focus: compositeOpen.focus }));
 	}
 
 	get onDidPanelClose(): Event<IPanel> {
-		return this._onDidCompositeClose.event;
+		return this.onDidCompositeClose.event;
 	}
 
 	updateStyles(): void {
@@ -194,10 +210,12 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		container.style.borderLeftColor = this.getColor(PANEL_BORDER) || this.getColor(contrastBorder);
 
 		const title = this.getTitleArea();
-		title.style.borderTopColor = this.getColor(PANEL_BORDER) || this.getColor(contrastBorder);
+		if (title) {
+			title.style.borderTopColor = this.getColor(PANEL_BORDER) || this.getColor(contrastBorder);
+		}
 	}
 
-	openPanel(id: string, focus?: boolean): Panel {
+	openPanel(id: string, focus?: boolean): Panel | null {
 		if (this.blockOpeningPanel) {
 			return null; // Workaround against a potential race condition
 		}
@@ -212,20 +230,20 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			}
 		}
 
-		return this.openComposite(id, focus);
+		return this.openComposite(id, focus) || null;
 	}
 
 	showActivity(panelId: string, badge: IBadge, clazz?: string): IDisposable {
 		return this.compositeBar.showActivity(panelId, badge, clazz);
 	}
 
-	private getPanel(panelId: string): IPanelIdentifier {
+	private getPanel(panelId: string): IPanelIdentifier | undefined {
 		return this.getPanels().filter(p => p.id === panelId).pop();
 	}
 
 	getPanels(): PanelDescriptor[] {
 		return Registry.as<PanelRegistry>(PanelExtensions.Panels).getPanels()
-			.sort((v1, v2) => v1.order - v2.order);
+			.sort((v1, v2) => typeof v1.order === 'number' && typeof v2.order === 'number' ? v1.order - v2.order : NaN);
 	}
 
 	getPinnedPanels(): PanelDescriptor[] {
@@ -242,7 +260,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		];
 	}
 
-	getActivePanel(): IPanel {
+	getActivePanel(): IPanel | null {
 		return this.getActiveComposite();
 	}
 
@@ -271,21 +289,32 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		};
 	}
 
-	layout(dimension: Dimension): Dimension[] {
+	layout(dimension: Dimension): Dimension[];
+	layout(width: number, height: number): void;
+	layout(dim1: Dimension | number, dim2?: number): Dimension[] | void {
 		if (!this.partService.isVisible(Parts.PANEL_PART)) {
-			return [dimension];
+			if (dim1 instanceof Dimension) {
+				return [dim1];
+			}
+
+			return;
 		}
+
+		const { width, height } = dim1 instanceof Dimension ? dim1 : { width: dim1, height: dim2 };
 
 		if (this.partService.getPanelPosition() === Position.RIGHT) {
 			// Take into account the 1px border when layouting
-			this.dimension = new Dimension(dimension.width - 1, dimension.height);
+			this.dimension = new Dimension(width - 1, height!);
 		} else {
-			this.dimension = dimension;
+			this.dimension = new Dimension(width, height!);
 		}
-		const sizes = super.layout(this.dimension);
+
+		const sizes = super.layout(this.dimension.width, this.dimension.height);
 		this.layoutCompositeBar();
 
-		return sizes;
+		if (dim1 instanceof Dimension) {
+			return sizes;
+		}
 	}
 
 	private layoutCompositeBar(): void {
@@ -386,7 +415,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		return cachedPanels;
 	}
 
-	private _cachedPanelsValue: string;
+	private _cachedPanelsValue: string | null;
 	private get cachedPanelsValue(): string {
 		if (!this._cachedPanelsValue) {
 			this._cachedPanelsValue = this.getStoredCachedPanelsValue();
@@ -408,6 +437,12 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	private setStoredCachedViewletsValue(value: string): void {
 		this.storageService.store(PanelPart.PINNED_PANELS, value, StorageScope.GLOBAL);
 	}
+
+	toJSON(): object {
+		return {
+			type: Parts.PANEL_PART
+		};
+	}
 }
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
@@ -418,9 +453,9 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const panelBackground = theme.getColor(PANEL_BACKGROUND);
 	if (panelBackground && panelBackground !== theme.getColor(editorBackground)) {
 		collector.addRule(`
-			.monaco-workbench > .part.panel > .content .monaco-editor,
-			.monaco-workbench > .part.panel > .content .monaco-editor .margin,
-			.monaco-workbench > .part.panel > .content .monaco-editor .monaco-editor-background {
+			.monaco-workbench .part.panel > .content .monaco-editor,
+			.monaco-workbench .part.panel > .content .monaco-editor .margin,
+			.monaco-workbench .part.panel > .content .monaco-editor .monaco-editor-background {
 				background-color: ${panelBackground};
 			}
 		`);
@@ -431,7 +466,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const titleActiveBorder = theme.getColor(PANEL_ACTIVE_TITLE_BORDER);
 	if (titleActive || titleActiveBorder) {
 		collector.addRule(`
-			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label {
+			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label {
 				color: ${titleActive} !important;
 				border-bottom-color: ${titleActiveBorder} !important;
 			}
@@ -442,14 +477,14 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const focusBorderColor = theme.getColor(focusBorder);
 	if (focusBorderColor) {
 		collector.addRule(`
-			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus .action-label {
+			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus .action-label {
 				color: ${titleActive} !important;
 				border-bottom-color: ${focusBorderColor} !important;
 				border-bottom: 1px solid;
 			}
 			`);
 		collector.addRule(`
-			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus {
+			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus {
 				outline: none;
 			}
 			`);
@@ -461,8 +496,8 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		const outline = theme.getColor(activeContrastBorder);
 
 		collector.addRule(`
-			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked .action-label,
-			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label:hover {
+			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked .action-label,
+			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label:hover {
 				outline-color: ${outline};
 				outline-width: 1px;
 				outline-style: solid;
@@ -471,7 +506,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 				outline-offset: 1px;
 			}
 
-			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:not(.checked) .action-label:hover {
+			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:not(.checked) .action-label:hover {
 				outline-style: dashed;
 			}
 		`);

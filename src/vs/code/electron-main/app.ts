@@ -6,7 +6,7 @@
 import { app, ipcMain as ipc, systemPreferences, shell, Event, contentTracing, protocol, powerMonitor } from 'electron';
 import { IProcessEnvironment, isWindows, isMacintosh } from 'vs/base/common/platform';
 import { WindowsManager } from 'vs/code/electron-main/windows';
-import { IWindowsService, OpenContext, ActiveWindowManager } from 'vs/platform/windows/common/windows';
+import { IWindowsService, OpenContext, ActiveWindowManager, IURIToOpen } from 'vs/platform/windows/common/windows';
 import { WindowsChannel } from 'vs/platform/windows/node/windowsIpc';
 import { WindowsService } from 'vs/platform/windows/electron-main/windowsService';
 import { ILifecycleService, LifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
@@ -16,7 +16,6 @@ import { UpdateChannel } from 'vs/platform/update/node/updateIpc';
 import { Server as ElectronIPCServer } from 'vs/base/parts/ipc/electron-main/ipc.electron-main';
 import { Server, connect, Client } from 'vs/base/parts/ipc/node/ipc.net';
 import { SharedProcess } from 'vs/code/electron-main/sharedProcess';
-import { Mutex } from 'windows-mutex';
 import { LaunchService, LaunchChannel, ILaunchService } from 'vs/platform/launch/electron-main/launchService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -64,8 +63,9 @@ import { hasArgs } from 'vs/platform/environment/node/argv';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { registerContextMenuListener } from 'vs/base/parts/contextmenu/electron-main/contextmenu';
 import { storeBackgroundColor } from 'vs/code/electron-main/theme';
-import { nativeSep, join } from 'vs/base/common/paths';
+import { join } from 'vs/base/common/extpath';
 import { homedir } from 'os';
+import { sep } from 'vs/base/common/path';
 import { localize } from 'vs/nls';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from 'vs/platform/remote/node/remoteAgentFileSystemChannel';
@@ -155,7 +155,7 @@ export class CodeApplication extends Disposable {
 					const srcUri = URI.parse(source).fsPath.toLowerCase();
 					const rootUri = URI.file(this.environmentService.appRoot).fsPath.toLowerCase();
 
-					return startsWith(srcUri, rootUri + nativeSep);
+					return startsWith(srcUri, rootUri + sep);
 				};
 
 				// Ensure defaults
@@ -188,14 +188,14 @@ export class CodeApplication extends Disposable {
 			});
 		});
 
-		let macOpenFileURIs: URI[] = [];
+		let macOpenFileURIs: IURIToOpen[] = [];
 		let runningTimeout: any = null;
 		app.on('open-file', (event: Event, path: string) => {
 			this.logService.trace('App#open-file: ', path);
 			event.preventDefault();
 
 			// Keep in array because more might come!
-			macOpenFileURIs.push(URI.file(path));
+			macOpenFileURIs.push({ uri: URI.file(path) });
 
 			// Clear previous handler if any
 			if (runningTimeout !== null) {
@@ -484,22 +484,22 @@ export class CodeApplication extends Disposable {
 			// written from the main process once.
 
 			const telemetryInstanceId = 'telemetry.instanceId';
-			const instanceId = storageMainService.get(telemetryInstanceId, null);
-			if (instanceId === null) {
+			const instanceId = storageMainService.get(telemetryInstanceId, undefined);
+			if (instanceId === undefined) {
 				storageMainService.store(telemetryInstanceId, generateUuid());
 			}
 
 			const telemetryFirstSessionDate = 'telemetry.firstSessionDate';
-			const firstSessionDate = storageMainService.get(telemetryFirstSessionDate, null);
-			if (firstSessionDate === null) {
+			const firstSessionDate = storageMainService.get(telemetryFirstSessionDate, undefined);
+			if (firstSessionDate === undefined) {
 				storageMainService.store(telemetryFirstSessionDate, new Date().toUTCString());
 			}
 
 			const telemetryCurrentSessionDate = 'telemetry.currentSessionDate';
 			const telemetryLastSessionDate = 'telemetry.lastSessionDate';
-			const lastSessionDate = storageMainService.get(telemetryCurrentSessionDate, null); // previous session date was the "current" one at that time
+			const lastSessionDate = storageMainService.get(telemetryCurrentSessionDate, undefined); // previous session date was the "current" one at that time
 			const currentSessionDate = new Date().toUTCString(); // current session date is "now"
-			storageMainService.store(telemetryLastSessionDate, lastSessionDate);
+			storageMainService.store(telemetryLastSessionDate, typeof lastSessionDate === 'undefined' ? null : lastSessionDate);
 			storageMainService.store(telemetryCurrentSessionDate, currentSessionDate);
 		});
 	}
@@ -590,7 +590,7 @@ export class CodeApplication extends Disposable {
 		// Watch Electron URLs and forward them to the UrlService
 		const args = this.environmentService.args;
 		const urls = args['open-url'] ? args._urls : [];
-		const urlListener = new ElectronURLListener(urls, urlService, this.windowsMainService);
+		const urlListener = new ElectronURLListener(urls || [], urlService, this.windowsMainService);
 		this._register(urlListener);
 
 		this.windowsMainService.ready(this.userEnv);
@@ -607,7 +607,7 @@ export class CodeApplication extends Disposable {
 		}
 
 		if (macOpenFiles && macOpenFiles.length && !hasCliArgs && !hasFolderURIs && !hasFileURIs) {
-			return this.windowsMainService.open({ context: OpenContext.DOCK, cli: args, urisToOpen: macOpenFiles.map(file => URI.file(file)), initialStartup: true }); // mac: open-file event received on startup
+			return this.windowsMainService.open({ context: OpenContext.DOCK, cli: args, urisToOpen: macOpenFiles.map(file => ({ uri: URI.file(file) })), initialStartup: true }); // mac: open-file event received on startup
 		}
 
 		return this.windowsMainService.open({ context, cli: args, forceNewWindow: args['new-window'] || (!hasCliArgs && args['unity-launch']), diffMode: args.diff, initialStartup: true }); // default: read paths from cli
@@ -617,13 +617,12 @@ export class CodeApplication extends Disposable {
 		const windowsMainService = accessor.get(IWindowsMainService);
 		const historyMainService = accessor.get(IHistoryMainService);
 
-		let windowsMutex: Mutex | null = null;
 		if (isWindows) {
 
 			// Setup Windows mutex
 			try {
 				const Mutex = (require.__$__nodeRequire('windows-mutex') as any).Mutex;
-				windowsMutex = new Mutex(product.win32MutexName);
+				const windowsMutex = new Mutex(product.win32MutexName);
 				this._register(toDisposable(() => windowsMutex.release()));
 			} catch (e) {
 				if (!this.environmentService.isBuilt) {
@@ -684,10 +683,10 @@ export class CodeApplication extends Disposable {
 			constructor(authority: string, host: string, port: number) {
 				this._authority = authority;
 				this._client = connectRemoteAgentManagement(authority, host, port, `main`, isBuilt);
-				this._disposeRunner = new RunOnceScheduler(() => this._dispose(), 5000);
+				this._disposeRunner = new RunOnceScheduler(() => this.dispose(), 5000);
 			}
 
-			private _dispose(): void {
+			dispose(): void {
 				this._disposeRunner.dispose();
 				connectionPool.delete(this._authority);
 				this._client.then((connection) => {
@@ -695,7 +694,7 @@ export class CodeApplication extends Disposable {
 				});
 			}
 
-			public getClient(): Promise<Client<RemoteAgentConnectionContext>> {
+			getClient(): Promise<Client<RemoteAgentConnectionContext>> {
 				this._disposeRunner.schedule();
 				return this._client;
 			}
@@ -703,42 +702,49 @@ export class CodeApplication extends Disposable {
 
 		const resolvedAuthorities = new Map<string, ResolvedAuthority>();
 		ipc.on('vscode:remoteAuthorityResolved', (event: any, data: ResolvedAuthority) => {
+			this.logService.info('Received resolved authority', data.authority);
 			resolvedAuthorities.set(data.authority, data);
+			// Make sure to close and remove any existing connections
+			if (connectionPool.has(data.authority)) {
+				connectionPool.get(data.authority)!.dispose();
+			}
 		});
 
 		const resolveAuthority = (authority: string): ResolvedAuthority | null => {
+			this.logService.info('Resolving authority', authority);
 			if (authority.indexOf('+') >= 0) {
 				if (resolvedAuthorities.has(authority)) {
-					return resolvedAuthorities.get(authority);
+					return resolvedAuthorities.get(authority) || null;
 				}
+				this.logService.info('Didnot find resolved authority for', authority);
 				return null;
 			} else {
 				const [host, strPort] = authority.split(':');
 				const port = parseInt(strPort, 10);
-				return { authority, host, port, syncExtensions: false };
+				return { authority, host, port };
 			}
 		};
 
 		protocol.registerBufferProtocol(REMOTE_HOST_SCHEME, async (request, callback) => {
 			if (request.method !== 'GET') {
-				return callback(null);
+				return callback(undefined);
 			}
 			const uri = URI.parse(request.url);
 
-			let activeConnection: ActiveConnection = null;
+			let activeConnection: ActiveConnection | undefined;
 			if (connectionPool.has(uri.authority)) {
 				activeConnection = connectionPool.get(uri.authority);
 			} else {
 				let resolvedAuthority = resolveAuthority(uri.authority);
 				if (!resolvedAuthority) {
-					callback(null);
+					callback(undefined);
 					return;
 				}
 				activeConnection = new ActiveConnection(uri.authority, resolvedAuthority.host, resolvedAuthority.port);
 				connectionPool.set(uri.authority, activeConnection);
 			}
 			try {
-				const rawClient = await activeConnection.getClient();
+				const rawClient = await activeConnection!.getClient();
 				if (connectionPool.has(uri.authority)) { // not disposed in the meantime
 					const channel = rawClient.getChannel(REMOTE_FILE_SYSTEM_CHANNEL_NAME);
 
@@ -746,11 +752,11 @@ export class CodeApplication extends Disposable {
 					const fileContents = await channel.call<Uint8Array>('readFile', [uri]);
 					callback(Buffer.from(fileContents));
 				} else {
-					callback(null);
+					callback(undefined);
 				}
 			} catch (err) {
 				errors.onUnexpectedError(err);
-				callback(null);
+				callback(undefined);
 			}
 		});
 	}

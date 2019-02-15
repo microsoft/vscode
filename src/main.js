@@ -57,7 +57,7 @@ registerListeners();
  */
 let nlsConfiguration = undefined;
 const userDefinedLocale = getUserDefinedLocale();
-userDefinedLocale.then((locale) => {
+userDefinedLocale.then(locale => {
 	if (locale && !nlsConfiguration) {
 		nlsConfiguration = getNLSConfiguration(locale);
 	}
@@ -98,7 +98,7 @@ function onReady() {
 
 		// First, we need to test a user defined locale. If it fails we try the app locale.
 		// If that fails we fall back to English.
-		nlsConfiguration.then((nlsConfig) => {
+		nlsConfiguration.then(nlsConfig => {
 
 			const startup = nlsConfig => {
 				nlsConfig._languagePackSupport = true;
@@ -106,7 +106,10 @@ function onReady() {
 				process.env['VSCODE_NODE_CACHED_DATA_DIR'] = cachedDataDir || '';
 
 				// Load main in AMD
-				require('./bootstrap-amd').load('vs/code/electron-main/main');
+				perf.mark('willLoadMainBundle');
+				require('./bootstrap-amd').load('vs/code/electron-main/main', () => {
+					perf.mark('didLoadMainBundle');
+				});
 			};
 
 			// We recevied a valid nlsConfig from a user defined locale
@@ -126,7 +129,7 @@ function onReady() {
 					// See above the comment about the loader and case sensitiviness
 					appLocale = appLocale.toLowerCase();
 
-					getNLSConfiguration(appLocale).then((nlsConfig) => {
+					getNLSConfiguration(appLocale).then(nlsConfig => {
 						if (!nlsConfig) {
 							nlsConfig = { locale: appLocale, availableLanguages: {} };
 						}
@@ -148,8 +151,7 @@ function onReady() {
 function configureCommandlineSwitches(cliArgs, nodeCachedDataDir) {
 
 	// Force pre-Chrome-60 color profile handling (for https://github.com/Microsoft/vscode/issues/51791)
-	// TODO@Ben check if future versions of Electron still support this flag
-	app.commandLine.appendSwitch('disable-features', 'ColorCorrectRendering');
+	app.commandLine.appendSwitch('disable-color-correct-rendering');
 
 	// Support JS Flags
 	const jsFlags = resolveJSFlags(cliArgs, nodeCachedDataDir.jsFlags());
@@ -268,7 +270,8 @@ function getNodeCachedDir() {
 		}
 
 		jsFlags() {
-			return this.value ? '--nolazy' : undefined;
+			// return this.value ? '--nolazy' : undefined;
+			return undefined;
 		}
 
 		ensureExists() {
@@ -302,7 +305,7 @@ function getNodeCachedDir() {
  * @returns {string}
  */
 function stripComments(content) {
-	const regexp = /("(?:[^\\\"]*(?:\\.)?)*")|('(?:[^\\\']*(?:\\.)?)*')|(\/\*(?:\r?\n|.)*?\*\/)|(\/{2,}.*?(?:(?:\r?\n)|$))/g;
+	const regexp = /("(?:[^\\"]*(?:\\.)?)*")|('(?:[^\\']*(?:\\.)?)*')|(\/\*(?:\r?\n|.)*?\*\/)|(\/{2,}.*?(?:(?:\r?\n)|$))/g;
 
 	return content.replace(regexp, function (match, m1, m2, m3, m4) {
 		// Only one of m1, m2, m3, m4 matches
@@ -434,7 +437,7 @@ function getUserDefinedLocale() {
 	}
 
 	const localeConfig = path.join(userDataPath, 'User', 'locale.json');
-	return bootstrap.readFile(localeConfig).then((content) => {
+	return bootstrap.readFile(localeConfig).then(content => {
 		content = stripComments(content);
 		try {
 			const value = JSON.parse(content).locale;
@@ -532,7 +535,7 @@ function getNLSConfiguration(locale) {
 		if (!packConfig || typeof packConfig.hash !== 'string' || !packConfig.translations || typeof (mainPack = packConfig.translations['vscode']) !== 'string') {
 			return defaultResult(initialLocale);
 		}
-		return exists(mainPack).then((fileExists) => {
+		return exists(mainPack).then(fileExists => {
 			if (!fileExists) {
 				return defaultResult(initialLocale);
 			}
@@ -550,7 +553,7 @@ function getNLSConfiguration(locale) {
 				_resolvedLanguagePackCoreLocation: coreLocation,
 				_corruptedFile: corruptedFile
 			};
-			return exists(corruptedFile).then((corrupted) => {
+			return exists(corruptedFile).then(corrupted => {
 				// The nls cache directory is corrupted.
 				let toDelete;
 				if (corrupted) {
@@ -559,7 +562,7 @@ function getNLSConfiguration(locale) {
 					toDelete = Promise.resolve(undefined);
 				}
 				return toDelete.then(() => {
-					return exists(coreLocation).then((fileExists) => {
+					return exists(coreLocation).then(fileExists => {
 						if (fileExists) {
 							// We don't wait for this. No big harm if we can't touch
 							touch(coreLocation).catch(() => { });
@@ -568,7 +571,7 @@ function getNLSConfiguration(locale) {
 						}
 						return mkdirp(coreLocation).then(() => {
 							return Promise.all([bootstrap.readFile(path.join(__dirname, 'nls.metadata.json')), bootstrap.readFile(mainPack)]);
-						}).then((values) => {
+						}).then(values => {
 							const metadata = JSON.parse(values[0]);
 							const packData = JSON.parse(values[1]).contents;
 							const bundles = Object.keys(metadata.bundles);
@@ -604,7 +607,7 @@ function getNLSConfiguration(locale) {
 						}).then(() => {
 							perf.mark('nlsGeneration:end');
 							return result;
-						}).catch((err) => {
+						}).catch(err => {
 							console.error('Generating translation files failed.', err);
 							return defaultResult(locale);
 						});

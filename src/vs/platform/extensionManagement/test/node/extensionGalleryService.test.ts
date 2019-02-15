@@ -9,7 +9,7 @@ import * as extfs from 'vs/base/node/extfs';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import { getRandomTestPath } from 'vs/workbench/test/workbenchTestServices';
-import { join } from 'path';
+import { join } from 'vs/base/common/path';
 import { mkdirp } from 'vs/base/node/pfs';
 import { resolveMarketplaceHeaders } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 import { isUUID } from 'vs/base/common/uuid';

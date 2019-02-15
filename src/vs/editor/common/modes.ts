@@ -9,7 +9,7 @@ import { Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { isObject } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -18,6 +18,7 @@ import * as model from 'vs/editor/common/model';
 import { LanguageFeatureRegistry } from 'vs/editor/common/modes/languageFeatureRegistry';
 import { TokenizationRegistryImpl } from 'vs/editor/common/modes/tokenizationRegistry';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 /**
  * Open ended enum at runtime
@@ -516,7 +517,7 @@ export interface CodeAction {
 	edit?: WorkspaceEdit;
 	diagnostics?: IMarkerData[];
 	kind?: string;
-	canAutoApply?: boolean;
+	isPreferred?: boolean;
 }
 
 /**
@@ -667,7 +668,7 @@ export interface DocumentHighlight {
 	/**
 	 * The highlight kind, default is [text](#DocumentHighlightKind.Text).
 	 */
-	kind: DocumentHighlightKind;
+	kind?: DocumentHighlightKind;
 }
 /**
  * The document highlight provider interface defines the contract between extensions and
@@ -864,8 +865,8 @@ export const symbolKindToCssClass = (function () {
 	_fromMapping[SymbolKind.Operator] = 'operator';
 	_fromMapping[SymbolKind.TypeParameter] = 'type-parameter';
 
-	return function toCssClassName(kind: SymbolKind): string {
-		return `symbol-icon ${_fromMapping[kind] || 'property'}`;
+	return function toCssClassName(kind: SymbolKind, inline?: boolean): string {
+		return `symbol-icon ${inline ? 'inline' : 'block'} ${_fromMapping[kind] || 'property'}`;
 	};
 })();
 
@@ -913,6 +914,12 @@ export interface FormattingOptions {
  * the formatting-feature.
  */
 export interface DocumentFormattingEditProvider {
+
+	/**
+	 * @internal
+	 */
+	readonly extensionId?: ExtensionIdentifier;
+
 	/**
 	 * Provide formatting edits for a whole document.
 	 */
@@ -923,6 +930,13 @@ export interface DocumentFormattingEditProvider {
  * the formatting-feature.
  */
 export interface DocumentRangeFormattingEditProvider {
+
+
+	/**
+	 * @internal
+	 */
+	readonly extensionId?: ExtensionIdentifier;
+
 	/**
 	 * Provide formatting edits for a range in a document.
 	 *
@@ -937,7 +951,15 @@ export interface DocumentRangeFormattingEditProvider {
  * the formatting-feature.
  */
 export interface OnTypeFormattingEditProvider {
+
+
+	/**
+	 * @internal
+	 */
+	readonly extensionId?: ExtensionIdentifier;
+
 	autoFormatTriggerCharacters: string[];
+
 	/**
 	 * Provide formatting edits after a character has been typed.
 	 *
@@ -961,7 +983,7 @@ export interface IInplaceReplaceSupportResult {
  */
 export interface ILink {
 	range: IRange;
-	url?: string;
+	url?: URI | string;
 }
 /**
  * A provider of links.
@@ -1058,7 +1080,7 @@ export interface SelectionRangeProvider {
 	/**
 	 * Provide ranges that should be selected from the given position.
 	 */
-	provideSelectionRanges(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<SelectionRange[]>;
+	provideSelectionRanges(model: model.ITextModel, positions: Position[], token: CancellationToken): ProviderResult<SelectionRange[][]>;
 }
 
 export interface FoldingContext {
@@ -1226,6 +1248,17 @@ export interface NewCommentAction {
 /**
  * @internal
  */
+export interface CommentReaction {
+	readonly label?: string;
+	readonly iconPath?: UriComponents;
+	readonly count?: number;
+	readonly hasReacted?: boolean;
+	readonly canEdit?: boolean;
+}
+
+/**
+ * @internal
+ */
 export interface Comment {
 	readonly commentId: string;
 	readonly body: IMarkdownString;
@@ -1235,6 +1268,7 @@ export interface Comment {
 	readonly canDelete?: boolean;
 	readonly command?: Command;
 	readonly isDraft?: boolean;
+	readonly commentReactions?: CommentReaction[];
 }
 
 /**
@@ -1278,6 +1312,11 @@ export interface DocumentCommentProvider {
 	startDraftLabel?: string;
 	deleteDraftLabel?: string;
 	finishDraftLabel?: string;
+
+	addReaction?(resource: URI, comment: Comment, reaction: CommentReaction, token: CancellationToken): Promise<void>;
+	deleteReaction?(resource: URI, comment: Comment, reaction: CommentReaction, token: CancellationToken): Promise<void>;
+	reactionGroup?: CommentReaction[];
+
 	onDidChangeCommentThreads(): Event<CommentThreadChangedEvent>;
 }
 

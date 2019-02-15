@@ -27,7 +27,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 
 export interface IResourceLabelProps {
 	resource?: uri;
-	name: string;
+	name?: string;
 	description?: string;
 }
 
@@ -223,13 +223,13 @@ class ResourceLabelWidget extends IconLabel {
 	private _onDidRender = this._register(new Emitter<void>());
 	get onDidRender(): Event<void> { return this._onDidRender.event; }
 
-	private label: IResourceLabelProps;
-	private options: IResourceLabelOptions;
-	private computedIconClasses: string[];
-	private lastKnownConfiguredLangId: string;
-	private computedPathLabel: string;
+	private label?: IResourceLabelProps;
+	private options?: IResourceLabelOptions;
+	private computedIconClasses?: string[];
+	private lastKnownConfiguredLangId?: string;
+	private computedPathLabel?: string;
 
-	private needsRedraw: Redraw;
+	private needsRedraw?: Redraw;
 	private isHidden: boolean = false;
 
 	constructor(
@@ -303,7 +303,7 @@ class ResourceLabelWidget extends IconLabel {
 		this.render(hasResourceChanged);
 	}
 
-	private hasResourceChanged(label: IResourceLabelProps, options: IResourceLabelOptions): boolean {
+	private hasResourceChanged(label: IResourceLabelProps, options?: IResourceLabelOptions): boolean {
 		const newResource = label ? label.resource : undefined;
 		const oldResource = this.label ? this.label.resource : undefined;
 
@@ -331,15 +331,15 @@ class ResourceLabelWidget extends IconLabel {
 
 	setEditor(editor: IEditorInput, options?: IResourceLabelOptions): void {
 		this.setResource({
-			resource: toResource(editor, { supportSideBySide: true }),
-			name: editor.getName(),
-			description: editor.getDescription()
+			resource: toResource(editor, { supportSideBySide: true }) || undefined,
+			name: editor.getName() || undefined,
+			description: editor.getDescription() || undefined
 		}, options);
 	}
 
 	setFile(resource: uri, options?: IFileLabelOptions): void {
 		const hideLabel = options && options.hideLabel;
-		let name: string;
+		let name: string | undefined;
 		if (!hideLabel) {
 			if (options && options.fileKind === FileKind.ROOT_FOLDER) {
 				const workspaceFolder = this.contextService.getWorkspaceFolder(resource);
@@ -353,7 +353,7 @@ class ResourceLabelWidget extends IconLabel {
 			}
 		}
 
-		let description: string;
+		let description: string | undefined;
 		const hidePath = (options && options.hidePath) || (resource.scheme === Schemas.untitled && !this.untitledEditorService.hasAssociatedFilePath(resource));
 		if (!hidePath) {
 			description = this.labelService.getUriLabel(resources.dirname(resource), { relative: true });
@@ -386,10 +386,10 @@ class ResourceLabelWidget extends IconLabel {
 		}
 
 		if (this.label) {
-			const configuredLangId = getConfiguredLangId(this.modelService, this.label.resource);
+			const configuredLangId = this.label.resource ? getConfiguredLangId(this.modelService, this.label.resource) : null;
 			if (this.lastKnownConfiguredLangId !== configuredLangId) {
 				clearIconCache = true;
-				this.lastKnownConfiguredLangId = configuredLangId;
+				this.lastKnownConfiguredLangId = configuredLangId || undefined;
 			}
 		}
 
@@ -428,7 +428,7 @@ class ResourceLabelWidget extends IconLabel {
 			iconLabelOptions.extraClasses = this.computedIconClasses.slice(0);
 		}
 		if (this.options && this.options.extraClasses) {
-			iconLabelOptions.extraClasses.push(...this.options.extraClasses);
+			iconLabelOptions.extraClasses!.push(...this.options.extraClasses);
 		}
 
 		if (this.options && this.options.fileDecorations && resource) {
@@ -444,11 +444,11 @@ class ResourceLabelWidget extends IconLabel {
 				}
 
 				if (this.options.fileDecorations.colors) {
-					iconLabelOptions.extraClasses.push(deco.labelClassName);
+					iconLabelOptions.extraClasses!.push(deco.labelClassName);
 				}
 
 				if (this.options.fileDecorations.badges) {
-					iconLabelOptions.extraClasses.push(deco.badgeClassName);
+					iconLabelOptions.extraClasses!.push(deco.badgeClassName);
 				}
 			}
 		}

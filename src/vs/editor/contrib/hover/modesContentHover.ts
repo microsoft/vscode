@@ -25,8 +25,10 @@ import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
 import { IMarker, IMarkerData } from 'vs/platform/markers/common/markers';
-import { basename } from 'vs/base/common/paths';
+import { basename } from 'vs/base/common/resources';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/opener';
 
 const $ = dom.$;
 
@@ -203,7 +205,8 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		editor: ICodeEditor,
 		markdownRenderer: MarkdownRenderer,
 		markerDecorationsService: IMarkerDecorationsService,
-		private readonly _themeService: IThemeService
+		private readonly _themeService: IThemeService,
+		private readonly _openerService: IOpenerService | null = NullOpenerService,
 	) {
 		super(ModesContentHoverWidget.ID, editor);
 
@@ -470,7 +473,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 
 		const messageElement = dom.append(hoverElement, $('span'));
 		messageElement.style.whiteSpace = 'pre-wrap';
-		messageElement.innerText = message.trim();
+		messageElement.innerText = message;
 		this._editor.applyFontInfo(messageElement);
 
 		if (source || code) {
@@ -485,8 +488,15 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			for (const { message, resource, startLineNumber, startColumn } of relatedInformation) {
 				const item = dom.append(listElement, $('li'));
 				const a = dom.append(item, $('a'));
-				a.setAttribute('data-href', `${resource.toString(false)}#${startLineNumber},${startColumn}`);
-				a.innerText = `${basename(resource.path)}(${startLineNumber}, ${startColumn})`;
+				a.innerText = `${basename(resource)}(${startLineNumber}, ${startColumn})`;
+				a.style.cursor = 'pointer';
+				a.onclick = e => {
+					e.stopPropagation();
+					e.preventDefault();
+					if (this._openerService) {
+						this._openerService.open(resource.with({ fragment: `${startLineNumber},${startColumn}` })).catch(onUnexpectedError);
+					}
+				};
 				const messageElement = dom.append<HTMLAnchorElement>(item, $('span'));
 				messageElement.innerText = `: ${message}`;
 			}

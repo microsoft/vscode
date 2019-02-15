@@ -29,7 +29,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { contrastBorder, editorFindMatch, editorFindMatchBorder, editorFindMatchHighlight, editorFindMatchHighlightBorder, editorFindRangeHighlight, editorFindRangeHighlightBorder, editorWidgetBackground, editorWidgetBorder, editorWidgetResizeBorder, errorForeground, inputActiveOptionBorder, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { ContextScopedFindInput, ContextScopedHistoryInputBox } from 'vs/platform/widget/browser/contextScopedHistoryWidget';
+import { ContextScopedFindInput, ContextScopedHistoryInputBox } from 'vs/platform/browser/contextScopedHistoryWidget';
 
 export interface IFindController {
 	replace(): void;
@@ -542,7 +542,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			inputValidationWarningBorder: theme.getColor(inputValidationWarningBorder),
 			inputValidationErrorBackground: theme.getColor(inputValidationErrorBackground),
 			inputValidationErrorForeground: theme.getColor(inputValidationErrorForeground),
-			inputValidationErrorBorder: theme.getColor(inputValidationErrorBorder)
+			inputValidationErrorBorder: theme.getColor(inputValidationErrorBorder),
 		};
 		this._findInput.style(inputStyles);
 		this._replaceInputBox.style(inputStyles);
@@ -1130,7 +1130,7 @@ export class SimpleButton extends Widget {
 // theming
 
 registerThemingParticipant((theme, collector) => {
-	const addBackgroundColorRule = (selector: string, color: Color | null): void => {
+	const addBackgroundColorRule = (selector: string, color: Color | undefined): void => {
 		if (color) {
 			collector.addRule(`.monaco-editor ${selector} { background-color: ${color}; }`);
 		}

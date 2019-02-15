@@ -107,7 +107,7 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 
 		return first(factories).then(model => {
 			if (!model) {
-				return Promise.reject(new Error('resource is not available'));
+				return Promise.reject<any>(new Error('resource is not available'));
 			}
 
 			return model;

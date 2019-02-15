@@ -75,8 +75,8 @@ export class MenuBar extends Disposable {
 	private _focusState: MenubarState;
 	private actionRunner: IActionRunner;
 
-	private _onVisibilityChange: Emitter<boolean>;
-	private _onFocusStateChange: Emitter<boolean>;
+	private readonly _onVisibilityChange: Emitter<boolean>;
+	private readonly _onFocusStateChange: Emitter<boolean>;
 
 	private numMenusShown: number;
 	private menuStyle: IMenuStyles;
@@ -150,11 +150,9 @@ export class MenuBar extends Disposable {
 		this._register(DOM.addDisposableListener(this.container, DOM.EventType.FOCUS_OUT, (e) => {
 			let event = e as FocusEvent;
 
-			if (event.relatedTarget) {
-				if (!this.container.contains(event.relatedTarget as HTMLElement)) {
-					this.focusToReturn = undefined;
-					this.setUnfocusedState();
-				}
+			if (!event.relatedTarget || !this.container.contains(event.relatedTarget as HTMLElement)) {
+				this.focusToReturn = undefined;
+				this.setUnfocusedState();
 			}
 		}));
 

@@ -93,6 +93,9 @@ class MessageWidget {
 			lastLineElement = document.createElement('div');
 			lastLineElement.innerText = line;
 			this._editor.applyFontInfo(lastLineElement);
+			if (line === '') {
+				lastLineElement.style.height = lastLineElement.style.lineHeight;
+			}
 			this._messageBlock.appendChild(lastLineElement);
 		}
 		if (source || code) {
@@ -165,7 +168,7 @@ export class MarkerNavigationWidget extends ZoneWidget {
 	private _message: MessageWidget;
 	private _callOnDispose: IDisposable[] = [];
 	private _severity: MarkerSeverity;
-	private _backgroundColor: Color | null;
+	private _backgroundColor?: Color;
 	private _onDidSelectRelatedInformation = new Emitter<IRelatedInformation>();
 
 	readonly onDidSelectRelatedInformation: Event<IRelatedInformation> = this._onDidSelectRelatedInformation.event;

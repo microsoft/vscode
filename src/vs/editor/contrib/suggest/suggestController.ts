@@ -12,7 +12,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorCommand, registerEditorAction, registerEditorCommand, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
-import { IEditorContribution, ScrollType, Handler } from 'vs/editor/common/editorCommon';
+import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CompletionItemProvider, CompletionItemInsertTextRule } from 'vs/editor/common/modes';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
@@ -32,6 +32,7 @@ import { Event } from 'vs/base/common/event';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { IdleValue } from 'vs/base/common/async';
 import { CharacterSet } from 'vs/editor/common/core/characterClassifier';
+import { isObject } from 'vs/base/common/types';
 
 class AcceptOnCharacterOracle {
 
@@ -180,7 +181,7 @@ export class SuggestController implements IEditorContribution {
 				this._widget.getValue().hideWidget();
 			}
 		}));
-		this._toDispose.push(this._editor.onDidBlurEditorText(() => {
+		this._toDispose.push(this._editor.onDidBlurEditorWidget(() => {
 			if (!this._sticky) {
 				this._model.cancel();
 			}
@@ -268,7 +269,7 @@ export class SuggestController implements IEditorContribution {
 
 		} else {
 			// exec command, done
-			this._commandService.executeCommand(suggestion.command.id, suggestion.command.arguments ? [...suggestion.command.arguments] : []).catch(onUnexpectedError);
+			this._commandService.executeCommand(suggestion.command.id, ...(suggestion.command.arguments ? [...suggestion.command.arguments] : [])).catch(onUnexpectedError);
 			this._model.cancel();
 		}
 
@@ -303,7 +304,7 @@ export class SuggestController implements IEditorContribution {
 		}
 	}
 
-	triggerSuggestAndAcceptBest(defaultTypeText: string): void {
+	triggerSuggestAndAcceptBest(arg: { fallback: string }): void {
 		if (!this._editor.hasModel()) {
 			return;
 
@@ -312,7 +313,7 @@ export class SuggestController implements IEditorContribution {
 
 		const fallback = () => {
 			if (positionNow.equals(this._editor.getPosition()!)) {
-				this._editor.trigger('suggest', Handler.Type, { text: defaultTypeText });
+				this._commandService.executeCommand(arg.fallback);
 			}
 		};
 
@@ -611,7 +612,10 @@ registerEditorCommand(new SuggestCommand({
 		SuggestAlternatives.OtherSuggestions.toNegated(),
 		SnippetController2.InSnippetMode.toNegated()
 	),
-	handler: x => x.triggerSuggestAndAcceptBest('\t'),//todo@joh fallback/default configurable?
+	handler: (x, arg) => {
+
+		x.triggerSuggestAndAcceptBest(isObject(arg) ? { fallback: 'tab', ...arg } : { fallback: 'tab' });
+	},
 	kbOpts: {
 		weight,
 		primary: KeyCode.Tab

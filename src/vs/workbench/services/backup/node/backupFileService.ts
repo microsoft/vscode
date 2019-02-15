@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import * as crypto from 'crypto';
 import * as pfs from 'vs/base/node/pfs';
 import { URI as Uri } from 'vs/base/common/uri';
@@ -14,6 +14,7 @@ import { readToMatchingString } from 'vs/base/node/stream';
 import { ITextBufferFactory } from 'vs/editor/common/model';
 import { createTextBufferFactoryFromStream, createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { keys } from 'vs/base/common/map';
+import { Schemas } from 'vs/base/common/network';
 
 export interface IBackupFilesModel {
 	resolve(backupRoot: string): Promise<IBackupFilesModel>;
@@ -233,11 +234,7 @@ export class BackupFileService implements IBackupFileService {
 	}
 
 	toBackupResource(resource: Uri): Uri {
-		return Uri.file(path.join(this.backupWorkspacePath, resource.scheme, this.hashPath(resource)));
-	}
-
-	private hashPath(resource: Uri): string {
-		return crypto.createHash('md5').update(resource.fsPath).digest('hex');
+		return Uri.file(path.join(this.backupWorkspacePath, resource.scheme, hashPath(resource)));
 	}
 }
 
@@ -257,7 +254,7 @@ export class InMemoryBackupFileService implements IBackupFileService {
 			return Promise.resolve(backupResource);
 		}
 
-		return Promise.resolve();
+		return Promise.resolve(undefined);
 	}
 
 	backupResource(resource: Uri, content: ITextSnapshot, versionId?: number): Promise<void> {
@@ -273,7 +270,7 @@ export class InMemoryBackupFileService implements IBackupFileService {
 			return Promise.resolve(createTextBufferFactoryFromSnapshot(snapshot));
 		}
 
-		return Promise.resolve();
+		return Promise.resolve(undefined);
 	}
 
 	getWorkspaceFileBackups(): Promise<Uri[]> {
@@ -293,10 +290,15 @@ export class InMemoryBackupFileService implements IBackupFileService {
 	}
 
 	toBackupResource(resource: Uri): Uri {
-		return Uri.file(path.join(resource.scheme, this.hashPath(resource)));
+		return Uri.file(path.join(resource.scheme, hashPath(resource)));
 	}
 
-	private hashPath(resource: Uri): string {
-		return crypto.createHash('md5').update(resource.fsPath).digest('hex');
-	}
+}
+
+/*
+ * Exported only for testing
+ */
+export function hashPath(resource: Uri): string {
+	const str = resource.scheme === Schemas.file ? resource.fsPath : resource.toString();
+	return crypto.createHash('md5').update(str).digest('hex');
 }

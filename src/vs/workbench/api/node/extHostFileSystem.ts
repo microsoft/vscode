@@ -8,11 +8,11 @@ import { MainContext, IMainContext, ExtHostFileSystemShape, MainThreadFileSystem
 import * as vscode from 'vscode';
 import * as files from 'vs/platform/files/common/files';
 import { IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
-import { FileChangeType, DocumentLink } from 'vs/workbench/api/node/extHostTypes';
+import { FileChangeType } from 'vs/workbench/api/node/extHostTypes';
 import * as typeConverter from 'vs/workbench/api/node/extHostTypeConverters';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFeatures';
 import { Schemas } from 'vs/base/common/network';
-import { LabelRules } from 'vs/platform/label/common/label';
+import { ResourceLabelFormatter } from 'vs/platform/label/common/label';
 import { State, StateMachine, LinkComputer } from 'vs/editor/common/modes/linkComputer';
 import { commonPrefixLength } from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
@@ -94,11 +94,9 @@ class FsLinkProvider {
 		}, this._stateMachine);
 
 		for (const link of links) {
-			try {
-				let uri = URI.parse(link.url, true);
-				result.push(new DocumentLink(typeConverter.Range.to(link.range), uri));
-			} catch (err) {
-				// ignore
+			let docLink = typeConverter.DocumentLink.to(link);
+			if (docLink.target) {
+				result.push(docLink);
 			}
 		}
 		return result;
@@ -127,6 +125,7 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		this._usedSchemes.add(Schemas.https);
 		this._usedSchemes.add(Schemas.mailto);
 		this._usedSchemes.add(Schemas.data);
+		this._usedSchemes.add(Schemas.command);
 	}
 
 	dispose(): void {
@@ -205,8 +204,8 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		});
 	}
 
-	setUriFormatter(scheme: string, formatter: LabelRules): void {
-		this._proxy.$setUriFormatter(scheme, formatter);
+	setUriFormatter(formatter: ResourceLabelFormatter): void {
+		this._proxy.$setUriFormatter(formatter);
 	}
 
 	private static _asIStat(stat: vscode.FileStat): files.IStat {
@@ -279,9 +278,9 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		}
 	}
 
-	$open(handle: number, resource: UriComponents): Promise<number> {
+	$open(handle: number, resource: UriComponents, opts: files.FileOpenOptions): Promise<number> {
 		this._checkProviderExists(handle);
-		return Promise.resolve(this._fsProvider.get(handle).open(URI.revive(resource)));
+		return Promise.resolve(this._fsProvider.get(handle).open(URI.revive(resource), opts));
 	}
 
 	$close(handle: number, fd: number): Promise<void> {
@@ -289,14 +288,17 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		return Promise.resolve(this._fsProvider.get(handle).close(fd));
 	}
 
-	$read(handle: number, fd: number, pos: number, data: Buffer, offset: number, length: number): Promise<number> {
+	$read(handle: number, fd: number, pos: number, length: number): Promise<Buffer> {
 		this._checkProviderExists(handle);
-		return Promise.resolve(this._fsProvider.get(handle).read(fd, pos, data, offset, length));
+		const data = Buffer.allocUnsafe(length);
+		return Promise.resolve(this._fsProvider.get(handle).read(fd, pos, data, 0, length)).then(read => {
+			return data.slice(0, read); // don't send zeros
+		});
 	}
 
-	$write(handle: number, fd: number, pos: number, data: Buffer, offset: number, length: number): Promise<number> {
+	$write(handle: number, fd: number, pos: number, data: Buffer): Promise<number> {
 		this._checkProviderExists(handle);
-		return Promise.resolve(this._fsProvider.get(handle).write(fd, pos, data, offset, length));
+		return Promise.resolve(this._fsProvider.get(handle).write(fd, pos, data, 0, data.length));
 	}
 
 }

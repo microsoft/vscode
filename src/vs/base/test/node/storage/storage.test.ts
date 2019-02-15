@@ -5,7 +5,7 @@
 
 import { Storage, SQLiteStorageDatabase, IStorageDatabase, ISQLiteStorageDatabaseOptions, IStorageItemsChangeEvent } from 'vs/base/node/storage';
 import { generateUuid } from 'vs/base/common/uuid';
-import { join } from 'path';
+import { join } from 'vs/base/common/path';
 import { tmpdir } from 'os';
 import { equal, ok } from 'assert';
 import { mkdirp, del, writeFile, exists, unlink } from 'vs/base/node/pfs';
@@ -539,7 +539,9 @@ suite('SQLite Storage Library', () => {
 		await del(storageDir, tmpdir());
 	});
 
-	test('real world example', async () => {
+	test('real world example', async function () {
+		this.timeout(20000);
+
 		const storageDir = uniqueStorageDir();
 
 		await mkdirp(storageDir);
@@ -553,7 +555,7 @@ suite('SQLite Storage Library', () => {
 		items1.set('debug.actionswidgetposition', '0.6880952380952381');
 
 		const items2 = new Map<string, string>();
-		items2.set('workbench.editors.files.textfileeditor', '{"textEditorViewState":[["file:///Users/dummy/Documents/ticino-playground/play.htm",{"0":{"cursorState":[{"inSelectionMode":false,"selectionStart":{"lineNumber":6,"column":16},"position":{"lineNumber":6,"column":16}}],"viewState":{"scrollLeft":0,"firstPosition":{"lineNumber":1,"column":1},"firstPositionDeltaTop":0},"contributionsState":{"editor.contrib.folding":{},"editor.contrib.wordHighlighter":false}}}],["file:///Users/dummy/Documents/ticino-playground/nakefile.js",{"0":{"cursorState":[{"inSelectionMode":false,"selectionStart":{"lineNumber":7,"column":81},"position":{"lineNumber":7,"column":81}}],"viewState":{"scrollLeft":0,"firstPosition":{"lineNumber":1,"column":1},"firstPositionDeltaTop":20},"contributionsState":{"editor.contrib.folding":{},"editor.contrib.wordHighlighter":false}}}],["file:///Users/dummy/Desktop/vscode2/.gitattributes",{"0":{"cursorState":[{"inSelectionMode":false,"selectionStart":{"lineNumber":9,"column":12},"position":{"lineNumber":9,"column":12}}],"viewState":{"scrollLeft":0,"firstPosition":{"lineNumber":1,"column":1},"firstPositionDeltaTop":20},"contributionsState":{"editor.contrib.folding":{},"editor.contrib.wordHighlighter":false}}}],["file:///Users/dummy/Desktop/vscode2/src/vs/workbench/parts/search/browser/openAnythingHandler.ts",{"0":{"cursorState":[{"inSelectionMode":false,"selectionStart":{"lineNumber":1,"column":1},"position":{"lineNumber":1,"column":1}}],"viewState":{"scrollLeft":0,"firstPosition":{"lineNumber":1,"column":1},"firstPositionDeltaTop":0},"contributionsState":{"editor.contrib.folding":{},"editor.contrib.wordHighlighter":false}}}]]}');
+		items2.set('workbench.editors.files.textfileeditor', '{"textEditorViewState":[["file:///Users/dummy/Documents/ticino-playground/play.htm",{"0":{"cursorState":[{"inSelectionMode":false,"selectionStart":{"lineNumber":6,"column":16},"position":{"lineNumber":6,"column":16}}],"viewState":{"scrollLeft":0,"firstPosition":{"lineNumber":1,"column":1},"firstPositionDeltaTop":0},"contributionsState":{"editor.contrib.folding":{},"editor.contrib.wordHighlighter":false}}}],["file:///Users/dummy/Documents/ticino-playground/nakefile.js",{"0":{"cursorState":[{"inSelectionMode":false,"selectionStart":{"lineNumber":7,"column":81},"position":{"lineNumber":7,"column":81}}],"viewState":{"scrollLeft":0,"firstPosition":{"lineNumber":1,"column":1},"firstPositionDeltaTop":20},"contributionsState":{"editor.contrib.folding":{},"editor.contrib.wordHighlighter":false}}}],["file:///Users/dummy/Desktop/vscode2/.gitattributes",{"0":{"cursorState":[{"inSelectionMode":false,"selectionStart":{"lineNumber":9,"column":12},"position":{"lineNumber":9,"column":12}}],"viewState":{"scrollLeft":0,"firstPosition":{"lineNumber":1,"column":1},"firstPositionDeltaTop":20},"contributionsState":{"editor.contrib.folding":{},"editor.contrib.wordHighlighter":false}}}],["file:///Users/dummy/Desktop/vscode2/src/vs/workbench/contrib/search/browser/openAnythingHandler.ts",{"0":{"cursorState":[{"inSelectionMode":false,"selectionStart":{"lineNumber":1,"column":1},"position":{"lineNumber":1,"column":1}}],"viewState":{"scrollLeft":0,"firstPosition":{"lineNumber":1,"column":1},"firstPositionDeltaTop":0},"contributionsState":{"editor.contrib.folding":{},"editor.contrib.wordHighlighter":false}}}]]}');
 
 		const items3 = new Map<string, string>();
 		items3.set('nps/iscandidate', 'false');
@@ -628,7 +630,9 @@ suite('SQLite Storage Library', () => {
 		await del(storageDir, tmpdir());
 	});
 
-	test('very large item value', async () => {
+	test('very large item value', async function () {
+		this.timeout(20000);
+
 		const storageDir = uniqueStorageDir();
 
 		await mkdirp(storageDir);
@@ -732,6 +736,70 @@ suite('SQLite Storage Library', () => {
 		equal(items.get('some/foo2/path'), 'some/bar/path');
 		equal(items.get('foo3'), 'bar');
 		equal(items.get('some/foo3/path'), 'some/bar/path');
+
+		await storage.close();
+
+		await del(storageDir, tmpdir());
+	});
+
+	test('lots of INSERT & DELETE (below inline max)', async () => {
+		const storageDir = uniqueStorageDir();
+
+		await mkdirp(storageDir);
+
+		const storage = new SQLiteStorageDatabase(join(storageDir, 'storage.db'));
+
+		const items = new Map<string, string>();
+		const keys: Set<string> = new Set<string>();
+		for (let i = 0; i < 200; i++) {
+			const uuid = generateUuid();
+			const key = `key: ${uuid}`;
+
+			items.set(key, `value: ${uuid}`);
+			keys.add(key);
+		}
+
+		await storage.updateItems({ insert: items });
+
+		let storedItems = await storage.getItems();
+		equal(storedItems.size, items.size);
+
+		await storage.updateItems({ delete: keys });
+
+		storedItems = await storage.getItems();
+		equal(storedItems.size, 0);
+
+		await storage.close();
+
+		await del(storageDir, tmpdir());
+	});
+
+	test('lots of INSERT & DELETE (above inline max)', async () => {
+		const storageDir = uniqueStorageDir();
+
+		await mkdirp(storageDir);
+
+		const storage = new SQLiteStorageDatabase(join(storageDir, 'storage.db'));
+
+		const items = new Map<string, string>();
+		const keys: Set<string> = new Set<string>();
+		for (let i = 0; i < 400; i++) {
+			const uuid = generateUuid();
+			const key = `key: ${uuid}`;
+
+			items.set(key, `value: ${uuid}`);
+			keys.add(key);
+		}
+
+		await storage.updateItems({ insert: items });
+
+		let storedItems = await storage.getItems();
+		equal(storedItems.size, items.size);
+
+		await storage.updateItems({ delete: keys });
+
+		storedItems = await storage.getItems();
+		equal(storedItems.size, 0);
 
 		await storage.close();
 

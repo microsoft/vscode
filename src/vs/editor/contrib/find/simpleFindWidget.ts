@@ -6,7 +6,7 @@
 import 'vs/css!./simpleFindWidget';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import { FindInput } from 'vs/base/browser/ui/findinput/findInput';
+import { FindInput, IFindInputStyles } from 'vs/base/browser/ui/findinput/findInput';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Delayer } from 'vs/base/common/async';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -16,7 +16,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { editorWidgetBackground, inputActiveOptionBorder, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { ITheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { ContextScopedFindInput } from 'vs/platform/widget/browser/contextScopedHistoryWidget';
+import { ContextScopedFindInput } from 'vs/platform/browser/contextScopedHistoryWidget';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
@@ -159,7 +159,7 @@ export abstract class SimpleFindWidget extends Widget {
 	}
 
 	public updateTheme(theme: ITheme): void {
-		const inputStyles = {
+		const inputStyles: IFindInputStyles = {
 			inputActiveOptionBorder: theme.getColor(inputActiveOptionBorder),
 			inputBackground: theme.getColor(inputBackground),
 			inputForeground: theme.getColor(inputForeground),
@@ -204,6 +204,7 @@ export abstract class SimpleFindWidget extends Widget {
 
 		setTimeout(() => {
 			dom.addClass(this._innerDomNode, 'visible');
+			dom.addClass(this._innerDomNode, 'visible-transition');
 			this._innerDomNode.setAttribute('aria-hidden', 'false');
 			setTimeout(() => {
 				this._findInput.select();
@@ -220,16 +221,20 @@ export abstract class SimpleFindWidget extends Widget {
 
 		setTimeout(() => {
 			dom.addClass(this._innerDomNode, 'visible');
+			dom.addClass(this._innerDomNode, 'visible-transition');
 			this._innerDomNode.setAttribute('aria-hidden', 'false');
 		}, 0);
 	}
 
 	public hide(): void {
 		if (this._isVisible) {
-			this._isVisible = false;
-
-			dom.removeClass(this._innerDomNode, 'visible');
+			dom.removeClass(this._innerDomNode, 'visible-transition');
 			this._innerDomNode.setAttribute('aria-hidden', 'true');
+			// Need to delay toggling visibility until after Transition, then visibility hidden - removes from tabIndex list
+			setTimeout(() => {
+				this._isVisible = false;
+				dom.removeClass(this._innerDomNode, 'visible');
+			}, 200);
 		}
 	}
 

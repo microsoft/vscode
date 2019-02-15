@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { sequence, always } from 'vs/base/common/async';
+import { sequence } from 'vs/base/common/async';
 import { illegalState } from 'vs/base/common/errors';
 import { ExtHostDocumentSaveParticipantShape, MainThreadTextEditorsShape, ResourceTextEditDto } from 'vs/workbench/api/node/extHost.protocol';
 import { TextEdit } from 'vs/workbench/api/node/extHostTypes';
@@ -63,16 +63,16 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 					return undefined;
 				}
 
-				const document = this._documents.getDocumentData(resource).document;
+				const document = this._documents.getDocument(resource);
 				return this._deliverEventAsyncAndBlameBadListeners(listener, <any>{ document, reason: TextDocumentSaveReason.to(reason) });
 			};
 		}));
-		return always(promise, () => clearTimeout(didTimeoutHandle));
+		return promise.finally(() => clearTimeout(didTimeoutHandle));
 	}
 
 	private _deliverEventAsyncAndBlameBadListeners([listener, thisArg, extension]: Listener, stubEvent: vscode.TextDocumentWillSaveEvent): Promise<any> {
 		const errors = this._badListeners.get(listener);
-		if (errors > this._thresholds.errors) {
+		if (typeof errors === 'number' && errors > this._thresholds.errors) {
 			// bad listener - ignore
 			return Promise.resolve(false);
 		}
@@ -90,7 +90,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 				const errors = this._badListeners.get(listener);
 				this._badListeners.set(listener, !errors ? 1 : errors + 1);
 
-				if (errors > this._thresholds.errors) {
+				if (typeof errors === 'number' && errors > this._thresholds.errors) {
 					this._logService.info(`onWillSaveTextDocument-listener from extension '${extension.identifier.value}' will now be IGNORED because of timeouts and/or errors`);
 				}
 			}

@@ -7,8 +7,8 @@ import { URI } from 'vs/base/common/uri';
 import { suggestFilename } from 'vs/base/common/mime';
 import { memoize } from 'vs/base/common/decorators';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
-import * as paths from 'vs/base/common/paths';
-import * as resources from 'vs/base/common/resources';
+import { basename } from 'vs/base/common/path';
+import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
 import { EditorInput, IEncodingSupport, EncodingMode, ConfirmResult, Verbosity } from 'vs/workbench/common/editor';
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -27,7 +27,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 
 	private _hasAssociatedFilePath: boolean;
 	private cachedModel: UntitledEditorModel;
-	private modelResolve: Promise<UntitledEditorModel>;
+	private modelResolve?: Promise<UntitledEditorModel>;
 
 	private readonly _onDidModelChangeContent: Emitter<void> = this._register(new Emitter<void>());
 	get onDidModelChangeContent(): Event<void> { return this._onDidModelChangeContent.event; }
@@ -72,44 +72,38 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 	}
 
 	getName(): string {
-		return this.hasAssociatedFilePath ? resources.basenameOrAuthority(this.resource) : this.resource.path;
+		return this.hasAssociatedFilePath ? basenameOrAuthority(this.resource) : this.resource.path;
 	}
 
 	@memoize
 	private get shortDescription(): string {
-		return paths.basename(this.labelService.getUriLabel(resources.dirname(this.resource)));
+		return basename(this.labelService.getUriLabel(dirname(this.resource)));
 	}
 
 	@memoize
 	private get mediumDescription(): string {
-		return this.labelService.getUriLabel(resources.dirname(this.resource), { relative: true });
+		return this.labelService.getUriLabel(dirname(this.resource), { relative: true });
 	}
 
 	@memoize
 	private get longDescription(): string {
-		return this.labelService.getUriLabel(resources.dirname(this.resource));
+		return this.labelService.getUriLabel(dirname(this.resource));
 	}
 
-	getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string {
+	getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string | null {
 		if (!this.hasAssociatedFilePath) {
 			return null;
 		}
 
-		let description: string;
 		switch (verbosity) {
 			case Verbosity.SHORT:
-				description = this.shortDescription;
-				break;
+				return this.shortDescription;
 			case Verbosity.LONG:
-				description = this.longDescription;
-				break;
+				return this.longDescription;
 			case Verbosity.MEDIUM:
 			default:
-				description = this.mediumDescription;
-				break;
+				return this.mediumDescription;
 		}
-
-		return description;
 	}
 
 	@memoize
@@ -132,7 +126,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 			return this.getName();
 		}
 
-		let title: string;
+		let title: string | undefined;
 		switch (verbosity) {
 			case Verbosity.SHORT:
 				title = this.shortTitle;

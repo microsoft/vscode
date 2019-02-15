@@ -25,19 +25,33 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { SIDE_BAR_TITLE_FOREGROUND, SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND, SIDE_BAR_BORDER } from 'vs/workbench/common/theme';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { Dimension, EventType, addDisposableListener, trackFocus } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, trackFocus, Dimension } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { ISerializableView } from 'vs/base/browser/ui/grid/grid';
+import { LayoutPriority } from 'vs/base/browser/ui/grid/gridview';
 
 export const SidebarFocusContext = new RawContextKey<boolean>('sideBarFocus', false);
 export const ActiveViewletContext = new RawContextKey<string>('activeViewlet', '');
 
-export class SidebarPart extends CompositePart<Viewlet> implements IViewletService {
+export class SidebarPart extends CompositePart<Viewlet> implements ISerializableView, IViewletService {
 	_serviceBrand: any;
 
 	static readonly activeViewletSettingsKey = 'workbench.sidebar.activeviewletid';
+
+	element: HTMLElement;
+
+	readonly minimumWidth: number = 170;
+	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
+	readonly minimumHeight: number = 0;
+	readonly maximumHeight: number = Number.POSITIVE_INFINITY;
+	readonly snapSize: number = 50;
+	readonly priority: LayoutPriority = LayoutPriority.Low;
+
+	private _onDidChange = this._register(new Emitter<{ width: number; height: number; }>());
+	get onDidChange(): Event<{ width: number, height: number }> { return this._onDidChange.event; }
 
 	private viewletRegistry: ViewletRegistry;
 	private sideBarFocusContextKey: IContextKey<boolean>;
@@ -103,14 +117,16 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 	get onDidViewletDeregister(): Event<ViewletDescriptor> { return this._onDidViewletDeregister.event; }
 
 	get onDidViewletOpen(): Event<IViewlet> {
-		return Event.map(this._onDidCompositeOpen.event, compositeEvent => <IViewlet>compositeEvent.composite);
+		return Event.map(this.onDidCompositeOpen.event, compositeEvent => <IViewlet>compositeEvent.composite);
 	}
 
 	get onDidViewletClose(): Event<IViewlet> {
-		return this._onDidCompositeClose.event as Event<IViewlet>;
+		return this.onDidCompositeClose.event as Event<IViewlet>;
 	}
 
 	create(parent: HTMLElement): void {
+		this.element = parent;
+
 		super.create(parent);
 
 		const focusTracker = trackFocus(parent);
@@ -152,12 +168,22 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 		container.style.borderLeftColor = !isPositionLeft ? borderColor : null;
 	}
 
-	layout(dimension: Dimension): Dimension[] {
+	layout(dimension: Dimension): Dimension[];
+	layout(width: number, height: number): void;
+	layout(dim1: Dimension | number, dim2?: number): Dimension[] | void {
 		if (!this.partService.isVisible(Parts.SIDEBAR_PART)) {
-			return [dimension];
+			if (dim1 instanceof Dimension) {
+				return [dim1];
+			}
+
+			return;
 		}
 
-		return super.layout(dimension);
+		if (dim1 instanceof Dimension) {
+			return super.layout(dim1);
+		}
+
+		super.layout(dim1, dim2!);
 	}
 
 	// Viewlet service
@@ -236,6 +262,12 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 				});
 			}
 		}
+	}
+
+	toJSON(): object {
+		return {
+			type: Parts.SIDEBAR_PART
+		};
 	}
 }
 

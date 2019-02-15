@@ -27,11 +27,11 @@ export class ExtHostProgress implements ExtHostProgressShape {
 		const { title, location, cancellable } = options;
 		const source = localize('extensionSource', "{0} (Extension)", extension.displayName || extension.name);
 		this._proxy.$startProgress(handle, { location: ProgressLocation.from(location), title, source, cancellable });
-		return this._withProgress(handle, task, cancellable);
+		return this._withProgress(handle, task, !!cancellable);
 	}
 
 	private _withProgress<R>(handle: number, task: (progress: Progress<IProgressStep>, token: CancellationToken) => Thenable<R>, cancellable: boolean): Thenable<R> {
-		let source: CancellationTokenSource;
+		let source: CancellationTokenSource | undefined;
 		if (cancellable) {
 			source = new CancellationTokenSource();
 			this._mapHandleToCancellationSource.set(handle, source);
@@ -48,7 +48,7 @@ export class ExtHostProgress implements ExtHostProgressShape {
 		let p: Thenable<R>;
 
 		try {
-			p = task(new ProgressCallback(this._proxy, handle), cancellable ? source.token : CancellationToken.None);
+			p = task(new ProgressCallback(this._proxy, handle), cancellable && source ? source.token : CancellationToken.None);
 		} catch (err) {
 			progressEnd(handle);
 			throw err;

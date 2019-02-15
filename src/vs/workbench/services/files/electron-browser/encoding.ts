@@ -8,7 +8,7 @@ import * as encoding from 'vs/base/node/encoding';
 import { URI as uri } from 'vs/base/common/uri';
 import { IResolveContentOptions, isParent, IResourceEncodings } from 'vs/platform/files/common/files';
 import { isLinux } from 'vs/base/common/platform';
-import { extname } from 'path';
+import { extname } from 'vs/base/common/path';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';

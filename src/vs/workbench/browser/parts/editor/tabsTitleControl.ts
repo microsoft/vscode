@@ -31,7 +31,7 @@ import { ResourcesDropHandler, fillResourceDataTransfers, DraggedEditorIdentifie
 import { Color } from 'vs/base/common/color';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { MergeGroupMode, IMergeGroupOptions } from 'vs/workbench/services/group/common/editorGroupsService';
+import { MergeGroupMode, IMergeGroupOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { addClass, addDisposableListener, hasClass, EventType, EventHelper, removeClass, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
@@ -62,7 +62,7 @@ export class TabsTitleControl extends TitleControl {
 	private tabDisposeables: IDisposable[] = [];
 
 	private dimension: Dimension;
-	private layoutScheduled: IDisposable;
+	private layoutScheduled?: IDisposable;
 	private blockRevealActiveTab: boolean;
 
 	constructor(
@@ -203,7 +203,7 @@ export class TabsTitleControl extends TitleControl {
 
 				// Return if transfer is unsupported
 				if (!this.isSupportedDropTransfer(e)) {
-					e.dataTransfer.dropEffect = 'none';
+					e.dataTransfer!.dropEffect = 'none';
 					return;
 				}
 
@@ -214,7 +214,7 @@ export class TabsTitleControl extends TitleControl {
 
 					const localDraggedEditor = this.editorTransfer.getData(DraggedEditorIdentifier.prototype)[0].identifier;
 					if (this.group.id === localDraggedEditor.groupId && this.group.getIndexOfEditor(localDraggedEditor.editor) === this.group.count - 1) {
-						e.dataTransfer.dropEffect = 'none';
+						e.dataTransfer!.dropEffect = 'none';
 						return;
 					}
 				}
@@ -222,7 +222,7 @@ export class TabsTitleControl extends TitleControl {
 				// Update the dropEffect to "copy" if there is no local data to be dragged because
 				// in that case we can only copy the data into and not move it from its source
 				if (!isLocalDragAndDrop) {
-					e.dataTransfer.dropEffect = 'copy';
+					e.dataTransfer!.dropEffect = 'copy';
 				}
 
 				this.updateDropFeedback(this.tabsContainer, true);
@@ -298,7 +298,7 @@ export class TabsTitleControl extends TitleControl {
 				(this.tabsContainer.lastChild as HTMLElement).remove();
 
 				// Remove associated tab label and widget
-				this.tabDisposeables.pop().dispose();
+				this.tabDisposeables.pop()!.dispose();
 			}
 
 			// A removal of a label requires to recompute all labels
@@ -562,7 +562,7 @@ export class TabsTitleControl extends TitleControl {
 		disposables.push(addDisposableListener(tab, EventType.DBLCLICK, (e: MouseEvent) => {
 			EventHelper.stop(e);
 
-			this.group.pinEditor(this.group.getEditor(index));
+			this.group.pinEditor(this.group.getEditor(index) || undefined);
 		}));
 
 		// Context menu
@@ -577,7 +577,7 @@ export class TabsTitleControl extends TitleControl {
 			const editor = this.group.getEditor(index);
 			this.editorTransfer.setData([new DraggedEditorIdentifier({ editor, groupId: this.group.id })], DraggedEditorIdentifier.prototype);
 
-			e.dataTransfer.effectAllowed = 'copyMove';
+			e.dataTransfer!.effectAllowed = 'copyMove';
 
 			// Apply some datatransfer types to allow for dragging the element outside of the application
 			const resource = toResource(editor, { supportSideBySide: true });
@@ -599,7 +599,7 @@ export class TabsTitleControl extends TitleControl {
 
 				// Return if transfer is unsupported
 				if (!this.isSupportedDropTransfer(e)) {
-					e.dataTransfer.dropEffect = 'none';
+					e.dataTransfer!.dropEffect = 'none';
 					return;
 				}
 
@@ -610,7 +610,7 @@ export class TabsTitleControl extends TitleControl {
 
 					const localDraggedEditor = this.editorTransfer.getData(DraggedEditorIdentifier.prototype)[0].identifier;
 					if (localDraggedEditor.editor === this.group.getEditor(index) && localDraggedEditor.groupId === this.group.id) {
-						e.dataTransfer.dropEffect = 'none';
+						e.dataTransfer!.dropEffect = 'none';
 						return;
 					}
 				}
@@ -618,7 +618,7 @@ export class TabsTitleControl extends TitleControl {
 				// Update the dropEffect to "copy" if there is no local data to be dragged because
 				// in that case we can only copy the data into and not move it from its source
 				if (!isLocalDragAndDrop) {
-					e.dataTransfer.dropEffect = 'copy';
+					e.dataTransfer!.dropEffect = 'copy';
 				}
 
 				this.updateDropFeedback(tab, true, index);
@@ -661,7 +661,7 @@ export class TabsTitleControl extends TitleControl {
 			return true; // (local) editors can always be dropped
 		}
 
-		if (e.dataTransfer.types.length > 0) {
+		if (e.dataTransfer && e.dataTransfer.types.length > 0) {
 			return true; // optimistically allow external data (// see https://github.com/Microsoft/vscode/issues/25789)
 		}
 
@@ -670,7 +670,8 @@ export class TabsTitleControl extends TitleControl {
 
 	private updateDropFeedback(element: HTMLElement, isDND: boolean, index?: number): void {
 		const isTab = (typeof index === 'number');
-		const isActiveTab = isTab && this.group.isActive(this.group.getEditor(index));
+		const editor = typeof index === 'number' ? this.group.getEditor(index) : null;
+		const isActiveTab = isTab && !!editor && this.group.isActive(editor);
 
 		// Background
 		const noDNDBackgroundColor = isTab ? this.getColor(isActiveTab ? TAB_ACTIVE_BACKGROUND : TAB_INACTIVE_BACKGROUND) : null;
@@ -698,9 +699,9 @@ export class TabsTitleControl extends TitleControl {
 		// Build labels and descriptions for each editor
 		const labels = this.group.editors.map(editor => ({
 			editor,
-			name: editor.getName(),
-			description: editor.getDescription(verbosity),
-			title: editor.getTitle(Verbosity.LONG)
+			name: editor.getName()!,
+			description: editor.getDescription(verbosity) || undefined,
+			title: editor.getTitle(Verbosity.LONG) || undefined
 		}));
 
 		// Shorten labels as needed
@@ -752,7 +753,7 @@ export class TabsTitleControl extends TitleControl {
 			if (useLongDescriptions) {
 				mapDescriptionToDuplicates.clear();
 				duplicateTitles.forEach(label => {
-					label.description = label.editor.getDescription(Verbosity.LONG);
+					label.description = label.editor.getDescription(Verbosity.LONG) || undefined;
 					getOrSet(mapDescriptionToDuplicates, label.description, []).push(label);
 				});
 			}
@@ -780,7 +781,7 @@ export class TabsTitleControl extends TitleControl {
 		});
 	}
 
-	private getLabelConfigFlags(value: string) {
+	private getLabelConfigFlags(value: string | undefined) {
 		switch (value) {
 			case 'short':
 				return { verbosity: Verbosity.SHORT, shortenDuplicates: false };
@@ -925,7 +926,7 @@ export class TabsTitleControl extends TitleControl {
 
 			// Highlight modified tabs with a border if configured
 			if (this.accessor.partOptions.highlightModifiedTabs) {
-				let modifiedBorderColor: string;
+				let modifiedBorderColor: string | null;
 				if (isGroupActive && isTabActive) {
 					modifiedBorderColor = this.getColor(TAB_ACTIVE_MODIFIED_BORDER);
 				} else if (isGroupActive && !isTabActive) {
@@ -1032,7 +1033,7 @@ export class TabsTitleControl extends TitleControl {
 		}
 	}
 
-	private getTab(editor: IEditorInput): HTMLElement {
+	private getTab(editor: IEditorInput): HTMLElement | undefined {
 		const editorIndex = this.group.getIndexOfEditor(editor);
 		if (editorIndex >= 0) {
 			return this.tabsContainer.children[editorIndex] as HTMLElement;
@@ -1128,21 +1129,21 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const activeContrastBorderColor = theme.getColor(activeContrastBorder);
 	if (activeContrastBorderColor) {
 		collector.addRule(`
-			.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active,
-			.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active:hover  {
+			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active,
+			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active:hover  {
 				outline: 1px solid;
 				outline-offset: -5px;
 			}
 
-			.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab:hover  {
+			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:hover  {
 				outline: 1px dashed;
 				outline-offset: -5px;
 			}
 
-			.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active > .tab-close .action-label,
-			.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active:hover > .tab-close .action-label,
-			.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty > .tab-close .action-label,
-			.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab:hover > .tab-close .action-label {
+			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active > .tab-close .action-label,
+			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active:hover > .tab-close .action-label,
+			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty > .tab-close .action-label,
+			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:hover > .tab-close .action-label {
 				opacity: 1 !important;
 			}
 		`);
@@ -1152,7 +1153,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const tabHoverBackground = theme.getColor(TAB_HOVER_BACKGROUND);
 	if (tabHoverBackground) {
 		collector.addRule(`
-			.monaco-workbench > .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab:hover  {
+			.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab:hover  {
 				background-color: ${tabHoverBackground} !important;
 			}
 		`);
@@ -1161,7 +1162,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const tabUnfocusedHoverBackground = theme.getColor(TAB_UNFOCUSED_HOVER_BACKGROUND);
 	if (tabUnfocusedHoverBackground) {
 		collector.addRule(`
-			.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab:hover  {
+			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:hover  {
 				background-color: ${tabUnfocusedHoverBackground} !important;
 			}
 		`);
@@ -1171,7 +1172,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const tabHoverBorder = theme.getColor(TAB_HOVER_BORDER);
 	if (tabHoverBorder) {
 		collector.addRule(`
-			.monaco-workbench > .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab:hover  {
+			.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab:hover  {
 				box-shadow: ${tabHoverBorder} 0 -1px inset !important;
 			}
 		`);
@@ -1180,7 +1181,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const tabUnfocusedHoverBorder = theme.getColor(TAB_UNFOCUSED_HOVER_BORDER);
 	if (tabUnfocusedHoverBorder) {
 		collector.addRule(`
-			.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab:hover  {
+			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:hover  {
 				box-shadow: ${tabUnfocusedHoverBorder} 0 -1px inset !important;
 			}
 		`);
@@ -1193,12 +1194,12 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		const editorGroupHeaderTabsBackground = theme.getColor(EDITOR_GROUP_HEADER_TABS_BACKGROUND);
 		const editorDragAndDropBackground = theme.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND);
 
-		let adjustedTabBackground: Color;
+		let adjustedTabBackground: Color | undefined;
 		if (editorGroupHeaderTabsBackground && editorBackgroundColor) {
 			adjustedTabBackground = editorGroupHeaderTabsBackground.flatten(editorBackgroundColor, editorBackgroundColor, workbenchBackground);
 		}
 
-		let adjustedTabDragBackground: Color;
+		let adjustedTabDragBackground: Color | undefined;
 		if (editorGroupHeaderTabsBackground && editorBackgroundColor && editorDragAndDropBackground && editorBackgroundColor) {
 			adjustedTabDragBackground = editorGroupHeaderTabsBackground.flatten(editorBackgroundColor, editorDragAndDropBackground, editorBackgroundColor, workbenchBackground);
 		}
@@ -1208,12 +1209,12 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 			const adjustedColor = tabHoverBackground.flatten(adjustedTabBackground);
 			const adjustedColorDrag = tabHoverBackground.flatten(adjustedTabDragBackground);
 			collector.addRule(`
-				.monaco-workbench > .part.editor > .content:not(.dragged-over) .editor-group-container.active > .title .tabs-container > .tab.sizing-shrink:not(.dragged):hover > .tab-label::after {
+				.monaco-workbench .part.editor > .content:not(.dragged-over) .editor-group-container.active > .title .tabs-container > .tab.sizing-shrink:not(.dragged):hover > .tab-label::after {
 					background: linear-gradient(to left, ${adjustedColor}, transparent) !important;
 				}
 
 
-				.monaco-workbench > .part.editor > .content.dragged-over .editor-group-container.active > .title .tabs-container > .tab.sizing-shrink:not(.dragged):hover > .tab-label::after {
+				.monaco-workbench .part.editor > .content.dragged-over .editor-group-container.active > .title .tabs-container > .tab.sizing-shrink:not(.dragged):hover > .tab-label::after {
 					background: linear-gradient(to left, ${adjustedColorDrag}, transparent) !important;
 				}
 			`);
@@ -1224,11 +1225,11 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 			const adjustedColor = tabUnfocusedHoverBackground.flatten(adjustedTabBackground);
 			const adjustedColorDrag = tabUnfocusedHoverBackground.flatten(adjustedTabDragBackground);
 			collector.addRule(`
-				.monaco-workbench > .part.editor > .content:not(.dragged-over) .editor-group-container > .title .tabs-container > .tab.sizing-shrink:not(.dragged):hover > .tab-label::after {
+				.monaco-workbench .part.editor > .content:not(.dragged-over) .editor-group-container > .title .tabs-container > .tab.sizing-shrink:not(.dragged):hover > .tab-label::after {
 					background: linear-gradient(to left, ${adjustedColor}, transparent) !important;
 				}
 
-				.monaco-workbench > .part.editor > .content.dragged-over .editor-group-container > .title .tabs-container > .tab.sizing-shrink:not(.dragged):hover > .tab-label::after {
+				.monaco-workbench .part.editor > .content.dragged-over .editor-group-container > .title .tabs-container > .tab.sizing-shrink:not(.dragged):hover > .tab-label::after {
 					background: linear-gradient(to left, ${adjustedColorDrag}, transparent) !important;
 				}
 			`);
@@ -1238,8 +1239,8 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		if (editorDragAndDropBackground && adjustedTabDragBackground) {
 			const adjustedColorDrag = editorDragAndDropBackground.flatten(adjustedTabDragBackground);
 			collector.addRule(`
-			.monaco-workbench > .part.editor > .content.dragged-over .editor-group-container.active > .title .tabs-container > .tab.sizing-shrink.dragged-over:not(.active):not(.dragged) > .tab-label::after,
-			.monaco-workbench > .part.editor > .content.dragged-over .editor-group-container:not(.active) > .title .tabs-container > .tab.sizing-shrink.dragged-over:not(.dragged) > .tab-label::after {
+			.monaco-workbench .part.editor > .content.dragged-over .editor-group-container.active > .title .tabs-container > .tab.sizing-shrink.dragged-over:not(.active):not(.dragged) > .tab-label::after,
+			.monaco-workbench .part.editor > .content.dragged-over .editor-group-container:not(.active) > .title .tabs-container > .tab.sizing-shrink.dragged-over:not(.dragged) > .tab-label::after {
 				background: linear-gradient(to left, ${adjustedColorDrag}, transparent) !important;
 			}
 		`);
@@ -1251,11 +1252,11 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 			const adjustedColor = tabActiveBackground.flatten(adjustedTabBackground);
 			const adjustedColorDrag = tabActiveBackground.flatten(adjustedTabDragBackground);
 			collector.addRule(`
-				.monaco-workbench > .part.editor > .content:not(.dragged-over) .editor-group-container > .title .tabs-container > .tab.sizing-shrink.active:not(.dragged) > .tab-label::after {
+				.monaco-workbench .part.editor > .content:not(.dragged-over) .editor-group-container > .title .tabs-container > .tab.sizing-shrink.active:not(.dragged) > .tab-label::after {
 					background: linear-gradient(to left, ${adjustedColor}, transparent);
 				}
 
-				.monaco-workbench > .part.editor > .content.dragged-over .editor-group-container > .title .tabs-container > .tab.sizing-shrink.active:not(.dragged) > .tab-label::after {
+				.monaco-workbench .part.editor > .content.dragged-over .editor-group-container > .title .tabs-container > .tab.sizing-shrink.active:not(.dragged) > .tab-label::after {
 					background: linear-gradient(to left, ${adjustedColorDrag}, transparent);
 				}
 			`);
@@ -1267,11 +1268,11 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 			const adjustedColor = tabInactiveBackground.flatten(adjustedTabBackground);
 			const adjustedColorDrag = tabInactiveBackground.flatten(adjustedTabDragBackground);
 			collector.addRule(`
-			.monaco-workbench > .part.editor > .content:not(.dragged-over) .editor-group-container > .title .tabs-container > .tab.sizing-shrink:not(.dragged) > .tab-label::after {
+			.monaco-workbench .part.editor > .content:not(.dragged-over) .editor-group-container > .title .tabs-container > .tab.sizing-shrink:not(.dragged) > .tab-label::after {
 				background: linear-gradient(to left, ${adjustedColor}, transparent);
 			}
 
-			.monaco-workbench > .part.editor > .content.dragged-over .editor-group-container > .title .tabs-container > .tab.sizing-shrink:not(.dragged) > .tab-label::after {
+			.monaco-workbench .part.editor > .content.dragged-over .editor-group-container > .title .tabs-container > .tab.sizing-shrink:not(.dragged) > .tab-label::after {
 				background: linear-gradient(to left, ${adjustedColorDrag}, transparent);
 			}
 		`);

@@ -190,7 +190,7 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 
 		// Extension is not installed
 		else {
-			const galleryExtension = await this.galleryService.getExtension(extensionIdentifier);
+			const galleryExtension = await this.galleryService.getCompatibleExtension(extensionIdentifier);
 
 			if (!galleryExtension) {
 				return;

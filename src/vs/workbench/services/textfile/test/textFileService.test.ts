@@ -58,7 +58,9 @@ suite('Files - TextFileService', () => {
 	});
 
 	teardown(() => {
-		model.dispose();
+		if (model) {
+			model.dispose();
+		}
 		(<TextFileEditorModelManager>accessor.textFileService.models).clear();
 		(<TextFileEditorModelManager>accessor.textFileService.models).dispose();
 		accessor.untitledEditorService.revertAll();

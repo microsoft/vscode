@@ -144,6 +144,7 @@ export class ActiveDocumentDependentRegistration extends Disposable {
 		super();
 		this._registration = this._register(new ConditionalRegistration(register));
 		vscode.window.onDidChangeActiveTextEditor(this.update, this, this._disposables);
+		vscode.workspace.onDidOpenTextDocument(this.onDidOpenDocument, this, this._disposables);
 		this.update();
 	}
 
@@ -151,6 +152,13 @@ export class ActiveDocumentDependentRegistration extends Disposable {
 		const editor = vscode.window.activeTextEditor;
 		const enabled = !!(editor && vscode.languages.match(this.selector, editor.document));
 		this._registration.update(enabled);
+	}
+
+	private onDidOpenDocument(openedDocument: vscode.TextDocument) {
+		if (vscode.window.activeTextEditor && vscode.window.activeTextEditor.document === openedDocument) {
+			// The active document's language may have changed
+			this.update();
+		}
 	}
 }
 

@@ -18,6 +18,7 @@ export interface TaskPresentationOptionsDTO {
 	panel?: number;
 	showReuseMessage?: boolean;
 	clear?: boolean;
+	group?: string;
 }
 
 export interface RunOptionsDTO {
@@ -78,16 +79,16 @@ export interface TaskHandleDTO {
 
 export interface TaskDTO {
 	_id: string;
-	name: string;
-	execution: ProcessExecutionDTO | ShellExecutionDTO;
+	name?: string;
+	execution?: ProcessExecutionDTO | ShellExecutionDTO;
 	definition: TaskDefinitionDTO;
-	isBackground: boolean;
+	isBackground?: boolean;
 	source: TaskSourceDTO;
 	group?: string;
-	presentationOptions: TaskPresentationOptionsDTO;
+	presentationOptions?: TaskPresentationOptionsDTO;
 	problemMatchers: string[];
 	hasDefinedMatchers: boolean;
-	runOptions: RunOptionsDTO;
+	runOptions?: RunOptionsDTO;
 }
 
 export interface TaskSetDTO {

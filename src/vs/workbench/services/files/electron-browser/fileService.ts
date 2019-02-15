@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as paths from 'path';
+import * as paths from 'vs/base/common/path';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as crypto from 'crypto';
 import * as assert from 'assert';
 import { isParent, FileOperation, FileOperationEvent, IContent, IFileService, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IUpdateContentOptions, FileChangeType, FileChangesEvent, ICreateFileOptions, IContentData, ITextSnapshot, IFilesConfiguration, IFileSystemProviderRegistrationEvent, IFileSystemProvider } from 'vs/platform/files/common/files';
 import { MAX_FILE_SIZE, MAX_HEAP_SIZE } from 'vs/platform/files/node/files';
-import { isEqualOrParent } from 'vs/base/common/paths';
+import { isEqualOrParent } from 'vs/base/common/extpath';
 import { ResourceMap } from 'vs/base/common/map';
 import * as arrays from 'vs/base/common/arrays';
 import * as objects from 'vs/base/common/objects';
@@ -555,7 +555,7 @@ export class FileService extends Disposable implements IFileService {
 
 		// 1.) check file for writing
 		return this.checkFileBeforeWriting(absolutePath, options).then(exists => {
-			let createParentsPromise: Promise<boolean>;
+			let createParentsPromise: Promise<any>;
 			if (exists) {
 				createParentsPromise = Promise.resolve();
 			} else {
@@ -839,11 +839,11 @@ export class FileService extends Disposable implements IFileService {
 	}
 
 	moveFile(source: uri, target: uri, overwrite?: boolean): Promise<IFileStat> {
-		return this.moveOrCopyFile(source, target, false, overwrite);
+		return this.moveOrCopyFile(source, target, false, !!overwrite);
 	}
 
 	copyFile(source: uri, target: uri, overwrite?: boolean): Promise<IFileStat> {
-		return this.moveOrCopyFile(source, target, true, overwrite);
+		return this.moveOrCopyFile(source, target, true, !!overwrite);
 	}
 
 	private moveOrCopyFile(source: uri, target: uri, keepCopy: boolean, overwrite: boolean): Promise<IFileStat> {
@@ -856,25 +856,28 @@ export class FileService extends Disposable implements IFileService {
 			// 2.) resolve
 			return this.resolve(target).then(result => {
 
-				// Events
-				this._onAfterOperation.fire(new FileOperationEvent(source, keepCopy ? FileOperation.COPY : FileOperation.MOVE, result));
+				// Events (unless it was a no-op because paths are identical)
+				if (sourcePath !== targetPath) {
+					this._onAfterOperation.fire(new FileOperationEvent(source, keepCopy ? FileOperation.COPY : FileOperation.MOVE, result));
+				}
 
 				return result;
 			});
 		});
 	}
 
-	private doMoveOrCopyFile(sourcePath: string, targetPath: string, keepCopy: boolean, overwrite: boolean): Promise<boolean /* exists */> {
+	private doMoveOrCopyFile(sourcePath: string, targetPath: string, keepCopy: boolean, overwrite: boolean): Promise<void> {
 
 		// 1.) validate operation
 		if (isParent(targetPath, sourcePath, !isLinux)) {
 			return Promise.reject(new Error('Unable to move/copy when source path is parent of target path'));
+		} else if (sourcePath === targetPath) {
+			return Promise.resolve(); // no-op but not an error
 		}
 
 		// 2.) check if target exists
 		return pfs.exists(targetPath).then(exists => {
 			const isCaseRename = sourcePath.toLowerCase() === targetPath.toLowerCase();
-			const isSameFile = sourcePath === targetPath;
 
 			// Return early with conflict if target exists and we are not told to overwrite
 			if (exists && !isCaseRename && !overwrite) {
@@ -897,14 +900,12 @@ export class FileService extends Disposable implements IFileService {
 				return pfs.mkdirp(paths.dirname(targetPath)).then(() => {
 
 					// 4.) copy/move
-					if (isSameFile) {
-						return null;
-					} else if (keepCopy) {
+					if (keepCopy) {
 						return nfcall(extfs.copy, sourcePath, targetPath);
 					} else {
 						return nfcall(extfs.mv, sourcePath, targetPath);
 					}
-				}).then(() => exists);
+				});
 			});
 		});
 	}
@@ -914,7 +915,7 @@ export class FileService extends Disposable implements IFileService {
 			return this.doMoveItemToTrash(resource);
 		}
 
-		return this.doDelete(resource, options && options.recursive);
+		return this.doDelete(resource, !!(options && options.recursive));
 	}
 
 	private doMoveItemToTrash(resource: uri): Promise<void> {
@@ -1141,7 +1142,7 @@ export class StatResolver {
 		this.etag = etag(size, mtime);
 	}
 
-	resolve(options: IResolveFileOptions): Promise<IFileStat> {
+	resolve(options: IResolveFileOptions | undefined): Promise<IFileStat> {
 
 		// General Data
 		const fileStat: IFileStat = {

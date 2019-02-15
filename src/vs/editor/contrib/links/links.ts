@@ -111,7 +111,7 @@ class LinkOccurrence {
 	}
 
 	private static _getOptions(link: Link, useMetaKey: boolean, isActive: boolean): ModelDecorationOptions {
-		if (link.url && /^command:/i.test(link.url)) {
+		if (link.url && /^command:/i.test(link.url.toString())) {
 			if (useMetaKey) {
 				return (isActive ? decoration.metaCommandActive : decoration.metaCommand);
 			} else {
@@ -341,7 +341,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		}, err => {
 			// different error cases
 			if (err === 'invalid') {
-				this.notificationService.warn(nls.localize('invalid.url', 'Failed to open this link because it is not well-formed: {0}', link.url));
+				this.notificationService.warn(nls.localize('invalid.url', 'Failed to open this link because it is not well-formed: {0}', link.url!.toString()));
 			} else if (err === 'missing') {
 				this.notificationService.warn(nls.localize('missing.url', 'Failed to open this link because its target is missing.'));
 			} else {

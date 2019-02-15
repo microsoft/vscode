@@ -36,7 +36,7 @@ import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingReso
 import { IKeybindingItem, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
-import { ILabelService, LabelRules, RegisterFormatterData } from 'vs/platform/label/common/label';
+import { ILabelService, ResourceLabelFormatter } from 'vs/platform/label/common/label';
 import { INotification, INotificationHandle, INotificationService, IPromptChoice, IPromptOptions, NoOpNotification } from 'vs/platform/notification/common/notification';
 import { IProgressRunner, IProgressService } from 'vs/platform/progress/common/progress';
 import { ITelemetryInfo, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -521,6 +521,10 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 		this.workspace = { id: '4064f6ec-cb38-4ad0-af64-ee6467e63c82', folders: [new WorkspaceFolder({ uri: resource, name: '', index: 0 })] };
 	}
 
+	getCompleteWorkspace(): Promise<IWorkspace> {
+		return Promise.resolve(this.getWorkspace());
+	}
+
 	public getWorkspace(): IWorkspace {
 		return this.workspace;
 	}
@@ -572,7 +576,7 @@ export class SimpleBulkEditService implements IBulkEditService {
 		//
 	}
 
-	apply(workspaceEdit: WorkspaceEdit, options: IBulkEditOptions): Promise<IBulkEditResult> {
+	apply(workspaceEdit: WorkspaceEdit, options?: IBulkEditOptions): Promise<IBulkEditResult> {
 
 		let edits = new Map<ITextModel, TextEdit[]>();
 
@@ -611,8 +615,8 @@ export class SimpleBulkEditService implements IBulkEditService {
 export class SimpleUriLabelService implements ILabelService {
 	_serviceBrand: any;
 
-	private readonly _onDidRegisterFormatter = new Emitter<RegisterFormatterData>();
-	public readonly onDidRegisterFormatter: Event<RegisterFormatterData> = this._onDidRegisterFormatter.event;
+	private readonly _onDidRegisterFormatter = new Emitter<void>();
+	public readonly onDidChangeFormatters: Event<void> = this._onDidRegisterFormatter.event;
 
 	public getUriLabel(resource: URI, options?: { relative?: boolean, forceNoTildify?: boolean }): string {
 		if (resource.scheme === 'file') {
@@ -625,7 +629,7 @@ export class SimpleUriLabelService implements ILabelService {
 		return '';
 	}
 
-	public registerFormatter(selector: string, formatter: LabelRules): IDisposable {
+	public registerFormatter(formatter: ResourceLabelFormatter): IDisposable {
 		throw new Error('Not implemented');
 	}
 

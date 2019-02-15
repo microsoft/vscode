@@ -6,7 +6,8 @@
 import * as fs from 'fs';
 import * as ts from 'typescript';
 import * as path from 'path';
-import * as util from 'gulp-util';
+import * as fancyLog from 'fancy-log';
+import * as ansiColors from 'ansi-colors';
 
 const dtsv = '2';
 
@@ -17,7 +18,7 @@ export const RECIPE_PATH = path.join(__dirname, './monaco.d.ts.recipe');
 const DECLARATION_PATH = path.join(__dirname, '../../src/vs/monaco.d.ts');
 
 function logErr(message: any, ...rest: any[]): void {
-	util.log(util.colors.yellow(`[monaco.d.ts]`), message, ...rest);
+	fancyLog(ansiColors.yellow(`[monaco.d.ts]`), message, ...rest);
 }
 
 type SourceFileGetter = (moduleId: string) => ts.SourceFile | null;
