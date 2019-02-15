@@ -164,17 +164,11 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			if (e.contribInfo) {
 				const addExtraSpaceOnTop = this._codeEditor.getConfiguration().contribInfo.find.addExtraSpaceOnTop;
 				if (addExtraSpaceOnTop && !this._viewZone) {
-					this._viewZone = this._viewZone = new FindWidgetViewZone(0);
+					this._viewZone = new FindWidgetViewZone(0);
 					this._showViewZone();
 				}
 				if (!addExtraSpaceOnTop && this._viewZone) {
-					this._codeEditor.changeViewZones((accessor) => {
-						if (this._viewZoneId) {
-							accessor.removeZone(this._viewZoneId);
-						}
-						this._viewZoneId = undefined;
-						this._viewZone = undefined;
-					});
+					this._removeViewZone();
 				}
 			}
 		}));
@@ -487,19 +481,18 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 				this._codeEditor.focus();
 			}
 			this._codeEditor.layoutOverlayWidget(this);
-			this._codeEditor.changeViewZones((accessor) => {
-				if (this._viewZoneId !== undefined) {
-					accessor.removeZone(this._viewZoneId);
-					this._viewZoneId = undefined;
-					if (this._viewZone) {
-						this._codeEditor.setScrollTop(this._codeEditor.getScrollTop() - this._viewZone.heightInPx);
-					}
-				}
-			});
+			this._removeViewZone();
 		}
 	}
 
 	private _layoutViewZone() {
+		const addExtraSpaceOnTop = this._codeEditor.getConfiguration().contribInfo.find.addExtraSpaceOnTop;
+
+		if (!addExtraSpaceOnTop) {
+			this._removeViewZone();
+			return;
+		}
+
 		if (!this._isVisible) {
 			return;
 		}
@@ -546,6 +539,19 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 			if (adjustScroll) {
 				this._codeEditor.setScrollTop(this._codeEditor.getScrollTop() + scrollAdjustment);
+			}
+		});
+	}
+
+	private _removeViewZone() {
+		this._codeEditor.changeViewZones((accessor) => {
+			if (this._viewZoneId !== undefined) {
+				accessor.removeZone(this._viewZoneId);
+				this._viewZoneId = undefined;
+				if (this._viewZone) {
+					this._codeEditor.setScrollTop(this._codeEditor.getScrollTop() - this._viewZone.heightInPx);
+					this._viewZone = undefined;
+				}
 			}
 		});
 	}
