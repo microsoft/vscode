@@ -13,7 +13,7 @@ import * as mouse from 'vs/base/browser/mouseEvent';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import * as _ from 'vs/base/parts/tree/browser/tree';
 import { IDragAndDropData } from 'vs/base/browser/dnd';
-import { KeyCode, KeyMod, Keybinding, SimpleKeybinding, createSimpleKeybinding } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod, Keybinding, SimpleKeybinding, createKeybinding } from 'vs/base/common/keyCodes';
 
 export interface IKeyBindingCallback {
 	(tree: _.ITree, event: IKeyboardEvent): void;
@@ -49,7 +49,7 @@ export interface IControllerOptions {
 }
 
 interface IKeybindingDispatcherItem {
-	keybinding: Keybinding;
+	keybinding: Keybinding | null;
 	callback: IKeyBindingCallback;
 }
 
@@ -62,10 +62,12 @@ export class KeybindingDispatcher {
 	}
 
 	public has(keybinding: KeyCode): boolean {
-		let target = createSimpleKeybinding(keybinding, platform.OS);
-		for (const a of this._arr) {
-			if (target.equals(a.keybinding)) {
-				return true;
+		let target = createKeybinding(keybinding, platform.OS);
+		if (target !== null) {
+			for (const a of this._arr) {
+				if (target.equals(a.keybinding)) {
+					return true;
+				}
 			}
 		}
 		return false;
@@ -73,7 +75,7 @@ export class KeybindingDispatcher {
 
 	public set(keybinding: number, callback: IKeyBindingCallback) {
 		this._arr.push({
-			keybinding: createSimpleKeybinding(keybinding, platform.OS),
+			keybinding: createKeybinding(keybinding, platform.OS),
 			callback: callback
 		});
 	}
@@ -82,7 +84,7 @@ export class KeybindingDispatcher {
 		// Loop from the last to the first to handle overwrites
 		for (let i = this._arr.length - 1; i >= 0; i--) {
 			let item = this._arr[i];
-			if (keybinding.equals(item.keybinding)) {
+			if (keybinding.toChord().equals(item.keybinding)) {
 				return item.callback;
 			}
 		}
