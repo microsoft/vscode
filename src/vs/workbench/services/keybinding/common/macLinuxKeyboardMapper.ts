@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CharCode } from 'vs/base/common/charCode';
-import { KeyCode, KeyCodeUtils, Keybinding, ResolvedKeybinding, ResolvedKeybindingPart, SimpleKeybinding } from 'vs/base/common/keyCodes';
-import { AriaLabelProvider, ElectronAcceleratorLabelProvider, UILabelProvider, UserSettingsLabelProvider } from 'vs/base/common/keybindingLabels';
+import { KeyCode, KeyCodeUtils, Keybinding, ResolvedKeybinding, SimpleKeybinding, BaseResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IMMUTABLE_CODE_TO_KEY_CODE, IMMUTABLE_KEY_CODE_TO_CODE, ScanCode, ScanCodeBinding, ScanCodeUtils } from 'vs/base/common/scanCode';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
@@ -63,44 +62,32 @@ export function macLinuxKeyboardMappingEquals(a: IMacLinuxKeyboardMapping | null
  */
 const CHAR_CODE_TO_KEY_CODE: ({ keyCode: KeyCode; shiftKey: boolean } | null)[] = [];
 
-export class NativeResolvedKeybinding extends ResolvedKeybinding {
+export class NativeResolvedKeybinding extends BaseResolvedKeybinding<ScanCodeBinding> {
 
 	private readonly _mapper: MacLinuxKeyboardMapper;
-	private readonly _OS: OperatingSystem;
-	private readonly _parts: ScanCodeBinding[];
 
-	constructor(mapper: MacLinuxKeyboardMapper, OS: OperatingSystem, parts: ScanCodeBinding[]) {
-		super();
-		if (parts.length === 0) {
-			throw new Error(`Invalid NativeResolvedKeybinding`);
-		}
+	constructor(mapper: MacLinuxKeyboardMapper, os: OperatingSystem, parts: ScanCodeBinding[]) {
+		super(os, parts);
 		this._mapper = mapper;
-		this._OS = OS;
-		this._parts = parts;
 	}
 
-	public getLabel(): string | null {
-		return UILabelProvider.toLabel(this._OS, this._parts, (keybinding) => this._mapper.getUILabelForScanCodeBinding(keybinding));
+	protected _getLabel(keybinding: ScanCodeBinding): string | null {
+		return this._mapper.getUILabelForScanCodeBinding(keybinding);
 	}
 
-	public getAriaLabel(): string | null {
-		return AriaLabelProvider.toLabel(this._OS, this._parts, (keybinding) => this._mapper.getAriaLabelForScanCodeBinding(keybinding));
+	protected _getAriaLabel(keybinding: ScanCodeBinding): string | null {
+		return this._mapper.getAriaLabelForScanCodeBinding(keybinding);
 	}
 
-	public getElectronAccelerator(): string | null {
-		if (this._parts.length > 1) {
-			// Electron cannot handle chords
-			return null;
-		}
-
-		return ElectronAcceleratorLabelProvider.toLabel(this._OS, this._parts, (keybinding) => this._mapper.getElectronAcceleratorLabelForScanCodeBinding(keybinding));
+	protected _getElectronAccelerator(keybinding: ScanCodeBinding): string | null {
+		return this._mapper.getElectronAcceleratorLabelForScanCodeBinding(keybinding);
 	}
 
-	public getUserSettingsLabel(): string | null {
-		return UserSettingsLabelProvider.toLabel(this._OS, this._parts, (keybinding) => this._mapper.getUserSettingsLabelForScanCodeBinding(keybinding));
+	protected _getUserSettingsLabel(keybinding: ScanCodeBinding): string | null {
+		return this._mapper.getUserSettingsLabelForScanCodeBinding(keybinding);
 	}
 
-	private _isWYSIWYG(binding: ScanCodeBinding | null): boolean {
+	protected _isWYSIWYG(binding: ScanCodeBinding | null): boolean {
 		if (!binding) {
 			return true;
 		}
@@ -119,31 +106,8 @@ export class NativeResolvedKeybinding extends ResolvedKeybinding {
 		return (a.toLowerCase() === b.toLowerCase());
 	}
 
-	public isWYSIWYG(): boolean {
-		return this._parts.every((keybinding) => this._isWYSIWYG(keybinding));
-	}
-
-	public isChord(): boolean {
-		return (this._parts.length > 1);
-	}
-
-	public getParts(): ResolvedKeybindingPart[] {
-		return this._parts.map((keybinding) => this._toResolvedKeybindingPart(keybinding));
-	}
-
-	private _toResolvedKeybindingPart(binding: ScanCodeBinding): ResolvedKeybindingPart {
-		return new ResolvedKeybindingPart(
-			binding.ctrlKey,
-			binding.shiftKey,
-			binding.altKey,
-			binding.metaKey,
-			this._mapper.getUILabelForScanCodeBinding(binding),
-			this._mapper.getAriaLabelForScanCodeBinding(binding)
-		);
-	}
-
-	public getDispatchParts(): (string | null)[] {
-		return this._parts.map((keybinding) => this._mapper.getDispatchStrForScanCodeBinding(keybinding));
+	protected _getDispatchPart(keybinding: ScanCodeBinding): string | null {
+		return this._mapper.getDispatchStrForScanCodeBinding(keybinding);
 	}
 }
 

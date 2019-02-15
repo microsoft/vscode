@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CharCode } from 'vs/base/common/charCode';
-import { KeyCode, KeyCodeUtils, Keybinding, ResolvedKeybinding, ResolvedKeybindingPart, SimpleKeybinding } from 'vs/base/common/keyCodes';
-import { AriaLabelProvider, ElectronAcceleratorLabelProvider, UILabelProvider, UserSettingsLabelProvider } from 'vs/base/common/keybindingLabels';
+import { KeyCode, KeyCodeUtils, Keybinding, ResolvedKeybinding, SimpleKeybinding, BaseResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { UILabelProvider } from 'vs/base/common/keybindingLabels';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IMMUTABLE_CODE_TO_KEY_CODE, ScanCode, ScanCodeBinding, ScanCodeUtils } from 'vs/base/common/scanCode';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
@@ -76,38 +76,23 @@ export interface IScanCodeMapping {
 	withShiftAltGr: string;
 }
 
-export class WindowsNativeResolvedKeybinding extends ResolvedKeybinding {
+export class WindowsNativeResolvedKeybinding extends BaseResolvedKeybinding<SimpleKeybinding> {
 
 	private readonly _mapper: WindowsKeyboardMapper;
-	private readonly _parts: SimpleKeybinding[];
 
 	constructor(mapper: WindowsKeyboardMapper, parts: SimpleKeybinding[]) {
-		super();
-		if (parts.length === 0) {
-			throw new Error(`Invalid WindowsNativeResolvedKeybinding`);
-		}
+		super(OperatingSystem.Windows, parts);
 		this._mapper = mapper;
-		this._parts = parts;
 	}
 
-	private _getUILabelForKeybinding(keybinding: SimpleKeybinding | null): string | null {
-		if (!keybinding) {
-			return null;
-		}
+	protected _getLabel(keybinding: SimpleKeybinding): string | null {
 		if (keybinding.isDuplicateModifierCase()) {
 			return '';
 		}
 		return this._mapper.getUILabelForKeyCode(keybinding.keyCode);
 	}
 
-	public getLabel(): string | null {
-		return UILabelProvider.toLabel(OperatingSystem.Windows, this._parts, (keybinding) => this._getUILabelForKeybinding(keybinding));
-	}
-
-	private _getUSLabelForKeybinding(keybinding: SimpleKeybinding | null): string | null {
-		if (!keybinding) {
-			return null;
-		}
+	private _getUSLabelForKeybinding(keybinding: SimpleKeybinding): string | null {
 		if (keybinding.isDuplicateModifierCase()) {
 			return '';
 		}
@@ -115,21 +100,14 @@ export class WindowsNativeResolvedKeybinding extends ResolvedKeybinding {
 	}
 
 	public getUSLabel(): string | null {
-		return UILabelProvider.toLabel(OperatingSystem.Windows, this._parts, (keybinding) => this._getUSLabelForKeybinding(keybinding));
+		return UILabelProvider.toLabel(this._os, this._parts, (keybinding) => this._getUSLabelForKeybinding(keybinding));
 	}
 
-	private _getAriaLabelForKeybinding(keybinding: SimpleKeybinding | null): string | null {
-		if (!keybinding) {
-			return null;
-		}
+	protected _getAriaLabel(keybinding: SimpleKeybinding): string | null {
 		if (keybinding.isDuplicateModifierCase()) {
 			return '';
 		}
 		return this._mapper.getAriaLabelForKeyCode(keybinding.keyCode);
-	}
-
-	public getAriaLabel(): string | null {
-		return AriaLabelProvider.toLabel(OperatingSystem.Windows, this._parts, (keybinding) => this._getAriaLabelForKeybinding(keybinding));
 	}
 
 	private _keyCodeToElectronAccelerator(keyCode: KeyCode): string | null {
@@ -153,45 +131,26 @@ export class WindowsNativeResolvedKeybinding extends ResolvedKeybinding {
 		return KeyCodeUtils.toString(keyCode);
 	}
 
-	private _getElectronAcceleratorLabelForKeybinding(keybinding: SimpleKeybinding | null): string | null {
-		if (!keybinding) {
-			return null;
-		}
+	protected _getElectronAccelerator(keybinding: SimpleKeybinding): string | null {
 		if (keybinding.isDuplicateModifierCase()) {
 			return null;
 		}
 		return this._keyCodeToElectronAccelerator(keybinding.keyCode);
 	}
 
-	public getElectronAccelerator(): string | null {
-		if (this._parts.length > 1) {
-			// Electron cannot handle chords
-			return null;
-		}
-
-		return ElectronAcceleratorLabelProvider.toLabel(OperatingSystem.Windows, this._parts, (keybinding) => this._getElectronAcceleratorLabelForKeybinding(keybinding));
-	}
-
-	private _getUserSettingsLabelForKeybinding(keybinding: SimpleKeybinding | null): string | null {
-		if (!keybinding) {
-			return null;
-		}
+	protected _getUserSettingsLabel(keybinding: SimpleKeybinding): string | null {
 		if (keybinding.isDuplicateModifierCase()) {
 			return '';
 		}
-		return this._mapper.getUserSettingsLabelForKeyCode(keybinding.keyCode);
-	}
-
-	public getUserSettingsLabel(): string | null {
-		const result = UserSettingsLabelProvider.toLabel(OperatingSystem.Windows, this._parts, (keybinding) => this._getUserSettingsLabelForKeybinding(keybinding));
+		const result = this._mapper.getUserSettingsLabelForKeyCode(keybinding.keyCode);
 		return (result ? result.toLowerCase() : result);
 	}
 
-	public isWYSIWYG(): boolean {
-		return this._parts.every((keybinding) => this._isWYSIWYG(keybinding.keyCode));
+	protected _isWYSIWYG(keybinding: SimpleKeybinding): boolean {
+		return this.__isWYSIWYG(keybinding.keyCode);
 	}
 
-	private _isWYSIWYG(keyCode: KeyCode): boolean {
+	private __isWYSIWYG(keyCode: KeyCode): boolean {
 		if (
 			keyCode === KeyCode.LeftArrow
 			|| keyCode === KeyCode.UpArrow
@@ -205,30 +164,7 @@ export class WindowsNativeResolvedKeybinding extends ResolvedKeybinding {
 		return (ariaLabel === userSettingsLabel);
 	}
 
-	public isChord(): boolean {
-		return (this._parts.length > 1);
-	}
-
-	public getParts(): ResolvedKeybindingPart[] {
-		return this._parts.map((keybinding) => this._toResolvedKeybindingPart(keybinding));
-	}
-
-	private _toResolvedKeybindingPart(keybinding: SimpleKeybinding): ResolvedKeybindingPart {
-		return new ResolvedKeybindingPart(
-			keybinding.ctrlKey,
-			keybinding.shiftKey,
-			keybinding.altKey,
-			keybinding.metaKey,
-			this._getUILabelForKeybinding(keybinding),
-			this._getAriaLabelForKeybinding(keybinding)
-		);
-	}
-
-	public getDispatchParts(): (string | null)[] {
-		return this._parts.map((keybinding) => this._getDispatchStr(keybinding));
-	}
-
-	private _getDispatchStr(keybinding: SimpleKeybinding): string | null {
+	protected _getDispatchPart(keybinding: SimpleKeybinding): string | null {
 		if (keybinding.isModifierKey()) {
 			return null;
 		}
