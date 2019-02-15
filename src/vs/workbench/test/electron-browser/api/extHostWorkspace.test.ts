@@ -35,7 +35,7 @@ suite('ExtHostWorkspace', function () {
 		if (actual === expected) {
 			assert.ok(true);
 		} else {
-			assert.equal(actual, normalize(expected, true));
+			assert.equal(actual, normalize(expected));
 		}
 	}
 

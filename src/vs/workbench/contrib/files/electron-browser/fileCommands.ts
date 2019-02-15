@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as extpath from 'vs/base/common/extpath';
 import { URI } from 'vs/base/common/uri';
 import { toResource, IEditorCommandsContext } from 'vs/workbench/common/editor';
 import { IWindowsService, IWindowService, IURIToOpen } from 'vs/platform/windows/common/windows';
@@ -358,9 +357,9 @@ CommandsRegistry.registerCommand({
 
 function revealResourcesInOS(resources: URI[], windowsService: IWindowsService, notificationService: INotificationService, workspaceContextService: IWorkspaceContextService): void {
 	if (resources.length) {
-		sequence(resources.map(r => () => windowsService.showItemInFolder(extpath.normalize(r.fsPath, true))));
+		sequence(resources.map(r => () => windowsService.showItemInFolder(r.fsPath)));
 	} else if (workspaceContextService.getWorkspace().folders.length) {
-		windowsService.showItemInFolder(extpath.normalize(workspaceContextService.getWorkspace().folders[0].uri.fsPath, true));
+		windowsService.showItemInFolder(workspaceContextService.getWorkspace().folders[0].uri.fsPath);
 	} else {
 		notificationService.info(nls.localize('openFileToReveal', "Open a file first to reveal"));
 	}

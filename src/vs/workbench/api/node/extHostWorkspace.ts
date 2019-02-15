@@ -354,7 +354,7 @@ export class ExtHostWorkspaceProvider {
 		if (includeWorkspace) {
 			result = `${folder.name}/${result}`;
 		}
-		return normalize(result, true);
+		return normalize(result);
 	}
 
 	private trySetWorkspaceFolders(folders: vscode.WorkspaceFolder[]): void {

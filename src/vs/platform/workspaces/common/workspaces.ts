@@ -179,7 +179,7 @@ export function massageFolderPathForWorkspace(absoluteFolderPath: string, target
 		if (isWindows) {
 			if (isAbsolute(absoluteFolderPath)) {
 				if (shouldUseSlashForPath(existingFolders)) {
-					absoluteFolderPath = normalize(absoluteFolderPath, false /* do not use OS path separator */);
+					absoluteFolderPath = normalize(absoluteFolderPath /* do not use OS path separator */);
 				}
 
 				absoluteFolderPath = normalizeDriveLetter(absoluteFolderPath);

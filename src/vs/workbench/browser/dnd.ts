@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { hasWorkspaceFileExtension, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { normalize } from 'vs/base/common/extpath';
+import { normalize } from 'vs/base/common/path';
 import { basename, basenameOrAuthority } from 'vs/base/common/resources';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWindowsService, IWindowService, IURIToOpen } from 'vs/platform/windows/common/windows';
@@ -368,7 +368,7 @@ export function fillResourceDataTransfers(accessor: ServicesAccessor, resources:
 
 	// Text: allows to paste into text-capable areas
 	const lineDelimiter = isWindows ? '\r\n' : '\n';
-	event.dataTransfer.setData(DataTransfers.TEXT, sources.map(source => source.resource.scheme === Schemas.file ? normalize(normalizeDriveLetter(source.resource.fsPath), true) : source.resource.toString()).join(lineDelimiter));
+	event.dataTransfer.setData(DataTransfers.TEXT, sources.map(source => source.resource.scheme === Schemas.file ? normalize(normalizeDriveLetter(source.resource.fsPath)) : source.resource.toString()).join(lineDelimiter));
 
 	// Download URL: enables support to drag a tab as file to desktop (only single file supported)
 	if (firstSource.resource.scheme === Schemas.file) {

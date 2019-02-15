@@ -30,10 +30,10 @@ export function toForwardSlashes(osPath: string) {
 	return osPath.replace(/[\\/]/g, '/');
 }
 
-export function normalize(path: undefined, toOSPath?: boolean): undefined;
-export function normalize(path: null, toOSPath?: boolean): null;
-export function normalize(path: string, toOSPath?: boolean): string;
-export function normalize(path: string | null | undefined, toOSPath?: boolean): string | null | undefined {
+export function normalize(path: undefined): undefined;
+export function normalize(path: null): null;
+export function normalize(path: string): string;
+export function normalize(path: string | null | undefined): string | null | undefined {
 
 	if (path === null || path === undefined) {
 		return path;
@@ -44,12 +44,11 @@ export function normalize(path: string | null | undefined, toOSPath?: boolean): 
 		return '.';
 	}
 
-	const wantsBackslash = !!(isWindows && toOSPath);
-	if (_isNormal(path, wantsBackslash)) {
+	if (_isNormal(path, false)) {
 		return path;
 	}
 
-	const sep = wantsBackslash ? '\\' : '/';
+	const sep = '/';
 	const root = getRoot(path, sep);
 
 	// skip the root-portion of the path

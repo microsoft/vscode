@@ -2520,14 +2520,14 @@ export class OpenExtensionsFolderAction extends Action {
 	}
 
 	run(): Promise<void> {
-		const extensionsHome = this.environmentService.extensionsPath;
+		const extensionsHome = URI.file(this.environmentService.extensionsPath);
 
-		return Promise.resolve(this.fileService.resolveFile(URI.file(extensionsHome))).then(file => {
+		return Promise.resolve(this.fileService.resolveFile(extensionsHome)).then(file => {
 			let itemToShow: string;
 			if (file.children && file.children.length > 0) {
 				itemToShow = file.children[0].resource.fsPath;
 			} else {
-				itemToShow = extpath.normalize(extensionsHome, true);
+				itemToShow = extensionsHome.fsPath;
 			}
 
 			return this.windowsService.showItemInFolder(itemToShow);

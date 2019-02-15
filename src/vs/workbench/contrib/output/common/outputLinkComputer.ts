@@ -8,6 +8,7 @@ import { ILink } from 'vs/editor/common/modes';
 import { URI } from 'vs/base/common/uri';
 import * as extpath from 'vs/base/common/extpath';
 import * as resources from 'vs/base/common/resources';
+import * as path from 'vs/base/common/path';
 import * as strings from 'vs/base/common/strings';
 import * as arrays from 'vs/base/common/arrays';
 import { Range } from 'vs/editor/common/core/range';
@@ -88,8 +89,8 @@ export class OutputLinkComputer {
 
 		const workspaceFolderPath = workspaceFolder.scheme === 'file' ? workspaceFolder.fsPath : workspaceFolder.path;
 		const workspaceFolderVariants = arrays.distinct([
-			extpath.normalize(workspaceFolderPath, true),
-			extpath.normalize(workspaceFolderPath, false)
+			path.normalize(workspaceFolderPath),
+			extpath.normalize(workspaceFolderPath)
 		]);
 
 		workspaceFolderVariants.forEach(workspaceFolderVariant => {
