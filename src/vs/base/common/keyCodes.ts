@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { OperatingSystem } from 'vs/base/common/platform';
+import { illegalArgument } from 'vs/base/common/errors';
 
 /**
  * Virtual Key Codes, the value does not hold any inherent meaning.
@@ -416,11 +417,13 @@ export function createKeybinding(keybinding: number, OS: OperatingSystem): Keybi
 	}
 	const firstPart = (keybinding & 0x0000FFFF) >>> 0;
 	const chordPart = (keybinding & 0xFFFF0000) >>> 16;
-	let parts = [createSimpleKeybinding(firstPart, OS)];
 	if (chordPart !== 0) {
-		parts.push(createSimpleKeybinding(chordPart, OS));
+		return new ChordKeybinding([
+			createSimpleKeybinding(firstPart, OS),
+			createSimpleKeybinding(chordPart, OS)
+		]);
 	}
-	return new ChordKeybinding(parts);
+	return new ChordKeybinding([createSimpleKeybinding(firstPart, OS)]);
 }
 
 export function createSimpleKeybinding(keybinding: number, OS: OperatingSystem): SimpleKeybinding {
@@ -437,14 +440,7 @@ export function createSimpleKeybinding(keybinding: number, OS: OperatingSystem):
 	return new SimpleKeybinding(ctrlKey, shiftKey, altKey, metaKey, keyCode);
 }
 
-export const enum KeybindingType {
-	Simple = 1,
-	Chord = 2
-}
-
 export class SimpleKeybinding {
-	public readonly type = KeybindingType.Simple;
-
 	public readonly ctrlKey: boolean;
 	public readonly shiftKey: boolean;
 	public readonly altKey: boolean;
@@ -505,16 +501,24 @@ export class SimpleKeybinding {
 }
 
 export class ChordKeybinding {
-	public readonly type = KeybindingType.Chord;
 	public readonly parts: SimpleKeybinding[];
 
 	constructor(parts: SimpleKeybinding[]) {
+		if (parts.length === 0) {
+			throw illegalArgument(`parts`);
+		}
 		this.parts = parts;
 	}
 
 	public getHashCode(): string {
-		let hashCodes = this.parts.map((p) => p.getHashCode().toString());
-		return hashCodes.join(';');
+		let result = '';
+		for (let i = 0, len = this.parts.length; i < len; i++) {
+			if (i !== 0) {
+				result += ';';
+			}
+			result += this.parts[i].getHashCode();
+		}
+		return result;
 	}
 
 	public equals(other: ChordKeybinding | null): boolean {

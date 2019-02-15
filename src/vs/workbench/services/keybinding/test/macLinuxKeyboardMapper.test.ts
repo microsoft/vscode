@@ -1427,7 +1427,7 @@ function _assertKeybindingTranslation(mapper: MacLinuxKeyboardMapper, OS: Operat
 
 	const runtimeKeybinding = createSimpleKeybinding(kb, OS);
 
-	const keybindingLabel = new USLayoutResolvedKeybinding(runtimeKeybinding.toChord()!, OS).getUserSettingsLabel();
+	const keybindingLabel = new USLayoutResolvedKeybinding(runtimeKeybinding.toChord(), OS).getUserSettingsLabel();
 
 	const actualHardwareKeypresses = mapper.simpleKeybindingToScanCodeBinding(runtimeKeybinding);
 	if (actualHardwareKeypresses.length === 0) {
@@ -1436,6 +1436,6 @@ function _assertKeybindingTranslation(mapper: MacLinuxKeyboardMapper, OS: Operat
 	}
 
 	const actual = actualHardwareKeypresses
-		.map(k => UserSettingsLabelProvider.toLabel([k], [ScanCodeUtils.toString(k.scanCode)], OS));
+		.map(k => UserSettingsLabelProvider.toLabel(OS, [k], (keybinding) => ScanCodeUtils.toString(keybinding.scanCode)));
 	assert.deepEqual(actual, expected, `simpleKeybindingToHardwareKeypress -- "${keybindingLabel}" -- actual: "${actual}" -- expected: "${expected}"`);
 }

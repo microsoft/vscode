@@ -22,12 +22,18 @@ export class ResolvedKeybindingItem {
 	constructor(resolvedKeybinding: ResolvedKeybinding | null, command: string | null, commandArgs: any, when: ContextKeyExpr | null, isDefault: boolean) {
 		this.resolvedKeybinding = resolvedKeybinding;
 		if (resolvedKeybinding) {
-			let [keypressFirstPart, keypressChordPart] = resolvedKeybinding.getDispatchParts();
-			this.keypressFirstPart = keypressFirstPart;
-			if (keypressChordPart === undefined) {
-				keypressChordPart = null;
+			const dispatchParts = resolvedKeybinding.getDispatchParts();
+			// TODO@chords: add support for dispatching N chords here
+			if (dispatchParts.length >= 2) {
+				this.keypressFirstPart = dispatchParts[0];
+				this.keypressChordPart = dispatchParts[1];
+			} else if (dispatchParts.length === 1) {
+				this.keypressFirstPart = dispatchParts[0];
+				this.keypressChordPart = null;
+			} else {
+				this.keypressFirstPart = null;
+				this.keypressChordPart = null;
 			}
-			this.keypressChordPart = keypressChordPart;
 		} else {
 			this.keypressFirstPart = null;
 			this.keypressChordPart = null;

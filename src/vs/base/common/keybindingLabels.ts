@@ -21,6 +21,10 @@ export interface Modifiers {
 	readonly metaKey: boolean;
 }
 
+export interface KeyLabelProvider<T extends Modifiers> {
+	(keybinding: T): string | null;
+}
+
 export class ModifierLabelProvider {
 
 	public readonly modifierLabels: ModifierLabels[];
@@ -32,8 +36,22 @@ export class ModifierLabelProvider {
 		this.modifierLabels[OperatingSystem.Linux] = linux;
 	}
 
-	public toLabel(partModifiers: Modifiers[], partKeys: string[], OS: OperatingSystem): string | null {
-		return _asString(partModifiers, partKeys, this.modifierLabels[OS]);
+	public toLabel<T extends Modifiers>(OS: OperatingSystem, parts: T[], keyLabelProvider: KeyLabelProvider<T>): string | null {
+		if (parts.length === 0) {
+			return null;
+		}
+
+		let result: string[] = [];
+		for (let i = 0, len = parts.length; i < len; i++) {
+			const part = parts[i];
+			const keyLabel = keyLabelProvider(part);
+			if (keyLabel === null) {
+				// this keybinding cannot be expressed...
+				return null;
+			}
+			result[i] = _simpleAsString(part, keyLabel, this.modifierLabels[OS]);
+		}
+		return result.join(' ');
 	}
 }
 
@@ -167,12 +185,4 @@ function _simpleAsString(modifiers: Modifiers, key: string, labels: ModifierLabe
 	result.push(key);
 
 	return result.join(labels.separator);
-}
-
-function _asString(partModifiers: Modifiers[], partKeys: string[], labels: ModifierLabels): string {
-	let results: string[] = [];
-	for (let i = 0; i < partModifiers.length; i++) {
-		results.push(_simpleAsString(partModifiers[i], partKeys[i], labels));
-	}
-	return results.join(' ');
 }

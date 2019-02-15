@@ -120,14 +120,15 @@ export class MacLinuxFallbackKeyboardMapper implements IKeyboardMapper {
 	public resolveUserBinding(firstPart: SimpleKeybinding | ScanCodeBinding | null, chordPart: SimpleKeybinding | ScanCodeBinding | null): ResolvedKeybinding[] {
 		const _firstPart = this._resolveSimpleUserBinding(firstPart);
 		const _chordPart = this._resolveSimpleUserBinding(chordPart);
+		let parts: SimpleKeybinding[] = [];
 		if (_firstPart) {
-			let parts = [_firstPart];
-			if (_chordPart) {
-				parts.push(_chordPart);
-			}
-			return [new USLayoutResolvedKeybinding(
-				new ChordKeybinding(parts), this._OS
-			)];
+			parts.push(_firstPart);
+		}
+		if (_chordPart) {
+			parts.push(_chordPart);
+		}
+		if (parts.length > 0) {
+			return [new USLayoutResolvedKeybinding(new ChordKeybinding(parts), this._OS)];
 		}
 		return [];
 	}

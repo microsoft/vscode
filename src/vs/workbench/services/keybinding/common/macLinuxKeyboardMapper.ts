@@ -72,7 +72,7 @@ export class NativeResolvedKeybinding extends ResolvedKeybinding {
 	constructor(mapper: MacLinuxKeyboardMapper, OS: OperatingSystem, parts: ScanCodeBinding[]) {
 		super();
 		if (parts.length === 0) {
-			throw new Error(`Invalid USLayoutResolvedKeybinding`);
+			throw new Error(`Invalid NativeResolvedKeybinding`);
 		}
 		this._mapper = mapper;
 		this._OS = OS;
@@ -80,27 +80,11 @@ export class NativeResolvedKeybinding extends ResolvedKeybinding {
 	}
 
 	public getLabel(): string | null {
-		let partKeys: string[] = [];
-		for (let part of this._parts) {
-			let key = this._mapper.getUILabelForScanCodeBinding(part);
-			if (key === null) {
-				return null;
-			}
-			partKeys.push(key);
-		}
-		return UILabelProvider.toLabel(this._parts, partKeys, this._OS);
+		return UILabelProvider.toLabel(this._OS, this._parts, (keybinding) => this._mapper.getUILabelForScanCodeBinding(keybinding));
 	}
 
 	public getAriaLabel(): string | null {
-		let partKeys: string[] = [];
-		for (let part of this._parts) {
-			let key = this._mapper.getAriaLabelForScanCodeBinding(part);
-			if (key === null) {
-				return null;
-			}
-			partKeys.push(key);
-		}
-		return AriaLabelProvider.toLabel(this._parts, partKeys, this._OS);
+		return AriaLabelProvider.toLabel(this._OS, this._parts, (keybinding) => this._mapper.getAriaLabelForScanCodeBinding(keybinding));
 	}
 
 	public getElectronAccelerator(): string | null {
@@ -109,23 +93,11 @@ export class NativeResolvedKeybinding extends ResolvedKeybinding {
 			return null;
 		}
 
-		let firstPart = this._mapper.getElectronAcceleratorLabelForScanCodeBinding(this._parts[0]);
-		if (firstPart === null) {
-			return null;
-		}
-		return ElectronAcceleratorLabelProvider.toLabel(this._parts, [firstPart], this._OS);
+		return ElectronAcceleratorLabelProvider.toLabel(this._OS, this._parts, (keybinding) => this._mapper.getElectronAcceleratorLabelForScanCodeBinding(keybinding));
 	}
 
 	public getUserSettingsLabel(): string | null {
-		let partKeys: string[] = [];
-		for (let part of this._parts) {
-			let key = this._mapper.getUserSettingsLabelForScanCodeBinding(part);
-			if (key === null) {
-				return null;
-			}
-			partKeys.push(key);
-		}
-		return UserSettingsLabelProvider.toLabel(this._parts, partKeys, this._OS);
+		return UserSettingsLabelProvider.toLabel(this._OS, this._parts, (keybinding) => this._mapper.getUserSettingsLabelForScanCodeBinding(keybinding));
 	}
 
 	private _isWYSIWYG(binding: ScanCodeBinding | null): boolean {
@@ -148,15 +120,15 @@ export class NativeResolvedKeybinding extends ResolvedKeybinding {
 	}
 
 	public isWYSIWYG(): boolean {
-		return this._parts.every(this._isWYSIWYG, this);
+		return this._parts.every((keybinding) => this._isWYSIWYG(keybinding));
 	}
 
 	public isChord(): boolean {
-		return this._parts.length > 1;
+		return (this._parts.length > 1);
 	}
 
 	public getParts(): ResolvedKeybindingPart[] {
-		return this._parts.map(this._toResolvedKeybindingPart, this);
+		return this._parts.map((keybinding) => this._toResolvedKeybindingPart(keybinding));
 	}
 
 	private _toResolvedKeybindingPart(binding: ScanCodeBinding): ResolvedKeybindingPart {
@@ -171,11 +143,7 @@ export class NativeResolvedKeybinding extends ResolvedKeybinding {
 	}
 
 	public getDispatchParts(): (string | null)[] {
-		let dispatchParts: (string | null)[] = [];
-		for (let part of this._parts) {
-			dispatchParts.push(part ? this._mapper.getDispatchStrForScanCodeBinding(part) : null);
-		}
-		return dispatchParts;
+		return this._parts.map((keybinding) => this._mapper.getDispatchStrForScanCodeBinding(keybinding));
 	}
 }
 
@@ -1035,11 +1003,11 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 			chordParts.push(this.simpleKeybindingToScanCodeBinding(part));
 		}
 		let result: NativeResolvedKeybinding[] = [];
-		this._resolveKeybindingPart(chordParts, 0, [], result);
+		this._generateResolvedKeybindings(chordParts, 0, [], result);
 		return result;
 	}
 
-	private _resolveKeybindingPart(chordParts: ScanCodeBinding[][], currentIndex: number, previousParts: ScanCodeBinding[], result: NativeResolvedKeybinding[]) {
+	private _generateResolvedKeybindings(chordParts: ScanCodeBinding[][], currentIndex: number, previousParts: ScanCodeBinding[], result: NativeResolvedKeybinding[]) {
 		const chordPart = chordParts[currentIndex];
 		const isFinalIndex = currentIndex === chordParts.length - 1;
 		for (let i = 0, len = chordPart.length; i < len; i++) {
@@ -1047,7 +1015,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 			if (isFinalIndex) {
 				result.push(new NativeResolvedKeybinding(this, this._OS, chords));
 			} else {
-				this._resolveKeybindingPart(chordParts, currentIndex + 1, chords, result);
+				this._generateResolvedKeybindings(chordParts, currentIndex + 1, chords, result);
 			}
 		}
 	}
@@ -1121,15 +1089,15 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 	}
 
 	public resolveUserBinding(_firstPart: SimpleKeybinding | ScanCodeBinding | null, _chordPart: SimpleKeybinding | ScanCodeBinding | null): ResolvedKeybinding[] {
-		let chordParts: ScanCodeBinding[][] = [];
+		let parts: ScanCodeBinding[][] = [];
 		if (_firstPart) {
-			chordParts.push(this._resolveSimpleUserBinding(_firstPart));
+			parts.push(this._resolveSimpleUserBinding(_firstPart));
 		}
 		if (_chordPart) {
-			chordParts.push(this._resolveSimpleUserBinding(_chordPart));
+			parts.push(this._resolveSimpleUserBinding(_chordPart));
 		}
 		let result: NativeResolvedKeybinding[] = [];
-		this._resolveKeybindingPart(chordParts, 0, [], result);
+		this._generateResolvedKeybindings(parts, 0, [], result);
 		return result;
 	}
 

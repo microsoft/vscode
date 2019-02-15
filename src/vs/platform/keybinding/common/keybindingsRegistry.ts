@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import { KeyCode, Keybinding, SimpleKeybinding, createKeybinding } from 'vs/base/common/keyCodes';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { CommandsRegistry, ICommandHandler, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';

@@ -108,6 +108,7 @@ export class KeybindingParser {
 	}
 
 	static parseUserBinding(input: string): [SimpleKeybinding | ScanCodeBinding | null, SimpleKeybinding | ScanCodeBinding | null] {
+		// TODO@chords: allow users to define N chords
 		if (!input) {
 			return [null, null];
 		}

@@ -52,15 +52,7 @@ export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 	}
 
 	public getLabel(): string | null {
-		let partKeys: string[] = [];
-		for (let part of this._parts) {
-			let key = this._getUILabelForKeybinding(part);
-			if (key === null) {
-				return null;
-			}
-			partKeys.push(key);
-		}
-		return UILabelProvider.toLabel(this._parts, partKeys, this._os);
+		return UILabelProvider.toLabel(this._os, this._parts, (keybinding) => this._getUILabelForKeybinding(keybinding));
 	}
 
 	private _getAriaLabelForKeybinding(keybinding: SimpleKeybinding | null): string | null {
@@ -74,15 +66,7 @@ export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 	}
 
 	public getAriaLabel(): string | null {
-		let partKeys: string[] = [];
-		for (let part of this._parts) {
-			let key = this._getAriaLabelForKeybinding(part);
-			if (key === null) {
-				return null;
-			}
-			partKeys.push(key);
-		}
-		return AriaLabelProvider.toLabel(this._parts, partKeys, this._os);
+		return AriaLabelProvider.toLabel(this._os, this._parts, (keybinding) => this._getAriaLabelForKeybinding(keybinding));
 	}
 
 	private _keyCodeToElectronAccelerator(keyCode: KeyCode): string | null {
@@ -121,11 +105,7 @@ export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 			return null;
 		}
 
-		let firstPart = this._getElectronAcceleratorLabelForKeybinding(this._parts[0]);
-		if (firstPart === null) {
-			return null;
-		}
-		return ElectronAcceleratorLabelProvider.toLabel(this._parts, [firstPart], this._os);
+		return ElectronAcceleratorLabelProvider.toLabel(this._os, this._parts, (keybinding) => this._getElectronAcceleratorLabelForKeybinding(keybinding));
 	}
 
 	private _getUserSettingsLabelForKeybinding(keybinding: SimpleKeybinding | null): string | null {
@@ -139,15 +119,7 @@ export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 	}
 
 	public getUserSettingsLabel(): string | null {
-		let partKeys: string[] = [];
-		for (let part of this._parts) {
-			let key = this._getUserSettingsLabelForKeybinding(part);
-			if (key === null) {
-				return null;
-			}
-			partKeys.push(key);
-		}
-		let result = UserSettingsLabelProvider.toLabel(this._parts, partKeys, this._os);
+		const result = UserSettingsLabelProvider.toLabel(this._os, this._parts, (keybinding) => this._getUserSettingsLabelForKeybinding(keybinding));
 		return (result ? result.toLowerCase() : result);
 	}
 
@@ -156,11 +128,11 @@ export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 	}
 
 	public isChord(): boolean {
-		return this._parts.length > 1;
+		return (this._parts.length > 1);
 	}
 
 	public getParts(): ResolvedKeybindingPart[] {
-		return this._parts.map(this._toResolvedKeybindingPart, this);
+		return this._parts.map((keybinding) => this._toResolvedKeybindingPart(keybinding));
 	}
 
 	private _toResolvedKeybindingPart(keybinding: SimpleKeybinding): ResolvedKeybindingPart {
@@ -175,7 +147,7 @@ export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 	}
 
 	public getDispatchParts(): (string | null)[] {
-		return this._parts.map((chord) => USLayoutResolvedKeybinding.getDispatchStr(chord));
+		return this._parts.map((keybinding) => USLayoutResolvedKeybinding.getDispatchStr(keybinding));
 	}
 
 	public static getDispatchStr(keybinding: SimpleKeybinding): string | null {
