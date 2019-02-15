@@ -825,7 +825,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 						}
 					}
 				} else {
-					this._state.change({ searchScope: undefined }, true);
+					this._state.change({ searchScope: null }, true);
 				}
 			}
 		}));
@@ -835,7 +835,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			label: NLS_CLOSE_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.CloseFindWidgetCommand),
 			className: 'close-fw',
 			onTrigger: () => {
-				this._state.change({ isRevealed: false, searchScope: undefined }, false);
+				this._state.change({ isRevealed: false, searchScope: null }, false);
 			},
 			onKeyDown: (e) => {
 				if (e.equals(KeyCode.Tab)) {
