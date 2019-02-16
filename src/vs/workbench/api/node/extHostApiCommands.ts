@@ -134,7 +134,8 @@ export class ExtHostApiCommands {
 			description: 'Execute code action provider.',
 			args: [
 				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
-				{ name: 'range', description: 'Range in a text document', constraint: types.Range }
+				{ name: 'range', description: 'Range in a text document', constraint: types.Range },
+				{ name: 'kind', description: '(optional) Code action kind to return code actions for', },
 			],
 			returns: 'A promise that resolves to an array of Command-instances.'
 		});
@@ -478,10 +479,11 @@ export class ExtHostApiCommands {
 		});
 	}
 
-	private _executeCodeActionProvider(resource: URI, range: types.Range): Promise<(vscode.CodeAction | vscode.Command)[] | undefined> {
+	private _executeCodeActionProvider(resource: URI, range: types.Range, kind?: string): Promise<(vscode.CodeAction | vscode.Command)[] | undefined> {
 		const args = {
 			resource,
-			range: typeConverters.Range.from(range)
+			range: typeConverters.Range.from(range),
+			kind
 		};
 		return this._commands.executeCommand<CustomCodeAction[]>('_executeCodeActionProvider', args)
 			.then(tryMapWith(codeAction => {
