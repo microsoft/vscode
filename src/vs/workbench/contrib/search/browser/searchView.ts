@@ -55,7 +55,7 @@ import * as Constants from 'vs/workbench/contrib/search/common/constants';
 import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { IReplaceService } from 'vs/workbench/contrib/search/common/replace';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/contrib/search/common/search';
-import { FileMatch, FileMatchOrMatch, FolderMatch, IChangeEvent, ISearchWorkbenchService, Match, RenderableMatch, searchMatchComparer, SearchModel, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
+import { FileMatch, FileMatchOrMatch, FolderMatch, IChangeEvent, ISearchWorkbenchService, Match, RenderableMatch, searchMatchComparer, SearchModel, SearchResult, BaseFolderMatch } from 'vs/workbench/contrib/search/common/searchModel';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -443,7 +443,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			this.tree.setChildren(null, this.createResultIterator(collapseResults));
 		} else {
 			event.elements.forEach(element => {
-				if (element instanceof FolderMatch) {
+				if (element instanceof BaseFolderMatch) {
 					// The folder may or may not be in the tree. Refresh the whole thing.
 					this.tree.setChildren(null, this.createResultIterator(collapseResults));
 					return;
@@ -496,9 +496,9 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		return Iterator.map(matchesIt, r => (<ITreeElement<RenderableMatch>>{ element: r }));
 	}
 
-	private createIterator(match: FolderMatch | FileMatch | SearchResult, collapseResults: ISearchConfigurationProperties['collapseResults']): Iterator<ITreeElement<RenderableMatch>> {
+	private createIterator(match: BaseFolderMatch | FileMatch | SearchResult, collapseResults: ISearchConfigurationProperties['collapseResults']): Iterator<ITreeElement<RenderableMatch>> {
 		return match instanceof SearchResult ? this.createResultIterator(collapseResults) :
-			match instanceof FolderMatch ? this.createFolderIterator(match, collapseResults) :
+			match instanceof BaseFolderMatch ? this.createFolderIterator(match, collapseResults) :
 				this.createFileIterator(match);
 	}
 

@@ -25,7 +25,7 @@ import { ISearchConfiguration, ISearchHistoryService, VIEW_ID } from 'vs/workben
 import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
 import { IReplaceService } from 'vs/workbench/contrib/search/common/replace';
-import { FileMatch, FileMatchOrMatch, FolderMatch, Match, RenderableMatch, searchMatchComparer, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
+import { FileMatch, FileMatchOrMatch, FolderMatch, Match, RenderableMatch, searchMatchComparer, SearchResult, BaseFolderMatch } from 'vs/workbench/contrib/search/common/searchModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -277,7 +277,7 @@ export class CollapseDeepestExpandedLevelAction extends Action {
 			const navigator = viewer.navigate();
 			let node = navigator.first();
 			let collapseFileMatchLevel = false;
-			if (node instanceof FolderMatch) {
+			if (node instanceof BaseFolderMatch) {
 				while (node = navigator.next()) {
 					if (node instanceof Match) {
 						collapseFileMatchLevel = true;
@@ -407,8 +407,8 @@ export abstract class AbstractSearchAndReplaceAction extends Action {
 
 	getNextElementAfterRemoved(viewer: WorkbenchObjectTree<RenderableMatch>, element: RenderableMatch): RenderableMatch {
 		const navigator: INavigator<any> = viewer.navigate(element);
-		if (element instanceof FolderMatch) {
-			while (!!navigator.next() && !(navigator.current() instanceof FolderMatch)) { }
+		if (element instanceof BaseFolderMatch) {
+			while (!!navigator.next() && !(navigator.current() instanceof BaseFolderMatch)) { }
 		} else if (element instanceof FileMatch) {
 			while (!!navigator.next() && !(navigator.current() instanceof FileMatch)) { }
 		} else {
@@ -435,7 +435,7 @@ export abstract class AbstractSearchAndReplaceAction extends Action {
 
 		// If the previous element is a File or Folder, expand it and go to its last child.
 		// Spell out the two cases, would be too easy to create an infinite loop, like by adding another level...
-		if (element instanceof Match && previousElement && previousElement instanceof FolderMatch) {
+		if (element instanceof Match && previousElement && previousElement instanceof BaseFolderMatch) {
 			navigator.next();
 			viewer.expand(previousElement);
 			previousElement = navigator.previous();
@@ -456,7 +456,6 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 	static LABEL = nls.localize('RemoveAction.label', "Dismiss");
 
 	constructor(
-		private viewlet: SearchView,
 		private viewer: WorkbenchObjectTree<RenderableMatch>,
 		private element: RenderableMatch
 	) {
@@ -474,24 +473,9 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 			this.viewer.setFocus([nextFocusElement], getKeyboardEventForEditorOpen());
 		}
 
-		let elementToRefresh: FolderMatch | FileMatch | SearchResult | undefined;
-		const element = this.element;
-		if (element instanceof FolderMatch) {
-			const parent = element.parent();
-			parent.remove(element);
-			elementToRefresh = parent;
-		} else if (element instanceof FileMatch) {
-			const parent = element.parent();
-			parent.remove(element);
-			elementToRefresh = parent;
-		} else if (element instanceof Match) {
-			const parent = element.parent();
-			parent.remove(element);
-			elementToRefresh = parent.count() === 0 ? parent.parent() : parent;
-		}
-
+		this.element.parent().remove(<any>this.element);
 		this.viewer.domFocus();
-		this.viewlet.refreshTree({ elements: [elementToRefresh] });
+
 		return Promise.resolve();
 	}
 }
@@ -716,7 +700,7 @@ export const copyMatchCommand: ICommandHandler = (accessor, match: RenderableMat
 		text = matchToString(match);
 	} else if (match instanceof FileMatch) {
 		text = fileMatchToString(match, maxClipboardMatches).text;
-	} else if (match instanceof FolderMatch) {
+	} else if (match instanceof BaseFolderMatch) {
 		text = folderMatchToString(match, maxClipboardMatches).text;
 	}
 

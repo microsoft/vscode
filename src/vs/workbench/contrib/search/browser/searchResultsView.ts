@@ -135,7 +135,7 @@ export class FolderMatchRenderer extends Disposable implements ITreeRenderer<Fol
 			actions.push(this.instantiationService.createInstance(ReplaceAllInFolderAction, this.searchView.getControl(), folderMatch));
 		}
 
-		actions.push(new RemoveAction(this.searchView, this.searchView.getControl(), folderMatch));
+		actions.push(new RemoveAction(this.searchView.getControl(), folderMatch));
 		templateData.actions.push(actions, { icon: true, label: false });
 	}
 
@@ -197,7 +197,7 @@ export class FileMatchRenderer extends Disposable implements ITreeRenderer<FileM
 		if (this.searchModel.isReplaceActive() && count > 0) {
 			actions.push(this.instantiationService.createInstance(ReplaceAllAction, this.searchView, fileMatch));
 		}
-		actions.push(new RemoveAction(this.searchView, this.searchView.getControl(), fileMatch));
+		actions.push(new RemoveAction(this.searchView.getControl(), fileMatch));
 		templateData.actions.push(actions, { icon: true, label: false });
 	}
 
@@ -271,9 +271,9 @@ export class MatchRenderer extends Disposable implements ITreeRenderer<Match, vo
 
 		templateData.actions.clear();
 		if (this.searchModel.isReplaceActive()) {
-			templateData.actions.push([this.instantiationService.createInstance(ReplaceAction, this.searchView.getControl(), match, this.searchView), new RemoveAction(this.searchView, this.searchView.getControl(), match)], { icon: true, label: false });
+			templateData.actions.push([this.instantiationService.createInstance(ReplaceAction, this.searchView.getControl(), match, this.searchView), new RemoveAction(this.searchView.getControl(), match)], { icon: true, label: false });
 		} else {
-			templateData.actions.push([new RemoveAction(this.searchView, this.searchView.getControl(), match)], { icon: true, label: false });
+			templateData.actions.push([new RemoveAction(this.searchView.getControl(), match)], { icon: true, label: false });
 		}
 	}
 
@@ -309,7 +309,7 @@ export class SearchAccessibilityProvider implements IAccessibilityProvider<Rende
 	}
 
 	getAriaLabel(element: RenderableMatch): string {
-		if (element instanceof FolderMatch) {
+		if (element instanceof BaseFolderMatch) {
 			return element.hasResource() ?
 				nls.localize('folderMatchAriaLabel', "{0} matches in folder root {1}, Search result", element.count(), element.name()) :
 				nls.localize('otherFilesAriaLabel', "{0} matches outside of the workspace, Search result", element.count());
