@@ -270,7 +270,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 	private defaultRecommendedExtensionsContextKey: IContextKey<boolean>;
 
 	private searchDelayer: ThrottledDelayer<any>;
-	private searchPromises: Map<ViewletPanel, CancelablePromise<any>>;
+	private searchPromises: Map<string, CancelablePromise<any>>;
 
 	private root: HTMLElement;
 
@@ -456,18 +456,18 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 
 	private searchOverViews(views: ViewletPanel[]): Promise<any> {
 		return this.progress(Promise.all(views.map(view => {
-			if (this.searchPromises.has(view)) {
-				this.searchPromises.get(view).cancel();
+			if (this.searchPromises.has(view.id)) {
+				this.searchPromises.get(view.id).cancel();
 			}
 
 			const promise = createCancelablePromise(token => (<ExtensionsListView>view).show(this.normalizedQuery(), token).then(model => {
 				if (model) {
 					this.alertSearchResult(model.length, view.id);
 				}
-				this.searchPromises.delete(view);
+				this.searchPromises.delete(view.id);
 			}));
 
-			this.searchPromises.set(view, promise);
+			this.searchPromises.set(view.id, promise);
 			return promise;
 		})));
 	}
