@@ -464,16 +464,8 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 		return new SimpleKeybinding(binding.ctrlKey, binding.shiftKey, binding.altKey, binding.metaKey, keyCode);
 	}
 
-	public resolveUserBinding(firstPart: SimpleKeybinding | ScanCodeBinding | null, chordPart: SimpleKeybinding | ScanCodeBinding | null): ResolvedKeybinding[] {
-		const _firstPart = this._resolveSimpleUserBinding(firstPart);
-		const _chordPart = this._resolveSimpleUserBinding(chordPart);
-		let parts: SimpleKeybinding[] = [];
-		if (_firstPart) {
-			parts.push(_firstPart);
-		}
-		if (_chordPart) {
-			parts.push(_chordPart);
-		}
+	public resolveUserBinding(input: Array<SimpleKeybinding | ScanCodeBinding>): ResolvedKeybinding[] {
+		let parts: SimpleKeybinding[] = input.map(this._resolveSimpleUserBinding.bind(this));
 		if (parts.length > 0) {
 			return [new WindowsNativeResolvedKeybinding(this, parts)];
 		}

@@ -1053,14 +1053,8 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		return this.simpleKeybindingToScanCodeBinding(binding);
 	}
 
-	public resolveUserBinding(_firstPart: SimpleKeybinding | ScanCodeBinding | null, _chordPart: SimpleKeybinding | ScanCodeBinding | null): ResolvedKeybinding[] {
-		let parts: ScanCodeBinding[][] = [];
-		if (_firstPart) {
-			parts.push(this._resolveSimpleUserBinding(_firstPart));
-		}
-		if (_chordPart) {
-			parts.push(this._resolveSimpleUserBinding(_chordPart));
-		}
+	public resolveUserBinding(input: Array<SimpleKeybinding | ScanCodeBinding>): ResolvedKeybinding[] {
+		let parts: ScanCodeBinding[][] = input.map(this._resolveSimpleUserBinding.bind(this));
 		let result: NativeResolvedKeybinding[] = [];
 		this._generateResolvedKeybindings(parts, 0, [], result);
 		return result;

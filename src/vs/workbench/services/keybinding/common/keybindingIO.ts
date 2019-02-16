@@ -42,6 +42,7 @@ export class KeybindingIO {
 	}
 
 	public static readUserKeybindingItem(input: IUserFriendlyKeybinding, OS: OperatingSystem): IUserKeybindingItem {
+		// TODO yusuke: replace with keychords.
 		const [firstPart, chordPart] = (typeof input.key === 'string' ? KeybindingParser.parseUserBinding(input.key) : [null, null]);
 		const when = (typeof input.when === 'string' ? ContextKeyExpr.deserialize(input.when) : null);
 		const command = (typeof input.command === 'string' ? input.command : null);

@@ -107,17 +107,25 @@ export class KeybindingParser {
 		return [new SimpleKeybinding(mods.ctrl, mods.shift, mods.alt, mods.meta, keyCode), mods.remains];
 	}
 
-	static parseUserBinding(input: string): [SimpleKeybinding | ScanCodeBinding | null, SimpleKeybinding | ScanCodeBinding | null] {
+	static parseUserBinding(input: string): Array<SimpleKeybinding | ScanCodeBinding> {
 		// TODO@chords: allow users to define N chords
 		if (!input) {
-			return [null, null];
+			return [];
 		}
 
-		let [firstPart, remains] = this.parseSimpleUserBinding(input);
-		let chordPart: SimpleKeybinding | ScanCodeBinding | null = null;
-		if (remains.length > 0) {
-			[chordPart] = this.parseSimpleUserBinding(remains);
+		let parts = [];
+		let remains = input;
+		while (remains.length > 0) {
+			let [part, nextRemains] = this.parseSimpleUserBinding(remains);
+			parts.push(part);
+			// check equality to break out of a possible infinite loop.
+			// if nothing was consumed it implies that an empty keybinding
+			// was returned.
+			if (remains === nextRemains) {
+				break;
+			}
+			remains = nextRemains;
 		}
-		return [firstPart, chordPart];
+		return parts;
 	}
 }

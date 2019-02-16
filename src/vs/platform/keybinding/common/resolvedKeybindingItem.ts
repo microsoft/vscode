@@ -10,9 +10,8 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 export class ResolvedKeybindingItem {
 	_resolvedKeybindingItemBrand: void;
 
+	public readonly keypressParts: string[];
 	public readonly resolvedKeybinding: ResolvedKeybinding | null;
-	public readonly keypressFirstPart: string | null;
-	public readonly keypressChordPart: string | null;
 	public readonly bubble: boolean;
 	public readonly command: string | null;
 	public readonly commandArgs: any;
@@ -22,21 +21,9 @@ export class ResolvedKeybindingItem {
 	constructor(resolvedKeybinding: ResolvedKeybinding | null, command: string | null, commandArgs: any, when: ContextKeyExpr | null, isDefault: boolean) {
 		this.resolvedKeybinding = resolvedKeybinding;
 		if (resolvedKeybinding) {
-			const dispatchParts = resolvedKeybinding.getDispatchParts();
-			// TODO@chords: add support for dispatching N chords here
-			if (dispatchParts.length >= 2) {
-				this.keypressFirstPart = dispatchParts[0];
-				this.keypressChordPart = dispatchParts[1];
-			} else if (dispatchParts.length === 1) {
-				this.keypressFirstPart = dispatchParts[0];
-				this.keypressChordPart = null;
-			} else {
-				this.keypressFirstPart = null;
-				this.keypressChordPart = null;
-			}
+			this.keypressParts = resolvedKeybinding.getDispatchParts();
 		} else {
-			this.keypressFirstPart = null;
-			this.keypressChordPart = null;
+			this.keypressParts = [];
 		}
 		this.bubble = (command ? command.charCodeAt(0) === CharCode.Caret : false);
 		this.command = this.bubble ? command!.substr(1) : command;

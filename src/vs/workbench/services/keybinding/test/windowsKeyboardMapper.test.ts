@@ -272,9 +272,10 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 
 	test('resolveUserBinding Ctrl+[Comma] Ctrl+/', () => {
 		assertResolveUserBinding(
-			mapper,
-			new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
-			new SimpleKeybinding(true, false, false, false, KeyCode.US_SLASH),
+			mapper, [
+				new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
+				new SimpleKeybinding(true, false, false, false, KeyCode.US_SLASH),
+			],
 			[{
 				label: 'Ctrl+, Ctrl+§',
 				ariaLabel: 'Control+, Control+§',
@@ -341,9 +342,10 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 
 	test('resolveUserBinding Ctrl+[Comma] Ctrl+/', () => {
 		assertResolveUserBinding(
-			mapper,
-			new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
-			new SimpleKeybinding(true, false, false, false, KeyCode.US_SLASH),
+			mapper, [
+				new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
+				new SimpleKeybinding(true, false, false, false, KeyCode.US_SLASH),
+			],
 			[{
 				label: 'Ctrl+, Ctrl+/',
 				ariaLabel: 'Control+, Control+/',
@@ -358,9 +360,9 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 
 	test('resolveUserBinding Ctrl+[Comma]', () => {
 		assertResolveUserBinding(
-			mapper,
-			new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
-			null!,
+			mapper, [
+				new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
+			],
 			[{
 				label: 'Ctrl+,',
 				ariaLabel: 'Control+,',
