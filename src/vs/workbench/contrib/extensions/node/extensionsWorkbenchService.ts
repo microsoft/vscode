@@ -442,11 +442,13 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 			});
 	}
 
-	queryGallery(options: IQueryOptions = {}): Promise<IPager<IExtension>> {
+	queryGallery(options: IQueryOptions = {}, token?: CancellationToken): Promise<IPager<IExtension>> {
 		return this.extensionService.getExtensionsReport()
 			.then(report => {
+				if (token && token.isCancellationRequested) {
+					return Promise.reject<IPager<IExtension>>(singlePagePager([]));
+				}
 				const maliciousSet = getMaliciousExtensionsSet(report);
-
 				return this.galleryService.query(options)
 					.then(result => mapPager(result, gallery => this.fromGallery(gallery, maliciousSet)))
 					.then(undefined, err => {
