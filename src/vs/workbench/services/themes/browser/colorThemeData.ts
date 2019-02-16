@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { toSlashes } from 'vs/base/common/extpath';
 import { basename } from 'vs/base/common/path';
 import * as Json from 'vs/base/common/json';
 import { Color } from 'vs/base/common/color';
@@ -21,6 +20,7 @@ import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 import { parse as parsePList } from 'vs/workbench/services/themes/common/plistParser';
+import { startsWith } from 'vs/base/common/strings';
 
 let colorRegistry = Registry.as<IColorRegistry>(Extensions.ColorContribution);
 
@@ -259,8 +259,7 @@ export class ColorThemeData implements IColorTheme {
 
 	static fromExtensionTheme(theme: IThemeExtensionPoint, colorThemeLocation: URI, extensionData: ExtensionData): ColorThemeData {
 		let baseTheme: string = theme['uiTheme'] || 'vs-dark';
-
-		let themeSelector = toCSSSelector(extensionData.extensionId + '-' + toSlashes(theme.path));
+		let themeSelector = toCSSSelector(extensionData.extensionId, theme.path);
 		let themeData = new ColorThemeData();
 		themeData.id = `${baseTheme} ${themeSelector}`;
 		themeData.label = theme.label || basename(theme.path);
@@ -274,7 +273,13 @@ export class ColorThemeData implements IColorTheme {
 	}
 }
 
-function toCSSSelector(str: string) {
+function toCSSSelector(extensionId: string, path: string) {
+	if (startsWith(path, './')) {
+		path = path.substr(2);
+	}
+	let str = `${extensionId}-${path}`;
+
+	//remove all characters that are not allowed in css
 	str = str.replace(/[^_\-a-zA-Z0-9]/g, '-');
 	if (str.charAt(0).match(/[0-9\-]/)) {
 		str = '_' + str;
