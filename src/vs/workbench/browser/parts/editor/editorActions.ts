@@ -579,7 +579,7 @@ export class CloseLeftEditorsInGroupAction extends Action {
 	}
 }
 
-function getTarget(editorService: IEditorService, editorGroupService: IEditorGroupsService, context?: IEditorIdentifier): { editor: IEditorInput, group: IEditorGroup } {
+function getTarget(editorService: IEditorService, editorGroupService: IEditorGroupsService, context?: IEditorIdentifier): { editor: IEditorInput | null, group: IEditorGroup } {
 	if (context) {
 		return { editor: context.editor, group: editorGroupService.getGroup(context.groupId) };
 	}

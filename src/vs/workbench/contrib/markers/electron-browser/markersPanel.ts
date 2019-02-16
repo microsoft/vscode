@@ -389,7 +389,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		}));
 
 		this._register(Event.any<any>(this.tree.onDidChangeSelection, this.tree.onDidChangeFocus)(() => {
-			const elements: TreeElement[] = [...this.tree.getSelection(), ...this.tree.getFocus()];
+			const elements = [...this.tree.getSelection(), ...this.tree.getFocus()];
 			for (const element of elements) {
 				if (element instanceof Marker) {
 					const viewModel = this.markersViewModel.getViewModel(element);
@@ -467,14 +467,15 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 	}
 
 	private isCurrentResourceGotAddedToMarkersData(changedResources: URI[]) {
-		if (!this.currentActiveResource) {
+		const currentlyActiveResource = this.currentActiveResource;
+		if (!currentlyActiveResource) {
 			return false;
 		}
 		const resourceForCurrentActiveResource = this.getResourceForCurrentActiveResource();
 		if (resourceForCurrentActiveResource) {
 			return false;
 		}
-		return changedResources.some(r => r.toString() === this.currentActiveResource.toString());
+		return changedResources.some(r => r.toString() === currentlyActiveResource.toString());
 	}
 
 	private onActiveEditorChanged(): void {
@@ -484,7 +485,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 
 	private setCurrentActiveEditor(): void {
 		const activeEditor = this.editorService.activeEditor;
-		this.currentActiveResource = activeEditor ? activeEditor.getResource() : undefined;
+		this.currentActiveResource = activeEditor ? activeEditor.getResource() : null;
 	}
 
 	private onSelected(): void {
@@ -694,7 +695,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		return this.tree.getFocus()[0];
 	}
 
-	public getActionItem(action: IAction): IActionItem {
+	public getActionItem(action: IAction): IActionItem | null {
 		if (action.id === MarkersFilterAction.ID) {
 			this.filterInputActionItem = this.instantiationService.createInstance(MarkersFilterActionItem, this.filterAction, this);
 			return this.filterInputActionItem;
