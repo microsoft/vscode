@@ -935,10 +935,45 @@ declare module 'vscode' {
 		onDidChangeCommentThreads: Event<CommentThreadChangedEvent>;
 	}
 
+	export interface CommentWidget {
+		/*
+		 * Comment thread in this Comment Widget
+		 */
+		commentThread: CommentThread;
+
+		/*
+		 * Focused Comment
+		 * This comment must be part of CommentWidget.commentThread
+		 */
+		comment?: Comment;
+
+		/*
+		 * Textarea content in the comment widget.
+		 * There is only one active input box in a comment widget.
+		 */
+		input: string;
+	}
+
+	export interface CommentControl {
+		readonly id: string;
+		readonly label: string;
+		/**
+	 	 * The active (focused) comment widget.
+	 	 */
+		readonly widget?: CommentWidget;
+		createCommentThread(id: string, resource: Uri, range: Range, comments: Comment[], collapsibleState?: CommentThreadCollapsibleState): CommentThread;
+		dispose(): void;
+	}
+
+	namespace comment {
+		export function createCommentControl(id: string, label: string): CommentControl;
+	}
+
 	namespace workspace {
 		export function registerDocumentCommentProvider(provider: DocumentCommentProvider): Disposable;
 		export function registerWorkspaceCommentProvider(provider: WorkspaceCommentProvider): Disposable;
 	}
+
 	//#endregion
 
 	//#region Terminal

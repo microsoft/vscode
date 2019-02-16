@@ -14,7 +14,7 @@ import { ExtHostCommentsShape, ExtHostContext, IExtHostContext, MainContext, Mai
 import { ICommentService } from 'vs/workbench/contrib/comments/electron-browser/commentService';
 import { COMMENTS_PANEL_ID, CommentsPanel, COMMENTS_PANEL_TITLE } from 'vs/workbench/contrib/comments/electron-browser/commentsPanel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -22,6 +22,8 @@ import { ICommentsConfiguration } from 'vs/workbench/contrib/comments/electron-b
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { PanelRegistry, Extensions as PanelExtensions, PanelDescriptor } from 'vs/workbench/browser/panel';
+import { IRange } from 'vs/editor/common/core/range';
+import { Emitter, Event } from 'vs/base/common/event';
 
 export class MainThreadDocumentCommentProvider implements modes.DocumentCommentProvider {
 	private _proxy: ExtHostCommentsShape;
@@ -78,6 +80,81 @@ export class MainThreadDocumentCommentProvider implements modes.DocumentCommentP
 	onDidChangeCommentThreads = null;
 }
 
+export class MainThreadCommentThread {
+	private _input: string = '';
+	get input(): string {
+		return this._input;
+	}
+
+	set input(value: string) {
+		this._input = value;
+		this._onDidChangeInput.fire(value);
+	}
+
+	private _onDidChangeInput = new Emitter<string>();
+	get onDidChangeInput(): Event<string> { return this._onDidChangeInput.event; }
+
+	private _activeComment?: modes.Comment;
+
+	get activeComment(): modes.Comment {
+		return this._activeComment;
+	}
+
+	set activeComment(comment: modes.Comment | undefined) {
+		this._activeComment = comment;
+		this._onDidChangeActiveComment.fire(comment);
+	}
+
+	private _onDidChangeActiveComment = new Emitter<modes.Comment | undefined>();
+	get onDidChangeActiveComment(): Event<modes.Comment | undefined> { return this._onDidChangeActiveComment.event; }
+
+
+	constructor(
+		public commentThreadHandle: number,
+		public control: MainThreadCommentControl,
+		public extensionId: string,
+		public threadId: string,
+		public resource: string,
+		public range: IRange,
+		public comments: modes.Comment[],
+		public collapsibleState?: modes.CommentThreadCollapsibleState,
+		public reply?: modes.Command
+	) {
+
+	}
+}
+export class MainThreadCommentControl {
+	get handle(): number {
+		return this._handle;
+	}
+
+	private _threads: Map<number, MainThreadCommentThread> = new Map<number, MainThreadCommentThread>();
+	constructor(
+		private _proxy: ExtHostCommentsShape,
+		private _handle: number,
+		private _id: string,
+		private _label: string
+	) { }
+
+	createCommentThread(commentThreadHandle: number, threadId: string, resource: UriComponents, range: IRange, comments: modes.Comment[], collapseState: modes.CommentThreadCollapsibleState): modes.CommentThread {
+		let thread = new MainThreadCommentThread(
+			commentThreadHandle,
+			this,
+			'',
+			threadId,
+			resource.toString(),
+			range,
+			comments,
+			collapseState,
+			undefined
+		);
+
+		this._threads.set(commentThreadHandle, thread);
+
+		return thread;
+	}
+}
+
 @extHostNamedCustomer(MainContext.MainThreadComments)
 export class MainThreadComments extends Disposable implements MainThreadCommentsShape {
 	private _disposables: IDisposable[];
@@ -85,6 +162,11 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	private _documentProviders = new Map<number, IDisposable>();
 	private _workspaceProviders = new Map<number, IDisposable>();
 	private _handlers = new Map<number, string>();
+	private _commentControls = new Map<number, MainThreadCommentControl>();
+
+	private _activeCommentThread?: MainThreadCommentThread;
+	private _activeComment?: modes.Comment;
+	private _input?: string;
 	private _openPanelListener: IDisposable | null;
 
 	constructor(
@@ -98,6 +180,57 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		super();
 		this._disposables = [];
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostComments);
+		this._disposables.push(this._commentService.onDidChangeActiveCommentThread(thread => {
+			console.log(thread.threadId);
+
+			let control = (thread as MainThreadCommentThread).control;
+
+			if (!control) {
+				return;
+			}
+
+			this._activeCommentThread = thread as MainThreadCommentThread;
+
+			this._activeCommentThread.onDidChangeInput(input => { // todo, dispose
+				this._input = input;
+				this._proxy.$onActiveCommentWidgetChange(control.handle, this._activeCommentThread, this._activeComment, this._input);
+			});
+
+			this._activeCommentThread.onDidChangeActiveComment(comment => { // todo, dispose
+				this._activeComment = comment;
+				this._proxy.$onActiveCommentWidgetChange(control.handle, this._activeCommentThread, this._activeComment, this._input);
+			});
+
+			this._proxy.$onActiveCommentWidgetChange(control.handle, this._activeCommentThread, this._activeComment, this._input);
+		}));
+
+		this._disposables.push(this._commentService.onDidChangeInput(input => {
+			console.log(input);
+			let control = this._activeCommentThread ? this._activeCommentThread.control : undefined;
+
+			if (!control) {
+				return;
+			}
+
+			this._input = input;
+
+			this._proxy.$onActiveCommentWidgetChange(control.handle, this._activeCommentThread, this._activeComment, this._input);
+		}));
+	}
+
+	$registerCommentControl(handle: number, id: string, label: string): void {
+		const provider = new MainThreadCommentControl(this._proxy, handle, id, label);
+		this._commentControls.set(handle, provider);
+	}
+
+	$createCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, range: IRange, comments: modes.Comment[], collapseState: modes.CommentThreadCollapsibleState): modes.CommentThread | undefined {
+		let provider = this._commentControls.get(handle);
+
+		if (!provider) {
+			return;
+		}
+
+		return provider.createCommentThread(commentThreadHandle, threadId, resource, range, comments, collapseState);
 	}
 
 	$registerDocumentCommentProvider(handle: number, features: CommentProviderFeatures): void {

@@ -1224,10 +1224,22 @@ export enum CommentThreadCollapsibleState {
 	Expanded = 1
 }
 
+
+
+/**
+ * @internal
+ */
+export interface CommentWidget {
+	commentThread: CommentThread;
+	comment?: Comment;
+	input: string;
+}
+
 /**
  * @internal
  */
 export interface CommentThread {
+	commentThreadHandle?: number; // use optional type for now to avoid breaking existing api
 	extensionId: string;
 	threadId: string;
 	resource: string;

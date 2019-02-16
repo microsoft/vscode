@@ -35,6 +35,8 @@ export interface ICommentService {
 	readonly onDidSetResourceCommentInfos: Event<IResourceCommentThreadEvent>;
 	readonly onDidSetAllCommentThreads: Event<IWorkspaceCommentThreadsEvent>;
 	readonly onDidUpdateCommentThreads: Event<ICommentThreadChangedEvent>;
+	readonly onDidChangeActiveCommentThread: Event<CommentThread | null>;
+	readonly onDidChangeInput: Event<string>;
 	readonly onDidSetDataProvider: Event<void>;
 	readonly onDidDeleteDataProvider: Event<string>;
 	setDocumentComments(resource: URI, commentInfos: ICommentInfo[]): void;
@@ -57,6 +59,8 @@ export interface ICommentService {
 	addReaction(owner: string, resource: URI, comment: Comment, reaction: CommentReaction): Promise<void>;
 	deleteReaction(owner: string, resource: URI, comment: Comment, reaction: CommentReaction): Promise<void>;
 	getReactionGroup(owner: string): CommentReaction[] | undefined;
+	setActiveCommentThread(commentThread: CommentThread | null);
+	setInput(input: string);
 }
 
 export class CommentService extends Disposable implements ICommentService {
@@ -77,10 +81,24 @@ export class CommentService extends Disposable implements ICommentService {
 	private readonly _onDidUpdateCommentThreads: Emitter<ICommentThreadChangedEvent> = this._register(new Emitter<ICommentThreadChangedEvent>());
 	readonly onDidUpdateCommentThreads: Event<ICommentThreadChangedEvent> = this._onDidUpdateCommentThreads.event;
 
+	private readonly _onDidChangeActiveCommentThread: Emitter<CommentThread> = this._register(new Emitter<CommentThread>());
+	readonly onDidChangeActiveCommentThread: Event<CommentThread | null> = this._onDidChangeActiveCommentThread.event;
+
+	private readonly _onDidChangeInput: Emitter<string> = this._register(new Emitter<string>());
+	readonly onDidChangeInput: Event<string> = this._onDidChangeInput.event;
+
 	private _commentProviders = new Map<string, DocumentCommentProvider>();
 
 	constructor() {
 		super();
+	}
+
+	setActiveCommentThread(commentThread: CommentThread | null) {
+		this._onDidChangeActiveCommentThread.fire(commentThread);
+	}
+
+	setInput(input: string) {
+		this._onDidChangeInput.fire(input);
 	}
 
 	setDocumentComments(resource: URI, commentInfos: ICommentInfo[]): void {

@@ -119,6 +119,8 @@ export interface CommentProviderFeatures {
 }
 
 export interface MainThreadCommentsShape extends IDisposable {
+	$registerCommentControl(handle: number, id: string, label: string): void;
+	$createCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, range: IRange, comments: modes.Comment[], collapseState: modes.CommentThreadCollapsibleState): modes.CommentThread | undefined;
 	$registerDocumentCommentProvider(handle: number, features: CommentProviderFeatures): void;
 	$unregisterDocumentCommentProvider(handle: number): void;
 	$registerWorkspaceCommentProvider(handle: number, extensionId: ExtensionIdentifier): void;
@@ -1091,6 +1093,8 @@ export interface ExtHostProgressShape {
 export interface ExtHostCommentsShape {
 	$provideDocumentComments(handle: number, document: UriComponents): Promise<modes.CommentInfo>;
 	$createNewCommentThread(handle: number, document: UriComponents, range: IRange, text: string): Promise<modes.CommentThread>;
+	$onActiveCommentWidgetChange(commentControlhandle: number, commentThread: modes.CommentThread, comment: modes.Comment | undefined, input: string): Promise<void>;
+	$onCommentWidgetInputChange(commentControlhandle: number, value: string): Promise<void>;
 	$replyToCommentThread(handle: number, document: UriComponents, range: IRange, commentThread: modes.CommentThread, text: string): Promise<modes.CommentThread>;
 	$editComment(handle: number, document: UriComponents, comment: modes.Comment, text: string): Promise<void>;
 	$deleteComment(handle: number, document: UriComponents, comment: modes.Comment): Promise<void>;

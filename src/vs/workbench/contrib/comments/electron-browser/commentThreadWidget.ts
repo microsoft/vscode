@@ -192,6 +192,10 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 		this._bodyElement = <HTMLDivElement>dom.$('.body');
 		container.appendChild(this._bodyElement);
+
+		dom.addDisposableListener(this._bodyElement, dom.EventType.FOCUS_IN, e => {
+			this.commentService.setActiveCommentThread(this._commentThread);
+		});
 	}
 
 	protected _fillHead(container: HTMLElement): void {
@@ -335,6 +339,9 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._commentEditor.setModel(model);
 		this._localToDispose.push(this._commentEditor);
 		this._localToDispose.push(this._commentEditor.getModel().onDidChangeContent(() => this.setCommentEditorDecorations()));
+		this._localToDispose.push(this._commentEditor.getModel().onDidChangeContent(() => {
+			this.commentService.setInput(this._commentEditor.getModel().getValue());
+		}));
 		this.setCommentEditorDecorations();
 
 		// Only add the additional step of clicking a reply button to expand the textarea when there are existing comments
